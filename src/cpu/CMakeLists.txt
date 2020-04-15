@@ -18,6 +18,7 @@ file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp)
 file(GLOB_RECURSE SOURCES_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/matmul/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/rnn/*.[ch]pp
     )
 foreach(SOURCE_FILE ${SOURCES_EXTRA})
     list(APPEND SOURCES "${SOURCE_FILE}")

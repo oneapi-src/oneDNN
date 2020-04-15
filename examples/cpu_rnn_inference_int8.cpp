@@ -338,8 +338,22 @@ void simple_net() {
     attr.set_rnn_data_qparams(data_scale, data_shift);
     attr.set_rnn_weights_qparams(weights_scale_mask, weights_scales);
 
-    auto enc_bidir_prim_desc
-            = lstm_forward::primitive_desc(bi_layer_desc, attr, cpu_engine);
+    // check if int8 LSTM is supported
+    lstm_forward::primitive_desc enc_bidir_prim_desc;
+    try {
+        enc_bidir_prim_desc
+                = lstm_forward::primitive_desc(bi_layer_desc, attr, cpu_engine);
+    } catch (error &e) {
+        if (e.status == dnnl_unimplemented)
+            throw example_allows_unimplemented {
+                    "oneDNN does not have int8 LSTM implementation "
+                    "that supports this system.\n"
+                    "Please refer to the developer guide for details."};
+
+        // on any other error just re-throw
+        throw;
+    }
+
     //[RNN attri]
 
     ///

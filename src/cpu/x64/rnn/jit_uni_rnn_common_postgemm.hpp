@@ -27,7 +27,7 @@
 
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
-#include "cpu/x64/rnn/rnn_utils.hpp"
+#include "cpu/rnn/rnn_utils.hpp"
 
 namespace dnnl {
 namespace impl {

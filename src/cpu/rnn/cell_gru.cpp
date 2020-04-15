@@ -21,12 +21,11 @@
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
 
-#include "cpu/x64/rnn/ref_rnn.hpp"
+#include "cpu/rnn/ref_rnn.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
 
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::math;
@@ -234,7 +233,6 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru) {
 }
 
 #undef AOC
-} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -368,6 +368,19 @@ void simple_net() {
     attr.set_rnn_data_qparams(data_scale, data_shift);
     attr.set_rnn_weights_qparams(weights_scale_mask, weights_scales);
 
+    try {
+        auto enc_bidir_prim_desc
+                = lstm_forward::primitive_desc(bi_layer_desc, attr, cpu_engine);
+    } catch (error &e) {
+        if (e.status == mkldnn_unimplemented) {
+            std::cerr << "Intel MKL-DNN does not have int8 RNN "
+                         "implementation that supports this system. Please "
+                         "refer to the developer guide for details."
+                      << std::endl;
+        }
+        throw;
+    }
+
     auto enc_bidir_prim_desc
             = lstm_forward::primitive_desc(bi_layer_desc, attr, cpu_engine);
     //[RNN attri]

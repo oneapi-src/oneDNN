@@ -20,14 +20,15 @@
 
 #include "common/memory.hpp"
 #include "common/type_helpers.hpp"
+
 #include "cpu/cpu_engine.hpp"
 #include "cpu/cpu_reorder_pd.hpp"
 
+#include "cpu/rnn/rnn_reorders.hpp"
 #include "cpu/simple_reorder.hpp"
 
 #if DNNL_X64
 #include "cpu/x64/jit_uni_reorder.hpp"
-#include "cpu/x64/rnn/rnn_reorders.hpp"
 #include "cpu/x64/wino_reorder.hpp"
 #endif
 
@@ -96,7 +97,7 @@ using impl_list_map_t = std::map<reorder_impl_key_t, std::vector<rpd_create_f>>;
 static const impl_list_map_t regular_impl_list_map {
     // f32 -> bf16
     {{f32, bf16, 0}, {
-        DNNL_X64_ONLY(x64::rnn_weights_reorder_t<f32, bf16>::pd_t::create,)
+        rnn_weights_reorder_t<f32, bf16>::pd_t::create,
 
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
 
@@ -205,7 +206,7 @@ static const impl_list_map_t regular_impl_list_map {
     }},
     {{f32, f32, 5}, {
         DNNL_X64_ONLY(x64::wino_reorder_t<f32, f32>::pd_t::create,)
-        DNNL_X64_ONLY(x64::rnn_weights_reorder_t<f32, f32>::pd_t::create,)
+        rnn_weights_reorder_t<f32, f32>::pd_t::create,
 
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
@@ -290,7 +291,7 @@ static const impl_list_map_t regular_impl_list_map {
     // f32 -> s8
     {{f32, s8, 0}, {
         DNNL_X64_ONLY(x64::wino_reorder_t<f32, s8>::pd_t::create,)
-        DNNL_X64_ONLY(x64::rnn_weights_reorder_s8_t<f32>::pd_t::create,)
+        rnn_weights_reorder_s8_t<f32>::pd_t::create,
 
         REG_FAST_DIRECT_COPY_COMMA(f32, s8)
 
@@ -307,7 +308,7 @@ static const impl_list_map_t regular_impl_list_map {
 
     // f32 -> u8
     {{f32, u8, 0}, {
-        DNNL_X64_ONLY(x64::rnn_data_reorder_t<f32, u8>::pd_t::create,)
+        rnn_data_reorder_t<f32, u8>::pd_t::create,
 
         REG_FAST_DIRECT_COPY_COMMA(f32, u8)
 
@@ -322,7 +323,7 @@ static const impl_list_map_t regular_impl_list_map {
 
     // bf16 ->
     {{bf16, data_type::undef, 0}, {
-        DNNL_X64_ONLY(x64::rnn_weights_reorder_t<bf16, bf16>::pd_t::create,)
+        rnn_weights_reorder_t<bf16, bf16>::pd_t::create,
 
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
 
@@ -373,7 +374,7 @@ static const impl_list_map_t regular_impl_list_map {
 
     // s8 ->
     {{s8, data_type::undef, 0}, {
-       DNNL_X64_ONLY(x64::rnn_weights_reorder_s8_t<s8>::pd_t::create,)
+       rnn_weights_reorder_s8_t<s8>::pd_t::create,
 
        REG_FAST_DIRECT_COPY_COMMA(s8, f32)
        REG_FAST_DIRECT_COPY_COMMA(s8, s32)

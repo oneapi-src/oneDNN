@@ -36,12 +36,11 @@
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm/gemm_pack.hpp"
 
-#include "cpu/x64/rnn/ref_rnn.hpp"
+#include "cpu/rnn/ref_rnn.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
 
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::memory_tracking::names;
@@ -1297,7 +1296,6 @@ template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
 
 #undef AOC
 
-} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

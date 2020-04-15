@@ -60,6 +60,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_inner_product_backward_data.cpp
                               test_inner_product_backward_weights.cpp
                               test_shuffle.cpp
+                              test_rnn_forward.cpp
                               test_convolution_format_any.cpp
                               test_convolution_forward_f32.cpp
                               test_convolution_forward_u8s8s32.cpp
@@ -90,7 +91,6 @@ file(GLOB PRIM_TEST_CASES_SRC
 # Add X64-specific tests
 if(DNNL_TARGET_ARCH STREQUAL "X64")
     file(GLOB X64_PRIM_TEST_CASES_SRC
-        test_rnn_forward.cpp
         test_isa_mask.cpp
         test_isa_iface.cpp
         )
