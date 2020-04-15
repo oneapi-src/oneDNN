@@ -172,8 +172,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         }
     }; // struct pd_t : public base_pd_t
 
-    virtual status_t init(engine_t *engine) override;
-
     _ref_rnn_common_t(const pd_t *apd) : gpu_primitive_t(apd) {
         using namespace rnn_utils;
         /// @todo set max_feature_size assuming that we limit the number of
@@ -236,6 +234,8 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         offset_wei_state_
                 = (size_t *)malloc(sizeof(size_t) * offset_wei_sz, 64);
     }
+
+    virtual status_t init(engine_t *engine) override;
 
     ~_ref_rnn_common_t() {
         free(offset_wei_input_);

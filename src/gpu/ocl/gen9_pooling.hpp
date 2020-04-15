@@ -86,6 +86,8 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
         offsets_t off;
     };
 
+    gen9_pooling_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -96,8 +98,6 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
 
         return status::success;
     }
-
-    gen9_pooling_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -150,6 +150,8 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
         offsets_t off;
     };
 
+    gen9_pooling_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -160,8 +162,6 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
 
         return status::success;
     }
-
-    gen9_pooling_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);

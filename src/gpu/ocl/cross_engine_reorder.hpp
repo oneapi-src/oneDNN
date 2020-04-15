@@ -74,13 +74,13 @@ struct cross_engine_reorder_t : public gpu_primitive_t {
         void init_scratchpad();
     };
 
+    cross_engine_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         if (!pd()->do_reorder_) return status::success;
         auto status = pd()->reorder_pd_->create_primitive(reorder_, engine);
         return status;
     }
-
-    cross_engine_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
