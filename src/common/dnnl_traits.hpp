@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef DNNL_TRAITS_HPP
-#define DNNL_TRAITS_HPP
+#ifndef COMMON_DNNL_TRAITS_HPP
+#define COMMON_DNNL_TRAITS_HPP
 
 #include <assert.h>
 #include <stdint.h>

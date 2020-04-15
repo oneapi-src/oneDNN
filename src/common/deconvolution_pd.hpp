@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef DECONVOLUTION_PD_HPP
-#define DECONVOLUTION_PD_HPP
+#ifndef COMMON_DECONVOLUTION_PD_HPP
+#define COMMON_DECONVOLUTION_PD_HPP
 
 #include "dnnl.h"
 

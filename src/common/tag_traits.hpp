@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef TAG_TRAITS_HPP
-#define TAG_TRAITS_HPP
+#ifndef COMMON_TAG_TRAITS_HPP
+#define COMMON_TAG_TRAITS_HPP
 
 #include <assert.h>
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MATMUL_PD_HPP
-#define MATMUL_PD_HPP
+#ifndef COMMON_MATMUL_PD_HPP
+#define COMMON_MATMUL_PD_HPP
 
 #include <assert.h>
 

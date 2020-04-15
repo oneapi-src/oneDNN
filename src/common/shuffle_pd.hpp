@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SHUFFLE_PD_HPP
-#define SHUFFLE_PD_HPP
+#ifndef COMMON_SHUFFLE_PD_HPP
+#define COMMON_SHUFFLE_PD_HPP
 
 #include "dnnl.h"
 

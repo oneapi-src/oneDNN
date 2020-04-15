@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CONVOLUTION_PD_HPP
-#define CONVOLUTION_PD_HPP
+#ifndef COMMON_CONVOLUTION_PD_HPP
+#define COMMON_CONVOLUTION_PD_HPP
 
 #include "dnnl.h"
 

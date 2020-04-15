@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef RESAMPLING_PD_HPP
-#define RESAMPLING_PD_HPP
+#ifndef COMMON_RESAMPLING_PD_HPP
+#define COMMON_RESAMPLING_PD_HPP
 
 #include <assert.h>
 

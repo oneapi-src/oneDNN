@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef REORDER_PD_HPP
-#define REORDER_PD_HPP
+#ifndef COMMON_REORDER_PD_HPP
+#define COMMON_REORDER_PD_HPP
 
 #include <assert.h>
 

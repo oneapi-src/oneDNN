@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef SCRATCHPAD_DEBUG_HPP
-#define SCRATCHPAD_DEBUG_HPP
+#ifndef COMMON_SCRATCHPAD_DEBUG_HPP
+#define COMMON_SCRATCHPAD_DEBUG_HPP
 
 #include <stdint.h>
 

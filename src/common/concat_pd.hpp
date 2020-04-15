@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CONCAT_PD_HPP
-#define CONCAT_PD_HPP
+#ifndef COMMON_CONCAT_PD_HPP
+#define COMMON_CONCAT_PD_HPP
 
 #include <assert.h>
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef PRIMITIVE_CACHE_HPP
-#define PRIMITIVE_CACHE_HPP
+#ifndef COMMON_PRIMITIVE_CACHE_HPP
+#define COMMON_PRIMITIVE_CACHE_HPP
 
 #include <list>
 #include <memory>

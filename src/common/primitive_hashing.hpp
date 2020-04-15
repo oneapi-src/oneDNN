@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef PRIMITIVE_HASHING_HPP
-#define PRIMITIVE_HASHING_HPP
+#ifndef COMMON_PRIMITIVE_HASHING_HPP
+#define COMMON_PRIMITIVE_HASHING_HPP
 
 #include <typeindex>
 

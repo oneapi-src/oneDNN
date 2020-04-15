@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef PRIMITIVE_DESC_HPP
-#define PRIMITIVE_DESC_HPP
+#ifndef COMMON_PRIMITIVE_DESC_HPP
+#define COMMON_PRIMITIVE_DESC_HPP
 
 #include <typeindex>
 

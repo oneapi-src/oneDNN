@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef BATCH_NORMALIZATION_PD_HPP
-#define BATCH_NORMALIZATION_PD_HPP
+#ifndef COMMON_BATCH_NORMALIZATION_PD_HPP
+#define COMMON_BATCH_NORMALIZATION_PD_HPP
 
 #include "dnnl.h"
 

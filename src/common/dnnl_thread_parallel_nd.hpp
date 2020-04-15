@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef DNNL_THREAD_PARALLEL_ND_HPP
-#define DNNL_THREAD_PARALLEL_ND_HPP
+#ifndef COMMON_DNNL_THREAD_PARALLEL_ND_HPP
+#define COMMON_DNNL_THREAD_PARALLEL_ND_HPP
 
 /* This header must be included by dnnl_thread.hpp only */
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef DNNL_THREAD_HPP
-#define DNNL_THREAD_HPP
+#ifndef COMMON_DNNL_THREAD_HPP
+#define COMMON_DNNL_THREAD_HPP
 
 #include <algorithm>
 

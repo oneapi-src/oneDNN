@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef VERBOSE_HPP
-#define VERBOSE_HPP
+#ifndef COMMON_VERBOSE_HPP
+#define COMMON_VERBOSE_HPP
 
 #include <cinttypes>
 #include <mutex>

@@ -14,8 +14,8 @@
  * limitations under the License.
  *******************************************************************************/
 
-#ifndef MEMORY_DEBUG_HPP
-#define MEMORY_DEBUG_HPP
+#ifndef COMMON_MEMORY_DEBUG_HPP
+#define COMMON_MEMORY_DEBUG_HPP
 
 #ifndef DNNL_MEM_DEBUG_PROTECT_SIZE
 #define DNNL_MEM_DEBUG_PROTECT_SIZE 1

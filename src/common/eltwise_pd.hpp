@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef ELTWISE_PD_HPP
-#define ELTWISE_PD_HPP
+#ifndef COMMON_ELTWISE_PD_HPP
+#define COMMON_ELTWISE_PD_HPP
 
 #include "dnnl.h"
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef PRIMITIVE_EXEC_TYPES_HPP
-#define PRIMITIVE_EXEC_TYPES_HPP
+#ifndef COMMON_PRIMITIVE_EXEC_TYPES_HPP
+#define COMMON_PRIMITIVE_EXEC_TYPES_HPP
 
 #include <unordered_map>
 

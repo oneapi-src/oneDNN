@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SOFTMAX_PD_HPP
-#define SOFTMAX_PD_HPP
+#ifndef COMMON_SOFTMAX_PD_HPP
+#define COMMON_SOFTMAX_PD_HPP
 
 #include "dnnl.h"
 

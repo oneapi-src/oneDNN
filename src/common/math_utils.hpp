@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MATH_UTILS_HPP
-#define MATH_UTILS_HPP
+#ifndef COMMON_MATH_UTILS_HPP
+#define COMMON_MATH_UTILS_HPP
 
 #include <math.h>
 #include <stdint.h>

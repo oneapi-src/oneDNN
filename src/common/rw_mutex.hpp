@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef RW_MUTEX_HPP
-#define RW_MUTEX_HPP
+#ifndef COMMON_RW_MUTEX_HPP
+#define COMMON_RW_MUTEX_HPP
 
 #include "utils.hpp"
 
