@@ -25,20 +25,11 @@
 #include "cpu/ref_batch_normalization.hpp"
 #include "cpu/simple_q10n.hpp"
 
-#define DECLARE_DATA_OFFSET \
-    auto data_offset = [&](const memory_desc_wrapper &data_d, int n, int c, \
-                               int d, int h, int w) { \
-        if (has_spatial) { \
-            if (is_3d) \
-                return data_d.off(n, c, d, h, w); \
-            else if (is_1d) \
-                return data_d.off(n, c, w); \
-            else \
-                return data_d.off(n, c, h, w); \
-        } else { \
-            return data_d.off(n, c); \
-        } \
-    }
+#define DATA_OFF(f, n, c, d, h, w) \
+    (ndims == 2) ? (f).off(n, c) \
+                 : ((ndims == 3) ? (f).off(n, c, w) \
+                                 : ((ndims == 4) ? (f).off(n, c, h, w) \
+                                                 : (f).off(n, c, d, h, w)))
 
 namespace dnnl {
 namespace impl {
@@ -87,22 +78,19 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
     const memory_desc_wrapper data_d(pd()->src_md());
     const memory_desc_wrapper scaleshift_d(pd()->weights_md());
 
-    const dim_t N = pd()->MB();
-    const dim_t C = pd()->C();
-    dim_t H = 1, W = 1, D = 1;
-    const bool has_spatial = utils::one_of(data_d.ndims(), 3, 4, 5);
-    if (has_spatial) {
-        D = pd()->D();
-        H = pd()->H();
-        W = pd()->W();
-    }
+    const auto ndims = data_d.ndims();
+    const auto N = pd()->MB();
+    const auto C = pd()->C();
+    const auto D = pd()->D();
+    const auto H = pd()->H();
+    const auto W = pd()->W();
 
-    const float eps = pd()->desc()->batch_norm_epsilon;
-    const bool use_scaleshift = pd()->use_scaleshift();
-    const bool save_stats = pd()->is_training();
-    const bool is_training = pd()->is_training();
-    const bool fuse_norm_relu = pd()->fuse_norm_relu();
-    const bool calculate_stats = !pd()->stats_is_src();
+    const auto eps = pd()->desc()->batch_norm_epsilon;
+    const auto use_scaleshift = pd()->use_scaleshift();
+    const auto calculate_stats = !pd()->stats_is_src();
+    const auto fuse_norm_relu = pd()->fuse_norm_relu();
+    const auto save_stats = pd()->is_training();
+    const auto is_training = pd()->is_training();
 
     /* fast return */
     if (this->pd()->has_zero_dim_memory()) {
@@ -118,11 +106,6 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
     auto maybe_post_op = [&](acc_data_t res) {
         return (with_relu && res < 0.0f) ? 0.0f : res;
     };
-    const bool is_3d = data_d.ndims() == 5;
-    const bool is_1d = data_d.ndims() == 3;
-
-    // auto data_offset(const memory_desc_wrapper &, int, int, int, int, int)
-    DECLARE_DATA_OFFSET;
 
     parallel_nd(C, [&](dim_t c) {
         acc_data_t v_mean = calculate_stats ? 0 : mean[c];
@@ -134,7 +117,7 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
             for_(int h = 0; h < H; ++h)
             for (int w = 0; w < W; ++w) {
                 v_mean += maybe_up_convert(
-                        src[data_offset(data_d, n, c, d, h, w)]);
+                        src[DATA_OFF(data_d, n, c, d, h, w)]);
             }
             v_mean /= W * N * H * D;
 
@@ -142,7 +125,7 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
             for_(int d = 0; d < D; ++d)
             for_(int h = 0; h < H; ++h)
             for (int w = 0; w < W; ++w) {
-                acc_data_t m = src[data_offset(data_d, n, c, d, h, w)] - v_mean;
+                acc_data_t m = src[DATA_OFF(data_d, n, c, d, h, w)] - v_mean;
                 v_variance += m * m;
             }
             v_variance /= W * H * N * D;
@@ -158,7 +141,7 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
         for_(dim_t d = 0; d < D; ++d)
         for_(dim_t h = 0; h < H; ++h)
         for (dim_t w = 0; w < W; ++w) {
-            auto d_off = data_offset(data_d, n, c, d, h, w);
+            auto d_off = DATA_OFF(data_d, n, c, d, h, w);
             acc_data_t bn_res
                     = sm * (maybe_up_convert(src[d_off]) - v_mean) + sv;
             if (fuse_norm_relu) {
@@ -206,7 +189,17 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
     const memory_desc_wrapper scaleshift_d(pd()->weights_md());
     const memory_desc_wrapper diff_scaleshift_d(pd()->diff_weights_md());
 
-    const dim_t C = pd()->C();
+    const auto ndims = data_d.ndims();
+    const auto N = pd()->MB();
+    const auto C = pd()->C();
+    const auto D = pd()->D();
+    const auto H = pd()->H();
+    const auto W = pd()->W();
+
+    const auto eps = pd()->desc()->batch_norm_epsilon;
+    const auto use_scaleshift = pd()->use_scaleshift();
+    const auto calculate_diff_stats = !pd()->use_global_stats();
+    const auto fuse_norm_relu = pd()->fuse_norm_relu();
 
     /* fast return */
     if (this->pd()->has_zero_dim_memory()) {
@@ -219,51 +212,30 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
         return;
     }
 
-    const dim_t N = pd()->MB();
-    dim_t H = 1, W = 1, D = 1;
-    const bool has_spatial = utils::one_of(data_d.ndims(), 3, 4, 5);
-    if (has_spatial) {
-        D = pd()->D();
-        H = pd()->H();
-        W = pd()->W();
-    }
-
-    const float eps = pd()->desc()->batch_norm_epsilon;
-    const bool use_scaleshift = pd()->use_scaleshift();
-    const bool calculate_diff_stats = !pd()->use_global_stats();
-    const bool fuse_norm_relu = pd()->fuse_norm_relu();
-
-    const bool is_3d = data_d.ndims() == 5;
-    const bool is_1d = data_d.ndims() == 3;
-
-    // auto data_offset(const memory_desc_wrapper &, int, int, int, int, int)
-    DECLARE_DATA_OFFSET;
-
     parallel_nd(C, [&](dim_t c) {
-        acc_data_t v_mean = mean[c]; //!!?? maybe mean_d.off(c) ?
+        acc_data_t v_mean = mean[c];
         acc_data_t v_variance = variance[c];
         acc_data_t sqrt_variance
                 = static_cast<acc_data_t>(1.0f / sqrtf(v_variance + eps));
         acc_data_t gamma
                 = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 1;
-        acc_data_t diff_gamma = acc_data_t(0);
-        acc_data_t diff_beta = acc_data_t(0);
+        acc_data_t diff_gamma = 0;
+        acc_data_t diff_beta = 0;
 
-        for (dim_t n = 0; n < N; ++n)
-            for (dim_t d = 0; d < D; ++d)
-                for (dim_t h = 0; h < H; ++h)
-                    for (dim_t w = 0; w < W; ++w) {
-                        const size_t s_off = data_offset(data_d, n, c, d, h, w);
-                        acc_data_t dd;
-                        if (fuse_norm_relu && !ws[s_off])
-                            dd = 0;
-                        else
-                            dd = maybe_up_convert(diff_dst[data_offset(
-                                    diff_data_d, n, c, d, h, w)]);
-                        diff_gamma
-                                += (maybe_up_convert(src[s_off]) - v_mean) * dd;
-                        diff_beta += dd;
-                    }
+        for_(dim_t n = 0; n < N; ++n)
+        for_(dim_t d = 0; d < D; ++d)
+        for_(dim_t h = 0; h < H; ++h)
+        for (dim_t w = 0; w < W; ++w) {
+            const size_t s_off = DATA_OFF(data_d, n, c, d, h, w);
+            acc_data_t dd;
+            if (fuse_norm_relu && !ws[s_off])
+                dd = 0;
+            else
+                dd = maybe_up_convert(
+                        diff_dst[DATA_OFF(diff_data_d, n, c, d, h, w)]);
+            diff_gamma += (maybe_up_convert(src[s_off]) - v_mean) * dd;
+            diff_beta += dd;
+        }
         diff_gamma *= sqrt_variance;
 
         if (diff_scaleshift) {
@@ -275,8 +247,8 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
         for_(dim_t d = 0; d < D; ++d)
         for_(dim_t h = 0; h < H; ++h)
         for (dim_t w = 0; w < W; ++w) {
-            const size_t s_off = data_offset(data_d, n, c, d, h, w);
-            const size_t dd_off = data_offset(diff_data_d, n, c, d, h, w);
+            const size_t s_off = DATA_OFF(data_d, n, c, d, h, w);
+            const size_t dd_off = DATA_OFF(diff_data_d, n, c, d, h, w);
             acc_data_t dd;
             if (fuse_norm_relu && !ws[s_off])
                 dd = 0;
