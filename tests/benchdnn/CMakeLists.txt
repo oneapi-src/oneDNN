@@ -111,6 +111,8 @@ register_benchdnn_test(test_benchdnn_conv_bfloat16 # temporary proxy
     cpu "--conv --batch=inputs/conv/test_conv_bfloat16")
 register_benchdnn_test(test_benchdnn_conv_bf16
     cpu "--conv --batch=inputs/conv/test_conv_bfloat16")
+register_benchdnn_test(test_benchdnn_conv_nxc_bf16
+    cpu "--conv --batch=inputs/conv/test_conv_nxc_bfloat16")
 register_benchdnn_test(test_benchdnn_conv_f32
     cpu "--conv --batch=inputs/conv/test_conv_f32")
 register_benchdnn_test(test_benchdnn_conv_f32_nxc
@@ -151,6 +153,8 @@ register_benchdnn_test(test_benchdnn_deconv_nxc_f32
     cpu "--deconv --batch=inputs/deconv/test_deconv_all_nxc_f32")
 register_benchdnn_test(test_benchdnn_deconv_bf16
     cpu "--deconv --batch=inputs/deconv/test_deconv_bfloat16")
+register_benchdnn_test(test_benchdnn_deconv_nxc_bf16
+    cpu "--deconv --batch=inputs/deconv/test_deconv_nxc_bfloat16")
 register_benchdnn_test(test_benchdnn_matmul
     cpu "--matmul --batch=inputs/matmul/test_matmul_all")
 register_benchdnn_test(test_benchdnn_resampling
