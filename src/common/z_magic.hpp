@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef Z_MAGIC_HPP
-#define Z_MAGIC_HPP
+#ifndef COMMON_Z_MAGIC_HPP
+#define COMMON_Z_MAGIC_HPP
 
 #define for_ for
 

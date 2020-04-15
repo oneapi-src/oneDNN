@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SUM_PD_HPP
-#define SUM_PD_HPP
+#ifndef COMMON_SUM_PD_HPP
+#define COMMON_SUM_PD_HPP
 
 #include <assert.h>
 #include "dnnl.h"

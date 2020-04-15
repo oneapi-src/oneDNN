@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MEMORY_TRACKING_HPP
-#define MEMORY_TRACKING_HPP
+#ifndef COMMON_MEMORY_TRACKING_HPP
+#define COMMON_MEMORY_TRACKING_HPP
 
 #include <assert.h>
 #include <unordered_map>

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef UTILS_HPP
-#define UTILS_HPP
+#ifndef COMMON_UTILS_HPP
+#define COMMON_UTILS_HPP
 
 #include <cassert>
 #include <cstddef>

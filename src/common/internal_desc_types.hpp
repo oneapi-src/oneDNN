@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef INTERNAL_DESC_TYPES_HPP
-#define INTERNAL_DESC_TYPES_HPP
+#ifndef COMMON_INTERNAL_DESC_TYPES_HPP
+#define COMMON_INTERNAL_DESC_TYPES_HPP
 
 #include <vector>
 #include "dnnl_types.h"

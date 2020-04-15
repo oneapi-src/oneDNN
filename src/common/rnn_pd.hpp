@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef RNN_PD_HPP
-#define RNN_PD_HPP
+#ifndef COMMON_RNN_PD_HPP
+#define COMMON_RNN_PD_HPP
 
 #include "dnnl.h"
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_TYPES_HPP
-#define GEMM_TYPES_HPP
+#ifndef COMMON_GEMM_TYPES_HPP
+#define COMMON_GEMM_TYPES_HPP
 
 #include "dnnl_types.h"
 
@@ -84,4 +84,4 @@ struct dnnl_gemm_desc_t {
 } // namespace impl
 } // namespace dnnl
 
-#endif // GEMM_TYPES_HPP
+#endif // COMMON_GEMM_TYPES_HPP

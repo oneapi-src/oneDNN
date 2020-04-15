@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef PRIMITIVE_ATTR_HPP
-#define PRIMITIVE_ATTR_HPP
+#ifndef COMMON_PRIMITIVE_ATTR_HPP
+#define COMMON_PRIMITIVE_ATTR_HPP
 
 #include <map>
 #include <initializer_list>

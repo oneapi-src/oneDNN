@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef TYPE_HELPERS_HPP
-#define TYPE_HELPERS_HPP
+#ifndef COMMON_TYPE_HELPERS_HPP
+#define COMMON_TYPE_HELPERS_HPP
 
 #include <assert.h>
 #include <math.h>

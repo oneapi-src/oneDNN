@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef BINARY_PD_HPP
-#define BINARY_PD_HPP
+#ifndef COMMON_BINARY_PD_HPP
+#define COMMON_BINARY_PD_HPP
 
 #include <assert.h>
 

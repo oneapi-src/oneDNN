@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef NSTL_HPP
-#define NSTL_HPP
+#ifndef COMMON_NSTL_HPP
+#define COMMON_NSTL_HPP
 
 #include <float.h>
 #include <limits.h>

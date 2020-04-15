@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef PRIMITIVE_HPP
-#define PRIMITIVE_HPP
+#ifndef COMMON_PRIMITIVE_HPP
+#define COMMON_PRIMITIVE_HPP
 
 #include <assert.h>
 

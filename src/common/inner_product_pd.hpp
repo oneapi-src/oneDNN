@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef INNER_PRODUCT_PD_HPP
-#define INNER_PRODUCT_PD_HPP
+#ifndef COMMON_INNER_PRODUCT_PD_HPP
+#define COMMON_INNER_PRODUCT_PD_HPP
 
 #include "dnnl.h"
 

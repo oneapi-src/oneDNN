@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef POOLING_PD_HPP
-#define POOLING_PD_HPP
+#ifndef COMMON_POOLING_PD_HPP
+#define COMMON_POOLING_PD_HPP
 
 #include "dnnl.h"
 

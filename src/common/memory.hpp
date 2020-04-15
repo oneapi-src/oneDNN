@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MEMORY_HPP
-#define MEMORY_HPP
+#ifndef COMMON_MEMORY_HPP
+#define COMMON_MEMORY_HPP
 
 #include <assert.h>
 #include <memory>

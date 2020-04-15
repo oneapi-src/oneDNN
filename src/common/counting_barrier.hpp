@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COUNTING_BARRIER_HPP
-#define COUNTING_BARRIER_HPP
+#ifndef COMMON_COUNTING_BARRIER_HPP
+#define COMMON_COUNTING_BARRIER_HPP
 
 #include <atomic>
 #include <chrono>

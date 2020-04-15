@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef PRIMITIVE_ITERATOR_HPP
-#define PRIMITIVE_ITERATOR_HPP
+#ifndef COMMON_PRIMITIVE_ITERATOR_HPP
+#define COMMON_PRIMITIVE_ITERATOR_HPP
 
 #include "dnnl.h"
 

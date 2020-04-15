@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MEMORY_STORAGE_HPP
-#define MEMORY_STORAGE_HPP
+#ifndef COMMON_MEMORY_STORAGE_HPP
+#define COMMON_MEMORY_STORAGE_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"

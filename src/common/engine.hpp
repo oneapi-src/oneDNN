@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef ENGINE_HPP
-#define ENGINE_HPP
+#ifndef COMMON_ENGINE_HPP
+#define COMMON_ENGINE_HPP
 
 #include "dnnl.h"
 

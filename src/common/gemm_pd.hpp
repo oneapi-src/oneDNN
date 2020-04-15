@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_PD_HPP
-#define GEMM_PD_HPP
+#ifndef COMMON_GEMM_PD_HPP
+#define COMMON_GEMM_PD_HPP
 
 #include "dnnl.h"
 

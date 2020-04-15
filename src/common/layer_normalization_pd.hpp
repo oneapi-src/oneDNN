@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LAYER_NORMALIZATION_PD_HPP
-#define LAYER_NORMALIZATION_PD_HPP
+#ifndef COMMON_LAYER_NORMALIZATION_PD_HPP
+#define COMMON_LAYER_NORMALIZATION_PD_HPP
 
 #include "dnnl.h"
 
