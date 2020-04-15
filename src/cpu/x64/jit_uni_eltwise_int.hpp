@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct jit_uni_eltwise_int_kernel;
 
@@ -61,6 +62,7 @@ private:
     jit_uni_eltwise_int_kernel *kernel_ = nullptr;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

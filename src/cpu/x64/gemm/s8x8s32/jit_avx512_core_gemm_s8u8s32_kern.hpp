@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 class jit_avx512_core_gemm_s8u8s32_kern : public jit_generator {
 public:
@@ -80,6 +81,7 @@ private:
     Xbyak::Address coffset_cx_, coffset_cy_, coffset_rx_, coffset_ry_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

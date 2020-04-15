@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace bf16_support {
 struct jit_call_t {
@@ -651,6 +652,7 @@ private:
 };
 
 #undef GET_OFF
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

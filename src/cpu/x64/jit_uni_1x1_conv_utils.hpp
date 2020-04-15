@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct reduce_to_unit_stride_t {
     convolution_desc_t conv_d_;
@@ -369,6 +370,7 @@ inline int best_divider(int value, int min_divider, int max_divider,
     return x_divider;
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     jit_avx512_common_1x1_conv_kernel(
@@ -96,6 +97,7 @@ private:
     static void balance(jit_1x1_conv_conf_t &jcp);
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

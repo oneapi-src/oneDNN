@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace {
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
@@ -113,8 +114,6 @@ bool init_max_cpu_isa() {
 #endif
 } // namespace
 
-namespace x64 {
-
 const char *get_isa_info() {
     /* oneDNN CPU ISA info */
     const char *ISA_ANY = "Intel 64";
@@ -145,7 +144,7 @@ const char *get_isa_info() {
     return ISA_ANY;
 }
 
-cpu::cpu_isa_t get_max_cpu_isa(bool soft) {
+cpu_isa_t get_max_cpu_isa(bool soft) {
     MAYBE_UNUSED(soft);
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
     init_max_cpu_isa();
@@ -187,8 +186,8 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
     return unimplemented;
 #endif
 }
-} // namespace x64
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

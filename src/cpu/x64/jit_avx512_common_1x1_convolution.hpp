@@ -37,6 +37,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
         impl::data_type_t dst_type = src_type>
@@ -479,6 +480,7 @@ private:
     rtus_driver_t<avx512_common> *rtus_driver_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

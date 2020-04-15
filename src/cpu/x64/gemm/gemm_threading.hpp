@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 enum class partition_type { row_1d, col_1d, col_major_2d, mnk_3d };
 
@@ -113,6 +114,7 @@ struct gemm_threading_t {
     int thr_k_stride() const { return nthrs_m * nthrs_n; }
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

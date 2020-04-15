@@ -22,12 +22,14 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 namespace jit_utils {
 
 void register_jit_code(const void *code, size_t code_size,
         const char *code_name, const char *source_file_name);
 
 }
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

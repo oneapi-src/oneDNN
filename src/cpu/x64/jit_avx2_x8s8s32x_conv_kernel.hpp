@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <typename Vmm>
 struct _jit_avx2_x8s8s32x_fwd_kernel : public jit_generator {
@@ -211,6 +212,7 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx2_x8s8s32x_fwd_kernel);
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

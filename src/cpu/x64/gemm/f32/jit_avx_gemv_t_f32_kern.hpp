@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 class jit_avx_gemv_t_f32_kern : public jit_generator {
 public:
@@ -61,6 +62,7 @@ private:
     Xbyak::Address arg_lda_, arg_x_, arg_incy_, arg_y_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <cpu_isa_t isa>
 struct jit_uni_eltwise_injector_f32 {
@@ -237,6 +238,7 @@ private:
     table_t entry_map_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -95,6 +95,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace rnn_utils {
 
@@ -900,6 +901,7 @@ private:
     int DHC_;
 };
 } // namespace rnn_utils
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

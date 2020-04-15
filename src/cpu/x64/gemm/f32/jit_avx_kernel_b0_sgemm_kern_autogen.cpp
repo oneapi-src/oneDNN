@@ -21,6 +21,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 jit_avx_kernel_b0_sgemm_kern::jit_avx_kernel_b0_sgemm_kern()
     : jit_generator(nullptr, F32_COMPUTE_KERNEL_CODE_SIZE) {
@@ -4608,6 +4609,7 @@ jit_avx_kernel_b0_sgemm_kern::jit_avx_kernel_b0_sgemm_kern()
 #undef OLD_LDC
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

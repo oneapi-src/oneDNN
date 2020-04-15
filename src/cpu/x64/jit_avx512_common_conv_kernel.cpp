@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::memory_tracking::names;
@@ -5016,6 +5017,7 @@ template struct _jit_avx512_common_conv_bwd_data_kernel_f32<Zmm>;
 template struct _jit_avx512_common_conv_bwd_data_kernel_f32<Ymm>;
 template struct _jit_avx512_common_conv_bwd_data_kernel_f32<Xmm>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

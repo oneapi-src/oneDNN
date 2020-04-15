@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::math;
@@ -300,6 +301,7 @@ rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_part2_postgemm) {
 }
 
 #undef AOC
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

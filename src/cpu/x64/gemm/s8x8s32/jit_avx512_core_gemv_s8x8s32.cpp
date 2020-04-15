@@ -33,6 +33,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace {
 
@@ -341,6 +342,7 @@ int jump_to_gemv_s8x8s32(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
     return jump_to_gemv_s8x8s32_impl(arg);
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

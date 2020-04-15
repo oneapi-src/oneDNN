@@ -36,6 +36,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace {
 
@@ -1142,6 +1143,7 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
 
     return res;
 }
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

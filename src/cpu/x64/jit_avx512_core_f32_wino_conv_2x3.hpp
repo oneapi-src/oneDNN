@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t;
 struct jit_avx512_core_f32_wino_conv_2x3_src_trans_t;
@@ -138,6 +139,7 @@ private:
     jit_avx512_core_f32_wino_conv_2x3_dst_trans_t *dst_trans_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

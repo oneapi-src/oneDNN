@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace Xbyak;
 
@@ -412,6 +413,7 @@ template struct jit_uni_eltwise_int_fwd_t<sse41, s8>;
 template struct jit_uni_eltwise_int_fwd_t<avx2, s8>;
 template struct jit_uni_eltwise_int_fwd_t<avx512_common, s8>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

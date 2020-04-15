@@ -41,6 +41,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::memory_tracking::names;
@@ -427,7 +428,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             }
         }
     }
-} // namespace cpu
+}
 
 //********* GRID computations strategy: utility functions **********//
 
@@ -1295,6 +1296,8 @@ template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
         data_type::s8, data_type::s32>;
 
 #undef AOC
+
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

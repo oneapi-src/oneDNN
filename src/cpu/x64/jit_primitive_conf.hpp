@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 /* convolution */
 enum conv_version_t {
@@ -552,6 +553,7 @@ struct jit_pool_call_s {
     float ker_area_h;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

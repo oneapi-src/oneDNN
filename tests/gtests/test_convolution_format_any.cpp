@@ -46,7 +46,7 @@ protected:
         // Skip this test if the library cannot select blocked format a priori.
         // Currently blocking is supported only for sse41 and later CPUs.
         bool implementation_supports_blocking
-                = impl::cpu::mayiuse(impl::cpu::sse41);
+                = impl::cpu::x64::mayiuse(impl::cpu::x64::sse41);
         if (!implementation_supports_blocking) return;
 #else
         return;

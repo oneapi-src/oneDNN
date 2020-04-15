@@ -22,13 +22,16 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 namespace inner_product_utils {
 
 template <data_type_t acc_type, data_type_t dst_type>
-pp_kernel_t<acc_type, dst_type> *jit_pp_kernel_create(size_t OC, size_t MB,
-        const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum);
+cpu::inner_product_utils::pp_kernel_t<acc_type, dst_type> *jit_pp_kernel_create(
+        size_t OC, size_t MB, const primitive_attr_t *attr, data_type_t bias_dt,
+        bool skip_sum);
 
 } // namespace inner_product_utils
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

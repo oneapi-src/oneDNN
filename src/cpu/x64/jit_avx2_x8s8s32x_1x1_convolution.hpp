@@ -35,6 +35,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
 struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
@@ -380,6 +381,7 @@ private:
     dw_conv_kernel_t *kernel_dw_ = nullptr;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

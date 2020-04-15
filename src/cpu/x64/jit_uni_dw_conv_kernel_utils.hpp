@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_fwd_kernel {
@@ -563,6 +564,7 @@ template struct jit_uni_dw_conv_bwd_weights_kernel<avx512_common,
         data_type::f32>;
 template struct jit_uni_dw_conv_bwd_weights_kernel<avx2, data_type::f32>;
 template struct jit_uni_dw_conv_bwd_weights_kernel<sse41, data_type::f32>;
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

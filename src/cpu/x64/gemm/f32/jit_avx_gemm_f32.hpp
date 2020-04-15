@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
         const dim_t *M, const dim_t *N, const dim_t *K, const float *alpha,
@@ -39,6 +40,7 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, dim_t m,
         const float *bias, float *ws);
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

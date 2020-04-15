@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 static inline dim_t get_offset(
         const memory_desc_wrapper &mdw, int n, int c, int d, int h, int w) {
@@ -1244,6 +1245,7 @@ template struct jit_uni_i8i8_pooling_fwd_t<avx512_core>;
 template struct jit_uni_i8i8_pooling_fwd_ker_t<avx2>;
 template struct jit_uni_i8i8_pooling_fwd_t<avx2>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 namespace gemm_utils {
 
 template <typename T>
@@ -104,6 +105,7 @@ dnnl_status_t pack_no_copy(const T *src, dim_t ld_src, dim_t nrows, dim_t ncols,
 }
 
 } // namespace gemm_utils
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

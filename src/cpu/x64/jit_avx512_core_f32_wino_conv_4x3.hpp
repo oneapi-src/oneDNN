@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace winograd_avx512_core {
 inline void init_scratchpad(memory_tracking::registrar_t &scratchpad,
@@ -365,6 +366,7 @@ private:
     jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel *kernel_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

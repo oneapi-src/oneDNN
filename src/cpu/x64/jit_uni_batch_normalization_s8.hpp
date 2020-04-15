@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace bnorm_s8_impl {
 template <cpu_isa_t isa>
@@ -63,6 +64,7 @@ private:
     bnorm_s8_impl::driver_t<isa> *bnorm_driver_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

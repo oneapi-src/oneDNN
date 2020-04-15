@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace Xbyak;
 
@@ -942,6 +943,7 @@ void jit_avx512_dw_conv_bwd_weights_kernel_bf16::generate() {
     postamble();
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

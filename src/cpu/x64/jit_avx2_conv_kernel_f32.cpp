@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::format_tag;
@@ -1518,6 +1519,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
     }
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

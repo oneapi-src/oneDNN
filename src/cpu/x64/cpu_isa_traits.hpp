@@ -42,6 +42,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 enum cpu_isa_bit_t : unsigned {
     sse41_bit = 1u << 0,
@@ -69,12 +70,10 @@ enum cpu_isa_t : unsigned {
     isa_all = ~0u,
 };
 
-namespace x64 {
 const char *get_isa_info();
 
-cpu::cpu_isa_t DNNL_API get_max_cpu_isa(bool soft = false);
+cpu_isa_t DNNL_API get_max_cpu_isa(bool soft = false);
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
-} // namespace x64
 
 template <cpu_isa_t>
 struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
@@ -211,6 +210,7 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
     prefix suffix_if_any))))))))))
 /* clang-format on */
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

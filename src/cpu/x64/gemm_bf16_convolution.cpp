@@ -26,11 +26,12 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
-using namespace dnnl::impl::cpu::bf16_support;
+using namespace dnnl::impl::cpu::x64::bf16_support;
 
 // This code is moved out from execute_backward_data() and
 // execute_backward_weights() to avoid warnings with gcc 7.x compilers:
@@ -691,6 +692,7 @@ template struct gemm_bf16_convolution_bwd_data_t<data_type::bf16>;
 template struct gemm_bf16_convolution_bwd_weights_t<data_type::f32>;
 template struct gemm_bf16_convolution_bwd_weights_t<data_type::bf16>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

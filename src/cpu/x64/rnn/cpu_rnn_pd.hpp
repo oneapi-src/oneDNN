@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct cpu_rnn_fwd_pd_t : public rnn_fwd_pd_t {
     using rnn_fwd_pd_t::rnn_fwd_pd_t;
@@ -273,6 +274,7 @@ protected:
         return ok ? status::success : status::unimplemented;
     }
 };
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

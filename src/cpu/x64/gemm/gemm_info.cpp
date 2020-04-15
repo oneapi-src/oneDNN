@@ -43,6 +43,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 static inline int decode_trans(char trans) {
     switch (trans) {
@@ -718,6 +719,7 @@ template // For gemm_bf16bf16f32
 template // For sgemm.
         struct gemm_info_t<float, float, float>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

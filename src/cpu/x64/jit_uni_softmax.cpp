@@ -39,6 +39,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace {
 
@@ -791,6 +792,7 @@ template struct jit_uni_softmax_fwd_t<avx2>;
 template struct jit_uni_softmax_fwd_t<avx512_common>;
 template struct jit_uni_softmax_bwd_t<avx512_common>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

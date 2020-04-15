@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <data_type_t type_i, data_type_t type_o>
 struct wino_reorder_t : public primitive_t {
@@ -424,6 +425,7 @@ private:
     int size_wspace_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

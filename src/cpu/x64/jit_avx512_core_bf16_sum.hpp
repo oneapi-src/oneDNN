@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct jit_sum_conf_t {
     int num_srcs;
@@ -220,6 +221,7 @@ private:
     jit_avx512_core_bf16_sum_kernel *kernel_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

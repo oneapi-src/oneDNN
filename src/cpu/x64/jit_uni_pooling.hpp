@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
 struct jit_uni_pooling_fwd_t : public primitive_t {
@@ -160,6 +161,7 @@ private:
     static constexpr data_type_t wsp_dt_ = data_type::f32;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

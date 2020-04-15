@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace tr {
 
@@ -122,6 +123,7 @@ status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd, engine_t *engine,
         const memory_desc_t *src_md, engine_t *dst_engine,
         const memory_desc_t *dst_md);
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

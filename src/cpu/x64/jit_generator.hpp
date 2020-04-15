@@ -43,6 +43,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 // TODO: move this to jit_generator class?
 namespace {
@@ -1384,6 +1385,7 @@ public:
     }
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -48,6 +48,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <typename c_type>
 struct alignas(64) gemm_per_thread_t {
@@ -1163,11 +1164,11 @@ static inline int set_thread_opts(int nthrs, int nthrs_spawn,
         auto m = arg->m, n = arg->n, k = arg->k;
 
         if (mayiuse(avx512_core)) {
-            gemm_utils::calc_nthr_nocopy_avx512_common(m, n, k, nthrs, &nthrs_m,
-                    &nthrs_n, &nthrs_k, &BM, &BN, &BK);
+            cpu::gemm_utils::calc_nthr_nocopy_avx512_common(m, n, k, nthrs,
+                    &nthrs_m, &nthrs_n, &nthrs_k, &BM, &BN, &BK);
         } else {
-            gemm_utils::calc_nthr_nocopy_avx(m, n, k, nthrs, &nthrs_m, &nthrs_n,
-                    &nthrs_k, &BM, &BN, &BK);
+            cpu::gemm_utils::calc_nthr_nocopy_avx(m, n, k, nthrs, &nthrs_m,
+                    &nthrs_n, &nthrs_k, &BM, &BN, &BK);
         }
 
         // Block information is being ignored. We will create partitioning
@@ -1829,6 +1830,7 @@ template // Instantiate sgemm
                 pack_type packing, gemm_pack_storage_t *pack_dst,
                 bool measure_only);
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

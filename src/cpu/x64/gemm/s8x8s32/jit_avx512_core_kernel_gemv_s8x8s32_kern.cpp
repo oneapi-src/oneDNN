@@ -27,6 +27,7 @@ using namespace Xbyak;
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 void jit_avx512_core_gemv_s8x8s32_kern::vnni(
         Zmm acc, Zmm a, Zmm b, vnni_op_t op) {
@@ -384,6 +385,7 @@ jit_avx512_core_gemv_s8x8s32_kern::generate<gemv_s8u8s32_kernel_t>(int);
 template gemv_u8s8s32_kernel_t
 jit_avx512_core_gemv_s8x8s32_kern::generate<gemv_u8s8s32_kernel_t>(int);
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

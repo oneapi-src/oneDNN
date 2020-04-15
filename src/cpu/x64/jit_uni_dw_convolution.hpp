@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type = src_type>
 struct jit_uni_dw_convolution_fwd_t : public primitive_t {
@@ -272,6 +273,7 @@ using jit_avx2_dw_convolution_bwd_weights_t
 using jit_sse41_dw_convolution_bwd_weights_t
         = jit_uni_dw_convolution_bwd_weights_t<sse41, data_type::f32>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

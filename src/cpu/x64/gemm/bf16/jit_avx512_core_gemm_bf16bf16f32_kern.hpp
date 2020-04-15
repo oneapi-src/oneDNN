@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 class jit_avx512_core_gemm_bf16bf16f32_kern : public jit_generator {
 public:
@@ -89,6 +90,7 @@ private:
     Xbyak::Zmm zmm_tmp1_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

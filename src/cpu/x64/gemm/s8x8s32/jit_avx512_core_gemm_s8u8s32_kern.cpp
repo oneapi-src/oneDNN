@@ -28,6 +28,7 @@ static const bool is_windows = false;
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace Xbyak;
 
@@ -553,6 +554,7 @@ jit_avx512_core_gemm_s8u8s32_kern::jit_avx512_core_gemm_s8u8s32_kern(
     generate();
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

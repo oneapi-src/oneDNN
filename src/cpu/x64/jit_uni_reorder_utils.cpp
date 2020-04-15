@@ -32,6 +32,7 @@ using namespace dnnl::impl::status;
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace tr {
 
@@ -302,6 +303,7 @@ void prb_dump(const prb_t &p) {
 
 } // namespace tr
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

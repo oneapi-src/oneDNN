@@ -36,6 +36,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::prop_kind;
@@ -1252,6 +1253,7 @@ void jit_avx512_common_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp) {
     assert(jcp.nthr <= nthreads);
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

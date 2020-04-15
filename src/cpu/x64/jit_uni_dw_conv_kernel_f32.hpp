@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <cpu_isa_t isa>
 struct jit_uni_dw_conv_fwd_kernel_f32 : public jit_generator {
@@ -227,6 +228,7 @@ private:
     void generate();
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

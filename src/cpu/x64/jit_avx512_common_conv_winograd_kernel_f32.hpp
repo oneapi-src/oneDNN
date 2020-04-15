@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 //alpha determines the output tile_size
 constexpr int alpha = 6;
@@ -172,6 +173,7 @@ private:
     reg64_t reg_dimK_block_loop_cnt = r12;
     reg64_t reg_dimN_block_loop_cnt = r11;
 };
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

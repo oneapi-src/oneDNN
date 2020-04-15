@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace winograd_avx512_common {
 inline void init_scratchpad(memory_tracking::registrar_t &scratchpad,
@@ -303,6 +304,7 @@ void trans_I_4x4_3x3(float Iw[6][6][16], float I[6][6][16]);
 void trans_W_3x3_4x4_wu(float Fw[6][6][16], float F[4][6][16]);
 void trans_O_3x3_4x4_wu(float Mw[6][6][16][16], float M[3][3][16][16]);
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

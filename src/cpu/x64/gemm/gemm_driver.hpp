@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <typename a_type, typename b_type, typename c_type>
 dnnl_status_t gemm_driver(const char *transA, const char *transB,
@@ -43,6 +44,7 @@ void prep_ref_gemm_s8u8s32_pack(
 dnnl_status_t ref_gemm_s8u8s32_pack(const void *src, dim_t ld_src, dim_t rows,
         dim_t cols, int trans, gemm_pack_storage_t *dst_pack);
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

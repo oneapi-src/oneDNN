@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 // m, n, alpha, a, lda, x, beta, y
 typedef void (*gemv_s8s8s32_kernel_t)(const dim_t, const dim_t, const float,
@@ -88,6 +89,7 @@ public:
     gemv_kernel_t generate(int use_vnni);
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

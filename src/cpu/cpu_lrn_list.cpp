@@ -21,6 +21,7 @@
 #if DNNL_X64
 #include "cpu/x64/jit_avx512_common_lrn.hpp"
 #include "cpu/x64/jit_uni_lrn.hpp"
+using namespace dnnl::impl::cpu::x64;
 #endif
 
 namespace dnnl {

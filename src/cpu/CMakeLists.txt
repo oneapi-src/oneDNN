@@ -23,13 +23,6 @@ foreach(SOURCE_FILE ${SOURCES_EXTRA})
     list(APPEND SOURCES "${SOURCE_FILE}")
 endforeach()
 
-# For x64 builds, gemm/gemm_pack.cpp becomes an empty file,
-# which makes Windows linker unhappy. Thus, dropping it.
-if(DNNL_TARGET_ARCH STREQUAL "X64")
-    file(GLOB GEMM_PACK_CPP ${CMAKE_CURRENT_SOURCE_DIR}/gemm/gemm_pack.cpp)
-    list(REMOVE_ITEM SOURCES "${GEMM_PACK_CPP}")
-endif()
-
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # to make computations more stable and to align the jitted code
     # with the reference one use precise division and square root

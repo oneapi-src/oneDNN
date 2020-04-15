@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <typename Vmm>
 struct _jit_avx512_common_conv_fwd_kernel : public jit_generator {
@@ -463,6 +464,7 @@ private:
             int &nthr_g, int &nthr_oc_b, int &nthr_ic_b, int nthreads);
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <cpu_isa_t isa>
 struct jit_uni_i8i8_pooling_fwd_ker_t;
@@ -86,6 +87,7 @@ private:
     jit_uni_i8i8_pooling_fwd_ker_t<isa> *ker_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

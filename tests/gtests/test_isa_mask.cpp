@@ -24,7 +24,7 @@
 
 namespace dnnl {
 
-using namespace impl::cpu;
+using namespace impl::cpu::x64;
 
 const std::set<cpu_isa_t> cpu_isa_all = {sse41, avx, avx2, avx512_mic,
         avx512_mic_4ops, avx512_core, avx512_core_vnni, avx512_core_bf16};

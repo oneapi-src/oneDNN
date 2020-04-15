@@ -22,19 +22,23 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 namespace lnorm_utils {
 
-statistics_kernel_t *jit_statistics_kernel_create(
+cpu::lnorm_utils::statistics_kernel_t *jit_statistics_kernel_create(
         const layer_normalization_pd_t *pd);
 
-data_kernel_t *jit_data_kernel_create(const layer_normalization_pd_t *pd);
+cpu::lnorm_utils::data_kernel_t *jit_data_kernel_create(
+        const layer_normalization_pd_t *pd);
 
-diff_ss_kernel_t *jit_diff_ss_kernel_create(const layer_normalization_pd_t *pd);
+cpu::lnorm_utils::diff_ss_kernel_t *jit_diff_ss_kernel_create(
+        const layer_normalization_pd_t *pd);
 
-diff_data_kernel_t *jit_diff_data_kernel_create(
+cpu::lnorm_utils::diff_data_kernel_t *jit_diff_data_kernel_create(
         const layer_normalization_pd_t *pd);
 
 } // namespace lnorm_utils
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

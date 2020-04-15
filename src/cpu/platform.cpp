@@ -45,7 +45,7 @@ bool has_data_type_support(data_type_t data_type) {
     switch (data_type) {
         case data_type::bf16:
 #if DNNL_X64
-            return mayiuse(avx512_core);
+            return x64::mayiuse(x64::avx512_core);
 #else
             return false;
 #endif
@@ -65,6 +65,7 @@ unsigned get_per_core_cache_size(int level) {
     };
 
 #if DNNL_X64
+    using x64::cpu;
     if (cpu.getDataCacheLevels() == 0) return guess(level);
 
     if (level > 0 && (unsigned)level <= cpu.getDataCacheLevels()) {
@@ -79,7 +80,7 @@ unsigned get_per_core_cache_size(int level) {
 
 unsigned get_num_cores() {
 #if DNNL_X64
-    return cpu.getNumCores(Xbyak::util::CoreLevel);
+    return x64::cpu.getNumCores(Xbyak::util::CoreLevel);
 #else
     return 1;
 #endif
@@ -87,6 +88,7 @@ unsigned get_num_cores() {
 
 int get_vector_register_size() {
 #if DNNL_X64
+    using namespace x64;
     if (mayiuse(avx512_common)) return cpu_isa_traits<avx512_common>::vlen;
     if (mayiuse(avx)) return cpu_isa_traits<avx>::vlen;
     if (mayiuse(sse41)) return cpu_isa_traits<sse41>::vlen;

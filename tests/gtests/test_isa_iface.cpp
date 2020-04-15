@@ -25,7 +25,7 @@ class isa_set_once_test : public ::testing::Test {};
 TEST(isa_set_once_test, TestISASetOnce) {
     auto st = set_max_cpu_isa(cpu_isa::sse41);
     ASSERT_TRUE(st == status::success || st == status::unimplemented);
-    ASSERT_TRUE(impl::cpu::mayiuse(impl::cpu::sse41));
+    ASSERT_TRUE(impl::cpu::x64::mayiuse(impl::cpu::x64::sse41));
     st = set_max_cpu_isa(cpu_isa::sse41);
     ASSERT_TRUE(st == status::invalid_arguments || st == status::unimplemented);
 };

@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
@@ -1725,6 +1726,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
 template struct jit_avx512_common_convolution_bwd_weights_t<data_type::f32>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

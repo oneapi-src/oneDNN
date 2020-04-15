@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace softmax_impl {
 template <cpu_isa_t isa>
@@ -162,6 +163,7 @@ private:
     softmax_impl::driver_t<isa> *softmax_driver_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

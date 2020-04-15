@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <typename Vmm>
 struct _jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
@@ -233,6 +234,7 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel {
     _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Xmm> *xmm_kernel_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

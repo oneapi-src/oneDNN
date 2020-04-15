@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct jit_trans_src_t {
     struct ctx_t {
@@ -140,6 +141,7 @@ private:
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf);
 jit_trans_dst_t *create_trans_dst(const jit_conv_conf_t *conf);
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

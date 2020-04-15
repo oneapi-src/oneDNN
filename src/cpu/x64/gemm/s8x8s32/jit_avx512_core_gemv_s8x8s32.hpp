@@ -24,10 +24,12 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <typename T>
 int jump_to_gemv_s8x8s32(T *arg);
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

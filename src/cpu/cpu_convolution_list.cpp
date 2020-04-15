@@ -46,6 +46,7 @@
 #include "cpu/x64/jit_sse41_1x1_convolution.hpp"
 #include "cpu/x64/jit_sse41_convolution.hpp"
 #include "cpu/x64/jit_uni_dw_convolution.hpp"
+using namespace dnnl::impl::cpu::x64;
 #endif
 
 namespace dnnl {

@@ -37,6 +37,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace {
 template <typename gates_t, typename acc_t>
@@ -394,6 +395,7 @@ using ref_rnn_bwd_bf16_t = _ref_rnn_common_t<prop_kind::backward,
 using ref_rnn_fwd_u8s8_t = _ref_rnn_common_t<prop_kind::forward, data_type::u8,
         data_type::s8, data_type::s32>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -111,7 +111,8 @@ pp_ker_t::pp_ker_t(const convolution_pd_t *pd, const conv_gemm_conf_t &jcp)
 pp_ker_t *pp_ker_t::create(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp) {
 #if DNNL_X64
-    pp_ker_t *res = jit_pp_ker_create(pd, jcp);
+    auto *res
+            = x64::gemm_x8s8s32x_convolution_utils::jit_pp_ker_create(pd, jcp);
     if (res) return res;
 #endif
 

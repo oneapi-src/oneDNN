@@ -35,6 +35,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <alg_kind_t alg_kind, prop_kind_t prop_kind>
 float activation(float s, float alpha, float cliping);
@@ -370,6 +371,7 @@ using rnn_postgemm_bwd_bf16_t = rnn_postgemm_dispatcher<prop_kind::backward,
 using rnn_postgemm_fwd_u8_t = rnn_postgemm_dispatcher<prop_kind::forward,
         data_type::u8, data_type::s32, data_type::s32>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

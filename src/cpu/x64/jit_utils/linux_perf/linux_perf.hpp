@@ -23,6 +23,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 namespace jit_utils {
 
 void linux_perf_jitdump_record_code_load(
@@ -31,6 +32,7 @@ void linux_perf_jitdump_record_code_load(
 void linux_perf_perfmap_record_code_load(
         const void *code, size_t code_size, const char *code_name);
 } // namespace jit_utils
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

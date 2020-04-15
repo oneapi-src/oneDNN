@@ -21,6 +21,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 jit_sse41_kernel_b_gemm_s8u8s32_kern::jit_sse41_kernel_b_gemm_s8u8s32_kern()
     : jit_generator(nullptr, S8U8S32_COMPUTE_KERNEL_CODE_SIZE) {
@@ -2362,6 +2363,7 @@ jit_sse41_kernel_b_gemm_s8u8s32_kern::jit_sse41_kernel_b_gemm_s8u8s32_kern()
 #undef COFFSET_RY
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

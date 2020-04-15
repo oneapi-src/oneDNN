@@ -21,6 +21,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 jit_avx512_core_u8_copy_bt_kern::jit_avx512_core_u8_copy_bt_kern(bool s8_case)
     : jit_generator(nullptr, U8_COPY_KERNEL_CODE_SIZE) {
@@ -534,6 +535,7 @@ jit_avx512_core_u8_copy_bt_kern::jit_avx512_core_u8_copy_bt_kern(bool s8_case)
 #endif
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

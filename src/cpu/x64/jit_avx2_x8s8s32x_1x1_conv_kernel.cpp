@@ -33,6 +33,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::utils;
 
@@ -746,6 +747,7 @@ void jit_avx2_x8s8s32x_1x1_conv_kernel::init_scratchpad(
     }
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

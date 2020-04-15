@@ -25,6 +25,7 @@ static const bool is_windows = false;
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace Xbyak;
 
@@ -325,6 +326,7 @@ jit_sse41_gemv_t_f32_kern::jit_sse41_gemv_t_f32_kern()
     generate();
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

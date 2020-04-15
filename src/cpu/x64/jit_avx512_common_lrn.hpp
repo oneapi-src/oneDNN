@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <data_type_t d_type>
 struct jit_avx512_common_lrn_fwd_t : public primitive_t {
@@ -103,6 +104,7 @@ private:
     jit_avx512_common_lrn_kernel_f *ker_, *ker_first_, *ker_last_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
@@ -593,6 +594,7 @@ template struct jit_avx512_core_x8s8s32x_convolution_fwd_t<data_type::s8,
         data_type::f32>;
 template struct jit_avx512_core_x8s8s32x_convolution_fwd_t<data_type::u8,
         data_type::f32>;
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
