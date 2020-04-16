@@ -370,9 +370,17 @@ details on how to use and set these quantization parameters.
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
+2. **CPU**
+    - Bias must always be present (that is, the corresponding memory descriptor
+      argument cannot be zero memory descriptor when the RNN operation
+      descriptor is initialized).
+
 2. **GPU**
     - No support for GRU
     - No support for Peephole LSTM and Projection LSTM
+    - Bias must always be present (that is, the corresponding memory descriptor
+      argument cannot be zero memory descriptor when the RNN operation
+      descriptor is initialized).
 
 ## Examples
 
