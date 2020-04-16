@@ -118,8 +118,8 @@ cmake --build .
 
 ~~~bat
 :: Set C and C++ compilers
-set CC=<C compiler>
-set CXX=<DPC++ compiler>
+set CC=clang
+set CXX=clang++
 
 mkdir build
 cd build

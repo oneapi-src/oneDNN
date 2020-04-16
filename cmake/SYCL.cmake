@@ -26,7 +26,7 @@ endif()
 include(FindPackageHandleStandardArgs)
 include(CheckCXXCompilerFlag)
 
-# Check if CXX is the DPCPP compiler
+# Check if CXX is Intel oneAPI DPC++ Compiler
 CHECK_CXX_COMPILER_FLAG(-fsycl DPCPP_SUPPORTED)
 find_package(LevelZero)
 
@@ -37,9 +37,9 @@ if(DPCPP_SUPPORTED)
         message(STATUS "DPC++ support is enabled (OpenCL)")
     endif()
 
-    # Explicitly link against sycl as the DPC++ compiler doesn't always do it implicitly
+    # Explicitly link against sycl as Intel oneAPI DPC++ Compiler doesn't always do it implicitly
     list(APPEND EXTRA_SHARED_LIBS sycl)
-    # Explicitly link against OpenCL as the DPC++ compiler doesn't do it implicitly
+    # Explicitly link against OpenCL as Intel oneAPI DPC++ Compiler doesn't do it implicitly
     list(APPEND EXTRA_SHARED_LIBS OpenCL)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
