@@ -36,7 +36,7 @@ void check_correctness(const settings_t &s) {
     for_(auto i_inplace : s.inplace)
     for (const auto &i_mb : s.mb) {
         const prb_t p(s.desc, i_mb, i_dir, i_dt, i_tag, i_flags, i_inplace,
-                s.attr, s.check_alg);
+                s.attr, s.check_alg, s.debug_check_ws);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -72,6 +72,8 @@ int bench(int argc, char **argv) {
                 || parse_single_value_option(
                         s.check_alg, str2check_alg, argv[0], "check-alg")
                 || parse_inplace(s.inplace, argv[0]) || parse_mb(s.mb, argv[0])
+                || parse_single_value_option(
+                        s.debug_check_ws, str2bool, argv[0], "debug-check-ws")
                 || parse_attr(s.attr, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])

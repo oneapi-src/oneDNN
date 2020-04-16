@@ -22,7 +22,7 @@ namespace bnorm {
 
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &ss,
-        dnn_mem_t &dst) {
+        dnn_mem_t &ws, dnn_mem_t &dst, dnn_mem_t &src_hat) {
     const int64_t MB = p->mb;
     const int64_t C = p->ic;
     const int64_t D = p->id;
@@ -30,6 +30,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
     const int64_t W = p->iw;
     const bool use_scale_shift = p->flags & USE_SCALESHIFT;
     const bool fuse_relu = p->flags & FUSE_NORM_RELU;
+    const bool need_ws = p->need_ws();
 
     const auto dt = p->dt;
     const auto &attr = p->attr;
@@ -51,16 +52,17 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
             float res = gamma * x_hat + beta;
             float &D = ((float *)dst)[off];
             if (fuse_relu && res < 0) res = 0;
+            if (need_ws) ws.set_elem(off, !!res);
             maybe_post_ops(res, D, attr);
             D = maybe_saturate(dt, res);
+            if (p->dir & FLAG_BWD) src_hat.set_elem(off, x_hat);
         }
     });
 }
 
-void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
-        const dnn_mem_t &ss, const dnn_mem_t &ws, dnn_mem_t &d_src,
-        dnn_mem_t &d_ss) {
+void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src_hat,
+        const dnn_mem_t &var, const dnn_mem_t &d_dst, const dnn_mem_t &ss,
+        const dnn_mem_t &ws, dnn_mem_t &d_src, dnn_mem_t &d_ss) {
     const int64_t MB = p->mb;
     const int64_t C = p->ic;
     const int64_t D = p->id;
@@ -73,7 +75,6 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
     const float MB_SP = MB * D * H * W;
 
     dnnl::impl::parallel_nd(C, [&](int64_t c) {
-        float smean = mean.get_elem(c);
         float rcp_denom = 1.f / sqrtf(var.get_elem(c) + p->eps);
         float gamma = use_scale_shift ? ss.get_elem(c) : 1.f;
 
@@ -87,9 +88,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
             auto off = data_off(p, mb, c, d, h, w);
             float dd = d_dst.get_elem(off);
             if (fuse_relu && ws.get_elem(off) == 0) dd = 0;
-
-            float x_hat = (src.get_elem(off) - smean) * rcp_denom;
-            d_gamma += dd * x_hat;
+            d_gamma += dd * src_hat.get_elem(off);
             d_beta += dd;
         }
 
@@ -107,10 +106,8 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
             if (fuse_relu && ws.get_elem(off) == 0) dd = 0;
             float ds = dd;
 
-            if (!glob_stats) {
-                float x_hat = (src.get_elem(off) - smean) * rcp_denom;
-                ds -= (d_beta + x_hat * d_gamma) / MB_SP;
-            }
+            if (!glob_stats)
+                ds -= (d_beta + src_hat.get_elem(off) * d_gamma) / MB_SP;
 
             d_src.set_elem(off, rcp_denom * ds * gamma);
         }

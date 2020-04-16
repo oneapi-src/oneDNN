@@ -24,6 +24,9 @@ where *bnorm-knobs* are:
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
             Default is `true`.
+ - `--debug-check-ws=BOOL` -- checks if workspace has correct values. Feature is
+            based on internal knowledge of a library implementation. The default
+            is `false`.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.

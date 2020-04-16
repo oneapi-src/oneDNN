@@ -73,6 +73,7 @@ struct settings_t {
     check_alg_t check_alg = ALG_AUTO;
     attr_t attr = {};
     bool allow_unimpl = false;
+    bool debug_check_ws = false;
     const char *pattern = NULL;
 
     const char *perf_template_csv
@@ -88,9 +89,10 @@ struct settings_t {
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, flags_t flags, bool inplace,
-            const attr_t &attr, check_alg_t check_alg)
+            const attr_t &attr, check_alg_t check_alg, bool debug_check_ws)
         : desc_t(desc)
         , check_alg(check_alg)
+        , debug_check_ws(debug_check_ws)
         , dir(dir)
         , dt(dt)
         , tag(tag)
@@ -102,6 +104,7 @@ struct prb_t : public desc_t {
     ~prb_t() {}
 
     check_alg_t check_alg;
+    bool debug_check_ws;
 
     dir_t dir;
     dnnl_data_type_t dt;
@@ -109,6 +112,10 @@ struct prb_t : public desc_t {
     flags_t flags;
     bool inplace;
     attr_t attr;
+
+    bool need_ws() const {
+        return (flags & FUSE_NORM_RELU) && !(dir & FLAG_INF);
+    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
@@ -167,11 +174,10 @@ inline void inv_data_off(const prb_t *p, size_t off, int64_t &mb, int64_t &c,
 
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &ss,
-        dnn_mem_t &dst);
-void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
-        const dnn_mem_t &ss, const dnn_mem_t &rmask, dnn_mem_t &d_src,
-        dnn_mem_t &d_ss);
+        dnn_mem_t &ws, dnn_mem_t &dst, dnn_mem_t &src_hat);
+void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src_hat,
+        const dnn_mem_t &var, const dnn_mem_t &d_dst, const dnn_mem_t &ss,
+        const dnn_mem_t &ws, dnn_mem_t &d_src, dnn_mem_t &d_ss);
 
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);
