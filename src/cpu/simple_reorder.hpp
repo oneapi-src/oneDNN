@@ -25,9 +25,10 @@
 #include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
-#include "format_traits.hpp"
-#include "cpu_reorder_pd.hpp"
 #include "cpu_primitive.hpp"
+#include "cpu_reorder_pd.hpp"
+#include "format_params.hpp"
+#include "format_traits.hpp"
 
 #include "simple_q10n.hpp"
 #include "cpu_isa_traits.hpp"
@@ -630,8 +631,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             PRAGMA_OMP_SIMD()
             for (int g = 0; g < g_block; g++) {
                 const auto i_off = g * input_d.blocking_desc().strides[0][0];
-                out[g] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                        inp[i_off], s[g * OC] * adj_scale, rmode);
+                out[g] = qz_b0<data_t<type_i>, data_t<type_o>>()(inp[i_off],
+                        s[(D_mask == 1) ? 0 : g * OC] * adj_scale, rmode);
                 cp[g * OC] -= 128 * (int32_t)(out[g]);
             }
         };
@@ -644,21 +645,19 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 cp[ib * blksize + i] = 0;
         });
 
-        parallel_nd(Gp/blksize, OC, [&](int gb, int O) {
-                for (int I = 0; I < IC; I++) {
-                    for (int h = 0; h < H; h++) {
-                    for (int w = 0; w < W; w++) {
-                        const int g_block = nstl::min(G - gb * blksize, blksize);
-                        const auto inp = &input[wei_blk_off_like_gwei3D<fmt_i>(
-                                input_d, gb * blksize, O, I, 0, h, w)];
-                        const auto out = &output[wei_blk_off_like_gwei3D<fmt_o>(
-                                output_d, gb, O, I, 0, h, w)];
-                        int offset = gb * blksize + O;
-                        ker(inp, out, &cp[offset],
-                            &scales[(D_mask == 1) ? 0 : offset], g_block);
-                   }
-                   }
-               }
+        parallel_nd(Gp / blksize, OC, [&](int gb, int O) {
+            for (int I = 0; I < IC; I++)
+            for (int h = 0; h < H; h++)
+            for (int w = 0; w < W; w++) {
+                const int g_block = nstl::min(G - gb * blksize, blksize);
+                const auto inp = &input[wei_blk_off_like_gwei3D<fmt_i>(
+                        input_d, gb * blksize, O, I, 0, h, w)];
+                const auto out = &output[wei_blk_off_like_gwei3D<fmt_o>(
+                        output_d, gb, O, I, 0, h, w)];
+                const int offset = gb * blksize * OC + O;
+                ker(inp, out, &cp[offset],
+                        &scales[(D_mask == 1) ? 0 : offset], g_block);
+            }
         });
         return success;
     }
@@ -828,17 +827,19 @@ typename utils::enable_if<true
     }
 };
 
-#define PLAIN_TO_BLOCKED_NO_COMPENSATION_IS_APPLICABLE()          \
-    static bool is_applicable(const memory_desc_wrapper &input_d, \
-            const memory_desc_wrapper &output_d,                  \
-            const primitive_attr_t *attr) {                       \
-        return simple_attr_check(attr, false)                     \
-                && (order_keep ? output_d.format() == fmt_o       \
-                                        && input_d.is_plain()     \
-                               : input_d.format() == fmt_o        \
-                                        && output_d.is_plain())   \
-                && !output_d.is_additional_buffer();              \
-    }
+#define PLAIN_TO_BLOCKED_NO_COMPENSATION_IS_APPLICABLE()      \
+static bool is_applicable(const memory_desc_wrapper &input_d, \
+        const memory_desc_wrapper &output_d,                  \
+        const primitive_attr_t *attr)                         \
+{                                                             \
+    return simple_attr_check(attr, false)                     \
+            && (order_keep ? output_d.format() == fmt_o       \
+                                    && input_d.is_plain()     \
+                            : input_d.format() == fmt_o       \
+                                    && output_d.is_plain())   \
+            && !output_d.is_additional_buffer()               \
+            && !input_d.is_additional_buffer();               \
+}
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
@@ -1302,11 +1303,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         int smask = attr ? attr->output_scales_.mask_ : 0;
         for (; smask > 0 && !(smask & 0x1); smask >>= 1);
         for (; smask > 0 && smask & 0x1; smask >>= 1);
+
         return true
             && input_d.is_blocking_desc()
             && output_d.is_blocking_desc()
-            && !output_d.is_additional_buffer()
-            && !input_d.is_additional_buffer()
+            && (order_keep ? !input_d.is_additional_buffer()
+                           : !output_d.is_additional_buffer())
             && smask == 0;
     }
 
@@ -1332,6 +1334,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const ptrdiff_t D_rest = nelems / D_start / D_mask;
 
         const float *scales = pd->attr()->output_scales_.scales_;
+        const bool compute_cp = order_keep ? output_d.is_additional_buffer()
+                                           : input_d.is_additional_buffer();
+        const float adj_scale = !compute_cp || (mayiuse(avx512_core_vnni))
+                ? 1.0f
+                : (1.0f / 2.0f);
 
         parallel_nd(D_start, D_mask, D_rest,
             [&](ptrdiff_t ds, ptrdiff_t dm, ptrdiff_t dr) {
@@ -1341,8 +1348,52 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const auto &i = input[input_d.off_l(e)];
             auto &o = output[output_d.off_l(e)];
 
-            o = _qz<type_i, type_o>()(i, o, scale, beta, rmode);
+            o = _qz<type_i, type_o>()(i, o, adj_scale * scale, beta, rmode);
         });
+
+        if (compute_cp) {
+            const auto &real_out_d = order_keep ? output_d : input_d;
+            const auto &fmt_params = format_params_t::get(real_out_d.format());
+            const bool w_groups = fmt_params.data_kind == dk::gwei;
+            const int is_1d = fmt_params.ndims_sp == 1;
+            const int is_3d = fmt_params.ndims_sp == 3;
+
+            const auto get_offset = [&](const memory_desc_wrapper &md, int g,
+                                            int o, int i, int d, int h, int w) {
+                if (w_groups)
+                    return is_1d ? md.off_padding(g, o, i, w)
+                                 : is_3d ? md.off_padding(g, o, i, d, h, w)
+                                         : md.off_padding(g, o, i, h, w);
+                else
+                    return is_1d ? md.off_padding(o, i, w)
+                                 : is_3d ? md.off_padding(o, i, d, h, w)
+                                         : md.off_padding(o, i, h, w);
+            };
+
+            const auto &dims = input_d.dims();
+            const int G = w_groups ? dims[0] : 1;
+            const int OC = dims[w_groups + 0];
+            const int IC = dims[w_groups + 1];
+            const int D = is_3d ? dims[w_groups + 2] : 1;
+            const int H = is_1d ? 1 : dims[w_groups + 2 + is_3d];
+            const int W = dims[w_groups + 3 + is_3d - is_1d];
+
+            const size_t cp_offset
+                    = real_out_d.size() - real_out_d.additional_buffer_size();
+            int32_t *cp = reinterpret_cast<int32_t *>(output + cp_offset);
+
+            parallel_nd(G, OC, [&](int g, int oc) {
+                cp[g * OC + oc] = 0;
+                for (int ic = 0; ic < IC; ic++)
+                for (int d = 0; d < D; d++)
+                for (int h = 0; h < H; h++)
+                for (int w = 0; w < W; w++) {
+                    cp[g * OC + oc] -= static_cast<int32_t>(
+                            output[get_offset(real_out_d, g, oc, ic, d, h, w)]);
+                }
+                cp[g * OC + oc] *= 128;
+            });
+        }
 
         return success;
     }

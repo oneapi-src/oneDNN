@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2017-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -275,8 +275,10 @@ int check_reorder(const prb_t *p, res_t *res) {
     switch (ndims) {
     case 1: assert(is_data); fmt_ref = mkldnn_x; break;
     case 2: fmt_ref = is_data ? mkldnn_nc : mkldnn_oi; break;
-    case 3: assert(is_data); fmt_ref = mkldnn_tnc; break;
-    case 4: fmt_ref = is_data ? mkldnn_nchw : mkldnn_oihw; break;
+    case 3: fmt_ref = mkldnn_tnc; break;
+    case 4:
+        fmt_ref = is_data ? mkldnn_nchw : is_gwei ? mkldnn_goiw : mkldnn_oihw;
+        break;
     case 5:
             fmt_ref = is_data
                 ? mkldnn_ncdhw

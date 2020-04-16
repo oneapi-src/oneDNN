@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2017-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -92,6 +92,7 @@ mkldnn_memory_format_t str2fmt(const char *str) {
     CASE(io);
     CASE(oiw);
     CASE(wio);
+    CASE(owi);
     CASE(OIw16i16o);
     CASE(OIw16o16i);
     CASE(Oiw16o);

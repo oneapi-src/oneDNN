@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2018-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,23 +65,23 @@ template <block_format_t f> struct block_format_traits {
                         bf::_2i8o4i, bf::_2i8o4i_s8s8) ? 8 : 16));
 };
 
-template <memory_format_t> struct format_traits {
-    // data_kind_t data_kind;   -- the kind of data (e.g. weights or rnn)
-    // block_format_t blk_fmt;  -- the format of blocks (e.g. 8c or 4i16o4i)
-    // int ndims;               -- # of dimensions
-    // int ndims_sp;            -- # of spatial dimensions
-    // int blk_size;            -- block size (1, 4, 8, or 16)
-};
+template <memory_format_t>
+struct format_traits;
+// data_kind_t data_kind;   -- the kind of data (e.g. weights or rnn)
+// block_format_t blk_fmt;  -- the format of blocks (e.g. 8c or 4i16o4i)
+// int ndims;               -- # of dimensions
+// int ndims_sp;            -- # of spatial dimensions
+// int blk_size;            -- block size (1, 4, 8, or 16)
 
-#define DECL_TRAITS(_fmt, _data_kind, _blk_fmt, _ndims, _ndims_sp) \
-template <> struct format_traits<memory_format::_fmt> { \
-    static constexpr data_kind_t data_kind = data_kind_t::_data_kind; \
+#define DECL_TRAITS(_fmt, _data_kind, _blk_fmt, _ndims, _ndims_sp)      \
+template <> struct format_traits<memory_format::_fmt> {                 \
+    static constexpr data_kind_t data_kind = data_kind_t::_data_kind;   \
     static constexpr block_format_t blk_fmt = block_format_t::_blk_fmt; \
-    static constexpr int ndims = _ndims; \
-    static constexpr int ndims_sp = _ndims_sp; \
-    static constexpr int blk_size = \
-        block_format_traits<block_format_t::_blk_fmt>::blk_size; \
-}
+    static constexpr int ndims = _ndims;                                \
+    static constexpr int ndims_sp = _ndims_sp;                          \
+    static constexpr int blk_size                                       \
+            = block_format_traits<block_format_t::_blk_fmt>::blk_size;  \
+};
 
 DECL_TRAITS(any, other, _, 0, 0);
 DECL_TRAITS(blocked, other, _, 0, 0);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <stdint.h>
+#include <type_traits>
 
 #if defined(__x86_64__) || defined(_M_X64)
 #define MKLDNN_X86_64
@@ -122,6 +123,12 @@ template <typename T, typename P, typename... Args>
 constexpr bool one_of(T val, P item, Args... item_others) {
     return val == item || one_of(val, item_others...);
 }
+
+template <typename, typename = void>
+struct is_defined : std::integral_constant<bool, false> {};
+template <typename T>
+struct is_defined<T, typename enable_if<sizeof(T)>::type>
+    : std::integral_constant<bool, true> {};
 
 template <typename... Args>
 inline bool any_null(Args... ptrs) { return one_of(nullptr, ptrs...); }
