@@ -865,7 +865,7 @@ static void init_info_rnn(engine_t *e, pd_t *s, char *buffer) {
     if (s->is_lstm_projection()) { // wei_projection
         auto md = s->arg_md(s->is_fwd() ? DNNL_ARG_WEIGHTS_PROJECTION
                                         : DNNL_ARG_DIFF_WEIGHTS_PROJECTION);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_projection_");
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_proj_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (s->with_bias()) { // bias
