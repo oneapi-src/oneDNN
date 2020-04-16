@@ -130,7 +130,7 @@ private:
         const dim_t inner_dim = input_d.dims()[input_d.ndims() - 1];
 
         parallel(0, [&](const int ithr, const int nthr) {
-            dim_t start, end;
+            dim_t start {0}, end {0};
             balance211(outer_dim, nthr, ithr, start, end);
             for (int i = start; i < end; ++i) {
                 const dim_t off_in = input_d.off_l(i * inner_dim);
@@ -338,7 +338,7 @@ private:
         assert(scales != nullptr);
 
         parallel(0, [&](const int ithr, const int nthr) {
-            int start, end;
+            int start {0}, end {0};
             balance211(L * D * I, nthr, ithr, start, end);
             for (int ldi = start; ldi < end; ldi++) {
                 for (int go = 0; go < G * O; go++) {
