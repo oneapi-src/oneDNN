@@ -7486,10 +7486,13 @@ struct vanilla_rnn_forward : public primitive {
         /// Constructs a descriptor for a vanilla RNN forward propagation
         /// primitive.
         ///
-        /// The @p src_iter_desc, @p bias_desc, and @p dst_iter_desc may point
-        /// to a zero memory descriptor. This would then indicate that the RNN
-        /// forward propagation primitive should not use them and should
-        /// default to zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc,
+        /// - @p bias_desc,
+        /// - @p dst_iter_desc.
+        ///
+        /// This would then indicate that the RNN forward propagation primitive
+        /// should not use them and should default to zero values instead.
         ///
         /// Inputs:
         ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
@@ -7660,12 +7663,14 @@ struct vanilla_rnn_backward : public primitive {
         /// Constructs a descriptor for a vanilla RNN backward propagation
         /// primitive.
         ///
-        /// The @p src_iter_desc together with @p diff_src_iter_desc, @p
-        /// bias_desc together with @p diff_bias_desc, and @p dst_iter_desc
-        /// together with @p diff_src_iter_desc, may point to a zero memory
-        /// descriptor. This would then indicate that the RNN backward
-        /// propagation primitive should not use the respective data and
-        /// should use zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p diff_src_iter_desc,
+        /// - @p bias_desc together with @p diff_bias_desc,
+        /// - @p dst_iter_desc together with @p diff_dst_iter_desc.
+        ///
+        /// This would then indicate that the RNN backward propagation
+        /// primitive should not use the respective data and should use zero
+        /// values instead.
         ///
         /// Inputs:
         ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
@@ -7910,11 +7915,15 @@ struct lstm_forward : public primitive {
         /// Constructs a descriptor for an LSTM (with or without peephole and
         /// with or without projection) forward propagation primitive.
         ///
-        /// The @p src_iter_desc, @p src_iter_c_desc, @p weights_peephole_desc,
-        /// @p bias_desc, @p dst_iter_desc, and @p dst_iter_c_desc may point to
-        /// a zero memory descriptor. This would then indicate that the LSTM
-        /// forward propagation primitive should not use them and should
-        /// default to zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p src_iter_c_desc,
+        /// - @p weights_peephole_desc,
+        /// - @p bias_desc,
+        /// - @p dst_iter_desc together with @p dst_iter_c_desc.
+        ///
+        /// This would then indicate that the LSTM forward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
         ///
         /// The @p weights_projection_desc may point to a zero memory
         /// descriptor. This would then indicate that the LSTM doesn't have
@@ -8010,11 +8019,15 @@ struct lstm_forward : public primitive {
         /// Constructs a descriptor for an LSTM (with or without peephole)
         /// forward propagation primitive.
         ///
-        /// The @p src_iter_desc, @p src_iter_c_desc, @p weights_peephole_desc,
-        /// @p bias_desc, @p dst_iter_desc, and @p dst_iter_c_desc may point to
-        /// a zero memory descriptor. This would then indicate that the LSTM
-        /// forward propagation primitive should not use them and should
-        /// default to zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p src_iter_c_desc,
+        /// - @p weights_peephole_desc,
+        /// - @p bias_desc,
+        /// - @p dst_iter_desc together with @p dst_iter_c_desc.
+        ///
+        /// This would then indicate that the LSTM forward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
         ///
         /// Inputs:
         ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
@@ -8094,11 +8107,14 @@ struct lstm_forward : public primitive {
 
         /// Constructs a descriptor for an LSTM forward propagation primitive.
         ///
-        /// The @p src_iter_desc, @p src_iter_c_desc, @p bias_desc, @p
-        /// dst_iter_desc, and @p dst_iter_c_desc may point to a zero memory
-        /// descriptor. This would then indicate that the LSTM forward
-        /// propagation primitive should not use them and should default to
-        /// zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p src_iter_c_desc,
+        /// - @p bias_desc,
+        /// - @p dst_iter_desc together with @p dst_iter_c_desc.
+        ///
+        /// This would then indicate that the LSTM forward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
         ///
         /// Inputs:
         ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
@@ -8287,15 +8303,18 @@ struct lstm_backward : public primitive {
         /// projection) descriptor for backward propagation using @p prop_kind,
         /// @p direction, and memory descriptors.
         ///
-        /// The @p src_iter_desc together with @p diff_iter_desc, @p
-        /// src_iter_c_desc together with @p src_iter_c_desc, @p
-        /// weights_peephole_desc together with @p diff_weights_peephole_desc,
-        /// @p bias_desc together with @p diff_bias_desc, @p dst_iter_desc
-        /// together with @p diff_dst_iter_desc, and @p dst_iter_c_desc
-        /// together with @p diff_dst_iter_c_desc, may point to a zero memory
-        /// descriptor. This would then indicate that the LSTM backward
-        /// propagation primitive should not use them and should default to
-        /// zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p src_iter_c_desc,
+        ///   @p diff_src_iter_desc, and @p diff_src_iter_c_desc,
+        /// - @p weights_peephole_desc together with
+        ///   @p diff_weights_peephole_desc
+        /// - @p bias_desc together with @p diff_bias_desc,
+        /// - @p dst_iter_desc together with @p dst_iter_c_desc,
+        ///   @p diff_dst_iter_desc, and @p diff_dst_iter_c_desc.
+        ///
+        /// This would then indicate that the LSTM backward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
         ///
         /// The @p weights_projection_desc together with @p
         /// diff_weights_projection_desc may point to a zero memory descriptor.
@@ -8462,15 +8481,18 @@ struct lstm_backward : public primitive {
         /// backward propagation using @p prop_kind, @p direction, and memory
         /// descriptors.
         ///
-        /// The @p src_iter_desc together with @p diff_iter_desc, @p
-        /// src_iter_c_desc together with @p src_iter_c_desc, @p
-        /// weights_peephole_desc together with @p diff_weights_peephole_desc,
-        /// @p bias_desc together with @p diff_bias_desc, @p dst_iter_desc
-        /// together with @p diff_dst_iter_desc, and @p dst_iter_c_desc
-        /// together with @p diff_dst_iter_c_desc, may point to a zero memory
-        /// descriptor. This would then indicate that the LSTM backward
-        /// propagation primitive should not use them and should default to
-        /// zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p src_iter_c_desc,
+        ///   @p diff_src_iter_desc, and @p diff_src_iter_c_desc,
+        /// - @p weights_peephole_desc together with
+        ///   @p diff_weights_peephole_desc
+        /// - @p bias_desc together with @p diff_bias_desc,
+        /// - @p dst_iter_desc together with @p dst_iter_c_desc,
+        ///   @p diff_dst_iter_desc, and @p diff_dst_iter_c_desc.
+        ///
+        /// This would then indicate that the LSTM backward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
         ///
         /// @note
         ///     All memory descriptors may be initialized with
@@ -8605,13 +8627,16 @@ struct lstm_backward : public primitive {
         /// Constructs an LSTM descriptor for backward propagation using @p
         /// prop_kind, @p direction, and memory descriptors.
         ///
-        /// The @p src_iter_desc together with @p diff_iter_desc, @p
-        /// src_iter_c_desc together with @p src_iter_c_desc, @p bias_desc
-        /// together with @p diff_bias_desc, @p dst_iter_desc together with @p
-        /// diff_dst_iter_desc, and @p dst_iter_c_desc together with @p
-        /// diff_dst_iter_c_desc, may point to a zero memory descriptor. This
-        /// would then indicate that the LSTM backward propagation primitive
-        /// should not use them and should default to zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p src_iter_c_desc,
+        ///   @p diff_src_iter_desc, and @p diff_src_iter_c_desc,
+        /// - @p bias_desc together with @p diff_bias_desc,
+        /// - @p dst_iter_desc together with @p dst_iter_c_desc,
+        ///   @p diff_dst_iter_desc, and @p diff_dst_iter_c_desc.
+        ///
+        /// This would then indicate that the LSTM backward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
         ///
         /// @note
         ///     All memory descriptors may be initialized with
@@ -8904,10 +8929,13 @@ struct gru_forward : public primitive {
 
         /// Constructs a descriptor for a GRU forward propagation primitive.
         ///
-        /// The @p src_iter_desc, @p bias_desc, and @p dst_iter, may point to
-        /// a zero memory descriptor. This would then indicate that the GRU
-        /// forward propagation primitive should not use them and should
-        /// default to zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc,
+        /// - @p bias_desc,
+        /// - @p dst_iter_desc.
+        ///
+        /// This would then indicate that the GRU forward propagation primitive
+        /// should not use them and should default to zero values instead.
         ///
         /// Inputs:
         ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
@@ -9066,12 +9094,14 @@ struct gru_backward : public primitive {
 
         /// Constructs a descriptor for a GRU backward propagation primitive.
         ///
-        /// The @p src_iter_desc together with @p diff_src_iter_desc, @p
-        /// bias_desc together with @p diff_bias_desc, and @p dst_iter
-        /// together with @p diff_dst_iter, may point to a zero memory
-        /// descriptor.  This would then indicate that the GRU backward
-        /// propagation primitive should not use them and should default to
-        /// zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p diff_src_iter_desc,
+        /// - @p bias_desc together with @p diff_bias_desc,
+        /// - @p dst_iter_desc together with @p diff_dst_iter_desc.
+        ///
+        /// This would then indicate that the GRU backward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
         ///
         /// Inputs:
         ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
@@ -9303,10 +9333,14 @@ struct lbr_gru_forward : public primitive {
 
         /// Constructs a descriptor for LBR GRU forward propagation primitive.
         ///
-        /// The @p src_iter_desc, @p bias_desc, and @p dst_iter, may point to
-        /// a zero memory descriptor. This would then indicate that the LBR
-        /// GRU forward propagation primitive should not use them and should
-        /// default to zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc,
+        /// - @p bias_desc,
+        /// - @p dst_iter_desc.
+        ///
+        /// This would then indicate that the LBR GRU forward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
         ///
         /// Inputs:
         ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
@@ -9468,12 +9502,14 @@ struct lbr_gru_backward : public primitive {
         /// Constructs a descriptor for LBR GRU backward propagation
         /// primitive.
         ///
-        /// The @p src_iter_desc together with @p diff_src_iter_desc, @p
-        /// bias_desc together with @p diff_bias_desc, and @p dst_iter
-        /// together with @p diff_dst_iter, may point to a zero memory
-        /// descriptor.  This would then indicate that the LBR GRU backward
-        /// propagation primitive should not use them and should default to
-        /// zero values instead.
+        /// The following arguments may point to a zero memory descriptor:
+        /// - @p src_iter_desc together with @p diff_src_iter_desc,
+        /// - @p bias_desc together with @p diff_bias_desc,
+        /// - @p dst_iter_desc together with @p diff_dst_iter_desc.
+        ///
+        /// This would then indicate that the LBR GRU backward propagation
+        /// primitive should not use them and should default to zero values
+        /// instead.
         ///
         /// Inputs:
         ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
