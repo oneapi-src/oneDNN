@@ -39,6 +39,7 @@ using namespace data_type;
 static bool check_dims_contiguous_except_one(const memory_desc_wrapper &mdw,
         int idx_with_arbitrary_stride, std::initializer_list<int> perm) {
     if (mdw.format_kind() != format_kind::blocked) return false;
+    if ((size_t)mdw.ndims() != perm.size()) return false;
 
     const auto &blk = mdw.blocking_desc();
 
