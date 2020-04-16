@@ -68,6 +68,39 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
             *dnnl_attr, scratchpad_mode));
 }
 
+int check_ldoi_s8_reorder(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
+    // TODO: enable for all cpu_kind when supported
+    if (engine_tgt_kind != dnnl_cpu) return OK;
+
+    // we compare ldio_f32 -> ldio_s8 to ldio_f32 -> ldoi_f32 -> ldio_s8
+    // fp is in ldio
+    dnn_mem_t mem_ldoi_f32(mem_fp.md_, dnnl_f32, dnnl_ldoi, engine_tgt);
+    dnn_mem_t mem_s8_src(mem_dt.md_, dnnl_s8, engine_tgt);
+
+    mem_ldoi_f32.reorder(mem_fp);
+    mem_s8_src.reorder(mem_ldoi_f32, {attr});
+
+    dnn_mem_t mem_s8_dst(mem_dt.md_, dnnl_s8, engine_tgt);
+    mem_s8_dst.reorder(mem_fp, {attr});
+
+    // we check that the two are identical
+    auto sz = mem_dt.size();
+    uint8_t *s8_src_handle = (uint8_t *)mem_s8_src;
+    uint8_t *s8_dst_handle = (uint8_t *)mem_s8_dst;
+
+    // check that both have the same size
+    assert(mem_s8_src.size() == mem_s8_dst.size());
+    // check that both have the same alignment modulo align_data in gemm_pack_storage.hpp
+    assert((uint64_t)s8_src_handle % 0x1000
+            == (uint64_t)s8_dst_handle % 0x1000);
+    for (size_t i = 0; i < sz; ++i) {
+        if (s8_src_handle[i] != s8_dst_handle[i]) { return FAIL; }
+    }
+
+    return OK;
+}
+
 int check_s8s8_reorder(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     // TODO: enable for all cpu_kind when supported
@@ -224,6 +257,9 @@ int fill_memory(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     mem_dt.reorder(mem_fp, {reorder_attr});
     if ((reorder_attr != nullptr) && (dt == dnnl_s8))
         if (check_s8s8_reorder(p, kind, mem_dt, mem_fp) != OK) return FAIL;
+    if ((kind == WEIGHTS_PROJECTION) && (dt == dnnl_s8))
+        if (check_ldoi_s8_reorder(p, kind, mem_dt, mem_fp, reorder_attr) != OK)
+            return FAIL;
 
     // Bullet 4.a holds: quantize weights for int8 benchdnn reference RNN
     if (p.is_int8()) {
