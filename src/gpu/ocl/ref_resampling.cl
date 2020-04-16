@@ -58,14 +58,11 @@ __kernel void ref_resampling_fwd(
                         * Wid
                 + ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw0)]) * Wih
                            * Wiw)
-                          + (CONVERT_FLOAT_T(
-                                     src[SRC_OFF(mb, c, id1, ih1, iw0)])
+                          + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih1, iw0)])
                                   * (1.f - Wih) * Wiw)
-                          + (CONVERT_FLOAT_T(
-                                     src[SRC_OFF(mb, c, id1, ih0, iw1)])
+                          + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw1)])
                                   * Wih * (1 - Wiw))
-                          + (CONVERT_FLOAT_T(
-                                     src[SRC_OFF(mb, c, id1, ih1, iw1)])
+                          + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih1, iw1)])
                                   * (1.f - Wih) * (1.f - Wiw)))
                         * (1.f - Wid));
     }
