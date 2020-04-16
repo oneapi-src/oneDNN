@@ -19,6 +19,10 @@
 #include <windows.h>
 #endif
 
+#if defined __linux__ || defined __APPLE__
+#include <unistd.h>
+#endif
+
 #ifdef __linux__
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -86,6 +90,16 @@ FILE *fopen(const char *filename, const char *mode) {
     return ::fopen_s(&fp, filename, mode) ? NULL : fp;
 #else
     return ::fopen(filename, mode);
+#endif
+}
+
+int getpagesize() {
+#ifdef _WIN32
+    SYSTEM_INFO info;
+    GetSystemInfo(&info);
+    return info.dwPageSize;
+#else
+    return ::getpagesize();
 #endif
 }
 
