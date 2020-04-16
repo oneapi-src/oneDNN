@@ -811,13 +811,19 @@ static void init_info_rnn(pd_t *s, char *buffer) {
     }
     { // wei_iter
         auto md = s->is_fwd() ? s->weights_md(1) : s->diff_weights_md(1);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_layer_");
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_iter_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (s->is_lstm_peephole()) { // wei_peephole
         auto md = s->arg_md(s->is_fwd() ? DNNL_ARG_WEIGHTS_PEEPHOLE
                                         : DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_peephole_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+    }
+    if (s->is_lstm_projection()) { // wei_projection
+        auto md = s->arg_md(s->is_fwd() ? DNNL_ARG_WEIGHTS_PROJECTION
+                                        : DNNL_ARG_DIFF_WEIGHTS_PROJECTION);
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_proj_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     { // bias
