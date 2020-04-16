@@ -221,8 +221,8 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
             PD_CHECK_ARG(id.is_dense());
             if (!args_ok) return invalid_arguments;
 
-            format_tag_t itag = id.matches_one_of_tag(
-                    format_tag::ldigo, format_tag::ldgoi, format_tag::ldio);
+            format_tag_t itag = id.matches_one_of_tag(format_tag::ldigo,
+                    format_tag::ldgoi, format_tag::ldio, format_tag::ldoi);
             if (itag == format_tag::undef) return invalid_arguments;
 
             // TODO: add support for layer and direction dimensions
@@ -549,8 +549,8 @@ struct rnn_weights_reorder_t : public primitive_t {
 #undef PD_CHECK_ARG
             if (!args_ok) return invalid_arguments;
 
-            format_tag_t itag = id.matches_one_of_tag(
-                    format_tag::ldigo, format_tag::ldgoi, format_tag::ldio);
+            format_tag_t itag = id.matches_one_of_tag(format_tag::ldigo,
+                    format_tag::ldgoi, format_tag::ldio, format_tag::ldoi);
             if (itag == format_tag::undef) return invalid_arguments;
 
             auto _pd = new pd_t(attr, src_engine->kind(), src_md,
