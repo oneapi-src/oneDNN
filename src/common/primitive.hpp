@@ -48,7 +48,7 @@ struct primitive_t : public c_compatible {
         return status::success;
     }
 
-    std::shared_ptr<primitive_desc_t> pd() const { return pd_; }
+    const std::shared_ptr<primitive_desc_t> &pd() const { return pd_; }
     primitive_kind_t kind() const { return pd_->kind(); }
     virtual status_t execute(const exec_ctx_t &ctx) const = 0;
 
