@@ -95,9 +95,11 @@ void simple_net() {
     // tag `any` lets a primitive(convolution in this case)
     // chose the memory format preferred for best performance.
     auto conv_src_md = memory::desc({conv_src_tz}, dt::bf16, tag::any);
-    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::bf16, tag::any);
     auto conv_weights_md = memory::desc({conv_weights_tz}, dt::bf16, tag::any);
     auto conv_dst_md = memory::desc({conv_dst_tz}, dt::bf16, tag::any);
+
+    // use bias provided by the user
+    auto conv_bias_md = conv_user_bias_memory.get_desc();
 
     // create a convolution primitive descriptor
     auto conv_desc = convolution_forward::desc(prop_kind::forward,
@@ -361,10 +363,12 @@ void simple_net() {
 
     // create memory descriptors for bfloat16 convolution data
     auto conv_bwd_src_md = memory::desc({conv_src_tz}, dt::bf16, tag::any);
-    auto conv_diff_bias_md = memory::desc({conv_bias_tz}, dt::bf16, tag::any);
     auto conv_diff_weights_md
             = memory::desc({conv_weights_tz}, dt::bf16, tag::any);
     auto conv_diff_dst_md = memory::desc({conv_dst_tz}, dt::bf16, tag::any);
+
+    // use diff bias provided by the user
+    auto conv_diff_bias_md = conv_diff_bias_memory.get_desc();
 
     // create backward convolution primitive descriptor
     auto conv_bwd_weights_desc
