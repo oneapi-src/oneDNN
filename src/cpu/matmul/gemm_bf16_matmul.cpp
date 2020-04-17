@@ -165,6 +165,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                         * nstl::min(batch, (dim_t)dnnl_get_max_threads()) * M
                         * N,
                 64);
+        if (acc == nullptr) return status::out_of_memory;
         need_free_acc = true;
     }
 

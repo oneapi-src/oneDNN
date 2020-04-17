@@ -195,6 +195,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
                         * nstl::min(batch, (dim_t)dnnl_get_max_threads()) * M
                         * N,
                 64);
+        if (acc == nullptr) return status::out_of_memory;
         need_free_acc = true;
     }
 
