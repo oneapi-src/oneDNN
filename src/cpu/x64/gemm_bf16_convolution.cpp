@@ -357,7 +357,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
                             jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
                 else
                     jit_gemm_convolution_utils::im2col_3d<src_data_t>(
-                            jcp, _src, _col, od);
+                            jcp, _src, _col, od, 0, jcp.os);
             }
 
             const acc_data_t one = 1.0;
@@ -616,7 +616,8 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                                         jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
                             else
                                 jit_gemm_convolution_utils::im2col_3d<
-                                        src_data_t>(jcp, _src, _col, od);
+                                        src_data_t>(
+                                        jcp, _src, _col, od, 0, jcp.os);
                         }
 
                         const acc_data_t zero = 0.0, one = 1.0;

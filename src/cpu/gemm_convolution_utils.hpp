@@ -50,7 +50,7 @@ struct conv_gemm_conf_t {
     bool signed_input;
     int oh_block;
     int ow_block;
-    int os_block;
+    int os_block, os_nb_block;
     bool outer_threading;
     conv_gemm_loop_order_t loop_order;
     int nthr_oc;
@@ -59,7 +59,7 @@ struct conv_gemm_conf_t {
 namespace jit_gemm_convolution_utils {
 template <typename data_type_t>
 void im2col_3d(const conv_gemm_conf_t &jcp, const data_type_t *im,
-        data_type_t *col, int od);
+        data_type_t *col, int od, int spatial_step, int spatial_block);
 
 template <typename T>
 void transpose_u8(const conv_gemm_conf_t &jcp, const T *__restrict im,

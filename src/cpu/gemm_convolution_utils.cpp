@@ -39,21 +39,19 @@ namespace jit_gemm_convolution_utils {
 
 template <typename data_type_t>
 void im2col_3d(const conv_gemm_conf_t &jcp, const data_type_t *im,
-        data_type_t *col, int od) {
-
+        data_type_t *col, int od, int spatial_step, int spatial_block) {
     using data_t =
-            typename utils::conditional<data_traits<data_type_t>::data_type
-                            == bf16,
+            typename conditional<data_traits<data_type_t>::data_type == bf16,
                     uint16_t, data_type_t>::type;
     const data_t *__restrict _im
             = reinterpret_cast<const data_t *__restrict>(im);
     data_t *__restrict _col = reinterpret_cast<data_t *__restrict>(col);
 
-    const size_t OHW = jcp.oh * jcp.ow;
+    const size_t OHW = spatial_block;
     const size_t im_step = jcp.ih * jcp.iw * jcp.id;
     const size_t col_step = jcp.ks * OHW;
 
-    parallel_nd(jcp.ic, [&](int ic) {
+    auto compute_im2col_outer_padding = [&](int ic) {
         const data_t *__restrict im_loc = _im + ic * im_step;
         data_t *__restrict col_loc = _col + ic * col_step;
         int id = od * jcp.stride_d - jcp.f_pad;
@@ -126,14 +124,96 @@ void im2col_3d(const conv_gemm_conf_t &jcp, const data_type_t *im,
             }
             id += (1 + jcp.dilate_d);
         }
-    });
+    };
+    auto compute_im2col_padding = [&](int ic) {
+        const int first_oh = spatial_step / jcp.ow;
+        const int last_oh = (spatial_step + spatial_block - 1) / jcp.ow;
+        const int oh_begin = first_oh;
+        const int oh_end = last_oh + 1;
+        const int first_ow = spatial_step % jcp.ow;
+        const int last_ow = (spatial_step + spatial_block - 1) % jcp.ow;
+
+        const data_t *__restrict im_loc = _im + ic * im_step;
+        data_t *__restrict col_loc = _col + ic * col_step;
+        int id = od * jcp.stride_d - jcp.f_pad;
+        for (int kd = 0; kd < jcp.kd; ++kd) {
+            data_t *__restrict col_ = col_loc + kd * jcp.kh * jcp.kw * OHW;
+            if (id < 0 || id >= jcp.id) {
+                for (int kh = 0; kh < jcp.kh; ++kh) {
+                    for (int oh = oh_begin; oh < oh_end; ++oh) {
+                        const int ow_begin = (oh == first_oh) ? first_ow : 0;
+                        const int ow_end
+                                = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
+                        for (int kw = 0; kw < jcp.kw; ++kw) {
+                            for (int ow = ow_begin; ow < ow_end; ++ow) {
+                                const size_t col_idx = kw * OHW + oh * jcp.ow
+                                        + ow - spatial_step;
+                                col_[col_idx] = 0;
+                            }
+                        }
+                    }
+                    col_ += jcp.kw * OHW;
+                }
+            } else {
+                const data_t *__restrict im_ = im_loc + id * jcp.ih * jcp.iw;
+                int ih_ = oh_begin * jcp.stride_h - jcp.t_pad;
+                for (int kh = 0; kh < jcp.kh; ++kh) {
+                    int ih = ih_;
+                    for (int oh = oh_begin; oh < oh_end; ++oh) {
+                        const int ow_begin = (oh == first_oh) ? first_ow : 0;
+                        const int ow_end
+                                = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
+                        if (ih < 0 || ih >= jcp.ih) {
+                            for (int kw = 0; kw < jcp.kw; ++kw) {
+                                for (int ow = ow_begin; ow < ow_end; ++ow) {
+                                    const size_t col_idx = kw * OHW
+                                            + oh * jcp.ow + ow - spatial_step;
+                                    col_[col_idx] = 0;
+                                }
+                            }
+                            ih += jcp.stride_h;
+                            continue;
+                        }
+                        int iw_ = ow_begin * jcp.stride_w - jcp.l_pad;
+                        for (int kw = 0; kw < jcp.kw; ++kw) {
+                            int iw = iw_;
+                            for (int ow = ow_begin; ow < ow_end; ++ow) {
+                                const size_t col_idx = kw * OHW + oh * jcp.ow
+                                        + ow - spatial_step;
+                                if (iw < 0 || iw >= jcp.iw) {
+                                    col_[col_idx] = 0;
+                                    iw += jcp.stride_w;
+                                    continue;
+                                }
+                                const size_t im_idx = ih * jcp.iw + iw;
+                                col_[col_idx] = im_[im_idx];
+                                iw += jcp.stride_w;
+                            }
+                            iw_ += (1 + jcp.dilate_w);
+                        }
+                        ih += jcp.stride_h;
+                    }
+                    ih_ += (1 + jcp.dilate_h);
+                    col_ += jcp.kw * OHW;
+                }
+            }
+            id += (1 + jcp.dilate_d);
+        }
+    };
+
+    // zero padding is handled outside im2col
+    const bool outer_padding = jcp.os_nb_block == 1;
+    if (outer_padding)
+        parallel_nd(jcp.ic, compute_im2col_outer_padding);
+    else
+        parallel_nd(jcp.ic, compute_im2col_padding);
 }
 
-template void im2col_3d(
-        const conv_gemm_conf_t &jcp, const float *im, float *col, int od);
+template void im2col_3d(const conv_gemm_conf_t &jcp, const float *im,
+        float *col, int od, int spatial_step, int spatial_block);
 
 template void im2col_3d(const conv_gemm_conf_t &jcp, const bfloat16_t *im,
-        bfloat16_t *col, int od);
+        bfloat16_t *col, int od, int spatial_step, int spatial_block);
 
 /* imtr[ic][od][oh][ow] <-- im[id][ih][iw][ic]*/
 template <typename T>
@@ -813,6 +893,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     const int simd_w = vlen / data_size;
 
     jcp.os_block = jcp.os;
+    jcp.os_nb_block = 1;
     jcp.oc_block = jcp.oc;
     jcp.ic_block = jcp.ic;
     jcp.loop_order = gemm_loop_rlb;
@@ -827,6 +908,17 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     // TODO: maybe mitigate blocking restriction
     const int L2 = platform::get_per_core_cache_size(2) / data_size;
     const int gemm_thrld = 64 * 1024;
+
+    // Heuristic threshold for requested scratchpad memory to avoid
+    // possible crash on memory allocation:
+    // 1Gb or size of the buffers already used for this convolution proportional
+    // to the number of threads and multiplied by a heuristic coefficient (15)
+    size_t scratchpad_limit_by_absolute_value = (size_t)1 << 30; // 1Gb
+    size_t scratchpad_limit_by_tensor_sizes = 15 * max_threads
+            * (src_d.size() + weights_d.size() + dst_d.size());
+
+    size_t scratchpad_limit = nstl::min(scratchpad_limit_by_absolute_value,
+            scratchpad_limit_by_tensor_sizes);
 
     if (is_int8_conv) {
         if (is_fwd) {
@@ -1010,7 +1102,8 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     && (!jcp.im2col_sz
                             // spatial is small
                             || spatial >= max_threads * simd_w
-                            // inner threading work is greater then outer threading work
+                            // inner threading work is greater then outer
+                            // threading work
                             || jcp.os < jcp.mb * jcp.ngroups * jcp.od
                             // im2col is big
                             || (sw == 1 && K <= 0.05 * jcp.oc))
@@ -1266,12 +1359,6 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     && (jcp.mb != 1 || jcp.ngroups > 2);
 
         jcp.nthr = jcp.outer_threading ? max_threads : 1;
-        const size_t gemm_col_datatype_size = is_bf16_conv && !is_bwd_d
-                ? sizeof(bfloat16_t)
-                : sizeof(float);
-        scratchpad.book(key_conv_gemm_col, jcp.nthr * jcp.im2col_sz,
-                gemm_col_datatype_size);
-
         const int sizeof_cacheline_float = 16;
         if (is_bwd_w) {
             jcp.need_wei_reduction = jcp.mb != 1 && jcp.nthr != 1;
@@ -1299,17 +1386,39 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                 scratchpad.book<float>(
                         key_conv_bias_bf16_convert_wsp, jcp.ngroups * jcp.oc);
         }
-    }
-    // Heuristic threshold for requested scratchpad memory to avoid
-    // possible crash on memory allocation:
-    // 1Gb or size of the buffers already used for this convolution proportional
-    // to the number of threads and multiplied by a heuristic coefficient (15)
-    size_t scratchpad_limit_by_absolute_value = (size_t)1 << 30; // 1Gb
-    size_t scratchpad_limit_by_tensor_sizes = 15 * max_threads
-            * (src_d.size() + weights_d.size() + dst_d.size());
+        const size_t gemm_col_datatype_size = is_bf16_conv && !is_bwd_d
+                ? sizeof(bfloat16_t)
+                : sizeof(float);
+        size_t gemm_col_memory_sz = jcp.nthr * jcp.im2col_sz;
 
-    size_t scratchpad_limit = nstl::min(scratchpad_limit_by_absolute_value,
-            scratchpad_limit_by_tensor_sizes);
+        if (is_bwd_w) {
+            // check available memory
+            if (scratchpad_limit < scratchpad.size())
+                return status::unimplemented;
+            const size_t available_mem = scratchpad_limit - scratchpad.size();
+            if (available_mem < gemm_col_memory_sz * gemm_col_datatype_size) {
+                // Required memory in this scenario overflows the
+                // available memory due to the large dimensions.
+                const int min_os_block = simd_w;
+                const int max_os_block = (int)available_mem
+                        / ((int)gemm_col_datatype_size * jcp.nthr
+                                * (jcp.im2col_sz / jcp.os));
+                // Choose an arbitrary small coeficient reduce spatial
+                // dimensions.
+                // TODO: better heuristic to determine os_block based
+                // on cache efficiency
+                float _coef = 0.05;
+                jcp.os_block
+                        = nstl::max(min_os_block, (int)(max_os_block * _coef));
+                jcp.os_nb_block = div_up(jcp.os, jcp.os_block);
+                jcp.im2col_sz = (ptrdiff_t)jcp.ic * jcp.ks * jcp.os_block;
+                gemm_col_memory_sz = jcp.nthr * jcp.im2col_sz;
+            }
+        }
+        scratchpad.book(
+                key_conv_gemm_col, gemm_col_memory_sz, gemm_col_datatype_size);
+    }
+
     if (scratchpad.size() > scratchpad_limit) return status::unimplemented;
     return status::success;
 }
