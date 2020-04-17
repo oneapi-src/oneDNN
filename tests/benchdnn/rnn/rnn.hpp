@@ -300,6 +300,18 @@ struct prb_t : public desc_t {
         return wei_scales[MIN2(idx, wei_nscales - 1)];
     }
 
+    bool maybe_skip() const {
+        bool skip = false;
+        // TODO: remove early exit when int8 weights reorder supports non
+        // trivial strides
+        skip = skip || (is_int8() && !trivial_strides);
+
+        // TODO: remove early exit when other cells will support int8
+        skip = skip || (is_int8() && alg != VANILLA_LSTM);
+
+        return skip;
+    }
+
     void count_ops() {
         // Here, we count only the ops in GEMM portion as there is no
         // theoretical number of ops for the post-gemm operations
