@@ -163,8 +163,8 @@ void simple_net_int8(engine::kind engine_kind) {
     } catch (error &e) {
         if (e.status == dnnl_unimplemented)
             throw example_allows_unimplemented {
-                    "oneDNN does not have int8 convolution implementation "
-                    "that supports this system.\n"
+                    "No int8 convolution implementation is available for this "
+                    "platform.\n"
                     "Please refer to the developer guide for details."};
 
         // on any other error just re-throw
