@@ -310,8 +310,8 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
     dnnl::impl::parallel_nd(p->mb, p->ic, sp.h_tiles, sp.w_tiles,
             [&](int64_t img, int64_t c, int64_t hfm, int64_t wfm) {
-                float I[6][6] = {0};
-                float _v[6][6] = {0};
+                float I[6][6] = {};
+                float _v[6][6] = {};
                 /* src_transform v <- B_t * d * B */
                 for (int64_t j = 0; j < sp.alpha; j++) {
                     int64_t ydim = hfm * sp.out_dim + j;
@@ -337,8 +337,8 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
             });
 
     dnnl::impl::parallel_nd(p->oc, p->ic, [&](int64_t oc, int64_t ic) {
-        float F[3][3] = {0};
-        float _u[6][6] = {0};
+        float F[3][3] = {};
+        float _u[6][6] = {};
         /* wei_transform u <- G * g * G_t */
         for_(int64_t j = 0; j < p->kh; j++)
         for (int64_t i = 0; i < p->kw; i++) {
@@ -363,8 +363,8 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
     dnnl::impl::parallel_nd(p->oc, p->mb, sp.h_tiles, sp.w_tiles,
             [&](int64_t oc, int64_t img, int64_t hfm, int64_t wfm) {
-                float O[4][4] = {0};
-                float _m[6][6] = {0};
+                float O[4][4] = {};
+                float _m[6][6] = {};
                 /* Y = A_t *m * A */
                 for_(int64_t j = 0; j < sp.alpha; j++)
                 for (int64_t k = 0; k < sp.alpha; k++) {
@@ -422,8 +422,8 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
     dnnl::impl::parallel_nd(p->mb, p->oc, sp.h_tiles, sp.w_tiles,
             [&](int64_t img, int64_t c, int64_t hfm, int64_t wfm) {
-                float I[6][6] = {0};
-                float _v[6][6] = {0};
+                float I[6][6] = {};
+                float _v[6][6] = {};
                 /* diff_src transform v <- B_t * d * B */
                 for (int64_t j = 0; j < sp.alpha; j++) {
                     int64_t ydim = hfm * sp.out_dim + j;
@@ -448,8 +448,8 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
             });
 
     dnnl::impl::parallel_nd(p->ic, p->oc, [&](int64_t ic, int64_t oc) {
-        float F[3][3] = {0};
-        float _u[6][6] = {0};
+        float F[3][3] = {};
+        float _u[6][6] = {};
         /* wei_transform u <- G * g * G_t */
         for_(int64_t j = 0; j < p->kh; j++)
         for (int64_t i = 0; i < p->kw; i++) {
@@ -475,8 +475,8 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
     dnnl::impl::parallel_nd(p->ic, p->mb, sp.h_tiles, sp.w_tiles,
             [&](int64_t c, int64_t img, int64_t hfm, int64_t wfm) {
-                float O[4][4] = {0};
-                float _m[6][6] = {0};
+                float O[4][4] = {};
+                float _m[6][6] = {};
                 /* diff_dst: Y = A_t *m * A */
                 for_(int64_t j = 0; j < sp.alpha; j++)
                 for (int64_t k = 0; k < sp.alpha; k++) {
@@ -527,8 +527,8 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
 
     dnnl::impl::parallel_nd(p->mb, sp.h_tiles, sp.w_tiles, p->ic,
             [&](int64_t img, int64_t hfm, int64_t wfm, int64_t ic) {
-                float I[6][6] = {0};
-                float _v[6][6] = {0};
+                float I[6][6] = {};
+                float _v[6][6] = {};
                 /* src transform v <- B_t * d * B */
                 for (int64_t j = 0; j < sp.alpha; j++) {
                     int64_t ydim = hfm * sp.out_dim + j;
@@ -554,8 +554,8 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
 
     dnnl::impl::parallel_nd(p->oc, p->mb, sp.h_tiles, sp.w_tiles,
             [&](int64_t oc, int64_t img, int64_t hfm, int64_t wfm) {
-                float O[6][6] = {0};
-                float _m[6][6] = {0};
+                float O[6][6] = {};
+                float _m[6][6] = {};
                 /* diff_dst transform */
                 for (int64_t j = 0; j < sp.alpha; j++) {
                     int64_t ydim = hfm * sp.out_dim + j;
@@ -587,8 +587,8 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     });
 
     dnnl::impl::parallel_nd(p->oc, p->ic, [&](int64_t oc, int64_t ic) {
-        float F[6][6] = {0};
-        float _u[3][3] = {0};
+        float F[6][6] = {};
+        float _u[3][3] = {};
         for_(int64_t j = 0; j < sp.alpha; j++)
         for (int64_t k = 0; k < sp.alpha; k++) {
             F[j][k] = U(j, k, oc, ic);
