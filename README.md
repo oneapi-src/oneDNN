@@ -16,10 +16,12 @@ oneAPI Deep Neural Network Library (oneDNN)
 > There are no changes to the API, environment variables, or build options
 > planned at this point.
 
-oneAPI Deep Neural Network Library (oneDNN) is an
-open-source performance library for deep learning applications. The library
-includes basic building blocks for neural networks optimized
-for Intel Architecture Processors and Intel Processor Graphics.
+oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
+performance library of basic building blocks for deep learning applications.
+The library is optimized for Intel Architecture Processors and Intel Processor
+Graphics. Support for other architectures such as Arm\* 64-bit Architecture
+(AArch64) is experimental.
+See the [System Requirements](#system-requirements) section below.
 
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance
@@ -82,8 +84,15 @@ If the configuration you need is not available, you can
 
 # System Requirements
 
-oneDNN supports systems based on
-[Intel 64 or AMD64 architecture](https://en.wikipedia.org/wiki/X86-64).
+oneDNN supports platforms based on the following architectures:
+- [Intel 64 or AMD64](https://en.wikipedia.org/wiki/X86-64),
+- [Arm 64-bit Architecture (AArch64)](
+        https://developer.arm.com/architectures/cpu-architecture/a-profile).
+
+> **WARNING**
+>
+> Arm 64-bit Architecture (AArch64) support is **experimental** with limited
+> testing validation.
 
 The library is optimized for the following CPUs:
 * Intel Atom processor with Intel SSE4.1 support
@@ -94,9 +103,9 @@ The library is optimized for the following CPUs:
 * Intel Xeon Scalable processor (formerly Skylake and Cascade Lake)
 * future Intel Xeon Scalable processor (code name Cooper Lake)
 
-oneDNN detects instruction set architecture (ISA) at runtime and uses
-just-in-time (JIT) code generation to deploy the code optimized
-for the latest supported ISA.
+On a CPU based on Intel 64 or AMD64 architecture, oneDNN detects the instruction
+set architecture (ISA) at runtime and uses just-in-time (JIT) code generation to
+deploy the code optimized for the latest supported ISA.
 
 > **WARNING**
 >
@@ -124,17 +133,21 @@ dependencies.
 
 ### CPU Engine
 
-Intel Architecture Processors and compatible devices are supported by the
-oneDNN CPU engine. The CPU engine is built by default and cannot
-be disabled at build time. The engine can be configured to use the OpenMP or
-TBB threading runtime. The following additional requirements apply:
+oneDNN CPU engine is used to execute primitives on Intel Architecture
+Processors, 64-bit Arm Architecture (AArch64) processors, and compatible
+devices.
+
+The CPU engine is built by default and cannot be disabled at build time. The
+engine can be configured to use the OpenMP or TBB threading runtime. The
+following additional requirements apply:
 * OpenMP runtime requires C++ compiler with OpenMP 2.0 or later standard support
 * TBB runtime requires
 [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
 2017 or later.
 
-Some implementations rely on OpenMP 4.0 SIMD extensions, and we recommend using
-the Intel C++ Compiler for the best performance results.
+Some implementations rely on OpenMP 4.0 SIMD extensions. For the best
+performance results on Intel Architecture Processors we recommend using the
+Intel C++ Compiler.
 
 ### GPU Engine
 
