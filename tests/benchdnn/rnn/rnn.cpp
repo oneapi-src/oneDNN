@@ -605,9 +605,7 @@ int doit(const prb_t &p, res_t *r) {
     engine_t engine_tgt_fwd(engine_tgt_kind);
     engine_t engine_tgt_bwd(engine_tgt_kind);
 
-    // TODO: remove early exit when int8 weights reorder supports non
-    // trivial strides
-    if (p.is_int8() && !p.trivial_strides) return r->state = SKIPPED, OK;
+    if (p.maybe_skip()) return r->state = SKIPPED, OK;
 
     dnnl_primitive_t c;
     SAFE(init_prim(&c, init_pd, engine_tgt_fwd, &p, r), WARN);
