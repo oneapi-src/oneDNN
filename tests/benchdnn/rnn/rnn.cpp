@@ -655,10 +655,7 @@ inline int init_pd(
 
 int doit(const prb_t &p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-
-    // TODO: remove early exit when int8 weights reorder supports non
-    // trivial strides
-    if (p.is_int8() && !p.trivial_strides) return r->state = SKIPPED, OK;
+    if (p.maybe_skip()) return r->state = SKIPPED, OK;
 
     dnnl_primitive_desc_t rpd;
     SAFE(init_pd(p, rpd, r, true), WARN);

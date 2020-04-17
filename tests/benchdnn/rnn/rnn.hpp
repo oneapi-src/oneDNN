@@ -314,6 +314,18 @@ struct prb_t : public desc_t {
         if (linear_scales) zfree(linear_scales);
     }
 
+    bool maybe_skip() const {
+        bool skip = false;
+        // TODO: remove early exit when int8 weights reorder supports non
+        // trivial strides
+        skip = skip || (is_int8() && !trivial_strides);
+
+        // TODO: remove early exit when other cells will support int8
+        skip = skip || (is_int8() && alg != VANILLA_LSTM);
+
+        return skip;
+    }
+
     inline float get_wei_scale(int idx) const {
         return wei_scales[MIN2(idx, wei_nscales - 1)];
     }
