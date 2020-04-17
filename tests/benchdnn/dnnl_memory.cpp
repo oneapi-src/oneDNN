@@ -96,9 +96,13 @@ int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
     const auto get_mem_size = [const_pd](dnnl_query_t query, int index = 0) {
         const auto md = dnnl_primitive_desc_query_md(const_pd, query, index);
         auto mem_size = dnnl_memory_desc_get_size(md);
+        // reference memories are always fp32, hence need rescaling factor
+        size_t ref_mem_factor = 1;
+        if (md->data_type != dnnl_data_type_undef)
+            ref_mem_factor = ::sizeof_dt(dnnl_f32) / ::sizeof_dt(md->data_type);
         // runtime mem size is not defined
         if (mem_size == DNNL_RUNTIME_SIZE_VAL) mem_size = 0;
-        return 2 * mem_size; // 2 for library and benchdnn ref memories
+        return (1 + ref_mem_factor) * mem_size;
     };
 
     double total_mem_size = 0;
