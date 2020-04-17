@@ -218,7 +218,8 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
     engine.reset(engine_tgt_kind);
 
     dnnl_primitive_desc_t pd;
-    init_pd_func(engine, p, pd, r, dir, hint);
+    int status = init_pd_func(engine, p, pd, r, dir, hint);
+    if (status != OK) return status;
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
     DNN_SAFE(dnnl_primitive_create(prim, pd), WARN);
 
