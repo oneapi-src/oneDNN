@@ -592,10 +592,10 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p_ptr,
     SAFE(init_status, WARN);
 
     // Return if pd is not the one being tested
-    if ((dir & FLAG_FWD) != (p.prop == dnnl_forward)) return OK;
+    if ((dir & FLAG_FWD) && (p.prop == dnnl_backward)) return OK;
 
-    const char *impl_str = query_impl_info(rpd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
+    r->impl_name = query_impl_info(rpd);
+    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
 
     return OK;
 }

@@ -257,8 +257,8 @@ static int init_pd_custom(const engine_t &engine_tgt, const prb_t *p,
     if (init_status == dnnl_unimplemented) return r->state = UNIMPLEMENTED, OK;
     SAFE(init_status, WARN);
 
-    const char *impl_str = query_impl_info(rpd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
+    r->impl_name = query_impl_info(rpd);
+    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
 
     return OK;
 }
