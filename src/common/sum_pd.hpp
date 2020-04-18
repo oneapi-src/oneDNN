@@ -88,6 +88,10 @@ struct sum_pd_t : public primitive_desc_t {
 
     bool need_output_reorder() const { return dst_md()->data_type != dnnl_f32; }
 
+    bool has_zero_dim_memory() const {
+        return memory_desc_wrapper(dst_md()).has_zero_dim();
+    }
+
 protected:
     int n_;
     std::vector<float> scales_;

@@ -47,6 +47,8 @@ struct ref_sum_t : public primitive_t {
             bool ok = cpu_sum_pd_t::init(engine) == status::success;
             if (!ok) return status::unimplemented;
 
+            if (has_zero_dim_memory()) return status::success;
+
             for (int i = 0; i < n_; ++i) {
                 auto r_impls = engine->get_reorder_implementation_list(
                         src_md(i), dst_acc_md());
@@ -116,17 +118,21 @@ struct ref_sum_t : public primitive_t {
     ref_sum_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t init(engine_t *engine) override {
-        const int n = pd()->n_inputs() + pd()->need_output_reorder();
+        const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
-        for (int i = 0; i < n; ++i)
+        for (size_t i = 0; i < n; ++i)
             pd()->reorder_pds_[i]->create_primitive(reorders_[i], engine);
         return status::success;
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
+
+        if (pd()->has_zero_dim_memory()) return status::success;
+
         const auto n = pd()->n_inputs();
         exec_args_t r_args;
+
         auto scratchpad = ctx.get_scratchpad_grantor();
         auto *sum_reduce = pd()->need_output_reorder()
                 ? scratchpad.get<float>(key_sum_reduction)
