@@ -53,7 +53,7 @@ struct ref_sum_t : public gpu_primitive_t {
 
             for (int i = 0; i < n_; ++i) {
                 auto r_impls = engine->get_reorder_implementation_list(
-                        src_md(i), dst_md());
+                        src_md(i), dst_acc_md());
                 for (auto r = r_impls; *r; ++r) {
                     primitive_attr_t r_attr;
                     r_attr.set_scratchpad_mode(scratchpad_mode::user);
@@ -62,15 +62,35 @@ struct ref_sum_t : public gpu_primitive_t {
 
                     reorder_pd_t *r_pd;
                     if ((*r)(&r_pd, engine, &r_attr, engine, src_md(i), engine,
-                                dst_md())
+                                dst_acc_md())
                             == status::success) {
                         reorder_pds_.emplace_back(r_pd);
                         break;
                     }
                 }
             }
-            ok = utils::everyone_is(reorder_pds_.size(), scales_.size());
-            return ok ? status::success : status::unimplemented;
+
+            if (need_output_reorder()) {
+                auto r_impls = engine->get_reorder_implementation_list(
+                        dst_acc_md(), dst_md());
+                for (auto r = r_impls; *r; ++r) {
+                    primitive_attr_t r_attr;
+                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
+                    reorder_pd_t *r_pd = nullptr;
+                    if ((*r)(&r_pd, engine, &r_attr, engine, dst_acc_md(),
+                                engine, dst_md())
+                            == status::success) {
+                        reorder_pds_.emplace_back(r_pd);
+                        break;
+                    }
+                }
+            }
+
+            ok = reorder_pds_.size() == (size_t)n_ + need_output_reorder();
+            if (!ok) return status::unimplemented;
+
+            init_scratchpad();
+            return status::success;
         }
 
         void clone_reorder_pds(const pd_t &rhs) {
@@ -83,10 +103,15 @@ struct ref_sum_t : public gpu_primitive_t {
 
     private:
         void init_scratchpad() {
+            using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
+            if (need_output_reorder()) {
+                const memory_desc_wrapper dst_acc_d(dst_acc_md());
+                scratchpad.book(key_sum_reduction, dst_acc_d.size());
+            }
+
             for (size_t i = 0; i < reorder_pds_.size(); i++) {
-                scratchpad.book(
-                        memory_tracking::names::key_nested_multiple + (int)i,
+                scratchpad.book(key_nested_multiple + (int)i,
                         reorder_pds_[i]->scratchpad_registry().size());
             }
         }
@@ -110,10 +135,23 @@ struct ref_sum_t : public gpu_primitive_t {
         if (pd()->has_zero_dim_memory()) return status::success;
 
         const auto n = pd()->n_inputs();
+        exec_args_t r_args;
+
+        std::unique_ptr<memory_t> p_temp_dst_acc;
+        if (pd()->need_output_reorder()) {
+            auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
+                    key_sum_reduction);
+            p_temp_dst_acc.reset(new memory_t(ctx.stream()->engine(),
+                    pd()->dst_acc_md(), memory_flags_t::use_runtime_ptr,
+                    scratchpad->data_handle()));
+        }
+
+        auto dst = ctx.args().at(DNNL_ARG_DST);
+        memory_arg_t dst_acc = {p_temp_dst_acc.get(), false};
+
         for (int i = 0; i < n; ++i) {
-            exec_args_t r_args;
             r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
-            r_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DST);
+            r_args[DNNL_ARG_DST] = pd()->need_output_reorder() ? dst_acc : dst;
             exec_ctx_t r_ctx(ctx, std::move(r_args));
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + i, reorders_[i]);
@@ -121,6 +159,18 @@ struct ref_sum_t : public gpu_primitive_t {
             reorders_[i]->execute(r_ctx);
             ctx.stream()->wait();
         }
+
+        if (pd()->need_output_reorder()) {
+            dst_acc = {p_temp_dst_acc.get(), true};
+            r_args[DNNL_ARG_SRC] = dst_acc;
+            r_args[DNNL_ARG_DST] = dst;
+            exec_ctx_t r_ctx(ctx, std::move(r_args));
+
+            nested_scratchpad_t ns(ctx, key_nested_multiple + n, reorders_[n]);
+            r_ctx.set_scratchpad_grantor(ns.grantor());
+            reorders_[n]->execute(r_ctx);
+        }
+
         return status::success;
     }
 
