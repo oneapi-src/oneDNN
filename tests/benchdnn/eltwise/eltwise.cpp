@@ -290,8 +290,7 @@ static int compare_padded_area_for_zeros(const engine_t &engine_tgt,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        bool is_fwd = true) {
+int fill_data(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
@@ -328,10 +327,6 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
-}
-
-int fill_data_bwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    return fill_data_fwd(p, mem_dt, mem_fp, false);
 }
 
 int doit(const prb_t *p, res_t *r) {
@@ -374,7 +369,7 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
-    SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
+    SAFE(fill_data(p, src_dt, src_fp), WARN);
 
     args_t args;
 
@@ -403,7 +398,7 @@ int doit(const prb_t *p, res_t *r) {
         }
         dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 
-        SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp), WARN);
+        SAFE(fill_data(p, d_dst_dt, d_dst_fp), WARN);
 
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
