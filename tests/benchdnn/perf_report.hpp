@@ -100,6 +100,7 @@ struct base_perf_report_t {
         HANDLE("freq", s << get_freq());
         HANDLE("ops", s << ops() / unit);
         HANDLE("time", s << t.ms(mode) / unit);
+        HANDLE("impl", s << r->impl_name);
 
 #undef HANDLE
 

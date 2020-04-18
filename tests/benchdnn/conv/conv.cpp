@@ -534,21 +534,19 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
-    if (init_status == dnnl_unimplemented) {
-        if (r) r->state = UNIMPLEMENTED;
-        return OK;
-    }
+    if (!r) return OK;
+
+    if (init_status == dnnl_unimplemented) return r->state = UNIMPLEMENTED, OK;
     SAFE(init_status, WARN);
 
-    if (r) {
-        const char *impl_str = query_impl_info(cpd);
-        if (maybe_skip(impl_str)) {
-            BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n", impl_str);
-            DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
-            return r->state = SKIPPED, OK;
-        } else {
-            BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
-        }
+    r->impl_name = query_impl_info(cpd);
+    if (maybe_skip(r->impl_name)) {
+        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
+                r->impl_name.c_str());
+        DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
+        return r->state = SKIPPED, OK;
+    } else {
+        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
     }
 
     return OK;
