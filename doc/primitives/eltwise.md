@@ -80,8 +80,12 @@ argument index as specified by the following table.
 
 3. Both forward and backward propagation support in-place operations, meaning
    that \src can be used as input and output for forward propagation, and
-   \diffdst can be used as input and output for backward propagation. In case
-   of in-place operation, the original data will be overwritten.
+   \diffdst can be used as input and output for backward propagation. In case of
+   an in-place operation, the original data will be overwritten. Note, however,
+   that some algorithms for backward propagation require original \src, hence
+   the corresponding forward propagation should not be performed in-place for
+   those algorithms. Algorithms that use \dst for backward propogation can be
+   safely done in-place.
 
 4. For some operations it might be beneficial to compute backward
    propagation based on \f$\dst(\overline{s})\f$, rather than on
@@ -132,7 +136,7 @@ The eltwise primitive doesn't support any post-ops or attributes.
    same because of the API). Different formats are functionally supported but
    lead to highly suboptimal performance.
 
-2. Use in-place operations whenever possible.
+2. Use in-place operations whenever possible (see caveats in General Notes).
 
 3. As mentioned above for all operations supporting destination memory as input,
    one can use the \dst tensor instead of \src. This enables the
