@@ -261,6 +261,7 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
+    auto mb = pd()->desc()->batch;
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
     auto k = pd()->desc()->k;
@@ -331,57 +332,59 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     auto temp_buf = ctx.get_scratchpad_grantor().get_memory_storage(
             memory_tracking::names::key_gemm_tmp_buffer);
 
-    for (int64_t Bk = 0; Bk < k; Bk += block_k) {
-        int64_t size_k = k - Bk;
-        bool last_k_block = (size_k <= block_k);
-        if (!last_k_block) size_k = block_k;
+    for (int64_t batch = 0; batch < mb; batch++) {
+        for (int64_t Bk = 0; Bk < k; Bk += block_k) {
+            int64_t size_k = k - Bk;
+            bool last_k_block = (size_k <= block_k);
+            if (!last_k_block) size_k = block_k;
 
-        for (int64_t Bm = 0; Bm < m; Bm += block_m) {
-            int64_t size_m = m - Bm;
-            if (size_m > block_m) size_m = block_m;
+            for (int64_t Bm = 0; Bm < m; Bm += block_m) {
+                int64_t size_m = m - Bm;
+                if (size_m > block_m) size_m = block_m;
 
-            auto off_a_src
-                    = off_a0 + (!transa ? (Bm + Bk * lda) : (Bk + Bm * lda));
+                auto off_a_src = batch * m * k
+                        + off_a0 + (!transa ? (Bm + Bk * lda) : (Bk + Bm * lda));
 
-            if (!nocopy) {
-                status = launch_copy(ctx, compute_stream, size_k, size_m, a,
-                        off_a_src, lda, alpha_native, *temp_buf, off_a_packed,
-                        false, !transa);
-                if (status) return status;
-            }
-
-            for (int64_t Bn = 0; Bn < n; Bn += block_n) {
-                int64_t size_n = n - Bn;
-                if (size_n > block_n) size_n = block_n;
-
-                auto off_b_src = off_b0
-                        + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
-
-                if (!nocopy && ((Bn == 0) || (n > block_n))) {
-                    status = launch_copy(ctx, compute_stream, size_k, size_n, b,
-                            off_b_src, ldb, one_native, *temp_buf, off_b_packed,
-                            true, transb);
+                if (!nocopy) {
+                    status = launch_copy(ctx, compute_stream, size_k, size_m, a,
+                            off_a_src, lda, alpha_native, *temp_buf, off_a_packed,
+                            false, !transa);
                     if (status) return status;
                 }
 
-                auto off_c = off_c0 + Bm + Bn * ldc;
+                for (int64_t Bn = 0; Bn < n; Bn += block_n) {
+                    int64_t size_n = n - Bn;
+                    if (size_n > block_n) size_n = block_n;
 
-                if (nocopy) {
-                    auto flag = ctx.get_scratchpad_grantor().get_memory_storage(
-                            memory_tracking::names::key_gemm_flag);
-                    float eff_beta = (Bk == 0) ? beta : 1.0f;
-                    status = launch_nocopy(ctx, compute_stream, a, b, c,
-                            off_a_src, off_b_src, off_c, lda, ldb, ldc, size_m,
-                            size_n, size_k, alpha, eff_beta, (int)last_k_block,
-                            eltwise_alpha, eltwise_beta, eltwise_scale, *flag);
-                } else {
-                    bool beta0 = (beta == 0) && (Bk == 0);
-                    status = launch_compute(ctx, compute_stream, size_m, size_n,
-                            size_k, *temp_buf, off_a_packed, off_b_packed, c,
-                            off_c, ldc, (int)last_k_block, eltwise_alpha,
-                            eltwise_beta, eltwise_scale, beta0);
+                    auto off_b_src = batch * k * n
+                        + off_b0 + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
+
+                    if (!nocopy && ((Bn == 0) || (n > block_n))) {
+                        status = launch_copy(ctx, compute_stream, size_k, size_n, b,
+                                off_b_src, ldb, one_native, *temp_buf, off_b_packed,
+                                true, transb);
+                        if (status) return status;
+                    }
+
+                    auto off_c = batch * m * n + off_c0 + Bm + Bn * ldc;
+
+                    if (nocopy) {
+                        auto flag = ctx.get_scratchpad_grantor().get_memory_storage(
+                                memory_tracking::names::key_gemm_flag);
+                        float eff_beta = (Bk == 0) ? beta : 1.0f;
+                        status = launch_nocopy(ctx, compute_stream, a, b, c,
+                                off_a_src, off_b_src, off_c, lda, ldb, ldc, size_m,
+                                size_n, size_k, alpha, eff_beta, (int)last_k_block,
+                                eltwise_alpha, eltwise_beta, eltwise_scale, *flag);
+                    } else {
+                        bool beta0 = (beta == 0) && (Bk == 0);
+                        status = launch_compute(ctx, compute_stream, size_m, size_n,
+                                size_k, *temp_buf, off_a_packed, off_b_packed, c,
+                                off_c, ldc, (int)last_k_block, eltwise_alpha,
+                                eltwise_beta, eltwise_scale, beta0);
+                    }
+                    if (status) return status;
                 }
-                if (status) return status;
             }
         }
     }

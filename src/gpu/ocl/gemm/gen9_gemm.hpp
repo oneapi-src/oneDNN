@@ -78,12 +78,10 @@ struct gen9_gemm_t : public gpu_gemm_t {
             const auto d = desc();
 
             // LIMITATIONS:
-            // - batch is not supported
             // - runtime dims are not supported
             // - bias is not supported
-            bool limits_ok = d->batch == 1
-                    && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m, d->n, d->k,
-                            d->lda, d->ldb, d->ldc)
+            bool limits_ok = !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->batch,
+                                     d->m, d->n, d->k, d->lda, d->ldb, d->ldc)
                     && d->bias_type == data_type::undef;
 
             bool ok = limits_ok
