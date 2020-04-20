@@ -148,4 +148,4 @@ set(MKLDNN_USE_CLANG_SANITIZER "" CACHE STRING
 option(MKLDNN_PRODUCT_BUILD_MODE
     "Enables/disables product build mode. For example,
     setting MKLDNN_PRODUCT_BUILD_MODE=OFF makes warnings non-fatal"
-    ON)
+    OFF)
