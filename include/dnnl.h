@@ -3708,8 +3708,8 @@ dnnl_status_t DNNL_API dnnl_stream_destroy(dnnl_stream_t stream);
 /// @addtogroup dnnl_api_primitive_cache
 /// @{
 
-/// Returns a number of primitives that can be held in the primitive cache
-/// at a time.
+/// Returns the number of primitives that can be held in the primitive cache
+/// at the same time.
 ///
 /// @param capacity Primitive cache capacity to query. Concurrently
 /// accessing @p capacity is safe.

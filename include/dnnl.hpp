@@ -10523,7 +10523,8 @@ inline status set_max_cpu_isa(cpu_isa isa) {
 /// @addtogroup dnnl_api_primitive_cache Primitive Cache
 /// @{
 
-/// @copydoc dnnl_get_primitive_cache_capacity(int *capacity)
+/// Returns the number of primitives that can be held in the primitive cache
+/// at the same time.
 inline int get_primitive_cache_capacity() {
     int result = 0;
     error::wrap_c_api(dnnl_get_primitive_cache_capacity(&result),

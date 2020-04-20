@@ -68,7 +68,7 @@ types that oneDNN recognizes.
 | f16       | not supported
 
 @note
-  See @dev_guide_int8_computations in the Developer Guide for additional
+  See @ref dev_guide_int8_computations in the Developer Guide for additional
   limitations related to int8 arithmetic.
 
 @note
