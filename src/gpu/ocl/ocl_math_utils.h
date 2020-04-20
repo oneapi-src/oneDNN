@@ -24,12 +24,6 @@ ushort convert_f32_to_bf16(float f) {
     return r[1];
 }
 
-float convert_bf16_to_f32(ushort b) {
-    ushort2 r = {0, b};
-    float f = as_float(r);
-    return f;
-}
-
 ushort2 convert_f32_to_bf16_vec2(float2 f) {
     ushort2 r;
     for (int i = 0; i < 2; i++) {
@@ -52,6 +46,12 @@ ushort8 convert_f32_to_bf16_vec8(float8 f) {
         r[i] = convert_f32_to_bf16(f[i]);
     }
     return r;
+}
+
+float convert_bf16_to_f32(ushort b) {
+    ushort2 r = {0, b};
+    float f = as_float(r);
+    return f;
 }
 
 float2 convert_bf16_to_f32_vec2(ushort2 b) {

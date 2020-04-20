@@ -204,7 +204,7 @@
 #define DEF_ACC_DATA4_T int4
 #define DEF_ACC_DATA8_T int8
 #define POST_OP_DATA_T float
-#define TO_DATA_T(v) (char)(v)
+#define TO_DATA_T(v) convert_char_sat_rte(v)
 #define TO_DEF_ACC_DATA_T(v) (float)(v)
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_char_sat_rte
@@ -254,7 +254,7 @@
 #define DEF_ACC_DATA4_T int4
 #define DEF_ACC_DATA8_T int8
 #define POST_OP_DATA_T float
-#define TO_DATA_T(v) (uchar)(v)
+#define TO_DATA_T(v) convert_uchar_sat_rte(v)
 #define TO_DEF_ACC_DATA_T(v) (float)(v)
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_uchar_sat_rte
@@ -292,7 +292,7 @@
 #define AS_BLOCK_DATA8_T as_uchar8
 #elif DT_S32 == 1
 #define DATA_T int
-#define DATA_TO_REF
+#define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_int_sat_rte
 #define POST_OP_DATA_T float
 #elif !defined(DT_UNDEF)
