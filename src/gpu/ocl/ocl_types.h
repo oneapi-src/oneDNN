@@ -205,6 +205,7 @@
 #define DEF_ACC_DATA8_T int8
 #define POST_OP_DATA_T float
 #define TO_DATA_T(v) (char)(v)
+#define TO_DEF_ACC_DATA_T(v) (float)(v)
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_char_sat_rte
 #define CONVERT_DATA2_T convert_char2_sat_rte
@@ -254,6 +255,7 @@
 #define DEF_ACC_DATA8_T int8
 #define POST_OP_DATA_T float
 #define TO_DATA_T(v) (uchar)(v)
+#define TO_DEF_ACC_DATA_T(v) (float)(v)
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_uchar_sat_rte
 #define CONVERT_DATA2_T convert_uchar2_sat_rte
