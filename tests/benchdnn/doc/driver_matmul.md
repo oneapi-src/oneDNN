@@ -32,9 +32,10 @@ and *matmul-desc* is a problem descriptor. The canonical form is:
 ```
     [mbX]mXnXkX_nS
 ```
-Here X is an integer number and S is a string (the last `n` stands for name).
-The special symbol `_` is ignored, so it may be used as a delimiter.
-Refer to the common glossary in README.md for the entity name and description.
+Here `X` is an integer number and `S` is a string literal without spaces (`n`
+stands for name). The special symbol `_` is ignored, so it may be used as a
+delimiter for better readability. Refer to the common glossary in README.md for
+the entity name and description.
 
 The `mb` can be omitted, in which case the problem is treated as regular
 2D matrix multiplication. With `mb` set to a non-zero value, batched matrix

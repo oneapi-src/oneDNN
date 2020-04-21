@@ -27,8 +27,10 @@ and *rnn-desc* is a problem descriptor. The canonical form is:
 ```
  lXtXmbX_sicX_slcX_dhcX_nS
 ```
-Here X is an integer number and S is a string (n stands for name).
-The special symbol `_` is ignored, so it may be used as a delimiter.
+Here `X` is an integer number and `S` is a string literal without spaces (`n`
+stands for name). The special symbol `_` is ignored, so it may be used as a
+delimiter for better readability. Refer to the common glossary in README.md for
+the entity name and description.
 
 Description of RNN descriptor symbols: TBA.
 

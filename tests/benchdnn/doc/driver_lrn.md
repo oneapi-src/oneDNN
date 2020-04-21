@@ -25,11 +25,11 @@ and *lrn-desc* is a problem descriptor. The canonical form is:
 ```
     mbXicX_idXihXiwX_lsX_alphaY_betaY_kY_nS
 ```
-Here X is an integer number, Y is a real number, and S is a string (n stands for
-name). The special symbol `_` is ignored, so it may be used as a delimiter.
-`ls` is lrn local_size, `alpha` is lrn_alpha, `beta` is lrn_beta, and `k` is
-lrn_k. Refer to the common glossary in README.md for the entity name and
-description.
+Here `X` is an integer number, `Y` is a real number, and `S` is a string literal
+without spaces (`n` stands for name). The special symbol `_` is ignored, so it
+may be used as a delimiter for better readability. `ls` is lrn local_size,
+`alpha` is lrn_alpha, `beta` is lrn_beta, and `k` is lrn_k. Refer to the common
+glossary in README.md for the entity name and description.
 
 There are default values for some entities in case they were not specified:
  - mb = 2;

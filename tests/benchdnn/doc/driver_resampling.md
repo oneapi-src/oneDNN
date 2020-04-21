@@ -25,9 +25,10 @@ and *resampling-desc* is a problem descriptor. The canonical form is:
 ```
     mbXicX_idXihXiwX_odXohXowX_nS
 ```
-Here X is an integer number and S is a string (n stands for name).
-The special symbol `_` is ignored, so it may be used as a delimiter.
-Refer to the common glossary in README.md for the entity name and description.
+Here `X` is an integer number and `S` is a string literal without spaces (`n`
+stands for name). The special symbol `_` is ignored, so it may be used as a
+delimiter for better readability. Refer to the common glossary in README.md for
+the entity name and description.
 
 There are default values for some entities in case they were not specified:
  - mb = 2;
