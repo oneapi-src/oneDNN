@@ -409,11 +409,14 @@ struct rtus_driver_t : public jit_generator {
                 } else {
                     mov(reg_cur_src_fin, reg_cur_src);
                     add(reg_cur_src_fin, (src_step_h_ - iw_) * w_step_factor);
-                    Label ih_loop_nhwc, ic_ih_loop_nhwc;
+                    Label ih_loop_nhwc, ic_ih_loop_nhwc, ic_tail_ih_loop_nhwc,
+                            ic_finish_ih_loop_nhwc;
                     L(ih_loop_nhwc);
                     mov(reg_cur_src, reg_src);
                     mov(reg_cur_icb, reg_icb);
                     L(ic_ih_loop_nhwc);
+                    cmp(reg_cur_icb, vlen_);
+                    jl(ic_tail_ih_loop_nhwc);
 
                     for (int w = 0; w < stride_w_; ++w)
                         store_reg(
@@ -422,6 +425,16 @@ struct rtus_driver_t : public jit_generator {
                     add(reg_cur_src, vlen_);
                     sub(reg_cur_icb, vlen_);
                     jnz(ic_ih_loop_nhwc);
+
+                    L(ic_tail_ih_loop_nhwc);
+                    cmp(reg_cur_icb, 0);
+                    jle(ic_finish_ih_loop_nhwc);
+
+                    for (int w = 0; w < stride_w_; ++w)
+                        store_reg(ptr[reg_cur_src + w * w_step_factor],
+                                reg_zero | tail_mask);
+
+                    L(ic_finish_ih_loop_nhwc);
 
                     add(reg_src, stride_w_ * w_step_factor);
                     cmp(reg_src, reg_cur_src_fin);
