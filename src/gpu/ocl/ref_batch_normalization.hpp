@@ -66,9 +66,6 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
                             compute::device_ext_t::intel_subgroups);
             if (!ok) return status::unimplemented;
 
-            if (src_data_t == s8 && !stats_is_src())
-                return status::unimplemented;
-
             if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
             status_t status = init_conf(engine);

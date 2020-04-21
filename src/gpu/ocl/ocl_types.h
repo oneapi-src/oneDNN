@@ -212,6 +212,9 @@
 #define CONVERT_DATA4_T convert_char4_sat_rte
 #define CONVERT_DATA8_T convert_char8_sat_rte
 #define CONVERT_FLOAT_T convert_float
+#define CONVERT_FLOAT2_T convert_float2
+#define CONVERT_FLOAT4_T convert_float4
+#define CONVERT_FLOAT8_T convert_float8
 #define ROUND rint
 
 #define BLOCK_READ intel_sub_group_block_read_uc

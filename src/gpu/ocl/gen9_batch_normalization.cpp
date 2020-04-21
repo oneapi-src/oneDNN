@@ -166,6 +166,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("CALCULATE_DIFF_STATS", conf.calculate_diff_stats);
     kernel_ctx.define_int("DIFF_SCALESHIFT", conf.diff_scaleshift);
 
+    if (conf.data_type == data_type::s8)
+        kernel_ctx.add_option("-Dcl_intel_subgroups_char");
+
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
 
     def_dispatch(kernel_ctx, conf.dispatch_calc_stat);
