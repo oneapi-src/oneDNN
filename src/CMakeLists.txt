@@ -137,7 +137,7 @@ install(EXPORT ${LIB_EXPORT_NAME}
 
 # Intel MKL-DNN compat cmake files
 install(CODE "execute_process(COMMAND ${CMAKE_COMMAND}
-    -DDIR=${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake
+    -DDIR=\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake
     -P ${PROJECT_SOURCE_DIR}/cmake/gen_mkldnn_compat_cmakes.cmake)")
 
 # Intel MKL-DNN compat libraries
