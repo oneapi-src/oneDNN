@@ -140,12 +140,19 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     }
 #endif
 
-    __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
-    for (int k = 0; k < OW_BLOCK; k++) {
-        BLOCK_WRITE(
-                (__global BLOCK_DATA_T *)&dst[k * OC_BLOCK], AS_UINT_T(S00[k]));
+    if (OW % OW_BLOCK == 0 || ow + OW_BLOCK <= OW) {
+        __attribute__((opencl_unroll_hint)) // attr:no-format
+        for (int k = 0; k < OW_BLOCK; k++) {
+            BLOCK_WRITE((__global BLOCK_DATA_T *)&dst[k * OC_BLOCK],
+                    AS_UINT_T(S00[k]));
+        }
+    } else {
+        __attribute__((opencl_unroll_hint)) // attr:no-format
+        for (int k = 0; k < OW % OW_BLOCK; k++) {
+            BLOCK_WRITE((__global BLOCK_DATA_T *)&dst[k * OC_BLOCK],
+                    AS_UINT_T(S00[k]));
+        }
     }
-
 #endif
 
 #if VER_16MB16C
