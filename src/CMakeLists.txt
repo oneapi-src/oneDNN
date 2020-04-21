@@ -203,7 +203,7 @@ if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     install(FILES
         "../cmake/FindOpenCL.cmake"
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
-    install(FILES "${CMAKE_INSTALL_PREFIX}/${LIB_CONFIG_INSTALL_DIR}/FindOpenCL.cmake"
+    install(FILES "../cmake/FindOpenCL.cmake"
             DESTINATION ${LIB_CONFIG_INSTALL_DIR_COMPAT})
 endif()
 
