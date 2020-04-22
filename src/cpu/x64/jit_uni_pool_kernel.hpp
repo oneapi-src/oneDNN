@@ -135,7 +135,10 @@ private:
     reg64_t reg_ker_area_h = rdx;
     reg64_t reg_nbc = rsi;
 
-    reg64_t zero_size = r15;
+    reg64_t reg_zero_ptr = r9;
+    reg64_t reg_zero_id = r13;
+    reg64_t reg_zero_ih = r14;
+    reg64_t aux_reg_zero_ih = r15;
     reg64_t ki = r12;
     reg64_t aux_reg_input_d = r8;
 
@@ -149,7 +152,7 @@ private:
     void max_step_fwd(int ur_w, int ur_bc, int pad_l, int pad_r);
     void max_step_bwd(int ur_w, int ur_bc, int pad_l, int pad_r);
 
-    void maybe_zero_diff_src(int ur_bc);
+    void zero_diff_src(int ur_bc);
 
     void load(int idx, reg64_t reg_ptr, int offset) {
         if (jpp.is_bf16) {

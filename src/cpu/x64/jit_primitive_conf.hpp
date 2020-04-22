@@ -545,7 +545,9 @@ struct jit_pool_call_s {
     const void *src_prf;
     const void *dst_prf;
     const void *indices_prf;
-    size_t oh;
+    size_t zero_ih;
+    size_t zero_id;
+    const void *zero_ptr;
     size_t kd_padding;
     size_t kh_padding;
     size_t kh_padding_shift;

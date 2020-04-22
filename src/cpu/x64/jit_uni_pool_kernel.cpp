@@ -164,7 +164,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                 : jpp.ur - 1; // Free register for cvt from bf16 to f32
     }
 
-    // select jpp.ur_bc and ur_w
+    // select jpp.ur_bc
     if (jpp.tag_kind == jptg_nspc) {
         auto min_ur_w = nstl::max(1, utils::div_up(jpp.l_pad, jpp.stride_w));
         int min_ur_w1 = utils::div_up(right_pad, jpp.stride_w);
@@ -698,53 +698,59 @@ inline void jit_uni_pool_kernel<isa>::max_step_bwd(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_pool_kernel<isa>::maybe_zero_diff_src(int ur_bc) {
+void jit_uni_pool_kernel<isa>::zero_diff_src(int ur_bc) {
     const int c_off = (jpp.tag_kind == jptg_nspc) ? jpp.c : jpp.c_block;
     assert(c_off * sizeof(float) % cpu_isa_traits<isa>::vlen == 0);
 
-    Label l_skip, l_zero;
+    Label l_skip, l_ih_loop, l_id_loop;
 
-    auto reg_oh = tmp_gpr;
-    mov(reg_oh, ptr[reg_param + GET_OFF(oh)]);
-    cmp(reg_oh, 0);
+    mov(reg_zero_id, ptr[reg_param + GET_OFF(zero_id)]);
+    cmp(reg_zero_id, 0);
     jz(l_skip, T_NEAR);
 
-    if (jpp.ndims == 5)
-        mov(zero_size, ptr[reg_param + GET_OFF(oh)]);
-    else
-        mov(zero_size, 1);
+    mov(reg_zero_ih, ptr[reg_param + GET_OFF(zero_ih)]);
+    cmp(reg_zero_ih, 0);
+    jz(l_skip, T_NEAR);
 
-    const int width_size = jpp.iw * c_off * jpp.dt_size;
-    mov(tmp_gpr, jpp.ih * width_size);
-    imul(zero_size, tmp_gpr);
+    mov(reg_zero_ptr, ptr[reg_param + GET_OFF(zero_ptr)]);
 
     auto vzero = vmm_tmp;
     auto yzero = ymm_tmp;
     uni_vpxor(vzero, vzero, vzero);
 
-    auto reg_off = tmp_gpr;
-    xor_(reg_off, reg_off);
+    const int width_size = jpp.iw * c_off * jpp.dt_size;
 
-    L(l_zero);
+    auto aux_reg_zero_ptr = tmp_gpr;
+
+    L(l_id_loop);
     {
-        const auto vlen = cpu_isa_traits<isa>::vlen;
-        const int step = (jpp.tag_kind == jptg_nspc)
-                ? jpp.dt_size * jpp.c
-                : (jpp.is_bf16) ? vlen / 2 : vlen;
-        // TODO: maybe a big code generated here
-        for_(int i = 0; i < width_size; i += step)
-        for (int bci = 0; bci < ur_bc; bci++) {
-            const int offs = i + bci * jpp.c_block * jpp.dt_size;
-            if (jpp.is_bf16)
-                vmovdqu16(ptr[reg_input + reg_off + offs], yzero);
-            else
-                uni_vmovups(ptr[reg_input + reg_off + offs], vzero);
-            if (isa == sse41)
-                uni_vmovups(ptr[reg_input + reg_off + offs + vlen], vzero);
+        mov(aux_reg_zero_ptr, reg_zero_ptr);
+        mov(aux_reg_zero_ih, reg_zero_ih);
+        L(l_ih_loop);
+        {
+            const auto vlen = cpu_isa_traits<isa>::vlen;
+            const int step = c_off * jpp.dt_size;
+
+            // TODO: maybe a big code generated here
+            for_(int i = 0; i < width_size; i += step)
+            for (int bci = 0; bci < ur_bc; bci++) {
+                const int offs = i + bci * jpp.c_block * jpp.dt_size;
+                if (jpp.is_bf16)
+                    vmovdqu16(ptr[reg_zero_ptr + offs], yzero);
+                else {
+                    uni_vmovups(ptr[reg_zero_ptr + offs], vzero);
+                    if (isa == sse41)
+                        uni_vmovups(ptr[reg_zero_ptr + offs + vlen], vzero);
+                }
+            }
+            add(reg_zero_ptr, width_size);
+            dec(aux_reg_zero_ih);
+            jnz(l_ih_loop, T_NEAR);
         }
-        add(reg_off, width_size);
-        cmp(reg_off, zero_size);
-        jl(l_zero, T_NEAR);
+        mov(reg_zero_ptr, aux_reg_zero_ptr);
+        add(reg_zero_ptr, width_size * jpp.ih);
+        dec(reg_zero_id);
+        jnz(l_id_loop, T_NEAR);
     }
 
     L(l_skip);
@@ -819,7 +825,7 @@ void jit_uni_pool_kernel<isa>::generate() {
     auto perform_ker = [&](int ur_bc) {
         prev_kw = 0; // re-initialize this value for avg steps
 
-        if (jpp.is_backward && jpp.simple_alg) maybe_zero_diff_src(ur_bc);
+        if (jpp.is_backward && jpp.simple_alg) zero_diff_src(ur_bc);
 
         if (jpp.alg == pooling_avg_exclude_padding) {
             movq(xmm_ker_area_h, reg_ker_area_h);
