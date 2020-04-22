@@ -520,9 +520,9 @@ struct jit_pool_conf_t {
     data_type_t ind_dt;
 
     int c_block, c_tail, nb_c;
+    int ur_bc, ur_bc_tail;
     int ur_c, ur_c_tail;
-    int ur_w;
-    int ur_w_tail;
+    int ur;
     size_t tail[4];
     bool safe_c_tail;
     data_type_t src_dt;
@@ -553,6 +553,7 @@ struct jit_pool_call_s {
     size_t kw_padding;
     const void *init_value;
     float ker_area_h;
+    size_t ur_bc;
 };
 
 } // namespace x64

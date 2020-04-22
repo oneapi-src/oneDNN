@@ -53,7 +53,8 @@ struct jit_uni_pool_kernel : public jit_generator {
 
     void operator()(jit_pool_call_s *arg) { jit_ker(arg); }
     static status_t init_conf(jit_pool_conf_t &jbp,
-            memory_tracking::registrar_t &scratchpad, const pooling_pd_t *ppd);
+            memory_tracking::registrar_t &scratchpad, const pooling_pd_t *ppd,
+            int nthreads);
 
 private:
     using Xmm = Xbyak::Xmm;
@@ -132,6 +133,7 @@ private:
     reg64_t reg_k_shift = rbx;
     reg64_t tmp_gpr = rcx; // Must be rcx because rdi is used above
     reg64_t reg_ker_area_h = rdx;
+    reg64_t reg_nbc = rsi;
 
     reg64_t zero_size = r15;
     reg64_t ki = r12;
@@ -143,11 +145,11 @@ private:
     void (*jit_ker)(jit_pool_call_s *);
 
     void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r);
-    void avg_step(int ur_w, int pad_l, int pad_r);
-    void max_step_fwd(int ur_w, int pad_l, int pad_r);
-    void max_step_bwd(int ur_w, int pad_l, int pad_r);
+    void avg_step(int ur_w, int ur_bc, int pad_l, int pad_r);
+    void max_step_fwd(int ur_w, int ur_bc, int pad_l, int pad_r);
+    void max_step_bwd(int ur_w, int ur_bc, int pad_l, int pad_r);
 
-    void maybe_zero_diff_src();
+    void maybe_zero_diff_src(int ur_bc);
 
     void load(int idx, reg64_t reg_ptr, int offset) {
         if (jpp.is_bf16) {
@@ -160,24 +162,24 @@ private:
         }
     };
 
-    void step(int ur_w, int pad_l, int pad_r) {
+    void step(int ur_w, int ur_bc, int pad_l, int pad_r) {
         if (jpp.alg == alg_kind::pooling_max) {
             if (jpp.is_backward)
-                max_step_bwd(ur_w, pad_l, pad_r);
+                max_step_bwd(ur_w, ur_bc, pad_l, pad_r);
             else
-                max_step_fwd(ur_w, pad_l, pad_r);
+                max_step_fwd(ur_w, ur_bc, pad_l, pad_r);
         } else
-            avg_step(ur_w, pad_l, pad_r);
+            avg_step(ur_w, ur_bc, pad_l, pad_r);
     }
 
-    void step_high_half(int ur_w, int pad_l, int pad_r) {
+    void step_high_half(int ur_w, int ur_bc, int pad_l, int pad_r) {
         add(reg_input, sizeof(float) * 4);
         add(reg_output, sizeof(float) * 4);
         if (jpp.alg == alg_kind::pooling_max
                 && (jpp.is_training || jpp.is_backward))
             add(reg_index, types::data_type_size(jpp.ind_dt) * 4);
 
-        step(ur_w, pad_l, pad_r);
+        step(ur_w, ur_bc, pad_l, pad_r);
     }
 
     void generate();
