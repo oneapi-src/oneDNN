@@ -342,7 +342,8 @@ struct lnorm_conf_t {
 
 // Binary
 struct binary_conf_t {
-    int ndims;
+    int ndims, nvect;
+    bool use_unroll_16b, src0_unroll_16b;
     data_type_t src0_data_type;
     data_type_t src1_data_type;
     data_type_t dst_data_type;
@@ -351,7 +352,6 @@ struct binary_conf_t {
     bool is_max;
     bool is_min;
     bool is_tensor_op;
-    bool use_block_16b, use_2d_block;
     compute::dispatch_t dispatch;
     int dim0[MAX_NDIMS];
     int bcast_dims[MAX_NDIMS];

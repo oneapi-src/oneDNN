@@ -265,6 +265,9 @@
 #define CONVERT_DATA4_T convert_uchar4_sat_rte
 #define CONVERT_DATA8_T convert_uchar8_sat_rte
 #define CONVERT_FLOAT_T convert_float
+#define CONVERT_FLOAT2_T convert_float2
+#define CONVERT_FLOAT4_T convert_float4
+#define CONVERT_FLOAT8_T convert_float8
 #define ROUND rint
 
 #define BLOCK_READ intel_sub_group_block_read_uc
@@ -503,26 +506,32 @@
 #if DST_DT_BF16
 #define TO_DST(x) convert_f32_to_bf16(x)
 #define TO_DST2(x) convert_f32_to_bf16_vec2(convert_float8(x))
+#define TO_DST4(x) convert_f32_to_bf16_vec4(convert_float8(x))
 #define TO_DST8(x) convert_f32_to_bf16_vec8(convert_float8(x))
 #elif DST_DT_F16
 #define TO_DST(x) convert_half(x)
 #define TO_DST2(x) convert_half2(x)
+#define TO_DST4(x) convert_half4(x)
 #define TO_DST8(x) convert_half8(x)
 #elif DST_DT_U8
 #define TO_DST(x) convert_uchar_sat_rte(x)
 #define TO_DST2(x) convert_uchar2_sat_rte(x)
+#define TO_DST4(x) convert_uchar4_sat_rte(x)
 #define TO_DST8(x) convert_uchar8_sat_rte(x)
 #elif DST_DT_S8
 #define TO_DST(x) convert_char_sat_rte(x)
 #define TO_DST2(x) convert_char2_sat_rte(x)
+#define TO_DST4(x) convert_char4_sat_rte(x)
 #define TO_DST8(x) convert_char8_sat_rte(x)
 #elif DST_DT_S32
 #define TO_DST(x) convert_int_sat_rte(x)
 #define TO_DST2(x) convert_int2_sat_rte(x)
+#define TO_DST4(x) convert_int4_sat_rte(x)
 #define TO_DST8(x) convert_int8_sat_rte(x)
 #elif DST_DT_F32
 #define TO_DST(x) convert_float(x)
 #define TO_DST2(x) convert_float2(x)
+#define TO_DST4(x) convert_float4(x)
 #define TO_DST8(x) convert_float8(x)
 #else
 #error "Not expected"

@@ -33,7 +33,7 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
             && po.entry_[0].sum.scale != 0.f;
     float sum_scale = with_sum ? po.entry_[0].sum.scale : 1;
     int e_idx = po.find(primitive_kind::eltwise);
-    bool with_eltwise = e_idx != -1 ? true : false;
+    bool with_eltwise = (e_idx != -1);
     float eltwise_scale = with_eltwise ? po.entry_[e_idx].eltwise.scale : 1;
 
     const int ndims = src0_d.ndims();
@@ -42,7 +42,6 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.dst_md_info = memory_desc_info_t::create(dst_d);
     conf.src0_data_type = src0_d.data_type();
     conf.src1_data_type = src1_d.data_type();
-    conf.dst_data_type = dst_d.data_type();
     conf.ndims = ndims;
     for (int i = 0; i < MAX_NDIMS; ++i) {
         conf.bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
@@ -62,8 +61,9 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.sum_scale = sum_scale;
     conf.eltwise_scale = eltwise_scale;
     if (with_eltwise) { conf.eltwise = po.entry_[e_idx].eltwise; }
-    conf.use_block_16b = false;
-    conf.use_2d_block = false;
+    int ic_block_sz = 1;
+    conf.use_unroll_16b = false;
+    conf.src0_unroll_16b = false;
 
     auto &blk0 = src0_d.blocking_desc();
     auto &blk1 = src1_d.blocking_desc();
@@ -74,15 +74,16 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
             && (blk1.inner_idxs[blk1.inner_nblks - 1] == 1)
             && (blk1.inner_blks[blk1.inner_nblks - 1] == 16);
 
-    //inputs channels must be blocked by 16, divisible by 16 to 
-    //vectorize dim
-    if (!conf.is_tensor_op && is_16b_blk0 && is_16b_blk1 && dst_d.dims()[1] %16 == 0){
-            conf.use_block_16b = true;
-            //if innermost dim is bcast, divisible by 2
-            //block 2d along it to reduce reads
-            if(conf.bcast_dims[ndims -1] && dst_d.dims()[ndims-1] % 2 == 0){
-                conf.use_2d_block = true;
-            }
+    if (!conf.is_tensor_op) {
+        // If: in case when both are blocked
+        // Else: only src0 is blocked
+        if (is_16b_blk0 && is_16b_blk1) {
+            ic_block_sz = 16;
+            conf.use_unroll_16b = true;
+        } else if (is_16b_blk0 && blk1.inner_nblks == 0) {
+            ic_block_sz = 16;
+            conf.src0_unroll_16b = true;
+        }
     }
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
@@ -94,28 +95,20 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
         // Hence starting i = 1, ignoring MB
         conf.dispatch.define_dim_with_nesting_level(
                 "D0", ndims, dst_d.dims()[0], 1);
-
         for (int i = 1; i < MAX_NDIMS; ++i) {
-            int dim = i < ndims ? dst_d.dims()[i] : 1;
-            if (i == 1 && conf.use_block_16b) {
+            if (i == 1 && (conf.use_unroll_16b || conf.src0_unroll_16b)) {
+                // changing value for broadcasting offsets
+                // division by IC for enabling blocking within kernel
                 conf.dispatch.define_dim(utils::format("D%d", i),
                         nstl::min(i, ndims - 1),
-                        dim);
-                conf.dispatch.vectorize_dim("D1", 16);
-            }
-            else if (i == ndims-1 && conf.use_2d_block) {
+                        i < ndims ? dst_d.padded_dims()[i] : 1, ic_block_sz);
+            } else {
                 conf.dispatch.define_dim(utils::format("D%d", i),
                         nstl::min(i, ndims - 1),
-                        dim, 2);
-            }
-            else {
-                conf.dispatch.define_dim(utils::format("D%d", i),
-                        nstl::min(i, ndims - 1),
-                        dim);
+                        i < ndims ? dst_d.dims()[i] : 1);
             }
         }
     }
-            
     conf.dispatch.generate();
     return status::success;
 }
@@ -141,22 +134,14 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("WITH_ELTWISE", conf.with_eltwise);
     kernel_ctx.define_int("WITH_SUM", conf.with_sum);
     kernel_ctx.define_int("SUM_SCALE", conf.sum_scale == 1);
-    kernel_ctx.define_int("SRC0_S", conf.src0_data_type == data_type::s8);
-    kernel_ctx.define_int("SRC1_S", conf.src1_data_type == data_type::s8);
     kernel_ctx.define_int("SRC0_SCALE", conf.with_src0_scale);
     kernel_ctx.define_int("SRC1_SCALE", conf.with_src1_scale);
-    kernel_ctx.define_int("USE_BLOCK_16B", conf.use_block_16b);
-    kernel_ctx.define_int("USE_2D_BLOCK", conf.use_2d_block);
-    kernel_ctx.add_option("-Dcl_intel_subgroups_char");
-    kernel_ctx.add_option("-Dcl_intel_subgroups_uchar");
+    kernel_ctx.define_int("USE_UNROLL_16B", conf.use_unroll_16b);
+    kernel_ctx.define_int("SRC0_UNROLL_16B", conf.src0_unroll_16b);
 
     def_memory_desc_info(kernel_ctx, conf.src0_md_info, "SRC0");
     def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
-
-    def_data_type(kernel_ctx, conf.src0_data_type, "SRC0");
-    def_data_type(kernel_ctx, conf.src1_data_type, "SRC1");
-    def_data_type(kernel_ctx, conf.dst_md_info.data_type, "DST");
 
     if (conf.with_eltwise) { def_postops(kernel_ctx, conf.eltwise.alg); }
 
