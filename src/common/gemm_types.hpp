@@ -41,44 +41,44 @@ const offsetc_t row = dnnl_row;
 struct dnnl_gemm_desc_t {
     /** The kind of primitive. Used for self identifying the primitive
      * descriptor. Must be #dnnl_gemm. */
-    dnnl_primitive_kind_t primitive_kind = dnnl_gemm;
+    dnnl_primitive_kind_t primitive_kind;
     /** Flag for transposing matrix A. */
-    transpose_t transa = dnnl_notrans;
+    transpose_t transa;
     /** Flag for transposing matrix B. */
-    transpose_t transb = dnnl_notrans;
+    transpose_t transb;
     /** Number of C matrices. */
-    dnnl_dim_t batch = 0;
+    dnnl_dim_t batch;
     /** Number of rows of C. */
-    dnnl_dim_t m = 0;
+    dnnl_dim_t m;
     /** Number of columns of C. */
-    dnnl_dim_t n = 0;
+    dnnl_dim_t n;
     /** Size of inner dimension shared between A and B. */
-    dnnl_dim_t k = 0;
+    dnnl_dim_t k;
     /** Stride between 2 matrices A in a batch. */
-    dnnl_dim_t stride_a = 0;
+    dnnl_dim_t stride_a;
     /** Stride between 2 matrices B in a batch. */
-    dnnl_dim_t stride_b = 0;
+    dnnl_dim_t stride_b;
     /** Stride between 2 matrices C in a batch. */
-    dnnl_dim_t stride_c = 0;
+    dnnl_dim_t stride_c;
     /** Leading dimension of A. */
-    dnnl_dim_t lda = 0;
+    dnnl_dim_t lda;
     /** Leading dimension of B. */
-    dnnl_dim_t ldb = 0;
+    dnnl_dim_t ldb;
     /** Leading dimension of C. */
-    dnnl_dim_t ldc = 0;
+    dnnl_dim_t ldc;
 
     /** Describes size of bias matrix. */
-    dnnl_dim_t bias_mask = 0;
+    dnnl_dim_t bias_mask;
     /** Type of matrix A. */
-    dnnl_data_type_t a_type = dnnl_data_type_undef;
+    dnnl_data_type_t a_type;
     /** Type of matrix B. */
-    dnnl_data_type_t b_type = dnnl_data_type_undef;
+    dnnl_data_type_t b_type;
     /** Type of matrix C. */
-    dnnl_data_type_t c_type = dnnl_data_type_undef;
+    dnnl_data_type_t c_type;
     /** Type for accumulating A*B. */
-    dnnl_data_type_t acc_type = dnnl_data_type_undef;
+    dnnl_data_type_t acc_type;
     /** Type of bias. */
-    dnnl_data_type_t bias_type = dnnl_data_type_undef;
+    dnnl_data_type_t bias_type;
 };
 
 } // namespace impl

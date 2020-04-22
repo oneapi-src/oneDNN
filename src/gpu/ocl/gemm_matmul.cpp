@@ -96,7 +96,8 @@ status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
     gemm_args.c_zero_point = c0;
     gemm_args.output_scales = scales;
 
-    gemm_desc_t gemm_desc;
+    auto gemm_desc = gemm_desc_t();
+    gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.transa = transB;
     gemm_desc.transb = transA;
     gemm_desc.batch = MB;

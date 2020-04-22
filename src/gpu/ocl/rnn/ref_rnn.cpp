@@ -586,7 +586,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                       int k, int lda, int ldb, int ldc, data_type_t a_dt,
                       data_type_t b_dt, data_type_t c_dt, bool is_B_trans,
                       float beta) -> status_t {
-        gemm_desc_t gemm_desc;
+        auto gemm_desc = gemm_desc_t();
         gemm_desc.primitive_kind = primitive_kind::gemm;
         gemm_desc.transa = transpose::notrans;
         gemm_desc.transb = is_B_trans ? transpose::trans : transpose::notrans;

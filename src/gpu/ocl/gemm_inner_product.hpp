@@ -38,7 +38,7 @@ status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd,
         engine_t *engine, transpose_t transa, transpose_t transb, int m, int n,
         int k, int lda, int ldb, int ldc, data_type_t a_dt, data_type_t b_dt,
         data_type_t c_dt, const primitive_attr_t &attr) {
-    gemm_desc_t gemm_desc;
+    auto gemm_desc = gemm_desc_t();
     gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.transa = transa;
     gemm_desc.transb = transb;

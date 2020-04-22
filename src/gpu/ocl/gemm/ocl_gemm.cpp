@@ -81,7 +81,7 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
 
     // Create primitive descriptor
     using pd_type = typename gen9_gemm_t::pd_t;
-    gemm_desc_t op_desc;
+    auto op_desc = gemm_desc_t();
     op_desc.primitive_kind = dnnl_gemm;
     op_desc.transa = (*transa == 'n' || *transa == 'N') ? transpose::notrans
                                                         : transpose::trans;
@@ -199,7 +199,7 @@ dnnl_status_t gemm_x8x8s32(cl_command_queue queue, const char *transa,
     s.reset(s_ptr);
 
     // Create operation descriptor
-    gemm_desc_t op_desc;
+    auto op_desc = gemm_desc_t();
     op_desc.primitive_kind = dnnl_gemm;
     op_desc.transa = (*transa == 'n' || *transa == 'N') ? transpose::notrans
                                                         : transpose::trans;
