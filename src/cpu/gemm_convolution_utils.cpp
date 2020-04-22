@@ -986,6 +986,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             // inner/outer threading cross point due to the nature of the
             // gemm implementation which we cannot control
             bool is_blocking_applicable = true
+                    && DNNL_X64 // FIXME: workaround to avoid exhaustive search
                     && !is_bf16_conv // TODO: apply blocking to bf16
                     && !is_3d
                     && (!jcp.im2col_sz
