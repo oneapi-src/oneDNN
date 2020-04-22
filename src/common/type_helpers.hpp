@@ -309,11 +309,15 @@ inline bool operator==(const eltwise_desc_t &lhs, const eltwise_desc_t &rhs) {
 inline bool operator==(const gemm_desc_t &lhs, const gemm_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(transa) && COMPARE_DESC_MEMBERS(transb)
-            && COMPARE_DESC_MEMBERS(m) && COMPARE_DESC_MEMBERS(n)
-            && COMPARE_DESC_MEMBERS(k) && COMPARE_DESC_MEMBERS(lda)
+            && COMPARE_DESC_MEMBERS(batch) && COMPARE_DESC_MEMBERS(m)
+            && COMPARE_DESC_MEMBERS(n) && COMPARE_DESC_MEMBERS(k)
+            && COMPARE_DESC_MEMBERS(stride_a) && COMPARE_DESC_MEMBERS(stride_b)
+            && COMPARE_DESC_MEMBERS(stride_c) && COMPARE_DESC_MEMBERS(lda)
             && COMPARE_DESC_MEMBERS(ldb) && COMPARE_DESC_MEMBERS(ldc)
-            && COMPARE_DESC_MEMBERS(a_type) && COMPARE_DESC_MEMBERS(b_type)
-            && COMPARE_DESC_MEMBERS(c_type) && COMPARE_DESC_MEMBERS(acc_type);
+            && COMPARE_DESC_MEMBERS(bias_mask) && COMPARE_DESC_MEMBERS(a_type)
+            && COMPARE_DESC_MEMBERS(b_type) && COMPARE_DESC_MEMBERS(c_type)
+            && COMPARE_DESC_MEMBERS(acc_type)
+            && COMPARE_DESC_MEMBERS(bias_type);
     return ret;
 }
 
