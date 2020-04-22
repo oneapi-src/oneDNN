@@ -240,6 +240,7 @@ inline bool operator!=(const memory_desc_t &lhs, const memory_desc_t &rhs) {
 #define COMPARE_DESC_MEMBERS(m) lhs.m == rhs.m
 #define COMPARE_DESC_ARRAY_MEMBERS(m, s) utils::array_cmp(lhs.m, rhs.m, s)
 
+// clang-format off
 inline bool operator==(const batch_normalization_desc_t &lhs,
         const batch_normalization_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
@@ -265,7 +266,8 @@ inline bool operator==(const binary_desc_t &lhs, const binary_desc_t &rhs) {
 
 inline bool operator==(const concat_desc_t &lhs, const concat_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(dst_md) && COMPARE_DESC_MEMBERS(n)
+            && COMPARE_DESC_MEMBERS(dst_md)
+            && COMPARE_DESC_MEMBERS(n)
             && COMPARE_DESC_MEMBERS(concat_dimension);
 
     if (!ret) return ret;
@@ -280,7 +282,8 @@ inline bool operator==(const concat_desc_t &lhs, const concat_desc_t &rhs) {
 inline bool operator==(
         const convolution_desc_t &lhs, const convolution_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(prop_kind) && COMPARE_DESC_MEMBERS(alg_kind)
+            && COMPARE_DESC_MEMBERS(prop_kind)
+            && COMPARE_DESC_MEMBERS(alg_kind)
             && COMPARE_DESC_MEMBERS(src_desc)
             && COMPARE_DESC_MEMBERS(diff_src_desc)
             && COMPARE_DESC_MEMBERS(weights_desc)
@@ -299,23 +302,33 @@ inline bool operator==(
 
 inline bool operator==(const eltwise_desc_t &lhs, const eltwise_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(prop_kind) && COMPARE_DESC_MEMBERS(alg_kind)
+            && COMPARE_DESC_MEMBERS(prop_kind)
+            && COMPARE_DESC_MEMBERS(alg_kind)
             && COMPARE_DESC_MEMBERS(data_desc)
             && COMPARE_DESC_MEMBERS(diff_data_desc)
-            && COMPARE_DESC_MEMBERS(alpha) && COMPARE_DESC_MEMBERS(beta);
+            && COMPARE_DESC_MEMBERS(alpha)
+            && COMPARE_DESC_MEMBERS(beta);
     return ret;
 }
 
 inline bool operator==(const gemm_desc_t &lhs, const gemm_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(transa) && COMPARE_DESC_MEMBERS(transb)
-            && COMPARE_DESC_MEMBERS(batch) && COMPARE_DESC_MEMBERS(m)
-            && COMPARE_DESC_MEMBERS(n) && COMPARE_DESC_MEMBERS(k)
-            && COMPARE_DESC_MEMBERS(stride_a) && COMPARE_DESC_MEMBERS(stride_b)
-            && COMPARE_DESC_MEMBERS(stride_c) && COMPARE_DESC_MEMBERS(lda)
-            && COMPARE_DESC_MEMBERS(ldb) && COMPARE_DESC_MEMBERS(ldc)
-            && COMPARE_DESC_MEMBERS(bias_mask) && COMPARE_DESC_MEMBERS(a_type)
-            && COMPARE_DESC_MEMBERS(b_type) && COMPARE_DESC_MEMBERS(c_type)
+            && COMPARE_DESC_MEMBERS(transa)
+            && COMPARE_DESC_MEMBERS(transb)
+            && COMPARE_DESC_MEMBERS(batch)
+            && COMPARE_DESC_MEMBERS(m)
+            && COMPARE_DESC_MEMBERS(n)
+            && COMPARE_DESC_MEMBERS(k)
+            && COMPARE_DESC_MEMBERS(stride_a)
+            && COMPARE_DESC_MEMBERS(stride_b)
+            && COMPARE_DESC_MEMBERS(stride_c)
+            && COMPARE_DESC_MEMBERS(lda)
+            && COMPARE_DESC_MEMBERS(ldb)
+            && COMPARE_DESC_MEMBERS(ldc)
+            && COMPARE_DESC_MEMBERS(bias_mask)
+            && COMPARE_DESC_MEMBERS(a_type)
+            && COMPARE_DESC_MEMBERS(b_type)
+            && COMPARE_DESC_MEMBERS(c_type)
             && COMPARE_DESC_MEMBERS(acc_type)
             && COMPARE_DESC_MEMBERS(bias_type);
     return ret;
@@ -324,7 +337,8 @@ inline bool operator==(const gemm_desc_t &lhs, const gemm_desc_t &rhs) {
 inline bool operator==(
         const inner_product_desc_t &lhs, const inner_product_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(prop_kind) && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(prop_kind)
+            && COMPARE_DESC_MEMBERS(src_desc)
             && COMPARE_DESC_MEMBERS(diff_src_desc)
             && COMPARE_DESC_MEMBERS(weights_desc)
             && COMPARE_DESC_MEMBERS(diff_weights_desc)
@@ -352,11 +366,13 @@ inline bool operator==(const layer_normalization_desc_t &lhs,
 
 inline bool operator==(const lrn_desc_t &lhs, const lrn_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(prop_kind) && COMPARE_DESC_MEMBERS(alg_kind)
+            && COMPARE_DESC_MEMBERS(prop_kind)
+            && COMPARE_DESC_MEMBERS(alg_kind)
             && COMPARE_DESC_MEMBERS(data_desc)
             && COMPARE_DESC_MEMBERS(diff_data_desc)
             && COMPARE_DESC_MEMBERS(local_size)
-            && COMPARE_DESC_MEMBERS(lrn_alpha) && COMPARE_DESC_MEMBERS(lrn_beta)
+            && COMPARE_DESC_MEMBERS(lrn_alpha)
+            && COMPARE_DESC_MEMBERS(lrn_beta)
             && COMPARE_DESC_MEMBERS(lrn_k);
     return ret;
 }
@@ -365,14 +381,16 @@ inline bool operator==(const matmul_desc_t &lhs, const matmul_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(src_desc)
             && COMPARE_DESC_MEMBERS(weights_desc)
-            && COMPARE_DESC_MEMBERS(bias_desc) && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(bias_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
             && COMPARE_DESC_MEMBERS(accum_data_type);
     return ret;
 }
 
 inline bool operator==(const pooling_desc_t &lhs, const pooling_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(prop_kind) && COMPARE_DESC_MEMBERS(alg_kind)
+            && COMPARE_DESC_MEMBERS(prop_kind)
+            && COMPARE_DESC_MEMBERS(alg_kind)
             && COMPARE_DESC_MEMBERS(src_desc)
             && COMPARE_DESC_MEMBERS(diff_src_desc)
             && COMPARE_DESC_MEMBERS(dst_desc)
@@ -387,7 +405,8 @@ inline bool operator==(const pooling_desc_t &lhs, const pooling_desc_t &rhs) {
 
 inline bool operator==(const reorder_desc_t &lhs, const reorder_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(src_md) && COMPARE_DESC_MEMBERS(dst_md)
+            && COMPARE_DESC_MEMBERS(src_md)
+            && COMPARE_DESC_MEMBERS(dst_md)
             && COMPARE_DESC_MEMBERS(src_engine_kind)
             && COMPARE_DESC_MEMBERS(dst_engine_kind);
     return ret;
@@ -396,7 +415,8 @@ inline bool operator==(const reorder_desc_t &lhs, const reorder_desc_t &rhs) {
 inline bool operator==(
         const resampling_desc_t &lhs, const resampling_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(alg_kind) && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(alg_kind)
+            && COMPARE_DESC_MEMBERS(src_desc)
             && COMPARE_DESC_MEMBERS(diff_src_desc)
             && COMPARE_DESC_MEMBERS(dst_desc)
             && COMPARE_DESC_MEMBERS(diff_dst_desc)
@@ -433,14 +453,16 @@ inline bool operator==(const rnn_desc_t &lhs, const rnn_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(diff_weights_projection_desc)
             && COMPARE_DESC_MEMBERS(flags)
             && COMPARE_DESC_MEMBERS(activation_kind)
-            && COMPARE_DESC_MEMBERS(alpha) && COMPARE_DESC_MEMBERS(beta);
+            && COMPARE_DESC_MEMBERS(alpha)
+            && COMPARE_DESC_MEMBERS(beta);
     return ret;
 }
 
 inline bool operator==(const shuffle_desc_t &lhs, const shuffle_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)
-            && COMPARE_DESC_MEMBERS(data_desc) && COMPARE_DESC_MEMBERS(axis)
+            && COMPARE_DESC_MEMBERS(data_desc)
+            && COMPARE_DESC_MEMBERS(axis)
             && COMPARE_DESC_MEMBERS(group_size);
     return ret;
 }
@@ -456,7 +478,8 @@ inline bool operator==(const softmax_desc_t &lhs, const softmax_desc_t &rhs) {
 
 inline bool operator==(const sum_desc_t &lhs, const sum_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(dst_md) && COMPARE_DESC_MEMBERS(n)
+            && COMPARE_DESC_MEMBERS(dst_md)
+            && COMPARE_DESC_MEMBERS(n)
             && COMPARE_DESC_MEMBERS(scales);
     if (!ret) return ret;
 
@@ -466,6 +489,7 @@ inline bool operator==(const sum_desc_t &lhs, const sum_desc_t &rhs) {
     }
     return ret;
 }
+// clang-format on
 #undef COMPARE_DESC_MEMBERS
 #undef COMPARE_DESC_ARRAY_MEMBERS
 
