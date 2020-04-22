@@ -1371,11 +1371,14 @@ public:
     virtual const char *name() const = 0;
     virtual const char *source_file() const = 0;
 
+    void register_jit_code(const Xbyak::uint8 *code, size_t code_size) const {
+        jit_utils::register_jit_code(code, code_size, name(), source_file());
+    }
+
     const Xbyak::uint8 *getCode() {
         this->ready();
         const Xbyak::uint8 *code = CodeGenerator::getCode();
-        size_t code_size = getSize();
-        jit_utils::register_jit_code(code, code_size, name(), source_file());
+        register_jit_code(code, getSize());
         return code;
     }
 

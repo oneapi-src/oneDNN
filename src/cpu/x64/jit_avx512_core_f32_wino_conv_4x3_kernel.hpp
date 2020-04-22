@@ -43,6 +43,7 @@ struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel : public jit_generator {
             const Xbyak::uint8 *addr = getCurr();
             this->input_transform_data_ker_generate();
             input_transform_data_ker = (decltype(input_transform_data_ker))addr;
+            register_jit_code(addr, getCurr() - addr);
         }
         {
             align();
@@ -50,12 +51,14 @@ struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel : public jit_generator {
             this->output_transform_data_ker_generate();
             output_transform_data_ker
                     = (decltype(output_transform_data_ker))addr;
+            register_jit_code(addr, getCurr() - addr);
         }
         {
             align();
             const Xbyak::uint8 *addr = getCurr();
             this->gemm_loop_generate();
             gemm_loop_ker = (decltype(gemm_loop_ker))addr;
+            register_jit_code(addr, getCurr() - addr);
         }
     }
 
@@ -192,30 +195,35 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel
         const Xbyak::uint8 *addr = getCurr();
         this->src_transform_generate();
         src_transform = (decltype(src_transform))addr;
+        register_jit_code(addr, getCurr() - addr);
 
         if (jcp.with_bias) {
             align();
             addr = getCurr();
             this->diff_dst_transform_generate(true);
             diff_dst_transform_wbias = (decltype(diff_dst_transform_wbias))addr;
+            register_jit_code(addr, getCurr() - addr);
         }
 
         align();
         addr = getCurr();
         this->diff_dst_transform_generate(false);
         diff_dst_transform = (decltype(diff_dst_transform))addr;
+        register_jit_code(addr, getCurr() - addr);
 
         if (jcp.sched_policy != WSCHED_WEI_SDGtWo && jcp.tile_block > 1) {
             align();
             addr = getCurr();
             this->gemm_loop_generate(false);
             gemm_loop_ker = (decltype(gemm_loop_ker))addr;
+            register_jit_code(addr, getCurr() - addr);
         }
 
         align();
         addr = getCurr();
         this->diff_weights_transform_generate(true);
         diff_weights_transform = (decltype(diff_weights_transform))addr;
+        register_jit_code(addr, getCurr() - addr);
 
         if (jcp.sched_policy == WSCHED_WEI_SDGtWo) {
             align();
@@ -223,6 +231,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel
             this->diff_weights_transform_generate(false);
             diff_weights_transform_accum
                     = (decltype(diff_weights_transform_accum))addr;
+            register_jit_code(addr, getCurr() - addr);
         };
     }
 

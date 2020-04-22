@@ -49,6 +49,7 @@ struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator {
             const Xbyak::uint8 *addr = getCurr();
             this->gemm_loop_generate(false);
             gemm_loop_ker = (decltype(gemm_loop_ker))addr;
+            register_jit_code(addr, getCurr() - addr);
         }
     }
 
@@ -121,6 +122,7 @@ struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
             const Xbyak::uint8 *addr = getCurr();
             this->gemm_loop_generate(true);
             gemm_loop_ker_first_iter = (decltype(gemm_loop_ker_first_iter))addr;
+            register_jit_code(addr, getCurr() - addr);
         }
 
         if (jcp.tile_block > 1) {
@@ -128,6 +130,7 @@ struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
             const Xbyak::uint8 *addr = getCurr();
             this->gemm_loop_generate(false);
             gemm_loop_ker = (decltype(gemm_loop_ker))addr;
+            register_jit_code(addr, getCurr() - addr);
         }
 
         if (jcp.ver == ver_4fma) {
@@ -135,6 +138,7 @@ struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
             const Xbyak::uint8 *addr = getCurr();
             this->transpose_ker_generate();
             transpose_4fma_ker = (decltype(transpose_4fma_ker))addr;
+            register_jit_code(addr, getCurr() - addr);
         }
     }
 
