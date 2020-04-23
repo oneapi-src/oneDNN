@@ -154,23 +154,34 @@ void protect_buffer(void *addr, size_t size, engine_kind_t engine_kind) {
     status = mprotect(page_end, protect_size(), PROT_NONE);
     assert(status == 0);
 
+    // The canary is set so that it will generate NaN for floating point
+    // data types. This causes uninitialized memory usage on floating point
+    // data to be poisoned, increasing the chance the error is caught.
+    uint16_t canary = 0x7ff1;
     size_t work_amount = (size_t)((page_end - page_start) / getpagesize());
-    parallel(0, [&](const int ithr, const int nthr) {
-        size_t start = 0, end = 0;
-        balance211(work_amount, nthr, ithr, start, end);
+    if (work_amount <= 1) {
+        // Avoid large memory initializations for small buffers
         uint16_t *ptr_start = reinterpret_cast<uint16_t *>(
-                page_start + getpagesize() * start);
+                reinterpret_cast<size_t>(addr) & ~1);
         uint16_t *ptr_end = reinterpret_cast<uint16_t *>(
-                page_start + getpagesize() * end);
-
-        // The canary is set so that it will generate NaN for floating point
-        // data types. This causes uninitialized memory usage on floating point
-        // data to be poisoned, increasing the chance the error is caught.
-        uint16_t canary = 0x7ff1;
+                reinterpret_cast<char *>(addr) + size);
         for (uint16_t *curr = ptr_start; curr < ptr_end; curr++) {
             *curr = canary;
         }
-    });
+    } else {
+        parallel(0, [&](const int ithr, const int nthr) {
+            size_t start = 0, end = 0;
+            balance211(work_amount, nthr, ithr, start, end);
+            uint16_t *ptr_start = reinterpret_cast<uint16_t *>(
+                    page_start + getpagesize() * start);
+            uint16_t *ptr_end = reinterpret_cast<uint16_t *>(
+                    page_start + getpagesize() * end);
+
+            for (uint16_t *curr = ptr_start; curr < ptr_end; curr++) {
+                *curr = canary;
+            }
+        });
+    }
 }
 
 // Assumes the input buffer is allocated such that there is num_protect_pages()
