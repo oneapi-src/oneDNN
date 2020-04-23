@@ -64,12 +64,15 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                     gOIhw2o8i8o2i))
         conf.with_group = 1;
 
-    bool has_padding_or_scale_quant = conf.has_padding || conf.scale_quant;
+    const bool has_padding_or_scale_quant
+            = conf.has_padding || conf.scale_quant;
 
     const bool type_s8_u8 = utils::one_of(src_mdw.data_type(), dnnl_s8, dnnl_u8)
             || utils::one_of(dst_mdw.data_type(), dnnl_s8, dnnl_u8);
 
-    const bool use_unroll_16a16b = !has_padding_or_scale_quant && !type_s8_u8
+    const bool allow_unroll = !has_padding_or_scale_quant && !type_s8_u8;
+
+    const bool use_unroll_16a16b = allow_unroll
             && (src_mdw.matches_one_of_tag(ABc16a16b, ABc16b16a, ABcd16a16b,
                         ABcd16b16a, ABcde16a16b, ABcde16b16a, BAc16a16b,
                         BAc16b16a, BAcd16a16b, BAcd16b16a, BAcde16b16a)
@@ -78,11 +81,11 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                             BAc16a16b, BAc16b16a, BAcd16a16b, BAcd16b16a,
                             BAcde16b16a));
 
-    const bool use_unroll_16b = !has_padding_or_scale_quant && !type_s8_u8
+    const bool use_unroll_16b = allow_unroll
             && (src_mdw.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b)
                     || dst_mdw.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b));
 
-    const bool use_unroll_16b16c = !has_padding_or_scale_quant && !type_s8_u8
+    const bool use_unroll_16b16c = allow_unroll
             && (src_mdw.matches_one_of_tag(aBCd16b16c, aBCd16c16b, aBCde16b16c,
                         aBCde16c16b, aBCdef16b16c, aBCdef16c16b, aCBd16b16c,
                         aCBd16c16b, aCBde16b16c, aCBde16c16b, aCBdef16c16b)
@@ -90,6 +93,12 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                             aBCde16b16c, aBCde16c16b, aBCdef16b16c,
                             aBCdef16c16b, aCBd16b16c, aCBd16c16b, aCBde16b16c,
                             aCBde16c16b, aCBdef16c16b));
+
+    bool use_unroll = use_unroll_16b || use_unroll_16b16c || use_unroll_16a16b;
+
+    conf.use_dense_vect = !conf.scale_quant && (conf.nelems % 256 == 0)
+            && src_mdw.similar_to(dst_mdw, true, false, 0)
+            && !has_padding_or_scale_quant && !use_unroll;
 
     dim_t blocks[6] = {1, 1, 1, 1, 1, 1};
     if (use_unroll_16a16b) {
@@ -101,7 +110,8 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
         blocks[2] = 16;
     }
 
-    if (use_unroll_16a16b || use_unroll_16b || use_unroll_16b16c) {
+    if (conf.use_dense_vect || use_unroll_16a16b || use_unroll_16b
+            || use_unroll_16b16c) {
         conf.use_ref_impl = false;
         conf.sub_group_size = 16;
     }
@@ -110,9 +120,13 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
     for (int i = 0; i < 6; ++i) {
         auto dim_str = utils::format("D%d", i);
-        if (i < dst_mdw.ndims()) {
-            dim_t block = conf.use_ref_impl ? (i < 2) ? 1 : 0 : blocks[i];
+        if (i < dst_mdw.ndims() && !conf.use_dense_vect) {
+            dim_t block = conf.use_ref_impl ? ((i < 2) ? 1 : 0) : blocks[i];
             conf.dispatch.define_dim(dim_str, i, padded_dims[i], block);
+        } else if (i == 0) {
+            // 1D indexing for dense_vect cases
+            conf.dispatch.define_dim(dim_str, 0, conf.nelems, 16);
+            conf.dispatch.vectorize_dim("D0", 16);
         } else {
             conf.dispatch.define_dim(dim_str, 1);
         }
@@ -152,6 +166,10 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
 
     kernel_ctx.define_int("PAD_FILL_ZERO", conf.has_padding);
+    if (conf.use_dense_vect) {
+        kernel_ctx.add_option("-Dcl_intel_subgroups_char");
+        kernel_ctx.define_int("USE_DENSE_VECT", 1);
+    }
 
     def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
