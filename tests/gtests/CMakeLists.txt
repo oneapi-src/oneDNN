@@ -86,8 +86,13 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_matmul.cpp
                               test_resampling.cpp
                               test_global_scratchpad.cpp
-                              test_alloc_scratchpad.cpp
                               )
+
+# Clang sanitizer complains about a large memory allocation
+# Exclude this test as the allocation is intentional
+if(NOT DNNL_USE_CLANG_SANITIZER)
+    list(APPEND PRIM_TEST_CASES_SRC test_alloc_scratchpad.cpp)
+endif()
 
 # Add X64-specific tests
 if(DNNL_TARGET_ARCH STREQUAL "X64")
