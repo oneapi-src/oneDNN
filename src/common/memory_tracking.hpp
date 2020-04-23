@@ -340,13 +340,14 @@ struct registry_t {
         size_t offset, size, capacity, alignment;
     };
 
-    class const_iterator {
+    template <typename return_type>
+    class common_iterator_t {
     private:
         const void *base_ptr;
         std::unordered_map<key_t, entry_t>::const_iterator iter;
 
     public:
-        const_iterator(const void *base_ptr_,
+        common_iterator_t(const void *base_ptr_,
                 const std::unordered_map<key_t, entry_t> &map,
                 bool is_begin = true) {
             base_ptr = base_ptr_;
@@ -356,23 +357,32 @@ struct registry_t {
                 iter = map.cend();
             }
         }
-        const_iterator &operator++(int) {
+        common_iterator_t &operator++(int) {
             iter++;
             return *this;
         }
-        bool operator==(const const_iterator &rhs) const {
+        bool operator==(const common_iterator_t &rhs) const {
             return iter == rhs.iter;
         }
-        bool operator!=(const const_iterator &rhs) const {
+        bool operator!=(const common_iterator_t &rhs) const {
             return iter != rhs.iter;
         }
-        std::pair<const void *, size_t> operator*() const {
+        std::pair<return_type, size_t> operator*() const {
             const void *ptr_start = nullptr;
             const entry_t &e = iter->second;
             ptr_start = get(e, base_ptr);
-            return std::pair<const void *, size_t> {ptr_start, e.size};
+            return std::pair<return_type, size_t> {
+                    (return_type)ptr_start, e.size};
         }
     };
+    typedef common_iterator_t<void *> iterator;
+    typedef common_iterator_t<const void *> const_iterator;
+    iterator begin(void *base_ptr_) const {
+        return iterator(base_ptr_, offset_map_);
+    }
+    iterator end(void *base_ptr_) const {
+        return iterator(base_ptr_, offset_map_, false);
+    }
     const_iterator cbegin(const void *base_ptr_) const {
         return const_iterator(base_ptr_, offset_map_);
     }
