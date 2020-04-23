@@ -52,8 +52,8 @@ struct simple_resampling_fwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             format_tag_t dat_tag = memory_desc_matches_one_of_tag(*src_md(),
-                    nChw8c, nCdhw8c, nChw16c, nCdhw16c, ncw, nchw, ncdhw, nwc,
-                    nhwc, ndhwc);
+                    nCw8c, nChw8c, nCdhw8c, nCw16c, nChw16c, nCdhw16c, ncw,
+                    nchw, ncdhw, nwc, nhwc, ndhwc);
             if (!memory_desc_matches_tag(*dst_md(), dat_tag))
                 return status::unimplemented;
 
@@ -141,8 +141,8 @@ struct simple_resampling_bwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             format_tag_t dat_tag = memory_desc_matches_one_of_tag(
-                    *diff_src_md(), nChw8c, nCdhw8c, nChw16c, nCdhw16c, ncw,
-                    nchw, ncdhw, nwc, nhwc, ndhwc);
+                    *diff_src_md(), nCw8c, nChw8c, nCdhw8c, nCw16c, nChw16c,
+                    nCdhw16c, ncw, nchw, ncdhw, nwc, nhwc, ndhwc);
             if (!memory_desc_matches_tag(*diff_dst_md(), dat_tag))
                 return status::unimplemented;
 
