@@ -1329,6 +1329,8 @@ struct memory : public handle<dnnl_memory_t> {
         /// permuted 5D tensor
         acdeb = dnnl_acdeb,
         /// permuted 5D tensor
+        bacde = dnnl_bacde,
+        /// permuted 5D tensor
         bcdea = dnnl_bcdea,
         /// permuted 5D tensor
         cdeba = dnnl_cdeba,
@@ -1394,6 +1396,8 @@ struct memory : public handle<dnnl_memory_t> {
         dhwio = cdeba,
         /// 5D CNN weights tensor; an alias for #dnnl::memory::format_tag::acdeb
         odhwi = acdeb,
+        /// 5D CNN weights tensor; an alias for #dnnl::memory::format_tag::bacde
+        iodhw = bacde,
         /// 5D CNN weights tensor; an alias for #dnnl::memory::format_tag::bcdea
         idhwo = bcdea,
 

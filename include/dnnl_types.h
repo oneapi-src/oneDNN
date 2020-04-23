@@ -193,6 +193,7 @@ typedef enum {
     dnnl_ba, ///< permuted 2D tensor
     dnnl_bac, ///< permuted 3D tensor
     dnnl_bacd, ///< permuted 4D tensor
+    dnnl_bacde, ///< permuted 5D tensor
     dnnl_bca, ///< permuted 3D tensor
     dnnl_bcda, ///< permuted 4D tensor
     dnnl_bcdea, ///< permuted 5D tensor
@@ -420,6 +421,8 @@ typedef enum {
     dnnl_iohw = dnnl_bacd,
     /// 5D CNN weights tensor, an alias to #dnnl_abcde
     dnnl_oidhw = dnnl_abcde,
+    /// 5D CNN weights tensor, an alias to #dnnl_bacde
+    dnnl_iodhw = dnnl_bacde,
     /// 5D CNN weights tensor, an alias to #dnnl_cdeba
     dnnl_dhwio = dnnl_cdeba,
     /// 5D CNN weights tensor, an alias to #dnnl_acdeb
