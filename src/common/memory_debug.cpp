@@ -139,7 +139,7 @@ void free(void *p) {
 
 // Assumes the input buffer is allocated such that there is num_protect_pages()
 // pages surrounding the buffer
-void protect_buffer(const void *addr, size_t size, engine_kind_t engine_kind) {
+void protect_buffer(void *addr, size_t size, engine_kind_t engine_kind) {
     if (engine_kind != engine_kind_t::dnnl_cpu)
         return; // Only CPU is supported currently
 

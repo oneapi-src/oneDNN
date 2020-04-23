@@ -29,8 +29,8 @@ namespace scratchpad_debug {
 static inline bool is_protect_scratchpad() {
     return memory_debug::is_mem_debug();
 }
-void protect_scratchpad_buffer(const void *scratchpad_ptr,
-        engine_kind_t engine_kind, const memory_tracking::registry_t &registry);
+void protect_scratchpad_buffer(void *scratchpad_ptr, engine_kind_t engine_kind,
+        const memory_tracking::registry_t &registry);
 void unprotect_scratchpad_buffer(const void *scratchpad_ptr,
         engine_kind_t engine_kind, const memory_tracking::registry_t &registry);
 void protect_scratchpad_buffer(const memory_storage_t *storage,

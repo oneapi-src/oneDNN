@@ -24,15 +24,14 @@ namespace dnnl {
 namespace impl {
 namespace scratchpad_debug {
 
-void protect_scratchpad_buffer(const void *scratchpad_ptr,
-        engine_kind_t engine_kind,
+void protect_scratchpad_buffer(void *scratchpad_ptr, engine_kind_t engine_kind,
         const memory_tracking::registry_t &registry) {
     if (scratchpad_ptr == nullptr) return;
 
-    auto end = registry.cend(scratchpad_ptr);
-    auto curr = registry.cbegin(scratchpad_ptr);
+    auto end = registry.end(scratchpad_ptr);
+    auto curr = registry.begin(scratchpad_ptr);
     for (; curr != end; curr++) {
-        std::pair<const void *, size_t> data_range = *curr;
+        std::pair<void *, size_t> data_range = *curr;
         memory_debug::protect_buffer(
                 data_range.first, data_range.second, engine_kind);
     }

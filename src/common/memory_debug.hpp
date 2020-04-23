@@ -59,7 +59,7 @@ void *malloc(size_t size, int alignment);
 void free(void *p);
 
 size_t protect_size();
-void protect_buffer(const void *addr, size_t size, engine_kind_t engine_kind);
+void protect_buffer(void *addr, size_t size, engine_kind_t engine_kind);
 void unprotect_buffer(const void *addr, size_t size, engine_kind_t engine_kind);
 
 } // namespace memory_debug
