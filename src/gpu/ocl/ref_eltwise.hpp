@@ -61,7 +61,7 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
                             eltwise_exp_use_dst_for_bwd)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::f16, data_type::bf16,
-                            data_type::s32, data_type::s8)
+                            data_type::s32, data_type::s8, data_type::u8)
                     && attr()->has_default_values()
                     && IMPLICATION(utils::one_of(desc()->data_desc.data_type,
                                            data_type::s32, data_type::s8),
