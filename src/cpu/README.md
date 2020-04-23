@@ -42,7 +42,7 @@ architecture. Hence, for portability reasons [`cpu/platform.hpp`](platform.hpp)
 header file provides a set of helpers macros that could help conditionally
 enable or disable parts of code. There the following macros defined:
 - `DNNL_X64` is 1 on x64 architecture;
-- `DNNL_AARCH64` is 1 on ARM AArch64 architecture;
+- `DNNL_AARCH64` is 1 on Arm AArch64 architecture;
 - `DNNL_ARCH_GENERIC` is 1 on other platforms.
 Only one of the macros above is defined to 1. All others are defined to 0.
 
