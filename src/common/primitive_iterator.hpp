@@ -34,7 +34,6 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
             const dnnl::impl::primitive_desc_t *hint_fwd_pd)
         : idx_(-1)
         , engine_(engine)
-        , pd_(nullptr)
         , op_desc_(op_desc)
         , attr_(attr ? *attr : dnnl::impl::primitive_attr_t())
         , hint_fwd_pd_(hint_fwd_pd)
@@ -43,7 +42,6 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         while (impl_list_[last_idx_] != nullptr)
             ++last_idx_;
     }
-    ~dnnl_primitive_desc_iterator() = default;
 
     dnnl::impl::engine_t *engine() const { return engine_; }
 
@@ -59,14 +57,15 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
     }
 
     dnnl::impl::primitive_desc_iterator_t &operator++() {
-        if (pd_) {
-            delete pd_;
-            pd_ = nullptr;
-        }
+        pd_.reset();
         while (++idx_ != last_idx_) {
+            dnnl::impl::primitive_desc_t *candidate_pd = nullptr;
             auto s = impl_list_[idx_](
-                    &pd_, op_desc_, &attr_, engine_, hint_fwd_pd_);
-            if (s == dnnl::impl::status::success) { break; }
+                    &candidate_pd, op_desc_, &attr_, engine_, hint_fwd_pd_);
+            if (s == dnnl::impl::status::success) {
+                pd_.reset(candidate_pd);
+                break;
+            }
         }
         return *this;
     }
@@ -83,15 +82,14 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
     // nullptr, until the iterator moves to the next implementation.
     dnnl::impl::primitive_desc_t *fetch_once() {
         if (*this == end() || pd_ == nullptr) return nullptr;
-        dnnl::impl::primitive_desc_t *return_pd = pd_;
-        pd_ = nullptr;
+        dnnl::impl::primitive_desc_t *return_pd = pd_.release();
         return return_pd;
     }
 
 protected:
     int idx_;
     dnnl::impl::engine_t *engine_;
-    dnnl::impl::primitive_desc_t *pd_;
+    std::unique_ptr<dnnl::impl::primitive_desc_t> pd_;
     const dnnl::impl::op_desc_t *op_desc_;
     const dnnl::impl::primitive_attr_t attr_;
     const dnnl::impl::primitive_desc_t *hint_fwd_pd_;
@@ -102,7 +100,6 @@ private:
     dnnl_primitive_desc_iterator(dnnl::impl::engine_t *engine, int last_idx)
         : idx_(last_idx)
         , engine_(engine)
-        , pd_(nullptr)
         , op_desc_(nullptr)
         , hint_fwd_pd_(nullptr)
         , impl_list_(nullptr)
@@ -111,13 +108,11 @@ private:
     dnnl_primitive_desc_iterator(dnnl_primitive_desc_iterator &&other)
         : idx_(other.idx_)
         , engine_(other.engine_)
-        , pd_(other.pd_)
+        , pd_(std::move(other.pd_))
         , op_desc_(other.op_desc_)
         , attr_(other.attr_)
         , hint_fwd_pd_(other.hint_fwd_pd_)
-        , impl_list_(other.impl_list_) {
-        other.pd_ = nullptr;
-    }
+        , impl_list_(other.impl_list_) {}
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive_desc_iterator);
 };
