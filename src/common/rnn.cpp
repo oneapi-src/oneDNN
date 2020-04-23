@@ -249,6 +249,14 @@ status_t rnn_common_fwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
                     dst_layer_desc);
     if (!args_ok) return invalid_arguments;
 
+    if (cell_kind == dnnl_vanilla_rnn) {
+        using namespace alg_kind;
+        args_ok = args_ok
+                && one_of(activation, eltwise_relu, eltwise_tanh,
+                        eltwise_logistic);
+        if (!args_ok) return invalid_arguments;
+    }
+
     if (cell_kind == dnnl_vanilla_lstm) {
         // check if optional *_iter is provided then *_iter_c is provided too
         args_ok = args_ok && xnor_md(src_iter_desc, src_iter_c_desc)
@@ -333,6 +341,14 @@ status_t rnn_common_bwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
                     diff_weights_layer_desc, diff_weights_iter_desc,
                     diff_dst_layer_desc);
     if (!args_ok) return invalid_arguments;
+
+    if (cell_kind == dnnl_vanilla_rnn) {
+        using namespace alg_kind;
+        args_ok = args_ok
+                && one_of(activation, eltwise_relu, eltwise_tanh,
+                        eltwise_logistic);
+        if (!args_ok) return invalid_arguments;
+    }
 
     if (cell_kind == dnnl_vanilla_lstm) {
         // check if optional *_iter is provided then *_iter_c is provided too
