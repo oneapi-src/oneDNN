@@ -90,7 +90,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(
 }
 
 void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
-        int ur_w, int pad_l, int pad_r, int oc_blocks, char oc_blocks_tag) {
+        int ur_w, int pad_l, int pad_r, int oc_blocks) {
     Label kw_loop;
 
     int iw = jcp.iw;
@@ -154,7 +154,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
 }
 
 void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
-        int ur_w, int pad_l, int pad_r, int oc_blocks, char oc_blocks_tag) {
+        int ur_w, int pad_l, int pad_r, int oc_blocks) {
     int iw = jcp.iw;
     int kw = jcp.kw;
     int ow = jcp.ow;
@@ -252,7 +252,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
     L(kh_loop);
     {
         if (jcp.kw >= 5 && pad_l == 0 && pad_r == 0) {
-            oh_step_nopad(ur_w, pad_l, pad_r, oc_blocks, oc_blocks_tag);
+            oh_step_nopad(ur_w, pad_l, pad_r, oc_blocks);
             sub(aux_reg_input, sizeof(float) * kw * inp_off);
             add(aux_reg_input, sizeof(float) * iw * dilate_h * inp_mult);
         } else {
@@ -305,8 +305,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
     }
 }
 
-inline void jit_avx2_conv_fwd_kernel_f32::solve_common(
-        int oc_blocks, char oc_blocks_tag) {
+inline void jit_avx2_conv_fwd_kernel_f32::solve_common(int oc_blocks) {
     int ur_w = jcp.ur_w;
     int ur_w_tail = jcp.ur_w_tail;
     int n_oi = jcp.ow / ur_w;
@@ -326,10 +325,9 @@ inline void jit_avx2_conv_fwd_kernel_f32::solve_common(
     if (l_pad > 0) {
         n_oi--;
         if (n_oi < 0 && r_pad1 > 0)
-            width_blk_step(ur_w, l_pad, r_pad1, oc_blocks,
-                    oc_blocks_tag); // "lrpad"
+            width_blk_step(ur_w, l_pad, r_pad1, oc_blocks); // "lrpad"
         else
-            width_blk_step(ur_w, l_pad, 0, oc_blocks, oc_blocks_tag); // "lpad"
+            width_blk_step(ur_w, l_pad, 0, oc_blocks); // "lpad"
         add(reg_input, sizeof(float) * (ur_w * str_w - l_pad) * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
     }
@@ -340,7 +338,7 @@ inline void jit_avx2_conv_fwd_kernel_f32::solve_common(
     if (n_oi > 0) {
         L(ow_loop);
 
-        width_blk_step(ur_w, 0, 0, oc_blocks, oc_blocks_tag); // "middle"
+        width_blk_step(ur_w, 0, 0, oc_blocks); // "middle"
         add(reg_input, sizeof(float) * ur_w * str_w * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
 
@@ -350,13 +348,13 @@ inline void jit_avx2_conv_fwd_kernel_f32::solve_common(
     }
 
     if (r_pad1 > 0 && n_oi >= 0) {
-        width_blk_step(ur_w, 0, r_pad1, oc_blocks, oc_blocks_tag); // "rpad"
+        width_blk_step(ur_w, 0, r_pad1, oc_blocks); // "rpad"
         add(reg_input, sizeof(float) * ur_w * str_w * inp_mult);
         add(reg_output, sizeof(float) * ur_w * oc_blk);
     }
 
     if (ur_w_tail != 0)
-        width_blk_step(ur_w_tail, 0, r_pad, oc_blocks, oc_blocks_tag); // "tail"
+        width_blk_step(ur_w_tail, 0, r_pad, oc_blocks); // "tail"
 }
 
 void jit_avx2_conv_fwd_kernel_f32::generate() {
@@ -377,21 +375,21 @@ void jit_avx2_conv_fwd_kernel_f32::generate() {
         cmp(reg_oc_blocks, jcp.nb_oc_blocking);
         jne(nb_oc_tail ? tail : exit, T_NEAR);
 
-        solve_common(jcp.nb_oc_blocking, '0' + jcp.nb_oc_blocking);
+        solve_common(jcp.nb_oc_blocking);
         jmp(exit, T_NEAR);
 
         if (nb_oc_tail) {
             L(tail);
             cmp(reg_oc_blocks, nb_oc_tail);
             jne(exit, T_NEAR);
-            solve_common(nb_oc_tail, '0' + nb_oc_tail);
+            solve_common(nb_oc_tail);
         }
 
         L(exit);
     } else if (jcp.nb_oc == jcp.nb_oc_blocking) {
-        solve_common(jcp.nb_oc_blocking, '0' + jcp.nb_oc_blocking);
+        solve_common(jcp.nb_oc_blocking);
     } else {
-        solve_common(nb_oc_tail, '0' + nb_oc_tail);
+        solve_common(nb_oc_tail);
     }
 
     this->postamble();
