@@ -239,7 +239,7 @@ status_t jit_bf16_sum_t<src_data_type, dst_data_type>::execute(
     const memory_desc_wrapper o_d(pd()->dst_md());
     output += o_d.blk_off(0);
     const int num_arrs = pd()->n_inputs();
-    const dim_t nelems = o_d.nelems();
+    const dim_t nelems = o_d.nelems(true);
     const src_data_t *input_ptrs[jit_avx512_core_bf16_sum_kernel::max_num_arrs];
     /* Number of scales needs to be multiple of 2 in order
     to use VNNI instructions */

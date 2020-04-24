@@ -179,7 +179,7 @@ struct jit_bf16_sum_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             const memory_desc_wrapper o_d(&dst_md_);
-            ok = true && o_d.data_type() == dst_data_type && o_d.is_dense();
+            ok = true && o_d.data_type() == dst_data_type && o_d.is_dense(true);
             if (!ok) return status::unimplemented;
 
             const auto n = src_mds_.size();
@@ -191,7 +191,7 @@ struct jit_bf16_sum_t : public primitive_t {
                 const memory_desc_wrapper i_d(&src_mds_[i]);
                 ok = true && src_data_type == i_d.data_type()
                         && o_d.similar_to(i_d, true, false, 0)
-                        && i_d.is_dense()
+                        && i_d.is_dense(true)
                         // is scales representable in bfloat16: scales will be down
                         // converted to bf16 in order to use bf16 vnni instruction
                         && scales_[i] == float(bfloat16_t(scales_[i]));
