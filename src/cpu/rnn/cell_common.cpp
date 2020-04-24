@@ -70,61 +70,11 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 1.0f, w_projection_[0], rnn.weights_projection_ld, dst_postgemm,
                 rnn.proj_ht_ld, 0.0f, dst_proj, dst_proj_ld));
 
-        // If not f32, we have to downconvert the output to dst_layer_t
-        if (rnn.dt_conf != all_f32) {
-            if (rnn.dt_conf == all_bf16) {
-                for (int i = 0; i < rnn.mb; i++)
-                    cvt_float_to_bfloat16(
-                            (bfloat16_t *)dst_layer_ + i * dst_layer_ld,
-                            (float *)scratch_gates_ + i * rnn.scratch_gates_ld,
-                            rnn.dlc);
-            } else if (rnn.is_int8()) {
-                float *weights_projection_scales
-                        = pd_->attr()->rnn_weights_projection_qparams_.scales_;
-                float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
-                float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
-
-                auto quantize_f32_u8 = [&](float f) {
-                    float qf = f * data_scale + data_shift;
-                    return qz_a1b0<float, dst_layer_t>()(qf);
-                };
-
-                auto dequantize_s32_f32 = [&](gemm_acc_t s, int j) {
-                    float wscale
-                            = pd_->attr()->rnn_weights_projection_qparams_.mask_
-                                    == 0
-                            ? weights_projection_scales[0]
-                            : weights_projection_scales[j];
-                    float wcomp = w_proj_comp[j] * data_shift;
-
-                    return (saturate<float>(s) - wcomp) / (wscale * data_scale);
-                };
-
-                parallel_nd(rnn.mb, [&](int i) {
-                    PRAGMA_OMP_SIMD()
-                    for (int j = 0; j < rnn.dlc; j++) {
-                        int scratch_off = i * rnn.scratch_gates_ld + j;
-                        int dst_off = i * dst_layer_ld + j;
-                        float tmp = dequantize_s32_f32(
-                                scratch_gates_[scratch_off], j);
-                        dst_layer_[dst_off] = quantize_f32_u8(tmp);
-                    }
-                });
-            } else {
-                assert(!"unimplemented");
-            }
-        }
-
-        // If dst_iter is not nullptr, we need to copy the state to dst_iter
-        assert(rnn.dic == rnn.dlc);
-        assert(sizeof(dst_layer_t) == sizeof(dst_iter_t));
-        if (dst_iter_ != nullptr) {
-            auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
-            for (int i = 0; i < rnn.mb; i++)
-                std::memcpy(dst_iter_ + i * dst_iter_ld,
-                        dst_layer_ + i * dst_layer_ld,
-                        rnn.dlc * sizeof(dst_layer_t));
-        }
+        // we have to downconvert the output to dst_layer_t and copy to dst_iter if needed
+        rnn_postgemm_->execute_part2(rnn, cell_position, nullptr, dst_proj,
+                dst_layer_, nullptr, nullptr, w_proj_comp, nullptr, nullptr,
+                nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                nullptr, dst_iter_);
     }
 
     return dnnl_success;

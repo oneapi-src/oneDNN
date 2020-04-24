@@ -388,7 +388,7 @@ float maybe_deq(
         const prb_t &prb, const float in, float scale, float compensation) {
     if (!prb.cfg.is_int8()) return in;
     return (in - compensation * prb.data_shift)
-                * (1.0f / (scale * prb.data_scale));
+            * (1.0f / (scale * prb.data_scale));
 }
 
 float maybe_deq_proj(

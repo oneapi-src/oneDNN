@@ -39,6 +39,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     jit_uni_rnn_postgemm(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
         : rnn_(rnn)
         , pd_(pd)
+        , projection_(false)
         , dscale_off_addr(0)
         , dshift_off_addr(0)
         , ymm_perm_mask_addr(0)
@@ -59,6 +60,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     ~jit_uni_rnn_postgemm() {
         if (bf16_emu_) delete bf16_emu_;
     }
+
+    bool is_projection() const { return projection_; };
 
     virtual status_t init(data_type_t src_data_t) {
         // no need to check as bf16 is guarded for avx512 and above in rnn primtive
@@ -104,7 +107,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 
         auto src_iter_ld = rnn.src_iter_ld(cell_position);
         auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
-        auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
+        auto dst_layer_ld = rnn.dst_layer_ld(cell_position, is_projection());
         auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
         auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
 
@@ -136,7 +139,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
             void *param9_ = nullptr;
             switch (pd_->cell_kind()) {
                 case alg_kind::vanilla_lstm:
-                    param6_ = &src_iter_c(i, 0);
+                    param6_ = is_projection() ? src_iter_c_ : &src_iter_c(i, 0);
                     param7_ = &dst_iter_c(i, 0);
                     param8_ = (void *)&weights_peephole(0, 0);
                     break;
@@ -425,7 +428,8 @@ protected:
     // dequantize from s32 to float
     template <typename Vmm>
     void deq_w(data_type_t src_data_t, Vmm s, Vmm tmp1, Vmm tmp2,
-            dim_t scale_off, int mask, bool packed) {
+            dim_t scale_off, int mask, bool packed,
+            Xbyak::Reg64 *comp = nullptr) {
         // nothing to do if not int8
         if (src_data_t != data_type::u8) return;
 
@@ -443,6 +447,8 @@ protected:
                 uni_vmovss(tmp1, scales_ptr);
         }
         uni_vcvtdq2ps(s, s);
+        // Here we subtract a compensation if need be
+        if (comp) { uni_vsubps(s, s, ptr[*comp]); }
         uni_vmulps(tmp1, tmp1, dscale_off_addr);
 #ifdef DNNL_ENABLE_FAST_RCP
         fast_recip(tmp1, tmp2, packed);
@@ -548,6 +554,7 @@ protected:
 
     const rnn_utils::rnn_conf_t &rnn_;
     const rnn_pd_t *pd_;
+    bool projection_;
     bf16_emulation_t *bf16_emu_;
 
     // registers/Labels used for int8 quantization and conversions
