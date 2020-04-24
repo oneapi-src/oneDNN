@@ -603,13 +603,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
 
-    if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
-        jcp.nb_ic_blocking = 12;
-        jcp.nb_ic_blocking_max = 16;
-    } else {
-        jcp.nb_ic_blocking = 1;
-        jcp.nb_ic_blocking_max = jcp.nb_ic_blocking;
-    }
+    jcp.nb_ic_blocking = 12;
+    jcp.nb_ic_blocking_max = 16;
 
     return status::success;
 }
