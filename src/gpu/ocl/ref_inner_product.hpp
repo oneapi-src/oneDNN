@@ -95,52 +95,6 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
-        bool with_eltwise() const {
-            return attr()->post_ops_.find(primitive_kind::eltwise) != -1;
-        }
-
-        bool with_sum() const {
-            return attr()->post_ops_.find(primitive_kind::sum) != -1;
-        }
-
-        float eltwise_alpha() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
-                    : 1.0f;
-        }
-
-        float eltwise_beta() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
-                    : 0.0f;
-        }
-
-        float eltwise_scale() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.scale
-                    : 1.0f;
-        }
-
-        float sum_scale() const {
-            const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
-            return with_sum() ? attr()->post_ops_.entry_[sum_idx].sum.scale
-                              : 0.0f;
-        }
-
-        alg_kind_t eltwise_alg_kind() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : dnnl_alg_kind_undef;
-        }
-
         inner_product_conf_t conf;
         offsets_t off;
     };

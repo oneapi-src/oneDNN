@@ -93,64 +93,6 @@ struct gen9_binary_t : public gpu_primitive_t {
             return false;
         }
 
-        bool with_scales(int position) const {
-            return !attr()->scales_.get(position).has_default_values();
-        }
-
-        bool with_scales() const {
-            return with_scales(DNNL_ARG_SRC_0) || with_scales(DNNL_ARG_SRC_1);
-        }
-
-        float get_scale(int position) const {
-            return *attr()->scales_.get(position).scales_;
-        }
-
-        bool with_eltwise(int position) const {
-            return attr()->post_ops_.contain(primitive_kind::eltwise, position);
-        }
-
-        bool with_sum() const {
-            return attr()->post_ops_.find(primitive_kind::sum) != -1;
-        }
-
-        float eltwise_alpha() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
-                    : 1.0f;
-        }
-
-        float eltwise_beta() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
-                    : 0.0f;
-        }
-
-        float eltwise_scale() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.scale
-                    : 1.0f;
-        }
-
-        float sum_scale() const {
-            const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
-            return sum_idx != -1 ? attr()->post_ops_.entry_[sum_idx].sum.scale
-                                 : 0.0f;
-        }
-
-        alg_kind_t eltwise_alg_kind() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : dnnl_alg_kind_undef;
-        }
-
         binary_conf_t conf;
     };
 
@@ -174,10 +116,14 @@ struct gen9_binary_t : public gpu_primitive_t {
         auto &src1 = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
         auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-        auto eltwise_alpha = pd()->eltwise_alpha();
-        auto eltwise_beta = pd()->eltwise_beta();
-        auto sum_scale = pd()->sum_scale();
-        auto eltwise_scale = pd()->eltwise_scale();
+        const auto &conf = pd()->conf;
+
+        auto eltwise_scale = conf.attr_info.eltwise_scale;
+        auto eltwise_alpha = conf.attr_info.eltwise_alpha;
+        auto eltwise_beta = conf.attr_info.eltwise_beta;
+        auto sum_scale = conf.attr_info.sum_scale;
+        auto src0_scale = conf.attr_info.src0_scale;
+        auto src1_scale = conf.attr_info.src1_scale;
 
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, src0);
@@ -187,20 +133,8 @@ struct gen9_binary_t : public gpu_primitive_t {
         arg_list.set(4, eltwise_beta);
         arg_list.set(5, eltwise_scale);
         arg_list.set(6, sum_scale);
-        if (pd()->with_scales(DNNL_ARG_SRC_0)) {
-            auto src0_scale = pd()->get_scale(DNNL_ARG_SRC_0);
-            arg_list.set(7, src0_scale);
-        } else {
-            arg_list.set(7, 1.0f);
-        }
-        if (pd()->with_scales(DNNL_ARG_SRC_1)) {
-            auto src1_scale = pd()->get_scale(DNNL_ARG_SRC_1);
-            arg_list.set(8, src1_scale);
-        } else {
-            arg_list.set(8, 1.0f);
-        }
-
-        const auto &conf = pd()->conf;
+        arg_list.set(7, src0_scale);
+        arg_list.set(8, src1_scale);
 
         auto nd_range = conf.dispatch.nd_range();
 

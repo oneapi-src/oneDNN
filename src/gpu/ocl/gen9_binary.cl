@@ -14,10 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE == 1
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #undef DST_OFF
 #define SRC0_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC0, x0, x1, x2, x3, x4, x5)
@@ -275,10 +273,10 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #endif
     float tmp_src1 = CONVERT_FLOAT_T(SRC1_BLOCK_READ(&src1[0]));
 
-#if SRC0_SCALE != 1
+#if WITH_SRC0_SCALE
     tmp_src0 = tmp_src0 * src0_scale;
 #endif
-#if SRC1_SCALE != 1
+#if WITH_SRC1_SCALE
     tmp_src1 = tmp_src1 * src1_scale;
 #endif
 
@@ -292,7 +290,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     d = min(tmp_src0, tmp_src1);
 #endif
 
-#if WITH_SUM == 1
+#if WITH_SUM
 #if NVECT == 1
     d += sum_scale * CONVERT_FLOAT_T(DST_BLOCK_READ(&src0[0]));
 #elif NVECT == 2
@@ -304,7 +302,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #endif
 #endif
 
-#if WITH_ELTWISE == 1
+#if WITH_ELTWISE
     d = fwd_eltwise(d, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 

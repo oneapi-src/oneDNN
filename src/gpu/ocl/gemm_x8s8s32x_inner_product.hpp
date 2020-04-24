@@ -84,6 +84,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             gemm_pd_.reset(rhs.gemm_pd_->clone());
             ip_scratchpad_md_ = rhs.ip_scratchpad_md_;
             scales_md_ = rhs.scales_md_;
+            attr_info_ = rhs.attr_info_;
         }
 
         ~pd_t() = default;
@@ -93,6 +94,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             gemm_pd_.reset(rhs.gemm_pd_->clone());
             ip_scratchpad_md_ = rhs.ip_scratchpad_md_;
             scales_md_ = rhs.scales_md_;
+            attr_info_ = rhs.attr_info_;
             return *this;
         }
 
@@ -106,6 +108,8 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             using namespace primitive_kind;
 
             assert(engine->kind() == engine_kind::gpu);
+
+            attr_info_ = attr_info_t::create(attr());
 
             primitive_attr_t::skip_mask_t attr_skip_mask
                     = primitive_attr_t::skip_mask_t::oscale
@@ -124,8 +128,10 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
                             attr()->scratchpad_mode_ == scratchpad_mode::library
                                     && one_of(attr()->output_scales_.mask_, 0,
                                             1 << 1))
-                    && IMPLICATION(with_eltwise() && with_sum(),
-                            post_op_idx(sum) == 0 && post_op_idx(eltwise) == 1);
+                    && IMPLICATION(
+                            attr_info_.with_eltwise && attr_info_.with_sum,
+                            attr_info_.sum_idx == 0
+                                    && attr_info_.eltwise_idx == 1);
             if (!ok) return unimplemented;
 
             // XXX: Empty attributes increase chances of creating a gemm
@@ -161,61 +167,22 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             return success;
         }
 
-        bool with_scales() const {
-            return !attr()->output_scales_.has_default_values();
-        }
         bool with_post_process() const {
             return use_scratchpad() || dst_md()->data_type != data_type::s32
-                    || with_bias() || with_scales() || with_eltwise()
-                    || with_sum();
+                    || with_bias() || attr_info_.with_oscales
+                    || attr_info_.with_eltwise || attr_info_.with_sum;
         }
         bool use_scratchpad() const { return use_temp_dst(); }
 
         bool use_temp_dst() const {
             using namespace data_type;
-            return !utils::one_of(dst_md()->data_type, s32, f32) || with_sum();
+            return !utils::one_of(dst_md()->data_type, s32, f32)
+                    || attr_info_.with_sum;
         }
         const memory_desc_t *ip_scratchpad_md() const {
             return &ip_scratchpad_md_;
         }
         const memory_desc_t *scales_md() const { return &scales_md_; }
-        // post ops
-        int post_op_idx(primitive_kind_t kind) const {
-            return attr()->post_ops_.find(kind);
-        }
-        bool with_eltwise() const {
-            return post_op_idx(primitive_kind::eltwise) != -1;
-        }
-        bool with_sum() const { return post_op_idx(primitive_kind::sum) != -1; }
-        alg_kind_t eltwise_algorithm() const {
-            const int eltwise_idx = post_op_idx(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : alg_kind::undef;
-        }
-        float eltwise_alpha() const {
-            const int eltwise_idx = post_op_idx(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
-                    : 1.0f;
-        }
-        float eltwise_beta() const {
-            const int eltwise_idx = post_op_idx(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
-                    : 0.0f;
-        }
-        float eltwise_scale() const {
-            const int eltwise_idx = post_op_idx(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.scale
-                    : 1.0f;
-        }
-        float sum_scale() const {
-            const int sum_idx = post_op_idx(primitive_kind::sum);
-            return sum_idx != -1 ? attr()->post_ops_.entry_[sum_idx].sum.scale
-                                 : 0.0f;
-        }
 
         status_t init_ip_scratchpad_md() {
             if (use_scratchpad()) {
@@ -235,7 +202,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
         }
 
         status_t init_scales_md() {
-            if (with_scales()) {
+            if (attr_info_.with_oscales) {
                 scales_md_.data_type = data_type::f32;
                 scales_md_.ndims = 1;
                 scales_md_.dims[0] = attr()->output_scales_.count_;
@@ -249,6 +216,8 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
 
         memory_desc_t scales_md_;
         memory_desc_t ip_scratchpad_md_;
+
+        attr_info_t attr_info_;
 
     private:
         void init_scratchpad() {
@@ -296,20 +265,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
 
             kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
 
-            // output scales
-            kernel_ctx.define_int("WITH_SCALES", pd()->with_scales());
-
-            const auto scales_mask = pd()->attr()->output_scales_.mask_;
-            kernel_ctx.define_int(
-                    "SCALES_COMMON", pd()->with_scales() && (scales_mask == 0));
-            kernel_ctx.define_int("SCALES_PER_OC",
-                    pd()->with_scales() && (scales_mask == (1 << 1)));
-            // post ops
-            kernel_ctx.define_int("WITH_ELTWISE", pd()->with_eltwise());
-            if (pd()->with_eltwise()) {
-                def_postops(kernel_ctx, pd()->eltwise_algorithm());
-            }
-            kernel_ctx.define_int("WITH_SUM", pd()->with_sum());
+            def_attr_info(kernel_ctx, pd()->attr_info_);
 
             create_kernel(engine, &post_process_kernel_,
                     "gemm_x8s8s32x_inner_product_post_process", kernel_ctx);
@@ -330,7 +286,7 @@ protected:
 
     status_t init_res_storage(
             engine_t *engine, gpu_resource_t *r) const override {
-        if (!pd()->with_scales()) return status::success;
+        if (!pd()->attr_info_.with_oscales) return status::success;
         memory_desc_wrapper scales_mdw(pd()->scales_md());
         memory_storage_t *tmp_mem_storage_ptr;
         CHECK(engine->create_memory_storage(

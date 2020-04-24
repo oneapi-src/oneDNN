@@ -67,6 +67,8 @@ struct ref_gemm_t : public gpu_gemm_t {
 
             if (!ok) return status::unimplemented;
 
+            attr_info = attr_info_t::create(attr());
+
             return status::success;
         }
 
@@ -93,49 +95,9 @@ struct ref_gemm_t : public gpu_gemm_t {
             }
         }
 
-        bool with_eltwise(int position) const {
-            return attr()->post_ops_.contain(primitive_kind::eltwise, position);
-        }
-
-        float eltwise_alpha() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
-                    : 1.0f;
-        }
-
-        float eltwise_beta() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
-                    : 0.0f;
-        }
-
-        float eltwise_scale() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.scale
-                    : 1.0f;
-        }
-
-        alg_kind_t eltwise_alg_kind() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : alg_kind::undef;
-        }
-
-        float sum_scale() const {
-            using namespace primitive_kind;
-            const auto &p = attr()->post_ops_;
-            return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
-        }
-
         bool with_bias() const { return desc()->bias_type != data_type::undef; }
+
+        attr_info_t attr_info;
     };
 
     ref_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
@@ -146,14 +108,10 @@ struct ref_gemm_t : public gpu_gemm_t {
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
         kernel_ctx.define_int(
                 "NON_DEFAULT_ATTRS", !pd()->attr()->has_default_values());
-        kernel_ctx.define_int("DO_SUM",
-                pd()->attr()->post_ops_.contain(primitive_kind::sum, 0));
-        kernel_ctx.define_int(
-                "WITH_ELTWISE", pd()->with_eltwise(0) || pd()->with_eltwise(1));
 
         const auto d = pd()->desc();
         kernel_ctx.set_data_type(d->c_type);
-        def_postops(kernel_ctx, pd()->eltwise_alg_kind());
+        def_attr_info(kernel_ctx, pd()->attr_info);
 
         const auto bias_type = d->bias_type != data_type::undef
                 ? d->bias_type

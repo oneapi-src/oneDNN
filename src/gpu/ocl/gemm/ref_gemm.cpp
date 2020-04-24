@@ -66,11 +66,11 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const dim_t ldc = exec_d->ldc;
 
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
-    const float eltwise_alpha = pd()->eltwise_alpha();
-    const float eltwise_beta = pd()->eltwise_beta();
-    const float eltwise_scale = pd()->eltwise_scale();
+    const float eltwise_alpha = pd()->attr_info.eltwise_alpha;
+    const float eltwise_beta = pd()->attr_info.eltwise_beta;
+    const float eltwise_scale = pd()->attr_info.eltwise_scale;
     const int bias_mask = exec_d->bias_mask;
-    const float beta = pd()->sum_scale();
+    const float beta = pd()->attr_info.sum_scale;
 
     const int tra = exec_d->transa == transpose::trans;
     const int trb = exec_d->transb == transpose::trans;

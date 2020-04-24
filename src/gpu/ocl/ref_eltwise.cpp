@@ -62,33 +62,11 @@ static status_t init_conf_common(eltwise_conf_t &conf, offsets_t &off,
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const eltwise_conf_t &conf, const offsets_t &off) {
     kernel_ctx.set_data_type(conf.data_type);
-    kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);
-    kernel_ctx.define_int("LINEAR", alg_kind::eltwise_linear);
-    kernel_ctx.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
-    kernel_ctx.define_int("SOFT_RELU", alg_kind::eltwise_soft_relu);
-    kernel_ctx.define_int("LOGISTIC", alg_kind::eltwise_logistic);
-    kernel_ctx.define_int("TANH", alg_kind::eltwise_tanh);
-    kernel_ctx.define_int("ELU", alg_kind::eltwise_elu);
-    kernel_ctx.define_int("SQUARE", alg_kind::eltwise_square);
-    kernel_ctx.define_int("SQRT", alg_kind::eltwise_sqrt);
-    kernel_ctx.define_int("ABS", alg_kind::eltwise_abs);
-    kernel_ctx.define_int("EXP", alg_kind::eltwise_exp);
-    kernel_ctx.define_int("GELU_TANH", alg_kind::eltwise_gelu_tanh);
-    kernel_ctx.define_int("SWISH", alg_kind::eltwise_swish);
-    kernel_ctx.define_int("LOG", alg_kind::eltwise_log);
-    kernel_ctx.define_int("CLIP", alg_kind::eltwise_clip);
-    kernel_ctx.define_int("POW", alg_kind::eltwise_pow);
-    kernel_ctx.define_int("GELU_ERF", alg_kind::eltwise_gelu_erf);
 
-    kernel_ctx.define_int("RELU_DST", alg_kind::eltwise_relu_use_dst_for_bwd);
-    kernel_ctx.define_int(
-            "LOGISTIC_DST", alg_kind::eltwise_logistic_use_dst_for_bwd);
-    kernel_ctx.define_int("TANH_DST", alg_kind::eltwise_tanh_use_dst_for_bwd);
-    kernel_ctx.define_int("ELU_DST", alg_kind::eltwise_elu_use_dst_for_bwd);
-    kernel_ctx.define_int("SQRT_DST", alg_kind::eltwise_sqrt_use_dst_for_bwd);
-    kernel_ctx.define_int("EXP_DST", alg_kind::eltwise_exp_use_dst_for_bwd);
+    def_eltwise_alg_kinds(kernel_ctx);
 
-    kernel_ctx.define_int("ALG_KIND", conf.alg);
+    kernel_ctx.define_int("WITH_ELTWISE", 1);
+    kernel_ctx.define_int("ELTWISE_ALG", conf.alg);
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("GWS0", conf.dispatch.nd_range().global_range()[0]);
     kernel_ctx.define_int("GWS1", conf.dispatch.nd_range().global_range()[1]);

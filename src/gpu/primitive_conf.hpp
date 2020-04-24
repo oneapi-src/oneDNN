@@ -80,6 +80,93 @@ struct memory_desc_info_t {
     }
 };
 
+struct attr_info_t {
+    static attr_info_t create(const primitive_attr_t *attr) {
+        const auto &po = attr->post_ops_;
+
+        attr_info_t attr_info;
+
+        // Eltwise
+        attr_info.eltwise_idx = po.find(primitive_kind::eltwise);
+        attr_info.with_eltwise = (attr_info.eltwise_idx != -1);
+
+        if (attr_info.with_eltwise) {
+            auto &eltwise = po.entry_[attr_info.eltwise_idx].eltwise;
+            attr_info.eltwise_alg = eltwise.alg;
+            attr_info.eltwise_scale = eltwise.scale;
+            attr_info.eltwise_alpha = eltwise.alpha;
+            attr_info.eltwise_beta = eltwise.beta;
+        } else {
+            attr_info.eltwise_alg = alg_kind::undef;
+            attr_info.eltwise_scale = 1.0f;
+            attr_info.eltwise_alpha = 1.0f;
+            attr_info.eltwise_beta = 0.0f;
+        }
+
+        // Sum
+        attr_info.sum_idx = po.find(primitive_kind::sum);
+        attr_info.sum_scale = (attr_info.sum_idx != -1
+                        ? po.entry_[attr_info.sum_idx].sum.scale
+                        : 0.0f);
+        attr_info.with_sum
+                = (attr_info.sum_idx != -1) && (attr_info.sum_scale != 0.0f);
+
+        // Output scales
+        attr_info.with_oscales = !attr->output_scales_.has_default_values();
+
+        const auto &scales_mask = attr->output_scales_.mask_;
+        attr_info.with_common_oscales
+                = attr_info.with_oscales && (scales_mask == 0);
+        attr_info.common_oscales = (attr_info.with_common_oscales
+                        ? attr->output_scales_.scales_[0]
+                        : 1.0f);
+
+        attr_info.with_per_oc_oscales
+                = attr_info.with_oscales && (scales_mask == (1 << 1));
+
+        attr_info.with_runtime_oscales = attr_info.with_per_oc_oscales
+                && !attr->output_scales_.defined();
+
+        const auto &src0_scales = attr->scales_.get(DNNL_ARG_SRC_0);
+        attr_info.with_src0_scale = !src0_scales.has_default_values();
+        attr_info.src0_scale = *src0_scales.scales_;
+        assert(src0_scales.mask_ == 0);
+
+        const auto &src1_scales = attr->scales_.get(DNNL_ARG_SRC_1);
+        attr_info.with_src1_scale = !src1_scales.has_default_values();
+        attr_info.src1_scale = *src1_scales.scales_;
+        assert(src1_scales.mask_ == 0);
+
+        attr_info.initialized = true;
+        return attr_info;
+    }
+
+    bool initialized = false;
+
+    bool with_eltwise;
+    int eltwise_idx;
+    alg_kind_t eltwise_alg;
+    float eltwise_scale;
+    float eltwise_alpha;
+    float eltwise_beta;
+
+    bool with_sum;
+    int sum_idx;
+    float sum_scale;
+
+    bool with_oscales;
+    bool with_common_oscales;
+    float common_oscales;
+    bool with_per_oc_oscales;
+    bool with_runtime_oscales;
+
+    bool with_src0_scale;
+    float src0_scale;
+
+    bool with_src1_scale;
+    float src1_scale;
+};
+
 struct offsets_t {
     int src_off[4][MAX_NDIMS];
     int wei_off[4][MAX_NDIMS];
@@ -145,18 +232,12 @@ struct conv_conf_t {
     size_t gws_d[3], lws_d[3];
     compute::dispatch_t dispatch;
 
-    bool with_bias, with_sum, with_sum_relu, with_groups;
-    bool with_scales, with_common_scales, with_per_oc_scales;
+    bool with_bias, with_groups;
 
-    bool with_eltwise;
-    bool with_post_sum_eltwise;
-    bool eltwise_alg_relu;
-    post_ops_t::entry_t::eltwise_t eltwise;
+    attr_info_t attr_info;
 
     bool is_depthwise;
     bool is_nhwc;
-    float relu_negative_slope;
-    float sum_scale;
     int ver;
     format_tag_t src_tag, dst_tag, wei_tag;
     bool is_src_nchw, is_src_nhwc;
@@ -203,6 +284,8 @@ struct inner_product_conf_t {
     data_type_t bia_dt;
     data_type_t dst_dt;
     data_type_t acc_dt;
+
+    attr_info_t attr_info;
 };
 
 // RNN
@@ -358,16 +441,12 @@ struct binary_conf_t {
     bool is_dense;
     bool is_same_md;
     bool same_src_dt;
-    bool with_eltwise;
-    bool with_src0_scale;
-    bool with_src1_scale;
-    post_ops_t::entry_t::eltwise_t eltwise;
-    bool with_sum;
-    float sum_scale;
-    float eltwise_scale;
+
     memory_desc_info_t src0_md_info;
     memory_desc_info_t src1_md_info;
     memory_desc_info_t dst_md_info;
+
+    attr_info_t attr_info;
 };
 
 // Reorder
@@ -523,26 +602,7 @@ inline void set_default_conf(conv_conf_t &conf, const convolution_desc_t &cd,
     conf.bias_data_type
             = conf.with_bias ? bias_mdw.data_type() : data_type::f32;
 
-    const auto &p = attr.post_ops_;
-    conf.with_sum = p.find(primitive_kind::sum) != -1;
-    const int sum_idx = p.find(primitive_kind::sum);
-    conf.sum_scale = (sum_idx != -1) ? p.entry_[sum_idx].sum.scale : 1.0;
-
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
-    conf.with_eltwise = eltwise_ind == 0;
-    conf.with_post_sum_eltwise = eltwise_ind == 1;
-    if (conf.with_eltwise || conf.with_post_sum_eltwise)
-        conf.eltwise = p.entry_[eltwise_ind].eltwise;
-
-    conf.eltwise_alg_relu
-            = (eltwise_ind != -1 && conf.eltwise.alg == alg_kind::eltwise_relu);
-    if (conf.eltwise_alg_relu) conf.relu_negative_slope = conf.eltwise.alpha;
-
-    conf.with_scales = !attr.output_scales_.has_default_values();
-    bool scale_idx_mult = attr.output_scales_.mask_ == (1 << 1);
-    conf.with_common_scales
-            = conf.with_scales && attr.output_scales_.mask_ == 0;
-    conf.with_per_oc_scales = conf.with_scales && scale_idx_mult;
+    conf.attr_info = attr_info_t::create(&attr);
 }
 
 inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
@@ -600,7 +660,7 @@ inline void def_offsets(const int offs[4][MAX_NDIMS],
     }
 }
 
-inline void def_postops(compute::kernel_ctx_t &kernel_ctx, alg_kind_t alg) {
+inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);
     kernel_ctx.define_int("LINEAR", alg_kind::eltwise_linear);
     kernel_ctx.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
@@ -626,8 +686,29 @@ inline void def_postops(compute::kernel_ctx_t &kernel_ctx, alg_kind_t alg) {
     kernel_ctx.define_int("ELU_DST", alg_kind::eltwise_elu_use_dst_for_bwd);
     kernel_ctx.define_int("SQRT_DST", alg_kind::eltwise_sqrt_use_dst_for_bwd);
     kernel_ctx.define_int("EXP_DST", alg_kind::eltwise_exp_use_dst_for_bwd);
+}
 
-    kernel_ctx.define_int("ALG_KIND", alg);
+inline void def_attr_info(
+        compute::kernel_ctx_t &kernel_ctx, const attr_info_t &attr_info) {
+    assert(attr_info.initialized);
+
+    kernel_ctx.define_int("WITH_ELTWISE", attr_info.with_eltwise);
+    kernel_ctx.define_int("ELTWISE_IDX", attr_info.eltwise_idx);
+    kernel_ctx.define_int("ELTWISE_ALG", attr_info.eltwise_alg);
+
+    kernel_ctx.define_int("WITH_SUM", attr_info.with_sum);
+    kernel_ctx.define_int("SUM_IDX", attr_info.sum_idx);
+    kernel_ctx.define_int("SUM_SCALE", attr_info.sum_scale);
+    kernel_ctx.define_int("SUM_SCALE1", attr_info.sum_scale == 1.0f);
+
+    kernel_ctx.define_int("WITH_SRC0_SCALE", attr_info.with_src0_scale);
+    kernel_ctx.define_int("WITH_SRC1_SCALE", attr_info.with_src1_scale);
+
+    kernel_ctx.define_int("WITH_SCALES", attr_info.with_oscales);
+    kernel_ctx.define_int("SCALES_PER_OC", attr_info.with_per_oc_oscales);
+    kernel_ctx.define_int("SCALES_COMMON", attr_info.with_common_oscales);
+
+    def_eltwise_alg_kinds(kernel_ctx);
 }
 
 inline void def_data_type(

@@ -27,6 +27,7 @@
 #include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -95,11 +96,8 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
 
             assert(engine->kind() == engine_kind::gpu);
 
+            attr_info_ = attr_info_t::create(attr());
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
-
-            bool with_eltwise
-                    = attr()->post_ops_.find(primitive_kind::eltwise) != -1;
-            bool with_sum = attr()->post_ops_.find(primitive_kind::sum) != -1;
 
             bool ok = is_fwd() && set_default_params() == status::success
                     && !has_zero_dim_memory()
@@ -108,7 +106,8 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                             expect_data_types(f32, f32, f32, f32, f32))
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->post_ops_.len_ <= 1
-                    && IMPLICATION(with_eltwise, !with_bias()) && !with_sum
+                    && IMPLICATION(attr_info_.with_eltwise, !with_bias())
+                    && !attr_info_.with_sum
                     && dense_consitency_check(src_md(), weights_md(), dst_md())
                     && dense_gemm_consitency_check(
                             src_md(), weights_md(), dst_md());
@@ -134,6 +133,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
+        attr_info_t attr_info_;
         std::unique_ptr<primitive_desc_t> gemm_pd_;
 
     private:

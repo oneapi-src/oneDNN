@@ -91,6 +91,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                                     && attr()->post_ops_.find(eltwise) == 1);
             if (!ok) return status::unimplemented;
             init_scratchpad();
+            attr_info = attr_info_t::create(attr());
             return status::success;
         }
 
@@ -101,42 +102,6 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                             || !attr()->zero_points_.defined(DNNL_ARG_DST));
         }
 
-        bool with_eltwise() const {
-            return attr()->post_ops_.find(primitive_kind::eltwise) != -1;
-        }
-
-        float eltwise_alpha() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
-                    : 1.0f;
-        }
-
-        float eltwise_beta() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
-                    : 0.0f;
-        }
-
-        float eltwise_scale() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.scale
-                    : 1.0f;
-        }
-
-        alg_kind_t eltwise_alg_kind() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : dnnl_alg_kind_undef;
-        }
-
         float alpha() const { return attr()->output_scales_.scales_[0]; }
 
         float beta() const {
@@ -144,6 +109,8 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
             const auto &p = attr()->post_ops_;
             return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
         }
+
+        attr_info_t attr_info;
 
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
@@ -199,9 +166,8 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
 
         auto status = gen9_gemm_x8x8s32_kernel_t::init_kernel_ctx(kernel_ctx,
                 pd()->desc()->transa, pd()->desc()->transb, fixed_c, column_c,
-                row_c, pd()->with_eltwise(), pd()->eltwise_alg_kind(),
-                pd()->desc()->a_type, pd()->desc()->b_type,
-                pd()->desc()->c_type);
+                row_c, pd()->attr_info, pd()->desc()->a_type,
+                pd()->desc()->b_type, pd()->desc()->c_type);
         if (status != status::success) return status;
 
         create_kernel(
@@ -212,8 +178,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         kernel_name = "gen9_gemm_scale_x8x8s32";
 
         status = gen9_gemm_scale_x8x8s32_kernel_t::init_kernel_ctx(kernel_ctx,
-                pd()->with_eltwise(), pd()->eltwise_alg_kind(),
-                pd()->desc()->a_type, pd()->desc()->b_type,
+                pd()->attr_info, pd()->desc()->a_type, pd()->desc()->b_type,
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 

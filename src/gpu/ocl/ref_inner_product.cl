@@ -14,10 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE == 1
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #if IS_FWD == 1
 
@@ -52,14 +50,14 @@ __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
 
     tmp *= output_scale;
 
-#if WITH_SUM_ELTWISE == 1
+#if SUM_IDX == 0 && ELTWISE_IDX == 1
     tmp += sum_scale * DST_TO_REF(dst[mb * OC + oc]);
     tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta, eltwise_scale);
 #else
-#if WITH_ELTWISE == 1
+#if WITH_ELTWISE
     tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
-#if WITH_SUM == 1
+#if WITH_SUM
     tmp = sum_scale * DST_TO_REF(dst[mb * OC + oc]) + tmp;
 #endif
 #endif

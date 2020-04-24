@@ -328,12 +328,6 @@ status_t gen9_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("OWB", utils::div_up(conf.ow, conf.ow_block));
     kernel_ctx.define_int("OHB", utils::div_up(conf.oh, conf.oh_block));
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
-    kernel_ctx.define_int(
-            "WITH_ELTWISE", conf.with_eltwise || conf.with_post_sum_eltwise);
-    if (conf.with_eltwise || conf.with_post_sum_eltwise)
-        def_postops(kernel_ctx, conf.eltwise.alg);
-    kernel_ctx.define_int("WITH_SUM", conf.with_sum);
-    kernel_ctx.define_int("SUM_SCALE", conf.sum_scale == 1.0);
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
     kernel_ctx.define_int("OC_BLOCK", conf.oc_block);
     kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
@@ -380,6 +374,8 @@ status_t gen9_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("LWS_0", conf.lws_d[0]);
     kernel_ctx.define_int("LWS_1", conf.lws_d[1]);
     kernel_ctx.define_int("LWS_2", conf.lws_d[2]);
+
+    def_attr_info(kernel_ctx, conf.attr_info);
 
     kernel_ctx.print_options();
     return status::success;
@@ -1047,23 +1043,24 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     const auto &conf = pd()->conf;
+    const auto &attr_info = conf.attr_info;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, weights);
     arg_list.set(2, bias);
     arg_list.set(3, dst);
-    arg_list.set(4, conf.eltwise.alpha);
-    arg_list.set(5, conf.eltwise.beta);
-    arg_list.set(6, conf.eltwise.scale);
-    arg_list.set(7, conf.sum_scale);
+    arg_list.set(4, attr_info.eltwise_alpha);
+    arg_list.set(5, attr_info.eltwise_beta);
+    arg_list.set(6, attr_info.eltwise_scale);
+    arg_list.set(7, attr_info.sum_scale);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
-    if (!math::eltwise_fwd_preserves_zero(
-                conf.eltwise.alg, conf.eltwise.alpha, conf.eltwise.beta)) {
+    if (!math::eltwise_fwd_preserves_zero(attr_info.eltwise_alg,
+                attr_info.eltwise_alpha, attr_info.eltwise_beta)) {
         ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
     }
     return status;

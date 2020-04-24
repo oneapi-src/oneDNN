@@ -48,7 +48,6 @@ struct ref_matmul_t : public gpu_primitive_t {
             dst_dt_ = dst_md()->data_type;
             wei_dt_ = weights_md(0)->data_type;
             bia_dt_ = with_bias() ? weights_md(1)->data_type : data_type::f32;
-            eltwise_idx_ = attr()->post_ops_.find(primitive_kind::eltwise);
 
             bool ok = IMPLICATION(desc()->accum_data_type == s32,
                               attr()->zero_points_.common())
@@ -95,8 +94,11 @@ struct ref_matmul_t : public gpu_primitive_t {
             if (status != status::success) return status;
 
             status = init_zero_points_md(C0_, c0_md_);
+            if (status != status::success) return status;
 
-            return status;
+            attr_info_ = attr_info_t::create(attr());
+
+            return status::success;
         }
 
         const memory_desc_t *scales_md() const { return &scales_md_; }
@@ -109,46 +111,14 @@ struct ref_matmul_t : public gpu_primitive_t {
             return nullptr;
         }
 
-        bool with_eltwise(int position) const {
-            return attr()->post_ops_.contain(primitive_kind::eltwise, position);
-        }
-
-        float eltwise_alpha() const {
-            return eltwise_idx_ != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx_].eltwise.alpha
-                    : 1.0f;
-        }
-
-        float eltwise_beta() const {
-            return eltwise_idx_ != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx_].eltwise.beta
-                    : 0.0f;
-        }
-
-        float eltwise_scale() const {
-            return eltwise_idx_ != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx_].eltwise.scale
-                    : 1.0f;
-        }
-
-        float sum_scale() const {
-            using namespace primitive_kind;
-            const auto &p = attr()->post_ops_;
-            return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
-        }
-
-        alg_kind_t eltwise_alg_kind() const {
-            return eltwise_idx_ != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx_].eltwise.alg
-                    : dnnl_alg_kind_undef;
-        }
-
         bool non_default_attrs_ = false;
         bool is_defined_[4] = {};
         data_type_t bia_dt_ = data_type::undef;
         data_type_t src_dt_ = data_type::undef;
         data_type_t dst_dt_ = data_type::undef;
         data_type_t wei_dt_ = data_type::undef;
+
+        attr_info_t attr_info_;
 
     private:
         bool attr_oscale_ok() const {
@@ -187,7 +157,6 @@ struct ref_matmul_t : public gpu_primitive_t {
         memory_desc_t b0_md_ = memory_desc_t();
         memory_desc_t c0_md_ = memory_desc_t();
         memory_desc_t scales_md_ = memory_desc_t();
-        int eltwise_idx_ = -1;
     };
 
     ref_matmul_t(const pd_t *apd) : gpu_primitive_t(apd) {}
@@ -197,13 +166,9 @@ struct ref_matmul_t : public gpu_primitive_t {
 
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
         kernel_ctx.define_int("NON_DEFAULT_ATTRS", pd()->non_default_attrs_);
-        kernel_ctx.define_int("DO_SUM",
-                pd()->attr()->post_ops_.contain(primitive_kind::sum, 0));
-        kernel_ctx.define_int(
-                "WITH_ELTWISE", pd()->with_eltwise(0) || pd()->with_eltwise(1));
 
         kernel_ctx.set_data_type(pd()->dst_dt_);
-        def_postops(kernel_ctx, pd()->eltwise_alg_kind());
+        def_attr_info(kernel_ctx, pd()->attr_info_);
 
         def_data_type(kernel_ctx, pd()->src_dt_, "SRC");
         def_data_type(kernel_ctx, pd()->wei_dt_, "WEI");

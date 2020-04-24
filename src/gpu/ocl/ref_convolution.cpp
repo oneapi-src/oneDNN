@@ -158,21 +158,15 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     def_data_type(kernel_ctx, conf.dst_data_type, "DST");
     def_data_type(kernel_ctx, conf.acc_data_type, "ACC");
 
-    if (conf.with_eltwise || conf.with_post_sum_eltwise) {
-        def_postops(kernel_ctx, conf.eltwise.alg);
-    }
-    kernel_ctx.define_int("WITH_ELTWISE", conf.with_eltwise);
-    kernel_ctx.define_int("WITH_SUM", conf.with_sum);
-    kernel_ctx.define_int("WITH_POST_SUM_ELTWISE", conf.with_post_sum_eltwise);
-
-    kernel_ctx.define_int("SCALES_COMMON", conf.with_common_scales);
-    kernel_ctx.define_int("SCALES_PER_OC", conf.with_per_oc_scales);
+    def_attr_info(kernel_ctx, conf.attr_info);
 
     return status::success;
 }
 
 status_t ref_convolution_fwd_t::pd_t::init_conf(engine_t *engine) {
-    return init_conf_common(conf, off, this, engine);
+    CHECK(init_conf_common(conf, off, this, engine));
+    CHECK(init_scales_md());
+    return status::success;
 }
 
 status_t ref_convolution_fwd_t::pd_t::init_kernel_ctx(
@@ -188,10 +182,12 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &oscales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    auto eltwise_alpha = pd()->eltwise_alpha();
-    auto eltwise_beta = pd()->eltwise_beta();
-    auto eltwise_scale = pd()->eltwise_scale();
-    auto sum_scale = pd()->sum_scale();
+    auto &conf = pd()->conf;
+    auto eltwise_alpha = conf.attr_info.eltwise_alpha;
+    auto eltwise_beta = conf.attr_info.eltwise_beta;
+    auto eltwise_scale = conf.attr_info.eltwise_scale;
+    auto sum_scale = conf.attr_info.sum_scale;
+    auto common_oscales = conf.attr_info.common_oscales;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -202,18 +198,14 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(5, eltwise_beta);
     arg_list.set(6, eltwise_scale);
     arg_list.set(7, sum_scale);
-    if (utils::one_of(
-                pd()->src_md()->data_type, data_type::u8, data_type::s8)) {
-        if (pd()->with_common_scales()) {
-            float scales = pd()->attr()->output_scales_.scales_[0];
-            arg_list.set(8, scales);
-        }
-        if (pd()->with_per_oc_scales()) {
-            if (pd()->with_runtime_scales())
-                arg_list.set(8, oscales);
-            else
-                arg_list.set(8, CTX_GPU_RES_STORAGE(SCALES_));
-        }
+    arg_list.set(8, common_oscales);
+    if (conf.attr_info.with_per_oc_oscales) {
+        if (conf.attr_info.with_runtime_oscales)
+            arg_list.set(9, oscales);
+        else
+            arg_list.set(9, CTX_GPU_RES_STORAGE(SCALES_));
+    } else {
+        arg_list.set(9, memory_storage_t::empty_storage());
     }
 
     auto nd_range = pd()->conf.dispatch.nd_range();

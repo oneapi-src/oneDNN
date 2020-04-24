@@ -13,11 +13,9 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include "gpu/ocl/ocl_types.h"
 
-#if WITH_ELTWISE == 1
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #undef DST_OFF
 #define SRC0_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC0, x0, x1, x2, x3, x4, x5)
@@ -28,26 +26,18 @@
 KERNEL_ATTR
 __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
         __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale, float sum_scale
-#if SRC0_SCALE
-        ,
-        float src0_scale
-#endif
-#if SRC1_SCALE
-        ,
-        float src1_scale
-#endif
-) {
+        float eltwise_scale, float sum_scale, float src0_scale,
+        float src1_scale) {
     int off = GWS_GET_IDX();
 
     POST_OP_DATA_T tmp_src0 = DATA_TO_REF(src0[off]);
     POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[off]);
     POST_OP_DATA_T d = 0;
 
-#if SRC0_SCALE
+#if WITH_SRC0_SCALE
     tmp_src0 = tmp_src0 * src0_scale;
 #endif
-#if SRC1_SCALE
+#if WITH_SRC1_SCALE
     tmp_src1 = tmp_src1 * src1_scale;
 #endif
 
@@ -61,15 +51,11 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     d = min(tmp_src0, tmp_src1);
 #endif
 
-#if WITH_SUM == 1
-#if SUM_SCALE == 1
-    d += DATA_TO_REF(dst[off]);
-#else
-    d += sum_scale * DATA_TO_REF(dst[off]);
-#endif
+#if WITH_SUM
+    d += (SUM_SCALE1 ? 1 : sum_scale) * DATA_TO_REF(dst[off]);
 #endif
 
-#if WITH_ELTWISE == 1
+#if WITH_ELTWISE
     d = fwd_eltwise(d, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
     dst[off] = TO_DST(d);
@@ -78,16 +64,8 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
 KERNEL_ATTR
 __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale, float sum_scale
-#if SRC0_SCALE
-        ,
-        float src0_scale
-#endif
-#if SRC1_SCALE
-        ,
-        float src1_scale
-#endif
-) {
+        float eltwise_scale, float sum_scale, float src0_scale,
+        float src1_scale) {
 
     // since gws = no. of total elems in A, id will be the logical offset
     int dims0[6] = {0};
@@ -129,10 +107,10 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[src1_off]);
         POST_OP_DATA_T d = 0;
 
-#if SRC0_SCALE
+#if WITH_SRC0_SCALE
         tmp_src0 = tmp_src0 * src0_scale;
 #endif
-#if SRC1_SCALE
+#if WITH_SRC1_SCALE
         tmp_src1 = tmp_src1 * src1_scale;
 #endif
 
@@ -146,14 +124,10 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         d = min(tmp_src0, tmp_src1);
 #endif
 
-#if WITH_SUM == 1
-#if SUM_SCALE == 1
-        d += DATA_TO_REF(dst[dst_off]);
-#else
-        d += sum_scale * DATA_TO_REF(dst[dst_off]);
+#if WITH_SUM
+        d += (SUM_SCALE1 ? 1 : sum_scale) * DATA_TO_REF(dst[dst_off]);
 #endif
-#endif
-#if WITH_ELTWISE == 1
+#if WITH_ELTWISE
         d = fwd_eltwise(d, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 

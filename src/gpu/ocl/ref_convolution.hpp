@@ -68,9 +68,6 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                                             1 << 1));
             if (!ok) return status::unimplemented;
 
-            auto scales_status = init_scales_md();
-            if (scales_status != status::success) return scales_status;
-
             return init_conf(engine);
         }
 
@@ -78,68 +75,6 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         const memory_desc_t *scales_md() const { return &scales_md_; }
-
-        bool with_eltwise(int position) const {
-            return attr()->post_ops_.contain(primitive_kind::eltwise, position);
-        }
-
-        bool with_sum() const {
-            return attr()->post_ops_.find(primitive_kind::sum) != -1;
-        }
-
-        float eltwise_alpha() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
-                    : 1.0f;
-        }
-
-        float eltwise_beta() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
-                    : 0.0f;
-        }
-
-        float eltwise_scale() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.scale
-                    : 1.0f;
-        }
-
-        float sum_scale() const {
-            const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
-            return sum_idx != -1 ? attr()->post_ops_.entry_[sum_idx].sum.scale
-                                 : 0.0f;
-        }
-
-        alg_kind_t eltwise_alg_kind() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : dnnl_alg_kind_undef;
-        }
-
-        bool with_scales() const {
-            return !attr()->output_scales_.has_default_values();
-        }
-
-        bool with_common_scales() const {
-            return with_scales() && attr()->output_scales_.mask_ == 0;
-        }
-
-        bool with_per_oc_scales() const {
-            return with_scales() && attr()->output_scales_.mask_ == (1 << 1);
-        }
-
-        bool with_runtime_scales() const {
-            return with_per_oc_scales() && !attr()->output_scales_.defined();
-        }
 
         conv_conf_t conf;
         offsets_t off;
@@ -155,7 +90,8 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
         }
 
         status_t init_scales_md() {
-            if (with_per_oc_scales() && !with_runtime_scales()) {
+            if (conf.attr_info.with_per_oc_oscales
+                    && !conf.attr_info.with_runtime_oscales) {
                 scales_md_.data_type = data_type::f32;
                 scales_md_.ndims = 1;
                 scales_md_.dims[0] = attr()->output_scales_.count_;
@@ -189,7 +125,8 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
 protected:
     status_t init_res_storage(
             engine_t *engine, gpu_resource_t *r) const override {
-        if (!pd()->with_per_oc_scales() || pd()->with_runtime_scales())
+        if (!pd()->conf.attr_info.with_per_oc_oscales
+                || pd()->conf.attr_info.with_runtime_oscales)
             return status::success;
         memory_desc_wrapper scales_mdw(pd()->scales_md());
         memory_storage_t *tmp_mem_storage_ptr;

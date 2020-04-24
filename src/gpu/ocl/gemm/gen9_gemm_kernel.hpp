@@ -99,8 +99,7 @@ struct gen9_gemm_copy_kernel_t : public gen9_gemm_kernel_t {
 
 struct gen9_gemm_compute_kernel_t : public gen9_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-            bool beta0, bool with_eltwise, alg_kind_t alg,
-            impl::data_type_t type,
+            bool beta0, const attr_info_t &attr_info, impl::data_type_t type,
             impl::data_type_t dst_type = impl::data_type::undef) {
         if (dst_type == impl::data_type::undef) dst_type = type;
         auto status = init_cl_options(kernel_ctx, type, type, dst_type);
@@ -111,8 +110,7 @@ struct gen9_gemm_compute_kernel_t : public gen9_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_M", copy_params_t::unroll_m);
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
 
-        kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
-        if (with_eltwise) def_postops(kernel_ctx, alg);
+        def_attr_info(kernel_ctx, attr_info);
 
         kernel_ctx.print_options();
         return status::success;
@@ -127,7 +125,7 @@ struct gen9_gemm_compute_kernel_t : public gen9_gemm_kernel_t {
 struct gen9_gemm_nocopy_kernel_t : public gen9_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool with_k_unroll, int unroll_k,
-            bool with_eltwise, alg_kind_t alg, impl::data_type_t type) {
+            const attr_info_t &attr_info, impl::data_type_t type) {
 
         auto status = init_cl_options(kernel_ctx, type);
         if (status) return status;
@@ -138,8 +136,7 @@ struct gen9_gemm_nocopy_kernel_t : public gen9_gemm_kernel_t {
             kernel_ctx.add_option("-DWITH_K_UNROLL");
             kernel_ctx.define_int("UNROLL_K", unroll_k);
         }
-        kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
-        if (with_eltwise) def_postops(kernel_ctx, alg);
+        def_attr_info(kernel_ctx, attr_info);
         kernel_ctx.print_options();
         return status::success;
     }
@@ -165,13 +162,13 @@ struct gen9_gemm_nocopy_kernel_t : public gen9_gemm_kernel_t {
 
 struct gen9_gemm_nocopy_superkernel_t : public gen9_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-            bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg,
+            bool trans_a, bool trans_b, const attr_info_t &attr_info,
             impl::data_type_t type) {
 
         if (trans_a) return status::unimplemented;
 
-        return gen9_gemm_nocopy_kernel_t::init_kernel_ctx(kernel_ctx, trans_a,
-                trans_b, false, 32, with_eltwise, alg, type);
+        return gen9_gemm_nocopy_kernel_t::init_kernel_ctx(
+                kernel_ctx, trans_a, trans_b, false, 32, attr_info, type);
     }
 
     static void get_unrolls(

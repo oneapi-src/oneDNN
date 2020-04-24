@@ -28,18 +28,11 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
 
     alg_kind_t alg = desc()->alg_kind;
 
-    const auto &po = attr()->post_ops_;
-    bool with_sum = po.contain(primitive_kind::sum, 0)
-            && po.entry_[0].sum.scale != 0.f;
-    float sum_scale = with_sum ? po.entry_[0].sum.scale : 1;
-    int e_idx = po.find(primitive_kind::eltwise);
-    bool with_eltwise = (e_idx != -1);
-    float eltwise_scale = with_eltwise ? po.entry_[e_idx].eltwise.scale : 1;
-
     const int ndims = src0_d.ndims();
     conf.src0_md_info = memory_desc_info_t::create(src0_d);
     conf.src1_md_info = memory_desc_info_t::create(src1_d);
     conf.dst_md_info = memory_desc_info_t::create(dst_d);
+    conf.attr_info = attr_info_t::create(attr());
     conf.src0_data_type = src0_d.data_type();
     conf.src1_data_type = src1_d.data_type();
     conf.dst_data_type = dst_d.data_type();
@@ -52,13 +45,6 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.is_dense = dst_d.is_dense();
     conf.same_src_dt = (src0_d.data_type() == src1_d.data_type());
     conf.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
-    conf.with_src0_scale = with_scales(DNNL_ARG_SRC_0);
-    conf.with_src1_scale = with_scales(DNNL_ARG_SRC_1);
-    conf.with_eltwise = with_eltwise;
-    conf.with_sum = with_sum;
-    conf.sum_scale = sum_scale;
-    conf.eltwise_scale = eltwise_scale;
-    if (with_eltwise) { conf.eltwise = po.entry_[e_idx].eltwise; }
 
     for (int i = 0; i < MAX_NDIMS; ++i) {
         conf.bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
@@ -109,9 +95,6 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("BCAST_DIM3", conf.bcast_dims[3]);
     kernel_ctx.define_int("BCAST_DIM4", conf.bcast_dims[4]);
     kernel_ctx.define_int("BCAST_DIM5", conf.bcast_dims[5]);
-    kernel_ctx.define_int("WITH_ELTWISE", conf.with_eltwise);
-    kernel_ctx.define_int("WITH_SUM", conf.with_sum);
-    kernel_ctx.define_int("SUM_SCALE", conf.sum_scale == 1);
     kernel_ctx.define_int("NVECT", conf.nvect);
     kernel_ctx.add_option("-Dcl_intel_subgroups_char");
     kernel_ctx.add_option("-Dcl_intel_subgroups_uchar");
@@ -120,7 +103,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
-    if (conf.with_eltwise) { def_postops(kernel_ctx, conf.eltwise.alg); }
+    def_attr_info(kernel_ctx, conf.attr_info);
 
     def_dispatch(kernel_ctx, conf.dispatch);
 

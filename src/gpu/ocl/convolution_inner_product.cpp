@@ -44,6 +44,7 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
     memory_desc_t conv_src_md, conv_wei_md, conv_dst_md, ip_dst_md;
 
     conf.ndims = src_md->ndims;
+    conf.attr_info = attr_info_t::create(attr());
 
     dims_t dims;
 
@@ -111,7 +112,7 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
             }
         }
 
-        if (with_sum()) {
+        if (conf.attr_info.with_sum) {
             auto r_impls = engine->get_reorder_implementation_list(
                     &ip_dst_md, &dst_conv);
             primitive_attr_t r_attr = default_attr();
@@ -155,7 +156,7 @@ status_t convolution_inner_product_fwd_t::pd_t::init_scratchpad() {
                 md_d.size(), 1, OCL_BUFFER_ALIGNMENT);
         scratchpad.book(memory_tracking::names::key_nested_multiple + 1,
                 rpd_dst_->scratchpad_registry());
-        if (with_sum())
+        if (conf.attr_info.with_sum)
             scratchpad.book(memory_tracking::names::key_nested_multiple + 2,
                     rpd_postop_->scratchpad_registry());
     }
@@ -196,7 +197,7 @@ status_t convolution_inner_product_fwd_t::execute_forward(
                         memory_flags_t::use_runtime_ptr, wspace_ptr));
     }
 
-    if (pd()->with_sum() && conf.reorder_dst) {
+    if (pd()->conf.attr_info.with_sum && conf.reorder_dst) {
         CHECK(exec_reorder(dst, wspace_dst.get(), postop_reorder_, 2));
     }
 

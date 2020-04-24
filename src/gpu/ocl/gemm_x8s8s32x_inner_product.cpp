@@ -57,16 +57,17 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
         arg_list.set(0, CTX_OUT_STORAGE(DNNL_ARG_DST));
         arg_list.set(1, CTX_IN_STORAGE(DNNL_ARG_BIAS));
         arg_list.set(2, CTX_OUT_STORAGE(DNNL_ARG_DST));
-        arg_list.set(3, pd()->eltwise_alpha());
-        arg_list.set(4, pd()->eltwise_beta());
-        arg_list.set(5, pd()->eltwise_scale());
-        arg_list.set(6, pd()->sum_scale());
+        arg_list.set(3, pd()->attr_info_.eltwise_alpha);
+        arg_list.set(4, pd()->attr_info_.eltwise_beta);
+        arg_list.set(5, pd()->attr_info_.eltwise_scale);
+        arg_list.set(6, pd()->attr_info_.sum_scale);
         arg_list.set(7,
                 pd()->use_scratchpad() ? *acc
                                        : memory_storage_t::empty_storage());
         arg_list.set(8,
-                pd()->with_scales() ? CTX_GPU_RES_STORAGE(SCALES_)
-                                    : memory_storage_t::empty_storage());
+                pd()->attr_info_.with_oscales
+                        ? CTX_GPU_RES_STORAGE(SCALES_)
+                        : memory_storage_t::empty_storage());
 
         size_t mb = pd()->MB();
         size_t oc = pd()->OC();

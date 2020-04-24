@@ -124,6 +124,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
             gemm_type_ = get_gemm_type(engine);
             init_scratchpad();
 
+            attr_info_ = attr_info_t::create(attr());
+
             return status::success;
         }
 
@@ -336,6 +338,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         type gemm_type_ = type::copy_based;
 
+        attr_info_t attr_info_;
+
     protected:
 #ifdef _WIN32
         bool disable_superkernel = true;
@@ -369,8 +373,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
             compute::kernel_ctx_t kernel_ctx;
             auto status = gen9_gemm_compute_kernel_t::init_kernel_ctx(
-                    kernel_ctx, beta0, pd()->with_eltwise(),
-                    pd()->eltwise_alg_kind(), pd()->desc()->acc_type,
+                    kernel_ctx, beta0, pd()->attr_info_, pd()->desc()->acc_type,
                     pd()->desc()->c_type);
             if (status != status::success) return status;
 
@@ -429,8 +432,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         auto status = gen9_gemm_nocopy_kernel_t::init_kernel_ctx(kernel_ctx,
                 pd()->desc()->transa, pd()->desc()->transb, with_k_unroll,
-                unroll_k, pd()->with_eltwise(), pd()->eltwise_alg_kind(),
-                pd()->desc()->c_type);
+                unroll_k, pd()->attr_info_, pd()->desc()->c_type);
         if (status != status::success) return status;
 
         create_kernel(engine, &nocopy_kernel_, kernel_name, kernel_ctx);
@@ -447,8 +449,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         auto status = gen9_gemm_nocopy_superkernel_t::init_kernel_ctx(
                 kernel_ctx, pd()->desc()->transa, pd()->desc()->transb,
-                pd()->with_eltwise(), pd()->eltwise_alg_kind(),
-                pd()->desc()->c_type);
+                pd()->attr_info_, pd()->desc()->c_type);
         if (status != status::success) return status;
 
         create_kernel(engine, &nocopy_superkernel_,

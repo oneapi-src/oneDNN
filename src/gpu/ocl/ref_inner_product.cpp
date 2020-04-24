@@ -108,12 +108,13 @@ static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
     set_offsets(wei_d, off.wei_off);
     set_offsets(dst_d, off.dst_off);
 
+    conf.attr_info = attr_info_t::create(pd->attr());
+
     return status::success;
 }
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
-        const inner_product_conf_t &conf, const offsets_t &off,
-        bool with_eltwise, bool with_sum, alg_kind_t alg) {
+        const inner_product_conf_t &conf, const offsets_t &off) {
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("OC", conf.oc);
@@ -138,10 +139,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     else if (conf.is_backward_weights)
         kernel_ctx.define_int("IS_BWD_W", 1);
 
-    if (with_eltwise) { def_postops(kernel_ctx, alg); }
-    kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
-    kernel_ctx.define_int("WITH_SUM", with_sum);
-    kernel_ctx.define_int("WITH_SUM_ELTWISE", with_sum && with_eltwise);
+    def_attr_info(kernel_ctx, conf.attr_info);
 
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.src_ndims);
     def_offsets(off.wei_off, kernel_ctx, "WEI", conf.wei_ndims);
@@ -169,8 +167,7 @@ status_t ref_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_inner_product_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(kernel_ctx, conf, off, with_eltwise(),
-            with_sum(), eltwise_alg_kind());
+    return init_kernel_ctx_common(kernel_ctx, conf, off);
 }
 
 status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
@@ -182,10 +179,10 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     const auto &conf = pd()->conf;
 
-    auto eltwise_alpha = pd()->eltwise_alpha();
-    auto eltwise_beta = pd()->eltwise_beta();
-    auto eltwise_scale = pd()->eltwise_scale();
-    auto sum_scale = pd()->sum_scale();
+    auto eltwise_scale = conf.attr_info.eltwise_scale;
+    auto eltwise_alpha = conf.attr_info.eltwise_alpha;
+    auto eltwise_beta = conf.attr_info.eltwise_beta;
+    auto sum_scale = conf.attr_info.sum_scale;
     const float *output_scales = pd()->attr()->output_scales_.scales_;
 
     compute::kernel_arg_list_t arg_list;
@@ -212,8 +209,7 @@ status_t ref_inner_product_bwd_data_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_inner_product_bwd_data_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(
-            kernel_ctx, conf, off, false, false, dnnl_alg_kind_undef);
+    return init_kernel_ctx_common(kernel_ctx, conf, off);
 }
 
 status_t ref_inner_product_bwd_data_t::execute_backward_data(
@@ -243,8 +239,7 @@ status_t ref_inner_product_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
 
 status_t ref_inner_product_bwd_weights_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    return init_kernel_ctx_common(
-            kernel_ctx, conf, off, false, false, dnnl_alg_kind_undef);
+    return init_kernel_ctx_common(kernel_ctx, conf, off);
 }
 
 status_t ref_inner_product_bwd_weights_t::execute_backward_weights(

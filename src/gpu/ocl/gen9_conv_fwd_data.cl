@@ -14,10 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #define _BLOCK_READ8(ptr) \
     AS_DATA8_T(BLOCK_READ8((const __global BLOCK_DATA_T *)(ptr)))
@@ -681,10 +679,10 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         read_dst_block(S, dst, ow);
 
         for (int i = 0; i < MB_BLOCK * OC_OUTER * OW_BLOCK; i++) {
-            C[i] = fma(S[i], (SUM_SCALE == 1) ? 1 : sum_scale, C[i]);
+            C[i] = fma(S[i], SUM_SCALE1 ? 1 : sum_scale, C[i]);
         }
     }
-#if WITH_ELTWISE == 1
+#if WITH_ELTWISE
     for (int i = 0; i < MB_BLOCK * OC_OUTER * OW_BLOCK; i++) {
         C[i] = fwd_eltwise(C[i], eltwise_alpha, eltwise_beta, eltwise_scale);
     }

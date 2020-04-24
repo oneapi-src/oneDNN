@@ -90,10 +90,10 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t K = a_d.dims()[is_batched + 1];
 
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
-    auto eltwise_alpha = pd()->eltwise_alpha();
-    auto eltwise_beta = pd()->eltwise_beta();
-    auto eltwise_scale = pd()->eltwise_scale();
-    auto sum_scale = pd()->sum_scale();
+    auto eltwise_alpha = pd()->attr_info_.eltwise_alpha;
+    auto eltwise_beta = pd()->attr_info_.eltwise_beta;
+    auto eltwise_scale = pd()->attr_info_.eltwise_scale;
+    auto sum_scale = pd()->attr_info_.sum_scale;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, a);
