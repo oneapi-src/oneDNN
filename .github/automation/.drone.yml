@@ -42,6 +42,8 @@ steps:
   commands:
   - apt-get update && apt-get install -y sudo git build-essential cmake
   - .github/automation/env/clang.sh
+  - export CC=clang
+  - export CXX=clang++
   - .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
   - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
 
