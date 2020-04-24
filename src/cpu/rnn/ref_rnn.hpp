@@ -64,8 +64,6 @@ void gates_reduction(const rnn_utils::rnn_conf_t &rnn, const gates_t *ws_gates_,
     parallel_nd(rnn.n_gates, rnn.dhc,
             [&](int i, int k) { body_loop(i, k, ws_gates_, diff_bias_, rnn); });
 #endif
-
-#undef body_loop
 }
 
 template <prop_kind_t aprop, impl::data_type_t src_type,
