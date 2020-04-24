@@ -269,7 +269,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     }
 
 protected:
-    void init_regs(size_t vlen) {
+    void init_regs(float *weights_scales, size_t vlen) {
         switch (pd_->weights_md()->data_type) {
             case data_type::bf16: {
                 /* bfloat downconvert init */
@@ -281,8 +281,6 @@ protected:
             }
             case data_type::s8: {
                 /* int8 (de)quantization init*/
-                float *weights_scales
-                        = pd_->attr()->rnn_weights_qparams_.scales_;
                 mov(qtable, qlabel);
                 mov(weights_scales_reg, size_t(weights_scales));
 
@@ -301,6 +299,11 @@ protected:
             default: assert(!"not supported");
         }
     }
+
+    void init_regs(size_t vlen) {
+        assert(pd_->weights_md()->data_type != data_type::s8);
+        return init_regs(nullptr, vlen);
+    };
 
     void init_table(size_t vlen) {
         if (pd_->weights_md()->data_type != data_type::s8) return;
@@ -348,11 +351,14 @@ protected:
         }
     }
 
-    void inc_regs(size_t vlen) {
+    void inc_regs(int mask, size_t vlen) {
         if (pd_->weights_md()->data_type == data_type::s8) {
-            int mask = pd_->attr()->rnn_weights_qparams_.mask_;
             if (mask != 0) add(weights_scales_reg, vlen);
         }
+    }
+    void inc_regs(size_t vlen) {
+        assert(pd_->weights_md()->data_type != data_type::s8);
+        inc_regs(0, vlen);
     }
 
     template <typename Vmm>
@@ -418,17 +424,19 @@ protected:
 
     // dequantize from s32 to float
     template <typename Vmm>
-    void deq_w(Vmm s, Vmm tmp1, Vmm tmp2, int gate, bool packed) {
-        const primitive_attr_t *attr = pd_->attr();
-        int mask = attr->rnn_weights_qparams_.mask_;
+    void deq_w(data_type_t src_data_t, Vmm s, Vmm tmp1, Vmm tmp2,
+            dim_t scale_off, int mask, bool packed) {
+        // nothing to do if not int8
+        if (src_data_t != data_type::u8) return;
+
         size_t qscale_dt_size = sizeof(float);
 
         // TODO: if mask is 0 precompute mul and inverse
         if (mask == 0)
             uni_vbroadcastss(tmp1, ptr[weights_scales_reg]);
         else {
-            auto scales_ptr = ptr[weights_scales_reg
-                    + gate * rnn_.dhc * qscale_dt_size];
+            auto scales_ptr
+                    = ptr[weights_scales_reg + scale_off * qscale_dt_size];
             if (packed)
                 uni_vmovups(tmp1, scales_ptr);
             else

@@ -65,6 +65,9 @@ protected:
     void generate() override {
         using namespace Xbyak;
 
+        int mask = pd_->attr()->rnn_weights_qparams_.mask_;
+        float *weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
+
         // Labels declaration
         Label vector_loop_start_label, vector_loop_inc_regs,
                 vector_loop_end_label;
@@ -106,7 +109,7 @@ protected:
         auto B_addr = ptr[addr_bias_reg + 0 * rnn_.dhc * bias_dt_size];
 
         // initialize registers with addresses and constants
-        init_regs(vlen);
+        init_regs(weights_scales, vlen);
         injector_->load_table_addr();
 
         mov(loop_cnt, rnn_.dhc * scratch_dt_size);
@@ -119,9 +122,7 @@ protected:
             uni_vmovups(G, sg_addr);
 
             // dequantize the gates from s32 to f32 if needed
-            if (src_data_t == data_type::u8) {
-                deq_w(G, tmp1_vmm, tmp2_vmm, 0, true);
-            }
+            deq_w(src_data_t, G, tmp1_vmm, tmp2_vmm, 0, mask, true);
 
             // add biases
             uni_vmovups(tmp1_vmm, B_addr);
@@ -146,7 +147,7 @@ protected:
             add(addr_states_t_l_reg, vlen_dst);
             add(addr_states_t_l_copy_reg, vlen_dst);
             if (is_training) add(addr_ws_gates_reg, vlen_dst);
-            inc_regs(vlen);
+            inc_regs(mask, vlen);
 
             // increment loop counter
             sub(loop_cnt, vlen);
@@ -169,9 +170,7 @@ protected:
             uni_vmovss(Gs, sg_addr);
 
             // dequantize the gates from s32 to f32 if needed
-            if (src_data_t == data_type::u8) {
-                deq_w(G, tmp1_vmm, tmp2_vmm, 0, false);
-            }
+            deq_w(src_data_t, G, tmp1_vmm, tmp2_vmm, 0, mask, true);
 
             // add biases
             uni_vmovss(tmp1s_vmm, B_addr);
@@ -197,7 +196,7 @@ protected:
             add(addr_states_t_l_reg, hstate_dt_size);
             add(addr_states_t_l_copy_reg, hstate_dt_size);
             if (is_training) add(addr_ws_gates_reg, gate_dt_size);
-            inc_regs(qscale_dt_size);
+            inc_regs(mask, qscale_dt_size);
 
             // increment loop counter
             sub(loop_cnt, scratch_dt_size);

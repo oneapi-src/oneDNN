@@ -65,6 +65,9 @@ protected:
         auto is_training
                 = pd_->desc()->prop_kind == prop_kind::forward_training;
 
+        int mask = pd_->attr()->rnn_weights_qparams_.mask_;
+        float *weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
+
         // Labels declaration
         Label vector_loop_start_label, vector_loop_inc_regs,
                 vector_loop_end_label;
@@ -117,7 +120,7 @@ protected:
         // initialize registers with addresses and constants
         mov(table_reg, table_label);
         tanh_injector_->load_table_addr();
-        init_regs(vlen);
+        init_regs(weights_scales, vlen);
 
         mov(loop_cnt, rnn_.dhc * scratch_dt_size);
         cmp(loop_cnt, vlen);
@@ -128,8 +131,7 @@ protected:
             // Compute gate 2: G2 = tanh(G2 + b2)
             uni_vmovups(G2, sg_addr(2));
             // dequantize gate from s32 to f32 if needed
-            if (src_data_t == data_type::u8)
-                deq_w(G2, tmp1_vmm, tmp2_vmm, 2, true);
+            deq_w(src_data_t, G2, tmp1_vmm, tmp2_vmm, 2 * rnn_.dhc, mask, true);
             uni_vmovups(tmp1_vmm, B_addr(2));
             uni_vaddps(G2, G2, tmp1_vmm);
             tanh_injector_->compute_vector(G2.getIdx());
@@ -157,7 +159,7 @@ protected:
             add(addr_states_t_l_copy_reg, vlen_dst);
             add(addr_states_tm1_l_reg, vlen_dst);
             if (is_training) add(addr_ws_gates_reg, vlen_dst);
-            inc_regs(vlen);
+            inc_regs(mask, vlen);
 
             // increment loop counter
             sub(loop_cnt, vlen);
@@ -180,8 +182,8 @@ protected:
             // Compute gate 2: G2 = tanh(G2 + b2)
             uni_vmovss(G2s, sg_addr(2));
             // dequantize gate from s32 to f32 if needed
-            if (src_data_t == data_type::u8)
-                deq_w(G2s, tmp1s_vmm, tmp2s_vmm, 2, false);
+            deq_w(src_data_t, G2s, tmp1s_vmm, tmp2s_vmm, 2 * rnn_.dhc, mask,
+                    false);
             uni_vaddss(G2s, G2s, B_addr(2));
             tanh_injector_->compute_vector(G2s.getIdx());
             // if training we write back the gates
@@ -211,7 +213,7 @@ protected:
             add(addr_states_t_l_copy_reg, hstate_dt_size);
             add(addr_states_tm1_l_reg, hstate_dt_size);
             if (is_training) add(addr_ws_gates_reg, gate_dt_size);
-            inc_regs(qscale_dt_size);
+            inc_regs(mask, qscale_dt_size);
 
             // increment loop counter
             sub(loop_cnt, scratch_dt_size);
