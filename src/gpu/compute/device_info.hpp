@@ -34,6 +34,7 @@ enum class device_ext_t : int64_t {
     intel_subgroups_short = 1 << 1,
     khr_fp16 = 1 << 2,
     khr_int64_base_atomics = 1 << 3,
+    intel_subgroup_local_block_io = 1 << 5,
     last
 };
 
@@ -43,6 +44,7 @@ static inline const char *ext2cl_str(compute::device_ext_t ext) {
     switch (ext) {
         CASE(intel_subgroups);
         CASE(intel_subgroups_short);
+        CASE(intel_subgroup_local_block_io);
         CASE(khr_fp16);
         CASE(khr_int64_base_atomics);
         default: return nullptr;

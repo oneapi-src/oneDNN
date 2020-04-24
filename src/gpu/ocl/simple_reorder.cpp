@@ -58,10 +58,13 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     if (conf.nelems == 0) return status::success;
 
     if (src_mdw.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o, gOIw8i16o2i,
-                gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw4o8i8o4i, gOIhw2o8i8o2i)
+                gOIhw8i16o2i, gOIdhw8i16o2i, gOIw4o8i8o4i, gOIhw4o8i8o4i,
+                gOIhw2o8i8o2i, gOIdhw4o8i8o4i, gIOw4i8o8i4o, gIOhw4i8o8i4o,
+                gIOdhw4i8o8i4o)
             || dst_mdw.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o,
-                    gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw4o8i8o4i,
-                    gOIhw2o8i8o2i))
+                    gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIw4o8i8o4i,
+                    gOIhw4o8i8o4i, gOIhw2o8i8o2i, gOIdhw4o8i8o4i, gIOw4i8o8i4o,
+                    gIOhw4i8o8i4o, gIOdhw4i8o8i4o))
         conf.with_group = 1;
 
     const bool has_padding_or_scale_quant
@@ -199,8 +202,14 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     } else if (src_mdw.matches_one_of_tag(OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i,
                        gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i)) {
         kernel_ctx.define_int("SRC_OIHW8I16O2I", 1);
-    } else if (src_mdw.matches_one_of_tag(OIhw4o8i8o4i, gOIhw4o8i8o4i)) {
+    } else if (src_mdw.matches_one_of_tag(OIw4o8i8o4i, OIhw4o8i8o4i,
+                       OIdhw4o8i8o4i, gOIw4o8i8o4i, gOIhw4o8i8o4i,
+                       gOIdhw4o8i8o4i)) {
         kernel_ctx.define_int("SRC_OIHW4O8I8O4I", 1);
+    } else if (src_mdw.matches_one_of_tag(IOw4i8o8i4o, IOhw4i8o8i4o,
+                       IOdhw4i8o8i4o, gIOw4i8o8i4o, gIOhw4i8o8i4o,
+                       gIOdhw4i8o8i4o)) {
+        kernel_ctx.define_int("SRC_IOHW4I8O8I4O", 1);
     } else if (src_mdw.matches_one_of_tag(OIhw2o8i8o2i, gOIhw2o8i8o2i)) {
         kernel_ctx.define_int("SRC_OIHW2O8I8O2I", 1);
     }
@@ -230,8 +239,14 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     } else if (dst_mdw.matches_one_of_tag(OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i,
                        gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i)) {
         kernel_ctx.define_int("DST_OIHW8I16O2I", 1);
-    } else if (dst_mdw.matches_one_of_tag(OIhw4o8i8o4i, gOIhw4o8i8o4i)) {
+    } else if (dst_mdw.matches_one_of_tag(OIw4o8i8o4i, OIhw4o8i8o4i,
+                       OIdhw4o8i8o4i, gOIw4o8i8o4i, gOIhw4o8i8o4i,
+                       gOIdhw4o8i8o4i)) {
         kernel_ctx.define_int("DST_OIHW4O8I8O4I", 1);
+    } else if (dst_mdw.matches_one_of_tag(IOw4i8o8i4o, IOhw4i8o8i4o,
+                       IOdhw4i8o8i4o, gIOw4i8o8i4o, gIOhw4i8o8i4o,
+                       gIOdhw4i8o8i4o)) {
+        kernel_ctx.define_int("DST_IOHW4I8O8I4O", 1);
     } else if (dst_mdw.matches_one_of_tag(OIhw2o8i8o2i, gOIhw2o8i8o2i)) {
         kernel_ctx.define_int("DST_OIHW2O8I8O2I", 1);
     }

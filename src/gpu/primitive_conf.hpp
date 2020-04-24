@@ -75,7 +75,6 @@ struct memory_desc_info_t {
             blk_stride /= blk.inner_blks[iblk];
             md_info.strides[d][levels[d]] = blk_stride;
         }
-
         return md_info;
     }
 };
@@ -203,6 +202,8 @@ enum conv_version_t {
     ver_16mb16c,
     ver_8ow16c,
     ver_nhwc,
+    ver_mb_block,
+    ver_ow_block
 };
 
 struct conv_conf_t {
@@ -219,6 +220,7 @@ struct conv_conf_t {
     int stride_d, stride_h, stride_w;
     int dilate_d, dilate_h, dilate_w;
 
+    int sp_block;
     int od_block, oh_block, ow_block;
     int id_block, ih_block, iw_block;
     int oc_block, ic_block, nchunk;
@@ -240,6 +242,7 @@ struct conv_conf_t {
     bool is_nhwc;
     int ver;
     format_tag_t src_tag, dst_tag, wei_tag;
+    bool is_nchw;
     bool is_src_nchw, is_src_nhwc;
 
     data_type_t src_data_type;

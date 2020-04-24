@@ -31,6 +31,9 @@ kernel_arg_t kernel_arg_t::cast(scalar_type_t type, const kernel_arg_t &arg) {
     switch (type) {
         case scalar_type_t::_half:
             return ret.set_value((float16_t)arg.as<float>());
+        case scalar_type_t::_uchar:
+            return ret.set_value((uint8_t)arg.as<int>());
+        case scalar_type_t::_char: return ret.set_value((int8_t)arg.as<int>());
         default:
             assert(!"Cannot convert argument to the kernel argument type.");
             return arg;

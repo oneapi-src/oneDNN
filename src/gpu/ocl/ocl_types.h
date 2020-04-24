@@ -195,10 +195,12 @@
 #define DATA2_T char2
 #define DATA4_T char4
 #define DATA8_T char8
+#define DATA16_T char16
 #define DATA_MAX CHAR_MAX
 #define DATA_MIN CHAR_MIN
 #define DATA_ZERO 0
 #define DATA_ONE 1
+#define INT8_T int8
 #define DEF_ACC_DATA_T int
 #define DEF_ACC_DATA2_T int2
 #define DEF_ACC_DATA4_T int4
@@ -229,11 +231,13 @@
 #define AS_DATA2_T as_char2
 #define AS_DATA4_T as_char4
 #define AS_DATA8_T as_char8
+#define AS_DATA16_T as_char16
 
 #define AS_UINT_T as_uchar
 #define AS_UINT2_T as_uchar2
 #define AS_UINT4_T as_uchar4
 #define AS_UINT8_T as_uchar8
+#define AS_INT8_T as_int8
 
 #define BLOCK_DATA_T uchar
 #define BLOCK_DATA2_T uchar2
@@ -248,10 +252,12 @@
 #define DATA2_T uchar2
 #define DATA4_T uchar4
 #define DATA8_T uchar8
+#define DATA16_T uchar16
 #define DATA_MAX UCHAR_MAX
 #define DATA_MIN 0
 #define DATA_ZERO 0
 #define DATA_ONE 1
+#define INT8_T uint8
 #define DEF_ACC_DATA_T int
 #define DEF_ACC_DATA2_T int2
 #define DEF_ACC_DATA4_T int4
@@ -282,11 +288,13 @@
 #define AS_DATA2_T as_uchar2
 #define AS_DATA4_T as_uchar4
 #define AS_DATA8_T as_uchar8
+#define AS_DATA16_T as_uchar16
 
 #define AS_UINT_T as_uchar
 #define AS_UINT2_T as_uchar2
 #define AS_UINT4_T as_uchar4
 #define AS_UINT8_T as_uchar8
+#define AS_INT8_T as_uint8
 
 #define BLOCK_DATA_T uchar
 #define BLOCK_DATA2_T uchar2
@@ -380,7 +388,25 @@
 #endif
 
 #ifdef SRC_DATA_T
+#define SRC_DATA2_T CONCAT2(SRC_DATA_T, 2)
+#define SRC_DATA4_T CONCAT2(SRC_DATA_T, 4)
 #define SRC_DATA8_T CONCAT2(SRC_DATA_T, 8)
+#define SRC_DATA16_T CONCAT2(SRC_DATA_T, 16)
+#ifdef SRC_DT_U8
+#define MMAD_DATA_T uint
+#define MMAD_DATA4_T uint4
+#define MMAD_DATA8_T uint8
+#elif SRC_DT_S8
+#define MMAD_DATA_T int
+#define MMAD_DATA4_T int4
+#define MMAD_DATA8_T int8
+#endif
+#define AS_SRC_DATA2_T CONCAT2(as_, SRC_DATA2_T)
+#define AS_SRC_DATA4_T CONCAT2(as_, SRC_DATA4_T)
+#define AS_SRC_DATA16_T CONCAT2(as_, SRC_DATA16_T)
+#define AS_MMAD_DATA_T CONCAT2(as_, MMAD_DATA_T)
+#define AS_MMAD_DATA4_T CONCAT2(as_, MMAD_DATA4_T)
+#define AS_MMAD_DATA8_T CONCAT2(as_, MMAD_DATA8_T)
 #if SRC_DT_BF16
 #define SRC_TO_REF(x) convert_bf16_to_f32(x)
 #define SRC_TO_REF8(x) convert_bf16_to_f32_vec8(x)
@@ -491,7 +517,16 @@
 #endif
 
 #ifdef DST_DATA_T
+#define DST_DATA2_T CONCAT2(DST_DATA_T, 2)
+#define DST_DATA4_T CONCAT2(DST_DATA_T, 4)
 #define DST_DATA8_T CONCAT2(DST_DATA_T, 8)
+#define DST_DATA16_T CONCAT2(DST_DATA_T, 16)
+
+#define AS_DST_DATA2_T CONCAT2(as_, DST_DATA2_T)
+#define AS_DST_DATA4_T CONCAT2(as_, DST_DATA4_T)
+#define AS_DST_DATA8_T CONCAT2(as_, DST_DATA8_T)
+#define AS_DST_DATA16_T CONCAT2(as_, DST_DATA16_T)
+
 #if DST_DT_BF16
 #define DST_TO_REF(x) convert_bf16_to_f32(x)
 #define DST_TO_REF8(x) convert_bf16_to_f32_vec8(x)
@@ -518,11 +553,13 @@
 #define TO_DST2(x) convert_uchar2_sat_rte(x)
 #define TO_DST4(x) convert_uchar4_sat_rte(x)
 #define TO_DST8(x) convert_uchar8_sat_rte(x)
+#define TO_DST16(x) convert_uchar16_sat_rte(x)
 #elif DST_DT_S8
 #define TO_DST(x) convert_char_sat_rte(x)
 #define TO_DST2(x) convert_char2_sat_rte(x)
 #define TO_DST4(x) convert_char4_sat_rte(x)
 #define TO_DST8(x) convert_char8_sat_rte(x)
+#define TO_DST16(x) convert_char16_sat_rte(x)
 #elif DST_DT_S32
 #define TO_DST(x) convert_int_sat_rte(x)
 #define TO_DST2(x) convert_int2_sat_rte(x)
