@@ -1617,7 +1617,10 @@ static dnnl_status_t gemm_threading_driver(
     // Create temporary C buffers for k blocking if needed.
     c_type *c_local_storage = nullptr;
     if (k_summing) {
-        dim_t ldc_local = gemm_utils::get_ld_padd<c_type>(max_mt);
+        const dim_t BAD_LD_MULT = 256;
+        dim_t ldc_local = max_mt % BAD_LD_MULT
+                ? max_mt
+                : gemm_utils::get_ld_padd<c_type>(max_mt);
         dim_t c_local_stride = ldc_local * max_nt;
         c_local_storage = (c_type *)malloc(
                 sizeof(c_type) * c_local_stride * nthr_goal, PAGE_4K);
