@@ -17,3 +17,6 @@ g3ic3oc12_id5od3kd3sd1dd0pd0_n"ic_per_group_not_a_multiple_of_simd_width"
 g3ic12oc6_id5od3kd3sd1dd0pd0_n"oc_per_group_not_a_multiple_of_simd_width"
 g1ic16oc16_id5od3kd3sd1dd4pd4_n"large_padding_and_dilation_w.r.t._kernel_size"
 g2_ic22oc22_id4od4kd1_n"unit_sized_kernel_with_channels%simd_width!=0"
+
+# shapes with large spatial using blocked-os
+mb1_ic64oc64_ih1000kh3sh1dh127ph128
