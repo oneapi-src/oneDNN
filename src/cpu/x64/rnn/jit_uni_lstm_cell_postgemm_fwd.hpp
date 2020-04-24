@@ -220,10 +220,11 @@ protected:
             // downconvert and write back the state
             to_src<src_data_t>(ptr[addr_states_t_l_reg], tmp1_vmm, vlen);
             // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
-            jle(vector_loop_inc_regs);
+            cmp(addr_states_t_l_copy_reg, 0);
+            je(vector_loop_inc_regs);
             to_src<src_data_t>(
                     ptr[addr_states_t_l_copy_reg], tmp1_vmm, vlen, true);
+            add(addr_states_t_l_copy_reg, vlen_dst);
 
             // increment address pointers
             L(vector_loop_inc_regs);
@@ -231,7 +232,6 @@ protected:
             if (rnn_.is_lstm_peephole) add(addr_weights_peephole_reg, vlen);
             add(addr_bias_reg, vlen);
             add(addr_states_t_l_reg, vlen_dst);
-            add(addr_states_t_l_copy_reg, vlen_dst);
             add(addr_c_states_tm1_l_reg, vlen);
             add(addr_c_states_t_l_reg, vlen);
             if (is_training) add(addr_ws_gates_reg, vlen_dst);
@@ -330,10 +330,11 @@ protected:
             to_src<src_data_t>(
                     ptr[addr_states_t_l_reg], tmp1_vmm, scratch_dt_size);
             // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
-            jle(rem_loop_inc_regs);
+            cmp(addr_states_t_l_copy_reg, 0);
+            je(rem_loop_inc_regs);
             to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], tmp1_vmm,
                     scratch_dt_size, true);
+            add(addr_states_t_l_copy_reg, hstate_dt_size);
 
             // increment address pointers
             L(rem_loop_inc_regs);
@@ -342,7 +343,6 @@ protected:
                 add(addr_weights_peephole_reg, weights_peephole_dt_size);
             add(addr_bias_reg, bias_dt_size);
             add(addr_states_t_l_reg, hstate_dt_size);
-            add(addr_states_t_l_copy_reg, hstate_dt_size);
             add(addr_c_states_tm1_l_reg, cstate_dt_size);
             add(addr_c_states_t_l_reg, cstate_dt_size);
             if (is_training) add(addr_ws_gates_reg, gate_dt_size);
