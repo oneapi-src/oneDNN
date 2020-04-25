@@ -40,6 +40,7 @@ struct conv_gemm_conf_t {
     int stride_h, stride_w, stride_d;
     int dilate_h, dilate_w, dilate_d;
     bool with_bias;
+    bool is_nspc;
 
     int is, os, ks;
     int ic_block, oc_block;
@@ -62,38 +63,43 @@ void im2col_3d(const conv_gemm_conf_t &jcp, const data_type_t *im,
         data_type_t *col, int od, int spatial_step, int spatial_block);
 
 template <typename T>
-void transpose_u8(const conv_gemm_conf_t &jcp, const T *__restrict im,
+void transpose_dt(const conv_gemm_conf_t &jcp, const T *__restrict im,
         T *__restrict imtr);
 
-template <typename T>
-void im2col_u8_3d(const conv_gemm_conf_t &jcp, const T *__restrict im,
-        uint8_t *__restrict col, int od);
+template <typename im_dt, typename col_dt>
+void im2col_dt_3d(const conv_gemm_conf_t &jcp, const im_dt *__restrict im,
+        col_dt *__restrict col, int od);
 
 template <typename data_type_t>
 void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
         data_type_t *__restrict col, int ss, int sb, int cs, int cb);
 
-template <typename T>
-void im2col_u8(const conv_gemm_conf_t &jcp, const T *__restrict im,
-        T *__restrict imtr, uint8_t *__restrict col, int hs, int hb, int ws,
+template <typename im_dt, typename col_dt>
+void im2col_dt(const conv_gemm_conf_t &jcp, const im_dt *__restrict im,
+        im_dt *__restrict imtr, col_dt *__restrict col, int hs, int hb, int ws,
         int wb);
 
-void col2im_s32(const conv_gemm_conf_t &jcp, const int32_t *__restrict col,
-        int32_t *__restrict im);
+template <typename T>
+void col2im_dt(
+        const conv_gemm_conf_t &jcp, const T *__restrict col, T *__restrict im);
+
 void col2im_3d(
         const conv_gemm_conf_t &jcp, const float *col, float *im, int od);
 void col2im(const conv_gemm_conf_t &jcp, const float *col, float *im);
 
 status_t init_conf(conv_gemm_conf_t &jcp,
         memory_tracking::registrar_t &scratchpad, const convolution_desc_t &cd,
-        const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &dst_d, int max_threads);
+        memory_desc_t &src_md, memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, const primitive_attr_t &attr, int max_threads);
 
 void bwd_weights_balance(int ithr, int nthr, int ngroups, int mb, int &ithr_g,
         int &nthr_g, int &ithr_mb, int &nthr_mb);
-void bwd_weights_reduction_par(int ithr, int nthr, const conv_gemm_conf_t &jcp,
-        const float *weights_reduce_ws, float *weights);
-
+void bwd_weights_reduction_par_ncsp(int ithr, int nthr,
+        const conv_gemm_conf_t &jcp, const float *weights_reduce_ws,
+        float *weights);
+void bwd_weights_reduction_par_nspc(int ithr, int nthr, size_t g_start,
+        size_t g_end, const conv_gemm_conf_t &jcp,
+        const float *weights_reduce_base, float *diff_weights);
 } // namespace jit_gemm_convolution_utils
 
 } // namespace cpu

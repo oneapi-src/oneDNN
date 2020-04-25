@@ -132,7 +132,7 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         const int h_step = nstl::min(jcp.oh_block, jcp.oh - oh);
         const int w_step = nstl::min(jcp.ow_block, jcp.ow - ow);
         if (jcp.im2col_sz && is_problem_3d)
-            jit_gemm_convolution_utils::transpose_u8<src_data_t>(
+            jit_gemm_convolution_utils::transpose_dt<src_data_t>(
                     jcp, src, imtr);
 
         for (int od = 0; od < jcp.od; od++) {
@@ -142,10 +142,10 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
                             * pp_ker_->dst_os_stride_;
             if (jcp.im2col_sz) {
                 if (is_problem_3d)
-                    jit_gemm_convolution_utils::im2col_u8_3d<src_data_t>(
-                            jcp, imtr, col, od);
+                    jit_gemm_convolution_utils::im2col_dt_3d<src_data_t,
+                            uint8_t>(jcp, imtr, col, od);
                 else
-                    jit_gemm_convolution_utils::im2col_u8<src_data_t>(
+                    jit_gemm_convolution_utils::im2col_dt<src_data_t, uint8_t>(
                             jcp, src, imtr, col, oh, h_step, ow, w_step);
             }
 
@@ -272,7 +272,7 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         if (st != status::success) return st;
 
         if (jcp.im2col_sz)
-            jit_gemm_convolution_utils::col2im_s32(jcp, col, acc);
+            jit_gemm_convolution_utils::col2im_dt<int32_t>(jcp, col, acc);
 
         parallel_nd(jcp.is * jcp.id, [&](int is) {
             diff_src_data_t *__restrict diff_src_loc
