@@ -48,6 +48,7 @@ struct bf16_emulation_t {
     using opmask_t = const Xbyak::Opmask;
     using Zmm_t = const Xbyak::Zmm;
     using Ymm_t = const Xbyak::Ymm;
+    using Xmm_t = const Xbyak::Xmm;
     using reg64_t = const Xbyak::Reg64;
 
     bf16_emulation_t(jit_generator *host, Zmm_t one, Zmm_t even, Zmm_t selector,
@@ -80,18 +81,35 @@ struct bf16_emulation_t {
     }
 
     void vcvtneps2bf16(Ymm_t &out, Zmm_t in) {
-        host_->vpsrld(tr0_, in, 16);
-        host_->vpandd(tr0_, tr0_, one_);
-
-        host_->vpaddd(tr0_, even_, tr0_);
-
-        host_->vpaddd(tr0_, in, tr0_);
-        host_->vfixupimmps(tr0_, in, selector_, 0);
-
-        host_->vpsrad(tr0_, tr0_, 16);
-        host_->vpmovdw(out, tr0_);
+        vcvtneps2bf16(out, in, tr0_, one_, even_, selector_);
     }
 
+    void vcvtneps2bf16(Xmm_t &out, Ymm_t in) {
+        const Ymm_t tr0_y {tr0_.getIdx()};
+        const Ymm_t even_y {even_.getIdx()};
+        const Ymm_t selector_y {selector_.getIdx()};
+        const Ymm_t one_y {one_.getIdx()};
+
+        vcvtneps2bf16(out, in, tr0_y, one_y, even_y, selector_y);
+    }
+
+private:
+    void vcvtneps2bf16(const Xbyak::Operand &out, const Xmm_t &in,
+            const Xmm_t &tr0, const Xbyak::Operand &one, const Xmm_t &even,
+            const Xbyak::Operand &selector) {
+        host_->vpsrld(tr0, in, 16);
+        host_->vpandd(tr0, tr0, one);
+
+        host_->vpaddd(tr0, even, tr0);
+
+        host_->vpaddd(tr0, in, tr0);
+        host_->vfixupimmps(tr0, in, selector, 0);
+
+        host_->vpsrad(tr0, tr0, 16);
+        host_->vpmovdw(out, tr0);
+    }
+
+public:
     void init_vcvtneps2bf16() {
         const int selector_int32 =
                 /* qnan input to qnan output (presenrving input bits 0..21) */

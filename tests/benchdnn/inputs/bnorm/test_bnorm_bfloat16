@@ -6,14 +6,15 @@
 --allow-unimpl=true   # allow unimplemented for bf16 where avx512_core not supported
 
 --inplace=false
---tag=abx,axb,aBx16b
+--tag=abx,axb,aBx16b,aBx8b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo
---tag=abx,aBx16b
+--tag=abx,axb,aBx16b,aBx8b
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo
+--dir=FWD_I        --flags=GS      --attr=                --batch=bnorm_2d
 
 --inplace=true
---tag=abx,axb,aBx16b
+--tag=abx,axb,aBx16b,aBx8b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_regressions
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_regressions
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_regressions
