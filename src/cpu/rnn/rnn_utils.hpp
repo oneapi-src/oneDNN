@@ -44,7 +44,7 @@
             dst_iter_t *dst_iter_) const
 
 #define rnn_cell_execution_sig(f) \
-    void f(const rnn_utils::rnn_conf_t &rnn, \
+    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, dst_layer_t *dst_layer_, \
             float *dst_iter_c_, gemm_acc_t *diff_src_layer_, \
             gemm_acc_t *diff_src_iter_, gemm_acc_t *diff_src_iter_c_, \
@@ -61,14 +61,15 @@
             scratch_t *scratch_cell_, dst_iter_t *dst_iter_) const
 
 #define rnn_grid_execution_sig(f) \
-    void f(const rnn_utils::rnn_conf_t &rnn, weights_t **weights_layer_, \
-            weights_t **weights_iter_, weights_t **weights_projection_, \
-            const float *weights_peephole_, float **bias_, \
-            const src_layer_t *src_layer_, const src_iter_t *src_iter_, \
-            const float *src_iter_c_, dst_layer_t *dst_layer_, \
-            dst_iter_t *dst_iter_, float *dst_iter_c_, \
-            src_layer_t *ws_states_layer_, src_iter_t *ws_states_iter_, \
-            float *ws_states_iter_c_, gemm_acc_t *ws_diff_states_layer_, \
+    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
+            weights_t **weights_layer_, weights_t **weights_iter_, \
+            weights_t **weights_projection_, const float *weights_peephole_, \
+            float **bias_, const src_layer_t *src_layer_, \
+            const src_iter_t *src_iter_, const float *src_iter_c_, \
+            dst_layer_t *dst_layer_, dst_iter_t *dst_iter_, \
+            float *dst_iter_c_, src_layer_t *ws_states_layer_, \
+            src_iter_t *ws_states_iter_, float *ws_states_iter_c_, \
+            gemm_acc_t *ws_diff_states_layer_, \
             gemm_acc_t *ws_diff_states_iter_, \
             gemm_acc_t *ws_diff_states_iter_c_, gates_t *ws_gates_, \
             ht_t *ws_ht_, gates_t *ws_grid_, scratch_t *scratch_gates_, \
@@ -78,8 +79,8 @@
             float *diff_weights_peephole_, float *diff_bias_) const
 
 #define rnn_gemm_sig(f) \
-    void f(const char transA, const char transB, dim_t m, dim_t n, dim_t k, \
-            const float alpha, const weights_t *a_, const dim_t ldA, \
+    dnnl_status_t f(const char transA, const char transB, dim_t m, dim_t n, \
+            dim_t k, const float alpha, const weights_t *a_, const dim_t ldA, \
             const gemm_data_t *b_, const dim_t ldB, const float beta, \
             gemm_acc_t *c_, const dim_t ldC) const
 

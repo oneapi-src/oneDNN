@@ -459,14 +459,14 @@ private:
                     dim_t m_p = parts[p] * O;
                     dim_t k_p = I;
                     dim_t lda = (dim_t)G * O;
-                    gemm_s8u8s32_pack("A", "N", "N", &m_p, &n, &k_p, &lda, &ldb,
-                            &scratch_quantized[off_igo(l, d, 0, g, 0)],
-                            to_pack);
+                    CHECK(gemm_s8u8s32_pack("A", "N", "N", &m_p, &n, &k_p, &lda,
+                            &ldb, &scratch_quantized[off_igo(l, d, 0, g, 0)],
+                            to_pack));
                     to_pack += size_packed_cell[p];
                 }
             }
         }
-        return status::success;
+        return dnnl_success;
     }
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -628,24 +628,21 @@ private:
                     int g = (p > 0) ? parts[p - 1] : 0;
                     dim_t m_p = to_igo ? parts[p] * O : I;
                     dim_t k_p = to_igo ? I : parts[p] * O;
-                    dnnl_status_t st;
                     if (type_o == data_type::bf16) {
-                        st = gemm_bf16bf16f32_pack("A", "N", "N", &m_p, &n,
+                        CHECK(gemm_bf16bf16f32_pack("A", "N", "N", &m_p, &n,
                                 &k_p, &lda, &ldb,
                                 (bfloat16_t *)&input_tr[to_igo
                                                 ? off_igo(l, d, 0, g, 0)
                                                 : off_goi(l, d, 0, g, 0)],
-                                (bfloat16_t *)output);
+                                (bfloat16_t *)output));
                     } else {
-                        st = sgemm_pack("A", "N", "N", &m_p, &n, &k_p, &lda,
+                        CHECK(sgemm_pack("A", "N", "N", &m_p, &n, &k_p, &lda,
                                 &ldb,
                                 (float *)&input_tr[to_igo
                                                 ? off_igo(l, d, 0, g, 0)
                                                 : off_goi(l, d, 0, g, 0)],
-                                (float *)output);
+                                (float *)output));
                     }
-                    assert(st == dnnl_success);
-                    MAYBE_UNUSED(st);
                     output += size_packed_cell[p] / sizeof(out_data_t);
                 }
             }
