@@ -43,8 +43,12 @@
 #endif
 #endif
 
+#ifndef ELTWISE_ALPHA0
+#define ELTWISE_ALPHA0 0
+#endif
+
 POST_OP_DATA_T relu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
-    return s > 0 ? s : s * alpha;
+    return s > 0 ? s : (ELTWISE_ALPHA0 ? 0 : s * alpha);
 }
 POST_OP_DATA_T relu_bwd(
         POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
