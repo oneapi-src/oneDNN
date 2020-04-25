@@ -34,7 +34,7 @@ using namespace dnnl::impl::math;
 using namespace dnnl::impl::memory_tracking::names;
 
 template <data_type_t src_type, data_type_t dst_type>
-void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
+status_t _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -47,14 +47,21 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
 
     assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
 
+    status_t st = status::success;
+
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
-        execute_forward_thr(
+        status_t st_thr = execute_forward_thr(
                 ithr, nthr, src_base, wei_base, bia_base, dst_base, scratchpad);
+
+        if (st_thr != status::success) st = st_thr;
     });
+
+    return st;
 }
 
 template <data_type_t src_type, data_type_t dst_type>
-void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
+status_t
+_gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         const int ithr, const int nthr, const src_data_t *src_base,
         const wei_data_t *wei_base, const char *bia_base, dst_data_t *dst_base,
         const memory_tracking::grantor_t &scratchpad) const {
@@ -113,6 +120,8 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
     uint8_t shift = jcp.signed_input ? 128 : 0;
     parallel_nd(jcp.im2col_sz, [&](ptrdiff_t i) { col[i] = shift; });
 
+    status_t st = status::success;
+
     for (size_t iwork = start; iwork < end; ++iwork) {
         int oh = ohb * jcp.oh_block;
         int ow = owb * jcp.ow_block;
@@ -152,10 +161,12 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
             const float onef = 1.f, zerof = 0.f;
             const src_data_t *__restrict src_od
                     = src + od * jcp.oh * jcp.ow * jcp.ngroups * jcp.ic;
-            gemm_s8x8s32("N", BT, jcp.signed_input ? "C" : "F", &M, &N, &K,
+            st = gemm_s8x8s32("N", BT, jcp.signed_input ? "C" : "F", &M, &N, &K,
                     &onef, wei, &LDA, &off_a,
                     jcp.im2col_sz ? col : (uint8_t *)src_od, &LDB, &off_b,
                     &zerof, acc, &M, jcp.signed_input ? wei_comp : &off_c);
+
+            if (st != status::success) return st;
 
             auto wei_adj_scale
                     = (wei_md.extra().flags & memory_extra_flags::scale_adjust)
@@ -171,10 +182,12 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         }
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ohb, nb_oh, owb, nb_ow);
     }
+
+    return st;
 }
 
 template <data_type_t dst_type>
-void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
+status_t _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
         const exec_ctx_t &ctx) const {
     auto diff_dst_base = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -185,14 +198,21 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
 
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
+    status_t st = status::success;
+
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
-        execute_backward_data_thr(ithr, nthr, diff_dst_base, wei_base, bia_base,
-                diff_src_base, scratchpad);
+        status_t st_thr = execute_backward_data_thr(ithr, nthr, diff_dst_base,
+                wei_base, bia_base, diff_src_base, scratchpad);
+
+        if (st_thr != status::success) st = st_thr;
     });
+
+    return st;
 }
 
 template <data_type_t dst_type>
-void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
+status_t
+_gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         const int ithr, const int nthr, const diff_dst_data_t *diff_dst_base,
         const wei_data_t *wei_base, const char *bia_base,
         diff_src_data_t *diff_src_base,
@@ -245,9 +265,11 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         const float onef = 1.0, zerof = 0.0;
         const dim_t LD = K * jcp.ngroups;
 
-        gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD, &off_a,
-                diff_dst, &LD, &off_b, &zerof, jcp.im2col_sz ? col : acc, &M,
-                &off_c);
+        status_t st = gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD,
+                &off_a, diff_dst, &LD, &off_b, &zerof,
+                jcp.im2col_sz ? col : acc, &M, &off_c);
+
+        if (st != status::success) return st;
 
         if (jcp.im2col_sz)
             jit_gemm_convolution_utils::col2im_s32(jcp, col, acc);
@@ -269,6 +291,8 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         });
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups);
     }
+
+    return status::success;
 }
 
 using namespace data_type;

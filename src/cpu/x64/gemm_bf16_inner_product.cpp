@@ -36,7 +36,7 @@ using namespace memory_tracking::names;
 using namespace dnnl::impl::cpu::x64::bf16_support;
 
 template <data_type_t dst_data_type>
-void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
+status_t gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -56,8 +56,9 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
                     key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0;
-    gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K, &alpha, weights,
-            wei_tr ? &K : &M, src, &K, &beta_, acc, &M);
+    status_t st = gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K, &alpha,
+            weights, wei_tr ? &K : &M, src, &K, &beta_, acc, &M);
+    if (st != status::success) return st;
 
     const float *scales = pd()->attr()->output_scales_.scales_;
     if (postops_in_ip_) {
@@ -69,11 +70,14 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
             (*pp_kernel_)(dst, acc, bias, scales, start, end, 0, nullptr);
         });
     }
+
+    return st;
 }
 
 template <data_type_t diff_src_data_type>
-void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
-        execute_backward_data(const exec_ctx_t &ctx) const {
+status_t
+gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::execute_backward_data(
+        const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
@@ -91,8 +95,9 @@ void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
                     key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0, beta = 0.0;
-    gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K, &alpha, weights,
-            wei_tr ? &K : &M, diff_dst, &K, &beta, acc, &M);
+    status_t st = gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &M, &N, &K, &alpha,
+            weights, wei_tr ? &K : &M, diff_dst, &K, &beta, acc, &M);
+    if (st != status::success) return st;
 
     if (!pd()->diff_src_is_acc_) {
         parallel(0, [&](int ithr, int nthr) {
@@ -104,10 +109,12 @@ void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
                         (const float *)&acc[start], end - start);
         });
     }
+
+    return status::success;
 }
 
 template <data_type_t diff_wei_data_type>
-void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
+status_t gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
         execute_backward_weights(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
@@ -136,8 +143,10 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
                     key_iprod_int_dat_in_acc_dt);
 
     float alpha = 1.0, beta = 0.0;
-    gemm_bf16bf16f32("N", "T", &M, &N, &K, &alpha, wei_tr ? diff_dst : src, &M,
-            wei_tr ? src : diff_dst, &N, &beta, acc, &M);
+    status_t st = gemm_bf16bf16f32("N", "T", &M, &N, &K, &alpha,
+            wei_tr ? diff_dst : src, &M, wei_tr ? src : diff_dst, &N, &beta,
+            acc, &M);
+    if (st != status::success) return st;
 
     if (!pd()->diff_wei_is_acc_) {
         parallel(0, [&](int ithr, int nthr) {
@@ -183,6 +192,8 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
             }
         });
     }
+
+    return status::success;
 }
 
 template struct gemm_bf16_inner_product_fwd_t<data_type::f32>;

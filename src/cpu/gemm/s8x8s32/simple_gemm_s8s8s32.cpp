@@ -173,8 +173,9 @@ dnnl_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
     compensation_compute(transa, M, K, *alpha, a, *lda, compensation);
     copy_and_shift_b(transb, K, N, b_u8, ld, b, *ldb);
 
-    gemm_s8x8s32(transA, transB, "C", m, n, k, alpha, a, lda, oa, b_u8, &ld,
-            &ob_u8, beta, c, ldc, compensation);
+    status_t st = gemm_s8x8s32(transA, transB, "C", m, n, k, alpha, a, lda, oa,
+            b_u8, &ld, &ob_u8, beta, c, ldc, compensation);
+    if (st != dnnl_success) return st;
 
     if ((*offsetC == 'R' || *offsetC == 'r'))
         parallel_nd(M, N, [=](dim_t i, dim_t j) { c[i + j * *ldc] += oc[j]; });
@@ -182,7 +183,7 @@ dnnl_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
     free(b_u8);
     free(compensation);
 
-    return dnnl_success;
+    return st;
 }
 } // namespace cpu
 } // namespace impl

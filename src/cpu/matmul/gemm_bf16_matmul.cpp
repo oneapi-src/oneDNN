@@ -191,10 +191,11 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
     const auto acc_batch_stride = M * N;
 
+    status_t st = status::success;
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {
         // XXX: pass by copying to avoid gcc bug with c++14 standard
-        parallel(0, [=](int ithr, int nthr) {
+        parallel(0, [=, &st](int ithr, int nthr) {
             size_t batch_start {}, batch_end {};
             balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
 
@@ -209,9 +210,13 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                 dst_data_t *curr_dst = dst + b * dst_batch_stride;
                 if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
 
-                gemm_bf16bf16f32(transB, transA, &N, &M, &K, &alpha,
-                        curr_weights, &ldb, curr_src, &lda, &beta, curr_acc,
-                        &ldc);
+                status_t st_thr = gemm_bf16bf16f32(transB, transA, &N, &M, &K,
+                        &alpha, curr_weights, &ldb, curr_src, &lda, &beta,
+                        curr_acc, &ldc);
+                if (st_thr != status::success) {
+                    st = st_thr;
+                    return;
+                }
 
                 if (params.has_pp_kernel_) {
                     const float *pp_scales
@@ -223,8 +228,9 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             }
         });
     } else {
-        gemm_bf16bf16f32(transB, transA, &N, &M, &K, &alpha, weights, &ldb, src,
-                &lda, &beta, acc, &ldc);
+        st = gemm_bf16bf16f32(transB, transA, &N, &M, &K, &alpha, weights, &ldb,
+                src, &lda, &beta, acc, &ldc);
+        if (st != status::success) return st;
 
         if (params.has_pp_kernel_) {
             const bool force_sequential = pp_kernel_->sequential_kernel();
@@ -241,7 +247,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
 
     if (need_free_acc) free(acc);
 
-    return status::success;
+    return st;
 }
 
 using namespace data_type;

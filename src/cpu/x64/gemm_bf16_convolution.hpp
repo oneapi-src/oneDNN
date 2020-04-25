@@ -132,12 +132,11 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     class pp_ker_t : jit_generator {
@@ -295,12 +294,11 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_data(ctx);
-        return status::success;
+        return execute_backward_data(ctx);
     }
 
 private:
-    void execute_backward_data(const exec_ctx_t &ctx) const;
+    status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
@@ -365,8 +363,7 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<diff_wei_data_type>::type diff_wei_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_weights(ctx);
-        return status::success;
+        return execute_backward_weights(ctx);
     }
 
 private:
@@ -374,7 +371,7 @@ private:
             const conv_gemm_conf_t &jcp, const acc_data_t *weights_reduce_base,
             diff_wei_data_t *weights_base) const;
 
-    void execute_backward_weights(const exec_ctx_t &ctx) const;
+    status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;

@@ -30,7 +30,7 @@ using namespace format_tag;
 using namespace memory_tracking::names;
 
 template <data_type_t src_type, data_type_t dst_type>
-void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
+status_t gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -58,8 +58,10 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
                     key_iprod_int_dat_in_acc_dt);
 
     const float onef = 1.0, zerof = 0.0;
-    gemm_s8x8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef, weights,
-            wei_tr ? &K : &M, &off_a, src, &K, &off_b, &zerof, acc, &M, &off_c);
+    status_t st = gemm_s8x8s32(wei_tr ? "T" : "N", "N", "F", &M, &N, &K, &onef,
+            weights, wei_tr ? &K : &M, &off_a, src, &K, &off_b, &zerof, acc, &M,
+            &off_c);
+    if (st != status::success) return st;
 
     if (!pd()->attr()->has_default_values() || !pd()->dst_is_acc_
             || pd()->with_bias()) {
@@ -71,6 +73,8 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
             (*pp_kernel_)(dst, acc, bias, scales, start, end, 0, nullptr);
         });
     }
+
+    return st;
 }
 
 using namespace data_type;

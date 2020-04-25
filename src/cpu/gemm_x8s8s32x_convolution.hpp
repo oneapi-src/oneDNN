@@ -152,14 +152,13 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    void execute_forward(const exec_ctx_t &ctx) const;
-    void execute_forward_thr(const int ithr, const int nthr,
+    status_t execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
             const char *bia_base, dst_data_t *dst_base,
             const memory_tracking::grantor_t &scratchpad) const;
@@ -238,13 +237,12 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_data(ctx);
-        return status::success;
+        return execute_backward_data(ctx);
     }
 
 private:
-    void execute_backward_data(const exec_ctx_t &ctx) const;
-    void execute_backward_data_thr(const int ithr, const int nthr,
+    status_t execute_backward_data(const exec_ctx_t &ctx) const;
+    status_t execute_backward_data_thr(const int ithr, const int nthr,
             const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
             const char *bia_base, diff_src_data_t *diff_src_base,
             const memory_tracking::grantor_t &scratchpad) const;

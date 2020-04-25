@@ -220,10 +220,11 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
     const auto acc_batch_stride = M * N;
 
+    status_t st = status::success;
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {
         // XXX: pass by copying to avoid gcc bug with c++14 standard
-        parallel(0, [=](int ithr, int nthr) {
+        parallel(0, [=, &st](int ithr, int nthr) {
             size_t batch_start {}, batch_end {};
             balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
 
@@ -245,9 +246,13 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
                 dst_data_t *curr_dst = dst + b * dst_batch_stride;
                 if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
 
-                gemm_s8x8s32(transB, transA, "F", &N, &M, &K, &alpha,
-                        curr_weights, &ldb, &gemm_off_b, curr_src, &lda,
+                status_t st_thr = gemm_s8x8s32(transB, transA, "F", &N, &M, &K,
+                        &alpha, curr_weights, &ldb, &gemm_off_b, curr_src, &lda,
                         &gemm_off_a, &beta, curr_acc, &ldc, &gemm_off_c);
+                if (st_thr != status::success) {
+                    st = st_thr;
+                    return;
+                }
 
                 // if igemm cannot handle src and weights zero points
                 if (post_process_src_and_weights_zero_points_outside_of_gemm) {
@@ -273,9 +278,10 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         // at compilation time in lambdas
         const int32_t gemm_off_c = 0;
 
-        gemm_s8x8s32(transB, transA, "F", &N, &M, &K, &alpha, weights, &ldb,
-                &gemm_off_b, src, &lda, &gemm_off_a, &beta, acc, &ldc,
-                &gemm_off_c);
+        status_t st = gemm_s8x8s32(transB, transA, "F", &N, &M, &K, &alpha,
+                weights, &ldb, &gemm_off_b, src, &lda, &gemm_off_a, &beta, acc,
+                &ldc, &gemm_off_c);
+        if (st != status::success) return st;
 
         std::vector<acc_data_t> src_compensation(M, 0);
         std::vector<acc_data_t> weights_compensation(N, 0);
@@ -305,7 +311,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     }
     if (need_free_acc) free(acc);
 
-    return status::success;
+    return st;
 }
 
 template struct gemm_x8s8s32x_matmul_t<s8, s8, f32>;
