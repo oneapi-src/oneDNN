@@ -161,7 +161,7 @@ struct ref_concat_t : public gpu_primitive_t {
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + r_num, reorder);
             r_ctx.set_scratchpad_grantor(ns.grantor());
-            reorder->execute(r_ctx);
+            return reorder->execute(r_ctx);
         };
 
         if (pd()->use_tent_dst()) {
@@ -173,17 +173,17 @@ struct ref_concat_t : public gpu_primitive_t {
                     memory_flags_t::use_runtime_ptr, tent_dst_ptr);
 
             for (int i = 0; i < n; ++i)
-                execute_reorder(reorders_[i],
+                CHECK(execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst, false}, i);
+                        {&tent_dst, false}, i));
 
-            execute_reorder(reorders_[n], {&tent_dst, true},
-                    ctx.args().at(DNNL_ARG_DST), n);
+            CHECK(execute_reorder(reorders_[n], {&tent_dst, true},
+                    ctx.args().at(DNNL_ARG_DST), n));
         } else {
             for (int i = 0; i < n; ++i)
-                execute_reorder(reorders_[i],
+                CHECK(execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        ctx.args().at(DNNL_ARG_DST), i);
+                        ctx.args().at(DNNL_ARG_DST), i));
         }
 
         return status::success;

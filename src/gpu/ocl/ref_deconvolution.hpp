@@ -193,8 +193,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         nested_scratchpad_t ns(ctx, key_nested, conv_p_);
         conv_ctx.set_scratchpad_grantor(ns.grantor());
         // Executing the convolution kernel
-        status_t status = conv_p_->execute(conv_ctx);
-        return status;
+        return conv_p_->execute(conv_ctx);
     }
 
 protected:
@@ -303,8 +302,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
         nested_scratchpad_t ns(ctx, key_nested, conv_p_);
         conv_ctx.set_scratchpad_grantor(ns.grantor());
         // Executing the convolution kernel
-        status_t status = conv_p_->execute(conv_ctx);
-        return status;
+        return conv_p_->execute(conv_ctx);
     }
 
 protected:

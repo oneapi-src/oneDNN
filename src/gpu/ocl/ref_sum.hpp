@@ -158,7 +158,7 @@ struct ref_sum_t : public gpu_primitive_t {
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + i, reorders_[i]);
             r_ctx.set_scratchpad_grantor(ns.grantor());
-            reorders_[i]->execute(r_ctx);
+            CHECK(reorders_[i]->execute(r_ctx));
             ctx.stream()->wait();
         }
 
@@ -170,7 +170,7 @@ struct ref_sum_t : public gpu_primitive_t {
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + n, reorders_[n]);
             r_ctx.set_scratchpad_grantor(ns.grantor());
-            reorders_[n]->execute(r_ctx);
+            CHECK(reorders_[n]->execute(r_ctx));
         }
 
         return status::success;
