@@ -50,3 +50,17 @@
 --dir=FWD_I        --flags=        --attr=                --batch=bnorm_topo_small
 --dir=FWD_D        --flags=SR,GS,S --attr=                --batch=bnorm_topo_small
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small
+
+--reset
+--mb=1
+--dt=f32,bf16
+--tag=axb,aBx16b
+--dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=        --attr=     --batch=bnorm_topo_small
+--dir=BWD_W,BWD_WB,BWD_DW           --flags=SR,GS,S --attr=     --batch=bnorm_topo_small
+
+--reset
+--mb=32
+--dt=f32,bf16
+--tag=axb,ABx16a16b
+--dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=        --attr=     --batch=bnorm_topo_small
+--dir=BWD_W,BWD_WB,BWD_DW           --flags=SR,GS,S --attr=     --batch=bnorm_topo_small

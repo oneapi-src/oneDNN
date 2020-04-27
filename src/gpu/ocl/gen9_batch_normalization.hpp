@@ -122,6 +122,84 @@ private:
     compute::kernel_t reduce_variance_kernel_;
 };
 
+struct gen9_batch_normalization_bwd_t : public gpu_primitive_t {
+    struct pd_t : public gpu_batch_normalization_bwd_pd_t {
+        pd_t(const batch_normalization_desc_t *adesc,
+                const primitive_attr_t *attr,
+                const batch_normalization_fwd_pd_t *hint_fwd_pd)
+            : gpu_batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
+
+        DECLARE_COMMON_PD_T("ocl:gen9:blocked", gen9_batch_normalization_bwd_t);
+
+        status_t init(engine_t *engine) {
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+            using namespace data_type;
+            bool ok = is_bwd() && set_default_formats_common()
+                    && (utils::everyone_is(f32, src_md()->data_type,
+                                diff_src_md()->data_type)
+                            || utils::everyone_is(bf16, src_md()->data_type,
+                                    diff_src_md()->data_type))
+                    && check_scale_shift_data_type()
+                    && attr()->has_default_values()
+                    && compute_engine->mayiuse(
+                            compute::device_ext_t::intel_subgroups);
+            if (!ok) return status::unimplemented;
+
+            if (fuse_norm_relu()) {
+                init_default_ws(8);
+                if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
+            }
+
+            status_t status = init_conf(engine);
+            if (status != status::success) return status;
+            init_scratchpad();
+
+            return status::success;
+        }
+
+        status_t init_conf(engine_t *engine);
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        void init_scratchpad();
+
+        bnorm_conf_t conf;
+        offsets_t off;
+    };
+
+    gen9_batch_normalization_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
+        compute::kernel_ctx_t kernel_ctx;
+
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
+        CHECK(status);
+
+        std::vector<const char *> kernel_names = {
+                "gen9_bnorm_bwd", "gen9_calculate_stats", "gen9_reduce_stats"};
+
+        std::vector<compute::kernel_t> kernels;
+        status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
+        CHECK(status);
+
+        bwd_kernel_ = kernels[0];
+        calculate_stats_kernel_ = kernels[1];
+        reduce_stats_kernel_ = kernels[2];
+
+        return status::success;
+    }
+
+    status_t execute(const exec_ctx_t &ctx) const override {
+        return execute_backward(ctx);
+    }
+
+private:
+    status_t execute_backward(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    compute::kernel_t bwd_kernel_;
+    compute::kernel_t calculate_stats_kernel_;
+    compute::kernel_t reduce_stats_kernel_;
+};
+
 } // namespace ocl
 } // namespace gpu
 } // namespace impl
