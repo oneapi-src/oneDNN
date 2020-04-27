@@ -32,10 +32,10 @@ applications enabled with oneDNN:
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
 * [Chainer\*](https://chainer.org)
 * [DeepLearning4J\*](https://deeplearning4j.org)
-* [Intel Nervana Graph](https://github.com/NervanaSystems/ngraph)
 * [MATLAB\* Deep Learning Toolbox](https://www.mathworks.com/help/deeplearning/)
 * [Menoh\*](https://github.com/pfnet-research/menoh)
 * [Microsoft\* Cognitive Toolkit (CNTK)](https://docs.microsoft.com/en-us/cognitive-toolkit)
+* [nGraph](https://ngraph.ai)
 * [ONNX Runtime](https://github.com/microsoft/onnxruntime)
 * [OpenVINO(TM) toolkit](https://01.org/openvinotoolkit)
 * [PaddlePaddle\*](http://www.paddlepaddle.org)
@@ -45,7 +45,7 @@ applications enabled with oneDNN:
 # Documentation
 
 * [Developer guide](https://oneapi-src.github.io/oneDNN) explains programming
-model, supported functionality, details of primitives implementations and
+model, supported functionality, implementation details, and
 includes annotated examples.
 * [API reference](https://oneapi-src.github.io/oneDNN/modules.html) provides
 comprehensive reference of the library API.
@@ -103,9 +103,9 @@ The library is optimized for the following CPUs:
 * Intel Xeon Scalable processor (formerly Skylake and Cascade Lake)
 * future Intel Xeon Scalable processor (code name Cooper Lake)
 
-On a CPU based on Intel 64 or AMD64 architecture, oneDNN detects the instruction
-set architecture (ISA) at runtime and uses just-in-time (JIT) code generation to
-deploy the code optimized for the latest supported ISA.
+On a CPU based on Intel 64 or on AMD64 architecture, oneDNN detects
+the instruction set architecture (ISA) at runtime and uses just-in-time (JIT)
+code generation to deploy the code optimized for the latest supported ISA.
 
 > **WARNING**
 >
@@ -151,7 +151,7 @@ Intel C++ Compiler.
 
 ### GPU Engine
 
-Intel Processor Graphics is supported by the oneDNN GPU engine. The GPU
+Intel Processor Graphics are supported by the oneDNN GPU engine. The GPU
 engine is disabled in the default build configuration. The following
 additional requirements apply when GPU engine is enabled:
 * OpenCL\* runtime library (OpenCL version 1.2 or later)
@@ -166,46 +166,46 @@ and specific versions are defined by the build environment.
 #### Linux
 
 Common dependencies:
-* System C/C++ runtime (libc.so, libstdc++.so)
-* Dynamic Linking Library (libdl.so)
-* C Math Library (libm.so)
-* POSIX Threads Library (libpthread.so)
+* System C/C++ runtime (`libc.so`, `libstdc++.so`)
+* Dynamic Linking Library (`libdl.so`)
+* C Math Library (`libm.so`)
+* POSIX Threads Library (`libpthread.so`)
 
-Runtime specific dependencies:
+Runtime-specific dependencies:
 
 | Runtime configuration  | Compiler                      | Dependency
 | :--------------------- | :---------------------------- | :---------
-| `DNNL_CPU_RUNTIME=OMP` | GCC                           | GNU OpenMP runtime (libgomp.so)
-| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.so)
-| `DNNL_CPU_RUNTIME=OMP` | Clang                         | Intel OpenMP runtime (libiomp5.so)
-| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (libtbb.so)
-| `DNNL_GPU_RUNTIME=OCL` | any                           | OpenCL runtime (libOpenCL.so)
+| `DNNL_CPU_RUNTIME=OMP` | GCC                           | GNU OpenMP runtime (`libgomp.so`)
+| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (`libiomp5.so`)
+| `DNNL_CPU_RUNTIME=OMP` | Clang                         | Intel OpenMP runtime (`libiomp5.so`)
+| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (`libtbb.so`)
+| `DNNL_GPU_RUNTIME=OCL` | any                           | OpenCL runtime (`libOpenCL.so`)
 
 #### Windows
 
 Common dependencies:
-* Microsoft Visual C++ Redistributable (msvcrt.dll)
+* Microsoft Visual C++ Redistributable (`msvcrt.dll`)
 
-Runtime specific dependencies:
+Runtime-specific dependencies:
 
 | Runtime configuration  | Compiler                      | Dependency
 | :--------------------- | :---------------------------- | :---------
 | `DNNL_CPU_RUNTIME=OMP` | Microsoft Visual C++ Compiler | No additional requirements
-| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (iomp5.dll)
-| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (tbb.dll)
-| `DNNL_GPU_RUNTIME=OCL` | any                           | OpenCL runtime (OpenCL.dll)
+| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (`iomp5.dll`)
+| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (`tbb.dll`)
+| `DNNL_GPU_RUNTIME=OCL` | any                           | OpenCL runtime (`OpenCL.dll`)
 
 #### macOS
 
 Common dependencies:
-* System C/C++ runtime (libc++.dylib, libSystem.dylib)
+* System C/C++ runtime (`libc++.dylib`, `libSystem.dylib`)
 
-Runtime specific dependencies:
+Runtime-specific dependencies:
 
 | Runtime configuration  | Compiler                      | Dependency
 | :--------------------- | :---------------------------- | :---------
-| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.dylib)
-| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (libtbb.dylib)
+| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (`libiomp5.dylib`)
+| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (`libtbb.dylib`)
 
 ### Validated Configurations
 
