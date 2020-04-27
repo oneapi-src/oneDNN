@@ -133,16 +133,14 @@ __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
     float v0 = TO_DEF_ACC_DATA_T(src[off]);
     float sqrt_variance = 1.0f / sqrt(v_variance + eps);
     float bn_res = sm * (v0 - v_mean) * sqrt_variance + sv;
-    int ws_temp = 1;
+
 #if FUSE_BN_RELU == 1
     if (bn_res <= 0) {
         bn_res = 0;
 #if IS_TRAINING == 1
-        ws_temp = 0;
-#endif
+        ws[off] = 0;
     } else {
-#if IS_TRAINING == 1
-        ws_temp = 1;
+        ws[off] = -1;
 #endif
     }
 #endif
@@ -151,9 +149,6 @@ __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #endif
 
     dst[off] = TO_DATA_T(bn_res);
-#if FUSE_BN_RELU && IS_TRAINING
-    ws[off] = ws_temp;
-#endif
 }
 #endif
 
