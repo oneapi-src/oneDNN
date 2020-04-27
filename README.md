@@ -298,6 +298,19 @@ terms, and open source software license terms. These separate license terms
 govern your use of the third party programs as set forth in the
 "[THIRD-PARTY-PROGRAMS](THIRD-PARTY-PROGRAMS)" file.
 
---------
+# Trademark Information
 
-[Legal Information](doc/legal_information.md)
+Intel, the Intel logo, Intel Atom, Intel Core, Intel Xeon Phi, Iris, OpenVINO,
+the OpenVINO logo, Pentium, VTune, and Xeon are trademarks of Intel Corporation
+or its subsidiaries.
+
+\* Other names and brands may be claimed as the property of others.
+
+Microsoft, Windows, and the Windows logo are trademarks, or registered
+trademarks of Microsoft Corporation in the United States and/or other countries.
+
+OpenCL and the OpenCL logo are trademarks of Apple Inc. used by permission
+by Khronos.
+
+(C) Intel Corporation
+
