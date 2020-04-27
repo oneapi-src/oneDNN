@@ -72,7 +72,6 @@ struct settings_t {
     std::vector<bool> inplace {true};
     check_alg_t check_alg = ALG_AUTO;
     attr_t attr = {};
-    bool allow_unimpl = false;
     bool debug_check_ws = false;
     const char *pattern = NULL;
 

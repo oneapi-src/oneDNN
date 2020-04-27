@@ -1,7 +1,6 @@
 --reset
 
 --inplace=true,false
---allow-unimpl=true
 
 --dir=FWD_D,BWD_D
 --dt=bf16

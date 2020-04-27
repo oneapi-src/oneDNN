@@ -76,7 +76,6 @@ struct settings_t {
     std::vector<unsigned> runtime_dim_mask {0};
     std::vector<alg_t> alg {ALG_REF};
     attr_t attr = {};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%flags%,%attr%,%DESC%,"

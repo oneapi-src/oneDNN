@@ -60,7 +60,6 @@ struct settings_t {
     std::vector<bool> inplace {true};
     check_alg_t check_alg = check_alg_t::ALG_AUTO;
     attr_t attr = {};
-    bool allow_unimpl = false;
     const char *pattern = NULL;
 
     const char *perf_template_csv

@@ -19,7 +19,6 @@
 
 # bf16
 --reset
---allow-unimpl=true
 --cfg=bf16bf16f32,bf16bf16bf16
 --stag=ab,ba --wtag=ab,ba
 --bia_dt=undef,f32 --bia_mask=2
@@ -41,7 +40,6 @@
 # 3d
 --reset
 
---allow-unimpl=true
 --cfg=f32,bf16bf16f32,bf16bf16bf16,u8s8s8,s8s8f32
 --stag=abc,acb --wtag=abc,acb --dtag=abc
 --bia_dt=undef,f32 --bia_mask=4,6

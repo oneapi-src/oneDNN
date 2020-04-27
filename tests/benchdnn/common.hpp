@@ -193,7 +193,7 @@ enum res_state_t {
     FAILED,
     LISTED
 };
-const char *state2str(res_state_t state, bool allow_unimpl);
+const char *state2str(res_state_t state);
 
 enum skip_reason_t {
     SKIP_UNKNOWN = 0,
@@ -213,8 +213,8 @@ struct res_t {
     skip_reason_t reason;
 };
 
-void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
-        int status, const char *pstr);
+void parse_result(
+        res_t &res, bool &want_perf_report, int status, const char *pstr);
 
 /* misc */
 void init_fp_mode();

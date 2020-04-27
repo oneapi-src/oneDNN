@@ -62,7 +62,6 @@ struct settings_t {
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {ACROSS};
     std::vector<int64_t> mb {0};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%name%,%dir%,%dt%,%tag%,%alg%,%DESC%,%-time%,%"

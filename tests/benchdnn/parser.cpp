@@ -116,12 +116,6 @@ bool parse_scale_policy(std::vector<policy_t> &policy,
 }
 
 // plain types
-bool parse_allow_unimpl(bool &allow_unimpl, const char *str,
-        const std::string &option_name /* = "allow-unimpl"*/) {
-    return parse_single_value_option(
-            allow_unimpl, false, str2bool, str, option_name);
-}
-
 bool parse_perf_template(const char *&pt, const char *pt_def,
         const char *pt_csv, const char *str,
         const std::string &option_name /* = "perf-template"*/) {

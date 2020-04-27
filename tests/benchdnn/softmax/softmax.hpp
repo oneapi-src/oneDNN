@@ -51,7 +51,6 @@ struct settings_t {
     std::vector<int> axis {1};
     std::vector<int64_t> mb {0};
     std::vector<bool> inplace {true};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%dir%,%dt%,%tag%,%alg%,%axis%,%DESC%,%-time%,%"

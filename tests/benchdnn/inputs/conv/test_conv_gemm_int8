@@ -1,14 +1,12 @@
 # Int8 GeMM
 --reset --dir=FWD_B --mb=2
 --skip-impl="ref"      # ! test gemm version only
---allow-unimpl=true
 --cfg=u8s8u8,u8s8s8,u8s8s32 --batch=shapes_gemm
 
 # Int8 GeMM w/Attributes
 --reset
 --mb=2
 --skip-impl="ref"      # ! test gemm version only
---allow-unimpl=true
 --dir=FWD_B
 --attr=post_ops='relu'
 --cfg=u8s8f32,s8s8s8,s8s8u8,s8s8f32,s8s8s32 --batch=shapes_gemm

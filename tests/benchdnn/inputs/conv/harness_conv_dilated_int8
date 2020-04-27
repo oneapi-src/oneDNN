@@ -2,16 +2,14 @@
 --reset
 --mb=2
 --dir=FWD_D
---cfg=u8s8u8 --allow-unimpl=false --batch=shapes_dilated_rfcn
---cfg=s8s8u8 --allow-unimpl=true  --batch=shapes_dilated_rfcn
---match=.*fc6.*
---cfg=u8s8u8 --allow-unimpl=false --batch=shapes_ssd_300_voc0712
---cfg=s8s8u8 --allow-unimpl=true  --batch=shapes_ssd_300_voc0712
+--cfg=u8s8u8,s8s8u8
+--batch=shapes_dilated_rfcn
+--match=.*fc6.* --batch=shapes_ssd_300_voc0712
 
 --reset
 --dir=FWD_D --mb=2
 --skip-impl="ref:gemm"
---cfg=u8s8s32 --allow-unimpl=true
+--cfg=u8s8s32
 --batch=set_dilated-conv_1st
 --batch=set_dilated-conv
 --batch=set_dilated-conv_3d

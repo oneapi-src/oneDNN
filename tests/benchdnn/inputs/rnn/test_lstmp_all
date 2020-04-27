@@ -1,5 +1,4 @@
 --reset
---allow-unimpl=true
 
 --alg=VANILLA_LSTM
 --with-projection=true

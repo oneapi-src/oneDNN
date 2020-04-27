@@ -1,6 +1,7 @@
 # Test that saturation is handled properly (lightweight test)
---reset --dir=FWD_B --mb=2
---allow-unimpl=true
+--reset
+--mb=2
+--dir=FWD_B
 --cfg=u8s8u8,u8s8s8,u8s8s32
 --attr=oscale=common:4294967296
 ic16oc16ih4oh4kh1ph0 # jit 1x1
