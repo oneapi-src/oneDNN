@@ -213,7 +213,7 @@ struct settings_t {
     std::vector<alg_t> alg {VANILLA_RNN};
     std::vector<dnnl_rnn_direction_t> direction {
             dnnl_unidirectional_left2right};
-    std::vector<activation_t> activation {UNDEF};
+    std::vector<activation_t> activation {RELU};
     std::vector<bool> skip_nonlinear {false};
     std::vector<bool> trivial_strides {false};
     std::vector<bool> with_peephole {false};
