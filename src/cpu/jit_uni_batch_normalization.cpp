@@ -295,12 +295,13 @@ struct jit_bnorm_t : public jit_generator {
 
     void fwd_process_relu_avx2(Vmm vdst, int offt, Vmm vstore_mask) {
         Reg64 reg_store_mask = reg_diff_scale_shift;
-        shr(reg_soff, 5);
+        shr(reg_soff, bit_shift());
         vcmpps(vstore_mask, vzero, vdst, _cmp_lt_os);
         vmovmskps(reg_store_mask, vstore_mask);
-        mov(ptr[reg_ws + reg_soff + offt / (1 << 5)], reg_store_mask.cvt8());
+        mov(ptr[reg_ws + reg_soff + offt / (1 << bit_shift())],
+                reg_store_mask.cvt8());
         vblendvps(vdst, vzero, vdst, vstore_mask);
-        shl(reg_soff, 5);
+        shl(reg_soff, bit_shift());
     }
 
     void fwd_process_relu_avx512_common(Vmm vdst, int offt) {
@@ -312,12 +313,13 @@ struct jit_bnorm_t : public jit_generator {
     }
 
     void bwd_process_relu_avx2(Vmm vdiff_dst, int offt, Vmm vstore_mask) {
-        shr(reg_soff, 5);
-        vpbroadcastb(vstore_mask, ptr[reg_ws + reg_soff + offt / (1 << 5)]);
+        shr(reg_soff, bit_shift());
+        vpbroadcastb(vstore_mask,
+                ptr[reg_ws + reg_soff + offt / (1 << bit_shift())]);
         vpand(vstore_mask, vstore_mask, ptr[rip + l_relu_mask_avx2]);
         vpcmpeqd(vstore_mask, vstore_mask, ptr[rip + l_relu_mask_avx2]);
         vblendvps(vdiff_dst, vzero, vdiff_dst, vstore_mask);
-        shl(reg_soff, 5);
+        shl(reg_soff, bit_shift());
     }
 
     void bwd_process_relu_avx512_common(Vmm vdiff_dst, int offt) {
@@ -330,21 +332,27 @@ struct jit_bnorm_t : public jit_generator {
     void uni_vmovups_spat_data(const Operand &dst, const Operand &src) {
         if (dst.isMEM()) {
             if (is_bf16_) {
+                constexpr bool isAvx2 = isa == avx2;
+                const typename std::conditional<isAvx2, Xmm, Ymm>::type
+                        dst_reg {src.getIdx()};
+                const typename std::conditional<isAvx2, Ymm, Zmm>::type
+                        src_reg {src.getIdx()};
+
                 // convert f32 output to bf16
                 if (mayiuse(avx512_core_bf16))
-                    vcvtneps2bf16(Ymm(src.getIdx()), Zmm(src.getIdx()));
+                    vcvtneps2bf16(dst_reg, src_reg);
                 else
-                    bf16_emu_->vcvtneps2bf16(
-                            Ymm(src.getIdx()), Zmm(src.getIdx()));
-                vmovdqu16(dst.getAddress(), Ymm(src.getIdx()));
+                    bf16_emu_->vcvtneps2bf16(dst_reg, src_reg);
+
+                vmovdqu16(dst.getAddress(), dst_reg);
             } else {
                 uni_vmovups(dst.getAddress(), Vmm(src.getIdx()));
             }
         } else {
             if (is_bf16_) {
                 // convert bf16 input to f32
-                vpmovzxwd(Zmm(dst.getIdx()), src.getAddress());
-                vpslld(Zmm(dst.getIdx()), Zmm(dst.getIdx()), 0x10);
+                vpmovzxwd(Vmm(dst.getIdx()), src.getAddress());
+                vpslld(Vmm(dst.getIdx()), Vmm(dst.getIdx()), 0x10);
             } else {
                 uni_vmovups(Vmm(dst.getIdx()), src.getAddress());
             }
