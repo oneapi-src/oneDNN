@@ -240,13 +240,14 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
     // Return if pd is not the one being tested
     if (p->attr.post_ops.convolution_index() == -1) return OK;
 
-    const char *impl_str = query_impl_info(cpd);
-    if (maybe_skip(impl_str)) {
-        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n", impl_str);
+    r->impl_name = query_impl_info(cpd);
+    if (maybe_skip(r->impl_name)) {
+        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
+                r->impl_name.c_str());
         DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
     }
 
     return OK;

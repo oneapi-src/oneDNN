@@ -571,10 +571,10 @@ inline int init_pd(
     SAFE(init_status, WARN);
 
     // Return if pd is not the one being tested
-    if (is_fwd != (p.prop == dnnl_forward)) return OK;
+    if (is_fwd && (p.prop == dnnl_backward)) return OK;
 
-    const char *impl_str = query_impl_info(rpd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
+    r->impl_name = query_impl_info(rpd);
+    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
 
     return OK;
 }
@@ -582,9 +582,7 @@ inline int init_pd(
 int doit(const prb_t &p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
-    // TODO: remove early exit when int8 weights reorder supports non
-    // trivial strides
-    if (p.is_int8() && !p.trivial_strides) return r->state = SKIPPED, OK;
+    if (p.maybe_skip()) return r->state = SKIPPED, OK;
 
     dnnl_primitive_desc_t rpd;
     SAFE(init_pd(p, rpd, r, true), WARN);

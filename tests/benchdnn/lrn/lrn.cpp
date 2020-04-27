@@ -150,13 +150,14 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_primitive_desc_t &lpd,
     // Return if pd is not the one being tested
     if ((dir & FLAG_FWD) != (p->dir & FLAG_FWD)) return OK;
 
-    const char *impl_str = query_impl_info(lpd);
-    if (maybe_skip(impl_str)) {
-        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n", impl_str);
+    r->impl_name = query_impl_info(lpd);
+    if (maybe_skip(r->impl_name)) {
+        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
+                r->impl_name.c_str());
         DNN_SAFE(dnnl_primitive_desc_destroy(lpd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
     }
 
     return OK;

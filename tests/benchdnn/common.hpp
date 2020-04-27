@@ -197,6 +197,7 @@ struct res_t {
     res_state_t state;
     size_t errors, total;
     benchdnn_timer_t timer;
+    std::string impl_name;
 };
 
 void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
@@ -213,7 +214,7 @@ const char *bool2str(bool value);
 
 /* TODO: why two functions??? */
 bool match_regex(const char *str, const char *pattern);
-bool maybe_skip(const char *impl_str);
+bool maybe_skip(const std::string &impl_str);
 
 typedef int (*bench_f)(int argc, char **argv);
 int batch(const char *fname, bench_f bench);
