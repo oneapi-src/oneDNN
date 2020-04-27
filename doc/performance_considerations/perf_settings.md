@@ -27,7 +27,7 @@ This document focuses on OpenMP runtime that has portable controls for thread
 affinity documented
 [here](https://www.openmp.org/spec-html/5.0/openmpch6.html#x287-20510006).
 It should be noted that the OpenMP runtime that comes with Microsoft Visual
-studio does not support them or nor does it provide any other ways control
+studio does not support them nor does it provide any other ways to control
 thread affinity.
 
 ## Benchmarking Settings
