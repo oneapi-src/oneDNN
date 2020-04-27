@@ -1171,16 +1171,7 @@ protected:
     }
     void Test() {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-        struct scoped_threadpool {
-            scoped_threadpool() {
-                impl::threadpool_utils::activate_threadpool(
-                        impl::threadpool_utils::get_active_threadpool());
-            }
-            ~scoped_threadpool() {
-                impl::threadpool_utils::deactivate_threadpool();
-            }
-        };
-        scoped_threadpool stp;
+        testing::scoped_tp_activation_t sta;
 #endif
         const auto &p = ::testing::TestWithParam<test_params>::GetParam();
         run_test_gemm<a_dt, b_dt, c_dt>::call(p);

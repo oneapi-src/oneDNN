@@ -20,10 +20,6 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "../testing_threadpool.hpp"
-#endif
-
 float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
     switch (dt) {
         case dnnl_f32: break;

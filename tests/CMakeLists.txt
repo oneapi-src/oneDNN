@@ -75,8 +75,16 @@ if(UNIX OR MINGW)
 # No Windows support for: test_c_symbols.c
 endif()
 
+add_definitions(-DNOMINMAX) # to allow std::max on Windows with parentheses
+
 if(DNNL_ENABLE_PRIMITIVE_CACHE)
     add_definitions(-DDNNL_ENABLE_PRIMITIVE_CACHE)
+endif()
+
+if ("${DNNL_CPU_THREADING_RUNTIME}" STREQUAL "THREADPOOL")
+    # Only enable this for threadpool runtime to avoid complaints about empty
+    # object files.
+    set(TEST_THREAD ${CMAKE_CURRENT_SOURCE_DIR}/test_thread.cpp)
 endif()
 
 add_subdirectory(gtests)

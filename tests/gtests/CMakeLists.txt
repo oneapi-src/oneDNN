@@ -18,6 +18,7 @@ add_subdirectory (gtest)
 
 set(APP_NAME "gtest")
 set(MAIN_SRC_GTEST ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
+list(APPEND MAIN_SRC_GTEST ${TEST_THREAD})
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}/gtest
@@ -118,7 +119,6 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
 
     add_executable(${exe} ${MAIN_SRC_GTEST} ${TEST_FILE})
     maybe_configure_windows_test(${exe} TARGET)
-    add_definitions(-DNOMINMAX) # to allow std::max on Windows with parentheses
     target_link_libraries(${exe} ${LIB_NAME} dnnl_gtest ${EXTRA_SHARED_LIBS})
 
     get_source_file_property(no_engine_param ${TEST_FILE} NO_ENGINE_PARAM)

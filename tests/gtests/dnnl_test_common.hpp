@@ -41,10 +41,10 @@
 #endif
 
 #include "src/common/bfloat16.hpp"
-#include "src/common/dnnl_thread.hpp"
 #include "src/common/float16.hpp"
 #include "src/common/memory_desc_wrapper.hpp"
 #include "src/common/nstl.hpp"
+#include "tests/test_thread.hpp"
 
 #include "src/cpu/platform.hpp"
 
@@ -820,8 +820,7 @@ inline dnnl::stream make_stream(dnnl::engine engine,
     if (engine.get_kind() != dnnl::engine::kind::cpu)
         return dnnl::stream(engine, flags);
     dnnl::stream_attr stream_attr(dnnl::engine::kind::cpu);
-    stream_attr.set_threadpool(
-            dnnl::impl::threadpool_utils::get_active_threadpool());
+    stream_attr.set_threadpool(dnnl::testing::get_threadpool());
     return dnnl::stream(engine, flags, stream_attr);
 #else
     return dnnl::stream(engine, flags);

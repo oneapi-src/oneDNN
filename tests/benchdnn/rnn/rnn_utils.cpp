@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "rnn/rnn_aux.hpp"
-#include "src/common/dnnl_thread.hpp"
+#include "tests/test_thread.hpp"
 
 namespace rnn {
 

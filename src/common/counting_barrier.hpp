@@ -18,6 +18,7 @@
 #define COMMON_COUNTING_BARRIER_HPP
 
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <mutex>
 #include <thread>

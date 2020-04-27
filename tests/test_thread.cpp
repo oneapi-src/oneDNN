@@ -14,13 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef TESTING_THREADPOOL_HPP
-#define TESTING_THREADPOOL_HPP
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 
-// ----------------------------------------------------------------------------
-// WARNINIG: this file may only be included in a single .cpp because, for
-// simplicity, it contains both declarations and definitions
-// ----------------------------------------------------------------------------
+#include <mutex>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -28,34 +24,14 @@
 #include <stdlib.h>
 #endif
 
-#include <mutex>
-
 #include "dnnl_threadpool_iface.hpp"
 #include "src/common/counting_barrier.hpp"
+#include "tests/test_thread.hpp"
 
+#if !defined(DNNL_TEST_THREADPOOL_USE_TBB)
 namespace dnnl {
 namespace testing {
 namespace {
-template <typename T, typename U>
-inline void balance211(T n, U team, U tid, T &n_start, T &n_end) {
-    T n_min = 1;
-    T &n_my = n_end;
-    if (team <= 1 || n == 0) {
-        n_start = 0;
-        n_my = n;
-    } else if (n_min == 1) {
-        // team = T1 + T2
-        // n = T1*n1 + T2*n2  (n1 - n2 = 1)
-        T n1 = (n + (T)team - 1) / team;
-        T n2 = n1 - 1;
-        T T1 = n - n2 * (T)team;
-        n_my = (T)tid < T1 ? n1 : n2;
-        n_start = (T)tid <= T1 ? tid * n1 : T1 * n1 + ((T)tid - T1) * n2;
-    }
-
-    n_end += n_start;
-}
-
 inline int read_num_threads_from_env() {
     const char *env_num_threads = nullptr;
     const char *env_var_name = "OMP_NUM_THREADS";
@@ -79,10 +55,10 @@ inline int read_num_threads_from_env() {
         num_threads = (int)std::thread::hardware_concurrency();
     return num_threads;
 }
-
 } // namespace
 } // namespace testing
 } // namespace dnnl
+#endif
 
 #ifdef DNNL_TEST_THREADPOOL_USE_EIGEN
 
@@ -111,7 +87,6 @@ public:
     explicit threadpool(int num_threads = 0) {
         if (num_threads <= 0) num_threads = read_num_threads_from_env();
         tp_.reset(new EigenThreadPool(num_threads));
-        printf("@@@ USING EIGEN THREADPOOL\n");
     }
     virtual int get_num_threads() const override { return tp_->NumThreads(); }
     virtual bool get_in_parallel() const override {
@@ -126,7 +101,7 @@ public:
         for (int i = 0; i < njobs; i++) {
             tp_->Schedule([i, n, njobs, fn]() {
                 int start, end;
-                balance211(n, njobs, i, start, end);
+                impl::balance211(n, njobs, i, start, end);
                 for (int j = start; j < end; j++)
                     fn(j, n);
             });
@@ -277,7 +252,7 @@ private:
     void task_execute(int ithr, int nthr, const task_func *fn, int n) {
         if (fn != nullptr && n > 0) {
             int start, end;
-            balance211(n, nthr, ithr, start, end);
+            impl::balance211(n, nthr, ithr, start, end);
             for (int i = start; i < end; i++)
                 (*fn)(i, n);
         }
@@ -311,24 +286,30 @@ thread_local threadpool::worker_data *threadpool::worker_self_ = nullptr;
 
 } // namespace testing
 } // namespace dnnl
-
 #endif
+
+namespace dnnl {
+
+namespace testing {
+// Threadpool singleton
+threadpool_iface *get_threadpool() {
+    static dnnl::testing::threadpool tp;
+    return &tp;
+}
+
+} // namespace testing
 
 // Implement a dummy threadpools_utils protocol here so that it is picked up
 // by parallel*() calls from the tests.
-namespace dnnl {
 namespace impl {
-namespace threadpool_utils {
+namespace testing_threadpool_utils {
+void activate_threadpool(threadpool_iface *tp) {}
+void deactivate_threadpool() {}
 threadpool_iface *get_active_threadpool() {
-    static dnnl::testing::threadpool *tp = nullptr;
-    static std::mutex m;
-    if (tp == nullptr) {
-        std::unique_lock<std::mutex> l(m);
-        if (tp == nullptr) { tp = new dnnl::testing::threadpool(); }
-    }
-    return tp;
+    return testing::get_threadpool();
 }
-} // namespace threadpool_utils
+} // namespace testing_threadpool_utils
+
 } // namespace impl
 } // namespace dnnl
 

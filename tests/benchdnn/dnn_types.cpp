@@ -29,6 +29,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_debug.hpp"
 #include "src/common/math_utils.hpp"
+#include "tests/test_thread.hpp"
 
 namespace tag {
 const char *abx {"abx"};
@@ -934,19 +935,6 @@ void engine_t::destroy_engine() {
     DNN_SAFE_V(dnnl_engine_destroy(engine_));
 }
 
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool_iface.hpp"
-// XXX: cannot include dnnl_thread.hpp because of conflicting macro
-// definitions
-namespace dnnl {
-namespace impl {
-namespace threadpool_utils {
-threadpool_iface *get_active_threadpool();
-}
-} // namespace impl
-} // namespace dnnl
-#endif
-
 void stream_t::create_stream() {
     dnnl_engine_kind_t engine_kind;
     DNN_SAFE_V(dnnl_engine_get_kind(engine_, &engine_kind));
@@ -955,8 +943,8 @@ void stream_t::create_stream() {
     DNN_SAFE_V(dnnl_stream_attr_create(&stream_attr, engine_kind));
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
     if (engine_kind == dnnl_cpu) {
-        SAFE_V(dnnl_stream_attr_set_threadpool(stream_attr,
-                dnnl::impl::threadpool_utils::get_active_threadpool()));
+        SAFE_V(dnnl_stream_attr_set_threadpool(
+                stream_attr, dnnl::testing::get_threadpool()));
     }
 #endif
 
