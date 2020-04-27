@@ -43,13 +43,9 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(
     int ih = jcp.ih;
     int id = jcp.id;
     int kw = jcp.kw;
-    int kh = jcp.kh;
-    int kd = jcp.kd;
-    int nb_ic = jcp.nb_ic;
     int stride_w = jcp.stride_w;
     int dilate_w = jcp.dilate_w + 1;
     int ic_blk = jcp.ic_block;
-    int oc_blk = jcp.oc_block;
 
     for (int ki = 0; ki < kw; ki++) {
         int jj_start = nstl::max(0, div_up(pad_l - ki * dilate_w, stride_w));
@@ -73,9 +69,8 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(
             }
 
             for (int ii = 0; ii < oc_blocks; ii++) {
-                int ker_off = ii * nb_ic * kd * kh * kw * ic_blk * oc_blk
-                        + ki * ic_blk * oc_blk + ifm2 * oc_blk;
-                vmovups(ymm15, ptr[aux_reg_kernel + sizeof(float) * ker_off]);
+                vmovups(ymm15,
+                        ptr[aux_reg_kernel + get_kernel_offset(ii, ki, ifm2)]);
                 for (int jj = jj_start; jj < jj_end; jj++)
                     if (mayiuse(avx2))
                         vfmadd231ps(Ymm(ur_w * ii + jj),
@@ -97,13 +92,9 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
     int ih = jcp.ih;
     int id = jcp.id;
     int kw = jcp.kw;
-    int kh = jcp.kh;
-    int kd = jcp.kd;
-    int nb_ic = jcp.nb_ic;
     int stride_w = jcp.stride_w;
     int dilate_w = jcp.dilate_w + 1;
     int ic_blk = jcp.ic_block;
-    int oc_blk = jcp.oc_block;
 
     xor_(ki_iter, ki_iter);
     L(kw_loop);
@@ -124,12 +115,8 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
                         make_safe_addr(aux_reg_input, inp_off, reg_long_offt));
             }
             for (int ii = 0; ii < oc_blocks; ii++) {
-                int aux_kernel_offset
-                        = ii * nb_ic * kd * kh * kw * ic_blk * oc_blk
-                        + ifm2 * oc_blk;
                 vmovups(ymm15,
-                        ptr[aux_reg_kernel
-                                + sizeof(float) * aux_kernel_offset]);
+                        ptr[aux_reg_kernel + get_kernel_offset(ii, 0, ifm2)]);
                 for (int jj = jj_start; jj < jj_end; jj++)
                     if (mayiuse(avx2))
                         vfmadd231ps(Ymm(ur_w * ii + jj),
@@ -140,7 +127,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
                     }
             }
         }
-        add(aux_reg_kernel, sizeof(float) * oc_blk * ic_blk);
+        add(aux_reg_kernel, get_kernel_offset(0, 1, 0));
         add(aux_reg_input,
                 sizeof(float)
                         * (one_of(jcp.src_tag, ncw, nchw, ncdhw)
@@ -257,7 +244,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
             add(aux_reg_input, sizeof(float) * iw * dilate_h * inp_mult);
         } else {
             oh_step_unroll_kw(ur_w, pad_l, pad_r, oc_blocks);
-            add(aux_reg_kernel, sizeof(float) * kw * oc_blk * ic_blk);
+            add(aux_reg_kernel, get_kernel_offset(0, kw, 0));
             add(aux_reg_input, sizeof(float) * iw * dilate_h * inp_mult);
         }
 
@@ -272,8 +259,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
         add(aux_reg_inp_d,
                 sizeof(float) * (jcp.dilate_d + 1) * jcp.ih * jcp.iw
                         * inp_mult);
-        add(aux_reg_ker_d,
-                sizeof(float) * jcp.kw * jcp.kh * jcp.oc_block * jcp.ic_block);
+        add(aux_reg_ker_d, get_kernel_offset(0, jcp.kw * jcp.kh, 0));
 
         dec(reg_ki);
         cmp(reg_ki, 0);

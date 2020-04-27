@@ -90,6 +90,15 @@ private:
     inline void width_blk_step(int ur_w, int pad_l, int pad_r, int oc_blocks);
     inline void solve_common(int oc_blocks);
 
+    inline dim_t get_kernel_offset(int i_oc_block, int ki, int i_ic) {
+        dim_t block_step_size = jcp.ic_block * jcp.oc_block;
+        dim_t ic_block_step_size = jcp.kd * jcp.kh * jcp.kw * block_step_size;
+        dim_t oc_block_step_size = jcp.nb_ic * ic_block_step_size;
+        dim_t offset = i_oc_block * oc_block_step_size + ki * block_step_size
+                + i_ic * jcp.oc_block;
+        return sizeof(float) * offset;
+    }
+
     void generate();
 };
 
