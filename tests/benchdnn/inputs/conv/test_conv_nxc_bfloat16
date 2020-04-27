@@ -3,7 +3,6 @@
 --mb=2
 --stag=axb --dtag=axb
 --skip-impl="ref"
---allow-unimpl=true
 --dir=FWD_B
 --cfg=bf16bf16f32  --batch=shapes_resnet_50
 --cfg=bf16bf16bf16 --batch=set_conv_all
@@ -22,16 +21,20 @@
 --reset
 --mb=2
 --stag=axb --dtag=axb
---allow-unimpl=true --skip-impl="ref:gemm"
---allow-unimpl=true
+--skip-impl="ref:gemm"
 --dir=FWD_D --cfg=bf16bf16bf16
 --batch=shapes_3d_2d_strided_padding --batch=shapes_dilated_3d_strided_padding
 --dir=BWD_D --cfg=f32bf16bf16 --batch=shapes_3d_2d_strided_padding
 --dir=BWD_WB --cfg=bf16f32bf16
 --batch=set_conv_3d --batch=shapes_dilated_3d_unit-stride_no-padding
 
-# PostOps + Attributes
+# Attributes
+--reset
+--mb=2
+--stag=axb --dtag=axb
+--skip-impl="ref:gemm"
 --dir=FWD_B
+--cfg=bf16bf16bf16
 --attr=post_ops='sum' --batch=shapes_resnet_50
 --attr=post_ops='relu' --batch=shapes_googlenet_v3
 --attr=post_ops='sum;tanh:1:1:2.5' --batch=shapes_tails
@@ -41,6 +44,6 @@
 # Test src-transpose padding handling in bf16 bwd-w convolution
 --reset --mb=2
 --stag=axb --dtag=axb
---allow-unimpl=true --skip-impl="ref:gemm"
+--skip-impl="ref:gemm"
 --cfg=bf16bf16bf16 --dir=BWD_W
 --batch=shapes_src-transpose_padding

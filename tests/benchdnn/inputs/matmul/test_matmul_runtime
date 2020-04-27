@@ -55,7 +55,6 @@
 
 --reset
 --skip-impl=ref
---allow-unimpl=true
 
 --cfg=bf16bf16f32,bf16bf16bf16
 --stag=ab,ba --wtag=ab,ba

@@ -1,5 +1,5 @@
 # bf16
---reset --mb=2 --allow-unimpl=true --skip-impl="ref"
+--reset --mb=2 --skip-impl="ref"
 --stag=axb --dtag=axb
 
 --cfg=bf16bf16bf16
@@ -12,7 +12,7 @@
 --cfg=bf16f32bf16 --dir=BWD_WB --batch=deconv_all
 
 # Test Deconv w/bias through GeMM
---reset --mb=2 --allow-unimpl=true --skip-impl="ref"
+--reset --mb=2 --skip-impl="ref"
 --stag=axb --dtag=axb
 --cfg=bf16bf16bf16
 --dir=FWD_B g16_ic32ih4iw8_oc64oh3ow8_kh3kw3sh1sw1ph0pw0n"test_gemm_fwd_b"

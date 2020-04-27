@@ -44,7 +44,6 @@ struct settings_t {
     std::vector<std::vector<std::string>> stag;
     std::vector<std::string> dtag {tag::undef};
     std::vector<std::vector<float>> scales {{0.25}, {1}, {4}};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%DESC%,%-time%,%0time%";

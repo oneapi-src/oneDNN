@@ -1,7 +1,6 @@
 # Int8 Wino
 --reset --alg=wino
 --match=.*kh3[^0-9].*       # only 3x3 shapesolutions so far
---allow-unimpl=true         # allow unimplemented for groups > 1
 --mb=2                      # for fwd and bwd_d reduce mb
 --dir=FWD_B
 --cfg=u8s8u8_wino  --batch=set_conv_all
@@ -11,7 +10,6 @@
 # Int8 Wino w/Attributes
 --reset --alg=wino
 --match=.*kh3[^0-9].*
---allow-unimpl=true
 --skip-impl="ref:gemm"      # ! test jit version only
 --mb=2
 --dir=FWD_B

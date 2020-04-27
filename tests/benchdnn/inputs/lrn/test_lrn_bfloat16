@@ -1,6 +1,5 @@
 --reset
 
---allow-unimpl=true
 
 --mb=2
 --dt=bf16

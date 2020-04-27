@@ -92,7 +92,6 @@ struct settings_t {
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {MAX};
     std::vector<int64_t> mb {0};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%name%,%dir%,%cfg%,%tag%,%alg%,%DESC%,%-time%,%"
@@ -158,9 +157,6 @@ struct perf_report_t : public base_perf_report_t {
 private:
     const prb_t *p_ = NULL;
 };
-
-/* some extra control parameters which shouldn't be placed in prb_t */
-extern bool allow_unimpl; /* true means do not treat unimplemented as error */
 
 inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t id,
         int64_t ih, int64_t iw) {

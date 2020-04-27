@@ -45,7 +45,7 @@ void check_correctness(const settings_t &s) {
         const int status = doit(&p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
             perf_report_t pr(s.perf_template);
@@ -70,7 +70,6 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(
                         s.group, def.group, atoi, argv[0], "group")
                 || parse_axis(s.axis, def.axis, argv[0])
-                || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

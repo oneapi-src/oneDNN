@@ -2,7 +2,6 @@
 --reset
 --mb=2
 --skip-impl="ref"
---allow-unimpl=true
 --dir=FWD_B
 --attr=oscale=per_oc:2.25;post_ops='sum:1.5;relu:0:0:2.6'
 --cfg=u8s8u8  --batch=shapes_vgg_19
@@ -21,7 +20,6 @@
 --reset
 --mb=2
 --skip-impl="ref:gemm"      # ! test jit version only
---allow-unimpl=true
 --dir=FWD_B
 --attr=oscale=per_oc:2.25;post_ops='sum:1.5;relu'
 --cfg=s8s8f32,s8s8u8,u8s8f32,u8s8u8  --batch=shapes_tails
@@ -33,7 +31,6 @@
 # i8 conv + f32 leaky relu
 --reset --dir=FWD_B --mb=2
 --skip-impl="ref:gemm"      # ! test jit version only
---allow-unimpl=true
 --attr=post_ops='relu:0.5'
 --cfg=s8s8f32,u8s8f32 --batch=shapes_yolov2
 --attr=post_ops='relu:0.5;sum'

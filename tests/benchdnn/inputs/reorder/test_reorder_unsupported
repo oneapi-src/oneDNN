@@ -1,9 +1,0 @@
-# unsupported reorders that should not err or seg-fault
-# s8, f32 -> s8 w/ compensations
-#
---reset
---alg=bootstrap --allow-unimpl=true
---sdt=f32,s8 --ddt=s8
-
---stag=OIhw16i16o --dtag=hwio
---oflag=conv_s8s8 32x64x3x3

@@ -221,7 +221,6 @@ struct settings_t {
     std::vector<int64_t> mb {0};
     std::vector<policy_t> scale_policy {policy_t::NONE};
     attr_t attr = {};
-    bool allow_unimpl = false;
     unsigned int flags = 0x0;
     float alpha = 0.9f, beta = 0.0f;
 
