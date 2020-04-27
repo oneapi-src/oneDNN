@@ -50,7 +50,6 @@ struct settings_t {
     std::vector<alg_t> alg {ADD};
     std::vector<bool> inplace {true};
     attr_t attr = {};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%sdt%,%ddt%,%stag%,%alg%,%attr%,%DESC%,%-time%,%"

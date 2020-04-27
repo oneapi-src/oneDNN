@@ -47,7 +47,6 @@ struct settings_t {
     std::vector<std::string> tag {tag::abx};
     std::vector<int64_t> group {1};
     std::vector<int> axis {1};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%dir%,%dt%,%tag%,%group%,%axis%,%DESC%,%-time%,%"

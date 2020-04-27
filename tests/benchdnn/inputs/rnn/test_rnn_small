@@ -1,6 +1,5 @@
 # f32,bf16
 --reset
---allow-unimpl=true
 --trivial-strides=true,false
 
 # RNN

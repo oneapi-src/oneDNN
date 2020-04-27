@@ -9,7 +9,6 @@
 
 # bf16
 --dt=bf16
---allow-unimpl=true
 --tag=abx,axb,aBx16b
 --batch=set_resampling_all
 

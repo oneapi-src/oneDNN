@@ -1,5 +1,4 @@
 --reset
---allow-unimpl=true
 --trivial-strides=true,false
 
 # f32 tests

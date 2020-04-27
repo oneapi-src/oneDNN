@@ -29,11 +29,6 @@
 #include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
-namespace deconv {
-/* some extra control parameters which shouldn't be placed in prb_t */
-extern bool allow_unimpl; /* true means do not treat unimplemented as error */
-} // namespace deconv
-
 namespace conv {
 
 enum alg_t { DIRECT, WINO, AUTO };
@@ -105,7 +100,6 @@ struct settings_t {
     std::vector<int64_t> mb {0};
     std::vector<alg_t> alg {DIRECT};
     attr_t attr = {};
-    bool allow_unimpl = false;
     const char *pattern = NULL;
 
     const char *perf_template_csv
@@ -201,9 +195,6 @@ struct perf_report_t : public base_perf_report_t {
 private:
     const prb_t *p_ = NULL;
 };
-
-/* some extra control parameters which shouldn't be placed in prb_t */
-extern bool allow_unimpl; /* true means do not treat unimplemented as error */
 
 inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t g, int64_t ic,
         int64_t id, int64_t ih, int64_t iw) {

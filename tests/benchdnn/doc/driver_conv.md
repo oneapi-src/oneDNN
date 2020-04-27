@@ -154,23 +154,15 @@ configurations (`u8s8u8` and `f32`):
 Run the batch file for different algorithms (assuming the file specifies only
 convolutions and does not include driver options that would override any passed
 on the command line). Also ignore dnnl_unimplemented errors in case of
-Winograd. Before running the AUTO algorithm, reset the allow-unimpl value back
-to false:
+Winograd:
 ``` sh
-    ./benchdnn --conv \
-               --alg=DIRECT --batch=convs.in \
-               --allow-unimpl=true \
-               --alg=WINO   --batch=convs.in \
-               --reset \
-               --alg=AUTO   --batch=convs.in
+    ./benchdnn --conv --alg=DIRECT,WINO,AUTO --batch=convs.in
 ```
 
 Run a set of u8s8u8 forward convolutions without bias, skipping
-reference implementations and not triggering unimplemented as an error, with
-one common output scale set to 0.5:
+reference implementations with one common output scale set to 0.5:
 ``` sh
-    ./benchdnn --conv --cfg=u8s8u8 --dir=FWD_D \
-               --skip-impl="ref" --allow-unimpl=true \
+    ./benchdnn --conv --cfg=u8s8u8 --dir=FWD_D --skip-impl="ref" \
                --attr="oscale=common:.5" --batch=inputs/conv/conv_all
 ```
 
@@ -195,8 +187,7 @@ inputs, all *regression* based inputs, all 2D convolutions, etc).
 * **harness_\<label\>**: a deployable suite of configurations and shapes.
 Entries in a harness test may include many instances and combinations of
 batch files and configurations (e.g `--mb`, `--dir`, `--skip-impl`,
-`--allow-unimpl`, `--batch={topology, shape_conv_2d, shape_conv_3d,
-shape_conv_regression}`).
+`--batch={topology, shape_conv_2d, shape_conv_3d, shape_conv_regression}`).
 
 * **test_conv_\<label\>**: These files are used for deploying testing
 via command-line `make <test>`.

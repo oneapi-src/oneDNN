@@ -31,13 +31,22 @@ So far it supports and uses the following drivers:
 
 ## Harness Usage
 ``` sh
-    ./benchdnn --DRIVER [--engine=ENGINE_KIND] [--mode=MODE] [--reset] \
-               [--max-ms-per-prb=INT] [--fix-times-per-prb=INT] \
-               [-vINT|--verbose=INT] [--fast-ref-gpu=BOOL] \
-               [--skip-impl=SKIP_IMPL] [--allow-unimpl=BOOL] \
-               [--canonical=BOOL] [--mem-check=BOOL] [--scratchpad=SMODE] \
-               [--perf-template=PERF_TEMPLATE] [DRIVER-OPTS] \
-               PROBLEM-DESCRIPTION [--batch=FILE]
+    ./benchdnn --DRIVER
+               [--engine=ENGINE_KIND] \
+               [--mode=MODE] \
+               [--reset] \
+               [--max-ms-per-prb=INT] \
+               [--fix-times-per-prb=INT] \
+               [-vINT|--verbose=INT] \
+               [--fast-ref-gpu=BOOL] \
+               [--skip-impl=SKIP_IMPL] \
+               [--canonical=BOOL] \
+               [--mem-check=BOOL] \
+               [--scratchpad=SMODE] \
+               [--perf-template=PERF_TEMPLATE] \
+               [--batch=FILE] \
+               [DRIVER-OPTS] \
+               PROBLEM-DESCRIPTION
 ```
 
 where:
@@ -61,8 +70,6 @@ where:
             for GPU testing to reduce testing time. Default is `true`.
  - `--skip-impl="str1[:str2]..."` -- skip a specific implementation
             (see dnnl_query_impl_info_str), default `""`.
- - `--allow-unimpl=true|false` -- do not treat unimplemented configuration
-            as an error. Default is `false`.
  - `--canonical=true|false` -- If `true`, print all problem and descriptor
             settings with default values. Default is `false`.
  - `--mem-check=true|false` -- When `true` (the default) a driver checks if
@@ -74,12 +81,13 @@ where:
  - `--perf-template={def [default], csv, CUSTOM_TEMPLATE}` -- A template to
             provide the output for a performance run. Refer to
             [performance report](doc/knobs_perf_report.md) for details.
+ - `--batch=file` -- use options from the given file, can handle any options,
+            including `DRIVER-OPTS` and `PROBLEM-DESCRIPTION`.
  - `DRIVER-OPTS` -- each driver has a customized list of options. Refer to
             the corresponding driver_DRIVER.md for detailed information.
  - `PROBLEM-DESCRIPTION` -- each driver requires a specific problem format.
             Refer to the corresponding driver_DRIVER.md for detailed
             information.
- - `--batch=file` -- use options from the given file, can handle any options.
 
 Returns `0` on success (all tests passed) or non-zero in case of any error.
 

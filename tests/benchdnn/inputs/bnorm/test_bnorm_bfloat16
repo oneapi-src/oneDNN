@@ -3,7 +3,6 @@
 # bfloat16
 --dt=bf16
 --skip-impl=ref
---allow-unimpl=true   # allow unimplemented for bf16 where avx512_core not supported
 
 --inplace=false
 --tag=abx,axb,aBx16b,aBx8b

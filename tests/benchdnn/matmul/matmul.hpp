@@ -70,7 +70,6 @@ struct settings_t {
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
     std::vector<int> bia_mask {2};
     attr_t attr = {};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%name%,%cfg%,%attr%,%DESC%,"

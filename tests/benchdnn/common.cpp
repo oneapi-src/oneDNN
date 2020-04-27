@@ -150,8 +150,7 @@ benchdnn_timer_t &benchdnn_timer_t::operator=(const benchdnn_timer_t &rhs) {
 }
 
 /* result structure */
-const char *state2str(res_state_t state, bool allow_unimpl) {
-    if (state == UNIMPLEMENTED && !allow_unimpl) return "UNIMPLEMENTED_FAILED";
+const char *state2str(res_state_t state) {
     if (state == UNTESTED) return "UNTESTED_FAILED"; // for easier fail search
 
 #define CASE(x) \
@@ -179,10 +178,10 @@ const char *skip_reason2str(skip_reason_t skip_reason) {
     return "SKIP_UNKNOWN";
 }
 
-void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
-        int status, const char *pstr) {
+void parse_result(
+        res_t &res, bool &want_perf_report, int status, const char *pstr) {
     auto &bs = benchdnn_stat;
-    const char *state = state2str(res.state, allow_unimpl);
+    const char *state = state2str(res.state);
 
     switch (res.state) {
         case UNTESTED:
@@ -207,7 +206,7 @@ void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
             assert(status == OK);
             BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             bs.unimplemented++;
-            bs.failed += !allow_unimpl;
+            bs.failed++;
             break;
         case MISTRUSTED:
             assert(status == OK);
