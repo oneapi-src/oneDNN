@@ -39,9 +39,6 @@ using namespace Xbyak;
 
 void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(
         int ur_w, int pad_l, int pad_r, int oc_blocks) {
-    int iw = jcp.iw;
-    int ih = jcp.ih;
-    int id = jcp.id;
     int kw = jcp.kw;
     int stride_w = jcp.stride_w;
     int dilate_w = jcp.dilate_w + 1;
@@ -55,15 +52,8 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(
                                 stride_w));
         for (int ifm2 = 0; ifm2 < ic_blk; ifm2++) {
             for (int jj = jj_start; jj < jj_end; jj++) {
-                size_t inp_off;
-                if (one_of(jcp.src_tag, ncw, nchw, ncdhw))
-                    inp_off = sizeof(float)
-                            * ((size_t)ifm2 * id * ih * iw
-                                    + (ki * dilate_w + jj * stride_w - pad_l));
-                else
-                    inp_off = sizeof(float)
-                            * ((ki * dilate_w + jj * stride_w - pad_l) * ic_blk
-                                    + ifm2);
+                size_t inp_off = get_input_offset(
+                        ifm2, filter_w_to_input(ki, jj, pad_l));
                 vbroadcastss(Ymm(oc_blocks * ur_w + jj),
                         make_safe_addr(aux_reg_input, inp_off, reg_long_offt));
             }
@@ -88,12 +78,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
         int ur_w, int pad_l, int pad_r, int oc_blocks) {
     Label kw_loop;
 
-    int iw = jcp.iw;
-    int ih = jcp.ih;
-    int id = jcp.id;
     int kw = jcp.kw;
-    int stride_w = jcp.stride_w;
-    int dilate_w = jcp.dilate_w + 1;
     int ic_blk = jcp.ic_block;
 
     xor_(ki_iter, ki_iter);
@@ -103,14 +88,8 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
         int jj_end = ur_w;
         for (int ifm2 = 0; ifm2 < ic_blk; ifm2++) {
             for (int jj = jj_start; jj < jj_end; jj++) {
-                size_t inp_off;
-                if (one_of(jcp.src_tag, ncw, nchw, ncdhw))
-                    inp_off = sizeof(float)
-                            * ((size_t)ifm2 * id * ih * iw
-                                    + (jj * stride_w - pad_l));
-                else
-                    inp_off = sizeof(float)
-                            * ((jj * stride_w - pad_l) * ic_blk + ifm2);
+                size_t inp_off = get_input_offset(
+                        ifm2, filter_w_to_input(0, jj, pad_l));
                 vbroadcastss(Ymm(oc_blocks * ur_w + jj),
                         make_safe_addr(aux_reg_input, inp_off, reg_long_offt));
             }
@@ -128,11 +107,7 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
             }
         }
         add(aux_reg_kernel, get_kernel_offset(0, 1, 0));
-        add(aux_reg_input,
-                sizeof(float)
-                        * (one_of(jcp.src_tag, ncw, nchw, ncdhw)
-                                        ? dilate_w
-                                        : ic_blk * dilate_w));
+        add(aux_reg_input, get_input_offset(0, filter_w_to_input(1)));
 
         inc(ki_iter);
         cmp(ki_iter, kw);
@@ -142,19 +117,11 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
 
 void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
         int ur_w, int pad_l, int pad_r, int oc_blocks) {
-    int iw = jcp.iw;
     int kw = jcp.kw;
     int ow = jcp.ow;
     int oh = jcp.oh;
     int od = jcp.od;
-    int dilate_h = jcp.dilate_h + 1;
-    int dilate_w = jcp.dilate_w + 1;
-    int ic_blk = jcp.ic_block;
     int oc_blk = jcp.oc_block;
-    const int inp_mult = one_of(jcp.src_tag, ncw, nchw, ncdhw) ? 1 : ic_blk;
-    const int inp_off = one_of(jcp.src_tag, ncw, nchw, ncdhw)
-            ? dilate_w
-            : ic_blk * dilate_w;
 
     Label init_done, init_first;
 
@@ -240,12 +207,13 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
     {
         if (jcp.kw >= 5 && pad_l == 0 && pad_r == 0) {
             oh_step_nopad(ur_w, pad_l, pad_r, oc_blocks);
-            sub(aux_reg_input, sizeof(float) * kw * inp_off);
-            add(aux_reg_input, sizeof(float) * iw * dilate_h * inp_mult);
+            add(aux_reg_input,
+                    get_input_offset(0, filter_h_to_input(1))
+                            - get_input_offset(0, filter_w_to_input(kw)));
         } else {
             oh_step_unroll_kw(ur_w, pad_l, pad_r, oc_blocks);
             add(aux_reg_kernel, get_kernel_offset(0, kw, 0));
-            add(aux_reg_input, sizeof(float) * iw * dilate_h * inp_mult);
+            add(aux_reg_input, get_input_offset(0, filter_h_to_input(1)));
         }
 
         dec(kj);
@@ -256,9 +224,7 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
     L(skip_kh_loop);
 
     if (jcp.ndims == 5) {
-        add(aux_reg_inp_d,
-                sizeof(float) * (jcp.dilate_d + 1) * jcp.ih * jcp.iw
-                        * inp_mult);
+        add(aux_reg_inp_d, get_input_offset(0, filter_d_to_input(1)));
         add(aux_reg_ker_d, get_kernel_offset(0, jcp.kw * jcp.kh, 0));
 
         dec(reg_ki);
@@ -297,10 +263,8 @@ inline void jit_avx2_conv_fwd_kernel_f32::solve_common(int oc_blocks) {
     int n_oi = jcp.ow / ur_w;
     int iw = jcp.iw;
     int kw = jcp.kw;
-    int ic_blk = jcp.ic_block;
     int oc_blk = jcp.oc_block;
     int str_w = jcp.stride_w;
-    const int inp_mult = one_of(jcp.src_tag, ncw, nchw, ncdhw) ? 1 : ic_blk;
 
     int l_pad = jcp.l_pad;
     int r_pad = nstl::max(0, jcp.r_pad);
@@ -314,7 +278,7 @@ inline void jit_avx2_conv_fwd_kernel_f32::solve_common(int oc_blocks) {
             width_blk_step(ur_w, l_pad, r_pad1, oc_blocks); // "lrpad"
         else
             width_blk_step(ur_w, l_pad, 0, oc_blocks); // "lpad"
-        add(reg_input, sizeof(float) * (ur_w * str_w - l_pad) * inp_mult);
+        add(reg_input, get_input_offset(0, filter_w_to_input(0, ur_w, l_pad)));
         add(reg_output, sizeof(float) * ur_w * oc_blk);
     }
 
@@ -325,7 +289,7 @@ inline void jit_avx2_conv_fwd_kernel_f32::solve_common(int oc_blocks) {
         L(ow_loop);
 
         width_blk_step(ur_w, 0, 0, oc_blocks); // "middle"
-        add(reg_input, sizeof(float) * ur_w * str_w * inp_mult);
+        add(reg_input, get_input_offset(0, filter_w_to_input(0, ur_w)));
         add(reg_output, sizeof(float) * ur_w * oc_blk);
 
         inc(oi_iter);
@@ -335,7 +299,7 @@ inline void jit_avx2_conv_fwd_kernel_f32::solve_common(int oc_blocks) {
 
     if (r_pad1 > 0 && n_oi >= 0) {
         width_blk_step(ur_w, 0, r_pad1, oc_blocks); // "rpad"
-        add(reg_input, sizeof(float) * ur_w * str_w * inp_mult);
+        add(reg_input, get_input_offset(0, filter_w_to_input(0, ur_w)));
         add(reg_output, sizeof(float) * ur_w * oc_blk);
     }
 
