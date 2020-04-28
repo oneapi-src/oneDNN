@@ -195,6 +195,16 @@ private:
         return ur_w - res;
     }
 
+    inline dim_t filter_w_to_ddst(int ki, int oi = 0, int pad_l = 0) {
+        return (oi + pad_l - ki * (jcp.dilate_w + 1)) / jcp.stride_w;
+    }
+
+    inline dim_t get_ddst_offset(int i_oc_block, int i_ow, int i_oc) {
+        dim_t offset = i_oc_block * jcp.od * jcp.oh * jcp.ow * jcp.oc_block
+                + i_ow * jcp.oc_block + i_oc;
+        return sizeof(float) * offset;
+    }
+
     inline dim_t get_dsrc_offset(int i_ic_block, int i_iw) {
         dim_t offset;
         offset = i_ic_block * jcp.id * jcp.ih * jcp.iw * jcp.ic_block

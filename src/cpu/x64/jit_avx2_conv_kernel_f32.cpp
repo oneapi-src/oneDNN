@@ -559,8 +559,6 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
     int kw = jcp.kw;
     int ow = jcp.ow;
 
-    int ic_block = jcp.ic_block;
-    int oc_block = jcp.oc_block;
     int nb_ic_block = jcp.nb_ic_blocking;
     int stride_w = jcp.stride_w;
     int stride_h = jcp.stride_h;
@@ -620,14 +618,10 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
             for (int ofm2 = 0; ofm2 < jcp.oc_block; ofm2++) {
 
                 for (int jj = jj_start; jj < jj_end; jj += stride_w) {
-                    int aux_output_offset
-                            = ((jj + jcp.l_pad - ki * (jcp.dilate_w + 1))
-                                      / stride_w)
-                                    * jcp.oc_block
-                            + ofm2;
+                    int aux_output_offset = get_ddst_offset(
+                            0, filter_w_to_ddst(ki, jj, jcp.l_pad), ofm2);
                     vbroadcastss(Ymm(nb_ic_block * ur_w + jj / stride_w),
-                            ptr[aux_reg_ddst
-                                    + sizeof(float) * aux_output_offset]);
+                            ptr[aux_reg_ddst + aux_output_offset]);
                 }
 
                 for (int ii = 0; ii < nb_ic_block; ii++) {
@@ -641,7 +635,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
             }
         }
         add(aux_reg_kernel, get_kernel_offset(0, 0, stride_h * kw, 0));
-        sub(aux_reg_ddst, sizeof(float) * (jcp.dilate_h + 1) * ow * oc_block);
+        sub(aux_reg_ddst, get_ddst_offset(0, (jcp.dilate_h + 1) * ow, 0));
 
         dec(kj);
         cmp(kj, 0);
@@ -651,7 +645,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
 
     if (jcp.ndims == 5) {
         sub(aux_reg_dst_d,
-                sizeof(float) * (jcp.dilate_d + 1) * jcp.oh * ow * ic_block);
+                get_ddst_offset(0, (jcp.dilate_d + 1) * jcp.oh * ow, 0));
         add(aux_reg_ker_d, get_kernel_offset(0, 0, jcp.kw * jcp.kh, 0));
 
         dec(reg_ki);
@@ -663,8 +657,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
     }
 
     if (one_of(jcp.ndims, 3, 4)) {
-        int ddst_oc_shift
-                = sizeof(float) * jcp.od * jcp.oh * jcp.ow * jcp.oc_block;
+        int ddst_oc_shift = get_ddst_offset(1, 0, 0);
         int kernel_oc_shift = get_kernel_offset(1, 0, 0, 0);
 
         add(aux_reg_ddst_oc_loop, ddst_oc_shift);
@@ -709,7 +702,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::generate() {
     mov(reg_channel, ptr[param1 + GET_OFF(channel)]);
     mov(reg_channel_work, ptr[param1 + GET_OFF(ch_blocks)]);
 
-    int ddst_shift = sizeof(float) * (jcp.ur_w / jcp.stride_w) * jcp.ic_block;
+    int ddst_shift = get_ddst_offset(0, filter_w_to_ddst(0, jcp.ur_w), 0);
     int dsrc_shift = get_dsrc_offset(0, jcp.ur_w);
 
     const int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
