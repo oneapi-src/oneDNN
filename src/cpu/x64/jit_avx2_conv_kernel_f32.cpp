@@ -557,8 +557,6 @@ void jit_avx2_conv_fwd_kernel_f32::init_scratchpad(
 void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
         int ur_w, int l_overflow, int r_overflow) {
     int kw = jcp.kw;
-    int kh = jcp.kh;
-    int kd = jcp.kd;
     int iw = jcp.iw;
     int ih = jcp.ih;
     int id = jcp.id;
@@ -636,21 +634,16 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
                 }
 
                 for (int ii = 0; ii < nb_ic_block; ii++) {
-                    int aux_kernel_offset
-                            = ii * kd * kh * kw * jcp.ic_block * jcp.oc_block
-                            + ki * jcp.ic_block * jcp.oc_block
-                            + ofm2 * jcp.ic_block;
                     vmovups(ymm15,
                             ptr[aux_reg_kernel
-                                    + sizeof(float) * aux_kernel_offset]);
+                                    + get_kernel_offset(0, ii, ki, ofm2)]);
                     for (int jj = jj_start; jj < jj_end; jj += stride_w)
                         vfmadd231ps(Ymm(ur_w * ii + jj),
                                 Ymm(nb_ic_block * ur_w + jj / stride_w), ymm15);
                 }
             }
         }
-        add(aux_reg_kernel,
-                sizeof(float) * stride_h * kw * oc_block * ic_block);
+        add(aux_reg_kernel, get_kernel_offset(0, 0, stride_h * kw, 0));
         sub(aux_reg_ddst, sizeof(float) * (jcp.dilate_h + 1) * ow * oc_block);
 
         dec(kj);
@@ -662,8 +655,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
     if (jcp.ndims == 5) {
         sub(aux_reg_dst_d,
                 sizeof(float) * (jcp.dilate_d + 1) * jcp.oh * ow * ic_block);
-        add(aux_reg_ker_d,
-                sizeof(float) * jcp.kw * jcp.kh * oc_block * ic_block);
+        add(aux_reg_ker_d, get_kernel_offset(0, 0, jcp.kw * jcp.kh, 0));
 
         dec(reg_ki);
         cmp(reg_ki, 0);
@@ -676,8 +668,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
     if (one_of(jcp.ndims, 3, 4)) {
         int ddst_oc_shift
                 = sizeof(float) * jcp.od * jcp.oh * jcp.ow * jcp.oc_block;
-        int kernel_oc_shift = sizeof(float) * jcp.kd * jcp.kh * jcp.kw * jcp.ic
-                * jcp.oc_block;
+        int kernel_oc_shift = get_kernel_offset(1, 0, 0, 0);
 
         add(aux_reg_ddst_oc_loop, ddst_oc_shift);
         add(aux_reg_kernel_oc_loop, kernel_oc_shift);

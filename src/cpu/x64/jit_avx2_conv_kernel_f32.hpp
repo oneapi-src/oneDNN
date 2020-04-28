@@ -194,6 +194,17 @@ private:
 
         return ur_w - res;
     }
+
+    inline dim_t get_kernel_offset(
+            int i_oc_block, int i_ic_block, int ki, int i_oc) {
+        dim_t block_step_size = jcp.ic_block * jcp.oc_block;
+        dim_t ic_block_step_size = jcp.kd * jcp.kh * jcp.kw * block_step_size;
+        dim_t oc_block_step_size = jcp.nb_ic * ic_block_step_size;
+        dim_t offset = i_oc_block * oc_block_step_size
+                + i_ic_block * ic_block_step_size + ki * block_step_size
+                + i_oc * jcp.ic_block;
+        return sizeof(float) * offset;
+    }
 };
 
 struct jit_avx2_conv_bwd_weights_kernel_f32 : public jit_generator {
