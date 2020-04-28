@@ -225,9 +225,13 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     if (p->dir & FLAG_BWD) {
-        SAFE(init_prim(&l, init_pd, engine_tgt_bwd, p, r, FLAG_BWD, const_fpd),
-                WARN);
+        dnnl_primitive_t bwd_p;
+        int status = init_prim(
+                &bwd_p, init_pd, engine_tgt_bwd, p, r, FLAG_BWD, const_fpd);
+        dnnl_primitive_destroy(l);
+        if (status != OK) return status;
         if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+        l = bwd_p;
 
         const_dnnl_primitive_desc_t const_bpd;
         DNN_SAFE(dnnl_primitive_get_primitive_desc(l, &const_bpd), CRIT);

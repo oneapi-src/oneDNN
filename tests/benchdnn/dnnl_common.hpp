@@ -217,11 +217,17 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
     // create 1st engine
     engine.reset(engine_tgt_kind);
 
-    dnnl_primitive_desc_t pd;
-    int status = init_pd_func(engine, p, pd, r, dir, hint);
+    dnnl_primitive_desc_t _pd;
+    dnnl_primitive_t _prim;
+
+    auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(_pd); };
+    auto cleanup_prim = [&]() { dnnl_primitive_destroy(_prim); };
+
+    int status = init_pd_func(engine, p, _pd, r, dir, hint);
     if (status != OK) return status;
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
-    DNN_SAFE(dnnl_primitive_create(prim, pd), WARN);
+
+    DNN_SAFE_CLEAN(dnnl_primitive_create(&_prim, _pd), WARN, cleanup_pd);
 
 #ifdef DNNL_ENABLE_PRIMITIVE_CACHE
     // The idea is to create the requested primitive twice for different engines.
@@ -238,17 +244,21 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
     // TODO: add an internal API to be able to get information about cache hit
     // e.g. bool from_cache = dnnl_primitive_get_cache_hit_state(prim) == true;
     // If from_cache == true then this step can be skipped
-    DNN_SAFE(dnnl_primitive_desc_destroy(pd), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(*prim), CRIT);
+    DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(_pd), WARN, cleanup_prim);
+    DNN_SAFE(dnnl_primitive_destroy(_prim), WARN);
+
     // create 2nd engine
     engine.reset(engine_tgt_kind);
-    init_pd_func(engine, p, pd, r, dir, hint);
+    status = init_pd_func(engine, p, _pd, r, dir, hint);
+    if (status != OK) return status;
+
     // this primitive comes from the cache
-    DNN_SAFE(dnnl_primitive_create(prim, pd), WARN);
+    DNN_SAFE_CLEAN(dnnl_primitive_create(&_prim, _pd), WARN, cleanup_pd);
     // XXX: maybe check if the primitive didn't come from the cache and
     // return FAIL in that case?
 #endif
-    DNN_SAFE(dnnl_primitive_desc_destroy(pd), CRIT);
+    DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(_pd), WARN, cleanup_prim);
+    (*prim) = _prim;
     return OK;
 }
 
