@@ -204,14 +204,15 @@ static inline size_t get_md_hash(const memory_desc_t &md) {
             seed = hash_combine(seed, md.format_desc.rnn_packed_desc.n_parts);
             seed = hash_combine(seed, md.format_desc.rnn_packed_desc.n);
             seed = hash_combine(seed, md.format_desc.rnn_packed_desc.ldb);
-            seed = get_array_hash(seed, md.format_desc.rnn_packed_desc.parts,
-                    DNNL_RNN_MAX_N_PARTS);
-            seed = get_array_hash(seed,
-                    md.format_desc.rnn_packed_desc.part_pack_size,
-                    DNNL_RNN_MAX_N_PARTS);
-            seed = get_array_hash(seed,
-                    md.format_desc.rnn_packed_desc.pack_part,
-                    DNNL_RNN_MAX_N_PARTS);
+            {
+                int n_parts = md.format_desc.rnn_packed_desc.n_parts;
+                seed = get_array_hash(
+                        seed, md.format_desc.rnn_packed_desc.parts, n_parts);
+                seed = get_array_hash(seed,
+                        md.format_desc.rnn_packed_desc.part_pack_size, n_parts);
+                seed = get_array_hash(seed,
+                        md.format_desc.rnn_packed_desc.pack_part, n_parts);
+            }
             seed = hash_combine(
                     seed, md.format_desc.rnn_packed_desc.offset_compensation);
             seed = hash_combine(seed, md.format_desc.rnn_packed_desc.size);
