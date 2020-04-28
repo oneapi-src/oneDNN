@@ -557,9 +557,6 @@ void jit_avx2_conv_fwd_kernel_f32::init_scratchpad(
 void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
         int ur_w, int l_overflow, int r_overflow) {
     int kw = jcp.kw;
-    int iw = jcp.iw;
-    int ih = jcp.ih;
-    int id = jcp.id;
     int ow = jcp.ow;
 
     int ic_block = jcp.ic_block;
@@ -686,9 +683,9 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
     je(no_update_label, T_NEAR);
     for (int ii = 0; ii < nb_ic_block; ii++) {
         for (int jj = 0; jj < ur_w; jj++) {
-            size_t offt = sizeof(float) * ((size_t)ii * id * ih * iw + jj)
-                    * ic_block;
-            vmovups(Ymm(15), make_safe_addr(reg_dsrc, offt, reg_long_offt));
+            vmovups(Ymm(15),
+                    make_safe_addr(
+                            reg_dsrc, get_dsrc_offset(ii, jj), reg_long_offt));
             vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), Ymm(15));
         }
     }
@@ -696,9 +693,8 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
 
     for (int ii = 0; ii < nb_ic_block; ii++)
         for (int jj = 0; jj < ur_w; jj++) {
-            size_t offt = sizeof(float) * ((size_t)ii * id * ih * iw + jj)
-                    * ic_block;
-            vmovups(make_safe_addr(reg_dsrc, offt, reg_long_offt),
+            vmovups(make_safe_addr(
+                            reg_dsrc, get_dsrc_offset(ii, jj), reg_long_offt),
                     Ymm(ur_w * ii + jj));
         }
 }
@@ -714,7 +710,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::generate() {
     mov(reg_channel_work, ptr[param1 + GET_OFF(ch_blocks)]);
 
     int ddst_shift = sizeof(float) * (jcp.ur_w / jcp.stride_w) * jcp.ic_block;
-    int dsrc_shift = sizeof(float) * jcp.ur_w * jcp.oc_block;
+    int dsrc_shift = get_dsrc_offset(0, jcp.ur_w);
 
     const int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
 

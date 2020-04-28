@@ -195,6 +195,13 @@ private:
         return ur_w - res;
     }
 
+    inline dim_t get_dsrc_offset(int i_ic_block, int i_iw) {
+        dim_t offset;
+        offset = i_ic_block * jcp.id * jcp.ih * jcp.iw * jcp.ic_block
+                + i_iw * jcp.ic_block;
+        return sizeof(float) * offset;
+    }
+
     inline dim_t get_kernel_offset(
             int i_oc_block, int i_ic_block, int ki, int i_oc) {
         dim_t block_step_size = jcp.ic_block * jcp.oc_block;
