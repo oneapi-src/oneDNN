@@ -53,14 +53,9 @@ struct memory_storage_t : public c_compatible {
     size_t offset() const { return offset_; }
     void set_offset(size_t offset) { offset_ = offset; }
 
-    virtual status_t map_data(void **mapped_ptr) const {
-        return get_data_handle(mapped_ptr);
-    }
+    virtual status_t map_data(void **mapped_ptr, stream_t *stream) const;
 
-    virtual status_t unmap_data(void *mapped_ptr) const {
-        UNUSED(mapped_ptr);
-        return status::success;
-    }
+    virtual status_t unmap_data(void *mapped_ptr, stream_t *stream) const;
 
     /** returns slice of memory storage
      *

@@ -338,11 +338,11 @@ protected:
 
         std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
         void *scales_ptr = nullptr;
-        CHECK(tmp_mem_storage->map_data(&scales_ptr));
+        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr));
         utils::array_copy((float *)scales_ptr,
                 pd()->attr()->output_scales_.scales_,
                 pd()->attr()->output_scales_.count_);
-        CHECK(tmp_mem_storage->unmap_data(scales_ptr));
+        CHECK(tmp_mem_storage->unmap_data(scales_ptr, nullptr));
         r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
         return status::success;
     }

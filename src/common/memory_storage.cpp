@@ -16,6 +16,7 @@
 
 #include "common/memory_storage.hpp"
 #include "common/memory.hpp"
+#include "common/stream.hpp"
 
 #include <assert.h>
 
@@ -32,6 +33,20 @@ status_t memory_storage_t::init(unsigned flags, size_t size, void *handle) {
 
     assert(flags & memory_flags_t::use_runtime_ptr);
     return set_data_handle(handle);
+}
+
+status_t memory_storage_t::map_data(void **mapped_ptr, stream_t *stream) const {
+    if (stream != nullptr && stream->engine() != engine_)
+        return status::invalid_arguments;
+    return get_data_handle(mapped_ptr);
+}
+
+status_t memory_storage_t::unmap_data(
+        void *mapped_ptr, stream_t *stream) const {
+    UNUSED(mapped_ptr);
+    if (stream != nullptr && stream->engine() != engine_)
+        return status::invalid_arguments;
+    return status::success;
 }
 
 } // namespace impl

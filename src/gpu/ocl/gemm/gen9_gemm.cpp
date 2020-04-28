@@ -493,7 +493,7 @@ status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
     }
 
     void *plan_void = nullptr;
-    temp_buf->map_data(&plan_void);
+    temp_buf->map_data(&plan_void, nullptr);
 
     if (!plan_void) return status::runtime_error;
 
@@ -520,7 +520,7 @@ status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
         j0 += bn * unroll_n;
     }
 
-    temp_buf->unmap_data(plan_void);
+    temp_buf->unmap_data(plan_void, nullptr);
 
     for (int64_t Bk = 0; Bk < k; Bk += block_k) {
         int64_t size_k = k - Bk;

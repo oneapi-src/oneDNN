@@ -94,7 +94,8 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_t {
         else
             return status::unimplemented;
 
-        if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
+        if (pd()->wants_zero_pad_dst())
+            ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
 
         return status::success;
     }

@@ -91,7 +91,8 @@ struct jit_avx512_common_convolution_fwd_t : public primitive_t {
         else
             assert(false);
 
-        if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
+        if (pd()->wants_zero_pad_dst())
+            ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
 
         return status::success;
     }

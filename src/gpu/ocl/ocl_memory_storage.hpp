@@ -44,8 +44,10 @@ public:
         return status::success;
     }
 
-    virtual status_t map_data(void **mapped_ptr) const override;
-    virtual status_t unmap_data(void *mapped_ptr) const override;
+    virtual status_t map_data(
+            void **mapped_ptr, stream_t *stream) const override;
+    virtual status_t unmap_data(
+            void *mapped_ptr, stream_t *stream) const override;
 
     cl_mem mem_object() const { return mem_object_.get(); }
 

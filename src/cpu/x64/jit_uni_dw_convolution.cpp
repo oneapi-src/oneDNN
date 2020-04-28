@@ -106,7 +106,8 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
         kernel_->jit_ker(&par_conv);
     });
 
-    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
+    if (pd()->wants_zero_pad_dst())
+        ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
 }
 
 template struct jit_uni_dw_convolution_fwd_t<avx512_core, data_type::bf16,
