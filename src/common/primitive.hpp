@@ -67,12 +67,11 @@ protected:
             std::shared_ptr<primitive_t> &primitive, const pd_t *pd,
             engine_t *engine, bool use_global_scratchpad,
             bool is_primitive_nested) {
-        const auto print_verbose = [&](int level, bool cache_hit,
-                                           const char *pd_info, double time) {
-            if (level >= 2) {
+        const auto print_verbose = [&](bool cache_hit, double time) {
+            if (get_verbose() >= 2) {
                 const char *str = cache_hit ? "dnnl_verbose,create:cache_hit"
                                             : "dnnl_verbose,create:cache_miss";
-                printf("%s,%s,%g\n", str, pd_info, time);
+                printf("%s,%s,%g\n", str, primitive->pd()->info(engine), time);
                 fflush(0);
             }
         };
@@ -122,7 +121,7 @@ protected:
         }
         primitive = p;
         ms = get_msec() - ms;
-        print_verbose(get_verbose(), cache_hit, p->pd()->info(engine), ms);
+        print_verbose(cache_hit, ms);
         return status;
     }
 
