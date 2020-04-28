@@ -111,6 +111,12 @@ private:
         return sizeof(float) * offset;
     }
 
+    inline dim_t get_output_offset(int i_oc_block, int i_ow) {
+        dim_t offset = i_oc_block * jcp.od * jcp.oh * jcp.ow * jcp.oc_block
+                + i_ow * jcp.oc_block;
+        return sizeof(float) * offset;
+    }
+
     inline dim_t get_kernel_offset(int i_oc_block, int ki, int i_ic) {
         dim_t block_step_size = jcp.ic_block * jcp.oc_block;
         dim_t ic_block_step_size = jcp.kd * jcp.kh * jcp.kw * block_step_size;
