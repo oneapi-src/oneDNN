@@ -68,6 +68,7 @@ private:
 
     /* data regs */
     const Xbyak::Reg64 reg_ptr_scales = rax;
+    const Xbyak::Reg64 aux_reg_saturation = rax;
     const Xbyak::Reg64 reg_inp = r8;
     const Xbyak::Reg64 reg_ker = r9;
     const Xbyak::Reg64 reg_out = r10;
@@ -99,6 +100,7 @@ private:
     const Vmm vmm_wei = Vmm(31);
     /* used during bias section of store_output */
     const Vmm vmm_comp = Vmm(30); // only for signed input
+    const Vmm vmm_saturation = Vmm(30);
     const Vmm vmm_bias = Vmm(31);
     /* used during post_op sum section of store_output */
     const Vmm vmm_prev_dst = Vmm(31);

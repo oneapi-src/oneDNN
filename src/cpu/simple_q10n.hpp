@@ -49,6 +49,16 @@ saturate(const acc_t &x) {
 }
 
 template <typename data_t>
+float saturate(const float &x) {
+    float v = x;
+    float lbound = (float)nstl::numeric_limits<data_t>::lowest();
+    float ubound = (float)nstl::numeric_limits<data_t>::max();
+    if (v < lbound) v = lbound;
+    if (v > ubound) v = ubound;
+    return v;
+}
+
+template <typename data_t>
 double saturate(const double &x) {
     double v = x;
     if (v < (double)nstl::numeric_limits<data_t>::lowest())
@@ -87,14 +97,14 @@ out_round(float v) {
 }
 
 template <typename out_t>
-inline out_t round_and_saturate(float f) {
-    return saturate<out_t>(out_round<int>(f));
+inline out_t saturate_and_round(float f) {
+    return out_round<out_t>(saturate<out_t>(f));
 }
 
 /* Quantization with alpha == 1 and beta == 0 */
 template <typename in_t, typename out_t, typename enabled = void>
 struct qz_a1b0 {
-    out_t operator()(in_t in) { return round_and_saturate<out_t>((float)in); }
+    out_t operator()(in_t in) { return saturate_and_round<out_t>((float)in); }
 };
 
 template <typename in_t, typename out_t>
@@ -114,7 +124,7 @@ struct qz_a1b0<in_t, out_t,
 template <typename in_t, typename out_t>
 struct qz_a1 {
     out_t operator()(in_t in, out_t out, float beta) {
-        return round_and_saturate<out_t>((float)in + beta * out);
+        return saturate_and_round<out_t>((float)in + beta * out);
     }
 };
 
@@ -129,7 +139,7 @@ struct qz_a1<in_t, float> {
 template <typename in_t, typename out_t>
 struct qz_b0 {
     out_t operator()(in_t in, float alpha) {
-        return round_and_saturate<out_t>(alpha * in);
+        return saturate_and_round<out_t>(alpha * in);
     }
 };
 
@@ -142,7 +152,7 @@ struct qz_b0<in_t, float> {
 template <typename in_t, typename out_t>
 struct qz {
     out_t operator()(in_t in, out_t out, float alpha, float beta) {
-        return round_and_saturate<out_t>(alpha * in + (beta ? beta * out : 0));
+        return saturate_and_round<out_t>(alpha * in + (beta ? beta * out : 0));
     }
 };
 

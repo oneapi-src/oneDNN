@@ -77,6 +77,7 @@ private:
     using zmm_t = const Xbyak::Zmm;
     using xmm_t = const Xbyak::Xmm;
 
+    /* data regs */
     reg64_t reg_src = r8;
     reg64_t reg_filt = r9;
     reg64_t reg_dst = r10;
@@ -88,6 +89,7 @@ private:
     reg64_t reg_bias = rdx;
     reg64_t reg_icb = reg_bias;
     reg64_t reg_ptr_scales = rax;
+    reg64_t reg_ptr_saturation_ubound = rax;
     reg64_t reg_oc_blocks = rsi;
 
     reg64_t aux_reg_src = r11;
@@ -108,6 +110,7 @@ private:
     zmm_t zmm_one = zmm_t(29);
     /* used during write-out section of store_output */
     zmm_t zmm_zero = zmm_t(31);
+    zmm_t zmm_saturation = zmm_t(31);
     zmm_t zmm_wei = zmm_t(31);
 
     /* signed input */

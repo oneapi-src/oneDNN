@@ -22,5 +22,9 @@
 --attr=oscale=common:0.025;post_ops='sum:0.5;tanh:0:0:10'
 --mb=2                    --batch=ip_all
 --mb=0                    --batch=shapes_non-spatial
+
+# Test saturation
+--batch=harness_saturation
+
 # bf16
-                          --batch=test_ip_bfloat16
+--batch=test_ip_bfloat16

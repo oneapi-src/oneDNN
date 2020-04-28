@@ -36,7 +36,7 @@ namespace cpu {
 namespace x64 {
 
 using namespace dnnl::impl::utils;
-
+using namespace dnnl::impl::data_type;
 using namespace Xbyak;
 
 void jit_avx2_x8s8s32x_1x1_conv_kernel::cvt2ps(data_type_t type_in,
@@ -243,19 +243,25 @@ void jit_avx2_x8s8s32x_1x1_conv_kernel::reduce_loop(
         if (maybe_eltwise(1))
             eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
 
-        // Zero out ymm_zero register to be used in next loop
-        if (jcp.dst_dt == data_type::u8) vpxor(ymm_zero, ymm_zero, ymm_zero);
+        // Properly saturate the accumulators for integer datatypes
+        if (utils::one_of(jcp.dst_dt, u8, s8, s32)) {
+            init_saturate_f32(ymm_zero, ymm_saturation, aux_reg_saturation, f32,
+                    jcp.dst_dt);
+
+            for (int i_ur = 0; i_ur < ur; ++i_ur)
+                for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                    auto r = vreg_accum(i_load, i_ur);
+                    saturate_f32(r, ymm_zero, ymm_saturation, jcp.dst_dt);
+                    vcvtps2dq(r, r);
+                }
+        }
+
+        /* write out register to output_addr */
         for (int i_ur = 0; i_ur < ur; ++i_ur) {
             for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                 const bool mask_flag
                         = mask_flag_in && i_load == load_loop_blk - 1;
                 auto r = vreg_accum(i_load, i_ur);
-                if (jcp.dst_dt == data_type::u8) {
-                    // Assumption: ymm_zero register is already zeroed!
-                    vmaxps(r, ymm_zero, r);
-                }
-                if (jcp.dst_dt != data_type::f32) vcvtps2dq(r, r);
-
                 store_data(jcp.dst_dt, r, aux_reg_output_data,
                         output_ptr(i_load, i_ur),
                         mask_flag ? get_tail_size() : simd_w);

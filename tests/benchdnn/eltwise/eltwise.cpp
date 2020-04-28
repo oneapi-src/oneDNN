@@ -316,7 +316,6 @@ int fill_data(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
         std::uniform_int_distribution<> igen(0, 10);
         // TODO: 0.09 due to log impl doesn't give good accuracy in 0.99 points
         std::uniform_real_distribution<> fgen(0.f, 0.09f);
-        msr.discard(idx_start);
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             float value = FLT_MAX;

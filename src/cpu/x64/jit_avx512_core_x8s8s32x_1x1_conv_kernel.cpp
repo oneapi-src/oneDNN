@@ -36,7 +36,7 @@ namespace cpu {
 namespace x64 {
 
 using namespace dnnl::impl::utils;
-
+using namespace dnnl::impl::data_type;
 using namespace Xbyak;
 
 template <typename Vmm>
@@ -259,16 +259,22 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
         if (maybe_eltwise(1))
             eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
 
-        // Zero out vmm_zero register to be used in the next loop
-        if (jcp.dst_dt == data_type::u8) vpxord(vmm_zero, vmm_zero, vmm_zero);
+        // Properly saturate the accumulators for integer datatypes
+        if (one_of(jcp.dst_dt, u8, s8, s32)) {
+            init_saturate_f32(vmm_zero, vmm_saturation,
+                    reg_ptr_saturation_ubound, f32, jcp.dst_dt);
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                for (int i_ur = 0; i_ur < ur; ++i_ur) {
+                    auto r = vreg_accum(i_load, i_ur);
+                    saturate_f32(r, vmm_zero, vmm_saturation, jcp.dst_dt);
+                    vcvtps2dq(r, r);
+                }
+            }
+        }
 
+        // store to the destination
         for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
             const bool mask_flag = mask_flag_in && i_load == load_loop_blk - 1;
-            for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                auto r = vreg_accum(i_load, i_ur);
-                if (jcp.dst_dt == data_type::u8) vmaxps(r, vmm_zero, r);
-                if (jcp.dst_dt != data_type::f32) vcvtps2dq(r, r);
-            }
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 auto r = vreg_accum(i_load, i_ur);
                 const Vmm r_vmm = mask_flag ? r | ktail_mask : r;

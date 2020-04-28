@@ -20,6 +20,7 @@
 #include <limits.h>
 
 #include "common/bit_cast.hpp"
+#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
 #include "cpu/x64/cpu_isa_traits.hpp"
@@ -884,6 +885,50 @@ public:
             p++;
         }
         mov(out, tmp);
+    }
+
+    /*
+      Saturation facility functions. enable to prepare the register
+      holding the saturation upperbound and apply the saturation on
+      the floating point register
+     */
+    template <typename Vmm>
+    void init_saturate_f32(Vmm vmm_lbound, Vmm vmm_ubound, Xbyak::Reg64 reg_tmp,
+            data_type_t idt, data_type_t odt) {
+        using namespace data_type;
+        assert(vmm_lbound.getIdx() != vmm_ubound.getIdx());
+        if (!((idt == f32) && utils::one_of(odt, u8, s8, s32))) return;
+
+        // No need to saturate on lower bound for signed integer types, as
+        // the conversion to int would return INT_MIN, and then proper
+        // saturation will happen in store_data
+        if (odt == u8) uni_vpxor(vmm_lbound, vmm_lbound, vmm_lbound);
+
+        Xbyak::Xmm tmp(vmm_ubound.getIdx());
+        float saturation_ubound = types::max_value<float>(odt);
+        mov(reg_tmp, float2int(saturation_ubound));
+        vmovq(tmp, reg_tmp);
+        if (vmm_ubound.isYMM() || vmm_ubound.isZMM())
+            vbroadcastss(vmm_ubound, tmp);
+        else
+            vshufps(vmm_ubound, tmp, tmp, 0);
+    }
+
+    template <typename Vmm>
+    void saturate_f32(const Vmm &vmm, const Vmm &vmm_lbound,
+            const Vmm &vmm_ubound, data_type_t odt) {
+        // This function is used to saturate to odt in f32 before converting
+        // to s32 in order to avoid bad saturation due to cvtps2dq
+        // behavior (it returns INT_MIN if the f32 is out of the
+        // s32 range)
+        using namespace data_type;
+        if (!utils::one_of(odt, u8, s8, s32)) return;
+
+        // no need to apply lower saturation bound when odt is
+        // signed, as cvtps2dq will return MIN_INT if the value
+        // does not fit
+        if (odt == u8) vmaxps(vmm, vmm, vmm_lbound);
+        vminps(vmm, vmm, vmm_ubound);
     }
 
     /**

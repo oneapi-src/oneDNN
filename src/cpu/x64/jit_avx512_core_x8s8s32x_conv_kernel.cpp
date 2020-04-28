@@ -32,6 +32,7 @@ namespace x64 {
 
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
+using namespace dnnl::impl::data_type;
 using namespace Xbyak;
 
 namespace {
@@ -202,18 +203,22 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
     }
     if (maybe_eltwise(1)) compute_eltwise(ur_w);
 
-    // Zero out vmm_zero register to be used in the next loop
-    if (jcp.dst_dt == data_type::u8) vpxord(vmm_zero, vmm_zero, vmm_zero);
+    // Properly saturate the accumulators for integer datatypes
+    if (one_of(jcp.dst_dt, u8, s8, s32)) {
+        init_saturate_f32(
+                vmm_zero, vmm_saturation, aux_reg_saturation, f32, jcp.dst_dt);
+        for (int k = 0; k < nb_oc_block; k++) {
+            for (int j = 0; j < ur_w; j++) {
+                Vmm vmm = vmm_out(j, k);
+                saturate_f32(vmm, vmm_zero, vmm_saturation, jcp.dst_dt);
+                vcvtps2dq(vmm, vmm);
+            }
+        }
+    }
 
     /* write out register to output_addr */
     for (int k = 0; k < nb_oc_block; k++) {
         const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
-        for (int j = 0; j < ur_w; j++) {
-            Vmm vmm = vmm_out(j, k);
-            if (jcp.dst_dt == data_type::u8) vmaxps(vmm, vmm_zero, vmm);
-            if (jcp.dst_dt != data_type::f32) vcvtps2dq(vmm, vmm);
-        }
-
         for (int j = 0; j < ur_w; j++) {
             int aux_output_offset = jcp.typesize_out
                     * (k * oc_block + j * jcp.oc_without_padding * jcp.ngroups);

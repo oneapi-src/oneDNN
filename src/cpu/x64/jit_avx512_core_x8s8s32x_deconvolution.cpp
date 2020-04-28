@@ -734,16 +734,48 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::store_output(
     }
     if (maybe_eltwise(1)) compute_eltwise(ur_w);
 
-    for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
-        const bool mask_flag = last_oc_block && ocb == jcp.nb_oc_blocking - 1;
-        for (int ur = 0; ur < ur_w; ur++) {
-            zmm_t zmm = zmm_out(ur, ocb);
-            if (jcp.dst_dt == data_type::u8) {
-                vpxord(zmm_zero, zmm_zero, zmm_zero);
+    // Properly saturate the accumulators for integer datatypes
+
+    // No need to saturate on lower bound for signed integer types, as
+    // the conversion to int would return INT_MIN, and then proper
+    // saturation will happen when storing data
+    if (jcp.dst_dt == data_type::u8) {
+        vpxord(zmm_zero, zmm_zero, zmm_zero);
+        for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
+            for (int ur = 0; ur < ur_w; ur++) {
+                zmm_t zmm = zmm_out(ur, ocb);
                 vmaxps(zmm, zmm_zero, zmm);
             }
-            if (jcp.dst_dt != data_type::f32) vcvtps2dq(zmm, zmm);
         }
+    }
+
+    if (one_of(jcp.dst_dt, data_type::u8, data_type::s8, data_type::s32)) {
+        float saturation_ubound = types::max_value<float>(jcp.dst_dt);
+        Xmm xmm_saturation(zmm_saturation.getIdx());
+        mov(reg_ptr_saturation_ubound, float2int(saturation_ubound));
+        vmovq(xmm_saturation, reg_ptr_saturation_ubound);
+        vbroadcastss(zmm_saturation, xmm_saturation);
+
+        for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
+            for (int ur = 0; ur < ur_w; ur++) {
+                zmm_t zmm = zmm_out(ur, ocb);
+                vminps(zmm, zmm, zmm_saturation);
+            }
+        }
+    }
+
+    if (one_of(jcp.dst_dt, data_type::u8, data_type::s8, data_type::s32)) {
+        for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
+            for (int ur = 0; ur < ur_w; ur++) {
+                zmm_t zmm = zmm_out(ur, ocb);
+                vcvtps2dq(zmm, zmm);
+            }
+        }
+    }
+
+    /* write out register to output_addr */
+    for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
+        const bool mask_flag = last_oc_block && ocb == jcp.nb_oc_blocking - 1;
         for (int ur = 0; ur < ur_w; ur++) {
             int aux_dst_off = jcp.typesize_out
                     * (ur * jcp.ngroups * jcp.oc_without_padding

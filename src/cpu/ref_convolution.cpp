@@ -454,7 +454,7 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
                     a += ker(g, mb, ic, id, ih, iw);
                 maybe_oscale(a, g, ic);
                 if (is_int_conv)
-                    diff_src[ds_idx] = round_and_saturate<diff_src_data_t>(a);
+                    diff_src[ds_idx] = saturate_and_round<diff_src_data_t>(a);
                 else
                     diff_src[ds_idx] = saturate<diff_src_data_t>(a);
             });
@@ -617,7 +617,7 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
             ker_bias(db, g, oc);
             if (is_int_conv)
                 diff_bias[diff_bias_d.off(g * OC + oc)]
-                        = round_and_saturate<diff_wei_data_t>(db);
+                        = saturate_and_round<diff_wei_data_t>(db);
             else
                 diff_bias[diff_bias_d.off(g * OC + oc)]
                         = saturate<diff_wei_data_t>(db);
@@ -646,7 +646,7 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
             else
                 assert(false);
             if (is_int_conv)
-                diff_weights[idx] = round_and_saturate<diff_wei_data_t>(dw);
+                diff_weights[idx] = saturate_and_round<diff_wei_data_t>(dw);
             else
                 diff_weights[idx] = saturate<diff_wei_data_t>(dw);
         }

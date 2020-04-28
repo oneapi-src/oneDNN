@@ -172,18 +172,47 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_output(
     }
     if (maybe_eltwise(1)) compute_eltwise(ur_w);
 
-    // Zero out vmm_zero register to be used in the next loop
-    if (jcp.dst_dt == data_type::u8) vpxor(vmm_zero, vmm_zero, vmm_zero);
+    // Properly saturate the accumulators for integer datatypes
+
+    // No need to saturate on lower bound for signed integer types, as
+    // the conversion to int would return INT_MIN, and then proper
+    // saturation will happen in store_data
+    if (jcp.dst_dt == data_type::u8) {
+        vpxor(vmm_zero, vmm_zero, vmm_zero);
+        for (int k = 0; k < nb_oc_block; ++k) {
+            for (int j = 0; j < ur_w; ++j) {
+                Vmm vmm = vmm_out(j, k);
+                vmaxps(vmm, vmm, vmm_zero);
+            }
+        }
+    }
+    if (utils::one_of(
+                jcp.dst_dt, data_type::u8, data_type::s8, data_type::s32)) {
+        float saturation_ubound = types::max_value<float>(jcp.dst_dt);
+        Xmm xmm_saturation(vmm_saturation.getIdx());
+        mov(reg_ptr_saturation_ubound, float2int(saturation_ubound));
+        vmovq(xmm_saturation, reg_ptr_saturation_ubound);
+        vbroadcastss(vmm_saturation, xmm_saturation);
+
+        for (int k = 0; k < nb_oc_block; ++k) {
+            for (int j = 0; j < ur_w; ++j) {
+                Vmm vmm = vmm_out(j, k);
+                vminps(vmm, vmm, vmm_saturation);
+            }
+        }
+    }
+
+    // Convert float accumulators to int datatype if needed
+    if (utils::one_of(jcp.dst_dt, data_type::u8, data_type::s8, data_type::s32))
+        for (int k = 0; k < nb_oc_block; ++k)
+            for (int j = 0; j < ur_w; ++j) {
+                Vmm vmm = vmm_out(j, k);
+                vcvtps2dq(vmm, vmm);
+            }
 
     /* write out register to output_addr */
     for (int k = 0; k < nb_oc_block; ++k) {
         const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
-        for (int j = 0; j < ur_w; ++j) {
-            Vmm vmm = vmm_out(j, k);
-            if (jcp.dst_dt == data_type::u8) vmaxps(vmm, vmm_zero, vmm);
-            if (jcp.dst_dt != data_type::f32) vcvtps2dq(vmm, vmm);
-        }
-
         for (int j = 0; j < ur_w; ++j) {
             Vmm r_vmm = vmm_out(j, k);
             int aux_output_offset = jcp.typesize_out

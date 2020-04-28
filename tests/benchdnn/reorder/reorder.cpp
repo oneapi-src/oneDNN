@@ -223,8 +223,12 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_ref,
                            attr_t::post_ops_t::kind_t::SUM)
                         == -1;
 
-        bool mistrusted = reg == 0 || (check_inf_p && inf_p == 0)
+        bool mistrusted = (check_inf_p && inf_p == 0)
                 || (check_inf_n && inf_n == 0) || (check_zeros && zeros == 0);
+
+        bool expect_regular = max_scale < 2e9 || dt_out == dnnl_f32;
+        if (expect_regular) mistrusted = mistrusted || reg == 0;
+
         if (mistrusted) r->state = MISTRUSTED;
     }
 

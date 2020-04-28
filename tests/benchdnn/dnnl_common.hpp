@@ -156,11 +156,12 @@ inline float epsilon_dt(dnnl_data_type_t dt) {
 
 template <dnnl_data_type_t dt>
 inline float saturate(float val) {
-    return MAX2((float)dnnl::impl::nstl::numeric_limits<
-                        typename prec_traits<dt>::type>::lowest(),
+    auto res = MAX2((float)dnnl::impl::nstl::numeric_limits<
+                            typename prec_traits<dt>::type>::lowest(),
             MIN2((float)dnnl::impl::nstl::numeric_limits<
                          typename prec_traits<dt>::type>::max(),
-                    mxcsr_round(val)));
+                    val));
+    return mxcsr_round(res);
 }
 
 inline float maybe_saturate(dnnl_data_type_t dt, float value) {

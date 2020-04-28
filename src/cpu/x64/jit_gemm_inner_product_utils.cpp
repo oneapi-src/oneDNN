@@ -86,9 +86,12 @@ private:
     Xbyak::Reg64 reg_oc_offset = r9;
     Xbyak::Reg64 reg_rem_mask = r10;
     Xbyak::Opmask kreg_rem_mask = k1;
+    // register used for temp computation, needs not to be preserved
+    Xbyak::Reg64 reg_tmp_comp = r15;
 
     // Will be assigned in constructor
-    Xbyak::Zmm vreg_zero, vreg_scale, vreg_sum_scale, vreg_dst_zero_points;
+    Xbyak::Zmm vreg_zero, vreg_saturation_ubound, vreg_scale, vreg_sum_scale,
+            vreg_dst_zero_points;
 
     Xbyak::Reg64 eltwise_reserved_1_ = r11;
     Xbyak::Opmask eltwise_reserved_2_ = k2;
@@ -139,6 +142,8 @@ jit_pp_kernel_t<acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
     if (this->do_scale_) vreg_scale = Zmm(idx_compute_vreg_start_++);
 
     if (dst_type == data_type::u8) vreg_zero = Zmm(idx_compute_vreg_start_++);
+    if (utils::one_of(dst_type, data_type::u8, data_type::s8, data_type::s32))
+        vreg_saturation_ubound = Zmm(idx_compute_vreg_start_++);
 
     if (this->do_sum_) {
         vreg_sum_scale = Zmm(idx_compute_vreg_start_++);
@@ -261,10 +266,10 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
         if (this->do_dst_zero_points_)
             vaddps(vreg_dst_, vreg_dst_, vreg_dst_zero_points);
 
-        if (dst_type == data_type::u8) vmaxps(vreg_dst_, vreg_dst_, vreg_zero);
-
         if (utils::one_of(
-                    dst_type, data_type::s8, data_type::u8, data_type::s32)) {
+                    dst_type, data_type::u8, data_type::s8, data_type::s32)) {
+            saturate_f32(
+                    vreg_dst_, vreg_zero, vreg_saturation_ubound, dst_type);
             vcvtps2dq(vreg_dst_, vreg_dst_);
         } else if (dst_type == data_type::bf16) {
             if (isa_ == avx512_core_bf16)
@@ -471,9 +476,13 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_mb_blk() {
 
         switch (dst_type) {
             case data_type::f32: break;
-            case data_type::u8: vmaxps(zmm_dst, zmm_dst, vreg_zero);
+            case data_type::u8:
             case data_type::s8:
-            case data_type::s32: vcvtps2dq(zmm_dst, zmm_dst); break;
+            case data_type::s32:
+                saturate_f32(
+                        zmm_dst, vreg_zero, vreg_saturation_ubound, dst_type);
+                vcvtps2dq(zmm_dst, zmm_dst);
+                break;
             case data_type::bf16:
                 if (isa_ == avx512_core_bf16)
                     vcvtneps2bf16(Ymm(zmm_dst.getIdx()), zmm_dst);
@@ -616,7 +625,8 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
         vbroadcastss(vreg_sum_scale, xreg_sum_scale);
     }
 
-    if (dst_type == data_type::u8) vxorps(vreg_zero, vreg_zero, vreg_zero);
+    init_saturate_f32(vreg_zero, vreg_saturation_ubound, reg_tmp_comp,
+            data_type::f32, dst_type);
 
     // at least 2 blocks of mb within vlen
     bool dim_restrict = !this->runtime_oc() && !this->runtime_mb()
