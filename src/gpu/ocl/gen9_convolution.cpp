@@ -1062,6 +1062,10 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
+    if (!math::eltwise_fwd_preserves_zero(
+                conf.eltwise.alg, conf.eltwise.alpha, conf.eltwise.beta)) {
+        ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
+    }
     return status;
 }
 

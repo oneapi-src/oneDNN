@@ -430,8 +430,8 @@ inline void set_default_pool_conf(pool_conf_t &conf, const pooling_desc_t &desc,
     const memory_desc_wrapper src_mdw(src_md);
     const memory_desc_wrapper dst_mdw(dst_md);
 
-    const auto &src_dims = src_mdw.padded_dims();
-    const auto &dst_dims = dst_mdw.padded_dims();
+    const auto &src_dims = src_mdw.dims();
+    const auto &dst_dims = dst_mdw.dims();
 
     int ndims = src_mdw.ndims();
     conf.ndims = ndims;
@@ -669,8 +669,8 @@ inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int(utils::format("%s_NDIMS", prefix), md_info.ndims);
 
     for (int d = 0; d < MAX_NDIMS; ++d) {
-        int dim = (d < md_info.ndims) ? md_info.dims[d] : 0;
-        int padded_dim = (d < md_info.ndims) ? md_info.padded_dims[d] : 0;
+        int dim = (d < md_info.ndims) ? md_info.dims[d] : 1;
+        int padded_dim = (d < md_info.ndims) ? md_info.padded_dims[d] : 1;
         kernel_ctx.define_int(utils::format("%s_D%d", prefix, d), dim);
         kernel_ctx.define_int(utils::format("%s_PD%d", prefix, d), padded_dim);
 
