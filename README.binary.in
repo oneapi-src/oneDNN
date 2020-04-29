@@ -9,32 +9,32 @@ for Intel Architecture Processors and Intel Processor Graphics.
 This package contains oneDNN v@PROJECT_VERSION@ (@DNNL_VERSION_HASH@).
 
 You can find information about the latest version and release notes
-at oneDNN Github (https://github.com/oneapi-src/oneDNN/releases).
+at the oneDNN Github (https://github.com/oneapi-src/oneDNN/releases).
 
 Documentation
 -------------
 
 * Developer guide (https://oneapi-src.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@)
-explains programming model, supported functionality, details of primitives
-implementations and includes annotated examples.
+  explains the programming model, supported functionality, and implementation
+  details, and includes annotated examples.
 * API reference (https://oneapi-src.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@/modules.html)
-provides comprehensive reference of the library API.
+provides a comprehensive reference of the library API.
 
 System Requirements
 -------------------
 
-oneDNN supports systems based on Intel 64 or AMD64 architecture.
+oneDNN supports systems based on Intel 64 or AMD64 architectures.
 
 The library is optimized for the following CPUs:
 * Intel Atom processor with Intel SSE4.1 support
-* 4th, 5th, 6th, 7th, and 8th generation Intel Core(TM) processor
-* Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
+* 4th, 5th, 6th, 7th, and 8th generation Intel(R) Core(TM) processor
+* Intel(R) Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
-* Intel Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
+* Intel(R) Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
 * Intel Xeon Scalable processor (formerly Skylake and Cascade Lake)
 * future Intel Xeon Scalable processor (code name Cooper Lake)
 
-oneDNN detects instruction set architecture (ISA) in the runtime and uses
+oneDNN detects the instruction set architecture (ISA) at runtime and uses
 just-in-time (JIT) code generation to deploy the code optimized
 for the latest supported ISA.
 
@@ -46,41 +46,45 @@ The library is optimized for the following GPUs:
 ## Linux
 
 Common dependencies:
-* glibc 2.12 or later
-* GCC 4.8 or later
+* GNU C Library (libc.so) 2.12 or later
+* GNU Standard C++ Library v3 (libstdc++.so) compatible with GCC 4.8 or later
+* Dynamic Linking Library (libdl.so)
+* C Math Library (libm.so)
+* POSIX Threads Library (libpthread.so)
 
 Runtime specific dependencies:
 
-| Runtime configuration | Requirements                                         |
-| --------------------- | ---------------------------------------------------- |
-| `cpu_gomp`            | No additional requirements                           |
-| `cpu_iomp`            | Intel OpenMP runtime                                 |
-| `cpu_tbb`             | Threading Building Blocks 2017 or later              |
+| Runtime configuration | Dependency                                |
+| --------------------- | ----------------------------------------- |
+| cpu_gomp              | GNU OpenMP runtime (libgomp.so)           |
+| cpu_iomp              | Intel OpenMP runtime (libiomp5.so)        |
+| cpu_tbb               | TBB 2017 Update 2 or later (libtbb.so)    |
 
 ## Windows
 
 Common dependencies:
-* Microsoft Visual C++ Redistributable 2015 or later
+* Microsoft Visual C++ Redistributable 2015 or later (msvcrt.dll)
 
 Runtime specific dependencies:
 
-| Runtime configuration | Requirements                                         |
-| --------------------- | -----------------------------------------------------|
-| `cpu_vcomp`           | No additional requirements                           |
-| `cpu_iomp`            | Intel OpenMP runtime                                 |
-| `cpu_tbb`             | Threading Building Blocks 2017 or later              |
+| Runtime configuration | Dependency                                |
+| --------------------- | ----------------------------------------- |
+| cpu_vcomp             | No additional dependencies                |
+| cpu_iomp              | Intel OpenMP runtime                      |
+| cpu_tbb               | TBB 2017 Update 2 or later (libtbb.so)    |
 
 ## macOS
 
 Common dependencies:
-* macOS 10.13 (High Sierra) or later
+* System C/C++ runtime (libc++.dylib, libSystem.dylib) compatible with
+  macOS 10.13 (High Sierra) or later
 
 Runtime specific dependencies:
 
-| Runtime configuration | Requirements                                         |
-| --------------------- | -----------------------------------------------------|
-| `cpu_iomp`            | Intel OpenMP runtime                                 |
-| `cpu_tbb`             | Threading Building Blocks 2017 or later              |
+| Runtime configuration | Dependency                                |
+| --------------------- | ----------------------------------------- |
+| cpu_iomp              | Intel OpenMP runtime (libiomp5.dylib)     |
+| cpu_tbb               | TBB 2017 Update 2 or later (libtbb.dylib) |
 
 Support
 -------
@@ -88,7 +92,8 @@ Support
 Please submit your questions, feature requests, and bug reports on the
 GitHub issues page (https://github.com/oneapi-src/oneDNN/issues/new/choose).
 
-You may reach out to project maintainers privately at dnnl.maintainers@intel.com.
+You may reach out to project maintainers privately at
+dnnl.maintainers@intel.com.
 
 License
 -------
@@ -117,16 +122,16 @@ govern your use of the third party programs as set forth in the
 # Trademark Information
 
 Intel, the Intel logo, Intel Atom, Intel Core, Intel Xeon Phi, Iris, OpenVINO,
-the OpenVINO logo, Pentium, VTune, and Xeon are trademarks of Intel Corporation
-or its subsidiaries.
+the OpenVINO logo, Pentium, VTune, and Xeon are trademarks
+of Intel Corporation or its subsidiaries.
 
 * Other names and brands may be claimed as the property of others.
 
 Microsoft, Windows, and the Windows logo are trademarks, or registered
-trademarks of Microsoft Corporation in the United States and/or other countries.
+trademarks of Microsoft Corporation in the United States and/or other
+countries.
 
 OpenCL and the OpenCL logo are trademarks of Apple Inc. used by permission
 by Khronos.
 
 (C) Intel Corporation
-

@@ -3,8 +3,7 @@ oneAPI Deep Neural Network Library (oneDNN)
 
 > This software was previously known as
 > **Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)**
-> and
-> **Deep Neural Network Library (DNNL)**.
+> and **Deep Neural Network Library (DNNL)**.
 
 > With the launch of [oneAPI](https://www.oneapi.com/) we changed the project
 > name and repository location to be consistent with the rest of oneAPI
@@ -45,15 +44,16 @@ applications enabled with oneDNN:
 # Documentation
 
 * [Developer guide](https://oneapi-src.github.io/oneDNN) explains programming
-model, supported functionality, implementation details, and
-includes annotated examples.
+  model, supported functionality, and implementation details, and
+  includes annotated examples.
 * [API reference](https://oneapi-src.github.io/oneDNN/modules.html) provides
-comprehensive reference of the library API.
+  a comprehensive reference of the library API.
 
 # Installation
 
-Pre-built binaries for Linux\*, Windows\*, and macOS\* are available for download
-in the [releases section](https://github.com/oneapi-src/oneDNN/releases). Package
+Pre-built binaries for Linux\*, Windows\*, and macOS\* are available
+for download in the
+[releases section](https://github.com/oneapi-src/oneDNN/releases). Package
 names use the following convention:
 
 | OS      | Package name
@@ -86,8 +86,7 @@ If the configuration you need is not available, you can
 
 oneDNN supports platforms based on the following architectures:
 - [Intel 64 or AMD64](https://en.wikipedia.org/wiki/X86-64),
-- [Arm 64-bit Architecture (AArch64)](
-        https://developer.arm.com/architectures/cpu-architecture/a-profile).
+- [Arm 64-bit Architecture (AArch64)](https://developer.arm.com/architectures/cpu-architecture/a-profile).
 
 > **WARNING**
 >
@@ -125,8 +124,8 @@ oneDNN supports systems meeting the following requirements:
 * Operating system with Intel 64 architecture support
 * C++ compiler with C++11 standard support
 * [CMake](https://cmake.org/download/) 2.8.11 or later
-* [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later to build
-documentation
+* [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
+  to build the documentation
 
 Configurations of CPU and GPU engines may introduce additional build time
 dependencies.
@@ -140,7 +139,8 @@ devices.
 The CPU engine is built by default and cannot be disabled at build time. The
 engine can be configured to use the OpenMP or TBB threading runtime. The
 following additional requirements apply:
-* OpenMP runtime requires C++ compiler with OpenMP 2.0 or later standard support
+* OpenMP runtime requires C++ compiler with OpenMP 2.0 or later
+  standard support
 * TBB runtime requires
 [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
 2017 or later.
@@ -166,7 +166,8 @@ and specific versions are defined by the build environment.
 #### Linux
 
 Common dependencies:
-* System C/C++ runtime (`libc.so`, `libstdc++.so`)
+* GNU C Library (`libc.so`)
+* GNU Standard C++ Library v3 (`libstd++.so`)
 * Dynamic Linking Library (`libdl.so`)
 * C Math Library (`libm.so`)
 * POSIX Threads Library (`libpthread.so`)
@@ -230,8 +231,10 @@ GPU engine was validated on Ubuntu\* 18.04 with
 * Clang 3.8.1
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
   19.0
-* [Intel SDK for OpenCL applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3
-* [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases) 19.37.14191
+* [Intel SDK for OpenCL applications](https://software.intel.com/en-us/intel-opencl)
+  2019 Update 3
+* [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases)
+  19.37.14191
 
 on Windows Server 2019 with
 * Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
@@ -249,7 +252,8 @@ See README included into corresponding binary package.
 Please submit your questions, feature requests, and bug reports on the
 [GitHub issues](https://github.com/oneapi-src/oneDNN/issues) page.
 
-You may reach out to project maintainers privately at dnnl.maintainers@intel.com.
+You may reach out to project maintainers privately
+at dnnl.maintainers@intel.com.
 
 # Contributing
 
@@ -301,16 +305,16 @@ govern your use of the third party programs as set forth in the
 # Trademark Information
 
 Intel, the Intel logo, Intel Atom, Intel Core, Intel Xeon Phi, Iris, OpenVINO,
-the OpenVINO logo, Pentium, VTune, and Xeon are trademarks of Intel Corporation
-or its subsidiaries.
+the OpenVINO logo, Pentium, VTune, and Xeon are trademarks
+of Intel Corporation or its subsidiaries.
 
 \* Other names and brands may be claimed as the property of others.
 
 Microsoft, Windows, and the Windows logo are trademarks, or registered
-trademarks of Microsoft Corporation in the United States and/or other countries.
+trademarks of Microsoft Corporation in the United States and/or other
+countries.
 
 OpenCL and the OpenCL logo are trademarks of Apple Inc. used by permission
 by Khronos.
 
 (C) Intel Corporation
-
