@@ -17,7 +17,7 @@ where *binary-knobs* are:
  - `--alg={ADD [default], MUL, MAX, MIN}` -- algorithm for binary operations.
             Refer to ``doc/primitives/binary.md`` for details.
  - `--attr="attr_str"` -- primitive attributes. The default is `""` (no
-            attributes). Refer to knobs_attr.md for details.
+            attributes). Refer to [attributes](knobs_attr.md) for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
             Default is `true`.

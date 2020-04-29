@@ -19,7 +19,7 @@ where *ip-knobs* are:
  - `--dtag={any [default], ...}` -- physical dst memory layout.
             Refer to the common glossary in README.md for details.
  - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
-            Refer to knobs_attr.md for details.
+            Refer to [attributes](knobs_attr.md) for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.

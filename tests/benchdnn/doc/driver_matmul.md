@@ -21,7 +21,7 @@ where *matmul-knobs* are:
  - `--runtime_n=BOOL` -- specify whether `n` dimension is a run-time parameter.
  - `--runtime_k=BOOL` -- specify whether `k` dimension is a run-time parameter.
  - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
-            Refer to knobs_attr.md for details.
+            Refer to [attributes](knobs_attr.md) for details.
  - `--bia_dt={undef [default], f32, s32, s8, u8}` -- bias data type.
             To run MatMul without bias, use `undef` data type (default).
             Refer to the common glossary in README.md for details.

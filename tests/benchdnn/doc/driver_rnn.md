@@ -15,7 +15,7 @@ where *rnn-knobs* are:
  - `--direction={left2right [default], right2left, concat, sum}` -- TBA.
  - `--activation={RELU [default], LOGISTIC, TANH}` -- TBA.
  - `--scaling="scale_str"` -- RNN scaling policy, default `""` (no scaling).
-            Refer to knobs_attr.md for details.
+            Refer to [attributes](knobs_attr.md) for details.
  - `--trivial-strides={true, false [default]}` -- specify if input
    tensors should have trivial strides (each tensor stride is the
    product of the previous dimensions) or not.
