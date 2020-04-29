@@ -9939,7 +9939,7 @@ struct binary : public primitive {
         /// Outputs:
         ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
         ///
-        /// @param algorithm Elementwise algorithm.
+        /// @param algorithm Elementwise binary algorithm.
         /// @param src0 Memory descriptor for source tensor #0.
         /// @param src1 Memory descriptor for source tensor #1.
         /// @param dst Memory descriptor for destination tensor.

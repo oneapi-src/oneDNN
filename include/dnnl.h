@@ -1234,8 +1234,8 @@ dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
 ///  - `dst` (#dnnl_query_dst_md, `0`)
 ///
 /// @param binary_desc Output descriptor for a binary primitive.
-/// @param alg_kind Algorithm kind. Valid values are #dnnl_binary_add and
-///     #dnnl_binary_mul.
+/// @param alg_kind Algorithm kind. Valid values are #dnnl_binary_add,
+///     #dnnl_binary_mul, #dnnl_binary_max and #dnnl_binary_min.
 /// @param src0_desc Source 0 memory descriptor.
 /// @param src1_desc Source 1 memory descriptor.
 /// @param dst_desc Destination memory descriptor.
