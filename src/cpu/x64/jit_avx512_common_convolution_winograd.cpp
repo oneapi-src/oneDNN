@@ -638,8 +638,8 @@ void diff_src_transform_bwd_weights(int image,
 
     const int ifwp = conv.iw + conv.l_pad;
     const int ifhp = conv.ih + conv.t_pad;
-    float I[alpha][alpha][simd_w];
-    float Iw[alpha][alpha][simd_w];
+    alignas(64) float I[alpha][alpha][simd_w];
+    alignas(64) float Iw[alpha][alpha][simd_w];
 
     array_offset_calculator<float, 4> Iw_trans_temp(
             Iw_temp, alpha, alpha, conv.tile_4fma, simd_w);

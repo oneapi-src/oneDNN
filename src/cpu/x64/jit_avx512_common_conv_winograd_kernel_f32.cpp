@@ -248,9 +248,9 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
                     /* Loading the next vector from A */
                     current = next;
                     if (jcp.double_buffering) {
-                        next = (dimK_reg_block + inc_dimK_reg_block)
-                                % (2 * inc_dimK_reg_block);
-                        load_A(next, dimK_reg_block + inc_dimK_reg_block);
+                        auto _next = dimK_reg_block + inc_dimK_reg_block;
+                        next = _next % (2 * inc_dimK_reg_block);
+                        if (_next < jcp.dimK_reg_block) load_A(next, _next);
                     } else {
                         next = 0;
                         load_A(next, dimK_reg_block);
@@ -748,12 +748,11 @@ void jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::gemm_loop_generate(
                                 dimK_4fma += inc_fma) {
                             int current = next;
                             if (jcp.double_buffering) {
-                                next = (dimK_reg_block * jcp.dimK_4fma
-                                               + dimK_4fma + inc_fma)
-                                        % (2 * inc_fma);
-                                load_A(next,
-                                        dimK_reg_block * jcp.dimK_4fma
-                                                + dimK_4fma + inc_fma);
+                                auto _next = dimK_reg_block * jcp.dimK_4fma
+                                        + dimK_4fma + inc_fma;
+                                next = _next % (2 * inc_fma);
+                                if (_next < jcp.dimK_reg_block * jcp.dimK_4fma)
+                                    load_A(next, _next);
                             } else {
                                 next = 0;
                                 load_A(next,
