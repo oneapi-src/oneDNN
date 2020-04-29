@@ -294,11 +294,25 @@ int fill_data(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
-    dnnl::impl::parallel(0, [&](int ithr, int nthr) {
-        int64_t chunk_size = (nelems + nthr - 1) / nthr;
-        int64_t idx_start = ithr * chunk_size;
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+
+    dnnl::impl::parallel_nd(n_chunks, [&](int idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
-        std::minstd_rand msr;
+        // Note 1: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // we avoid it for two reasons:
+        //   a. it has a complexity in O(idx_start).
+        //   b. igen and fgen below might require more than 1 sample
+        //   per idx, so the we cannot deterministically compute the
+        //   number of states we need to discard
+        // Note 2: We also advance the state to avoid having only
+        // small values as first chunk input.  The +1 is necessary to
+        // avoid generating zeros in first chunk.
+        std::minstd_rand msr(idx_start + 1);
+        msr.discard(1);
         std::uniform_int_distribution<> igen(0, 10);
         // TODO: 0.09 due to log impl doesn't give good accuracy in 0.99 points
         std::uniform_real_distribution<> fgen(0.f, 0.09f);
