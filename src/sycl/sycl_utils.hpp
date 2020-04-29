@@ -24,10 +24,6 @@
 #include <vector>
 #include <CL/sycl.hpp>
 
-#if defined(DNNL_SYCL_DPCPP) && (__SYCL_COMPILER_VERSION >= 20200402)
-#include <CL/sycl/detail/pi.hpp>
-#endif
-
 // Intel(R) oneAPI DPC++ Compiler uses reversed global work-item IDs starting
 // from 10-24-2019.
 // ComputeCpp version >= 1.1.6 uses reversed global work-item IDs.
@@ -121,20 +117,7 @@ inline std::string to_string(backend_t backend) {
     }
 }
 
-inline backend_t get_sycl_gpu_backend() {
-#if defined(DNNL_SYCL_DPCPP) && (__SYCL_COMPILER_VERSION >= 20200402)
-    switch (cl::sycl::detail::pi::getPreferredBE()) {
-        case cl::sycl::detail::pi::SYCL_BE_PI_OPENCL: return backend_t::opencl;
-#ifdef DNNL_WITH_LEVEL_ZERO
-        case cl::sycl::detail::pi::SYCL_BE_PI_LEVEL0: return backend_t::level0;
-#endif
-        // Ignore preferred backend and use OpenCL in this case.
-        default: return backend_t::opencl;
-    }
-#else
-    return backend_t::opencl;
-#endif
-}
+backend_t get_sycl_gpu_backend();
 
 inline backend_t get_sycl_backend(const cl::sycl::device &dev) {
     if (dev.is_host()) return backend_t::host;
