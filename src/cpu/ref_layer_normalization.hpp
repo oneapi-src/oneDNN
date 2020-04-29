@@ -47,8 +47,7 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
             bool ok = is_fwd() && platform::has_data_type_support(d_type)
                     && src_md()->data_type == d_type
                     && stat_md()->data_type == f32
-                    && IMPLICATION(
-                            use_scaleshift(), weights_md()->data_type == f32)
+                    && check_scale_shift_data_type()
                     && attr()->has_default_values()
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;
@@ -88,9 +87,7 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
                     && stat_md()->data_type == f32
-                    && IMPLICATION(use_scaleshift(),
-                            utils::everyone_is(f32, weights_md()->data_type,
-                                    diff_weights_md()->data_type))
+                    && check_scale_shift_data_type()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

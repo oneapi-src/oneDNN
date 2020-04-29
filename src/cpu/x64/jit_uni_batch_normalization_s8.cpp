@@ -492,8 +492,7 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::pd_t::init(
 
     bool ok = true && mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
             && one_of(ndims(), 4, 5) && stats_is_src()
-            && src_md()->data_type == s8
-            && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
+            && src_md()->data_type == s8 && check_scale_shift_data_type()
             && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
             && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;

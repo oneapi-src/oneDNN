@@ -46,8 +46,7 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
             using namespace data_type;
             bool ok = is_fwd() && src_md()->data_type == d_type
                     && platform::has_data_type_support(d_type)
-                    && IMPLICATION(
-                            use_scaleshift(), weights_md()->data_type == f32)
+                    && check_scale_shift_data_type()
                     && (attr()->has_default_values() || with_relu_post_op());
             if (!ok) return status::unimplemented;
 
@@ -90,9 +89,7 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
                     && platform::has_data_type_support(d_type)
-                    && IMPLICATION(use_scaleshift(),
-                            utils::everyone_is(d_type, weights_md()->data_type,
-                                    diff_weights_md()->data_type))
+                    && check_scale_shift_data_type()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

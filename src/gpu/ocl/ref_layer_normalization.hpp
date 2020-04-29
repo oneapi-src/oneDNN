@@ -51,8 +51,7 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
                             || utils::everyone_is(f32, src_data_t, dst_data_t))
                     && IMPLICATION(src_data_t == f16, !is_training())
                     && stat_md()->data_type == f32
-                    && IMPLICATION(
-                            use_scaleshift(), weights_md()->data_type == f32)
+                    && check_scale_shift_data_type()
                     && attr()->has_default_values()
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;
@@ -104,16 +103,11 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
             auto src_data_t = src_md()->data_type;
             auto diff_dst_data_t = diff_dst_md()->data_type;
 
-            auto wei_data_t = weights_md()->data_type;
-            auto diff_wei_data_t = diff_weights_md()->data_type;
-
             bool ok = is_bwd()
                     && (utils::everyone_is(f32, src_data_t, diff_dst_data_t)
                             || utils::everyone_is(
                                     bf16, src_data_t, diff_dst_data_t))
-                    && IMPLICATION(use_scaleshift(),
-                            utils::everyone_is(
-                                    f32, wei_data_t, diff_wei_data_t))
+                    && check_scale_shift_data_type()
                     && set_default_formats_common()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
