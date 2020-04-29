@@ -40,16 +40,25 @@ namespace jit_gemm_convolution_utils {
 template <typename data_type_t>
 void im2col_3d(const jit_gemm_conv_conf_t &jcp, const data_type_t *im,
         data_type_t *col, int od) {
+
+    using data_t =
+            typename utils::conditional<data_traits<data_type_t>::data_type
+                            == bf16,
+                    uint16_t, data_type_t>::type;
+    const data_t *__restrict _im
+            = reinterpret_cast<const data_t *__restrict>(im);
+    data_t *__restrict _col = reinterpret_cast<data_t *__restrict>(col);
+
     const size_t OHW = jcp.oh * jcp.ow;
     const size_t im_step = jcp.ih * jcp.iw * jcp.id;
     const size_t col_step = jcp.ks * OHW;
 
     parallel_nd(jcp.ic, [&](int ic) {
-        const data_type_t *__restrict im_loc = im + ic * im_step;
-        data_type_t *__restrict col_loc = col + ic * col_step;
+        const data_t *__restrict im_loc = _im + ic * im_step;
+        data_t *__restrict col_loc = _col + ic * col_step;
         int id = od * jcp.stride_d - jcp.f_pad;
         for (int kd = 0; kd < jcp.kd; ++kd) {
-            data_type_t *__restrict col_ = col_loc + kd * jcp.kh * jcp.kw * OHW;
+            data_t *__restrict col_ = col_loc + kd * jcp.kh * jcp.kw * OHW;
             if (id < 0 || id >= jcp.id) {
                 int ih_ = -jcp.t_pad;
                 for (int kh = 0; kh < jcp.kh; ++kh) {
@@ -82,8 +91,7 @@ void im2col_3d(const jit_gemm_conv_conf_t &jcp, const data_type_t *im,
                     col_ += jcp.kw * OHW;
                 }
             } else {
-                const data_type_t *__restrict im_
-                        = im_loc + id * jcp.ih * jcp.iw;
+                const data_t *__restrict im_ = im_loc + id * jcp.ih * jcp.iw;
                 int ih_ = -jcp.t_pad;
                 for (int kh = 0; kh < jcp.kh; ++kh) {
                     int ih = ih_;
@@ -287,6 +295,15 @@ template void im2col_u8_3d<uint8_t>(const jit_gemm_conv_conf_t &jcp,
 template <typename data_type_t>
 void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
         data_type_t *__restrict col, int ss, int sb, int cs, int cb) {
+
+    using data_t =
+            typename utils::conditional<data_traits<data_type_t>::data_type
+                            == bf16,
+                    uint16_t, data_type_t>::type;
+    const data_t *__restrict _im
+            = reinterpret_cast<const data_t *__restrict>(im);
+    data_t *__restrict _col = reinterpret_cast<data_t *__restrict>(col);
+
     const size_t im_step = jcp.is;
     const size_t col_step = jcp.ks * sb;
     const int dh = 1 + jcp.dilate_h;
@@ -302,35 +319,36 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
     const int first_ow = ss % jcp.ow;
     const int last_ow = (ss + sb - 1) % jcp.ow;
 
+    auto zero_val = (data_t)0;
+
     if (jcp.outer_threading) {
         if (sw == 1) {
             // Generated code is more optimized for stride_w == 1
             // because innermost loop is by width
             for (int ic = 0; ic < cb; ic++) {
-                const data_type_t *__restrict im_ic = im + (ic + cs) * im_step;
+                const data_t *__restrict im_ic = _im + (ic + cs) * im_step;
                 for (int kh = 0; kh < jcp.kh; kh++) {
                     for (int kw = 0; kw < jcp.kw; kw++) {
-                        data_type_t *__restrict col_k
-                                = col + ic * col_step + (kh * jcp.kw + kw) * sb;
+                        data_t *__restrict col_k = _col + ic * col_step
+                                + (kh * jcp.kw + kw) * sb;
                         for (int oh = oh_begin; oh < oh_end; oh++) {
                             const int ih = oh * sh - tp + kh * dh;
-                            const data_type_t *__restrict im_
+                            const data_t *__restrict im_
                                     = im_ic + ih * jcp.iw - lp + kw * dw;
                             const int ow_begin
                                     = (oh == first_oh) ? first_ow : 0;
                             const int ow_end
                                     = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                            data_type_t *__restrict col_
-                                    = col_k + oh * jcp.ow - ss;
+                            data_t *__restrict col_ = col_k + oh * jcp.ow - ss;
                             if (ih < 0 || ih >= jcp.ih)
                                 for (int ow = ow_begin; ow < ow_end; ow++)
-                                    col_[ow] = (data_type_t)0;
+                                    col_[ow] = zero_val;
                             else {
                                 for (int ow = ow_begin; ow < ow_end; ++ow) {
                                     const int iw = ow;
                                     if (iw < lp - kw * dw
                                             || iw >= jcp.iw + lp - kw * dw)
-                                        col_[ow] = (data_type_t)0;
+                                        col_[ow] = zero_val;
                                     else
                                         col_[ow] = im_[iw];
                                 }
@@ -341,27 +359,27 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
             }
         } else {
             for (int ic = 0; ic < cb; ic++) {
-                const data_type_t *__restrict im_ = im + (ic + cs) * im_step;
+                const data_t *__restrict im_ = _im + (ic + cs) * im_step;
                 for (int kh = 0; kh < jcp.kh; kh++) {
                     for (int kw = 0; kw < jcp.kw; kw++) {
-                        data_type_t *__restrict col_k
-                                = col + ic * col_step + (kh * jcp.kw + kw) * sb;
+                        data_t *__restrict col_k = _col + ic * col_step
+                                + (kh * jcp.kw + kw) * sb;
                         for (int oh = oh_begin; oh < oh_end; oh++) {
                             const int ih = oh * sh - tp + kh * dh;
                             const int ow_begin
                                     = (oh == first_oh) ? first_ow : 0;
                             const int ow_end
                                     = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                            data_type_t *__restrict col_oh
+                            data_t *__restrict col_oh
                                     = col_k + oh * jcp.ow - ss;
                             if (ih < 0 || ih >= jcp.ih)
                                 for (int ow = ow_begin; ow < ow_end; ow++)
-                                    col_oh[ow] = (data_type_t)0;
+                                    col_oh[ow] = zero_val;
                             else
                                 for (int ow = ow_begin; ow < ow_end; ow++) {
                                     const int iw = ow * sw - lp + kw * dw;
                                     if (iw < 0 || iw >= jcp.iw)
-                                        col_oh[ow] = (data_type_t)0;
+                                        col_oh[ow] = zero_val;
                                     else {
                                         const ptrdiff_t im_idx
                                                 = ih * jcp.iw + iw;
@@ -387,19 +405,19 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
                         const int ow_start = (oh == first_oh) ? first_ow : 0;
                         const int ow_end
                                 = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                        data_type_t *__restrict col_oh = col + ic * col_step
+                        data_t *__restrict col_oh = _col + ic * col_step
                                 + (kh * jcp.kw + kw) * sb + oh * jcp.ow - ss;
-                        const data_type_t *__restrict im_
-                                = im + (ic + cs) * im_step + ih * jcp.iw;
+                        const data_t *__restrict im_
+                                = _im + (ic + cs) * im_step + ih * jcp.iw;
                         const int iw_shift = kw * dw - lp;
                         if (ih < 0 || ih >= jcp.ih)
                             for (int ow = ow_start; ow < ow_end; ow++)
-                                col_oh[ow] = (data_type_t)0;
+                                col_oh[ow] = zero_val;
                         else
                             for (int ow = ow_start; ow < ow_end; ow++) {
                                 const int iw = ow + iw_shift;
                                 if (iw < 0 || iw >= jcp.iw)
-                                    col_oh[ow] = (data_type_t)0;
+                                    col_oh[ow] = zero_val;
                                 else
                                     col_oh[ow] = im_[iw];
                             }
@@ -412,18 +430,18 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
                         const int ow_start = (oh == first_oh) ? first_ow : 0;
                         const int ow_end
                                 = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                        data_type_t *__restrict col_oh = col + ic * col_step
+                        data_t *__restrict col_oh = _col + ic * col_step
                                 + (kh * jcp.kw + kw) * sb + oh * jcp.ow - ss;
-                        const data_type_t *__restrict im_
-                                = im + (ic + cs) * im_step;
+                        const data_t *__restrict im_
+                                = _im + (ic + cs) * im_step;
                         if (ih < 0 || ih >= jcp.ih)
                             for (int ow = ow_start; ow < ow_end; ow++)
-                                col_oh[ow] = (data_type_t)0;
+                                col_oh[ow] = zero_val;
                         else
                             for (int ow = ow_start; ow < ow_end; ow++) {
                                 const int iw = ow * sw - lp + kw * dw;
                                 if (iw < 0 || iw >= jcp.iw)
-                                    col_oh[ow] = (data_type_t)0;
+                                    col_oh[ow] = zero_val;
                                 else {
                                     const ptrdiff_t im_idx = ih * jcp.iw + iw;
                                     col_oh[ow] = im_[im_idx];
