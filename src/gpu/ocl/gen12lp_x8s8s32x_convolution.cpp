@@ -59,11 +59,10 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
 
     const convolution_desc_t &cd = *desc();
     const memory_desc_wrapper src_mdw(src);
+    const memory_desc_wrapper weights_mdw(wei);
     const memory_desc_wrapper dst_mdw(dst);
 
     set_default_conf(conf, cd, *src, *wei, *dst, *bia, *attr());
-
-    status_t status = status::success;
 
     if (!conf.is_depthwise && conf.with_groups && conf.ngroups > 1
             && (conf.oc % 32 != 0 || conf.ic % 32 != 0))
@@ -209,11 +208,22 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
                                                OIhw4o8i8o4i, OIdhw4o8i8o4i);
         }
     }
-    conf.src_tag = src_tag;
-    conf.wei_tag = wei_tag;
-    conf.dst_tag = dst_tag;
 
-    return status;
+    conf.src_tag = src_mdw.format_kind() == format_kind::any
+            ? src_tag
+            : src_mdw.matches_one_of_tag(src_tag);
+    conf.wei_tag = weights_mdw.format_kind() == format_kind::any
+            ? wei_tag
+            : weights_mdw.matches_one_of_tag(wei_tag);
+    conf.dst_tag = dst_mdw.format_kind() == format_kind::any
+            ? dst_tag
+            : dst_mdw.matches_one_of_tag(dst_tag);
+
+    if (conf.src_tag != src_tag || conf.wei_tag != wei_tag
+            || conf.dst_tag != dst_tag)
+        return status::unimplemented;
+
+    return status::success;
 }
 
 status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_kernel_ctx(
@@ -394,9 +404,19 @@ status_t gen12lp_x8s8s32x_convolution_bwd_data_t::pd_t::init_conf() {
                                : utils::pick(conf.ndims - 3, IOw4i8o8i4o,
                                        IOhw4i8o8i4o, IOdhw4i8o8i4o);
 
-    conf.src_tag = src_tag;
-    conf.wei_tag = wei_tag;
-    conf.dst_tag = dst_tag;
+    conf.src_tag = src_mdw.format_kind() == format_kind::any
+            ? src_tag
+            : src_mdw.matches_one_of_tag(src_tag);
+    conf.wei_tag = weights_mdw.format_kind() == format_kind::any
+            ? wei_tag
+            : weights_mdw.matches_one_of_tag(wei_tag);
+    conf.dst_tag = dst_mdw.format_kind() == format_kind::any
+            ? dst_tag
+            : dst_mdw.matches_one_of_tag(dst_tag);
+
+    if (conf.src_tag != src_tag || conf.wei_tag != wei_tag
+            || conf.dst_tag != dst_tag)
+        return status::unimplemented;
 
     return status;
 }

@@ -37,8 +37,6 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
     set_default_conf(conf, cd, *src_md(), *weights_md(), *dst_md(),
             *weights_md(1), *attr());
 
-    status_t status = status::success;
-
     if (conf.is_depthwise || conf.kh != 1 || conf.kw != 1
             || (conf.with_groups && conf.ngroups > 1
                     && (conf.oc % 32 != 0 || conf.ic % 32 != 0)))
@@ -111,11 +109,21 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
             ? utils::pick(conf.ndims - 3, gOIw4o8i8o4i, gOIhw4o8i8o4i)
             : utils::pick(conf.ndims - 3, OIw4o8i8o4i, OIhw4o8i8o4i);
 
-    conf.src_tag = src_tag;
-    conf.wei_tag = wei_tag;
-    conf.dst_tag = dst_tag;
+    conf.src_tag = src_mdw.format_kind() == format_kind::any
+            ? src_tag
+            : src_mdw.matches_one_of_tag(src_tag);
+    conf.wei_tag = weights_mdw.format_kind() == format_kind::any
+            ? wei_tag
+            : weights_mdw.matches_one_of_tag(wei_tag);
+    conf.dst_tag = dst_mdw.format_kind() == format_kind::any
+            ? dst_tag
+            : dst_mdw.matches_one_of_tag(dst_tag);
 
-    return status;
+    if (conf.src_tag != src_tag || conf.wei_tag != wei_tag
+            || conf.dst_tag != dst_tag)
+        return status::unimplemented;
+
+    return status::success;
 }
 
 status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
