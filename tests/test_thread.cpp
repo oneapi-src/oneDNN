@@ -228,7 +228,7 @@ private:
     int master_sense_;
     task_data tasks_[2];
 
-    dnnl::impl::counting_barrier barrier_;
+    dnnl::impl::counting_barrier_t barrier_;
 
     void barrier_init() { barrier_.init(num_threads_); }
 
