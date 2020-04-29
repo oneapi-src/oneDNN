@@ -92,8 +92,8 @@ status_t ocl_gpu_kernel_t::realize(
     size_t binary_size = binary_.size();
     assert(binary_size > 0);
 
-    auto program = clCreateProgramWithBinary(compute_engine->context(),
-            sizeof(size_t), &dev, &binary_size, &binary_buffer, nullptr, &err);
+    auto program = clCreateProgramWithBinary(compute_engine->context(), 1, &dev,
+            &binary_size, &binary_buffer, nullptr, &err);
     OCL_CHECK(err);
     err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
     OCL_CHECK(err);
