@@ -17,7 +17,7 @@
 --dir=FWD_I
 --dt=s32,s8
 --tag=axb
---alpha=0 --beta=0
+--beta=0
 --alg=relu
 --batch=shapes_eltwise
 

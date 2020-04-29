@@ -25,24 +25,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/platform.hpp"
-
-#if DNNL_X64
-#include "immintrin.h"
-#endif
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
-
-/** rounds @p f to an integer according to the mxcsr register */
-inline int mxcsr_round(float f) ATTR_NO_MSAN {
-#if DNNL_X64
-    return _mm_cvtss_si32(_mm_load_ss(&f));
-#else
-    return (int)nearbyintf(f); // optimism
-#endif
-}
 
 template <typename data_t, typename acc_t>
 inline typename utils::enable_if<!nstl::is_integral<data_t>::value,
@@ -86,13 +71,13 @@ inline uint8_t saturate<uint8_t, int8_t>(const int8_t &x) {
 template <typename out_t>
 typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
 out_round(float v) {
-    return (out_t)mxcsr_round(v);
+    return (out_t)math::mxcsr_round(v);
 }
 
 template <typename out_t>
 typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
 out_round(double v) {
-    return (out_t)mxcsr_round((float)v);
+    return (out_t)math::mxcsr_round((float)v);
 }
 
 template <typename out_t>

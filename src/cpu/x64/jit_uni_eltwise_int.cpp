@@ -125,9 +125,6 @@ struct jit_uni_relu_kernel_int : public jit_uni_eltwise_int_kernel,
     }
 
 private:
-    enum {
-        _rnd_trunc = 3u // Round toward zero
-    };
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
     using opmask_t = const Xbyak::Opmask;
 
@@ -256,7 +253,6 @@ void jit_uni_relu_kernel_int<sse41>::process(
     movups(mask, vr_from);
     cmpps(mask, vmm_zero, _cmp_nle_us);
     blendvps(vr_to, vr_from);
-    uni_vroundps(vr_to, vr_to, _rnd_trunc);
     cvtps2dq(vr_to, vr_to);
 }
 
@@ -268,7 +264,6 @@ void jit_uni_relu_kernel_int<avx2>::process(
     vmulps(vr_to, vr_from, vmm_ns);
     vcmpgtps(vmm_mask, vr_from, vmm_zero);
     vblendvps(vr_to, vr_to, vr_from, vmm_mask);
-    uni_vroundps(vr_to, vr_to, _rnd_trunc);
     vcvtps2dq(vr_to, vr_to);
 }
 
@@ -280,7 +275,7 @@ void jit_uni_relu_kernel_int<avx512_common>::process(
     vmulps(vr_to, vr_from, vmm_ns);
     vcmpps(k_mask, vr_from, vmm_zero, _cmp_nle_us);
     vblendmps(vr_to | k_mask, vr_to, vr_from);
-    vcvtps2dq(vr_to | T_rz_sae, vr_to);
+    vcvtps2dq(vr_to, vr_to);
 }
 
 template <cpu_isa_t isa>
