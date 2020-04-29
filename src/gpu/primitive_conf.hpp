@@ -469,13 +469,14 @@ struct reorder_conf_t {
 
 // Concat
 struct concat_conf_t {
-    data_type_t data_type;
     dim_t dst_extern_dim_size;
     dim_t src_extern_dim_sizes[16];
     dim_t offset[16];
     dim_t inner_axis;
     int block;
     int n;
+    int simd;
+    int data_type_size;
     size_t gws_d[3], lws_d[3];
 };
 

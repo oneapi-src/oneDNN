@@ -29,7 +29,7 @@ namespace gpu {
 namespace compute {
 
 // Compute optimal local work size for the given global work size.
-static void get_optimal_lws(const size_t *gws, size_t *lws, size_t n) {
+void get_optimal_lws(const size_t *gws, size_t *lws, size_t n) {
     const size_t lws_max = 256;
     // Factors in descending order, prefer bigger sizes for local work size.
     const size_t optimal_lws_values[]

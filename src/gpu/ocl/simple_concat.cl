@@ -13,7 +13,11 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
+#if DATA_TYPE_SIZE == 4
+#define DATA_T uint
+#define DATA2_T uint2
+#define DATA4_T uint4
+#define DATA8_T uint8
 #define BLOCK_READ intel_sub_group_block_read
 #define BLOCK_WRITE intel_sub_group_block_write
 #define BLOCK_READ2 intel_sub_group_block_read2
@@ -22,87 +26,113 @@
 #define BLOCK_WRITE4 intel_sub_group_block_write4
 #define BLOCK_READ8 intel_sub_group_block_read8
 #define BLOCK_WRITE8 intel_sub_group_block_write8
-
+#elif DATA_TYPE_SIZE == 2
+#define DATA_T ushort
+#define DATA2_T ushort2
+#define DATA4_T ushort4
+#define DATA8_T ushort8
+#define BLOCK_READ intel_sub_group_block_read_us
+#define BLOCK_WRITE intel_sub_group_block_write_us
+#define BLOCK_READ2 intel_sub_group_block_read_us2
+#define BLOCK_WRITE2 intel_sub_group_block_write_us2
+#define BLOCK_READ4 intel_sub_group_block_read_us4
+#define BLOCK_WRITE4 intel_sub_group_block_write_us4
+#define BLOCK_READ8 intel_sub_group_block_read_us8
+#define BLOCK_WRITE8 intel_sub_group_block_write_us8
+#elif DATA_TYPE_SIZE == 1
+#define DATA_T uchar
+#define DATA2_T uchar2
+#define DATA4_T uchar4
+#define DATA8_T uchar8
+#define BLOCK_READ intel_sub_group_block_read_uc
+#define BLOCK_WRITE intel_sub_group_block_write_uc
+#define BLOCK_READ2 intel_sub_group_block_read_uc2
+#define BLOCK_WRITE2 intel_sub_group_block_write_uc2
+#define BLOCK_READ4 intel_sub_group_block_read_uc4
+#define BLOCK_WRITE4 intel_sub_group_block_write_uc4
+#define BLOCK_READ8 intel_sub_group_block_read_uc8
+#define BLOCK_WRITE8 intel_sub_group_block_write_uc8
+#endif
 #define CHECK_AND_GET(N, M) \
-    if (get_group_id(2) >= OFFSET##N \
-            && (M == N_INPUTS || get_group_id(2) < OFFSET##M)) { \
-        src = src##N + get_group_id(1) * SRC##N##_EXT_OFFSET + x \
+    if (get_global_id(2) >= OFFSET##N \
+            && (M == N_INPUTS || get_global_id(2) < OFFSET##M)) { \
+        src = src##N + get_global_id(1) * SRC##N##_EXT_OFFSET + x \
                 - OFFSET##N * INNER_OFFSET; \
     }
 
 #if BLOCK != 1
-__attribute__((intel_reqd_sub_group_size(16)))
+__attribute__((intel_reqd_sub_group_size(SIMD)))
 #endif
 __kernel void
-simple_concat(__global uint *dst, __global const uint *src0
+simple_concat(__global DATA_T *dst, __global const DATA_T *src0
 #if N_INPUTS > 1
         ,
-        __global const uint *src1
+        __global const DATA_T *src1
 #endif
 #if N_INPUTS > 2
         ,
-        __global const uint *src2
+        __global const DATA_T *src2
 #endif
 #if N_INPUTS > 3
         ,
-        __global const uint *src3
+        __global const DATA_T *src3
 #endif
 #if N_INPUTS > 4
         ,
-        __global const uint *src4
+        __global const DATA_T *src4
 #endif
 #if N_INPUTS > 5
         ,
-        __global const uint *src5
+        __global const DATA_T *src5
 #endif
 #if N_INPUTS > 6
         ,
-        __global const uint *src6
+        __global const DATA_T *src6
 #endif
 #if N_INPUTS > 7
         ,
-        __global const uint *src7
+        __global const DATA_T *src7
 #endif
 #if N_INPUTS > 8
         ,
-        __global const uint *src8
+        __global const DATA_T *src8
 #endif
 #if N_INPUTS > 9
         ,
-        __global const uint *src9
+        __global const DATA_T *src9
 #endif
 #if N_INPUTS > 10
         ,
-        __global const uint *src10
+        __global const DATA_T *src10
 #endif
 #if N_INPUTS > 11
         ,
-        __global const uint *src11
+        __global const DATA_T *src11
 #endif
 #if N_INPUTS > 12
         ,
-        __global const uint *src12
+        __global const DATA_T *src12
 #endif
 #if N_INPUTS > 13
         ,
-        __global const uint *src13
+        __global const DATA_T *src13
 #endif
 #if N_INPUTS > 14
         ,
-        __global const uint *src14
+        __global const DATA_T *src14
 #endif
 #if N_INPUTS > 15
         ,
-        __global const uint *src15
+        __global const DATA_T *src15
 #endif
 ) {
-    uint8 A0, A1, A2, A3;
-    uint B;
-    uint2 C;
-    uint4 D;
-    const size_t x = get_group_id(0) * BLOCK + get_sub_group_id() * BLOCK
-            + get_group_id(2) * INNER_OFFSET;
-    __global const uint *src;
+    DATA8_T A0, A1, A2, A3;
+    DATA_T B;
+    DATA2_T C;
+    DATA4_T D;
+    const size_t x = get_global_id(0) * (BLOCK / SIMD)
+            + get_global_id(2) * INNER_OFFSET;
+    __global const DATA_T *src;
 
     CHECK_AND_GET(0, 1)
 #if N_INPUTS > 1
@@ -153,63 +183,63 @@ simple_concat(__global uint *dst, __global const uint *src0
 
 #if BLOCK == 1
     B = src[0];
-#elif BLOCK == 16
+#elif BLOCK == SIMD
     B = BLOCK_READ(src);
-#elif BLOCK == 32
+#elif BLOCK == 2 * SIMD
     C = BLOCK_READ2(src);
-#elif BLOCK == 48
+#elif BLOCK == 3 * SIMD
     C = BLOCK_READ2(src);
-    B = BLOCK_READ(&src[32]);
-#elif BLOCK == 64
+    B = BLOCK_READ(&src[2 * SIMD]);
+#elif BLOCK == 4 * SIMD
     D = BLOCK_READ4(src);
-#elif BLOCK == 80
+#elif BLOCK == 5 * SIMD
     D = BLOCK_READ4(src);
-    B = BLOCK_READ(&src[64]);
-#elif BLOCK == 96
+    B = BLOCK_READ(&src[4 * SIMD]);
+#elif BLOCK == 6 * SIMD
     D = BLOCK_READ4(src);
-    C = BLOCK_READ2(&src[64]);
-#elif BLOCK == 112
+    C = BLOCK_READ2(&src[4 * SIMD]);
+#elif BLOCK == 7 * SIMD
     B = BLOCK_READ(src);
-    C = BLOCK_READ2(&src[16]);
-    D = BLOCK_READ4(&src[48]);
-#elif BLOCK >= 128
+    C = BLOCK_READ2(&src[SIMD]);
+    D = BLOCK_READ4(&src[3 * SIMD]);
+#elif BLOCK >= 8 * SIMD
     A0 = BLOCK_READ8(src);
-#elif BLOCK >= 256
-    A1 = BLOCK_READ8(&src[128]);
-#elif BLOCK >= 384
-    A2 = BLOCK_READ8(&src[256]);
-#elif BLOCK >= 512
-    A3 = BLOCK_READ8(&src[384]);
+#elif BLOCK >= 16 * SIMD
+    A1 = BLOCK_READ8(&src[8 * SIMD]);
+#elif BLOCK >= 24 * SIMD
+    A2 = BLOCK_READ8(&src[16 * SIMD]);
+#elif BLOCK >= 32 * SIMD
+    A3 = BLOCK_READ8(&src[24 * SIMD]);
 #endif
-    dst += get_group_id(1) * DST_EXT_OFFSET + x;
+    dst += get_global_id(1) * DST_EXT_OFFSET + x;
 #if BLOCK == 1
     dst[0] = B;
-#elif BLOCK == 16
+#elif BLOCK == SIMD
     BLOCK_WRITE(dst, B);
-#elif BLOCK == 32
+#elif BLOCK == 2 * SIMD
     BLOCK_WRITE2(dst, C);
-#elif BLOCK == 48
+#elif BLOCK == 3 * SIMD
     BLOCK_WRITE2(dst, C);
-    BLOCK_WRITE(&dst[32], B);
-#elif BLOCK == 64
+    BLOCK_WRITE(&dst[2 * SIMD], B);
+#elif BLOCK == 4 * SIMD
     BLOCK_WRITE4(dst, D);
-#elif BLOCK == 80
+#elif BLOCK == 5 * SIMD
     BLOCK_WRITE4(dst, D);
-    BLOCK_WRITE(&dst[64], B);
-#elif BLOCK == 96
+    BLOCK_WRITE(&dst[4 * SIMD], B);
+#elif BLOCK == 6 * SIMD
     BLOCK_WRITE4(dst, D);
-    BLOCK_WRITE2(&dst[64], C);
-#elif BLOCK == 112
+    BLOCK_WRITE2(&dst[4 * SIMD], C);
+#elif BLOCK == 7 * SIMD
     BLOCK_WRITE(dst, B);
-    BLOCK_WRITE2(&dst[16], C);
-    BLOCK_WRITE4(&dst[48], D);
-#elif BLOCK >= 128
+    BLOCK_WRITE2(&dst[SIMD], C);
+    BLOCK_WRITE4(&dst[3 * SIMD], D);
+#elif BLOCK >= 8 * SIMD
     BLOCK_WRITE8(dst, A0);
-#elif BLOCK >= 256
-    BLOCK_WRITE8(&dst[128], A1);
-#elif BLOCK >= 384
-    BLOCK_WRITE8(&dst[256], A2);
-#elif BLOCK >= 512
-    BLOCK_WRITE8(&dst[384], A3);
+#elif BLOCK >= 16 * SIMD
+    BLOCK_WRITE8(&dst[8 * SIMD], A1);
+#elif BLOCK >= 24 * SIMD
+    BLOCK_WRITE8(&dst[16 * SIMD], A2);
+#elif BLOCK >= 32 * SIMD
+    BLOCK_WRITE8(&dst[24 * SIMD], A3);
 #endif
 }

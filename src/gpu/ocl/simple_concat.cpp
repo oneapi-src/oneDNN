@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/simple_concat.hpp"
+#include "gpu/compute/dispatch.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -72,7 +73,7 @@ static status_t init_conf_common(concat_conf_t &conf, const concat_pd_t *pd) {
                         * src_blk.strides[pre_concat_dim];
         offset += src_extern_dim_size / src_blk.strides[pd->concat_dim()];
 
-        conf.src_extern_dim_sizes[i] = src_extern_dim_size * data_type_size / 4;
+        conf.src_extern_dim_sizes[i] = src_extern_dim_size * data_type_size;
     }
 
     conf.dst_extern_dim_size
@@ -99,26 +100,40 @@ static status_t init_conf_common(concat_conf_t &conf, const concat_pd_t *pd) {
         concat_dim_size /= 2;
         conf.inner_axis *= 2;
     }
-    if (conf.inner_axis % 4) return status::unimplemented;
-    conf.inner_axis /= 4;
-    conf.dst_extern_dim_size = conf.dst_extern_dim_size * data_type_size / 4;
-
-    conf.block = (conf.inner_axis % 16 == 0) ? 16 : 1;
-    if (conf.block == 16) {
-        conf.block *= utils::max_div(conf.inner_axis / 16, 8);
+    for (auto k : {3, 5, 7}) {
+        if (concat_dim_size % k == 0) {
+            // check offsets
+            bool ok = true;
+            for (int i = 0; i < conf.n; ++i) {
+                if (conf.offset[i] % k) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (!ok) break;
+            for (int i = 0; i < conf.n; ++i) {
+                conf.offset[i] /= k;
+            }
+            concat_dim_size /= k;
+            conf.inner_axis *= k;
+        }
     }
 
-    int subgroup_size = (conf.block > 1) ? 16 : 1;
+    if (conf.inner_axis % 16 || conf.inner_axis < 32)
+        return status::unimplemented;
+    conf.data_type_size = (conf.inner_axis % 32 == 0) ? 4 : 2;
+    conf.inner_axis /= conf.data_type_size;
 
-    conf.lws_d[0] = subgroup_size;
-    conf.lws_d[1] = 1;
-    conf.lws_d[2] = 1;
+    conf.dst_extern_dim_size
+            = conf.dst_extern_dim_size * data_type_size / conf.data_type_size;
 
-    conf.gws_d[0] = conf.inner_axis / conf.block * subgroup_size;
+    conf.simd = (conf.inner_axis % 16 == 0) ? 16 : 8;
+    conf.block = conf.simd * utils::max_div(conf.inner_axis / conf.simd, 8);
+
+    conf.gws_d[0] = conf.inner_axis / conf.block * conf.simd;
     conf.gws_d[1] = extern_axis;
     conf.gws_d[2] = concat_dim_size;
-    conf.data_type = dst_mdw.data_type();
-
+    compute::get_optimal_lws(conf.gws_d, conf.lws_d, 3);
     return status::success;
 }
 
@@ -127,13 +142,15 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("DST_EXT_OFFSET", conf.dst_extern_dim_size);
     for (int i = 0; i < conf.n; ++i) {
         kernel_ctx.define_int(utils::format("SRC%d_EXT_OFFSET", i),
-                conf.src_extern_dim_sizes[i]);
+                conf.src_extern_dim_sizes[i] / conf.data_type_size);
         kernel_ctx.define_int(utils::format("OFFSET%d", i), conf.offset[i]);
     }
     kernel_ctx.define_int(utils::format("OFFSET%d", conf.n), conf.gws_d[2]);
     kernel_ctx.define_int("INNER_OFFSET", conf.inner_axis);
     kernel_ctx.define_int("BLOCK", conf.block);
     kernel_ctx.define_int("N_INPUTS", conf.n);
+    kernel_ctx.define_int("SIMD", conf.simd);
+    kernel_ctx.define_int("DATA_TYPE_SIZE", conf.data_type_size);
     return status::success;
 }
 
