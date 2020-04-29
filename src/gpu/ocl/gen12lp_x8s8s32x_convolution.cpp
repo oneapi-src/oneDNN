@@ -357,12 +357,12 @@ status_t gen12lp_x8s8s32x_convolution_bwd_data_t::pd_t::init_conf() {
     using namespace format_tag;
 
     const convolution_desc_t &cd = *desc();
-    const memory_desc_wrapper src_mdw(src_md());
+    const memory_desc_wrapper src_mdw(diff_src_md());
     const memory_desc_wrapper weights_mdw(weights_md());
-    const memory_desc_wrapper dst_mdw(dst_md());
+    const memory_desc_wrapper dst_mdw(diff_dst_md());
     const memory_desc_wrapper bias_mdw(weights_md(1));
 
-    set_default_conf(conf, cd, *src_md(), *weights_md(), *dst_md(),
+    set_default_conf(conf, cd, *diff_src_md(), *weights_md(), *diff_dst_md(),
             *weights_md(1), *attr());
 
     status_t status = status::success;
