@@ -193,6 +193,12 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
     virtual int n_outputs() const override {
         return 1 + (fuse_norm_relu() + 2 * (!stats_is_src())) * is_training();
     }
+
+protected:
+    bool check_scale_shift_data_type() const {
+        return IMPLICATION(
+                use_scaleshift(), weights_md()->data_type == data_type::f32);
+    }
 };
 
 struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
@@ -278,6 +284,12 @@ protected:
         return memory_desc_init_by_md_and_dt(
                        diff_data_md_, data_md_, diff_data_md_.data_type)
                 == status::success;
+    }
+
+    bool check_scale_shift_data_type() const {
+        return IMPLICATION(use_scaleshift(),
+                utils::everyone_is(data_type::f32, weights_md()->data_type,
+                        diff_weights_md()->data_type));
     }
 };
 

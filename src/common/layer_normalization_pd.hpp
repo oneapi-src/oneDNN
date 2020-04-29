@@ -191,6 +191,11 @@ protected:
     bool set_default_formats_common() {
         return set_default_stat_md_format(data_md_);
     }
+
+    bool check_scale_shift_data_type() const {
+        return IMPLICATION(
+                use_scaleshift(), weights_md()->data_type == data_type::f32);
+    }
 };
 
 struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
@@ -269,6 +274,12 @@ protected:
                                diff_data_md_, data_md_, diff_data_md_.data_type)
                                == status::success)
                 && set_default_stat_md_format(diff_data_md_);
+    }
+
+    bool check_scale_shift_data_type() const {
+        return IMPLICATION(use_scaleshift(),
+                utils::everyone_is(data_type::f32, weights_md()->data_type,
+                        diff_weights_md()->data_type));
     }
 };
 

@@ -82,9 +82,7 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_impl_t {
             bool ok = true && is_fwd() && !has_zero_dim_memory()
                     && utils::everyone_is(f32, src_md()->data_type,
                             stat_md()->data_type, dst_md()->data_type)
-                    && IMPLICATION(
-                            use_scaleshift(), weights_md()->data_type == f32)
-                    && src_d.is_blocking_desc()
+                    && check_scale_shift_data_type() && src_d.is_blocking_desc()
                     && src_d.blocking_desc().strides[ndims() - 1]
                             == 1 //plain format, last logical dim is last physical
                     && attr()->has_default_values()
@@ -225,10 +223,7 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_impl_t {
                     && set_default_formats_common()
                     && utils::everyone_is(f32, src_md()->data_type,
                             diff_src_md()->data_type, stat_md()->data_type)
-                    && IMPLICATION(use_scaleshift(),
-                            utils::everyone_is(f32, weights_md()->data_type,
-                                    diff_weights_md()->data_type))
-                    && src_d.is_blocking_desc()
+                    && check_scale_shift_data_type() && src_d.is_blocking_desc()
                     && src_d.blocking_desc().strides[ndims() - 1]
                             == 1 //plain format, last logical dim is last physical
                     && attr()->has_default_values();

@@ -50,8 +50,7 @@ struct nspc_batch_normalization_fwd_t : public primitive_impl_t {
             bool ok = true && is_fwd() && !has_zero_dim_memory()
                     && src_md()->data_type == d_type
                     && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
-                    && IMPLICATION(
-                            use_scaleshift(), weights_md()->data_type == f32)
+                    && check_scale_shift_data_type()
                     && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
                     && (attr()->has_default_values()
                             || this->with_relu_post_op());
@@ -123,9 +122,7 @@ struct nspc_batch_normalization_bwd_t : public primitive_impl_t {
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
                     && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
-                    && IMPLICATION(use_scaleshift(),
-                            utils::everyone_is(f32, weights_md()->data_type,
-                                    diff_weights_md()->data_type))
+                    && check_scale_shift_data_type()
                     && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
                     && memory_desc_matches_tag(*diff_src_md(), format_tag::nhwc)
                     && attr()->has_default_values();
