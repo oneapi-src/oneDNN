@@ -58,10 +58,10 @@ gen9_conv_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
 
     DATA8_T blockC00 = WITH_BIAS
             ? (DATA8_T)bias[g * IC + gic * IC_BLOCK + local_id]
-            : 0.0f;
+            : (DATA8_T)0.0f;
     DATA8_T blockC01 = WITH_BIAS
             ? (DATA8_T)bias[g * IC + gic * IC_BLOCK + local_id]
-            : 0.0f;
+            : (DATA8_T)0.0f;
 
     wei += gic * KD * KH * KW * OC_BLOCK * IC_BLOCK
             + g * IC * OC * KD * KH * KW;
