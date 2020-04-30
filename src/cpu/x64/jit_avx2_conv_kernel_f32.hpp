@@ -270,6 +270,17 @@ private:
     inline void compute_oh_step_common(int ic_block_step, int max_ur_w);
     inline void compute_oh_loop_common();
 
+    inline dim_t get_input_offset(int i_ic, int i_iw) {
+        dim_t offset;
+        if (utils::one_of(jcp.src_tag, format_tag::ncw, format_tag::nchw,
+                    format_tag::ncdhw)) {
+            offset = i_ic * jcp.id * jcp.ih * jcp.iw + i_iw;
+        } else {
+            offset = i_iw * jcp.ic_block + i_ic;
+        }
+        return sizeof(float) * offset;
+    }
+
     inline dim_t get_kernel_offset(int ki, int i_ic) {
         dim_t block_step_size = jcp.ic_block * jcp.oc_block;
         dim_t offset = ki * block_step_size + i_ic * jcp.oc_block;
