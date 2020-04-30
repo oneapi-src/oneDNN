@@ -23,7 +23,7 @@
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
-typedef float acc_data_t;
+using acc_data_t = float;
 
 #define IRB_LOOP(statement) \
     for (int irb = 0; irb < loop_size; irb++) { \
@@ -38,46 +38,334 @@ namespace x64 {
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 using namespace data_type;
-
 using namespace Xbyak;
+using namespace Xbyak::util;
+
+/*  version:
+*  First: channels 0..15,
+*  Middle: channels C-16 .. C-1,
+*  Last: other channels
+*  Single: channels only for this kernel(without prev and next)
+*/
+enum class fwd_across_version : char { First, Middle, Last, Single };
 
 struct nChw16c_across {
-    /*  version:
-     *  -1: channels 0..15,
-     *   1: channels C-16 .. C-1,
-     *   0: other channels
-     *   3: channels only for this kernel(without prev and next)
-     */
-    int H, W, version;
-    nChw16c_across(int h, int w, int v) : H(h), W(w), version(v) {}
+    int H, W;
+    fwd_across_version version;
+    nChw16c_across(int h, int w, fwd_across_version version)
+        : H(h), W(w), version(version) {}
 };
 
 template <data_type_t d_type>
-struct jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_f
+class jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_fwd_f
     : public jit_generator {
+public:
+    jit_avx512_common_lrn_kernel_fwd_f(prop_kind_t prop_kind, float alpha,
+            float k, void *code_ptr, size_t code_size);
+
     struct jit_args_fwd_t {
         const data_t *src;
         data_t *dst, *ws0, *ws1;
+        static constexpr int32_t mask[20] = {0, 0, 16, 17, 18, 19, 20, 21, 22,
+                23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 0};
+        const int32_t *mask_ptr = &mask[2];
     };
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd);
+    void (*ker)(jit_args_fwd_t *);
+    void operator()(jit_args_fwd_t *arg) { ker(arg); }
+
+protected:
+    static inline Zmm zreg(int irb, int i) { return Zmm(irb * 7 + i); };
+
+    prop_kind_t pk_;
+    float alpha_, k_;
+    static constexpr int xmm_size_ = 4 * sizeof(acc_data_t);
+    static constexpr int zmm_size_ = 64;
+    const Reg64 imm_addr64_ = rbx;
+    const Xmm xalpha_ = xmm0;
+    const Zmm zalpha_ = zmm0;
+    const Zmm zk_ = zmm1;
+    const Xmm xk_ = xmm1;
+    const Reg64 src_ = rax;
+    const Reg64 dst_ = r8;
+    const Reg64 ws0_ = rdx;
+    const Reg64 ws1_ = rsi;
+    const Reg64 param_ = abi_param1;
+    static constexpr int zc_ = 7;
+    static constexpr int za_ = 2;
+    static constexpr int zb_ = 3;
+    static constexpr int zd_ = 5;
+    static constexpr int ze_ = 6;
+    static constexpr int zsum_ = 4;
+    static constexpr int zsum2_ = 5;
+    static constexpr int zbase_ = 3;
+    static constexpr int zsrc_ = 7;
+    static constexpr int zdst_ = 2;
+};
+
+template <data_type_t d_type>
+jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_fwd_f::
+        jit_avx512_common_lrn_kernel_fwd_f(prop_kind_t prop_kind, float alpha,
+                float k, void *code_ptr, size_t code_size)
+    : jit_generator(code_ptr, code_size)
+    , pk_(prop_kind)
+    , alpha_(alpha)
+    , k_(k) {}
+
+template <data_type_t d_type>
+constexpr int jit_avx512_common_lrn_fwd_t<
+        d_type>::jit_avx512_common_lrn_kernel_fwd_f::jit_args_fwd_t::mask[20];
+
+template <data_type_t d_type>
+class jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_nhwc_f
+    : public jit_avx512_common_lrn_kernel_fwd_f {
+public:
+    jit_avx512_common_lrn_kernel_nhwc_f(unsigned C, prop_kind_t prop_kind,
+            float alpha, float k, void *code_ptr = nullptr,
+            size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_nhwc_f);
+
+private:
+    void set_up_ker_parmas();
+    void execute_compute_loop(unsigned C);
+    void compute_loop(fwd_across_version version, int loop_size_param = 1);
+    void compute(int loop_size_param);
+    void increment_loop_params(std::size_t offset);
+    void load_compute_data(fwd_across_version version, int loop_size_param);
+    void store_compute_data(int loop_size_param);
+
+    static constexpr int tmp_mask_za_idx_ = 8;
+    static constexpr int tmp_mask_zb_idx_ = 9;
+    static constexpr int tmp_mask_zd_idx_ = 10;
+    static constexpr int tmp_mask_ze_idx_ = 11;
+    static constexpr int reg_block_ = 4;
+    static constexpr int vlen_ = 64;
+    const Reg64 mask_ = r10;
+    const Reg64 blockC_ = r9;
+};
+
+template <data_type_t d_type>
+jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_nhwc_f::
+        jit_avx512_common_lrn_kernel_nhwc_f(unsigned C, prop_kind_t prop_kind,
+                float alpha, float k, void *code_ptr, size_t code_size)
+    : jit_avx512_common_lrn_kernel_fwd_f(
+            prop_kind, alpha, k, code_ptr, code_size) {
+
+    this->preamble();
+    this->set_up_ker_parmas();
+    this->execute_compute_loop(C);
+    this->postamble();
+    this->ker = reinterpret_cast<decltype(this->ker)>(
+            const_cast<uint8_t *>(this->getCode()));
+}
+
+template <data_type_t d_type>
+void jit_avx512_common_lrn_fwd_t<
+        d_type>::jit_avx512_common_lrn_kernel_nhwc_f::set_up_ker_parmas() {
+
+#define GET_OFF(field) \
+    offsetof(typename jit_avx512_common_lrn_kernel_fwd_f::jit_args_fwd_t, field)
+    this->mov(this->src_, ptr[this->param_ + GET_OFF(src)]);
+    this->mov(this->dst_, ptr[this->param_ + GET_OFF(dst)]);
+    if (this->pk_ != prop_kind::forward_inference) {
+        this->mov(this->ws0_, ptr[this->param_ + GET_OFF(ws0)]);
+        this->mov(this->ws1_, ptr[this->param_ + GET_OFF(ws1)]);
+    }
+    this->mov(this->mask_, ptr[this->param_ + GET_OFF(mask_ptr)]);
+#undef GET_OFF
+
+    this->mov(this->imm_addr64_, float2int(this->alpha_));
+    this->movq(this->xalpha_, this->imm_addr64_);
+    this->vbroadcastss(this->zalpha_, this->xalpha_);
+
+    this->mov(this->imm_addr64_, float2int(this->k_));
+    this->movq(this->xk_, this->imm_addr64_);
+    this->vbroadcastss(this->zk_, this->xk_);
+}
+
+template <data_type_t d_type>
+void jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_nhwc_f::
+        execute_compute_loop(unsigned C) {
+
+    const unsigned num_16c_blocks = std::ceil(C / 16);
+
+    if (num_16c_blocks == 1u)
+        compute_loop(fwd_across_version::Single);
+    else {
+        const auto middle_16_c_blocks = num_16c_blocks - 2;
+        const int LSREST = middle_16_c_blocks % this->reg_block_;
+        const int LS = middle_16_c_blocks - LSREST;
+
+        if (LS > 0) this->mov(this->blockC_, LS);
+        compute_loop(fwd_across_version::First);
+        increment_loop_params(this->vlen_);
+
+        Label lrn_loop;
+
+        if (LS > 0) {
+
+            this->L(lrn_loop);
+            {
+                compute_loop(fwd_across_version::Middle, this->reg_block_);
+                increment_loop_params(this->reg_block_ * this->vlen_);
+                this->sub(this->blockC_, this->reg_block_);
+                this->cmp(this->blockC_, 0);
+                this->jne(lrn_loop, this->T_NEAR);
+            }
+        }
+
+        if (LSREST > 0) {
+            compute_loop(fwd_across_version::Middle, LSREST);
+            increment_loop_params(LSREST * this->vlen_);
+        }
+
+        compute_loop(fwd_across_version::Last);
+    }
+}
+
+template <data_type_t d_type>
+void jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_nhwc_f::
+        increment_loop_params(std::size_t offset) {
+
+    this->add(this->src_, offset);
+    this->add(this->dst_, offset);
+    if (this->pk_ != prop_kind::forward_inference) {
+        this->add(this->ws0_, offset);
+        this->add(this->ws1_, offset);
+    }
+}
+
+template <data_type_t d_type>
+void jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_nhwc_f::
+        compute_loop(fwd_across_version version, int loop_size_param) {
+
+    load_compute_data(version, loop_size_param);
+    compute(loop_size_param);
+    store_compute_data(loop_size_param);
+}
+
+template <data_type_t d_type>
+void jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_nhwc_f::
+        load_compute_data(fwd_across_version version, int loop_size_param) {
+
+    const int loop_size = loop_size_param;
+    static constexpr int mask_shift = sizeof(int32_t);
+    static constexpr int acc_size = sizeof(acc_data_t);
+    const auto load_shifted_padded_with_zeros
+            = [&](int dstIdx, int srcIdx, int maskTmpIdx, int offset) {
+                  this->vxorps(this->zreg(0, dstIdx), this->zreg(0, dstIdx),
+                          this->zreg(0, dstIdx));
+                  this->vmovups(this->zreg(0, maskTmpIdx),
+                          this->EVEX_compress_addr(this->mask_, offset));
+                  this->vpermt2ps(this->zreg(0, dstIdx),
+                          this->zreg(0, maskTmpIdx), this->zreg(0, srcIdx));
+              };
+
+    IRB_LOOP(this->vmovups(this->zreg(irb, this->zc_),
+            this->EVEX_compress_addr(this->src_, irb * this->vlen_)));
+
+    if (version == fwd_across_version::First
+            || version == fwd_across_version::Single) {
+        load_shifted_padded_with_zeros(
+                this->za_, this->zc_, this->tmp_mask_za_idx_, -2 * mask_shift);
+        load_shifted_padded_with_zeros(
+                this->zb_, this->zc_, this->tmp_mask_zb_idx_, -1 * mask_shift);
+    } else {
+        IRB_LOOP(this->vmovups(this->zreg(irb, this->za_),
+                this->EVEX_compress_addr(
+                        this->src_, (irb * this->vlen_) - 2 * acc_size)));
+        IRB_LOOP(this->vmovups(this->zreg(irb, this->zb_),
+                this->EVEX_compress_addr(
+                        this->src_, (irb * this->vlen_) - acc_size)));
+    }
+
+    if (version == fwd_across_version::Last
+            || version == fwd_across_version::Single) {
+        load_shifted_padded_with_zeros(
+                this->zd_, this->zc_, this->tmp_mask_zd_idx_, mask_shift);
+        load_shifted_padded_with_zeros(
+                this->ze_, this->zc_, this->tmp_mask_ze_idx_, 2 * mask_shift);
+    } else {
+        IRB_LOOP(this->vmovups(this->zreg(irb, this->zd_),
+                this->EVEX_compress_addr(
+                        this->src_, (irb * this->vlen_) + acc_size)));
+        IRB_LOOP(this->vmovups(this->zreg(irb, this->ze_),
+                this->EVEX_compress_addr(
+                        this->src_, (irb * this->vlen_) + 2 * acc_size)));
+    }
+}
+
+template <data_type_t d_type>
+void jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_nhwc_f::
+        compute(int loop_size_param) {
+
+    const int loop_size = loop_size_param;
+
+    IRB_LOOP(this->vmulps(this->zreg(irb, this->zsum_),
+            this->zreg(irb, this->zc_), this->zreg(irb, this->zc_)));
+
+    for (const auto &regIdx : {this->za_, this->zb_, this->zd_, this->ze_})
+        IRB_LOOP(this->vfmadd231ps(this->zreg(irb, this->zsum_),
+                this->zreg(irb, regIdx), this->zreg(irb, regIdx)));
+
+    IRB_LOOP(this->vfmadd132ps(
+            this->zreg(irb, this->zsum_), this->zk_, this->zalpha_));
+    IRB_LOOP(this->vmovaps(
+            this->zreg(irb, this->zbase_), this->zreg(irb, this->zsum_)));
+    IRB_LOOP(this->vmulps(this->zreg(irb, this->zsum2_),
+            this->zreg(irb, this->zsum_), this->zreg(irb, this->zsum_)));
+    IRB_LOOP(this->vmulps(this->zreg(irb, this->zsum_),
+            this->zreg(irb, this->zsum_), this->zreg(irb, this->zsum2_)));
+
+    for (unsigned i = 0; i < 2; ++i)
+        IRB_LOOP(this->vsqrtps(
+                this->zreg(irb, this->zsum_), this->zreg(irb, this->zsum_)));
+}
+
+template <data_type_t d_type>
+void jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_nhwc_f::
+        store_compute_data(int loop_size_param) {
+
+    const int loop_size = loop_size_param;
+
+    auto store_data
+            = [=](const Address addr, Zmm zr) { this->vmovups(addr, zr); };
+
+    if (this->pk_ != prop_kind::forward_inference) {
+        // save intermediate results for lrn backward
+        IRB_LOOP(store_data(
+                this->EVEX_compress_addr(this->ws0_, irb * this->vlen_),
+                this->zreg(irb, this->zsum_)));
+    }
+    IRB_LOOP(this->vdivps(this->zreg(irb, this->zdst_),
+            this->zreg(irb, this->zsrc_), this->zreg(irb, this->zsum_)));
+    // storing to dst
+    IRB_LOOP(store_data(this->EVEX_compress_addr(this->dst_, irb * this->vlen_),
+            this->zreg(irb, this->zdst_)));
+    if (this->pk_ != prop_kind::forward_inference) {
+        // calculate and save more intermediate results for lrn backward
+        /* ws1 = zdst / zbase = zsrc / (zbase^1.75) */
+
+        IRB_LOOP(this->vdivps(this->zreg(irb, this->zsum_),
+                this->zreg(irb, this->zdst_), this->zreg(irb, this->zbase_)));
+        IRB_LOOP(store_data(
+                this->EVEX_compress_addr(this->ws1_, irb * this->vlen_),
+                this->zreg(irb, this->zsum_)));
+    }
+}
+
+template <data_type_t d_type>
+struct jit_avx512_common_lrn_fwd_t<
+        d_type>::jit_avx512_common_lrn_kernel_nChw16c_f
+    : public jit_avx512_common_lrn_kernel_fwd_f {
+
     int xmm_size, zmm_size, buffer_block, buffer_nest_offset, src_prev_offset,
             vlen, reg_block;
 
     int HW, W;
-    bool is_first;
-    bool is_last;
-    bool is_single;
-
-    Reg64 src = rax;
-    Reg64 dst = r8;
-    Reg64 ws0 = rdx;
-    Reg64 ws1 = rsi;
-    Reg64 imm_addr64 = rbx;
-
-    Zmm zalpha = zmm0;
-    Xmm xalpha = xmm0;
-    Zmm zk = zmm1;
-    Xmm xk = xmm1;
-    Reg64 param = abi_param1;
+    fwd_across_version version;
     Reg64 t = rsp;
     Reg64 hw = r9;
     Zmm bf16_emu_reserv_1 = Zmm(28);
@@ -86,30 +374,14 @@ struct jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_f
     Zmm bf16_emu_reserv_3 = Zmm(30);
     Zmm bf16_emu_reserv_4 = Zmm(31);
 
-    const int xsrc_prev = 2;
-    const int zsrc = 7;
-    const int xsrc_next = 3;
-    const int zc = 7;
-
-    const int za = 2;
-    const int zb = 3;
-    const int zd = 5;
-    const int ze = 6;
-    const int zsum = 4;
-    const int zdst = 2;
-    const int zbase = 3;
-    const int zsum2 = 5;
-
-    prop_kind_t pk;
+    static constexpr int xsrc_prev = 2;
+    static constexpr int xsrc_next = 3;
     int use_h_parallelism;
 
-    float alpha, k;
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_f)
-
-    void (*ker)(jit_args_fwd_t *);
-    void operator()(jit_args_fwd_t *arg) { ker(arg); }
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd_f::
+                    jit_avx512_common_lrn_kernel_nChw16c_f)
 
     inline void compute_loop(int loop_size_param) {
         // loop_size - param for IRB_LOOP macro
@@ -118,55 +390,64 @@ struct jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_f
 
         int loop_size = reg_block;
 
-        auto xreg = [=](int irb, int i) { return Xmm(irb * 3 + i); };
-        auto yreg = [=](int irb, int i) { return Ymm(irb * 7 + i); };
-        auto zreg = [=](int irb, int i) { return Zmm(irb * 7 + i); };
-        auto load_data = [=](Xmm reg, const Address p) {
+        static const auto xreg
+                = [=](int irb, int i) { return Xmm(irb * 3 + i); };
+        static const auto yreg
+                = [=](int irb, int i) { return Ymm(irb * 7 + i); };
+        static const auto zreg
+                = [=](int irb, int i) { return Zmm(irb * 7 + i); };
+        const auto load_data = [=](Xmm reg, const Address p) {
             if (d_type == bf16) {
-                vpmovzxwd(reg, p);
-                vpslld(reg, reg, 0x10);
+                this->vpmovzxwd(reg, p);
+                this->vpslld(reg, reg, 0x10);
             } else
-                vmovups(reg, p);
+                this->vmovups(reg, p);
         };
 
-        auto store_data = [=](const Address addr, Zmm zr, Ymm yr) {
+        const auto store_data = [=](const Address addr, Zmm zr, Ymm yr) {
             if (d_type == bf16) {
                 if (mayiuse(avx512_core_bf16))
-                    vcvtneps2bf16(yr, zr);
+                    this->vcvtneps2bf16(yr, zr);
                 else
                     bf16_emu_->vcvtneps2bf16(yr, zr);
-                vmovdqu16(addr, yr);
+                this->vmovdqu16(addr, yr);
             } else
-                vmovups(addr, zr);
+                this->vmovups(addr, zr);
         };
 
-        if (!is_first && !is_single) {
-            IRB_LOOP(mic_prefetcht0(ptr[src + (irb + prf0_offt - HW) * vlen]));
-            IRB_LOOP(mic_prefetcht2(ptr[src + (irb + prf2_offt - HW) * vlen]));
+        if (version != fwd_across_version::First
+                && version != fwd_across_version::Single) {
+            IRB_LOOP(this->mic_prefetcht0(
+                    ptr[this->src_ + (irb + prf0_offt - HW) * vlen]));
+            IRB_LOOP(this->mic_prefetcht2(
+                    ptr[this->src_ + (irb + prf2_offt - HW) * vlen]));
         }
-        IRB_LOOP(mic_prefetcht0(
-                EVEX_compress_addr(src, (irb + prf0_offt) * vlen)));
-        IRB_LOOP(mic_prefetcht2(
-                EVEX_compress_addr(src, (irb + prf2_offt) * vlen)));
-        if (!is_last && !is_single) {
-            IRB_LOOP(mic_prefetcht0(ptr[src + (irb + prf0_offt + HW) * vlen]));
-            IRB_LOOP(mic_prefetcht2(ptr[src + (irb + prf2_offt + HW) * vlen]));
+        IRB_LOOP(this->mic_prefetcht0(this->EVEX_compress_addr(
+                this->src_, (irb + prf0_offt) * vlen)));
+        IRB_LOOP(this->mic_prefetcht2(this->EVEX_compress_addr(
+                this->src_, (irb + prf2_offt) * vlen)));
+        if (version != fwd_across_version::Last
+                && version != fwd_across_version::Single) {
+            IRB_LOOP(this->mic_prefetcht0(
+                    ptr[this->src_ + (irb + prf0_offt + HW) * vlen]));
+            IRB_LOOP(this->mic_prefetcht2(
+                    ptr[this->src_ + (irb + prf2_offt + HW) * vlen]));
         }
-        if (pk != prop_kind::forward_inference) {
-            IRB_LOOP(mic_prefetcht0(
-                    EVEX_compress_addr(ws0, (irb + prf0_offt) * vlen)));
-            IRB_LOOP(mic_prefetcht2(
-                    EVEX_compress_addr(ws0, (irb + prf2_offt) * vlen)));
+        if (this->pk_ != prop_kind::forward_inference) {
+            IRB_LOOP(this->mic_prefetcht0(this->EVEX_compress_addr(
+                    this->ws0_, (irb + prf0_offt) * vlen)));
+            IRB_LOOP(this->mic_prefetcht2(this->EVEX_compress_addr(
+                    this->ws0_, (irb + prf2_offt) * vlen)));
         }
-        IRB_LOOP(mic_prefetcht0(
-                EVEX_compress_addr(dst, (irb + prf0_offt) * vlen)));
-        IRB_LOOP(mic_prefetcht2(
-                EVEX_compress_addr(dst, (irb + prf2_offt) * vlen)));
-        if (pk != prop_kind::forward_inference) {
-            IRB_LOOP(mic_prefetcht0(
-                    EVEX_compress_addr(ws1, (irb + prf0_offt) * vlen)));
-            IRB_LOOP(mic_prefetcht2(
-                    EVEX_compress_addr(ws1, (irb + prf2_offt) * vlen)));
+        IRB_LOOP(this->mic_prefetcht0(this->EVEX_compress_addr(
+                this->dst_, (irb + prf0_offt) * vlen)));
+        IRB_LOOP(this->mic_prefetcht2(this->EVEX_compress_addr(
+                this->dst_, (irb + prf2_offt) * vlen)));
+        if (this->pk_ != prop_kind::forward_inference) {
+            IRB_LOOP(this->mic_prefetcht0(this->EVEX_compress_addr(
+                    this->ws1_, (irb + prf0_offt) * vlen)));
+            IRB_LOOP(this->mic_prefetcht2(this->EVEX_compress_addr(
+                    this->ws1_, (irb + prf2_offt) * vlen)));
         }
 
         loop_size = loop_size_param;
@@ -175,91 +456,108 @@ struct jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         // --- loading source data to special buffer to form convenient data layout
         // for ACROSS lrn ---
 
-        if (!is_first && !is_single) {
+        if (version != fwd_across_version::First
+                && version != fwd_across_version::Single) {
             IRB_LOOP(load_data(xreg(irb, xsrc_prev),
-                    ptr[src + (irb - HW) * vlen + src_prev_offset]));
+                    ptr[this->src_ + (irb - HW) * vlen + src_prev_offset]));
         }
-        IRB_LOOP(load_data(
-                zreg(irb, zsrc), EVEX_compress_addr(src, irb * vlen)));
-        if (!is_last && !is_single) {
+        IRB_LOOP(load_data(zreg(irb, this->zsrc_),
+                this->EVEX_compress_addr(this->src_, irb * vlen)));
+        if (version != fwd_across_version::Last
+                && version != fwd_across_version::Single) {
             IRB_LOOP(load_data(
-                    xreg(irb, xsrc_next), ptr[src + (irb + HW) * vlen]));
+                    xreg(irb, xsrc_next), ptr[this->src_ + (irb + HW) * vlen]));
         }
 
-        if (!is_first && !is_single) {
-            IRB_LOOP(
-                    vmovups(ptr[t + irb * buffer_block], xreg(irb, xsrc_prev)));
+        if (version != fwd_across_version::First
+                && version != fwd_across_version::Single) {
+            IRB_LOOP(this->vmovups(
+                    ptr[t + irb * buffer_block], xreg(irb, xsrc_prev)));
         }
-        IRB_LOOP(vmovups(EVEX_compress_addr(t, irb * buffer_block + xmm_size),
-                zreg(irb, zsrc)));
-        if (!is_last && !is_single) {
-            IRB_LOOP(vmovups(ptr[t + irb * buffer_block + buffer_nest_offset],
+        IRB_LOOP(this->vmovups(
+                this->EVEX_compress_addr(t, irb * buffer_block + xmm_size),
+                zreg(irb, this->zsrc_)));
+        if (version != fwd_across_version::Last
+                && version != fwd_across_version::Single) {
+            IRB_LOOP(this->vmovups(
+                    ptr[t + irb * buffer_block + buffer_nest_offset],
                     xreg(irb, xsrc_next)));
         }
 
         // --- perform ACROSS lrn ---
-        size_t acc_size = sizeof(acc_data_t);
-        IRB_LOOP(vmovups(zreg(irb, za),
-                EVEX_compress_addr(
+        const size_t acc_size = sizeof(acc_data_t);
+        IRB_LOOP(this->vmovups(zreg(irb, this->za_),
+                this->EVEX_compress_addr(
                         t, irb * buffer_block + xmm_size - 2 * acc_size)));
-        IRB_LOOP(vmovups(zreg(irb, zb),
-                EVEX_compress_addr(
+        IRB_LOOP(this->vmovups(zreg(irb, this->zb_),
+                this->EVEX_compress_addr(
                         t, irb * buffer_block + xmm_size - acc_size)));
-        IRB_LOOP(vmovups(zreg(irb, zd),
-                EVEX_compress_addr(
+        IRB_LOOP(this->vmovups(zreg(irb, this->zd_),
+                this->EVEX_compress_addr(
                         t, irb * buffer_block + xmm_size + acc_size)));
-        IRB_LOOP(vmovups(zreg(irb, ze),
-                EVEX_compress_addr(
+        IRB_LOOP(this->vmovups(zreg(irb, this->ze_),
+                this->EVEX_compress_addr(
                         t, irb * buffer_block + xmm_size + 2 * acc_size)));
 
-        assert(zc == zsrc);
-        IRB_LOOP(vmulps(zreg(irb, zsum), zreg(irb, zc), zreg(irb, zc)));
+        assert(this->zc_ == this->zsrc_);
+        IRB_LOOP(this->vmulps(zreg(irb, this->zsum_), zreg(irb, this->zc_),
+                zreg(irb, this->zc_)));
 
-        IRB_LOOP(vfmadd231ps(zreg(irb, zsum), zreg(irb, za), zreg(irb, za)));
-        IRB_LOOP(vfmadd231ps(zreg(irb, zsum), zreg(irb, zb), zreg(irb, zb)));
-        IRB_LOOP(vfmadd231ps(zreg(irb, zsum), zreg(irb, zd), zreg(irb, zd)));
-        IRB_LOOP(vfmadd231ps(zreg(irb, zsum), zreg(irb, ze), zreg(irb, ze)));
+        IRB_LOOP(this->vfmadd231ps(zreg(irb, this->zsum_), zreg(irb, this->za_),
+                zreg(irb, this->za_)));
+        IRB_LOOP(this->vfmadd231ps(zreg(irb, this->zsum_), zreg(irb, this->zb_),
+                zreg(irb, this->zb_)));
+        IRB_LOOP(this->vfmadd231ps(zreg(irb, this->zsum_), zreg(irb, this->zd_),
+                zreg(irb, this->zd_)));
+        IRB_LOOP(this->vfmadd231ps(zreg(irb, this->zsum_), zreg(irb, this->ze_),
+                zreg(irb, this->ze_)));
 
-        IRB_LOOP(vfmadd132ps(zreg(irb, zsum), zk, zalpha));
+        IRB_LOOP(this->vfmadd132ps(
+                zreg(irb, this->zsum_), this->zk_, this->zalpha_));
 
-        IRB_LOOP(vmovaps(zreg(irb, zbase), zreg(irb, zsum)));
+        IRB_LOOP(
+                this->vmovaps(zreg(irb, this->zbase_), zreg(irb, this->zsum_)));
 
-        IRB_LOOP(vmulps(zreg(irb, zsum2), zreg(irb, zsum), zreg(irb, zsum)));
-        IRB_LOOP(vmulps(zreg(irb, zsum), zreg(irb, zsum), zreg(irb, zsum2)));
+        IRB_LOOP(this->vmulps(zreg(irb, this->zsum2_), zreg(irb, this->zsum_),
+                zreg(irb, this->zsum_)));
+        IRB_LOOP(this->vmulps(zreg(irb, this->zsum_), zreg(irb, this->zsum_),
+                zreg(irb, this->zsum2_)));
 
-        IRB_LOOP(vsqrtps(zreg(irb, zsum), zreg(irb, zsum)));
-        IRB_LOOP(vsqrtps(zreg(irb, zsum), zreg(irb, zsum)));
+        IRB_LOOP(this->vsqrtps(zreg(irb, this->zsum_), zreg(irb, this->zsum_)));
+        IRB_LOOP(this->vsqrtps(zreg(irb, this->zsum_), zreg(irb, this->zsum_)));
 
-        const int ytmp = zsum2; // temporary ymm for f32->bf16 conversion
-        if (pk != prop_kind::forward_inference) {
+        const int ytmp = this->zsum2_; // temporary ymm for f32->bf16 conversion
+        if (this->pk_ != prop_kind::forward_inference) {
             // save intermediate results for lrn backward
-            IRB_LOOP(store_data(EVEX_compress_addr(ws0, irb * vlen),
-                    zreg(irb, zsum), yreg(irb, ytmp)));
+            IRB_LOOP(
+                    store_data(this->EVEX_compress_addr(this->ws0_, irb * vlen),
+                            zreg(irb, this->zsum_), yreg(irb, ytmp)));
         }
-        IRB_LOOP(vdivps(zreg(irb, zdst), zreg(irb, zsrc), zreg(irb, zsum)));
+        IRB_LOOP(this->vdivps(zreg(irb, this->zdst_), zreg(irb, this->zsrc_),
+                zreg(irb, this->zsum_)));
         // storing to dst
-        IRB_LOOP(store_data(EVEX_compress_addr(dst, irb * vlen),
-                zreg(irb, zdst), yreg(irb, ytmp)));
-        if (pk != prop_kind::forward_inference) {
+        IRB_LOOP(store_data(this->EVEX_compress_addr(this->dst_, irb * vlen),
+                zreg(irb, this->zdst_), yreg(irb, ytmp)));
+        if (this->pk_ != prop_kind::forward_inference) {
             // calculate and save more intermediate results for lrn backward
             /* ws1 = zdst / zbase = zsrc / (zbase^1.75) */
+            IRB_LOOP(this->vdivps(zreg(irb, this->zsum_),
+                    zreg(irb, this->zdst_), zreg(irb, this->zbase_)));
             IRB_LOOP(
-                    vdivps(zreg(irb, zsum), zreg(irb, zdst), zreg(irb, zbase)));
-            IRB_LOOP(store_data(EVEX_compress_addr(ws1, irb * vlen),
-                    zreg(irb, zsum), yreg(irb, ytmp)));
+                    store_data(this->EVEX_compress_addr(this->ws1_, irb * vlen),
+                            zreg(irb, this->zsum_), yreg(irb, ytmp)));
         }
     }
 
-    jit_avx512_common_lrn_kernel_f(const struct nChw16c_across &J,
+    jit_avx512_common_lrn_kernel_nChw16c_f(const struct nChw16c_across &J,
             prop_kind_t prop_kind, int use_h_parallel, float A, float K,
             void *code_ptr = nullptr,
             size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE)
-        : jit_generator(code_ptr, code_size)
-        , pk(prop_kind)
+        : jit_avx512_common_lrn_kernel_fwd_f(
+                prop_kind, A, K, code_ptr, code_size)
         , use_h_parallelism(use_h_parallel)
-        , alpha(A)
-        , k(K)
         , bf16_emu_(nullptr) {
+        version = J.version;
         vlen = d_type == bf16 ? 32 : 64;
         // some registers needed for conversion from bf16 to f32
         reg_block = (d_type == bf16 && !mayiuse(avx512_core_bf16)) ? 3 : 4;
@@ -271,88 +569,88 @@ struct jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         buffer_nest_offset = xmm_size + zmm_size;
 
         if (d_type == bf16 && !mayiuse(avx512_core_bf16)) {
-            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
-                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
-                    bf16_emu_reserv_4);
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
+                    bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
+                    bf16_emu_scratch, bf16_emu_reserv_4);
             bf16_emu_->init_vcvtneps2bf16();
         }
 
         this->preamble();
 
-#define GET_OFF(field) offsetof(jit_args_fwd_t, field)
-        mov(src, ptr[param + GET_OFF(src)]);
-        mov(dst, ptr[param + GET_OFF(dst)]);
-        if (pk != prop_kind::forward_inference) {
-            mov(ws0, ptr[param + GET_OFF(ws0)]);
-            mov(ws1, ptr[param + GET_OFF(ws1)]);
+#define GET_OFF(field) \
+    offsetof(typename jit_avx512_common_lrn_kernel_fwd_f::jit_args_fwd_t, field)
+        this->mov(this->src_, ptr[this->param_ + GET_OFF(src)]);
+        this->mov(this->dst_, ptr[this->param_ + GET_OFF(dst)]);
+        if (this->pk_ != prop_kind::forward_inference) {
+            this->mov(this->ws0_, ptr[this->param_ + GET_OFF(ws0)]);
+            this->mov(this->ws1_, ptr[this->param_ + GET_OFF(ws1)]);
         }
 #undef GET_OFF
-
-        is_first = J.version == -1 || J.version == -2;
-        is_last = J.version == +1 || J.version == -2;
-        is_single = J.version == 3;
 
         W = J.W;
         HW = J.W * J.H;
         int LSB = use_h_parallelism ? W : HW;
 
-        sub(t, reg_block * buffer_block);
-        mov(imm_addr64, float2int(this->alpha));
-        movq(xalpha, imm_addr64);
-        vbroadcastss(zalpha, xalpha);
+        this->sub(t, reg_block * buffer_block);
+        this->mov(this->imm_addr64_, float2int(this->alpha_));
+        this->movq(this->xalpha_, this->imm_addr64_);
+        this->vbroadcastss(this->zalpha_, this->xalpha_);
 
-        mov(imm_addr64, float2int(this->k));
-        movq(xk, imm_addr64);
-        vbroadcastss(zk, xk);
+        this->mov(this->imm_addr64_, float2int(this->k_));
+        this->movq(this->xk_, this->imm_addr64_);
+        this->vbroadcastss(this->zk_, this->xk_);
 
-        if (is_first || is_single) {
-            vxorps(xmm2, xmm2, xmm2);
+        if (version == fwd_across_version::First
+                || version == fwd_across_version::Single) {
+            this->vxorps(xmm2, xmm2, xmm2);
             for (int irb = 0; irb < reg_block; irb++) {
-                vmovups(ptr[t + irb * buffer_block], xmm2);
+                this->vmovups(ptr[t + irb * buffer_block], xmm2);
             }
         }
-        if (is_last || is_single) {
-            vxorps(xmm2, xmm2, xmm2);
+        if (version == fwd_across_version::Last
+                || version == fwd_across_version::Single) {
+            this->vxorps(xmm2, xmm2, xmm2);
             for (int irb = 0; irb < reg_block; irb++) {
-                vmovups(ptr[t + irb * buffer_block + buffer_nest_offset], xmm2);
+                this->vmovups(
+                        ptr[t + irb * buffer_block + buffer_nest_offset], xmm2);
             }
         }
 
-        int LSREST = LSB % reg_block;
-        int LS = LSB - LSREST;
+        const int LSREST = LSB % reg_block;
+        const int LS = LSB - LSREST;
 
         Label lrn_loop;
 
         if (LS > 0) {
-            mov(hw, LS);
+            this->mov(hw, LS);
 
-            L(lrn_loop);
+            this->L(lrn_loop);
             {
                 compute_loop(reg_block);
 
-                add(src, reg_block * vlen);
-                add(dst, reg_block * vlen);
-                if (pk != prop_kind::forward_inference) {
-                    add(ws0, reg_block * vlen);
-                    add(ws1, reg_block * vlen);
+                this->add(this->src_, reg_block * vlen);
+                this->add(this->dst_, reg_block * vlen);
+                if (this->pk_ != prop_kind::forward_inference) {
+                    this->add(this->ws0_, reg_block * vlen);
+                    this->add(this->ws1_, reg_block * vlen);
                 }
 
                 for (int irb = 0; irb < reg_block; irb++)
-                    dec(hw);
-                cmp(hw, 0);
-                jne(lrn_loop, T_NEAR);
+                    this->dec(hw);
+                this->cmp(hw, 0);
+                this->jne(lrn_loop, this->T_NEAR);
             }
         }
 
         compute_loop(LSREST);
 
-        add(t, reg_block * buffer_block);
+        this->add(t, reg_block * buffer_block);
         this->postamble();
 
-        ker = reinterpret_cast<decltype(ker)>(
+        this->ker = reinterpret_cast<decltype(this->ker)>(
                 const_cast<uint8_t *>(this->getCode()));
     }
-    ~jit_avx512_common_lrn_kernel_f() { delete bf16_emu_; }
+    ~jit_avx512_common_lrn_kernel_nChw16c_f() = default;
 };
 
 template <data_type_t d_type>
@@ -361,31 +659,36 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
     const memory_desc_wrapper data_d(src_md());
-    bool ok = true && mayiuse(avx512_common)
+    const bool ok = true && mayiuse(avx512_common)
             && IMPLICATION(d_type == bf16, mayiuse(avx512_core)) && is_fwd()
             && !has_zero_dim_memory() && everyone_is(d_type, data_d.data_type())
             && data_d.ndims() == 4 && data_d.dims()[1] % vsize == 0
             && attr()->has_default_values();
     if (!ok) return unimplemented;
 
+    const auto fmt_tag
+            = data_d.matches_one_of_tag(format_tag::nhwc, format_tag::nChw16c);
+
+    const bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
+            && desc()->local_size == 5 && desc()->lrn_beta == 0.75
+            && data_d.matches_tag(fmt_tag)
+            && IMPLICATION(fmt_tag == format_tag::nhwc, d_type != bf16);
+
+    if (!args_ok_across) return unimplemented;
+
     if (desc()->prop_kind == forward_training) {
         dims_t ws_dims = {MB(), C(), H(), 2 * W()};
-        dnnl_memory_desc_init_by_tag(
-                &ws_md_, 4, ws_dims, d_type, format_tag::nChw16c);
+        dnnl_memory_desc_init_by_tag(&ws_md_, 4, ws_dims, d_type, fmt_tag);
     }
 
-    bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
-            && desc()->local_size == 5 && desc()->lrn_beta == 0.75
-            && data_d.matches_tag(format_tag::nChw16c);
-
-    return args_ok_across ? success : unimplemented;
+    return success;
 }
 
 template <data_type_t d_type>
 jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_fwd_t(
         const pd_t *apd)
     : primitive_t(apd)
-    , use_h_parallelism(0)
+    , use_h_parallelism_(0)
     , ker_(nullptr)
     , ker_first_(nullptr)
     , ker_last_(nullptr) {
@@ -397,29 +700,37 @@ jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_fwd_t(
     const float alpha = pd()->desc()->lrn_alpha / ls;
     const float k = pd()->desc()->lrn_k;
 
-    auto pk = pd()->desc()->prop_kind;
+    const auto pk = pd()->desc()->prop_kind;
+    const memory_desc_wrapper data_d(pd()->src_md());
 
-    use_h_parallelism = H > 28 ? 1 : 0;
+    use_h_parallelism_ = H > 28 ? 1 : 0;
 
-    if (C / vsize == 1) {
-        ker_ = new jit_avx512_common_lrn_kernel_f(
-                nChw16c_across(H, W, 3), pk, use_h_parallelism, alpha, k);
-    } else {
-        ker_ = new jit_avx512_common_lrn_kernel_f(
-                nChw16c_across(H, W, 0), pk, use_h_parallelism, alpha, k);
-        ker_first_ = new jit_avx512_common_lrn_kernel_f(
-                nChw16c_across(H, W, -1), pk, use_h_parallelism, alpha, k);
-        ker_last_ = new jit_avx512_common_lrn_kernel_f(
-                nChw16c_across(H, W, +1), pk, use_h_parallelism, alpha, k);
+    if (data_d.matches_tag(format_tag::nChw16c)) {
+        if (C / vsize == 1) {
+            ker_ = utils::make_unique<jit_avx512_common_lrn_kernel_nChw16c_f>(
+                    nChw16c_across(H, W, fwd_across_version::Single), pk,
+                    use_h_parallelism_, alpha, k);
+        } else {
+            ker_ = utils::make_unique<jit_avx512_common_lrn_kernel_nChw16c_f>(
+                    nChw16c_across(H, W, fwd_across_version::Middle), pk,
+                    use_h_parallelism_, alpha, k);
+            ker_first_ = utils::make_unique<
+                    jit_avx512_common_lrn_kernel_nChw16c_f>(
+                    nChw16c_across(H, W, fwd_across_version::First), pk,
+                    use_h_parallelism_, alpha, k);
+            ker_last_ = utils::make_unique<
+                    jit_avx512_common_lrn_kernel_nChw16c_f>(
+                    nChw16c_across(H, W, fwd_across_version::Last), pk,
+                    use_h_parallelism_, alpha, k);
+        }
+    } else if (data_d.matches_tag(format_tag::nhwc)) {
+        ker_ = utils::make_unique<jit_avx512_common_lrn_kernel_nhwc_f>(
+                C, pk, alpha, k);
     }
 }
 
 template <data_type_t d_type>
-jit_avx512_common_lrn_fwd_t<d_type>::~jit_avx512_common_lrn_fwd_t() {
-    delete ker_;
-    delete ker_first_;
-    delete ker_last_;
-}
+jit_avx512_common_lrn_fwd_t<d_type>::~jit_avx512_common_lrn_fwd_t() = default;
 
 template <data_type_t d_type>
 void jit_avx512_common_lrn_fwd_t<d_type>::execute_forward(
@@ -433,73 +744,97 @@ void jit_avx512_common_lrn_fwd_t<d_type>::execute_forward(
     const int H = pd()->H();
     const int W = pd()->W();
 
-    parallel(0, [&](const int ithr, const int nthr) {
-        size_t start {0}, end {0};
-        const int C16 = C / vsize;
-        const size_t work_amount = use_h_parallelism ? N * C16 * H : N * C16;
+    const memory_desc_wrapper src_d = pd()->src_md();
 
-        balance211(work_amount, nthr, ithr, start, end);
-        if (use_h_parallelism) {
-            int n {0}, c16 {0}, h {0};
-            nd_iterator_init(start, n, N, c16, C16, h, H);
-            for (size_t iwork = start; iwork < end; ++iwork) {
-                auto offset
-                        = n * C * H * W + c16 * H * W * vsize + h * W * vsize;
-                auto ws_offset0 = n * C * H * 2 * W + c16 * H * 2 * W * vsize
-                        + h * 2 * W * vsize;
-                auto ws_offset1 = ws_offset0 + W * vsize;
+    if (src_d.matches_tag(format_tag::nChw16c)) {
 
-                typename jit_avx512_common_lrn_kernel_f::jit_args_fwd_t args;
-                args.src = &src[offset];
-                args.dst = &dst[offset];
-                args.ws0 = &ws[ws_offset0];
-                args.ws1 = &ws[ws_offset1];
+        parallel(0, [&](const int ithr, const int nthr) {
+            size_t start {0}, end {0};
+            const int C16 = C / vsize;
+            const size_t work_amount
+                    = use_h_parallelism_ ? N * C16 * H : N * C16;
 
-                if (C16 == 1)
-                    (*ker_)(&args);
-                else if (c16 == 0)
-                    (*ker_first_)(&args);
-                else if (c16 == C16 - 1)
-                    (*ker_last_)(&args);
-                else
-                    (*ker_)(&args);
-                nd_iterator_step(n, N, c16, C16, h, H);
+            balance211(work_amount, nthr, ithr, start, end);
+            if (use_h_parallelism_) {
+                int n {0}, c16 {0}, h {0};
+                nd_iterator_init(start, n, N, c16, C16, h, H);
+                for (size_t iwork = start; iwork < end; ++iwork) {
+                    auto offset = n * C * H * W + c16 * H * W * vsize
+                            + h * W * vsize;
+                    auto ws_offset0 = n * C * H * 2 * W
+                            + c16 * H * 2 * W * vsize + h * 2 * W * vsize;
+                    auto ws_offset1 = ws_offset0 + W * vsize;
+
+                    typename jit_avx512_common_lrn_kernel_fwd_f::jit_args_fwd_t
+                            args;
+                    args.src = &src[offset];
+                    args.dst = &dst[offset];
+                    args.ws0 = &ws[ws_offset0];
+                    args.ws1 = &ws[ws_offset1];
+
+                    if (C16 == 1)
+                        (*ker_)(&args);
+                    else if (c16 == 0)
+                        (*ker_first_)(&args);
+                    else if (c16 == C16 - 1)
+                        (*ker_last_)(&args);
+                    else
+                        (*ker_)(&args);
+                    nd_iterator_step(n, N, c16, C16, h, H);
+                }
+            } else {
+                int n {0}, c16 {0};
+                nd_iterator_init(start, n, N, c16, C16);
+                for (size_t iwork = start; iwork < end; ++iwork) {
+                    auto offset = n * C * H * W + c16 * H * W * vsize;
+                    auto ws_offset0
+                            = n * C * H * 2 * W + c16 * H * 2 * W * vsize;
+                    auto ws_offset1 = ws_offset0 + H * W * vsize;
+
+                    typename jit_avx512_common_lrn_kernel_fwd_f::jit_args_fwd_t
+                            args;
+                    args.src = &src[offset];
+                    args.dst = &dst[offset];
+                    args.ws0 = &ws[ws_offset0];
+                    args.ws1 = &ws[ws_offset1];
+
+                    if (C16 == 1)
+                        (*ker_)(&args);
+                    else if (c16 == 0)
+                        (*ker_first_)(&args);
+                    else if (c16 == C16 - 1)
+                        (*ker_last_)(&args);
+                    else
+                        (*ker_)(&args);
+
+                    nd_iterator_step(n, N, c16, C16);
+                }
             }
-        } else {
-            int n {0}, c16 {0};
-            nd_iterator_init(start, n, N, c16, C16);
-            for (size_t iwork = start; iwork < end; ++iwork) {
-                auto offset = n * C * H * W + c16 * H * W * vsize;
-                auto ws_offset0 = n * C * H * 2 * W + c16 * H * 2 * W * vsize;
-                auto ws_offset1 = ws_offset0 + H * W * vsize;
+        });
+    } else if (src_d.matches_tag(format_tag::nhwc)) {
+        const auto ker = ker_.get();
+        parallel_nd(N, H * W, [&](int n, int pixel_id) {
+            typename jit_avx512_common_lrn_kernel_fwd_f::jit_args_fwd_t args;
+            const auto offset = n * C * H * W + pixel_id * C;
+            const auto ws_offset0 = offset * 2;
+            const auto ws_offset1 = ws_offset0 + vsize;
 
-                typename jit_avx512_common_lrn_kernel_f::jit_args_fwd_t args;
-                args.src = &src[offset];
-                args.dst = &dst[offset];
-                args.ws0 = &ws[ws_offset0];
-                args.ws1 = &ws[ws_offset1];
+            args.src = &src[offset];
+            args.dst = &dst[offset];
+            args.ws0 = &ws[ws_offset0];
+            args.ws1 = &ws[ws_offset1];
 
-                if (C16 == 1)
-                    (*ker_)(&args);
-                else if (c16 == 0)
-                    (*ker_first_)(&args);
-                else if (c16 == C16 - 1)
-                    (*ker_last_)(&args);
-                else
-                    (*ker_)(&args);
-
-                nd_iterator_step(n, N, c16, C16);
-            }
-        }
-    });
+            (*ker)(&args);
+        });
+    }
 }
 
 template struct jit_avx512_common_lrn_fwd_t<f32>;
 template struct jit_avx512_common_lrn_fwd_t<bf16>;
 
 template <data_type_t d_type>
-struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
-    : public jit_generator {
+struct jit_avx512_common_lrn_bwd_t<
+        d_type>::jit_avx512_common_lrn_kernel_nChw16c_f : public jit_generator {
     struct jit_args_bwd_t {
         const data_t *src, *diff_dst, *ws0, *ws1;
         data_t *diff_src;
@@ -508,9 +843,7 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
     int xmm_size, zmm_size, buffer_block, buffer_nest_offset, src_prev_offset,
             vlen, reg_block;
     int HW, W;
-    bool is_first;
-    bool is_last;
-    bool is_single;
+    fwd_across_version version;
 
     Reg64 src = rax;
     Reg64 diffsrc = r8;
@@ -518,11 +851,10 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
     Reg64 workspace0 = rdx;
     Reg64 workspace1 = rsi;
     Reg64 imm_addr64 = rbx;
-
+    Reg64 param = abi_param1;
     Zmm znalphabeta = zmm0;
     Xmm xnalphabeta = xmm0;
 
-    Reg64 param = abi_param1;
     Reg64 t = rsp;
     Reg64 hw = r10;
     Zmm bf16_emu_reserv_1 = Zmm(28);
@@ -553,7 +885,7 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
     int use_h_parallelism;
     bf16_emulation_t *bf16_emu_;
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_f)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_nChw16c_f)
 
     void (*ker)(jit_args_bwd_t *);
     void operator()(jit_args_bwd_t *arg) { ker(arg); }
@@ -591,7 +923,8 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         };
 
         // ---- prefetching -------------------------------------------
-        if (!is_first && !is_single) {
+        if (version != fwd_across_version::First
+                && version != fwd_across_version::Single) {
             if (prefetchL1)
                 IRB_LOOP(mic_prefetcht0(
                         ptr[workspace1 + (irb + prf0_offt - 2 * HW) * vlen]));
@@ -612,7 +945,8 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         if (prefetchL1)
             IRB_LOOP(mic_prefetcht0(ptr[diffdst + (irb + prf0_offt) * vlen]));
 
-        if (!is_last && !is_single) {
+        if (version != fwd_across_version::Last
+                && version != fwd_across_version::Single) {
             if (prefetchL1)
                 IRB_LOOP(mic_prefetcht0(
                         ptr[workspace1 + (irb + prf0_offt + 2 * HW) * vlen]));
@@ -637,7 +971,8 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
 
         if (loop_size_param == 0) return;
 
-        if (!is_first && !is_single) {
+        if (version != fwd_across_version::First
+                && version != fwd_across_version::Single) {
             IRB_LOOP(load_data(xreg(irb, xws1_prev),
                     ptr[workspace1 + (irb - 2 * HW) * vlen + src_prev_offset]));
             IRB_LOOP(load_data(xreg(irb, xdiffdst_prev),
@@ -653,7 +988,8 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         IRB_LOOP(vmulps(
                 zreg(irb, zdiffsrc), zreg(irb, zdiffdst), zreg(irb, zws1)));
 
-        if (!is_last && !is_single) {
+        if (version != fwd_across_version::Last
+                && version != fwd_across_version::Single) {
             IRB_LOOP(load_data(xreg(irb, xws1_next),
                     ptr[workspace1 + (irb + 2 * HW) * vlen]));
             IRB_LOOP(load_data(xreg(irb, xdiffdst_next),
@@ -662,13 +998,15 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
                     xreg(irb, xws1_next)));
         }
 
-        if (!is_first && !is_single) {
+        if (version != fwd_across_version::First
+                && version != fwd_across_version::Single) {
             IRB_LOOP(vmovups(
                     ptr[t + irb * buffer_block], xreg(irb, xdiffdst_prev)));
         }
         IRB_LOOP(vmovups(EVEX_compress_addr(t, irb * buffer_block + xmm_size),
                 zreg(irb, zdiffsrc)));
-        if (!is_last && !is_single) {
+        if (version != fwd_across_version::Last
+                && version != fwd_across_version::Single) {
             IRB_LOOP(vmovups(ptr[t + irb * buffer_block + buffer_nest_offset],
                     xreg(irb, xdiffdst_next)));
         }
@@ -719,8 +1057,8 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         L(end_store);
     }
 
-    jit_avx512_common_lrn_kernel_f(const struct nChw16c_across &J, float A,
-            float B, int use_h_parallel, void *code_ptr = nullptr,
+    jit_avx512_common_lrn_kernel_nChw16c_f(const struct nChw16c_across &J,
+            float A, float B, int use_h_parallel, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
         , nalphabeta(-2 * A * B)
@@ -762,17 +1100,17 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         movq(xnalphabeta, imm_addr64);
         vbroadcastss(znalphabeta, xnalphabeta);
 
-        is_first = J.version == -1 || J.version == -2;
-        is_last = J.version == +1 || J.version == +2;
-        is_single = J.version == 3;
+        version = J.version;
 
-        if (is_first || is_single) {
+        if (version == fwd_across_version::First
+                || version == fwd_across_version::Single) {
             vxorps(xmm1, xmm1, xmm1);
             for (int irb = 0; irb < reg_block; irb++) {
                 vmovups(ptr[t + irb * buffer_block], xmm1);
             }
         }
-        if (is_last || is_single) {
+        if (version == fwd_across_version::Last
+                || version == fwd_across_version::Single) {
             vxorps(xmm1, xmm1, xmm1);
             for (int irb = 0; irb < reg_block; irb++) {
                 vmovups(ptr[t + irb * buffer_block + buffer_nest_offset], xmm1);
@@ -812,7 +1150,7 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
         ker = reinterpret_cast<decltype(ker)>(
                 const_cast<uint8_t *>(this->getCode()));
     }
-    ~jit_avx512_common_lrn_kernel_f() { delete bf16_emu_; }
+    ~jit_avx512_common_lrn_kernel_nChw16c_f() { delete bf16_emu_; }
 };
 
 template <data_type_t d_type>
@@ -859,15 +1197,19 @@ jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_bwd_t(
     use_h_parallelism = H > 28 ? 1 : 0;
 
     if (C / vsize == 1) {
-        ker_ = new jit_avx512_common_lrn_kernel_f(
-                nChw16c_across(H, W, 3), alpha, beta, use_h_parallelism);
+        ker_ = new jit_avx512_common_lrn_kernel_nChw16c_f(
+                nChw16c_across(H, W, fwd_across_version::Single), alpha, beta,
+                use_h_parallelism);
     } else {
-        ker_ = new jit_avx512_common_lrn_kernel_f(
-                nChw16c_across(H, W, 0), alpha, beta, use_h_parallelism);
-        ker_first_ = new jit_avx512_common_lrn_kernel_f(
-                nChw16c_across(H, W, -1), alpha, beta, use_h_parallelism);
-        ker_last_ = new jit_avx512_common_lrn_kernel_f(
-                nChw16c_across(H, W, +1), alpha, beta, use_h_parallelism);
+        ker_ = new jit_avx512_common_lrn_kernel_nChw16c_f(
+                nChw16c_across(H, W, fwd_across_version::Middle), alpha, beta,
+                use_h_parallelism);
+        ker_first_ = new jit_avx512_common_lrn_kernel_nChw16c_f(
+                nChw16c_across(H, W, fwd_across_version::First), alpha, beta,
+                use_h_parallelism);
+        ker_last_ = new jit_avx512_common_lrn_kernel_nChw16c_f(
+                nChw16c_across(H, W, fwd_across_version::Last), alpha, beta,
+                use_h_parallelism);
     }
 }
 
@@ -907,7 +1249,8 @@ void jit_avx512_common_lrn_bwd_t<d_type>::execute_backward(
                         + h * 2 * W * vsize;
                 auto ws_offset1 = ws_offset0 + W * vsize;
 
-                typename jit_avx512_common_lrn_kernel_f::jit_args_bwd_t args;
+                typename jit_avx512_common_lrn_kernel_nChw16c_f::jit_args_bwd_t
+                        args;
                 args.src = &src[offset];
                 args.diff_dst = &diff_dst[offset];
                 args.ws0 = &ws[ws_offset0];
@@ -932,7 +1275,8 @@ void jit_avx512_common_lrn_bwd_t<d_type>::execute_backward(
                 auto ws_offset0 = n * C * H * 2 * W + c16 * H * 2 * W * vsize;
                 auto ws_offset1 = ws_offset0 + H * W * vsize;
 
-                typename jit_avx512_common_lrn_kernel_f::jit_args_bwd_t args;
+                typename jit_avx512_common_lrn_kernel_nChw16c_f::jit_args_bwd_t
+                        args;
                 args.src = &src[offset];
                 args.diff_dst = &diff_dst[offset];
                 args.ws0 = &ws[ws_offset0];

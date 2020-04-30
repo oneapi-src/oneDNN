@@ -17,6 +17,7 @@
 #ifndef CPU_X64_JIT_AVX512_COMMON_LRN_HPP
 #define CPU_X64_JIT_AVX512_COMMON_LRN_HPP
 
+#include <memory>
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 
@@ -28,7 +29,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
-
 template <data_type_t d_type>
 struct jit_avx512_common_lrn_fwd_t : public primitive_t {
     struct pd_t : public cpu_lrn_fwd_pd_t {
@@ -49,7 +49,7 @@ struct jit_avx512_common_lrn_fwd_t : public primitive_t {
     jit_avx512_common_lrn_fwd_t(const pd_t *apd);
     ~jit_avx512_common_lrn_fwd_t();
 
-    typedef typename prec_traits<d_type>::type data_t;
+    using data_t = typename prec_traits<d_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -57,14 +57,17 @@ struct jit_avx512_common_lrn_fwd_t : public primitive_t {
     }
 
 private:
-    static const int vsize = 16;
+    static constexpr int vsize = 16;
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    int use_h_parallelism;
+    int use_h_parallelism_;
 
-    struct jit_avx512_common_lrn_kernel_f;
-    jit_avx512_common_lrn_kernel_f *ker_, *ker_first_, *ker_last_;
+    struct jit_avx512_common_lrn_kernel_nChw16c_f;
+    class jit_avx512_common_lrn_kernel_nhwc_f;
+    class jit_avx512_common_lrn_kernel_fwd_f;
+    std::unique_ptr<jit_avx512_common_lrn_kernel_fwd_f> ker_, ker_first_,
+            ker_last_;
 };
 
 template <data_type_t d_type>
@@ -100,8 +103,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     int use_h_parallelism;
-    struct jit_avx512_common_lrn_kernel_f;
-    jit_avx512_common_lrn_kernel_f *ker_, *ker_first_, *ker_last_;
+    struct jit_avx512_common_lrn_kernel_nChw16c_f;
+    jit_avx512_common_lrn_kernel_nChw16c_f *ker_, *ker_first_, *ker_last_;
 };
 
 } // namespace x64
