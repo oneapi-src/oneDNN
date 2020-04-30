@@ -3800,6 +3800,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
 
     if (max_threads < j.ngroups) {
         /* simplification... fortunately it doesn't hurt much */
+        nthr_ = nthr_g_ = max_threads;
         return;
     }
 
