@@ -10668,6 +10668,11 @@ inline status set_max_cpu_isa(cpu_isa isa) {
             dnnl_set_max_cpu_isa(static_cast<dnnl_cpu_isa_t>(isa)));
 }
 
+/// @copydoc dnnl_get_effective_cpu_isa()
+inline cpu_isa get_effective_cpu_isa() {
+    return static_cast<cpu_isa>(dnnl_get_effective_cpu_isa());
+}
+
 /// @} dnnl_api_service
 
 /// @addtogroup dnnl_api_primitive_cache Primitive Cache

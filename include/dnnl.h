@@ -3927,6 +3927,16 @@ dnnl_status_t DNNL_API dnnl_set_jit_profiling_jitdumpdir(const char *dir);
 ///     details).
 dnnl_status_t DNNL_API dnnl_set_max_cpu_isa(dnnl_cpu_isa_t isa);
 
+/// Gets the maximal ISA the library can dispatch to on the CPU. See
+/// #dnnl_cpu_isa_t and #dnnl::cpu_isa for the list of the values returned by
+/// the C and C++ API functions respectively.
+///
+/// @sa @ref dev_guide_cpu_dispatcher_control for more details
+///
+/// @returns #dnnl_cpu_isa_t value reflecting the maximal ISA the library may
+///     dispatch to.
+dnnl_cpu_isa_t DNNL_API dnnl_get_effective_cpu_isa(void);
+
 /// @} dnnl_api_service
 
 /// @addtogroup dnnl_api_blas
