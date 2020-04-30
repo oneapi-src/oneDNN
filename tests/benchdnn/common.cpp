@@ -171,6 +171,8 @@ const char *skip_reason2str(skip_reason_t skip_reason) {
 #define CASE(x) \
     if (skip_reason == x) return STRINGIFY(x)
     CASE(CASE_NOT_SUPPORTED);
+    CASE(DATA_TYPE_NOT_SUPPORTED);
+    CASE(INVALID_CASE);
     CASE(NOT_ENOUGH_RAM);
     CASE(SKIP_IMPL_HIT);
 #undef CASE

@@ -208,3 +208,22 @@ bool check_md_consistency_with_tag(
             WARN);
     return dnnl_memory_desc_equal(&md_new_tag, &md);
 }
+
+void check_known_skipped_case_common(
+        const std::vector<dnnl_data_type_t> &v_dt, res_t *r) {
+    static auto isa = dnnl_get_effective_cpu_isa();
+    // rely on dnnl_cpu_isa_t enum order where AVX512_MIC < AVX512_CORE
+    for (const auto &i_dt : v_dt) {
+        // bf16 is supported on AVX512-CORE+ only
+        if (isa < dnnl_cpu_isa_avx512_core && i_dt == dnnl_bf16) {
+            r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
+            break;
+        }
+        // f16 is supported on GPU only
+        if (engine_tgt_kind != dnnl_gpu && i_dt == dnnl_f16) {
+            r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
+            break;
+        }
+    }
+    if (r->state == SKIPPED) return;
+}

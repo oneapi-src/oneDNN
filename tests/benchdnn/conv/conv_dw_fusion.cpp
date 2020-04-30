@@ -325,8 +325,16 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *p) {
             tag::any, p->dtag, alg_t::DIRECT, fusion_attr, p->mb));
 }
 
+void check_known_skipped_case(const prb_t *p, res_t *r) {
+    check_known_skipped_case_common(
+            {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, r);
+}
+
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+
+    check_known_skipped_case(p, r);
+    if (r->state == SKIPPED) return OK;
 
     // Original problem with fusion attributes
     dnnl_primitive_t c {};

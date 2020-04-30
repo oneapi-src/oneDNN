@@ -267,8 +267,15 @@ static int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
     return OK;
 }
 
+void check_known_skipped_case(const prb_t *p, res_t *r) {
+    check_known_skipped_case_common({p->conf_in->dt, p->conf_out->dt}, r);
+}
+
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+
+    check_known_skipped_case(p, r);
+    if (r->state == SKIPPED) return OK;
 
     //                                       ___________________
     //                                      |                   |
