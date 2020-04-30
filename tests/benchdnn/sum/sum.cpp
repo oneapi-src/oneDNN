@@ -130,9 +130,18 @@ int fill_src(
     return OK;
 }
 
+void check_known_skipped_case(const prb_t *p, res_t *r) {
+    std::vector<dnnl_data_type_t> dts = p->sdt;
+    dts.push_back(p->ddt);
+    check_known_skipped_case_common(dts, r);
+}
+
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
+
+    check_known_skipped_case(p, r);
+    if (r->state == SKIPPED) return OK;
 
     dnnl_primitive_t s {};
     SAFE(init_prim(&s, init_pd, engine_tgt, p, r), WARN);

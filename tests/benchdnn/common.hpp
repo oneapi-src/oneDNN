@@ -40,6 +40,8 @@
 #define MIN3(a, b, c) MIN2(a, MIN2(b, c))
 #define MAX3(a, b, c) MAX2(a, MAX2(b, c))
 
+#define IMPLICATION(cause, effect) (!(cause) || !!(effect))
+
 #if defined(_WIN32) && !defined(__GNUC__)
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
@@ -196,6 +198,8 @@ const char *state2str(res_state_t state, bool allow_unimpl);
 enum skip_reason_t {
     SKIP_UNKNOWN = 0,
     CASE_NOT_SUPPORTED,
+    DATA_TYPE_NOT_SUPPORTED,
+    INVALID_CASE,
     NOT_ENOUGH_RAM,
     SKIP_IMPL_HIT,
 };

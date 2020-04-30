@@ -175,9 +175,34 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
     return OK;
 }
 
+void check_known_skipped_case(const prb_t *p, res_t *r) {
+    check_known_skipped_case_common(
+            {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, r);
+    if (r->state == SKIPPED) return;
+
+    // TODO: shapes with dilation and non-unit stride go to reference which
+    // does not support attributes yet. Remove the whole condition once
+    // attributes support is added to reference.
+    // TODO: uncomment deconv shape mb96ic64ih6oc32oh14kh5ph2dh2n"4d/5x5"
+    static auto isa = dnnl_get_effective_cpu_isa();
+    static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core;
+    bool is_int8 = p->cfg[WEI].dt == dnnl_s8;
+    bool has_attr_support = IMPLICATION(is_int8, has_avx512_bw)
+            && IMPLICATION(p->dd != 0, p->sd == 1)
+            && IMPLICATION(p->dh != 0, p->sh == 1)
+            && IMPLICATION(p->dw != 0, p->sw == 1);
+    if (!p->attr.is_def() && !has_attr_support) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+}
+
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
+
+    check_known_skipped_case(p, r);
+    if (r->state == SKIPPED) return OK;
 
     prb_t p_tr((desc_t)*p, p->dir, p->cfg, p->stag, p->wtag, p->dtag, p->alg,
             p->attr, p->mb, true);
