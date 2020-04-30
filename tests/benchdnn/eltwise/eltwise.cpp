@@ -347,9 +347,31 @@ int fill_data(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
+void check_known_skipped_case(const prb_t *p, res_t *r) {
+    check_known_skipped_case_common({p->dt}, r);
+    if (r->state == SKIPPED) return;
+
+    bool is_invalid = false;
+    switch (p->alg) {
+        case alg_t::CLIP:
+            if (p->beta < p->alpha) is_invalid = true;
+            break;
+        case alg_t::BRELU:
+        case alg_t::ELU_DST:
+        case alg_t::RELU_DST:
+            if (p->alpha < 0) is_invalid = true;
+            break;
+        default: break;
+    };
+    if (is_invalid) r->state = SKIPPED, r->reason = INVALID_CASE;
+}
+
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
+
+    check_known_skipped_case(p, r);
+    if (r->state == SKIPPED) return OK;
 
     dnnl_primitive_t e {};
     SAFE(init_prim(&e, init_pd, engine_tgt, p, r), WARN);

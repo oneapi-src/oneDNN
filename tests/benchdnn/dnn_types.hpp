@@ -335,6 +335,7 @@ private:
 std::ostream &dump_global_params(std::ostream &s);
 
 dnnl_format_tag_t get_abx_tag(int ndims);
+dnnl_format_tag_t get_axb_tag(int ndims);
 dnnl_format_tag_t convert_tag(const std::string &tag_str, int ndims);
 
 dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,

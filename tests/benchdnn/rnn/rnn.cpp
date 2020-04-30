@@ -606,13 +606,23 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p_ptr,
     return OK;
 }
 
+void check_known_skipped_case(const prb_t &p, res_t *r) {
+    check_known_skipped_case_common({p.cfg[SRC_LAYER].dt}, r);
+    if (r->state == SKIPPED) return;
+
+    if (p.maybe_skip()) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+}
+
 int doit(const prb_t &p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt_fwd(engine_tgt_kind);
     engine_t engine_tgt_bwd(engine_tgt_kind);
 
-    if (p.maybe_skip())
-        return r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED, OK;
+    check_known_skipped_case(p, r);
+    if (r->state == SKIPPED) return OK;
 
     dnnl_primitive_t c {};
     SAFE(init_prim(&c, init_pd, engine_tgt_fwd, &p, r), WARN);

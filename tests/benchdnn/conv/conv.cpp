@@ -556,9 +556,50 @@ inline int init_pd_custom(const engine_t &engine_tgt, const prb_t *p,
     return OK;
 }
 
+void check_known_skipped_case(const prb_t *p, res_t *r) {
+    check_known_skipped_case_common(
+            {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, r);
+    if (r->state == SKIPPED) return;
+
+    // Winograd implementation limitations.
+    if (p->alg == WINO) {
+        static auto isa = dnnl_get_effective_cpu_isa();
+        static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic;
+        static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core;
+        bool is_int8 = p->cfg[WEI].dt == dnnl_s8;
+        bool shape_ok = p->ndims == 4 && p->g == 1 && p->kh == 3 && p->kw == 3
+                && p->sh == 1 && p->sw == 1 && p->dh == 0 && p->dw == 0
+                && IMPLICATION(is_int8,
+                        (p->ic % 16 == 0) && (p->oc % 16 == 0) && p->ph == p->pw
+                                && p->ph <= 1 && p->pw <= 1);
+        bool bwd_is_syncable = IMPLICATION(
+                (p->dir & FLAG_BWD), dnnl::impl::dnnl_thr_syncable());
+
+        const auto stag = convert_tag(p->stag, p->ndims);
+        const bool stag_is_abx = stag == get_abx_tag(p->ndims);
+        const bool stag_is_axb = stag == get_axb_tag(p->ndims);
+        const auto dtag = convert_tag(p->dtag, p->ndims);
+        const bool dtag_is_abx = dtag == get_abx_tag(p->ndims);
+        const bool dtag_is_axb = dtag == get_axb_tag(p->ndims);
+        const bool is_plain
+                = stag_is_abx || stag_is_axb || dtag_is_abx || dtag_is_axb;
+        const bool plain_ok = is_int8 && !stag_is_abx && !dtag_is_abx
+                && (stag_is_axb || dtag_is_axb);
+
+        if (!has_avx512_common || !shape_ok || (!has_avx512_bw && is_int8)
+                || !bwd_is_syncable || (is_plain && !plain_ok)) {
+            r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+}
+
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
+
+    check_known_skipped_case(p, r);
+    if (r->state == SKIPPED) return OK;
 
     dnnl_primitive_t c {};
     // TODO: align init_pd interface with a common one which is used

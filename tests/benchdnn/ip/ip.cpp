@@ -291,9 +291,18 @@ int fill_dst(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
 
     return OK;
 }
+
+void check_known_skipped_case(const prb_t *p, res_t *r) {
+    check_known_skipped_case_common(
+            {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, r);
+}
+
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
+
+    check_known_skipped_case(p, r);
+    if (r->state == SKIPPED) return OK;
 
     dnnl_primitive_t ip {};
     SAFE(init_prim(&ip, init_pd, engine_tgt, p, r), WARN);

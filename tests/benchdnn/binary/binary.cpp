@@ -150,9 +150,16 @@ int fill_src(
     return OK;
 }
 
+void check_known_skipped_case(const prb_t *p, res_t *r) {
+    check_known_skipped_case_common(p->sdt, r);
+}
+
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
+
+    check_known_skipped_case(p, r);
+    if (r->state == SKIPPED) return OK;
 
     dnnl_primitive_t b {};
     SAFE(init_prim(&b, init_pd, engine_tgt, p, r), WARN);
