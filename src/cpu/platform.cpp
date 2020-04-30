@@ -33,6 +33,14 @@ const char *get_isa_info() {
 #endif
 }
 
+dnnl_cpu_isa_t get_effective_cpu_isa() {
+#if DNNL_X64
+    return x64::get_effective_cpu_isa();
+#else
+    return dnnl_cpu_isa_all;
+#endif
+}
+
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
 #if DNNL_X64
     return x64::set_max_cpu_isa(isa);

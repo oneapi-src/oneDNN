@@ -114,37 +114,73 @@ bool init_max_cpu_isa() {
 #endif
 } // namespace
 
-const char *get_isa_info() {
-    /* oneDNN CPU ISA info */
-    const char *ISA_ANY = "Intel 64";
-    const char *SSE41 = "Intel SSE4.1";
-    const char *AVX = "Intel AVX";
-    const char *AVX2 = "Intel AVX2";
-    const char *AVX512_COMMON = "Intel AVX-512";
-    const char *AVX512_CORE
-            = "Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions";
-    const char *AVX512_CORE_VNNI = "Intel AVX-512 with Intel DL Boost";
-    const char *AVX512_MIC
-            = "Intel AVX-512 with AVX512CD, AVX512ER, and AVX512PF extensions";
-    const char *AVX512_MIC_4OPS
-            = "Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW extensions";
-    const char *AVX512_CORE_BF16
-            = "Intel AVX-512 with Intel DL Boost and bfloat16 support";
+struct isa_info_t {
+    isa_info_t(cpu_isa_t aisa) : isa(aisa) {};
 
-    if (mayiuse(avx512_core_bf16)) return AVX512_CORE_BF16;
-    if (mayiuse(avx512_mic_4ops)) return AVX512_MIC_4OPS;
-    if (mayiuse(avx512_mic)) return AVX512_MIC;
-    if (mayiuse(avx512_core_vnni)) return AVX512_CORE_VNNI;
-    if (mayiuse(avx512_core)) return AVX512_CORE;
-    if (mayiuse(avx512_common)) return AVX512_COMMON;
-    if (mayiuse(avx2)) return AVX2;
-    if (mayiuse(avx)) return AVX;
-    if (mayiuse(sse41)) return SSE41;
+    // this converter is needed due to code base uses avx512_common isa which
+    // the library does not expose, so the internal and external enum types
+    // do not coincide.
+    dnnl_cpu_isa_t convert_to_public_enum(void) const {
+        switch (isa) {
+            case avx512_core_bf16: return dnnl_cpu_isa_avx512_core_bf16;
+            case avx512_core_vnni: return dnnl_cpu_isa_avx512_core_vnni;
+            case avx512_core: return dnnl_cpu_isa_avx512_core;
+            case avx512_mic_4ops: return dnnl_cpu_isa_avx512_mic_4ops;
+            case avx512_mic: return dnnl_cpu_isa_avx512_mic;
+            case avx2: return dnnl_cpu_isa_avx2;
+            case avx: return dnnl_cpu_isa_avx;
+            case sse41: return dnnl_cpu_isa_sse41;
+            default: return dnnl_cpu_isa_all;
+        }
+    }
 
-    return ISA_ANY;
+    const char *get_name() const {
+        switch (isa) {
+            case avx512_core_bf16:
+                return "Intel AVX-512 with Intel DL Boost and bfloat16 support";
+            case avx512_core_vnni: return "Intel AVX-512 with Intel DL Boost";
+            case avx512_core:
+                return "Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ "
+                       "extensions";
+            case avx512_mic_4ops:
+                return "Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW "
+                       "extensions";
+            case avx512_mic:
+                return "Intel AVX-512 with AVX512CD, AVX512ER, and AVX512PF "
+                       "extensions";
+            case avx512_common: return "Intel AVX-512";
+            case avx2: return "Intel AVX2";
+            case avx: return "Intel AVX";
+            case sse41: return "Intel SSE4.1";
+            default: return "Intel 64";
+        }
+    }
+
+    cpu_isa_t isa;
+};
+
+static const isa_info_t get_isa_info_t(void) {
+    // descending order due to mayiuse check
+#define HANDLE_CASE(cpu_isa) \
+    if (mayiuse(cpu_isa)) return isa_info_t(cpu_isa);
+    HANDLE_CASE(avx512_core_bf16);
+    HANDLE_CASE(avx512_core_vnni);
+    HANDLE_CASE(avx512_core);
+    HANDLE_CASE(avx512_mic_4ops);
+    HANDLE_CASE(avx512_mic);
+    HANDLE_CASE(avx512_common);
+    HANDLE_CASE(avx2);
+    HANDLE_CASE(avx);
+    HANDLE_CASE(sse41);
+#undef HANDLE_CASE
+    return isa_info_t(isa_any);
 }
 
-cpu_isa_t get_max_cpu_isa(bool soft) {
+const char *get_isa_info() {
+    return get_isa_info_t().get_name();
+}
+
+cpu_isa_t get_max_cpu_isa_mask(bool soft) {
     MAYBE_UNUSED(soft);
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
     init_max_cpu_isa();
@@ -185,6 +221,10 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
 #else
     return unimplemented;
 #endif
+}
+
+dnnl_cpu_isa_t get_effective_cpu_isa() {
+    return get_isa_info_t().convert_to_public_enum();
 }
 
 } // namespace x64
