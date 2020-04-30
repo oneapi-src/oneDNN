@@ -1074,8 +1074,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::od_step_comeback_pointers() {
         const int inp_mult
                 = one_of(jcp.src_tag, ncw, nchw, ncdhw) ? 1 : jcp.ic_block;
         sub(aux_reg_input, sizeof(float) * jcp.iw * jcp.ih * inp_mult);
-        sub(aux_reg_kernel,
-                sizeof(float) * jcp.kw * jcp.kh * jcp.ic_block * jcp.oc_block);
+        sub(aux_reg_kernel, get_kernel_offset(jcp.kw * jcp.kh, 0));
         dec(kj);
         cmp(kj, 0);
         jg(kd_comeback_loop, T_NEAR);
@@ -1090,7 +1089,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::oh_step_comeback_pointers() {
         const int inp_mult
                 = one_of(jcp.src_tag, ncw, nchw, ncdhw) ? 1 : jcp.ic_block;
         sub(reg_input, sizeof(float) * jcp.iw * inp_mult);
-        sub(reg_kernel, sizeof(float) * jcp.kw * jcp.ic_block * jcp.oc_block);
+        sub(reg_kernel, get_kernel_offset(jcp.kw, 0));
         dec(kj);
         cmp(kj, 0);
         jg(kh_comeback_loop, T_NEAR);
@@ -1105,8 +1104,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_ic_block_step(
     const int oc_block = jcp.oc_block;
     for (int i_kw = 0; i_kw < kw; i_kw++)
         for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
-            size_t off = sizeof(float) * (i_kw * ic_block + i_ic) * jcp.oc_block
-                    + kernel_offset;
+            size_t off = get_kernel_offset(i_kw, i_ic) + kernel_offset;
             vmovups(Ymm(i_kw * ic_block_step + i_ic), yword[reg_kernel + off]);
         }
 
@@ -1142,8 +1140,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_ic_block_step(
 
     for (int i_kw = 0; i_kw < kw; i_kw++)
         for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
-            size_t off = sizeof(float) * (i_kw * ic_block + i_ic) * jcp.oc_block
-                    + kernel_offset;
+            size_t off = get_kernel_offset(i_kw, i_ic) + kernel_offset;
             vmovups(yword[reg_kernel + off], Ymm(i_kw * ic_block_step + i_ic));
         }
 }
@@ -1177,7 +1174,6 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
     UNUSED(max_ur_w);
 
     const int ic_block = jcp.ic_block;
-    const int oc_block = jcp.oc_block;
     int inp_mul = one_of(jcp.src_tag, ncw, nchw, ncdhw) ? 1 : jcp.ic_block;
     Label kd_loop;
 
@@ -1207,7 +1203,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
                                     ? jcp.id * jcp.ih * jcp.iw
                                     : 1);
             safe_add(reg_input, inp_icblk_stride, reg_long_offt);
-            add(reg_kernel, sizeof(float) * ic_block_step * oc_block);
+            add(reg_kernel, get_kernel_offset(0, ic_block_step));
             add(b_ic, ic_block_step);
             cmp(b_ic, ic_block);
             jl(ic_block_loop, T_NEAR);
@@ -1219,7 +1215,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
         } else {
             add(reg_input, sizeof(float) * (jcp.iw - 1) * ic_block);
         }
-        add(reg_kernel, sizeof(float) * (jcp.kw - 1) * ic_block * oc_block);
+        add(reg_kernel, get_kernel_offset((jcp.kw - 1), 0));
         dec(kj);
         cmp(kj, 0);
         jg(kh_loop, T_NEAR);
@@ -1227,8 +1223,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
 
     if (jcp.ndims == 5) {
         add(aux_reg_input, sizeof(float) * jcp.ih * jcp.iw * inp_mul);
-        add(aux_reg_kernel,
-                sizeof(float) * jcp.kh * jcp.kw * ic_block * oc_block);
+        add(aux_reg_kernel, get_kernel_offset(jcp.kh * jcp.kw, 0));
         dec(ki);
         cmp(ki, 0);
         jg(kd_loop, T_NEAR);
@@ -1316,7 +1311,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_common(
                                     ? jcp.id * jcp.ih * jcp.iw
                                     : 1);
             safe_add(reg_input, inp_icblk_stride, reg_long_offt);
-            add(reg_kernel, sizeof(float) * ic_block_step * oc_block);
+            add(reg_kernel, get_kernel_offset(0, ic_block_step));
 
             add(b_ic, ic_block_step);
             cmp(b_ic, jcp.ic_block);
@@ -1329,7 +1324,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_common(
         } else {
             add(reg_input, sizeof(float) * (jcp.iw - 1) * ic_block);
         }
-        add(reg_kernel, sizeof(float) * (jcp.kw - 1) * ic_block * oc_block);
+        add(reg_kernel, get_kernel_offset((jcp.kw - 1), 0));
         dec(kj);
         cmp(kj, 0);
         jg(kh_loop, T_NEAR);
@@ -1337,8 +1332,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_common(
 
     if (jcp.ndims == 5) {
         add(aux_reg_input, sizeof(float) * jcp.ih * jcp.iw * inp_mul);
-        add(aux_reg_kernel,
-                sizeof(float) * jcp.kh * jcp.kw * ic_block * oc_block);
+        add(aux_reg_kernel, get_kernel_offset(jcp.kh * jcp.kw, 0));
         dec(ki);
         cmp(ki, 0);
         jg(kd_loop, T_NEAR);
@@ -1346,7 +1340,6 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_common(
 }
 
 inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
-    const int icoc_block = jcp.ic_block * jcp.oc_block;
     const int t_pad = jcp.t_pad;
     const int stride_h = jcp.stride_h;
     const int inp_mult
@@ -1361,13 +1354,13 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
     if (t_pad > 0) {
         assert(jcp.kh <= t_pad + jcp.ih); /* [bwd_w:r1] */
         mov(reg_kh, jcp.kh <= t_pad + jcp.ih ? jcp.kh - t_pad : jcp.ih);
-        add(reg_kernel, sizeof(float) * t_pad * jcp.kw * icoc_block);
+        add(reg_kernel, get_kernel_offset(t_pad * jcp.kw, 0));
 
         L(oh_tpad_loop);
         {
             compute_oh_step_disp();
             add(reg_output, sizeof(float) * jcp.ow * jcp.oc_block);
-            sub(reg_kernel, sizeof(float) * stride_h * jcp.kw * icoc_block);
+            sub(reg_kernel, get_kernel_offset(stride_h * jcp.kw, 0));
 
             inc(reg_oj);
             add(reg_ih_count, stride_h);
@@ -1382,7 +1375,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
 
         if (t_pad % stride_h != 0) {
             int inp_corr = stride_h - t_pad % stride_h;
-            add(reg_kernel, sizeof(float) * inp_corr * jcp.kw * icoc_block);
+            add(reg_kernel, get_kernel_offset(inp_corr * jcp.kw, 0));
             add(reg_input, sizeof(float) * inp_corr * jcp.iw * inp_mult);
         }
     }
