@@ -1096,7 +1096,6 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_ic_block_step(
         int ur_w, int pad_l, int pad_r, int ic_block_step, int input_offset,
         int kernel_offset, int output_offset) {
     const int kw = jcp.kw;
-    const int oc_block = jcp.oc_block;
     for (int i_kw = 0; i_kw < kw; i_kw++)
         for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
             size_t off = get_kernel_offset(i_kw, i_ic) + kernel_offset;
@@ -1105,8 +1104,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_ic_block_step(
 
     for (int i_ur = 0; i_ur < ur_w; i_ur++) {
         vmovups(Ymm(kw * ic_block_step + 0),
-                yword[reg_output + sizeof(float) * i_ur * oc_block
-                        + output_offset]);
+                yword[reg_output + get_output_offset(0, i_ur) + output_offset]);
 
         for (int i_kw = 0; i_kw < kw; i_kw++) {
             int i_iw = i_ur * jcp.stride_w + i_kw;
@@ -1210,7 +1208,6 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
 inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_common(
         int ic_block_step, int max_ur_w) {
     const int ic_block = jcp.ic_block;
-    const int oc_block = jcp.oc_block;
     const int stride_w = jcp.stride_w;
     Label kd_loop;
 
@@ -1231,7 +1228,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_common(
 
     int input_comeback
             = get_input_offset(0, ur_w_trips * ur_w * stride_w - jcp.l_pad);
-    int output_comeback = ur_w_trips * ur_w * oc_block;
+    int output_comeback = get_output_offset(0, ur_w_trips * ur_w);
 
     if (jcp.ndims == 5) {
         mov(aux_reg_input, reg_input);
@@ -1256,7 +1253,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_common(
                         ur_w, jcp.l_pad, 0, ic_block_step, 0, 0, 0);
                 add(reg_input,
                         get_input_offset(0, ur_w * stride_w - jcp.l_pad));
-                add(reg_output, sizeof(float) * ur_w * oc_block);
+                add(reg_output, get_output_offset(0, ur_w));
             }
 
             if (ur_w_trips > 0) {
@@ -1265,7 +1262,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_common(
                 L(ow_block_loop);
                 {
                     compute_ic_block_step(ur_w, 0, 0, ic_block_step, 0, 0, 0);
-                    add(reg_output, sizeof(float) * ur_w * oc_block);
+                    add(reg_output, get_output_offset(0, ur_w));
                     add(reg_input, get_input_offset(0, ur_w * stride_w));
 
                     inc(reg_ur_w_trips);
@@ -1279,7 +1276,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_common(
                         ur_w_tail, 0, r_pad, ic_block_step, 0, 0, 0);
 
             sub(reg_input, input_comeback);
-            sub(reg_output, sizeof(float) * output_comeback);
+            sub(reg_output, output_comeback);
 
             size_t inp_icblk_stride = get_input_offset(ic_block_step, 0);
             safe_add(reg_input, inp_icblk_stride, reg_long_offt);
@@ -1324,7 +1321,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
         L(oh_tpad_loop);
         {
             compute_oh_step_disp();
-            add(reg_output, sizeof(float) * jcp.ow * jcp.oc_block);
+            add(reg_output, get_output_offset(0, jcp.ow));
             sub(reg_kernel, get_kernel_offset(stride_h * jcp.kw, 0));
 
             inc(reg_oj);
@@ -1354,7 +1351,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
     {
         compute_oh_step_disp();
         add(reg_input, get_input_offset(0, stride_h * jcp.iw));
-        add(reg_output, sizeof(float) * jcp.ow * jcp.oc_block);
+        add(reg_output, get_output_offset(0, jcp.ow));
 
         inc(reg_oj);
         add(reg_ih_count, stride_h);
@@ -1377,7 +1374,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
         {
             compute_oh_step_disp();
             add(reg_input, get_input_offset(0, stride_h * jcp.iw));
-            add(reg_output, sizeof(float) * jcp.ow * jcp.oc_block);
+            add(reg_output, get_output_offset(0, jcp.ow));
 
             sub(reg_kh, stride_h);
             cmp(reg_kh, 0);
