@@ -221,6 +221,10 @@ dnnl_status_t dnnl_set_max_cpu_isa(dnnl_cpu_isa_t isa) {
     return dnnl::impl::cpu::platform::set_max_cpu_isa(isa);
 }
 
+dnnl_cpu_isa_t dnnl_get_effective_cpu_isa() {
+    return dnnl::impl::cpu::platform::get_effective_cpu_isa();
+}
+
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include "dnnl_threadpool_iface.hpp"
 namespace dnnl {
