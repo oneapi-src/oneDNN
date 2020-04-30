@@ -5240,6 +5240,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
 
     if (nthreads < j.ngroups) {
         /* simplification... fortunately it doesn't hurt much */
+        nthr_ = nthr_g_ = nthreads;
         return;
     }
 
