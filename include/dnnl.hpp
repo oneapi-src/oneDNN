@@ -203,9 +203,9 @@ public:
     /// @returns The underlying C API handle.
     explicit operator T() const { return get(true); }
 
-    /// Checks whether the object is empty.
+    /// Checks whether the object is not empty.
     ///
-    /// @returns Whether the object is empty.
+    /// @returns Whether the object is not empty.
     explicit operator bool() const { return get(true) != nullptr; }
 
     /// Equality operator.
@@ -1982,6 +1982,11 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns Whether this and the other memory descriptors describe
         ///     different memory.
         bool operator!=(const desc &other) const { return !operator==(other); }
+
+        /// Checks whether the object is not empty.
+        ///
+        /// @returns Whether the object is not empty.
+        explicit operator bool() const { return data.ndims != 0; }
     };
 
     /// Default constructor.
