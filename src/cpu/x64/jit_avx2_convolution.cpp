@@ -65,6 +65,17 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         size_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
 
+        bool is_ic_physically_blocked = one_of(jcp.src_tag, format_tag::nCw8c,
+                format_tag::nChw8c, format_tag::nCdhw8c);
+        int g_ic_offset = is_ic_physically_blocked ? jcp.nb_ic : jcp.ic;
+        int icb_ic_scale = is_ic_physically_blocked ? 1 : jcp.ic_block;
+
+        bool is_oc_physically_blocked = one_of(jcp.dst_tag, format_tag::nCw8c,
+                format_tag::nChw8c, format_tag::nCdhw8c);
+        int g_oc_offset = is_oc_physically_blocked ? jcp.nb_oc : jcp.oc;
+        int ocb_oc_scale = is_oc_physically_blocked ? 1 : jcp.oc_block;
+        int oc_bias_scale = is_oc_physically_blocked ? jcp.oc_block : 1;
+
         int icbb = 0;
         while (icbb < jcp.nb_ic) {
             int icb_step = jcp.nb_ic_blocking;
@@ -97,9 +108,8 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                                               - jcp.f_pad + 1)
                             - jcp.id;
 
-                    const size_t _oc = g * jcp.nb_oc + ocb;
-                    const size_t _ic
-                            = g * jcp.nb_ic * jcp.nonblk_group_off + icb;
+                    const size_t _oc = g * g_oc_offset + ocb * ocb_oc_scale;
+                    const size_t _ic = g * g_ic_offset + icb * icb_ic_scale;
 
                     const int ih = nstl::max(ij - jcp.t_pad
                                     + div_up(i_t_overflow, (jcp.dilate_h + 1))
@@ -122,8 +132,9 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
                     if (icb == 0) {
                         if (bias)
-                            par_conv.bias
-                                    = &bias[bias_d.blk_off(_oc * jcp.oc_block)];
+                            par_conv.bias = &bias[bias_d.blk_off(
+                                    _oc * oc_bias_scale)];
+
                         par_conv.flags |= FLAG_IC_FIRST;
                     }
 

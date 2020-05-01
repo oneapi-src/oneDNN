@@ -415,22 +415,29 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
     if (kernel_outside_src) return status::unimplemented;
 
-    if (ndims == 3) {
-        jcp.src_tag = src_d.matches_one_of_tag(ncw, nwc, nCw8c);
-        jcp.wei_tag = weights_d.matches_one_of_tag(
-                Owi8o, gOwi8o, OIw8i8o, gOIw8i8o);
-        jcp.dst_tag = dst_d.matches_one_of_tag(nCw8c);
-    } else if (ndims == 4) {
-        jcp.src_tag = src_d.matches_one_of_tag(nchw, nhwc, nChw8c);
-        jcp.wei_tag = weights_d.matches_one_of_tag(
-                Ohwi8o, gOhwi8o, OIhw8i8o, gOIhw8i8o);
-        jcp.dst_tag = dst_d.matches_one_of_tag(nChw8c);
-    } else if (ndims == 5) {
-        jcp.src_tag = src_d.matches_one_of_tag(ncdhw, ndhwc, nCdhw8c);
-        jcp.wei_tag = weights_d.matches_one_of_tag(
-                Odhwi8o, gOdhwi8o, OIdhw8i8o, gOIdhw8i8o);
-        jcp.dst_tag = dst_d.matches_one_of_tag(nCdhw8c);
-    }
+    const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
+    const auto dat_tag_ncx = pick(ndims - 3, ncw, nchw, ncdhw);
+    const auto dat_tag_nCx8c = pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+    auto wei_tag_OIxio = with_groups
+            ? utils::pick(ndims - 3, gOIw8i8o, gOIhw8i8o, gOIdhw8i8o)
+            : utils::pick(ndims - 3, OIw8i8o, OIhw8i8o, OIdhw8i8o);
+    auto wei_tag_Oxio = with_groups
+            ? utils::pick(ndims - 3, gOwi8o, gOhwi8o, gOdhwi8o)
+            : utils::pick(ndims - 3, Owi8o, Ohwi8o, Odhwi8o);
+
+    jcp.src_tag
+            = src_d.matches_one_of_tag(dat_tag_ncx, dat_tag_nxc, dat_tag_nCx8c);
+    jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag_OIxio, wei_tag_Oxio);
+    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
+
+    bool is_data_layout_nxc
+            = utils::everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);
+
+    // Disable this kernel on high width 1d object as gemm performs better until
+    // optimizations can be made to fix it.
+    if (is_data_layout_nxc && ndims == 3 && jcp.ow > 11 * 1024)
+        return status::unimplemented;
+
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
@@ -465,15 +472,22 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     bool args_ok = true
             && IMPLICATION(flat,
                     true
-                            && one_of(jcp.src_tag, ncw, nwc, nchw, nhwc, ncdhw,
-                                    ndhwc)
-                            && one_of(jcp.wei_tag, Owi8o, gOwi8o, Ohwi8o,
-                                    gOhwi8o, Odhwi8o, gOdhwi8o))
+                            && ((one_of(jcp.src_tag, dat_tag_ncx)
+                                        && one_of(jcp.dst_tag, dat_tag_nCx8c))
+                                    || (one_of(jcp.src_tag, dat_tag_nxc)
+                                            && one_of(
+                                                    jcp.dst_tag, dat_tag_nxc)))
+                            && one_of(jcp.wei_tag, wei_tag_Oxio))
             && IMPLICATION(mimo,
-                    true && one_of(jcp.src_tag, nCw8c, nChw8c, nCdhw8c)
-                            && one_of(jcp.wei_tag, OIw8i8o, gOIw8i8o, OIhw8i8o,
-                                    gOIhw8i8o, OIdhw8i8o, gOIdhw8i8o))
-            && one_of(jcp.dst_tag, nCw8c, nChw8c, nCdhw8c);
+                    true
+                            && ((one_of(jcp.src_tag, dat_tag_nCx8c)
+                                        && one_of(jcp.dst_tag, dat_tag_nCx8c))
+                                    || (one_of(jcp.src_tag, dat_tag_nxc)
+                                            && one_of(
+                                                    jcp.dst_tag, dat_tag_nxc)))
+                            && one_of(jcp.wei_tag, wei_tag_OIxio))
+            && jcp.ic <= src_d.padded_dims()[1]
+            && jcp.oc <= dst_d.padded_dims()[1];
     if (!args_ok) return status::unimplemented;
 
     jcp.ur_h = 1; /* no code-unrolling by h so far */
@@ -539,7 +553,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     assert(jcp.nb_oc_blocking > 0);
     assert(jcp.ur_w * (jcp.nb_oc_blocking + 1) <= num_avail_regs);
 
-    jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
+    jcp.ic_block = flat ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
 
     jcp.nb_ic_blocking = 12;
