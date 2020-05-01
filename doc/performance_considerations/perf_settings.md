@@ -34,7 +34,7 @@ thread affinity.
 
 The general principles below are not operating system-specific. However, of
 all operating systems supported by oneDNN only Linux has the
-[`numactl(8)`](https://linux.die.net/man/8/numactl) utility that makes it easy
+[numactl(8)](https://linux.die.net/man/8/numactl) utility that makes it easy
 to demonstrate them. NUMA stands for non-uniform memory access which is the
 typical architecture of the modern CPUs in which individual sockets have their
 own memory with separate physical memory attached. NUMA configuration is
