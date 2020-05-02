@@ -102,15 +102,20 @@ int bench(int argc, char **argv) {
     driver_name = "eltwise";
     using namespace parser;
     static settings_t s;
+    static const settings_t def {};
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_dir(s.dir, argv[0])
-                || parse_dt(s.dt, argv[0]) || parse_tag(s.tag, argv[0])
-                || parse_vector_option(s.alpha, atof, argv[0], "alpha")
-                || parse_vector_option(s.beta, atof, argv[0], "beta")
+                || parse_batch(bench, argv[0])
+                || parse_dir(s.dir, def.dir, argv[0])
+                || parse_dt(s.dt, def.dt, argv[0])
+                || parse_tag(s.tag, def.tag, argv[0])
                 || parse_vector_option(
-                        s.alg, attr_t::post_ops_t::str2kind, argv[0], "alg")
-                || parse_inplace(s.inplace, argv[0]) || parse_mb(s.mb, argv[0])
+                        s.alpha, def.alpha, atof, argv[0], "alpha")
+                || parse_vector_option(s.beta, def.beta, atof, argv[0], "beta")
+                || parse_vector_option(s.alg, def.alg,
+                        attr_t::post_ops_t::str2kind, argv[0], "alg")
+                || parse_inplace(s.inplace, def.inplace, argv[0])
+                || parse_mb(s.mb, def.mb, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])

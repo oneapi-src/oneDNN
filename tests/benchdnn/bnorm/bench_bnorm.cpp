@@ -64,16 +64,21 @@ int bench(int argc, char **argv) {
     driver_name = "bnorm";
     using namespace parser;
     static settings_t s;
+    static const settings_t def {};
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_dir(s.dir, argv[0])
-                || parse_dt(s.dt, argv[0]) || parse_tag(s.tag, argv[0])
-                || parse_vector_option(s.flags, str2flags, argv[0], "flags")
-                || parse_single_value_option(
-                        s.check_alg, str2check_alg, argv[0], "check-alg")
-                || parse_inplace(s.inplace, argv[0]) || parse_mb(s.mb, argv[0])
-                || parse_single_value_option(
-                        s.debug_check_ws, str2bool, argv[0], "debug-check-ws")
+                || parse_batch(bench, argv[0])
+                || parse_dir(s.dir, def.dir, argv[0])
+                || parse_dt(s.dt, def.dt, argv[0])
+                || parse_tag(s.tag, def.tag, argv[0])
+                || parse_vector_option(
+                        s.flags, def.flags, str2flags, argv[0], "flags")
+                || parse_single_value_option(s.check_alg, def.check_alg,
+                        str2check_alg, argv[0], "check-alg")
+                || parse_inplace(s.inplace, def.inplace, argv[0])
+                || parse_mb(s.mb, def.mb, argv[0])
+                || parse_single_value_option(s.debug_check_ws,
+                        def.debug_check_ws, str2bool, argv[0], "debug-check-ws")
                 || parse_attr(s.attr, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])

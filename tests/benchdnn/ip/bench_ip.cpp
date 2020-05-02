@@ -61,13 +61,16 @@ int bench(int argc, char **argv) {
     driver_name = "ip";
     using namespace parser;
     static settings_t s;
+    static const settings_t def {};
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_dir(s.dir, argv[0])
-                || parse_cfg(s.cfg, str2cfg, argv[0])
-                || parse_tag(s.stag, argv[0], "stag")
-                || parse_tag(s.wtag, argv[0], "wtag")
-                || parse_tag(s.dtag, argv[0], "dtag") || parse_mb(s.mb, argv[0])
+                || parse_batch(bench, argv[0])
+                || parse_dir(s.dir, def.dir, argv[0])
+                || parse_cfg(s.cfg, def.cfg, str2cfg, argv[0])
+                || parse_tag(s.stag, def.stag, argv[0], "stag")
+                || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
+                || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
+                || parse_mb(s.mb, def.mb, argv[0])
                 || parse_attr(s.attr, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,

@@ -76,25 +76,28 @@ int bench(int argc, char **argv) {
     driver_name = "rnn";
     using namespace parser;
     static settings_t s;
+    static const settings_t def {};
     for (; argc > 0; --argc, ++argv) {
         auto cstr2str = [](const char *str) { return std::string(str); };
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
-                || parse_dir(s.prop, argv[0], "prop")
-                || parse_cfg(s.cfg, cstr2str, argv[0])
-                || parse_vector_option(s.alg, str2alg, argv[0], "alg")
-                || parse_vector_option(
-                        s.direction, str2direction, argv[0], "direction")
-                || parse_vector_option(
-                        s.activation, str2activation, argv[0], "activation")
-                || parse_scale_policy(s.scale_policy, argv[0])
-                || parse_mb(s.mb, argv[0])
-                || parse_skip_nonlinear(s.skip_nonlinear, argv[0])
-                || parse_trivial_strides(s.trivial_strides, argv[0])
-                || parse_vector_option(
-                        s.with_peephole, str2bool, argv[0], "with-peephole")
-                || parse_vector_option(
-                        s.with_projection, str2bool, argv[0], "with-projection")
+                || parse_dir(s.prop, def.prop, argv[0], "prop")
+                || parse_cfg(s.cfg, def.cfg, cstr2str, argv[0])
+                || parse_vector_option(s.alg, def.alg, str2alg, argv[0], "alg")
+                || parse_vector_option(s.direction, def.direction,
+                        str2direction, argv[0], "direction")
+                || parse_vector_option(s.activation, def.activation,
+                        str2activation, argv[0], "activation")
+                || parse_scale_policy(s.scale_policy, def.scale_policy, argv[0])
+                || parse_mb(s.mb, def.mb, argv[0])
+                || parse_skip_nonlinear(
+                        s.skip_nonlinear, def.skip_nonlinear, argv[0])
+                || parse_trivial_strides(
+                        s.trivial_strides, def.trivial_strides, argv[0])
+                || parse_vector_option(s.with_peephole, def.with_peephole,
+                        str2bool, argv[0], "with-peephole")
+                || parse_vector_option(s.with_projection, def.with_projection,
+                        str2bool, argv[0], "with-projection")
                 || parse_attr(s.attr, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,

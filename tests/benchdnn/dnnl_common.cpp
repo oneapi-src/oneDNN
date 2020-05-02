@@ -38,7 +38,7 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
 dnnl_engine_kind_t engine_tgt_kind = dnnl_cpu;
 
 // Scratchpad mode for oneDNN
-dnnl_scratchpad_mode_t scratchpad_mode;
+dnnl_scratchpad_mode_t scratchpad_mode = dnnl_scratchpad_mode_library;
 
 args_t &args_t::set(int arg, const dnn_mem_t &mem) {
     args_.push_back(std::make_pair(arg, &mem));

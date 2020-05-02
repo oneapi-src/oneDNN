@@ -60,12 +60,16 @@ int bench(int argc, char **argv) {
     driver_name = "shuffle";
     using namespace parser;
     static settings_t s;
+    static const settings_t def {};
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_dir(s.dir, argv[0])
-                || parse_dt(s.dt, argv[0]) || parse_tag(s.tag, argv[0])
-                || parse_vector_option(s.group, atoi, argv[0], "group")
-                || parse_axis(s.axis, argv[0])
+                || parse_batch(bench, argv[0])
+                || parse_dir(s.dir, def.dir, argv[0])
+                || parse_dt(s.dt, def.dt, argv[0])
+                || parse_tag(s.tag, def.tag, argv[0])
+                || parse_vector_option(
+                        s.group, def.group, atoi, argv[0], "group")
+                || parse_axis(s.axis, def.axis, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])

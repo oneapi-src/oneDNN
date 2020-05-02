@@ -69,18 +69,22 @@ int bench(int argc, char **argv) {
     driver_name = "reorder";
     using namespace parser;
     static settings_t s;
+    static const settings_t def {};
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
-                || parse_dt(s.sdt, argv[0], "sdt")
-                || parse_dt(s.ddt, argv[0], "ddt")
-                || parse_tag(s.stag, argv[0], "stag")
-                || parse_tag(s.dtag, argv[0], "dtag")
-                || parse_vector_option(s.oflag, str2flag, argv[0], "oflag")
+                || parse_dt(s.sdt, def.sdt, argv[0], "sdt")
+                || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
+                || parse_tag(s.stag, def.stag, argv[0], "stag")
+                || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_vector_option(
-                        s.runtime_dim_mask, atoi, argv[0], "runtime-dim-mask")
-                || parse_single_value_option(s.alg, str2alg, argv[0], "alg")
-                || parse_vector_option(s.def_scale, atof, argv[0], "def-scales")
+                        s.oflag, def.oflag, str2flag, argv[0], "oflag")
+                || parse_vector_option(s.runtime_dim_mask, def.runtime_dim_mask,
+                        atoi, argv[0], "runtime-dim-mask")
+                || parse_single_value_option(
+                        s.alg, def.alg, str2alg, argv[0], "alg")
+                || parse_vector_option(
+                        s.def_scale, def.def_scale, atof, argv[0], "def-scales")
                 || parse_attr(s.attr, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,

@@ -60,13 +60,15 @@ int bench(int argc, char **argv) {
     driver_name = "pool";
     using namespace parser;
     static settings_t s;
+    static const settings_t def {};
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_dir(s.dir, argv[0])
-                || parse_cfg(s.cfg, str2cfg, argv[0])
-                || parse_tag(s.tag, argv[0])
-                || parse_vector_option(s.alg, str2alg, argv[0], "alg")
-                || parse_mb(s.mb, argv[0])
+                || parse_batch(bench, argv[0])
+                || parse_dir(s.dir, def.dir, argv[0])
+                || parse_cfg(s.cfg, def.cfg, str2cfg, argv[0])
+                || parse_tag(s.tag, def.tag, argv[0])
+                || parse_vector_option(s.alg, def.alg, str2alg, argv[0], "alg")
+                || parse_mb(s.mb, def.mb, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
