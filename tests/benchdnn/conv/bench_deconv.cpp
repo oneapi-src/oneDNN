@@ -36,8 +36,9 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
+    for_(const auto &i_alg : s.alg)
     for (const auto &i_mb : s.mb) {
-        const prb_t p(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, s.alg,
+        const prb_t p(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg,
                 s.attr, i_mb);
         std::stringstream ss;
         ss << p;
@@ -75,8 +76,7 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.wtag, def.wtag, argv[0], "wtag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
-                || parse_single_value_option(
-                        s.alg, def.alg, str2alg, argv[0], "alg")
+                || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])
                 || parse_attr(s.attr, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])

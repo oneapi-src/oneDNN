@@ -74,7 +74,7 @@ struct settings_t {
     std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
     std::vector<flag_t> oflag {FLAG_NONE};
     std::vector<unsigned> runtime_dim_mask {0};
-    alg_t alg = ALG_REF;
+    std::vector<alg_t> alg {ALG_REF};
     attr_t attr = {};
     bool allow_unimpl = false;
 

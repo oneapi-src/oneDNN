@@ -71,7 +71,7 @@ int bench(int argc, char **argv) {
                 || parse_multi_dt(s.sdt, def.sdt, argv[0])
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_multi_tag(s.stag, def.stag, argv[0])
-                || parse_vector_option(s.alg, def.alg, str2alg, argv[0], "alg")
+                || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_attr(s.attr, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])

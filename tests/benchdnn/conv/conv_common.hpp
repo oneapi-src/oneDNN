@@ -103,7 +103,7 @@ struct settings_t {
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
     std::vector<int64_t> mb {0};
-    alg_t alg = DIRECT;
+    std::vector<alg_t> alg {DIRECT};
     attr_t attr = {};
     bool allow_unimpl = false;
     const char *pattern = NULL;

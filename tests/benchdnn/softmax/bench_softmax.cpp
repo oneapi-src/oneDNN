@@ -69,7 +69,7 @@ int bench(int argc, char **argv) {
                 || parse_dir(s.dir, def.dir, argv[0])
                 || parse_dt(s.dt, def.dt, argv[0])
                 || parse_tag(s.tag, def.tag, argv[0])
-                || parse_vector_option(s.alg, def.alg, str2alg, argv[0], "alg")
+                || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_axis(s.axis, def.axis, argv[0])
                 || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])

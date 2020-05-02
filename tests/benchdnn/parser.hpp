@@ -96,6 +96,12 @@ static bool parse_cfg(T &vec, const T &def, F process_func, const char *str,
     return parse_vector_option(vec, def, process_func, str, option_name);
 }
 
+template <typename T, typename F>
+static bool parse_alg(T &vec, const T &def, F process_func, const char *str,
+        const std::string &option_name = "alg") {
+    return parse_vector_option(vec, def, process_func, str, option_name);
+}
+
 template <typename S>
 bool parse_reset(S &settings, const char *str,
         const std::string &option_name = "reset") {

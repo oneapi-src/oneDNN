@@ -83,7 +83,7 @@ int bench(int argc, char **argv) {
                 || parse_batch(bench, argv[0])
                 || parse_dir(s.prop, def.prop, argv[0], "prop")
                 || parse_cfg(s.cfg, def.cfg, cstr2str, argv[0])
-                || parse_vector_option(s.alg, def.alg, str2alg, argv[0], "alg")
+                || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_vector_option(s.direction, def.direction,
                         str2direction, argv[0], "direction")
                 || parse_vector_option(s.activation, def.activation,

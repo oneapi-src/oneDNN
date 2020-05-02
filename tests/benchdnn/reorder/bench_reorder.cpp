@@ -32,6 +32,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_oflag : s.oflag)
+    for_(const auto &i_alg : s.alg)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
         reorder_conf_t reorder_conf {s.dims, i_stag, i_dtag};
         dt_conf_t iconf = dt2cfg(i_sdt);
@@ -41,7 +42,7 @@ void check_correctness(const settings_t &s) {
         auto &scale = s.attr.oscale.scale == 0 ? s.def_scale : attr_scale;
 
         for (const auto &i_scale : scale) {
-            const prb_t p(reorder_conf, iconf, oconf, s.attr, s.alg, i_oflag,
+            const prb_t p(reorder_conf, iconf, oconf, s.attr, i_alg, i_oflag,
                     i_runtime_dim_mask, i_scale);
             std::stringstream ss;
             ss << p;
@@ -81,8 +82,7 @@ int bench(int argc, char **argv) {
                         s.oflag, def.oflag, str2flag, argv[0], "oflag")
                 || parse_vector_option(s.runtime_dim_mask, def.runtime_dim_mask,
                         atoi, argv[0], "runtime-dim-mask")
-                || parse_single_value_option(
-                        s.alg, def.alg, str2alg, argv[0], "alg")
+                || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_vector_option(
                         s.def_scale, def.def_scale, atof, argv[0], "def-scales")
                 || parse_attr(s.attr, argv[0])
