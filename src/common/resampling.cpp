@@ -38,12 +38,16 @@ status_t resampling_desc_init(resampling_desc_t *resampling_desc,
             && utils::one_of(src_desc->ndims, 3, 4, 5);
     if (!args_ok) return invalid_arguments;
 
+    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
+    if (is_fwd) {
+        args_ok = args_ok && src_desc->format_kind != format_kind::any;
+        if (!args_ok) return invalid_arguments;
+    }
+
     auto rd = resampling_desc_t();
     rd.primitive_kind = primitive_kind::resampling;
     rd.prop_kind = prop_kind;
     rd.alg_kind = alg_kind;
-
-    const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
 
     bool runtime_dims_or_strides
             = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()

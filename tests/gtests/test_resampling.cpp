@@ -334,6 +334,12 @@ using resampling_test_float = resampling_test<float>;
 
 TEST_P(resampling_test_float, TestsResampleF32) {}
 
+INSTANTIATE_TEST_SUITE_P(TestResampleEF, resampling_test_float,
+        ::testing::Values(resampling_test_params {prop_kind::forward,
+                algorithm::resampling_linear, memory::format_tag::any,
+                EXPAND_SIZES_1D(1, 1, 5, 10, 2.f), true,
+                dnnl_invalid_arguments}));
+
 CPU_INSTANTIATE_TEST_SUITE_P(TestResampleForwardPlainLinear,
         resampling_test_float,
         ::testing::Values(
