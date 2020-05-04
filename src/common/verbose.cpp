@@ -791,7 +791,7 @@ static void init_info_rnn(engine_t *e, pd_t *s, char *buffer) {
     }
     { // wei_iter
         auto md = s->is_fwd() ? s->weights_md(1) : s->diff_weights_md(1);
-        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_layer_");
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_iter_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     if (s->is_lstm_peephole()) { // wei_peephole

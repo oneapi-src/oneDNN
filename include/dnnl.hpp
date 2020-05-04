@@ -308,7 +308,7 @@ struct primitive : public handle<dnnl_primitive_t> {
         layer_normalization = dnnl_layer_normalization,
         /// An inner product primitive.
         inner_product = dnnl_inner_product,
-        /// A rnn primitive.
+        /// An RNN primitive.
         rnn = dnnl_rnn,
         /// A binary primitive.
         binary = dnnl_binary,
@@ -7776,7 +7776,7 @@ struct vanilla_rnn_backward : public primitive {
         }
     };
 
-    /// Primitive descriptor for a RNN backward propagation primitive.
+    /// Primitive descriptor for an RNN backward propagation primitive.
     struct primitive_desc : public rnn_primitive_desc_base {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
@@ -8753,7 +8753,7 @@ struct lstm_backward : public primitive {
         }
     };
 
-    /// Primitive descriptor for LSTM backward propagation.
+    /// Primitive descriptor for an LSTM backward propagation.
     struct primitive_desc : public rnn_primitive_desc_base {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;
@@ -9001,7 +9001,7 @@ struct gru_forward : public primitive {
         }
     };
 
-    /// Primitive descriptor GRU forward propagation primitive.
+    /// Primitive descriptor for a GRU forward propagation primitive.
     struct primitive_desc : public rnn_primitive_desc_base {
         /// Default constructor. Produces an empty object.
         primitive_desc() = default;

@@ -297,7 +297,7 @@ argument index as specified by the following table.
 | \dstlayer              | DNNL_ARG_DST_LAYER               |
 | \dstiter               | DNNL_ARG_DST_ITER                |
 | \dstiterc              | DNNL_ARG_DST_ITER_C              |
-| workspace              | DNNL_WORKSPACE                   |
+| \workspace             | DNNL_WORKSPACE                   |
 | \diffsrclayer          | DNNL_ARG_DIFF_SRC_LAYER          |
 | \diffsrciter           | DNNL_ARG_DIFF_SRC_ITER           |
 | \diffsrciterc          | DNNL_ARG_DIFF_SRC_ITER_C         |
