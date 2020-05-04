@@ -3148,6 +3148,10 @@ struct reorder : public primitive {
 
         /// Constructs a primitive descriptor for reorder primitive.
         ///
+        /// @note
+        ///     If @p allow_empty is true, the constructor does not throw if a
+        ///     primitive descriptor cannot be created.
+        ///
         /// Inputs:
         ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
         ///
@@ -3161,17 +3165,23 @@ struct reorder : public primitive {
         ///     will be located.
         /// @param dst_md Destination memory descriptor.
         /// @param attr Primitive attributes to use (optional).
+        /// @param allow_empty A flag signifying whether construction is allowed
+        ///     to fail without throwing an exception. In this case an empty
+        ///     object will be produced. This flag is optional and defaults to
+        ///     false.
         primitive_desc(const engine &src_engine, const memory::desc &src_md,
                 const engine &dst_engine, const memory::desc &dst_md,
-                const primitive_attr &attr = primitive_attr()) {
+                const primitive_attr &attr = primitive_attr(),
+                bool allow_empty = false) {
             dnnl_primitive_desc_t result;
-            error::wrap_c_api(
-                    dnnl_reorder_primitive_desc_create(&result, &src_md.data,
-                            src_engine.get(), &dst_md.data, dst_engine.get(),
-                            attr.get()),
-                    "could not create a primitive descriptor for a reorder "
-                    "primitive");
-            reset(result);
+            dnnl_status_t status = dnnl_reorder_primitive_desc_create(&result,
+                    &src_md.data, src_engine.get(), &dst_md.data,
+                    dst_engine.get(), attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a reorder "
+                        "primitive");
+            reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
         /// Constructs a primitive descriptor for reorder primitive.
@@ -3181,18 +3191,24 @@ struct reorder : public primitive {
         /// @param dst Destination memory object. It is used to obtain the
         ///     destination memory descriptor and engine.
         /// @param attr Primitive attributes to use (optional).
+        /// @param allow_empty A flag signifying whether construction is allowed
+        ///     to fail without throwing an exception. In this case an empty
+        ///     object will be produced. This flag is optional and defaults to
+        ///     false.
         primitive_desc(const memory &src, const memory &dst,
-                const primitive_attr &attr = primitive_attr()) {
+                const primitive_attr &attr = primitive_attr(),
+                bool allow_empty = false) {
             dnnl_primitive_desc_t result;
             auto src_md = src.get_desc();
             auto dst_md = dst.get_desc();
-            error::wrap_c_api(
-                    dnnl_reorder_primitive_desc_create(&result, &src_md.data,
-                            src.get_engine().get(), &dst_md.data,
-                            dst.get_engine().get(), attr.get()),
-                    "could not create a primitive descriptor for a reorder "
-                    "primitive");
-            reset(result);
+            dnnl_status_t status = dnnl_reorder_primitive_desc_create(&result,
+                    &src_md.data, src.get_engine().get(), &dst_md.data,
+                    dst.get_engine().get(), attr.get());
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not create a primitive descriptor for a reorder "
+                        "primitive");
+            reset(status == dnnl_success ? result : dnnl_primitive_desc_t());
         }
 
         /// Constructs a primitive descriptor for reorder primitive from a C
