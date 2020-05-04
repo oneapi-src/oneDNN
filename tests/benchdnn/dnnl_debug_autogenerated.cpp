@@ -266,10 +266,10 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(ihwo);
     CASE(iohw);
     CASE(oidhw);
+    CASE(iodhw);
     CASE(dhwio);
     CASE(odhwi);
     CASE(idhwo);
-    CASE(iodhw);
     CASE(goiw);
     CASE(wigo);
     CASE(goihw);

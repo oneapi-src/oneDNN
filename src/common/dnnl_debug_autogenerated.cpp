@@ -276,10 +276,10 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_ihwo) return "ihwo";
     if (v == dnnl_iohw) return "iohw";
     if (v == dnnl_oidhw) return "oidhw";
+    if (v == dnnl_iodhw) return "iodhw";
     if (v == dnnl_dhwio) return "dhwio";
     if (v == dnnl_odhwi) return "odhwi";
     if (v == dnnl_idhwo) return "idhwo";
-    if (v == dnnl_iodhw) return "iodhw";
     if (v == dnnl_goiw) return "goiw";
     if (v == dnnl_wigo) return "wigo";
     if (v == dnnl_goihw) return "goihw";
@@ -608,4 +608,5 @@ const char *dnnl_cpu_isa2str(dnnl_cpu_isa_t v) {
     assert(!"unknown cpu_isa");
     return "unknown cpu_isa";
 }
+
 

@@ -92,6 +92,16 @@ file(GLOB PRIM_TEST_CASES_SRC
 # Exclude this test as the allocation is intentional
 if(NOT DNNL_USE_CLANG_SANITIZER)
     list(APPEND PRIM_TEST_CASES_SRC test_alloc_scratchpad.cpp)
+
+    # Due to the following tests have long run-time, move them to Nightly set
+    if(DNNL_TEST_SET GREATER DNNL_TEST_SET_CI)
+        file(GLOB LARGE_PRIM_TEST_CASES_SRC
+            test_reorder_formats.cpp
+            )
+        foreach(TEST_FILE ${LARGE_PRIM_TEST_CASES_SRC})
+            list(APPEND PRIM_TEST_CASES_SRC "${TEST_FILE}")
+        endforeach()
+    endif()
 endif()
 
 # Add X64-specific tests
