@@ -75,15 +75,18 @@ private:
     reg64_t aux_reg_output_data = abi_not_param1;
     reg64_t reg_load_loop_work = rsi;
     reg64_t reg_reduce_loop_work = r11;
-    reg64_t bcast_loop_iter = rdx;
+    reg64_t reg_bcast_loop_iter = rdx;
     reg64_t reduce_loop_iter = abi_param1;
     reg64_t reg_reduce_pos_flag = rax;
     reg64_t reg_output_stride = r13;
     reg64_t reg_bias_data = r12;
     reg64_t reg_relu_ns = r13;
     reg64_t reg_bcast_loop_work = aux1_reg_bcast_data;
+    reg64_t reg_load_dim_tail_mask = aux_reg_load_data;
 
     Xbyak::Zmm vreg_bcast = Xbyak::Zmm(31);
+    Xbyak::Opmask k_load_dim_mask = Xbyak::Opmask(2);
+    Xbyak::Opmask k_load_dim_tail_mask = Xbyak::Opmask(3);
 
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
 
