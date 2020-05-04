@@ -40,5 +40,5 @@
 --cfg=s8s8f32,u8s8f32 --batch=shapes_yolov2
 --attr=post_ops='sum;relu:0.5'
 --cfg=s8s8f32,u8s8f32 --batch=shapes_yolov2
---attr=post_ops='linear:-1:50;relu:0.5'
+--attr=post_ops='sum:0.5'
 --cfg=s8s8f32 --batch=shapes_3d
