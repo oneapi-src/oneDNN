@@ -130,15 +130,17 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
     // Tensor and kernel dimensions. We use the same 3x3 kernel with padding=1
     // for both convolution and pooling primitives, which means that the
     // activation tensor shapes do not change.
-    const int N = 1, H = 14, W = 14, IC = 256, OC = IC, KH = 3, KW = 3;
+    const int N = 1, H = 14, W = 14, IC = 128, OC = 256, KH = 3, KW = 3;
     auto conv_src_md = memory::desc({N, IC, H, W}, memory::data_type::f32,
             memory::format_tag::any // let convolution choose memory format
     );
     auto conv_weights_md = memory::desc(
-            {IC, OC, KH, KW}, memory::data_type::f32,
+            {OC, IC, KH, KW}, memory::data_type::f32,
             memory::format_tag::any // let convolution choose memory format
     );
-    auto conv_dst_md = conv_src_md; // shape does not change
+    auto conv_dst_md = memory::desc({N, OC, H, W}, memory::data_type::f32,
+            memory::format_tag::any // let convolution choose memory format
+    );
     auto pool_dst_md = conv_dst_md; // shape does not change
     // [Create placeholder memory descriptors]
 
@@ -177,11 +179,11 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
     auto src_mem = memory(
             {{N, IC, H, W}, memory::data_type::f32, memory::format_tag::nchw},
             eng);
-    auto weights_mem = memory({{IC, OC, KH, KW}, memory::data_type::f32,
+    auto weights_mem = memory({{OC, IC, KH, KW}, memory::data_type::f32,
                                       memory::format_tag::oihw},
             eng);
     auto dst_mem = memory(
-            {{N, IC, H, W}, memory::data_type::f32, memory::format_tag::nchw},
+            {{N, OC, H, W}, memory::data_type::f32, memory::format_tag::nchw},
             eng);
     // [Create source and destination memory objects]
 
@@ -326,20 +328,23 @@ int main(int argc, char **argv) {
 ///
 /// ~~~sh
 /// $ DNNL_VERBOSE=1 ./memory-format-propagation-cpp
-/// dnnl_verbose,info,oneDNN <ver> (Git Hash <hash>),Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2)
-/// dnnl_verbose,exec,reorder,jit:uni,undef,
-///     src_f32::blocked:abcd:f0 dst_f32::blocked:aBcd8b:f0,num:1,1x256x14x14,1.03101
-/// dnnl_verbose,exec,reorder,jit:uni,undef,
-///     src_f32::blocked:abcd:f0 dst_f32::blocked:ABcd8b8a:f0,num:1,256x256x3x3,5.69678
-/// dnnl_verbose,exec,convolution,jit:avx2,forward_inference,
-///     src_f32::blocked:aBcd8b:f0 wei_f32::blocked:ABcd8b8a:f0 dst_f32::blocked:aBcd8b:f0,
-///     alg:convolution_direct,mb1_ic256oc256_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1,1.65698
-/// dnnl_verbose,exec,pooling,jit:avx,forward_inference,
-///     src_f32::blocked:aBcd8b:f0 dst_f32::blocked:aBcd8b:f0,
-///     alg:pooling_max,mb1ic256_ih14oh14kh3sh1ph1_iw14ow14kw3sw1pw1,0.322021
-/// dnnl_verbose,exec,reorder,jit:uni,
-///     undef,src_f32::blocked:aBcd8b:f0 dst_f32::blocked:abcd:f0,num:1,1x256x14x14,0.333008
-/// Example passed.
+/// dnnl_verbose,info,oneDNN <ver> (Git Hash <hash>)
+/// dnnl_verbose,info,cpu,runtime:OpenMP
+/// dnnl_verbose,info,cpu,isa:Intel AVX2
+/// dnnl_verbose,info,gpu,runtime:none
+/// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,
+///     src_f32::blocked:abcd:f0 dst_f32::blocked:aBcd8b:f0,,,1x128x14x14,0.326904
+/// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,
+///     src_f32::blocked:abcd:f0 dst_f32::blocked:ABcd8b8a:f0,,,256x128x3x3,0.244141
+/// dnnl_verbose,exec,cpu,convolution,jit:avx2,forward_inference,
+///     src_f32::blocked:aBcd8b:f0 wei_f32::blocked:ABcd8b8a:f0 bia_undef::undef::f0 dst_f32::blocked:aBcd8b:f0,,
+///     alg:convolution_direct,mb1_ic128oc256_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1,1.20312
+/// dnnl_verbose,exec,cpu,pooling,jit:avx,forward_inference,
+///     src_f32::blocked:aBcd8b:f0 dst_f32::blocked:aBcd8b:f0 ws_undef::undef::f0,,
+///     alg:pooling_max,mb1ic256_ih14oh14kh3sh1ph1_iw14ow14kw3sw1pw1,0.187012
+/// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,
+///     src_f32::blocked:aBcd8b:f0 dst_f32::blocked:abcd:f0,,,1x256x14x14,0.0419922
+/// Example passed on CPU.
 /// ~~~
 ///
 /// From this output we can deduce that:
