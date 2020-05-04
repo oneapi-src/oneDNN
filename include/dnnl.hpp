@@ -926,7 +926,7 @@ struct engine : public handle<dnnl_engine_t> {
     cl_context get_ocl_context() const {
         cl_context context = nullptr;
         error::wrap_c_api(dnnl_engine_get_ocl_context(get(), &context),
-                "could not get an OpenCL context fron an engine");
+                "could not get an OpenCL context from an engine");
         return context;
     }
 
@@ -935,7 +935,7 @@ struct engine : public handle<dnnl_engine_t> {
     cl_device_id get_ocl_device() const {
         cl_device_id device = nullptr;
         error::wrap_c_api(dnnl_engine_get_ocl_device(get(), &device),
-                "could not get an OpenCL device fron an engine");
+                "could not get an OpenCL device from an engine");
         return device;
     }
 #endif
@@ -1233,7 +1233,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// values in each dimension. See @ref dnnl_blocking_desc_t for more
         /// information.
         blocked = dnnl_blocked,
-        /// Weights format used in 8bit Winograd convolution.
+        /// Weights format used in 8-bit Winograd convolution.
         wino = dnnl_format_kind_wino,
         /// Packed weights format used in RNN.
         packed = dnnl_format_kind_rnn_packed,
@@ -9990,7 +9990,7 @@ struct binary : public primitive {
         /// Constructs a primitive descriptor for a binary primitive from a C
         /// API primitive descriptor that must have a matching kind.
         ///
-        /// @param pd C API primitive descriptor for a binary primitve.
+        /// @param pd C API primitive descriptor for a binary primitive.
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::binary) {}
 
@@ -10546,7 +10546,7 @@ inline void set_primitive_cache_capacity(int capacity) {
 
 /// @addtogroup dnnl_api_blas BLAS functions
 ///
-/// A subset of Basic Linear ALgebra (BLAS) functions that perform
+/// A subset of Basic Linear Algebra (BLAS) functions that perform
 /// matrix-matrix multiplication.
 ///
 /// @{

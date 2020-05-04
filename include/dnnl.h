@@ -136,7 +136,7 @@ dnnl_status_t DNNL_API dnnl_primitive_desc_clone(
 ///     primitive_desc has been destroyed.
 ///
 /// @param primitive_desc Primitive descriptor.
-/// @param attr Ouput primitive attributes.
+/// @param attr Output primitive attributes.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_primitive_desc_get_attr(
@@ -3485,7 +3485,7 @@ dnnl_status_t DNNL_API dnnl_matmul_desc_init(dnnl_matmul_desc_t *matmul_desc,
 ///  - `dst` (#dnnl_query_dst_md, `0`)
 ///
 ///
-/// @param resampling_desc Output descriptor for a resamplinging primitive.
+/// @param resampling_desc Output descriptor for a resampling primitive.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
 /// @param alg_kind resampling algorithm kind: either #dnnl_resampling_nearest,
