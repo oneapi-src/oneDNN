@@ -2479,7 +2479,7 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
     float beta = *p_beta;
     dim_t MB, NB, KB;
 
-    int nthr_m, nthr_n, nthr_k, nthr_mn;
+    int nthr_m = 1, nthr_n = 1, nthr_k = 1, nthr_mn = 1;
 
     // Determine threading partitioning
     calc_nthr_nocopy_avx(
@@ -2518,7 +2518,8 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
         }
     }
 
-    const size_t ws_elems_per_thr = (size_t)k * 16 + 64;
+    const size_t ws_elems_per_thr
+            = (size_t)rnd_up(div_up(k, nthr_k), KB) * 16 + 64;
     const size_t ws_size_per_thr
             = rnd_up(ws_elems_per_thr * sizeof(float), PAGE_4K);
     if (k > STACK_K_CAPACITY) {
