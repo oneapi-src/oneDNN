@@ -47,6 +47,9 @@ struct ref_convolution_fwd_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, wei_type, data_type::undef,
                             dst_type, acc_type)
+                    && platform::has_data_type_support(src_type)
+                    && platform::has_data_type_support(wei_type)
+                    && platform::has_data_type_support(dst_type)
                     && IMPLICATION(with_bias(),
                             true
                                     && IMPLICATION(src_type == u8,
@@ -146,6 +149,9 @@ struct ref_convolution_bwd_data_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, wei_type,
                             data_type::undef, diff_dst_type, acc_type)
+                    && platform::has_data_type_support(diff_src_type)
+                    && platform::has_data_type_support(wei_type)
+                    && platform::has_data_type_support(diff_dst_type)
                     && set_default_formats()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale)
@@ -207,6 +213,9 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, diff_wei_type, diff_wei_type,
                             diff_dst_type, acc_type)
+                    && platform::has_data_type_support(src_type)
+                    && platform::has_data_type_support(diff_wei_type)
+                    && platform::has_data_type_support(diff_dst_type)
                     && set_default_formats() && attr()->has_default_values();
             return ok ? status::success : status::unimplemented;
         }
