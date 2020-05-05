@@ -122,12 +122,6 @@ bool parse_allow_unimpl(bool &allow_unimpl, const char *str,
             allow_unimpl, false, str2bool, str, option_name);
 }
 
-bool parse_fast_ref_gpu(
-        const char *str, const std::string &option_name /* = "fast-ref-gpu"*/) {
-    return parse_single_value_option(
-            fast_ref_gpu, true, str2bool, str, option_name);
-}
-
 bool parse_perf_template(const char *&pt, const char *pt_def,
         const char *pt_csv, const char *str,
         const std::string &option_name /* = "perf-template"*/) {
@@ -241,6 +235,12 @@ static bool parse_engine_kind(
         const char *str, const std::string &option_name = "engine") {
     return parse_single_value_option(
             engine_tgt_kind, dnnl_cpu, str2engine_kind, str, option_name);
+}
+
+static bool parse_fast_ref_gpu(
+        const char *str, const std::string &option_name = "fast-ref-gpu") {
+    return parse_single_value_option(
+            fast_ref_gpu, true, str2bool, str, option_name);
 }
 
 static bool parse_canonical(
