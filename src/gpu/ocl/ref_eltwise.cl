@@ -39,6 +39,8 @@
             + ((x5) % DIFF_DATA_B5) * DIFF_DATA_SB5 \
             + ((x5) / DIFF_DATA_B5) * DIFF_DATA_S5)
 
+#define KERNEL_ATTR __attribute__((intel_reqd_sub_group_size(32)))
+
 KERNEL_ATTR
 __kernel void ref_eltwise_fwd(
         __global DATA_T *src, __global DATA_T *dst, float alpha, float beta) {
