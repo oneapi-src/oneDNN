@@ -1,0 +1,6 @@
+# f32
+--reset
+--skip-impl=ref
+--mb=2
+--stag=axb --dtag=axb
+--dir=FWD_B,BWD_D,BWD_W,BWD_WB --batch=deconv_all
