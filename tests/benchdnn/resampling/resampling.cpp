@@ -146,7 +146,7 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
             : p->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
     std::string src_tag = (p->dir & FLAG_FWD) ? p->tag : tag::any;
-    std::string dst_tag = (p->dir & FLAG_BWD) ? p->tag : tag::any;
+    std::string dst_tag = tag::any;
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_dims, p->dt,
                      convert_tag(src_tag, p->ndims)),
