@@ -209,15 +209,27 @@ private:
     }
 
     inline dim_t get_ddst_offset(int i_oc_block, int i_ow, int i_oc) {
-        dim_t offset = i_oc_block * jcp.od * jcp.oh * jcp.ow * jcp.oc_block
-                + i_ow * jcp.oc_block + i_oc;
+        dim_t offset;
+        if (utils::one_of(jcp.dst_tag, format_tag::nwc, format_tag::nhwc,
+                    format_tag::ndhwc)) {
+            offset = i_ow * jcp.oc * jcp.ngroups + i_oc_block * jcp.oc_block
+                    + i_oc;
+        } else {
+            offset = i_oc_block * jcp.od * jcp.oh * jcp.ow * jcp.oc_block
+                    + i_ow * jcp.oc_block + i_oc;
+        }
         return sizeof(float) * offset;
     }
 
     inline dim_t get_dsrc_offset(int i_ic_block, int i_iw) {
         dim_t offset;
-        offset = i_ic_block * jcp.id * jcp.ih * jcp.iw * jcp.ic_block
-                + i_iw * jcp.ic_block;
+        if (utils::one_of(jcp.src_tag, format_tag::nwc, format_tag::nhwc,
+                    format_tag::ndhwc)) {
+            offset = i_iw * jcp.ic * jcp.ngroups + i_ic_block * jcp.ic_block;
+        } else {
+            offset = i_ic_block * jcp.id * jcp.ih * jcp.iw * jcp.ic_block
+                    + i_iw * jcp.ic_block;
+        }
         return sizeof(float) * offset;
     }
 

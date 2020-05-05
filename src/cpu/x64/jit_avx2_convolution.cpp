@@ -205,6 +205,16 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
     const int ext_kd = calculate_extended_filter_size(jcp.kd, jcp.dilate_d);
     const int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
 
+    bool is_ic_physically_blocked = one_of(jcp.src_tag, format_tag::nCw8c,
+            +format_tag::nChw8c, format_tag::nCdhw8c);
+    int g_ic_offset = is_ic_physically_blocked ? jcp.nb_ic : jcp.ic;
+    int icb_ic_scale = is_ic_physically_blocked ? 1 : jcp.ic_block;
+
+    bool is_oc_physically_blocked = one_of(jcp.dst_tag, format_tag::nCw8c,
+            +format_tag::nChw8c, format_tag::nCdhw8c);
+    int g_oc_offset = is_oc_physically_blocked ? jcp.nb_oc : jcp.oc;
+    int ocb_oc_scale = is_oc_physically_blocked ? 1 : jcp.oc_block;
+
     auto ker = [&](const int ithr, const int nthr) {
         size_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
@@ -273,10 +283,11 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
                     par_conv.kw_padding = 0;
 
                     par_conv.src = &diff_src[src_blk_off(diff_src_d, n,
-                            g * jcp.nb_ic + jcp.nb_ic_blocking * icbb, id, ih,
-                            0)];
-                    par_conv.dst = &diff_dst[src_blk_off(
-                            diff_dst_d, n, g * jcp.nb_oc + oc, od, oh, 0)];
+                            g * g_ic_offset
+                                    + jcp.nb_ic_blocking * icbb * icb_ic_scale,
+                            id, ih, 0)];
+                    par_conv.dst = &diff_dst[src_blk_off(diff_dst_d, n,
+                            g * g_oc_offset + ocb_oc_scale * oc, od, oh, 0)];
                     par_conv.filt = &weights[wht_blk_off(weights_d, g, oc,
                             jcp.nb_ic_blocking * icbb, d_b_overflow, k_lo, 0)];
 

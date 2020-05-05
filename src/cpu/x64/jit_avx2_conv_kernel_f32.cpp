@@ -854,7 +854,14 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     if (one_of(ndims, 3, 4) && jcp.ow < 40)
         jcp.nb_oc_blocking = jcp.ow < 15 ? 4 : 2;
 
-    auto src_tag = utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+    bool is_data_layout_nxc = diff_src_d.matches_one_of_tag(nwc, nhwc, ndhwc)
+                    != format_tag::undef
+            && diff_dst_d.matches_one_of_tag(nwc, nhwc, ndhwc)
+                    != format_tag::undef;
+
+    auto src_tag = is_data_layout_nxc
+            ? utils::pick(ndims - 3, nwc, nhwc, ndhwc)
+            : utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
     auto wei_tag = with_groups
             ? utils::pick(ndims - 3, gOIw8o8i, gOIhw8o8i, gOIdhw8o8i)
             : utils::pick(ndims - 3, OIw8o8i, OIhw8o8i, OIdhw8o8i);
@@ -865,7 +872,9 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
 
     bool args_ok = true && jcp.stride_w == jcp.stride_h && jcp.stride_d == 1
-            && jcp.ic % simd_w == 0 && jcp.oc % simd_w == 0;
+            && jcp.ic % simd_w == 0 && jcp.oc % simd_w == 0
+            && jcp.ic <= diff_src_d.padded_dims()[1]
+            && jcp.oc <= diff_dst_d.padded_dims()[1];
     if (!args_ok) return status::unimplemented;
 
     const int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
