@@ -340,8 +340,7 @@ INSTANTIATE_TEST_SUITE_P(TestResampleEF, resampling_test_float,
                 EXPAND_SIZES_1D(1, 1, 5, 10, 2.f), true,
                 dnnl_invalid_arguments}));
 
-CPU_INSTANTIATE_TEST_SUITE_P(TestResampleForwardPlainLinear,
-        resampling_test_float,
+INSTANTIATE_TEST_SUITE_P(TestResampleForwardPlainLinear, resampling_test_float,
         ::testing::Values(
                 resampling_test_params {prop_kind::forward,
                         algorithm::resampling_linear, memory::format_tag::ncw,
@@ -366,7 +365,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestResampleForwardPlainLinear,
                         EXPAND_SIZES_3D(
                                 1, 16, 5, 10, 1, 10, 5, 1, 2.f, 0.5f, 1.f)}));
 
-CPU_INSTANTIATE_TEST_SUITE_P(TestResampleForwardBlockedLinear,
+INSTANTIATE_TEST_SUITE_P(TestResampleForwardBlockedLinear,
         resampling_test_float,
         ::testing::Values(
                 resampling_test_params {prop_kind::forward,
@@ -382,7 +381,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestResampleForwardBlockedLinear,
                         EXPAND_SIZES_3D(
                                 1, 1, 5, 10, 15, 10, 5, 7, 2.f, 0.5f, 0.5f)}));
 
-CPU_INSTANTIATE_TEST_SUITE_P(TestResampleForwardPlainNN, resampling_test_float,
+INSTANTIATE_TEST_SUITE_P(TestResampleForwardPlainNN, resampling_test_float,
         ::testing::Values(
                 resampling_test_params {prop_kind::forward,
                         algorithm::resampling_nearest, memory::format_tag::ncw,
@@ -405,8 +404,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestResampleForwardPlainNN, resampling_test_float,
                         EXPAND_SIZES_3D(
                                 5, 5, 5, 10, 15, 10, 5, 7, 2.f, 0.5f, 0.5f)}));
 
-CPU_INSTANTIATE_TEST_SUITE_P(TestResampleForwardBlockedNN,
-        resampling_test_float,
+INSTANTIATE_TEST_SUITE_P(TestResampleForwardBlockedNN, resampling_test_float,
         ::testing::Values(
                 resampling_test_params {prop_kind::forward,
                         algorithm::resampling_nearest,
