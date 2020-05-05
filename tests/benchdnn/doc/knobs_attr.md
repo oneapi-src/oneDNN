@@ -124,7 +124,7 @@ Run a binary problem with s8 input data and u8 output data in nc layout
 applying scales to both inputs:
 ``` sh
     ./benchdnn --binary --sdt=u8:s8 --ddt=u8 --stag=nc:nc \
-               --attr="scales='src0:common:1.5_src1:common:2.5';" \
+               --attr="scales='src:common:1.5_src1:common:2.5';" \
                100x100:100x100
 ```
 
