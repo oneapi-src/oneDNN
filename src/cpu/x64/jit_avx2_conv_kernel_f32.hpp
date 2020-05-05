@@ -296,6 +296,9 @@ private:
         if (utils::one_of(jcp.src_tag, format_tag::ncw, format_tag::nchw,
                     format_tag::ncdhw)) {
             offset = i_ic * jcp.id * jcp.ih * jcp.iw + i_iw;
+        } else if (utils::one_of(jcp.src_tag, format_tag::nwc, format_tag::nhwc,
+                           format_tag::ndhwc)) {
+            offset = i_iw * jcp.ic * jcp.ngroups + i_ic;
         } else {
             offset = i_iw * jcp.ic_block + i_ic;
         }
@@ -303,8 +306,14 @@ private:
     }
 
     inline dim_t get_output_offset(int i_oc_block, int i_ow) {
-        dim_t offset = i_oc_block * jcp.od * jcp.oh * jcp.ow * jcp.oc_block
-                + i_ow * jcp.oc_block;
+        dim_t offset;
+        if (utils::one_of(jcp.dst_tag, format_tag::nwc, format_tag::nhwc,
+                    format_tag::ndhwc)) {
+            offset = i_ow * jcp.oc * jcp.ngroups + i_oc_block * jcp.oc_block;
+        } else {
+            offset = i_oc_block * jcp.od * jcp.oh * jcp.ow * jcp.oc_block
+                    + i_ow * jcp.oc_block;
+        }
         return sizeof(float) * offset;
     }
 

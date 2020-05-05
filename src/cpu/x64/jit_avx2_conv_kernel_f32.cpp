@@ -1007,17 +1007,17 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         jcp.src_tag = src_d.matches_one_of_tag(ncw, nwc, nCw8c);
         jcp.wei_tag = diff_weights_d.matches_one_of_tag(
                 Owi8o, gOwi8o, OIw8i8o, gOIw8i8o);
-        jcp.dst_tag = diff_dst_d.matches_one_of_tag(nCw8c);
+        jcp.dst_tag = diff_dst_d.matches_one_of_tag(nCw8c, nwc);
     } else if (ndims == 4) {
         jcp.src_tag = src_d.matches_one_of_tag(nchw, nhwc, nChw8c);
         jcp.wei_tag = diff_weights_d.matches_one_of_tag(
                 Ohwi8o, gOhwi8o, OIhw8i8o, gOIhw8i8o);
-        jcp.dst_tag = diff_dst_d.matches_one_of_tag(nChw8c);
+        jcp.dst_tag = diff_dst_d.matches_one_of_tag(nChw8c, nhwc);
     } else if (ndims == 5) {
         jcp.src_tag = src_d.matches_one_of_tag(ncdhw, ndhwc, nCdhw8c);
         jcp.wei_tag = diff_weights_d.matches_one_of_tag(
                 Odhwi8o, gOdhwi8o, OIdhw8i8o, gOIdhw8i8o);
-        jcp.dst_tag = diff_dst_d.matches_one_of_tag(nCdhw8c);
+        jcp.dst_tag = diff_dst_d.matches_one_of_tag(nCdhw8c, ndhwc);
     }
     jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
 
@@ -1056,24 +1056,35 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     bool args_ok = true
             && IMPLICATION(flat,
                     true
-                            && one_of(jcp.src_tag, ncw, nwc, nchw, nhwc, ncdhw,
-                                    ndhwc)
+                            && ((one_of(jcp.src_tag, ncw, nchw, ncdhw)
+                                        && one_of(jcp.dst_tag, nCw8c, nChw8c,
+                                                nCdhw8c))
+                                    || (one_of(jcp.src_tag, nwc, nhwc, ndhwc)
+                                            && one_of(jcp.dst_tag, nwc, nhwc,
+                                                    ndhwc)))
                             && one_of(jcp.wei_tag, Owi8o, gOwi8o, Ohwi8o,
                                     gOhwi8o, Odhwi8o, gOdhwi8o))
             && IMPLICATION(mimo,
-                    true && one_of(jcp.src_tag, nCw8c, nChw8c, nCdhw8c)
+                    true
+                            && ((one_of(jcp.src_tag, nCw8c, nChw8c, nCdhw8c)
+                                        && one_of(jcp.dst_tag, nCw8c, nChw8c,
+                                                nCdhw8c))
+                                    || (one_of(jcp.src_tag, nwc, nhwc, ndhwc)
+                                            && one_of(jcp.dst_tag, nwc, nhwc,
+                                                    ndhwc)))
                             && one_of(jcp.wei_tag, OIw8i8o, gOIw8i8o, OIhw8i8o,
                                     gOIhw8i8o, OIdhw8i8o, gOIdhw8i8o))
-            && one_of(jcp.dst_tag, nCw8c, nChw8c, nCdhw8c)
             && IMPLICATION(mimo, jcp.ic % simd_w == 0) && jcp.oc % simd_w == 0
             && jcp.kw < 14 && jcp.kh <= jcp.t_pad + jcp.ih /* [bwd_w:r1] */
             && jcp.kh <= jcp.ih /* [bwd_w:r2] */
             && jcp.kd <= jcp.f_pad + jcp.id && jcp.kd <= jcp.id
             && jcp.t_pad < jcp.kh /* XXX: must fix the kernel! */
-            && jcp.dilate_d == 0 && jcp.dilate_h == 0 && jcp.dilate_w == 0;
+            && jcp.dilate_d == 0 && jcp.dilate_h == 0 && jcp.dilate_w == 0
+            && jcp.ic <= src_d.padded_dims()[1]
+            && jcp.oc <= diff_dst_d.padded_dims()[1];
     if (!args_ok) return status::unimplemented;
 
-    jcp.ic_block = (jcp.ic % simd_w != 0) ? jcp.ic : simd_w;
+    jcp.ic_block = flat ? jcp.ic : simd_w;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
 
     jcp.oc_block = simd_w;
@@ -1156,6 +1167,11 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_disp() {
     int ic_block_step;
     if (one_of(jcp.src_tag, ncw, nchw, ncdhw)) {
         ic_block_step = jcp.kw >= 5 ? 1 : jcp.ic_block;
+    } else if (one_of(jcp.src_tag, nwc, nhwc, ndhwc)) {
+        ic_block_step = jcp.kw > 7 ? 1 : jcp.kw > 3 ? 2 : jcp.kw > 1 ? 4 : 8;
+        if (jcp.ic_block % ic_block_step != 0) {
+            ic_block_step = jcp.ic_block < ic_block_step ? jcp.ic_block : 1;
+        }
     } else {
         ic_block_step = jcp.kw > 7 ? 1 : jcp.kw > 3 ? 2 : jcp.kw > 1 ? 4 : 8;
     }

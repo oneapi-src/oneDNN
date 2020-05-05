@@ -338,6 +338,17 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
     auto rw = this->reducer_weights_;
     rw->init(reducer_wei_scratchpad);
 
+    bool is_ic_physically_blocked = one_of(jcp.src_tag, format_tag::nCw8c,
+            format_tag::nChw8c, format_tag::nCdhw8c);
+    int g_ic_offset = is_ic_physically_blocked ? jcp.nb_ic : jcp.ic;
+    int icb_ic_scale = is_ic_physically_blocked ? 1 : jcp.ic_block;
+
+    bool is_oc_physically_blocked = one_of(jcp.dst_tag, format_tag::nCw8c,
+            format_tag::nChw8c, format_tag::nCdhw8c);
+    bool is_ddst_layout_nxc = !is_oc_physically_blocked;
+    int g_oc_offset = is_oc_physically_blocked ? jcp.nb_oc : jcp.oc;
+    int ocb_oc_scale = is_oc_physically_blocked ? 1 : jcp.oc_block;
+
     auto ker = [&](int ithr, int nthr) {
         assert(nthr == rw->balancer().nthr_);
 
@@ -371,8 +382,8 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
 
             if (id_s < idp - jcp.back_pad - jcp.kd + 1)
                 for (int w_job_loc = 0; w_job_loc < w_njobs; ++w_job_loc) {
-                    const size_t _oc = g * jcp.nb_oc + ocb;
-                    const size_t _ic = g * jcp.nb_ic + icb;
+                    const size_t _oc = g * g_oc_offset + ocb * ocb_oc_scale;
+                    const size_t _ic = g * g_ic_offset + icb * icb_ic_scale;
 
                     /* TODO: put dw <-- 0 in kernel */
                     if (img == img_first)
@@ -427,7 +438,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
         for (int img = img_start; img < img_end; ++img) {
             int g = g_start, ocb = ocb_start;
             for (int b_job_loc = 0; b_job_loc < b_njobs; ++b_job_loc) {
-                const size_t _oc = g * jcp.nb_oc + ocb;
+                const size_t _oc = g * g_oc_offset + ocb * ocb_oc_scale;
 
                 const data_t *d_dst = &diff_dst[diff_dst_d.blk_off(img, _oc)];
                 data_t *d_bias = rb->get_local_ptr(ithr, diff_bias,
@@ -435,14 +446,15 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
                         + b_job_loc * rb->balancer().job_size_;
 
                 if (img == img_start)
-                    for (int o = 0; o < 8; ++o)
+                    for (int o = 0; o < jcp.oc_block; ++o)
                         d_bias[o] = 0.;
 
                 for (int dhw = 0; dhw < jcp.od * jcp.oh * jcp.ow; ++dhw) {
                     PRAGMA_OMP_SIMD()
-                    for (int o = 0; o < 8; ++o)
+                    for (int o = 0; o < jcp.oc_block; ++o)
                         d_bias[o] += d_dst[o];
-                    d_dst += 8;
+                    d_dst += is_ddst_layout_nxc ? jcp.ngroups * jcp.oc
+                                                : jcp.oc_block;
                 }
 
                 nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_oc);
