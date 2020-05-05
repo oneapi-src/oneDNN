@@ -96,6 +96,7 @@ if(NOT DNNL_USE_CLANG_SANITIZER)
     # Due to the following tests have long run-time, move them to Nightly set
     if(DNNL_TEST_SET GREATER DNNL_TEST_SET_CI)
         file(GLOB LARGE_PRIM_TEST_CASES_SRC
+            test_ip_formats.cpp
             test_reorder_formats.cpp
             )
         foreach(TEST_FILE ${LARGE_PRIM_TEST_CASES_SRC})
