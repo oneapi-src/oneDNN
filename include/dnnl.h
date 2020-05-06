@@ -1265,6 +1265,11 @@ dnnl_status_t DNNL_API dnnl_binary_desc_init(dnnl_binary_desc_t *binary_desc,
 /// Outputs:
 ///  - `dst` (#dnnl_query_dst_md, `0`)
 ///
+/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
+/// spatial dimensions only and hence must have the same number of elements as
+/// there are spatial dimensions. The order of values is the same as in the
+/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+///
 /// @param conv_desc Output descriptor for a convolution primitive.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
@@ -1279,10 +1284,10 @@ dnnl_status_t DNNL_API dnnl_binary_desc_init(dnnl_binary_desc_t *binary_desc,
 /// @param dst_desc Destination memory descriptor.
 /// @param strides Array of strides for spatial dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is assumed to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_convolution_forward_desc_init(
@@ -1308,6 +1313,12 @@ dnnl_status_t DNNL_API dnnl_convolution_forward_desc_init(
 /// Outputs:
 ///  - `dst` (#dnnl_query_dst_md, `0`)
 ///
+/// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r contain
+/// values for spatial dimensions only and hence must have the same number of
+/// elements as there are spatial dimensions. The order of values is the same
+/// as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors),
+/// and width.
+///
 /// @param conv_desc Output descriptor for a convolution primitive.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
@@ -1324,10 +1335,10 @@ dnnl_status_t DNNL_API dnnl_convolution_forward_desc_init(
 /// @param dilates Array of dilations for spatial dimension. A zero value
 ///     means no dilation in the corresponding dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_dilated_convolution_forward_desc_init(
@@ -1351,6 +1362,11 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_forward_desc_init(
 /// Outputs:
 ///  - `diff_src` (#dnnl_query_diff_src_md, `0`)
 ///
+/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
+/// spatial dimensions only and hence must have the same number of elements as
+/// there are spatial dimensions. The order of values is the same as in the
+/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+///
 /// @param conv_desc Output descriptor for a convolution primitive.
 /// @param alg_kind Convolution algorithm. Possible values are
 ///     #dnnl_convolution_direct, #dnnl_convolution_winograd,
@@ -1360,10 +1376,10 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_forward_desc_init(
 /// @param diff_dst_desc Diff destination memory descriptor.
 /// @param strides Array of strides for spatial dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is assumed to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_convolution_backward_data_desc_init(
@@ -1387,6 +1403,12 @@ dnnl_status_t DNNL_API dnnl_convolution_backward_data_desc_init(
 /// Outputs:
 ///  - `diff_src` (#dnnl_query_diff_src_md, `0`)
 ///
+/// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r contain
+/// values for spatial dimensions only and hence must have the same number of
+/// elements as there are spatial dimensions. The order of values is the same
+/// as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors),
+/// and width.
+///
 /// @param conv_desc Output descriptor for a convolution primitive.
 /// @param alg_kind Convolution algorithm. Possible values are
 ///     #dnnl_convolution_direct, #dnnl_convolution_winograd,
@@ -1398,10 +1420,10 @@ dnnl_status_t DNNL_API dnnl_convolution_backward_data_desc_init(
 /// @param dilates Array of dilations for spatial dimension. A zero value
 ///     means no dilation in the corresponding dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_dilated_convolution_backward_data_desc_init(
@@ -1426,6 +1448,11 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_backward_data_desc_init(
 ///  - `diff_weights` (#dnnl_query_diff_weights_md, `0`)
 ///  - `diff_bias` (#dnnl_query_diff_weights_md, `1`), if created with bias
 ///
+/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
+/// spatial dimensions only and hence must have the same number of elements as
+/// there are spatial dimensions. The order of values is the same as in the
+/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+///
 /// @param conv_desc Output descriptor for a convolution primitive.
 /// @param alg_kind Convolution algorithm. Possible values are
 ///     #dnnl_convolution_direct, #dnnl_convolution_winograd,
@@ -1438,10 +1465,10 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_backward_data_desc_init(
 /// @param diff_dst_desc Diff destination memory descriptor.
 /// @param strides Array of strides for spatial dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_convolution_backward_weights_desc_init(
@@ -1467,6 +1494,12 @@ dnnl_status_t DNNL_API dnnl_convolution_backward_weights_desc_init(
 ///  - `diff_weights` (#dnnl_query_diff_weights_md, `0`)
 ///  - `diff_bias` (#dnnl_query_diff_weights_md, `1`), if created with bias
 ///
+/// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r contain
+/// values for spatial dimensions only and hence must have the same number of
+/// elements as there are spatial dimensions. The order of values is the same
+/// as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors),
+/// and width.
+///
 /// @param conv_desc Output descriptor for a convolution primitive.
 /// @param alg_kind Convolution algorithm. Possible values are
 ///     #dnnl_convolution_direct, #dnnl_convolution_winograd,
@@ -1481,10 +1514,10 @@ dnnl_status_t DNNL_API dnnl_convolution_backward_weights_desc_init(
 /// @param dilates Array of dilations for spatial dimension. A zero value
 ///     means no dilation in the corresponding dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_dilated_convolution_backward_weights_desc_init(
@@ -1515,6 +1548,11 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_backward_weights_desc_init(
 /// Outputs:
 ///  - `dst` (#dnnl_query_dst_md, `0`)
 ///
+/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
+/// spatial dimensions only and hence must have the same number of elements as
+/// there are spatial dimensions. The order of values is the same as in the
+/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+///
 /// @param deconv_desc Output descriptor for a deconvolution primitive.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
@@ -1528,10 +1566,10 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_backward_weights_desc_init(
 /// @param dst_desc Destination memory descriptor.
 /// @param strides Array of strides for spatial dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_deconvolution_forward_desc_init(
@@ -1557,6 +1595,12 @@ dnnl_status_t DNNL_API dnnl_deconvolution_forward_desc_init(
 /// Outputs:
 ///  - `dst` (#dnnl_query_dst_md, `0`)
 ///
+/// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r contain
+/// values for spatial dimensions only and hence must have the same number of
+/// elements as there are spatial dimensions. The order of values is the same
+/// as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors),
+/// and width.
+///
 /// @param deconv_desc Output descriptor for a deconvolution primitive.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
@@ -1572,10 +1616,10 @@ dnnl_status_t DNNL_API dnnl_deconvolution_forward_desc_init(
 /// @param dilates Array of dilations for spatial dimension. A zero value
 ///     means no dilation in the corresponding dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_dilated_deconvolution_forward_desc_init(
@@ -1599,6 +1643,11 @@ dnnl_status_t DNNL_API dnnl_dilated_deconvolution_forward_desc_init(
 /// Outputs:
 ///  - `diff_src` (#dnnl_query_diff_src_md, `0`)
 ///
+/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
+/// spatial dimensions only and hence must have the same number of elements as
+/// there are spatial dimensions. The order of values is the same as in the
+/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+///
 /// @param deconv_desc Output descriptor for a deconvolution primitive.
 /// @param alg_kind Deconvolution algorithm. Possible values are
 ///     #dnnl_deconvolution_direct, #dnnl_deconvolution_winograd.
@@ -1607,10 +1656,10 @@ dnnl_status_t DNNL_API dnnl_dilated_deconvolution_forward_desc_init(
 /// @param diff_dst_desc Diff destination memory descriptor.
 /// @param strides Array of strides for spatial dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_deconvolution_backward_data_desc_init(
@@ -1634,6 +1683,12 @@ dnnl_status_t DNNL_API dnnl_deconvolution_backward_data_desc_init(
 /// Outputs:
 ///  - `diff_src` (#dnnl_query_diff_src_md, `0`)
 ///
+/// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r contain
+/// values for spatial dimensions only and hence must have the same number of
+/// elements as there are spatial dimensions. The order of values is the same
+/// as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors),
+/// and width.
+///
 /// @param deconv_desc Output descriptor for a deconvolution primitive.
 /// @param alg_kind Deconvolution algorithm. Possible values are
 ///     #dnnl_deconvolution_direct, #dnnl_deconvolution_winograd.
@@ -1644,10 +1699,10 @@ dnnl_status_t DNNL_API dnnl_deconvolution_backward_data_desc_init(
 /// @param dilates Array of dilations for spatial dimension. A zero value
 ///     means no dilation in the corresponding dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_dilated_deconvolution_backward_data_desc_init(
@@ -1672,6 +1727,11 @@ dnnl_status_t DNNL_API dnnl_dilated_deconvolution_backward_data_desc_init(
 ///  - `diff_weights` (#dnnl_query_diff_weights_md, `0`)
 ///  - `diff_bias` (#dnnl_query_diff_weights_md, `1`), if created with bias
 ///
+/// Arrays @p strides, @p padding_l, and @p padding_r contain values for
+/// spatial dimensions only and hence must have the same number of elements as
+/// there are spatial dimensions. The order of values is the same as in the
+/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+///
 /// @param deconv_desc Output descriptor for a deconvolution primitive.
 /// @param alg_kind Deconvolution algorithm. Possible values are
 ///     #dnnl_deconvolution_direct, #dnnl_deconvolution_winograd.
@@ -1683,10 +1743,10 @@ dnnl_status_t DNNL_API dnnl_dilated_deconvolution_backward_data_desc_init(
 /// @param diff_dst_desc Diff destination memory descriptor.
 /// @param strides Array of strides for spatial dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_deconvolution_backward_weights_desc_init(
@@ -1712,6 +1772,12 @@ dnnl_status_t DNNL_API dnnl_deconvolution_backward_weights_desc_init(
 ///  - `diff_weights` (#dnnl_query_diff_weights_md, `0`)
 ///  - `diff_bias` (#dnnl_query_diff_weights_md, `1`), if created with bias
 ///
+/// Arrays @p strides, @p dilates, @p padding_l, and @p padding_r contain
+/// values for spatial dimensions only and hence must have the same number of
+/// elements as there are spatial dimensions. The order of values is the same
+/// as in the tensor: depth (for 3D tensors), height (for 3D and 2D tensors),
+/// and width.
+///
 /// @param deconv_desc Output descriptor for a deconvolution primitive.
 /// @param alg_kind Deconvolution algorithm. Possible values are
 ///     #dnnl_deconvolution_direct, #dnnl_deconvolution_winograd.
@@ -1725,10 +1791,10 @@ dnnl_status_t DNNL_API dnnl_deconvolution_backward_weights_desc_init(
 /// @param dilates Array of dilations for spatial dimension. A zero value
 ///     means no dilation in the corresponding dimension.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_dilated_deconvolution_backward_weights_desc_init(
@@ -1943,6 +2009,11 @@ dnnl_status_t DNNL_API dnnl_logsoftmax_backward_desc_init(
 ///     dnnl_primitive_desc_query_md() after a corresponding primitive
 ///     descriptor is created
 ///
+/// Arrays @p strides, @p kernel, @p padding_l, and @p padding_r contain values
+/// for spatial dimensions only and hence must have the same number of elements
+/// as there are spatial dimensions. The order of values is the same as in the
+/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+///
 /// @param pool_desc Output descriptor for a pooling primitive.
 /// @param prop_kind Propagation kind. Possible values are
 ///     #dnnl_forward_training and #dnnl_forward_inference.
@@ -1954,10 +2025,10 @@ dnnl_status_t DNNL_API dnnl_logsoftmax_backward_desc_init(
 /// @param strides Array of strides for spatial dimension.
 /// @param kernel Array of kernel spatial dimensions.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_pooling_forward_desc_init(
@@ -1979,6 +2050,11 @@ dnnl_status_t DNNL_API dnnl_pooling_forward_desc_init(
 /// Outputs:
 ///  - `diff_src` (#dnnl_query_diff_src_md, `0`)
 ///
+/// Arrays @p strides, @p kernel, @p padding_l, and @p padding_r contain values
+/// for spatial dimensions only and hence must have the same number of elements
+/// as there are spatial dimensions. The order of values is the same as in the
+/// tensor: depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+///
 /// @param pool_desc Output descriptor for a pooling primitive.
 /// @param alg_kind Pooling algorithm kind: either #dnnl_pooling_max,
 ///     #dnnl_pooling_avg_include_padding, or #dnnl_pooling_avg (same as
@@ -1988,10 +2064,10 @@ dnnl_status_t DNNL_API dnnl_pooling_forward_desc_init(
 /// @param strides Array of strides for spatial dimension.
 /// @param kernel Array of kernel spatial dimensions.
 /// @param padding_l Array of padding values for low indices for each spatial
-///     dimension (front, top, left).
+///     dimension `([[front,] top,] left)`.
 /// @param padding_r Array of padding values for high indices for each spatial
-///     dimension (back, bottom, right). Can be NULL in which case padding is
-///     considered to be symmetrical.
+///     dimension `([[back,] bottom,] right)`. Can be NULL in which case
+///     padding is considered to be symmetrical.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_pooling_backward_desc_init(
