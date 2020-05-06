@@ -561,14 +561,12 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     const size_t dst_step = (size_t)jcp.oc * K;
     const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
 
-    const dim_t k = jcp.os;
+    const dim_t k = jcp.os_block;
     const dim_t N = jcp.oc;
     const dim_t M = jcp.ic * jcp.ks;
-    const dim_t LDA = jcp.im2col_sz ? k : K;
     const bool is_problem_3d = pd()->ndims() == 5;
 
     status_t st = status::success;
-
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
         size_t g_start {0}, g_end {0}, mb_start {0}, mb_end {0};
@@ -587,9 +585,10 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
             assert(IMPLICATION((g_end - g_start) > 1, need_reduction == 0));
 
             src_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
-            if (is_problem_3d) {
-                // jit_gemm_convolution_utils::im2col_3d() requires external
-                // data initialization by zeroes
+            // non-blocked jit_gemm_convolution_utils::im2col_3d() requires
+            // external data initialization by zeroes
+            const bool outer_padding = jcp.os_nb_block == 1;
+            if (outer_padding && is_problem_3d) {
                 for (ptrdiff_t i = 0; i < jcp.im2col_sz; i++)
                     _col[i] = (src_data_t)0;
             }
@@ -606,26 +605,34 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                 for (size_t mb = mb_start; mb < mb_end; ++mb) {
                     const src_data_t *_src
                             = src + (mb * jcp.ngroups + g) * src_step;
-                    for (int od = 0; od < jcp.od; ++od) {
+                    for_(int od = 0; od < jcp.od; ++od)
+                    for (int os_nb = 0; os_nb < jcp.os_nb_block; ++os_nb) {
+                        auto out_off = os_nb * k + od * jcp.os;
+                        const dim_t os_block = nstl::min(
+                                (dim_t)jcp.os_block, jcp.os - os_nb * k);
                         const diff_dst_data_t *_diff_dst = diff_dst
-                                + (mb * jcp.ngroups + g) * dst_step + od * k;
+                                + (mb * jcp.ngroups + g) * dst_step + out_off;
 
                         if (jcp.im2col_sz) {
                             if (!is_problem_3d)
                                 jit_gemm_convolution_utils::im2col<src_data_t>(
-                                        jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
+                                        jcp, _src, _col, os_nb * jcp.os_block,
+                                        os_block, 0, jcp.ic);
                             else
                                 jit_gemm_convolution_utils::im2col_3d<
-                                        src_data_t>(
-                                        jcp, _src, _col, od, 0, jcp.os);
+                                        src_data_t>(jcp, _src, _col, od,
+                                        os_nb * jcp.os_block, os_block);
                         }
 
+                        const dim_t LDA = jcp.im2col_sz ? os_block : K;
                         const acc_data_t zero = 0.0, one = 1.0;
-                        status_t st_thr = gemm_bf16bf16f32("T", "N", &M, &N, &k,
-                                &one, jcp.im2col_sz ? _col : _src + od * k,
-                                &LDA, _diff_dst, &K,
-                                mb == mb_start && od == 0 ? &zero : &one, acc,
-                                &M);
+                        status_t st_thr = gemm_bf16bf16f32("T", "N", &M, &N,
+                                &os_block, &one,
+                                jcp.im2col_sz ? _col : _src + out_off, &LDA,
+                                _diff_dst, &K,
+                                mb == mb_start && os_nb == 0 && od == 0 ? &zero
+                                                                        : &one,
+                                acc, &M);
 
                         if (st_thr != status::success) {
                             st = st_thr;
