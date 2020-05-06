@@ -171,7 +171,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
         auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
         auto bias = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
@@ -250,7 +250,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
         auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
         auto diff_src = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_SRC);
@@ -334,7 +334,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t : public primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
         auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
         auto diff_weights = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_WEIGHTS);

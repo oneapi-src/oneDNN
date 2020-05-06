@@ -188,7 +188,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         return status::success;
     }
 
-    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
+    status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
     status_t launch_x8x8s32(const gemm_exec_ctx_t &ctx,

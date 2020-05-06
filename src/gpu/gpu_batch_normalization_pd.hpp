@@ -41,7 +41,7 @@ struct gpu_batch_normalization_fwd_pd_t : public batch_normalization_fwd_pd_t {
     using batch_normalization_fwd_pd_t::batch_normalization_fwd_pd_t;
 
 protected:
-    virtual void init_default_ws(size_t bits_per_element) override {
+    void init_default_ws(size_t bits_per_element) override {
         UNUSED(bits_per_element);
         gpu_init_default_ws(this, ws_md_);
     }
@@ -50,7 +50,7 @@ protected:
 struct gpu_batch_normalization_bwd_pd_t : public batch_normalization_bwd_pd_t {
     using batch_normalization_bwd_pd_t::batch_normalization_bwd_pd_t;
 
-    virtual void init_default_ws(size_t bits_per_element) override {
+    void init_default_ws(size_t bits_per_element) override {
         UNUSED(bits_per_element);
         gpu_init_default_ws(this, ws_md_);
     }

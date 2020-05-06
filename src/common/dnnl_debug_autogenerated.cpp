@@ -561,4 +561,3 @@ const char *dnnl_cpu_isa2str(dnnl_cpu_isa_t v) {
     return "unknown cpu_isa";
 }
 
-

@@ -45,9 +45,9 @@ struct jit_pp_kernel_t : public pp_kernel_t<acc_type, dst_type>, jit_generator {
     typedef typename prec_traits<acc_type>::type acc_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
-    virtual void operator()(dst_data_t *dst, const acc_data_t *acc,
-            const char *bias, const float *scales, size_t start, size_t end,
-            size_t runtime_oc, const float *dst_zero_points) const override;
+    void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
+            const float *scales, size_t start, size_t end, size_t runtime_oc,
+            const float *dst_zero_points) const override;
 
 private:
     void generate();

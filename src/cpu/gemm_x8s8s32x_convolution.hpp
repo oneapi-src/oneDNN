@@ -151,7 +151,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -206,7 +206,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
                     dnnl_get_max_threads());
         }
 
-        virtual bool support_bias() const override { return true; }
+        bool support_bias() const override { return true; }
 
         conv_gemm_conf_t jcp_;
 
@@ -236,7 +236,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<dst_type>::type diff_src_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
 

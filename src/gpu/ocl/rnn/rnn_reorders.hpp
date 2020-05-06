@@ -105,7 +105,7 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(const exec_ctx_t &ctx) const override;
 
 protected:
     status_t init_res_storage(

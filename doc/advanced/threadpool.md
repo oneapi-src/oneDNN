@@ -24,12 +24,12 @@ public:
             num_threads = (int)std::thread::hardware_concurrency();
         tp_.reset(new Eigen::ThreadPool(num_threads));
     }
-    virtual int get_num_threads() override { return tp_->NumThreads(); }
-    virtual bool get_in_parallel() override {
+    int get_num_threads() override { return tp_->NumThreads(); }
+    bool get_in_parallel() override {
         return tp_->CurrentThreadId() != -1;
     }
-    virtual uint64_t get_flags() override { return ASYNCHRONOUS; }
-    virtual void parallel_for(
+    uint64_t get_flags() override { return ASYNCHRONOUS; }
+    void parallel_for(
             int n, const std::function<void(int, int)> &fn) override {
         for (int i = 0; i < n; i++)
             tp_->Schedule([i, n, fn]() { fn(i, n); });

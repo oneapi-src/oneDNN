@@ -83,7 +83,7 @@ struct simple_resampling_fwd_t : public primitive_t {
 
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
     }
@@ -173,7 +173,7 @@ struct simple_resampling_bwd_t : public primitive_t {
 
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);
         return status::success;
     }

@@ -127,7 +127,7 @@ struct ref_gemm_t : public gpu_gemm_t {
         return status::success;
     }
 
-    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
+    status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 protected:
     status_t init_res_storage(

@@ -1386,7 +1386,7 @@ struct simple_reorder_t : public primitive_t {
 
     simple_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
                 pd(), ctx);
     }

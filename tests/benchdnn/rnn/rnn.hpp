@@ -391,34 +391,30 @@ struct perf_report_t : public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_alg(std::ostream &s) const override {
-        s << alg2str(p_->alg);
-    }
+    void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
 
-    virtual void dump_cfg(std::ostream &s) const override {
-        s << p_->cfg.str();
-    }
+    void dump_cfg(std::ostream &s) const override { s << p_->cfg.str(); }
 
-    virtual void dump_desc(std::ostream &s) const override {
+    void dump_desc(std::ostream &s) const override {
         s << static_cast<const desc_t &>(*p_);
     }
 
-    virtual void dump_desc_csv(std::ostream &s) const override {
+    void dump_desc_csv(std::ostream &s) const override {
         s << p_->n_layer << "," << p_->n_iter << "," << p_->mb << "," << p_->sic
           << "," << p_->slc << "," << p_->dhc << "," << p_->dic;
     }
 
-    virtual void dump_rnn_activation(std::ostream &s) const override {
+    void dump_rnn_activation(std::ostream &s) const override {
         s << activation2str(p_->activation);
     }
 
-    virtual void dump_rnn_direction(std::ostream &s) const override {
+    void dump_rnn_direction(std::ostream &s) const override {
         s << direction2str(p_->direction);
     }
 
-    virtual double ops() const override { return p_->ops; }
-    virtual const char *name() const override { return p_->name; }
-    virtual const dnnl_prop_kind_t *prop() const override { return &p_->prop; }
+    double ops() const override { return p_->ops; }
+    const char *name() const override { return p_->name; }
+    const dnnl_prop_kind_t *prop() const override { return &p_->prop; }
 
 private:
     const prb_t *p_ = nullptr;

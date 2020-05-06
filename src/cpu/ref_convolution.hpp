@@ -121,7 +121,7 @@ struct ref_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
     }
@@ -154,7 +154,7 @@ struct ref_convolution_bwd_data_t : public primitive_t {
             return ok ? status::success : status::unimplemented;
         }
 
-        virtual bool support_bias() const override { return true; }
+        bool support_bias() const override { return true; }
 
     protected:
         bool set_default_formats() {
@@ -182,7 +182,7 @@ struct ref_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_data(ctx);
         return status::success;
     }
@@ -229,7 +229,7 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights(ctx);
         return status::success;
     }

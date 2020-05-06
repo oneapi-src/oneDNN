@@ -110,7 +110,7 @@ struct gen9_binary_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
 
         auto &src0 = CTX_IN_STORAGE(DNNL_ARG_SRC_0);
         auto &src1 = CTX_IN_STORAGE(DNNL_ARG_SRC_1);

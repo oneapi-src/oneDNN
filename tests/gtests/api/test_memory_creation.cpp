@@ -38,7 +38,7 @@ using params_w_engine_t = std::tuple<dnnl::engine::kind, params_t>;
 class memory_creation_test
     : public ::testing::TestWithParam<params_w_engine_t> {
 protected:
-    virtual void SetUp() override {
+    void SetUp() override {
         params_w_engine_t pwe
                 = ::testing::TestWithParam<decltype(pwe)>::GetParam();
 

@@ -216,7 +216,7 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto ndims = pd()->ndims();
         if (ndims == 3)
             execute_forward_1d(ctx);

@@ -46,9 +46,9 @@ struct jit_pp_ker_t : pp_ker_t, jit_generator {
         generate();
     }
 
-    virtual void operator()(void *void_dst, const acc_data_t *acc,
-            const char *bias, const float *scales, float nslope,
-            float sum_scale, float signed_scale, int g, size_t start,
+    void operator()(void *void_dst, const acc_data_t *acc, const char *bias,
+            const float *scales, float nslope, float sum_scale,
+            float signed_scale, int g, size_t start,
             size_t end) const override {
         assert(ker_);
 

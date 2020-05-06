@@ -82,7 +82,7 @@ struct cross_engine_reorder_t : public gpu_primitive_t {
         return status;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(const exec_ctx_t &ctx) const override;
 
 protected:
     primitive_list_t nested_primitives() const override {

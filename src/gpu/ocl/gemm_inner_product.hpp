@@ -165,7 +165,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -256,7 +256,7 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
 
@@ -371,7 +371,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
     }
 

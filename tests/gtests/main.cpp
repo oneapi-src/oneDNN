@@ -33,11 +33,10 @@ bool is_current_test_failed() {
 
 class assert_fail_handler_t : public EmptyTestEventListener {
 protected:
-    virtual void OnTestStart(const TestInfo &test_info) override {
+    void OnTestStart(const TestInfo &test_info) override {
         g_is_current_test_failed = false;
     }
-    virtual void OnTestPartResult(
-            const testing::TestPartResult &part_result) override {
+    void OnTestPartResult(const testing::TestPartResult &part_result) override {
         if (part_result.type() == testing::TestPartResult::kFatalFailure) {
             g_is_current_test_failed = true;
         }

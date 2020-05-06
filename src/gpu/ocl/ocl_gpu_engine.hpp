@@ -50,40 +50,40 @@ public:
         , device_(adevice)
         , context_(acontext)
         , is_user_context_(true) {}
-    virtual ~ocl_gpu_engine_t() override {
+    ~ocl_gpu_engine_t() override {
         if (context_) { clReleaseContext(context_); }
     }
 
     status_t init();
 
-    virtual status_t create_memory_storage(memory_storage_t **storage,
-            unsigned flags, size_t size, void *handle) override;
+    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
+            size_t size, void *handle) override;
 
-    virtual status_t create_stream(stream_t **stream, unsigned flags,
+    status_t create_stream(stream_t **stream, unsigned flags,
             const stream_attr_t *attr) override;
     status_t create_stream(stream_t **stream, cl_command_queue queue);
 
-    virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,
+    status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
             const compute::kernel_ctx_t &kernel_ctx) const override;
 
-    virtual const concat_primitive_desc_create_f *
+    const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override {
         return gpu_impl_list_t::get_concat_implementation_list();
     }
 
-    virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list(const memory_desc_t *src_md,
+    const reorder_primitive_desc_create_f *get_reorder_implementation_list(
+            const memory_desc_t *src_md,
             const memory_desc_t *dst_md) const override {
         return gpu_impl_list_t::get_reorder_implementation_list(src_md, dst_md);
     }
 
-    virtual const sum_primitive_desc_create_f *
+    const sum_primitive_desc_create_f *
     get_sum_implementation_list() const override {
         return gpu_impl_list_t::get_sum_implementation_list();
     }
 
-    virtual const primitive_desc_create_f *get_implementation_list(
+    const primitive_desc_create_f *get_implementation_list(
             const op_desc_t *desc) const override {
         UNUSED(desc);
         return gpu_impl_list_t::get_implementation_list();
@@ -92,7 +92,7 @@ public:
     virtual cl_device_id device() const { return device_; }
     virtual cl_context context() const { return context_; }
 
-    virtual intptr_t device_id() const override {
+    intptr_t device_id() const override {
         return reinterpret_cast<intptr_t>(device());
     }
 

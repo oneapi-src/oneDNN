@@ -43,11 +43,11 @@ struct batch_normalization_pd_t : public primitive_desc_t {
         , ws_md_() {}
 
     const batch_normalization_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override {
+    const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual status_t query(query_t what, int idx, void *result) const override {
+    status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
@@ -128,7 +128,7 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
         : batch_normalization_pd_t(adesc, attr, hint_fwd_pd) {}
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
@@ -147,7 +147,7 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_DST: return dst_md(0);
@@ -159,24 +159,24 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
         }
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(int index = 0) const override {
         if (index == 0) return &data_md_;
         if (stats_is_src() && (index == 1 || index == 2)) return &stat_md_;
         return &glob_zero_md;
     }
 
-    virtual const memory_desc_t *dst_md(int index = 0) const override {
+    const memory_desc_t *dst_md(int index = 0) const override {
         if (index == 0) return &data_md_;
         if (!stats_is_src() && is_training() && (index == 1 || index == 2))
             return &stat_md_;
         return &glob_zero_md;
     }
 
-    virtual const memory_desc_t *weights_md(int index = 0) const override {
+    const memory_desc_t *weights_md(int index = 0) const override {
         return index == 0 ? &scaleshift_md_ : &glob_zero_md;
     }
 
-    virtual const memory_desc_t *workspace_md(int index = 0) const override {
+    const memory_desc_t *workspace_md(int index = 0) const override {
         return index == 0 && is_training() && fuse_norm_relu() ? &ws_md_
                                                                : &glob_zero_md;
     }
@@ -185,10 +185,10 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
         return stats_is_src() ? src_md(1) : dst_md(1);
     }
 
-    virtual int n_inputs() const override {
+    int n_inputs() const override {
         return 1 + 2 * stats_is_src() + use_scaleshift();
     }
-    virtual int n_outputs() const override {
+    int n_outputs() const override {
         return 1 + (fuse_norm_relu() + 2 * (!stats_is_src())) * is_training();
     }
 };
@@ -204,7 +204,7 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
         , diff_data_md_(desc_.diff_data_desc)
         , diff_scaleshift_md_(desc_.diff_data_scaleshift_desc) {}
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_MEAN, DNNL_ARG_VARIANCE,
                     DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
@@ -223,7 +223,7 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_MEAN: return src_md(1);
@@ -236,33 +236,33 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
         }
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(int index = 0) const override {
         return index == 0 ? &data_md_ : index <= 2 ? &stat_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *diff_dst_md(int index = 0) const override {
+    const memory_desc_t *diff_dst_md(int index = 0) const override {
         return index == 0 ? &diff_data_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *diff_src_md(int index = 0) const override {
+    const memory_desc_t *diff_src_md(int index = 0) const override {
         return index == 0 ? &diff_data_md_ : &glob_zero_md;
     }
 
-    virtual const memory_desc_t *weights_md(int index = 0) const override {
+    const memory_desc_t *weights_md(int index = 0) const override {
         return index == 0 ? &scaleshift_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *diff_weights_md(int index = 0) const override {
+    const memory_desc_t *diff_weights_md(int index = 0) const override {
         return index == 0 ? &diff_scaleshift_md_ : &glob_zero_md;
     }
 
-    virtual const memory_desc_t *workspace_md(int index = 0) const override {
+    const memory_desc_t *workspace_md(int index = 0) const override {
         return index == 0 && fuse_norm_relu() ? &ws_md_ : &glob_zero_md;
     }
 
     const memory_desc_t *stat_md() const { return src_md(1); }
 
-    virtual int n_inputs() const override {
+    int n_inputs() const override {
         return 4 + use_scaleshift() + fuse_norm_relu();
     }
-    virtual int n_outputs() const override {
+    int n_outputs() const override {
         return 1 + (!types::is_zero_md(diff_weights_md()));
     }
 

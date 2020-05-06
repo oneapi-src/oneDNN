@@ -82,7 +82,7 @@ struct jit_avx2_x8s8s32x_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         const auto &_pd = pd();
         const int ndims = _pd->ndims();
         const bool is_dw = _pd->jcp_.is_depthwise;

@@ -61,7 +61,7 @@ class ocl_gpu_device_info_t : public compute::device_info_t {
 public:
     ocl_gpu_device_info_t(cl_device_id device) : device_(device) {}
 
-    virtual status_t init() override {
+    status_t init() override {
         CHECK(init_arch());
         CHECK(init_extensions());
         CHECK(init_attributes());
@@ -103,15 +103,15 @@ public:
         return status::success;
     }
 
-    virtual bool has(compute::device_ext_t ext) const override {
+    bool has(compute::device_ext_t ext) const override {
         return has(extensions_, ext);
     }
 
     gpu_arch_t gpu_arch() const { return gpu_arch_; }
 
-    virtual int eu_count() const override { return eu_count_; }
-    virtual int hw_threads() const override { return hw_threads_; }
-    virtual size_t llc_cache_size() const override { return llc_cache_size_; }
+    int eu_count() const override { return eu_count_; }
+    int hw_threads() const override { return hw_threads_; }
+    size_t llc_cache_size() const override { return llc_cache_size_; }
 
 private:
     status_t init_arch() {

@@ -117,7 +117,7 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -181,7 +181,7 @@ struct gemm_bf16_inner_product_bwd_data_t : public primitive_t {
     typedef typename prec_traits<diff_src_data_type>::type diff_src_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
 
@@ -250,7 +250,7 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<diff_wei_data_type>::type diff_wei_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
     }
 

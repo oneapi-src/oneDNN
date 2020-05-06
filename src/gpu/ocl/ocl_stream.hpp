@@ -66,17 +66,17 @@ struct ocl_stream_t : public compute::compute_stream_t {
         return status::success;
     }
 
-    virtual status_t wait() override {
+    status_t wait() override {
         OCL_CHECK(clFinish(queue_));
         return status::success;
     }
 
     cl_command_queue queue() const { return queue_; }
 
-    virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size) override;
+    status_t copy(const memory_storage_t &src, const memory_storage_t &dst,
+            size_t size) override;
 
-    virtual status_t fill(const memory_storage_t &dst, const void *pattern,
+    status_t fill(const memory_storage_t &dst, const void *pattern,
             size_t pattern_size, size_t size) override;
 
     ~ocl_stream_t() {

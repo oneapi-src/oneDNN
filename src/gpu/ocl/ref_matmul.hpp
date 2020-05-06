@@ -180,7 +180,7 @@ struct ref_matmul_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_ref(ctx);
     }
 

@@ -1225,7 +1225,7 @@ struct jit_uni_reorder_t : public primitive_t {
         }
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto in = CTX_IN_MEM(const char *, DNNL_ARG_FROM);
         auto out = CTX_OUT_MEM(char *, DNNL_ARG_TO);
         DEFINE_SCALES_BUFFER(scales);

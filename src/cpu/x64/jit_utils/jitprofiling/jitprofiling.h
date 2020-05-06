@@ -231,7 +231,6 @@ typedef enum iJIT_jvm_event
                                       * - method_size            specify length of updated code
                                       *                          range. */
 
-
     iJVM_EVENT_TYPE_METHOD_INLINE_LOAD_FINISHED, /**<\brief Send when an inline dynamic
                                                   * code is JIT compiled and loaded
                                                   * into memory by the JIT engine,

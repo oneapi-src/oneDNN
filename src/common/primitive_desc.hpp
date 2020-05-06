@@ -270,15 +270,15 @@ protected:
 };
 
 #define DECLARE_COMMON_PD_t(impl_name, impl_type, use_global_scratchpad) \
-    virtual pd_t *clone() const override { return new pd_t(*this); } \
-    virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
+    pd_t *clone() const override { return new pd_t(*this); } \
+    status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
             engine_t *engine, bool is_primitive_nested) const override { \
         return primitive_t::create_primitive_common<impl_type, pd_t>( \
                 primitive, this, engine, use_global_scratchpad, \
                 is_primitive_nested); \
     } \
-    virtual const char *name() const override { return impl_name; } \
-    virtual std::type_index impl_id() const override { return typeid(pd_t); }
+    const char *name() const override { return impl_name; } \
+    std::type_index impl_id() const override { return typeid(pd_t); }
 
 #define DECLARE_COMMON_PD_T_USE_GLOBAL_SCRATCHPAD(impl_name, impl_type) \
     DECLARE_COMMON_PD_t(impl_name, impl_type, true)

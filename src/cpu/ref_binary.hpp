@@ -76,7 +76,7 @@ struct ref_binary_t : public primitive_t {
 
     ref_binary_t(const pd_t *apd) : primitive_t(apd) {}
 
-    virtual status_t init(engine_t *engine) override {
+    status_t init(engine_t *engine) override {
         int e_idx = pd()->attr()->post_ops_.find(primitive_kind::eltwise);
         if (e_idx != -1)
             eltwise_ker_.reset(new ref_eltwise_scalar_fwd_t(
@@ -88,7 +88,7 @@ struct ref_binary_t : public primitive_t {
     using src1_data_t = typename prec_traits<src1_type>::type;
     using dst_data_t = typename prec_traits<dst_type>::type;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_ref(ctx);
         return status::success;
     }

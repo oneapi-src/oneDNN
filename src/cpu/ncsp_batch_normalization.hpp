@@ -100,7 +100,7 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
     ncsp_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     ~ncsp_batch_normalization_fwd_t() {}
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
     }
@@ -176,7 +176,7 @@ struct ncsp_batch_normalization_bwd_t : public primitive_t {
     ncsp_batch_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
     ~ncsp_batch_normalization_bwd_t() {}
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);
         return status::success;
     }

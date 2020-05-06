@@ -61,20 +61,20 @@ public:
         : engine_t(engine_kind::cpu, get_default_runtime(engine_kind::cpu)) {}
 
     /* implementation part */
-    virtual status_t create_memory_storage(memory_storage_t **storage,
-            unsigned flags, size_t size, void *handle) override;
+    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
+            size_t size, void *handle) override;
 
-    virtual status_t create_stream(stream_t **stream, unsigned flags,
+    status_t create_stream(stream_t **stream, unsigned flags,
             const stream_attr_t *attr) override;
 
-    virtual const concat_primitive_desc_create_f *
+    const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override;
-    virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list(const memory_desc_t *src_md,
+    const reorder_primitive_desc_create_f *get_reorder_implementation_list(
+            const memory_desc_t *src_md,
             const memory_desc_t *dst_md) const override;
-    virtual const sum_primitive_desc_create_f *
+    const sum_primitive_desc_create_f *
     get_sum_implementation_list() const override;
-    virtual const primitive_desc_create_f *get_implementation_list(
+    const primitive_desc_create_f *get_implementation_list(
             const op_desc_t *desc) const override {
         static const primitive_desc_create_f empty_list[] = {nullptr};
 
@@ -105,9 +105,8 @@ public:
 
 class cpu_engine_factory_t : public engine_factory_t {
 public:
-    virtual size_t count() const override { return 1; }
-    virtual status_t engine_create(
-            engine_t **engine, size_t index) const override {
+    size_t count() const override { return 1; }
+    status_t engine_create(engine_t **engine, size_t index) const override {
         assert(index == 0);
         *engine = new cpu_engine_t();
         return status::success;

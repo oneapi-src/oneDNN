@@ -146,7 +146,7 @@ struct ref_concat_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         engine_t *engine = ctx.stream()->engine();
         const auto n = pd()->n_inputs();

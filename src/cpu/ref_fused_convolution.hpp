@@ -102,19 +102,19 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        virtual const memory_desc_t *src_md(int index = 0) const override {
+        const memory_desc_t *src_md(int index = 0) const override {
             return op_pds_.front()->src_md(index);
         }
 
-        virtual const memory_desc_t *dst_md(int index = 0) const override {
+        const memory_desc_t *dst_md(int index = 0) const override {
             return op_pds_.back()->dst_md(index);
         }
 
-        virtual const memory_desc_t *weights_md(int index = 0) const override {
+        const memory_desc_t *weights_md(int index = 0) const override {
             return op_pds_.front()->weights_md(index); // for now
         }
 
-        virtual const memory_desc_t *arg_md(int index = 0) const override {
+        const memory_desc_t *arg_md(int index = 0) const override {
             switch (index) { // for now
                 case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS:
                     return op_pds_.back()->weights_md(0);
@@ -124,7 +124,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             }
         }
 
-        virtual arg_usage_t arg_usage(int arg) const override {
+        arg_usage_t arg_usage(int arg) const override {
 
             if (utils::one_of(arg, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
                         DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS))
@@ -325,7 +325,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 
     ref_fused_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    virtual status_t init(engine_t *engine) override {
+    status_t init(engine_t *engine) override {
         const auto &op_pds = pd()->op_pds_;
         for (auto &op_pd : op_pds) {
             std::shared_ptr<primitive_t> p;
@@ -336,7 +336,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         engine_t *engine = ctx.stream()->engine();
         const auto scratchpad = ctx.get_scratchpad_grantor();
 

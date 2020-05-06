@@ -179,7 +179,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         return conv_status;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         const auto &args = ctx.args();
         exec_args_t conv_args;
@@ -288,7 +288,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
         return conv_status;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         const auto &args = ctx.args();
         exec_args_t conv_args;
@@ -436,7 +436,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
 
         const auto &args = ctx.args();

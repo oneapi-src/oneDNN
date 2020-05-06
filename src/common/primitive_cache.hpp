@@ -56,9 +56,9 @@ struct primitive_cache_t : public c_compatible {
 struct lru_primitive_cache_t : public primitive_cache_t {
     lru_primitive_cache_t(int capacity) : capacity_(capacity) {}
 
-    virtual int get_capacity() const override { return (int)capacity_; }
+    int get_capacity() const override { return (int)capacity_; }
 
-    virtual status_t set_capacity(int capacity) override {
+    status_t set_capacity(int capacity) override {
         capacity_ = (size_t)capacity;
         // Check if number of entries exceeds the new capacity
         if (cache_list_.size() > capacity_) {
@@ -70,9 +70,9 @@ struct lru_primitive_cache_t : public primitive_cache_t {
     }
 
     // for undocumented API
-    virtual int get_size() const override { return (int)cache_list_.size(); }
+    int get_size() const override { return (int)cache_list_.size(); }
 
-    virtual void add(const key_t &key, const value_t &impl) override {
+    void add(const key_t &key, const value_t &impl) override {
         // cache is disabled
         if (capacity_ == 0) return;
 
@@ -85,7 +85,7 @@ struct lru_primitive_cache_t : public primitive_cache_t {
         cache_mapper_.insert(std::make_pair(key, cache_list_.begin()));
     }
 
-    virtual value_t get(const key_t &key) override {
+    value_t get(const key_t &key) override {
         // cache is disabled
         if (capacity_ == 0) return nullptr;
 

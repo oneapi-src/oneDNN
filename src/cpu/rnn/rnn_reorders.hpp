@@ -141,7 +141,7 @@ private:
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
         auto output = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
         const float scale = pd()->attr()->rnn_data_qparams_.scale_;
@@ -384,7 +384,7 @@ private:
         });
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto src = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
         auto dst = CTX_OUT_MEM(char *, DNNL_ARG_TO);
         const memory_desc_wrapper &src_d = pd()->src_md();
@@ -557,7 +557,7 @@ private:
     typedef typename prec_traits<type_i>::type in_data_t;
     typedef typename prec_traits<type_o>::type out_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
         auto output = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();

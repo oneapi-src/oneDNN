@@ -459,7 +459,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
         return status::success;
     }
 
-    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
+    status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
     status_t launch_beta(const gemm_exec_ctx_t &ctx,

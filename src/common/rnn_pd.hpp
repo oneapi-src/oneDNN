@@ -51,11 +51,11 @@ struct rnn_pd_t : public primitive_desc_t {
         , ws_md_() {}
 
     const rnn_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override {
+    const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual status_t query(query_t what, int idx, void *result) const override {
+    status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
@@ -66,13 +66,13 @@ struct rnn_pd_t : public primitive_desc_t {
         return status::success;
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(int index = 0) const override {
         if (index == 0) return &src_layer_md_;
         if (index == 1 && with_src_iter()) return &src_iter_md_;
         if (index == 2 && with_src_iter_c()) return &src_iter_c_md_;
         return &glob_zero_md;
     }
-    virtual const memory_desc_t *weights_md(int index = 0) const override {
+    const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_layer_md_;
         if (index == 1) return &weights_iter_md_;
 
@@ -89,13 +89,13 @@ struct rnn_pd_t : public primitive_desc_t {
 
         return &glob_zero_md;
     }
-    virtual const memory_desc_t *dst_md(int index = 0) const override {
+    const memory_desc_t *dst_md(int index = 0) const override {
         if (index == 0) return &dst_layer_md_;
         if (index == 1 && with_dst_iter()) return &dst_iter_md_;
         if (index == 2 && with_dst_iter_c()) return &dst_iter_c_md_;
         return &glob_zero_md;
     }
-    virtual const memory_desc_t *workspace_md(int index = 0) const override {
+    const memory_desc_t *workspace_md(int index = 0) const override {
         return (index == 0) ? &ws_md_ : &glob_zero_md;
     }
 
@@ -199,7 +199,7 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
             const rnn_fwd_pd_t *hint_fwd_pd)
         : rnn_pd_t(adesc, attr, hint_fwd_pd) {}
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC_LAYER) return arg_usage_t::input;
 
         if (arg == DNNL_ARG_SRC_ITER && with_src_iter())
@@ -233,7 +233,7 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC_LAYER: return src_md(0);
             case DNNL_ARG_SRC_ITER: return src_md(1);
@@ -255,11 +255,11 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
         }
     }
 
-    virtual int n_inputs() const override {
+    int n_inputs() const override {
         return 3 + is_lstm_peephole() + is_lstm_projection() + with_bias()
                 + with_src_iter() + with_src_iter_c();
     }
-    virtual int n_outputs() const override {
+    int n_outputs() const override {
         return 1 + with_dst_iter() + with_dst_iter_c() + is_training();
     }
 };
@@ -283,7 +283,7 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         , diff_dst_iter_md_(desc_.diff_dst_iter_desc)
         , diff_dst_iter_c_md_(desc_.diff_dst_iter_c_desc) {}
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC_LAYER, DNNL_ARG_DST_LAYER,
                     DNNL_ARG_DIFF_DST_LAYER, DNNL_ARG_WEIGHTS_LAYER,
                     DNNL_ARG_WEIGHTS_ITER))
@@ -340,7 +340,7 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC_LAYER: return src_md(0);
             case DNNL_ARG_SRC_ITER: return src_md(1);
@@ -379,13 +379,13 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         }
     }
 
-    virtual const memory_desc_t *diff_src_md(int index = 0) const override {
+    const memory_desc_t *diff_src_md(int index = 0) const override {
         if (index == 0) return &diff_src_layer_md_;
         if (index == 1 && with_src_iter()) return &diff_src_iter_md_;
         if (index == 2 && with_src_iter_c()) return &diff_src_iter_c_md_;
         return &glob_zero_md;
     }
-    virtual const memory_desc_t *diff_weights_md(int index = 0) const override {
+    const memory_desc_t *diff_weights_md(int index = 0) const override {
         if (index == 0) return &diff_weights_layer_md_;
         if (index == 1) return &diff_weights_iter_md_;
 
@@ -402,19 +402,19 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
 
         return &glob_zero_md;
     }
-    virtual const memory_desc_t *diff_dst_md(int index = 0) const override {
+    const memory_desc_t *diff_dst_md(int index = 0) const override {
         if (index == 0) return &diff_dst_layer_md_;
         if (index == 1 && with_dst_iter()) return &diff_dst_iter_md_;
         if (index == 2 && with_dst_iter_c()) return &diff_dst_iter_c_md_;
         return &glob_zero_md;
     }
 
-    virtual int n_inputs() const override {
+    int n_inputs() const override {
         return 6 + with_src_iter() + with_src_iter_c()
                 + 2 * (with_dst_iter() + with_dst_iter_c()) + is_lstm_peephole()
                 + is_lstm_projection() + with_bias();
     }
-    virtual int n_outputs() const override {
+    int n_outputs() const override {
         return 3 + with_src_iter() + with_src_iter_c() + is_lstm_peephole()
                 + is_lstm_projection() + with_bias();
     }

@@ -300,7 +300,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
     ~_ref_rnn_common_t() { delete rnn_postgemm_; }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_(ctx);
         return status::success;
     }

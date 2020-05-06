@@ -118,7 +118,7 @@ struct ref_sum_t : public primitive_t {
 
     ref_sum_t(const pd_t *apd) : primitive_t(apd) {}
 
-    virtual status_t init(engine_t *engine) override {
+    status_t init(engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i)
@@ -126,7 +126,7 @@ struct ref_sum_t : public primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
 
         if (pd()->has_zero_dim_memory()) return status::success;

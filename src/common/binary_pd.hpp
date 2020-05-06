@@ -45,11 +45,11 @@ struct binary_pd_t : public primitive_desc_t {
     }
 
     const binary_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override {
+    const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual status_t query(query_t what, int idx, void *result) const override {
+    status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
             case query::binary_d:
                 *(const binary_desc_t **)result = desc();
@@ -59,7 +59,7 @@ struct binary_pd_t : public primitive_desc_t {
         return status::success;
     }
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC_0 || arg == DNNL_ARG_SRC_1)
             return arg_usage_t::input;
 
@@ -68,7 +68,7 @@ struct binary_pd_t : public primitive_desc_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC_0: return src_md(0);
             case DNNL_ARG_SRC_1: return src_md(1);
@@ -77,19 +77,19 @@ struct binary_pd_t : public primitive_desc_t {
         }
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(int index = 0) const override {
         if (index == 0)
             return &src0_md_;
         else if (index == 1)
             return &src1_md_;
         return &glob_zero_md;
     }
-    virtual const memory_desc_t *dst_md(int index = 0) const override {
+    const memory_desc_t *dst_md(int index = 0) const override {
         return index == 0 ? &dst_md_ : &glob_zero_md;
     }
 
-    virtual int n_inputs() const override { return 2; }
-    virtual int n_outputs() const override { return 1; }
+    int n_inputs() const override { return 2; }
+    int n_outputs() const override { return 1; }
 
     const dims_t &broadcast_dims() const { return broadcast_dims_; }
 

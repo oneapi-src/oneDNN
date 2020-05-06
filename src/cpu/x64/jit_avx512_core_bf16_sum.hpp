@@ -210,7 +210,7 @@ struct jit_bf16_sum_t : public primitive_t {
 
     ~jit_bf16_sum_t() { delete kernel_; }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(const exec_ctx_t &ctx) const override;
 
     typedef typename prec_traits<src_data_type>::type src_data_t;
     typedef typename prec_traits<dst_data_type>::type dst_data_t;

@@ -51,7 +51,7 @@ struct jit_uni_eltwise_int_fwd_t : public primitive_t {
 
     typedef typename prec_traits<d_type>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
     }
