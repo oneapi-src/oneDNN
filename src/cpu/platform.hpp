@@ -66,6 +66,7 @@ const char *get_isa_info();
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
 
 bool DNNL_API has_data_type_support(data_type_t data_type);
+float s8s8_weights_scale_factor();
 
 unsigned get_per_core_cache_size(int level);
 unsigned get_num_cores();
