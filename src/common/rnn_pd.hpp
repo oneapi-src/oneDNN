@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef RNN_PD_HPP
-#define RNN_PD_HPP
+#ifndef COMMON_RNN_PD_HPP
+#define COMMON_RNN_PD_HPP
 
 #include "dnnl.h"
 
@@ -32,9 +32,9 @@ struct rnn_fwd_pd_t;
 struct rnn_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::rnn;
 
-    rnn_pd_t(engine_t *engine, const rnn_desc_t *adesc,
-            const primitive_attr_t *attr, const rnn_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, base_pkind)
+    rnn_pd_t(const rnn_desc_t *adesc, const primitive_attr_t *attr,
+            const rnn_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
         , src_layer_md_(desc_.src_layer_desc)
@@ -195,9 +195,9 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
     typedef rnn_fwd_pd_t base_class;
     typedef rnn_fwd_pd_t hint_class;
 
-    rnn_fwd_pd_t(engine_t *engine, const rnn_desc_t *adesc,
-            const primitive_attr_t *attr, const rnn_fwd_pd_t *hint_fwd_pd)
-        : rnn_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+    rnn_fwd_pd_t(const rnn_desc_t *adesc, const primitive_attr_t *attr,
+            const rnn_fwd_pd_t *hint_fwd_pd)
+        : rnn_pd_t(adesc, attr, hint_fwd_pd) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC_LAYER) return arg_usage_t::input;
@@ -268,9 +268,9 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
     typedef rnn_bwd_pd_t base_class;
     typedef rnn_fwd_pd_t hint_class;
 
-    rnn_bwd_pd_t(engine_t *engine, const rnn_desc_t *adesc,
-            const primitive_attr_t *attr, const rnn_fwd_pd_t *hint_fwd_pd)
-        : rnn_pd_t(engine, adesc, attr, hint_fwd_pd)
+    rnn_bwd_pd_t(const rnn_desc_t *adesc, const primitive_attr_t *attr,
+            const rnn_fwd_pd_t *hint_fwd_pd)
+        : rnn_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_layer_md_(desc_.diff_src_layer_desc)
         , diff_src_iter_md_(desc_.diff_src_iter_desc)
         , diff_src_iter_c_md_(desc_.diff_src_iter_c_desc)

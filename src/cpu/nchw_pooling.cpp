@@ -17,13 +17,14 @@
 #include <assert.h>
 #include <math.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
-#include "nstl.hpp"
-#include "type_helpers.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/nstl.hpp"
+#include "common/type_helpers.hpp"
 
-#include "nchw_pooling.hpp"
+#include "cpu/simple_q10n.hpp"
+
+#include "cpu/nchw_pooling.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,7 +34,6 @@ using namespace nstl;
 
 template <data_type_t d_type>
 void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
-
     auto alg = pd()->desc()->alg_kind;
 
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
@@ -126,7 +126,7 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
             d[0] += src[src_offset];
         }
 
-        d[0] = math::out_round<data_t>((float)d[0] / num_summands);
+        d[0] = out_round<data_t>((float)d[0] / num_summands);
     };
 
     if (alg == alg_kind::pooling_max) {
@@ -259,7 +259,7 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
             d[0] += bf16cvt_wsp[src_offset];
         }
 
-        d[0] = math::out_round<float>((float)d[0] / num_summands);
+        d[0] = out_round<float>((float)d[0] / num_summands);
     };
     parallel_nd(blocked_size, [&](size_t i) {
         cvt_bfloat16_to_float(
@@ -299,7 +299,6 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
 
 template <data_type_t d_type>
 void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
-
     auto alg = pd()->desc()->alg_kind;
     const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
     const bool is_2d = pd()->desc()->diff_src_desc.ndims == 4;

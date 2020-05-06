@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_MATMUL_PD_HPP
-#define CPU_MATMUL_PD_HPP
+#ifndef CPU_MATMUL_CPU_MATMUL_PD_HPP
+#define CPU_MATMUL_CPU_MATMUL_PD_HPP
 
-#include "matmul_pd.hpp"
+#include "common/matmul_pd.hpp"
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

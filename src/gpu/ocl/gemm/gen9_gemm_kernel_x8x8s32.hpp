@@ -56,7 +56,7 @@ struct gen9_int8_gemm_kernel_t {
 struct gen9_gemm_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool fixed_c, bool column_c, bool row_c,
-            bool with_eltwise, alg_kind_t alg, impl::data_type_t a_type,
+            const attr_info_t &attr_info, impl::data_type_t a_type,
             impl::data_type_t b_type, impl::data_type_t c_type) {
 
         auto status = init_cl_options(kernel_ctx, a_type, b_type, c_type);
@@ -96,8 +96,7 @@ struct gen9_gemm_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
         kernel_ctx.define_int("UNROLL_K", copy_params_t::unroll_k);
 
-        kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
-        if (with_eltwise) def_postops(kernel_ctx, alg);
+        def_attr_info(kernel_ctx, attr_info);
 
         kernel_ctx.print_options();
         return status::success;
@@ -111,7 +110,7 @@ struct gen9_gemm_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
 
 struct gen9_gemm_scale_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
     static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
-            bool with_eltwise, alg_kind_t alg, impl::data_type_t a_type,
+            const attr_info_t &attr_info, impl::data_type_t a_type,
             impl::data_type_t b_type, impl::data_type_t c_type) {
 
         auto status = init_cl_options(kernel_ctx, a_type, b_type, c_type);
@@ -121,8 +120,7 @@ struct gen9_gemm_scale_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
         kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
         kernel_ctx.define_int("UNROLL_K", copy_params_t::unroll_k);
 
-        kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
-        if (with_eltwise) def_postops(kernel_ctx, alg);
+        def_attr_info(kernel_ctx, attr_info);
 
         kernel_ctx.print_options();
         return status::success;

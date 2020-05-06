@@ -20,8 +20,11 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_batch_normalization_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
@@ -31,20 +34,19 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_batch_normalization_fwd_t : public primitive_impl_t {
+struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_batch_normalization_fwd_pd_t {
-        pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
+        pd_t(const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : gpu_batch_normalization_fwd_pd_t(
-                    engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
             auto src_data_t = src_md()->data_type;
             auto dst_data_t = dst_md()->data_type;
 
@@ -53,7 +55,10 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
             bool ok = is_fwd()
                     && (utils::everyone_is(f16, src_data_t, dst_data_t)
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
-                            || utils::everyone_is(f32, src_data_t, dst_data_t))
+                            || utils::everyone_is(f32, src_data_t, dst_data_t)
+                            || utils::everyone_is(s8, src_data_t, dst_data_t))
+                    && IMPLICATION(utils::one_of(src_data_t, s8),
+                            !is_training() && stats_is_src())
                     && attr()->has_default_values(attr_skip_mask)
                     && IMPLICATION(!attr()->has_default_values(),
                             attr()->post_ops_.len_ == 1 && with_relu_post_op())
@@ -61,30 +66,26 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
                             compute::device_ext_t::intel_subgroups);
             if (!ok) return status::unimplemented;
 
-            if (src_data_t == s8 && !stats_is_src())
-                return status::unimplemented;
-
             if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
-            status_t status = init_conf();
+            status_t status = init_conf(engine);
             if (status != status::success) return status;
+            init_scratchpad();
 
-            auto scratchpad = scratchpad_registry().registrar();
-            return init_scratchpad(scratchpad);
+            return status::success;
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
-        status_t init_scratchpad(
-                memory_tracking::registrar_t &scratchpad) const;
+        void init_scratchpad();
 
         bnorm_conf_t conf;
         offsets_t off;
     };
 
-    status_t init() override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+    ref_batch_normalization_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -100,8 +101,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
         }
 
         std::vector<compute::kernel_t> kernels;
-        status = compute_engine->create_kernels(
-                &kernels, kernel_names, kernel_ctx);
+        status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
         CHECK(status);
 
         kernel_ = kernels[0];
@@ -113,15 +113,13 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
     compute::kernel_t calculate_mean_kernel_;
     compute::kernel_t reduce_mean_kernel_;
@@ -129,17 +127,16 @@ private:
     compute::kernel_t reduce_variance_kernel_;
 };
 
-struct ref_batch_normalization_bwd_t : public primitive_impl_t {
+struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_batch_normalization_bwd_pd_t {
-        pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
+        pd_t(const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : gpu_batch_normalization_bwd_pd_t(
-                    engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             bool ok = is_bwd() && set_default_formats_common()
                     && (utils::everyone_is(f32, src_md()->data_type,
@@ -157,25 +154,24 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
-            status_t status = init_conf();
+            status_t status = init_conf(engine);
             if (status != status::success) return status;
+            init_scratchpad();
 
-            auto scratchpad = scratchpad_registry().registrar();
-            return init_scratchpad(scratchpad);
+            return status::success;
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
-        status_t init_scratchpad(
-                memory_tracking::registrar_t &scratchpad) const;
+        void init_scratchpad();
 
         bnorm_conf_t conf;
         offsets_t off;
     };
 
-    status_t init() override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+    ref_batch_normalization_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -185,8 +181,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
                 = {"ref_bnorm_bwd", "calculate_stats", "reduce_stats"};
 
         std::vector<compute::kernel_t> kernels;
-        status = compute_engine->create_kernels(
-                &kernels, kernel_names, kernel_ctx);
+        status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
         CHECK(status);
 
         kernel_ = kernels[0];
@@ -196,15 +191,13 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
     }
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
     compute::kernel_t calculate_stats_kernel_;
     compute::kernel_t reduce_stats_kernel_;

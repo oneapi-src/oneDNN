@@ -28,9 +28,12 @@
 /// to tune oneDNN code to align
 /// with the [best practices](@ref dev_guide_inference).
 ///
-/// It will assume knowledge of memory formats and their usage in
+/// It assumes knowledge of memory formats and their usage in
 /// oneDNN. You can read more about this topic
 /// [here](@ref memory_format_propagation_cpp).
+///
+/// Additionally, see the [article for recommended environment for
+/// running benchmarks](@ref dev_guide_performance_settings).
 ///
 /// The example has three different implementations of the mathematical
 /// operation:

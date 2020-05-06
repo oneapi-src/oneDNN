@@ -17,13 +17,17 @@
 #include <assert.h>
 #include <math.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
+#include <algorithm>
 
-#include "cpu_batch_normalization_utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
 
-#include "nspc_batch_normalization.hpp"
+#include "cpu/platform.hpp"
+
+#include "cpu/cpu_batch_normalization_utils.hpp"
+
+#include "cpu/nspc_batch_normalization.hpp"
 
 // clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
 #if (defined __clang_major__) && (__clang_major__ >= 6)
@@ -275,7 +279,8 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
 
     /* Note: potential seg-fault from incorrectly compiled vectorized-loop.
      * Explicit tail-processing fixes this issue. */
-    const dim_t c_blk = mayiuse(avx512_common) ? 16 : 8;
+    const dim_t c_blk = std::max(
+            platform::get_vector_register_size() / (int)sizeof(float), 8);
     const dim_t tail = C % c_blk;
     const dim_t nb_c_blk = (size_t)C / c_blk;
     int nthr = dnnl_get_max_threads();

@@ -24,7 +24,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t rnn_weights_reorder_t::pd_t::init_conf() {
+status_t rnn_weights_reorder_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
 
@@ -43,8 +43,7 @@ status_t rnn_weights_reorder_t::pd_t::init_conf() {
     conf.sub_group_size = 1;
 
     // only for LDIGO
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(engine());
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
     conf.dispatch.define_dim("D0", 0, dims[0]);
@@ -116,6 +115,7 @@ status_t rnn_weights_reorder_t::pd_t::init_kernel_ctx(
 }
 
 status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -134,31 +134,27 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
         arg_list.set(2, out_storage);
 
         auto nd_range = conf.dispatch.nd_range();
-        return compute_stream->parallel_for(nd_range, kernel_, arg_list);
+
+        return parallel_for(ctx, nd_range, kernel_, arg_list);
     };
 
     status_t status = status::success;
 
+    const memory_storage_t *scales_buf = nullptr;
+    std::unique_ptr<memory_storage_t> wspace;
+    if (do_reorder) {
+        wspace = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_reorder_rnn_space);
+        scales_buf = &CTX_GPU_RES_STORAGE(SCALES_);
+    }
+
     // Copy to gpu
     memory_desc_wrapper src_mdw(pd()->src_md());
     status = compute_stream->copy(
-            input, do_reorder ? *temp_buf : output, src_mdw.size());
-
-    if (status == status::success && do_reorder) {
-        if (scales_buf) {
-            void *tmp_ptr = nullptr;
-            status = scales_buf->map_data(&tmp_ptr);
-            if (status != status::success) return status;
-            utils::array_copy((float *)tmp_ptr,
-                    pd()->attr()->rnn_weights_qparams_.scales_,
-                    conf.scales_count);
-            status = scales_buf->unmap_data(tmp_ptr);
-            if (status != status::success) return status;
-        }
-    }
+            input, do_reorder ? *wspace : output, src_mdw.size());
 
     if (status == status::success && do_reorder)
-        status = ocl_reorder(*temp_buf, *scales_buf, output);
+        status = ocl_reorder(*wspace, *scales_buf, output);
 
     return status;
 }

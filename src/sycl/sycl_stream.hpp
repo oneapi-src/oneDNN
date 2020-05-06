@@ -85,8 +85,8 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
 
     cl::sycl::queue &queue() { return *queue_; }
 
-    virtual status_t enqueue_primitive(
-            const primitive_t *prim, exec_ctx_t &exec_ctx) override {
+    virtual status_t enqueue_primitive(const primitive_iface_t *prim_iface,
+            exec_ctx_t &exec_ctx) override {
         auto execute_func = [&]() {
             status_t status = status::success;
             if (engine()->kind() == engine_kind::cpu) {
@@ -96,7 +96,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
 #ifdef DNNL_SYCL_DPCPP
                     cgh.depends_on(deps_);
 #endif
-                    submit_cpu_primitive(this, prim, exec_ctx, cgh);
+                    submit_cpu_primitive(this, prim_iface, exec_ctx, cgh);
                 });
                 deps_ = {event};
 #else
@@ -104,7 +104,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 return status::runtime_error;
 #endif
             } else if (engine()->kind() == engine_kind::gpu) {
-                status = prim->execute(exec_ctx);
+                status = prim_iface->execute(exec_ctx);
             } else {
                 assert(!"not expected");
             }
@@ -125,14 +125,14 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         void *src_mapped_ptr;
         void *dst_mapped_ptr;
 
-        CHECK(src.map_data(&src_mapped_ptr));
-        CHECK(dst.map_data(&dst_mapped_ptr));
+        CHECK(src.map_data(&src_mapped_ptr, this));
+        CHECK(dst.map_data(&dst_mapped_ptr, this));
 
         utils::array_copy(static_cast<uint8_t *>(dst_mapped_ptr),
                 static_cast<const uint8_t *>(src_mapped_ptr), size);
 
-        CHECK(src.unmap_data(src_mapped_ptr));
-        CHECK(dst.unmap_data(dst_mapped_ptr));
+        CHECK(src.unmap_data(src_mapped_ptr, this));
+        CHECK(dst.unmap_data(dst_mapped_ptr, this));
 
         return status::success;
     }
@@ -140,7 +140,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
     virtual status_t fill(const memory_storage_t &dst, const void *pattern,
             size_t pattern_size, size_t size) override {
         void *mapped_ptr;
-        CHECK(dst.map_data(&mapped_ptr));
+        CHECK(dst.map_data(&mapped_ptr, this));
 
         assert(size % pattern_size == 0);
         for (size_t i = 0; i < size / pattern_size; ++i) {
@@ -148,7 +148,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                     pattern, pattern_size);
         }
 
-        CHECK(dst.unmap_data(mapped_ptr));
+        CHECK(dst.unmap_data(mapped_ptr, this));
         return status::success;
     }
 

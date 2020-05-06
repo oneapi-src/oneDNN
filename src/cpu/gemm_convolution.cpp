@@ -16,12 +16,12 @@
 
 #include "dnnl_types.h"
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "gemm_convolution.hpp"
-#include "ref_eltwise.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
+#include "cpu/gemm_convolution.hpp"
+#include "cpu/ref_eltwise.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -43,7 +43,7 @@ struct im_pos_t {
 };
 } // namespace
 
-void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+status_t gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
@@ -51,7 +51,7 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t weights_oc_size = jcp.ic * jcp.ks;
@@ -61,6 +61,7 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     assert(IMPLICATION(
             is_problem_3d, jcp.os_block == jcp.os && jcp.ic_block == jcp.ic));
 
+    status_t st = status::success;
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
         if (is_problem_3d) {
@@ -93,15 +94,15 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
             }
             const data_t one = 1.0;
 
-            const int M = jcp.os * jcp.od;
+            const dim_t M = jcp.os * jcp.od;
             const size_t dst_step = jcp.oc * M;
-            const int m = step.sp;
-            const int LDA = jcp.im2col_sz ? m : M;
+            const dim_t m = step.sp;
+            const dim_t LDA = jcp.im2col_sz ? m : M;
             data_t *_dst = dst + (curr.n * jcp.ngroups + curr.g) * dst_step
                     + curr.oc * M + curr.od * jcp.os + curr.sp;
-            const int K = step.ic * jcp.ks;
-            const int LDB = jcp.ic * jcp.ks;
-            const int N = step.oc;
+            const dim_t K = step.ic * jcp.ks;
+            const dim_t LDB = jcp.ic * jcp.ks;
+            const dim_t N = step.oc;
 
             // TODO: what if this->beta_ != 0 && != 1 ?
             const float beta = (curr.ic == 0) ? this->beta_ : one;
@@ -111,8 +112,10 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
             const data_t *_weights = weights + curr.g * weights_g_size
                     + curr.oc * weights_oc_size + curr.ic * jcp.ks;
 
-            extended_sgemm("N", "N", &m, &N, &K, &one, _source, &LDA, _weights,
-                    &LDB, &beta, _dst, &M);
+            status_t st = extended_sgemm("N", "N", &m, &N, &K, &one, _source,
+                    &LDA, _weights, &LDB, &beta, _dst, &M);
+            if (st != status::success) return st;
+
             if (curr.ic == jcp.ic - step.ic) {
                 // TODO: for "outer threading" we have parallel section within
                 // outermost "parallel". It is not good. Consider to use
@@ -153,6 +156,8 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                     });
                 }
             }
+
+            return status::success;
         };
         im_pos_t start, end;
         end.ic = jcp.ic;
@@ -183,7 +188,12 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                             jcp.ngroups, curr.od, jcp.od, curr.sp, jcp.os);
                     for (curr.oc = start.oc; curr.oc < end.oc;
                             curr.oc += step.oc) {
-                        inner_ker(spatial, curr, prev, step, end);
+                        status_t st_thr
+                                = inner_ker(spatial, curr, prev, step, end);
+                        if (st_thr != status::success) {
+                            st = st_thr;
+                            return;
+                        }
                     }
                 }
         else if (jcp.loop_order == gemm_loop_lrb)
@@ -192,15 +202,23 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                         curr.od, jcp.od, curr.sp, jcp.os);
                 for (curr.ic = 0; curr.ic < jcp.ic; curr.ic += step.ic)
                     for (curr.oc = start.oc; curr.oc < end.oc;
-                            curr.oc += step.oc)
-                        inner_ker(spatial, curr, prev, step, end);
+                            curr.oc += step.oc) {
+                        status_t st_thr
+                                = inner_ker(spatial, curr, prev, step, end);
+                        if (st_thr != status::success) {
+                            st = st_thr;
+                            return;
+                        }
+                    }
             }
         else
-            assert(!"Unknown loop order");
+            st = status::unimplemented;
     });
+
+    return st;
 }
 
-void gemm_convolution_bwd_data_t::execute_backward_data(
+status_t gemm_convolution_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
@@ -208,21 +226,22 @@ void gemm_convolution_bwd_data_t::execute_backward_data(
 
     auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
-    const int M = jcp.os * jcp.od;
+    const dim_t M = jcp.os * jcp.od;
     const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t dst_step = (size_t)jcp.oc * M;
     const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
 
-    const int m = jcp.os;
-    const int K = jcp.oc;
-    const int N = jcp.ic * jcp.ks;
-    const int LDC = jcp.im2col_sz ? m : M;
+    const dim_t m = jcp.os;
+    const dim_t K = jcp.oc;
+    const dim_t N = jcp.ic * jcp.ks;
+    const dim_t LDC = jcp.im2col_sz ? m : M;
 
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
     const bool is_problem_3d = pd()->ndims() == 5;
 
+    status_t st = status::success;
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
@@ -246,9 +265,13 @@ void gemm_convolution_bwd_data_t::execute_backward_data(
                         = diff_dst + (n * jcp.ngroups + g) * dst_step + od * m;
 
                 const data_t zero = 0.0, one = 1.0;
-                extended_sgemm("N", "T", &m, &N, &K, &one, _diff_dst, &M,
-                        _weights, &N, &zero,
+                status_t st_thr = extended_sgemm("N", "T", &m, &N, &K, &one,
+                        _diff_dst, &M, _weights, &N, &zero,
                         jcp.im2col_sz ? _col : _diff_src + od * m, &LDC);
+                if (st_thr != status::success) {
+                    st = st_thr;
+                    return;
+                }
 
                 if (jcp.im2col_sz) {
                     if (!is_problem_3d)
@@ -262,9 +285,11 @@ void gemm_convolution_bwd_data_t::execute_backward_data(
             nd_iterator_step(g, jcp.ngroups, n, jcp.mb);
         }
     });
+
+    return st;
 }
 
-void gemm_convolution_bwd_weights_t::execute_backward_weights(
+status_t gemm_convolution_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
@@ -275,19 +300,20 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights(
     auto wei_reduction
             = ctx.get_scratchpad_grantor().get<data_t>(key_conv_wei_reduction);
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
-    const int K = jcp.os * jcp.od;
+    const dim_t K = jcp.os * jcp.od;
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t dst_step = jcp.oc * K;
     const size_t weights_g_size = jcp.ic * jcp.oc * jcp.ks;
 
-    const int k = jcp.os;
-    const int N = jcp.oc;
-    const int M = jcp.ic * jcp.ks;
-    const int LDA = jcp.im2col_sz ? k : K;
+    const dim_t k = jcp.os;
+    const dim_t N = jcp.oc;
+    const dim_t M = jcp.ic * jcp.ks;
+    const dim_t LDA = jcp.im2col_sz ? k : K;
     const bool is_problem_3d = pd()->ndims() == 5;
 
+    status_t st = status::success;
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
         size_t g_start {0}, g_end {0}, mb_start {0}, mb_end {0};
@@ -339,11 +365,15 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights(
                         }
 
                         const data_t zero = 0.0, one = 1.0;
-                        extended_sgemm("T", "N", &M, &N, &k, &one,
-                                jcp.im2col_sz ? _col : _src + od * k, &LDA,
-                                _diff_dst, &K,
+                        status_t st_thr = extended_sgemm("T", "N", &M, &N, &k,
+                                &one, jcp.im2col_sz ? _col : _src + od * k,
+                                &LDA, _diff_dst, &K,
                                 mb == mb_start && od == 0 ? &zero : &one,
                                 _diff_weights, &M);
+                        if (st_thr != status::success) {
+                            st = st_thr;
+                            return;
+                        }
                     }
                 }
             }
@@ -357,6 +387,8 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights(
             if (need_reduction && dnnl_thr_syncable()) dnnl_thr_barrier();
         }
     });
+
+    if (st != status::success) return st;
 
     if (jcp.need_wei_reduction && !dnnl_thr_syncable()) {
         parallel(jcp.nthr, [&](const int ithr, const int nthr) {
@@ -402,6 +434,8 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights(
             diff_bias[g * jcp.oc + oc] = db;
         });
     }
+
+    return st;
 }
 
 } // namespace cpu

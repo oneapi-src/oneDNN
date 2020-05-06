@@ -23,6 +23,10 @@ endif()
 set(utils_cmake_included true)
 include("cmake/options.cmake")
 
+if ("${CMAKE_PROJECT_NAME}" STREQUAL "${PROJECT_NAME}")
+    set(DNNL_IS_MAIN_PROJECT TRUE)
+endif()
+
 # Common configuration for tests / test cases on Windows
 function(maybe_configure_windows_test name kind)
     if(WIN32 AND (NOT DNNL_BUILD_FOR_CI))

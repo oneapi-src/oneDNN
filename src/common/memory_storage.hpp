@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MEMORY_STORAGE_HPP
-#define MEMORY_STORAGE_HPP
+#ifndef COMMON_MEMORY_STORAGE_HPP
+#define COMMON_MEMORY_STORAGE_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
@@ -55,14 +55,9 @@ struct memory_storage_t : public c_compatible {
 
     virtual size_t base_offset() const { return 0; }
 
-    virtual status_t map_data(void **mapped_ptr) const {
-        return get_data_handle(mapped_ptr);
-    }
+    virtual status_t map_data(void **mapped_ptr, stream_t *stream) const;
 
-    virtual status_t unmap_data(void *mapped_ptr) const {
-        UNUSED(mapped_ptr);
-        return status::success;
-    }
+    virtual status_t unmap_data(void *mapped_ptr, stream_t *stream) const;
 
     virtual bool is_host_accessible() const { return false; }
 

@@ -30,6 +30,8 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
+void get_optimal_lws(const size_t *gws, size_t *lws, size_t n);
+
 class compute_engine_t;
 
 class dispatch_t {

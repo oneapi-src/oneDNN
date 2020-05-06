@@ -17,7 +17,6 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "cpu_isa_traits.hpp"
 #include "dnnl.hpp"
 
 namespace dnnl {
@@ -239,7 +238,7 @@ void compare_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
                                   || p.alg_kind == algorithm::eltwise_gelu_erf)
                                 ? 2e-5
                                 : p.alg_kind == algorithm::eltwise_soft_relu
-                                        ? 2e-6
+                                        ? 3e-5
                                         : 1e-6);
     compare_data(ref_dst, dst, eps);
 }
@@ -313,11 +312,15 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
             default: assert(!"unknown alg_kind");
         }
 
-        auto tgt = diff_src_data[diff_data_mdw.off_l(i)];
+        data_t tgt = diff_src_data[diff_data_mdw.off_l(i)];
         const data_t diff = tgt == ref_ds ? 0 : tgt - ref_ds;
-        const data_t error = (std::abs(ref_ds) > eps)
+        data_t error = (std::abs(ref_ds) > eps)
                 ? static_cast<data_t>(diff / ref_ds)
                 : diff;
+        if (p.alg_kind == algorithm::eltwise_logistic
+                && (tgt < 1e-3)) { // check for cancellation
+            error = diff;
+        }
         ASSERT_NEAR(error, 0.0, eps);
     }
 }
@@ -336,13 +339,8 @@ private:
 protected:
     virtual void SetUp() {
         data_type = data_traits<data_t>::data_type;
-        SKIP_IF(data_type == memory::data_type::f16
-                        && get_test_engine_kind() == engine::kind::cpu,
-                "CPU does not support f16 data type.");
-        SKIP_IF(data_type == memory::data_type::bf16
-                        && get_test_engine_kind() == engine::kind::cpu
-                        && !impl::cpu::mayiuse(impl::cpu::avx512_core),
-                "ISA does not support bf16 data type.");
+        SKIP_IF(unsupported_data_type(data_type),
+                "Engine does not support this data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         SKIP_IF((p.alg_kind != algorithm::eltwise_relu
                         || (p.alg_kind == algorithm::eltwise_relu

@@ -34,9 +34,6 @@ namespace ocl {
 template <data_type_t data_type>
 status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
 
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-
     auto &output = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     const int num_arrs = pd()->n_inputs();
@@ -55,8 +52,8 @@ status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
         arg_list.set(3, a);
 
         auto nd_range = compute::nd_range_t({nelems});
-        status_t status
-                = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+
+        status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
         if (status != status::success) return status;
     }
     return status::success;

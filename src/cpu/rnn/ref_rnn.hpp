@@ -14,56 +14,61 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_REF_RNN_HPP
-#define CPU_REF_RNN_HPP
+#ifndef CPU_RNN_REF_RNN_HPP
+#define CPU_RNN_REF_RNN_HPP
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "memory_tracking.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
-#include "../cpu_isa_traits.hpp"
-#include "../gemm/gemm.hpp"
-#include "../gemm/os_blas.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm/os_blas.hpp"
 
-#include "cpu_rnn_pd.hpp"
-#include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
-#include "rnn_utils.hpp"
+#include "cpu/rnn/cpu_rnn_pd.hpp"
+#include "cpu/rnn/postgemm_dispatcher.hpp"
+#include "cpu/rnn/rnn_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
+namespace {
+template <typename gates_t, typename acc_t>
+// The loop body needs to be put in a function as some versions of icc have
+// an issue with lambdas & macros inside omp simd loops
+inline void body_loop(int i, int k, const gates_t *ws_gates, acc_t *diff_bias,
+        const rnn_utils::rnn_conf_t &rnn) {
+    for (int j = 0; j < rnn.mb; j++)
+        diff_bias[i * rnn.dhc + k]
+                += ws_gates[j * rnn.scratch_gates_ld + i * rnn.dhc + k];
+}
+} // namespace
+
 template <typename gates_t, typename acc_t>
 void gates_reduction(const rnn_utils::rnn_conf_t &rnn, const gates_t *ws_gates_,
         acc_t *diff_bias_) {
 
-    // The loop body needs to be inlined as some versions of icc have
-    // an issue with lambdas inside omp simd loops
-#define body_loop(i, k) \
-    for (int j = 0; j < rnn.mb; j++) \
-        diff_bias_[i * rnn.dhc + k] \
-                += ws_gates_[j * rnn.scratch_gates_ld + i * rnn.dhc + k];
-
     // @todo block k on simd-width to enable vectorization in
     // parallel_nd path
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP && _OPENMP >= 201307
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP && _OPENMP >= 201307 \
+        && __INTEL_COMPILER != 1910
 #pragma omp parallel for simd collapse(2)
     for (int i = 0; i < rnn.n_gates; i++)
         for (int k = 0; k < rnn.dhc; k++)
-            body_loop(i, k);
+            body_loop(i, k, ws_gates_, diff_bias_, rnn);
 #else
-    parallel_nd(rnn.n_gates, rnn.dhc, [&](int i, int k) { body_loop(i, k); });
+    parallel_nd(rnn.n_gates, rnn.dhc,
+            [&](int i, int k) { body_loop(i, k, ws_gates_, diff_bias_, rnn); });
 #endif
-
-#undef body_loop
 }
 
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t weights_type, impl::data_type_t acc_type>
-struct _ref_rnn_common_t : public primitive_impl_t {
+struct _ref_rnn_common_t : public primitive_t {
     static constexpr impl::data_type_t scratch_type
             = aprop == prop_kind::forward ? acc_type : src_type;
 
@@ -99,7 +104,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
         DECLARE_COMMON_PD_T("ref:any", class_name, USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace utils;
             using namespace format_tag;
@@ -213,29 +218,29 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         void init_scratchpad(size_t scratchpad_sz) {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
-            scratchpad.book(key_rnn_space, sizeof(float) * scratchpad_sz, 4096);
+            scratchpad.template book<float>(key_rnn_space, scratchpad_sz, 4096);
 
             int max_nparts = this->cell_kind() == alg_kind::vanilla_gru ? 2 : 1;
             int ptr_wei_sz = rnn_.n_layer * rnn_.n_dir * max_nparts;
-            scratchpad.book(
-                    key_rnn_ptrs_wei_layer, sizeof(float *) * ptr_wei_sz);
-            scratchpad.book(
-                    key_rnn_ptrs_wei_iter, sizeof(float *) * ptr_wei_sz);
-            scratchpad.book(
-                    key_rnn_ptrs_wei_projection, sizeof(float *) * ptr_wei_sz);
-            scratchpad.book(key_rnn_ptrs_bia, sizeof(float *) * ptr_wei_sz);
-            scratchpad.book(
-                    key_rnn_gates, sizeof(scratch_t) * rnn_.scratch_gates_size);
-            scratchpad.book(key_rnn_ht, sizeof(ht_t) * rnn_.scratch_ht_size);
-            scratchpad.book(key_rnn_diff_ht,
-                    sizeof(gemm_acc_t) * rnn_.scratch_diff_ht_size);
-            scratchpad.book(
-                    key_rnn_cell, sizeof(scratch_t) * rnn_.scratch_cell_size);
+            scratchpad.template book<float *>(
+                    key_rnn_ptrs_wei_layer, ptr_wei_sz);
+            scratchpad.template book<float *>(
+                    key_rnn_ptrs_wei_iter, ptr_wei_sz);
+            scratchpad.template book<float *>(
+                    key_rnn_ptrs_wei_projection, ptr_wei_sz);
+            scratchpad.template book<float *>(key_rnn_ptrs_bia, ptr_wei_sz);
+            scratchpad.template book<scratch_t>(
+                    key_rnn_gates, rnn_.scratch_gates_size);
+            scratchpad.template book<ht_t>(key_rnn_ht, rnn_.scratch_ht_size);
+            scratchpad.template book<gemm_acc_t>(
+                    key_rnn_diff_ht, rnn_.scratch_diff_ht_size);
+            scratchpad.template book<scratch_t>(
+                    key_rnn_cell, rnn_.scratch_cell_size);
         }
     };
 
     _ref_rnn_common_t(const pd_t *apd)
-        : primitive_impl_t(apd), rnn_postgemm_(nullptr) {
+        : primitive_t(apd), rnn_postgemm_(nullptr) {
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dhc and sic != dhc
         /// respectively
@@ -342,7 +347,7 @@ private:
             const gemm_acc_t *ws_diff_states_iter_,
             const gemm_acc_t *ws_diff_states_iter_c_) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     size_t ws_gates_offset_;
     size_t ws_ht_offset_;

@@ -27,6 +27,7 @@ namespace impl {
 struct scratchpad_t {
     virtual ~scratchpad_t() {}
     virtual const memory_storage_t *get_memory_storage() const = 0;
+    virtual size_t size() const = 0;
 };
 
 scratchpad_t *create_scratchpad(

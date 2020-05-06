@@ -234,19 +234,8 @@ static bool parse_verbose(
 
 static bool parse_engine_kind(
         const char *str, const std::string &option_name = "engine") {
-    if (parse_single_value_option(
-                engine_tgt_kind, str2engine_kind, str, option_name)) {
-
-        DNN_SAFE(dnnl_stream_destroy(stream_tgt), CRIT);
-        DNN_SAFE(dnnl_engine_destroy(engine_tgt), CRIT);
-
-        DNN_SAFE(dnnl_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
-        SAFE(create_dnnl_stream(
-                     &stream_tgt, engine_tgt, dnnl_stream_default_flags),
-                CRIT);
-        return true;
-    }
-    return false;
+    return parse_single_value_option(
+            engine_tgt_kind, str2engine_kind, str, option_name);
 }
 
 static bool parse_canonical(

@@ -33,6 +33,7 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"
+#include "common/verbose.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 
 namespace dnnl {
@@ -85,6 +86,8 @@ inline status_t convert_to_dnnl(cl_int cl_status) {
         default: return status::runtime_error;
     }
 }
+
+enum { OCL_BUFFER_ALIGNMENT = 128 };
 
 #ifndef NDEBUG
 #define MAYBE_REPORT_OCL_ERROR(s) \

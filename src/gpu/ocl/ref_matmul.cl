@@ -13,10 +13,9 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE
+
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #define offset(mb, a, b, stride_mb, stride_a, stride_b) \
     ((mb) * (stride_mb) + (a) * (stride_a) + (b) * (stride_b))
@@ -52,7 +51,7 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
         temp += bia[b_off];
 #endif
         temp *= scales[scale_stride * n];
-#if DO_SUM
+#if WITH_SUM
         temp += (POST_OP_DATA_T)(sum_scale * DST_TO_REF(C[c_off]));
 #endif
 #if WITH_ELTWISE

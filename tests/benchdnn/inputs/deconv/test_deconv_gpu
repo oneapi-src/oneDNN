@@ -2,6 +2,7 @@
 --reset
 --mb=2
 --dir=FWD_B,BWD_D,BWD_WB --batch=deconv_all
+--dir=BWD_W --batch=deconv_1d
 
 # f16
 --reset

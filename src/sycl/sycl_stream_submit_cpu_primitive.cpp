@@ -121,9 +121,9 @@ void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
 //    memory storage -> raw pointer via execution context.
 // 6. Call the thunk function that executes the primitve
 //    natively.
-void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
+void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
         const exec_ctx_t &exec_ctx, cl::sycl::handler &cgh) {
-    const_cast<primitive_t *>(prim)->retain();
+    const_cast<primitive_iface_t *>(prim_iface)->retain();
 
     std::vector<const memory_storage_t *> sycl_mem_storages;
     for (auto &a : exec_ctx.args()) {
@@ -151,7 +151,7 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
 
     auto *submit_ctx = new submit_ctx_t(exec_ctx);
     submit_ctx->stream = stream;
-    submit_ctx->prim = prim;
+    submit_ctx->prim_iface = prim_iface;
     submit_ctx->sycl_mem_storages = sycl_mem_storages;
 
     switch (sycl_mem_storages.size()) {

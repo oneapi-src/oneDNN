@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef BFLOAT16_HPP
-#define BFLOAT16_HPP
+#ifndef COMMON_BFLOAT16_HPP
+#define COMMON_BFLOAT16_HPP
 
 #include <cmath>
 #include <cstddef>

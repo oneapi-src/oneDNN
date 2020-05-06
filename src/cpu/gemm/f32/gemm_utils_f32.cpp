@@ -15,9 +15,10 @@
 *******************************************************************************/
 #include <cmath>
 
-#include "dnnl_thread.hpp"
-#include "gemm_utils_f32.hpp"
-#include "utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/utils.hpp"
+
+#include "cpu/gemm/f32/gemm_utils_f32.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,11 +37,11 @@ namespace gemm_utils {
 // nthrs - total available number of threads
 // nthrs_m/nthrs_n/nthrs_k - number of threads to use in each dimension
 // BM/BN/BK - blocking values
-void calc_nthr_nocopy_avx(int m, int n, int k, int nthrs, int *nthrs_m,
-        int *nthrs_n, int *nthrs_k, int *BM, int *BN, int *BK) {
+void calc_nthr_nocopy_avx(dim_t m, dim_t n, dim_t k, int nthrs, int *nthrs_m,
+        int *nthrs_n, int *nthrs_k, dim_t *BM, dim_t *BN, dim_t *BK) {
 
     int nthr, nthr_m, nthr_n, nthr_k;
-    int MB, NB, KB;
+    dim_t MB, NB, KB;
 
     nthr = nthrs;
     nthr_m = (m + BM_NOCOPY_AVX - 1) / BM_NOCOPY_AVX;
@@ -141,11 +142,12 @@ void calc_nthr_nocopy_avx(int m, int n, int k, int nthrs, int *nthrs_m,
 // nthrs - total available number of threads
 // nthrs_m/nthrs_n/nthrs_k - number of threads to use in each dimension
 // BM/BN/BK - blocking values
-void calc_nthr_nocopy_avx512_common(int m, int n, int k, int nthrs,
-        int *nthrs_m, int *nthrs_n, int *nthrs_k, int *BM, int *BN, int *BK) {
+void calc_nthr_nocopy_avx512_common(dim_t m, dim_t n, dim_t k, int nthrs,
+        int *nthrs_m, int *nthrs_n, int *nthrs_k, dim_t *BM, dim_t *BN,
+        dim_t *BK) {
 
     int nthr, nthr_m, nthr_n, nthr_k = 1;
-    int MB, NB, KB;
+    dim_t MB, NB, KB;
     nthr = nthrs;
 
     int counter = 0;
@@ -298,11 +300,11 @@ void calc_nthr_nocopy_avx512_common(int m, int n, int k, int nthrs,
 // and set the offset (t_offset) and number of values (t_block) for ithr
 // Assumption: 0 <= ithr < nthr
 void partition_unit_diff(
-        int ithr, int nthr, int n, int *t_offset, int *t_block) {
+        int ithr, int nthr, dim_t n, dim_t *t_offset, dim_t *t_block) {
 
-    int band = n / nthr;
+    dim_t band = n / nthr;
     if (band == 0) band = 1;
-    int tail = n - band * nthr;
+    dim_t tail = n - band * nthr;
     if (tail < 0) tail = 0;
 
     if (ithr < tail) {
@@ -325,22 +327,22 @@ void partition_unit_diff(
 // Sum the m*n values from p_src into p_dst, assuming the two-dimensional
 // arrays have leading dimensions ld_src and ld_dst, respectively
 template <typename data_t>
-void sum_two_matrices(int m, int n, data_t *__restrict p_src, dim_t ld_src,
+void sum_two_matrices(dim_t m, dim_t n, data_t *__restrict p_src, dim_t ld_src,
         data_t *__restrict p_dst, dim_t ld_dst) {
 
-    int i, j;
-    for (j = 0; j < n; j++) {
-        for (i = 0; i < m; i++) {
+    for (dim_t j = 0; j < n; j++) {
+        for (dim_t i = 0; i < m; i++) {
             p_dst[i + j * ld_dst] += p_src[i + j * ld_src];
         }
     }
 }
 
-template void sum_two_matrices<float>(int m, int n, float *__restrict p_src,
+template void sum_two_matrices<float>(dim_t m, dim_t n, float *__restrict p_src,
         dim_t ld_src, float *__restrict p_dst, dim_t ld_dst);
 
-template void sum_two_matrices<double>(int m, int n, double *__restrict p_src,
-        dim_t ld_src, double *__restrict p_dst, dim_t ld_dst);
+template void sum_two_matrices<double>(dim_t m, dim_t n,
+        double *__restrict p_src, dim_t ld_src, double *__restrict p_dst,
+        dim_t ld_dst);
 } // namespace gemm_utils
 } // namespace cpu
 } // namespace impl

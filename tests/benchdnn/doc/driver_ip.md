@@ -19,7 +19,7 @@ where *ip-knobs* are:
  - `--dtag={any [default], ...}` -- physical dst memory layout.
             Refer to the common glossary in README.md for details.
  - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
-            Refer to knobs_attr.md for details.
+            Refer to [attributes](knobs_attr.md) for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
@@ -28,9 +28,10 @@ and *ip-desc* is a problem descriptor. The canonical form is:
 ```
     mbXicXidXihXiwXocXnS
 ```
-Here X is an integer number and S is a string (n stands for name).
-The special symbol `_` is ignored, so it may be used as a delimiter.
-Refer to the common glossary in README.md for the entity name and description.
+Here `X` is an integer number and `S` is a string literal without spaces (`n`
+stands for name). The special symbol `_` is ignored, so it may be used as a
+delimiter for better readability. Refer to the common glossary in README.md for
+the entity name and description.
 
 There are default values for some entities in case they were not specified:
  - mb = 2;

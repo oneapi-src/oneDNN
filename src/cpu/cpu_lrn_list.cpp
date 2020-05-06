@@ -14,11 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
-#include "cpu/jit_avx512_common_lrn.hpp"
-#include "cpu/jit_uni_lrn.hpp"
 #include "cpu/ref_lrn.hpp"
+
+#if DNNL_X64
+#include "cpu/x64/jit_avx512_common_lrn.hpp"
+#include "cpu/x64/jit_uni_lrn.hpp"
+using namespace dnnl::impl::cpu::x64;
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -29,23 +33,23 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+// clang-format off
 static const pd_create_f impl_list[] = {
-        INSTANCE(jit_avx512_common_lrn_fwd_t<f32>),
-        INSTANCE(jit_avx512_common_lrn_bwd_t<f32>),
-        INSTANCE(jit_avx512_common_lrn_fwd_t<bf16>),
-        INSTANCE(jit_avx512_common_lrn_bwd_t<bf16>),
-        INSTANCE(jit_uni_lrn_fwd_t<avx2>),
-        INSTANCE(jit_uni_lrn_bwd_t<avx2>),
-        INSTANCE(jit_uni_lrn_fwd_t<sse41>),
-        INSTANCE(ref_lrn_fwd_t<f32>),
-        INSTANCE(ref_lrn_bwd_t<f32>),
-        INSTANCE(ref_lrn_fwd_t<bf16>),
-        INSTANCE(ref_lrn_bwd_t<bf16>),
+        CPU_INSTANCE_X64(jit_avx512_common_lrn_fwd_t<f32>)
+        CPU_INSTANCE_X64(jit_avx512_common_lrn_bwd_t<f32>)
+        CPU_INSTANCE_X64(jit_avx512_common_lrn_fwd_t<bf16>)
+        CPU_INSTANCE_X64(jit_avx512_common_lrn_bwd_t<bf16>)
+        CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<avx2>)
+        CPU_INSTANCE_X64(jit_uni_lrn_bwd_t<avx2>)
+        CPU_INSTANCE_X64(jit_uni_lrn_fwd_t<sse41>)
+        CPU_INSTANCE(ref_lrn_fwd_t<f32>)
+        CPU_INSTANCE(ref_lrn_bwd_t<f32>)
+        CPU_INSTANCE(ref_lrn_fwd_t<bf16>)
+        CPU_INSTANCE(ref_lrn_bwd_t<bf16>)
         /* eol */
         nullptr,
 };
-#undef INSTANCE
+// clang-format on
 } // namespace
 
 const pd_create_f *get_lrn_impl_list(const lrn_desc_t *desc) {

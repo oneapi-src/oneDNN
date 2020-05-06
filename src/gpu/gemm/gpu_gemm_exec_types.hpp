@@ -47,15 +47,43 @@ struct gemm_exec_ctx_t {
     gemm_exec_ctx_t(stream_t *stream, const gemm_exec_args_t &args,
             gemm_desc_t *gemm_desc = nullptr)
         : stream_(stream), args_(args), gemm_desc_(gemm_desc) {}
+    gemm_exec_ctx_t(const exec_ctx_t &other, const gemm_exec_args_t &args,
+            gemm_desc_t *gemm_desc = nullptr)
+        : stream_(other.stream())
+        , args_(args)
+        , gemm_desc_(gemm_desc)
+        , resource_mapper_(other.get_resource_mapper())
+        , scratchpad_grantor_(other.grantor_handle()) {}
 
     stream_t *stream() const { return stream_; }
     const gemm_exec_args_t &args() const { return args_; }
     const gemm_desc_t *desc() const { return gemm_desc_; }
 
+    void set_scratchpad_grantor(
+            const memory_tracking::grantor_t *scratchpad_grantor) {
+        scratchpad_grantor_ = scratchpad_grantor;
+    }
+
+    const memory_tracking::grantor_t &get_scratchpad_grantor() const {
+        assert(scratchpad_grantor_);
+        return *scratchpad_grantor_;
+    }
+
+    const resource_mapper_t *get_resource_mapper() const {
+        assert(resource_mapper_);
+        return resource_mapper_;
+    }
+
+    void set_resource_mapper(const resource_mapper_t *resource_mapper) {
+        resource_mapper_ = resource_mapper;
+    }
+
 private:
     stream_t *stream_;
     gemm_exec_args_t args_;
     gemm_desc_t *gemm_desc_ = nullptr;
+    const resource_mapper_t *resource_mapper_ = nullptr;
+    const memory_tracking::grantor_t *scratchpad_grantor_ = nullptr;
 };
 
 } // namespace gpu

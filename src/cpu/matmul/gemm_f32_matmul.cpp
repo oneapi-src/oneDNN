@@ -18,16 +18,16 @@
 #include <float.h>
 #include <math.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
 
-#include "gemm_f32_matmul.hpp"
+#include "cpu/gemm/gemm.hpp"
 
-#include "gemm/gemm.hpp"
+#include "cpu/matmul/gemm_f32_matmul.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,7 +36,7 @@ namespace matmul {
 
 using namespace data_type;
 
-status_t gemm_f32_matmul_t::pd_t::init() {
+status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
     auto check_bias = [&]() -> bool {
         return !with_bias()
                 || (weights_md(1)->data_type == f32 && is_bias_1xN());
@@ -148,13 +148,9 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             ? "N"
             : "T";
 
-    const int M_s32 = (int)M;
-    const int N_s32 = (int)N;
-    const int K_s32 = (int)K;
-
-    const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
-    const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
-    const int ldc = (int)dst_bd.strides[batched + 0];
+    const dim_t lda = src_strides[*transA == 'N' ? 0 : 1];
+    const dim_t ldb = weights_strides[*transB == 'N' ? 0 : 1];
+    const dim_t ldc = dst_bd.strides[batched + 0];
 
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
@@ -163,6 +159,8 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto src_batch_stride = src_d.blocking_desc().strides[0];
     const auto weights_batch_stride = weights_d.blocking_desc().strides[0];
     const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
+
+    status_t st = status::success;
 
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {
@@ -175,21 +173,26 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                         = weights + b * weights_batch_stride;
                 dst_data_t *curr_dst = dst + b * dst_batch_stride;
 
-                extended_sgemm(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
-                        curr_weights, &ldb, curr_src, &lda, &beta, curr_dst,
-                        &ldc, nullptr, false);
+                status_t st_thr = extended_sgemm(transB, transA, &N, &M, &K,
+                        &alpha, curr_weights, &ldb, curr_src, &lda, &beta,
+                        curr_dst, &ldc, nullptr, false);
+                if (st_thr != status::success) {
+                    st = st_thr;
+                    return;
+                }
 
                 if (params.has_pp_kernel_) {
                     const float *pp_scales
                             = params.get_post_processing_scales(scales);
                     (*pp_kernel_)(curr_dst, curr_dst, bias, pp_scales, 0, M * N,
-                            (size_t)N);
+                            (size_t)N, nullptr);
                 }
             }
         });
     } else {
-        extended_sgemm(transB, transA, &N_s32, &M_s32, &K_s32, &alpha, weights,
-                &ldb, src, &lda, &beta, dst, &ldc, nullptr, false);
+        st = extended_sgemm(transB, transA, &N, &M, &K, &alpha, weights, &ldb,
+                src, &lda, &beta, dst, &ldc, nullptr, false);
+        if (st != status::success) return st;
 
         if (params.has_pp_kernel_) {
             const bool force_sequential = pp_kernel_->sequential_kernel();
@@ -197,12 +200,13 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
                 size_t start {}, end {};
                 balance211((size_t)(M * N), nthr, ithr, start, end);
-                (*pp_kernel_)(dst, dst, bias, pp_scales, start, end, (size_t)N);
+                (*pp_kernel_)(dst, dst, bias, pp_scales, start, end, (size_t)N,
+                        nullptr);
             });
         }
     }
 
-    return status::success;
+    return st;
 }
 
 } // namespace matmul

@@ -15,12 +15,13 @@
 *******************************************************************************/
 
 #include <math.h>
+#include <random>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "dnnl.h"
 
-#include "src/common/dnnl_thread.hpp"
+#include "tests/test_thread.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -29,7 +30,9 @@
 
 namespace eltwise {
 
-static int init_pd(const prb_t *p, dnnl_primitive_desc_t &epd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &epd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_eltwise_desc_t ed;
     dnnl_memory_desc_t data_d;
 
@@ -68,13 +71,14 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &epd, res_t *r) {
     else
         SAFE(init_status, WARN);
 
-    const char *impl_str = query_impl_info(epd);
-    if (maybe_skip(impl_str)) {
-        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n", impl_str);
+    r->impl_name = query_impl_info(epd);
+    if (maybe_skip(r->impl_name)) {
+        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
+                r->impl_name.c_str());
         DNN_SAFE(dnnl_primitive_desc_destroy(epd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
     }
 
     return OK;
@@ -84,6 +88,8 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &epd, res_t *r) {
 // Used in other drivers supporting eltwise post_ops.
 bool check_extreme_values(const float &a, const float &b, alg_t alg) {
     switch (alg) {
+        case alg_t::EXP:
+        case alg_t::EXP_DST:
         case alg_t::LOG:
         case alg_t::POW:
         case alg_t::SQRT:
@@ -102,18 +108,22 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
     const float comp_err = approx_machine_eps / trh;
 
     switch (p->alg) {
+        case alg_t::ELU:
+        case alg_t::ELU_DST:
+            // catch catastrophic cancellation when (exp(s) - 1), s < 0 and
+            // s is close to zero.
+            return (p->dir & FLAG_FWD) && std::signbit(s)
+                    && (fabsf(expf(s) - 1.f) <= comp_err);
         case alg_t::GELU_TANH: {
             // catch catastrophic cancellation
+            // (4.f is magic scale for f32)
             const float sqrt_2_over_pi = 0.797884;
             const float fitting_const = 0.044715;
             float v = tanhf(sqrt_2_over_pi * s * (1 + fitting_const * s * s));
             float dg = sqrt_2_over_pi * (1 + 3 * fitting_const * s * s);
-            if (p->dir & FLAG_FWD)
-                return fabsf(1.f + v) <= comp_err;
-            else
-                return fabsf(1.f + v) <= comp_err
-                        || (std::signbit(s)
-                                && fabsf(1.f + s * (1.f - v) * dg) <= comp_err);
+            if (fabsf(1.f + v) <= comp_err) return true;
+            return (p->dir & FLAG_BWD) && std::signbit(s)
+                    && fabsf(1.f + s * (1.f - v) * dg) <= 4.f * comp_err;
         }
         case alg_t::GELU_ERF: {
             // catch catastrophic cancellation
@@ -128,11 +138,14 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
                                + v * two_over_sqrt_pi * expf(-v * v))
                         <= comp_err;
         }
-
         case alg_t::TANH:
             // catch catastrophic cancellation, which occurs when err in tanh(s)
             // is high and tanh(s) is close to 1.
             return (p->dir & FLAG_BWD) && (1.f - tanhf(fabsf(s))) <= comp_err;
+        case alg_t::TANH_DST: // sse41 can't do fma
+            // catch catastrophic cancellation, which occurs when err in tanh(s)
+            // is high and tanh(s) is close to 1.
+            return (p->dir & FLAG_BWD) && (1.f - s * s) <= comp_err;
         case alg_t::SRELU:
             // when s is negative, expf(s) -> 0 rapidly
             // which leads to log1pf(expf(s)) -> 0
@@ -141,6 +154,12 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
             // (10.f is magic scale for bf16)
             return (p->dir & FLAG_FWD) && std::signbit(s)
                     && log1pf(expf(s)) <= 10.f * comp_err;
+        case alg_t::LOGISTIC:
+            // when s >= 4, logistic(s) -> 0 rapidly, which leads to high
+            // relative error of logistic(s) * (1 - logistic(s)) due to
+            // catastrohic cancellation.
+            return (p->dir & FLAG_BWD) && !std::signbit(s)
+                    && (1.f / (1.f + expf(s))) <= comp_err;
         default: return false;
     }
 }
@@ -158,9 +177,9 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
                 || p->alg == alg_t::SRELU || p->alg == alg_t::LOG
                 || (is_fwd && p->alg == alg_t::ELU_DST)
                 || (is_fwd && p->alg == alg_t::TANH_DST))
-            trh *= 300; // 3e-5
+            trh = 4e-5;
         else
-            trh *= 20; // 2e-6
+            trh = 4e-6;
     }
 
     const auto nelems = mem_dt.nelems();
@@ -171,7 +190,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
         const float dt = mem_dt.get_elem(i);
         const float src = mem_arg_fp.get_elem(i);
         const float fp0 = mem_fp.get_elem(i);
-        const float fp = maybe_saturate(p->dt, fp0);
+        const float fp = round_to_nearest_representable(p->dt, fp0);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
@@ -206,7 +225,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int compare_padded_area_for_zeros(
+static int compare_padded_area_for_zeros(const engine_t &engine_tgt,
         const prb_t *p, const dnn_mem_t &mem_dt, res_t *r) {
     const auto nelems = mem_dt.nelems();
     const auto nelems_padded = mem_dt.nelems(true);
@@ -226,7 +245,7 @@ static int compare_padded_area_for_zeros(
         padded_mem_dt.set_elem(i, mem_dt.get_elem(i));
 
     const auto tag = get_abx_tag(md.ndims);
-    dnn_mem_t plain_padded_mem_dt(padded_mem_dt, md.data_type, tag);
+    dnn_mem_t plain_padded_mem_dt(padded_mem_dt, md.data_type, tag, engine_tgt);
 
     r->errors = 0;
     r->total = nelems_padded - nelems;
@@ -271,23 +290,38 @@ static int compare_padded_area_for_zeros(
     return r->state == FAILED ? FAIL : OK;
 }
 
-int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        bool is_fwd = true) {
+int fill_data(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const int gen
-                = is_fwd ? ((103 * i) + 107) % 109 : ((101 * i) + 103) % 107;
+    dnnl::impl::parallel(0, [&](int ithr, int nthr) {
+        int64_t chunk_size = (nelems + nthr - 1) / nthr;
+        int64_t idx_start = ithr * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        std::minstd_rand msr;
+        std::uniform_int_distribution<> igen(0, 10);
+        // TODO: 0.09 due to log impl doesn't give good accuracy in 0.99 points
+        std::uniform_real_distribution<> fgen(0.f, 0.09f);
+        msr.discard(idx_start);
 
-        float value = FLT_MAX;
-        switch (i % 4) {
-            case 0: value = (gen % 11); break; // int positive
-            case 1: value = -(gen % 11); break; // int negative
-            case 2: value = gen / 128.; break; // fraction positive
-            case 3: value = -gen / 128.; break; // fraction negative
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            float value = FLT_MAX;
+            switch (idx % 8) {
+                case 0: value = (float)igen(msr); break; // [0-10] pos
+                case 1: value = -(float)igen(msr); break; // [0-10] neg
+                case 2: value = fgen(msr); break; // [0.-0.1) pos
+                case 3: value = -fgen(msr); break; // [0.-0.1) neg
+                case 4: value = 10 * (float)igen(msr); break; // [0-100] pos
+                case 5: value = -10 * (float)igen(msr); break; // [0-100] neg
+                case 6: value = 10.f * fgen(msr); break; // [0.-1.) pos
+                case 7: value = -10.f * fgen(msr); break; // [0.-1.) neg
+            }
+            // Hack: adding 0.f works around an issue when value = -0 is used
+            // and may lead to different sign in the answer since input passes
+            // through simple reorder which converts -0 into +0.
+            value = round_to_nearest_representable(p->dt, value) + 0.f;
+            mem_fp.set_elem(idx, maybe_saturate(p->dt, value));
         }
-
-        mem_fp.set_elem(i, maybe_saturate(p->dt, value));
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
@@ -295,20 +329,13 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     return OK;
 }
 
-int fill_data_bwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    return fill_data_fwd(p, mem_dt, mem_fp, false);
-}
-
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-
-    dnnl_primitive_desc_t epd;
-    SAFE(init_pd(p, epd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    engine_t engine_tgt;
 
     dnnl_primitive_t e;
-    DNN_SAFE(dnnl_primitive_create(&e, epd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(epd), CRIT);
+    SAFE(init_prim(&e, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(e, &const_pd), CRIT);
@@ -342,7 +369,7 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
-    SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
+    SAFE(fill_data(p, src_dt, src_fp), WARN);
 
     args_t args;
 
@@ -351,13 +378,13 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(e, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(e, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
             SAFE(compare(p, src_fp, dst_fp, dst, r), WARN);
-            SAFE(compare_padded_area_for_zeros(p, dst_dt, r), WARN);
+            SAFE(compare_padded_area_for_zeros(engine_tgt, p, dst_dt, r), WARN);
         }
     } else {
         const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
@@ -371,7 +398,7 @@ int doit(const prb_t *p, res_t *r) {
         }
         dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 
-        SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp), WARN);
+        SAFE(fill_data(p, d_dst_dt, d_dst_fp), WARN);
 
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
@@ -388,17 +415,19 @@ int doit(const prb_t *p, res_t *r) {
         } else {
             args.set(DNNL_ARG_SRC, src_dt);
         }
-        DNN_SAFE(execute_and_wait(e, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(e, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             dnn_mem_t &arg_fp = p->use_dst() ? dst_fp : src_fp;
             compute_ref_bwd(p, arg_fp, d_dst_fp, d_src_fp);
             dnn_mem_t d_src(d_src_dt, fp, tag, engine_tgt);
             SAFE(compare(p, arg_fp, d_src_fp, d_src, r), WARN);
+            SAFE(compare_padded_area_for_zeros(engine_tgt, p, d_src_dt, r),
+                    WARN);
         }
     }
 
-    measure_perf(r->timer, e, args);
+    measure_perf(r->timer, engine_tgt, e, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(e));
 

@@ -30,7 +30,7 @@ namespace sycl {
 
 struct submit_ctx_t {
     stream_t *stream;
-    const primitive_t *prim;
+    const primitive_iface_t *prim_iface;
     exec_ctx_t exec_ctx;
     std::vector<const memory_storage_t *> sycl_mem_storages;
 

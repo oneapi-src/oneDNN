@@ -19,7 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
+#include "common/primitive.hpp"
 #include "common/utils.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -37,20 +39,21 @@ namespace ocl {
 // For GPU -> CPU reorder, it includes 2 steps:
 // 1. GPU reorder
 // 2. GPU -> CPU copying
-struct cross_engine_reorder_t : public primitive_impl_t {
+struct cross_engine_reorder_t : public gpu_primitive_t {
     struct pd_t : public reorder_pd_t {
         using reorder_pd_t::reorder_pd_t;
 
         pd_t(const pd_t &rhs)
             : reorder_pd_t(rhs)
-            , reorder_(rhs.reorder_->clone())
+            , reorder_pd_(rhs.do_reorder_ ? rhs.reorder_pd_->clone() : nullptr)
             , reorder_engine_kind_(rhs.reorder_engine_kind_)
             , do_reorder_(rhs.do_reorder_) {}
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             reorder_pd_t::operator=(rhs);
-            reorder_.reset(rhs.reorder_->clone());
+            reorder_pd_.reset(
+                    rhs.do_reorder_ ? rhs.reorder_pd_->clone() : nullptr);
             reorder_engine_kind_ = rhs.reorder_engine_kind_;
             do_reorder_ = rhs.do_reorder_;
             return *this;
@@ -60,38 +63,35 @@ struct cross_engine_reorder_t : public primitive_impl_t {
 
         DECLARE_GPU_REORDER_CREATE();
 
-        status_t init();
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine);
 
-        std::unique_ptr<primitive_desc_t> reorder_;
+        std::unique_ptr<primitive_desc_t> reorder_pd_;
         engine_kind_t reorder_engine_kind_ = engine_kind::gpu;
         bool do_reorder_ = true;
 
     private:
-        status_t init_scratchpad(
-                memory_tracking::registrar_t &scratchpad) const;
+        void init_scratchpad();
     };
 
-    ~cross_engine_reorder_t() {
-        if (reorder_) reorder_->release();
+    cross_engine_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
+        if (!pd()->do_reorder_) return status::success;
+        auto status = pd()->reorder_pd_->create_primitive(reorder_, engine);
+        return status;
     }
-
-    virtual status_t init() override {
-        status_t status;
-
-        status = pd()->reorder_->create_primitive(&reorder_);
-        if (status != status::success) return status;
-
-        return status::success;
-    }
-
-    cross_engine_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
-private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+protected:
+    primitive_list_t nested_primitives() const override {
+        return {reorder_.get()};
+    }
 
-    primitive_t *reorder_ = nullptr;
+private:
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::shared_ptr<primitive_t> reorder_;
 };
 
 } // namespace ocl

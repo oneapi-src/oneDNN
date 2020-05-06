@@ -18,14 +18,16 @@
 #define GPU_GEMM_GPU_GEMM_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "gpu/gemm/gpu_gemm_exec_types.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 
-struct gpu_gemm_t : public primitive_impl_t {
-    using primitive_impl_t::primitive_impl_t;
+struct gpu_gemm_t : public gpu_primitive_t {
+    using gpu_primitive_t::gpu_primitive_t;
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const = 0;
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         gemm_exec_args_t gemm_args;
@@ -39,7 +41,7 @@ struct gpu_gemm_t : public primitive_impl_t {
         gemm_args.c_zero_point
                 = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_C);
 
-        gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
+        gemm_exec_ctx_t gemm_ctx(ctx, gemm_args);
         return execute(gemm_ctx);
     }
 };

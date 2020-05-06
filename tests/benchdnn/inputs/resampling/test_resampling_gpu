@@ -7,3 +7,8 @@
 --tag=abx,axb,aBx16b
 --batch=set_resampling_all
 
+--dt=f16,u8,s8
+--dir=FWD_D
+--alg=nearest,linear
+--tag=abx,axb,aBx16b
+--batch=set_resampling_all

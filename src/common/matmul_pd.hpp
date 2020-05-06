@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MATMUL_PD_HPP
-#define MATMUL_PD_HPP
+#ifndef COMMON_MATMUL_PD_HPP
+#define COMMON_MATMUL_PD_HPP
 
 #include <assert.h>
 
@@ -29,14 +29,14 @@ namespace dnnl {
 namespace impl {
 
 struct matmul_pd_t : public primitive_desc_t {
-    static constexpr auto base_pkind = primitive_kind::matmul;
+    static const auto base_pkind = primitive_kind::matmul;
 
     typedef matmul_pd_t base_class;
     typedef matmul_pd_t hint_class;
 
-    matmul_pd_t(engine_t *engine, const matmul_desc_t *adesc,
-            const primitive_attr_t *attr, const matmul_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, base_pkind)
+    matmul_pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
+            const matmul_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , src_md_(desc_.src_desc)
         , weights_md_(desc_.weights_desc)

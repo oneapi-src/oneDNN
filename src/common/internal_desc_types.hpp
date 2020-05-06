@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef INTERNAL_DESC_TYPES_HPP
-#define INTERNAL_DESC_TYPES_HPP
+#ifndef COMMON_INTERNAL_DESC_TYPES_HPP
+#define COMMON_INTERNAL_DESC_TYPES_HPP
 
 #include <vector>
 #include "dnnl_types.h"
@@ -24,29 +24,29 @@ namespace dnnl {
 namespace impl {
 
 // The types are not exposed
-typedef struct {
+struct dnnl_reorder_desc_t {
     dnnl_primitive_kind_t primitive_kind;
     dnnl_memory_desc_t src_md;
     dnnl_memory_desc_t dst_md;
     dnnl_engine_kind_t src_engine_kind;
     dnnl_engine_kind_t dst_engine_kind;
-} dnnl_reorder_desc_t;
+};
 
-typedef struct {
+struct dnnl_concat_desc_t {
     dnnl_primitive_kind_t primitive_kind;
     dnnl_memory_desc_t dst_md;
     dnnl_dim_t n;
     dnnl_dim_t concat_dimension;
     std::vector<dnnl_memory_desc_t> src_mds;
-} dnnl_concat_desc_t;
+};
 
-typedef struct {
+struct dnnl_sum_desc_t {
     dnnl_primitive_kind_t primitive_kind;
     dnnl_memory_desc_t dst_md;
     dnnl_dim_t n;
     std::vector<float> scales;
     std::vector<dnnl_memory_desc_t> src_mds;
-} dnnl_sum_desc_t;
+};
 
 } // namespace impl
 } // namespace dnnl

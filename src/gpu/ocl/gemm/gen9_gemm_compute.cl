@@ -14,10 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE == 1
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #define GRX 8
 

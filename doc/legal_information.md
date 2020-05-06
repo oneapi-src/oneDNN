@@ -1,27 +1,18 @@
 Legal Information {#legal_information}
 ======================================
 
-No license (express or implied, by estoppel or otherwise) to any intellectual
-property rights is granted by this document.
+# Trademark Information
 
-Intel disclaims all express and implied warranties, including without
-limitation, the implied warranties of merchantability, fitness
-for a particular purpose, and non-infringement, as well as any warranty
-arising from course of performance, course of dealing, or usage in trade.
-
-This document contains information on products, services and/or processes in
-development. All information provided here is subject to change without
-notice. Contact your Intel representative to obtain the latest forecast,
-schedule, specifications and roadmaps.
-
-The products and services described may contain defects or errors which may
-cause deviations from published specifications. Current characterized errata
-are available on request.
-
-Intel, the Intel logo, Intel Atom, Intel Core, Intel Inside, the Intel Inside
-logo, Intel Nervana, Intel Xeon Phi, Pentium, VTune and Xeon are trademarks
-of Intel Corporation or its subsidiaries in the U.S. and/or other countries.
+Intel, the Intel logo, Intel Atom, Intel Core, Intel Xeon Phi, Iris, OpenVINO,
+the OpenVINO logo, Pentium, VTune, and Xeon are trademarks of Intel Corporation
+or its subsidiaries.
 
 \* Other names and brands may be claimed as the property of others.
 
-(C) 2016-2019, Intel Corporation.
+Microsoft, Windows, and the Windows logo are trademarks, or registered
+trademarks of Microsoft Corporation in the United States and/or other countries.
+
+OpenCL and the OpenCL logo are trademarks of Apple Inc. used by permission
+by Khronos.
+
+(C) Intel Corporation

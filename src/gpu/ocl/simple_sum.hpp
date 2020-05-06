@@ -20,7 +20,10 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_sum_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -32,16 +35,16 @@ namespace gpu {
 namespace ocl {
 
 template <data_type_t data_type>
-struct simple_sum_t : public primitive_impl_t {
+struct simple_sum_t : public gpu_primitive_t {
     struct pd_t : public gpu_sum_pd_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
 
         DECLARE_SUM_PD_T("ocl:simple:any", simple_sum_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             const int n = n_inputs();
 
-            bool ok = gpu_sum_pd_t::init() == status::success
+            bool ok = gpu_sum_pd_t::init(engine) == status::success
                     && n <= max_num_arrs;
             if (!ok) return status::unimplemented;
 
@@ -58,16 +61,12 @@ struct simple_sum_t : public primitive_impl_t {
         }
     };
 
-    simple_sum_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    simple_sum_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    virtual status_t init() override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+    status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
-
-        compute_engine->create_kernel(&kernel_, "simple_sum", kernel_ctx);
+        create_kernel(engine, &kernel_, "simple_sum", kernel_ctx);
         if (!kernel_) return status::runtime_error;
-
         return status::success;
     }
 
@@ -77,7 +76,7 @@ struct simple_sum_t : public primitive_impl_t {
     typedef typename prec_traits<data_type>::type data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 

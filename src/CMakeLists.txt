@@ -19,10 +19,7 @@ file(GLOB_RECURSE HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.hpp
     )
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/common
-    )
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 if (DNNL_LIBRARY_TYPE STREQUAL "SHARED")
     add_definitions(-DDNNL_DLL_EXPORTS)
@@ -53,12 +50,7 @@ if(DNNL_ENABLE_PRIMITIVE_CACHE)
     add_definitions(-DDNNL_ENABLE_PRIMITIVE_CACHE)
 endif()
 
-if(NOT DNNL_ENABLE_JIT_PROFILING)
-    # XXX: the profiling interface will still be built and present in the
-    # library
-    message(STATUS "Intel(R) VTune(TM) Amplifier JIT profiling disabled")
-    add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
-elseif(UNIX AND NOT APPLE)
+if(DNNL_ENABLE_JIT_PROFILING AND UNIX AND NOT APPLE)
     # Not every compiler adds -ldl automatically
     list(APPEND EXTRA_SHARED_LIBS "${CMAKE_DL_LIBS}")
 endif()
@@ -141,7 +133,7 @@ install(EXPORT ${LIB_EXPORT_NAME}
 
 # Intel MKL-DNN compat cmake files
 install(CODE "execute_process(COMMAND ${CMAKE_COMMAND}
-    -DDIR=${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake
+    -DDIR=\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake
     -P ${PROJECT_SOURCE_DIR}/cmake/gen_mkldnn_compat_cmakes.cmake)")
 
 # Intel MKL-DNN compat libraries
@@ -207,7 +199,7 @@ if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     install(FILES
         "../cmake/FindOpenCL.cmake"
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
-    install(FILES "${CMAKE_INSTALL_PREFIX}/${LIB_CONFIG_INSTALL_DIR}/FindOpenCL.cmake"
+    install(FILES "../cmake/FindOpenCL.cmake"
             DESTINATION ${LIB_CONFIG_INSTALL_DIR_COMPAT})
 endif()
 

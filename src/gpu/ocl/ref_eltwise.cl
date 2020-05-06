@@ -66,6 +66,8 @@ __kernel void ref_eltwise_fwd(
     dst[data_off] = CONVERT_DATA_T(fwd_eltwise(tmp_s, alpha, beta, 1.0f));
 }
 
+#if DT_F32 == 1 || DT_BF16 == 1
+
 KERNEL_ATTR
 __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
         __global DATA_T *diff_dst, float alpha, float beta) {
@@ -86,3 +88,4 @@ __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     diff_src[diff_data_off]
             = CONVERT_DATA_T(bwd_eltwise(tmp_dd, tmp_s, alpha, beta));
 }
+#endif

@@ -19,35 +19,33 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
-#include "cpu_shuffle_pd.hpp"
+#include "cpu/platform.hpp"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu/cpu_shuffle_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <int data_type_size>
-struct ref_shuffle_t : public primitive_impl_t {
+struct ref_shuffle_t : public primitive_t {
     struct pd_t : public cpu_shuffle_pd_t {
         using cpu_shuffle_pd_t::cpu_shuffle_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_shuffle_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace format_tag;
 
-            bool ok = true
-                    && data_type_size
-                            == types::data_type_size(data_md()->data_type)
-                    && IMPLICATION(this->desc()->data_desc.data_type
-                                    == data_type::bf16,
-                            mayiuse(avx512_core))
+            const data_type_t data_type = data_md()->data_type;
+            bool ok = data_type_size == types::data_type_size(data_type)
+                    && platform::has_data_type_support(data_type)
                     && attr()->has_default_values()
                     && IMPLICATION(!is_fwd(), set_default_formats_common());
             if (!ok) return status::unimplemented;
@@ -67,14 +65,15 @@ struct ref_shuffle_t : public primitive_impl_t {
         format_tag_t dat_tag_;
     };
 
-    ref_shuffle_t(const pd_t *apd) : primitive_impl_t(apd) {
+    ref_shuffle_t(const pd_t *apd) : primitive_t(apd) {
         const int axis_size = pd()->axis_size();
         const int group_size = pd()->group_size();
         const int transpose_row
                 = pd()->is_fwd() ? group_size : axis_size / group_size;
         const int transpose_col
                 = pd()->is_fwd() ? axis_size / group_size : group_size;
-        rev_transposed_ = (int *)malloc(axis_size * sizeof(int), 64);
+        rev_transposed_ = (int *)malloc(
+                axis_size * sizeof(int), platform::get_cache_line_size());
         parallel_nd(transpose_col, transpose_row, [&](int i, int j) {
             rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
         });
@@ -105,7 +104,7 @@ struct ref_shuffle_t : public primitive_impl_t {
 private:
     template <format_tag_t tag>
     void execute_(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     int *rev_transposed_;
 };
 

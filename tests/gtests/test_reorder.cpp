@@ -157,6 +157,7 @@ CPU_INSTANTIATE_TEST_SUITE_P(Weights_3d, reorder_simple_test_f32_f32,
                 cfg_f32 {fmt::gOIdhw8o8i, fmt::goidhw, {2, 16, 24, 3, 2, 3}},
                 cfg_f32 {fmt::giodhw, fmt::gOIdhw8o8i, {2, 16, 24, 2, 2, 3}},
                 cfg_f32 {fmt::goidhw, fmt::giodhw, {2, 16, 24, 3, 2, 3}},
+                cfg_f32 {fmt::iodhw, fmt::OIdhw8o8i, {16, 24, 2, 2, 3}},
                 // OIdhw16i16o and IOdhw16o16i
                 cfg_f32 {fmt::oidhw, fmt::OIdhw16i16o, {64, 48, 2, 3, 4}},
                 cfg_f32 {fmt::OIdhw16i16o, fmt::oidhw, {64, 48, 2, 3, 4}},

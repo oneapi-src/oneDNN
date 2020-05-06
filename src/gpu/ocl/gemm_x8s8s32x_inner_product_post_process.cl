@@ -35,10 +35,10 @@ __kernel void gemm_x8s8s32x_inner_product_post_process(__global SRC_DATA_T *src,
     acc += TO_ACC(bias[oc]);
 #endif
 
-#if WITH_SCALES == 1
-#if SCALES_COMMON == 1
+#if WITH_SCALES
+#if SCALES_COMMON
     const float scale = scales[0];
-#elif SCALES_PER_OC == 1
+#elif SCALES_PER_OC
     const float scale = scales[oc];
 #else
 #error "Unsupported scale type"
@@ -47,11 +47,11 @@ __kernel void gemm_x8s8s32x_inner_product_post_process(__global SRC_DATA_T *src,
 #endif
 
     // Apply postops
-#if WITH_SUM == 1
+#if WITH_SUM
     acc += sum_scale * TO_ACC(dst[data_idx]);
 #endif
 
-#if WITH_ELTWISE == 1
+#if WITH_ELTWISE
     acc = fwd_eltwise(acc, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 

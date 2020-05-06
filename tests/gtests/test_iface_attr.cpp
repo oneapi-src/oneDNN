@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_isa_traits.hpp"
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
@@ -309,7 +308,7 @@ TEST_F(attr_test, DepthwiseFusion) {
     std::vector<memory::data_type> test_dts {
             memory::data_type::f32, memory::data_type::s8};
 
-    if (impl::cpu::mayiuse(impl::cpu::avx512_core))
+    if (!unsupported_data_type(memory::data_type::bf16))
         test_dts.push_back(memory::data_type::bf16);
 
     for (auto dt : test_dts) {

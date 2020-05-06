@@ -1,9 +1,9 @@
 # f32
 --reset
 
---ddt=f32,bf16
+--ddt=f32,bf16,s8
 --dtag=undef,abx
---sdt=f32:f32,bf16:bf16
+--sdt=f32:f32,bf16:bf16,s8:s8
 --stag=abx:abx       3x3x16x4 4x4x2x16 5x5x1x15 2x8x3x10 1x9x4x7 1x16x5x11 2x15x6x3
 
 --sdt=f32:f32:f32,bf16:bf16:bf16

@@ -14,18 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_BASED_COMMON_HPP
-#define GEMM_BASED_COMMON_HPP
+#ifndef CPU_MATMUL_GEMM_BASED_COMMON_HPP
+#define CPU_MATMUL_GEMM_BASED_COMMON_HPP
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "primitive_attr.hpp"
-#include "type_helpers.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive_attr.hpp"
+#include "common/type_helpers.hpp"
 
-#include "cpu/cpu_isa_traits.hpp"
-
-#include "cpu_matmul_pd.hpp"
+#include "cpu/matmul/cpu_matmul_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -74,9 +72,9 @@ inline void book_acc_scratchpad(
     if (!params.dst_is_acc_ && !is_runtime_dims) {
         auto scratchpad = pd.scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
-                sizeof_acc_data
-                        * nstl::min(pd.batch(), (dim_t)dnnl_get_max_threads())
-                        * pd.M() * pd.N());
+                nstl::min(pd.batch(), (dim_t)dnnl_get_max_threads()) * pd.M()
+                        * pd.N(),
+                sizeof_acc_data);
     }
 }
 

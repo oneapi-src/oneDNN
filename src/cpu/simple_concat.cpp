@@ -16,9 +16,9 @@
 
 #include <cstring>
 
-#include "dnnl_thread.hpp"
+#include "common/dnnl_thread.hpp"
 
-#include "simple_concat.hpp"
+#include "cpu/simple_concat.hpp"
 
 namespace dnnl {
 namespace impl {

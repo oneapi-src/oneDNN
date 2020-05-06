@@ -59,12 +59,16 @@ static size_t get_cpu_ram_size() {
     GlobalMemoryStatusEx(&s);
     return s.ullTotalPhys;
 }
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__FreeBSD__)
 #include <unistd.h>
 #include <sys/sysctl.h>
 
 static size_t get_cpu_ram_size() {
+#ifdef __APPLE__
     int query_ram[] = {CTL_HW, HW_MEMSIZE};
+#else
+    int query_ram[] = {CTL_HW, HW_PHYSMEM};
+#endif
     int query_ram_len = sizeof(query_ram) / sizeof(*query_ram);
     size_t totalram = 0;
     size_t length = sizeof(totalram);
@@ -83,12 +87,17 @@ static size_t get_cpu_ram_size() {
 #endif
 
 static size_t get_gpu_ram_size() {
-    dnnl::engine eng(engine_tgt, true);
+    // XXX: create a tmp engine to query what we need.
+    // It will be removed in the future as part of switching back
+    // to the global engine.
+    engine_t eng_tmp(engine_tgt_kind);
+    dnnl::engine eng(eng_tmp, true);
     if (eng.get_kind() != dnnl::engine::kind::gpu) return 0;
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     cl_int status = CL_SUCCESS;
     // Get single device attached to the engine.
+    engine_t engine_tgt(engine_tgt_kind);
     cl_device_id ocl_device = eng.get_ocl_device();
 
     cl_ulong ram_size = 0;
@@ -124,9 +133,13 @@ int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
     const auto get_mem_size = [const_pd](dnnl_query_t query, int index = 0) {
         const auto md = dnnl_primitive_desc_query_md(const_pd, query, index);
         auto mem_size = dnnl_memory_desc_get_size(md);
+        // reference memories are always fp32, hence need rescaling factor
+        size_t ref_mem_factor = 1;
+        if (md->data_type != dnnl_data_type_undef)
+            ref_mem_factor = ::sizeof_dt(dnnl_f32) / ::sizeof_dt(md->data_type);
         // runtime mem size is not defined
         if (mem_size == DNNL_RUNTIME_SIZE_VAL) mem_size = 0;
-        return 2 * mem_size; // 2 for library and benchdnn ref memories
+        return (1 + ref_mem_factor) * mem_size;
     };
 
     double total_mem_size = 0;

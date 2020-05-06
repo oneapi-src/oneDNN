@@ -19,7 +19,10 @@
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
+#include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_softmax_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -30,18 +33,17 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_softmax_fwd_t : public primitive_impl_t {
+struct ref_softmax_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_softmax_fwd_pd_t {
-        pd_t(engine_t *engine, const softmax_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
-            : gpu_softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_softmax_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
@@ -103,16 +105,12 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
         size_t group_size = 0;
     };
 
-    ref_softmax_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_softmax_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    ~ref_softmax_fwd_t() = default;
-
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
             return status::success;
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
         const auto *desc = pd()->desc();
@@ -132,8 +130,7 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
         for (int i = 0; i < 3; i++)
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
-        compute_engine->create_kernel(
-                &kernel_, "ref_softmax_fwd_generic", kernel_ctx);
+        create_kernel(engine, &kernel_, "ref_softmax_fwd_generic", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -145,21 +142,19 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
 
 protected:
     status_t execute_generic(const exec_ctx_t &ctx) const;
-
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 
-struct ref_softmax_bwd_t : public primitive_impl_t {
+struct ref_softmax_bwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_softmax_bwd_pd_t {
-        pd_t(engine_t *engine, const softmax_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
-            : gpu_softmax_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_softmax_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = desc()->prop_kind == prop_kind::backward_data
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
@@ -191,16 +186,12 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
         size_t block[3] = {};
     };
 
-    ref_softmax_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_softmax_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    ~ref_softmax_bwd_t() = default;
-
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         if (memory_desc_wrapper(pd()->desc()->diff_desc).has_zero_dim())
             return status::success;
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
         const auto *desc = pd()->desc();
@@ -217,8 +208,7 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
         for (int i = 0; i < 3; i++)
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
-        compute_engine->create_kernel(
-                &kernel_, "ref_softmax_bwd_generic", kernel_ctx);
+        create_kernel(engine, &kernel_, "ref_softmax_bwd_generic", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -230,8 +220,7 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
 
 protected:
     status_t execute_generic(const exec_ctx_t &ctx) const;
-
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 

@@ -58,6 +58,7 @@ Data manipulation:
 
 # Performance Benchmarking and Inspection
 
+ * @ref dev_guide_performance_settings
  * @ref dev_guide_verbose
  * @ref dev_guide_benchdnn
  * @ref dev_guide_profilers

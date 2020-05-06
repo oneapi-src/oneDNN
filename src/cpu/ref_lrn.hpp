@@ -19,30 +19,32 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "cpu_lrn_pd.hpp"
+#include "cpu/platform.hpp"
+
+#include "cpu/cpu_lrn_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t d_type>
-struct ref_lrn_fwd_t : public primitive_impl_t {
+struct ref_lrn_fwd_t : public primitive_t {
     struct pd_t : public cpu_lrn_fwd_pd_t {
         using cpu_lrn_fwd_pd_t::cpu_lrn_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("lrn_ref:any", ref_lrn_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
 
-            bool ok = true && is_fwd() && src_md()->data_type == d_type
-                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+            bool ok = is_fwd() && src_md()->data_type == d_type
+                    && platform::has_data_type_support(d_type)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -55,7 +57,7 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
         format_tag_t dat_tag_;
     };
 
-    ref_lrn_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_lrn_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -73,24 +75,24 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
 private:
     template <format_tag_t tag>
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <impl::data_type_t d_type>
-struct ref_lrn_bwd_t : public primitive_impl_t {
+struct ref_lrn_bwd_t : public primitive_t {
     struct pd_t : public cpu_lrn_bwd_pd_t {
         using cpu_lrn_bwd_pd_t::cpu_lrn_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("lrn_ref:any", ref_lrn_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
 
-            bool ok = true && !is_fwd() && set_default_formats_common()
+            bool ok = !is_fwd() && set_default_formats_common()
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
-                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+                    && platform::has_data_type_support(d_type)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -103,7 +105,7 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
         format_tag_t dat_tag_;
     };
 
-    ref_lrn_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_lrn_bwd_t(const pd_t *apd) : primitive_t(apd) {}
     typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -121,7 +123,7 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
 private:
     template <format_tag_t tag>
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

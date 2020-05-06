@@ -15,7 +15,10 @@ where *rnn-knobs* are:
  - `--direction={left2right [default], right2left, concat, sum}` -- TBA.
  - `--activation={RELU [default], LOGISTIC, TANH}` -- TBA.
  - `--scaling="scale_str"` -- RNN scaling policy, default `""` (no scaling).
-            Refer to knobs_attr.md for details.
+            Refer to [attributes](knobs_attr.md) for details.
+ - `--trivial-strides={true, false [default]}` -- specify if input
+   tensors should have trivial strides (each tensor stride is the
+   product of the previous dimensions) or not.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
@@ -24,8 +27,10 @@ and *rnn-desc* is a problem descriptor. The canonical form is:
 ```
  lXtXmbX_sicX_slcX_dhcX_nS
 ```
-Here X is an integer number and S is a string (n stands for name).
-The special symbol `_` is ignored, so it may be used as a delimiter.
+Here `X` is an integer number and `S` is a string literal without spaces (`n`
+stands for name). The special symbol `_` is ignored, so it may be used as a
+delimiter for better readability. Refer to the common glossary in README.md for
+the entity name and description.
 
 Description of RNN descriptor symbols: TBA.
 

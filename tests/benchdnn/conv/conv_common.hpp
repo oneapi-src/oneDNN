@@ -325,10 +325,14 @@ int compare_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
         bool final_compare = false);
 int compare_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
         bool final_compare = false);
-int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
+int fill_src(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r);
+int fill_wei(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r);
+int fill_bia(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r);
+int fill_dst(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r);
 double get_trust_nz_level(const prb_t *p, data_kind_t kind, bool final_compare);
 
 void compute_ref_bwd_bias(

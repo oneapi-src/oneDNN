@@ -103,10 +103,10 @@ jobs:
         failOnStderr: true 
   - job: 'Windows_Server_2012'
     pool:
-      vmImage: 'vs2015-win2012r2'
+      vmImage: 'vs2017-win2016'
     steps:
       - script: |
-          .github\automation\build.bat /THREADING omp /MODE Release /VSVERSION vs2015 /SOURCEDIR %CD% /BUILDDIR %CD%\build
+          .github\automation\build.bat /THREADING omp /MODE Release /VSVERSION vs2017 /SOURCEDIR %CD% /BUILDDIR %CD%\build
         displayName: 'build'
       - script: |
          .github\automation\test.bat /TESTKIND gtest /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report

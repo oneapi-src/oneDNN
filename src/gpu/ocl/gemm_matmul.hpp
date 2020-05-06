@@ -17,8 +17,11 @@
 #ifndef GPU_OCL_GEMM_MATMUL_HPP
 #define GPU_OCL_GEMM_MATMUL_HPP
 
+#include "common/primitive.hpp"
+#include "common/primitive_iterator.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -26,13 +29,13 @@ namespace gpu {
 namespace ocl {
 
 namespace {
-status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
-        transpose_t transa, transpose_t transb, dim_t batch, dim_t m, dim_t n,
-        dim_t k, dim_t stride_a, dim_t stride_b, dim_t stride_c, dim_t lda,
-        dim_t ldb, dim_t ldc, dim_t bias_mask, data_type_t a_dt,
-        data_type_t b_dt, data_type_t c_dt, data_type_t acc_dt,
-        data_type_t bias_dt, const primitive_attr_t *attr) {
-    gemm_desc_t gemm_desc;
+status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd_,
+        engine_t *engine, transpose_t transa, transpose_t transb, dim_t batch,
+        dim_t m, dim_t n, dim_t k, dim_t stride_a, dim_t stride_b,
+        dim_t stride_c, dim_t lda, dim_t ldb, dim_t ldc, dim_t bias_mask,
+        data_type_t a_dt, data_type_t b_dt, data_type_t c_dt,
+        data_type_t acc_dt, data_type_t bias_dt, const primitive_attr_t *attr) {
+    auto gemm_desc = gemm_desc_t();
     gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.transa = transa;
     gemm_desc.transb = transb;
@@ -53,18 +56,37 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
     gemm_desc.bias_type = bias_dt;
     gemm_desc.bias_mask = bias_mask;
 
-    return dnnl_primitive_desc_create(
-            gemm_pd, (op_desc_t *)&gemm_desc, attr, engine, nullptr);
+    primitive_attr_t gemm_attr = *attr;
+    gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
+
+    dnnl_primitive_desc_iterator it(
+            engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
+    ++it;
+    gemm_pd_.reset(it.fetch_once());
+    if (!gemm_pd_) return status::unimplemented;
+    return status::success;
 }
 } // namespace
 
-struct gemm_matmul_t : public primitive_impl_t {
+struct gemm_matmul_t : public gpu_primitive_t {
     struct pd_t : public gpu_matmul_pd_t {
-        using gpu_matmul_pd_t::gpu_matmul_pd_t;
+        pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
+                const matmul_pd_t *hint_pd)
+            : gpu_matmul_pd_t(adesc, attr, hint_pd) {}
+
+        pd_t(const pd_t &other)
+            : gpu_matmul_pd_t(other), gemm_pd_(other.gemm_pd_->clone()) {}
+
+        pd_t &operator=(const pd_t &other) {
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            gpu_matmul_pd_t::operator=(other);
+            gemm_pd_.reset(other.gemm_pd_->clone());
+            return *this;
+        }
 
         DECLARE_COMMON_PD_T("ocl:gemm:any", gemm_matmul_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = set_default_formats();
@@ -156,34 +178,43 @@ struct gemm_matmul_t : public primitive_impl_t {
             const auto acc_dt = desc()->accum_data_type;
 
             bool gemm_ok = status::success
-                    == create_gemm_pd(&gemm_pd_, engine(), transB, transA, MB,
-                            N, M, K, stride_b, stride_a, stride_c, ldb, lda,
-                            ldc, bias_mask, weights_dt, src_dt, dst_dt, acc_dt,
+                    == create_gemm_pd(gemm_pd_, engine, transB, transA, MB, N,
+                            M, K, stride_b, stride_a, stride_c, ldb, lda, ldc,
+                            bias_mask, weights_dt, src_dt, dst_dt, acc_dt,
                             bias_dt, &gemm_attr);
             if (!gemm_ok) return status::unimplemented;
+            init_scratchpad();
 
             return status::success;
         }
 
-        primitive_desc_t *gemm_pd_ = nullptr;
+        std::unique_ptr<primitive_desc_t> gemm_pd_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    gemm_pd_->scratchpad_registry());
+        }
     };
 
-    virtual status_t init() override {
-        status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_);
-        if (gemm_status != status::success) return gemm_status;
-        return status::success;
+    gemm_matmul_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
+        status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
+        return gemm_status;
     }
-
-    gemm_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {}
-
-    ~gemm_matmul_t() override { gemm_->release(); }
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+protected:
+    primitive_list_t nested_primitives() const override {
+        return {gemm_.get()};
+    }
 
 private:
-    primitive_t *gemm_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::shared_ptr<primitive_t> gemm_;
 };
 
 } // namespace ocl

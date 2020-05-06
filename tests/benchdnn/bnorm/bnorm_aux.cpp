@@ -147,6 +147,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
     if (canonical || p.inplace != def.inplace[0])
         s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (canonical || p.debug_check_ws != def.debug_check_ws)
+        s << "--debug-check-ws=" << bool2str(p.debug_check_ws) << " ";
 
     s << static_cast<const desc_t &>(p);
 

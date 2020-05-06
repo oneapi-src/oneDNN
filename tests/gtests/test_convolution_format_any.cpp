@@ -14,11 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_isa_traits.hpp"
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "dnnl.hpp"
+
+#if DNNL_X64
+#include "src/cpu/x64/cpu_isa_traits.hpp"
+#endif
+
 namespace dnnl {
 
 using tag = memory::format_tag;
@@ -38,11 +42,15 @@ class convolution_any_fmt_test
     : public ::testing::TestWithParam<conv_any_fmt_test_params> {
 protected:
     virtual void SetUp() {
+#if DNNL_X64
         // Skip this test if the library cannot select blocked format a priori.
         // Currently blocking is supported only for sse41 and later CPUs.
         bool implementation_supports_blocking
-                = impl::cpu::mayiuse(impl::cpu::sse41);
+                = impl::cpu::x64::mayiuse(impl::cpu::x64::sse41);
         if (!implementation_supports_blocking) return;
+#else
+        return;
+#endif
 
         auto p = ::testing::TestWithParam<conv_any_fmt_test_params>::GetParam();
 

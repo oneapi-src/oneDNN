@@ -11,7 +11,7 @@
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_small
 
 --mb=2
---dt=f16,bf16
+--dt=f16,s8,bf16
 --dir=FWD_I        --flags=GS      --attr=                --batch=bnorm_topo_small
 --dir=FWD_I        --flags=GS      --attr=post_ops='relu' --batch=bnorm_topo_small
 
@@ -23,7 +23,7 @@
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_small
 
---dt=f16,bf16
+--dt=f16,s8,bf16
 --dir=FWD_I        --flags=GS      --attr=                --batch=bnorm_topo_small
 --dir=FWD_I        --flags=GS      --attr=post_ops='relu' --batch=bnorm_topo_small
 

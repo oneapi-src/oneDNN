@@ -42,19 +42,17 @@ struct dnn_mem_t {
     }
 
     dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
-            dnnl_format_tag_t tag = dnnl_format_tag_undef,
-            dnnl_engine_t engine = engine_tgt) {
+            dnnl_format_tag_t tag, dnnl_engine_t engine) {
         active_ = (initialize(md, dt, tag, engine) == OK);
     }
 
     dnn_mem_t(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
-            dnnl_engine_t engine = engine_tgt) {
+            dnnl_engine_t engine) {
         active_ = (initialize(md, dt, dnnl_format_tag_undef, engine) == OK);
     }
 
-    dnn_mem_t(const dnn_mem_t &rhs, dnnl_data_type_t dt,
-            dnnl_format_tag_t tag = dnnl_format_tag_undef,
-            dnnl_engine_t engine = engine_tgt)
+    dnn_mem_t(const dnn_mem_t &rhs, dnnl_data_type_t dt, dnnl_format_tag_t tag,
+            dnnl_engine_t engine)
         : dnn_mem_t(rhs.md_, dt, tag, engine) {
         if (active_) reorder(rhs);
     }

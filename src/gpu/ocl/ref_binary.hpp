@@ -18,8 +18,11 @@
 #define GPU_OCL_REF_BINARY_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_binary_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
@@ -29,13 +32,13 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_binary_t : public primitive_impl_t {
+struct ref_binary_t : public gpu_primitive_t {
     struct pd_t : public gpu_binary_pd_t {
         using gpu_binary_pd_t::gpu_binary_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_binary_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
@@ -58,10 +61,10 @@ struct ref_binary_t : public primitive_impl_t {
 
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         bool with_scales(int position) const {
@@ -125,19 +128,15 @@ struct ref_binary_t : public primitive_impl_t {
         binary_conf_t conf;
     };
 
-    ref_binary_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_binary_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    ~ref_binary_t() {}
-
-    status_t init() override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+    status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(&kernel_, "ref_binary", kernel_ctx);
+        create_kernel(engine, &kernel_, "ref_binary", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -149,7 +148,7 @@ struct ref_binary_t : public primitive_impl_t {
 
 private:
     status_t execute_ref(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 

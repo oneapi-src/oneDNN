@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_REORDER_PD_HPP
-#define CPU_REORDER_PD_HPP
+#ifndef CPU_CPU_REORDER_PD_HPP
+#define CPU_CPU_REORDER_PD_HPP
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "cpu_engine.hpp"
-#include "reorder_pd.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/reorder_pd.hpp"
+#include "common/utils.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,12 +31,12 @@ namespace cpu {
 struct cpu_reorder_pd_t : public reorder_pd_t {
     using reorder_pd_t::reorder_pd_t;
 
-    status_t init() {
+    status_t init(
+            engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
         const auto &post_ops = attr()->post_ops_;
         bool args_ok = IMPLICATION(post_ops.len_ != 0,
                 post_ops.len_ == 1
                         && post_ops.entry_[0].kind == primitive_kind::sum);
-        scratchpad_engine_ = src_engine_;
         return args_ok ? status::success : status::unimplemented;
     }
 };

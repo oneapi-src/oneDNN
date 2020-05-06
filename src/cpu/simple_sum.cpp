@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "simple_sum.hpp"
-#include "bfloat16.hpp"
-#include "dnnl_thread.hpp"
+#include "cpu/simple_sum.hpp"
+#include "common/bfloat16.hpp"
+#include "common/dnnl_thread.hpp"
 
 namespace dnnl {
 namespace impl {

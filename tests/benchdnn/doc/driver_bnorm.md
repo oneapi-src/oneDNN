@@ -20,10 +20,13 @@ where *bnorm-knobs* are:
             `R` is dnnl_fuse_norm_relu;
             Refer to ``doc/primitives/batch_normalization.md`` for details.
  - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
-            Refer to knobs_attr.md for details.
+            Refer to [attributes](knobs_attr.md) for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
             Default is `true`.
+ - `--debug-check-ws=BOOL` -- checks if workspace has correct values. Feature is
+            based on internal knowledge of a library implementation. The default
+            is `false`.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
@@ -36,9 +39,10 @@ and *bnorm-desc* is a problem descriptor. The canonical form is:
 ```
     mbXicX_idXihXiwX_epsY_nS
 ```
-Here X is an integer number, Y is a real number, and S is a string (n stands for
-name). The special symbol `_` is ignored, so it may be used as a delimiter.
-Refer to the common glossary in README.md for the entity name and description.
+Here `X` is an integer number, `Y` is a real number, and `S` is a string literal
+without spaces (`n` stands for name). The special symbol `_` is ignored, so it
+may be used as a delimiter for better readability. Refer to the common glossary
+in README.md for the entity name and description.
 
 There are default values for some entities in case they were not specified:
  - mb = 2;

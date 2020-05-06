@@ -14,10 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 // FWD fp32 Convolution Kernel with NHWC data layout support
 // Features:
@@ -252,7 +250,7 @@ gen9_conv_nhwc_fwd_f32(const __global float *src, const __global float *wei,
     dst_write0 += g * OC_WO_PADDING + goc * OC_BLOCK;
 
     // Apply postops
-#if WITH_SUM == 1
+#if WITH_SUM
     float blockS00[OW_BLOCK];
     for (int i = 0; i < min(OW_BLOCK, OW - ow); i++) {
         blockS00[i] = read_oc_block(
@@ -260,15 +258,12 @@ gen9_conv_nhwc_fwd_f32(const __global float *src, const __global float *wei,
     }
 
     for (int i = 0; i < OW_BLOCK; i++) {
-#if SUM_SCALE == 1
-        blockC00[i] += blockS00[i];
-#else
-        blockC00[i] = fma(blockS00[i], (float)sum_scale, blockC00[i]);
-#endif
+        blockC00[i]
+                = fma(blockS00[i], SUM_SCALE1 ? 1.0f : sum_scale, blockC00[i]);
     }
 #endif // WITH_SUM
 
-#if WITH_ELTWISE == 1
+#if WITH_ELTWISE
     for (int i = 0; i < OW_BLOCK; i++) {
         blockC00[i] = fwd_eltwise(
                 blockC00[i], eltwise_alpha, eltwise_beta, eltwise_scale);

@@ -21,11 +21,14 @@
 #include <stdio.h>
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "common/primitive_iterator.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_rnn_pd.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
@@ -54,7 +57,7 @@ enum gemm_kind_t {
 };
 
 template <prop_kind_t aprop>
-struct _ref_rnn_common_t : public primitive_impl_t {
+struct _ref_rnn_common_t : public gpu_primitive_t {
 
     using class_name = _ref_rnn_common_t<aprop>;
 
@@ -69,6 +72,14 @@ struct _ref_rnn_common_t : public primitive_impl_t {
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
                     gpu_rnn_fwd_pd_t, gpu_rnn_bwd_pd_t>::type;
+    enum {
+        key_gemm_iter_fwd = memory_tracking::names::key_nested_multiple,
+        key_gemm_layer_fwd,
+        key_gemm_iter_bwd,
+        key_gemm_layer_bwd,
+        key_gemm_diff_wei_layer,
+        key_gemm_diff_wei_iter,
+    };
 
     struct pd_t : public base_pd_t {
 
@@ -79,16 +90,13 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             base_pd_t::operator=(other);
-            clear();
             copy_from(other);
             return *this;
         }
 
-        ~pd_t() { clear(); }
-
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
-        status_t init();
+        status_t init(engine_t *engine);
 
         status_t set_default_params();
 
@@ -99,19 +107,41 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         data_type_t src_type;
         data_type_t weights_type;
 
-        primitive_desc_t *gemm_iter_fwd_pd_ = nullptr;
-        primitive_desc_t *gemm_layer_fwd_pd_ = nullptr;
-        primitive_desc_t *gemm_iter_bwd_pd_ = nullptr;
-        primitive_desc_t *gemm_layer_bwd_pd_ = nullptr;
-        primitive_desc_t *gemm_diff_wei_layer_pd_ = nullptr;
-        primitive_desc_t *gemm_diff_wei_iter_pd_ = nullptr;
+        std::unique_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_layer_fwd_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_iter_bwd_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_layer_bwd_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_diff_wei_layer_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_diff_wei_iter_pd_;
 
     private:
         void init_scratchpad(size_t scratchpad_sz) {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
-            scratchpad.book(key_rnn_space, scratchpad_sz, 4096);
-            scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 4096);
+            scratchpad.book(key_rnn_space, scratchpad_sz, 1,
+                    OCL_BUFFER_ALIGNMENT, 4096);
+            scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 1,
+                    OCL_BUFFER_ALIGNMENT, 4096);
+            // book scratchpad for nested primitives
+            switch (aprop) {
+                case prop_kind::forward:
+                    scratchpad.book(key_gemm_iter_fwd,
+                            gemm_iter_fwd_pd_->scratchpad_registry());
+                    scratchpad.book(key_gemm_layer_fwd,
+                            gemm_layer_fwd_pd_->scratchpad_registry());
+                    break;
+                case prop_kind::backward:
+                    scratchpad.book(key_gemm_iter_bwd,
+                            gemm_iter_bwd_pd_->scratchpad_registry());
+                    scratchpad.book(key_gemm_layer_bwd,
+                            gemm_layer_bwd_pd_->scratchpad_registry());
+                    scratchpad.book(key_gemm_diff_wei_layer,
+                            gemm_diff_wei_layer_pd_->scratchpad_registry());
+                    scratchpad.book(key_gemm_diff_wei_iter,
+                            gemm_diff_wei_iter_pd_->scratchpad_registry());
+                    break;
+                default: assert(!"unknown prop_kind");
+            }
         }
 
         void copy_from(const pd_t &other) {
@@ -121,40 +151,28 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             acc_data_t = other.acc_data_t;
             src_type = other.src_type;
             weights_type = other.weights_type;
-            gemm_layer_fwd_pd_ = other.gemm_layer_fwd_pd_
-                    ? other.gemm_layer_fwd_pd_->clone()
-                    : nullptr;
-            gemm_iter_fwd_pd_ = other.gemm_iter_fwd_pd_
-                    ? other.gemm_iter_fwd_pd_->clone()
-                    : nullptr;
-            gemm_layer_bwd_pd_ = other.gemm_layer_bwd_pd_
-                    ? other.gemm_layer_bwd_pd_->clone()
-                    : nullptr;
-            gemm_iter_bwd_pd_ = other.gemm_iter_bwd_pd_
-                    ? other.gemm_iter_bwd_pd_->clone()
-                    : nullptr;
-            gemm_diff_wei_layer_pd_ = other.gemm_diff_wei_layer_pd_
-                    ? other.gemm_diff_wei_layer_pd_->clone()
-                    : nullptr;
-            gemm_diff_wei_iter_pd_ = other.gemm_diff_wei_iter_pd_
-                    ? other.gemm_diff_wei_iter_pd_->clone()
-                    : nullptr;
+            gemm_layer_fwd_pd_.reset(other.gemm_layer_fwd_pd_
+                            ? other.gemm_layer_fwd_pd_->clone()
+                            : nullptr);
+            gemm_iter_fwd_pd_.reset(other.gemm_iter_fwd_pd_
+                            ? other.gemm_iter_fwd_pd_->clone()
+                            : nullptr);
+            gemm_layer_bwd_pd_.reset(other.gemm_layer_bwd_pd_
+                            ? other.gemm_layer_bwd_pd_->clone()
+                            : nullptr);
+            gemm_iter_bwd_pd_.reset(other.gemm_iter_bwd_pd_
+                            ? other.gemm_iter_bwd_pd_->clone()
+                            : nullptr);
+            gemm_diff_wei_layer_pd_.reset(other.gemm_diff_wei_layer_pd_
+                            ? other.gemm_diff_wei_layer_pd_->clone()
+                            : nullptr);
+            gemm_diff_wei_iter_pd_.reset(other.gemm_diff_wei_iter_pd_
+                            ? other.gemm_diff_wei_iter_pd_->clone()
+                            : nullptr);
         }
-
-        void clear() {
-            delete gemm_layer_fwd_pd_;
-            delete gemm_iter_fwd_pd_;
-            delete gemm_layer_bwd_pd_;
-            delete gemm_iter_bwd_pd_;
-            delete gemm_diff_wei_layer_pd_;
-            delete gemm_diff_wei_iter_pd_;
-        }
-
     }; // struct pd_t : public base_pd_t
 
-    status_t init() override;
-
-    _ref_rnn_common_t(const pd_t *apd) : primitive_impl_t(apd) {
+    _ref_rnn_common_t(const pd_t *apd) : gpu_primitive_t(apd) {
         using namespace rnn_utils;
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dhc and sic != dhc
@@ -217,25 +235,30 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 = (size_t *)malloc(sizeof(size_t) * offset_wei_sz, 64);
     }
 
+    virtual status_t init(engine_t *engine) override;
+
     ~_ref_rnn_common_t() {
         free(offset_wei_input_);
         free(offset_wei_state_);
-
-        if (gemm_iter_fwd_) gemm_iter_fwd_->release();
-        if (gemm_layer_fwd_) gemm_layer_fwd_->release();
-        if (gemm_iter_bwd_) gemm_iter_bwd_->release();
-        if (gemm_layer_bwd_) gemm_layer_bwd_->release();
-        if (gemm_diff_wei_layer_) gemm_diff_wei_layer_->release();
-        if (gemm_diff_wei_iter_) gemm_diff_wei_iter_->release();
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_(ctx);
     }
 
+protected:
+    primitive_list_t nested_primitives() const override {
+        return {gemm_layer_fwd_.get(), gemm_iter_fwd_.get(),
+                gemm_layer_bwd_.get(), gemm_iter_bwd_.get(),
+                gemm_diff_wei_layer_.get(), gemm_diff_wei_iter_.get()};
+    }
+
+    status_t init_res_storage(
+            engine_t *engine, gpu_resource_t *r) const override;
+
 private:
     status_t execute_(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     grid_execution_sig(linear_execution);
     // grid_execution_sig(wavefront_execution);
@@ -254,30 +277,34 @@ private:
     free_packed_sig(free_no_packed_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
-    void bias_prepare(compute::compute_stream_t *compute_stream, int n_layer,
-            int n_dir, int n_bias, int n_gates, int dhc,
-            const memory_storage_t &ws, const memory_storage_t &scales,
-            const memory_storage_t &wei_layer, const memory_storage_t &wei_iter,
+    void bias_prepare(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
+            int n_bias, int n_gates, int dhc, const memory_storage_t &ws,
+            const memory_storage_t &scales, const memory_storage_t &wei_layer,
+            const memory_storage_t &wei_iter,
             const memory_storage_t &bias) const;
-    void copy_init_layer(compute::compute_stream_t *compute_stream, bool lr,
-            bool rl, int n_iter, int batch, int slc, const memory_storage_t &ws,
+    void copy_init_layer(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream, bool lr, bool rl,
+            int n_iter, int batch, int slc, const memory_storage_t &ws,
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
-    void copy_init_iter(compute::compute_stream_t *compute_stream, int n_layer,
-            int n_dir, int batch, int sic, int dhc, const memory_storage_t &ws,
+    void copy_init_iter(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
+            int batch, int sic, int dhc, const memory_storage_t &ws,
             const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
             const memory_storage_t &diff_dst_iter,
             const memory_storage_t &diff_dst_iter_c, const float shift,
             const float scale, const bool quantize) const;
-    void copy_res_layer(compute::compute_stream_t *compute_stream, bool lr,
-            bool rl, int n_iter, int batch, int slc, int dlc,
+    void copy_res_layer(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream, bool lr, bool rl,
+            int n_iter, int batch, int slc, int dlc,
             const memory_storage_t &dst_last_layer,
             const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
             const float shift, const float scale, const bool dequantize) const;
-    void copy_res_iter(compute::compute_stream_t *compute_stream, int n_layer,
-            int n_dir, int batch, int sic, int dhc,
-            const memory_storage_t &dst_last_iter,
+    void copy_res_iter(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
+            int batch, int sic, int dhc, const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,
             const memory_storage_t &diff_src_iter,
             const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
@@ -285,7 +312,8 @@ private:
     void gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
             int n_gates, int dhc, int batch, const memory_storage_t &gates,
             const memory_storage_t &diff_bias) const;
-    void ws_set(compute::compute_stream_t *compute_stream,
+    void ws_set(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream,
             const memory_storage_t &workspace, const cl_ulong ws_offset,
             const int ws_part, const float val, const size_t size) const;
 #if DEBUGPRINT
@@ -306,15 +334,12 @@ private:
     compute::kernel_t gates_reduction_kernel_;
 
     // GEMM primitives.
-    primitive_t *gemm_layer_fwd_ = nullptr;
-    primitive_t *gemm_iter_fwd_ = nullptr;
-    primitive_t *gemm_layer_bwd_ = nullptr;
-    primitive_t *gemm_iter_bwd_ = nullptr;
-    primitive_t *gemm_diff_wei_layer_ = nullptr;
-    primitive_t *gemm_diff_wei_iter_ = nullptr;
-
-    std::unique_ptr<memory_storage_t> scales_buf_;
-    std::unique_ptr<memory_storage_t> tm_scales_buf_;
+    std::shared_ptr<primitive_t> gemm_layer_fwd_;
+    std::shared_ptr<primitive_t> gemm_iter_fwd_;
+    std::shared_ptr<primitive_t> gemm_layer_bwd_;
+    std::shared_ptr<primitive_t> gemm_iter_bwd_;
+    std::shared_ptr<primitive_t> gemm_diff_wei_layer_;
+    std::shared_ptr<primitive_t> gemm_diff_wei_iter_;
 
     cl_ulong ws_gates_offset_;
     cl_ulong ws_states_offset_;
@@ -340,6 +365,8 @@ private:
 
     free_packed_t weights_input_free_packed_func;
     free_packed_t weights_state_free_packed_func;
+
+    enum { SCALES_ = 0, TM_SCALES_ = 1 };
 };
 using ref_rnn_fwd_t = _ref_rnn_common_t<prop_kind::forward>;
 using ref_rnn_bwd_t = _ref_rnn_common_t<prop_kind::backward>;

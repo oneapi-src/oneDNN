@@ -47,8 +47,29 @@ static void set_scalar_arg(
     }
 }
 
-sycl_ocl_gpu_kernel_t::~sycl_ocl_gpu_kernel_t() {
-    if (ocl_kernel_) OCL_CHECK_V(clReleaseKernel(ocl_kernel_));
+status_t sycl_ocl_gpu_kernel_t::realize(
+        gpu::compute::kernel_t *kernel, engine_t *engine) const {
+    assert(state_ == state_t::binary);
+    if (binary_.size() == 0) return status::success;
+    auto *compute_engine = utils::downcast<sycl_gpu_engine_t *>(engine);
+
+    cl_int err;
+    cl_device_id dev = compute_engine->ocl_device();
+    const unsigned char *binary_buffer = binary_.data();
+    size_t binary_size = binary_.size();
+    assert(binary_size > 0);
+
+    auto program = clCreateProgramWithBinary(compute_engine->ocl_context(), 1,
+            &dev, &binary_size, &binary_buffer, nullptr, &err);
+    OCL_CHECK(err);
+    err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
+    OCL_CHECK(err);
+    cl_kernel ocl_kernel = clCreateKernel(program, name(), &err);
+    OCL_CHECK(err);
+    (*kernel) = gpu::compute::kernel_t(new sycl_ocl_gpu_kernel_t(ocl_kernel));
+    OCL_CHECK(clReleaseProgram(program));
+
+    return status::success;
 }
 
 status_t sycl_create_kernel(std::unique_ptr<cl::sycl::kernel> &sycl_kernel,

@@ -14,15 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_ENGINE_HPP
-#define CPU_ENGINE_HPP
+#ifndef CPU_CPU_ENGINE_HPP
+#define CPU_CPU_ENGINE_HPP
 
 #include <assert.h>
 
 #include "dnnl.h"
 
-#include "../common/engine.hpp"
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
+#include "common/engine.hpp"
+
+#include "cpu/platform.hpp"
+
+#define CPU_INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>,
+#define CPU_INSTANCE_X64(...) DNNL_X64_ONLY(CPU_INSTANCE(__VA_ARGS__))
 
 namespace dnnl {
 namespace impl {

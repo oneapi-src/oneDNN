@@ -14,39 +14,43 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_X8S8S32X_CONVOLUTION_HPP
-#define GEMM_X8S8S32X_CONVOLUTION_HPP
+#ifndef CPU_GEMM_X8S8S32X_CONVOLUTION_HPP
+#define CPU_GEMM_X8S8S32X_CONVOLUTION_HPP
 
-#include "c_types_map.hpp"
-#include "memory_tracking.hpp"
+#include <memory>
 
-#include "cpu_convolution_pd.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
 
-#include "gemm_convolution_utils.hpp"
-#include "jit_generator.hpp"
-#include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise_injector.hpp"
-#include "ref_eltwise.hpp"
+#include "cpu/platform.hpp"
 
-#include "gemm/gemm.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
+
+#include "cpu/gemm_convolution_utils.hpp"
+#include "cpu/gemm_x8s8s32x_convolution_utils.hpp"
+
+#include "cpu/gemm/gemm.hpp"
+
+#if DNNL_X64
+#include "cpu/x64/cpu_isa_traits.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t src_type, data_type_t dst_type>
-struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
+struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(IGEMM_S8U8S32_ISA_STR,
                 _gemm_x8s8s32x_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = true && is_fwd()
@@ -74,7 +78,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
                     dnnl_get_max_threads());
         }
 
-        jit_gemm_conv_conf_t jcp_;
+        conv_gemm_conf_t jcp_;
 
     protected:
         format_tag_t dat_tag() const {
@@ -100,8 +104,11 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
                         | memory_extra_flags::scale_adjust;
                 want_wei_md.extra.compensation_mask
                         = (1 << 0) + (with_groups() ? (1 << 1) : 0);
-                want_wei_md.extra.scale_adjust
-                        = mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
+                want_wei_md.extra.scale_adjust = 1.f;
+#if DNNL_X64
+                if (!x64::mayiuse(x64::avx512_core_vnni))
+                    want_wei_md.extra.scale_adjust = 0.5f;
+#endif
             }
 
             if (weights_md_.format_kind == format_kind::any) {
@@ -135,11 +142,9 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
         }
     };
 
-    _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd)
-        : primitive_impl_t(apd), pp_ker_(nullptr) {
-        pp_ker_ = new pp_ker_t(pd());
+    _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
+        pp_ker_.reset(pp_ker_t::create(pd(), pd()->jcp_));
     }
-    ~_gemm_x8s8s32x_convolution_fwd_t() { delete pp_ker_; }
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -147,86 +152,34 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    // XXX: this is throwaway code that will become unnecessary when we have a
-    // sufficiently advanced igemm jit generator that supports quantization,
-    // relu, and whatnot
-    class pp_ker_t : jit_generator {
-    public:
-        DECLARE_CPU_JIT_AUX_FUNCTIONS(
-                _gemm_x8s8s32x_convolution_fwd_t::pp_kernel);
-        pp_ker_t(const pd_t *pd);
-        ~pp_ker_t() {
-            if (eltwise_injector_) delete eltwise_injector_;
-            if (eltwise_) delete eltwise_;
-        }
-
-        void operator()(dst_data_t *dst, const acc_data_t *acc,
-                const char *bias, const float *scales, float nslope,
-                float sum_scale, float signed_scale, int g, size_t start,
-                size_t end);
-
-        size_t dst_os_stride_;
-
-    private:
-        void generate();
-
-        struct ker_args {
-            dst_data_t *dst;
-            const acc_data_t *acc;
-            const char *bias;
-            const float *scales;
-            float nslope;
-            float sum_scale;
-            float signed_scale;
-            size_t len;
-            size_t oc_offset;
-        };
-        void (*ker_)(const ker_args *args);
-
-        const jit_gemm_conv_conf_t &jcp_;
-        size_t OC_;
-        size_t OS_;
-        data_type_t bias_data_type_;
-        size_t bias_data_type_size_;
-        size_t scale_idx_mult_;
-        bool do_bias_;
-        bool do_eltwise_;
-        bool do_sum_;
-        bool do_signed_scaling_;
-        size_t vlen_;
-        jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
-        ref_eltwise_scalar_fwd_t *eltwise_;
-    };
-
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    void execute_forward(const exec_ctx_t &ctx) const;
-    void execute_forward_thr(const int ithr, const int nthr,
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    status_t execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
             const char *bia_base, dst_data_t *dst_base,
             const memory_tracking::grantor_t &scratchpad) const;
 
     int nthr_ = 0;
-    pp_ker_t *pp_ker_;
+
+    using pp_ker_t = gemm_x8s8s32x_convolution_utils::pp_ker_t;
+    std::unique_ptr<pp_ker_t> pp_ker_;
 };
 
 template <data_type_t dst_type>
-struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_impl_t {
+struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(IGEMM_S8U8S32_ISA_STR,
                 _gemm_u8s8s32x_convolution_bwd_data_t, USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
@@ -255,7 +208,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_impl_t {
 
         virtual bool support_bias() const override { return true; }
 
-        jit_gemm_conv_conf_t jcp_;
+        conv_gemm_conf_t jcp_;
 
     protected:
         format_tag_t dat_tag() const {
@@ -276,8 +229,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_impl_t {
         }
     };
 
-    _gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *apd)
-        : primitive_impl_t(apd) {}
+    _gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::u8>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -285,17 +237,16 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_impl_t {
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_data(ctx);
-        return status::success;
+        return execute_backward_data(ctx);
     }
 
 private:
-    void execute_backward_data(const exec_ctx_t &ctx) const;
-    void execute_backward_data_thr(const int ithr, const int nthr,
+    status_t execute_backward_data(const exec_ctx_t &ctx) const;
+    status_t execute_backward_data_thr(const int ithr, const int nthr,
             const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
             const char *bia_base, diff_src_data_t *diff_src_base,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

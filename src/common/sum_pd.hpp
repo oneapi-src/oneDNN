@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SUM_PD_HPP
-#define SUM_PD_HPP
+#ifndef COMMON_SUM_PD_HPP
+#define COMMON_SUM_PD_HPP
 
 #include <assert.h>
 #include "dnnl.h"
@@ -30,12 +30,9 @@ namespace dnnl {
 namespace impl {
 
 struct sum_pd_t : public primitive_desc_t {
-    sum_pd_t(engine_t *engine, const primitive_attr_t *attr,
-            const memory_desc_t *dst_md, int n, const float *scales,
-            const memory_desc_t *src_mds)
-        : primitive_desc_t(engine, attr, primitive_kind::sum)
-        , n_(n)
-        , dst_md_(*dst_md) {
+    sum_pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
+            const float *scales, const memory_desc_t *src_mds)
+        : primitive_desc_t(attr, primitive_kind::sum), n_(n), dst_md_(*dst_md) {
         scales_.reserve(n_);
         for (int i = 0; i < n_; ++i)
             scales_.push_back(scales[i]);
@@ -91,6 +88,10 @@ struct sum_pd_t : public primitive_desc_t {
 
     bool need_output_reorder() const { return dst_md()->data_type != dnnl_f32; }
 
+    bool has_zero_dim_memory() const {
+        return memory_desc_wrapper(dst_md()).has_zero_dim();
+    }
+
 protected:
     int n_;
     std::vector<float> scales_;
@@ -100,7 +101,7 @@ protected:
 protected:
     sum_desc_t desc_;
     /* inits dst_md_ in simple cases. The call may fail. */
-    status_t init() {
+    status_t init(engine_t *engine) {
         for (int i = 0; i < n_; ++i) {
             const memory_desc_wrapper src_d(&src_mds_[i]);
             if (!src_d.is_blocking_desc() || src_d.is_additional_buffer())
@@ -148,20 +149,19 @@ protected:
             const primitive_attr_t *attr, const memory_desc_t *dst_md, int n, \
             const float *scales, const memory_desc_t *src_mds) { \
         using namespace status; \
-        auto _pd = new pd_t(engine, attr, dst_md, n, scales, src_mds); \
+        auto _pd = new pd_t(attr, dst_md, n, scales, src_mds); \
         if (_pd == nullptr) return out_of_memory; \
-        if (_pd->init() != success) { \
+        if (_pd->init(engine) != success) { \
             delete _pd; \
             return unimplemented; \
         } \
         _pd->init_scratchpad_md(); \
         return safe_ptr_assign<sum_pd_t>(*sum_pd, _pd); \
     } \
-    virtual status_t create_primitive(primitive_t **p) const override { \
-        auto status = this->engine()->get_primitive( \
-                p, this, [=] { return std::make_shared<__VA_ARGS__>(this); }, \
-                false); \
-        return status; \
+    virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
+            engine_t *engine, bool is_primitive_nested) const override { \
+        return primitive_t::create_primitive_common<__VA_ARGS__, pd_t>( \
+                primitive, this, engine, false, is_primitive_nested); \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
     virtual const char *name() const override { return impl_name; } \

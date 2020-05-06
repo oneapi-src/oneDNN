@@ -18,11 +18,12 @@
  * Cell execution LSTM
  */
 
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
 
-#include "../simple_q10n.hpp"
-#include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
+#include "cpu/simple_q10n.hpp"
+
+#include "cpu/rnn/postgemm_dispatcher.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -95,7 +96,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
 
             float gate_o = func1(scales + 3, gate_o_arg);
 
-            float ht = to_src_dt(gate_o * func2(cscale, c_state));
+            src_data_t ht = to_src_dt(gate_o * func2(cscale, c_state));
             if (dst_layer_ != nullptr) dst_layer(i, j) = ht;
             if (dst_iter_ != nullptr) dst_iter(i, j) = ht;
 
@@ -175,16 +176,17 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
 
     auto quantize_f32_u8 = [&](float f) {
         float qf = f * data_scale + data_shift;
-        return qz_a1b0<float, dst_layer_t>()(qf);
+        qf = nstl::min(qf, 255.0f);
+        qf = nstl::max(qf, 0.0f);
+        return (dst_layer_t)mxcsr_round(qf);
     };
 
     auto dequantize_s32_f32 = [&](gemm_acc_t s, int gate, int j) {
-        return pd_->attr()->rnn_weights_qparams_.mask_ == 0
-                ? saturate<float>(s) * (1.f / (weights_scales[0] * data_scale))
-                : saturate<float>(s)
-                        * (1.f
-                                / (weights_scales[gate * rnn.dhc + j]
-                                        * data_scale));
+        float wscale = pd_->attr()->rnn_weights_qparams_.mask_ == 0
+                ? weights_scales[0]
+                : weights_scales[gate * rnn.dhc + j];
+
+        return saturate<float>(s) * (1.f / (wscale * data_scale));
     };
 
     auto linear_f = [](const float *scale, float a) { return *scale * a; };

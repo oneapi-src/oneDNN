@@ -29,8 +29,8 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 
 status_t stream_t::enqueue_primitive(
-        const primitive_t *primitive, exec_ctx_t &ctx) {
-    return primitive->execute(ctx);
+        const primitive_iface_t *primitive_iface, exec_ctx_t &ctx) {
+    return primitive_iface->execute(ctx);
 }
 
 /* API */

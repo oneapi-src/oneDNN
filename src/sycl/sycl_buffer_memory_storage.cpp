@@ -31,7 +31,8 @@ struct map_tag;
 sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(engine_t *engine)
     : sycl_memory_storage_base_t(engine) {}
 
-status_t sycl_buffer_memory_storage_t::map_data(void **mapped_ptr) const {
+status_t sycl_buffer_memory_storage_t::map_data(
+        void **mapped_ptr, stream_t *stream) const {
     if (!buffer_) {
         *mapped_ptr = nullptr;
         return status::success;
@@ -46,7 +47,8 @@ status_t sycl_buffer_memory_storage_t::map_data(void **mapped_ptr) const {
     return guard_manager.enter(this, unmap_callback);
 }
 
-status_t sycl_buffer_memory_storage_t::unmap_data(void *mapped_ptr) const {
+status_t sycl_buffer_memory_storage_t::unmap_data(
+        void *mapped_ptr, stream_t *stream) const {
     if (!mapped_ptr) return status::success;
 
     auto &guard_manager = guard_manager_t<map_tag>::instance();

@@ -35,7 +35,7 @@ cl::sycl::event primitive::execute_sycl(stream &stream,
     sycl_stream->set_deps(deps);
 
     // run primitive
-    auto impl_primitive = impl::utils::downcast<impl::primitive_t *>(get());
+    auto *primitive_iface = impl::utils::downcast<primitive_iface_t *>(get());
 
     std::vector<dnnl_exec_arg_t> c_args;
     c_args.reserve(aargs.size());
@@ -43,12 +43,13 @@ cl::sycl::event primitive::execute_sycl(stream &stream,
         c_args.push_back({a.first, a.second.get()});
 
     impl::exec_args_t args;
-    error::wrap_c_api(impl::cvt_primtive_args(impl_primitive->pd(),
-                              (int)aargs.size(), c_args.data(), args),
+    error::wrap_c_api(
+            impl::cvt_primtive_args(primitive_iface->pd()->impl().get(),
+                    (int)aargs.size(), c_args.data(), args),
             "could not execute a primitive");
 
     impl::exec_ctx_t ctx(sycl_stream, std::move(args));
-    error::wrap_c_api(dnnl::impl::primitive_execute(impl_primitive, ctx),
+    error::wrap_c_api(dnnl::impl::primitive_execute(primitive_iface, ctx),
             "could not execute a primitive");
 
     // return output event

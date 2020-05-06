@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef PRIMITIVE_EXEC_TYPES_HPP
-#define PRIMITIVE_EXEC_TYPES_HPP
+#ifndef COMMON_PRIMITIVE_EXEC_TYPES_HPP
+#define COMMON_PRIMITIVE_EXEC_TYPES_HPP
 
 #include <unordered_map>
 
@@ -24,7 +24,6 @@
 #include "c_types_map.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
-#include "primitive_desc.hpp"
 
 #define CTX_IN_STORAGE(arg) \
     (ctx.input(arg) ? *(ctx.input(arg)->memory_storage()) \
@@ -46,12 +45,15 @@ struct memory_arg_t {
     bool is_const;
 };
 
+struct primitive_desc_t;
+
 using exec_args_t = std::unordered_map<int, memory_arg_t>;
 
 status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
         const dnnl_exec_arg_t *c_args, exec_args_t &args);
 
 /** Primitive execution context (helps passing stream, memories, and events. */
+struct resource_mapper_t;
 struct exec_ctx_t {
     exec_ctx_t(stream_t *stream) : stream_(stream) {}
     exec_ctx_t(stream_t *stream, exec_args_t &&args)
@@ -59,7 +61,8 @@ struct exec_ctx_t {
     exec_ctx_t(const exec_ctx_t &other, exec_args_t &&args)
         : stream_(other.stream_)
         , args_(std::move(args))
-        , memory_mapping_(other.memory_mapping_) {}
+        , memory_mapping_(other.memory_mapping_)
+        , resource_mapper_(other.resource_mapper_) {}
 
     stream_t *stream() const { return stream_; }
     const exec_args_t &args() const { return args_; }
@@ -73,9 +76,10 @@ struct exec_ctx_t {
     void *host_ptr(int arg) const;
     void *host_ptr(const memory_storage_t *mem_storage) const;
 
-    void *map_memory_storage(const memory_storage_t *storage) const;
-    void unmap_memory_storage(
-            const memory_storage_t *storage, void *mapped_ptr) const;
+    void *map_memory_storage(
+            const memory_storage_t *storage, stream_t *stream) const;
+    void unmap_memory_storage(const memory_storage_t *storage, void *mapped_ptr,
+            stream_t *stream) const;
 
     // Returns memory descriptor wrapper for the corresponding memory argument.
     //
@@ -96,15 +100,28 @@ struct exec_ctx_t {
             const memory_desc_t *md_from_primitive_desc = nullptr) const;
 
     void set_scratchpad_grantor(
-            const memory_tracking::grantor_t &scratchpad_grantor);
-    const memory_tracking::grantor_t &get_scratchpad_grantor() const;
+            const memory_tracking::grantor_t *scratchpad_grantor) {
+        scratchpad_grantor_ = scratchpad_grantor;
+    }
+
+    const memory_tracking::grantor_t &get_scratchpad_grantor() const {
+        return *scratchpad_grantor_;
+    }
+
+    const memory_tracking::grantor_t *grantor_handle() const {
+        return scratchpad_grantor_;
+    }
+
+    const resource_mapper_t *get_resource_mapper() const;
+    void set_resource_mapper(const resource_mapper_t *resource_mapper);
 
 private:
     stream_t *stream_;
     exec_args_t args_;
 
     std::unordered_map<void *, void *> memory_mapping_;
-    std::shared_ptr<memory_tracking::grantor_t> scratchpad_grantor_;
+    const resource_mapper_t *resource_mapper_ = nullptr;
+    const memory_tracking::grantor_t *scratchpad_grantor_ = nullptr;
 };
 
 } // namespace impl

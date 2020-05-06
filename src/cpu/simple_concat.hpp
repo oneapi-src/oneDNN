@@ -14,20 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SIMPLE_CONCAT_HPP
-#define SIMPLE_CONCAT_HPP
+#ifndef CPU_SIMPLE_CONCAT_HPP
+#define CPU_SIMPLE_CONCAT_HPP
 
-#include "memory_tracking.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
 
-#include "cpu_concat_pd.hpp"
-#include "cpu_isa_traits.hpp"
+#include "cpu/platform.hpp"
+
+#include "cpu/cpu_concat_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t data_type>
-struct simple_concat_t : public primitive_impl_t {
+struct simple_concat_t : public primitive_t {
     struct pd_t : public cpu_concat_pd_t {
         using cpu_concat_pd_t::cpu_concat_pd_t;
 
@@ -42,11 +44,9 @@ struct simple_concat_t : public primitive_impl_t {
 
         DECLARE_CONCAT_PD_T("simple:any", simple_concat_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             const memory_desc_wrapper dst_d(dst_md());
-            bool ok = true
-                    && IMPLICATION(
-                            data_type == data_type::bf16, mayiuse(avx512_core))
+            bool ok = platform::has_data_type_support(data_type)
                     && cpu_concat_pd_t::init() == status::success
                     && dst_d.ndims() <= 6;
             if (!ok) return status::unimplemented;
@@ -145,11 +145,11 @@ struct simple_concat_t : public primitive_impl_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            scratchpad.book(key_concat_iptrs, sizeof(data_t *) * n_inputs());
-            scratchpad.book(key_concat_optrs, sizeof(data_t *) * n_inputs());
-            scratchpad.book(key_concat_nelems, sizeof(dim_t) * n_inputs());
-            scratchpad.book(
-                    key_concat_istrides, sizeof(strides_t) * n_inputs());
+            scratchpad.template book<data_t *>(key_concat_iptrs, n_inputs());
+            scratchpad.template book<data_t *>(key_concat_optrs, n_inputs());
+            scratchpad.template book<dim_t>(key_concat_nelems, n_inputs());
+            scratchpad.template book<strides_t>(
+                    key_concat_istrides, n_inputs());
         }
 
         void copy_from(const pd_t &rhs) {
@@ -160,14 +160,14 @@ struct simple_concat_t : public primitive_impl_t {
         }
     };
 
-    simple_concat_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    simple_concat_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
     typedef typename prec_traits<data_type>::type data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

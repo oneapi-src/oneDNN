@@ -15,7 +15,7 @@
 *******************************************************************************/
 #include <math.h>
 
-#include "src/common/dnnl_thread.hpp"
+#include "tests/test_thread.hpp"
 
 #include "resampling/resampling.hpp"
 

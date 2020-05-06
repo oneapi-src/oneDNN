@@ -21,7 +21,7 @@
 
 #include "dnnl.h"
 
-#include "src/common/dnnl_thread.hpp"
+#include "tests/test_thread.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -30,7 +30,9 @@
 
 namespace softmax {
 
-static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &spd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_softmax_desc_t sd;
     dnnl_memory_desc_t data_d;
 
@@ -81,13 +83,14 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
     else
         SAFE(init_status, WARN);
 
-    const char *impl_str = query_impl_info(spd);
-    if (maybe_skip(impl_str)) {
-        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n", impl_str);
+    r->impl_name = query_impl_info(spd);
+    if (maybe_skip(r->impl_name)) {
+        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
+                r->impl_name.c_str());
         DNN_SAFE(dnnl_primitive_desc_destroy(spd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
     }
 
     return OK;
@@ -202,14 +205,11 @@ int fill_data_bwd(
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-
-    dnnl_primitive_desc_t spd;
-    SAFE(init_pd(p, spd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    engine_t engine_tgt;
 
     dnnl_primitive_t s;
-    DNN_SAFE(dnnl_primitive_create(&s, spd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(spd), CRIT);
+    SAFE(init_prim(&s, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(s, &const_pd), CRIT);
@@ -251,7 +251,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(s, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
@@ -279,7 +279,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(s, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);
@@ -288,7 +288,7 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
-    measure_perf(r->timer, s, args);
+    measure_perf(r->timer, engine_tgt, s, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(s));
 

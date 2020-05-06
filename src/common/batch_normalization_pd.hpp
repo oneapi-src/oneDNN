@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef BATCH_NORMALIZATION_PD_HPP
-#define BATCH_NORMALIZATION_PD_HPP
+#ifndef COMMON_BATCH_NORMALIZATION_PD_HPP
+#define COMMON_BATCH_NORMALIZATION_PD_HPP
 
 #include "dnnl.h"
 
@@ -31,11 +31,10 @@ struct batch_normalization_fwd_pd_t;
 struct batch_normalization_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::batch_normalization;
 
-    batch_normalization_pd_t(engine_t *engine,
-            const batch_normalization_desc_t *adesc,
+    batch_normalization_pd_t(const batch_normalization_desc_t *adesc,
             const primitive_attr_t *attr,
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, base_pkind)
+        : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
         , data_md_(desc_.data_desc)
@@ -124,11 +123,10 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
     typedef batch_normalization_fwd_pd_t base_class;
     typedef batch_normalization_fwd_pd_t hint_class;
 
-    batch_normalization_fwd_pd_t(engine_t *engine,
-            const batch_normalization_desc_t *adesc,
+    batch_normalization_fwd_pd_t(const batch_normalization_desc_t *adesc,
             const primitive_attr_t *attr,
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
-        : batch_normalization_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        : batch_normalization_pd_t(adesc, attr, hint_fwd_pd) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -199,11 +197,10 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
     typedef batch_normalization_bwd_pd_t base_class;
     typedef batch_normalization_fwd_pd_t hint_class;
 
-    batch_normalization_bwd_pd_t(engine_t *engine,
-            const batch_normalization_desc_t *adesc,
+    batch_normalization_bwd_pd_t(const batch_normalization_desc_t *adesc,
             const primitive_attr_t *attr,
             const batch_normalization_fwd_pd_t *hint_fwd_pd)
-        : batch_normalization_pd_t(engine, adesc, attr, hint_fwd_pd)
+        : batch_normalization_pd_t(adesc, attr, hint_fwd_pd)
         , diff_data_md_(desc_.diff_data_desc)
         , diff_scaleshift_md_(desc_.diff_data_scaleshift_desc) {}
 
@@ -232,6 +229,7 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
             case DNNL_ARG_MEAN: return src_md(1);
             case DNNL_ARG_VARIANCE: return src_md(2);
             case DNNL_ARG_SCALE_SHIFT: return weights_md(0);
+            case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
             case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
             case DNNL_ARG_DIFF_SCALE_SHIFT: return diff_weights_md(0);
             default: return batch_normalization_pd_t::arg_md(arg);

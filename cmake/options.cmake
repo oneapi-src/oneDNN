@@ -37,10 +37,8 @@ option(DNNL_ENABLE_CONCURRENT_EXEC
     CAUTION: enabling this option increases memory consumption."
     OFF) # disabled by default
 
-option(DNNL_ENABLE_PRIMITIVE_CACHE "enables primitive cache.
-    WARNING: the primitive cache is an experimental feature and might be
-    changed without prior notification in future releases" OFF)
-    # disabled by default
+option(DNNL_ENABLE_PRIMITIVE_CACHE "enables primitive cache." ON)
+    # enabled by default
 
 option(DNNL_ENABLE_MAX_CPU_ISA
     "enables control of CPU ISA detected by oneDNN via DNNL_MAX_CPU_ISA

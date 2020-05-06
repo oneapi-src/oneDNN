@@ -25,21 +25,24 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t cross_engine_reorder_t::pd_t::init_scratchpad(
-        memory_tracking::registrar_t &scratchpad) const {
+void cross_engine_reorder_t::pd_t::init_scratchpad() {
     using namespace memory_tracking::names;
+    if (!do_reorder_) return;
+
     const memory_desc_wrapper wspace_md(
             desc()->src_engine_kind == reorder_engine_kind_ ? dst_md()
                                                             : src_md());
-    scratchpad.book(
-            memory_tracking::names::key_reorder_cross_space, wspace_md.size());
-    return status::success;
+    auto scratchpad = scratchpad_registry().registrar();
+    scratchpad.book(memory_tracking::names::key_reorder_cross_space,
+            wspace_md.size(), 1, OCL_BUFFER_ALIGNMENT);
+    scratchpad.book(key_nested, reorder_pd_->scratchpad_registry());
 }
 
-status_t cross_engine_reorder_t::pd_t::init() {
-    bool args_ok = src_engine() != dst_engine()
-            && utils::one_of(engine_kind::gpu, src_engine()->kind(),
-                    dst_engine()->kind());
+status_t cross_engine_reorder_t::pd_t::init(
+        engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+    bool args_ok = src_engine != dst_engine
+            && utils::one_of(
+                    engine_kind::gpu, src_engine->kind(), dst_engine->kind());
 
     if (!args_ok) return status::unimplemented;
 
@@ -49,28 +52,25 @@ status_t cross_engine_reorder_t::pd_t::init() {
     bool with_sum_ab = alpha() != 1.0 || beta() != 0.0;
     do_reorder_ = with_sum_ab || src_mdw != dst_mdw;
 
-    engine_t *reorder_engine = src_engine()->kind() == engine_kind::gpu
-            ? src_engine()
-            : dst_engine();
+    engine_t *reorder_engine
+            = src_engine->kind() == engine_kind::gpu ? src_engine : dst_engine;
 
     auto r_impls = reorder_engine->get_reorder_implementation_list(
             src_md(), dst_md());
-    const primitive_attr_t r_attr(*attr());
+    primitive_attr_t r_attr(*attr());
+    r_attr.set_scratchpad_mode(scratchpad_mode::user);
     for (auto r = r_impls; *r; ++r) {
         reorder_pd_t *r_pd = nullptr;
         if ((*r)(&r_pd, reorder_engine, &r_attr, reorder_engine, src_md(),
                     reorder_engine, dst_md())
                 == status::success) {
-            reorder_.reset(r_pd);
+            reorder_pd_.reset(r_pd);
             break;
         }
     }
 
-    if (!reorder_) return status::unimplemented;
-    if (do_reorder_) {
-        auto scratchpad = scratchpad_registry().registrar();
-        init_scratchpad(scratchpad);
-    }
+    if (!reorder_pd_) return status::unimplemented;
+    init_scratchpad();
 
     return status::success;
 }
@@ -104,7 +104,10 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
         r_args[DNNL_ARG_DST]
                 = memory_arg_t {const_cast<memory_t *>(dst_mem), false};
 
-        exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+        exec_ctx_t r_ctx(ctx, std::move(r_args));
+
+        nested_scratchpad_t ns(ctx, key_nested, reorder_);
+        r_ctx.set_scratchpad_grantor(ns.grantor());
         return reorder_->execute(r_ctx);
     };
 

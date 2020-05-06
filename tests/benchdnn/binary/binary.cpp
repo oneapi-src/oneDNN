@@ -19,7 +19,7 @@
 
 #include "dnnl.h"
 
-#include "src/common/dnnl_thread.hpp"
+#include "tests/test_thread.hpp"
 
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
@@ -30,7 +30,9 @@
 
 namespace binary {
 
-static int init_pd(const prb_t *p, dnnl_primitive_desc_t &bpd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &bpd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_binary_desc_t bd;
     std::vector<dnnl_memory_desc_t> src_d;
     src_d.resize(p->n_inputs());
@@ -76,8 +78,8 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &bpd, res_t *r) {
     else
         SAFE(init_status, WARN);
 
-    const char *impl_str = query_impl_info(bpd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
+    r->impl_name = query_impl_info(bpd);
+    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
 
     return OK;
 }
@@ -150,14 +152,11 @@ int fill_src(
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-
-    dnnl_primitive_desc_t bpd;
-    SAFE(init_pd(p, bpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    engine_t engine_tgt;
 
     dnnl_primitive_t b;
-    DNN_SAFE(dnnl_primitive_create(&b, bpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(bpd), CRIT);
+    SAFE(init_prim(&b, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(b, &const_pd), CRIT);
@@ -206,7 +205,7 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_DST, dst_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
+    DNN_SAFE(execute_and_wait(b, engine_tgt, args), WARN);
 
     if (bench_mode & CORR) {
         compute_ref(p, src0_fp, src1_fp, dst_fp);
@@ -214,7 +213,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(compare(p, dst_fp, dst, r), WARN);
     }
 
-    measure_perf(r->timer, b, args);
+    measure_perf(r->timer, engine_tgt, b, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(b));
 

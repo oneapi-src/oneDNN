@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef Z_MAGIC_HPP
-#define Z_MAGIC_HPP
+#ifndef COMMON_Z_MAGIC_HPP
+#define COMMON_Z_MAGIC_HPP
 
 #define for_ for
 
@@ -42,6 +42,10 @@
 #if defined(_WIN32) && !defined(__GNUC__)
 #define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
+
+#define Z_DO_IF_0(...)
+#define Z_DO_IF_1(...) __VA_ARGS__
+#define Z_CONDITIONAL_DO(cond, ...) CONCAT2(Z_DO_IF_, cond)(__VA_ARGS__)
 
 #endif
 

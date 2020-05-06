@@ -36,20 +36,20 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             ? bias.offset() / types::data_type_size(exec_d->bias_type)
             : 0;
 
-    memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
+    const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
             ? &GEMM_CTX_ARG_STORAGE(output_scales)
-            : s_mem_storage_.get();
-    memory_storage_t *a0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_A)
+            : &CTX_GPU_RES_STORAGE(SCALES_);
+    const memory_storage_t *a0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_A)
             ? &GEMM_CTX_ARG_STORAGE(a_zero_point)
-            : a0_mem_storage_.get();
+            : &CTX_GPU_RES_STORAGE(A0_);
 
-    memory_storage_t *b0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_B)
+    const memory_storage_t *b0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_B)
             ? &GEMM_CTX_ARG_STORAGE(b_zero_point)
-            : b0_mem_storage_.get();
+            : &CTX_GPU_RES_STORAGE(B0_);
 
-    memory_storage_t *c0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_C)
+    const memory_storage_t *c0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_C)
             ? &GEMM_CTX_ARG_STORAGE(c_zero_point)
-            : c0_mem_storage_.get();
+            : &CTX_GPU_RES_STORAGE(C0_);
 
     int c0_mask = 0;
     pd()->attr()->zero_points_.get(DNNL_ARG_C, nullptr, &c0_mask, nullptr);
@@ -66,11 +66,11 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const dim_t ldc = exec_d->ldc;
 
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
-    const float eltwise_alpha = pd()->eltwise_alpha();
-    const float eltwise_beta = pd()->eltwise_beta();
-    const float eltwise_scale = pd()->eltwise_scale();
+    const float eltwise_alpha = pd()->attr_info.eltwise_alpha;
+    const float eltwise_beta = pd()->attr_info.eltwise_beta;
+    const float eltwise_scale = pd()->attr_info.eltwise_scale;
     const int bias_mask = exec_d->bias_mask;
-    const float beta = pd()->sum_scale();
+    const float beta = pd()->attr_info.sum_scale;
 
     const int tra = exec_d->transa == transpose::trans;
     const int trb = exec_d->transb == transpose::trans;
@@ -110,9 +110,8 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     const size_t gws[3] = {1, (size_t)N, (size_t)MB};
     const auto nd_range = compute::nd_range_t(gws);
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
 }

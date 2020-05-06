@@ -16,15 +16,16 @@
 
 #include <initializer_list>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
+#include "common/rnn.hpp"
+#include "common/type_helpers.hpp"
 
-#include "gemm/gemm_pack.hpp"
-#include "ref_rnn.hpp"
-#include "rnn.hpp"
-#include "rnn_utils.hpp"
-#include "type_helpers.hpp"
+#include "cpu/gemm/gemm_pack.hpp"
+
+#include "cpu/rnn/ref_rnn.hpp"
+#include "cpu/rnn/rnn_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -39,6 +40,7 @@ using namespace data_type;
 static bool check_dims_contiguous_except_one(const memory_desc_wrapper &mdw,
         int idx_with_arbitrary_stride, std::initializer_list<int> perm) {
     if (mdw.format_kind() != format_kind::blocked) return false;
+    if ((size_t)mdw.ndims() != perm.size()) return false;
 
     const auto &blk = mdw.blocking_desc();
 

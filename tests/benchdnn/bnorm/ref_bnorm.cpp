@@ -14,89 +14,102 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/common/dnnl_thread.hpp"
+#include "tests/test_thread.hpp"
 
 #include "bnorm/bnorm.hpp"
 
 namespace bnorm {
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
-        dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst) {
+void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
+        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &ss,
+        dnn_mem_t &ws, dnn_mem_t &dst, dnn_mem_t &src_hat) {
+    const int64_t MB = p->mb;
+    const int64_t C = p->ic;
+    const int64_t D = p->id;
+    const int64_t H = p->ih;
+    const int64_t W = p->iw;
+    const bool use_scale_shift = p->flags & USE_SCALESHIFT;
+    const bool fuse_relu = p->flags & FUSE_NORM_RELU;
+    const bool need_ws = p->need_ws();
 
-    dnnl::impl::parallel_nd(p->ic, [&](int64_t c) {
-        float smean = ((float *)mean)[c];
-        float svar = ((float *)var)[c];
+    const auto dt = p->dt;
+    const auto &attr = p->attr;
+
+    dnnl::impl::parallel_nd(C, [&](int64_t c) {
+        float smean = mean.get_elem(c);
+        float svar = var.get_elem(c);
         float sqrt_var = sqrtf(svar + p->eps);
+        float rcp_denom = 1.f / sqrt_var;
+        float gamma = use_scale_shift ? ss.get_elem(c) : 1.f;
+        float beta = use_scale_shift ? ss.get_elem(C + c) : 0;
 
-        float gamma = (p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1.0f)
-                / sqrt_var;
-        float beta = p->flags & USE_SCALESHIFT ? ((float *)ss)[p->ic + c] : 0;
-
-        for_(int64_t mb = 0; mb < p->mb; ++mb)
-        for_(int64_t d = 0; d < p->id; ++d)
-        for_(int64_t h = 0; h < p->ih; ++h)
-        for (int64_t w = 0; w < p->iw; ++w) {
+        for_(int64_t mb = 0; mb < MB; ++mb)
+        for_(int64_t d = 0; d < D; ++d)
+        for_(int64_t h = 0; h < H; ++h)
+        for (int64_t w = 0; w < W; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
-            float res = gamma * (((float *)src)[off] - smean) + beta;
+            float x_hat = (src.get_elem(off) - smean) * rcp_denom;
+            float res = gamma * x_hat + beta;
             float &D = ((float *)dst)[off];
-            if ((p->flags & FUSE_NORM_RELU) && res < 0) res = 0;
-            maybe_post_ops(res, D, p->attr);
-            D = maybe_saturate(p->dt, res);
+            if (fuse_relu && res < 0) res = 0;
+            if (need_ws) ws.set_elem(off, !!res);
+            maybe_post_ops(res, D, attr);
+            D = maybe_saturate(dt, res);
+            if (p->dir & FLAG_BWD) src_hat.set_elem(off, x_hat);
         }
     });
 }
 
-void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
-        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
-        const dnn_mem_t &ss, const dnn_mem_t &rmask, dnn_mem_t &d_src,
-        dnn_mem_t &d_ss) {
-    const float NHW = p->mb * p->id * p->ih * p->iw;
+void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src_hat,
+        const dnn_mem_t &var, const dnn_mem_t &d_dst, const dnn_mem_t &ss,
+        const dnn_mem_t &ws, dnn_mem_t &d_src, dnn_mem_t &d_ss) {
+    const int64_t MB = p->mb;
+    const int64_t C = p->ic;
+    const int64_t D = p->id;
+    const int64_t H = p->ih;
+    const int64_t W = p->iw;
+    const bool glob_stats = p->flags & GLOB_STATS;
+    const bool use_scale_shift = p->flags & USE_SCALESHIFT;
+    const bool fuse_relu = p->flags & FUSE_NORM_RELU;
 
-    dnnl::impl::parallel_nd(p->ic, [&](int64_t c) {
-        float smean = ((float *)mean)[c];
-        float svar = ((float *)var)[c];
-        float rcp_denom = 1.f / sqrtf(svar + p->eps);
+    const float MB_SP = MB * D * H * W;
 
-        float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
+    dnnl::impl::parallel_nd(C, [&](int64_t c) {
+        float rcp_denom = 1.f / sqrtf(var.get_elem(c) + p->eps);
+        float gamma = use_scale_shift ? ss.get_elem(c) : 1.f;
 
         float d_gamma = 0;
         float d_beta = 0;
 
-        for_(int64_t mb = 0; mb < p->mb; ++mb)
-        for_(int64_t d = 0; d < p->id; ++d)
-        for_(int64_t h = 0; h < p->ih; ++h)
-        for (int64_t w = 0; w < p->iw; ++w) {
+        for_(int64_t mb = 0; mb < MB; ++mb)
+        for_(int64_t d = 0; d < D; ++d)
+        for_(int64_t h = 0; h < H; ++h)
+        for (int64_t w = 0; w < W; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
-            float dd = ((float *)d_dst)[off];
-            if ((p->flags & FUSE_NORM_RELU) && ((float *)rmask)[off] == 0)
-                dd = 0;
-
-            d_gamma += dd * (((float *)src)[off] - smean);
+            float dd = d_dst.get_elem(off);
+            if (fuse_relu && ws.get_elem(off) == 0) dd = 0;
+            d_gamma += dd * src_hat.get_elem(off);
             d_beta += dd;
         }
-        d_gamma *= rcp_denom;
 
-        if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
-            ((float *)d_ss)[c] = d_gamma;
-            ((float *)d_ss)[p->ic + c] = d_beta;
+        if (use_scale_shift && (p->dir & FLAG_WEI)) {
+            d_ss.set_elem(c, d_gamma);
+            d_ss.set_elem(C + c, d_beta);
         }
 
-        for_(int64_t mb = 0; mb < p->mb; ++mb)
-        for_(int64_t d = 0; d < p->id; ++d)
-        for_(int64_t h = 0; h < p->ih; ++h)
-        for (int64_t w = 0; w < p->iw; ++w) {
+        for_(int64_t mb = 0; mb < MB; ++mb)
+        for_(int64_t d = 0; d < D; ++d)
+        for_(int64_t h = 0; h < H; ++h)
+        for (int64_t w = 0; w < W; ++w) {
             auto off = data_off(p, mb, c, d, h, w);
-            float dd = ((float *)d_dst)[off];
-            if ((p->flags & FUSE_NORM_RELU) && ((float *)rmask)[off] == 0)
-                dd = 0;
+            float dd = d_dst.get_elem(off);
+            if (fuse_relu && ws.get_elem(off) == 0) dd = 0;
             float ds = dd;
 
-            if (!(p->flags & GLOB_STATS)) {
-                const float x = ((float *)src)[off] - smean;
-                ds -= (d_beta + x * d_gamma * rcp_denom) / NHW;
-            }
+            if (!glob_stats)
+                ds -= (d_beta + src_hat.get_elem(off) * d_gamma) / MB_SP;
 
-            ((float *)d_src)[off] = rcp_denom * ds * gamma;
+            d_src.set_elem(off, rcp_denom * ds * gamma);
         }
     });
 }

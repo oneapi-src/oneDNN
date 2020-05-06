@@ -21,20 +21,12 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_binary_t::pd_t::init_conf() {
+status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper src0_d(src_md(0));
     const memory_desc_wrapper src1_d(src_md(1));
     const memory_desc_wrapper dst_d(dst_md());
 
     alg_kind_t alg = desc()->alg_kind;
-
-    const auto &po = attr()->post_ops_;
-    bool with_sum = po.contain(primitive_kind::sum, 0)
-            && po.entry_[0].sum.scale != 0.f;
-    float sum_scale = with_sum ? po.entry_[0].sum.scale : 1;
-    int e_idx = po.find(primitive_kind::eltwise);
-    bool with_eltwise = e_idx != -1 ? true : false;
-    float eltwise_scale = with_eltwise ? po.entry_[e_idx].eltwise.scale : 1;
 
     const int ndims = src0_d.ndims();
     conf.src0_md_info = memory_desc_info_t::create(src0_d);
@@ -54,13 +46,6 @@ status_t ref_binary_t::pd_t::init_conf() {
     conf.is_dense = dst_d.is_dense();
     conf.same_src_dt = (src0_d.data_type() == src1_d.data_type());
     conf.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
-    conf.with_src0_scale = with_scales(DNNL_ARG_SRC_0);
-    conf.with_src1_scale = with_scales(DNNL_ARG_SRC_1);
-    conf.with_eltwise = with_eltwise;
-    conf.with_sum = with_sum;
-    conf.sum_scale = sum_scale;
-    conf.eltwise_scale = eltwise_scale;
-    if (with_eltwise) { conf.eltwise = po.entry_[e_idx].eltwise; }
     int ic_block_sz = 1;
     conf.use_unroll_16b = false;
     conf.src0_unroll_16b = false;
@@ -86,8 +71,7 @@ status_t ref_binary_t::pd_t::init_conf() {
         }
     }
 
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(engine());
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_d.md_);
     if (conf.is_tensor_op && conf.is_dense && conf.is_same_md) {
         conf.dispatch.define_dim("IDX", 0, dst_d.nelems());
@@ -111,6 +95,7 @@ status_t ref_binary_t::pd_t::init_conf() {
         }
     }
     conf.dispatch.generate();
+    conf.attr_info = attr_info_t::create(attr());
     return status::success;
 }
 
@@ -132,13 +117,6 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("BCAST_DIM3", conf.bcast_dims[3]);
     kernel_ctx.define_int("BCAST_DIM4", conf.bcast_dims[4]);
     kernel_ctx.define_int("BCAST_DIM5", conf.bcast_dims[5]);
-    kernel_ctx.define_int("WITH_ELTWISE", conf.with_eltwise);
-    kernel_ctx.define_int("WITH_SUM", conf.with_sum);
-    kernel_ctx.define_int("SUM_SCALE", conf.sum_scale == 1);
-    kernel_ctx.define_int("SRC0_S", conf.src0_data_type == data_type::s8);
-    kernel_ctx.define_int("SRC1_S", conf.src1_data_type == data_type::s8);
-    kernel_ctx.define_int("SRC0_SCALE", conf.with_src0_scale);
-    kernel_ctx.define_int("SRC1_SCALE", conf.with_src1_scale);
     kernel_ctx.define_int("USE_UNROLL_16B", conf.use_unroll_16b);
     kernel_ctx.define_int("SRC0_UNROLL_16B", conf.src0_unroll_16b);
 
@@ -146,7 +124,7 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
-    if (conf.with_eltwise) { def_postops(kernel_ctx, conf.eltwise.alg); }
+    def_attr_info(kernel_ctx, conf.attr_info);
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -154,17 +132,19 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
 }
 
 status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto &src0 = CTX_IN_STORAGE(DNNL_ARG_SRC_0);
     auto &src1 = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    auto eltwise_alpha = pd()->eltwise_alpha();
-    auto eltwise_beta = pd()->eltwise_beta();
-    auto sum_scale = pd()->sum_scale();
-    auto eltwise_scale = pd()->eltwise_scale();
+    const auto &conf = pd()->conf;
+
+    auto eltwise_scale = conf.attr_info.eltwise_scale;
+    auto eltwise_alpha = conf.attr_info.eltwise_alpha;
+    auto eltwise_beta = conf.attr_info.eltwise_beta;
+    auto sum_scale = conf.attr_info.sum_scale;
+    auto src0_scale = conf.attr_info.src0_scale;
+    auto src1_scale = conf.attr_info.src1_scale;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src0);
@@ -174,25 +154,12 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(4, eltwise_beta);
     arg_list.set(5, eltwise_scale);
     arg_list.set(6, sum_scale);
-    if (utils::one_of(
-                pd()->src_md()->data_type, data_type::u8, data_type::s8)) {
-        if (pd()->with_scales(DNNL_ARG_SRC_0)) {
-            auto src0_scale = pd()->get_scale(DNNL_ARG_SRC_0);
-            arg_list.set(7, src0_scale);
-            if (pd()->with_scales(DNNL_ARG_SRC_1)) {
-                auto src1_scale = pd()->get_scale(DNNL_ARG_SRC_1);
-                arg_list.set(8, src1_scale);
-            }
-        } else if (pd()->with_scales(DNNL_ARG_SRC_1)) {
-            auto src1_scale = pd()->get_scale(DNNL_ARG_SRC_1);
-            arg_list.set(7, src1_scale);
-        }
-    }
-
-    const auto &conf = pd()->conf;
+    arg_list.set(7, src0_scale);
+    arg_list.set(8, src1_scale);
 
     auto nd_range = conf.dispatch.nd_range();
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;
 }
 

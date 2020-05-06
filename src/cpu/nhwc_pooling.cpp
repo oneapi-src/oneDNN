@@ -17,13 +17,15 @@
 #include <assert.h>
 #include <math.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
-#include "nstl.hpp"
-#include "type_helpers.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
+#include "common/nstl.hpp"
+#include "common/type_helpers.hpp"
 
-#include "nhwc_pooling.hpp"
+#include "cpu/simple_q10n.hpp"
+
+#include "cpu/nhwc_pooling.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -54,7 +56,7 @@ void nhwc_pooling_fwd_t<d_type>::array_div_by_const(const int n,
     for (int i = 0; i < n; ++i) {
         float ftmp = (float)src[i];
         ftmp = ftmp / num;
-        dst[i] = math::out_round<ker_data_t>(ftmp);
+        dst[i] = out_round<ker_data_t>(ftmp);
     }
 }
 
@@ -349,7 +351,6 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
 
 template <data_type_t d_type>
 void nhwc_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
-
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);

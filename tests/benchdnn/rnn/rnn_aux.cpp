@@ -253,8 +253,10 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--with-peephole=" << bool2str(p.with_peephole) << " ";
     if (canonical || p.with_projection != def.with_projection[0])
         s << "--with-projection=" << bool2str(p.with_projection) << " ";
-    if (canonical || p.scale_policy != def.scale_policy[0])
-        s << "--scaling=" << p.scale_policy << " ";
+    if (canonical || p.wei_scales_policy != def.scale_policy[0])
+        s << "--scaling=" << p.wei_scales_policy << " ";
+    if (canonical || p.trivial_strides != def.trivial_strides[0])
+        s << "--trivial-strides=" << bool2str(p.trivial_strides) << " ";
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << static_cast<const desc_t &>(p);
@@ -648,9 +650,9 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     diff_norm.done();
 
     if (!check_norm0) {
-        if (!((diff_norm.rel_diff(norm_t::L1) < rel_eps)
-                    && (diff_norm.rel_diff(norm_t::L2) < rel_eps)
-                    && (diff_norm.rel_diff(norm_t::L8) < rel_eps)))
+        if (!((diff_norm.rel_diff(norm_t::L1) <= rel_eps)
+                    && (diff_norm.rel_diff(norm_t::L2) <= rel_eps)
+                    && (diff_norm.rel_diff(norm_t::L8) <= rel_eps)))
             errors++;
     }
 
@@ -691,7 +693,7 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
     if (!cfg.is_int8()) {
         data_shift = 0.;
         data_scale = 1.;
-        wei_scale = 1.;
+        wei_scales[0] = 1.;
         return;
     }
 
@@ -704,15 +706,13 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
     data_shift = cfg[SRC_LAYER].f_mean;
     data_scale = int8_src_range / fp_range;
 
-    if (scale_policy == policy_t::COMMON) {
-        wei_scale = int8_wei_range / fp_range;
-    } else if (scale_policy == policy_t::PER_OC) {
-        float K = int8_wei_range / fp_range;
-        const auto nelems = dhc * n_gates();
-        for (int64_t i = 0; i < nelems; i++) {
-            wei_oc_scales[i] = K * (1. + (float)i / nelems);
-        }
-    }
+    float K = int8_wei_range / fp_range;
+    auto set_wei_scales = [&](float *scales, int nelems) {
+        for (int64_t i = 0; i < nelems; i++)
+            scales[i] = K * (1. + (float)i / nelems);
+    };
+
+    set_wei_scales(wei_scales, wei_nscales);
 }
 
 void prb_t::set_tparams(float fp_min, float fp_max) {

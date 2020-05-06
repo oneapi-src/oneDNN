@@ -26,18 +26,20 @@ namespace ocl {
 
 status_t gemm_inner_product_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
     using namespace gemm_utils;
-
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     gemm_exec_args_t gemm_args;
     gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC);
     gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
-    status_t gemm_exec_status = gemm_impl(gemm_)->execute(gemm_ctx);
+    gemm_exec_ctx_t gemm_ctx(ctx, gemm_args);
+
+    nested_scratchpad_t ns(ctx, key_nested, gemm_);
+    gemm_ctx.set_scratchpad_grantor(ns.grantor());
+
+    status_t gemm_exec_status = gpu_gemm(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_bias()) {
@@ -49,8 +51,9 @@ status_t gemm_inner_product_fwd_t::execute_forward(
         arg_list.set(1, dst);
 
         auto nd_range = compute::nd_range_t({pd()->MB() * pd()->OC()});
-        status_t bias_status = compute_stream->parallel_for(
-                nd_range, bias_kernel_, arg_list);
+
+        status_t bias_status
+                = parallel_for(ctx, nd_range, bias_kernel_, arg_list);
         if (bias_status != status::success) return bias_status;
     }
 
@@ -59,6 +62,7 @@ status_t gemm_inner_product_fwd_t::execute_forward(
 
 status_t gemm_inner_product_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
     using namespace gemm_utils;
 
     gemm_exec_args_t gemm_args;
@@ -66,8 +70,12 @@ status_t gemm_inner_product_bwd_data_t::execute_backward_data(
     gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
-    gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
-    status_t gemm_exec_status = gemm_impl(gemm_)->execute(gemm_ctx);
+    gemm_exec_ctx_t gemm_ctx(ctx, gemm_args);
+
+    nested_scratchpad_t ns(ctx, key_nested, gemm_);
+    gemm_ctx.set_scratchpad_grantor(ns.grantor());
+
+    status_t gemm_exec_status = gpu_gemm(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     return status::success;
@@ -75,10 +83,8 @@ status_t gemm_inner_product_bwd_data_t::execute_backward_data(
 
 status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
     using namespace gemm_utils;
-
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     gemm_exec_args_t gemm_args;
     if (pd()->wei_tr()) {
@@ -90,8 +96,12 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
     }
     gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS);
 
-    gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
-    status_t gemm_exec_status = gemm_impl(gemm_)->execute(gemm_ctx);
+    gemm_exec_ctx_t gemm_ctx(ctx, gemm_args);
+
+    nested_scratchpad_t ns(ctx, key_nested, gemm_);
+    gemm_ctx.set_scratchpad_grantor(ns.grantor());
+
+    status_t gemm_exec_status = gpu_gemm(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_bias()) {
@@ -103,8 +113,9 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
         arg_list.set(1, diff_bias);
 
         auto nd_range = compute::nd_range_t({pd()->OC()});
-        status_t bias_status = compute_stream->parallel_for(
-                nd_range, bias_kernel_, arg_list);
+
+        status_t bias_status
+                = parallel_for(ctx, nd_range, bias_kernel_, arg_list);
         if (bias_status != status::success) return bias_status;
     }
 

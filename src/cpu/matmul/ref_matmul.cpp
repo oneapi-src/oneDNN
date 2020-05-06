@@ -18,13 +18,15 @@
 #include <float.h>
 #include <math.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
+#include "common/type_helpers.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/simple_q10n.hpp"
 
-#include "ref_matmul.hpp"
+#include "cpu/matmul/ref_matmul.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -98,9 +100,6 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
 
     // computations
     parallel_nd(MB, M, N, [&](dim_t mb, dim_t m, dim_t n) {
-        using math::saturate;
-        using math::out_round;
-
         auto &dst_value = dst[batched ? dst_d.off(mb, m, n) : dst_d.off(m, n)];
 
         acc_data_t acc = ker(mb, m, n);
@@ -114,12 +113,13 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
             if (utils::one_of(dst_type, data_type::f32, data_type::bf16))
                 dst_value = res;
             else
-                dst_value = saturate<dst_data_t>(out_round<int32_t>(res));
+                dst_value = cpu::saturate<dst_data_t>(
+                        cpu::out_round<int32_t>(res));
         } else {
             if (utils::one_of(dst_type, data_type::f32, data_type::bf16))
                 dst_value = (dst_data_t)acc;
             else
-                dst_value = saturate<dst_data_t>(acc);
+                dst_value = cpu::saturate<dst_data_t>(acc);
         }
     });
 

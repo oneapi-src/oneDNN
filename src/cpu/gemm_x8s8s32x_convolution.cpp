@@ -14,16 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
-#include "simple_q10n.hpp"
+#include "cpu/simple_q10n.hpp"
 
-#include "gemm/gemm.hpp"
-#include "gemm_x8s8s32x_convolution.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm_x8s8s32x_convolution.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,7 +34,7 @@ using namespace dnnl::impl::math;
 using namespace dnnl::impl::memory_tracking::names;
 
 template <data_type_t src_type, data_type_t dst_type>
-void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
+status_t _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -43,473 +43,29 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
 
+    status_t st = status::success;
+
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
-        execute_forward_thr(
+        status_t st_thr = execute_forward_thr(
                 ithr, nthr, src_base, wei_base, bia_base, dst_base, scratchpad);
+
+        if (st_thr != status::success) st = st_thr;
     });
+
+    return st;
 }
 
 template <data_type_t src_type, data_type_t dst_type>
-_gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::pp_ker_t(
-        const pd_t *pd)
-    : ker_(nullptr)
-    , jcp_(pd->jcp_)
-    , OC_(pd->jcp_.oc)
-    , OS_(pd->jcp_.os)
-    , bias_data_type_(data_type::undef)
-    , bias_data_type_size_(0)
-    , scale_idx_mult_(0)
-    , do_bias_(false)
-    , do_eltwise_(false)
-    , do_sum_(false)
-    , eltwise_injector_(nullptr)
-    , eltwise_(nullptr) {
-    using namespace types;
-
-    const auto dst_md = memory_desc_wrapper(pd->dst_md());
-
-    dst_os_stride_ = dst_md.blocking_desc().strides[pd->ndims() - 1];
-
-    scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
-
-    auto &post_ops = pd->attr()->post_ops_;
-
-    do_signed_scaling_ = jcp_.signed_input;
-
-    do_sum_ = post_ops.contain(primitive_kind::sum, 0);
-    do_bias_ = pd->with_bias();
-    bias_data_type_ = pd->desc()->bias_desc.data_type;
-    if (do_bias_) {
-        assert(bias_data_type_ != data_type::undef);
-        bias_data_type_size_ = data_type_size(bias_data_type_);
-    }
-    const size_t vlen_start
-            = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
-
-    for (size_t i = vlen_start; i > 0; i--) {
-        if (OC_ % i == 0) {
-            vlen_ = i;
-            break;
-        }
-    }
-
-    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
-    do_eltwise_ = eltwise_ind != -1;
-
-    if (!mayiuse(avx512_core)) {
-        if (do_eltwise_) {
-            eltwise_ = new ref_eltwise_scalar_fwd_t(
-                    post_ops.entry_[eltwise_ind].eltwise);
-        }
-        return;
-    } else {
-        if (do_eltwise_) {
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
-                    this, post_ops.entry_[eltwise_ind].eltwise, true,
-                    Xbyak::util::rax, Xbyak::Opmask(2));
-        }
-        generate();
-    }
-}
-
-template <data_type_t src_type, data_type_t dst_type>
-void _gemm_x8s8s32x_convolution_fwd_t<src_type,
-        dst_type>::pp_ker_t::generate() {
-    using namespace Xbyak;
-    using namespace utils;
-
-    // TODO: clean-up
-    Reg64 reg_param = abi_param1;
-    Reg64 reg_dst = rdx;
-    Reg64 reg_acc = rax;
-    Reg64 reg_bias = rbx;
-    Reg64 reg_scales = rsi;
-
-    Reg64 reg_len = r8;
-    Reg64 reg_tmp = rcx; // intentional for shifting purposes
-    Reg64 reg_oc_offset = r9;
-    Reg64 reg_rem_mask_short = r10;
-    Reg64 reg_rem_mask_vlen = r11;
-    Opmask kreg_rem_mask_short = k1;
-    Opmask kreg_rem_mask_vlen = k3;
-
-    const size_t vlen = vlen_;
-
-    Zmm vreg_zero = Zmm(0);
-    Zmm vreg_scale = Zmm(1);
-    Zmm vreg_nslope = Zmm(2);
-    Zmm vreg_sum_scale = Zmm(3);
-    Zmm vreg_signed_scale = Zmm(4);
-
-    size_t def_unroll = 4;
-    size_t max_unroll = 12;
-    size_t zmm_step = 2;
-    if (do_sum_) {
-        max_unroll = 8;
-        zmm_step = 3;
-    }
-
-    auto vreg_dst = [&](int idx) { return Zmm(5 + idx * zmm_step + 0); };
-    auto vreg_bias = [&](int idx) { return Zmm(5 + idx * zmm_step + 1); };
-    auto vreg_prev_dst = [&](int idx) { return Zmm(5 + idx * zmm_step + 2); };
-
-    preamble();
-
-#define PARAM_OFF(x) offsetof(ker_args, x)
-    mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
-    mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
-    mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
-    mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
-    mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
-    mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
-    vbroadcastss(vreg_nslope, ptr[reg_param + PARAM_OFF(nslope)]);
-    vbroadcastss(vreg_sum_scale, ptr[reg_param + PARAM_OFF(sum_scale)]);
-    vbroadcastss(vreg_signed_scale, ptr[reg_param + PARAM_OFF(signed_scale)]);
-    if (scale_idx_mult_ == 0) vbroadcastss(vreg_scale, dword[reg_scales]);
-
-#undef PARAM_OFF
-
-    mov(reg_rem_mask_vlen, 1);
-    shl(reg_rem_mask_vlen, vlen);
-    sub(reg_rem_mask_vlen, 1);
-    kmovq(kreg_rem_mask_vlen, reg_rem_mask_vlen);
-
-    if (do_eltwise_ || dst_type == data_type::u8)
-        vxorps(vreg_zero, vreg_zero, vreg_zero);
-
-    // Load accumulated value, convert to float, apply sum (if any),
-    // bias (if any), scaling, and relu (if any);
-    // then convert to destination type and store
-    auto compute = [&](size_t offset, int idx, bool apply_mask) {
-        auto acc_addr = ptr[reg_acc + offset * sizeof(acc_data_t)];
-
-        if (scale_idx_mult_ > 0) {
-            assert(scale_idx_mult_ == 1);
-            auto scale_addr = ptr[reg_scales + offset * sizeof(float)];
-            auto vreg_scale_ = vreg_scale;
-            if (apply_mask)
-                vreg_scale_ = vreg_scale_ | kreg_rem_mask_short;
-            else
-                vreg_scale_ = vreg_scale_ | kreg_rem_mask_vlen;
-            vmovups(vreg_scale_, scale_addr);
-        }
-
-        auto vreg_dst_ = vreg_dst(idx);
-        if (apply_mask)
-            vreg_dst_ = vreg_dst_ | kreg_rem_mask_short;
-        else
-            vreg_dst_ = vreg_dst_ | kreg_rem_mask_vlen;
-        vcvtdq2ps(vreg_dst_, acc_addr);
-
-        if (do_signed_scaling_)
-            vmulps(vreg_dst(idx), vreg_dst(idx), vreg_signed_scale);
-
-        if (do_bias_) {
-            auto bias_addr = ptr[reg_bias + offset * bias_data_type_size_];
-            auto vreg_bias_ = vreg_bias(idx);
-            if (apply_mask)
-                vreg_bias_ = vreg_bias_ | kreg_rem_mask_short;
-            else
-                vreg_bias_ = vreg_bias_ | kreg_rem_mask_vlen;
-
-            switch (bias_data_type_) {
-                case data_type::s8: vpmovsxbd(vreg_bias_, bias_addr); break;
-                case data_type::u8: vpmovzxbd(vreg_bias_, bias_addr); break;
-                case data_type::s32:
-                case data_type::f32: vmovups(vreg_bias_, bias_addr); break;
-                default: assert(!"unimplemented");
-            }
-            if (bias_data_type_ != data_type::f32)
-                vcvtdq2ps(vreg_bias(idx), vreg_bias(idx));
-            vaddps(vreg_dst(idx), vreg_dst(idx), vreg_bias(idx));
-        }
-
-        vmulps(vreg_dst(idx), vreg_dst(idx), vreg_scale);
-
-        auto dst_addr = ptr[reg_dst + offset * sizeof(dst_data_t)];
-
-        if (do_sum_) {
-            auto vreg_prev_dst_ = vreg_prev_dst(idx);
-            if (apply_mask)
-                vreg_prev_dst_ = vreg_prev_dst_ | kreg_rem_mask_short;
-            else
-                vreg_prev_dst_ = vreg_prev_dst_ | kreg_rem_mask_vlen;
-
-            switch (dst_type) {
-                case data_type::f32:
-                case data_type::s32: vmovups(vreg_prev_dst_, dst_addr); break;
-                case data_type::s8: vpmovsxbd(vreg_prev_dst_, dst_addr); break;
-                case data_type::u8: vpmovzxbd(vreg_prev_dst_, dst_addr); break;
-                default: assert(!"unsupported data type");
-            }
-            if (dst_type != data_type::f32)
-                vcvtdq2ps(vreg_prev_dst(idx), vreg_prev_dst(idx));
-
-            vfmadd231ps(vreg_dst(idx), vreg_prev_dst(idx), vreg_sum_scale);
-        }
-
-        if (do_eltwise_) {
-            eltwise_injector_->compute_vector(vreg_dst(idx).getIdx());
-        }
-
-        if (dst_type != data_type::f32) {
-            vcvtps2dq(vreg_dst(idx), vreg_dst(idx));
-        }
-
-        if (dst_type == data_type::u8)
-            vpmaxsd(vreg_dst(idx), vreg_dst(idx), vreg_zero);
-
-        switch (dst_type) {
-            case data_type::s8: vpmovsdb(dst_addr, vreg_dst_); break;
-            case data_type::u8: vpmovusdb(dst_addr, vreg_dst_); break;
-            case data_type::f32:
-            case data_type::s32: vmovups(dst_addr, vreg_dst_); break;
-            default: assert(!"unimplemented");
-        }
-    };
-
-    // Advance all pointers by an immediate
-    auto advance_ptrs_imm = [&](size_t offset) {
-        add(reg_dst, offset * sizeof(dst_data_t));
-        add(reg_acc, offset * sizeof(acc_data_t));
-        if (scale_idx_mult_) {
-            assert(scale_idx_mult_ == 1);
-            add(reg_scales, offset * sizeof(float));
-        }
-        if (do_bias_) add(reg_bias, offset * bias_data_type_size_);
-    };
-
-    // Advance all pointers by a value stored in a register
-    auto advance_ptrs_reg = [&](Reg64 offset) {
-        lea(reg_dst, ptr[reg_dst + offset * sizeof(dst_data_t)]);
-        lea(reg_acc, ptr[reg_acc + offset * sizeof(acc_data_t)]);
-        if (scale_idx_mult_) {
-            assert(scale_idx_mult_ == 1);
-            lea(reg_scales, ptr[reg_scales + offset * sizeof(float)]);
-        }
-        if (do_bias_)
-            lea(reg_bias, ptr[reg_bias + offset * bias_data_type_size_]);
-    };
-
-    // Rewind pointers that point to data that is indexed by output channel
-    // (bias or per-oc scaling factors)
-    auto rewind_ptrs = [&]() {
-        if (do_bias_) sub(reg_bias, OC_ * bias_data_type_size_);
-        if (scale_idx_mult_) {
-            assert(scale_idx_mult_ == 1);
-            sub(reg_scales, OC_ * sizeof(float));
-        }
-        add(reg_dst, (dst_os_stride_ - OC_) * sizeof(dst_data_t));
-    };
-
-    //                    <--------- OC --------------->
-    //
-    // ^  ................+..............+-------------+.......................
-    // |  .               : not accessed |Prologue loop|                      .
-    // |  .               +--------------+-------------+                      .
-    //    .               |                            |                      .
-    // O  .               |  Main loop (unrolled)      |                      .
-    // S  .               |                            |                      .
-    //    .               +--------------+-------------+                      .
-    // |  .               | Epilogue loop|not accessed :                      .
-    // v  ................+--------------+.............+.......................
-
-    Label prologue_end;
-    cmp(reg_oc_offset, 0);
-    je(prologue_end, T_NEAR);
-
-    // Prologue loop
-    {
-        mov(reg_tmp, OC_);
-        sub(reg_tmp, reg_oc_offset);
-        cmp(reg_tmp, reg_len);
-        cmovg(reg_tmp, reg_len);
-        sub(reg_len, reg_tmp);
-
-        Label prologue_loop, prologue_loop_tail, prologue_loop_end;
-        cmp(reg_tmp, vlen);
-        jle(prologue_loop_tail, T_NEAR);
-        L(prologue_loop);
-        {
-            compute(0, 0, false);
-            advance_ptrs_imm(vlen);
-            sub(reg_tmp, vlen);
-            cmp(reg_tmp, vlen);
-            jge(prologue_loop, T_NEAR);
-        }
-
-        L(prologue_loop_tail);
-        mov(reg_rem_mask_short, 1);
-        // cl == reg_tmp because reg_tmp <= vlen here
-        shl(reg_rem_mask_short, cl);
-        sub(reg_rem_mask_short, 1);
-        jz(prologue_loop_end, T_NEAR);
-
-        kmovq(kreg_rem_mask_short, reg_rem_mask_short);
-        compute(0, 0, true);
-        advance_ptrs_reg(reg_tmp);
-
-        L(prologue_loop_end);
-        rewind_ptrs();
-    }
-    L(prologue_end);
-
-    // Main loop
-    Label main_loop_end;
-    {
-        cmp(reg_len, OC_);
-        jle(main_loop_end, T_NEAR);
-
-        Label main_loop;
-        L(main_loop);
-        {
-            size_t OC_loop, OC_tail;
-            if (OC_ < max_unroll * vlen) {
-                // Fully unroll small loops
-                OC_loop = 0;
-                OC_tail = OC_;
-            } else {
-                OC_loop = vlen * def_unroll;
-                OC_tail = OC_ % OC_loop;
-            }
-
-            assert(!!OC_loop || !!OC_tail);
-
-            if (OC_tail % vlen) {
-                int vlen_tail = OC_tail % vlen;
-                unsigned tail_mask = (1 << vlen_tail) - 1;
-                mov(reg_tmp, tail_mask);
-                kmovq(kreg_rem_mask_short, reg_tmp);
-            }
-
-            if (OC_loop) {
-                mov(reg_tmp, rnd_dn(OC_, OC_loop));
-                Label oc_loop;
-                L(oc_loop);
-                {
-                    for (size_t offset = 0; offset < OC_loop; offset += vlen)
-                        compute(offset, offset / vlen, false);
-                    advance_ptrs_imm(OC_loop);
-                    sub(reg_tmp, OC_loop);
-                    jnz(oc_loop);
-                }
-            }
-
-            if (OC_tail) {
-                for (size_t offset = 0; offset < OC_tail; offset += vlen) {
-                    bool use_mask = (offset + vlen) > OC_tail;
-                    compute(offset, offset / vlen, use_mask);
-                }
-                advance_ptrs_imm(OC_tail);
-            }
-
-            rewind_ptrs();
-            sub(reg_len, OC_);
-            cmp(reg_len, OC_);
-            jge(main_loop, T_NEAR);
-        }
-    }
-    L(main_loop_end);
-
-    // Epilogue loop
-    Label epilogue_end;
-    {
-        cmp(reg_len, 0);
-        je(epilogue_end, T_NEAR);
-
-        Label epilogue_loop, epilogue_loop_tail;
-        cmp(reg_len, vlen);
-        jle(epilogue_loop_tail, T_NEAR);
-        L(epilogue_loop);
-        {
-            compute(0, 0, false);
-            sub(reg_len, vlen);
-            advance_ptrs_imm(vlen);
-            cmp(reg_len, vlen);
-            jge(epilogue_loop, T_NEAR);
-        }
-
-        L(epilogue_loop_tail);
-        mov(reg_tmp, reg_len); // reg_tmp is rcx, and we need cl for the shift
-        mov(reg_rem_mask_short, 1);
-        shl(reg_rem_mask_short, cl); // reg_tmp == rcx and reg_tail < vlen
-        sub(reg_rem_mask_short, 1);
-        jz(epilogue_end, T_NEAR);
-        kmovq(kreg_rem_mask_short, reg_rem_mask_short);
-        compute(0, 0, true);
-    }
-
-    L(epilogue_end);
-
-    postamble();
-
-    if (do_eltwise_) eltwise_injector_->prepare_table();
-
-    ker_ = getCode<decltype(ker_)>();
-}
-
-template <data_type_t src_type, data_type_t dst_type>
-void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::pp_ker_t::operator()(
-        dst_data_t *dst, const acc_data_t *acc, const char *bias,
-        const float *scales, float nslope, float sum_scale, float signed_scale,
-        int g, size_t start, size_t end) {
-    using math::get_bias;
-
-    if (end <= start) return;
-
-    if (ker_) {
-        // JIT
-        ker_args args;
-        size_t oc_offset = start % OC_;
-        size_t os_offset = start / OC_;
-        args.acc = acc + start;
-        args.dst = dst + os_offset * dst_os_stride_ + oc_offset;
-        args.bias = bias + (g * jcp_.oc + oc_offset) * bias_data_type_size_;
-        args.scales = scales + scale_idx_mult_ * (g * jcp_.oc + oc_offset);
-        args.nslope = nslope;
-        args.sum_scale = sum_scale;
-        args.signed_scale = signed_scale;
-        args.len = end - start;
-        args.oc_offset = oc_offset;
-        ker_(&args);
-    } else {
-        // Fallback
-        const size_t first_oc = start % OC_;
-        const size_t last_oc = (end - 1) % OC_;
-        const size_t first_os = start / OC_;
-        const size_t last_os = (end - 1) / OC_;
-        for (size_t os = first_os; os <= last_os; os++) {
-            const size_t start_oc = (os == first_os) ? first_oc : 0;
-            const size_t end_oc = (os == last_os) ? last_oc : OC_ - 1;
-            for (size_t oc = start_oc; oc <= end_oc; oc++) {
-                const size_t acc_off = os * jcp_.oc + oc;
-                const size_t dst_off = os * dst_os_stride_ + oc;
-
-                float d = (float)(acc[acc_off]);
-                if (jcp_.signed_input) d *= signed_scale;
-
-                if (do_bias_)
-                    d += get_bias(bias, g * jcp_.oc + oc, bias_data_type_);
-
-                d *= scales[(g * jcp_.oc + oc) * scale_idx_mult_];
-                if (do_sum_) d += sum_scale * dst[dst_off];
-                if (do_eltwise_) d = eltwise_->compute_scalar(d);
-                dst[dst_off] = qz_a1b0<float, dst_data_t>()(d);
-            }
-        }
-    }
-};
-
-template <data_type_t src_type, data_type_t dst_type>
-void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
+status_t
+_gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         const int ithr, const int nthr, const src_data_t *src_base,
         const wei_data_t *wei_base, const char *bia_base, dst_data_t *dst_base,
         const memory_tracking::grantor_t &scratchpad) const {
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const auto src_md = memory_desc_wrapper(pd()->src_md());
     const size_t src_mb_stride = src_md.blk_off(1);
@@ -564,6 +120,8 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
     uint8_t shift = jcp.signed_input ? 128 : 0;
     parallel_nd(jcp.im2col_sz, [&](ptrdiff_t i) { col[i] = shift; });
 
+    status_t st = status::success;
+
     for (size_t iwork = start; iwork < end; ++iwork) {
         int oh = ohb * jcp.oh_block;
         int ow = owb * jcp.ow_block;
@@ -591,11 +149,11 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
                             jcp, src, imtr, col, oh, h_step, ow, w_step);
             }
 
-            const int M = jcp.oc;
-            const int K = jcp.ks * jcp.ic;
-            const int N = h_step * w_step;
-            const int LDA = M * jcp.ngroups;
-            const int LDB = jcp.im2col_sz ? N : K * jcp.ngroups;
+            const dim_t M = jcp.oc;
+            const dim_t K = jcp.ks * jcp.ic;
+            const dim_t N = h_step * w_step;
+            const dim_t LDA = M * jcp.ngroups;
+            const dim_t LDB = jcp.im2col_sz ? N : K * jcp.ngroups;
             const char *BT = jcp.im2col_sz ? "T" : "N";
             const int8_t off_a = 0;
             const uint8_t off_b = 0;
@@ -603,10 +161,12 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
             const float onef = 1.f, zerof = 0.f;
             const src_data_t *__restrict src_od
                     = src + od * jcp.oh * jcp.ow * jcp.ngroups * jcp.ic;
-            gemm_s8x8s32("N", BT, jcp.signed_input ? "C" : "F", &M, &N, &K,
+            st = gemm_s8x8s32("N", BT, jcp.signed_input ? "C" : "F", &M, &N, &K,
                     &onef, wei, &LDA, &off_a,
                     jcp.im2col_sz ? col : (uint8_t *)src_od, &LDB, &off_b,
                     &zerof, acc, &M, jcp.signed_input ? wei_comp : &off_c);
+
+            if (st != status::success) return st;
 
             auto wei_adj_scale
                     = (wei_md.extra().flags & memory_extra_flags::scale_adjust)
@@ -622,10 +182,12 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         }
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ohb, nb_oh, owb, nb_ow);
     }
+
+    return st;
 }
 
 template <data_type_t dst_type>
-void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
+status_t _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
         const exec_ctx_t &ctx) const {
     auto diff_dst_base = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -634,21 +196,28 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
+
+    status_t st = status::success;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
-        execute_backward_data_thr(ithr, nthr, diff_dst_base, wei_base, bia_base,
-                diff_src_base, scratchpad);
+        status_t st_thr = execute_backward_data_thr(ithr, nthr, diff_dst_base,
+                wei_base, bia_base, diff_src_base, scratchpad);
+
+        if (st_thr != status::success) st = st_thr;
     });
+
+    return st;
 }
 
 template <data_type_t dst_type>
-void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
+status_t
+_gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         const int ithr, const int nthr, const diff_dst_data_t *diff_dst_base,
         const wei_data_t *wei_base, const char *bia_base,
         diff_src_data_t *diff_src_base,
         const memory_tracking::grantor_t &scratchpad) const {
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const auto diff_dst_md = memory_desc_wrapper(pd()->diff_dst_md());
     const size_t diff_dst_mb_stride = diff_dst_md.blk_off(1);
@@ -687,18 +256,20 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         diff_src_data_t *__restrict diff_src = diff_src_base
                 + n * diff_src_mb_stride + g * diff_src_g_stride;
 
-        const int M = jcp.ks * jcp.ic;
-        const int N = jcp.os * jcp.od;
-        const int K = jcp.oc;
+        const dim_t M = jcp.ks * jcp.ic;
+        const dim_t N = jcp.os * jcp.od;
+        const dim_t K = jcp.oc;
         const int8_t off_a = 0;
         const diff_dst_data_t off_b = 0;
         const int32_t off_c = 0;
         const float onef = 1.0, zerof = 0.0;
-        const int LD = K * jcp.ngroups;
+        const dim_t LD = K * jcp.ngroups;
 
-        gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD, &off_a,
-                diff_dst, &LD, &off_b, &zerof, jcp.im2col_sz ? col : acc, &M,
-                &off_c);
+        status_t st = gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD,
+                &off_a, diff_dst, &LD, &off_b, &zerof,
+                jcp.im2col_sz ? col : acc, &M, &off_c);
+
+        if (st != status::success) return st;
 
         if (jcp.im2col_sz)
             jit_gemm_convolution_utils::col2im_s32(jcp, col, acc);
@@ -720,6 +291,8 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         });
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups);
     }
+
+    return status::success;
 }
 
 using namespace data_type;

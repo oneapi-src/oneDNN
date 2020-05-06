@@ -19,6 +19,10 @@
 #include <windows.h>
 #endif
 
+#if defined __linux__ || defined __APPLE__
+#include <unistd.h>
+#endif
+
 #ifdef __linux__
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -32,7 +36,10 @@
 #include <string>
 
 #include "dnnl.h"
+#include "memory_debug.hpp"
 #include "utils.hpp"
+
+#include "cpu/platform.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -89,8 +96,20 @@ FILE *fopen(const char *filename, const char *mode) {
 #endif
 }
 
+int getpagesize() {
+#ifdef _WIN32
+    SYSTEM_INFO info;
+    GetSystemInfo(&info);
+    return info.dwPageSize;
+#else
+    return ::getpagesize();
+#endif
+}
+
 void *malloc(size_t size, int alignment) {
     void *ptr;
+    if (memory_debug::is_mem_debug())
+        return memory_debug::malloc(size, alignment);
 
 #ifdef _WIN32
     ptr = _aligned_malloc(size, alignment);
@@ -103,6 +122,9 @@ void *malloc(size_t size, int alignment) {
 }
 
 void free(void *p) {
+
+    if (memory_debug::is_mem_debug()) return memory_debug::free(p);
+
 #ifdef _WIN32
     _aligned_free(p);
 #else
@@ -193,6 +215,10 @@ dnnl_status_t dnnl_set_jit_profiling_flags(unsigned flags) {
 
 dnnl_status_t dnnl_set_jit_profiling_jitdumpdir(const char *dir) {
     return dnnl::impl::init_jit_profiling_jitdumpdir(dir, true);
+}
+
+dnnl_status_t dnnl_set_max_cpu_isa(dnnl_cpu_isa_t isa) {
+    return dnnl::impl::cpu::platform::set_max_cpu_isa(isa);
 }
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL

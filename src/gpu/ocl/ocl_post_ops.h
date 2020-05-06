@@ -17,6 +17,8 @@
 #ifndef GPU_OCL_OCL_POST_OPS_H
 #define GPU_OCL_OCL_POST_OPS_H
 
+#if WITH_ELTWISE
+
 #if DT_F16 == 1
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #endif
@@ -41,8 +43,12 @@
 #endif
 #endif
 
+#ifndef ELTWISE_ALPHA0
+#define ELTWISE_ALPHA0 0
+#endif
+
 POST_OP_DATA_T relu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
-    return s > 0 ? s : s * alpha;
+    return s > 0 ? s : (ELTWISE_ALPHA0 ? 0 : s * alpha);
 }
 POST_OP_DATA_T relu_bwd(
         POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
@@ -78,7 +84,7 @@ POST_OP_DATA_T soft_relu_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
 }
 
 POST_OP_DATA_T logistic_fwd(POST_OP_DATA_T s) {
-    return 1 / (1 + exp(-s));
+    return 1.0f / (1.0f + exp(-s));
 }
 POST_OP_DATA_T logistic_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     POST_OP_DATA_T v = logistic_fwd(s);
@@ -162,7 +168,8 @@ POST_OP_DATA_T gelu_tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
 }
 
 POST_OP_DATA_T swish_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
-    return s / (1.0f + exp(-alpha * s));
+    float w = -alpha * s;
+    return s / (1.0f + exp(w));
 }
 POST_OP_DATA_T swish_bwd(
         POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
@@ -214,8 +221,8 @@ POST_OP_DATA_T gelu_erf_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
 
 POST_OP_DATA_T fwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T alpha_,
         POST_OP_DATA_T beta_, POST_OP_DATA_T scale_) {
-#ifdef ALG_KIND
-    switch (ALG_KIND) {
+#ifdef ELTWISE_ALG
+    switch (ELTWISE_ALG) {
         case RELU: return scale_ * relu_fwd(x, alpha_); break;
         case LINEAR: return scale_ * linear_fwd(x, alpha_, beta_); break;
         case BOUNDED_RELU: return scale_ * bounded_relu_fwd(x, alpha_); break;
@@ -250,8 +257,8 @@ POST_OP_DATA_T fwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T alpha_,
 
 POST_OP_DATA_T bwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T y,
         POST_OP_DATA_T alpha_, POST_OP_DATA_T beta_) {
-#ifdef ALG_KIND
-    switch (ALG_KIND) {
+#ifdef ELTWISE_ALG
+    switch (ELTWISE_ALG) {
         case RELU: return relu_bwd(x, y, alpha_); break;
         case LINEAR: return linear_bwd(x, alpha_); break;
         case BOUNDED_RELU: return bounded_relu_bwd(x, y, alpha_); break;
@@ -283,4 +290,7 @@ POST_OP_DATA_T bwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T y,
     return x;
 #endif
 }
+
+#endif // WITH_ELTWISE
+
 #endif

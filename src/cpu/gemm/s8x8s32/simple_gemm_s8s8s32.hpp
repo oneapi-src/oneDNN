@@ -14,24 +14,26 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SIMPLE_GEMM_S8S8S32_HPP
-#define SIMPLE_GEMM_S8S8S32_HPP
+#ifndef CPU_GEMM_S8X8S32_SIMPLE_GEMM_S8S8S32_HPP
+#define CPU_GEMM_S8X8S32_SIMPLE_GEMM_S8S8S32_HPP
 
 #include <cstdint>
 
 #include "dnnl_types.h"
+
+#include "common/c_types_map.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 dnnl_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
-        const char *offsetC, const int *m, const int *n, const int *k,
-        const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
-        const int8_t *b, const int *ldb, const int8_t *ob, const float *beta,
-        int32_t *c, const int *ldc, const int32_t *oc);
+        const char *offsetC, const dim_t *m, const dim_t *n, const dim_t *k,
+        const float *alpha, const int8_t *a, const dim_t *lda, const int8_t *oa,
+        const int8_t *b, const dim_t *ldb, const int8_t *ob, const float *beta,
+        int32_t *c, const dim_t *ldc, const int32_t *oc);
 }
 } // namespace impl
 } // namespace dnnl
 
-#endif // SIMPLE_GEMM_S8S8S32_HPP
+#endif // CPU_GEMM_S8X8S32_SIMPLE_GEMM_S8S8S32_HPP

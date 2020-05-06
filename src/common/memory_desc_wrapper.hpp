@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef MEMORY_DESC_WRAPPER_HPP
-#define MEMORY_DESC_WRAPPER_HPP
+#ifndef COMMON_MEMORY_DESC_WRAPPER_HPP
+#define COMMON_MEMORY_DESC_WRAPPER_HPP
 
 #include <assert.h>
 

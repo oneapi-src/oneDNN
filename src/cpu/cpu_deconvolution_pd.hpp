@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_DECONVOLUTION_PD_HPP
-#define CPU_DECONVOLUTION_PD_HPP
+#ifndef CPU_CPU_DECONVOLUTION_PD_HPP
+#define CPU_CPU_DECONVOLUTION_PD_HPP
 
 #include <assert.h>
 
-#include "cpu_engine.hpp"
-#include "deconvolution_pd.hpp"
+#include "common/deconvolution_pd.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

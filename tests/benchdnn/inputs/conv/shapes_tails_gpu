@@ -30,3 +30,6 @@ ic17oc16_id13od11kd3pd0_ih13oh12kh3ph0_iw13ow12kw3pw0_n"tails_conv_3d:3"
 
 # 1d conv
 ic25oc24_iw13ow12kw3pw0_n"tails_conv_1d:4"
+
+# depthwise
+g576mb1ic576ih19oc576oh19kh3ph1_n"tails_conv_dw:1"

@@ -397,10 +397,9 @@ bool match_regex(const char *str, const char *pattern) {
 }
 #endif /* _WIN32 */
 
-bool maybe_skip(const char *impl_str) {
+bool maybe_skip(const std::string &impl_str) {
     if (skip_impl.empty()) return false;
 
-    const std::string impl(impl_str);
     size_t start_pos = 0, end_pos = 0;
     if (skip_impl[0] == '"' || skip_impl[0] == '\'') start_pos++;
 
@@ -414,7 +413,7 @@ bool maybe_skip(const char *impl_str) {
         std::string sub_skip_impl = skip_impl.substr(start_pos, len);
         // even incomplete match leads to skipping
         if (!sub_skip_impl.empty()
-                && impl.find(sub_skip_impl) != std::string::npos)
+                && impl_str.find(sub_skip_impl) != std::string::npos)
             return true;
         start_pos = end_pos + 1;
     } while (end_pos < skip_impl.size());

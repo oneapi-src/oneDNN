@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef STREAM_ATTR_HPP
-#define STREAM_ATTR_HPP
+#ifndef COMMON_STREAM_ATTR_HPP
+#define COMMON_STREAM_ATTR_HPP
 
 #include <cassert>
 #include "dnnl.h"

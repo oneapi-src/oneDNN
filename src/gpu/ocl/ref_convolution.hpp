@@ -18,9 +18,12 @@
 #define GPU_OCL_REF_CONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -29,17 +32,17 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_convolution_fwd_t : public primitive_impl_t {
+struct ref_convolution_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_convolution_fwd_pd_t {
         using gpu_convolution_fwd_pd_t::gpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             const auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             const auto attr_skip_mask
                     = primitive_attr_t::skip_mask_t::oscale_runtime
@@ -65,78 +68,13 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                                             1 << 1));
             if (!ok) return status::unimplemented;
 
-            auto scales_status = init_scales_md();
-            if (scales_status != status::success) return scales_status;
-
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         const memory_desc_t *scales_md() const { return &scales_md_; }
-
-        bool with_eltwise(int position) const {
-            return attr()->post_ops_.contain(primitive_kind::eltwise, position);
-        }
-
-        bool with_sum() const {
-            return attr()->post_ops_.find(primitive_kind::sum) != -1;
-        }
-
-        float eltwise_alpha() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
-                    : 1.0f;
-        }
-
-        float eltwise_beta() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
-                    : 0.0f;
-        }
-
-        float eltwise_scale() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.scale
-                    : 1.0f;
-        }
-
-        float sum_scale() const {
-            const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
-            return sum_idx != -1 ? attr()->post_ops_.entry_[sum_idx].sum.scale
-                                 : 0.0f;
-        }
-
-        alg_kind_t eltwise_alg_kind() const {
-            const int eltwise_idx
-                    = attr()->post_ops_.find(primitive_kind::eltwise);
-            return eltwise_idx != -1
-                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : dnnl_alg_kind_undef;
-        }
-
-        bool with_scales() const {
-            return !attr()->output_scales_.has_default_values();
-        }
-
-        bool with_common_scales() const {
-            return with_scales() && attr()->output_scales_.mask_ == 0;
-        }
-
-        bool with_per_oc_scales() const {
-            return with_scales() && attr()->output_scales_.mask_ == (1 << 1);
-        }
-
-        bool with_runtime_scales() const {
-            return with_per_oc_scales() && !attr()->output_scales_.defined();
-        }
 
         conv_conf_t conf;
         offsets_t off;
@@ -152,7 +90,8 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         }
 
         status_t init_scales_md() {
-            if (with_per_oc_scales() && !with_runtime_scales()) {
+            if (conf.attr_info.with_per_oc_oscales
+                    && !conf.attr_info.with_runtime_oscales) {
                 scales_md_.data_type = data_type::f32;
                 scales_md_.ndims = 1;
                 scales_md_.dims[0] = attr()->output_scales_.count_;
@@ -165,56 +104,60 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         memory_desc_t scales_md_;
     };
 
-    status_t init() override {
-        if (pd()->with_per_oc_scales() && !pd()->with_runtime_scales()) {
-            memory_desc_wrapper scales_mdw(pd()->scales_md());
-            scales_mem_.reset(new memory_t(engine(), pd()->scales_md(),
-                    memory_flags_t::alloc, nullptr));
-            void *scales_ptr = nullptr;
-            status_t status
-                    = scales_mem_->memory_storage()->map_data(&scales_ptr);
-            if (status != status::success) return status;
-            utils::array_copy((float *)scales_ptr,
-                    pd()->attr()->output_scales_.scales_,
-                    pd()->attr()->output_scales_.count_);
-            status = scales_mem_->memory_storage()->unmap_data(scales_ptr);
-            if (status != status::success) return status;
-        }
+    ref_convolution_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+    status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(
-                &kernel_, "ref_convolution_fwd", kernel_ctx);
+        create_kernel(engine, &kernel_, "ref_convolution_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
 
-    ref_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
+protected:
+    status_t init_res_storage(
+            engine_t *engine, gpu_resource_t *r) const override {
+        if (!pd()->conf.attr_info.with_per_oc_oscales
+                || pd()->conf.attr_info.with_runtime_oscales)
+            return status::success;
+        memory_desc_wrapper scales_mdw(pd()->scales_md());
+        memory_storage_t *tmp_mem_storage_ptr;
+        CHECK(engine->create_memory_storage(
+                &tmp_mem_storage_ptr, scales_mdw.nelems() * sizeof(float)));
+
+        std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
+        void *scales_ptr = nullptr;
+        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr));
+        utils::array_copy((float *)scales_ptr,
+                pd()->attr()->output_scales_.scales_,
+                pd()->attr()->output_scales_.count_);
+        CHECK(tmp_mem_storage->unmap_data(scales_ptr, nullptr));
+        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
+        return status::success;
+    }
+
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
-    std::unique_ptr<memory_t> scales_mem_;
+    enum { SCALES_ = 0 };
 };
 
-struct ref_convolution_bwd_data_t : public primitive_impl_t {
+struct ref_convolution_bwd_data_t : public gpu_primitive_t {
     struct pd_t : public gpu_convolution_bwd_data_pd_t {
         using gpu_convolution_bwd_data_pd_t::gpu_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_data_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && desc()->prop_kind == prop_kind::backward_data
                     && desc()->alg_kind == alg_kind::convolution_direct
@@ -222,10 +165,10 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
@@ -242,22 +185,19 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
         }
     };
 
-    status_t init() override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+    ref_convolution_bwd_data_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(
-                &kernel_, "ref_convolution_bwd_data", kernel_ctx);
+        create_kernel(engine, &kernel_, "ref_convolution_bwd_data", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
-
-    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -265,18 +205,18 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
 
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 
-struct ref_convolution_bwd_weights_t : public primitive_impl_t {
+struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
     struct pd_t : public gpu_convolution_bwd_weights_pd_t {
         using gpu_convolution_bwd_weights_pd_t::
                 gpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_weights_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && desc()->prop_kind == prop_kind::backward_weights
                     && desc()->alg_kind == alg_kind::convolution_direct
@@ -284,10 +224,10 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
@@ -304,22 +244,20 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
         }
     };
 
-    status_t init() override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+    ref_convolution_bwd_weights_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(
-                &kernel_, "ref_convolution_bwd_weights", kernel_ctx);
+        create_kernel(
+                engine, &kernel_, "ref_convolution_bwd_weights", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
-
-    ref_convolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
@@ -327,7 +265,7 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
 
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 

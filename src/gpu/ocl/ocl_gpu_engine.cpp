@@ -133,16 +133,27 @@ status_t ocl_gpu_engine_t::create_kernels(
             OCL_CHECK(err);
         }
 #endif
-        for (size_t j = i; j < kernel_names.size(); ++j) {
+        size_t binary_size = 0;
+        // get a size of the program binary in bytes
+        err = clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
+                sizeof(binary_size), &binary_size, nullptr);
+        OCL_CHECK(err);
+        // binary is not available for the device
+        if (binary_size == 0) return status::runtime_error;
+
+        // get program binary
+        std::vector<unsigned char> binary(binary_size);
+        unsigned char *binary_buffer = binary.data();
+        err = clGetProgramInfo(program, CL_PROGRAM_BINARIES, binary_size,
+                &binary_buffer, nullptr);
+        OCL_CHECK(err);
+
+        for (size_t j = i; j < kernel_names.size(); j++) {
             if (code_strings[j] == code_strings[i]) {
-                cl_kernel ocl_kernel
-                        = clCreateKernel(program, kernel_names[j], &err);
-                OCL_CHECK(err);
-                (*kernels)[j]
-                        = compute::kernel_t(new ocl_gpu_kernel_t(ocl_kernel));
+                (*kernels)[j] = compute::kernel_t(
+                        new ocl_gpu_kernel_t(binary, kernel_names[j]));
             }
         }
-
         OCL_CHECK(clReleaseProgram(program));
     }
     return status::success;

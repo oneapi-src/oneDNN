@@ -19,6 +19,7 @@
 #include "memory.hpp"
 #include "memory_storage.hpp"
 #include "primitive.hpp"
+#include "primitive_desc.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -112,7 +113,8 @@ void *exec_ctx_t::host_ptr(const memory_storage_t *mem_storage) const {
     return base_ptr;
 }
 
-void *exec_ctx_t::map_memory_storage(const memory_storage_t *storage) const {
+void *exec_ctx_t::map_memory_storage(
+        const memory_storage_t *storage, stream_t *stream) const {
     if (!storage || storage->is_null()) return nullptr;
 
     if (memory_mapping_.count(storage->data_handle()) > 0) {
@@ -120,19 +122,19 @@ void *exec_ctx_t::map_memory_storage(const memory_storage_t *storage) const {
     }
 
     void *mapped_ptr;
-    status_t status = storage->map_data(&mapped_ptr);
+    status_t status = storage->map_data(&mapped_ptr, stream);
     assert(status == status::success);
     MAYBE_UNUSED(status);
     return mapped_ptr;
 }
 
-void exec_ctx_t::unmap_memory_storage(
-        const memory_storage_t *storage, void *mapped_ptr) const {
+void exec_ctx_t::unmap_memory_storage(const memory_storage_t *storage,
+        void *mapped_ptr, stream_t *stream) const {
     if (!storage || storage->is_null()
             || memory_mapping_.count(storage->data_handle()) > 0)
         return;
 
-    status_t status = storage->unmap_data(mapped_ptr);
+    status_t status = storage->unmap_data(mapped_ptr, stream);
     assert(status == status::success);
     MAYBE_UNUSED(status);
 }
@@ -148,15 +150,14 @@ memory_desc_wrapper exec_ctx_t::memory_mdw(
     return memory_desc_wrapper(args_.at(arg).mem->md());
 }
 
-void exec_ctx_t::set_scratchpad_grantor(
-        const memory_tracking::grantor_t &scratchpad_grantor) {
-    scratchpad_grantor_
-            = std::make_shared<memory_tracking::grantor_t>(scratchpad_grantor);
+const resource_mapper_t *exec_ctx_t::get_resource_mapper() const {
+    assert(resource_mapper_);
+    return resource_mapper_;
 }
 
-const memory_tracking::grantor_t &exec_ctx_t::get_scratchpad_grantor() const {
-    assert(scratchpad_grantor_.get());
-    return *(scratchpad_grantor_.get());
+void exec_ctx_t::set_resource_mapper(const resource_mapper_t *resource_mapper) {
+    resource_mapper_ = resource_mapper;
 }
+
 } // namespace impl
 } // namespace dnnl

@@ -48,11 +48,11 @@ static engine_t *get_reorder_engine(
     return src_engine;
 }
 
-status_t dnnl_reorder_primitive_desc_create(primitive_desc_t **reorder_pd,
-        const memory_desc_t *src_md, engine_t *src_engine,
-        const memory_desc_t *dst_md, engine_t *dst_engine,
+status_t dnnl_reorder_primitive_desc_create(
+        primitive_desc_iface_t **reorder_pd_iface, const memory_desc_t *src_md,
+        engine_t *src_engine, const memory_desc_t *dst_md, engine_t *dst_engine,
         const primitive_attr_t *attr) {
-    if (any_null(reorder_pd, src_engine, src_md, dst_engine, dst_md))
+    if (any_null(reorder_pd_iface, src_engine, src_md, dst_engine, dst_md))
         return invalid_arguments;
 
     auto s_ek = src_engine->kind();
@@ -60,7 +60,6 @@ status_t dnnl_reorder_primitive_desc_create(primitive_desc_t **reorder_pd,
     if (!IMPLICATION(s_ek != d_ek, one_of(engine_kind::cpu, s_ek, d_ek)))
         return invalid_arguments;
 
-    auto r_pd = reinterpret_cast<reorder_pd_t **>(reorder_pd);
     auto s_mdw = memory_desc_wrapper(*src_md);
     auto d_mdw = memory_desc_wrapper(*dst_md);
 
@@ -70,9 +69,15 @@ status_t dnnl_reorder_primitive_desc_create(primitive_desc_t **reorder_pd,
 
     auto e = get_reorder_engine(src_engine, dst_engine);
     for (auto r = e->get_reorder_implementation_list(src_md, dst_md); *r; ++r) {
-        if ((*r)(r_pd, e, attr, src_engine, src_md, dst_engine, dst_md)
+        reorder_pd_t *reorder_pd = nullptr;
+        if ((*r)(&reorder_pd, e, attr, src_engine, src_md, dst_engine, dst_md)
                 == success) {
-            return success;
+            auto status
+                    = safe_ptr_assign<primitive_desc_iface_t>(*reorder_pd_iface,
+                            new reorder_primitive_desc_iface_t(
+                                    reorder_pd, e, src_engine, dst_engine));
+            if (status != status::success) delete reorder_pd;
+            return status;
         }
     }
     return unimplemented;

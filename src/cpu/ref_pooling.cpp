@@ -17,13 +17,14 @@
 #include <assert.h>
 #include <math.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
-#include "nstl.hpp"
-#include "type_helpers.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/nstl.hpp"
+#include "common/type_helpers.hpp"
 
-#include "ref_pooling.hpp"
+#include "cpu/simple_q10n.hpp"
+
+#include "cpu/ref_pooling.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -128,7 +129,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
             dst += src[off];
         }
 
-        d[0] = math::out_round<data_t>((float)dst / num_summands);
+        d[0] = out_round<data_t>((float)dst / num_summands);
     };
 
     const int MB = pd()->MB();

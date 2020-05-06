@@ -107,13 +107,10 @@ public:
         *kernels = std::vector<gpu::compute::kernel_t>(kernel_names.size());
         for (size_t i = 0; i < ocl_kernels.size(); ++i) {
             if (!ocl_kernels[i]) continue;
-
             auto *k = utils::downcast<gpu::ocl::ocl_gpu_kernel_t *>(
                     ocl_kernels[i].impl());
-            auto ocl_kernel = k->ocl_kernel();
-            OCL_CHECK(clRetainKernel(ocl_kernel));
             (*kernels)[i] = gpu::compute::kernel_t(
-                    new sycl_ocl_gpu_kernel_t(ocl_kernel));
+                    new sycl_ocl_gpu_kernel_t(k->binary(), k->name()));
         }
         return status::success;
     }

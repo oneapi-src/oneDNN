@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_LRN_PD_HPP
-#define CPU_LRN_PD_HPP
+#ifndef CPU_CPU_LRN_PD_HPP
+#define CPU_CPU_LRN_PD_HPP
 
 #include <assert.h>
 
-#include "cpu_engine.hpp"
-#include "lrn_pd.hpp"
+#include "common/lrn_pd.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

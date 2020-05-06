@@ -14,20 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef REF_MATMUL_HPP
-#define REF_MATMUL_HPP
+#ifndef CPU_MATMUL_REF_MATMUL_HPP
+#define CPU_MATMUL_REF_MATMUL_HPP
 
 #include <assert.h>
 
-#include "bfloat16.hpp"
-#include "c_types_map.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/bfloat16.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
-#include "cpu_matmul_pd.hpp"
+#include "cpu/platform.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "ref_eltwise.hpp"
+#include "cpu/ref_eltwise.hpp"
+
+#include "cpu/matmul/cpu_matmul_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,20 +39,20 @@ namespace matmul {
 template <impl::data_type_t src_type, impl::data_type_t weights_type = src_type,
         impl::data_type_t dst_type = src_type,
         impl::data_type_t acc_type = dst_type>
-struct ref_matmul_t : public primitive_impl_t {
+struct ref_matmul_t : public primitive_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_matmul_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = src_md()->data_type == src_type
                     && weights_md()->data_type == weights_type
                     && desc()->accum_data_type == acc_type
                     && dst_md()->data_type == dst_type
-                    && IMPLICATION(src_type == bf16, mayiuse(avx512_core))
+                    && platform::has_data_type_support(src_type)
                     && IMPLICATION(
                             acc_type == s32, attr()->zero_points_.common())
                     && IMPLICATION(acc_type != s32,
@@ -69,7 +71,6 @@ struct ref_matmul_t : public primitive_impl_t {
                 else if (acc_type == s32)
                     ok = ok && utils::one_of(bia_dt, f32, s32, s8, u8);
             }
-
             return ok ? status::success : status::unimplemented;
         }
 
@@ -91,7 +92,7 @@ struct ref_matmul_t : public primitive_impl_t {
         }
     };
 
-    ref_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {
+    ref_matmul_t(const pd_t *apd) : primitive_t(apd) {
         int e_idx = pd()->attr()->post_ops_.find(primitive_kind::eltwise);
         if (e_idx != -1)
             eltwise_ker_.reset(new ref_eltwise_scalar_fwd_t(
@@ -108,7 +109,7 @@ struct ref_matmul_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
 
     std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_ker_;

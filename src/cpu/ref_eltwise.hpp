@@ -18,12 +18,15 @@
 #define CPU_REF_ELTWISE_HPP
 
 #include <assert.h>
-#include "c_types_map.hpp"
-#include "cpu_isa_traits.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
 
-#include "cpu_eltwise_pd.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
+
+#include "cpu/platform.hpp"
+
+#include "cpu/cpu_eltwise_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -45,18 +48,18 @@ public:
 };
 
 template <impl::data_type_t data_type>
-struct ref_eltwise_fwd_t : public primitive_impl_t {
+struct ref_eltwise_fwd_t : public primitive_t {
     struct pd_t : public cpu_eltwise_fwd_pd_t {
         using cpu_eltwise_fwd_pd_t::cpu_eltwise_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_eltwise_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace utils;
 
             auto src_d = memory_desc_wrapper(src_md());
 
-            use_dense_ = false || src_d.is_dense()
+            use_dense_ = src_d.is_dense()
                     || (src_d.is_dense(true) && is_zero_preserved());
 
             use_nCspBc_padded_ = !use_dense_
@@ -67,15 +70,8 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
 
             if (has_zero_dim_memory()) use_dense_ = use_nCspBc_padded_ = false;
 
-            const bool use_generic = !use_dense_ && !use_nCspBc_padded_;
-
-            bool ok = true && is_fwd()
-                    && everyone_is(data_type, desc()->data_desc.data_type)
-                    /*bf16<->f32 cvt operators don't work on non-avx512_core*/
-                    && IMPLICATION(
-                            desc()->data_desc.data_type == data_type::bf16,
-                            mayiuse(avx512_core))
-                    && IMPLICATION(use_generic, one_of(src_d.ndims(), 4, 5))
+            bool ok = is_fwd() && data_type == desc()->data_desc.data_type
+                    && platform::has_data_type_support(data_type)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -85,7 +81,7 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
         bool use_dense_, use_nCspBc_padded_;
     };
 
-    ref_eltwise_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_eltwise_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -102,39 +98,32 @@ private:
     void execute_forward_nCspBc_padded(const exec_ctx_t &ctx) const;
     void execute_forward_dense(const exec_ctx_t &ctx) const;
     void execute_forward_generic(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <impl::data_type_t data_type>
-struct ref_eltwise_bwd_t : public primitive_impl_t {
+struct ref_eltwise_bwd_t : public primitive_t {
     struct pd_t : public cpu_eltwise_bwd_pd_t {
         using cpu_eltwise_bwd_pd_t::cpu_eltwise_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("ref:any", ref_eltwise_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace utils;
 
-            bool ok = true && !is_fwd()
+            bool ok = !is_fwd()
                     && everyone_is(data_type, desc()->data_desc.data_type,
                             desc()->diff_data_desc.data_type)
-                    /*bf16<->f32 cvt operators don't work on non-avx512_core*/
-                    && IMPLICATION(
-                            desc()->data_desc.data_type == data_type::bf16,
-                            mayiuse(avx512_core))
+                    && platform::has_data_type_support(data_type)
                     && set_default_formats_common()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            auto diff_dst_d = memory_desc_wrapper(diff_dst_md());
+            const memory_desc_wrapper diff_dst_d(diff_dst_md());
             const bool same_fmt_ = diff_dst_d == memory_desc_wrapper(src_md());
 
-            use_dense_ = true && same_fmt_ && diff_dst_d.is_dense(true)
+            use_dense_ = same_fmt_ && diff_dst_d.is_dense(true)
                     && is_zero_preserved() && !has_zero_dim_memory();
-            const bool use_generic = !use_dense_;
-
-            if (use_generic && !one_of(diff_dst_d.ndims(), 4, 5))
-                return status::unimplemented;
 
             if (data_type == data_type::bf16) init_scratchpad();
 
@@ -149,14 +138,15 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
             const memory_desc_wrapper diff_data_d(diff_dst_md());
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            const auto diff_dst_size = diff_data_d.nelems(true) * sizeof(float);
-            scratchpad.book(
-                    key_eltwise_src, data_d.nelems(true) * sizeof(float));
-            scratchpad.book(key_eltwise_diff_dst, diff_dst_size);
+            const auto diff_dst_size = diff_data_d.nelems(true);
+            scratchpad.template book<float>(
+                    key_eltwise_src, data_d.nelems(true));
+            scratchpad.template book<float>(
+                    key_eltwise_diff_dst, diff_dst_size);
         }
     };
 
-    ref_eltwise_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_eltwise_bwd_t(const pd_t *apd) : primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -170,7 +160,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
 private:
     void execute_backward_dense(const exec_ctx_t &ctx) const;
     void execute_backward_generic(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

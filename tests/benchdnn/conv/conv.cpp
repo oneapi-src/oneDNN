@@ -21,7 +21,7 @@
 
 #include "dnnl.h"
 
-#include "src/common/dnnl_thread.hpp"
+#include "tests/test_thread.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -279,7 +279,8 @@ int compare_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
     return compare_dat(p, DST, mem_dt, mem_fp, r, final_compare);
 }
 
-int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
+int fill_src(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r) {
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem) {
@@ -311,7 +312,8 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     return OK;
 }
 
-int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
+int fill_wei(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r) {
     const bool wino_s8 = p->alg == WINO && p->cfg[WEI].dt == dnnl_s8;
     const bool s8_s8 = p->cfg[WEI].dt == dnnl_s8 && p->cfg[SRC].dt == dnnl_s8;
     const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
@@ -347,7 +349,8 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     return OK;
 }
 
-int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
+int fill_bia(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r) {
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem)
@@ -377,7 +380,8 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     return OK;
 }
 
-int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
+int fill_dst(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r) {
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem) {
@@ -409,7 +413,7 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     return OK;
 }
 
-inline int init_pd(dnnl_engine_t eng, const prb_t *p,
+inline int init_pd_custom(const engine_t &engine_tgt, const prb_t *p,
         dnnl_primitive_desc_t &cpd, res_t *r,
         dnnl_data_type_t src_dt = dnnl_data_type_undef,
         dnnl_data_type_t wei_dt = dnnl_data_type_undef,
@@ -529,26 +533,24 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
 
     auto dnnl_attr = create_dnnl_attr(p->attr, p->oc, p->scales);
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, eng, NULL);
+    dnnl_status_t init_status = dnnl_primitive_desc_create(
+            &cpd, &cd, dnnl_attr, engine_tgt, NULL);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
-    if (init_status == dnnl_unimplemented) {
-        if (r) r->state = UNIMPLEMENTED;
-        return OK;
-    }
+    if (!r) return OK;
+
+    if (init_status == dnnl_unimplemented) return r->state = UNIMPLEMENTED, OK;
     SAFE(init_status, WARN);
 
-    if (r) {
-        const char *impl_str = query_impl_info(cpd);
-        if (maybe_skip(impl_str)) {
-            BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n", impl_str);
-            DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
-            return r->state = SKIPPED, OK;
-        } else {
-            BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
-        }
+    r->impl_name = query_impl_info(cpd);
+    if (maybe_skip(r->impl_name)) {
+        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
+                r->impl_name.c_str());
+        DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
+        return r->state = SKIPPED, OK;
+    } else {
+        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
     }
 
     return OK;
@@ -556,14 +558,20 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-
-    dnnl_primitive_desc_t cpd;
-    SAFE(init_pd(engine_tgt, p, cpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    engine_t engine_tgt;
 
     dnnl_primitive_t c;
-    DNN_SAFE(dnnl_primitive_create(&c, cpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
+    // TODO: align init_pd interface with a common one which is used
+    // in the rest of the benchdnn drivers
+    auto init_pd = [&](const engine_t &engine_tgt, const prb_t *p,
+                           dnnl_primitive_desc_t &cpd, res_t *r, dir_t dir,
+                           const_dnnl_primitive_desc_t hint) {
+        SAFE(init_pd_custom(engine_tgt, p, cpd, r), WARN);
+        return OK;
+    };
+
+    SAFE(init_prim(&c, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
@@ -608,10 +616,11 @@ int doit(const prb_t *p, res_t *r) {
     // Try to use CPU primitive as the reference in GPU testing to reduce
     // testing time
     dnnl_primitive_t c_ref = nullptr;
+    engine_t engine_cpu(dnnl_cpu);
 
     if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu) {
         dnnl_primitive_desc_t cpd_ref = nullptr;
-        SAFE(init_pd(engine_cpu, p, cpd_ref, nullptr, fp, fp, fp, fp, fp,
+        SAFE(init_pd_custom(engine_cpu, p, cpd_ref, nullptr, fp, fp, fp, fp, fp,
                      src_tag, wei_tag, dnnl_x, src_tag),
                 WARN);
         if (cpd_ref) {
@@ -634,10 +643,10 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t dst_fp(dst_md, fp, src_tag, engine_tgt);
     dnn_mem_t bia_fp(bia_md, fp, dnnl_x, engine_tgt);
 
-    SAFE(fill_src(p, src_dt, src_fp, r), WARN);
-    SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
-    SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
-    SAFE(fill_bia(p, bia_dt, bia_fp, r), WARN);
+    SAFE(fill_src(engine_tgt, p, src_dt, src_fp, r), WARN);
+    SAFE(fill_wei(engine_tgt, p, wei_dt, wei_fp, r), WARN);
+    SAFE(fill_dst(engine_tgt, p, dst_dt, dst_fp, r), WARN);
+    SAFE(fill_bia(engine_tgt, p, bia_dt, bia_fp, r), WARN);
     maybe_prepare_runtime_scales(scales, p->attr, p->oc, p->scales, engine_tgt);
 
     args_t args;
@@ -650,7 +659,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
 
-        DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(c, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, c_ref, src_fp, wei_fp, bia_fp, dst_fp);
@@ -663,7 +672,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(c, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_d(p, c_ref, src_fp, wei_fp, bia_fp, dst_fp);
@@ -677,7 +686,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(c, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_w(p, c_ref, src_fp, wei_fp, bia_fp, dst_fp);
@@ -692,7 +701,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(FAIL, CRIT);
     }
 
-    measure_perf(r->timer, c, args);
+    measure_perf(r->timer, engine_tgt, c, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(c));
     DNN_SAFE_V(dnnl_primitive_destroy(c_ref));

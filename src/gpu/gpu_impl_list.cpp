@@ -16,6 +16,7 @@
 
 #include "gpu/gpu_impl_list.hpp"
 
+#include "gpu/ocl/convolution_inner_product.hpp"
 #include "gpu/ocl/gemm/gen9_gemm.hpp"
 #include "gpu/ocl/gemm/gen9_gemm_x8x8s32.hpp"
 #include "gpu/ocl/gemm/ref_gemm.hpp"
@@ -23,6 +24,7 @@
 #include "gpu/ocl/gemm_matmul.hpp"
 #include "gpu/ocl/gemm_x8s8s32x_inner_product.hpp"
 #include "gpu/ocl/gen9_batch_normalization.hpp"
+#include "gpu/ocl/gen9_binary.hpp"
 #include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/gen9_pooling.hpp"
 #include "gpu/ocl/ref_batch_normalization.hpp"
@@ -83,6 +85,7 @@ static const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::ref_lrn_bwd_t),
 
         // Inner Product
+        INSTANCE(ocl::convolution_inner_product_fwd_t),
         INSTANCE(ocl::gemm_x8s8s32x_inner_product_fwd_t),
         INSTANCE(ocl::gemm_inner_product_fwd_t),
         INSTANCE(ocl::gemm_inner_product_bwd_data_t),
@@ -112,6 +115,7 @@ static const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::ref_layer_normalization_bwd_t),
 
         // Binary
+        INSTANCE(ocl::gen9_binary_t),
         INSTANCE(ocl::ref_binary_t),
 
         // MatMul

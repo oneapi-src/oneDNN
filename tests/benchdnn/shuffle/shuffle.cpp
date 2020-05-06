@@ -20,7 +20,7 @@
 
 #include "dnnl.h"
 
-#include "src/common/dnnl_thread.hpp"
+#include "tests/test_thread.hpp"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -92,7 +92,9 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &spd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_memory_desc_t data_d;
     dnnl_shuffle_desc_t sd;
 
@@ -106,10 +108,10 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
                      &sd, prop_kind, &data_d, p->axis, p->group),
             WARN);
 
-    dnnl_primitive_desc_t hint = NULL;
+    dnnl_primitive_desc_t _hint = NULL;
     if (p->dir & FLAG_BWD) {
         dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
-                &hint, &sd, NULL, engine_tgt, NULL);
+                &_hint, &sd, NULL, engine_tgt, NULL);
         if (init_fwd_status == dnnl_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
         SAFE(init_fwd_status, WARN);
@@ -126,30 +128,27 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
     auto dnnl_attr = create_dnnl_attr(attr_t());
 
     dnnl_status_t init_status = dnnl_primitive_desc_create(
-            &spd, &sd, dnnl_attr, engine_tgt, hint);
+            &spd, &sd, dnnl_attr, engine_tgt, _hint);
 
-    dnnl_primitive_desc_destroy(hint);
+    dnnl_primitive_desc_destroy(_hint);
     dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented) return r->state = UNIMPLEMENTED, OK;
     SAFE(init_status, WARN);
 
-    const char *impl_str = query_impl_info(spd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
+    r->impl_name = query_impl_info(spd);
+    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
 
     return OK;
 }
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-
-    dnnl_primitive_desc_t spd;
-    SAFE(init_pd(p, spd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    engine_t engine_tgt;
 
     dnnl_primitive_t s;
-    DNN_SAFE(dnnl_primitive_create(&s, spd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(spd), CRIT);
+    SAFE(init_prim(&s, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(s, &const_pd), CRIT);
@@ -185,11 +184,12 @@ int doit(const prb_t *p, res_t *r) {
     const int o_arg = p->dir == FWD_D ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
 
     args_t args;
+
     args.set(i_arg, src_dt);
     args.set(o_arg, dst_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
+    DNN_SAFE(execute_and_wait(s, engine_tgt, args), WARN);
 
     if (bench_mode & CORR) {
         compute_shuffle(p, src_fp, dst_fp);
@@ -197,7 +197,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(compare(p, dst_fp, data, r), WARN);
     }
 
-    measure_perf(r->timer, s, args);
+    measure_perf(r->timer, engine_tgt, s, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(s));
 

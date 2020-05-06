@@ -19,9 +19,12 @@
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
+#include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_lrn_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
@@ -31,20 +34,20 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_lrn_fwd_t : public primitive_impl_t {
+struct ref_lrn_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_lrn_fwd_pd_t {
-        pd_t(engine_t *engine, const lrn_desc_t *adesc,
-                const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
-            : gpu_lrn_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        pd_t(const lrn_desc_t *adesc, const primitive_attr_t *attr,
+                const lrn_fwd_pd_t *hint_fwd_pd)
+            : gpu_lrn_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
         virtual ~pd_t() {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_lrn_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
-            assert(engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
                             prop_kind::forward_inference,
@@ -80,15 +83,11 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
         compute::dispatch_t dispatch;
     };
 
-    ref_lrn_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_lrn_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    ~ref_lrn_fwd_t() = default;
-
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         using namespace alg_kind;
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = status::success;
@@ -147,34 +146,35 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
 
         def_dispatch(kernel_ctx, pd()->dispatch);
 
-        compute_engine->create_kernel(&kernel_, "ref_lrn_fwd", kernel_ctx);
+        create_kernel(engine, &kernel_, "ref_lrn_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
+
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 
-struct ref_lrn_bwd_t : public primitive_impl_t {
+struct ref_lrn_bwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_lrn_bwd_pd_t {
-        pd_t(engine_t *engine, const lrn_desc_t *adesc,
-                const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
-            : gpu_lrn_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        pd_t(const lrn_desc_t *adesc, const primitive_attr_t *attr,
+                const lrn_fwd_pd_t *hint_fwd_pd)
+            : gpu_lrn_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
         virtual ~pd_t() {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_lrn_bwd_t);
 
-        status_t init() {
-            assert(engine()->kind() == engine_kind::gpu);
+        status_t init(engine_t *engine) {
+            assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
             bool ok = true
                     && utils::one_of(
                             desc()->prop_kind, prop_kind::backward_data)
@@ -210,15 +210,11 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
         compute::dispatch_t dispatch;
     };
 
-    ref_lrn_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_lrn_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    ~ref_lrn_bwd_t() = default;
-
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         using namespace alg_kind;
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = status::success;
@@ -274,18 +270,19 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
 
         def_dispatch(kernel_ctx, pd()->dispatch);
 
-        compute_engine->create_kernel(&kernel_, "ref_lrn_bwd", kernel_ctx);
+        create_kernel(engine, &kernel_, "ref_lrn_bwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
+
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
     }
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     compute::kernel_t kernel_;
 };

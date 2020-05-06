@@ -26,30 +26,35 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 
-status_t dnnl_primitive_desc_query(const primitive_desc_t *primitive_desc,
-        query_t what, int index, void *result) {
-    if (any_null(primitive_desc, result)) return invalid_arguments;
+status_t dnnl_primitive_desc_query(
+        const primitive_desc_iface_t *primitive_desc_iface, query_t what,
+        int index, void *result) {
+    if (any_null(primitive_desc_iface, result)) return invalid_arguments;
 
-    return primitive_desc->query(what, index, result);
+    return primitive_desc_iface->query(what, index, result);
 }
 
 const memory_desc_t *dnnl_primitive_desc_query_md(
-        const primitive_desc_t *primitive_desc, query_t what, int index) {
+        const primitive_desc_iface_t *primitive_desc_iface, query_t what,
+        int index) {
     const memory_desc_t *res_md = nullptr;
-    bool args_ok = true && primitive_desc != nullptr
+    bool args_ok = true && primitive_desc_iface != nullptr
             && (what & query::some_md) == query::some_md
             && what != query::some_md
-            && dnnl_primitive_desc_query(primitive_desc, what, index, &res_md)
+            && dnnl_primitive_desc_query(
+                       primitive_desc_iface, what, index, &res_md)
                     == success;
     return args_ok ? res_md : nullptr;
 }
 
 int dnnl_primitive_desc_query_s32(
-        const primitive_desc_t *primitive_desc, query_t what, int index) {
+        const primitive_desc_iface_t *primitive_desc_iface, query_t what,
+        int index) {
     int res_s32;
-    bool args_ok = primitive_desc != nullptr
+    bool args_ok = primitive_desc_iface != nullptr
             && one_of(what, query::num_of_inputs_s32, query::num_of_outputs_s32)
-            && dnnl_primitive_desc_query(primitive_desc, what, index, &res_s32)
+            && dnnl_primitive_desc_query(
+                       primitive_desc_iface, what, index, &res_s32)
                     == success;
     return args_ok ? res_s32 : 0;
 }

@@ -55,6 +55,7 @@ Options supported:
 | %@flops%      | Ops based                                          | Ops per second (modifier extended)
 | %@freq%       | All                                                | Effective cpu frequency computed as clocks[@] / time[@]
 | %group%       | Shuffle                                            | Shuffle group
+| %impl%        | All                                                | Library implementation name for a given problem
 | %name%        | Problem desc based                                 | Problem name
 | %@ops%        | Ops based                                          | Number of ops required (padding is not taken into account)
 | %prb%         | All                                                | Canonical problem (options and descriptor in REPRO style)

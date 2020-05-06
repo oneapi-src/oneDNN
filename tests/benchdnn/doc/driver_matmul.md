@@ -21,7 +21,7 @@ where *matmul-knobs* are:
  - `--runtime_n=BOOL` -- specify whether `n` dimension is a run-time parameter.
  - `--runtime_k=BOOL` -- specify whether `k` dimension is a run-time parameter.
  - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
-            Refer to knobs_attr.md for details.
+            Refer to [attributes](knobs_attr.md) for details.
  - `--bia_dt={undef [default], f32, s32, s8, u8}` -- bias data type.
             To run MatMul without bias, use `undef` data type (default).
             Refer to the common glossary in README.md for details.
@@ -32,9 +32,10 @@ and *matmul-desc* is a problem descriptor. The canonical form is:
 ```
     [mbX]mXnXkX_nS
 ```
-Here X is an integer number and S is a string (the last `n` stands for name).
-The special symbol `_` is ignored, so it may be used as a delimiter.
-Refer to the common glossary in README.md for the entity name and description.
+Here `X` is an integer number and `S` is a string literal without spaces (`n`
+stands for name). The special symbol `_` is ignored, so it may be used as a
+delimiter for better readability. Refer to the common glossary in README.md for
+the entity name and description.
 
 The `mb` can be omitted, in which case the problem is treated as regular
 2D matrix multiplication. With `mb` set to a non-zero value, batched matrix

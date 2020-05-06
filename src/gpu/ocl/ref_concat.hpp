@@ -20,35 +20,36 @@
 #include "common/engine.hpp"
 #include "common/primitive.hpp"
 #include "common/reorder_pd.hpp"
+#include "common/stream.hpp"
 #include "gpu/gpu_concat_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_concat_t : public primitive_impl_t {
+struct ref_concat_t : public gpu_primitive_t {
     struct pd_t : public gpu_concat_pd_t {
-        pd_t(engine_t *engine, const primitive_attr_t *attr,
-                const memory_desc_t *dst_md, int n, int concat_dim,
-                const memory_desc_t *src_mds)
-            : gpu_concat_pd_t(engine, attr, dst_md, n, concat_dim, src_mds)
+        pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
+                int concat_dim, const memory_desc_t *src_mds)
+            : gpu_concat_pd_t(attr, dst_md, n, concat_dim, src_mds)
             , tent_dst_md_(types::zero_md()) {}
         pd_t(const pd_t &rhs) : gpu_concat_pd_t(rhs) { copy(rhs); }
 
-        ~pd_t() { clear(); }
+        ~pd_t() = default;
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             gpu_concat_pd_t::operator=(rhs);
-            clear();
             copy(rhs);
             return *this;
         }
 
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             status_t status = gpu_concat_pd_t::init();
             if (status != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);
@@ -62,15 +63,16 @@ struct ref_concat_t : public primitive_impl_t {
             }
 
             for (int i = 0; i < n_; ++i) {
-                auto r_impls = engine_->get_reorder_implementation_list(
+                auto r_impls = engine->get_reorder_implementation_list(
                         src_md(i), src_image_md(i));
                 for (auto r = r_impls; *r; ++r) {
-                    const primitive_attr_t attr; // alpha == 1.
+                    primitive_attr_t r_attr; /* alpha == 1. */
+                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
                     reorder_pd_t *r_pd = nullptr;
-                    if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i), engine_,
+                    if ((*r)(&r_pd, engine, &r_attr, engine, src_md(i), engine,
                                 src_image_md(i))
                             == status::success) {
-                        reorder_pds_.push_back(r_pd);
+                        reorder_pds_.emplace_back(r_pd);
                         break;
                     }
                 }
@@ -82,97 +84,122 @@ struct ref_concat_t : public primitive_impl_t {
                 assert(tent_dst_md_.format_kind != format_kind::undef);
                 assert(dst_md_.format_kind != format_kind::undef);
 
-                primitive_desc_t *r_pd = nullptr;
-                status = dnnl_reorder_primitive_desc_create(&r_pd,
-                        &tent_dst_md_, engine_, &dst_md_, engine_, nullptr);
-                if (status != status::success) return status;
-                reorder_pds_.push_back((const reorder_pd_t *)r_pd);
-
-                init_scratchpad();
+                auto r_impls = engine->get_reorder_implementation_list(
+                        &tent_dst_md_, &dst_md_);
+                for (auto r = r_impls; *r; ++r) {
+                    primitive_attr_t r_attr;
+                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
+                    reorder_pd_t *r_pd = nullptr;
+                    if ((*r)(&r_pd, engine, &r_attr, engine, &tent_dst_md_,
+                                engine, &dst_md_)
+                            == status::success) {
+                        reorder_pds_.emplace_back(r_pd);
+                        break;
+                    }
+                }
+                if (reorder_pds_.size() != (size_t)n_ + 1)
+                    return status::unimplemented;
             }
-
+            init_scratchpad();
             return status;
         }
 
         // if dst is forced and cannot be used directly.
         bool use_tent_dst() const { return !types::is_zero_md(&tent_dst_md_); }
 
-        std::vector<const reorder_pd_t *> reorder_pds_;
+        std::vector<std::unique_ptr<primitive_desc_t>> reorder_pds_;
         memory_desc_t tent_dst_md_;
 
     private:
         void copy(const pd_t &rhs) {
             tent_dst_md_ = rhs.tent_dst_md_;
+            reorder_pds_.clear();
             for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
-                reorder_pds_.push_back(
-                        (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
-        }
-
-        void clear() {
-            for (auto &rpd : reorder_pds_)
-                delete rpd;
+                reorder_pds_.emplace_back(rhs.reorder_pds_[i]->clone());
         }
 
         void init_scratchpad() {
-            const memory_desc_wrapper wtent_dst_md(tent_dst_md_);
             auto scratchpad = scratchpad_registry().registrar();
-            scratchpad.book(memory_tracking::names::key_concat_tent_dst,
-                    wtent_dst_md.size());
+
+            if (use_tent_dst()) {
+                const memory_desc_wrapper wtent_dst_md(tent_dst_md_);
+                scratchpad.book(memory_tracking::names::key_concat_tent_dst,
+                        wtent_dst_md.size(), 1, OCL_BUFFER_ALIGNMENT);
+            }
+
+            for (size_t i = 0; i < reorder_pds_.size(); i++) {
+                scratchpad.book(
+                        memory_tracking::names::key_nested_multiple + (int)i,
+                        reorder_pds_[i]->scratchpad_registry());
+            }
         }
     };
 
-    ref_concat_t(const pd_t *apd) : primitive_impl_t(apd) {
+    ref_concat_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
-        for (size_t i = 0; i < n; ++i)
-            pd()->reorder_pds_[i]->create_primitive(&reorders_[i]);
-    }
-
-    ~ref_concat_t() {
-        for (auto &r : reorders_)
-            r->release();
+        for (size_t i = 0; i < n; ++i) {
+            pd()->reorder_pds_[i]->create_primitive(reorders_[i], engine);
+        }
+        return status::success;
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
+        using namespace memory_tracking::names;
+        engine_t *engine = ctx.stream()->engine();
         const auto n = pd()->n_inputs();
 
-        auto execute_reorder
-                = [&](const primitive_t *reorder, const memory_arg_t &src,
-                          const memory_arg_t &dst) {
-                      exec_args_t r_args;
-                      r_args[DNNL_ARG_SRC] = src;
-                      r_args[DNNL_ARG_DST] = dst;
-                      exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
-                      reorder->execute(r_ctx);
-                  };
+        auto execute_reorder = [&](const std::shared_ptr<primitive_t> &reorder,
+                                       const memory_arg_t &src,
+                                       const memory_arg_t &dst, int r_num) {
+            exec_args_t r_args;
+            r_args[DNNL_ARG_SRC] = src;
+            r_args[DNNL_ARG_DST] = dst;
+            exec_ctx_t r_ctx(ctx, std::move(r_args));
+
+            nested_scratchpad_t ns(ctx, key_nested_multiple + r_num, reorder);
+            r_ctx.set_scratchpad_grantor(ns.grantor());
+            return reorder->execute(r_ctx);
+        };
 
         if (pd()->use_tent_dst()) {
             auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                     memory_tracking::names::key_concat_tent_dst);
 
             memory_t tent_dst(
-                    pd()->engine(), &pd()->tent_dst_md_, std::move(scratchpad));
+                    engine, &pd()->tent_dst_md_, std::move(scratchpad));
 
             for (int i = 0; i < n; ++i)
-                execute_reorder(reorders_[i],
+                CHECK(execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst, false});
+                        {&tent_dst, false}, i));
 
-            execute_reorder(reorders_[n], {&tent_dst, true},
-                    ctx.args().at(DNNL_ARG_DST));
+            CHECK(execute_reorder(reorders_[n], {&tent_dst, true},
+                    ctx.args().at(DNNL_ARG_DST), n));
         } else {
             for (int i = 0; i < n; ++i)
-                execute_reorder(reorders_[i],
+                CHECK(execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        ctx.args().at(DNNL_ARG_DST));
+                        ctx.args().at(DNNL_ARG_DST), i));
         }
 
         return status::success;
     }
 
+protected:
+    primitive_list_t nested_primitives() const override {
+        std::vector<const primitive_t *> _reorders;
+        _reorders.reserve(reorders_.size());
+        for (const auto &r : reorders_)
+            _reorders.push_back(r.get());
+        return _reorders;
+    }
+
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    std::vector<primitive_t *> reorders_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::vector<std::shared_ptr<primitive_t>> reorders_;
 };
 
 } // namespace ocl

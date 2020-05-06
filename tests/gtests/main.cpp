@@ -24,10 +24,6 @@
 
 #include "gtest/gtest.h"
 
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "../testing_threadpool.hpp"
-#endif
-
 using namespace testing;
 
 static std::atomic<bool> g_is_current_test_failed(false);

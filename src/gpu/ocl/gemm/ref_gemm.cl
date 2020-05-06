@@ -14,10 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 void get_strides(int mask, long dim0, long dim1, long dim2, long *str0,
         long *str1, long *str2) {
@@ -77,7 +75,7 @@ __kernel void ref_gemm(__global A_DATA_T *a, __global B_DATA_T *b,
         temp += bias[off_bias];
 #endif
         temp *= scales[scale_stride * n];
-#if DO_SUM
+#if WITH_SUM
         temp += (POST_OP_DATA_T)(beta * C_TO_REF(c[off_c]));
 #endif
 #if WITH_ELTWISE

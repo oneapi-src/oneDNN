@@ -18,16 +18,17 @@
 #include <float.h>
 #include <math.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/platform.hpp"
 
-#include "gemm_bf16_matmul.hpp"
+#include "cpu/gemm/gemm.hpp"
 
-#include "gemm/gemm.hpp"
+#include "cpu/matmul/gemm_bf16_matmul.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,19 +38,18 @@ namespace matmul {
 using namespace data_type;
 
 template <impl::data_type_t dst_type>
-status_t gemm_bf16_matmul_t<dst_type>::pd_t::init() {
+status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
     auto check_bias = [&]() -> bool {
         return !with_bias()
                 || (utils::one_of(weights_md(1)->data_type, f32, bf16)
                         && is_bias_1xN());
     };
 
-    auto can_use_gemm = [&]() -> bool { return mayiuse(avx512_core); };
-
     bool ok = src_md()->data_type == src_type
             && weights_md()->data_type == weights_type
             && desc()->accum_data_type == acc_type
-            && dst_md()->data_type == dst_type && can_use_gemm() && check_bias()
+            && dst_md()->data_type == dst_type
+            && platform::has_data_type_support(data_type::bf16) && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops);
@@ -165,6 +165,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                         * nstl::min(batch, (dim_t)dnnl_get_max_threads()) * M
                         * N,
                 64);
+        if (acc == nullptr) return status::out_of_memory;
         need_free_acc = true;
     }
 
@@ -178,14 +179,9 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             ? "N"
             : "T";
 
-    const int M_s32 = (int)M;
-    const int N_s32 = (int)N;
-    const int K_s32 = (int)K;
-
-    const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
-    const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
-
-    const int ldc = dst_is_acc ? (int)dst_bd.strides[batched + 0] : N_s32;
+    const dim_t lda = src_strides[*transA == 'N' ? 0 : 1];
+    const dim_t ldb = weights_strides[*transB == 'N' ? 0 : 1];
+    const dim_t ldc = dst_is_acc ? dst_bd.strides[batched + 0] : N;
 
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
@@ -195,10 +191,13 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
     const auto acc_batch_stride = M * N;
 
+    status_t st = status::success;
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {
-        // XXX: pass by copying to avoid gcc bug with c++14 standard
-        parallel(0, [=](int ithr, int nthr) {
+        // NOTE: inside lambda, type cast variables captured by reference using
+        // either c-like "(type)var" or functional "type(var)" notation in order
+        // to avoid gcc bug with c++14 standard. Otherwise, capture by value.
+        parallel(0, [=, &st](int ithr, int nthr) {
             size_t batch_start {}, batch_end {};
             balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
 
@@ -213,22 +212,27 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                 dst_data_t *curr_dst = dst + b * dst_batch_stride;
                 if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
 
-                gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
-                        curr_weights, &ldb, curr_src, &lda, &beta, curr_acc,
-                        &ldc);
+                status_t st_thr = gemm_bf16bf16f32(transB, transA, &N, &M, &K,
+                        &alpha, curr_weights, &ldb, curr_src, &lda, &beta,
+                        curr_acc, &ldc);
+                if (st_thr != status::success) {
+                    st = st_thr;
+                    return;
+                }
 
                 if (params.has_pp_kernel_) {
                     const float *pp_scales
                             = params.get_post_processing_scales(scales);
 
                     (*pp_kernel_)(curr_dst, curr_acc, bias, pp_scales, 0, M * N,
-                            (size_t)N);
+                            (size_t)N, nullptr);
                 }
             }
         });
     } else {
-        gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
-                weights, &ldb, src, &lda, &beta, acc, &ldc);
+        st = gemm_bf16bf16f32(transB, transA, &N, &M, &K, &alpha, weights, &ldb,
+                src, &lda, &beta, acc, &ldc);
+        if (st != status::success) return st;
 
         if (params.has_pp_kernel_) {
             const bool force_sequential = pp_kernel_->sequential_kernel();
@@ -237,14 +241,15 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
                 size_t start {}, end {};
                 balance211((size_t)(M * N), nthr, ithr, start, end);
-                (*pp_kernel_)(dst, acc, bias, pp_scales, start, end, (size_t)N);
+                (*pp_kernel_)(dst, acc, bias, pp_scales, start, end, (size_t)N,
+                        nullptr);
             });
         }
     }
 
     if (need_free_acc) free(acc);
 
-    return status::success;
+    return st;
 }
 
 using namespace data_type;

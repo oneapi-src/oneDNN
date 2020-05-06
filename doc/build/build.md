@@ -30,10 +30,32 @@ configuration options.
 
 ### Linux/macOS
 
-- Generate makefile:
+#### Prepare the Build Space
+
 ~~~sh
-mkdir -p build && cd build && cmake ..
+mkdir -p build && cd build
 ~~~
+
+#### Generate makefile
+
+- Native compilation:
+~~~sh
+cmake .. <extra build options>
+~~~
+
+- Cross compilation (AArch64 target on Intel 64 host)
+
+~~~sh
+export CC=aarch64-linux-gnu-gcc
+export CXX=aarch64-linux-gnu-g++
+cmake .. \
+          -DCMAKE_SYSTEM_NAME=Linux \
+          -DCMAKE_SYSTEM_PROCESSOR=AARCH64 \
+          -DCMAKE_LIBRARY_PATH=/usr/aarch64-linux-gnu/lib \
+          <extra build options>
+~~~
+
+#### Build and Install the Library
 
 - Build the library:
 ~~~sh
@@ -138,7 +160,7 @@ msbuild "DNNL.sln"
 
 ## Validate the Build
 
-Run unit tests:
+If the library is built for the host system, you can run unit tests using:
 
 ~~~sh
 ctest

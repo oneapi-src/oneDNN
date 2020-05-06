@@ -187,17 +187,24 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     status = create_gemm_memory_desc(&c_desc, &op_desc, 2, c_type);
     assert(status == dnnl::impl::status::success);
 
-    std::unique_ptr<primitive_desc_t> pd;
     primitive_attr_t attr;
     if (alpha != 1.0f) attr.output_scales_.set(alpha);
     if (beta != 0.0f) attr.post_ops_.append_sum(beta);
 
     primitive_desc_t *pd_ptr;
+    std::unique_ptr<primitive_desc_t> pd;
     status = primitive_desc_t::create<pd_type>(&pd_ptr,
             reinterpret_cast<const op_desc_t *>(&op_desc), &attr, engine.get(),
             nullptr);
     error::wrap_c_api(status, "invalid arguments");
     pd.reset(pd_ptr);
+
+    primitive_desc_iface_t *pd_iface_ptr;
+    std::unique_ptr<primitive_desc_iface_t> pd_iface;
+    status = safe_ptr_assign<primitive_desc_iface_t>(
+            pd_iface_ptr, new primitive_desc_iface_t(pd.get(), engine.get()));
+    error::wrap_c_api(status, "could not create a primitive");
+    pd_iface.reset(pd_iface_ptr);
 
     // Create memory objects
     auto a_mem = create_memory_t<memory_api_kind>::template call<a_buffer_t>(
@@ -208,8 +215,8 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
             engine.get(), &c_desc, offset_c, c);
 
     // Create primitive
-    primitive_t *gemm_prim;
-    status = pd->create_primitive(&gemm_prim);
+    primitive_iface_t *gemm_prim_iface;
+    status = pd_iface->create_primitive_iface(&gemm_prim_iface);
     error::wrap_c_api(status, "could not create a primitive");
 
     exec_args_t args = {
@@ -219,8 +226,8 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     };
 
     exec_ctx_t exec_ctx(s.get(), std::move(args));
-    status = gemm_prim->execute(exec_ctx);
-    gemm_prim->release();
+    status = gemm_prim_iface->execute(exec_ctx);
+    gemm_prim_iface->release();
     error::wrap_c_api(status, "could not execute a primitive");
 
     error::wrap_c_api(s->wait(), "could not wait a stream");

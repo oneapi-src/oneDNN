@@ -16,7 +16,7 @@ where *reorder-knobs* are:
  - `--dtag={nchw [default], ...}` -- physical dst memory layout.
             Refer to the common glossary in README.md for details.
  - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
-            Refer to knobs_attr.md for details.
+            Refer to [attributes](knobs_attr.md) for details.
  - `--def-scales={N1[,N2][,N3]...}` -- input scales, separated by ','.
             Example: 0.125, 0.25, 0.5, 1, 2, 4, 8
  - `--alg={reference [default], bootstrap}` -- reorder testing mode. `bootstrap`

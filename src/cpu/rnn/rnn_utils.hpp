@@ -14,16 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef RNN_UTILS_HPP
-#define RNN_UTILS_HPP
+#ifndef CPU_RNN_RNN_UTILS_HPP
+#define CPU_RNN_RNN_UTILS_HPP
 
 #include <type_traits>
 
-#include "c_types_map.hpp"
-#include "memory_desc_wrapper.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_desc_wrapper.hpp"
+#include "common/utils.hpp"
 
-#include "gemm/gemm_pack.hpp"
+#include "cpu/platform.hpp"
+
+#include "cpu/gemm/gemm_pack.hpp"
+
+#if DNNL_X64
+#include "cpu/x64/cpu_isa_traits.hpp"
+#endif
 
 #define rnn_postgemm_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, \
@@ -38,7 +44,7 @@
             dst_iter_t *dst_iter_) const
 
 #define rnn_cell_execution_sig(f) \
-    void f(const rnn_utils::rnn_conf_t &rnn, \
+    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, dst_layer_t *dst_layer_, \
             float *dst_iter_c_, gemm_acc_t *diff_src_layer_, \
             gemm_acc_t *diff_src_iter_, gemm_acc_t *diff_src_iter_c_, \
@@ -55,14 +61,15 @@
             scratch_t *scratch_cell_, dst_iter_t *dst_iter_) const
 
 #define rnn_grid_execution_sig(f) \
-    void f(const rnn_utils::rnn_conf_t &rnn, weights_t **weights_layer_, \
-            weights_t **weights_iter_, weights_t **weights_projection_, \
-            const float *weights_peephole_, float **bias_, \
-            const src_layer_t *src_layer_, const src_iter_t *src_iter_, \
-            const float *src_iter_c_, dst_layer_t *dst_layer_, \
-            dst_iter_t *dst_iter_, float *dst_iter_c_, \
-            src_layer_t *ws_states_layer_, src_iter_t *ws_states_iter_, \
-            float *ws_states_iter_c_, gemm_acc_t *ws_diff_states_layer_, \
+    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
+            weights_t **weights_layer_, weights_t **weights_iter_, \
+            weights_t **weights_projection_, const float *weights_peephole_, \
+            float **bias_, const src_layer_t *src_layer_, \
+            const src_iter_t *src_iter_, const float *src_iter_c_, \
+            dst_layer_t *dst_layer_, dst_iter_t *dst_iter_, \
+            float *dst_iter_c_, src_layer_t *ws_states_layer_, \
+            src_iter_t *ws_states_iter_, float *ws_states_iter_c_, \
+            gemm_acc_t *ws_diff_states_layer_, \
             gemm_acc_t *ws_diff_states_iter_, \
             gemm_acc_t *ws_diff_states_iter_c_, gates_t *ws_gates_, \
             ht_t *ws_ht_, gates_t *ws_grid_, scratch_t *scratch_gates_, \
@@ -72,10 +79,10 @@
             float *diff_weights_peephole_, float *diff_bias_) const
 
 #define rnn_gemm_sig(f) \
-    void f(const char transA, const char transB, int m, int n, int k, \
-            const float alpha, const weights_t *a_, const int ldA, \
-            const gemm_data_t *b_, const int ldB, const float beta, \
-            gemm_acc_t *c_, const int ldC) const
+    dnnl_status_t f(const char transA, const char transB, dim_t m, dim_t n, \
+            dim_t k, const float alpha, const weights_t *a_, const dim_t ldA, \
+            const gemm_data_t *b_, const dim_t ldB, const float beta, \
+            gemm_acc_t *c_, const dim_t ldC) const
 
 #define rnn_bias_prepare_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, float **bias_, const float *b_, \
@@ -362,7 +369,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         rnn.dt_conf = all_f32;
     else if (utils::everyone_is(data_type::bf16, src_layer_d.data_type(),
                      dst_layer_d.data_type(), weights_layer_d.data_type())) {
-        if (!mayiuse(avx512_core)) return false;
+        if (!platform::has_data_type_support(data_type::bf16)) return false;
         rnn.dt_conf = all_bf16;
     } else if (dst_layer_d.data_type() == data_type::u8) {
         if (IMPLICATION(
@@ -506,9 +513,12 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             && (((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd) || rnn.is_int8());
     rnn.merge_gemm_iter
             = dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru);
-    rnn.force_nocopy = !mayiuse(avx512_mic) && mayiuse(avx)
+    rnn.force_nocopy = false;
+#if DNNL_X64
+    rnn.force_nocopy = !x64::mayiuse(x64::avx512_mic) && x64::mayiuse(x64::avx)
             && ((is_inference && (rnn.n_layer > 1 || rnn.mb < 100))
                     || (rnn.is_training && rnn.dhc < 500));
+#endif
 
     /* Decide to copy bias */
     rnn.copy_bias = rnn.is_int8();
@@ -532,33 +542,33 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     auto set_pack_sizes
             = [&](bool merge, bool &do_pack, size_t &weights_pack_size,
                       int &n_parts, int *parts, size_t *parts_pack_size,
-                      size_t &comp_offset, int feature_size,
-                      int weights_ld) -> bool {
+                      size_t &comp_offset, int feature_size, dim_t weights_oc,
+                      dim_t data_ld) -> bool {
         bool pack = true;
         weights_pack_size = 0;
         for (int p = 0; p < n_parts; p++) {
-            int m_p = rnn.is_fwd ? (parts[p] * rnn.dhc) : feature_size;
-            int k_p = rnn.is_fwd ? feature_size : (parts[p] * rnn.dhc);
-            int n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
+            dim_t m_p = rnn.is_fwd ? (parts[p] * rnn.dhc) : feature_size;
+            dim_t k_p = rnn.is_fwd ? feature_size : (parts[p] * rnn.dhc);
+            dim_t n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
             bool pack_part = true;
 
             dnnl_status_t st = dnnl_success;
             switch (rnn.dt_conf) {
                 case all_f32:
                     st = sgemm_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p,
-                            &m_p, &weights_ld, &parts_pack_size[p], &pack_part);
+                            &m_p, &data_ld, &parts_pack_size[p], &pack_part);
                     break;
                 case u8u8u8f32:
                 case f32u8f32f32:
                 case u8u8u8u8:
                 case f32u8f32u8:
                     st = gemm_s8u8s32_pack_get_size("A", "N", "N", &m_p, &n_p,
-                            &k_p, &m_p, &weights_ld, &parts_pack_size[p],
+                            &k_p, &m_p, &data_ld, &parts_pack_size[p],
                             &pack_part);
                     break;
                 case all_bf16:
                     st = gemm_bf16bf16f32_pack_get_size("A", "N", "N", &m_p,
-                            &n_p, &k_p, &m_p, &weights_ld, &parts_pack_size[p],
+                            &n_p, &k_p, &m_p, &data_ld, &parts_pack_size[p],
                             &pack_part);
                     break;
                 default: assert(!"Unsupported configuration");
@@ -574,17 +584,17 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         comp_offset = weights_pack_size;
         const bool need_compensation = rnn.is_int8();
         weights_pack_size += (need_compensation ? rnn.n_layer * rnn.n_dir : 0)
-                * rnn.n_gates * rnn.dlc * sizeof(float);
+                * weights_oc * sizeof(float);
 
         return true;
     };
-
+    // TODO: the activation leading dimension can vary for first layer/iteration
     if (rnn.use_layer_packed_gemm) {
         bool ok = set_pack_sizes(rnn.merge_gemm_layer,
                 rnn.use_layer_packed_gemm, rnn.weights_layer_pack_size,
                 rnn.n_parts_weights_layer, rnn.parts_weights_layer,
                 rnn.part_weights_layer_pack_size, rnn.weights_layer_comp_offset,
-                rnn.slc, rnn.ws_states_layer_ld);
+                rnn.slc, rnn.n_gates * rnn.dhc, rnn.ws_states_layer_ld);
         if (!ok) return false;
     }
 
@@ -592,7 +602,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         bool ok = set_pack_sizes(rnn.merge_gemm_iter, rnn.use_iter_packed_gemm,
                 rnn.weights_iter_pack_size, rnn.n_parts_weights_iter,
                 rnn.parts_weights_iter, rnn.part_weights_iter_pack_size,
-                rnn.weights_iter_comp_offset, rnn.sic, rnn.ws_states_iter_ld);
+                rnn.weights_iter_comp_offset, rnn.sic, rnn.n_gates * rnn.dhc,
+                rnn.ws_states_iter_ld);
         if (!ok) return false;
     }
 
@@ -897,6 +908,7 @@ private:
     dnnl::impl::utils::array_offset_calculator<float, 2> diff_weights_iter_;
     int DHC_;
 };
+
 } // namespace rnn_utils
 } // namespace cpu
 } // namespace impl

@@ -14,16 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_SOFTMAX_PD_HPP
-#define CPU_SOFTMAX_PD_HPP
+#ifndef CPU_CPU_SOFTMAX_PD_HPP
+#define CPU_CPU_SOFTMAX_PD_HPP
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "cpu_engine.hpp"
-#include "softmax_pd.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/softmax_pd.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

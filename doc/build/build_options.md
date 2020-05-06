@@ -13,7 +13,7 @@ oneDNN supports the following build-time options.
 | DNNL_ARCH_OPT_FLAGS         | *compiler flags*                    | Specifies compiler optimization flags (see warning note below)
 | DNNL_ENABLE_CONCURRENT_EXEC | ON, **OFF**                         | Disables sharing a common scratchpad between primitives in #dnnl::scratchpad_mode::library mode
 | DNNL_ENABLE_JIT_PROFILING   | **ON**, OFF                         | Enables integration with Intel(R) VTune(TM) Amplifier
-| DNNL_ENABLE_PRIMITIVE_CACHE | ON, **OFF**                         | Enables primitive cache
+| DNNL_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                         | Enables primitive cache
 | DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                         | Enables controlling CPU dispatcher at run-time
 
 All other building options that can be found in CMake files are dedicated for
@@ -21,12 +21,6 @@ the development/debug purposes and are subject to change without any notice.
 Please avoid using them.
 
 ## Common options
-
-### Primitive cache
-Primitive cache is disabled in the default build configuration.
-
-To enable the primitive cache you can use `DNNL_ENABLE_PRIMITIVE_CACHE` CMake option.
-The default value is `"OFF"`.
 
 ## CPU Options
 Intel Architecture Processors and compatible devices are supported by

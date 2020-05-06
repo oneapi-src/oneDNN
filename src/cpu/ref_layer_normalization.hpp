@@ -19,32 +19,32 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "cpu_layer_normalization_pd.hpp"
+#include "cpu/platform.hpp"
+
+#include "cpu/cpu_layer_normalization_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t d_type>
-struct ref_layer_normalization_fwd_t : public primitive_impl_t {
+struct ref_layer_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_fwd_pd_t {
-        pd_t(engine_t *engine, const layer_normalization_desc_t *adesc,
+        pd_t(const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const layer_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_layer_normalization_fwd_pd_t(
-                    engine, adesc, attr, hint_fwd_pd) {}
+            : cpu_layer_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = true && is_fwd()
-                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+            bool ok = is_fwd() && platform::has_data_type_support(d_type)
                     && src_md()->data_type == d_type
                     && stat_md()->data_type == f32
                     && IMPLICATION(
@@ -57,7 +57,7 @@ struct ref_layer_normalization_fwd_t : public primitive_impl_t {
         }
     };
 
-    ref_layer_normalization_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<d_type>::type data_t;
 
@@ -68,24 +68,22 @@ struct ref_layer_normalization_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <data_type_t d_type>
-struct ref_layer_normalization_bwd_t : public primitive_impl_t {
+struct ref_layer_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_bwd_pd_t {
-        pd_t(engine_t *engine, const layer_normalization_desc_t *adesc,
+        pd_t(const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const layer_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_layer_normalization_bwd_pd_t(
-                    engine, adesc, attr, hint_fwd_pd) {}
+            : cpu_layer_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = true && is_bwd()
-                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+            bool ok = is_bwd() && platform::has_data_type_support(d_type)
                     && set_default_formats_common()
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
@@ -100,7 +98,7 @@ struct ref_layer_normalization_bwd_t : public primitive_impl_t {
         }
     };
 
-    ref_layer_normalization_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_layer_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<d_type>::type data_t;
 
@@ -111,7 +109,7 @@ struct ref_layer_normalization_bwd_t : public primitive_impl_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

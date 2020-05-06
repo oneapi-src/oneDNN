@@ -29,13 +29,14 @@
 
  */
 
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
+#include "common/dnnl_thread.hpp"
 
-#include "../gemm/gemm.hpp"
-#include "../simple_q10n.hpp"
-#include "gemm/gemm_pack.hpp"
-#include "ref_rnn.hpp"
+#include "cpu/simple_q10n.hpp"
+
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm/gemm_pack.hpp"
+
+#include "cpu/rnn/ref_rnn.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -53,42 +54,35 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
 rnn_gemm_sig(
         (_ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::gemm)) {
     assert(!"non packed gemm is unavailable for this data type");
+    return dnnl_unimplemented;
 }
 
 template <>
 rnn_gemm_sig((ref_rnn_fwd_f32_t::gemm)) {
     assert(ldA * ldB * ldC != 0);
-    auto st = extended_sgemm(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA, b_,
+    return extended_sgemm(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA, b_,
             &ldB, &beta, c_, &ldC, nullptr, pd()->rnn_.force_nocopy);
-    assert(st == dnnl_success);
-    MAYBE_UNUSED(st);
 }
 
 template <>
 rnn_gemm_sig((ref_rnn_bwd_f32_t::gemm)) {
     assert(ldA * ldB * ldC != 0);
-    auto st = extended_sgemm(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA, b_,
+    return extended_sgemm(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA, b_,
             &ldB, &beta, c_, &ldC, nullptr, pd()->rnn_.force_nocopy);
-    assert(st == dnnl_success);
-    MAYBE_UNUSED(st);
 }
 
 template <>
 rnn_gemm_sig((ref_rnn_fwd_bf16_t::gemm)) {
     assert(ldA * ldB * ldC != 0);
-    auto st = gemm_bf16bf16f32(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA,
-            b_, &ldB, &beta, c_, &ldC);
-    assert(st == dnnl_success);
-    MAYBE_UNUSED(st);
+    return gemm_bf16bf16f32(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA, b_,
+            &ldB, &beta, c_, &ldC);
 }
 
 template <>
 rnn_gemm_sig((ref_rnn_bwd_bf16_t::gemm)) {
     assert(ldA * ldB * ldC != 0);
-    auto st = gemm_bf16bf16f32(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA,
-            b_, &ldB, &beta, c_, &ldC);
-    assert(st == dnnl_success);
-    MAYBE_UNUSED(st);
+    return gemm_bf16bf16f32(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA, b_,
+            &ldB, &beta, c_, &ldC);
 }
 
 // packed GEMM functions wrapper definitions
@@ -98,52 +92,43 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
 rnn_gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::packed_gemm)) {
     assert(!"packed gemm is unavailable for this datatype");
+    return dnnl_unimplemented;
 }
 
 template <>
 rnn_gemm_sig(ref_rnn_fwd_f32_t::packed_gemm) {
     assert(transA == 'N' && transB == 'N' && alpha == 1.);
-    auto st = sgemm_compute(
+    return sgemm_compute(
             "P", "N", &m, &n, &k, a_, &ldA, b_, &ldB, &beta, c_, &ldC);
-    assert(st == dnnl_success);
-    MAYBE_UNUSED(st);
 }
 
 template <>
 rnn_gemm_sig(ref_rnn_bwd_f32_t::packed_gemm) {
     assert(transA == 'N' && transB == 'N' && alpha == 1.);
-    auto st = sgemm_compute(
+    return sgemm_compute(
             "P", "N", &m, &n, &k, a_, &ldA, b_, &ldB, &beta, c_, &ldC);
-    assert(st == dnnl_success);
-    MAYBE_UNUSED(st);
 }
 
 template <>
 rnn_gemm_sig((ref_rnn_fwd_bf16_t::packed_gemm)) {
     assert(transA == 'N' && transB == 'N' && alpha == 1.);
-    auto st = gemm_bf16bf16f32_compute(
+    return gemm_bf16bf16f32_compute(
             "P", "N", &m, &n, &k, a_, &ldA, b_, &ldB, &beta, c_, &ldC);
-    assert(st == dnnl_success);
-    MAYBE_UNUSED(st);
 }
 
 template <>
 rnn_gemm_sig((ref_rnn_bwd_bf16_t::packed_gemm)) {
     assert(transA == 'N' && transB == 'N' && alpha == 1.);
-    auto st = gemm_bf16bf16f32_compute(
+    return gemm_bf16bf16f32_compute(
             "P", "N", &m, &n, &k, a_, &ldA, b_, &ldB, &beta, c_, &ldC);
-    assert(st == dnnl_success);
-    MAYBE_UNUSED(st);
 }
 
 template <>
 rnn_gemm_sig(ref_rnn_fwd_u8s8_t::packed_gemm) {
     assert(transA == 'N' && transB == 'N' && alpha == 1.);
     int32_t offsetc = 0;
-    auto st = gemm_s8u8s32_compute("P", "N", "F", &m, &n, &k, a_, &ldA, b_,
-            &ldB, &beta, c_, &ldC, &offsetc);
-    assert(st == dnnl_success);
-    MAYBE_UNUSED(st);
+    return gemm_s8u8s32_compute("P", "N", "F", &m, &n, &k, a_, &ldA, b_, &ldB,
+            &beta, c_, &ldC, &offsetc);
 }
 
 //*************** Grid computations strategy: linear ***************//
@@ -227,11 +212,11 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                     n_iter = rnn.n_iter;
                 }
 
-                (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc,
+                CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc,
                         rnn.mb * n_iter, rnn.slc, 1.0,
                         weights_layer(lay, dir, 0), rnn.weights_layer_ld,
                         src_layer, src_layer_ld, 0.0,
-                        (gemm_acc_t *)scratch_gates_, rnn.scratch_gates_ld);
+                        (gemm_acc_t *)scratch_gates_, rnn.scratch_gates_ld));
             }
 
             // TODO: enable merging projection gemm in bwd lstm projection
@@ -329,7 +314,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         proj_ht = scratch_ht_;
                 }
 
-                (this->*cell_func)(rnn, cell_position, cell_dst_layer,
+                CHECK((this->*cell_func)(rnn, cell_position, cell_dst_layer,
                         cell_dst_iter_c,
                         &(ws_diff_states_layer(lay, dir, iter, 0)),
                         &(ws_diff_states_iter(lay, dir, iter, 0)),
@@ -350,7 +335,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         &(ws_gates(lay, dir, iter, 0)), cell_scratch_gates,
                         proj_ht, scratch_diff_ht_,
                         &(ws_grid(lay, dir, iter, 0)), scratch_cell_,
-                        cell_dst_iter);
+                        cell_dst_iter));
             }
 
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_layer) {
@@ -370,17 +355,17 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                     n_iter = rnn.n_iter;
                 }
 
-                (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb * rnn.n_iter,
-                        rnn.n_gates * rnn.dhc, 1.0, weights_layer(lay, dir, 0),
-                        rnn.weights_layer_ld, (gates_t *)scratch_gates_,
-                        rnn.scratch_gates_ld, 0.0,
+                CHECK((this->*gemm_layer_func)('N', 'N', rnn.slc,
+                        rnn.mb * rnn.n_iter, rnn.n_gates * rnn.dhc, 1.0,
+                        weights_layer(lay, dir, 0), rnn.weights_layer_ld,
+                        (gates_t *)scratch_gates_, rnn.scratch_gates_ld, 0.0,
                         &(ws_diff_states_layer(lay, dir, 0, 0)),
-                        rnn.ws_diff_states_layer_ld);
-                gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb * n_iter,
-                        1.0, (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
-                        src_layer, src_layer_ld, 1.0,
+                        rnn.ws_diff_states_layer_ld));
+                CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc,
+                        rnn.mb * n_iter, 1.0, (weights_t *)scratch_gates_,
+                        rnn.scratch_gates_ld, src_layer, src_layer_ld, 1.0,
                         &(diff_weights_layer(lay, dir, 0)),
-                        rnn.diff_weights_layer_ld);
+                        rnn.diff_weights_layer_ld));
             }
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_iter) {
                 // This is split in 3 pieces if we skip copies.
@@ -402,31 +387,34 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                     states_iter_ld = rnn.dst_layer_ld_;
                 }
                 niter_merge_gemm_iter = rnn.n_iter - rnn.skip_src_iter_copy();
-                gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic,
-                        rnn.mb * niter_merge_gemm_iter, 1.0,
-                        (weights_t *)scratch_gates_
-                                + rnn.skip_src_iter_copy()
-                                        * rnn.scratch_gates_nld
-                                        * rnn.scratch_gates_ld,
-                        rnn.scratch_gates_ld, states_iter, states_iter_ld, 1.0,
-                        &(diff_weights_iter(lay, dir, 0)),
-                        rnn.diff_weights_iter_ld);
+                if (niter_merge_gemm_iter > 0) {
+                    CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic,
+                            rnn.mb * niter_merge_gemm_iter, 1.0,
+                            (weights_t *)scratch_gates_
+                                    + rnn.skip_src_iter_copy()
+                                            * rnn.scratch_gates_nld
+                                            * rnn.scratch_gates_ld,
+                            rnn.scratch_gates_ld, states_iter, states_iter_ld,
+                            1.0, &(diff_weights_iter(lay, dir, 0)),
+                            rnn.diff_weights_iter_ld));
+                }
 
                 if (rnn.skip_src_iter_copy()) {
                     states_iter = src_iter_ + src_iter_mdw.off(lay, dir, 0, 0);
                     states_iter_ld = rnn.src_iter_ld_;
                     niter_merge_gemm_iter = 1;
-                    gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic,
+                    CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic,
                             rnn.mb * niter_merge_gemm_iter, 1.0,
                             (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
                             states_iter, states_iter_ld, 1.0,
                             &(diff_weights_iter(lay, dir, 0)),
-                            rnn.diff_weights_iter_ld);
+                            rnn.diff_weights_iter_ld));
                 }
             }
         }
     }
-} // namespace cpu
+    return dnnl_success;
+}
 
 //********* GRID computations strategy: utility functions **********//
 
@@ -717,7 +705,7 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
         } else if (rnn_u8u8_case) { // instead of checking for rnn.is_int8()
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dlc; s++)
-                dd[s] = math::saturate<dst_layer_dt, int16_t>(
+                dd[s] = saturate<dst_layer_dt, int16_t>(
                         (int16_t)dd[s] + (int16_t)ss[s]);
         } else {
             PRAGMA_OMP_SIMD()
@@ -969,7 +957,7 @@ rnn_bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             scratch_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dhc);
 
     if (rnn.copy_bias) {
-        parallel_nd(rnn.n_layer * rnn.n_dir, [&](size_t i) {
+        parallel_nd(rnn.n_layer * rnn.n_dir, [&](int i) {
             int off = i * rnn.n_bias * rnn.dhc;
             PRAGMA_OMP_SIMD()
             for (int j = 0; j < rnn.n_bias * rnn.dhc; j++)
@@ -1294,6 +1282,7 @@ template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
         data_type::s8, data_type::s32>;
 
 #undef AOC
+
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

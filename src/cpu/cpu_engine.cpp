@@ -16,12 +16,12 @@
 
 #include <assert.h>
 
-#include "type_helpers.hpp"
+#include "common/memory.hpp"
+#include "common/type_helpers.hpp"
 
-#include "cpu_engine.hpp"
-#include "cpu_memory_storage.hpp"
-#include "cpu_stream.hpp"
-#include "memory.hpp"
+#include "cpu/cpu_engine.hpp"
+#include "cpu/cpu_memory_storage.hpp"
+#include "cpu/cpu_stream.hpp"
 
 namespace dnnl {
 namespace impl {

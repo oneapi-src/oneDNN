@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_INNER_PRODUCT_PD_HPP
-#define CPU_INNER_PRODUCT_PD_HPP
+#ifndef CPU_CPU_INNER_PRODUCT_PD_HPP
+#define CPU_CPU_INNER_PRODUCT_PD_HPP
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "cpu_engine.hpp"
-#include "inner_product_pd.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/inner_product_pd.hpp"
+#include "common/utils.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

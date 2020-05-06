@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef BIT_CAST_HPP
-#define BIT_CAST_HPP
+#ifndef COMMON_BIT_CAST_HPP
+#define COMMON_BIT_CAST_HPP
 
 #include <cstring>
 #include <type_traits>

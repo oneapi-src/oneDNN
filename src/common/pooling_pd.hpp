@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef POOLING_PD_HPP
-#define POOLING_PD_HPP
+#ifndef COMMON_POOLING_PD_HPP
+#define COMMON_POOLING_PD_HPP
 
 #include "dnnl.h"
 
@@ -31,9 +31,9 @@ struct pooling_fwd_pd_t;
 struct pooling_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::pooling;
 
-    pooling_pd_t(engine_t *engine, const pooling_desc_t *adesc,
-            const primitive_attr_t *attr, const pooling_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, base_pkind)
+    pooling_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
+            const pooling_fwd_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
         , ws_md_() {}
@@ -146,9 +146,9 @@ struct pooling_fwd_pd_t : public pooling_pd_t {
     typedef pooling_fwd_pd_t base_class;
     typedef pooling_fwd_pd_t hint_class;
 
-    pooling_fwd_pd_t(engine_t *engine, const pooling_desc_t *adesc,
-            const primitive_attr_t *attr, const pooling_fwd_pd_t *hint_fwd_pd)
-        : pooling_pd_t(engine, adesc, attr, hint_fwd_pd)
+    pooling_fwd_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
+            const pooling_fwd_pd_t *hint_fwd_pd)
+        : pooling_pd_t(adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , dst_md_(desc_.dst_desc) {}
 
@@ -206,9 +206,9 @@ struct pooling_bwd_pd_t : public pooling_pd_t {
     typedef pooling_bwd_pd_t base_class;
     typedef pooling_fwd_pd_t hint_class;
 
-    pooling_bwd_pd_t(engine_t *engine, const pooling_desc_t *adesc,
-            const primitive_attr_t *attr, const pooling_fwd_pd_t *hint_fwd_pd)
-        : pooling_pd_t(engine, adesc, attr, hint_fwd_pd)
+    pooling_bwd_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
+            const pooling_fwd_pd_t *hint_fwd_pd)
+        : pooling_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)
         , diff_dst_md_(desc_.diff_dst_desc) {}
 

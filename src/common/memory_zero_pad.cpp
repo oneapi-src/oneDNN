@@ -186,14 +186,16 @@ void typed_zero_pad_generic_blocked(
 }
 
 template <data_type_t dt>
-status_t memory_t::typed_zero_pad(void *ptr) const {
-    auto *data = static_cast<typename prec_traits<dt>::type *>(ptr);
+status_t memory_t::typed_zero_pad(const exec_ctx_t &ctx) const {
     const memory_desc_wrapper mdw(md());
 
     if (mdw.format_kind() != format_kind::blocked) return unimplemented;
 
     if (mdw.nelems(false) == mdw.nelems(true)) return success;
 
+    void *mapped_ptr = ctx.map_memory_storage(memory_storage(), ctx.stream());
+
+    auto *data = static_cast<typename prec_traits<dt>::type *>(mapped_ptr);
     auto blk = mdw.blocking_desc();
 
     auto get_blksize = [&](int ind) {
@@ -209,6 +211,8 @@ status_t memory_t::typed_zero_pad(void *ptr) const {
     do { \
         if (blksize == blksize_) { \
             typed_zero_pad_blk<dt, blk_kind, blksize_>(mdw, data); \
+            ctx.unmap_memory_storage( \
+                    memory_storage(), mapped_ptr, ctx.stream()); \
             return success; \
         } \
     } while (0)
@@ -261,33 +265,26 @@ status_t memory_t::typed_zero_pad(void *ptr) const {
     return success;
 }
 
-status_t memory_t::zero_pad() const {
-    return zero_pad(exec_ctx_t(nullptr));
+status_t memory_t::zero_pad(stream_t *stream) const {
+    return zero_pad(exec_ctx_t(stream));
 }
 
-status_t memory_t::zero_pad(const exec_ctx_t &exec_ctx) const {
+status_t memory_t::zero_pad(const exec_ctx_t &ctx) const {
     memory_desc_wrapper mdw(md());
     const bool skip_zeroing = false || memory_storage()->is_null()
             || mdw.is_zero() || !mdw.is_blocking_desc();
     if (skip_zeroing) return success;
 
-    void *mapped_ptr = exec_ctx.map_memory_storage(memory_storage());
-
     status_t status = status::success;
     switch (mdw.data_type()) {
-        case f16: typed_zero_pad<f16>(mapped_ptr); break;
-        case bf16: typed_zero_pad<bf16>(mapped_ptr); break;
-        case f32: typed_zero_pad<f32>(mapped_ptr); break;
-        case s32: typed_zero_pad<s32>(mapped_ptr); break;
-        case s8: typed_zero_pad<s8>(mapped_ptr); break;
-        case u8: typed_zero_pad<u8>(mapped_ptr); break;
-        default:
-            assert(!"memory is undefined");
-            status = unimplemented;
-            break;
+        case f16: return typed_zero_pad<f16>(ctx);
+        case bf16: return typed_zero_pad<bf16>(ctx);
+        case f32: return typed_zero_pad<f32>(ctx);
+        case s32: return typed_zero_pad<s32>(ctx);
+        case s8: return typed_zero_pad<s8>(ctx);
+        case u8: return typed_zero_pad<u8>(ctx);
+        default: assert(!"memory is undefined"); return unimplemented;
     }
-
-    exec_ctx.unmap_memory_storage(memory_storage(), mapped_ptr);
 
     return status;
 }

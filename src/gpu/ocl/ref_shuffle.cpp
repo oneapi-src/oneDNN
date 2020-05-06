@@ -86,9 +86,8 @@ status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     arg_list.set(1, dst);
 
     auto nd_range = compute::nd_range_t(conf.gws_d);
-    auto *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
 }

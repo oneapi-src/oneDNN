@@ -113,10 +113,10 @@ argument index as specified by the following table.
 Resampling primitive supports the following combination of data types for
 source and destination memory objects:
 
-| Propagation        | Source    |  Destination  |
-| :--                | :--       |  :--          |
-| forward / backward | f32       | f32           |
-| forward / backward | bf16      | bf16          |
+| Propagation        | Source / Destination  |
+| :--                | :--                   |
+| forward / backward | f32, bf16             |
+| forward            | f16, s8, u8           |
 
 ### Post-ops and Attributes
 
@@ -126,6 +126,8 @@ The resampling primitive doesn't support any post-ops or attributes.
 
 1. No primitive specific limitations. Refer to @ref dev_guide_data_types for
    limitations related to data types support.
+2. **CPU**
+    - No support for f16, u8, s8 data types.
 
 ## Performance Tips
 

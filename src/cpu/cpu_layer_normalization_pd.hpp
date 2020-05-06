@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_LAYER_NORMALIZATION_PD_HPP
-#define CPU_LAYER_NORMALIZATION_PD_HPP
+#ifndef CPU_CPU_LAYER_NORMALIZATION_PD_HPP
+#define CPU_CPU_LAYER_NORMALIZATION_PD_HPP
 
-#include "cpu_engine.hpp"
-#include "layer_normalization_pd.hpp"
+#include "common/layer_normalization_pd.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

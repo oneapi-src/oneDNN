@@ -19,41 +19,40 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/bfloat16.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "cpu_pooling_pd.hpp"
-
-#include "bfloat16.hpp"
+#include "cpu/cpu_pooling_pd.hpp"
+#include "cpu/platform.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t d_type>
-struct nchw_pooling_fwd_t : public primitive_impl_t {
+struct nchw_pooling_fwd_t : public primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("simple_nchw:any", nchw_pooling_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             const format_tag_t desired_fmt_tag = utils::pick(ndims() - 3,
                     format_tag::ncw, format_tag::nchw, format_tag::ncdhw);
 
-            bool ok = true
-                    && IMPLICATION(
-                            d_type == data_type::bf16, mayiuse(avx512_core))
-                    && set_default_params() == status::success && is_fwd()
+            bool ok = is_fwd()
                     && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                             alg_kind::pooling_avg_include_padding,
                             alg_kind::pooling_avg_exclude_padding)
-                    && !has_zero_dim_memory()
                     && utils::everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
+                    && platform::has_data_type_support(d_type)
+                    && !has_zero_dim_memory()
+                    && set_default_params() == status::success
                     && attr()->has_default_values()
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*dst_md(), desired_fmt_tag);
@@ -74,12 +73,12 @@ struct nchw_pooling_fwd_t : public primitive_impl_t {
             if (src_md()->data_type == data_type::bf16) {
                 size_t src_sz_ = ID() * IH() * IW() * C() * MB();
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(key_pool_src_bf16cvt, sizeof(float) * src_sz_);
+                scratchpad.template book<float>(key_pool_src_bf16cvt, src_sz_);
             }
         }
     };
 
-    nchw_pooling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    nchw_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<d_type>::type data_t;
 
@@ -90,32 +89,31 @@ struct nchw_pooling_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <data_type_t d_type>
-struct nchw_pooling_bwd_t : public primitive_impl_t {
+struct nchw_pooling_bwd_t : public primitive_t {
     struct pd_t : public cpu_pooling_bwd_pd_t {
         using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("simple_nchw:any", nchw_pooling_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             const format_tag_t desired_fmt_tag = utils::pick(ndims() - 3,
                     format_tag::ncw, format_tag::nchw, format_tag::ncdhw);
 
             using namespace prop_kind;
             using namespace alg_kind;
-            bool ok = true
-                    && IMPLICATION(
-                            d_type == data_type::bf16, mayiuse(avx512_core))
-                    && set_default_params() == status::success && !is_fwd()
+            bool ok = !is_fwd()
                     && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                             alg_kind::pooling_avg_include_padding,
                             alg_kind::pooling_avg_exclude_padding)
-                    && !has_zero_dim_memory()
                     && utils::everyone_is(d_type, diff_dst_md()->data_type,
                             diff_src_md()->data_type)
+                    && platform::has_data_type_support(d_type)
+                    && !has_zero_dim_memory()
+                    && set_default_params() == status::success
                     && attr()->has_default_values()
                     && memory_desc_matches_tag(*diff_dst_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag);
@@ -153,10 +151,10 @@ struct nchw_pooling_bwd_t : public primitive_impl_t {
                 size_t nthrs = dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
 
-                scratchpad.book(key_pool_src_bf16cvt,
-                        sizeof(float) * src_sz_ * nthrs * channel_block_size_);
-                scratchpad.book(key_pool_dst_bf16cvt,
-                        sizeof(float) * dst_sz_ * nthrs * channel_block_size_);
+                scratchpad.template book<float>(key_pool_src_bf16cvt,
+                        src_sz_ * nthrs * channel_block_size_);
+                scratchpad.template book<float>(key_pool_dst_bf16cvt,
+                        dst_sz_ * nthrs * channel_block_size_);
             }
         }
 
@@ -168,7 +166,8 @@ struct nchw_pooling_bwd_t : public primitive_impl_t {
             dim_t src_sz_ = ID() * IH() * IW();
             dim_t nthrs = dnnl_get_max_threads();
             dim_t C_per_thr = nstl::min(MB() * C() / nthrs, C());
-            const dim_t max_block_size = get_per_core_cache_size(1) / 2;
+            const dim_t max_block_size
+                    = platform::get_per_core_cache_size(1) / 2;
             dim_t data_size_per_ch = (dst_sz_ + src_sz_) * 6; // f32 + bf16
             channel_block_size_ = nstl::max(
                     nstl::min(C_per_thr, max_block_size / data_size_per_ch),
@@ -176,7 +175,7 @@ struct nchw_pooling_bwd_t : public primitive_impl_t {
         }
     };
 
-    nchw_pooling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    nchw_pooling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
     typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -186,7 +185,7 @@ struct nchw_pooling_bwd_t : public primitive_impl_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

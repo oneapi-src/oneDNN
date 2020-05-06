@@ -23,8 +23,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static status_t init_conf_common(
-        lnorm_conf_t &conf, const layer_normalization_pd_t *pd) {
+static status_t init_conf_common(lnorm_conf_t &conf,
+        const layer_normalization_pd_t *pd, engine_t *engine) {
     memory_desc_wrapper src_mdw(pd->src_md());
     memory_desc_wrapper stat_mdw(pd->stat_md());
     memory_desc_wrapper dst_mdw(pd->dst_md());
@@ -41,8 +41,7 @@ static status_t init_conf_common(
 
     conf.is_fwd = pd->is_fwd();
 
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(pd->engine());
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch_scaleshift = compute_engine->create_dispatch();
     conf.dispatch = compute_engine->create_dispatch(
             pd->is_fwd() ? dst_mdw.md_ : src_mdw.md_);
@@ -100,8 +99,8 @@ static status_t init_kernel_ctx_common(
     return status::success;
 }
 
-status_t ref_layer_normalization_fwd_t::pd_t::init_conf() {
-    return init_conf_common(conf, this);
+status_t ref_layer_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, this, engine);
 }
 
 status_t ref_layer_normalization_fwd_t::pd_t::init_kernel_ctx(
@@ -111,8 +110,6 @@ status_t ref_layer_normalization_fwd_t::pd_t::init_kernel_ctx(
 
 status_t ref_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &mean = pd()->stats_are_src() ? CTX_IN_STORAGE(DNNL_ARG_MEAN)
@@ -135,14 +132,14 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     arg_list.set(5, conf.eps);
 
     auto nd_range_kernel = conf.dispatch.nd_range();
-    status_t status
-            = compute_stream->parallel_for(nd_range_kernel, kernel_, arg_list);
+
+    status_t status = parallel_for(ctx, nd_range_kernel, kernel_, arg_list);
 
     return status;
 }
 
-status_t ref_layer_normalization_bwd_t::pd_t::init_conf() {
-    return init_conf_common(conf, this);
+status_t ref_layer_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, this, engine);
 }
 
 status_t ref_layer_normalization_bwd_t::pd_t::init_kernel_ctx(
@@ -152,8 +149,6 @@ status_t ref_layer_normalization_bwd_t::pd_t::init_kernel_ctx(
 
 status_t ref_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &mean = CTX_IN_STORAGE(DNNL_ARG_MEAN);
@@ -176,8 +171,8 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
         arg_list.set(5, conf.eps);
 
         auto nd_range = conf.dispatch_scaleshift.nd_range();
-        status_t status = compute_stream->parallel_for(
-                nd_range, kernel_scaleshift_, arg_list);
+        status_t status
+                = parallel_for(ctx, nd_range, kernel_scaleshift_, arg_list);
         if (status != status::success) return status;
     }
 
@@ -191,8 +186,8 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     arg_list.set(6, conf.eps);
 
     auto nd_range_kernel = conf.dispatch.nd_range();
-    status_t status
-            = compute_stream->parallel_for(nd_range_kernel, kernel_, arg_list);
+
+    status_t status = parallel_for(ctx, nd_range_kernel, kernel_, arg_list);
 
     return status;
 }

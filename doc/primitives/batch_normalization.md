@@ -6,7 +6,7 @@ Batch Normalization {#dev_guide_batch_normalization}
 >
 
 The batch normalization primitive performs a forward or backward batch
-normalization operation on 0D, 2D, or 3D spatial data.
+normalization operation on tensors with number of dimensions equal to 2 or more.
 
 The batch normalization operation is defined by the following formulas. We show
 formulas only for 2D spatial data which are straightforward to generalize to
@@ -32,7 +32,8 @@ where
 
 - \f$\varepsilon\f$ is a constant to improve numerical stability.
 
-Mean and variance are computed at runtime or provided by a user. When mean and variance are computed at runtime, the following formulas are used:
+Mean and variance are computed at runtime or provided by a user. When mean and
+variance are computed at runtime, the following formulas are used:
 
 - \f$\mu(c) = \frac{1}{NHW} \sum\limits_{nhw} \src(n, c, h, w)_{}\f$,
 
@@ -138,9 +139,11 @@ argument index as specified by the following table.
    referred to as `diff_data_desc`.
 
 4. Both forward and backward propagation support in-place operations, meaning
-   that `src` can be used as input and output for forward propagation, and
-   `diff_dst` can be used as input and output for backward propagation. In case
-   of an in-place operation, the original data will be overwritten.
+   that \src can be used as input and output for forward propagation, and
+   \diffdst can be used as input and output for backward propagation. In case of
+   an in-place operation, the original data will be overwritten. Note, however,
+   that backward propagation requires original \src, hence the corresponding
+   forward propagation should not be performed in-place.
 
 5. As mentioned above, the batch normalization primitive can be fused with
    ReLU activation even in the training mode. In this case, on the forward
@@ -187,6 +190,7 @@ The batch normalization primitive is optimized for the following memory formats:
 | Spatial | Logical tensor | Implementations optimized for memory formats
 | :--     | :--            | :--
 | 0D      | NC             | #dnnl_nc (#dnnl_ab)
+| 1D      | NCW            | #dnnl_ncw (#dnnl_abc), #dnnl_nwc (#dnnl_acb), *optimized^*
 | 2D      | NCHW           | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*
 | 3D      | NCDHW          | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^*
 
@@ -228,7 +232,7 @@ directly.
    same because of the API). Different formats are functionally supported but
    lead to highly suboptimal performance.
 
-2. Use in-place operations whenever possible.
+2. Use in-place operations whenever possible (see caveats in General Notes).
 
 ## Examples
 

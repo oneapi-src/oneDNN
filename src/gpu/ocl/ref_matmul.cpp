@@ -26,24 +26,27 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
-
     const auto &a = CTX_IN_STORAGE(DNNL_ARG_SRC);
     const auto &b = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     const auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
 
     auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
-    memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
+
+    const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES)
-            : s_mem_storage_.get();
-    memory_storage_t *a0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_SRC)
+            : &CTX_GPU_RES_STORAGE(SCALES_);
+    const memory_storage_t *a0
+            = !pd()->attr()->zero_points_.defined(DNNL_ARG_SRC)
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC)
-            : a0_mem_storage_.get();
-    memory_storage_t *b0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)
+            : &CTX_GPU_RES_STORAGE(A0_);
+    const memory_storage_t *b0
+            = !pd()->attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS)
-            : b0_mem_storage_.get();
-    memory_storage_t *c0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_DST)
+            : &CTX_GPU_RES_STORAGE(B0_);
+    const memory_storage_t *c0
+            = !pd()->attr()->zero_points_.defined(DNNL_ARG_DST)
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
-            : c0_mem_storage_.get();
+            : &CTX_GPU_RES_STORAGE(C0_);
 
     const auto a_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto b_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
@@ -87,10 +90,10 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t K = a_d.dims()[is_batched + 1];
 
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
-    auto eltwise_alpha = pd()->eltwise_alpha();
-    auto eltwise_beta = pd()->eltwise_beta();
-    auto eltwise_scale = pd()->eltwise_scale();
-    auto sum_scale = pd()->sum_scale();
+    auto eltwise_alpha = pd()->attr_info_.eltwise_alpha;
+    auto eltwise_beta = pd()->attr_info_.eltwise_beta;
+    auto eltwise_scale = pd()->attr_info_.eltwise_scale;
+    auto sum_scale = pd()->attr_info_.sum_scale;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, a);
@@ -125,9 +128,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     size_t gws[3] = {1, (size_t)N, (size_t)MB};
     auto nd_range = compute::nd_range_t(gws);
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;
 }
 

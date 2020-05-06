@@ -16,15 +16,15 @@
 
 #include "dnnl_types.h"
 
-#include "c_types_map.hpp"
-#include "cpu_isa_traits.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "common/bfloat16.hpp"
-#include "gemm_convolution_utils.hpp"
-#include "jit_generator.hpp"
+#include "cpu/gemm_convolution_utils.hpp"
+
+#include "cpu/platform.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -38,18 +38,27 @@ using namespace data_type;
 namespace jit_gemm_convolution_utils {
 
 template <typename data_type_t>
-void im2col_3d(const jit_gemm_conv_conf_t &jcp, const data_type_t *im,
+void im2col_3d(const conv_gemm_conf_t &jcp, const data_type_t *im,
         data_type_t *col, int od) {
+
+    using data_t =
+            typename utils::conditional<data_traits<data_type_t>::data_type
+                            == bf16,
+                    uint16_t, data_type_t>::type;
+    const data_t *__restrict _im
+            = reinterpret_cast<const data_t *__restrict>(im);
+    data_t *__restrict _col = reinterpret_cast<data_t *__restrict>(col);
+
     const size_t OHW = jcp.oh * jcp.ow;
     const size_t im_step = jcp.ih * jcp.iw * jcp.id;
     const size_t col_step = jcp.ks * OHW;
 
     parallel_nd(jcp.ic, [&](int ic) {
-        const data_type_t *__restrict im_loc = im + ic * im_step;
-        data_type_t *__restrict col_loc = col + ic * col_step;
+        const data_t *__restrict im_loc = _im + ic * im_step;
+        data_t *__restrict col_loc = _col + ic * col_step;
         int id = od * jcp.stride_d - jcp.f_pad;
         for (int kd = 0; kd < jcp.kd; ++kd) {
-            data_type_t *__restrict col_ = col_loc + kd * jcp.kh * jcp.kw * OHW;
+            data_t *__restrict col_ = col_loc + kd * jcp.kh * jcp.kw * OHW;
             if (id < 0 || id >= jcp.id) {
                 int ih_ = -jcp.t_pad;
                 for (int kh = 0; kh < jcp.kh; ++kh) {
@@ -82,8 +91,7 @@ void im2col_3d(const jit_gemm_conv_conf_t &jcp, const data_type_t *im,
                     col_ += jcp.kw * OHW;
                 }
             } else {
-                const data_type_t *__restrict im_
-                        = im_loc + id * jcp.ih * jcp.iw;
+                const data_t *__restrict im_ = im_loc + id * jcp.ih * jcp.iw;
                 int ih_ = -jcp.t_pad;
                 for (int kh = 0; kh < jcp.kh; ++kh) {
                     int ih = ih_;
@@ -122,20 +130,20 @@ void im2col_3d(const jit_gemm_conv_conf_t &jcp, const data_type_t *im,
 }
 
 template void im2col_3d(
-        const jit_gemm_conv_conf_t &jcp, const float *im, float *col, int od);
+        const conv_gemm_conf_t &jcp, const float *im, float *col, int od);
 
-template void im2col_3d(const jit_gemm_conv_conf_t &jcp, const bfloat16_t *im,
+template void im2col_3d(const conv_gemm_conf_t &jcp, const bfloat16_t *im,
         bfloat16_t *col, int od);
 
 /* imtr[ic][od][oh][ow] <-- im[id][ih][iw][ic]*/
 template <typename T>
-void transpose_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
+void transpose_u8(const conv_gemm_conf_t &jcp, const T *__restrict im,
         T *__restrict imtr) {
     uint8_t shift = jcp.signed_input ? 128 : 0;
     const int ic_stride = jcp.id * jcp.ih * jcp.iw;
     const int IC = jcp.ngroups * jcp.ic;
     const int IHW = jcp.ih * jcp.iw;
-    constexpr int ic_block = 64;
+    constexpr int ic_block = platform::get_cache_line_size();
     const int nb_ic = jcp.ic / ic_block;
     const int ic_blocked = nb_ic * ic_block;
     parallel_nd(jcp.id, jcp.ih, [&](int id, int ih) {
@@ -159,14 +167,14 @@ void transpose_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
     });
 }
 
-template void transpose_u8(const jit_gemm_conv_conf_t &jcp,
+template void transpose_u8(const conv_gemm_conf_t &jcp,
         const int8_t *__restrict im, int8_t *__restrict imtr);
-template void transpose_u8(const jit_gemm_conv_conf_t &jcp,
+template void transpose_u8(const conv_gemm_conf_t &jcp,
         const uint8_t *__restrict im, uint8_t *__restrict imtr);
 
 /* col[kd][kh][kw][g][ic][od][oh][ow] <-- im2col_u8_3d(im[id][ih][iw][g][ic]) */
 template <typename T>
-void im2col_u8_3d(const jit_gemm_conv_conf_t &jcp, const T *__restrict imtr,
+void im2col_u8_3d(const conv_gemm_conf_t &jcp, const T *__restrict imtr,
         uint8_t *__restrict col, int od) {
     uint8_t shift = jcp.signed_input ? 128 : 0;
     const int dd = 1 + jcp.dilate_d;
@@ -277,16 +285,25 @@ void im2col_u8_3d(const jit_gemm_conv_conf_t &jcp, const T *__restrict imtr,
                 });
 }
 
-template void im2col_u8_3d<int8_t>(const jit_gemm_conv_conf_t &jcp,
+template void im2col_u8_3d<int8_t>(const conv_gemm_conf_t &jcp,
         const int8_t *__restrict im, uint8_t *__restrict col, int od);
 
-template void im2col_u8_3d<uint8_t>(const jit_gemm_conv_conf_t &jcp,
+template void im2col_u8_3d<uint8_t>(const conv_gemm_conf_t &jcp,
         const uint8_t *__restrict im, uint8_t *__restrict col, int od);
 
 /* col[ic][kh][kw][oh][ow] <-- im2col(im[ic][ih][iw]) */
 template <typename data_type_t>
-void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
+void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
         data_type_t *__restrict col, int ss, int sb, int cs, int cb) {
+
+    using data_t =
+            typename utils::conditional<data_traits<data_type_t>::data_type
+                            == bf16,
+                    uint16_t, data_type_t>::type;
+    const data_t *__restrict _im
+            = reinterpret_cast<const data_t *__restrict>(im);
+    data_t *__restrict _col = reinterpret_cast<data_t *__restrict>(col);
+
     const size_t im_step = jcp.is;
     const size_t col_step = jcp.ks * sb;
     const int dh = 1 + jcp.dilate_h;
@@ -302,35 +319,36 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
     const int first_ow = ss % jcp.ow;
     const int last_ow = (ss + sb - 1) % jcp.ow;
 
+    auto zero_val = (data_t)0;
+
     if (jcp.outer_threading) {
         if (sw == 1) {
             // Generated code is more optimized for stride_w == 1
             // because innermost loop is by width
             for (int ic = 0; ic < cb; ic++) {
-                const data_type_t *__restrict im_ic = im + (ic + cs) * im_step;
+                const data_t *__restrict im_ic = _im + (ic + cs) * im_step;
                 for (int kh = 0; kh < jcp.kh; kh++) {
                     for (int kw = 0; kw < jcp.kw; kw++) {
-                        data_type_t *__restrict col_k
-                                = col + ic * col_step + (kh * jcp.kw + kw) * sb;
+                        data_t *__restrict col_k = _col + ic * col_step
+                                + (kh * jcp.kw + kw) * sb;
                         for (int oh = oh_begin; oh < oh_end; oh++) {
                             const int ih = oh * sh - tp + kh * dh;
-                            const data_type_t *__restrict im_
+                            const data_t *__restrict im_
                                     = im_ic + ih * jcp.iw - lp + kw * dw;
                             const int ow_begin
                                     = (oh == first_oh) ? first_ow : 0;
                             const int ow_end
                                     = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                            data_type_t *__restrict col_
-                                    = col_k + oh * jcp.ow - ss;
+                            data_t *__restrict col_ = col_k + oh * jcp.ow - ss;
                             if (ih < 0 || ih >= jcp.ih)
                                 for (int ow = ow_begin; ow < ow_end; ow++)
-                                    col_[ow] = (data_type_t)0;
+                                    col_[ow] = zero_val;
                             else {
                                 for (int ow = ow_begin; ow < ow_end; ++ow) {
                                     const int iw = ow;
                                     if (iw < lp - kw * dw
                                             || iw >= jcp.iw + lp - kw * dw)
-                                        col_[ow] = (data_type_t)0;
+                                        col_[ow] = zero_val;
                                     else
                                         col_[ow] = im_[iw];
                                 }
@@ -341,27 +359,27 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
             }
         } else {
             for (int ic = 0; ic < cb; ic++) {
-                const data_type_t *__restrict im_ = im + (ic + cs) * im_step;
+                const data_t *__restrict im_ = _im + (ic + cs) * im_step;
                 for (int kh = 0; kh < jcp.kh; kh++) {
                     for (int kw = 0; kw < jcp.kw; kw++) {
-                        data_type_t *__restrict col_k
-                                = col + ic * col_step + (kh * jcp.kw + kw) * sb;
+                        data_t *__restrict col_k = _col + ic * col_step
+                                + (kh * jcp.kw + kw) * sb;
                         for (int oh = oh_begin; oh < oh_end; oh++) {
                             const int ih = oh * sh - tp + kh * dh;
                             const int ow_begin
                                     = (oh == first_oh) ? first_ow : 0;
                             const int ow_end
                                     = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                            data_type_t *__restrict col_oh
+                            data_t *__restrict col_oh
                                     = col_k + oh * jcp.ow - ss;
                             if (ih < 0 || ih >= jcp.ih)
                                 for (int ow = ow_begin; ow < ow_end; ow++)
-                                    col_oh[ow] = (data_type_t)0;
+                                    col_oh[ow] = zero_val;
                             else
                                 for (int ow = ow_begin; ow < ow_end; ow++) {
                                     const int iw = ow * sw - lp + kw * dw;
                                     if (iw < 0 || iw >= jcp.iw)
-                                        col_oh[ow] = (data_type_t)0;
+                                        col_oh[ow] = zero_val;
                                     else {
                                         const ptrdiff_t im_idx
                                                 = ih * jcp.iw + iw;
@@ -387,19 +405,19 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
                         const int ow_start = (oh == first_oh) ? first_ow : 0;
                         const int ow_end
                                 = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                        data_type_t *__restrict col_oh = col + ic * col_step
+                        data_t *__restrict col_oh = _col + ic * col_step
                                 + (kh * jcp.kw + kw) * sb + oh * jcp.ow - ss;
-                        const data_type_t *__restrict im_
-                                = im + (ic + cs) * im_step + ih * jcp.iw;
+                        const data_t *__restrict im_
+                                = _im + (ic + cs) * im_step + ih * jcp.iw;
                         const int iw_shift = kw * dw - lp;
                         if (ih < 0 || ih >= jcp.ih)
                             for (int ow = ow_start; ow < ow_end; ow++)
-                                col_oh[ow] = (data_type_t)0;
+                                col_oh[ow] = zero_val;
                         else
                             for (int ow = ow_start; ow < ow_end; ow++) {
                                 const int iw = ow + iw_shift;
                                 if (iw < 0 || iw >= jcp.iw)
-                                    col_oh[ow] = (data_type_t)0;
+                                    col_oh[ow] = zero_val;
                                 else
                                     col_oh[ow] = im_[iw];
                             }
@@ -412,18 +430,18 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
                         const int ow_start = (oh == first_oh) ? first_ow : 0;
                         const int ow_end
                                 = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                        data_type_t *__restrict col_oh = col + ic * col_step
+                        data_t *__restrict col_oh = _col + ic * col_step
                                 + (kh * jcp.kw + kw) * sb + oh * jcp.ow - ss;
-                        const data_type_t *__restrict im_
-                                = im + (ic + cs) * im_step;
+                        const data_t *__restrict im_
+                                = _im + (ic + cs) * im_step;
                         if (ih < 0 || ih >= jcp.ih)
                             for (int ow = ow_start; ow < ow_end; ow++)
-                                col_oh[ow] = (data_type_t)0;
+                                col_oh[ow] = zero_val;
                         else
                             for (int ow = ow_start; ow < ow_end; ow++) {
                                 const int iw = ow * sw - lp + kw * dw;
                                 if (iw < 0 || iw >= jcp.iw)
-                                    col_oh[ow] = (data_type_t)0;
+                                    col_oh[ow] = zero_val;
                                 else {
                                     const ptrdiff_t im_idx = ih * jcp.iw + iw;
                                     col_oh[ow] = im_[im_idx];
@@ -433,17 +451,16 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
     }
 }
 
-template void im2col(const jit_gemm_conv_conf_t &jcp,
-        const float *__restrict im, float *__restrict col, int hs, int hb,
-        int ws, int wb);
+template void im2col(const conv_gemm_conf_t &jcp, const float *__restrict im,
+        float *__restrict col, int hs, int hb, int ws, int wb);
 
-template void im2col(const jit_gemm_conv_conf_t &jcp,
+template void im2col(const conv_gemm_conf_t &jcp,
         const bfloat16_t *__restrict im, bfloat16_t *__restrict col, int hs,
         int hb, int ws, int wb);
 
 /* col[kh][kw][ic][oh][ow] <-- im2col_u8(im[ih][iw][ic]) */
 template <typename T>
-void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
+void im2col_u8(const conv_gemm_conf_t &jcp, const T *__restrict im,
         T *__restrict imtr, uint8_t *__restrict col, int hs, int hb, int ws,
         int wb) {
     uint8_t shift = jcp.signed_input ? 128 : 0;
@@ -559,15 +576,15 @@ void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
     }
 }
 
-template void im2col_u8<int8_t>(const jit_gemm_conv_conf_t &jcp,
+template void im2col_u8<int8_t>(const conv_gemm_conf_t &jcp,
         const int8_t *__restrict im, int8_t *__restrict imtr,
         uint8_t *__restrict col, int hs, int hb, int ws, int wb);
-template void im2col_u8<uint8_t>(const jit_gemm_conv_conf_t &jcp,
+template void im2col_u8<uint8_t>(const conv_gemm_conf_t &jcp,
         const uint8_t *__restrict im, uint8_t *__restrict imtr,
         uint8_t *__restrict col, int hs, int hb, int ws, int wb);
 
 /* im[id][ih][iw][ic] <-- col2im_s32_3d(col[od][oh][ow][kd][kh][kw][ic]) */
-void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *__restrict col,
+void col2im_s32(const conv_gemm_conf_t &jcp, const int32_t *__restrict col,
         int32_t *__restrict im) {
     parallel(0, [&](const int ithr, const int nthr) {
         int d_nthr = nstl::min(jcp.id, nthr);
@@ -642,7 +659,7 @@ void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *__restrict col,
 }
 
 void col2im_3d(
-        const jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od) {
+        const conv_gemm_conf_t &jcp, const float *col, float *im, int od) {
     parallel_nd(jcp.ic, [&](int ic) {
         const float *__restrict col_ = col + (size_t)ic * jcp.ks * jcp.os;
         float *__restrict im_ic = im + (size_t)ic * jcp.ih * jcp.iw * jcp.id;
@@ -682,7 +699,7 @@ void col2im_3d(
     });
 }
 
-void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
+void col2im(const conv_gemm_conf_t &jcp, const float *col, float *im) {
     const size_t col_step = jcp.ks * jcp.os;
     const size_t im_step = jcp.ih * jcp.iw;
     const int iS = jcp.ih * jcp.iw;
@@ -715,7 +732,7 @@ void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
     });
 }
 
-status_t init_conf(jit_gemm_conv_conf_t &jcp,
+status_t init_conf(conv_gemm_conf_t &jcp,
         memory_tracking::registrar_t &scratchpad, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, int max_threads) {
@@ -783,17 +800,15 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
             || (is_bwd_w
                     && utils::everyone_is(
                             bf16, src_d.data_type(), dst_d.data_type()));
-    if (is_bf16_conv && !mayiuse(avx512_core)) return status::unimplemented;
+    if (is_bf16_conv && !platform::has_data_type_support(bf16))
+        return status::unimplemented;
 
     bool is_bf16_to_bf16_conv = is_bf16_conv
             && ((is_fwd && bf16 == dst_d.data_type())
                     || (is_bwd_d && bf16 == src_d.data_type())
                     || (is_bwd_w && bf16 == weights_d.data_type()));
 
-    const int vlen = mayiuse(avx512_common)
-            ? cpu_isa_traits<avx512_common>::vlen
-            : mayiuse(avx) ? cpu_isa_traits<avx>::vlen
-                           : mayiuse(sse41) ? cpu_isa_traits<sse41>::vlen : 4;
+    const int vlen = std::max(platform::get_vector_register_size(), 4);
     const int data_size = (is_int8_conv ? 1 : (is_bf16_conv ? 2 : 4));
     const int simd_w = vlen / data_size;
 
@@ -810,7 +825,7 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
     bool is_depthwise = jcp.ic == 1 && jcp.oc == 1 && jcp.ngroups != 1;
 
     // TODO: maybe mitigate blocking restriction
-    const int L2 = get_per_core_cache_size(2) / data_size;
+    const int L2 = platform::get_per_core_cache_size(2) / data_size;
     const int gemm_thrld = 64 * 1024;
 
     if (is_int8_conv) {
@@ -933,13 +948,12 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
                                         < gemm_thrld);
             }
             jcp.nthr = jcp.outer_threading ? max_threads : 1;
-            scratchpad.book(key_conv_gemm_col,
-                    sizeof(int8_t) * jcp.nthr * jcp.im2col_sz);
-            scratchpad.book(key_conv_int_dat_in_acc_dt,
-                    sizeof(int32_t) * jcp.nthr * jcp.oh_block * jcp.ow_block
-                            * jcp.oc);
-            scratchpad.book(key_conv_gemm_imtr,
-                    sizeof(int8_t) * jcp.nthr * jcp.id * jcp.is * jcp.ic);
+            scratchpad.book<int8_t>(
+                    key_conv_gemm_col, jcp.nthr * jcp.im2col_sz);
+            scratchpad.book<int32_t>(key_conv_int_dat_in_acc_dt,
+                    jcp.nthr * jcp.oh_block * jcp.ow_block * jcp.oc);
+            scratchpad.book<int8_t>(
+                    key_conv_gemm_imtr, jcp.nthr * jcp.id * jcp.is * jcp.ic);
         } else if (is_bwd_d) {
             jcp.im2col_sz
                     = !everyone_is(true, jcp.ow == jcp.iw, jcp.oh == jcp.ih,
@@ -965,10 +979,10 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
                                     < gemm_thrld);
 
             jcp.nthr = jcp.outer_threading ? max_threads : 1;
-            scratchpad.book(key_conv_gemm_col,
-                    sizeof(int32_t) * jcp.nthr * jcp.im2col_sz);
-            scratchpad.book(key_conv_int_dat_in_acc_dt,
-                    sizeof(int32_t) * jcp.nthr * jcp.is * jcp.id * jcp.ic);
+            scratchpad.book<int32_t>(
+                    key_conv_gemm_col, jcp.nthr * jcp.im2col_sz);
+            scratchpad.book<int32_t>(key_conv_int_dat_in_acc_dt,
+                    jcp.nthr * jcp.is * jcp.id * jcp.ic);
         } else if (is_bwd_w) {
             assert(!"unimplemented prop_kind");
             return status::unimplemented;
@@ -990,6 +1004,7 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
             // inner/outer threading cross point due to the nature of the
             // gemm implementation which we cannot control
             bool is_blocking_applicable = true
+                    && DNNL_X64 // FIXME: workaround to avoid exhaustive search
                     && !is_bf16_conv // TODO: apply blocking to bf16
                     && !is_3d
                     && (!jcp.im2col_sz
@@ -1073,15 +1088,15 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
                         return 0.f;
 
                     int sp_start {0}, sp_end {0}, oc_start {0}, oc_end {0};
-                    size_t max_thr_size {0},
-                            min_thr_size {(size_t)spatial * jcp.oc + 1},
-                            max_y {0}, max_oc {0};
+                    int max_y {0}, max_oc {0};
+                    size_t max_thr_size {0};
+                    size_t min_thr_size {(size_t)spatial * jcp.oc + 1};
 
                     for (int i = 0; i < max_threads; i++) {
                         balance2D(max_threads, i, spatial, sp_start, sp_end,
                                 jcp.oc, oc_start, oc_end, nthr_oc);
-                        const size_t thr_size
-                                = (sp_end - sp_start) * (oc_end - oc_start);
+                        const size_t thr_size = (size_t)(sp_end - sp_start)
+                                * (oc_end - oc_start);
                         if (thr_size > max_thr_size) {
                             max_y = (sp_end - sp_start);
                             max_oc = (oc_end - oc_start);
@@ -1254,34 +1269,35 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
         const size_t gemm_col_datatype_size = is_bf16_conv && !is_bwd_d
                 ? sizeof(bfloat16_t)
                 : sizeof(float);
-        scratchpad.book(key_conv_gemm_col,
-                gemm_col_datatype_size * jcp.nthr * jcp.im2col_sz);
+        scratchpad.book(key_conv_gemm_col, jcp.nthr * jcp.im2col_sz,
+                gemm_col_datatype_size);
 
         const int sizeof_cacheline_float = 16;
         if (is_bwd_w) {
             jcp.need_wei_reduction = jcp.mb != 1 && jcp.nthr != 1;
-            scratchpad.book(key_conv_wei_reduction,
-                    sizeof(float) * jcp.nthr * weights_d.size());
+            scratchpad.book<float>(
+                    key_conv_wei_reduction, jcp.nthr * weights_d.size());
         }
 
         if (is_bf16_to_bf16_conv) {
             size_t conv_acc_buffer_size = 0;
             if (is_fwd)
-                conv_acc_buffer_size = sizeof(float) * jcp.nthr
+                conv_acc_buffer_size = jcp.nthr
                         * rnd_up(jcp.oc * jcp.oh_block * jcp.ow_block,
                                 sizeof_cacheline_float);
             else if (is_bwd_d)
-                conv_acc_buffer_size = sizeof(float) * jcp.nthr
+                conv_acc_buffer_size = jcp.nthr
                         * rnd_up(jcp.ic * jcp.ih * jcp.iw * jcp.id,
                                 sizeof_cacheline_float);
             else if (is_bwd_w)
-                conv_acc_buffer_size = sizeof(float) * weights_d.size();
-            scratchpad.book(key_conv_int_dat_in_acc_dt, conv_acc_buffer_size);
+                conv_acc_buffer_size = weights_d.size();
+            scratchpad.book<float>(
+                    key_conv_int_dat_in_acc_dt, conv_acc_buffer_size);
             if ((is_fwd || is_bwd_w) && jcp.with_bias
                     && one_of(data_type::bf16, cd.diff_bias_desc.data_type,
                             cd.bias_desc.data_type))
-                scratchpad.book(key_conv_bias_bf16_convert_wsp,
-                        sizeof(float) * jcp.ngroups * jcp.oc);
+                scratchpad.book<float>(
+                        key_conv_bias_bf16_convert_wsp, jcp.ngroups * jcp.oc);
         }
     }
     // Heuristic threshold for requested scratchpad memory to avoid
@@ -1310,9 +1326,8 @@ void bwd_weights_balance(int ithr, int nthr, int ngroups, int mb, int &ithr_g,
     }
 }
 
-void bwd_weights_reduction_par(int ithr, int nthr,
-        const jit_gemm_conv_conf_t &jcp, const float *weights_reduce_ws,
-        float *weights) {
+void bwd_weights_reduction_par(int ithr, int nthr, const conv_gemm_conf_t &jcp,
+        const float *weights_reduce_ws, float *weights) {
     const size_t weights_g_size = jcp.ic * jcp.oc * jcp.ks;
 
     size_t weights_start {0}, weights_end {0};

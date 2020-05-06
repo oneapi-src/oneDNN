@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef UTILS_HPP
-#define UTILS_HPP
+#ifndef COMMON_UTILS_HPP
+#define COMMON_UTILS_HPP
 
 #include <cassert>
 #include <cstddef>
@@ -26,10 +26,6 @@
 
 #include <memory>
 #include <string>
-
-#if defined(__x86_64__) || defined(_M_X64)
-#define DNNL_X86_64
-#endif
 
 #define MSAN_ENABLED 0
 #define ATTR_NO_MSAN
@@ -499,6 +495,7 @@ bool get_jit_dump();
 unsigned get_jit_profiling_flags();
 std::string get_jit_profiling_jitdumpdir();
 FILE *fopen(const char *filename, const char *mode);
+int getpagesize();
 
 constexpr int msan_enabled = MSAN_ENABLED;
 inline void msan_unpoison(void *ptr, size_t size) {

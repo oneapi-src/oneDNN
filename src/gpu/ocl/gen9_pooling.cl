@@ -228,7 +228,8 @@ inline VECT_DATA_T read_vect_c_block(
     } else {
         VECT_DATA_T ret;
         for (int i = 0; i < VECT_DT_N; i++) {
-            int c_off = (USE_C_BLOCK ? (idx * VECT_DT_N + i) * stride : 0);
+            int c_off = (USE_C_BLOCK ? (idx * VECT_DT_N + i) * SUB_GROUP_SIZE
+                                     : 0);
 #if VECT_DT_N == 1
             ret = read_c_block(ptr + (idx * VECT_DT_N + i) * stride, c + c_off);
 #else
@@ -260,7 +261,8 @@ inline VECT_INT_T read_vect_c_block_int(
     } else {
         VECT_INT_T ret;
         for (int i = 0; i < VECT_DT_N; i++) {
-            int c_off = (USE_C_BLOCK ? (idx * VECT_DT_N + i) * stride : 0);
+            int c_off = (USE_C_BLOCK ? (idx * VECT_DT_N + i) * SUB_GROUP_SIZE
+                                     : 0);
 #if VECT_DT_N == 1
             ret = read_c_block_int(
                     ptr + (idx * VECT_DT_N + i) * stride, c + c_off);
@@ -293,7 +295,8 @@ inline void write_vect_c_block(
                 AS_VECT_BLOCK_DATA_T(block));
     } else {
         for (int i = 0; i < VECT_DT_N; i++) {
-            int c_off = (USE_C_BLOCK ? (idx * VECT_DT_N + i) * stride : 0);
+            int c_off = (USE_C_BLOCK ? (idx * VECT_DT_N + i) * SUB_GROUP_SIZE
+                                     : 0);
 #if VECT_DT_N == 1
             write_c_block(
                     ptr + (idx * VECT_DT_N + i) * stride, c + c_off, block);
@@ -324,7 +327,8 @@ inline void write_vect_c_block_int(
                 AS_VECT_UINT_T(block));
     } else {
         for (int i = 0; i < VECT_DT_N; i++) {
-            int c_off = (USE_C_BLOCK ? (idx * VECT_DT_N + i) * stride : 0);
+            int c_off = (USE_C_BLOCK ? (idx * VECT_DT_N + i) * SUB_GROUP_SIZE
+                                     : 0);
 #if VECT_DT_N == 1
             write_c_block_int(
                     ptr + (idx * VECT_DT_N + i) * stride, c + c_off, block);

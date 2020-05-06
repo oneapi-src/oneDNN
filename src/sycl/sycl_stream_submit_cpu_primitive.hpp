@@ -27,7 +27,7 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
+void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
         const exec_ctx_t &exec_ctx, cl::sycl::handler &cgh);
 
 } // namespace sycl

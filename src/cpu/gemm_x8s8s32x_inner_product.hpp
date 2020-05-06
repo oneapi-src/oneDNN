@@ -14,28 +14,30 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_X8S8S32X_INNER_PRODUCT_HPP
-#define GEMM_X8S8S32X_INNER_PRODUCT_HPP
+#ifndef CPU_GEMM_X8S8S32X_INNER_PRODUCT_HPP
+#define CPU_GEMM_X8S8S32X_INNER_PRODUCT_HPP
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "memory_tracking.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include <memory>
 
-#include "gemm/gemm.hpp"
-#include "gemm_inner_product_utils.hpp"
-#include "jit_generator.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
-#include "cpu_inner_product_pd.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm_inner_product_utils.hpp"
+
+#include "cpu/cpu_inner_product_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
-struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
+struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
         using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
 
@@ -43,7 +45,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
                                                       : IGEMM_S8S8S32_IMPL_STR,
                 gemm_x8s8s32x_inner_product_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = true && is_fwd() && !has_zero_dim_memory()
@@ -96,18 +98,16 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
         void init_scratchpad() {
             if (!dst_is_acc_) {
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(
+                scratchpad.template book<acc_data_t>(
                         memory_tracking::names::key_iprod_int_dat_in_acc_dt,
-                        sizeof(acc_data_t) * MB() * OC());
+                        MB() * OC());
             }
         }
     };
 
-    gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
-        pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type::s32,
-                dst_type>(apd, false);
+    gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {
+        pp_kernel_.reset(pp_kernel_t::create(pd(), false));
     }
-    ~gemm_x8s8s32x_inner_product_fwd_t() { delete pp_kernel_; }
 
     typedef typename prec_traits<dst_type>::type data_t;
 
@@ -117,15 +117,16 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    status_t execute_forward(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    inner_product_utils::pp_kernel_t<data_type::s32, dst_type> *pp_kernel_;
+    using pp_kernel_t
+            = inner_product_utils::pp_kernel_t<data_type::s32, dst_type>;
+    std::unique_ptr<pp_kernel_t> pp_kernel_;
 };
 
 } // namespace cpu

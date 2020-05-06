@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OS_BLAS_HPP
-#define OS_BLAS_HPP
+#ifndef CPU_GEMM_OS_BLAS_HPP
+#define CPU_GEMM_OS_BLAS_HPP
 
 /* oneDNN provides gemm functionality on its own using jit generated
  * kernels. This is the only official supported option.
@@ -61,6 +61,6 @@ extern "C" {
 #endif /* defined(USE_CBLAS) */
 #endif /* defined(USE_MKL) */
 
-#endif /* OS_BLAS_HPP */
+#endif /* CPU_GEMM_OS_BLAS_HPP */
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

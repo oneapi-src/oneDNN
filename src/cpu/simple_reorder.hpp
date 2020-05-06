@@ -19,19 +19,20 @@
 
 #include <assert.h>
 
-#include "bfloat16.hpp"
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/bfloat16.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
+#include "common/primitive.hpp"
+#include "common/primitive_attr.hpp"
+#include "common/tag_traits.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
-#include "cpu_primitive.hpp"
-#include "cpu_reorder_pd.hpp"
-#include "tag_traits.hpp"
+#include "cpu/cpu_primitive.hpp"
+#include "cpu/cpu_reorder_pd.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "simple_q10n.hpp"
+#include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -1343,7 +1344,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 /* high level class declaration */
 
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
-struct simple_reorder_t : public primitive_impl_t {
+struct simple_reorder_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -1364,10 +1365,10 @@ struct simple_reorder_t : public primitive_impl_t {
                             spec>::is_applicable(src_md, dst_md, attr);
             if (!args_ok) return status::invalid_arguments;
 
-            auto _pd = new pd_t(
-                    engine, attr, src_engine, src_md, dst_engine, dst_md);
+            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+                    dst_engine->kind(), dst_md);
             if (_pd == nullptr) return status::out_of_memory;
-            if (_pd->init() != status::success) {
+            if (_pd->init(engine, src_engine, dst_engine) != status::success) {
                 delete _pd;
                 return status::unimplemented;
             }
@@ -1376,14 +1377,14 @@ struct simple_reorder_t : public primitive_impl_t {
                     = simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             spec>::get_scratchpad_size(src_md, dst_md);
             auto scratchpad = _pd->scratchpad_registry().registrar();
-            scratchpad.book(
-                    memory_tracking::names::key_reorder_space, scratchpad_sz_);
+            scratchpad.book(memory_tracking::names::key_reorder_space,
+                    scratchpad_sz_, 1, 16);
             _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
     };
 
-    simple_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    simple_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
@@ -1391,7 +1392,7 @@ struct simple_reorder_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 #undef SIMPLE_REORDER_TEMPL_DECL

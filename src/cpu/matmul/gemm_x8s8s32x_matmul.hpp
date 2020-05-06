@@ -14,20 +14,21 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_X8S8S32X_MATMUL_HPP
-#define GEMM_X8S8S32X_MATMUL_HPP
+#ifndef CPU_MATMUL_GEMM_X8S8S32X_MATMUL_HPP
+#define CPU_MATMUL_GEMM_X8S8S32X_MATMUL_HPP
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "type_helpers.hpp"
+#include <memory>
 
-#include "cpu_matmul_pd.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
 
-#include "gemm_based_common.hpp"
-
-#include "cpu/cpu_isa_traits.hpp"
 #include "cpu/gemm_inner_product_utils.hpp"
+
+#include "cpu/matmul/cpu_matmul_pd.hpp"
+#include "cpu/matmul/gemm_based_common.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,22 +36,22 @@ namespace cpu {
 namespace matmul {
 
 template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type>
-struct gemm_x8s8s32x_matmul_t : public primitive_impl_t {
+struct gemm_x8s8s32x_matmul_t : public primitive_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
         DECLARE_COMMON_PD_T("gemm:jit", gemm_x8s8s32x_matmul_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
         const gemm_based::params_t &params() const { return params_; }
 
     private:
         gemm_based::params_t params_;
     };
 
-    gemm_x8s8s32x_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {
+    gemm_x8s8s32x_matmul_t(const pd_t *apd) : primitive_t(apd) {
         if (pd()->params().has_pp_kernel_)
-            pp_kernel_.reset(new pp_kernel_t(pd()->N(), pd()->M(),
+            pp_kernel_.reset(pp_kernel_t::create(pd()->N(), pd()->M(),
                     &pd()->params().pp_attr_, pd()->desc()->bias_desc.data_type,
                     false));
     }
@@ -67,7 +68,7 @@ struct gemm_x8s8s32x_matmul_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
     void post_process_src_and_weights_zero_points(
             std::vector<acc_data_t> &src_comp,

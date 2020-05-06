@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef DNNL_THREAD_PARALLEL_ND_HPP
-#define DNNL_THREAD_PARALLEL_ND_HPP
+#ifndef COMMON_DNNL_THREAD_PARALLEL_ND_HPP
+#define COMMON_DNNL_THREAD_PARALLEL_ND_HPP
 
 /* This header must be included by dnnl_thread.hpp only */
 
@@ -90,7 +90,7 @@ void parallel(int nthr, F f) {
         threadpool_utils::activate_threadpool(tp);
     } else {
         bool async = tp->get_flags() & dnnl::threadpool_iface::ASYNCHRONOUS;
-        counting_barrier b;
+        counting_barrier_t b;
         if (async) b.init(nthr);
         tp->parallel_for(nthr, [tp, &f, &b, async](int ithr, int nthr) {
             bool is_master = threadpool_utils::get_active_threadpool() == tp;

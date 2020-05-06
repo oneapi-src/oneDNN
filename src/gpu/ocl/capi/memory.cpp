@@ -47,5 +47,5 @@ status_t dnnl_memory_set_ocl_mem_object(memory_t *memory, cl_mem mem_object) {
     bool args_ok = (memory->engine()->runtime_kind() == runtime_kind::ocl);
     if (!args_ok) return status::invalid_arguments;
 
-    return memory->set_data_handle(static_cast<void *>(mem_object));
+    return memory->set_data_handle(static_cast<void *>(mem_object), nullptr);
 }

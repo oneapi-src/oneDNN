@@ -41,10 +41,12 @@
 #endif
 
 #include "src/common/bfloat16.hpp"
-#include "src/common/dnnl_thread.hpp"
 #include "src/common/float16.hpp"
 #include "src/common/memory_desc_wrapper.hpp"
 #include "src/common/nstl.hpp"
+#include "tests/test_thread.hpp"
+
+#include "src/cpu/platform.hpp"
 
 #define for_ for
 
@@ -64,6 +66,23 @@ bool is_current_test_failed();
 #ifdef DNNL_TEST_WITH_ENGINE_PARAM
 dnnl::engine::kind get_test_engine_kind();
 dnnl::engine get_test_engine();
+#endif
+
+inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
+    dnnl::engine::kind kind = eng.get_kind();
+
+    bool supported = true; // optimism
+    if (kind == dnnl::engine::kind::cpu)
+        supported = dnnl::impl::cpu::platform::has_data_type_support(
+                memory::convert_to_c(dt));
+
+    return !supported;
+}
+
+#ifdef DNNL_TEST_WITH_ENGINE_PARAM
+inline bool unsupported_data_type(memory::data_type dt) {
+    return unsupported_data_type(dt, get_test_engine());
+}
 #endif
 
 template <typename data_t>
@@ -827,8 +846,7 @@ inline dnnl::stream make_stream(dnnl::engine engine,
     if (engine.get_kind() != dnnl::engine::kind::cpu)
         return dnnl::stream(engine, flags);
     dnnl::stream_attr stream_attr(dnnl::engine::kind::cpu);
-    stream_attr.set_threadpool(
-            dnnl::impl::threadpool_utils::get_active_threadpool());
+    stream_attr.set_threadpool(dnnl::testing::get_threadpool());
     return dnnl::stream(engine, flags, stream_attr);
 #else
     return dnnl::stream(engine, flags);
