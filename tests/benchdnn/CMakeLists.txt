@@ -139,6 +139,8 @@ register_benchdnn_test(test_benchdnn_conv_function
     cpu "--conv --batch=inputs/conv/test_conv_function")
 register_benchdnn_test(test_benchdnn_conv_gemm_f32
     cpu "--conv --batch=inputs/conv/test_conv_gemm_f32")
+register_benchdnn_test(test_benchdnn_conv_gemm_nxc_f32
+    cpu "--conv --batch=inputs/conv/test_conv_gemm_nxc_f32")
 register_benchdnn_test(test_benchdnn_conv_gemm_int8
     cpu "--conv --batch=inputs/conv/test_conv_gemm_int8")
 register_benchdnn_test(test_benchdnn_conv_gemm_bf16
