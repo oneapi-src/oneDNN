@@ -257,6 +257,8 @@ template void transpose_dt(const conv_gemm_conf_t &jcp,
         const uint8_t *__restrict im, uint8_t *__restrict imtr);
 template void transpose_dt(const conv_gemm_conf_t &jcp,
         const float *__restrict im, float *__restrict imtr);
+template void transpose_dt(const conv_gemm_conf_t &jcp,
+        const bfloat16_t *__restrict im, bfloat16_t *__restrict imtr);
 
 /* col[kd][kh][kw][g][ic][od][oh][ow] <-- im2col_dt_3d(im[id][ih][iw][g][ic]) */
 template <typename orig_im_dt, typename orig_col_dt>
@@ -390,6 +392,8 @@ template void im2col_dt_3d<uint8_t, uint8_t>(const conv_gemm_conf_t &jcp,
         const uint8_t *__restrict im, uint8_t *__restrict col, int od);
 template void im2col_dt_3d<float, float>(const conv_gemm_conf_t &jcp,
         const float *__restrict im, float *__restrict col, int od);
+template void im2col_dt_3d<bfloat16_t, bfloat16_t>(const conv_gemm_conf_t &jcp,
+        const bfloat16_t *__restrict im, bfloat16_t *__restrict col, int od);
 
 /* col[ic][kh][kw][oh][ow] <-- im2col(im[ic][ih][iw]) */
 template <typename data_type_t>
@@ -698,6 +702,10 @@ template void im2col_dt<float, float>(const conv_gemm_conf_t &jcp,
         const float *__restrict im, float *__restrict imtr,
         float *__restrict col, int hs, int hb, int ws, int wb);
 
+template void im2col_dt<bfloat16_t, bfloat16_t>(const conv_gemm_conf_t &jcp,
+        const bfloat16_t *__restrict im, bfloat16_t *__restrict imtr,
+        bfloat16_t *__restrict col, int hs, int hb, int ws, int wb);
+
 /* im[id][ih][iw][ic] <-- col2im_dt_3d(col[od][oh][ow][kd][kh][kw][ic]) */
 template <typename orig_T>
 void col2im_dt(const conv_gemm_conf_t &jcp, const orig_T *__restrict _col,
@@ -786,6 +794,9 @@ template void col2im_dt<int32_t>(const conv_gemm_conf_t &jcp,
 
 template void col2im_dt<float>(const conv_gemm_conf_t &jcp,
         const float *__restrict col, float *__restrict im);
+
+template void col2im_dt<bfloat16_t>(const conv_gemm_conf_t &jcp,
+        const bfloat16_t *__restrict col, bfloat16_t *__restrict im);
 
 void col2im_3d(
         const conv_gemm_conf_t &jcp, const float *col, float *im, int od) {
@@ -1005,10 +1016,6 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     && utils::everyone_is(
                             bf16, src_d.data_type(), dst_d.data_type()));
     if (is_bf16_conv && !platform::has_data_type_support(bf16))
-        return status::unimplemented;
-
-    // TODO: implement nspc format support for bf16 data type
-    if (is_bf16_conv && !src_d.matches_one_of_tag(default_dat_tag))
         return status::unimplemented;
 
     bool is_bf16_to_bf16_conv = is_bf16_conv
@@ -1341,9 +1348,26 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                                         < gemm_thrld);
             }
             jcp.nthr = jcp.outer_threading ? max_threads : 1;
-            scratchpad.book<float>(key_conv_gemm_col, jcp.nthr * jcp.im2col_sz);
-            scratchpad.book<float>(key_conv_gemm_imtr,
-                    jcp.nthr * static_cast<size_t>(jcp.id) * jcp.is * jcp.ic);
+            const size_t gemm_col_datatype_size
+                    = is_bf16_conv ? sizeof(bfloat16_t) : sizeof(float);
+
+            scratchpad.book(key_conv_gemm_col, jcp.nthr * jcp.im2col_sz,
+                    gemm_col_datatype_size);
+            if (is_bf16_conv) {
+                scratchpad.book<float>(key_conv_gemm_acc,
+                        jcp.nthr * static_cast<size_t>(jcp.oh_block)
+                                * jcp.ow_block * jcp.oc);
+            }
+
+            scratchpad.book(key_conv_gemm_imtr,
+                    jcp.nthr * static_cast<size_t>(jcp.id) * jcp.is * jcp.ic,
+                    gemm_col_datatype_size);
+            if (is_bf16_to_bf16_conv && jcp.with_bias
+                    && one_of(data_type::bf16, cd.diff_bias_desc.data_type,
+                            cd.bias_desc.data_type)) {
+                scratchpad.book<float>(
+                        key_conv_bias_bf16_convert_wsp, jcp.ngroups * jcp.oc);
+            }
 
         } else if (!jcp.is_nspc && is_fwd) {
             const int sh = jcp.stride_h;
@@ -1627,7 +1651,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
 
             jcp.nthr = jcp.outer_threading ? max_threads : 1;
             scratchpad.book<float>(key_conv_gemm_col, jcp.nthr * jcp.im2col_sz);
-            if (jcp.ngroups > 1)
+            if (jcp.ngroups > 1 || is_bf16_conv)
                 scratchpad.book<float>(key_conv_gemm_acc,
                         jcp.nthr * static_cast<size_t>(jcp.is) * jcp.id
                                 * jcp.ic);
@@ -1655,13 +1679,28 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             jcp.outer_threading = jcp.os / max_threads < 256
                     && (jcp.mb != 1 || jcp.ngroups > 2);
             jcp.nthr = jcp.outer_threading ? max_threads : 1;
-            scratchpad.book<float>(key_conv_gemm_col, jcp.nthr * jcp.im2col_sz);
+            const size_t gemm_col_datatype_size
+                    = is_bf16_conv ? sizeof(bfloat16_t) : sizeof(float);
+
+            scratchpad.book(key_conv_gemm_col, jcp.nthr * jcp.im2col_sz,
+                    gemm_col_datatype_size);
 
             jcp.need_wei_reduction = jcp.mb != 1 && jcp.nthr != 1;
             scratchpad.book<float>(
                     key_conv_wei_reduction, jcp.nthr * weights_d.size());
-            scratchpad.book<float>(key_conv_gemm_imtr,
-                    static_cast<size_t>(jcp.nthr) * jcp.id * jcp.is * jcp.ic);
+            scratchpad.book(key_conv_gemm_imtr,
+                    static_cast<size_t>(jcp.nthr) * jcp.id * jcp.is * jcp.ic,
+                    gemm_col_datatype_size);
+            if (is_bf16_to_bf16_conv) {
+                size_t conv_acc_buffer_size = weights_d.size();
+                scratchpad.book<float>(
+                        key_conv_int_dat_in_acc_dt, conv_acc_buffer_size);
+            }
+            if (is_bf16_to_bf16_conv && jcp.with_bias
+                    && one_of(data_type::bf16, cd.diff_bias_desc.data_type,
+                            cd.bias_desc.data_type))
+                scratchpad.book<float>(
+                        key_conv_bias_bf16_convert_wsp, jcp.ngroups * jcp.oc);
         } else if (!jcp.is_nspc && is_bwd_w)
             jcp.outer_threading = jcp.os / max_threads < 256
                     && (jcp.mb != 1 || jcp.ngroups > 2);
