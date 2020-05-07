@@ -7,16 +7,16 @@ mb32_ic64oc128_ih150kh3oh150ph1n"ssd_300_voc0712:conv2_1"
 mb32_ic128oc128_ih150kh3oh150ph1n"ssd_300_voc0712:conv2_2"
 
 mb32_ic128oc256_ih75kh3oh75ph1n"ssd_300_voc0712:conv3_1"
-mb32_ic256oc256_ih75kh3oh75ph1n"ssd_300_voc0712:conv3_2"
-mb32_ic256oc256_ih75kh3oh75ph1n"ssd_300_voc0712:conv3_3"
+mb32_ic256oc256_ih75kh3oh75ph1n"ssd_300_voc0712:conv3_2*2"
+# mb32_ic256oc256_ih75kh3oh75ph1n"ssd_300_voc0712:conv3_3"
 
 mb32_ic256oc512_ih38kh3oh38ph1n"ssd_300_voc0712:conv4_1"
-mb32_ic512oc512_ih38kh3oh38ph1n"ssd_300_voc0712:conv4_2"
-mb32_ic512oc512_ih38kh3oh38ph1n"ssd_300_voc0712:conv4_3"
+mb32_ic512oc512_ih38kh3oh38ph1n"ssd_300_voc0712:conv4_2*2"
+# mb32_ic512oc512_ih38kh3oh38ph1n"ssd_300_voc0712:conv4_3"
 
-mb32_ic512oc512_ih19kh3oh19ph1n"ssd_300_voc0712:conv5_1"
-mb32_ic512oc512_ih19kh3oh19ph1n"ssd_300_voc0712:conv5_2"
-mb32_ic512oc512_ih19kh3oh19ph1n"ssd_300_voc0712:conv5_3"
+mb32_ic512oc512_ih19kh3oh19ph1n"ssd_300_voc0712:conv5_1*3"
+# mb32_ic512oc512_ih19kh3oh19ph1n"ssd_300_voc0712:conv5_2"
+# mb32_ic512oc512_ih19kh3oh19ph1n"ssd_300_voc0712:conv5_3"
 
 mb32_ic512oc1024_ih19kh3oh19ph6dh5n"ssd_300_voc0712:fc6"
 mb32_ic1024oc1024_ih19kh1oh19ph0n"ssd_300_voc0712:fc7"
