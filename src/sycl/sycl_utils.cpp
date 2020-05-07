@@ -16,32 +16,29 @@
 
 #include "sycl/sycl_utils.hpp"
 
-#if defined(DNNL_SYCL_DPCPP) && defined(__INTEL_CLANG_COMPILER) \
-        && (__SYCL_COMPILER_VERSION >= 20200402)
-// Only Intel DPC++ supports `pi::getPreferredBE()` so far
-// XXX: remove once OSS compiler start supporting L0
-// XXX: find a better way than using `sycl::detail` namespace
-#define USE_PI_GET_PREFERRED_BE
-#include <CL/sycl/detail/pi.hpp>
-#endif
-
 namespace dnnl {
 namespace impl {
 namespace sycl {
 
 backend_t get_sycl_gpu_backend() {
-#if defined(USE_PI_GET_PREFERRED_BE)
-    switch (cl::sycl::detail::pi::getPreferredBE()) {
-        case cl::sycl::detail::pi::SYCL_BE_PI_OPENCL: return backend_t::opencl;
-#ifdef DNNL_WITH_LEVEL_ZERO
-        case cl::sycl::detail::pi::SYCL_BE_PI_LEVEL0: return backend_t::level0;
+    // Create default GPU device and query its backend (assumed as default)
+    static backend_t default_backend = []() {
+        const backend_t fallback = backend_t::opencl;
+
+        const auto gpu_type = cl::sycl::info::device_type::gpu;
+        if (cl::sycl::device::get_devices(gpu_type).empty()) return fallback;
+
+        cl::sycl::device dev {cl::sycl::gpu_selector {}};
+        backend_t backend = get_sycl_backend(dev);
+
+#if !defined(DNNL_WITH_LEVEL_ZERO)
+        if (backend == backend_t::level0) backend = fallback;
 #endif
-        // Ignore preferred backend and use OpenCL in this case.
-        default: return backend_t::opencl;
-    }
-#else
-    return backend_t::opencl;
-#endif
+
+        return backend;
+    }();
+
+    return default_backend;
 }
 
 } // namespace sycl
