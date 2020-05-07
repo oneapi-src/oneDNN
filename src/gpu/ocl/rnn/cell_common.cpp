@@ -70,7 +70,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 gemm_iter_fwd);
 
         (this->*elemwise_func)(ctx, dir, lay, iter, dhc, wic, batch, workspace,
-                scratch_gates, scales, bias, tm_scales);
+                scratch_gates, scratch_cell, scales, bias, tm_scales);
 
     } else { // backward
 
@@ -80,7 +80,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 weights_states, n_layer, n_dir, n_parts_weights_iter);
 
         (this->*elemwise_func)(ctx, dir, lay, iter, dhc, wic, batch, workspace,
-                scratch_gates, scales, bias, tm_scales);
+                scratch_gates, scratch_cell, scales, bias, tm_scales);
 
         cl_ulong offset_w_state = (cl_ulong)(off_weights_st(lay, dir, 0))
                 * types::data_type_size(wei_t);

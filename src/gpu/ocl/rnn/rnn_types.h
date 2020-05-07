@@ -31,8 +31,10 @@
 
 #if INPUT_DT_BF16
 #define TO_INPUT(x) cvt_f32_to_bf16(x)
+#define TO_REF(x) cvt_bf16_to_f32(x)
 #else
 #define TO_INPUT(x) (x)
+#define TO_REF(x) (float)(x)
 #endif
 
 #if DT_F16 && !IS_FWD
@@ -70,10 +72,10 @@
 #if N_ITER_SCRATCH_GATES == 1
 // if no merge gemm, scratch_gates contain data for single cell,
 // so we ignore iter dim
-#define OFF_SCRATCH_GATES(i0, i1, i2, i3) \
+#define OFF_SCRATCH_MEM(i0, i1, i2, i3) \
     (i1) * SCRATCH_GATES_LD + (i2)*DHC + (i3)
 #else
-#define OFF_SCRATCH_GATES(i0, i1, i2, i3) \
+#define OFF_SCRATCH_MEM(i0, i1, i2, i3) \
     (i0) * BATCH *SCRATCH_GATES_LD + (i1)*SCRATCH_GATES_LD + (i2)*DHC + (i3)
 #endif
 
@@ -83,7 +85,7 @@
 // for cell - shorter forms
 
 #define CELL_WS_GATES(i3, i4, i5) OFF_WS_GATES(0, 0, 0, i3, i4, i5)
-#define CELL_SCRATCH_GATES(i1, i2, i3) OFF_SCRATCH_GATES(0, i1, i2, i3)
+#define CELL_SCRATCH_MEM(i1, i2, i3) OFF_SCRATCH_MEM(0, i1, i2, i3)
 #define CELL_WS_STATE(i4, i5) OFF_WS_STATE(0, 0, 0, i4, i5)
 #define CELL_WS_DIFF_STATES(i2, i4, i5) OFF_WS_DIFF_STATES(0, 0, i2, 0, i4, i5)
 

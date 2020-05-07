@@ -11,24 +11,29 @@
 
 # LSTM
 --direction=left2right
---activation=TANH
 --prop=FWD_D,BWD_DW
 --alg=VANILLA_LSTM --batch=rnn_small
+
+#LBR GRU
+--direction=left2right,right2left,concat,sum
+--prop=FWD_D
+--alg=LBR_GRU   --batch=rnn_small
 
 # f16
 --cfg=f16
 --prop=FWD_D
 --direction=left2right
 
-# RNN
+# ALL ALGS
 --alg=VANILLA_RNN  --activation=RELU,TANH,LOGISTIC --batch=rnn_small
---alg=VANILLA_LSTM --activation=TANH               --batch=rnn_small
+--alg=VANILLA_LSTM --batch=rnn_small
+--alg=LBR_GRU --batch=rnn_small
 
 # LSTM int8
 --alg=VANILLA_LSTM
 --direction=left2right
---activation=TANH
 --prop=FWD_D
+--trivial-strides=true
 
 --cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=rnn_small
 --cfg=f32u8f32f32,f32u8f32u8 --scaling=per_oc --batch=rnn_small
@@ -60,7 +65,7 @@
 --direction=left2right,right2left,concat,sum
 --batch=rnn_large
 --batch=rnn_large_nonuniform
---alg=VANILLA_LSTM
+--alg=VANILLA_LSTM,LBR_GRU
 --batch=rnn_gnmt_encoder
 --batch=rnn_gnmt_decoder
 
@@ -70,8 +75,8 @@
 --scaling=common,per_oc
 --prop=FWD_D
 --alg=VANILLA_LSTM
+--trivial-strides=true
 
---skip-nonlinear=true
 --mb=50
 --batch=test_lstm_large
 --mb=1

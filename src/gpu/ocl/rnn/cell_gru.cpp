@@ -14,21 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-// Common for RNN and LSTM cell execution
-
 #include "gpu/ocl/rnn/ref_rnn.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
-
-template <prop_kind_t aprop>
-cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
-    assert(!"unimplemented");
-}
-template cell_execution_sig(ref_rnn_fwd_t::cell_execution_gru_lbr);
-template cell_execution_sig(ref_rnn_bwd_t::cell_execution_gru_lbr);
 
 template <prop_kind_t aprop>
 cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {

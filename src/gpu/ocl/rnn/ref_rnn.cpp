@@ -178,7 +178,7 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
 
     rnn_utils::set_offsets(rnn, conf.ws_gates_offset, conf.ws_states_offset,
             conf.ws_c_state_offset, conf.ws_diff_states_offset,
-            conf.ws_grid_comp_offset, conf.ws_cell_comp_offset,
+            conf.ws_grid_comp_offset, conf.scratch_cell_offset,
             conf.ws_bias_offset, conf.scratch_gates_offset,
             conf.scratchpad_size, conf.workspace_size);
 
@@ -289,7 +289,6 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WS_C_STATE_OFFSET", conf.ws_c_state_offset);
     kernel_ctx.define_int("WS_DIFF_STATES_OFFSET", conf.ws_diff_states_offset);
     kernel_ctx.define_int("WS_GRID_COMP_OFFSET", conf.ws_grid_comp_offset);
-    kernel_ctx.define_int("WS_CELL_COMP_OFFSET", conf.ws_cell_comp_offset);
     kernel_ctx.define_int("WS_BIAS_OFFSET", conf.ws_bias_offset);
     kernel_ctx.define_int("SCRATCH_GATES_OFFSET", conf.scratch_gates_offset);
     kernel_ctx.define_int("STATES_WS_LD", conf.states_ws_ld);
@@ -470,7 +469,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     weights_type = weights_layer_dt;
 
     bool ok = true
-            && one_of(cell_kind, alg_kind::vanilla_rnn, alg_kind::vanilla_lstm)
+            && one_of(cell_kind, alg_kind::vanilla_rnn, alg_kind::vanilla_lstm,
+                    alg_kind::lbr_gru)
             && !this->is_lstm_peephole() && !this->is_lstm_projection()
             && IMPLICATION(aprop == prop_kind::forward,
                     one_of(this->desc()->prop_kind, forward_training,
@@ -479,7 +479,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                     one_of(this->desc()->prop_kind, backward))
             && src_layer_dt == src_type
             && ((aprop == prop_kind::forward && src_layer_dt == data_type::u8
-                        && weights_layer_dt == data_type::s8)
+                        && weights_layer_dt == data_type::s8
+                        && cell_kind == alg_kind::vanilla_lstm)
                     || (aprop == prop_kind::forward
                             && one_of(src_layer_dt, data_type::f16,
                                     data_type::f32, data_type::bf16)
@@ -627,6 +628,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             = rnn_conf.merge_gemm_iter ? batch * rnn_conf.n_iter : batch;
 
     bool gemm_ok = true;
+    int beta = this->is_lbr() ? 0.0 : 1.0;
 
     switch (aprop) {
         case prop_kind::forward:
@@ -642,7 +644,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                                     batch, sic, rnn_conf.weights_iter_ld,
                                     rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
                                     weights_type, src_type,
-                                    rnn_conf.acc_data_type, false, 1.0));
+                                    rnn_conf.acc_data_type, false, beta));
             break;
         case prop_kind::backward:
             gemm_ok = true
@@ -815,8 +817,10 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     // FIXME: This should be created once per execute() instead of creating
     // memory before each gemm call. Each cell type (+prop kind) might have
     // different number of GEMMs.
+    bool is_lbr = this->pd()->is_lbr();
 
-    void *scratchpad_ptr {nullptr}, *scratchpad_gates_ptr {nullptr};
+    void *scratchpad_ptr {nullptr}, *scratchpad_gates_ptr {nullptr},
+            *scratch_cell_ptr {nullptr};
 
     memory_t *workspace = (aprop == prop_kind::forward)
             ? ctx.output(DNNL_ARG_WORKSPACE)
@@ -834,6 +838,10 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     auto scratchpad_gates
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
     scratchpad_gates->get_data_handle(&scratchpad_gates_ptr);
+
+    auto scratch_cell
+            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
+    if (is_lbr) scratch_cell->get_data_handle(&scratch_cell_ptr);
 
     void *weights_ptr {nullptr};
     memory_t *weights {nullptr};
@@ -858,7 +866,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 
             gemm_A_->set_data_handle(weights_ptr);
             gemm_B_->set_data_handle(scratchpad_ptr);
-            gemm_C_->set_data_handle(scratchpad_gates_ptr);
+            if (is_lbr && gemm_kind == gemm_iter_fwd) {
+                gemm_C_->set_data_handle(scratch_cell_ptr);
+            } else {
+                gemm_C_->set_data_handle(scratchpad_gates_ptr);
+            }
             break;
         case gemm_iter_bwd:
         case gemm_layer_bwd:
@@ -991,9 +1003,9 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                         wic, batch, n_layer, n_dir, n_iter, n_gates, n_states,
                         n_bias, offset_wei_input_, n_parts_weights_layer,
                         offset_wei_state_, n_parts_weights_iter, bias,
-                        workspace, scratch_gates, w_input, w_state,
-                        diff_weights_layer, diff_weights_iter, diff_bias,
-                        scales, tm_scales);
+                        workspace, scratch_gates, scratch_cell, w_input,
+                        w_state, diff_weights_layer, diff_weights_iter,
+                        diff_bias, scales, tm_scales);
             }
 
             if (aprop == prop_kind::backward
@@ -1334,6 +1346,12 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
     auto &scratch_gates = *scratchpad_gates.get();
 
+    empty_memory_storage_t empty_mem;
+    auto scratchpad_cell
+            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
+    auto &scratch_cell
+            = this->pd()->is_lbr() ? *scratchpad_cell.get() : empty_mem;
+
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
     auto &diff_src_iter_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER);
     auto &diff_src_iter_c_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER_C);
@@ -1469,8 +1487,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     (this->*grid_computation)(engine, ctx, dhc, slc, sic, wic, batch, n_layer,
             n_dir, n_iter, n_gates, n_states, n_bias, offset_wei_input_,
             n_parts_weights_layer, offset_wei_state_, n_parts_weights_iter,
-            bias_native_, workspace_, scratch_gates, w_input_native_,
-            w_state_native_, diff_weights_layer_native_,
+            bias_native_, workspace_, scratch_gates, scratch_cell,
+            w_input_native_, w_state_native_, diff_weights_layer_native_,
             diff_weights_iter_native_, diff_bias_native_, scales_buf,
             tm_scales_buf);
 

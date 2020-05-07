@@ -89,10 +89,7 @@ float logistic_bwd_tm(float s, float alpha) {
 }
 
 float activation_fwd(float s, float alpha, float cliping) {
-#if CELL_KIND == VANILLA_LSTM
-    // LSTM doesn't use activation function
-    return 0.0f;
-#else // VANILLA_RNN
+#if CELL_KIND == VANILLA_RNN
 #if ACTIVATION_KIND == ELTWISE_RELU
     return relu_fwd_tm(s, alpha);
 #elif ACTIVATION_KIND == ELTWISE_TANH
@@ -102,13 +99,12 @@ float activation_fwd(float s, float alpha, float cliping) {
 #else
 #error "Unsupported activation_kind"
 #endif
+#else
+    return 0.0f;
 #endif
 }
 float activation_bwd(float s, float alpha, float cliping) {
-#if CELL_KIND == VANILLA_LSTM
-    // LSTM doesn't use activation function
-    return 0.0f;
-#else // VANILLA_RNN
+#if CELL_KIND == VANILLA_RNN
 #if ACTIVATION_KIND == ELTWISE_RELU
     return relu_bwd_tm(s, alpha);
 #elif ACTIVATION_KIND == ELTWISE_TANH
@@ -118,6 +114,8 @@ float activation_bwd(float s, float alpha, float cliping) {
 #else
 #error "Unsupported activation_kind"
 #endif
+#else
+    return 0.0f;
 #endif
 }
 
@@ -556,7 +554,7 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
             = (__global ACC_DATA_T *)(ws + WS_GATES_OFFSET)
             + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
     __global ACC_DATA_T *scratch_gates = (__global ACC_DATA_T *)(scr_gates)
-            + OFF_SCRATCH_GATES(iter, 0, 0, 0);
+            + OFF_SCRATCH_MEM(iter, 0, 0, 0);
 
     __global WS_STATE_DATA_T *h_states_t_l
             = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
@@ -564,19 +562,19 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
     __global float *c_states_t_l = (__global float *)(ws + WS_C_STATE_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
 
-    float G0 = logistic_fwd_tm(deq_w(scratch_gates[CELL_SCRATCH_GATES(i, 0, j)],
+    float G0 = logistic_fwd_tm(deq_w(scratch_gates[CELL_SCRATCH_MEM(i, 0, j)],
                                        0, j, scales, data_scale)
                     + ws_bias[OFF_WS_BIAS(lay, dir, 0, j)],
             tm_scales[0]);
-    float G1 = logistic_fwd_tm(deq_w(scratch_gates[CELL_SCRATCH_GATES(i, 1, j)],
+    float G1 = logistic_fwd_tm(deq_w(scratch_gates[CELL_SCRATCH_MEM(i, 1, j)],
                                        1, j, scales, data_scale)
                     + ws_bias[OFF_WS_BIAS(lay, dir, 1, j)],
             tm_scales[1]);
-    float G2 = tanh_fwd_tm(deq_w(scratch_gates[CELL_SCRATCH_GATES(i, 2, j)], 2,
-                                   j, scales, data_scale)
+    float G2 = tanh_fwd_tm(deq_w(scratch_gates[CELL_SCRATCH_MEM(i, 2, j)], 2, j,
+                                   scales, data_scale)
                     + ws_bias[OFF_WS_BIAS(lay, dir, 2, j)],
             tm_scales[2]);
-    float G3 = logistic_fwd_tm(deq_w(scratch_gates[CELL_SCRATCH_GATES(i, 3, j)],
+    float G3 = logistic_fwd_tm(deq_w(scratch_gates[CELL_SCRATCH_MEM(i, 3, j)],
                                        3, j, scales, data_scale)
                     + ws_bias[OFF_WS_BIAS(lay, dir, 3, j)],
             tm_scales[3]);
@@ -591,7 +589,7 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 #else
 
 __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
-        __global char *ws, __global char *scr_gates,
+        __global char *ws, __global char *scr_gates, __global char *scr_cell,
         __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
         float tm_cscale) {
 
@@ -607,7 +605,7 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
             = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
             + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
     __global AUX_DATA_T *scratch_gates = (__global AUX_DATA_T *)(scr_gates)
-            + OFF_SCRATCH_GATES(iter, 0, 0, 0);
+            + OFF_SCRATCH_MEM(iter, 0, 0, 0);
     __global WS_STATE_DATA_T *h_states_t_l
             = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
@@ -617,21 +615,18 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 
 #if CELL_KIND == VANILLA_LSTM
 
-    float g_i
-            = logistic_fwd_tm((float)scratch_gates[CELL_SCRATCH_GATES(i, 0, j)]
-                            + bias[OFF_KER_BIAS(0, j)],
-                    tm_scales[0]);
-    float g_f
-            = logistic_fwd_tm((float)scratch_gates[CELL_SCRATCH_GATES(i, 1, j)]
-                            + bias[OFF_KER_BIAS(1, j)],
-                    tm_scales[1]);
-    float g_z = tanh_fwd_tm((float)scratch_gates[CELL_SCRATCH_GATES(i, 2, j)]
+    float g_i = logistic_fwd_tm((float)scratch_gates[CELL_SCRATCH_MEM(i, 0, j)]
+                    + bias[OFF_KER_BIAS(0, j)],
+            tm_scales[0]);
+    float g_f = logistic_fwd_tm((float)scratch_gates[CELL_SCRATCH_MEM(i, 1, j)]
+                    + bias[OFF_KER_BIAS(1, j)],
+            tm_scales[1]);
+    float g_z = tanh_fwd_tm((float)scratch_gates[CELL_SCRATCH_MEM(i, 2, j)]
                     + bias[OFF_KER_BIAS(2, j)],
             tm_scales[2]);
-    float g_o
-            = logistic_fwd_tm((float)scratch_gates[CELL_SCRATCH_GATES(i, 3, j)]
-                            + bias[OFF_KER_BIAS(3, j)],
-                    tm_scales[3]);
+    float g_o = logistic_fwd_tm((float)scratch_gates[CELL_SCRATCH_MEM(i, 3, j)]
+                    + bias[OFF_KER_BIAS(3, j)],
+            tm_scales[3]);
 
 #if IS_TRAINING
     ws_gates[CELL_WS_GATES(i, 0, j)] = g_i;
@@ -648,7 +643,7 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 
 #elif CELL_KIND == VANILLA_RNN
 
-    float g = activation_fwd((float)scratch_gates[CELL_SCRATCH_GATES(i, 0, j)]
+    float g = activation_fwd((float)scratch_gates[CELL_SCRATCH_MEM(i, 0, j)]
                     + bias[OFF_KER_BIAS(0, j)],
 #if IS_TESTMODE
             tm_scales[0], 0);
@@ -661,17 +656,45 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 #endif
     h_states_t_l[CELL_WS_STATE(i, j)] = TO_INPUT(g);
 
+#elif CELL_KIND == LBR_GRU
+    // AUX and SCRATCH data type is same for fwd prop
+    __global AUX_DATA_T *scratch_cell = (__global AUX_DATA_T *)(scr_cell);
+
+    __global WS_STATE_DATA_T *h_states_tm1_l
+            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
+            + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
+
+    float g_u = logistic_fwd_tm((float)scratch_gates[CELL_SCRATCH_MEM(i, 0, j)]
+                    + (float)scratch_cell[CELL_SCRATCH_MEM(i, 0, j)]
+                    + bias[OFF_KER_BIAS(0, j)],
+            tm_scales[0]);
+
+    float g_r = logistic_fwd_tm((float)scratch_gates[CELL_SCRATCH_MEM(i, 1, j)]
+                    + (float)scratch_cell[CELL_SCRATCH_MEM(i, 1, j)]
+                    + bias[OFF_KER_BIAS(1, j)],
+            tm_scales[1]);
+
+    float g_o = tanh_fwd_tm((float)scratch_gates[CELL_SCRATCH_MEM(i, 2, j)]
+                    + g_r
+                            * ((float)scratch_cell[CELL_SCRATCH_MEM(i, 2, j)]
+                                    + bias[OFF_KER_BIAS(3, j)])
+                    + bias[OFF_KER_BIAS(2, j)],
+            tm_scales[2]);
+
+    float Ht = g_u * TO_REF(h_states_tm1_l[CELL_WS_STATE(i, j)])
+            + (1 - g_u) * g_o;
+    h_states_t_l[CELL_WS_STATE(i, j)] = TO_INPUT(Ht);
 #else
-#error "Wrong cell kind"
+#error "Wrong Cell Kind"
 #endif
 }
 #endif
-
 __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
-        __global char *ws, __global char *scr_gates,
+        __global char *ws, __global char *scr_gates, __global char *scr_cell,
         __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
         float tm_cscale) {
 
+#if !IS_FWD
     const int i = get_global_id(1); // batch
     const int j = get_global_id(0); // dhc
 
@@ -681,7 +704,7 @@ __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
             = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
             + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
     __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
-            + OFF_SCRATCH_GATES(iter, 0, 0, 0);
+            + OFF_SCRATCH_MEM(iter, 0, 0, 0);
 
     __global AUX_DATA_T *c_states_t_l
             = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
@@ -720,10 +743,10 @@ __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
     diff_states_t_l[CELL_WS_DIFF_STATES(1, i, j)]
             = dCt * ws_gates[CELL_WS_GATES(i, 1, j)];
 
-    scratch_gates[CELL_SCRATCH_GATES(i, 0, j)] = TO_INPUT(dG0);
-    scratch_gates[CELL_SCRATCH_GATES(i, 1, j)] = TO_INPUT(dG1);
-    scratch_gates[CELL_SCRATCH_GATES(i, 2, j)] = TO_INPUT(dG2);
-    scratch_gates[CELL_SCRATCH_GATES(i, 3, j)] = TO_INPUT(dG3);
+    scratch_gates[CELL_SCRATCH_MEM(i, 0, j)] = TO_INPUT(dG0);
+    scratch_gates[CELL_SCRATCH_MEM(i, 1, j)] = TO_INPUT(dG1);
+    scratch_gates[CELL_SCRATCH_MEM(i, 2, j)] = TO_INPUT(dG2);
+    scratch_gates[CELL_SCRATCH_MEM(i, 3, j)] = TO_INPUT(dG3);
 
 #elif CELL_KIND == VANILLA_RNN
 
@@ -731,7 +754,7 @@ __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
             = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
             + OFF_WS_GATES(lay, dir, iter, i, 0, j);
     __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
-            + OFF_SCRATCH_GATES(iter, i, 0, j);
+            + OFF_SCRATCH_MEM(iter, i, 0, j);
 
     __global DIFF_DATA_T *ws_diff_states
             = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
@@ -750,8 +773,10 @@ __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 #endif
 
 #else
-#error "Wrong cell kind"
+#error "Wrong Cell Kind"
 #endif
+
+#endif //!IS_FWD
 }
 
 __kernel void ref_rnn_gates_reduction(int dir, int lay, int iter,
@@ -763,7 +788,7 @@ __kernel void ref_rnn_gates_reduction(int dir, int lay, int iter,
     __global DIFF_DATA_T *diff_bias
             = diff_bias_base + DIFF_BIAS_OFF(lay, dir, 0, 0);
     __global SRC_DATA_T *gates = (__global SRC_DATA_T *)(scratch_gates)
-            + OFF_SCRATCH_GATES(iter, 0, 0, 0);
+            + OFF_SCRATCH_MEM(iter, 0, 0, 0);
 
     for (int j = 0; j < BATCH; j++) {
         diff_bias[i * DHC + k]

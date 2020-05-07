@@ -122,6 +122,8 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                     OCL_BUFFER_ALIGNMENT, 4096);
             scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 1,
                     OCL_BUFFER_ALIGNMENT, 4096);
+            scratchpad.book(key_rnn_cell, rnn_conf.scratch_cell_size, 1,
+                    OCL_BUFFER_ALIGNMENT, 4096);
             // book scratchpad for nested primitives
             switch (aprop) {
                 case prop_kind::forward:
@@ -223,7 +225,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         size_t scratchpad_size, workspace_size;
         rnn_utils::set_offsets(pd()->rnn_conf, ws_gates_offset_,
                 ws_states_offset_, ws_c_states_offset_, ws_diff_states_offset_,
-                ws_grid_comp_offset_, ws_cell_comp_offset_, ws_bias_offset_,
+                ws_grid_comp_offset_, scratch_cell_offset_, ws_bias_offset_,
                 scratch_gates_offset_, scratchpad_size, workspace_size);
 
         int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
@@ -346,7 +348,7 @@ private:
     cl_ulong ws_c_states_offset_;
     cl_ulong ws_diff_states_offset_;
     cl_ulong ws_grid_comp_offset_;
-    cl_ulong ws_cell_comp_offset_;
+    cl_ulong scratch_cell_offset_;
     cl_ulong ws_bias_offset_;
     cl_ulong scratch_gates_offset_;
 
