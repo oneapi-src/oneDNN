@@ -35,7 +35,7 @@
 #define _BLOCK_WRITE(ptr, v) \
     BLOCK_WRITE((__global BLOCK_DATA_T *)(ptr), AS_BLOCK_DATA_T(v))
 
-#define IS_3D (ID > 1)
+#define IS_3D (OD > 1)
 #define IS_1STCONV (IC == 3)
 
 #define HAS_PAD_D (PD > 0 || (OD - 1) * SD - PD + (KD - 1) * (1 + DD) >= ID)
@@ -652,7 +652,7 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
     int ih = oh * SH - PH;
     int iw = ow * SW - PW;
-    int id = IS_3D ? od * SD - PD : 0;
+    int id = od * SD - PD;
 
     DATA_T C[MB_BLOCK * OC_OUTER * OW_BLOCK] = {0};
     for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++)
