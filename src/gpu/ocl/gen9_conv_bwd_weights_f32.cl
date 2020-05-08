@@ -16,7 +16,7 @@
 
 #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
 
-#if ID > 1
+#if OD > 1
 #define CASE_3D 1
 #else
 #define CASE_3D 0
