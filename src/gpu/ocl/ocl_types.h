@@ -25,6 +25,7 @@
 
 #define CONCAt2(a, b) a##b
 #define CONCAT2(a, b) CONCAt2(a, b)
+#define CONCAT3(a, b, c) CONCAT2(CONCAT2(a, b), c)
 
 #if (DT_F16 == 1) || (SRC_DT_F16 == 1) || (DST_DT_F16 == 1) \
         || (WEI_DT_F16 == 1) || (BIA_DT_F16 == 1) || (ACC_DT_F16 == 1)
@@ -528,6 +529,59 @@
 #define AS_DST_DATA4_T CONCAT2(as_, DST_DATA4_T)
 #define AS_DST_DATA8_T CONCAT2(as_, DST_DATA8_T)
 #define AS_DST_DATA16_T CONCAT2(as_, DST_DATA16_T)
+
+#if DST_DT_F32 || DST_DT_F16
+#define CONVERT_DST_DATA2_T CONCAT2(convert_, DST_DATA2_T)
+#define CONVERT_DST_DATA4_T CONCAT2(convert_, DST_DATA4_T)
+#define CONVERT_DST_DATA8_T CONCAT2(convert_, DST_DATA8_T)
+#define CONVERT_DST_DATA16_T CONCAT2(convert_, DST_DATA16_T)
+#else
+#define CONVERT_DST_DATA2_T CONCAT3(convert_, DST_DATA2_T, _sat_rte)
+#define CONVERT_DST_DATA4_T CONCAT3(convert_, DST_DATA4_T, _sat_rte)
+#define CONVERT_DST_DATA8_T CONCAT3(convert_, DST_DATA8_T, _sat_rte)
+#define CONVERT_DST_DATA16_T CONCAT3(convert_, DST_DATA16_T, _sat_rte)
+#endif
+
+// Block read/write macros for dst.
+#if DST_DT_U8 || DST_DT_S8
+
+#define BLOCK_READ_DST4(ptr) \
+    AS_DST_DATA4_T(intel_sub_group_block_read_uc4((__global uchar *)ptr))
+#define BLOCK_WRITE_DST4(ptr, v) \
+    intel_sub_group_block_write_uc4((__global uchar *)ptr, as_uchar4(v))
+
+#define BLOCK_READ_DST8(ptr) \
+    AS_DST_DATA8_T(intel_sub_group_block_read_uc8((__global uchar *)ptr))
+#define BLOCK_WRITE_DST8(ptr, v) \
+    intel_sub_group_block_write_uc8((__global uchar *)ptr, as_uchar8(v))
+
+#define BLOCK_READ_DST16(ptr) \
+    AS_DST_DATA16_T(intel_sub_group_block_read_uc16((__global uchar *)ptr))
+#define BLOCK_WRITE_DST16(ptr, v) \
+    intel_sub_group_block_write_uc16((__global uchar *)ptr, as_uchar16(v))
+
+#elif DST_DT_S32 || DST_DT_F32
+
+#define BLOCK_READ_DST4(ptr) \
+    AS_DST_DATA4_T(intel_sub_group_block_read4((__global uint *)ptr))
+#define BLOCK_WRITE_DST4(ptr, v) \
+    intel_sub_group_block_write4((__global uint *)ptr, as_uint4(v))
+
+#define BLOCK_READ_DST8(ptr) \
+    AS_DST_DATA8_T(intel_sub_group_block_read8((__global uint *)ptr))
+#define BLOCK_WRITE_DST8(ptr, v) \
+    intel_sub_group_block_write8((__global uint *)ptr, as_uint8(v))
+
+#define BLOCK_READ_DST16(ptr) \
+    (DST_DATA16_T)( \
+            BLOCK_READ_DST8(ptr), BLOCK_READ_DST8(ptr + 8 * SUB_GROUP_SIZE))
+#define BLOCK_WRITE_DST16(ptr, v) \
+    do { \
+        BLOCK_WRITE_DST8(ptr, (v).s01234567); \
+        BLOCK_WRITE_DST8(ptr + 8 * SUB_GROUP_SIZE, (v).s89abcdef); \
+    } while (0)
+
+#endif
 
 #if DST_DT_BF16
 #define DST_TO_REF(x) convert_bf16_to_f32(x)

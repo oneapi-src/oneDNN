@@ -55,7 +55,8 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
                             forward_inference)
                     && this->desc()->alg_kind == alg_kind::convolution_direct
                     && utils::one_of(desc()->src_desc.data_type, u8, s8)
-                    && utils::one_of(desc()->dst_desc.data_type, u8, s8)
+                    && utils::one_of(
+                            desc()->dst_desc.data_type, u8, s8, s32, f32)
                     && expect_data_types(desc()->src_desc.data_type, s8, f32,
                             desc()->dst_desc.data_type, s32)
                     && compute_engine->mayiuse(

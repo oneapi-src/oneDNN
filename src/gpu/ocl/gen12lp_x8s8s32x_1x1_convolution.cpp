@@ -172,6 +172,7 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
 
     kernel_ctx.set_data_type(conf.dst_data_type);
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");
+    def_data_type(kernel_ctx, conf.dst_data_type, "DST");
 
     kernel_ctx.add_option("-Dcl_intel_subgroups_char");
 

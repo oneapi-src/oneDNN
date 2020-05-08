@@ -46,9 +46,9 @@
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
-        const __global float *bias, __global DATA_T *dst, float eltwise_alpha,
-        float eltwise_beta, float eltwise_scale, float sum_scale, float scale,
-        const __global float *scales_per_oc) {
+        const __global float *bias, __global DST_DATA_T *dst,
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale,
+        float sum_scale, float scale, const __global float *scales_per_oc) {
 #ifdef MB_FULL_BLOCK
     const int mb_blocks = 1;
 #else // MB_FULL_BLOCK
@@ -171,8 +171,11 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
     } // IC_NCHUNK loop
 
     float4 tmp;
-    uint8 dst_pack;
-    uint8 D0, D1, D2, D3;
+    DST_DATA4_T dst_pack[8];
+    DST_DATA4_T D0[8];
+    DST_DATA4_T D1[8];
+    DST_DATA4_T D2[8];
+    DST_DATA4_T D3[8];
 
 #if SCALES_PER_OC
     float4 scales;
@@ -189,29 +192,21 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
 #endif
 
 #if WITH_SUM
-    D0.s0123 = as_uint4(intel_sub_group_block_read_uc16((__global uchar *)dst));
-    D0.s4567 = as_uint4(intel_sub_group_block_read_uc16(
-            (__global uchar *)&dst[4 * OC_BLOCK]));
+    *(DST_DATA16_T *)(D0 + 0) = BLOCK_READ_DST16(dst);
+    *(DST_DATA16_T *)(D0 + 4) = BLOCK_READ_DST16(dst + 4 * OC_BLOCK);
 #if MB > 8
-    D1.s0123 = as_uint4(intel_sub_group_block_read_uc16(
-            (__global uchar *)&dst[8 * OC_BLOCK]));
-    D1.s4567 = as_uint4(intel_sub_group_block_read_uc16(
-            (__global uchar *)&dst[12 * OC_BLOCK]));
+    *(DST_DATA16_T *)(D1 + 0) = BLOCK_READ_DST16(dst + 8 * OC_BLOCK);
+    *(DST_DATA16_T *)(D1 + 4) = BLOCK_READ_DST16(dst + 12 * OC_BLOCK);
 #ifdef MB_FULL_BLOCK
-    D2.s0123 = as_uint4(intel_sub_group_block_read_uc16(
-            (__global uchar *)&dst[16 * OC_BLOCK]));
-    D2.s4567 = as_uint4(intel_sub_group_block_read_uc16(
-            (__global uchar *)&dst[20 * OC_BLOCK]));
-    D3.s0123 = as_uint4(intel_sub_group_block_read_uc16(
-            (__global uchar *)&dst[24 * OC_BLOCK]));
-    D3.s4567 = as_uint4(intel_sub_group_block_read_uc16(
-            (__global uchar *)&dst[28 * OC_BLOCK]));
+    *(DST_DATA16_T *)(D2 + 0) = BLOCK_READ_DST16(dst + 16 * OC_BLOCK);
+    *(DST_DATA16_T *)(D2 + 4) = BLOCK_READ_DST16(dst + 20 * OC_BLOCK);
+    *(DST_DATA16_T *)(D3 + 0) = BLOCK_READ_DST16(dst + 24 * OC_BLOCK);
+    *(DST_DATA16_T *)(D3 + 4) = BLOCK_READ_DST16(dst + 28 * OC_BLOCK);
 #endif // MB_FULL_BLOCK
 #endif // MB > 8
 
-#define DO_SUM(d_pack) \
+#define DO_SUM(d) \
     do { \
-        DATA4_T d = AS_DATA4_T(d_pack); \
         float4 df = convert_float4(d); \
         tmp = fma(df, (float4)sum_scale, tmp); \
     } while (0)
@@ -254,10 +249,7 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
 
 #define CONVERT_PACK(idx) \
     do { \
-        DATA4_T tmp_cvt \
-                = (DATA4_T)(CONVERT_DATA_T(tmp.s0), CONVERT_DATA_T(tmp.s1), \
-                        CONVERT_DATA_T(tmp.s2), CONVERT_DATA_T(tmp.s3)); \
-        dst_pack[idx] = as_uint(tmp_cvt); \
+        dst_pack[idx] = CONVERT_DST_DATA4_T(tmp); \
     } while (0)
 
 #define STORE_DST(C0, C1, C2, C3, D, mb_stride) \
@@ -270,10 +262,10 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
             DO_POST_SUM_ELTWISE(); \
             CONVERT_PACK(n_i); \
         } \
-        intel_sub_group_block_write_uc16( \
-                &dst[mb_stride * OC_BLOCK], as_uchar16(dst_pack.s0123)); \
-        intel_sub_group_block_write_uc16(&dst[mb_stride * OC_BLOCK + 16 * 8], \
-                as_uchar16(dst_pack.s4567)); \
+        BLOCK_WRITE_DST16( \
+                &dst[mb_stride * OC_BLOCK], *(DST_DATA16_T *)dst_pack); \
+        BLOCK_WRITE_DST16(&dst[mb_stride * OC_BLOCK + 16 * 8], \
+                *(DST_DATA16_T *)(dst_pack + 4)); \
     } while (0)
 
     STORE_DST(C00, C01, C02, C03, D0, 0);

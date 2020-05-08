@@ -33,11 +33,14 @@ inline ushort16 read_block16(const __global ushort *p)
 #define SCALE 1
 #endif
 
+void block_read_dst(int n, DST_DATA_T *d, const __global DST_DATA_T *dst);
+void block_write_dst(int n, const DST_DATA_T *d, __global DST_DATA_T *dst);
+
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
         const __global char *wei, const __global float *bias,
-        __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
+        __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
         float eltwise_scale, float sum_scale, float scale,
         const __global float *scales_per_oc) {
     const int osp = get_global_id(1);
@@ -486,76 +489,13 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
     DST_DATA16_T D0 = 0;
     DST_DATA16_T D1 = 0;
 
-#if OW_TAIL != 0
-    if (ow + OW_BLOCK >= OW) {
-#if OW_TAIL > 8
-        D0 = AS_DST_DATA16_T(
-                intel_sub_group_block_read_us8((__global ushort *)dst));
-        for (int i = 0; i < OW_TAIL - 8; ++i) {
-            ushort t = intel_sub_group_block_read_us(
-                    (__global ushort *)dst + (8 + i) * OC_BLOCK / 2);
-            D1[i * 2] = AS_DST_DATA2_T(t).s0;
-            D1[i * 2 + 1] = AS_DST_DATA2_T(t).s1;
-        }
-#else
-        for (int i = 0; i < OW_TAIL; ++i) {
-            ushort t = intel_sub_group_block_read_us(
-                    (__global ushort *)dst + (8 + i) * OC_BLOCK / 2);
-            D0[i * 2] = AS_DST_DATA2_T(t).s0;
-            D0[i * 2 + 1] = AS_DST_DATA2_T(t).s1;
-        }
-#endif
+    if (OW_TAIL != 0 && ow + OW_BLOCK >= OW) {
+        block_read_dst(min(8, OW_TAIL), &D0, dst);
+        block_read_dst(OW_TAIL - 8, &D1, dst + 8 * OC_BLOCK);
     } else {
-#endif
-#if OW_BLOCK >= 8
-        D0 = AS_DST_DATA16_T(
-                intel_sub_group_block_read_us8((__global ushort *)dst));
-        __global DATA_T *dst1 = dst + 8 * OC_BLOCK;
-#define DST_P dst1
-#define SUM_BLOCK D1
-#define SEND_TAIL (OW_BLOCK - 8)
-
-#else
-#define DST_P dst
-#define SUM_BLOCK D0
-#define SEND_TAIL OW_BLOCK
-#endif
-
-#if SEND_TAIL == 7
-        SUM_BLOCK.s01234567 = AS_DST_DATA8_T(
-                intel_sub_group_block_read_us4((__global ushort *)DST_P));
-        SUM_BLOCK.s89ab = AS_DST_DATA4_T(intel_sub_group_block_read_us2(
-                (__global ushort *)DST_P + 2 * OC_BLOCK));
-        SUM_BLOCK.scd = AS_DST_DATA2_T(intel_sub_group_block_read_us(
-                (__global ushort *)DST_P + 3 * OC_BLOCK));
-#elif SEND_TAIL == 6
-    SUM_BLOCK.s01234567 = AS_DST_DATA8_T(
-            intel_sub_group_block_read_us4((__global ushort *)DST_P));
-    SUM_BLOCK.s89ab = AS_DST_DATA4_T(intel_sub_group_block_read_us2(
-            (__global ushort *)DST_P + 2 * OC_BLOCK));
-#elif SEND_TAIL == 5
-    SUM_BLOCK.s01234567 = AS_DST_DATA8_T(
-            intel_sub_group_block_read_us4((__global ushort *)DST_P));
-    SUM_BLOCK.s89 = AS_DST_DATA2_T(intel_sub_group_block_read_us(
-            (__global ushort *)DST_P + 2 * OC_BLOCK));
-#elif SEND_TAIL == 4
-    SUM_BLOCK.s01234567 = AS_DST_DATA8_T(
-            intel_sub_group_block_read_us4((__global ushort *)DST_P));
-#elif SEND_TAIL == 3
-    SUM_BLOCK.s0123 = AS_DST_DATA4_T(
-            intel_sub_group_block_read_us2((__global ushort *)DST_P));
-    SUM_BLOCK.s45 = AS_DST_DATA2_T(
-            intel_sub_group_block_read_us((__global ushort *)DST_P + OC_BLOCK));
-#elif SEND_TAIL == 2
-    SUM_BLOCK.s0123 = AS_DST_DATA4_T(
-            intel_sub_group_block_read_us2((__global ushort *)DST_P));
-#elif SEND_TAIL == 1
-    SUM_BLOCK.s01 = AS_DST_DATA2_T(
-            intel_sub_group_block_read_us((__global ushort *)DST_P));
-#endif
-#if OW % OW_BLOCK != 0
+        block_read_dst(min(8, OW_BLOCK), &D0, dst);
+        block_read_dst(OW_BLOCK - 8, &D1, dst + 8 * OC_BLOCK);
     }
-#endif
 #if SUM_SCALE
     ACC0 += CONVERT_TO_ACC(D0);
     ACC1 += CONVERT_TO_ACC(D1);
@@ -569,73 +509,104 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
     DO_ELTWISE();
 #endif
 
-    DST_DATA16_T R0 = TO_DST16(ACC0);
-    DST_DATA16_T R1 = TO_DST16(ACC1);
+    DST_DATA16_T R0 = CONVERT_DST_DATA16_T(ACC0);
+    DST_DATA16_T R1 = CONVERT_DST_DATA16_T(ACC1);
 
-#if OW_TAIL != 0
-    if (ow + OW_BLOCK >= OW) {
-#if OW_TAIL > 8
-        intel_sub_group_block_write_us8((__global ushort *)dst, as_ushort8(R0));
-        for (int i = 0; i < OW_TAIL - 8; ++i) {
-            intel_sub_group_block_write_us(
-                    (__global ushort *)dst + (8 + i) * OC_BLOCK / 2,
-                    as_ushort((DST_DATA2_T)(R1[i * 2], R1[i * 2 + 1])));
-        }
-#else
-        for (int i = 0; i < OW_TAIL; ++i) {
-            intel_sub_group_block_write_us(
-                    (__global ushort *)dst + i * OC_BLOCK / 2,
-                    as_ushort((DST_DATA2_T)(R0[i * 2], R0[i * 2 + 1])));
-        }
-#endif
+    if (OW_TAIL != 0 && ow + OW_BLOCK >= OW) {
+        block_write_dst(min(8, OW_TAIL), &R0, dst);
+        block_write_dst(OW_TAIL - 8, &R1, dst + 8 * OC_BLOCK);
     } else {
-#endif
-
-#if OW_BLOCK >= 8
-        intel_sub_group_block_write_us8((__global ushort *)dst, as_ushort8(R0));
-        dst += 8 * OC_BLOCK;
-#define SEND_BLOCK R1
-#define SEND_TAIL (OW_BLOCK - 8)
-
-#else
-#define SEND_BLOCK R0
-#define SEND_TAIL OW_BLOCK
-#endif
-
-#if SEND_TAIL == 7
-        intel_sub_group_block_write_us4(
-                (__global ushort *)dst, as_ushort4(SEND_BLOCK.s01234567));
-        intel_sub_group_block_write_us2((__global ushort *)dst + 2 * OC_BLOCK,
-                as_ushort2(SEND_BLOCK.s89ab));
-        intel_sub_group_block_write_us((__global ushort *)dst + 3 * OC_BLOCK,
-                as_ushort(SEND_BLOCK.scd));
-#elif SEND_TAIL == 6
-    intel_sub_group_block_write_us4(
-            (__global ushort *)dst, as_ushort4(SEND_BLOCK.s01234567));
-    intel_sub_group_block_write_us2((__global ushort *)dst + 2 * OC_BLOCK,
-            as_ushort2(SEND_BLOCK.s89ab));
-#elif SEND_TAIL == 5
-    intel_sub_group_block_write_us4(
-            (__global ushort *)dst, as_ushort4(SEND_BLOCK.s01234567));
-    intel_sub_group_block_write_us(
-            (__global ushort *)dst + 2 * OC_BLOCK, as_ushort(SEND_BLOCK.s89));
-#elif SEND_TAIL == 4
-    intel_sub_group_block_write_us4(
-            (__global ushort *)dst, as_ushort4(SEND_BLOCK.s01234567));
-#elif SEND_TAIL == 3
-    intel_sub_group_block_write_us2(
-            (__global ushort *)dst, as_ushort2(SEND_BLOCK.s0123));
-    intel_sub_group_block_write_us(
-            (__global ushort *)dst + OC_BLOCK, as_ushort(SEND_BLOCK.s45));
-#elif SEND_TAIL == 2
-    intel_sub_group_block_write_us2(
-            (__global ushort *)dst, as_ushort2(SEND_BLOCK.s0123));
-#elif SEND_TAIL == 1
-    intel_sub_group_block_write_us(
-            (__global ushort *)dst, as_ushort(SEND_BLOCK.s01));
-#endif
-
-#if OW % OW_BLOCK != 0
+        block_write_dst(min(8, OW_BLOCK), &R0, dst);
+        block_write_dst(OW_BLOCK - 8, &R1, dst + 8 * OC_BLOCK);
     }
+}
+
+// Shuffled read.
+void block_read_dst(int n, DST_DATA_T *d, const __global DST_DATA_T *dst) {
+#if DST_DT_S8 || DST_DT_U8
+    __attribute__((opencl_unroll_hint)) // attr:no-format
+    for (int i = 0; i < n / 8 * 8; i += 8) {
+        ushort8 block = intel_sub_group_block_read_us8(
+                (const __global ushort *)(dst + i * SUB_GROUP_SIZE * 2));
+        *(DST_DATA16_T *)(&d[i * 2]) = AS_DST_DATA16_T(block);
+    }
+    __attribute__((opencl_unroll_hint)) // attr:no-format
+    for (int i = n / 8 * 8; i < n; i++) {
+        ushort block = intel_sub_group_block_read_us(
+                (const __global ushort *)(dst + i * SUB_GROUP_SIZE * 2));
+        *(DST_DATA2_T *)(&d[i * 2]) = AS_DST_DATA2_T(block);
+    }
+    return;
+#elif DST_DT_S32 || DST_DT_F32
+    int sglid = get_sub_group_local_id();
+    __attribute__((opencl_unroll_hint)) // attr:no-format
+    for (int i = 0; i < n; i++) {
+        uint block0 = intel_sub_group_block_read(
+                (const __global uint *)(dst + i * SUB_GROUP_SIZE * 2));
+        uint block1 = intel_sub_group_block_read((const __global uint *)(dst
+                + i * SUB_GROUP_SIZE * 2 + SUB_GROUP_SIZE));
+
+        int from00 = min(2 * sglid, SUB_GROUP_SIZE - 1);
+        int from01 = max(2 * sglid - 16, 0);
+        int from10 = min(2 * sglid + 1, SUB_GROUP_SIZE - 1);
+        int from11 = max(2 * sglid + 1 - 16, 0);
+
+        uint block00 = intel_sub_group_shuffle(block0, from00);
+        uint block01 = intel_sub_group_shuffle(block1, from01);
+        uint block10 = intel_sub_group_shuffle(block0, from10);
+        uint block11 = intel_sub_group_shuffle(block1, from11);
+
+        block0 = (2 * sglid < SUB_GROUP_SIZE) ? block00 : block01;
+        block1 = (2 * sglid + 1 < SUB_GROUP_SIZE) ? block10 : block11;
+
+        *(DST_DATA2_T *)(&d[i * 2]) = AS_DST_DATA2_T((uint2)(block0, block1));
+    }
+    return;
+#else
+#error "Not expected"
+#endif
+}
+
+// Shuffled write.
+void block_write_dst(int n, const DST_DATA_T *d, __global DST_DATA_T *dst) {
+#if DST_DT_S8 || DST_DT_U8
+    __attribute__((opencl_unroll_hint)) // attr:no-format
+    for (int i = 0; i < n / 8 * 8; i += 8) {
+        intel_sub_group_block_write_us8(
+                (__global ushort *)(dst + i * SUB_GROUP_SIZE * 2),
+                as_ushort8(*(DST_DATA16_T *)(&d[i * 2])));
+    }
+    __attribute__((opencl_unroll_hint)) // attr:no-format
+    for (int i = n / 8 * 8; i < n; i++) {
+        intel_sub_group_block_write_us(
+                (__global ushort *)(dst + i * SUB_GROUP_SIZE * 2),
+                as_ushort(*(DST_DATA2_T *)(&d[i * 2])));
+    }
+    return;
+#elif DST_DT_S32 || DST_DT_F32
+    int sglid = get_sub_group_local_id();
+    __attribute__((opencl_unroll_hint)) // attr:no-format
+    for (int i = 0; i < n; i++) {
+        uint2 block = as_uint2(*(DST_DATA2_T *)(&d[i * 2]));
+
+        int from0 = sglid / 2;
+        int from1 = (16 + sglid) / 2;
+
+        uint2 block0_ = intel_sub_group_shuffle(block, from0);
+        uint2 block1_ = intel_sub_group_shuffle(block, from1);
+
+        uint block0 = (sglid % 2 == 0) ? block0_.s0 : block0_.s1;
+        uint block1 = (sglid % 2 == 0) ? block1_.s0 : block1_.s1;
+
+        intel_sub_group_block_write(
+                (__global uint *)(dst + i * SUB_GROUP_SIZE * 2), block0);
+        intel_sub_group_block_write(
+                (__global uint *)(dst + i * SUB_GROUP_SIZE * 2
+                        + SUB_GROUP_SIZE),
+                block1);
+    }
+    return;
+#else
+#error "Not expected"
 #endif
 }

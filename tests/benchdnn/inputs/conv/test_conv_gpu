@@ -27,6 +27,10 @@ mb2ic512ih14oc32oh14kh1ph0n
 --mb=2,16
 --dir=FWD_B,BWD_D --batch=set_gpu
 
+--reset --cfg=u8s8s32,u8s8f32
+--mb=2,16
+--dir=FWD_B --batch=set_gpu
+
 # test scale and post-ops
 --batch=harness_conv_attrs_gpu
 

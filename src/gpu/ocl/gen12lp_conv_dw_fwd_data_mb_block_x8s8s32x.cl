@@ -35,7 +35,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
         const __global char *wei, const __global float *bias,
-        __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
+        __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
         float eltwise_scale, float sum_scale, float scale,
         const __global float *scales_per_oc) {
 
@@ -212,8 +212,7 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     DO_ELTWISE();
 #endif
 #if WITH_SUM
-    DATA16_T D00 = AS_DATA16_T(
-            intel_sub_group_block_read_uc16((const __global uchar *)dst));
+    DST_DATA16_T D00 = BLOCK_READ_DST16(dst);
 #if SUM_SCALE
     tmp00 += convert_float8(D00.s01234567);
     tmp01 += convert_float8(D00.s89abcdef);
@@ -226,7 +225,6 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     DO_ELTWISE();
 #endif
 
-    const DATA16_T R0
-            = (DATA16_T)(CONVERT_DATA8_T(tmp00), CONVERT_DATA8_T(tmp01));
-    intel_sub_group_block_write_uc16((__global uchar *)dst, as_uchar16(R0));
+    DST_DATA16_T R0 = CONVERT_DST_DATA16_T((float16)(tmp00, tmp01));
+    BLOCK_WRITE_DST16(dst, R0);
 }
