@@ -9,4 +9,4 @@ ic16oc16_ih13kh1ph0_iw50kw1pw0_id10kd1pd0_n"3d_conv:2"
 ic256oc256_ih7kh3ph0_iw9kw3pw0_id11kd3pd0_n"3d_conv:3"
 ic256oc256_ih7kh1ph0_iw9kw1pw0_id11kd1pd0_n"3d_conv:4"
 
-mb1_ic16oc16_id1od2kd1sd1dd1pd0_ih2oh3kh2sh1dh1ph2_iw5ow3kw3sw2dw0pw0
+#mb1_ic16oc16_id1od2kd1sd1dd1pd0_ih2oh3kh2sh1dh1ph2_iw5ow3kw3sw2dw0pw0
