@@ -118,7 +118,7 @@ struct ref_matmul_t : public gpu_primitive_t {
         data_type_t dst_dt_ = data_type::undef;
         data_type_t wei_dt_ = data_type::undef;
 
-        attr_info_t attr_info_;
+        attr_info_t attr_info_ = {};
 
     private:
         bool attr_oscale_ok() const {

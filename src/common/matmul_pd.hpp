@@ -29,7 +29,7 @@ namespace dnnl {
 namespace impl {
 
 struct matmul_pd_t : public primitive_desc_t {
-    static const auto base_pkind = primitive_kind::matmul;
+    static constexpr auto base_pkind = primitive_kind::matmul;
 
     typedef matmul_pd_t base_class;
     typedef matmul_pd_t hint_class;
