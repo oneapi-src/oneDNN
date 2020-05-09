@@ -89,6 +89,9 @@ if(MSVC)
         # very upset. Tell it that it's okay and that we love it
         # unconditionally.
         append(CMAKE_CCXX_FLAGS "-Wno-pass-failed")
+        # Clang doesn't like the idea of overriding optimization flags.
+        # We don't want to optimize jit gemm kernels to reduce compile time
+        append(CMAKE_CCXX_FLAGS "-Wno-overriding-t-option")
     endif()
 elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
