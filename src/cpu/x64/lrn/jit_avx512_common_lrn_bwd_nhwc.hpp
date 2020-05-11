@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_LRN_JIT_AVX512_COMMON_LRN_BWD_BLOCKED_HPP
-#define CPU_X64_LRN_JIT_AVX512_COMMON_LRN_BWD_BLOCKED_HPP
+#ifndef CPU_X64_LRN_JIT_AVX512_COMMON_LRN_BWD_NHWC_HPP
+#define CPU_X64_LRN_JIT_AVX512_COMMON_LRN_BWD_NHWC_HPP
 
 #include "cpu/x64/lrn/jit_avx512_common_lrn_bwd_base.hpp"
 #include "cpu/x64/lrn/jit_avx512_common_lrn_utils.hpp"
@@ -33,45 +33,30 @@ using namespace Xbyak;
 using namespace Xbyak::util;
 
 template <data_type_t d_type>
-class jit_avx512_common_lrn_kernel_bwd_blocked_t
+class jit_avx512_common_lrn_kernel_bwd_nhwc_t
     : public jit_avx512_common_lrn_kernel_bwd_t<d_type> {
 public:
-    using data_t = typename prec_traits<d_type>::type;
-
-    struct jit_args_bwd_t {
-        const data_t *src, *diff_dst, *ws0, *ws1;
-        data_t *diff_src;
-    };
-
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_bwd_blocked_t)
-
-    void (*ker)(jit_args_bwd_t *);
-    void operator()(jit_args_bwd_t *arg) { ker(arg); }
-
-    jit_avx512_common_lrn_kernel_bwd_blocked_t(const struct nChw16c_across_t &J,
-            float alpha, float beta, int use_h_parallel,
+    jit_avx512_common_lrn_kernel_bwd_nhwc_t(unsigned C, float alpha, float beta,
             void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_bwd_nhwc_f)
+
 private:
-    void compute_loop(int loop_size_param, int prefetchL1, int prefetchL2);
+    void set_up_ker_params();
+    void execute_compute_loop(unsigned C);
+    void compute_loop(across_version version, int loop_size_param = 1);
+    void compute(int loop_size_param);
+    void increment_loop_params(std::size_t offset);
+    void load_compute_data(across_version version, int loop_size_param);
+    void store_compute_data(int loop_size_param);
 
-    int xmm_size_, zmm_size_, buffer_block_, buffer_nest_offset_,
-            src_prev_offset_;
-    int HW_, W_;
-    across_version version_;
-
-    Reg64 t_ = rsp;
-    Reg64 hw_ = r10;
-
-    const int xws1_prev_ = 1;
-    const int xdiffdst_prev_ = 2;
-    const int zws1_ = 1;
-
-    const int xws1_next_ = 1;
-    const int xdiffdst_next_ = 3;
-
-    int use_h_parallelism_;
+    static constexpr int tmp_mask_za_idx_ = 7;
+    static constexpr int tmp_mask_zb_idx_ = 8;
+    static constexpr int tmp_mask_zd_idx_ = 9;
+    static constexpr int tmp_mask_ze_idx_ = 10;
+    const Reg64 mask_ = r11;
+    const Reg64 blockC_ = r12;
 };
 
 } // namespace lrn

@@ -92,14 +92,16 @@ status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init(engine_t *engine) {
     if (!ok) return unimplemented;
 
     dims_t ws_dims = {MB(), C(), H(), 2 * W()};
-    dnnl_memory_desc_init_by_tag(
-            &ws_md_, 4, ws_dims, d_type, format_tag::nChw16c);
+
+    const auto fmt_tag
+            = data_d.matches_one_of_tag(format_tag::nhwc, format_tag::nChw16c);
+    dnnl_memory_desc_init_by_tag(&ws_md_, 4, ws_dims, d_type, fmt_tag);
 
     if (!compare_ws(hint_fwd_pd_)) return unimplemented;
 
     const bool args_ok_across = true && desc()->alg_kind == lrn_across_channels
             && desc()->local_size == 5 && desc()->lrn_beta == 0.75
-            && data_d.matches_tag(format_tag::nChw16c);
+            && data_d.matches_tag(fmt_tag);
 
     return args_ok_across ? success : unimplemented;
 }

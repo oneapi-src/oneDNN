@@ -32,7 +32,6 @@ namespace x64 {
 namespace lrn {
 
 class lrn_executor_factory_t {
-
 public:
     template <::dnnl::impl::data_type_t d_type, typename PD_T>
     static std::unique_ptr<i_lrn_executor_t> create_executor(
@@ -41,8 +40,8 @@ public:
 
         if (data_d.matches_tag(format_tag::nChw16c))
             return create_jit_avx512_blocked_executor<d_type, PD_T>(pd, dir);
-        else
-            return create_jit_avx512_nhwc_executor<d_type, PD_T>(pd, dir);
+
+        return create_jit_avx512_nhwc_executor<d_type, PD_T>(pd, dir);
     }
 
 private:
@@ -53,9 +52,10 @@ private:
         if (dir == direction::forward)
             return utils::make_unique<
                     lrn_avx512_nhwc_executor_fwd_t<d_type, PD_T>>(pd);
-        else
-            return nullptr;
+        return utils::make_unique<lrn_avx512_nhwc_executor_bwd_t<d_type, PD_T>>(
+                pd);
     }
+
     template <::dnnl::impl::data_type_t d_type, typename PD_T>
     static std::unique_ptr<i_lrn_executor_t> create_jit_avx512_blocked_executor(
             const PD_T *pd, direction dir) {
@@ -63,9 +63,8 @@ private:
         if (dir == direction::forward)
             return utils::make_unique<
                     lrn_avx512_blocked_executor_fwd_t<d_type, PD_T>>(pd);
-        else
-            return utils::make_unique<
-                    lrn_avx512_blocked_executor_bwd_t<d_type, PD_T>>(pd);
+        return utils::make_unique<
+                lrn_avx512_blocked_executor_bwd_t<d_type, PD_T>>(pd);
     }
 };
 
