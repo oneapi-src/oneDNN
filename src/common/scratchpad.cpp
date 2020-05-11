@@ -60,9 +60,8 @@ memory_storage_t *create_scratchpad_memory_storage(
             ? get_cpu_engine()
             : engine;
 
-    memory_storage_t *mem_storage;
+    memory_storage_t *mem_storage = nullptr;
     auto status = mem_engine->create_memory_storage(&mem_storage, size);
-    assert(status == status::success);
     MAYBE_UNUSED(status);
     return mem_storage;
 }
