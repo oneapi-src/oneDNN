@@ -13,12 +13,12 @@
 --skip-impl="ref:gemm"      # ! test jit version only
 --mb=2
 --dir=FWD_B
---attr=post_ops='relu'
+--attr-post-ops='relu'
 --cfg=u8s8s32_wino --batch=shapes_googlenet_v2
---attr=oscale=per_oc:2.25;post_ops='sum:1.5;relu'
+--attr-oscale=per_oc:2.25 --attr-post-ops='sum:1.5;relu'
 --cfg=u8s8u8_wino  --batch=shapes_googlenet_v1
 --cfg=u8s8f32_wino --batch=shapes_googlenet_v2
 --dir=FWD_D
---attr=oscale=common:2.25;post_ops='sum:1.5'
+--attr-oscale=common:2.25 --attr-post-ops='sum:1.5'
 --cfg=u8s8s8_wino  --batch=shapes_googlenet_v3
 --cfg=u8s8s32_wino --batch=shapes_resnet_50

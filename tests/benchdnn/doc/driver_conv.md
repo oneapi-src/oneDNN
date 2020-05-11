@@ -21,8 +21,11 @@ where *conv-knobs* are:
  - `--alg={DIRECT [default], WINO, AUTO}` -- convolution algorithm. `WINO` is
             Winograd-based convolution. `AUTO` will pick one of `DIRECT` or
             `WINO` automatically, library-based decision.
- - `--attr="attr_str"` -- primitive attributes. The default is `""` (no
-            attributes). Refer to [attributes](knobs_attr.md) for details.
+ - `--attr-oscale="STRING"` -- output scale primitive attribute. No oscale is
+            set by default. Refer to [attributes](knobs_attr.md) for details.
+ - `--attr-post-ops="STRING"` -- post operation primitive attribute. No post
+            operations are set by default. Refer to [attributes](knobs_attr.md)
+            for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
@@ -120,13 +123,13 @@ default minibatch:
 Run the same but with post_ops ReLU:
 ``` sh
     ./benchdnn --conv --cfg=f32 --dir=FWD_B \
-               --attr="post_ops='relu'" --batch=inputs/conv/conv_all
+               --attr-post-ops="'relu'" --batch=inputs/conv/conv_all
 ```
 
 Run the same as previous but measures performance, not correctness check:
 ``` sh
     ./benchdnn --conv --mode=p --cfg=f32 --dir=FWD_B \
-               --attr="post_ops='relu'" --batch=inputs/conv/conv_all
+               --attr-post-ops="'relu'" --batch=inputs/conv/conv_all
 ```
 
 Run a set of f32 backward convolutions wrt weights with kh=3 and
@@ -163,7 +166,7 @@ Run a set of u8s8u8 forward convolutions without bias, skipping
 reference implementations with one common output scale set to 0.5:
 ``` sh
     ./benchdnn --conv --cfg=u8s8u8 --dir=FWD_D --skip-impl="ref" \
-               --attr="oscale=common:.5" --batch=inputs/conv/conv_all
+               --attr-oscale=common:0.5 --batch=inputs/conv/conv_all
 ```
 
 More examples with different driver options can be found at

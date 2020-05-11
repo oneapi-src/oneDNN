@@ -7,8 +7,7 @@
 # DNNL-611
 --reset --cfg=f32
 --dir=FWD_D mb1ic64ih150iw200oc256oh150ow200kh1kw1ph0pw0sh1sw1n"rfcn-resnet50-res2a_branch1"
---dir=FWD_B --attr=post_ops='relu' mb1ic64ih150iw200oc256oh150ow200kh1kw1ph0pw0sh1sw1n"rfcn-resnet50-res2a_branch1"
---attr=
+--dir=FWD_B --attr-post-ops='relu' mb1ic64ih150iw200oc256oh150ow200kh1kw1ph0pw0sh1sw1n"rfcn-resnet50-res2a_branch1" --attr-post-ops=
 --dir=BWD_W mb1ic256ih150iw200oc64oh150ow200kh1kw1ph0pw0sh1sw1n"rfcn-resnet50-res2a_branch1"
 
 # DS2 (stride_h != stride_w)
@@ -19,10 +18,7 @@
 
 # github #174
 --reset --cfg=f32
---dir=FWD_B --attr=post_ops='sum:1' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
---dir=FWD_D --attr=post_ops='sum:1' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
---dir=FWD_B --attr=post_ops='sum:1;relu' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
---dir=FWD_D --attr=post_ops='sum:1;relu' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
+--dir=FWD_B,FWD_D --attr-post-ops='sum','sum;relu' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
 
 # DNNL-623
 --reset --cfg=u8s8u8 --dir=FWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
@@ -200,7 +196,7 @@ mb1ic16ih2iw70oc1oh1ow10kh2kw3ph0pw0dh0dw29n"bwd_w_check_large-dilation"
 --reset
 --skip-impl="ref_fused_convolution"
 --cfg=f32,u8s8u8
---attr=post_ops='relu;dw_k3s1p1;sqrt';
+--attr-post-ops='relu;dw_k3s1p1;sqrt';
 ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
 
 --cfg=bf16bf16bf16
@@ -209,7 +205,7 @@ ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
 # dw fusion with reorder
 --reset
 --cfg=f32
---attr=post_ops='relu;dw_k3s1p1;sqrt';
+--attr-post-ops='relu;dw_k3s1p1;sqrt';
 ic16oc16_ih10oh6kh1ph0sh2n"dw_fusion_with_reorder"
 
 --reset

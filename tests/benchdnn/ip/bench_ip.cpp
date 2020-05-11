@@ -33,9 +33,12 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_wtag : s.wtag)
     for_(const auto &i_dtag : s.dtag)
+    for_(const auto &i_oscale : s.oscale)
+    for_(const auto &i_post_ops : s.post_ops)
     for (const auto &i_mb : s.mb) {
-        const prb_t p(
-                s.desc, i_mb, i_dir, i_cfg, i_stag, i_wtag, i_dtag, s.attr);
+        attr_t attr(i_oscale, i_post_ops);
+        handle_legacy_attr(attr, s.attr);
+        const prb_t p(s.desc, i_mb, i_dir, i_cfg, i_stag, i_wtag, i_dtag, attr);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -72,6 +75,8 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_mb(s.mb, def.mb, argv[0])
                 || parse_attr(s.attr, argv[0])
+                || parse_attr_oscale(s.oscale, argv[0])
+                || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

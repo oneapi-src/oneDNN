@@ -5,17 +5,17 @@
 --runtime_m=0,1 --runtime_n=0 --runtime_k=0,1
 --bia_dt=undef,f32 --bia_mask=1,3
 
-                                                m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
---attr=oscale=common:2.25;post_ops='sum'        m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
---attr=oscale=per_oc:2.25;post_ops='relu'       m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
+                                                       --batch=shapes_2d
+--attr-oscale=common:2.25 --attr-post-ops='sum'        --batch=shapes_2d
+--attr-oscale=per_oc:2.25 --attr-post-ops='relu'       --batch=shapes_2d
 
 --cfg=f32,s8s8s32
 --stag=ba --wtag=ab,ba
 --runtime_m=1 --runtime_n=0,1 --runtime_k=1
 --bia_dt=f32 --bia_mask=1,2,3
---attr=post_ops='relu'                          m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
---attr=oscale=common:1.25;post_ops='sum:2;relu' m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
---attr=post_ops='sum;linear:2:-1'               m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
+--attr-post-ops='relu'                                 --batch=shapes_2d
+--attr-oscale=common:1.25 --attr-post-ops='sum:2;relu' --batch=shapes_2d
+--attr-post-ops='sum;linear:2:-1'                      --batch=shapes_2d
 
 # bf16
 --reset
@@ -24,18 +24,18 @@
 --bia_dt=undef,f32 --bia_mask=2
 
 --runtime_m=0,1 --runtime_n=0 --runtime_k=0
-                                                m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
+                                                       --batch=shapes_2d
 
 --runtime_m=1 --runtime_n=1 --runtime_k=0,1
---attr=post_ops='relu'                          m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
---attr=oscale=common:1.25;post_ops='sum:2;relu' m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
+--attr-post-ops='relu'                                 --batch=shapes_2d
+--attr-oscale=common:1.25 --attr-post-ops='sum:2;relu' --batch=shapes_2d
 
 # test any
 --reset
 --cfg=f32,u8s8s32,s8s8s32
 --runtime_m=0 --runtime_n=0 --runtime_k=0
 --bia_dt=undef
---stag=ab,ba,any --wtag=ab,ba,any --dtag=any    m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
+--stag=ab,ba,any --wtag=ab,ba,any --dtag=any           --batch=shapes_2d
 
 # 3d
 --reset
@@ -45,11 +45,11 @@
 --bia_dt=undef,f32 --bia_mask=4,6
 
 --runtime_mb=0,1 --runtime_m=0 --runtime_n=0 --runtime_k=0
-                                                mb1m1n1k1 mb2m10n1k30 mb3m30n20k1
---attr=post_ops='sum'                           mb1m1n1k1 mb2m10n1k30 mb3m30n20k1
+                                                       --batch=shapes_3d
+--attr-post-ops='sum'                                  --batch=shapes_3d
 
 --runtime_mb=0,1 --runtime_m=1 --runtime_n=1 --runtime_k=0,1
---attr=oscale=common:2.25;post_ops='sum;relu'   mb1m1n1k1 mb2m10n1k30 mb3m30n20k1
+--attr-oscale=common:2.25 --attr-post-ops='sum;relu'   --batch=shapes_3d
 
 # Run-time
 --batch=test_matmul_runtime

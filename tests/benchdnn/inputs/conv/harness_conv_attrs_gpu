@@ -2,27 +2,27 @@
 --reset
 --mb=2
 
---attr=oscale=common:2.25;post_ops='sum:1.5;relu:0.5'
+--attr-oscale=common:2.25 --attr-post-ops='sum:1.5;relu:0.5'
 --dir=FWD_B
 --cfg=u8s8s8  --batch=shapes_resnet_50
 
---attr=oscale=common:2.25;post_ops='sum:1.5'
+--attr-oscale=common:2.25 --attr-post-ops='sum:1.5'
 --dir=FWD_D
 --cfg=u8s8u8  --batch=shapes_resnet_50
 --cfg=u8s8s8  --batch=shapes_resnet_50
 
---attr=oscale=per_oc:2.25;post_ops='sum:1.5;relu:0.5'
+--attr-oscale=per_oc:2.25 --attr-post-ops='sum:1.5;relu:0.5'
 --dir=FWD_B
 --cfg=u8s8s8  --batch=shapes_resnet_50
 
---attr=oscale=per_oc:1.25*;post_ops='sum:0.5;relu:2.5'
+--attr-oscale=per_oc:1.25* --attr-post-ops='sum:0.5;relu:2.5'
 --dir=FWD_B
 --cfg=u8s8s8  --batch=shapes_resnet_50
 
---attr=post_ops='relu:0.5'
+--attr-post-ops='relu:0.5'
 --cfg=u8s8s8 --batch=shapes_resnet_50
 
---attr=post_ops='relu:0.5;sum'
+--attr-post-ops='relu:0.5;sum'
 --cfg=u8s8s8 --batch=shapes_resnet_50
 
 
@@ -31,9 +31,9 @@
 --mb=2,16
 
 --dir=FWD_B
---attr=post_ops='sum' --batch=shapes_resnet_50
---attr=post_ops='relu' --batch=shapes_resnet_50
---attr=post_ops='sum;relu' --batch=shapes_resnet_50
---attr=post_ops='sum:2.5;relu:0.5' --batch=shapes_resnet_50
---attr=post_ops='sum;linear:0.5:1.5' --batch=shapes_resnet_50
---attr=post_ops='linear:0.5:1.5:2.0' --batch=shapes_resnet_50
+--attr-post-ops='sum' --batch=shapes_resnet_50
+--attr-post-ops='relu' --batch=shapes_resnet_50
+--attr-post-ops='sum;relu' --batch=shapes_resnet_50
+--attr-post-ops='sum:2.5;relu:0.5' --batch=shapes_resnet_50
+--attr-post-ops='sum;linear:0.5:1.5' --batch=shapes_resnet_50
+--attr-post-ops='linear:0.5:1.5:2.0' --batch=shapes_resnet_50

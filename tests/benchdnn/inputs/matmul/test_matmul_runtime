@@ -8,14 +8,14 @@
 --bia_dt=undef,f32 --bia_mask=2
 
 --runtime_m=0 --runtime_n=0 --runtime_k=0
---attr=oscale=common:2.25*                      m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
---attr=oscale=common:2.25*;post_ops='sum'       m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
---attr=oscale=per_oc:2.25*;post_ops='relu'      m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
+--attr-oscale=common:2.25*,per_oc:2.25*
+--attr-post-ops='','sum','relu'
+--batch=shapes_2d
 
 --runtime_m=1 --runtime_n=1 --runtime_k=1
---attr=oscale=common:2.25*                      m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
---attr=oscale=common:2.25*;post_ops='sum'       m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
---attr=oscale=per_oc:2.25*;post_ops='relu'      m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
+--attr-oscale=common:2.25*,per_oc:2.25*
+--attr-post-ops='','sum','relu'
+--batch=shapes_2d
 
 # int8
 
@@ -27,9 +27,9 @@
 --runtime_m=0,1 --runtime_n=0 --runtime_k=0
 --bia_dt=undef,f32,u8 --bia_mask=2
 
---attr=oscale=common:2.25*                      m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
---attr=oscale=common:2.25*;post_ops='sum'       m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
---attr=oscale=per_oc:2.25*;post_ops='relu'      m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
+--attr-oscale=common:2.25*,per_oc:2.25*
+--attr-post-ops='','sum','relu'
+--batch=shapes_2d
 
 # int8 (w/ zero points)
 
@@ -41,15 +41,16 @@
 --runtime_m=0 --runtime_n=0 --runtime_k=0,1
 --bia_dt=undef,f32,u8 --bia_mask=2
 
---attr=oscale=common:2.25*;zero_points=src:1_wei:-1_dst:2;                        m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
---attr=oscale=common:2.25*;zero_points=src:1*_wei:-1*_dst:-2;                     m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
---attr=oscale=common:2.25*;zero_points=src:1*_wei:-1*_dst:2*;post_ops='sum;relu'  m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
+--attr-oscale=common:2.25*
+--attr-zero-points=src:1_wei:-1_dst:2                                --batch=shapes_2d
+--attr-zero-points=src:1*_wei:-1*_dst:-2                             --batch=shapes_2d
+--attr-zero-points=src:1*_wei:-1*_dst:2* --attr-post-ops='sum;relu'  --batch=shapes_2d
 
 # zero point doesn't belong to the data type (e.g. -1 is not u8)
 --cfg=u8s8f32
 --runtime_m=0 --runtime_n=0 --runtime_k=0
 --bia_dt=undef
---attr=oscale=common:1;zero_points=src:-1*_wei:1_dst:2;                           m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
+--attr-oscale=common:1 --attr-zero-points=src:-1*_wei:1_dst:2;       --batch=shapes_2d
 
 # bf16
 
@@ -62,5 +63,5 @@
 --bia_dt=undef,f32
 --bia_mask=2
 
---attr=oscale=common:2.25*;                       m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
---attr=oscale=per_oc:2.25*;post_ops='sum:2;relu'  m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k300 m1n200k1 m100n1k1 m10n20k30
+--attr-oscale=common:2.25*                               --batch=shapes_2d
+--attr-oscale=per_oc:2.25* --attr-post-ops='sum:2;relu'  --batch=shapes_2d

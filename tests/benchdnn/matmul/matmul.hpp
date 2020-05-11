@@ -69,6 +69,9 @@ struct settings_t {
             runtime_k {false};
     std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
     std::vector<int> bia_mask {2};
+    std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
+    std::vector<attr_t::zero_points_t> zero_points {attr_t::zero_points_t()};
+    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     attr_t attr = {};
 
     const char *perf_template_csv

@@ -94,7 +94,7 @@ struct attr_t {
         static policy_t str2policy(const char *str);
         static const char *policy2str(policy_t policy);
 
-        int str2scale(const char *str, const char **end_s);
+        int from_str(const char *str, const char **end_s);
 
         bool is_def() const { return policy == COMMON && scale == 1.; }
 
@@ -137,8 +137,8 @@ struct attr_t {
     };
 
     struct arg_scales_t {
-        void set(int arg, scale_t::policy_t p, float scale) {
-            scales.insert(std::make_pair(arg, attr_t::scale_t(p, scale)));
+        void set(int arg, scale_t scale) {
+            scales.insert(std::make_pair(arg, scale));
         }
 
         scale_t get(int arg) const {
@@ -230,6 +230,18 @@ struct attr_t {
         entry_t entry[4];
     };
 
+    attr_t() = default;
+
+    attr_t(const post_ops_t &po) : post_ops(po) {}
+
+    attr_t(const scale_t &s, const post_ops_t &po) : oscale(s), post_ops(po) {}
+
+    attr_t(const arg_scales_t &as, const post_ops_t &po)
+        : scales(as), post_ops(po) {}
+
+    attr_t(const scale_t &s, const zero_points_t &zp, const post_ops_t &po)
+        : oscale(s), zero_points(zp), post_ops(po) {}
+
     scale_t oscale;
     arg_scales_t scales;
     zero_points_t zero_points;
@@ -239,11 +251,14 @@ struct attr_t {
 };
 using policy_t = attr_t::scale_t::policy_t;
 
+void handle_legacy_attr(attr_t &attr, const attr_t &legacy_attr);
+
 int str2attr(attr_t *attr, const char *str);
 std::ostream &operator<<(std::ostream &s, const policy_t &policy);
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points);
+std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);

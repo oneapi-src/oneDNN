@@ -42,7 +42,7 @@ So far it supports and uses the following drivers:
                [--skip-impl=SKIP_IMPL] \
                [--canonical=BOOL] \
                [--mem-check=BOOL] \
-               [--scratchpad=SMODE] \
+               [--attr-scratchpad=SMODE] \
                [--perf-template=PERF_TEMPLATE] \
                [--batch=FILE] \
                [DRIVER-OPTS] \
@@ -76,7 +76,7 @@ where:
             problem memory requirement fits a device RAM capability. When
             verbose level with value `2` or higher is specified, driver gives a
             correspondent message if problem was skipped by RAM fit criteria.
- - `--scratchpad=SMODE` -- specifies the scratchpad mode to use in oneDNN.
+ - `--attr-scratchpad=SMODE` -- specifies the scratchpad mode to use in oneDNN.
             `SMODE` can be `library` [default] or `user`.
  - `--perf-template={def [default], csv, CUSTOM_TEMPLATE}` -- A template to
             provide the output for a performance run. Refer to

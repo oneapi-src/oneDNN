@@ -15,8 +15,14 @@ where *reorder-knobs* are:
             Refer to the common glossary in README.md for details.
  - `--dtag={nchw [default], ...}` -- physical dst memory layout.
             Refer to the common glossary in README.md for details.
- - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
-            Refer to [attributes](knobs_attr.md) for details.
+ - `--attr-oscale="STRING"` -- output scale primitive attribute. No oscale is
+            set by default. Refer to [attributes](knobs_attr.md) for details.
+ - `--attr-zero-points="STRING"` -- zero points primitive attribute. No zero
+            points are set by default. Refer to [attributes](knobs_attr.md)
+            for details.
+ - `--attr-post-ops="STRING"` -- post operation primitive attribute. No post
+            operations are set by default. Refer to [attributes](knobs_attr.md)
+            for details.
  - `--def-scales={N1[,N2][,N3]...}` -- input scales, separated by ','.
             Example: 0.125, 0.25, 0.5, 1, 2, 4, 8
  - `--alg={reference [default], bootstrap}` -- reorder testing mode. `bootstrap`

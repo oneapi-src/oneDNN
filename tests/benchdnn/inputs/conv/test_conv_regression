@@ -9,7 +9,7 @@
 
 --reset --cfg=f32_full
 --dir=FWD_B
---attr=post_ops='relu'
+--attr-post-ops='relu'
 --batch=shapes_regression_small_spatial
 --batch=shapes_regression_padding
 

@@ -70,8 +70,9 @@ struct settings_t {
     std::vector<flags_t> flags {NONE};
     std::vector<int64_t> mb {0};
     std::vector<bool> inplace {true};
-    check_alg_t check_alg = ALG_AUTO;
+    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     attr_t attr = {};
+    check_alg_t check_alg = ALG_AUTO;
     bool debug_check_ws = false;
     const char *pattern = NULL;
 

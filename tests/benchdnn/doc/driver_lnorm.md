@@ -20,8 +20,6 @@ where *lnorm-knobs* are:
             `G` is dnnl_use_global_stats;
             `S` is dnnl_use_scaleshift;
             Refer to ``doc/primitives/layer_normalization.md`` for details.
- - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
-            Refer to [attributes](knobs_attr.md) for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
             Default is `true`.

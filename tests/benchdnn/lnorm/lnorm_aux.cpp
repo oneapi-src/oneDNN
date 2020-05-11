@@ -37,7 +37,6 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--stat_tag=" << p.stat_tag << " ";
     if (canonical || p.flags != def.flags[0])
         s << "--flags=" << flags2str(p.flags) << " ";
-    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
     if (canonical || p.inplace != def.inplace[0])
         s << "--inplace=" << bool2str(p.inplace) << " ";
 

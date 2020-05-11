@@ -22,10 +22,17 @@
 --mb=2
 --stag=axb --dtag=axb
 --skip-impl="ref:gemm"
---dir=FWD_D --cfg=bf16bf16bf16
+
+--dir=FWD_D
+--cfg=bf16bf16bf16
 --batch=shapes_3d_2d_strided_padding --batch=shapes_dilated_3d_strided_padding
---dir=BWD_D --cfg=f32bf16bf16 --batch=shapes_3d_2d_strided_padding
---dir=BWD_WB --cfg=bf16f32bf16
+
+--dir=BWD_D
+--cfg=f32bf16bf16
+--batch=shapes_3d_2d_strided_padding
+
+--dir=BWD_WB
+--cfg=bf16f32bf16
 --batch=set_conv_3d --batch=shapes_dilated_3d_unit-stride_no-padding
 
 # Attributes
@@ -35,9 +42,10 @@
 --skip-impl="ref:gemm"
 --dir=FWD_B
 --cfg=bf16bf16bf16
---attr=post_ops='sum' --batch=shapes_resnet_50
---attr=post_ops='relu' --batch=shapes_googlenet_v3
---attr=post_ops='sum;tanh:1:1:2.5' --batch=shapes_tails
+## PostOps
+--attr-post-ops='sum' --batch=shapes_resnet_50
+--attr-post-ops='relu' --batch=shapes_googlenet_v3
+--attr-post-ops='sum;tanh:1:1:2.5' --batch=shapes_tails
 
 --batch=harness_conv_dw_bfloat16_nxc
 

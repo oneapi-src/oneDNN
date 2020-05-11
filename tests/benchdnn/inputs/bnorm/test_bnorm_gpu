@@ -1,38 +1,38 @@
 --reset
 
 --tag=abx,aBx16b,ABx16a16b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_1d --batch=bnorm_3d
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_1d
---dir=BWD_D        --flags=        --attr=                --batch=bnorm_1d
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_1d --batch=bnorm_3d
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_1d
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_1d
 
 --tag=abx,aBx16b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo_small
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small
---dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_small
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_topo_small
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_topo_small
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_topo_small
 
 --mb=2
 --dt=f16,s8,bf16
---dir=FWD_I        --flags=GS      --attr=                --batch=bnorm_topo_small
---dir=FWD_I        --flags=GS      --attr=post_ops='relu' --batch=bnorm_topo_small
+--dir=FWD_I        --flags=GS      --attr-post-ops=       --batch=bnorm_topo_small
+--dir=FWD_I        --flags=GS      --attr-post-ops='relu' --batch=bnorm_topo_small
 
 --reset
 
 --mb=48
 --tag=ABx16a16b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo_small
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small
---dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_small
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_topo_small
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_topo_small
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_topo_small
 
 --dt=f16,s8,bf16
---dir=FWD_I        --flags=GS      --attr=                --batch=bnorm_topo_small
---dir=FWD_I        --flags=GS      --attr=post_ops='relu' --batch=bnorm_topo_small
+--dir=FWD_I        --flags=GS      --attr-post-ops=       --batch=bnorm_topo_small
+--dir=FWD_I        --flags=GS      --attr-post-ops='relu' --batch=bnorm_topo_small
 
 --mb=1,2,32
 --dt=bf16
 --tag=abx,aBx16b,ABx16a16b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                ic96ih35iw35
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' ic96ih35iw35
---dir=BWD_D        --flags=        --attr=                ic96ih35iw35
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       ic96ih35iw35
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' ic96ih35iw35
+--dir=BWD_D        --flags=        --attr-post-ops=       ic96ih35iw35
 
 --dt=f16,bf16
 --mb=2
@@ -47,20 +47,21 @@
 --mb=2
 --dt=f32,f16,bf16
 --tag=axb
---dir=FWD_I        --flags=        --attr=                --batch=bnorm_topo_small
---dir=FWD_D        --flags=SR,GS,S --attr=                --batch=bnorm_topo_small
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small
+--dir=FWD_I        --flags=        --attr-post-ops=       --batch=bnorm_topo_small
+--dir=FWD_D        --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_topo_small
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_topo_small
 
 --reset
 --mb=1
 --dt=f32,bf16
 --tag=axb,aBx16b
---dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=        --attr=     --batch=bnorm_topo_small
---dir=BWD_W,BWD_WB,BWD_DW           --flags=SR,GS,S --attr=     --batch=bnorm_topo_small
+--dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=        --batch=bnorm_topo_small
+--dir=BWD_W,BWD_WB,BWD_DW           --flags=SR,GS,S --batch=bnorm_topo_small
 
 --reset
 --mb=32
 --dt=f32,bf16
 --tag=axb,ABx16a16b
---dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=        --attr=     --batch=bnorm_topo_small
---dir=BWD_W,BWD_WB,BWD_DW           --flags=SR,GS,S --attr=     --batch=bnorm_topo_small
+--dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=        --batch=bnorm_topo_small
+--dir=BWD_W,BWD_WB,BWD_DW           --flags=SR,GS,S --batch=bnorm_topo_small
+

@@ -6,16 +6,16 @@
 
 --inplace=false
 --tag=abx,axb,aBx16b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_topo
 --tag=abx,aBx16b
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small
---dir=FWD_I,BWD_D  --flags=        --attr=                --batch=bnorm_topo
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_topo_small
+--dir=FWD_I,BWD_D  --flags=        --attr-post-ops=       --batch=bnorm_topo
 
 --inplace=true
 --tag=axb,aBx8b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_3d
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_3d
---dir=BWD_D        --flags=        --attr=                --batch=bnorm_3d
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_3d
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_3d
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_3d
 
 # i8
 --dt=s8

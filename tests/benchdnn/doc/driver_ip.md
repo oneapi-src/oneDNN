@@ -18,8 +18,11 @@ where *ip-knobs* are:
             Refer to the common glossary in README.md for details.
  - `--dtag={any [default], ...}` -- physical dst memory layout.
             Refer to the common glossary in README.md for details.
- - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
-            Refer to [attributes](knobs_attr.md) for details.
+ - `--attr-oscale="STRING"` -- output scale primitive attribute. No oscale is
+            set by default. Refer to [attributes](knobs_attr.md) for details.
+ - `--attr-post-ops="STRING"` -- post operation primitive attribute. No post
+            operations are set by default. Refer to [attributes](knobs_attr.md)
+            for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
@@ -52,8 +55,8 @@ Run a named problem with single precision src and dst, backward by data
 prop_kind, applying output scale of `2.25`, appending the result into dst with
 output scale of `0.5`, and applying tanh as a post op:
 ``` sh
-    ./benchdnn --ip --dir=BWD_D \
-               --attr=oscale=common:2.25;post_ops='sum:0.5;tanh' \
+    ./benchdnn --ip --dir=BWD_D -attr-oscale="common:2.25" \
+               --attr-post-ops="'sum:0.5;tanh'" \
                mb112ic2048_ih1iw1_oc1000_n"resnet:ip1"
 ```
 

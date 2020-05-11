@@ -63,8 +63,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--alg=" << alg2str(p.alg) << " ";
     if (canonical || p.inplace != def.inplace[0])
         s << "--inplace=" << bool2str(p.inplace) << " ";
-    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
+    s << p.attr;
     s << p.sdims;
 
     return s;

@@ -102,6 +102,18 @@ static bool parse_alg(T &vec, const T &def, F process_func, const char *str,
     return parse_vector_option(vec, def, process_func, str, option_name);
 }
 
+template <typename T>
+bool parse_subattr(
+        std::vector<T> &vec, const char *str, const std::string &option_name) {
+    std::vector<T> def {T()};
+    auto parse_subattr_func = [](const char *s) {
+        T v;
+        SAFE_V(v.from_str(s, &s));
+        return v;
+    };
+    return parse_vector_option(vec, def, parse_subattr_func, str, option_name);
+}
+
 template <typename S>
 bool parse_reset(S &settings, const char *str,
         const std::string &option_name = "reset") {
@@ -136,6 +148,18 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
 
 bool parse_attr(
         attr_t &attr, const char *str, const std::string &option_name = "attr");
+
+bool parse_attr_oscale(std::vector<attr_t::scale_t> &oscale, const char *str,
+        const std::string &option_name = "attr-oscale");
+
+bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
+        const std::string &option_name = "attr-post-ops");
+
+bool parse_attr_scales(std::vector<attr_t::arg_scales_t> &scales,
+        const char *str, const std::string &option_name = "attr-scales");
+
+bool parse_attr_zero_points(std::vector<attr_t::zero_points_t> &zp,
+        const char *str, const std::string &option_name = "attr-zero-points");
 
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
         const char *str, const std::string &option_name = "axis");

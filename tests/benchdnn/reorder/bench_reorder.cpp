@@ -33,16 +33,21 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_oflag : s.oflag)
     for_(const auto &i_alg : s.alg)
+    for_(const auto &i_oscale : s.oscale)
+    for_(const auto &i_zero_points : s.zero_points)
+    for_(const auto &i_post_ops : s.post_ops)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
         reorder_conf_t reorder_conf {s.dims, i_stag, i_dtag};
         dt_conf_t iconf = dt2cfg(i_sdt);
         dt_conf_t oconf = dt2cfg(i_ddt);
+        attr_t attr(i_oscale, i_zero_points, i_post_ops);
+        handle_legacy_attr(attr, s.attr);
 
-        std::vector<float> attr_scale = {s.attr.oscale.scale};
-        auto &scale = s.attr.oscale.scale == 0 ? s.def_scale : attr_scale;
+        std::vector<float> attr_scale = {attr.oscale.scale};
+        auto &scale = attr.oscale.scale == 0 ? s.def_scale : attr_scale;
 
         for (const auto &i_scale : scale) {
-            const prb_t p(reorder_conf, iconf, oconf, s.attr, i_alg, i_oflag,
+            const prb_t p(reorder_conf, iconf, oconf, attr, i_alg, i_oflag,
                     i_runtime_dim_mask, i_scale);
             std::stringstream ss;
             ss << p;
@@ -86,6 +91,9 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(
                         s.def_scale, def.def_scale, atof, argv[0], "def-scales")
                 || parse_attr(s.attr, argv[0])
+                || parse_attr_oscale(s.oscale, argv[0])
+                || parse_attr_zero_points(s.zero_points, argv[0])
+                || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

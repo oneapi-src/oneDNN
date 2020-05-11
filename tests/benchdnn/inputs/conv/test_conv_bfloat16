@@ -31,20 +31,21 @@
 --skip-impl="ref:gemm"
 --dir=FWD_B
 --cfg=bf16bf16bf16
---attr=post_ops='sum' --batch=shapes_resnet_50
---attr=post_ops='relu' --batch=shapes_googlenet_v3
---attr=post_ops='sum;tanh:1:1:2.5' --batch=shapes_tails
+## Post-Ops
+--attr-post-ops='sum' --batch=shapes_resnet_50
+--attr-post-ops='relu' --batch=shapes_googlenet_v3
+--attr-post-ops='sum;tanh:1:1:2.5' --batch=shapes_tails
 
 ## Depthwise fusion stride 1
---attr=post_ops='dw_k3s1p1:bf16;relu'
+--attr-post-ops='dw_k3s1p1:bf16;relu'
 --batch=shapes_fused_mobilenet_stride_1
---attr=post_ops='relu:0.5;dw_k3s1p1:f32;tanh:0:0:2.5'
+--attr-post-ops='relu:0.5;dw_k3s1p1:f32;tanh:0:0:2.5'
 --batch=shapes_fused_mobilenet_stride_1
 
 ## Depthwise fusion stride 2
---attr=post_ops='relu;dw_k3s2p1:bf16;tanh'
+--attr-post-ops='relu;dw_k3s2p1:bf16;tanh'
 --batch=shapes_fused_mobilenet_stride_2
---attr=post_ops='relu;dw_k3s2p1:f32;tanh'
+--attr-post-ops='relu;dw_k3s2p1:f32;tanh'
 --batch=shapes_fused_mobilenet_stride_2
 
 --batch=harness_conv_dw_bfloat16

@@ -20,8 +20,14 @@ where *matmul-knobs* are:
  - `--runtime_m=BOOL` -- specify whether `m` dimension is a run-time parameter.
  - `--runtime_n=BOOL` -- specify whether `n` dimension is a run-time parameter.
  - `--runtime_k=BOOL` -- specify whether `k` dimension is a run-time parameter.
- - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
-            Refer to [attributes](knobs_attr.md) for details.
+ - `--attr-oscale="STRING"` -- output scale primitive attribute. No oscale is
+            set by default. Refer to [attributes](knobs_attr.md) for details.
+ - `--attr-zero-points="STRING"` -- zero points primitive attribute. No zero
+            points are set by default. Refer to [attributes](knobs_attr.md)
+            for details.
+ - `--attr-post-ops="STRING"` -- post operation primitive attribute. No post
+            operations are set by default. Refer to [attributes](knobs_attr.md)
+            for details.
  - `--bia_dt={undef [default], f32, s32, s8, u8}` -- bias data type.
             To run MatMul without bias, use `undef` data type (default).
             Refer to the common glossary in README.md for details.
@@ -65,7 +71,7 @@ runtime, but sizes specified at creation time:
     ./benchdnn --matmul \
                --cfg=u8s8u8 \
                --wtag=any \
-               --attr="zero_points=src:1*_dst:-2*;" \
+               --attr-zero-points=src:1*_dst:-2* \
                m10n20k30
 ```
 

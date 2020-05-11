@@ -166,8 +166,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
             s << "--bia_mask=" << p.bia_mask << " ";
     }
 
-    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
-
+    s << p.attr;
     s << static_cast<const desc_t &>(p);
 
     return s;

@@ -208,7 +208,7 @@ register_benchdnn_test(test_benchdnn_lrn_bf16
 register_benchdnn_test(test_benchdnn_binary
     cpu "--binary --batch=inputs/binary/test_binary_all")
 register_benchdnn_test(test_benchdnn_binary_bf16
-    cpu "--binary --batch=inputs/binary/test_binary_bf16")
+    cpu "--binary --batch=inputs/binary/test_binary_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     cpu
     "--conv --batch=inputs/conv/test_conv_regression"

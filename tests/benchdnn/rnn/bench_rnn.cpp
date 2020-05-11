@@ -59,9 +59,9 @@ void check_correctness(const settings_t &s) {
         }
 
         const prb_t p(s.desc, dt_conf_t::create(i_cfg), i_prop, i_alg,
-                i_with_peephole, i_with_projection, i_direction, s.attr,
-                i_scale_policy, s.flags, i_activation, s.alpha, s.beta,
-                i_skip_nonlinear, i_trivial_strides, i_mb);
+                i_with_peephole, i_with_projection, i_direction, i_scale_policy,
+                s.flags, i_activation, s.alpha, s.beta, i_skip_nonlinear,
+                i_trivial_strides, i_mb);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -109,7 +109,6 @@ int bench(int argc, char **argv) {
                         str2bool, argv[0], "with-peephole")
                 || parse_vector_option(s.with_projection, def.with_projection,
                         str2bool, argv[0], "with-projection")
-                || parse_attr(s.attr, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);
