@@ -18,7 +18,7 @@
 --attr=oscale=common:2.25;
 --cfg=s8s8s32,u8s8s8 --batch=deconv_2d
 
---attr=oscale=none;
+--attr=
 --cfg=u8s8f32,u8s8s32,s8s8s8 --batch=deconv_2d
 
 # 3D

@@ -35,8 +35,7 @@ int prepare_attr_bundle(const prb_t *p, attr_bundle_t &attr_bundle) {
             case P::PER_DIM_0: return (1 << 0);
             case P::PER_DIM_1: return (1 << 1);
             case P::PER_DIM_01: return (1 << 0) + (1 << 1);
-            case P::COMMON:
-            case P::NONE: return 0;
+            case P::COMMON: return 0;
             default: SAFE_V(FAIL); return 0;
         }
     };

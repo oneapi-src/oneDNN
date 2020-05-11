@@ -219,7 +219,7 @@ struct settings_t {
     std::vector<bool> with_peephole {false};
     std::vector<bool> with_projection {false};
     std::vector<int64_t> mb {0};
-    std::vector<policy_t> scale_policy {policy_t::NONE};
+    std::vector<policy_t> scale_policy {policy_t::COMMON};
     attr_t attr = {};
     unsigned int flags = 0x0;
     float alpha = 0.9f, beta = 0.0f;
@@ -275,14 +275,13 @@ struct prb_t : public desc_t {
         set_tparams(cfg[SRC_LAYER].f_min, cfg[SRC_LAYER].f_max);
 
         switch (wei_scales_policy) {
+            case policy_t::COMMON:
+                wei_scales_mask = 0x0;
+                wei_nscales = 1;
+                break;
             case policy_t::PER_OC:
                 wei_scales_mask = 0x18;
                 wei_nscales = dhc * n_gates();
-                break;
-            case policy_t::COMMON:
-            case policy_t::NONE:
-                wei_scales_mask = 0x0;
-                wei_nscales = 1;
                 break;
             default: assert(!"unsupported scaling policy");
         }

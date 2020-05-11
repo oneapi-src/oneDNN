@@ -147,8 +147,7 @@ void check_case_validity(const dt_conf_t &cfg, policy_t policy) {
         exit(2);
     }
 
-    if (!(policy == policy_t::NONE || policy == policy_t::COMMON
-                || policy == policy_t::PER_OC)) {
+    if (!(policy == policy_t::COMMON || policy == policy_t::PER_OC)) {
         std::stringstream ss;
         ss << policy;
         const std::string cpp_pstr = ss.str();

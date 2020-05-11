@@ -77,8 +77,7 @@ const char *data_kind2str(data_kind_t kind);
 struct attr_t {
     struct scale_t {
         enum policy_t {
-            NONE = 0,
-            COMMON,
+            COMMON = 0,
             PER_OC,
             // reorder section
             // XXX: order is important, from longer name to a shorter one
@@ -89,7 +88,7 @@ struct attr_t {
             // reorder section ends
             POLICY_TOTAL
         };
-        scale_t() : policy(NONE), scale(1.) {}
+        scale_t() : policy(COMMON), scale(1.) {}
         scale_t(policy_t policy, float scale) : policy(policy), scale(scale) {}
 
         static policy_t str2policy(const char *str);
@@ -97,9 +96,9 @@ struct attr_t {
 
         int str2scale(const char *str, const char **end_s);
 
-        bool is_def() const { return this->policy == NONE; }
+        bool is_def() const { return policy == COMMON && scale == 1.; }
 
-        policy_t policy = NONE;
+        policy_t policy = COMMON;
         float scale = 1.;
         bool runtime = false;
     };

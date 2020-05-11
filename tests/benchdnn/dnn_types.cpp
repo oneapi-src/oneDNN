@@ -133,7 +133,6 @@ static const std::map<int, const char *> arg2str = {
 policy_t attr_t::scale_t::str2policy(const char *str) {
 #define CASE(_plc) \
     if (!strcasecmp(STRINGIFY(_plc), str)) return _plc
-    CASE(NONE);
     CASE(COMMON);
     CASE(PER_OC);
     CASE(PER_DIM_0);
@@ -141,11 +140,10 @@ policy_t attr_t::scale_t::str2policy(const char *str) {
     CASE(PER_DIM_01);
 #undef CASE
     assert(!"unknown attr::scale::policy");
-    return NONE;
+    return COMMON;
 }
 
 const char *attr_t::scale_t::policy2str(policy_t policy) {
-    if (policy == NONE) return "none";
     if (policy == COMMON) return "common";
     if (policy == PER_OC) return "per_oc";
     if (policy == PER_DIM_0) return "per_dim_0";
@@ -164,7 +162,7 @@ int attr_t::scale_t::str2scale(const char *str, const char **end_s) {
     const char *&s = end_s ? *end_s : s_;
     s = str;
 
-    for (policy_t p = NONE; true; p = (policy_t)((int)p + 1)) {
+    for (policy_t p = COMMON; true; p = (policy_t)((int)p + 1)) {
         if (p == POLICY_TOTAL) return FAIL;
 
         const char *ps = policy2str(p);
@@ -185,7 +183,7 @@ int attr_t::scale_t::str2scale(const char *str, const char **end_s) {
 
     if (*s == '*') {
         ++s;
-        if (this->policy != NONE) this->runtime = true;
+        this->runtime = true;
     }
 
     assert(*s == '\0' || *s == ';');
@@ -253,7 +251,7 @@ int attr_t::arg_scales_t::from_str(const char *str, const char **end_s) {
             if (!strncasecmp(arg.second, s, arg_name_len)) {
                 s += arg_name_len;
                 policy_t policy;
-                for (policy_t p = policy_t::NONE; true;
+                for (policy_t p = policy_t::COMMON; true;
                         p = (policy_t)((int)p + 1)) {
                     if (p == policy_t::POLICY_TOTAL) return FAIL;
 
@@ -585,8 +583,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
             if (e.convolution.dst_dt != dnnl_f32)
                 s << ":" << e.convolution.dst_dt;
             const auto &co = e.convolution.oscale;
-            if (co.policy != policy_t::NONE)
-                s << ":" << co.policy << ":" << co.scale;
+            if (!co.is_def()) s << ":" << co;
         } else if (e.is_eltwise_kind()) {
             if (e.eltwise.scale != 1.f)
                 s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta << ":"

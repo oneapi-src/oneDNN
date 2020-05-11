@@ -94,21 +94,20 @@ static int check_str2attr() {
         CHECK_EQ(entry.runtime, zero_points_runtime); \
     } while (0)
 
-    CHECK_ATTR("", NONE, 1., false);
+    CHECK_ATTR("", COMMON, 1., false);
     CHECK_EQ(attr.is_def(), true);
 
-    CHECK_ATTR("oscale=none:1.0", NONE, 1., false);
+    CHECK_ATTR("oscale=common:1.0", COMMON, 1., false);
     CHECK_EQ(attr.is_def(), true);
 
-    CHECK_ATTR(
-            "oscale=none:1.0;zero_points=src:0_wei:0_dst:0", NONE, 1., false);
+    CHECK_ATTR("oscale=common:1.0;zero_points=src:0_wei:0_dst:0", COMMON, 1.,
+            false);
     CHECK_EQ(attr.is_def(), true);
 
-    CHECK_ATTR("oscale=none:2.0", NONE, 2., false);
-    CHECK_ATTR("oscale=none:2.0*", NONE, 2., false);
+    CHECK_ATTR("oscale=common:2.0", COMMON, 2., false);
     CHECK_ATTR("oscale=common:2.0*", COMMON, 2., true);
     CHECK_ATTR("oscale=per_oc:.5*;", PER_OC, .5, true);
-    CHECK_ATTR("oscale=none:.5*;oscale=common:1.5", COMMON, 1.5, false);
+    CHECK_ATTR("oscale=common:.5*;oscale=common:1.5", COMMON, 1.5, false);
 
     CHECK_ATTR(
             "oscale=common:2.0*;zero_points=src:0_dst:-2*", COMMON, 2., true);
