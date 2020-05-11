@@ -37,7 +37,7 @@ class jit_avx512_common_lrn_kernel_bwd_nhwc_t
     : public jit_avx512_common_lrn_kernel_bwd_t<d_type> {
 public:
     jit_avx512_common_lrn_kernel_bwd_nhwc_t(unsigned C, float alpha, float beta,
-            void *code_ptr = nullptr,
+            int local_size, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_bwd_nhwc_f)
@@ -51,12 +51,12 @@ private:
     void load_compute_data(across_version version, int loop_size_param);
     void store_compute_data(int loop_size_param);
 
-    static constexpr int tmp_mask_za_idx_ = 7;
-    static constexpr int tmp_mask_zb_idx_ = 8;
-    static constexpr int tmp_mask_zd_idx_ = 9;
-    static constexpr int tmp_mask_ze_idx_ = 10;
+    const std::vector<int> tmp_mask_prev_;
+    const std::vector<int> tmp_mask_next_;
     const Reg64 mask_ = r11;
     const Reg64 blockC_ = r12;
+
+    const int half_ls_;
 };
 
 } // namespace lrn

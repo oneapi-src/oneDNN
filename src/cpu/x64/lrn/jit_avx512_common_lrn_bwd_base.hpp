@@ -17,6 +17,7 @@
 #ifndef CPU_X64_LRN_JIT_AVX512_COMMON_LRN_BWD_BASE_HPP
 #define CPU_X64_LRN_JIT_AVX512_COMMON_LRN_BWD_BASE_HPP
 
+#include <functional>
 #include <memory>
 #include "common/c_types_map.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
@@ -38,8 +39,8 @@ using namespace Xbyak::util;
 template <data_type_t d_type>
 class jit_avx512_common_lrn_kernel_bwd_t : public jit_generator {
 public:
-    jit_avx512_common_lrn_kernel_bwd_t(
-            float alpha, float beta, void *code_ptr, size_t code_size);
+    jit_avx512_common_lrn_kernel_bwd_t(float alpha, float beta, int local_size,
+            void *code_ptr, size_t code_size);
 
     using data_t = typename prec_traits<d_type>::type;
 
@@ -47,7 +48,7 @@ public:
         jit_args_bwd_t();
         const data_t *src, *diff_dst, *ws0, *ws1;
         data_t *diff_src;
-        static const int32_t mask[20];
+        static const int32_t mask[48];
         const int32_t *mask_ptr;
     };
 
@@ -56,9 +57,9 @@ public:
     void operator()(jit_args_bwd_t *arg) { ker(arg); }
 
 protected:
-    static inline Zmm zreg(int irb, int i) { return Zmm(irb * 7 + i); };
-    static inline Ymm yreg(int irb, int i) { return Ymm(irb * 7 + i); };
-    static inline Xmm xreg(int irb, int i) { return Xmm(irb * 7 + i); };
+    std::function<Zmm(int irb, int i)> zreg;
+    std::function<Ymm(int irb, int i)> yreg;
+    std::function<Xmm(int irb, int i)> xreg;
 
     void store_data(bool nt, const Address addr, Zmm zr);
     void load_data(Xmm reg, const Address p);
@@ -78,18 +79,18 @@ protected:
     Reg64 bf16_emu_scratch_ = rax;
     Zmm bf16_emu_reserv_3_ = Zmm(30);
     Zmm bf16_emu_reserv_4_ = Zmm(31);
+    const int local_size_;
 
     static constexpr int z_tmp_ = 7;
 
-    static constexpr int zdiffdst_ = 5;
-    static constexpr int zdiffsrc_ = 6;
-    static constexpr int zsrc_ = 1;
+    static constexpr int zdiffdst_ = 1;
+    static constexpr int zdiffsrc_ = 2;
+    static constexpr int zsrc_ = 3;
 
-    static constexpr int za_ = 1;
-    static constexpr int zb_ = 2;
-    static constexpr int zd_ = 3;
-    static constexpr int ze_ = 4;
-    static constexpr int zws0_ = 2;
+    const std::vector<int> z_prev_;
+    const std::vector<int> z_next_;
+
+    static constexpr int zws0_ = 4;
 
     float nalphabeta_;
     const bool emulateBfloat_;

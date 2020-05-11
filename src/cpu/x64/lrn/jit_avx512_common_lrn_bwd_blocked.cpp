@@ -27,9 +27,10 @@ template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
         jit_avx512_common_lrn_kernel_bwd_blocked_t(
                 const struct nChw16c_across_t &J, float alpha, float beta,
-                int use_h_parallel, void *code_ptr, size_t code_size)
+                int local_size, int use_h_parallel, void *code_ptr,
+                size_t code_size)
     : jit_avx512_common_lrn_kernel_bwd_t<d_type>(
-            alpha, beta, code_ptr, code_size)
+            alpha, beta, local_size, code_ptr, code_size)
     , xmm_size_ {4 * sizeof(acc_data_t)}
     , zmm_size_ {64}
     , buffer_block_ {xmm_size_ + zmm_size_ + xmm_size_}
@@ -60,14 +61,14 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
 
     if (version_ == across_version::First
             || version_ == across_version::Single) {
-        this->vxorps(xmm1, xmm1, xmm1);
+        this->vpxorq(xmm1, xmm1, xmm1);
         for (int irb = 0; irb < this->reg_block_; irb++) {
             this->vmovups(ptr[this->t_ + irb * buffer_block_], xmm1);
         }
     }
     if (version_ == across_version::Last
             || version_ == across_version::Single) {
-        this->vxorps(xmm1, xmm1, xmm1);
+        this->vpxorq(xmm1, xmm1, xmm1);
         for (int irb = 0; irb < this->reg_block_; irb++) {
             this->vmovups(
                     ptr[this->t_ + irb * buffer_block_ + buffer_nest_offset_],
@@ -116,10 +117,6 @@ void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::compute_loop(
     int loop_size = loop_size_param;
     const int prf0_offt = 1 * this->reg_block_;
     const int prf2_offt = 8 * this->reg_block_;
-
-    auto xreg = [=](int irb, int i) { return Xmm(irb * 6 + i); };
-
-    auto zreg = [=](int irb, int i) { return Zmm(irb * 6 + i); };
 
     // ---- prefetching -------------------------------------------
     if (version_ != across_version::First
@@ -175,93 +172,97 @@ void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::compute_loop(
 
     if (version_ != across_version::First
             && version_ != across_version::Single) {
-        IRB_LOOP(this->load_data(xreg(irb, xws1_prev_),
+        IRB_LOOP(this->load_data(this->xreg(irb, xws1_prev_),
                 ptr[this->workspace1_ + (irb - 2 * HW_) * this->vlen_
                         + src_prev_offset_]));
-        IRB_LOOP(this->load_data(xreg(irb, xdiffdst_prev_),
+        IRB_LOOP(this->load_data(this->xreg(irb, xdiffdst_prev_),
                 ptr[this->diffdst_ + (irb - HW_) * this->vlen_
                         + src_prev_offset_]));
-        IRB_LOOP(this->vmulps(xreg(irb, xdiffdst_prev_),
-                xreg(irb, xdiffdst_prev_), xreg(irb, xws1_prev_)));
+        IRB_LOOP(this->vmulps(this->xreg(irb, xdiffdst_prev_),
+                this->xreg(irb, xdiffdst_prev_), this->xreg(irb, xws1_prev_)));
     }
 
-    IRB_LOOP(this->load_data(zreg(irb, zws1_),
+    IRB_LOOP(this->load_data(this->zreg(irb, zws1_),
             this->EVEX_compress_addr(this->workspace1_, irb * this->vlen_)));
-    IRB_LOOP(this->load_data(zreg(irb, this->zdiffdst_),
+    IRB_LOOP(this->load_data(this->zreg(irb, this->zdiffdst_),
             this->EVEX_compress_addr(this->diffdst_, irb * this->vlen_)));
-    IRB_LOOP(this->vmulps(zreg(irb, this->zdiffsrc_),
-            zreg(irb, this->zdiffdst_), zreg(irb, zws1_)));
+    IRB_LOOP(this->vmulps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zdiffdst_), this->zreg(irb, zws1_)));
 
     if (version_ != across_version::Last
             && version_ != across_version::Single) {
-        IRB_LOOP(this->load_data(xreg(irb, xws1_next_),
+        IRB_LOOP(this->load_data(this->xreg(irb, xws1_next_),
                 ptr[this->workspace1_ + (irb + 2 * HW_) * this->vlen_]));
-        IRB_LOOP(this->load_data(xreg(irb, xdiffdst_next_),
+        IRB_LOOP(this->load_data(this->xreg(irb, xdiffdst_next_),
                 ptr[this->diffdst_ + (irb + HW_) * this->vlen_]));
-        IRB_LOOP(this->vmulps(xreg(irb, xdiffdst_next_),
-                xreg(irb, xdiffdst_next_), xreg(irb, xws1_next_)));
+        IRB_LOOP(this->vmulps(this->xreg(irb, xdiffdst_next_),
+                this->xreg(irb, xdiffdst_next_), this->xreg(irb, xws1_next_)));
     }
 
     if (version_ != across_version::First
             && version_ != across_version::Single) {
         IRB_LOOP(this->vmovups(ptr[this->t_ + irb * buffer_block_],
-                xreg(irb, xdiffdst_prev_)));
+                this->xreg(irb, xdiffdst_prev_)));
     }
     IRB_LOOP(this->vmovups(
             this->EVEX_compress_addr(this->t_, irb * buffer_block_ + xmm_size_),
-            zreg(irb, this->zdiffsrc_)));
+            this->zreg(irb, this->zdiffsrc_)));
     if (version_ != across_version::Last
             && version_ != across_version::Single) {
         IRB_LOOP(this->vmovups(
                 ptr[this->t_ + irb * buffer_block_ + buffer_nest_offset_],
-                xreg(irb, xdiffdst_next_)));
+                this->xreg(irb, xdiffdst_next_)));
     }
     size_t acc_size = sizeof(acc_data_t);
-    IRB_LOOP(this->vmovups(zreg(irb, this->za_),
+    IRB_LOOP(this->vmovups(this->zreg(irb, this->z_prev_[0]),
             this->EVEX_compress_addr(
                     this->t_, irb * buffer_block_ + xmm_size_ - 2 * acc_size)));
-    IRB_LOOP(this->vmovups(zreg(irb, this->zb_),
+    IRB_LOOP(this->vmovups(this->zreg(irb, this->z_prev_[1]),
             this->EVEX_compress_addr(
                     this->t_, irb * buffer_block_ + xmm_size_ - 1 * acc_size)));
-    IRB_LOOP(this->vmovups(zreg(irb, this->zd_),
+    IRB_LOOP(this->vmovups(this->zreg(irb, this->z_next_[0]),
             this->EVEX_compress_addr(
                     this->t_, irb * buffer_block_ + xmm_size_ + 1 * acc_size)));
-    IRB_LOOP(this->vmovups(zreg(irb, this->ze_),
+    IRB_LOOP(this->vmovups(this->zreg(irb, this->z_next_[1]),
             this->EVEX_compress_addr(
                     this->t_, irb * buffer_block_ + xmm_size_ + 2 * acc_size)));
-    IRB_LOOP(this->vaddps(zreg(irb, this->zdiffsrc_),
-            zreg(irb, this->zdiffsrc_), zreg(irb, this->za_)));
-    assert(this->zsrc_ == this->za_);
-    IRB_LOOP(this->load_data(zreg(irb, this->zsrc_),
+    IRB_LOOP(this->vaddps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->z_prev_[0])));
+    assert(this->zsrc_ == this->z_prev_[0]);
+    IRB_LOOP(this->load_data(this->zreg(irb, this->zsrc_),
             this->EVEX_compress_addr(this->src_, irb * this->vlen_)));
-    IRB_LOOP(this->vaddps(zreg(irb, this->zdiffsrc_),
-            zreg(irb, this->zdiffsrc_), zreg(irb, this->zb_)));
-    IRB_LOOP(this->vaddps(zreg(irb, this->zdiffsrc_),
-            zreg(irb, this->zdiffsrc_), zreg(irb, this->zd_)));
-    IRB_LOOP(this->vaddps(zreg(irb, this->zdiffsrc_),
-            zreg(irb, this->zdiffsrc_), zreg(irb, this->ze_)));
-    IRB_LOOP(this->vmulps(zreg(irb, this->zsrc_), zreg(irb, this->zsrc_),
-            this->znalphabeta_));
+    IRB_LOOP(this->vaddps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->z_prev_[1])));
+    IRB_LOOP(this->vaddps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->z_next_[0])));
+    IRB_LOOP(this->vaddps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->z_next_[1])));
+    IRB_LOOP(this->vmulps(this->zreg(irb, this->zsrc_),
+            this->zreg(irb, this->zsrc_), this->znalphabeta_));
 
-    IRB_LOOP(this->load_data(zreg(irb, this->zws0_),
+    IRB_LOOP(this->load_data(this->zreg(irb, this->zws0_),
             this->EVEX_compress_addr(this->workspace0_, irb * this->vlen_)));
-    IRB_LOOP(this->vdivps(zreg(irb, this->zdiffdst_),
-            zreg(irb, this->zdiffdst_), zreg(irb, this->zws0_)));
-    IRB_LOOP(this->vfmadd213ps(zreg(irb, this->zdiffsrc_),
-            zreg(irb, this->zsrc_), zreg(irb, this->zdiffdst_)));
+    IRB_LOOP(this->vdivps(this->zreg(irb, this->zdiffdst_),
+            this->zreg(irb, this->zdiffdst_), this->zreg(irb, this->zws0_)));
+    IRB_LOOP(this->vfmadd213ps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zsrc_), this->zreg(irb, this->zdiffdst_)));
 
     Label unaligned_store, end_store;
     this->test(this->diffsrc_, this->vlen_ - 1);
     this->jnz(unaligned_store, this->T_NEAR);
     IRB_LOOP(this->store_data(true,
             this->EVEX_compress_addr(this->diffsrc_, irb * this->vlen_),
-            zreg(irb, this->zdiffsrc_)));
+            this->zreg(irb, this->zdiffsrc_)));
     this->jmp(end_store, this->T_NEAR);
     this->L(unaligned_store);
     {
         IRB_LOOP(this->store_data(false,
                 this->EVEX_compress_addr(this->diffsrc_, irb * this->vlen_),
-                zreg(irb, this->zdiffsrc_)));
+                this->zreg(irb, this->zdiffsrc_)));
     }
     this->L(end_store);
 }

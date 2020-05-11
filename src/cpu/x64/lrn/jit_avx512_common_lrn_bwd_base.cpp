@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <numeric>
 #include "cpu/x64/lrn/jit_avx512_common_lrn_bwd_base.hpp"
 
 namespace dnnl {
@@ -24,9 +25,10 @@ namespace lrn {
 
 template <data_type_t d_type>
 const int32_t
-        jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_args_bwd_t::mask[20]
-        = {0, 0, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
-                0, 0};
+        jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_args_bwd_t::mask[48]
+        = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 17, 18, 19, 20,
+                21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_args_bwd_t::jit_args_bwd_t()
@@ -35,7 +37,7 @@ jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_args_bwd_t::jit_args_bwd_t()
     , ws0(nullptr)
     , ws1(nullptr)
     , diff_src(nullptr)
-    , mask_ptr(&mask[2]) {}
+    , mask_ptr(&mask[16]) {}
 
 template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_bwd_t<d_type>::load_data(
@@ -65,11 +67,36 @@ void jit_avx512_common_lrn_kernel_bwd_t<d_type>::store_data(
 
 template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_avx512_common_lrn_kernel_bwd_t(
-        float alpha, float beta, void *code_ptr, size_t code_size)
+        float alpha, float beta, int local_size, void *code_ptr,
+        size_t code_size)
     : jit_generator(code_ptr, code_size)
+    , local_size_ {local_size - !(local_size % 2)}
+    , z_prev_ {[this]() {
+        std::vector<int> v(this->local_size_ / 2);
+        std::iota(v.begin(), v.end(), 3);
+        return v;
+    }()}
+    , z_next_ {[this]() {
+        std::vector<int> v(this->local_size_ / 2);
+        std::iota(v.begin(), v.end(), 3 + this->local_size_ / 2);
+        return v;
+    }()}
     , nalphabeta_(-2 * alpha * beta)
     , emulateBfloat_(d_type == bf16 && !mayiuse(avx512_core_bf16))
-    , reg_block_(3) {
+    , reg_block_ {(d_type == bf16 && !mayiuse(avx512_core_bf16) ? 26 : 30)
+              / (std::max(this->local_size_ + 2, 7))} {
+
+    const int regs_used_per_block = std::max(this->local_size_ + 2, 7);
+    zreg = [regs_used_per_block](int irb, int i) {
+        return Zmm(irb * regs_used_per_block + i);
+    };
+    yreg = [regs_used_per_block](int irb, int i) {
+        return Ymm(irb * regs_used_per_block + i);
+    };
+    xreg = [regs_used_per_block](int irb, int i) {
+        return Xmm(irb * regs_used_per_block + i);
+    };
+
     if (emulateBfloat_) {
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
                 bf16_emu_reserv_1_, bf16_emu_reserv_2_, bf16_emu_reserv_3_,

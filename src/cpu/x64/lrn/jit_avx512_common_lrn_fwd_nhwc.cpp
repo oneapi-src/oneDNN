@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
+#include <numeric>
 #include "cpu/x64/lrn/jit_avx512_common_lrn_fwd_nhwc.hpp"
 
 namespace dnnl {
@@ -24,10 +26,22 @@ namespace lrn {
 template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_fwd_nhwc_t<
         d_type>::jit_avx512_common_lrn_kernel_fwd_nhwc_t(unsigned C,
-        prop_kind_t prop_kind, float alpha, float k, void *code_ptr,
-        size_t code_size)
+        prop_kind_t prop_kind, float alpha, float beta, float k, int local_size,
+        void *code_ptr, size_t code_size)
     : jit_avx512_common_lrn_kernel_fwd_t<d_type>(
-            prop_kind, alpha, k, code_ptr, code_size) {
+            prop_kind, alpha, beta, k, local_size, code_ptr, code_size)
+    , tmp_mask_prev_ {[this]() {
+        std::vector<int> v(this->local_size_ / 2);
+        std::iota(v.begin(), v.end(), this->zc_ + 2);
+        return v;
+    }()}
+    , tmp_mask_next_ {[this]() {
+        std::vector<int> v(this->local_size_ / 2);
+        std::iota(v.begin(), v.end(), this->zc_ + 2 + this->local_size_ / 2);
+        return v;
+    }()}
+    , half_ls_ {(local_size - 1) / 2} {
+
     const auto res = std::div(C, 16);
     const auto &C_tail = res.rem;
     const auto &num_full_16c_blocks = res.quot;
@@ -173,7 +187,6 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::compute_loop(
 template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_data_to_stack(
         unsigned C_tail, across_version version, tail_mode tail_proc) {
-
     if (version != across_version::Single) {
         const int previousChunkOffset
                 = tail_proc == tail_mode::NextTail ? 0 : -1 * this->vlen_;
@@ -194,10 +207,8 @@ template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_compute_data(
         across_version version, tail_mode tail_proc, int loop_size_param) {
 
-    static constexpr int acc_bf_16_size = sizeof(acc_data_bf16_t);
-    static constexpr int acc_fp_32_size = sizeof(acc_data_t);
     static constexpr int acc_size
-            = d_type == bf16 ? acc_bf_16_size : acc_fp_32_size;
+            = d_type == bf16 ? sizeof(acc_data_bf16_t) : sizeof(acc_data_t);
 
     const int loop_size = loop_size_param;
     static constexpr int mask_shift = sizeof(int32_t);
@@ -219,48 +230,63 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_compute_data(
                 this->EVEX_compress_addr(this->src_, irb * this->vlen_)));
     }
 
+    int reg, mask, pos;
+    std::vector<std::tuple<int, int, int>> prev_v;
+    for (int pos = 0; pos < this->half_ls_; ++pos) {
+        prev_v.emplace_back(this->z_prev_[pos], this->tmp_mask_prev_[pos],
+                this->half_ls_ - pos);
+    };
     if (version == across_version::First || version == across_version::Single) {
-        load_shifted_padded_with_zeros(
-                this->za_, this->zc_, this->tmp_mask_za_idx_, -2 * mask_shift);
-        load_shifted_padded_with_zeros(
-                this->zb_, this->zc_, this->tmp_mask_zb_idx_, -1 * mask_shift);
+        for (const auto &reg_mask_pos : prev_v) {
+            std::tie(reg, mask, pos) = reg_mask_pos;
+            load_shifted_padded_with_zeros(
+                    reg, this->zc_, mask, -1 * pos * mask_shift);
+        }
     } else {
         if (tail_proc == tail_mode::CurrentTail) {
-            this->load_data(this->zreg(0, this->za_),
-                    this->EVEX_compress_addr(
-                            rsp, zmm_size - 2 * acc_fp_32_size),
-                    true);
-            this->load_data(this->zreg(0, this->zb_),
-                    this->EVEX_compress_addr(rsp, zmm_size - acc_fp_32_size),
-                    true);
+            for (const auto &reg_mask_pos : prev_v) {
+                std::tie(reg, mask, pos) = reg_mask_pos;
+                this->load_data(this->zreg(0, reg),
+                        this->EVEX_compress_addr(
+                                rsp, zmm_size - 1 * pos * sizeof(acc_data_t)),
+                        true);
+            }
         } else {
-            IRB_LOOP(this->load_data(this->zreg(irb, this->za_),
-                    this->EVEX_compress_addr(
-                            this->src_, (irb * this->vlen_) - 2 * acc_size)));
-            IRB_LOOP(this->load_data(this->zreg(irb, this->zb_),
-                    this->EVEX_compress_addr(
-                            this->src_, (irb * this->vlen_) - acc_size)));
+            for (const auto &reg_mask_pos : prev_v) {
+                std::tie(reg, mask, pos) = reg_mask_pos;
+                IRB_LOOP(this->load_data(this->zreg(irb, reg),
+                        this->EVEX_compress_addr(this->src_,
+                                (irb * this->vlen_) - 1 * pos * acc_size)));
+            }
         }
     }
 
+    std::vector<std::tuple<int, int, int>> next_v;
+    for (int pos = 0; pos < this->half_ls_; ++pos) {
+        next_v.emplace_back(
+                this->z_next_[pos], this->tmp_mask_next_[pos], pos + 1);
+    }
     if (version == across_version::Last || version == across_version::Single) {
-        load_shifted_padded_with_zeros(
-                this->zd_, this->zc_, this->tmp_mask_zd_idx_, mask_shift);
-        load_shifted_padded_with_zeros(
-                this->ze_, this->zc_, this->tmp_mask_ze_idx_, 2 * mask_shift);
+        for (const auto &reg_mask_pos : next_v) {
+            std::tie(reg, mask, pos) = reg_mask_pos;
+            load_shifted_padded_with_zeros(
+                    reg, this->zc_, mask, pos * mask_shift);
+        }
     } else {
         if (tail_proc == tail_mode::NextTail) {
-            this->load_data(this->zreg(0, this->zd_),
-                    this->EVEX_compress_addr(rsp, acc_fp_32_size), true);
-            this->load_data(this->zreg(0, this->ze_),
-                    this->EVEX_compress_addr(rsp, 2 * acc_fp_32_size), true);
+            for (const auto &reg_mask_pos : next_v) {
+                std::tie(reg, mask, pos) = reg_mask_pos;
+                this->load_data(this->zreg(0, reg),
+                        this->EVEX_compress_addr(rsp, pos * sizeof(acc_data_t)),
+                        true);
+            }
         } else {
-            IRB_LOOP(this->load_data(this->zreg(irb, this->zd_),
-                    this->EVEX_compress_addr(
-                            this->src_, (irb * this->vlen_) + acc_size)));
-            IRB_LOOP(this->load_data(this->zreg(irb, this->ze_),
-                    this->EVEX_compress_addr(
-                            this->src_, (irb * this->vlen_) + 2 * acc_size)));
+            for (const auto &reg_mask_pos : next_v) {
+                std::tie(reg, mask, pos) = reg_mask_pos;
+                IRB_LOOP(this->load_data(this->zreg(irb, reg),
+                        this->EVEX_compress_addr(this->src_,
+                                (irb * this->vlen_) + pos * acc_size)));
+            }
         }
     }
 }
@@ -274,22 +300,28 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::compute(
     IRB_LOOP(this->vmulps(this->zreg(irb, this->zsum_),
             this->zreg(irb, this->zc_), this->zreg(irb, this->zc_)));
 
-    for (const auto &regIdx : {this->za_, this->zb_, this->zd_, this->ze_})
+    for (const auto reg : this->z_prev_)
         IRB_LOOP(this->vfmadd231ps(this->zreg(irb, this->zsum_),
-                this->zreg(irb, regIdx), this->zreg(irb, regIdx)));
+                this->zreg(irb, reg), this->zreg(irb, reg)));
+    for (const auto reg : this->z_next_)
+        IRB_LOOP(this->vfmadd231ps(this->zreg(irb, this->zsum_),
+                this->zreg(irb, reg), this->zreg(irb, reg)));
 
     IRB_LOOP(this->vfmadd132ps(
             this->zreg(irb, this->zsum_), this->zk_, this->zalpha_));
     IRB_LOOP(this->vmovaps(
             this->zreg(irb, this->zbase_), this->zreg(irb, this->zsum_)));
-    IRB_LOOP(this->vmulps(this->zreg(irb, this->zsum2_),
-            this->zreg(irb, this->zsum_), this->zreg(irb, this->zsum_)));
-    IRB_LOOP(this->vmulps(this->zreg(irb, this->zsum_),
-            this->zreg(irb, this->zsum_), this->zreg(irb, this->zsum2_)));
 
-    for (unsigned i = 0; i < 2; ++i)
-        IRB_LOOP(this->vsqrtps(
+    if (this->beta_ != 1) {
+        IRB_LOOP(this->vmulps(this->zreg(irb, this->zsum2_),
                 this->zreg(irb, this->zsum_), this->zreg(irb, this->zsum_)));
+        IRB_LOOP(this->vmulps(this->zreg(irb, this->zsum_),
+                this->zreg(irb, this->zsum_), this->zreg(irb, this->zsum2_)));
+
+        for (unsigned i = 0; i < 2; ++i)
+            IRB_LOOP(this->vsqrtps(this->zreg(irb, this->zsum_),
+                    this->zreg(irb, this->zsum_)));
+    }
 }
 
 template <data_type_t d_type>
@@ -323,7 +355,6 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::store_compute_data(
     if (this->pk_ != prop_kind::forward_inference) {
         // calculate and save more intermediate results for lrn backward
         /* ws1 = zdst / zbase = zsrc / (zbase^1.75) */
-
         IRB_LOOP(this->vdivps(this->zreg(irb, this->zsum_),
                 this->zreg(irb, this->zdst_), this->zreg(irb, this->zbase_)));
 

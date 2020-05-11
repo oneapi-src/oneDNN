@@ -40,8 +40,9 @@ public:
         , W_(pd->W())
         , use_h_parallelism_(H_ > 28 ? 1 : 0) {
 
-        const int ls = pd->desc()->local_size;
-        const float alpha = pd->desc()->lrn_alpha / ls;
+        const int local_size = pd->desc()->local_size;
+        const float alpha = pd->desc()->lrn_alpha / local_size;
+        const float beta = pd->desc()->lrn_beta;
         const auto pk = pd->desc()->prop_kind;
         const float k = pd->desc()->lrn_k;
 
@@ -49,20 +50,20 @@ public:
             ker_ = utils::make_unique<
                     lrn::jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>>(
                     lrn::nChw16c_across_t(H_, W_, lrn::across_version::Single),
-                    pk, use_h_parallelism_, alpha, k);
+                    pk, use_h_parallelism_, alpha, beta, k, local_size);
         } else {
             ker_ = utils::make_unique<
                     lrn::jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>>(
                     lrn::nChw16c_across_t(H_, W_, lrn::across_version::Middle),
-                    pk, use_h_parallelism_, alpha, k);
+                    pk, use_h_parallelism_, alpha, beta, k, local_size);
             ker_first_ = utils::make_unique<
                     lrn::jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>>(
                     lrn::nChw16c_across_t(H_, W_, lrn::across_version::First),
-                    pk, use_h_parallelism_, alpha, k);
+                    pk, use_h_parallelism_, alpha, beta, k, local_size);
             ker_last_ = utils::make_unique<
                     lrn::jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>>(
                     lrn::nChw16c_across_t(H_, W_, lrn::across_version::Last),
-                    pk, use_h_parallelism_, alpha, k);
+                    pk, use_h_parallelism_, alpha, beta, k, local_size);
         }
     }
 
@@ -169,28 +170,28 @@ public:
         , W_(pd->W())
         , use_h_parallelism_(H_ > 28 ? 1 : 0) {
 
-        const int ls = pd->desc()->local_size;
-        const float alpha = pd->desc()->lrn_alpha / ls;
+        const int local_size = pd->desc()->local_size;
+        const float alpha = pd->desc()->lrn_alpha / local_size;
         const float beta = pd->desc()->lrn_beta;
 
         if (C_ / vsize_ == 1) {
             ker_ = utils::make_unique<
                     lrn::jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>>(
                     lrn::nChw16c_across_t(H_, W_, lrn::across_version::Single),
-                    alpha, beta, use_h_parallelism_);
+                    alpha, beta, local_size, use_h_parallelism_);
         } else {
             ker_ = utils::make_unique<
                     lrn::jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>>(
                     lrn::nChw16c_across_t(H_, W_, lrn::across_version::Middle),
-                    alpha, beta, use_h_parallelism_);
+                    alpha, beta, local_size, use_h_parallelism_);
             ker_first_ = utils::make_unique<
                     lrn::jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>>(
                     lrn::nChw16c_across_t(H_, W_, lrn::across_version::First),
-                    alpha, beta, use_h_parallelism_);
+                    alpha, beta, local_size, use_h_parallelism_);
             ker_last_ = utils::make_unique<
                     lrn::jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>>(
                     lrn::nChw16c_across_t(H_, W_, lrn::across_version::Last),
-                    alpha, beta, use_h_parallelism_);
+                    alpha, beta, local_size, use_h_parallelism_);
         }
     }
 

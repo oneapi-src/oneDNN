@@ -35,7 +35,8 @@ public:
                 lrn::jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>>(pd->C(),
                 pd->desc()->prop_kind,
                 pd->desc()->lrn_alpha / pd->desc()->local_size,
-                pd->desc()->lrn_k))
+                pd->desc()->lrn_beta, pd->desc()->lrn_k,
+                pd->desc()->local_size))
         , N_(pd->MB())
         , C_(pd->C())
         , H_(pd->H())
@@ -84,7 +85,7 @@ public:
         : ker_ {utils::make_unique<
                 lrn::jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>>(pd->C(),
                 pd->desc()->lrn_alpha / pd->desc()->local_size,
-                pd->desc()->lrn_beta)}
+                pd->desc()->lrn_beta, pd->desc()->local_size)}
         , N_(pd->MB())
         , C_(pd->C())
         , H_(pd->H())

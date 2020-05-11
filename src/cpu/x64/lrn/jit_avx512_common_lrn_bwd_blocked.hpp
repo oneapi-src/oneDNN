@@ -49,7 +49,7 @@ public:
     void operator()(jit_args_bwd_t *arg) { ker(arg); }
 
     jit_avx512_common_lrn_kernel_bwd_blocked_t(const struct nChw16c_across_t &J,
-            float alpha, float beta, int use_h_parallel,
+            float alpha, float beta, int local_size, int use_h_parallel,
             void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
@@ -64,12 +64,12 @@ private:
     Reg64 t_ = rsp;
     Reg64 hw_ = r10;
 
-    const int xws1_prev_ = 1;
-    const int xdiffdst_prev_ = 2;
-    const int zws1_ = 1;
+    const int xws1_prev_ = 3;
+    const int xdiffdst_prev_ = 4;
+    const int zws1_ = 3;
 
-    const int xws1_next_ = 1;
-    const int xdiffdst_next_ = 3;
+    const int xws1_next_ = 3;
+    const int xdiffdst_next_ = 5;
 
     int use_h_parallelism_;
 };

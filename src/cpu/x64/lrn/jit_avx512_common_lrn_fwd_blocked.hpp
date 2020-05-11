@@ -35,10 +35,9 @@ public:
                     jit_avx512_common_lrn_kernel_fwd_blocked_t)
 
     jit_avx512_common_lrn_kernel_fwd_blocked_t(const struct nChw16c_across_t &J,
-            prop_kind_t prop_kind, int use_h_parallel, float A, float K,
-            void *code_ptr = nullptr,
+            prop_kind_t prop_kind, int use_h_parallel, float alpha, float beta,
+            float k, int local_size, void *code_ptr = nullptr,
             size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    ~jit_avx512_common_lrn_kernel_fwd_blocked_t() = default;
 
     void compute_loop(int loop_size_param);
     void (*ker)(
@@ -59,8 +58,8 @@ private:
     Reg64 t_ = rsp;
     Reg64 hw_ = r9;
 
-    static constexpr int xsrc_prev_ = 2;
-    static constexpr int xsrc_next_ = 3;
+    static constexpr int xsrc_prev_ = 3;
+    static constexpr int xsrc_next_ = 4;
     int use_h_parallelism_;
 };
 

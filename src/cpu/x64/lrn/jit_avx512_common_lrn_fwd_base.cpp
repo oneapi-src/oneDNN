@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <numeric>
 #include "cpu/x64/lrn/jit_avx512_common_lrn_fwd_base.hpp"
 
 namespace dnnl {
@@ -27,9 +28,10 @@ static constexpr int acc_bf_16_size = sizeof(acc_data_bf16_t);
 
 template <data_type_t d_type>
 const int32_t
-        jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_args_fwd_t::mask[20]
-        = {0, 0, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
-                0, 0};
+        jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_args_fwd_t::mask[48]
+        = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 17, 18, 19, 20,
+                21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_args_fwd_t::jit_args_fwd_t()
@@ -37,7 +39,7 @@ jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_args_fwd_t::jit_args_fwd_t()
     , dst(nullptr)
     , ws0(nullptr)
     , ws1(nullptr)
-    , mask_ptr(&mask[2]) {}
+    , mask_ptr(&mask[16]) {}
 
 template <>
 void jit_avx512_common_lrn_kernel_fwd_t<f32>::load_data(
@@ -163,14 +165,38 @@ void jit_avx512_common_lrn_kernel_fwd_t<bf16>::store_tail(int tail_value,
 
 template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_avx512_common_lrn_kernel_fwd_t(
-        prop_kind_t prop_kind, float alpha, float k, void *code_ptr,
-        size_t code_size)
+        prop_kind_t prop_kind, float alpha, float beta, float k, int local_size,
+        void *code_ptr, size_t code_size)
     : jit_generator(code_ptr, code_size)
     , pk_(prop_kind)
     , alpha_(alpha)
+    , beta_(beta)
     , k_(k)
+    , local_size_ {local_size - !(local_size % 2)}
+    , z_prev_ {[this]() {
+        std::vector<int> v(this->local_size_ / 2);
+        std::iota(v.begin(), v.end(), 3);
+        return v;
+    }()}
+    , z_next_ {[this]() {
+        std::vector<int> v(this->local_size_ / 2);
+        std::iota(v.begin(), v.end(), 3 + this->local_size_ / 2);
+        return v;
+    }()}
+    , zsum_ {std::max(local_size_ + 2, 6)}
     , emulateBfloat_(d_type == bf16 && !mayiuse(avx512_core_bf16))
-    , reg_block_(emulateBfloat_ ? 3 : 4) {
+    , reg_block_ {(d_type == bf16 && !mayiuse(avx512_core_bf16) ? 26 : 30)
+              / (std::max(this->local_size_ + 1, 6))} {
+
+    const int regs_used_per_block = std::max(this->local_size_ + 1, 6);
+    zreg = [regs_used_per_block](int irb, int i) {
+        return Zmm(irb * regs_used_per_block + i);
+    };
+    yreg = [regs_used_per_block](int irb, int i) {
+        return Ymm(irb * regs_used_per_block + i);
+    };
+    xreg = [](int irb, int i) { return Xmm(irb * 3 + i); };
+
     if (emulateBfloat_) {
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
                 bf16_emu_reserv_1_, bf16_emu_reserv_2_, bf16_emu_reserv_3_,
