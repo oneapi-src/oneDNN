@@ -33,6 +33,9 @@ class sycl_buffer_memory_storage_t : public sycl_memory_storage_base_t {
 public:
     sycl_buffer_memory_storage_t(engine_t *engine);
 
+    sycl_buffer_memory_storage_t(engine_t *engine,
+            const memory_storage_t *parent_storage, size_t parent_offset);
+
     buffer_u8_t &buffer() const { return *buffer_; }
 
     memory_api_kind_t memory_api_kind() const override {
@@ -70,6 +73,8 @@ protected:
     virtual status_t init_allocate(size_t size) override;
 
 private:
+    buffer_u8_t &parent_buffer() const;
+
     std::shared_ptr<buffer_u8_t> buffer_;
     size_t base_offset_ = 0;
 };

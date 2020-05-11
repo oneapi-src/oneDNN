@@ -32,7 +32,15 @@ namespace impl {
 // Memory storage is engine-specific and has different implementations for
 // different engines.
 struct memory_storage_t : public c_compatible {
-    memory_storage_t(engine_t *engine) : engine_(engine) {}
+    memory_storage_t(engine_t *engine)
+        : engine_(engine), parent_storage_(this), parent_offset_(0) {}
+
+    memory_storage_t(engine_t *engine, const memory_storage_t *parent_storage,
+            size_t parent_offset)
+        : engine_(engine)
+        , parent_storage_(parent_storage)
+        , parent_offset_(parent_offset) {}
+
     virtual ~memory_storage_t() = default;
 
     status_t init(unsigned flags, size_t size, void *handle);
@@ -87,9 +95,15 @@ struct memory_storage_t : public c_compatible {
 protected:
     virtual status_t init_allocate(size_t size) = 0;
 
+    size_t parent_offset() const { return parent_offset_; }
+    const memory_storage_t *parent_storage() const { return parent_storage_; }
+
 private:
     engine_t *engine_;
     size_t offset_ = 0;
+
+    const memory_storage_t *parent_storage_;
+    size_t parent_offset_;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(memory_storage_t);
 };

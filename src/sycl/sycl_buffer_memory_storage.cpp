@@ -31,6 +31,10 @@ struct map_tag;
 sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(engine_t *engine)
     : sycl_memory_storage_base_t(engine) {}
 
+sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(engine_t *engine,
+        const memory_storage_t *parent_storage, size_t parent_offset)
+    : sycl_memory_storage_base_t(engine, parent_storage, parent_offset) {}
+
 status_t sycl_buffer_memory_storage_t::map_data(
         void **mapped_ptr, stream_t *stream) const {
     if (!buffer_) {
@@ -57,7 +61,8 @@ status_t sycl_buffer_memory_storage_t::unmap_data(
 
 std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
         size_t offset, size_t size) const {
-    auto storage = utils::make_unique<sycl_buffer_memory_storage_t>(engine());
+    auto storage = utils::make_unique<sycl_buffer_memory_storage_t>(
+            engine(), parent_storage(), parent_offset() + offset);
     if (!storage) return nullptr;
 
     status_t status
@@ -69,8 +74,10 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
         storage->base_offset_ = offset;
     } else {
 #ifdef DNNL_SYCL_DPCPP
-        auto sub_buffer
-                = buffer_ ? new buffer_u8_t(*buffer_, offset, size) : nullptr;
+        buffer_u8_t *sub_buffer;
+        sub_buffer = buffer_ ? new buffer_u8_t(
+                             parent_buffer(), parent_offset() + offset, size)
+                             : nullptr;
 #endif
 #ifdef DNNL_SYCL_COMPUTECPP
         // XXX: Workaround for ComputeCpp. Sub-buffers support is broken in
@@ -81,8 +88,9 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
         // least covers all the existing cases in the library at the moment.
         auto sub_buffer = (!buffer_ || size == 0)
                 ? nullptr
-                : (offset != 0) ? new buffer_u8_t(cl::sycl::range<1>(size))
-                                : new buffer_u8_t(*buffer_);
+                : (parent_offset() + offset != 0)
+                        ? new buffer_u8_t(cl::sycl::range<1>(size))
+                        : new buffer_u8_t(*buffer_);
 #endif
         storage->buffer_.reset(sub_buffer);
         storage->base_offset_ = 0;
@@ -107,6 +115,12 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::clone() const {
 status_t sycl_buffer_memory_storage_t::init_allocate(size_t size) {
     buffer_.reset(new buffer_u8_t(cl::sycl::range<1>(size)));
     return status::success;
+}
+
+buffer_u8_t &sycl_buffer_memory_storage_t::parent_buffer() const {
+    return utils::downcast<const sycl_buffer_memory_storage_t *>(
+            parent_storage())
+            ->buffer();
 }
 
 } // namespace sycl

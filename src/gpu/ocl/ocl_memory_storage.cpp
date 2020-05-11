@@ -99,28 +99,14 @@ std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
     assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
 
-    cl_mem parent_mem;
-    size_t parent_off;
-
-    err = clGetMemObjectInfo(mem_object(), CL_MEM_ASSOCIATED_MEMOBJECT,
-            sizeof(parent_mem), &parent_mem, nullptr);
+    cl_buffer_region buffer_region = {parent_offset() + offset, size};
+    ocl_wrapper_t<cl_mem> sub_buffer = clCreateSubBuffer(parent_mem_object(),
+            mem_flags, CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
     assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
 
-    err = clGetMemObjectInfo(mem_object(), CL_MEM_OFFSET, sizeof(parent_off),
-            &parent_off, nullptr);
-    assert(err == CL_SUCCESS);
-    if (err != CL_SUCCESS) return nullptr;
-
-    if (!parent_mem) parent_mem = mem_object();
-
-    cl_buffer_region buffer_region = {parent_off + offset, size};
-    ocl_wrapper_t<cl_mem> sub_buffer = clCreateSubBuffer(parent_mem, mem_flags,
-            CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
-    assert(err == CL_SUCCESS);
-    if (err != CL_SUCCESS) return nullptr;
-
-    auto sub_storage = new ocl_memory_storage_t(this->engine());
+    auto sub_storage = new ocl_memory_storage_t(
+            this->engine(), parent_storage(), parent_offset() + offset);
     if (sub_storage)
         sub_storage->init(memory_flags_t::use_runtime_ptr, size, sub_buffer);
     return std::unique_ptr<memory_storage_t>(sub_storage);
@@ -130,6 +116,11 @@ std::unique_ptr<memory_storage_t> ocl_memory_storage_t::clone() const {
     auto storage = new ocl_memory_storage_t(engine());
     if (storage) storage->init(memory_flags_t::use_runtime_ptr, 0, mem_object_);
     return std::unique_ptr<memory_storage_t>(storage);
+}
+
+cl_mem ocl_memory_storage_t::parent_mem_object() const {
+    return utils::downcast<const ocl_memory_storage_t *>(parent_storage())
+            ->mem_object();
 }
 
 } // namespace ocl

@@ -34,6 +34,10 @@ public:
     ocl_memory_storage_t(engine_t *engine)
         : memory_storage_t(engine), mem_object_(nullptr) {}
 
+    ocl_memory_storage_t(engine_t *engine,
+            const memory_storage_t *parent_storage, size_t parent_offset)
+        : memory_storage_t(engine, parent_storage, parent_offset) {}
+
     virtual status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(mem_object_.get());
         return status::success;
@@ -62,6 +66,8 @@ protected:
     virtual status_t init_allocate(size_t size) override;
 
 private:
+    cl_mem parent_mem_object() const;
+
     ocl_wrapper_t<cl_mem> mem_object_;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(ocl_memory_storage_t);
