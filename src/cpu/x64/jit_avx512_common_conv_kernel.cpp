@@ -41,6 +41,7 @@ namespace {
 
 constexpr auto small_spatial = 14;
 unsigned int L1_cache_size = platform::get_per_core_cache_size(1);
+unsigned int L2_cache_size = platform::get_per_core_cache_size(2);
 
 inline void pick_loop_order(jit_conv_conf_t &jcp) {
     using namespace prop_kind;
@@ -4859,8 +4860,274 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::compute_loop() {
         case harness_2d_reduction: compute_oh_loop_partial(); break;
         case harness_3d_reduction: compute_od_loop_partial(); break;
         case harness_mb_reduction: compute_oh_loop_common(); break;
+        case harness_nxc: break;
         default: assert(!"Invalid harness type");
     }
+}
+
+void jit_avx512_common_conv_bwd_weights_kernel_f32::generate_microkernel() {
+
+    reg64_t reg_dwei = abi_param1;
+    reg64_t reg_src = abi_param2;
+    reg64_t reg_ddst = abi_param3;
+    reg64_t reg_iw_base = abi_param4;
+    reg64_t aux_reg_icb = r10;
+    reg64_t aux_reg_kwb = r11;
+    reg64_t reg_src_save = r12;
+    reg64_t reg_dwei_save = r13;
+    reg64_t reg_iw_base_save = r14;
+    reg64_t reg_tmp = r15;
+
+    //Currently kernel is small so passing parameters via registers is preferred
+    //whenever possible
+#ifdef _WIN32
+    // Must be a scratch register since load is before preamble
+    reg64_t reg_owb = rax;
+    mov(reg_owb, ptr[rsp + 8]);
+#else
+    reg64_t reg_owb = abi_param5;
+#endif
+
+    preamble();
+
+    const int kw_unroll = jcp.ur_kw;
+    const int ow_unroll = jcp.ur_ow;
+    const int iw_unroll = ow_unroll + kw_unroll - 1;
+    const int ic_unroll = jcp.ur_ic;
+
+    const int ker_reg_count = ic_unroll;
+    const int src_reg_count = iw_unroll * ic_unroll;
+    const int ddst_reg_count = ow_unroll;
+
+    MAYBE_UNUSED(ddst_reg_count);
+    assert(ker_reg_count + src_reg_count + ddst_reg_count <= 32);
+
+    auto dwei_offset = [&](int i_kw, int i_ic) {
+        const int oc_block_size = sizeof(float);
+        const int ic_block_size = jcp.oc_block * oc_block_size;
+        const int kw_block_size = jcp.ic_block * ic_block_size;
+        const int kh_block_size = jcp.kw * kw_block_size;
+        const int kd_block_size = jcp.kh * kh_block_size;
+        const int icb_block_size = jcp.kd * kd_block_size;
+
+        int icb = i_ic / jcp.ic_block;
+        i_ic = i_ic % jcp.ic_block;
+
+        return icb * icb_block_size + i_kw * kw_block_size
+                + i_ic * ic_block_size;
+    };
+
+    auto src_offset = [&](int i_ic, int i_iw) {
+        const int ic_block_size = sizeof(float);
+        const int g_block_size = jcp.ic * ic_block_size;
+        const int iw_block_size = jcp.ngroups * g_block_size;
+
+        return i_iw * iw_block_size + i_ic * ic_block_size;
+    };
+
+    auto ddst_offset = [&](int i_ow) {
+        const int oc_block_size = sizeof(float);
+        const int g_block_size = jcp.oc * oc_block_size;
+        const int ow_block_size = jcp.ngroups * g_block_size;
+
+        return i_ow * ow_block_size;
+    };
+
+    auto get_src_zmm = [=](int iw_index, int i_ic) {
+        int zmm_index = iw_index * ic_unroll + i_ic + ker_reg_count;
+        return Zmm(zmm_index);
+    };
+
+    auto get_ddst_zmm = [=](int i_ow) {
+        int zmm_index = i_ow + src_reg_count + ker_reg_count;
+        return Zmm(zmm_index);
+    };
+
+    auto get_ker_zmm = [=](int i_ic) { return Zmm(i_ic); };
+
+    auto load_ddsts = [=](int ur_ow) {
+        for (int i_ow = 0; i_ow < ur_ow; i_ow++) {
+            vmovups(get_ddst_zmm(i_ow), zword[reg_ddst + ddst_offset(i_ow)]);
+        }
+    };
+
+    auto load_srcs = [=](int ur_iw, int ur_ic, bool is_iw_edge) {
+        Label iw_load_end;
+        if (is_iw_edge) {
+            for_(int i_iw_index = 0; i_iw_index < ur_iw; i_iw_index++)
+            for (int i_ic = 0; i_ic < ur_ic; i_ic++) {
+                vpxord(get_src_zmm(i_iw_index, i_ic),
+                        get_src_zmm(i_iw_index, i_ic),
+                        get_src_zmm(i_iw_index, i_ic));
+            }
+        }
+
+        for (int i_iw_index = 0; i_iw_index < ur_iw; i_iw_index++) {
+            Label ic_load_end;
+            if (is_iw_edge) {
+                cmp(reg_iw_base, jcp.iw - i_iw_index * jcp.stride_w);
+                jge(iw_load_end, T_NEAR);
+                if (jcp.l_pad > 0) {
+                    cmp(reg_iw_base, -i_iw_index * jcp.stride_w);
+                    jl(ic_load_end, T_NEAR);
+                }
+            }
+            for (int i_ic = 0; i_ic < ur_ic; i_ic++) {
+                vbroadcastss(get_src_zmm(i_iw_index, i_ic),
+                        zword[reg_src
+                                + src_offset(i_ic, jcp.stride_w * i_iw_index)]);
+            }
+            L(ic_load_end);
+        }
+        L(iw_load_end);
+    };
+
+    auto compute_kernel = [=](int ur_ow, int ur_ic, int ur_kw, int is_iw_edge) {
+        Label kw_loop_end;
+        load_srcs(ur_ow + ur_kw - 1, ur_ic, is_iw_edge);
+
+        for (int i_kw = 0; i_kw < ur_kw; i_kw++) {
+            for (int i_ic = 0; i_ic < ur_ic; i_ic++) {
+                vpxord(get_ker_zmm(i_ic), get_ker_zmm(i_ic), get_ker_zmm(i_ic));
+            }
+            for (int i_ow = 0; i_ow < ur_ow; i_ow++) {
+                for (int i_ic = 0; i_ic < ur_ic; i_ic++) {
+                    vfmadd231ps(get_ker_zmm(i_ic),
+                            get_src_zmm(i_ow + i_kw, i_ic), get_ddst_zmm(i_ow));
+                }
+            }
+            for (int i_ic = 0; i_ic < ur_ic; i_ic++) {
+                int ker_offset = dwei_offset(i_kw, i_ic);
+                vaddps(get_ker_zmm(i_ic), zword[reg_dwei + ker_offset]);
+                vmovups(zword[reg_dwei + ker_offset], get_ker_zmm(i_ic));
+            }
+        }
+
+        L(kw_loop_end);
+    };
+
+    auto kw_loop = [=](int ur_ow, int ur_ic, int is_iw_edge) {
+        Label kwb_loop_begin, kwb_loop_end;
+        int kw_tail = jcp.kw % kw_unroll;
+        int kw_iter = jcp.kw / kw_unroll;
+
+        if (kw_iter > 0) {
+            if (kw_iter > 1) {
+                mov(aux_reg_kwb, jcp.kw - kw_tail);
+                L(kwb_loop_begin);
+            }
+            compute_kernel(ur_ow, ur_ic, kw_unroll, is_iw_edge);
+
+            if (kw_iter > 1 || kw_tail) {
+                add(reg_iw_base, (jcp.dilate_w + 1) * kw_unroll);
+                add(reg_src, src_offset(0, (jcp.dilate_w + 1) * kw_unroll));
+                add(reg_dwei, dwei_offset(kw_unroll, 0));
+            }
+
+            if (kw_iter > 1) {
+                sub(aux_reg_kwb, kw_unroll);
+                jg(kwb_loop_begin, T_NEAR);
+            }
+        }
+
+        if (kw_tail) compute_kernel(ur_ow, ur_ic, kw_tail, is_iw_edge);
+
+        L(kwb_loop_end);
+    };
+
+    auto ic_loop = [=](int ur_ow, int is_iw_edge) {
+        Label icb_loop_begin, icb_loop_end;
+        int ic_tail = jcp.ic % ic_unroll;
+        int ic_iter = jcp.ic / ic_unroll;
+
+        if (ic_iter > 0) {
+            if (ic_iter > 1 || ic_tail) {
+                mov(aux_reg_icb, jcp.ic - ic_tail);
+                L(icb_loop_begin);
+                // Saving onto the stack here appears to significantly slow down
+                // code execution. If this kernel runs out of registers, getting
+                // rid of the *_save registers should be possible by using
+                // subtracts to restore the value and maintain performance.
+                mov(reg_src_save, reg_src);
+                mov(reg_dwei_save, reg_dwei);
+                mov(reg_iw_base_save, reg_iw_base);
+            }
+
+            kw_loop(ur_ow, ic_unroll, is_iw_edge);
+
+            if (ic_iter > 1 || ic_tail) {
+                mov(reg_iw_base, reg_iw_base_save);
+                mov(reg_dwei, reg_dwei_save);
+                mov(reg_src, reg_src_save);
+
+                Label inter_block_increment, increment_finish;
+                sub(aux_reg_icb, ic_unroll);
+                if (jcp.ic > jcp.ic_block) {
+                    const int log2_ic_block = 4;
+                    lea(reg_tmp, ptr[aux_reg_icb - jcp.ic - ic_tail]);
+                    test(reg_tmp, (1 << log2_ic_block) - 1);
+                    jnz(inter_block_increment, T_NEAR);
+
+                    add(reg_dwei,
+                            dwei_offset(0, jcp.ic_block)
+                                    - dwei_offset(0, jcp.ic_block - ic_unroll));
+                    jmp(increment_finish);
+                    L(inter_block_increment);
+                }
+                add(reg_dwei, dwei_offset(0, ic_unroll));
+                L(increment_finish);
+
+                add(reg_src, src_offset(ic_unroll, 0));
+            }
+            if (ic_iter > 1) {
+                cmp(aux_reg_icb, 0);
+                jg(icb_loop_begin, T_NEAR);
+            }
+        }
+
+        if (ic_tail) kw_loop(ur_ow, ic_tail, is_iw_edge);
+
+        L(icb_loop_end);
+    };
+
+    auto ic_loop_dispatch = [=](int ur_ow) {
+        Label iw_edge_case, ic_end;
+
+        const int iw_overflow_bound = jcp.iw - (ur_ow - 1) * jcp.stride_w
+                - (jcp.kw - 1) * (jcp.dilate_w + 1);
+        cmp(reg_iw_base, iw_overflow_bound);
+        jge(iw_edge_case, T_NEAR);
+        if (jcp.l_pad > 0) {
+            cmp(reg_iw_base, 0);
+            jl(iw_edge_case, T_NEAR);
+        }
+
+        ic_loop(ur_ow, false);
+        jmp(ic_end, T_NEAR);
+
+        L(iw_edge_case);
+        ic_loop(ur_ow, true);
+
+        L(ic_end);
+    };
+
+    Label ow_end, ow_tail;
+    int ow_tail_size = jcp.ow % ow_unroll;
+    cmp(reg_owb, jcp.ow - ow_tail_size);
+    jge(ow_tail, T_NEAR);
+
+    load_ddsts(ow_unroll);
+    ic_loop_dispatch(ow_unroll);
+    jmp(ow_end, T_NEAR);
+
+    L(ow_tail);
+    load_ddsts(ow_tail_size);
+    ic_loop_dispatch(ow_tail_size);
+
+    L(ow_end);
+
+    postamble();
+    ret();
 }
 
 void jit_avx512_common_conv_bwd_weights_kernel_f32::generate() {
@@ -5155,9 +5422,37 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     } else
         return status::unimplemented;
 
-    jcp.harness = ndims == 5 ? harness_3d_reduction : harness_mb_reduction;
+    bool use_nxc_harness = false;
+    if (is_data_layout_nxc && jcp.ver == ver_fma) {
+        dim_t kernel_size
+                = jcp.ic * jcp.oc * jcp.kd * jcp.kh * jcp.kw * jcp.typesize_out;
+        dim_t src_size
+                = jcp.mb * jcp.ic * jcp.id * jcp.ih * jcp.iw * jcp.typesize_in;
+        dim_t diff_dst_size
+                = jcp.mb * jcp.oc * jcp.id * jcp.ih * jcp.iw * jcp.typesize_in;
+        dim_t data_size = src_size + diff_dst_size;
+
+        // The advantage of the nxc kernel is cache traversal, this comes at a
+        // cost of extra work updating the weights buffers more often. As such,
+        // if everything fits in cache, this kernel is at a disadvantage to the
+        // inner loop over ow. More optimizing/balancing is required to
+        // determine when this is needed for multidimensional kernels because
+        // the data reuses within the kernel height/depth dimension make the
+        // computation more computationally bound and cache traversal advantage
+        // less important. Due to the current blocked weights format, the
+        // weights and the data buffers cannot both be traversed optimally, so
+        // for performance, the weights must fit in cache.
+        use_nxc_harness
+                = (data_size / nthreads + kernel_size > L2_cache_size / 3)
+                && jcp.kw > 1 && ndims == 3
+                && (kernel_size < L2_cache_size / 2);
+    }
+
+    jcp.harness = use_nxc_harness
+            ? harness_nxc
+            : ndims == 5 ? harness_3d_reduction : harness_mb_reduction;
     if (jcp.dilate_h == 0 && jcp.ndims == 4 && jcp.oh > min_oh_reduce
-            && jcp.ver == ver_fma && !jcp.is_hw_transp)
+            && jcp.ver == ver_fma && !jcp.is_hw_transp && !is_data_layout_nxc)
         jcp.harness = harness_2d_reduction; // 2d harness with oh reduction
     bool args_ok = true && jcp.ic % jcp.ic_block == 0
             && jcp.oc % jcp.oc_block == 0 && jcp.ic <= src_d.padded_dims()[1]
@@ -5166,15 +5461,63 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             && jcp.oc <= diff_weights_d.padded_dims()[with_groups + 0];
     if (!args_ok) return status::unimplemented;
 
-    { // balancing
-        int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
+    int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
+    if (jcp.harness == harness_nxc) {
+        // The harness_nxc is quite different from the other kernels. The
+        // init_conf function should probably be refactored so that it calls
+        // functions along the line of tune_nxc, tun_4fma, tune_fma which
+        // independently tune the kernels for each implementation with tuning
+        // common to multiple implementations performed by helper functions.
+        // This will help maintainability and help prevent the different
+        // implementations from stepping on each other.
+        int zmm_regs = 32;
+
+        // Block by ic and kw in the compute kernel to decrease loads from the
+        // src buffer
+        jcp.ur_ic = 2 - jcp.ic % 2;
+        jcp.ur_kw = 1;
+        if (jcp.stride_w == jcp.dilate_w + 1) {
+            jcp.ur_kw = jcp.kw;
+            if (jcp.kw > 7) {
+                // Blocking by kw is more effective than by ic in the compute
+                // kernel since neighbor kw operations share src data
+                jcp.ur_ic = 1;
+                if (jcp.kw > zmm_regs / (jcp.ur_ic + 1))
+                    jcp.ur_kw = jcp.kw % (zmm_regs / (jcp.ur_ic + 1));
+            }
+        }
+
+        // Unroll by ow to decrease updates to diff_weights. In practice, this
+        // should be approximately 1/4 - 1/2 of the zmm registers
+        jcp.ur_ow = nstl::min(
+                (zmm_regs - jcp.ur_kw * jcp.ur_ic) / (jcp.ur_ic + 1), jcp.ow);
+
+        int work_amount_base = jcp.mb * jcp.od * jcp.oh;
+        int ow_iter = div_up(jcp.ow, jcp.ur_ow);
+        int nthr_ow = nstl::min(
+                jcp.nthr / math::gcd(work_amount_base, jcp.nthr), ow_iter);
+        int ow_block = div_up(ow_iter, nthr_ow) * jcp.ur_ow;
+
+        jcp.ow_block = ow_block;
+        jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
+
+        // Choose a simple parallelization method. A more advance may need made
+        // later
+        int work_amount = jcp.mb * jcp.od * jcp.oh * jcp.nb_ow;
+        nthr_mb = nstl::min(jcp.nthr, work_amount);
+        nthr_g = 1;
+        nthr_oc_b = 1;
+        nthr_ic_b = 1;
+        nthr = nthr_mb * nthr_g * nthr_oc_b * nthr_ic_b;
+    } else { // balancing
         balance(jcp, nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b, jcp.nthr);
-        jcp.nthr = nthr;
-        jcp.nthr_mb = nthr_mb;
-        jcp.nthr_g = nthr_g;
-        jcp.nthr_oc_b = nthr_oc_b;
-        jcp.nthr_ic_b = nthr_ic_b;
     }
+
+    jcp.nthr = nthr;
+    jcp.nthr_mb = nthr_mb;
+    jcp.nthr_g = nthr_g;
+    jcp.nthr_oc_b = nthr_oc_b;
+    jcp.nthr_ic_b = nthr_ic_b;
 
     jcp.kernel_kind = embd_bcast;
     if (is_data_layout_nxc && jcp.stride_w == 1 && jcp.dilate_w == 0

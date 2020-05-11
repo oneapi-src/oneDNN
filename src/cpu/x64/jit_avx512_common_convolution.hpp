@@ -251,6 +251,7 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     void prepare_scratchpad_data(const exec_ctx_t &ctx) const;
     struct thread_info_t;
+    void compute_diff_weights_nxc(const thread_info_t *) const;
     void compute_diff_weights(const thread_info_t *) const;
     void compute_diff_weights_2d(const thread_info_t *) const;
     void compute_diff_weights_3d(const thread_info_t *) const;

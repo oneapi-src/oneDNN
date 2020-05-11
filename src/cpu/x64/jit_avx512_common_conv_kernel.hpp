@@ -416,8 +416,14 @@ struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
 
     jit_avx512_common_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
         : jcp(ajcp) {
-        generate();
-        jit_ker = (void (*)(jit_conv_call_s *))getCode();
+        if (jcp.harness != harness_nxc) {
+            generate();
+            jit_ker = (void (*)(jit_conv_call_s *))getCode();
+        } else {
+            generate_microkernel();
+            jit_microker = (void (*)(float *, const float *, const float *,
+                    int64_t, int64_t))getCode();
+        }
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_conv_bwd_weights_kernel_f32)
@@ -431,6 +437,8 @@ struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
 
     jit_conv_conf_t jcp;
     void (*jit_ker)(jit_conv_call_s *);
+    void (*jit_microker)(
+            float *, const float *, const float *, int64_t, int64_t);
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -523,6 +531,7 @@ private:
     }
 
     void generate();
+    void generate_microkernel();
 
     static void balance(const jit_conv_conf_t &j, int &nthr, int &nthr_mb,
             int &nthr_g, int &nthr_oc_b, int &nthr_ic_b, int nthreads);

@@ -59,7 +59,8 @@ enum conv_harness_t {
     harness_2d_reduction,
     harness_3d_reduction,
     harness_mb_reduction,
-    harness_compute_full_spatial
+    harness_compute_full_spatial,
+    harness_nxc
 };
 
 enum {
@@ -127,6 +128,7 @@ struct jit_conv_conf_t {
     int nb_oc_L2;
     int ur_h, ur_w;
     int ur_w_tail;
+    int ur_ic, ur_kw;
     bool is_1stconv;
     int nonblk_group_off;
     /* fma avx512_core */
