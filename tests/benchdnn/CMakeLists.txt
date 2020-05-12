@@ -147,6 +147,8 @@ register_benchdnn_test(test_benchdnn_conv_gemm_int8
     cpu "--conv --batch=inputs/conv/test_conv_gemm_int8")
 register_benchdnn_test(test_benchdnn_conv_gemm_bf16
     cpu "--conv --batch=inputs/conv/test_conv_gemm_bfloat16")
+register_benchdnn_test(test_benchdnn_conv_gemm_nxc_bf16
+    cpu "--conv --batch=inputs/conv/test_conv_gemm_nxc_bfloat16")
 register_benchdnn_test(test_benchdnn_deconv
     cpu "--deconv --batch=inputs/deconv/test_deconv_all")
 register_benchdnn_test(test_benchdnn_deconv_nxc_f32
