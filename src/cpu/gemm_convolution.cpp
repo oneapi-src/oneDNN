@@ -144,11 +144,12 @@ status_t gemm_convolution_fwd_t::execute_forward_thr_nspc(const int ithr,
             const dim_t LDB = jcp.im2col_sz ? N : K * jcp.ngroups;
             const dim_t LDC = M * jcp.ngroups;
             const char *BT = jcp.im2col_sz ? "T" : "N";
-            const data_t onef = 1.f, zerof = 0.f;
+            const data_t onef = 1.f;
+            const float beta = this->beta_;
             const data_t *__restrict src_od
                     = src + od * jcp.oh * jcp.ow * jcp.ngroups * jcp.ic;
             status_t st = extended_sgemm("N", BT, &M, &N, &K, &onef, wei, &LDA,
-                    jcp.im2col_sz ? col : (data_t *)src_od, &LDB, &zerof, dst,
+                    jcp.im2col_sz ? col : (data_t *)src_od, &LDB, &beta, dst,
                     &LDC);
             if (st != status::success) return st;
 
