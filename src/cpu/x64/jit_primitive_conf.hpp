@@ -126,6 +126,7 @@ struct jit_conv_conf_t {
     int nb_ic_L2;
     int h_blocking;
     int nb_oc_L2;
+    int ic_tail, oc_tail;
     int ur_h, ur_w;
     int ur_w_tail;
     int ur_ic, ur_kw;
@@ -377,6 +378,10 @@ struct jit_conv_call_s {
     size_t ur_str_w;
     size_t ch_blocks;
     size_t ch_blocks_prf;
+    size_t reduce_work;
+    size_t reduce_work_prf;
+    size_t load_work;
+    size_t load_work_prf;
     size_t t_overflow;
     size_t b_overflow;
     size_t f_overflow;

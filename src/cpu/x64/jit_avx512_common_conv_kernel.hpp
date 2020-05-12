@@ -93,6 +93,9 @@ private:
 
     reg64_t reg_long_offt = r11;
     reg64_t reg_out_long_offt = r14;
+    reg64_t reg_tail = aux_reg_ker;
+    reg64_t reg_load_work = reg_tail;
+    Xbyak::Opmask k_oc_tail_mask = Xbyak::Opmask(2);
 
     inline Vmm vmm_ker(int i_ic) {
         assert(i_ic < 4);
@@ -285,6 +288,11 @@ private:
     reg64_t reg_tmp = rbp;
     reg64_t reg_long_offt = r14;
 
+    reg64_t reg_tail = aux_reg_ker;
+    reg64_t reg_load_work = reg_tail;
+
+    Xbyak::Opmask k_ic_tail_mask = Xbyak::Opmask(1);
+
     inline Vmm vmm_ker(int i_ic) {
         assert(i_ic < 4);
         return Vmm(ker_reg_base_idx + i_ic);
@@ -468,6 +476,9 @@ private:
     reg64_t aux_reg_input = r12;
     reg64_t aux_reg_kernel = r13;
     reg64_t reg_bias = rbx;
+    reg64_t reg_oc_tail = r14;
+
+    Xbyak::Opmask k_oc_mask = Xbyak::Opmask(2);
 
     inline void bias_kernel_2d();
     inline void bias_kernel_3d();
