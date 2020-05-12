@@ -27,6 +27,7 @@
 #include <level_zero/ze_api.h>
 
 #include "common/verbose.hpp"
+#include <CL/sycl.hpp>
 
 #define ZE_CHECK(f) \
     do { \
@@ -62,7 +63,7 @@ F find_ze_symbol(const char *symbol) {
     return (F)f;
 }
 
-status_t func_zeModuleCreate(ze_device_handle_t hDevice,
+inline status_t func_zeModuleCreate(ze_device_handle_t hDevice,
         const ze_module_desc_t *desc, ze_module_handle_t *phModule,
         ze_module_build_log_handle_t *phBuildLog) {
     using func_type
@@ -75,13 +76,60 @@ status_t func_zeModuleCreate(ze_device_handle_t hDevice,
     return status::success;
 }
 
-status_t func_zeModuleDestroy(ze_module_handle_t hModule) {
+inline status_t func_zeModuleDestroy(ze_module_handle_t hModule) {
     using func_type = ze_result_t (*)(ze_module_handle_t);
     static auto f = find_ze_symbol<func_type>("zeModuleDestroy");
 
     if (!f) return status::runtime_error;
     ZE_CHECK(f(hModule));
     return status::success;
+}
+
+inline status_t func_zeDeviceGetProperties(
+        ze_device_handle_t hDevice, ze_device_properties_t *pDeviceProperties) {
+    using func_type
+            = ze_result_t (*)(ze_device_handle_t, ze_device_properties_t *);
+    static auto f = find_ze_symbol<func_type>("zeDeviceGetProperties");
+
+    if (!f) return status::runtime_error;
+    ZE_CHECK(f(hDevice, pDeviceProperties));
+    return status::success;
+}
+
+using device_uuid_t = std::tuple<uint64_t, uint64_t>;
+
+// FIXME: Currently SYCL doesn't provide any API to get device UUID so
+// we query it directly from Level0 with the zeDeviceGetProperties function.
+// The `get_device_uuid` function packs 128 bits of the device UUID, which are
+// represented as an uint8_t array of size 16, to 2 uint64_t values.
+inline device_uuid_t get_device_uuid(const cl::sycl::device &dev) {
+    static_assert(ZE_MAX_DEVICE_UUID_SIZE == 16,
+            "ZE_MAX_DEVICE_UUID_SIZE is expected to be 16");
+
+    ze_device_properties_t ze_device_properties;
+    auto ze_device = (ze_device_handle_t)dev.get();
+    auto status = func_zeDeviceGetProperties(ze_device, &ze_device_properties);
+    assert(status == status::success);
+
+    const auto &ze_device_id = ze_device_properties.uuid.id;
+
+    constexpr int half_ze_uuid_size = ZE_MAX_DEVICE_UUID_SIZE / 2;
+    const int uuid_size = 2;
+    uint64_t uuid[uuid_size] = {};
+
+    for (int i = 0; i < uuid_size; i++) {
+        for (int j = half_ze_uuid_size - 1; j >= 0; j--) {
+            for (int k = CHAR_BIT - 1; k >= 0; k--) {
+                uint64_t bit_pos = j * CHAR_BIT + k;
+
+                int ze_device_id_idx
+                        = i * sizeof(uint64_t) + (half_ze_uuid_size - 1) - j;
+                uint64_t bit_val = (ze_device_id[ze_device_id_idx] >> k) & 1ULL;
+                uuid[i] |= (bit_val << bit_pos);
+            }
+        }
+    }
+    return device_uuid_t(uuid[0], uuid[1]);
 }
 
 } // namespace sycl

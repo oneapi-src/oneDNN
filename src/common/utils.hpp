@@ -26,6 +26,7 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 
 #define MSAN_ENABLED 0
 #define ATTR_NO_MSAN
@@ -522,6 +523,21 @@ public:
     }
     DNNL_DISALLOW_COPY_AND_ASSIGN(setting_t);
 };
+
+// XXX: Currently SYCL doesn't provide an API to get device UUID but
+// we need to be able to distinguish OpenCL device from Level0 device.
+// As a temporary solution the compound ID will be used for that.
+// Below is a table explaning what the numbers are for different backends:
+//
+// -------------------------------------------------------------
+//  Backend      | Compound ID
+// -------------------------------------------------------------
+//  Host         | <backend_t::host, 0, 0>
+//  OpenCL       | <backend_t::opencl, cl_device, 0>
+//  Level0       | <backend_t::level0, uuid[0-63], uuid[64-127]>
+//  Pure CPU     | <0, 0, 0>
+//  Pure GPU     | <0, cl_device, 0>
+using device_id_t = std::tuple<int, uint64_t, uint64_t>;
 
 } // namespace impl
 } // namespace dnnl

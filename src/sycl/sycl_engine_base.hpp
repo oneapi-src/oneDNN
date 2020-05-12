@@ -131,6 +131,10 @@ public:
         return gpu::ocl::make_ocl_wrapper(context().get());
     }
 
+    virtual device_id_t device_id() const override {
+        return sycl_device_id(device_);
+    }
+
 private:
     cl::sycl::device device_;
     cl::sycl::context context_;

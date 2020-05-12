@@ -124,6 +124,8 @@ public:
             const op_desc_t *desc) const override {
         return cpu_engine_impl_list_t::get_implementation_list(desc);
     }
+
+    device_id_t device_id() const override { return std::make_tuple(0, 0, 0); }
 };
 
 class cpu_engine_factory_t : public engine_factory_t {

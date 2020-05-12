@@ -18,11 +18,14 @@
 #define SYCL_UTILS_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 #include <vector>
 #include <CL/sycl.hpp>
+
+#include "sycl/level_zero_utils.hpp"
 
 // Intel(R) oneAPI DPC++ Compiler uses reversed global work-item IDs starting
 // from 10-24-2019.
@@ -158,6 +161,42 @@ inline bool are_equal(
     auto rhs_handle = rhs.get();
 
     return lhs_handle == rhs_handle;
+}
+
+inline device_id_t sycl_device_id(const cl::sycl::device &dev) {
+    if (dev.is_host())
+        return std::make_tuple(static_cast<int>(backend_t::host), 0, 0);
+
+    device_id_t device_id;
+#ifdef DNNL_SYCL_DPCPP
+    switch (get_sycl_backend(dev)) {
+        case backend_t::opencl:
+            device_id = std::make_tuple(static_cast<int>(backend_t::opencl),
+                    reinterpret_cast<uint64_t>(dev.get()), 0);
+            break;
+        case backend_t::level0: {
+            device_id = std::tuple_cat(
+                    std::make_tuple(static_cast<int>(backend_t::level0)),
+#if defined(DNNL_WITH_LEVEL_ZERO)
+                    get_device_uuid(dev)
+#else
+                    std::make_tuple<uint64_t, uint64_t>(0, 0)
+#endif
+            );
+#if !defined(DNNL_WITH_LEVEL_ZERO)
+            assert(std::get<0>(device_id) != 0);
+            assert(std::get<1>(device_id) != 0);
+#endif
+            break;
+        }
+        case backend_t::unknown: assert(!"unreachable"); break;
+        default: assert(!"unreachable");
+    }
+#else
+    device_id = std::make_tuple(static_cast<int>(backend_t::opencl),
+            reinterpret_cast<uint64_t>(dev.get()), 0);
+#endif
+    return device_id;
 }
 
 } // namespace sycl

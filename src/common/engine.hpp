@@ -43,7 +43,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     /** get the runtime kind of the current engine */
     dnnl::impl::runtime_kind_t runtime_kind() const { return runtime_kind_; }
 
-    virtual intptr_t device_id() const { return 0; }
+    virtual dnnl::impl::device_id_t device_id() const = 0;
 
     /** create memory storage */
     virtual dnnl::impl::status_t create_memory_storage(
