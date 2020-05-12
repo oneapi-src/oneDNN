@@ -499,11 +499,30 @@ int batch(const char *fname, bench_f bench) {
 
     std::vector<std::string> opts;
     std::string str;
+    bool continued_line = false;
     while (ifs >> str) {
-        if (str.length() > 0 && str[0] == '#') {
-            std::getline(ifs, str); /* stop reading till eol */
+        if (str.length() == 0) continue;
+
+        // shell style comments
+        if (str.front() == '#') {
+            std::getline(ifs, str); // take whole commented line out
             continue;
         }
+
+        // shell style line break
+        if (continued_line) {
+            str = opts.back() + str; // update current line with previous
+            opts.pop_back(); // take previous line out
+        }
+
+        if (str.back() == '\\') {
+            continued_line = true;
+            if (str.length() == 1) continue; // line break lives separately
+            str.erase(str.size() - 1); // otherwise remove it
+        } else {
+            continued_line = false;
+        }
+
         opts.push_back(std::move(str));
     }
 

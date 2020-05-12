@@ -6,18 +6,31 @@
 
 ## post_ops
 --ddt=s8 --sdt=s8:s8
---attr-post-ops='','sum:0.5','logistic:0:0:0.5','linear:2:0.125','sum:0.25;relu:-0.01'
+--attr-post-ops='', \
+                'sum:0.5', \
+                'logistic:0:0:0.5', \
+                'linear:2:0.125', \
+                'sum:0.25;relu:-0.01'
 --batch=shapes_common
 
 ## scales
 --ddt=u8 --sdt=u8:u8
---attr-scales=,src:common:0.25_src1:common:0.5,src:common:0.125,src1:common:2
+--attr-scales=, \
+              src:common:0.25_src1:common:0.5, \
+              src:common:0.125, \
+              src1:common:2
 --batch=shapes_common
 
 ## post_ops + scales
 --ddt=s8 --sdt=s8:u8
---attr-scales=,src1:common:0.5,src:common:0.125,src:common:0.25_src1:common:0.5
---attr-post-ops='','sum:0.5','sum:0.5;logistic:0:0:2','linear:2:0.125'
+--attr-scales=, \
+              src1:common:0.5, \
+              src:common:0.125, \
+              src:common:0.25_src1:common:0.5
+--attr-post-ops='', \
+                'sum:0.5', \
+                'sum:0.5;logistic:0:0:2', \
+                'linear:2:0.125'
 --batch=shapes_common
 
 # check for proper saturation
