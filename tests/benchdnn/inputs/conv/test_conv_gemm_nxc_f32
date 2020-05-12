@@ -5,5 +5,3 @@
 --stag=axb --dtag=axb
 
 --batch=shapes_gemm
---batch=shapes_3d_2d_strided_padding
---batch=shapes_dilated_3d_strided_padding
