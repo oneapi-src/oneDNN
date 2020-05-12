@@ -255,7 +255,7 @@ void jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_nhwc_f::
     static constexpr int acc_size = sizeof(acc_data_t);
     const auto load_shifted_padded_with_zeros
             = [&](int dstIdx, int srcIdx, int maskTmpIdx, int offset) {
-                  this->vxorps(this->zreg(0, dstIdx), this->zreg(0, dstIdx),
+                  this->vpxorq(this->zreg(0, dstIdx), this->zreg(0, dstIdx),
                           this->zreg(0, dstIdx));
                   this->vmovups(this->zreg(0, maskTmpIdx),
                           this->EVEX_compress_addr(this->mask_, offset));
@@ -602,14 +602,14 @@ struct jit_avx512_common_lrn_fwd_t<
 
         if (version == fwd_across_version::First
                 || version == fwd_across_version::Single) {
-            this->vxorps(xmm2, xmm2, xmm2);
+            this->vpxorq(xmm2, xmm2, xmm2);
             for (int irb = 0; irb < reg_block; irb++) {
                 this->vmovups(ptr[t + irb * buffer_block], xmm2);
             }
         }
         if (version == fwd_across_version::Last
                 || version == fwd_across_version::Single) {
-            this->vxorps(xmm2, xmm2, xmm2);
+            this->vpxorq(xmm2, xmm2, xmm2);
             for (int irb = 0; irb < reg_block; irb++) {
                 this->vmovups(
                         ptr[t + irb * buffer_block + buffer_nest_offset], xmm2);
@@ -1104,14 +1104,14 @@ struct jit_avx512_common_lrn_bwd_t<
 
         if (version == fwd_across_version::First
                 || version == fwd_across_version::Single) {
-            vxorps(xmm1, xmm1, xmm1);
+            vpxorq(xmm1, xmm1, xmm1);
             for (int irb = 0; irb < reg_block; irb++) {
                 vmovups(ptr[t + irb * buffer_block], xmm1);
             }
         }
         if (version == fwd_across_version::Last
                 || version == fwd_across_version::Single) {
-            vxorps(xmm1, xmm1, xmm1);
+            vpxorq(xmm1, xmm1, xmm1);
             for (int irb = 0; irb < reg_block; irb++) {
                 vmovups(ptr[t + irb * buffer_block + buffer_nest_offset], xmm1);
             }
