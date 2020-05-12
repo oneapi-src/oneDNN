@@ -56,7 +56,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    desc_t desc;
+    desc_t desc {};
 
     std::vector<dir_t> dir {FWD_B};
     std::vector<const dt_conf_t *> cfg {conf_f32};

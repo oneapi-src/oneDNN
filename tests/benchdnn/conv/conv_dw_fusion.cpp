@@ -331,7 +331,7 @@ int doit(const prb_t *p, res_t *r) {
     engine_t engine_tgt_c1;
 
     // Original problem with fusion attributes
-    dnnl_primitive_t c;
+    dnnl_primitive_t c {};
     SAFE(init_prim(&c, init_pd, engine_tgt, p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 

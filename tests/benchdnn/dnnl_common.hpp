@@ -217,8 +217,8 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
     // create 1st engine
     engine.reset(engine_tgt_kind);
 
-    dnnl_primitive_desc_t _pd;
-    dnnl_primitive_t _prim;
+    dnnl_primitive_desc_t _pd {};
+    dnnl_primitive_t _prim {};
 
     auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(_pd); };
     auto cleanup_prim = [&]() { dnnl_primitive_destroy(_prim); };

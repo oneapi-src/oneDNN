@@ -297,7 +297,7 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(prepare_attr_bundle(p, attr_bundle), WARN);
 
     /* Step 2: create target reorder primitive */
-    dnnl_primitive_t rp;
+    dnnl_primitive_t rp {};
     // TODO: align init_pd interface with a common one which is used
     // in the rest of the benchdnn drivers
     auto init_pd = [&](const engine_t &engine_tgt, const prb_t *p,

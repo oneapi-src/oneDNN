@@ -230,7 +230,7 @@ int doit(const prb_t *p, res_t *r) {
     engine_t engine_tgt_fwd(engine_tgt_kind);
     engine_t engine_tgt_bwd(engine_tgt_kind);
 
-    dnnl_primitive_t pp;
+    dnnl_primitive_t pp {};
     SAFE(init_prim(&pp, init_pd, engine_tgt_fwd, p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
@@ -290,7 +290,7 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     if (p->dir & FLAG_BWD) {
-        dnnl_primitive_t bwd_p;
+        dnnl_primitive_t bwd_p {};
         int status = init_prim(
                 &bwd_p, init_pd, engine_tgt_bwd, p, r, FLAG_BWD, const_fpd);
         dnnl_primitive_destroy(pp);

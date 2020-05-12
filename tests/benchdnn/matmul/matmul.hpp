@@ -60,7 +60,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    desc_t desc;
+    desc_t desc {};
 
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<std::string> stag {tag::abx}, wtag {tag::abx}, dtag {tag::abx};

@@ -35,7 +35,7 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     engine_t engine_tgt(engine_tgt_kind);
 
     dnnl_primitive_desc_t r_pd = nullptr;
-    dnnl_primitive_t r;
+    dnnl_primitive_t r {};
 
     // Optimization to reduce testing time for GPU.
     //

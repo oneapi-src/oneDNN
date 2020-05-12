@@ -335,7 +335,7 @@ int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
 
-    dnnl_primitive_t e;
+    dnnl_primitive_t e {};
     SAFE(init_prim(&e, init_pd, engine_tgt, p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 

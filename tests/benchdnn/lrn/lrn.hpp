@@ -55,7 +55,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    desc_t desc;
+    desc_t desc {};
 
     std::vector<dir_t> dir {FWD_D};
     std::vector<dnnl_data_type_t> dt {dnnl_f32};

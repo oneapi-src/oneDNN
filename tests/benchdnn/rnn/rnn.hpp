@@ -206,7 +206,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    desc_t desc;
+    desc_t desc {};
 
     std::vector<dir_t> prop {FWD_D};
     std::vector<std::string> cfg {"f32"};
