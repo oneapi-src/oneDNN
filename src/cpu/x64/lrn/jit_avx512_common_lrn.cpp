@@ -52,8 +52,7 @@ status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init(engine_t *engine) {
             && desc()->local_size == 5 && desc()->lrn_beta == 0.75
             && data_d.matches_tag(fmt_tag)
             && IMPLICATION(fmt_tag == format_tag::nChw16c,
-                    data_d.dims()[1] % vsize == 0)
-            && IMPLICATION(fmt_tag == format_tag::nhwc, d_type != bf16);
+                    data_d.dims()[1] % vsize == 0);
 
     if (!args_ok_across) return unimplemented;
 

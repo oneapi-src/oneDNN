@@ -28,7 +28,6 @@ jit_avx512_common_lrn_kernel_fwd_nhwc_t<
         size_t code_size)
     : jit_avx512_common_lrn_kernel_fwd_t<d_type>(
             prop_kind, alpha, k, code_ptr, code_size) {
-
     const auto res = std::div(C, 16);
     const auto &C_tail = res.rem;
     const auto &num_full_16c_blocks = res.quot;
@@ -48,7 +47,7 @@ template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::reserve_stack_space(
         std::size_t space) {
     this->sub(rsp, space);
-    this->vxorps(zmm4, zmm4, zmm4);
+    this->uni_vxorps(zmm4, zmm4, zmm4);
     for (unsigned i = 0; i < 2u; ++i)
         this->vmovups(ptr[rsp + i * zmm_size], zmm4);
 }
@@ -196,14 +195,15 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_compute_data(
         across_version version, tail_mode tail_proc, int loop_size_param) {
 
     static constexpr int acc_bf_16_size = sizeof(acc_data_bf16_t);
+    static constexpr int acc_fp_32_size = sizeof(acc_data_t);
     static constexpr int acc_size
-            = d_type == bf16 ? acc_bf_16_size : sizeof(acc_data_t);
+            = d_type == bf16 ? acc_bf_16_size : acc_fp_32_size;
 
     const int loop_size = loop_size_param;
     static constexpr int mask_shift = sizeof(int32_t);
     const auto load_shifted_padded_with_zeros
             = [&](int dstIdx, int srcIdx, int maskTmpIdx, int offset) {
-                  this->vxorps(this->zreg(0, dstIdx), this->zreg(0, dstIdx),
+                  this->uni_vxorps(this->zreg(0, dstIdx), this->zreg(0, dstIdx),
                           this->zreg(0, dstIdx));
                   this->load_data(this->zreg(0, maskTmpIdx),
                           this->EVEX_compress_addr(this->mask_, offset), true);
@@ -227,10 +227,12 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_compute_data(
     } else {
         if (tail_proc == tail_mode::CurrentTail) {
             this->load_data(this->zreg(0, this->za_),
-                    this->EVEX_compress_addr(rsp, zmm_size - 2 * acc_size),
+                    this->EVEX_compress_addr(
+                            rsp, zmm_size - 2 * acc_fp_32_size),
                     true);
             this->load_data(this->zreg(0, this->zb_),
-                    this->EVEX_compress_addr(rsp, zmm_size - acc_size), true);
+                    this->EVEX_compress_addr(rsp, zmm_size - acc_fp_32_size),
+                    true);
         } else {
             IRB_LOOP(this->load_data(this->zreg(irb, this->za_),
                     this->EVEX_compress_addr(
@@ -249,9 +251,9 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_compute_data(
     } else {
         if (tail_proc == tail_mode::NextTail) {
             this->load_data(this->zreg(0, this->zd_),
-                    this->EVEX_compress_addr(rsp, acc_size), true);
+                    this->EVEX_compress_addr(rsp, acc_fp_32_size), true);
             this->load_data(this->zreg(0, this->ze_),
-                    this->EVEX_compress_addr(rsp, 2 * acc_size), true);
+                    this->EVEX_compress_addr(rsp, 2 * acc_fp_32_size), true);
         } else {
             IRB_LOOP(this->load_data(this->zreg(irb, this->zd_),
                     this->EVEX_compress_addr(

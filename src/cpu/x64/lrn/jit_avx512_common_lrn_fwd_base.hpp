@@ -46,11 +46,11 @@ public:
     using data_t = typename prec_traits<d_type>::type;
 
     struct jit_args_fwd_t {
+        jit_args_fwd_t();
         const data_t *src;
         data_t *dst, *ws0, *ws1;
-        static constexpr int32_t mask[20] = {0, 0, 16, 17, 18, 19, 20, 21, 22,
-                23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 0};
-        const int32_t *mask_ptr = &mask[2];
+        static const int32_t mask[20];
+        const int32_t *mask_ptr;
     };
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd);
@@ -60,7 +60,7 @@ public:
 protected:
     static inline Zmm zreg(int irb, int i) { return Zmm(irb * 7 + i); };
     static inline Ymm yreg(int irb, int i) { return Ymm(irb * 7 + i); };
-    static inline Xmm xreg(int irb, int i) { return Xmm(irb * 7 + i); };
+    static inline Xmm xreg(int irb, int i) { return Xmm(irb * 3 + i); };
 
     void store_data(const Address addr, Zmm zr, Ymm yr);
     void load_tail(int tail_value, Reg64 src, int src_mem_offset,
@@ -95,8 +95,15 @@ protected:
     static constexpr int zbase_ = 3;
     static constexpr int zsrc_ = 7;
     static constexpr int zdst_ = 2;
+    const Zmm bf16_emu_reserv_1_ = zmm28;
+    const Zmm bf16_emu_reserv_2_ = zmm29;
+    const Reg64 bf16_emu_scratch_ = rax;
+    const Zmm bf16_emu_reserv_3_ = zmm30;
+    const Zmm bf16_emu_reserv_4_ = zmm31;
+    const bool emulateBfloat_;
     const int reg_block_;
-    static constexpr int vlen_ = 64;
+    static constexpr int vlen_ = d_type == bf16 ? 32 : 64;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_ = nullptr;
 };
 
 } // namespace lrn

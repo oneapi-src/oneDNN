@@ -65,7 +65,7 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
 
     sub(t, reg_block * buffer_block);
     mov(imm_addr64, float2int(this->nalphabeta));
-    movq(xnalphabeta, imm_addr64);
+    vmovq(xnalphabeta, imm_addr64);
     vbroadcastss(znalphabeta, xnalphabeta);
 
     version = J.version;
