@@ -101,7 +101,7 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
         exec_args_t r_args;
         r_args[DNNL_ARG_SRC] = in;
         r_args[DNNL_ARG_DST] = out;
-        exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+        exec_ctx_t r_ctx(ctx, std::move(r_args));
 
         nested_scratchpad_t ns(ctx, key_nested, reorder_);
         r_ctx.set_scratchpad_grantor(ns.grantor());
@@ -219,7 +219,7 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
         exec_args_t r_args;
         r_args[DNNL_ARG_SRC] = in;
         r_args[DNNL_ARG_DST] = out;
-        exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+        exec_ctx_t r_ctx(ctx, std::move(r_args));
 
         nested_scratchpad_t ns(ctx, key_nested, reorder_);
         r_ctx.set_scratchpad_grantor(ns.grantor());
