@@ -20,7 +20,7 @@ So far it supports and uses the following drivers:
 * [pooling](doc/driver_pool.md)
 * [reorder](doc/driver_reorder.md)
 * [recurrent neural network (RNN)](doc/driver_rnn.md)
-* [resampling)](doc/driver_resampling.md)
+* [resampling](doc/driver_resampling.md)
 * [shuffle](doc/driver_shuffle.md)
 * [softmax](doc/driver_softmax.md)
 * [sum](doc/driver_sum.md)
@@ -53,7 +53,7 @@ where:
  - `--reset` -- reset all the parameters set previously to the default.
  - `--max-ms-per-prb=INT` -- time spent per problem in milliseconds.
             Available range [1e2, 60e3]. Default is `3e3`.
- - `--fix-times-per-prb=INT` -- number of iterations run per problem, N must be
+ - `--fix-times-per-prb=INT` -- number of iterations run per problem, must be
             non-negative. Default is `0` (not applied, time criterion is used).
  - `-vINT, --verbose=INT` -- verbose level; use for printing additional
             information. Default is `0`.
