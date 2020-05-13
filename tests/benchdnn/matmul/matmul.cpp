@@ -161,13 +161,21 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 
     if (kind == BIA && mem_dt.dt() == dnnl_u8) c_f_min = 0;
 
-    dnnl::impl::parallel(0, [&](int ithr, int nthr) {
-        int64_t chunk_size = (nelems + nthr - 1) / nthr;
-        int64_t idx_start = ithr * chunk_size;
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+
+    dnnl::impl::parallel_nd(n_chunks, [&](int idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
-        std::minstd_rand msr;
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand msr(kind * nelems + idx_start + 1);
+        msr.discard(1);
+
         std::uniform_int_distribution<> gen(c_f_min, c_f_max);
-        msr.discard(kind + idx_start);
 
         // make sure the first element is not zero
         if (idx_start == 0) {
