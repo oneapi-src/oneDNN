@@ -27,10 +27,12 @@
 
 #define ENABLE_KW_BUF (KW >= 5)
 
-#define CASE_3D (ID > 1)
+#define IS_3D (OD > 1)
 #define KDHW_SIZE (KD * KH * KW)
-#define HAS_PAD_D (PD != 0 || PD_R != 0)
-#define HAS_PAD_H (PH != 0 || PH_R != 0)
+#define HAS_PAD_D (PD > 0 || (OD - 1) * SD - PD + (KD - 1) * (1 + DD) >= ID)
+#define HAS_PAD_H (PH > 0 || (OH - 1) * SH - PH + (KH - 1) * (1 + DH) >= IH)
+#define HAS_PAD_W (PW > 0 || (OW - 1) * SW - PW + (KW - 1) * (1 + DW) >= IW)
+#define OC_PAD_BLOCK (OC % OC_BLOCK ? (OC / OC_BLOCK + 1) * OC_BLOCK : OC)
 
 inline float read_ic_block(const __global float *ptr, int off) {
     const int local_id = get_local_id(0);
@@ -106,14 +108,13 @@ gen9_conv_nhwc_fwd_f32(const __global float *src, const __global float *wei,
     const int goc = oc;
 #else
     const int oc = (ocb * OCB) / OC_BLOCK + get_group_id(0);
-    const int g = oc / (OC / OC_BLOCK);
-    const int goc = oc % (OC / OC_BLOCK);
+    const int g = oc / (OC_PAD_BLOCK / OC_BLOCK);
+    const int goc = oc % (OC_PAD_BLOCK / OC_BLOCK);
 #endif
 
-    const int od = CASE_3D ? sp / (OWB * OHB) : 0;
-    const int ohw = CASE_3D ? sp % (OWB * OHB) : sp;
-    const int id = CASE_3D ? od * SD - PD : 0;
-
+    const int od = IS_3D ? sp / (OWB * OHB) : 0;
+    const int ohw = IS_3D ? sp % (OWB * OHB) : sp;
+    const int id = IS_3D ? od * SD - PD : 0;
     const int oh = (ohw / OWB) * OH_BLOCK;
     const int ow = (ohw % OWB) * OW_BLOCK;
 
@@ -129,7 +130,7 @@ gen9_conv_nhwc_fwd_f32(const __global float *src, const __global float *wei,
     src += g * IC_WO_PADDING;
     src += (IS_DW ? oc * OC_BLOCK : 0);
 
-    wei += goc * KDHW_SIZE * OC_BLOCK * IC + g * IC * OC * KDHW_SIZE;
+    wei += goc * KDHW_SIZE * OC_BLOCK * IC + g * IC * OC_PAD_BLOCK * KDHW_SIZE;
 
 #if (KD == 1 && KH == 1) && (HAS_PAD_D || HAS_PAD_H)
     const bool dh_out_of_range = (id < 0 || id >= ID || ih < 0 || ih >= IH);
@@ -148,12 +149,12 @@ gen9_conv_nhwc_fwd_f32(const __global float *src, const __global float *wei,
     for (int icb = icb_min; icb < icb_max; icb += IC_BLOCK) {
         __attribute__((opencl_unroll_hint(1))) // attr:no-format
         for (int kd = 0; kd < KD; ++kd) {
-#if HAS_PAD_D && (KD > 1)
+#if HAS_PAD_D
             if (id + kd * (1 + DD) < 0 || id + kd * (1 + DD) >= ID) continue;
 #endif
             __attribute__((opencl_unroll_hint(1))) // attr:no-format
             for (int kh = 0; kh < KH; ++kh) {
-#if HAS_PAD_H && (KH > 1)
+#if HAS_PAD_H
                 if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH)
                     continue;
 #endif
