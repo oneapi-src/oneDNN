@@ -20,7 +20,7 @@
 #include <vector>
 #include <CL/sycl.hpp>
 
-#include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/platform.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
