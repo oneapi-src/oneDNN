@@ -53,16 +53,43 @@ status_t sycl_ocl_gpu_kernel_t::realize(
     if (binary_.size() == 0) return status::success;
     auto *compute_engine = utils::downcast<sycl_gpu_engine_t *>(engine);
 
+    cl_device_id ocl_device;
+    cl_context ocl_context;
+    std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> ocl_engine;
+
+    if (compute_engine->backend() == backend_t::opencl) {
+        ocl_device = compute_engine->ocl_device();
+        ocl_context = compute_engine->ocl_context();
+    } else if (compute_engine->backend() == backend_t::level0) {
+        // FIXME: This does not work for multi-GPU systems. OpenCL engine
+        // should be created based on the Level0 device to ensure that the
+        // program is created for the same physical device that was used
+        // to create the binary. However, OpenCL does not provide any API to
+        // match its devices with Level0.
+        //
+        // Currently we always create an OpenCL engine for the 0th device at
+        // binary creation time and here.
+        gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
+        engine_t *ocl_engine_ptr;
+        CHECK(f.engine_create(&ocl_engine_ptr, 0));
+        ocl_engine.reset(
+                utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(ocl_engine_ptr));
+        ocl_device = ocl_engine->device();
+        ocl_context = ocl_engine->context();
+    } else {
+        assert(!"not expected");
+        return status::invalid_arguments;
+    }
+
     cl_int err;
-    cl_device_id dev = compute_engine->ocl_device();
     const unsigned char *binary_buffer = binary_.data();
     size_t binary_size = binary_.size();
     assert(binary_size > 0);
 
-    auto program = clCreateProgramWithBinary(compute_engine->ocl_context(), 1,
-            &dev, &binary_size, &binary_buffer, nullptr, &err);
+    auto program = clCreateProgramWithBinary(ocl_context, 1, &ocl_device,
+            &binary_size, &binary_buffer, nullptr, &err);
     OCL_CHECK(err);
-    err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
+    err = clBuildProgram(program, 1, &ocl_device, nullptr, nullptr, nullptr);
     OCL_CHECK(err);
     cl_kernel ocl_kernel = clCreateKernel(program, name(), &err);
     OCL_CHECK(err);
@@ -131,7 +158,6 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const gpu::compute::nd_range_t &range,
         const gpu::compute::kernel_arg_list_t &arg_list) const {
     if (range.is_zero()) return status::success;
-
     auto *sycl_stream = utils::downcast<sycl::sycl_stream_t *>(&stream);
     auto *sycl_engine
             = utils::downcast<sycl::sycl_gpu_engine_t *>(sycl_stream->engine());
