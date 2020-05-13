@@ -156,8 +156,7 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
 
     // Create primitive descriptor
     using pd_type = typename gpu::ocl::gen9_gemm_t::pd_t;
-
-    gemm_desc_t op_desc;
+    auto op_desc = gemm_desc_t();
     op_desc.primitive_kind = dnnl_gemm;
     op_desc.transa = (*transa == 'n' || *transa == 'N') ? transpose::notrans
                                                         : transpose::trans;
@@ -204,6 +203,8 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     status = safe_ptr_assign<primitive_desc_iface_t>(
             pd_iface_ptr, new primitive_desc_iface_t(pd.get(), engine.get()));
     error::wrap_c_api(status, "could not create a primitive");
+    // primitive_desc_iface_t takes ownership of the pd
+    pd.release();
     pd_iface.reset(pd_iface_ptr);
 
     // Create memory objects
