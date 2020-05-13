@@ -259,9 +259,22 @@ template void transpose_dt(const conv_gemm_conf_t &jcp,
         const float *__restrict im, float *__restrict imtr);
 
 /* col[kd][kh][kw][g][ic][od][oh][ow] <-- im2col_dt_3d(im[id][ih][iw][g][ic]) */
-template <typename im_dt, typename col_dt>
-void im2col_dt_3d(const conv_gemm_conf_t &jcp, const im_dt *__restrict imtr,
-        col_dt *__restrict col, int od) {
+template <typename orig_im_dt, typename orig_col_dt>
+void im2col_dt_3d(const conv_gemm_conf_t &jcp,
+        const orig_im_dt *__restrict _imtr, orig_col_dt *__restrict _col,
+        int od) {
+    // For performance reasons, use uint16_t as a proxy for bfloat16_t
+    using im_dt = typename utils::conditional<data_traits<orig_im_dt>::data_type
+                    == bf16,
+            uint16_t, orig_im_dt>::type;
+    using col_dt =
+            typename utils::conditional<data_traits<orig_col_dt>::data_type
+                            == bf16,
+                    uint16_t, orig_col_dt>::type;
+    const im_dt *__restrict imtr
+            = reinterpret_cast<const im_dt *__restrict>(_imtr);
+    col_dt *__restrict col = reinterpret_cast<col_dt *__restrict>(_col);
+
     col_dt shift = static_cast<col_dt>(jcp.signed_input ? 128 : 0);
     const int dd = 1 + jcp.dilate_d;
     const int dh = 1 + jcp.dilate_h;
@@ -546,10 +559,22 @@ template void im2col(const conv_gemm_conf_t &jcp,
         int hb, int ws, int wb);
 
 /* col[kh][kw][ic][oh][ow] <-- im2col_dt(im[ih][iw][ic]) */
-template <typename im_dt, typename col_dt>
-void im2col_dt(const conv_gemm_conf_t &jcp, const im_dt *__restrict im,
-        im_dt *__restrict imtr, col_dt *__restrict col, int hs, int hb, int ws,
-        int wb) {
+template <typename orig_im_dt, typename orig_col_dt>
+void im2col_dt(const conv_gemm_conf_t &jcp, const orig_im_dt *__restrict _im,
+        orig_im_dt *__restrict _imtr, orig_col_dt *__restrict _col, int hs,
+        int hb, int ws, int wb) {
+    // For performance reasons, use uint16_t as a proxy for bfloat16_t
+    using im_dt = typename utils::conditional<data_traits<orig_im_dt>::data_type
+                    == bf16,
+            uint16_t, orig_im_dt>::type;
+    using col_dt =
+            typename utils::conditional<data_traits<orig_col_dt>::data_type
+                            == bf16,
+                    uint16_t, orig_col_dt>::type;
+    const im_dt *__restrict im = reinterpret_cast<const im_dt *__restrict>(_im);
+    im_dt *__restrict imtr = reinterpret_cast<im_dt *__restrict>(_imtr);
+    col_dt *__restrict col = reinterpret_cast<col_dt *__restrict>(_col);
+
     col_dt shift = static_cast<col_dt>(jcp.signed_input ? 128 : 0);
     const int dh = 1 + jcp.dilate_h;
     const int dw = 1 + jcp.dilate_w;
@@ -674,9 +699,16 @@ template void im2col_dt<float, float>(const conv_gemm_conf_t &jcp,
         float *__restrict col, int hs, int hb, int ws, int wb);
 
 /* im[id][ih][iw][ic] <-- col2im_dt_3d(col[od][oh][ow][kd][kh][kw][ic]) */
-template <typename T>
-void col2im_dt(const conv_gemm_conf_t &jcp, const T *__restrict col,
-        T *__restrict im) {
+template <typename orig_T>
+void col2im_dt(const conv_gemm_conf_t &jcp, const orig_T *__restrict _col,
+        orig_T *__restrict _im) {
+    // For performance reasons, use uint16_t as a proxy for bfloat16_t
+    using T =
+            typename utils::conditional<data_traits<orig_T>::data_type == bf16,
+                    uint16_t, orig_T>::type;
+    const T *__restrict col = reinterpret_cast<const T *__restrict>(_col);
+    T *__restrict im = reinterpret_cast<T *__restrict>(_im);
+
     parallel(0, [&](const int ithr, const int nthr) {
         int d_nthr = nstl::min(jcp.id, nthr);
         int h_nthr = nstl::min(jcp.ih, nthr / d_nthr);
