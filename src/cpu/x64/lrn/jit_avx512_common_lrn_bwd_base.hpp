@@ -30,6 +30,8 @@ namespace x64 {
 namespace lrn {
 
 using acc_data_t = float;
+using acc_data_bf16_t = uint16_t;
+
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 using namespace data_type;
@@ -62,23 +64,28 @@ protected:
     std::function<Xmm(int irb, int i)> xreg;
 
     void store_data(bool nt, const Address addr, Zmm zr);
-    void load_data(Xmm reg, const Address p);
+    void load_data(Xmm reg, const Address p, bool from_stack = false);
+    void load_tail(int tail_value, Reg64 src, int src_mem_offset,
+            int dst_stack_offset, int tmp_load_to_stack_idx_tail);
+    void store_tail(int tail_value, Zmm src, Reg64 dst, int dst_mem_offset,
+            int tmp_stack_offset, int tmp_idx);
 
-    Reg64 src_ = rax;
-    Reg64 diffsrc_ = r8;
-    Reg64 diffdst_ = r9;
-    Reg64 workspace0_ = rdx;
-    Reg64 workspace1_ = rsi;
-    Reg64 imm_addr64_ = rbx;
-    Reg64 param_ = abi_param1;
-    Zmm znalphabeta_ = zmm0;
-    Xmm xnalphabeta_ = xmm0;
+    const Reg64 src_ = rax;
+    const Reg64 diffsrc_ = r8;
+    const Reg64 diffdst_ = r9;
+    const Reg64 workspace0_ = rdx;
+    const Reg64 workspace1_ = rsi;
+    const Reg64 imm_addr64_ = rbx;
+    const Reg64 param_ = abi_param1;
+    const Reg16 imm_addr16_ = bx;
+    const Zmm znalphabeta_ = zmm0;
+    const Xmm xnalphabeta_ = xmm0;
 
-    Zmm bf16_emu_reserv_1_ = Zmm(28);
-    Zmm bf16_emu_reserv_2_ = Zmm(29);
-    Reg64 bf16_emu_scratch_ = rax;
-    Zmm bf16_emu_reserv_3_ = Zmm(30);
-    Zmm bf16_emu_reserv_4_ = Zmm(31);
+    const Zmm bf16_emu_reserv_1_ = Zmm(28);
+    const Zmm bf16_emu_reserv_2_ = Zmm(29);
+    const Reg64 bf16_emu_scratch_ = rax;
+    const Zmm bf16_emu_reserv_3_ = Zmm(30);
+    const Zmm bf16_emu_reserv_4_ = Zmm(31);
     const int local_size_;
 
     static constexpr int z_tmp_ = 7;

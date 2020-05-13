@@ -77,7 +77,6 @@ private:
     const int H_;
     const int W_;
 };
-
 template <::dnnl::impl::data_type_t d_type, typename PD_T>
 class lrn_avx512_nhwc_executor_bwd_t : public i_lrn_executor_t {
 public:

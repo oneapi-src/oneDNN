@@ -35,7 +35,7 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
     , zmm_size_ {64}
     , buffer_block_ {xmm_size_ + zmm_size_ + xmm_size_}
     , buffer_nest_offset_ {xmm_size_ + zmm_size_}
-    , src_prev_offset_ {this->vlen_ - 4 * sizeof(data_t)}
+    , src_prev_offset_ {static_cast<int>(this->vlen_ - 4 * sizeof(data_t))}
     , use_h_parallelism_(use_h_parallel) {
 
     this->preamble();

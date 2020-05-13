@@ -55,8 +55,8 @@ private:
     int xmm_size_, zmm_size_, buffer_block_, buffer_nest_offset_,
             src_prev_offset_, HW_, W_;
     across_version version_;
-    Reg64 t_ = rsp;
-    Reg64 hw_ = r9;
+    const Reg64 t_ = rsp;
+    const Reg64 hw_ = r9;
 
     static constexpr int xsrc_prev_ = 3;
     static constexpr int xsrc_next_ = 4;

@@ -42,7 +42,6 @@ public:
     void operator()(
             typename jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_args_fwd_t
                     *arg) {
-
         ker(arg);
     }
 
