@@ -243,7 +243,6 @@ struct dnnl_primitive : public dnnl::impl::c_compatible {
     dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
             dnnl::impl::engine_t *engine);
 
-    //    ~dnnl_primitive();
     dnnl::impl::status_t init();
     dnnl::impl::engine_t *engine() const;
     const primitive_desc_iface_t *pd() const;
@@ -265,7 +264,7 @@ private:
     std::unique_ptr<primitive_desc_iface_t> pd_;
     dnnl::impl::resource_mapper_t resource_mapper_;
 
-    //    dnnl_primitive() = delete;
+    dnnl_primitive() = delete;
     DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive);
 };
 
