@@ -133,9 +133,13 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         const size_t _ocb = g * nb_oc + ocb;
         const size_t _icb = g * nb_ic + icb;
 
+        const bool is_dst_layout_nxc = utils::one_of(jcp.dst_tag,
+                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+        const int oc_off_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * _ocb;
+
         par_conv.output_data = jcp.with_dw_conv
                 ? pbuf + (oh % jcp_dw_kh) * row_offset
-                : &dst[data_blk_off(dst_d, n, _ocb, oh, ow)];
+                : &dst[data_blk_off(dst_d, n, oc_off_idx, oh, ow)];
 
         par_conv.bias_data = &bias[_ocb * jcp.oc_block];
 
@@ -145,7 +149,11 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         par_conv.reduce_dim = this_block_size(
                 icb * jcp.ic_block, jcp.ic, nb_ic_blocking * jcp.ic_block);
 
-        const size_t src_off = data_blk_off(src_d, n, _icb, ih, iw);
+        const bool is_src_layout_nxc = utils::one_of(jcp.src_tag,
+                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+        const int ic_off_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * _icb;
+
+        const size_t src_off = data_blk_off(src_d, n, ic_off_idx, ih, iw);
         par_conv.bcast_data = &src[src_off];
 
         par_conv.load_data
