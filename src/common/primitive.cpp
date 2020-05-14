@@ -206,6 +206,7 @@ status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
     ctx.set_resource_mapper(&resource_mapper_);
 
     auto status = primitive_->execute(ctx);
+    ctx.set_scratchpad_grantor(nullptr);
     return status;
 }
 
