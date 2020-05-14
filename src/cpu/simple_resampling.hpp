@@ -61,31 +61,8 @@ struct simple_resampling_fwd_t : public primitive_t {
         }
     };
 
-    simple_resampling_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        if (pd()->desc()->alg_kind == alg_kind::resampling_nearest)
-            interpolate = &simple_resampling_fwd_t::nearest;
-        else {
-            if (pd()->ndims() == 5)
-                interpolate = &simple_resampling_fwd_t::trilinear;
-            else if (pd()->ndims() == 4)
-                interpolate = &simple_resampling_fwd_t::bilinear;
-            else
-                interpolate = &simple_resampling_fwd_t::linear;
-
-            fill_coeffs();
-        }
-        const memory_desc_wrapper src_d(pd()->src_md());
-        // non-spatial innermost physical dimension
-        nsp_inner_ = src_d.blocking_desc().strides[pd()->ndims() - 1];
-        // input/output layout: (nsp0, d, h, w, nsp1)
-        nsp_outer_ = src_d.nelems(true)
-                / (pd()->ID() * pd()->IH() * pd()->IW() * nsp_inner_);
-        stride_d_ = pd()->IH() * pd()->IW() * nsp_inner_;
-        stride_h_ = pd()->IW() * nsp_inner_;
-        stride_w_ = nsp_inner_;
-    }
-
-    ~simple_resampling_fwd_t() {}
+    simple_resampling_fwd_t(const pd_t *apd);
+    ~simple_resampling_fwd_t();
 
     typedef typename prec_traits<data_type>::type data_t;
 
@@ -95,20 +72,7 @@ struct simple_resampling_fwd_t : public primitive_t {
     }
 
 private:
-    void fill_coeffs() {
-        using namespace resampling_utils;
-        linear_coeffs_.reserve(pd()->OD() + pd()->OH() + pd()->OW());
-        for (dim_t od = 0; od < pd()->OD(); od++)
-            linear_coeffs_.push_back(
-                    linear_coeffs_t(od, pd()->FD(), pd()->ID()));
-        for (dim_t oh = 0; oh < pd()->OH(); oh++)
-            linear_coeffs_.push_back(
-                    linear_coeffs_t(oh, pd()->FH(), pd()->IH()));
-        for (dim_t ow = 0; ow < pd()->OW(); ow++)
-            linear_coeffs_.push_back(
-                    linear_coeffs_t(ow, pd()->FW(), pd()->IW()));
-    }
-
+    void fill_coeffs();
     void nearest(
             const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
     void linear(
@@ -126,7 +90,7 @@ private:
     dim_t stride_d_;
     dim_t stride_h_;
     dim_t stride_w_;
-    dim_t nsp_inner_;
+    dim_t inner_stride_;
     std::vector<resampling_utils::linear_coeffs_t> linear_coeffs_;
 };
 
@@ -158,32 +122,8 @@ struct simple_resampling_bwd_t : public primitive_t {
         }
     };
 
-    simple_resampling_bwd_t(const pd_t *apd) : primitive_t(apd) {
-        if (pd()->desc()->alg_kind == alg_kind::resampling_nearest)
-            interpolate = &simple_resampling_bwd_t::nearest;
-        else {
-            if (pd()->ndims() == 5)
-                interpolate = &simple_resampling_bwd_t::trilinear;
-            else if (pd()->ndims() == 4)
-                interpolate = &simple_resampling_bwd_t::bilinear;
-            else
-                interpolate = &simple_resampling_bwd_t::linear;
-
-            fill_coeffs();
-            fill_weights();
-        }
-        const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
-        // non-spatial innermost physical dimension
-        nsp_inner_ = diff_src_d.blocking_desc().strides[pd()->ndims() - 1];
-        // input/output layout: (nsp0, d, h, w, nsp1)
-        nsp_outer_ = diff_src_d.nelems(true)
-                / (pd()->ID() * pd()->IH() * pd()->IW() * nsp_inner_);
-        stride_d_ = pd()->OH() * pd()->OW() * nsp_inner_;
-        stride_h_ = pd()->OW() * nsp_inner_;
-        stride_w_ = nsp_inner_;
-    }
-
-    ~simple_resampling_bwd_t() {}
+    simple_resampling_bwd_t(const pd_t *apd);
+    ~simple_resampling_bwd_t();
 
     typedef typename prec_traits<data_type>::type data_t;
 
@@ -193,37 +133,8 @@ struct simple_resampling_bwd_t : public primitive_t {
     }
 
 private:
-    void fill_coeffs() {
-        using namespace resampling_utils;
-        bwd_linear_coeffs_.reserve(pd()->ID() + pd()->IH() + pd()->IW());
-        for (dim_t id = 0; id < pd()->ID(); id++)
-            bwd_linear_coeffs_.push_back(bwd_linear_coeffs_t(
-                    id, pd()->FD(), pd()->ID(), pd()->OD()));
-        for (dim_t ih = 0; ih < pd()->IH(); ih++)
-            bwd_linear_coeffs_.push_back(bwd_linear_coeffs_t(
-                    ih, pd()->FH(), pd()->IH(), pd()->OH()));
-        for (dim_t iw = 0; iw < pd()->IW(); iw++)
-            bwd_linear_coeffs_.push_back(bwd_linear_coeffs_t(
-                    iw, pd()->FW(), pd()->IW(), pd()->OW()));
-    }
-
-    void fill_weights() {
-        using namespace resampling_utils;
-        bwd_linear_weights_.reserve(2 * (pd()->OD() + pd()->OH() + pd()->OW()));
-        for (dim_t od = 0; od < pd()->OD(); od++) {
-            bwd_linear_weights_.push_back(linear_weight(0, od, pd()->FD()));
-            bwd_linear_weights_.push_back(linear_weight(1, od, pd()->FD()));
-        }
-        for (dim_t oh = 0; oh < pd()->OH(); oh++) {
-            bwd_linear_weights_.push_back(linear_weight(0, oh, pd()->FH()));
-            bwd_linear_weights_.push_back(linear_weight(1, oh, pd()->FH()));
-        }
-        for (dim_t ow = 0; ow < pd()->OW(); ow++) {
-            bwd_linear_weights_.push_back(linear_weight(0, ow, pd()->FW()));
-            bwd_linear_weights_.push_back(linear_weight(1, ow, pd()->FW()));
-        }
-    }
-
+    void fill_coeffs();
+    void fill_weights();
     void nearest(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
             dim_t iw) const;
     void linear(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
@@ -241,7 +152,7 @@ private:
     dim_t stride_d_;
     dim_t stride_h_;
     dim_t stride_w_;
-    dim_t nsp_inner_;
+    dim_t inner_stride_;
     std::vector<resampling_utils::bwd_linear_coeffs_t> bwd_linear_coeffs_;
     std::vector<float> bwd_linear_weights_;
 };
