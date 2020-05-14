@@ -901,15 +901,13 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     }
 
     using namespace format_tag;
-    auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
+    const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
+    const auto dat_tag_nCx16c = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
+    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
     bool is_data_layout_nxc
-            = src_d.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef
-            && dst_d.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef;
-    auto dat_tag = is_data_layout_nxc
-            ? dat_tag_nxc
-            : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
-    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
-    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
+            = utils::everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);
+    auto required_dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
 
     const int is_bwd_d = jcp.prop_kind == backward_data;
     const int is_bwd_w = jcp.prop_kind == backward_weights;
@@ -922,8 +920,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
             gOIhw16i16o, OIdhw16i16o, gOIdhw16i16o);
     jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
 
-    bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == dat_tag
-            && jcp.dst_tag == dat_tag && jcp.wei_tag == wei_tag;
+    bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == required_dat_tag
+            && jcp.dst_tag == required_dat_tag && jcp.wei_tag == wei_tag;
     if (!args_ok) return status::unimplemented;
 
     args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0

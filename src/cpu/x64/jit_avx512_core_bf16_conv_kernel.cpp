@@ -697,11 +697,17 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
     if (kernel_outside_src) return status::unimplemented;
 
-    auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
-    // TODO: rework to don't call matches_one_of_tag twice for each tensor
+    const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
+    const auto dat_tag_ncx = pick(ndims - 3, ncw, nchw, ncdhw);
+    const auto dat_tag_nCx4c = pick(ndims - 3, nCw4c, nChw4c, nCdhw4c);
+    const auto dat_tag_nCx8c = pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+    const auto dat_tag_nCx16c = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto curr_src_tag = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c,
+            dat_tag_nCx8c, dat_tag_nCx4c, dat_tag_ncx);
+    auto curr_dst_tag = dst_d.matches_one_of_tag(
+            dat_tag_nxc, dat_tag_nCx16c, dat_tag_nCx8c, dat_tag_nCx4c);
     bool is_data_layout_nxc
-            = src_d.matches_one_of_tag(dat_tag_nxc) != format_tag::undef
-            && dst_d.matches_one_of_tag(dat_tag_nxc) != format_tag::undef;
+            = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
     jcp.is_1stconv = is_1stconv(jcp) && !is_data_layout_nxc;
 
     const int regs = isa_has_bf16(jcp.isa) ? 31 /* expl_bcast case */ : 26;
@@ -737,53 +743,47 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     if (jcp.simd_w == 8) {
         assert(with_groups);
-        dst_tag = pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
-        src_tag = dst_tag;
+        dst_tag = src_tag = dat_tag_nCx8c;
         wei_tag = pick(ndims - 3, gOIw4i8o2i, gOIhw4i8o2i, gOIdhw4i8o2i);
     } else if (jcp.simd_w == 4) {
         assert(with_groups);
-        dst_tag = pick(ndims - 3, nCw4c, nChw4c, nCdhw4c);
-        src_tag = dst_tag;
+        dst_tag = src_tag = dat_tag_nCx4c;
         wei_tag = pick(ndims - 3, gOIw2i4o2i, gOIhw2i4o2i, gOIdhw2i4o2i);
     } else if (jcp.is_1stconv) {
-        dst_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
-        src_tag = pick(ndims - 3, ncw, nchw, ncdhw);
+        dst_tag = dat_tag_nCx16c;
+        src_tag = dat_tag_ncx;
         wei_tag = pick(2 * ndims - 6 + with_groups, OwI16o2i, gOwI16o2i,
                 OhwI16o2i, gOhwI16o2i, OdhwI16o2i, gOdhwI16o2i);
     } else {
-        dst_tag = is_data_layout_nxc
-                ? dat_tag_nxc
-                : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
-        src_tag = dst_tag;
+        dst_tag = src_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
         wei_tag = pick(2 * ndims - 6 + with_groups, OIw8i16o2i, gOIw8i16o2i,
                 OIhw8i16o2i, gOIhw8i16o2i, OIdhw8i16o2i, gOIdhw8i16o2i);
     }
 
-    if (src_md.format_kind == format_kind::any) {
+    if (src_md.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(src_md, src_tag));
-        jcp.src_tag = src_tag;
-    } else
-        jcp.src_tag = src_d.matches_one_of_tag(src_tag);
+    else if (curr_src_tag != src_tag)
+        return status::unimplemented;
+    jcp.src_tag = src_tag;
+
+    if (dst_md.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(dst_md, dst_tag));
+    else if (curr_dst_tag != dst_tag)
+        return status::unimplemented;
+    jcp.dst_tag = dst_tag;
 
     if (weights_md.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(weights_md, wei_tag));
         jcp.wei_tag = wei_tag;
-    } else
+    } else {
         jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
-
-    if (dst_md.format_kind == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(dst_md, dst_tag));
-        jcp.dst_tag = dst_tag;
-    } else
-        jcp.dst_tag = dst_d.matches_one_of_tag(dst_tag);
+        if (jcp.wei_tag != wei_tag) return status::unimplemented;
+    }
 
     if (jcp.with_bias) {
         if (bias_d.format_kind() == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
     }
-    const bool tags_ok = jcp.src_tag == src_tag && jcp.wei_tag == wei_tag
-            && jcp.dst_tag == dst_tag;
-    if (!tags_ok) return status::unimplemented;
 
     jcp.aligned_threads = 0;
 
@@ -1304,11 +1304,16 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.aligned_threads = 0;
 
-    auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
-    // TODO: rework to don't call matches_one_of_tag twice for each tensor
+    const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
+    const auto dat_tag_nCx4c = pick(ndims - 3, nCw4c, nChw4c, nCdhw4c);
+    const auto dat_tag_nCx8c = pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+    const auto dat_tag_nCx16c = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto curr_src_tag = diff_src_d.matches_one_of_tag(
+            dat_tag_nxc, dat_tag_nCx16c, dat_tag_nCx8c, dat_tag_nCx4c);
+    auto curr_dst_tag = diff_dst_d.matches_one_of_tag(
+            dat_tag_nxc, dat_tag_nCx16c, dat_tag_nCx8c, dat_tag_nCx4c);
     bool is_data_layout_nxc
-            = diff_src_d.matches_one_of_tag(dat_tag_nxc) != format_tag::undef
-            && diff_dst_d.matches_one_of_tag(dat_tag_nxc) != format_tag::undef;
+            = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
 
     bool ok_to_pad_channels = jcp.ngroups == 1;
 
@@ -1341,40 +1346,36 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
     format_tag_t wei_tag, dat_tag;
 
     if (jcp.simd_w == 8) {
-        dat_tag = pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+        dat_tag = dat_tag_nCx8c;
         wei_tag = utils::pick(ndims - 3, gOIw4o8i2o, gOIhw4o8i2o, gOIdhw4o8i2o);
     } else if (jcp.simd_w == 4) {
-        dat_tag = pick(ndims - 3, nCw4c, nChw4c, nCdhw4c);
+        dat_tag = dat_tag_nCx4c;
         wei_tag = utils::pick(ndims - 3, gOIw2o4i2o, gOIhw2o4i2o, gOIdhw2o4i2o);
     } else {
-        dat_tag = is_data_layout_nxc
-                ? dat_tag_nxc
-                : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+        dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
         wei_tag = pick(2 * ndims - 6 + with_groups, OIw8o16i2o, gOIw8o16i2o,
                 OIhw8o16i2o, gOIhw8o16i2o, OIdhw8o16i2o, gOIdhw8o16i2o);
     }
 
     if (diff_src_md.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(diff_src_md, dat_tag));
-        jcp.src_tag = dat_tag;
-    } else
-        jcp.src_tag = diff_src_d.matches_one_of_tag(dat_tag);
+    } else if (curr_src_tag != dat_tag)
+        return status::unimplemented;
+    jcp.src_tag = dat_tag;
+
+    if (diff_dst_md.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_dst_md, dat_tag));
+    } else if (curr_dst_tag != dat_tag)
+        return status::unimplemented;
+    jcp.dst_tag = dat_tag;
 
     if (weights_md.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(weights_md, wei_tag));
         jcp.wei_tag = wei_tag;
-    } else
+    } else {
         jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
-
-    if (diff_dst_md.format_kind == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(diff_dst_md, dat_tag));
-        jcp.dst_tag = dat_tag;
-    } else
-        jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
-
-    const bool tags_ok = jcp.src_tag == dat_tag && jcp.wei_tag == wei_tag
-            && jcp.dst_tag == dat_tag;
-    if (!tags_ok) return status::unimplemented;
+        if (jcp.wei_tag != wei_tag) return status::unimplemented;
+    }
 
     args_ok = true && jcp.ic <= diff_src_d.padded_dims()[1]
             && jcp.oc <= diff_dst_d.padded_dims()[1]
@@ -3595,11 +3596,16 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     jcp.aligned_threads = 0;
 
     jcp.oc_block = simd_w;
-    auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
-    // TODO: rework to don't call matches_one_of_tag twice for each tensor
+    const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
+    const auto dat_tag_ncx = pick(ndims - 3, ncw, nchw, ncdhw);
+    const auto dat_tag_nCx16c = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto curr_src_tag = src_d.matches_one_of_tag(
+            dat_tag_nxc, dat_tag_nCx16c, dat_tag_ncx);
+    auto curr_dst_tag
+            = diff_dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
     bool is_data_layout_nxc
-            = src_d.matches_one_of_tag(dat_tag_nxc) != format_tag::undef
-            && diff_dst_d.matches_one_of_tag(dat_tag_nxc) != format_tag::undef;
+            = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
+
     jcp.is_1stconv = is_1stconv(jcp) && !is_data_layout_nxc;
 
     bool ok_to_pad_channels
@@ -3610,8 +3616,6 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         jcp.ic = rnd_up(jcp.ic, simd_w);
     }
 
-    auto dat_tag_ncx = pick(ndims - 3, ncw, nchw, ncdhw);
-    auto dat_tag_nCx16c = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
     auto src_tag = is_data_layout_nxc
             ? dat_tag_nxc
             : (jcp.is_1stconv ? dat_tag_ncx : dat_tag_nCx16c);
@@ -3624,21 +3628,23 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
 
     if (src_md.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(src_md, src_tag));
-        jcp.src_tag = src_tag;
-    } else {
-        jcp.src_tag = src_d.matches_one_of_tag(src_tag);
-    }
-    if (diff_weights_md.format_kind == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
-        jcp.wei_tag = wei_tag;
-    } else
-        jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
+    } else if (curr_src_tag != src_tag)
+        return status::unimplemented;
+    jcp.src_tag = src_tag;
 
     if (diff_dst_md.format_kind == format_kind::any) {
         CHECK(memory_desc_init_by_tag(diff_dst_md, dst_tag));
-        jcp.dst_tag = dst_tag;
-    } else
-        jcp.dst_tag = diff_dst_d.matches_one_of_tag(dst_tag);
+    } else if (curr_dst_tag != dst_tag)
+        return status::unimplemented;
+    jcp.dst_tag = dst_tag;
+
+    if (diff_weights_md.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
+        jcp.wei_tag = wei_tag;
+    } else {
+        jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
+        if (jcp.wei_tag != wei_tag) return status::unimplemented;
+    }
 
     /* conditions on bias memory */
     jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
@@ -3665,9 +3671,6 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     /* yet another common check */
     if (jcp.kw > 14) return status::unimplemented;
 
-    ok = true && jcp.src_tag == src_tag && jcp.dst_tag == dst_tag
-            && jcp.wei_tag == wei_tag;
-    if (!ok) return status::unimplemented;
     jcp.wei_dt = diff_weights_d.data_type();
 
     jcp.ic_block = jcp.is_1stconv ? jcp.ic : simd_w;
