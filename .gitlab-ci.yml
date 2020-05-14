@@ -1,0 +1,22 @@
+build_oneLLGA_html:
+  stage: build
+  image: python:3.7
+  before_script:
+    - apt-get update -y
+    - apt-get install -y libenchant-dev
+  script:
+    - python3 -m pip install -r requirements.txt
+    - python3 scripts/oneapi.py html .
+  artifacts:
+    paths: [build/html]
+    expire_in: 3d
+
+pages:
+  stage: deploy
+  needs: [build_oneLLGA_html]
+  only: [develop]
+  script:
+  - mkdir -p public
+  - mv build/html public/oneLLGA
+  artifacts:
+    paths: [public]

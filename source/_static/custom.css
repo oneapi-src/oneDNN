@@ -1,0 +1,32 @@
+.wy-side-nav-search, .wy-nav-top {
+    background: #4308E5;
+}
+
+.eqno {
+    margin-left: 5px;
+    float: right;
+}
+.math .headerlink {
+    display: none;
+    visibility: hidden;
+}
+.math:hover .headerlink {
+    display: inline-block;
+    visibility: visible;
+    margin-right: -0.7em;
+}
+
+/* override table width restrictions
+ * https://rackerlabs.github.io/docs-rackspace/tools/rtd-tables.html */
+@media screen and (min-width: 767px) {
+
+   .wy-table-responsive table td {
+      /* !important prevents the common CSS stylesheets from overriding
+         this as on RTD they are loaded after this stylesheet */
+      white-space: normal !important;
+   }
+
+   .wy-table-responsive {
+      overflow: visible !important;
+   }
+}
