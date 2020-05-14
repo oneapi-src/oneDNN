@@ -77,6 +77,12 @@ struct simple_resampling_fwd_t : public primitive_t {
         const memory_desc_wrapper src_d(pd()->src_md());
         // non-spatial innermost physical dimension
         nsp_inner_ = src_d.blocking_desc().strides[pd()->ndims() - 1];
+        // input/output layout: (nsp0, d, h, w, nsp1)
+        nsp_outer_ = src_d.nelems(true)
+                / (pd()->ID() * pd()->IH() * pd()->IW() * nsp_inner_);
+        stride_d_ = pd()->IH() * pd()->IW() * nsp_inner_;
+        stride_h_ = pd()->IW() * nsp_inner_;
+        stride_w_ = nsp_inner_;
     }
 
     ~simple_resampling_fwd_t() {}
@@ -103,23 +109,25 @@ private:
                     linear_coeffs_t(ow, pd()->FW(), pd()->IW()));
     }
 
+    void nearest(
+            const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
+    void linear(
+            const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
+    void bilinear(
+            const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
+    void trilinear(
+            const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
+    void (simple_resampling_fwd_t::*interpolate)(
+            const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
+    void execute_forward(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    dim_t nsp_outer_;
+    dim_t stride_d_;
+    dim_t stride_h_;
+    dim_t stride_w_;
     dim_t nsp_inner_;
     std::vector<resampling_utils::linear_coeffs_t> linear_coeffs_;
-
-    void nearest(const float *src, float *dst, dim_t stride_d, dim_t stride_h,
-            dim_t stride_w, dim_t od, dim_t oh, dim_t ow) const;
-    void linear(const float *src, float *dst, dim_t stride_d, dim_t stride_h,
-            dim_t stride_w, dim_t od, dim_t oh, dim_t ow) const;
-    void bilinear(const float *src, float *dst, dim_t stride_d, dim_t stride_h,
-            dim_t stride_w, dim_t od, dim_t oh, dim_t ow) const;
-    void trilinear(const float *src, float *dst, dim_t stride_d, dim_t stride_h,
-            dim_t stride_w, dim_t od, dim_t oh, dim_t ow) const;
-    void (simple_resampling_fwd_t::*interpolate)(const float *src, float *dst,
-            dim_t stride_d, dim_t stride_h, dim_t stride_w, dim_t od, dim_t oh,
-            dim_t ow) const;
-
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    void execute_forward(const exec_ctx_t &ctx) const;
 };
 
 template <impl::data_type_t data_type>
@@ -167,6 +175,12 @@ struct simple_resampling_bwd_t : public primitive_t {
         const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
         // non-spatial innermost physical dimension
         nsp_inner_ = diff_src_d.blocking_desc().strides[pd()->ndims() - 1];
+        // input/output layout: (nsp0, d, h, w, nsp1)
+        nsp_outer_ = diff_src_d.nelems(true)
+                / (pd()->ID() * pd()->IH() * pd()->IW() * nsp_inner_);
+        stride_d_ = pd()->OH() * pd()->OW() * nsp_inner_;
+        stride_h_ = pd()->OW() * nsp_inner_;
+        stride_w_ = nsp_inner_;
     }
 
     ~simple_resampling_bwd_t() {}
@@ -210,24 +224,26 @@ private:
         }
     }
 
+    void nearest(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
+            dim_t iw) const;
+    void linear(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
+            dim_t iw) const;
+    void bilinear(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
+            dim_t iw) const;
+    void trilinear(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
+            dim_t iw) const;
+    void (simple_resampling_bwd_t::*interpolate)(data_t *diff_src,
+            const data_t *diff_dst, dim_t id, dim_t ih, dim_t iw) const;
+    void execute_backward(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    dim_t nsp_outer_;
+    dim_t stride_d_;
+    dim_t stride_h_;
+    dim_t stride_w_;
     dim_t nsp_inner_;
     std::vector<resampling_utils::bwd_linear_coeffs_t> bwd_linear_coeffs_;
     std::vector<float> bwd_linear_weights_;
-
-    void nearest(float *diff_src, const float *diff_dst, dim_t stride_d,
-            dim_t stride_h, dim_t stride_w, dim_t id, dim_t ih, dim_t iw) const;
-    void linear(float *diff_src, const float *diff_dst, dim_t stride_d,
-            dim_t stride_h, dim_t stride_w, dim_t id, dim_t ih, dim_t iw) const;
-    void bilinear(float *diff_src, const float *diff_dst, dim_t stride_d,
-            dim_t stride_h, dim_t stride_w, dim_t id, dim_t ih, dim_t iw) const;
-    void trilinear(float *diff_src, const float *diff_dst, dim_t stride_d,
-            dim_t stride_h, dim_t stride_w, dim_t id, dim_t ih, dim_t iw) const;
-    void (simple_resampling_bwd_t::*interpolate)(float *diff_src,
-            const float *diff_dst, dim_t stride_d, dim_t stride_h,
-            dim_t stride_w, dim_t id, dim_t ih, dim_t iw) const;
-
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    void execute_backward(const exec_ctx_t &ctx) const;
 };
 
 } // namespace cpu
