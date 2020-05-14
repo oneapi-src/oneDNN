@@ -71,7 +71,7 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
 
     if (engine()->kind() == engine_kind::cpu) {
         storage->buffer_ = buffer_;
-        storage->base_offset_ = offset;
+        storage->base_offset_ = parent_offset() + offset;
     } else {
 #ifdef DNNL_SYCL_DPCPP
         buffer_u8_t *sub_buffer;
