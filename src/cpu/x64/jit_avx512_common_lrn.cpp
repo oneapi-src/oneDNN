@@ -602,14 +602,14 @@ struct jit_avx512_common_lrn_fwd_t<
 
         if (version == fwd_across_version::First
                 || version == fwd_across_version::Single) {
-            this->vpxorq(xmm2, xmm2, xmm2);
+            this->vxorps(xmm2, xmm2, xmm2);
             for (int irb = 0; irb < reg_block; irb++) {
                 this->vmovups(ptr[t + irb * buffer_block], xmm2);
             }
         }
         if (version == fwd_across_version::Last
                 || version == fwd_across_version::Single) {
-            this->vpxorq(xmm2, xmm2, xmm2);
+            this->vxorps(xmm2, xmm2, xmm2);
             for (int irb = 0; irb < reg_block; irb++) {
                 this->vmovups(
                         ptr[t + irb * buffer_block + buffer_nest_offset], xmm2);
@@ -1104,14 +1104,14 @@ struct jit_avx512_common_lrn_bwd_t<
 
         if (version == fwd_across_version::First
                 || version == fwd_across_version::Single) {
-            vpxorq(xmm1, xmm1, xmm1);
+            vxorps(xmm1, xmm1, xmm1);
             for (int irb = 0; irb < reg_block; irb++) {
                 vmovups(ptr[t + irb * buffer_block], xmm1);
             }
         }
         if (version == fwd_across_version::Last
                 || version == fwd_across_version::Single) {
-            vpxorq(xmm1, xmm1, xmm1);
+            vxorps(xmm1, xmm1, xmm1);
             for (int irb = 0; irb < reg_block; irb++) {
                 vmovups(ptr[t + irb * buffer_block + buffer_nest_offset], xmm1);
             }
