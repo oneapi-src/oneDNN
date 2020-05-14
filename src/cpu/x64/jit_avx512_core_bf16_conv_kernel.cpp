@@ -344,7 +344,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
                         if (need_single_load && !safe_overstep)
                             vpbroadcastw(
                                     vmm_in | odd_load_mask | T_z, addr_base);
-                        else if (need_single_load && safe_overstep)
+                        else if (IMPLICATION(!is_src_layout_nxc(),
+                                         need_single_load && safe_overstep))
                             vpbroadcastd(vmm_in, addr_base);
                         else {
                             const auto addr_strided
@@ -708,7 +709,7 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             dat_tag_nxc, dat_tag_nCx16c, dat_tag_nCx8c, dat_tag_nCx4c);
     bool is_data_layout_nxc
             = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
-    jcp.is_1stconv = is_1stconv(jcp) && !is_data_layout_nxc;
+    jcp.is_1stconv = is_1stconv(jcp);
 
     const int regs = isa_has_bf16(jcp.isa) ? 31 /* expl_bcast case */ : 26;
     const bool ok_to_pad_channels = jcp.ngroups == 1;
@@ -750,8 +751,8 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         dst_tag = src_tag = dat_tag_nCx4c;
         wei_tag = pick(ndims - 3, gOIw2i4o2i, gOIhw2i4o2i, gOIdhw2i4o2i);
     } else if (jcp.is_1stconv) {
-        dst_tag = dat_tag_nCx16c;
-        src_tag = dat_tag_ncx;
+        dst_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
+        src_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_ncx;
         wei_tag = pick(2 * ndims - 6 + with_groups, OwI16o2i, gOwI16o2i,
                 OhwI16o2i, gOhwI16o2i, OdhwI16o2i, gOdhwI16o2i);
     } else {
@@ -1530,7 +1531,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
                 int ddst_offset, bool is_tail) {
     assert(!is_src_layout_nxc() && !is_ddst_layout_nxc());
     int kw = jcp.kw;
-    bool no_src_pad = jcp.is_1stconv;
+    bool no_src_pad = jcp.is_1stconv && !jcp.transpose_src;
     const int ddst_zmm_base_idx = 24;
     const int num_ddst_zmm_regs = !isa_has_bf16(jcp.isa) ? 2 : 4;
     const int zmm_src_reg = ddst_zmm_base_idx + num_ddst_zmm_regs;
@@ -1654,7 +1655,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
         compute_ic_block_step_interleave(int ur_w, int pad_l, int pad_r,
                 int ic_block_step, int src_offset, int kernel_offset,
                 int ddst_offset, bool is_tail) {
-    assert(jcp.is_1stconv); // Only supports nchw format src
+    // Only supports nchw format src
+    assert(jcp.is_1stconv && !jcp.transpose_src);
     int kw = jcp.kw;
     const int ddst_zmm_base_idx = 24;
     const int in_zmm_base_idx = 24;
@@ -2152,7 +2154,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
         else
             compute_ic_block_step_vpermw(ur_w, pad_l, pad_r, ic_block_step,
                     src_offset, kernel_offset, ddst_offset, is_tail);
-    else if (jcp.is_1stconv && jcp.stride_w > 1)
+    else if (jcp.is_1stconv && !jcp.transpose_src && jcp.stride_w > 1)
         compute_ic_block_step_interleave(ur_w, pad_l, pad_r, ic_block_step,
                 src_offset, kernel_offset, ddst_offset, is_tail);
     else
@@ -2367,7 +2369,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
                         get_src_offset(0, 0, filter_h_to_src(1))
                                 - jcp.typesize_in * ic_block);
             }
-        } else if (jcp.is_1stconv) {
+        } else if (jcp.is_1stconv && !jcp.transpose_src) {
             // Fixup reg_src to to point to the correct location
             safe_add(reg_src,
                     get_src_offset(0, 0, filter_h_to_src(1))
@@ -2477,7 +2479,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_common(
                 jl(ic_block_label, T_NEAR);
             }
 
-            if (jcp.is_1stconv) {
+            if (jcp.is_1stconv && !jcp.transpose_src) {
                 // Fixup reg_src to point to the correct location
                 safe_add(reg_src,
                         get_src_offset(0, 0, filter_h_to_src(1))
@@ -3434,7 +3436,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::compute_loop() {
 
         mov(reg_mask_load.cvt32(), 0xffff0000);
         kmovd(m_ffff0000, reg_mask_load.cvt32());
-    } else if (jcp.is_1stconv) {
+    } else if (jcp.is_1stconv && !jcp.transpose_src) {
         if (jcp.stride_w == 1) {
             int ieveryother_mask = 0x55555555;
             mov(reg_mask_load.cvt32(), ieveryother_mask);
@@ -3463,7 +3465,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::compute_loop() {
 
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::setup_stack_space() {
 
-    if ((jcp.is_1stconv && jcp.stride_w > 1) || jcp.uses_permw_transposition) {
+    if ((jcp.is_1stconv && !jcp.transpose_src && jcp.stride_w > 1)
+            || jcp.uses_permw_transposition) {
         int ur_w, ur_w_tail, ur_w_trips;
         get_ur_w(ur_w, ur_w_tail, ur_w_trips);
         ur_w = nstl::max(ur_w, ur_w_tail);
@@ -3606,7 +3609,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     bool is_data_layout_nxc
             = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
 
-    jcp.is_1stconv = is_1stconv(jcp) && !is_data_layout_nxc;
+    jcp.is_1stconv = is_1stconv(jcp);
 
     bool ok_to_pad_channels
             = (jcp.ngroups == 1) && !jcp.is_1stconv && !is_data_layout_nxc;
@@ -3714,7 +3717,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     if (jcp.uses_permw_transposition) {
         jcp.transpose_src = false;
         jcp.transpose_dst = false;
-    } else if (jcp.is_1stconv) {
+    } else if (jcp.is_1stconv && !is_data_layout_nxc) {
         jcp.transpose_src = false;
         jcp.transpose_dst = true;
     } else {

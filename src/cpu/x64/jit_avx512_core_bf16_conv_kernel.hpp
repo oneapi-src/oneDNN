@@ -162,7 +162,9 @@ private:
                 ? jcp.ngroups * jcp.ic
                 : (jcp.is_1stconv ? 1 : jcp.ic_block);
         dim_t full_spatial_size = (dim_t)jcp.iw * jcp.ih * jcp.id;
-        dim_t ic_str = jcp.is_1stconv ? full_spatial_size : 1;
+        dim_t ic_str = jcp.is_1stconv && !is_src_layout_nxc()
+                ? full_spatial_size
+                : 1;
         dim_t icb_str
                 = (is_src_layout_nxc() ? 1 : full_spatial_size) * jcp.ic_block;
         return jcp.typesize_in * (isp_str * isp + icb_str * icb + ic_str * ic);

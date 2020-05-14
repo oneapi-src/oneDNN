@@ -463,9 +463,12 @@ void jit_trans_iw_ic_int16_t::transpose(
 
     const bool is_layout_nxc = utils::one_of(conf_->src_tag, format_tag::ndhwc,
             format_tag::nhwc, format_tag::nwc);
+    const int ic_block = conf_->ic_block;
+    const bool is_tail_block = ic_block != 16;
+
     if (mayiuse(avx512_core)) {
         if (conf_->stride_w > 1 || nrows % 2 || is_layout_nxc)
-            kmovd(kFFFF, 0x0000ffff);
+            kmovd(kFFFF, (1 << ic_block) - 1);
         if (conf_->stride_w > 1 || is_layout_nxc) kmovd(k33, 0xffff0000);
 
         for (int i = 0; i < nrows / 2; i++) {
@@ -476,9 +479,17 @@ void jit_trans_iw_ic_int16_t::transpose(
             } else {
                 vmovdqu16(zmm_src0 | kFFFF | T_z,
                         EVEX_compress_addr(reg_src, 2 * i * src_stride));
-                vmovdqu16(zmm_src0 | k33,
-                        EVEX_compress_addr(
-                                reg_src, (2 * i + 1) * src_stride - 32));
+                if (is_tail_block) {
+                    auto zmm_tmp = src_zmm(2 * i + 1);
+                    vmovdqu16(zmm_tmp | kFFFF | T_z,
+                            EVEX_compress_addr(
+                                    reg_src, (2 * i + 1) * src_stride));
+                    vinsertf64x4(zmm_src0, zmm_src0, src_ymm(2 * i + 1), 1);
+                } else {
+                    vmovdqu16(zmm_src0 | k33,
+                            EVEX_compress_addr(
+                                    reg_src, (2 * i + 1) * src_stride - 32));
+                }
             }
             vpermw(zmm_src0, vidx5, zmm_src0);
         }
@@ -603,22 +614,30 @@ void jit_trans_iw_ic_int16_t::transpose(
     for (int i = 0; i < 8; i++)
         vextracti64x4(src_ymm(2 * i), src_zmm(2 * i + 1), 1);
 
-    store(src_zmm(1), 0);
-    store(src_zmm(0), 1);
-    store(src_zmm(3), 2);
-    store(src_zmm(2), 3);
-    store(src_zmm(9), 4);
-    store(src_zmm(8), 5);
-    store(src_zmm(11), 6);
-    store(src_zmm(10), 7);
-    store(src_zmm(5), 8);
-    store(src_zmm(4), 9);
-    store(src_zmm(7), 10);
-    store(src_zmm(6), 11);
-    store(src_zmm(13), 12);
-    store(src_zmm(12), 13);
-    store(src_zmm(15), 14);
-    store(src_zmm(14), 15);
+    auto get_vec_idx = [=](int ic_idx) {
+        assert(ic_idx < 16 && ic_idx >= 0);
+        switch (ic_idx) {
+            case 0: return 1;
+            case 1: return 0;
+            case 2: return 3;
+            case 3: return 2;
+            case 4: return 9;
+            case 5: return 8;
+            case 6: return 11;
+            case 7: return 10;
+            case 8: return 5;
+            case 9: return 4;
+            case 10: return 7;
+            case 11: return 6;
+            case 12: return 13;
+            case 13: return 12;
+            case 14: return 15;
+            default: return 14;
+        }
+    };
+
+    for (int ic = 0; ic < ic_block; ic++)
+        store(src_zmm(get_vec_idx(ic)), ic);
 }
 
 void jit_trans_iw_ic_int16_t::generate() {
@@ -646,7 +665,7 @@ void jit_trans_iw_ic_int16_t::generate() {
     const int str_w = conf_->stride_w;
     assert(tr_iw % str_w == 0);
     const int tr_iw_s = tr_iw / str_w;
-    assert(transpose_size == ic_block);
+    assert(transpose_size >= ic_block);
 
     auto kmovw = [=](Opmask k, unsigned w) {
         mov(regw_tmp, w);
@@ -1297,7 +1316,8 @@ void jit_transpose4x16_src::generate() {
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf) {
     if (conf->ver == ver_4fma && !conf->is_1stconv)
         return new jit_trans_iw_ic_t(conf);
-    if (conf->ver == ver_vnni && !conf->is_1stconv)
+    if (conf->ver == ver_vnni
+            && IMPLICATION(conf->is_1stconv, conf->transpose_src))
         return new jit_trans_iw_ic_int16_t(conf);
     if (conf->ver == ver_4fma && conf->is_1stconv)
         return new jit_trans_iw_x4_4x_t(conf);
