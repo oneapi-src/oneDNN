@@ -29,14 +29,39 @@ namespace ocl {
 status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
     using namespace format_tag;
 
-    const convolution_desc_t &cd = *desc();
-    const memory_desc_wrapper src_mdw(src_md());
-    const memory_desc_wrapper weights_mdw(weights_md());
-    const memory_desc_wrapper dst_mdw(dst_md());
-    const memory_desc_wrapper bias_mdw(weights_md(1));
+    const memory_desc_t *src = src_md();
+    const memory_desc_t *dst = dst_md();
+    const memory_desc_t *wei = weights_md();
+    const memory_desc_t *bia = weights_md(1);
 
-    set_default_conf(conf, cd, *src_md(), *weights_md(), *dst_md(),
-            *weights_md(1), *attr());
+    memory_desc_t r_src, r_wei, r_dst;
+
+    int ndims = src_md()->ndims;
+
+    // XXX: try reduce number of spatial dims when iw/ow/kw=1,
+    // memory tags will be selected based on the number of input dimensions
+    bool use_reshaped_mem = ndims > 3;
+    if (dnnl_memory_desc_reshape(&r_src, src, src->ndims - 1, src->dims)
+            != status::success)
+        use_reshaped_mem = false;
+    if (dnnl_memory_desc_reshape(&r_dst, dst, dst->ndims - 1, dst->dims)
+            != status::success)
+        use_reshaped_mem = false;
+    if (dnnl_memory_desc_reshape(&r_wei, wei, wei->ndims - 1, wei->dims)
+            != status::success)
+        use_reshaped_mem = false;
+
+    if (use_reshaped_mem) {
+        src = &r_src;
+        dst = &r_dst;
+        wei = &r_wei;
+    }
+
+    const convolution_desc_t &cd = *desc();
+    const memory_desc_wrapper src_mdw(src);
+    const memory_desc_wrapper dst_mdw(dst);
+
+    set_default_conf(conf, cd, *src, *wei, *dst, *bia, *attr());
 
     status_t status = status::success;
 
@@ -158,34 +183,30 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
 
     format_tag_t src_tag, dst_tag, wei_tag;
     if (conf.mb_block == 32) {
-        src_tag = utils::pick(
-                conf.ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
-        dst_tag = utils::pick(
-                conf.ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
+        src_tag = utils::pick(ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
+        dst_tag = utils::pick(ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
     } else {
-        src_tag = utils::pick(conf.ndims - 3, nCw32c, nChw32c, nCdhw32c);
-        dst_tag = utils::pick(conf.ndims - 3, nCw32c, nChw32c, nCdhw32c);
+        src_tag = utils::pick(ndims - 3, nCw32c, nChw32c, nCdhw32c);
+        dst_tag = utils::pick(ndims - 3, nCw32c, nChw32c, nCdhw32c);
     }
 
     if (!conf.is_depthwise && conf.ver == ver_1stconv) {
         src_tag = (conf.is_nchw)
-                ? utils::pick(conf.ndims - 3, ncw, nchw, ncdhw)
-                : utils::pick(conf.ndims - 3, nCw4c, nChw4c, nCdhw4c);
+                ? utils::pick(ndims - 3, ncw, nchw, ncdhw)
+                : utils::pick(ndims - 3, nCw4c, nChw4c, nCdhw4c);
     }
     if (conf.is_depthwise) {
-        wei_tag = utils::pick(conf.ndims - 3, Goiw32g, Goihw32g, Goidhw32g);
+        wei_tag = utils::pick(ndims - 3, Goiw32g, Goihw32g, Goidhw32g);
     } else {
         if (conf.ver == ver_1stconv) {
             wei_tag = conf.with_groups
-                    ? utils::pick(
-                            conf.ndims - 3, gOIw8o4i, gOIhw8o4i, gOIdhw8o4i)
-                    : utils::pick(conf.ndims - 3, OIw8o4i, OIhw8o4i, OIdhw8o4i);
+                    ? utils::pick(ndims - 3, gOIw8o4i, gOIhw8o4i, gOIdhw8o4i)
+                    : utils::pick(ndims - 3, OIw8o4i, OIhw8o4i, OIdhw8o4i);
         } else {
-            wei_tag = conf.with_groups
-                    ? utils::pick(conf.ndims - 3, gOIw4o8i8o4i, gOIhw4o8i8o4i,
-                            gOIdhw4o8i8o4i)
-                    : utils::pick(conf.ndims - 3, OIw4o8i8o4i, OIhw4o8i8o4i,
-                            OIdhw4o8i8o4i);
+            wei_tag = conf.with_groups ? utils::pick(ndims - 3, gOIw4o8i8o4i,
+                              gOIhw4o8i8o4i, gOIdhw4o8i8o4i)
+                                       : utils::pick(ndims - 3, OIw4o8i8o4i,
+                                               OIhw4o8i8o4i, OIdhw4o8i8o4i);
         }
     }
     conf.src_tag = src_tag;
