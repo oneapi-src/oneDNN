@@ -20,49 +20,73 @@
 #include "gpu/ocl/ocl_post_ops.h"
 #endif
 
+#if IC % IC_BLOCK != 0
+#define IC_NBLOCKS_TAIL ((IC - (IC & ~(IC_BLOCK - 1)) + 3) / 4)
+#else
+#define IC_NBLOCKS_TAIL 8
+#endif
+
 #if SP_BLOCK == 4
 #define ACC_DATA_BLOCK int4
 #define SRC_DATA_BLOCK_T MMAD_DATA4_T
 #define DST_DATA_BLOCK_T uint4
-#define MMAD mmad8x4
 #define BLOCK_READ_SRC(data, idx) \
     data = AS_MMAD_DATA4_T( \
             intel_sub_group_block_read4((__global uint *)&src[idx]));
-
+DECLARE_MMAD(_full0, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 4, 8)
+DECLARE_MMAD(_tail0, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 4,
+        IC_NBLOCKS_TAIL)
+#define MMAD_FULL0 mmad_full0
+#define MMAD_TAIL0 mmad_tail0
 #else
 #define ACC_DATA_BLOCK int8
 #define SRC_DATA_BLOCK_T MMAD_DATA8_T
 #define DST_DATA_BLOCK_T uint8
-#define MMAD mmad8x8
 #define BLOCK_READ_SRC(data, idx) \
     data = AS_MMAD_DATA8_T( \
             intel_sub_group_block_read8((__global uint *)&src[idx]));
+DECLARE_MMAD(_full0, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 8, 8)
+DECLARE_MMAD(_tail0, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 8,
+        IC_NBLOCKS_TAIL)
+#define MMAD_FULL0 mmad_full0
+#define MMAD_TAIL0 mmad_tail0
 #endif
 
 #if SP_BLOCK == 12
 #define ACC_DATA_BLOCK1 int4
 #define SRC_DATA_BLOCK_T1 MMAD_DATA4_T
 #define DST_DATA_BLOCK_T1 uint4
-#define MMAD1 mmad8x4
 #define BLOCK_READ_SRC1(data, idx) \
     data = AS_MMAD_DATA4_T( \
             intel_sub_group_block_read4((__global uint *)&src[idx]));
-
+DECLARE_MMAD(_full1, SRC_DATA_BLOCK_T1, ACC_DATA_BLOCK1, MMAD_DATA8_T, 4, 8)
+DECLARE_MMAD(_tail1, SRC_DATA_BLOCK_T1, ACC_DATA_BLOCK1, MMAD_DATA8_T, 4,
+        IC_NBLOCKS_TAIL)
+#define MMAD_FULL1 mmad_full1
+#define MMAD_TAIL1 mmad_tail1
 #else
 #define ACC_DATA_BLOCK1 int8
 #define SRC_DATA_BLOCK_T1 MMAD_DATA8_T
 #define DST_DATA_BLOCK_T1 uint8
-#define MMAD1 mmad8x8
 #define BLOCK_READ_SRC1(data, idx) \
     data = AS_MMAD_DATA8_T( \
             intel_sub_group_block_read8((__global uint *)&src[idx]));
+DECLARE_MMAD(_full1, SRC_DATA_BLOCK_T1, ACC_DATA_BLOCK1, MMAD_DATA8_T, 8, 8)
+DECLARE_MMAD(_tail1, SRC_DATA_BLOCK_T1, ACC_DATA_BLOCK1, MMAD_DATA8_T, 8,
+        IC_NBLOCKS_TAIL)
+#define MMAD_FULL1 mmad_full1
+#define MMAD_TAIL1 mmad_tail1
 #endif
 
 #if INT8_WEI_SLM
-#define BLOCK_READ_WHT(data, idx) \
+#define BLOCK_READ_WHT_1x32(data, idx) \
+    data = as_int(READ_LOCAL_1((__local uint *)&wei_tmp[idx]));
+#define BLOCK_READ_WHT_8x32(data, idx) \
     data = as_int8(READ_LOCAL_8((__local uint *)&wei_tmp[idx]));
 #else
-#define BLOCK_READ_WHT(data, idx) \
+#define BLOCK_READ_WHT_1x32(data, idx) \
+    data = as_int(intel_sub_group_block_read((__global uint *)&wei[idx]));
+#define BLOCK_READ_WHT_8x32(data, idx) \
     data = as_int8(intel_sub_group_block_read8((__global uint *)&wei[idx]));
 #endif
 
@@ -177,7 +201,7 @@ gen12lp_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
 
             SRC_DATA_BLOCK_T S0;
             SRC_DATA_BLOCK_T1 S1;
-            int8 W0, W1, W2, W3;
+
 #if OUT_SP_TAIL
             if (sp + SP_BLOCK > OW * OH) {
 #if OUT_SP_TAIL < 8
@@ -203,21 +227,52 @@ gen12lp_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
 #if OUT_SP_TAIL
             }
 #endif
-            BLOCK_READ_WHT(W0, 0);
-            BLOCK_READ_WHT(W1, 8 * IC_BLOCK);
-            BLOCK_READ_WHT(W2, 16 * IC_BLOCK);
-            BLOCK_READ_WHT(W3, 24 * IC_BLOCK);
 
-            C00 = MMAD(S0, W0, C00);
-            C01 = MMAD(S0, W1, C01);
-            C02 = MMAD(S0, W2, C02);
-            C03 = MMAD(S0, W3, C03);
+            int8 W0 = 0, W1 = 0, W2 = 0, W3 = 0;
+
+#if IC % IC_BLOCK != 0
+            if (ic_block_id == IC_NCHUNK - 1) {
+                unroll_for(int i = 0; i < IC_NBLOCKS_TAIL; ++i)
+                        BLOCK_READ_WHT_1x32(W0[i], (i + 0) * IC_BLOCK);
+                if (OC > 8)
+                    unroll_for(int i = 0; i < IC_NBLOCKS_TAIL; ++i)
+                            BLOCK_READ_WHT_1x32(W1[i], (i + 8) * IC_BLOCK);
+                if (OC > 16)
+                    unroll_for(int i = 0; i < IC_NBLOCKS_TAIL; ++i)
+                            BLOCK_READ_WHT_1x32(W2[i], (i + 16) * IC_BLOCK);
+                if (OC > 24)
+                    unroll_for(int i = 0; i < IC_NBLOCKS_TAIL; ++i)
+                            BLOCK_READ_WHT_1x32(W3[i], (i + 24) * IC_BLOCK);
+
+                C00 = MMAD_TAIL0(S0, W0, C00);
+                if (OC > 8) C01 = MMAD_TAIL0(S0, W1, C01);
+                if (OC > 16) C02 = MMAD_TAIL0(S0, W2, C02);
+                if (OC > 24) C03 = MMAD_TAIL0(S0, W3, C03);
 #if (MB_BLOCK == 32 && MB > 8) || SP_BLOCK > 8
-            C10 = MMAD1(S1, W0, C10);
-            C11 = MMAD1(S1, W1, C11);
-            C12 = MMAD1(S1, W2, C12);
-            C13 = MMAD1(S1, W3, C13);
+                C10 = MMAD_TAIL1(S1, W0, C10);
+                if (OC > 8) C11 = MMAD_TAIL1(S1, W1, C11);
+                if (OC > 16) C12 = MMAD_TAIL1(S1, W2, C12);
+                if (OC > 24) C13 = MMAD_TAIL1(S1, W3, C13);
 #endif
+            } else
+#endif // IC % IC_BLOCK != 0
+            {
+                BLOCK_READ_WHT_8x32(W0, 0);
+                if (OC > 8) BLOCK_READ_WHT_8x32(W1, 8 * IC_BLOCK);
+                if (OC > 16) BLOCK_READ_WHT_8x32(W2, 16 * IC_BLOCK);
+                if (OC > 24) BLOCK_READ_WHT_8x32(W3, 24 * IC_BLOCK);
+
+                C00 = MMAD_FULL0(S0, W0, C00);
+                if (OC > 8) C01 = MMAD_FULL0(S0, W1, C01);
+                if (OC > 16) C02 = MMAD_FULL0(S0, W2, C02);
+                if (OC > 24) C03 = MMAD_FULL0(S0, W3, C03);
+#if (MB_BLOCK == 32 && MB > 8) || SP_BLOCK > 8
+                C10 = MMAD_FULL1(S1, W0, C10);
+                if (OC > 8) C11 = MMAD_FULL1(S1, W1, C11);
+                if (OC > 16) C12 = MMAD_FULL1(S1, W2, C12);
+                if (OC > 24) C13 = MMAD_FULL1(S1, W3, C13);
+#endif
+            }
 #if INT8_WEI_SLM && SP_TAIL
         }
 #endif

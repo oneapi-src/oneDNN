@@ -19,6 +19,8 @@
 
 #include "gpu/ocl/ocl_math_utils.h"
 
+#define unroll_for __attribute__((opencl_unroll_hint)) for
+
 #define for_ for
 
 #define CONCAt2(a, b) a##b
