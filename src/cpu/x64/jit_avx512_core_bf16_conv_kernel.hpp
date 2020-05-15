@@ -306,19 +306,19 @@ private:
 
     reg64_t reg_ocb = r11;
 
-    Vmm vmm_inp(int i_ic) {
+    Vmm vmm_ddst(int i_ic) {
         int idx = i_ic + jcp.nb_ic_blocking * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
         return Vmm(idx);
     }
 
-    Vmm_down_t vmm_inp_down(int i_ic) {
+    Vmm_down_t vmm_ddst_down(int i_ic) {
         int idx = i_ic + jcp.nb_ic_blocking * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
         return Vmm_down_t(idx);
     }
 
-    Vmm vmm_out(int i_ur, int i_oc) {
+    Vmm vmm_dsrc(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
         return Vmm(idx);
@@ -360,12 +360,45 @@ private:
         return ur_w - res;
     }
 
+    inline int filter_h_to_dst(int kh) {
+        return kh * (jcp.dilate_h + 1) * jcp.ow;
+    };
+    inline int filter_d_to_dst(int kd) {
+        return kd * (jcp.dilate_d + 1) * jcp.ow * jcp.oh;
+    };
+
     inline size_t get_diff_src_offset(int iw_idx, int n_ic_block) {
         const bool is_nxc_layout = is_dsrc_layout_nxc();
         size_t iw_str = is_nxc_layout ? jcp.ngroups * jcp.ic : jcp.ic_block;
         size_t icb_str = jcp.ic_block
                 * (is_nxc_layout ? 1 : (size_t)jcp.id * jcp.ih * jcp.iw);
         return jcp.typesize_out * (iw_str * iw_idx + icb_str * n_ic_block);
+    }
+
+    inline size_t get_diff_dst_offset(
+            int osp_idx, int oc_within_block_idx, int oc_block_idx = 0) {
+        const bool is_nxc_layout = is_ddst_layout_nxc();
+        size_t osp_str = is_nxc_layout ? jcp.ngroups * jcp.oc : jcp.oc_block;
+        size_t ocb_str = jcp.oc_block
+                * (is_nxc_layout ? 1 : (size_t)jcp.od * jcp.oh * jcp.ow);
+        return jcp.typesize_in
+                * (osp_str * osp_idx + ocb_str * oc_block_idx
+                        + oc_within_block_idx);
+    }
+
+    inline size_t get_kernel_offset(
+            int icb, int oc_idx, int kw, int kh = 0, int kd = 0) {
+        int scale = 2; //bf16 vnni is used
+        int ocb = oc_idx / jcp.oc_block;
+        int oc = oc_idx % jcp.oc_block;
+        size_t ksp_str = jcp.ic_block * jcp.oc_block;
+        size_t ksp_idx = kd * jcp.kh * jcp.kw + kh * jcp.kw + kw;
+
+        size_t icb_str = jcp.kd * jcp.kh * jcp.kw * ksp_str;
+        size_t ocb_str = jcp.nb_ic * icb_str;
+        size_t oc_off = (oc / scale) * jcp.ic_block * scale + (oc % scale);
+        return jcp.typesize_in
+                * (ocb * ocb_str + icb * icb_str + ksp_idx * ksp_str + oc_off);
     }
 
     inline bool is_dsrc_layout_nxc() {
