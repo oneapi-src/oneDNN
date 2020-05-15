@@ -17,6 +17,7 @@
 #include <CL/sycl.hpp>
 
 #include "common/utils.hpp"
+#include "sycl/level_zero_sycl_interop.hpp"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_ocl_gpu_kernel.hpp"
 #include "sycl/sycl_stream.hpp"
@@ -95,8 +96,8 @@ status_t sycl_create_kernel(std::unique_ptr<cl::sycl::kernel> &sycl_kernel,
     CHECK(func_zeModuleCreate(ze_device, &desc, &ze_module, nullptr));
     *handle_to_destroy = ze_module;
 
-    cl::sycl::program sycl_program(
-            sycl_engine->context(), reinterpret_cast<cl_program>(ze_module));
+    cl::sycl::program sycl_program
+            = make_program(sycl_engine->context(), ze_module);
     sycl_kernel.reset(
             new cl::sycl::kernel(sycl_program.get_kernel(kernel_name)));
 
