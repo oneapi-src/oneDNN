@@ -119,12 +119,26 @@ inline int __imad(uchar4 a, char4 b, int c) __attribute__((overloadable)) {
 
 #ifdef cl_intel_subgroup_local_block_io
 
-#define READ_LOCAL_8(_P) intel_sub_group_block_read8(_P)
-#define READ_LOCAL_1(_P) intel_sub_group_block_read(_P)
-#define WRITE_LOCAL_8(_P, _V) intel_sub_group_block_write_ui8(_P, _V)
-#define WRITE_LOCAL_4(_P, _V) intel_sub_group_block_write_ui4(_P, _V)
-#define WRITE_LOCAL_2(_P, _V) intel_sub_group_block_write_ui2(_P, _V)
-#define WRITE_LOCAL_1(_P, _V) intel_sub_group_block_write_ui(_P, _V)
+inline uint8 sub_group_block_read_local8(const __local uint *p)
+        __attribute__((overloadable)) {
+    uint8 __builtin_IB_simd_block_read_8_local(const __local uint *p)
+            __attribute__((const));
+    return __builtin_IB_simd_block_read_8_local(p);
+}
+
+inline uint sub_group_block_read_local(const __local uint *p)
+        __attribute__((overloadable)) {
+    uint __builtin_IB_simd_block_read_1_local(const __local uint *p)
+            __attribute__((const));
+    return __builtin_IB_simd_block_read_1_local(p);
+}
+
+#define READ_LOCAL_8(_P) sub_group_block_read_local8(_P)
+#define READ_LOCAL_1(_P) sub_group_block_read_local(_P)
+#define WRITE_LOCAL_8(_P, _V) intel_sub_group_block_write8(_P, _V)
+#define WRITE_LOCAL_4(_P, _V) intel_sub_group_block_write4(_P, _V)
+#define WRITE_LOCAL_2(_P, _V) intel_sub_group_block_write2(_P, _V)
+#define WRITE_LOCAL_1(_P, _V) intel_sub_group_block_write(_P, _V)
 #define WRITE_LOCAL_SHORT_1(_P, _V) intel_sub_group_block_write_us(_P, _V)
 
 #else
@@ -138,6 +152,7 @@ inline int __imad(uchar4 a, char4 b, int c) __attribute__((overloadable)) {
 #define WRITE_LOCAL_SHORT_1(_P, _V) subgroup_block_write_ushort(_P, _V)
 
 #endif
+
 uint subgroup_block_read_uint(const __local uint *p) {
     uint ret;
     uint idx = get_sub_group_local_id();
