@@ -15,10 +15,8 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_math_utils.h"
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE == 1 || WITH_POST_SUM_ELTWISE == 1
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #define SRC_DATA_BLOCK_T MMAD_DATA8_T
 #define AS_SRC_DATA_BLOCK_T AS_MMAD_DATA8_T
@@ -234,7 +232,7 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
                 tmp[3], eltwise_alpha, eltwise_beta, eltwise_scale); \
     } while (0)
 
-#if WITH_ELTWISE
+#if WITH_ELTWISE && !WITH_POST_SUM_ELTWISE
 #define DO_ELTWISE() ELTWISE();
 #else
 #define DO_ELTWISE() ;

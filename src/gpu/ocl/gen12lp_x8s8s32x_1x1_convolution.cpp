@@ -139,12 +139,6 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
 
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
-    kernel_ctx.define_int("WITH_ELTWISE",
-            conf.attr_info.with_eltwise
-                    && (conf.attr_info.with_sum ? conf.attr_info.eltwise_idx
-                                            < conf.attr_info.sum_idx
-                                                : true));
-    kernel_ctx.define_int("WITH_SUM", conf.attr_info.with_sum);
     kernel_ctx.define_int("WITH_POST_SUM_ELTWISE",
             conf.attr_info.with_eltwise && conf.attr_info.with_sum
                     && conf.attr_info.eltwise_idx > conf.attr_info.sum_idx);

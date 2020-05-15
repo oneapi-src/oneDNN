@@ -15,10 +15,8 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_math_utils.h"
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE || WITH_POST_SUM_ELTWISE
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 inline ushort16 read_block16(const __global ushort *p)
         __attribute__((overloadable)) {
@@ -480,7 +478,7 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
 #define ACC1 S1
 #endif
 
-#if WITH_ELTWISE
+#if WITH_ELTWISE && !WITH_POST_SUM_ELTWISE
     DO_ELTWISE();
 #endif
 

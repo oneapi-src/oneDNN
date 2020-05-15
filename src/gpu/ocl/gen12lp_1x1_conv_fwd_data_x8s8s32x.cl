@@ -15,10 +15,8 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_math_utils.h"
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE == 1 || WITH_POST_SUM_ELTWISE == 1
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #if IC % IC_BLOCK != 0
 #define IC_NBLOCKS_TAIL ((IC - (IC & ~(IC_BLOCK - 1)) + 3) / 4)
@@ -372,7 +370,7 @@ if (sp + SP_BLOCK > OW * OH) {
                 tmp[3], eltwise_alpha, eltwise_beta, eltwise_scale); \
     } while (0)
 
-#if WITH_ELTWISE
+#if WITH_ELTWISE && !WITH_POST_SUM_ELTWISE
 #define DO_ELTWISE() ELTWISE();
 #else
 #define DO_ELTWISE() ;

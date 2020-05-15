@@ -15,10 +15,8 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_math_utils.h"
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE == 1 || WITH_POST_SUM_ELTWISE == 1
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #define KDHW_SIZE (KH * KW * KD)
 
@@ -626,7 +624,7 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
                 tmp1.s7, eltwise_alpha, eltwise_beta, eltwise_scale); \
     } while (0)
 
-#if WITH_ELTWISE
+#if WITH_ELTWISE && !WITH_POST_SUM_ELTWISE
 #define DO_ELTWISE() ELTWISE();
 #define DO_ELTWISE_4() ELTWISE_4();
 #else

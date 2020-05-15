@@ -15,10 +15,8 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_math_utils.h"
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE || WITH_POST_SUM_ELTWISE
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #define KDHW_SIZE KD *KH *KW
 
@@ -210,7 +208,7 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     tmp01 *= SCALE_VEC8;
 #endif
 
-#if WITH_ELTWISE
+#if WITH_ELTWISE && !WITH_POST_SUM_ELTWISE
     DO_ELTWISE();
 #endif
 #if WITH_SUM
