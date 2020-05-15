@@ -227,13 +227,13 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
                 tmp[3], eltwise_alpha, eltwise_beta, eltwise_scale); \
     } while (0)
 
-#if WITH_ELTWISE && !WITH_POST_SUM_ELTWISE
+#if ELTWISE_IDX == 0
 #define DO_ELTWISE() ELTWISE();
 #else
 #define DO_ELTWISE() ;
 #endif
 
-#if WITH_POST_SUM_ELTWISE
+#if ELTWISE_IDX == 1
 #define DO_POST_SUM_ELTWISE() ELTWISE();
 #else
 #define DO_POST_SUM_ELTWISE() ;

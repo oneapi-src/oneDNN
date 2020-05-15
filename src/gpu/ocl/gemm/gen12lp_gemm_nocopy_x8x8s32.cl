@@ -16,10 +16,8 @@
 
 #include "gpu/ocl/ocl_math_utils.h"
 
-#include "gpu/ocl/ocl_types.h"
-#if WITH_ELTWISE == 1
 #include "gpu/ocl/ocl_post_ops.h"
-#endif
+#include "gpu/ocl/ocl_types.h"
 
 #if defined(S8S8)
 #define A_TYPE char

@@ -289,13 +289,7 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("SRC_SLM_SIZE", conf.src_slm_size);
 
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
-    kernel_ctx.define_int("WITH_POST_SUM_ELTWISE",
-            conf.attr_info.with_eltwise && conf.attr_info.with_sum
-                    && conf.attr_info.eltwise_idx > conf.attr_info.sum_idx);
     def_attr_info(kernel_ctx, conf.attr_info);
-
-    kernel_ctx.define_int("SCALES_COMMON", conf.attr_info.common_oscales);
-    kernel_ctx.define_int("SCALES_PER_OC", conf.attr_info.with_per_oc_oscales);
 
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
     kernel_ctx.define_int("LWS_0", conf.lws_d[0]);

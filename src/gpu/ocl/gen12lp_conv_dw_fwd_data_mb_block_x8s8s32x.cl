@@ -208,7 +208,7 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     tmp01 *= SCALE_VEC8;
 #endif
 
-#if WITH_ELTWISE && !WITH_POST_SUM_ELTWISE
+#if ELTWISE_IDX == 0
     DO_ELTWISE();
 #endif
 #if WITH_SUM
@@ -221,7 +221,7 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     tmp01 += convert_float8(D00.s89abcdef) * sum_scale;
 #endif // SUM_SCALE
 #endif // WITH_SUM
-#if WITH_POST_SUM_ELTWISE
+#if ELTWISE_IDX == 1
     DO_ELTWISE();
 #endif
 

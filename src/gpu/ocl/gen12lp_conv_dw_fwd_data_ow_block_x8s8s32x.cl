@@ -459,8 +459,7 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
         src += IC_BLOCK * MB_BLOCK * IW * (IH * (1 + DD) - KH * (1 + DH));
     }
 
-#if WITH_ELTWISE || WITH_POST_SUM_ELTWISE || WITH_SUM && !SUM_SCALE \
-        || SCALES_PER_OC || SCALES_COMMON
+#if WITH_ELTWISE || WITH_SUM && !SUM_SCALE1 || SCALES_PER_OC || SCALES_COMMON
     float16 tmp00 = convert_float16(S0) * SCALE;
     float16 tmp01 = convert_float16(S1) * SCALE;
 #define CONVERT_TO_ACC convert_float16
@@ -481,7 +480,7 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
 #define ACC1 S1
 #endif
 
-#if WITH_ELTWISE && !WITH_POST_SUM_ELTWISE
+#if ELTWISE_IDX == 0
     DO_ELTWISE();
 #endif
 
@@ -496,16 +495,16 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
         block_read_dst(min(8, OW_BLOCK), &D0, dst);
         block_read_dst(OW_BLOCK - 8, &D1, dst + 8 * OC_BLOCK);
     }
-#if SUM_SCALE
+#if SUM_SCALE1
     ACC0 += CONVERT_TO_ACC(D0);
     ACC1 += CONVERT_TO_ACC(D1);
-#else // SUM_SCALE
+#else // SUM_SCALE == 1
     ACC0 += CONVERT_TO_ACC(D0) * sum_scale;
     ACC1 += CONVERT_TO_ACC(D1) * sum_scale;
-#endif // SUM_SCALE
+#endif // SUM_SCALE == 1
 #endif // WITH_SUM
 
-#if WITH_POST_SUM_ELTWISE
+#if ELTWISE_IDX == 1
     DO_ELTWISE();
 #endif
 
