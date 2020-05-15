@@ -103,15 +103,18 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     // Currently this kernel only supports 2D convolutions.
     if (ndims != 4) return status::unimplemented;
 
-    auto dat_tag = one_of(isa, avx512_common, avx512_core) ? nChw16c : nChw8c;
-    auto wei_tag = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
+    const auto blocked_tag
+            = one_of(isa, avx512_common, avx512_core) ? nChw16c : nChw8c;
+    const auto wei_tag
+            = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
+    const auto nxc_tag = nhwc;
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     if (src_d.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(src_md, dat_tag));
-        jcp.src_tag = dat_tag;
+        CHECK(memory_desc_init_by_tag(src_md, blocked_tag));
+        jcp.src_tag = blocked_tag;
     } else {
-        jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
+        jcp.src_tag = src_d.matches_one_of_tag(blocked_tag, nxc_tag);
     }
 
     if (weights_d.format_kind() == format_kind::any) {
@@ -122,10 +125,10 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     }
 
     if (dst_d.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(dst_md, dat_tag));
-        jcp.dst_tag = dat_tag;
+        CHECK(memory_desc_init_by_tag(dst_md, blocked_tag));
+        jcp.dst_tag = blocked_tag;
     } else {
-        jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
+        jcp.dst_tag = dst_d.matches_one_of_tag(blocked_tag, nxc_tag);
     }
 
     if (jcp.with_bias) {
@@ -133,8 +136,16 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
             CHECK(memory_desc_init_by_tag(bias_md, format_tag::x));
     }
 
-    jcp.dst_dt = cd.dst_desc.data_type;
+    if (jcp.dst_tag != jcp.src_tag) return status::unimplemented;
+    const auto data_tag = jcp.src_tag;
+    const bool is_data_layout_nxc = data_tag == nxc_tag;
+
     const bool is_bf16 = src_d.data_type() == data_type::bf16;
+
+    // TODO: bf16 not supported yet.
+    if (is_bf16 && is_data_layout_nxc) return status::unimplemented;
+
+    jcp.dst_dt = cd.dst_desc.data_type;
     jcp.isa = (is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16 : isa;
 
     if (!mayiuse(isa) || (is_bf16 && !mayiuse(avx512_core)))
@@ -173,9 +184,26 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     jcp.dilate_h = cd.dilates[0];
     jcp.dilate_w = cd.dilates[1];
 
+    jcp.typesize_out = types::data_type_size(dst_d.data_type());
+    jcp.typesize_in = types::data_type_size(src_d.data_type());
+
+    jcp.loop_order = loop_ngcw;
+
     jcp.ur_w = is_bf16 ? (isa_has_bf16(jcp.isa) ? 6 : 4)
                        : isa == avx512_common ? 6 : isa == avx2 ? 4 : 3;
     jcp.ur_w = nstl::min(jcp.ur_w, jcp.ow);
+
+    if (is_data_layout_nxc) {
+        jcp.loop_order = loop_nhwcg;
+        bool cache_aliasing
+                = (jcp.ngroups * jcp.iw * jcp.typesize_in) % 1024 == 0;
+        if (cache_aliasing) {
+            // currently only tuned for mobilenet-v1 shapes
+            const int limit = jcp.ow > 7 ? 7 : 4;
+            jcp.ur_w = nstl::min(jcp.ur_w, limit);
+        }
+    }
+
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
     int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
@@ -212,15 +240,11 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     }
 
     bool args_ok = true && jcp.oc == jcp.ngroups && jcp.ic == jcp.ngroups
-            && jcp.ngroups % simd_w == 0 && jcp.src_tag == dat_tag
-            && jcp.wei_tag == wei_tag && jcp.dst_tag == dat_tag
-            && jcp.ic <= src_d.padded_dims()[1]
+            && jcp.ngroups % simd_w == 0 && jcp.wei_tag == wei_tag
+            && data_tag != format_tag::undef && jcp.ic <= src_d.padded_dims()[1]
             && jcp.oc <= dst_d.padded_dims()[1]
             && jcp.ngroups <= weights_d.padded_dims()[0];
     if (!args_ok) return status::unimplemented;
-
-    jcp.typesize_out = types::data_type_size(dst_d.data_type());
-    jcp.typesize_in = types::data_type_size(src_d.data_type());
 
     jcp.ch_block = simd_w;
     jcp.nb_ch = jcp.oc / jcp.ch_block;

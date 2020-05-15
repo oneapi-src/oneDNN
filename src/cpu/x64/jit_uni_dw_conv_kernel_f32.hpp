@@ -67,6 +67,7 @@ private:
     reg64_t reg_kh = r15;
     reg64_t iter_kh = rax;
     reg64_t reg_oi = rbx;
+    reg64_t aux_reg_ch_blocks = rsi;
     // fused convolution
     reg64_t reg_input_buffer_ptr = rdx;
     reg64_t aux_reg_input_buffer_ptr = rbp;
@@ -95,6 +96,15 @@ private:
                         utils::div_up(
                                 pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1),
                                 jcp.stride_w));
+    }
+
+    inline bool is_src_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_dst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
     }
 
     jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
