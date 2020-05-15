@@ -32,9 +32,6 @@ special handling.
 
 ### Level Zero Backend Support
 
-@note
-    Currently, oneDNN does not support Level Zero on Windows.
-
 Level Zero backend support is optional. Additional dependencies include [Level
 Zero headers](https://github.com/oneapi-src/level-zero/) and should be handled
 by the user. Level Zero backend support is enabled implicitly if CMake is able
