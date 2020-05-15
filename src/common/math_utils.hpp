@@ -162,18 +162,6 @@ inline U elu_bwd_use_dst(T dd, T d, A alpha) {
     return (U)(dd * (d > 0 ? 1 : d + alpha));
 }
 
-template <typename T, typename A,
-        typename U = typename utils::remove_reference<T>::type>
-inline U swish_fwd(T s, A alpha) {
-    return (U)(s / (1 + ::expf(-alpha * (float)s)));
-}
-template <typename T, typename A,
-        typename U = typename utils::remove_reference<T>::type>
-inline U swish_bwd(T dd, T s, A alpha) {
-    float v = 1 / (1.0f + ::expf((float)-s * alpha));
-    return dd * (v + s * alpha * v * (1 - v));
-}
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U square_fwd(T s) {
     return s * s;
@@ -231,28 +219,44 @@ inline U bounded_relu_bwd(T dd, T s, A alpha) {
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
-inline U soft_relu_fwd(T s) {
-    float max_logf = 8.872284e+01; //::logf(FLT_MAX)
-    return s < max_logf ? (U)(::log1pf(::expf((float)s))) : s;
-}
-template <typename T, typename U = typename utils::remove_reference<T>::type>
-inline U soft_relu_bwd(T dd, T s) {
-    return (U)(dd / (1 + ::expf((float)(-s))));
-}
-
-template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U logistic_fwd(T s) {
-    float v = ::expf((float)-s);
-    return (U)(1. / (1 + v));
+    // Here we avoid division/inverse by infinity as some architectures have
+    // non-standard behavior
+    float exp_overflow_bound = 88.72283172607421875;
+    float in = (float)-s;
+    return in < exp_overflow_bound ? (U)(1.f / (1.f + ::expf(in))) : 0.f;
 }
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U logistic_bwd(T dd, T s) {
-    float v = logistic_fwd<T, float>(s);
+    float v = logistic_fwd<float>(s);
     return (U)(dd * v * (1 - v));
 }
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U logistic_bwd_use_dst(T dd, T d) {
     return (U)(dd * d * (1 - d));
+}
+
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U soft_relu_fwd(T s) {
+    float exp_overflow_bound = 88.72283172607421875;
+    float in = (float)s;
+    return in < exp_overflow_bound ? (U)(::log1pf(::expf(in))) : (U)in;
+}
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U soft_relu_bwd(T dd, T s) {
+    return (U)(dd * logistic_fwd<float>(s));
+}
+
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U swish_fwd(T s, A alpha) {
+    return (U)(s * logistic_fwd<float>(alpha * s));
+}
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U swish_bwd(T dd, T s, A alpha) {
+    float v = logistic_fwd<float>(alpha * s);
+    return dd * (v + s * alpha * v * (1 - v));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
