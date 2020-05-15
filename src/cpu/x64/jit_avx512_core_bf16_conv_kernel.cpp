@@ -89,34 +89,34 @@ inline bool is_1stconv(const jit_conv_conf_t &jcp) {
 } // namespace
 
 template <typename Vmm>
-void _jit_avx512_core_bf16_fwd_kernel<Vmm>::prepare_output(int ur_w) {
+void _jit_avx512_core_bf16_fwd_kernel<Vmm>::prepare_dst(int ur_w) {
     for (int k = 0; k < jcp.nb_oc_blocking; k++)
         for (int j = 0; j < ur_w; j++) {
-            Vmm vmm = vmm_out(j, k);
+            Vmm vmm = vmm_dst(j, k);
             vpxord(vmm, vmm, vmm);
         }
 }
 
 template <typename Vmm>
-void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_output(int ur_w) {
+void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_dst(int ur_w) {
     Label store_label;
     if (!isa_has_bf16(jcp.isa)) bf16_emu_->init_vcvtneps2bf16();
 
     if (jcp.with_sum) {
         for (int k = 0; k < jcp.nb_oc_blocking; k++) {
             for (int j = 0; j < ur_w; j++) {
-                Vmm vmm = vmm_out(j, k);
-                size_t aux_output_offset = get_output_offset(j, k);
+                Vmm vmm = vmm_dst(j, k);
+                size_t aux_dst_offset = get_dst_offset(j, k);
                 if (jcp.dst_dt == data_type::bf16) {
                     vpmovzxwd(vmm_prev_dst,
-                            make_safe_addr(reg_out, aux_output_offset,
-                                    reg_out_long_offt));
+                            make_safe_addr(reg_dst, aux_dst_offset,
+                                    reg_dst_long_offt));
                     vpslld(vmm_prev_dst, vmm_prev_dst, 16);
                     vaddps(vmm, vmm_prev_dst);
                 } else {
                     vaddps(vmm,
-                            make_safe_addr(reg_out, aux_output_offset,
-                                    reg_out_long_offt));
+                            make_safe_addr(reg_dst, aux_dst_offset,
+                                    reg_dst_long_offt));
                 }
             }
         }
@@ -127,7 +127,7 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_output(int ur_w) {
         for (int k = 0; k < jcp.nb_oc_blocking; k++) {
             int bias_offset = jcp.typesize_bia * k * jcp.oc_block;
             for (int j = 0; j < ur_w; j++) {
-                Vmm vmm = vmm_out(j, k);
+                Vmm vmm = vmm_dst(j, k);
                 if (jcp.bia_dt == data_type::bf16) {
                     vpmovzxwd(vmm_bias,
                             EVEX_compress_addr(reg_bias, bias_offset));
@@ -154,9 +154,9 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_output(int ur_w) {
     if (jcp.dst_dt == data_type::f32) {
         for (int k = 0; k < jcp.nb_oc_blocking; k++)
             for (int j = 0; j < ur_w; j++) {
-                Vmm vmm = vmm_out(j, k);
-                size_t aux_output_offset = get_output_offset(j, k);
-                auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
+                Vmm vmm = vmm_dst(j, k);
+                size_t aux_dst_offset = get_dst_offset(j, k);
+                auto addr = EVEX_compress_addr(reg_dst, aux_dst_offset);
                 vmovups(addr, vmm);
             }
     } else if (jcp.dst_dt == data_type::bf16) {
@@ -167,18 +167,18 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_output(int ur_w) {
             for (int j = 0; j < ur_w; j++) {
                 int k = 0;
                 for (; k < rnd_dn(jcp.nb_oc_blocking, 2); k += 2) {
-                    Vmm vmm = vmm_out(j, k);
-                    Vmm vmm_next = vmm_out(j, k + 1);
-                    size_t aux_output_offset = get_output_offset(j, k);
-                    auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
+                    Vmm vmm = vmm_dst(j, k);
+                    Vmm vmm_next = vmm_dst(j, k + 1);
+                    size_t aux_dst_offset = get_dst_offset(j, k);
+                    auto addr = EVEX_compress_addr(reg_dst, aux_dst_offset);
                     vcvtne2ps2bf16(vmm, vmm_next, vmm);
                     vmovups(addr, vmm);
                 }
                 if (jcp.nb_oc_blocking % 2 != 0) {
-                    Vmm vmm = vmm_out(j, k);
+                    Vmm vmm = vmm_dst(j, k);
                     auto vmm_down = Vmm_down_t(vmm.getIdx());
-                    size_t aux_output_offset = get_output_offset(j, k);
-                    auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
+                    size_t aux_dst_offset = get_dst_offset(j, k);
+                    auto addr = EVEX_compress_addr(reg_dst, aux_dst_offset);
                     vcvtneps2bf16(vmm_down, vmm);
                     vmovups(addr, vmm_down);
                 }
@@ -189,19 +189,19 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_output(int ur_w) {
             for (int k = 0; k < jcp.nb_oc_blocking; k++) {
                 int n_2bf2ps = (ur_w / 2) * 2, j = 0;
                 for (j = 0; j < n_2bf2ps; j += 2) {
-                    size_t aux_output_offset = get_output_offset(j, k);
-                    auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
+                    size_t aux_dst_offset = get_dst_offset(j, k);
+                    auto addr = EVEX_compress_addr(reg_dst, aux_dst_offset);
 
-                    auto vmm_str = vmm_inp(j, jcp.nb_oc_blocking);
-                    vcvtne2ps2bf16(vmm_str, vmm_out(j + 1, k), vmm_out(j, k));
+                    auto vmm_str = vmm_src(j, jcp.nb_oc_blocking);
+                    vcvtne2ps2bf16(vmm_str, vmm_dst(j + 1, k), vmm_dst(j, k));
                     vmovups(addr, vmm_str);
                 }
                 if (j < ur_w) {
-                    size_t aux_output_offset = get_output_offset(j, k);
+                    size_t aux_dst_offset = get_dst_offset(j, k);
 
-                    auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
-                    auto vmm_down_str = vmm_inp_down(j, jcp.nb_oc_blocking);
-                    vcvtneps2bf16(vmm_down_str, vmm_out(j, k));
+                    auto addr = EVEX_compress_addr(reg_dst, aux_dst_offset);
+                    auto vmm_down_str = vmm_src_down(j, jcp.nb_oc_blocking);
+                    vcvtneps2bf16(vmm_down_str, vmm_dst(j, k));
                     if (jcp.simd_w == 4)
                         vpextrq(addr, vmm_down_str, 0);
                     else
@@ -211,10 +211,10 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_output(int ur_w) {
         } else {
             for (int k = 0; k < jcp.nb_oc_blocking; k++)
                 for (int j = 0; j < ur_w; j++) {
-                    Vmm vmm = vmm_out(j, k);
-                    size_t aux_output_offset = get_output_offset(j, k);
-                    auto addr = EVEX_compress_addr(reg_out, aux_output_offset);
-                    auto vmm_down = vmm_inp_down(0, jcp.nb_oc_blocking);
+                    Vmm vmm = vmm_dst(j, k);
+                    size_t aux_dst_offset = get_dst_offset(j, k);
+                    auto addr = EVEX_compress_addr(reg_dst, aux_dst_offset);
+                    auto vmm_down = vmm_src_down(0, jcp.nb_oc_blocking);
                     bf16_emu_->vcvtneps2bf16(
                             Ymm(vmm_down.getIdx()), Zmm(vmm.getIdx()));
                     if (jcp.simd_w == 4)
@@ -231,38 +231,31 @@ template <typename Vmm>
 void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
         int ur_w, int pad_l, int pad_r) {
     Label kh_label, kd_label;
-    const int inp_mul = is_src_layout_nxc()
-            ? jcp.ngroups * jcp.ic
-            : (jcp.is_1stconv ? 1 : jcp.ic_block);
-    const size_t shift_kernel_ptr = (size_t)jcp.typesize_in * jcp.kw
-            * jcp.oc_block * utils::rnd_up(jcp.ic_block, 2);
-    const size_t shift_input_ptr
-            = (size_t)jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw * inp_mul;
 
-    /* max_input_offset is explicitly used in the 1st convolution.
+    /* max_src_offset is explicitly used in the 1st convolution.
      * Set its value so that accessing the double-word memory
      * referenced by ptr[src_base + offset] is safe whenever
-     *     0 <= offset < max_input_offset
+     *     0 <= offset < max_src_offset
      *
      * Note: Since the arguments pad_l, pad_r might not exactly match
      * with jcp.l_pad and jcp.r_pad respectively so this value needs to be
      * computed separately for each invocation of the compute_loop.
      */
-    size_t max_input_offset = 0;
+    dim_t max_src_offset = 0;
     if (jcp.is_1stconv) {
         for (int ki = 0; ki < jcp.kw; ki++) {
             int ow_fst = get_ow_start(ki, pad_l);
             int ow_last = get_ow_end(ur_w, ki, pad_r) - 1;
             if (ow_fst > ow_last) continue;
-            int ic_last = div_up(nstl::min(jcp.ic_block, jcp.ic), 2) - 1;
+            int ic_last = rnd_up(nstl::min(jcp.ic_block, jcp.ic), 2) - 2;
 
-            size_t input_offset = get_input_offset(ki, ic_last, ow_last, pad_l);
-            if (input_offset > max_input_offset)
-                max_input_offset = input_offset;
+            dim_t src_offset = get_src_offset(
+                    ic_last, filter_w_to_src(ki, ow_last, pad_l));
+            if (src_offset > max_src_offset) max_src_offset = src_offset;
         }
     }
 
-    prepare_output(ur_w);
+    prepare_dst(ur_w);
 
     Label skip_compute_loop;
     if (jcp.ndims == 5) {
@@ -290,39 +283,36 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
     if (jcp.ndims == 5) {
         mov(reg_ki, ptr[param1 + GET_OFF(kd_padding)]);
         mov(aux_reg_ker_d, reg_ker);
-        mov(aux_reg_inp_d, reg_inp);
+        mov(aux_reg_src_d, reg_src);
 
         L(kd_label);
-        mov(aux_reg_inp, aux_reg_inp_d);
+        mov(aux_reg_src, aux_reg_src_d);
         mov(aux_reg_ker, aux_reg_ker_d);
     } else {
-        mov(aux_reg_inp, reg_inp);
+        mov(aux_reg_src, reg_src);
         mov(aux_reg_ker, reg_ker);
     }
 
     mov(reg_kj, reg_kh);
 
-    const size_t ic_stride
-            = static_cast<size_t>(jcp.id) * jcp.ih * jcp.iw * jcp.typesize_in;
     L(kh_label);
     {
         for (int ki = 0; ki < jcp.kw; ki++) {
             int ow_start = get_ow_start(ki, pad_l);
             int ow_end = get_ow_end(ur_w, ki, pad_r);
-            for (int ic = 0; ic < div_up(nstl::min(jcp.ic_block, jcp.ic), 2);
-                    ic++) {
+            for (int ic = 0; ic < rnd_up(nstl::min(jcp.ic_block, jcp.ic), 2);
+                    ic += 2) {
                 for (int oi = ow_start; oi < ow_end; oi++) {
-                    size_t input_offset = get_input_offset(ki, ic, oi, pad_l);
-                    auto vmm_in = vmm_inp(oi, jcp.nb_oc_blocking);
+                    dim_t src_offset = get_src_offset(
+                            ic, filter_w_to_src(ki, oi, pad_l));
+                    auto vmm_in = vmm_src(oi, jcp.nb_oc_blocking);
                     const auto addr_base
-                            = EVEX_compress_addr(aux_reg_inp, input_offset);
+                            = EVEX_compress_addr(aux_reg_src, src_offset);
 
                     if (jcp.is_1stconv) {
-                        const bool need_single_load = (2 * ic + 1 == jcp.ic);
+                        const bool need_single_load = (ic + 1 == jcp.ic);
                         const bool safe_overstep
-                                = (input_offset < max_input_offset);
-                        const auto addr_strided = EVEX_compress_addr(
-                                aux_reg_inp, input_offset + ic_stride);
+                                = (src_offset < max_src_offset);
 
                         /* For the comment below, let us define three words
                          * x_b = ptr[addr_base] and x_s = ptr[addr_strided]
@@ -357,6 +347,9 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
                         else if (need_single_load && safe_overstep)
                             vpbroadcastd(vmm_in, addr_base);
                         else {
+                            const auto addr_strided
+                                    = EVEX_compress_addr(aux_reg_src,
+                                            src_offset + get_src_offset(1, 0));
                             vpbroadcastd(vmm_in, addr_base);
                             vpbroadcastw(vmm_in | even_load_mask, addr_strided);
                         }
@@ -365,23 +358,22 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
                     }
                 }
                 for (int kk = 0; kk < jcp.nb_oc_blocking; kk++) {
-                    size_t kernel_offset = get_kernel_offset(ki, ic, kk, 0);
-                    vmovups(vmm_wei,
-                            EVEX_compress_addr(aux_reg_ker, kernel_offset));
+                    auto wei_off = get_kernel_offset(kk, ic, ki);
+                    vmovups(vmm_wei, EVEX_compress_addr(aux_reg_ker, wei_off));
                     for (int oi = ow_start; oi < ow_end; oi++) {
-                        auto acc = vmm_out(oi, kk);
-                        auto inp = vmm_inp(oi, jcp.nb_oc_blocking);
+                        auto acc = vmm_dst(oi, kk);
+                        auto src = vmm_src(oi, jcp.nb_oc_blocking);
                         if (isa_has_bf16(jcp.isa)) {
-                            vdpbf16ps(acc, vmm_wei, inp);
+                            vdpbf16ps(acc, vmm_wei, src);
                         } else
                             bf16_emu_->vdpbf16ps(Zmm(acc.getIdx()),
-                                    Zmm(vmm_wei.getIdx()), Zmm(inp.getIdx()));
+                                    Zmm(vmm_wei.getIdx()), Zmm(src.getIdx()));
                     }
                 }
             }
         }
-        add(aux_reg_ker, shift_kernel_ptr);
-        add(aux_reg_inp, shift_input_ptr);
+        add(aux_reg_ker, get_kernel_offset(0, 0, 0, 1));
+        add(aux_reg_src, get_src_offset(0, filter_h_to_src(1)));
 
         dec(reg_kj);
         cmp(reg_kj, 0);
@@ -389,36 +381,28 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
     }
 
     if (jcp.ndims == 5) {
-        add(aux_reg_inp_d,
-                jcp.typesize_in * (jcp.dilate_d + 1) * jcp.ih * jcp.iw
-                        * inp_mul);
-        add(aux_reg_ker_d,
-                jcp.typesize_in * jcp.kw * jcp.kh * jcp.oc_block
-                        * utils::rnd_up(jcp.ic_block, 2));
-
+        add(aux_reg_src_d, get_src_offset(0, filter_d_to_src(1)));
+        add(aux_reg_ker_d, get_kernel_offset(0, 0, 0, 0, 1));
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
     }
 
     // End of IC Loop
-    size_t inp_step = is_src_layout_nxc()
-            ? jcp.ic_block
-            : (size_t)jcp.id * jcp.ih * jcp.iw * inp_mul;
-    size_t ker_step = (size_t)jcp.kd * jcp.kh * jcp.kw * jcp.oc_block
-            * utils::rnd_up(jcp.ic_block, 2);
-    add(reg_inp, jcp.typesize_in * inp_step);
-    add(reg_ker, jcp.typesize_in * ker_step);
+    dim_t src_step = get_src_offset(jcp.ic_block, 0);
+    size_t ker_step = get_kernel_offset(0, jcp.ic_block, 0);
+    add(reg_src, src_step);
+    add(reg_ker, ker_step);
 
     dec(reg_icb);
     cmp(reg_icb, 0);
     jg(icb_label, T_NEAR);
 
-    sub(reg_inp, jcp.typesize_in * inp_step * jcp.nb_ic);
-    sub(reg_ker, jcp.typesize_in * ker_step * jcp.nb_ic);
+    sub(reg_src, src_step * jcp.nb_ic);
+    sub(reg_ker, ker_step * jcp.nb_ic);
 
     L(skip_compute_loop);
-    store_output(ur_w);
+    store_dst(ur_w);
 }
 
 template <typename Vmm>
@@ -433,15 +417,12 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
     int ur_w_tail = jcp.ur_w_tail;
     int stride_w = jcp.stride_w;
 
-    int inp_mult = is_src_layout_nxc() ? jcp.ngroups * jcp.ic
-                                       : (jcp.is_1stconv ? 1 : jcp.ic_block);
-    int out_mult = is_dst_layout_nxc() ? jcp.ngroups * jcp.oc : jcp.oc_block;
+    auto src_shift = get_src_offset(0, filter_w_to_src(0, ur_w));
+    auto dst_shift = get_dst_offset(ur_w, 0);
 
-    size_t inp_shift = (size_t)jcp.typesize_in * ur_w * stride_w * inp_mult;
-    size_t out_shift = (size_t)jcp.typesize_out * ur_w * out_mult;
-
-    int inp_shift_pad = jcp.typesize_in * (ur_w * stride_w - l_pad) * inp_mult;
-    int inp_shift_pad_second_block = -1 * jcp.typesize_in * l_pad * inp_mult;
+    auto src_shift_pad = get_src_offset(0, filter_w_to_src(0, ur_w, l_pad));
+    auto src_shift_pad_second_block
+            = get_src_offset(0, filter_w_to_src(0, 0, l_pad));
 
     preamble();
 
@@ -455,8 +436,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
         kmovq(even_load_mask, reg_alt_mask);
     }
 
-    mov(reg_inp, ptr[param1 + GET_OFF(src)]);
-    mov(reg_out, ptr[param1 + GET_OFF(dst)]);
+    mov(reg_src, ptr[param1 + GET_OFF(src)]);
+    mov(reg_dst, ptr[param1 + GET_OFF(dst)]);
     mov(reg_ker, ptr[param1 + GET_OFF(filt)]);
     mov(reg_kh, ptr[param1 + GET_OFF(kh_padding)]);
 
@@ -475,14 +456,14 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
         } else {
             if (n_oi == 0) {
                 compute_loop(ur_w, l_pad, r_pad1);
-                add(reg_inp, inp_shift_pad);
-                add(reg_out, out_shift);
+                add(reg_src, src_shift_pad);
+                add(reg_dst, dst_shift);
                 if (ur_w_tail != 0) { compute_loop(ur_w_tail, 0, r_pad); }
             } else {
                 if (l_pad > 0) {
                     compute_loop(ur_w, l_pad, 0);
-                    add(reg_inp, inp_shift_pad);
-                    add(reg_out, out_shift);
+                    add(reg_src, src_shift_pad);
+                    add(reg_dst, dst_shift);
                     inc(reg_oi);
                 }
                 if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
@@ -490,8 +471,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
                     L(ow_loop_label);
                     {
                         compute_loop(ur_w, 0, 0);
-                        add(reg_inp, inp_shift);
-                        add(reg_out, out_shift);
+                        add(reg_src, src_shift);
+                        add(reg_dst, dst_shift);
 
                         inc(reg_oi);
                         cmp(reg_oi, n_oi);
@@ -500,8 +481,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
                 }
                 if (r_pad1 > 0) {
                     compute_loop(ur_w, 0, r_pad1);
-                    add(reg_inp, inp_shift);
-                    add(reg_out, out_shift);
+                    add(reg_src, src_shift);
+                    add(reg_dst, dst_shift);
                 }
                 if (ur_w_tail != 0) { compute_loop(ur_w_tail, 0, r_pad); }
             }
@@ -546,8 +527,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
         mov(reg_oi, n_oi_first_ow_block);
         if (l_pad > 0) {
             compute_loop(ur_w, l_pad, 0);
-            add(reg_inp, inp_shift_pad);
-            add(reg_out, out_shift);
+            add(reg_src, src_shift_pad);
+            add(reg_dst, dst_shift);
             dec(reg_oi);
         }
         jmp(oi_loop_label, T_NEAR);
@@ -558,7 +539,7 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
 
         if (l_pad > 0) {
             // just to consider left padding, not compute
-            add(reg_inp, inp_shift_pad_second_block);
+            add(reg_src, src_shift_pad_second_block);
         }
 
         // set number of iteration for oi-loop
@@ -577,8 +558,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
         jle(oi_loop_end_label, T_NEAR);
 
         compute_loop(ur_w, 0, 0);
-        add(reg_inp, inp_shift);
-        add(reg_out, out_shift);
+        add(reg_src, src_shift);
+        add(reg_dst, dst_shift);
         dec(reg_oi);
         jmp(oi_loop_start_label, T_NEAR);
         L(oi_loop_end_label);
@@ -604,8 +585,8 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
         // last oi block with right padding
         L(last_oi_label);
         compute_loop(ur_w, 0, r_pad1);
-        add(reg_inp, inp_shift);
-        add(reg_out, out_shift);
+        add(reg_src, src_shift);
+        add(reg_dst, dst_shift);
 
         mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
         cmp(reg_owb, jcp.nb_ow - 1); // last ow_block?

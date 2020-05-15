@@ -75,16 +75,16 @@ private:
 
     reg64_t param = abi_param1; //L: RDI, W: RCX
 
-    reg64_t reg_inp = r8;
+    reg64_t reg_src = r8;
     reg64_t reg_ker = r9;
-    reg64_t reg_out = r10;
+    reg64_t reg_dst = r10;
     reg64_t reg_owb = r11;
 
-    reg64_t aux_reg_inp = r12;
+    reg64_t aux_reg_src = r12;
     reg64_t aux_reg_ker = r13;
 
     reg64_t aux_reg_ker_d = r14;
-    reg64_t aux_reg_inp_d = r15;
+    reg64_t aux_reg_src_d = r15;
 
     reg64_t reg_icb = rax;
     reg64_t reg_bias = rbx;
@@ -94,21 +94,21 @@ private:
     reg64_t reg_oi = rdx;
     reg64_t reg_kh = rsi;
 
-    reg64_t reg_out_long_offt = r14;
+    reg64_t reg_dst_long_offt = r14;
 
-    Vmm vmm_out(int i_ur, int i_oc) {
+    Vmm vmm_dst(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
         return Vmm(idx);
     }
 
-    Vmm vmm_inp(int i_ic, int nb_x_blocking) {
+    Vmm vmm_src(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < 31);
         return Vmm(idx);
     }
 
-    Vmm_down_t vmm_inp_down(int i_ic, int nb_x_blocking) {
+    Vmm_down_t vmm_src_down(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < 31);
         return Vmm_down_t(idx);
@@ -131,39 +131,57 @@ private:
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
     bf16_emulation_t *bf16_emu_;
 
-    inline void prepare_output(int ur_w);
-    inline void store_output(int ur_w);
+    inline void prepare_dst(int ur_w);
+    inline void store_dst(int ur_w);
     inline void compute_loop(int ur_w, int pad_l, int pad_r);
 
     void generate();
 
-    size_t get_output_offset(int oi, int n_oc_block) {
+    inline dim_t get_dst_offset(dim_t sp_idx, int ocb) {
         const bool is_layout_nxc = is_dst_layout_nxc();
-        size_t w_str = is_layout_nxc ? jcp.ngroups * jcp.oc : jcp.oc_block;
-        size_t ocb_str = jcp.oc_block
-                * (is_layout_nxc ? 1 : (size_t)jcp.od * jcp.oh * jcp.ow);
-        return jcp.typesize_out * (ocb_str * n_oc_block + w_str * oi);
+        dim_t sp_str = is_layout_nxc ? jcp.ngroups * jcp.oc : jcp.oc_block;
+        dim_t ocb_str = jcp.oc_block
+                * (is_layout_nxc ? 1 : (dim_t)jcp.od * jcp.oh * jcp.ow);
+        return jcp.typesize_out * (ocb_str * ocb + sp_str * sp_idx);
     }
 
-    size_t get_input_offset(int ki, int ic, int oi, int pad_l) {
-        size_t scale = 2; //bf16 vnni is used
-        size_t iw_str = is_src_layout_nxc()
+    inline dim_t filter_w_to_src(int kw, int ow = 0, int pad_l = 0) {
+        return kw * (jcp.dilate_w + 1) + ow * jcp.stride_w - pad_l;
+    };
+    inline dim_t filter_h_to_src(int kh) {
+        return kh * (jcp.dilate_h + 1) * jcp.iw;
+    };
+    inline dim_t filter_d_to_src(int kd) {
+        return kd * (jcp.dilate_d + 1) * jcp.iw * jcp.ih;
+    };
+
+    inline dim_t get_src_offset(dim_t ic_idx, dim_t isp) {
+        int icb = ic_idx / jcp.ic_block;
+        int ic = ic_idx % jcp.ic_block;
+        dim_t isp_str = is_src_layout_nxc()
                 ? jcp.ngroups * jcp.ic
                 : (jcp.is_1stconv ? 1 : jcp.ic_block);
-        size_t ic_str = jcp.is_1stconv ? (size_t)jcp.iw * jcp.ih * jcp.id : 1;
-        int iw = ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l;
-        return jcp.typesize_in * (iw_str * iw + ic_str * scale * ic);
+        dim_t full_spatial_size = (dim_t)jcp.iw * jcp.ih * jcp.id;
+        dim_t ic_str = jcp.is_1stconv ? full_spatial_size : 1;
+        dim_t icb_str
+                = (is_src_layout_nxc() ? 1 : full_spatial_size) * jcp.ic_block;
+        return jcp.typesize_in * (isp_str * isp + icb_str * icb + ic_str * ic);
     }
 
-    size_t get_kernel_offset(int ki, int ic, int n_oc_block, int ker_number) {
+    inline dim_t get_kernel_offset(
+            int ocb, int ic_idx, int kw, int kh = 0, int kd = 0) {
         int scale = 2; //bf16 vnni is used
         int rnd_ic_block = utils::rnd_up(jcp.ic_block, scale);
+        int icb = ic_idx / jcp.ic_block;
+        int ic = ic_idx % jcp.ic_block;
+        dim_t ksp_str = rnd_ic_block * jcp.oc_block;
+        dim_t ksp_idx = kd * jcp.kh * jcp.kw + kh * jcp.kw + kw;
 
-        size_t oc_block_stride
-                = (size_t)jcp.nb_ic * rnd_ic_block * jcp.kh * jcp.kw * jcp.kd;
-        return jcp.typesize_in * jcp.oc_block
-                * (n_oc_block * oc_block_stride + (ic + ker_number) * scale
-                        + ki * rnd_ic_block);
+        dim_t icb_str = jcp.kd * jcp.kh * jcp.kw * ksp_str;
+        dim_t ocb_str = jcp.nb_ic * icb_str;
+        dim_t ic_off = (ic / scale) * jcp.oc_block * scale + (ic % scale);
+        return jcp.typesize_in
+                * (ocb * ocb_str + icb * icb_str + ksp_idx * ksp_str + ic_off);
     }
 
     int get_ow_start(int ki, int pad_l) {
