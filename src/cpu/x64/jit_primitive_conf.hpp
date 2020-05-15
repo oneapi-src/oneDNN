@@ -176,6 +176,7 @@ struct jit_conv_conf_t {
     int oh_blk_size;
     // s8s8 convolution
     bool signed_input;
+    bool need_saturation;
     float wei_adj_scale;
 
     bool uses_permw_transposition;

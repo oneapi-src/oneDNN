@@ -698,10 +698,10 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
         if (!jcp.is_resrc_depthwise) zmm_src = Zmm(++idx);
         if (jcp.ver != ver_vnni) zmm_tmp = Zmm(++idx);
         if (jcp.is_fast_depthwise) zmm_permute = Zmm(++idx);
-        if (jcp.signed_input) {
-            zmm_shifted_zero = Zmm(++idx);
-            ++idx; // due to extra register used for shifts and compensations
-        }
+        if (jcp.signed_input) zmm_shifted_zero = Zmm(++idx);
+        // due to extra register used for shifts and compensations
+        // and/or saturation, we increment by one more
+        if (jcp.signed_input || jcp.need_saturation) ++idx;
         assert(idx == ker_dw_reg_base_idx);
     }
 
@@ -1026,6 +1026,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (kernel_outside_src) return status::unimplemented;
 
     jcp.signed_input = (src_d.data_type() == data_type::s8) ? true : false;
+    jcp.need_saturation = utils::one_of(dst_d.data_type(), u8, s8, s32);
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
 
     if (jcp.is_depthwise && is_3d)
@@ -1076,7 +1077,8 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             && jcp.kw < 4 && jcp.dilate_w == 0;
     if (jcp.is_depthwise) {
         jcp.max_regs_ur = 31 - jcp.is_fast_depthwise - !jcp.is_resrc_depthwise
-                - 2 * jcp.signed_input - (jcp.ver != ver_vnni);
+                - jcp.signed_input - (jcp.ver != ver_vnni)
+                - (jcp.signed_input || jcp.need_saturation); // both alias
     } else {
         jcp.max_regs_ur = jcp.ver == ver_vnni ? 31 : 28;
     }

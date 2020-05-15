@@ -100,11 +100,11 @@ private:
     const Vmm vmm_wei = Vmm(31);
     /* used during bias section of store_output */
     const Vmm vmm_comp = Vmm(30); // only for signed input
-    const Vmm vmm_saturation = Vmm(30);
     const Vmm vmm_bias = Vmm(31);
     /* used during post_op sum section of store_output */
     const Vmm vmm_prev_dst = Vmm(31);
     /* used during write-out section of store_output */
+    const Vmm vmm_saturation = Vmm(30);
     const Vmm vmm_zero = Vmm(31);
 
     /* used in compute_ker (but set during prepare_output) */
