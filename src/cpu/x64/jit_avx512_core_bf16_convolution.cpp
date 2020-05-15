@@ -796,7 +796,6 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_src_nxc(
         src_data_t *tr_src, const src_data_t *src_base, int spatial_start,
         dim_t spatial_start_offset, dim_t channel_shift, int row_count) const {
     const jit_conv_conf_t jcp = this->kernel_->jcp;
-    assert(jcp.ic_block == 16);
     const int src_stride = jcp.iw * jcp.ngroups * jcp.ic;
     const int tr_src_stride = jcp.tr_iw * jcp.ic_block;
 
@@ -1106,7 +1105,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
                 : ti->wei_bia_reduction + (ti->ithr_mb - 1) * wei_size;
 
     auto tr_diff_dst_off_3d = [&](int g, int oc, int od) {
-        assert(!is_ddst_layout_nxc);
+        assert(IMPLICATION(is_ddst_layout_nxc, jcp.transpose_dst));
         const size_t tr_row_size = jcp.tr_ow * jcp.oc_block;
         const size_t tr_3d_size = tr_row_size * jcp.oh;
         return tr_diff_dst_buf_number(ti, g, oc) * jcp.tr_diff_dst_buf_size
@@ -1318,14 +1317,14 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
                 : ti->wei_bia_reduction + (ti->ithr_mb - 1) * wei_size;
 
     auto tr_src_off = [&](int g, int ic, int ij) {
-        assert(!is_src_layout_nxc);
+        assert(IMPLICATION(is_src_layout_nxc, jcp.transpose_src));
         const size_t tr_row_size = jcp.tr_iw * jcp.ic_block;
         return tr_src_buf_number(ti, g, ic) * jcp.tr_src_buf_size
                 + ij * tr_row_size;
     };
 
     auto tr_src_off_3d = [&](int g, int ic, int id, int ij) {
-        assert(!is_ddst_layout_nxc);
+        assert(IMPLICATION(is_ddst_layout_nxc, jcp.transpose_dst));
         const size_t tr_row_size = jcp.tr_iw * jcp.ic_block;
         const size_t tr_3d_size = tr_row_size * jcp.ih;
         return tr_src_buf_number(ti, g, ic) * jcp.tr_src_buf_size
