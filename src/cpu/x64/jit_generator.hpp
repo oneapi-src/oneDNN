@@ -287,16 +287,23 @@ public:
 
     void uni_vpxor(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
-        assert(x1.isEqualIfNotInherited(x2));
-        pxor(x2, op);
+        if (mayiuse(avx512_core))
+            vpxord(x1, x2, op);
+        else if (mayiuse(avx))
+            vpxor(x1, x2, op);
+        else {
+            assert(x1.isEqualIfNotInherited(x2));
+            pxor(x2, op);
+        }
     }
     void uni_vpxor(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
-        if (mayiuse(avx2)) {
+        if (mayiuse(avx512_core))
+            vpxord(x1, x2, op);
+        else if (mayiuse(avx2))
             vpxor(x1, x2, op);
-        } else {
+        else
             vxorps(x1, x2, op);
-        }
     }
     void uni_vpxor(const Xbyak::Zmm &x1, const Xbyak::Zmm &x2,
             const Xbyak::Operand &op) {
