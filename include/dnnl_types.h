@@ -214,6 +214,7 @@ typedef enum {
     dnnl_aBc16b,
     dnnl_ABc16b16a,
     dnnl_Abc4a,
+    /// 3D tensor blocked by 2nd dimension with block size 32
     dnnl_aBc32b,
     /// 3D tensor blocked by 2nd dimension with block size 4
     dnnl_aBc4b,
@@ -239,6 +240,7 @@ typedef enum {
     dnnl_aBCd16b16c,
     dnnl_aBCd16c16b,
     dnnl_Abcd4a,
+    /// 4D tensor blocked by 2nd dimension with block size 32
     dnnl_aBcd32b,
     /// 4D tensor blocked by 2nd dimension with block size 4
     dnnl_aBcd4b,
@@ -286,6 +288,7 @@ typedef enum {
     dnnl_aBCde16c16b,
     dnnl_aBCde2c8b4c,
     dnnl_Abcde4a,
+    /// 5D tensor blocked by 2nd dimension with block size 32
     dnnl_aBcde32b,
     /// 5D tensor blocked by 2nd dimension with block size 4
     dnnl_aBcde4b,
