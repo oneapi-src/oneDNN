@@ -903,9 +903,10 @@ public:
     void init_saturate_f32(Vmm vmm_lbound, Vmm vmm_ubound, Xbyak::Reg64 reg_tmp,
             data_type_t idt, data_type_t odt) {
         using namespace data_type;
-        assert(vmm_lbound.getIdx() != vmm_ubound.getIdx());
         if (!((idt == f32) && utils::one_of(odt, u8, s8, s32))) return;
 
+        assert(IMPLICATION(
+                idt == u8, vmm_lbound.getIdx() != vmm_ubound.getIdx()));
         // No need to saturate on lower bound for signed integer types, as
         // the conversion to int would return INT_MIN, and then proper
         // saturation will happen in store_data
