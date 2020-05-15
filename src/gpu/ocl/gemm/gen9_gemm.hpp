@@ -338,7 +338,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         type gemm_type_ = type::copy_based;
 
-        attr_info_t attr_info_;
+        attr_info_t attr_info_ = {};
 
     protected:
 #ifdef _WIN32

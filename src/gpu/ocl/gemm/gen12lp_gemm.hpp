@@ -141,7 +141,7 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
             return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
         }
 
-        attr_info_t attr_info_;
+        attr_info_t attr_info_ = {};
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;

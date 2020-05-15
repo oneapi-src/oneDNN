@@ -86,7 +86,7 @@ struct gen12lp_x8s8s32x_1x1_convolution_fwd_t : public gpu_primitive_t {
 
         conv_conf_t conf;
 
-        attr_info_t attr_info_;
+        attr_info_t attr_info_ = {};
 
     private:
         status_t init_scales_md() {

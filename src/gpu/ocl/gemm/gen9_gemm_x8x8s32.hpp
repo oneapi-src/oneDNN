@@ -110,7 +110,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
             return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
         }
 
-        attr_info_t attr_info;
+        attr_info_t attr_info = {};
 
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;

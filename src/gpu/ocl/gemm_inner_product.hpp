@@ -133,7 +133,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             return status::success;
         }
 
-        attr_info_t attr_info_;
+        attr_info_t attr_info_ = {};
         std::unique_ptr<primitive_desc_t> gemm_pd_;
 
     private:
