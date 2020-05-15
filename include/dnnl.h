@@ -863,7 +863,7 @@ dnnl_status_t DNNL_API dnnl_memory_desc_init_submemory(
 ///    - Here, dense means:
 ///      `stride for dim[i] == (stride for dim[i + 1]) * dim[i + 1]`;
 ///    - And same order means:
-///      `i < j <=> stride for dim[i] < stride for dim[j]`.
+///      `i < j` if and only if `stride for dim[j] <= stride for dim[i]`.
 ///
 /// @warning
 ///     Some combinations of physical memory layout and/or offsets or
@@ -1040,7 +1040,7 @@ dnnl_status_t DNNL_API dnnl_memory_unmap_data(
 dnnl_status_t DNNL_API dnnl_memory_get_data_handle(
         const_dnnl_memory_t memory, void **handle);
 
-/// Sets a memory object's data handle.
+/// Sets the underlying memory buffer.
 ///
 /// See the description of dnnl_memory_set_data_handle_v2() for more details.
 ///
@@ -1052,7 +1052,7 @@ dnnl_status_t DNNL_API dnnl_memory_get_data_handle(
 dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
         dnnl_memory_t memory, void *handle);
 
-/// Sets a memory object's data handle.
+/// Sets the underlying memory buffer.
 ///
 /// This function may write zero values to the memory specified by the @p
 /// handle if the memory object has a zero padding area. This may be time
