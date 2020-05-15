@@ -142,9 +142,6 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
 
     const bool is_bf16 = src_d.data_type() == data_type::bf16;
 
-    // TODO: bf16 not supported yet.
-    if (is_bf16 && is_data_layout_nxc) return status::unimplemented;
-
     jcp.dst_dt = cd.dst_desc.data_type;
     jcp.isa = (is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16 : isa;
 
