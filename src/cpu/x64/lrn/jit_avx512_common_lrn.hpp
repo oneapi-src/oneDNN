@@ -24,6 +24,7 @@
 #include "cpu/cpu_lrn_pd.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/lrn/lrn_executor.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -51,23 +52,13 @@ struct jit_avx512_common_lrn_fwd_t : public primitive_t {
 
     using data_t = typename prec_traits<d_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
+        return lrn_executor_->execute(ctx);
     }
 
 private:
-    static constexpr int vsize = 16;
-    void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
-    int use_h_parallelism_;
-
-    struct jit_avx512_common_lrn_kernel_nChw16c_f;
-    class jit_avx512_common_lrn_kernel_nhwc_f;
-    class jit_avx512_common_lrn_kernel_fwd_f;
-    std::unique_ptr<jit_avx512_common_lrn_kernel_fwd_f> ker_, ker_first_,
-            ker_last_;
+    std::unique_ptr<lrn::i_lrn_executor_t> lrn_executor_;
 };
 
 template <data_type_t d_type>
@@ -90,21 +81,15 @@ struct jit_avx512_common_lrn_bwd_t : public primitive_t {
     jit_avx512_common_lrn_bwd_t(const pd_t *apd);
     ~jit_avx512_common_lrn_bwd_t();
 
-    typedef typename prec_traits<d_type>::type data_t;
+    using data_t = typename prec_traits<d_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward(ctx);
-        return status::success;
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
+        return lrn_executor_->execute(ctx);
     }
 
 private:
-    static const int vsize = 16;
-    void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
-    int use_h_parallelism;
-    struct jit_avx512_common_lrn_kernel_nChw16c_f;
-    jit_avx512_common_lrn_kernel_nChw16c_f *ker_, *ker_first_, *ker_last_;
+    std::unique_ptr<lrn::i_lrn_executor_t> lrn_executor_;
 };
 
 } // namespace x64
