@@ -35,16 +35,15 @@ struct primitive_cache_t : public c_compatible {
     using key_t = primitive_hashing::key_t;
     using value_t = std::shared_ptr<primitive_t>;
 
-    virtual int get_capacity() const = 0;
-    virtual status_t set_capacity(int capacity) = 0;
+    virtual ~primitive_cache_t() = default;
 
-    // for undocumented API
-    virtual int get_size() const = 0;
+    virtual status_t set_capacity(int capacity) = 0;
+    virtual int get_capacity() const = 0;
 
     virtual void add(const key_t &key, const value_t &impl) = 0;
     virtual value_t get(const key_t &key) = 0;
 
-    virtual ~primitive_cache_t() = default;
+    virtual int get_size() const = 0;
 
     static utils::rw_mutex_t &rw_mutex() {
         static utils::rw_mutex_t mutex;
@@ -56,55 +55,18 @@ struct primitive_cache_t : public c_compatible {
 struct lru_primitive_cache_t : public primitive_cache_t {
     lru_primitive_cache_t(int capacity) : capacity_(capacity) {}
 
-    int get_capacity() const override { return (int)capacity_; }
+    ~lru_primitive_cache_t() override = default;
 
-    status_t set_capacity(int capacity) override {
-        capacity_ = (size_t)capacity;
-        // Check if number of entries exceeds the new capacity
-        if (cache_list_.size() > capacity_) {
-            // Evict excess entries
-            size_t n_excess_entries = cache_list_.size() - capacity_;
-            evict(n_excess_entries);
-        }
-        return status::success;
-    }
+    status_t set_capacity(int capacity) override;
+    int get_capacity() const override;
 
-    // for undocumented API
-    int get_size() const override { return (int)cache_list_.size(); }
+    void add(const key_t &key, const value_t &impl) override;
+    value_t get(const key_t &key) override;
 
-    void add(const key_t &key, const value_t &impl) override {
-        // cache is disabled
-        if (capacity_ == 0) return;
-
-        if (cache_list_.size() >= capacity_) {
-            // evict the least recently used entry
-            evict(1);
-        }
-        // place a new entry to cache_list_ and update cache_mapper_
-        cache_list_.emplace_front(key, impl);
-        cache_mapper_.insert(std::make_pair(key, cache_list_.begin()));
-    }
-
-    value_t get(const key_t &key) override {
-        // cache is disabled
-        if (capacity_ == 0) return nullptr;
-
-        auto it = cache_mapper_.find(key);
-        if (it == cache_mapper_.end()) { return nullptr; }
-        // move 1 cache_list_ node to the front of the cache_list_
-        cache_list_.splice(cache_list_.begin(), cache_list_, it->second);
-        return cache_list_.front().second;
-    }
-    DNNL_DISALLOW_COPY_AND_ASSIGN(lru_primitive_cache_t);
+    int get_size() const override;
 
 private:
-    // an aux member function for evicting n the least recently used entries
-    void evict(size_t n) {
-        for (size_t e = 0; e < n; e++) {
-            cache_mapper_.erase(cache_list_.back().first);
-            cache_list_.pop_back();
-        }
-    }
+    void evict(size_t n);
 
     size_t capacity_;
     using cache_list_t = std::list<std::pair<key_t, value_t>>;
@@ -114,7 +76,6 @@ private:
 
 lru_primitive_cache_t &primitive_cache();
 
-// undocumented API, for testing only
 status_t DNNL_API get_primitive_cache_size(int *size);
 
 } // namespace impl
