@@ -18,7 +18,7 @@
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/x64/jit_uni_lrn_kernel_f32.hpp"
+#include "cpu/x64/lrn/jit_uni_lrn_kernel_f32.hpp"
 
 namespace dnnl {
 namespace impl {

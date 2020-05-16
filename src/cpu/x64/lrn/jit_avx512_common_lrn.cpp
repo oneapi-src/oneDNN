@@ -19,7 +19,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/x64/jit_avx512_common_lrn.hpp"
+#include "cpu/x64/lrn/jit_avx512_common_lrn.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
