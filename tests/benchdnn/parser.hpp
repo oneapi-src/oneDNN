@@ -53,9 +53,9 @@ static bool parse_multivector_str(std::vector<T> &vec,
         const std::vector<T> &def, F process_func, const char *str,
         char vector_delim = ',', char element_delim = ':') {
     auto process_subword = [&](const char *word) {
-        T v;
+        T v, empty_def_v; // defualt value is not expected to be set here
         // parse vector elements separated by @p element_delim
-        parse_vector_str(v, def[0], process_func, word, element_delim);
+        parse_vector_str(v, empty_def_v, process_func, word, element_delim);
         return v;
     };
 
