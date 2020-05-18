@@ -87,12 +87,12 @@ inline status_t convert_to_dnnl(cl_int cl_status) {
 
 enum { OCL_BUFFER_ALIGNMENT = 128 };
 
-#ifndef NDEBUG
 #define MAYBE_REPORT_OCL_ERROR(s) \
     do { \
         if (get_verbose()) \
             printf("dnnl_verbose,gpu,ocl_error,%d\n", (int)(s)); \
     } while (0)
+
 #define OCL_CHECK_V(x) \
     do { \
         cl_int s = x; \
@@ -101,10 +101,6 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
             return; \
         } \
     } while (0)
-#else
-#define MAYBE_REPORT_OCL_ERROR(s)
-#define OCL_CHECK_V(x) (void)(x)
-#endif
 
 #define OCL_CHECK(x) \
     do { \
