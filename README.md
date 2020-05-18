@@ -296,6 +296,10 @@ Apache License Version 2.0:
 Boost Software License, Version 1.0:
 * [Boost C++ Libraries](https://www.boost.org/)
 
+MIT License:
+* [Intel Graphics Compute Runtime](https://github.com/intel/compute-runtime)
+* [Intel Graphics Compiler](https://github.com/intel/intel-graphics-compiler)
+
 This third party software, even if included with the distribution of
 the Intel software, may be governed by separate license terms, including
 without limitation, third party license terms, other Intel software license

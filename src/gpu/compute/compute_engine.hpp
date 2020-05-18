@@ -68,6 +68,8 @@ public:
         return dispatch_t(this, md);
     }
 
+    virtual bool mayiuse_ngen_kernels() { return false; }
+
 private:
     std::unique_ptr<device_info_t> device_info_;
 };

@@ -14,16 +14,18 @@
 # limitations under the License.
 #===============================================================================
 
-file(GLOB SOURCES
+file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-set(OBJ_LIB ${LIB_NAME}_gpu)
+add_definitions(-DNGEN_CPP11)
+add_definitions(-DNGEN_SAFE)
+add_definitions(-DNGEN_NEO_INTERFACE)
+add_definitions(-DNGEN_NO_OP_NAMES)
+add_definitions(-DNGEN_WINDOWS_COMPAT)
+
+set(OBJ_LIB ${LIB_NAME}_gpu_jit)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
-
-add_subdirectory(compute)
-add_subdirectory(jit)
-add_subdirectory(ocl)
