@@ -201,7 +201,7 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
         if (conf.attr_info.with_runtime_oscales)
             arg_list.set(9, oscales);
         else
-            arg_list.set(9, *scales_mem_->memory_storage());
+            arg_list.set(9, CTX_GPU_RES_STORAGE(SCALES_));
     } else {
         arg_list.set(9, memory_storage_t::empty_storage());
     }
