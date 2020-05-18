@@ -87,7 +87,26 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
             if (!ok) return status::unimplemented;
 
             attr_info_ = attr_info_t::create(attr());
+            init_scratchpad();
+
             return status::success;
+        }
+
+        void init_scratchpad() {
+            if (!do_compute() || !do_scale()) return;
+            auto scratchpad = scratchpad_registry().registrar();
+            size_t tmp_buf_size = desc()->m * desc()->n * sizeof(int);
+            scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer,
+                    tmp_buf_size, 1, OCL_BUFFER_ALIGNMENT);
+        }
+
+        bool do_compute() const {
+            return ((desc()->k > 0) && (alpha() != 0.0f));
+        }
+
+        bool do_scale() const {
+            return !((desc()->k > 0) && (alpha() == 1.0f)
+                    && ((beta() == 0.0f) || (beta() == 1.0f)));
         }
 
         bool zero_points_ok() const {
@@ -180,11 +199,6 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
 
-        memory_storage_t *temp_buf_ptr;
-        engine->create_memory_storage(
-                &temp_buf_ptr, pd()->desc()->m * pd()->desc()->n * sizeof(int));
-        temp_buf_.reset(temp_buf_ptr);
-
         int cmask = 0;
         pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
         bool fixed_c = (0 == cmask);
@@ -250,8 +264,6 @@ private:
 
     compute::kernel_t compute_x8x8s32_kernel_[2];
     compute::kernel_t scale_x8x8s32_kernel_;
-
-    std::unique_ptr<memory_storage_t> temp_buf_;
 
     type gemm_type_ = type::no_copy;
     int hw_threads_ = 0;
