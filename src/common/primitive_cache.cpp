@@ -24,7 +24,7 @@
 namespace dnnl {
 namespace impl {
 
-lru_primitive_cache_t &primitive_cache() {
+primitive_cache_t &primitive_cache() {
 #ifdef DNNL_ENABLE_PRIMITIVE_CACHE
     static const int capacity
             = getenv_int("DNNL_PRIMITIVE_CACHE_CAPACITY", 1024);
@@ -66,28 +66,74 @@ int lru_primitive_cache_t::get_size() const {
     return (int)cache_list_.size();
 }
 
-void lru_primitive_cache_t::add(const key_t &key, const value_t &impl) {
+lru_primitive_cache_t::value_t lru_primitive_cache_t::get_or_add(
+        const key_t &key, const value_t &value, bool need_lock) {
     // Cache is disabled
-    if (capacity_ == 0) return;
+    lock_read(need_lock);
+    if (capacity_ == 0) {
+        unlock_read(need_lock);
+        return value_t();
+    }
 
+    unlock_read(need_lock);
+    lock_write(need_lock);
+
+    // Double check the capacity due to possible race condition
+    if (need_lock && capacity_ == 0) {
+        unlock_write(need_lock);
+        return value_t();
+    }
+
+    // Check if the requested entry is present in the cache
+    auto e = get(key);
+    if (!e.valid()) {
+        // If the entry is missing in the cache then add it
+        add(key, value);
+    }
+    unlock_write(need_lock);
+    return e;
+}
+
+void lru_primitive_cache_t::add(const key_t &key, const value_t &value) {
     if (cache_list_.size() >= capacity_) {
         // Evict the least recently used entry
         evict(1);
     }
     // Place a new entry to cache_list_ and update cache_mapper_
-    cache_list_.emplace_front(key, impl);
+    cache_list_.emplace_front(key, value);
     cache_mapper_.insert(std::make_pair(key, cache_list_.begin()));
 }
 
 lru_primitive_cache_t::value_t lru_primitive_cache_t::get(const key_t &key) {
-    // Cache is disabled
-    if (capacity_ == 0) return nullptr;
-
     auto it = cache_mapper_.find(key);
-    if (it == cache_mapper_.end()) { return nullptr; }
+    if (it == cache_mapper_.end()) { return value_t(); }
+
     // Move 1 cache_list_ node to the front of the cache_list_
     cache_list_.splice(cache_list_.begin(), cache_list_, it->second);
     return cache_list_.front().second;
+}
+
+void lru_primitive_cache_t::remove_if_invalidated(
+        const key_t &key, bool need_lock) {
+    lock_write(need_lock);
+    auto it = cache_mapper_.find(key);
+    if (it == cache_mapper_.end()) {
+        // The entry has been already evicted at this point
+        unlock_write(need_lock);
+        return;
+    }
+
+    const auto &value = it->second->second;
+    if (value.get().primitive) {
+        // If the entry is not invalidated
+        unlock_write(need_lock);
+        return;
+    }
+
+    // Remove the invalidated entry
+    cache_list_.erase(it->second);
+    cache_mapper_.erase(it);
+    unlock_write(need_lock);
 }
 
 // Evicts n the least recently used entries
