@@ -80,7 +80,6 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
     s.reset(s_ptr);
 
     // Create primitive descriptor
-    using pd_type = typename gen9_gemm_t::pd_t;
     auto op_desc = gemm_desc_t();
     op_desc.primitive_kind = dnnl_gemm;
     op_desc.transa = (*transa == 'n' || *transa == 'N') ? transpose::notrans
@@ -111,18 +110,16 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
     status = create_gemm_memory_desc(&c_desc, &op_desc, 2, c_type);
     assert(status == status::success);
 
+    std::unique_ptr<primitive_desc_iface_t> pd;
     primitive_attr_t attr;
     if (alpha != 1.0f) attr.output_scales_.set(alpha);
     if (beta != 0.0f) attr.post_ops_.append_sum(beta);
 
-    primitive_desc_t *pd_ptr = nullptr;
-    status = primitive_desc_t::create<pd_type>(&pd_ptr,
-            reinterpret_cast<const op_desc_t *>(&op_desc), &attr, engine.get(),
-            nullptr);
+    primitive_desc_iface_t *pd_ptr;
+    status = dnnl_primitive_desc_create(
+            &pd_ptr, &op_desc, &attr, engine.get(), nullptr);
     if (status != status::success) return status;
-
-    std::unique_ptr<primitive_desc_iface_t> pd(
-            new primitive_desc_iface_t(pd_ptr, engine.get()));
+    pd.reset(pd_ptr);
 
     // Create memory objects
     std::unique_ptr<memory_t> a_mem(new memory_t(

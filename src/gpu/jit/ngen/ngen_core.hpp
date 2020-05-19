@@ -501,11 +501,12 @@ public:
 
     constexpr RegData operator+() const { return *this; }
     constexpr14 RegData operator-() const {
-        RegData result = *this;
-        result.mods = result.mods ^ 2;
+        auto result = *this;
+        result.negate();
         return result;
     }
     constexpr14 RegData operator~() const { return -*this; }
+    constexpr14 void negate()             { mods = mods ^ 2; }
 
     friend inline bool operator==(const RegData &r1, const RegData &r2);
     friend inline bool operator!=(const RegData &r1, const RegData &r2);
@@ -624,6 +625,14 @@ public:
     }
 
     RegisterRegion &operator=(const Invalid &i) { this->invalidate(); return *this; }
+
+    constexpr RegisterRegion operator+() const { return *this; }
+    constexpr14 RegisterRegion operator-() const {
+        auto result = *this;
+        result.negate();
+        return result;
+    }
+    constexpr14 RegisterRegion operator~() const { return -*this; }
 };
 
 // Subregister; always associated with a specific data type.
@@ -657,6 +666,14 @@ public:
 
     Subregister &operator=(const Invalid &i) { this->invalidate(); return *this; }
 
+    constexpr Subregister operator+() const { return *this; }
+    constexpr14 Subregister operator-() const {
+        auto result = *this;
+        result.negate();
+        return result;
+    }
+    constexpr14 Subregister operator~() const { return -*this; }
+
     Align16Operand swizzle(int s0, int s1, int s2, int s3)    const { checkGRF(); return Align16Operand(*this, s0, s1, s2, s3); }
     Align16Operand broadcast()                                const { checkGRF(); return Align16Operand::createBroadcast(*this); }
     Align16Operand enable(bool c0, bool c1, bool c2, bool c3) const { checkGRF(); return Align16Operand(*this, (int(c3) << 3) | (int(c2) << 2) | (int(c1) << 1) | int(c0)); }
@@ -688,6 +705,14 @@ public:
     constexpr Register() : RegData() {}
     constexpr Register(int reg_, bool arf_, DataType defaultType = DataType::invalid, int off_ = 0)
         : RegData(reg_, arf_, off_, false, defaultType, 0, 0, 1) {}
+
+    constexpr Register operator+() const { return *this; }
+    constexpr14 Register operator-() const {
+        auto result = *this;
+        result.negate();
+        return result;
+    }
+    constexpr14 Register operator~() const { return -*this; }
 
     constexpr14 Subregister sub(int offset, DataType type_)        const { return Subregister(*this, offset, type_); }
     template <typename T> constexpr14 Subregister sub(int offset)  const { return sub(offset, getDataType<T>()); }
@@ -729,6 +754,14 @@ class GRF : public Register
 public:
     GRF() : Register() {}
     explicit constexpr GRF(int reg_) : Register(reg_, false) {}
+
+    constexpr GRF operator+() const { return *this; }
+    constexpr14 GRF operator-() const {
+        auto result = *this;
+        result.negate();
+        return result;
+    }
+    constexpr14 GRF operator~() const { return -*this; }
 
     constexpr14 GRF retype(DataType type_)              const { auto clone = *this; clone.setType(type_); return clone; }
     template <typename T> constexpr14 Register retype() const { return retype(getDataType<T>()); }
@@ -2266,7 +2299,7 @@ public:
         int simd16 = mod.getExecSize() >> 4;
         int nChannels = utils::popcnt(0xF ^ static_cast<int8_t>(cmask));
         bool isA64 = base.getModel() == ModelA64;
-        int addrGRFCount = (1 + simd16) << isA64 << structured;
+        int addrGRFCount = (1 + simd16) << int(isA64) << int(structured);
         int dataGRFCount = nChannels * (1 + simd16);
 
         base.checkModel(ModelBTS | ModelA32 | ModelA64 | ModelSLM);

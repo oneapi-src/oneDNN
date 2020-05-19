@@ -30,48 +30,19 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-enum class gpu_arch_t {
-    unknown,
-    gen9,
-    gen12lp,
-};
-
-inline gpu_arch_t str2gpu_arch(const char *str) {
-#define CASE(_case) \
-    if (!strcmp(STRINGIFY(_case), str)) return gpu_arch_t::_case
-
-    CASE(gen9);
-    CASE(gen12lp);
-    return gpu_arch_t::unknown;
-#undef CASE
-}
-
-inline const char *gpu_arch2str(gpu_arch_t arch) {
-#define CASE(_case) \
-    case gpu_arch_t::_case: return STRINGIFY(_case)
-
-    switch (arch) {
-        CASE(gen9);
-        CASE(gen12lp);
-        CASE(unknown);
-    }
-    return "unknown";
-#undef CASE
-}
-
-static compute::device_ext_t get_extensions(gpu_arch_t gpu_arch) {
+static compute::device_ext_t get_extensions(compute::gpu_arch_t gpu_arch) {
     uint64_t extensions = 0;
     switch (gpu_arch) {
-        case gpu_arch_t::gen12lp:
+        case compute::gpu_arch_t::gen12lp:
             extensions |= (uint64_t)
                     compute::device_ext_t::intel_subgroup_local_block_io;
-        case gpu_arch_t::gen9:
+        case compute::gpu_arch_t::gen9:
             extensions |= (uint64_t)compute::device_ext_t::khr_fp16;
             extensions |= (uint64_t)compute::device_ext_t::intel_subgroups;
             extensions
                     |= (uint64_t)compute::device_ext_t::intel_subgroups_short;
             break;
-        case gpu_arch_t::unknown: break;
+        case compute::gpu_arch_t::unknown: break;
     }
     return (compute::device_ext_t)extensions;
 }
@@ -130,7 +101,7 @@ public:
         return has(extensions_, ext);
     }
 
-    gpu_arch_t gpu_arch() const { return gpu_arch_; }
+    compute::gpu_arch_t gpu_arch() const override { return gpu_arch_; }
 
     int eu_count() const override { return eu_count_; }
     int hw_threads() const override { return hw_threads_; }
@@ -139,11 +110,11 @@ public:
 private:
     status_t init_arch() {
         if (name().find("Gen9") != std::string::npos)
-            gpu_arch_ = gpu_arch_t::gen9;
+            gpu_arch_ = compute::gpu_arch_t::gen9;
         else if (name().find("Gen12LP") != std::string::npos)
-            gpu_arch_ = gpu_arch_t::gen12lp;
+            gpu_arch_ = compute::gpu_arch_t::gen12lp;
         else
-            gpu_arch_ = gpu_arch_t::unknown;
+            gpu_arch_ = compute::gpu_arch_t::unknown;
 
         return status::success;
     }
@@ -186,8 +157,8 @@ private:
         int32_t threads_per_eu = 7;
 
         switch (gpu_arch_) {
-            case gpu_arch_t::gen9: threads_per_eu = 7; break;
-            case gpu_arch_t::gen12lp: threads_per_eu = 7; break;
+            case compute::gpu_arch_t::gen9: threads_per_eu = 7; break;
+            case compute::gpu_arch_t::gen12lp: threads_per_eu = 7; break;
             default: break;
         }
 
@@ -211,7 +182,7 @@ private:
     // extensions_ and gpu_arch_ describe effective extensions and GPU architecutre.
     uint64_t extensions_ = 0;
 
-    gpu_arch_t gpu_arch_ = gpu_arch_t::unknown;
+    compute::gpu_arch_t gpu_arch_ = compute::gpu_arch_t::unknown;
 };
 
 } // namespace ocl
