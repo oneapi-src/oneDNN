@@ -31,6 +31,14 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+// Intel's LLVM-based compiler on Windows generates incorrect code with
+// PRAGMA_OMP_SIMD in some particular cases.
+#if ((defined _WIN32) && (defined __INTEL_CLANG_COMPILER))
+#define SAFE_TO_USE_OMP_SIMD 0
+#else
+#define SAFE_TO_USE_OMP_SIMD 1
+#endif
+
 #define MEM_D(name) name##_d
 
 #define DECLARE_READ_STRIDES(name) \
@@ -73,7 +81,9 @@ void nhwc_pooling_fwd_t<d_type>::array_nhwc_max(const int n, ker_data_t *dst,
         const ker_data_t *src, unsigned char *ws, const size_t ws_offset,
         const data_type_t ws_dt, const int index) const {
     assert(ws);
+#if SAFE_TO_USE_OMP_SIMD
     PRAGMA_OMP_SIMD()
+#endif
     for (int oc = 0; oc < n; ++oc) {
         auto s = src[oc];
         ker_data_t mv = dst[oc];
@@ -517,7 +527,9 @@ void nhwc_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
                 const int *intws_ = (int *)ws + ws_offset_init;
                 const bool ws_is_u8 = MEM_D(ws).data_type() == data_type::u8;
 
+#if SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
+#endif
                 for (int oc = 0; oc < OC; ++oc) {
                     const int index_from_ws = ws_is_u8 ? ws_[oc] : intws_[oc];
                     const data_t d = diff_dst[dst_offset_init + oc];
@@ -668,7 +680,9 @@ void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
                         const bool ws_is_u8
                                 = MEM_D(ws).data_type() == data_type::u8;
 
+#if SAFE_TO_USE_OMP_SIMD
                         PRAGMA_OMP_SIMD()
+#endif
                         for (int oc = 0; oc < OC; ++oc) {
                             const int index_from_ws
                                     = ws_is_u8 ? ws_[oc] : intws_[oc];
