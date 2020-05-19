@@ -218,10 +218,6 @@ private:
 struct key_t {
     key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr);
 
-    // XXX: this ctor is used to create keys to compare pds
-    // in 1x1 convolution + dw
-    key_t(const primitive_desc_t *pd, int impl_nthr);
-
     bool operator==(const key_t &other) const;
 
     dnnl_primitive_kind_t primitive_kind_;
