@@ -277,7 +277,7 @@ inline U gelu_tanh_fwd(T s) {
 }
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U gelu_tanh_bwd(T dd, T s) {
-    const float sqrt_2_over_pi = 0.797884;
+    const float sqrt_2_over_pi = 0.79788458347320556640625;
     const float fitting_const = 0.044715;
     float g = s * sqrt_2_over_pi * (1 + fitting_const * s * s);
     float dg = sqrt_2_over_pi * (1 + 3 * fitting_const * s * s);
