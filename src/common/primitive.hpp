@@ -29,6 +29,7 @@
 #include "rw_mutex.hpp"
 #include "scratchpad.hpp"
 
+#include <future>
 #include <type_traits>
 
 namespace dnnl {
@@ -77,46 +78,45 @@ protected:
         };
         auto &global_primitive_cache = primitive_cache();
         double ms = get_msec();
-        int nthreads = dnnl_get_max_threads();
-        primitive_hashing::key_t key_to_lookup(pd, engine, nthreads);
+        primitive_hashing::key_t key(pd, engine, dnnl_get_max_threads());
 
-        if (!is_primitive_nested) primitive_cache_t::rw_mutex().lock_read();
+        std::promise<primitive_cache_t::cache_value_t> p_promise;
+        const bool need_lock = !is_primitive_nested;
+        // Try to get the shared future from the cache, if it's missing then
+        // a shared future with no shared state is returned and the passed
+        // shared future is added, otherwise a valid shared future is returned
+        // and no insertion is performed.
+        auto p_future = global_primitive_cache.get_or_add(
+                key, p_promise.get_future(), need_lock);
 
-        auto p = global_primitive_cache.get(key_to_lookup);
+        bool cache_hit = p_future.valid();
+
         auto status = status::success;
-        bool cache_hit = false;
-        if (p) {
-            if (!is_primitive_nested)
-                primitive_cache_t::rw_mutex().unlock_read();
-            cache_hit = true;
-        } else {
-            if (!is_primitive_nested) {
-                primitive_cache_t::rw_mutex().unlock_read();
-                primitive_cache_t::rw_mutex().lock_write();
-                // double check to workaround the ABA problem
-                p = global_primitive_cache.get(key_to_lookup);
-            }
+        std::shared_ptr<primitive_t> p;
 
-            if (!p) {
-                // the requested primitive hasn't been added to the cache yet
-                p = std::make_shared<impl_type>(pd);
-                status = p->init(engine, use_global_scratchpad);
-                if (status != status::success) {
-                    if (!is_primitive_nested)
-                        primitive_cache_t::rw_mutex().unlock_write();
-                    return status;
-                }
-                primitive_hashing::key_t key_to_cache(
-                        p->pd().get(), engine, nthreads);
-                global_primitive_cache.add(key_to_cache, p);
-                if (!is_primitive_nested)
-                    primitive_cache_t::rw_mutex().unlock_write();
-                cache_hit = false;
+        if (cache_hit) {
+            // The requested primitive is present in the cache or is being
+            // created by another thread.
+            p = p_future.get().primitive;
+            if (!p) return p_future.get().status;
+        } else {
+            // The requested primitive is NOT present in the cache therefore
+            // we have to create it and notify the waiting threads
+            // once the creation is done.
+            p = std::make_shared<impl_type>(pd);
+            status = p->init(engine, use_global_scratchpad);
+            if (status != status::success) {
+                // Communicate an error.
+                p_promise.set_value({nullptr, status});
+                // Remove the shared future from the cache because it's
+                // invalidated. An invalidated shared future is the one that
+                // stores a nullptr.
+                global_primitive_cache.remove_if_invalidated(key, need_lock);
+                return status;
             } else {
-                // another thread added the requested primitive
-                if (!is_primitive_nested)
-                    primitive_cache_t::rw_mutex().unlock_write();
-                cache_hit = true;
+                // Store the created primitive in the shared future and notify
+                // the waiting threads.
+                p_promise.set_value({p, status});
             }
         }
         primitive = p;
