@@ -104,73 +104,11 @@ private:
     void array_div_by_const(const int n, const ker_data_t *src,
             const size_t num, ker_data_t *dst) const;
     void array_add(const int n, const ker_data_t *src, ker_data_t *dst) const;
-
-    template <bool use_workspace>
     void array_nhwc_max(const int n, ker_data_t *dst, const ker_data_t *src,
             unsigned char *ws, const size_t ws_offset, const data_type_t ws_dt,
-            const int index) const {
-        assert(!((use_workspace == false) ^ (!ws))); // ensure ws pointer exists
-        PRAGMA_OMP_SIMD()
-        for (int oc = 0; oc < n; ++oc) {
-            auto s = src[oc];
-            ker_data_t mv = dst[oc];
-
-            // update index of maximum
-#if defined __INTEL_COMPILER
-            if ((use_workspace) && (s > mv)) {
-                // if (ws && (s > mv)) {
-                assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
-                if (ws_dt == data_type::u8) {
-                    assert(0 <= index && index <= 255);
-                    ws[ws_offset + oc] = index;
-                } else
-                    reinterpret_cast<int *>(ws)[ws_offset + oc] = index;
-            }
-#else
-            // Need to add explicit predicates for GCC to vectorize this.
-            // And although the resulting code is ugly, it is still 4 times
-            // faster than scalar
-            if (use_workspace) {
-                // if (ws) {
-                assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
-
-                if (ws_dt == data_type::u8) {
-                    assert(0 <= index && index <= 255);
-                    unsigned char predicate = (s > mv) ? 0xff : 0;
-                    unsigned char current_value = ws[ws_offset + oc];
-                    current_value = (predicate & (unsigned char)index)
-                            | ((~predicate) & current_value);
-                    ws[ws_offset + oc] = current_value;
-                } else {
-                    auto wint = reinterpret_cast<int *>(ws);
-                    unsigned int predicate = (s > mv) ? 0xffffffff : 0;
-                    unsigned int current_value = wint[ws_offset + oc];
-                    current_value = (predicate & (unsigned int)index)
-                            | ((~predicate) & current_value);
-                    wint[ws_offset + oc] = current_value;
-                }
-            }
-#endif
-            // update maximum
-            dst[oc] = nstl::max(s, mv);
-        }
-    }
-
-    template <bool use_workspace>
+            const int index) const;
     void array_nhwc_initialize(const int n, ker_data_t *dst, unsigned char *ws,
-            const size_t ws_offset, const data_type_t ws_dt) const {
-        assert(!((use_workspace == false) ^ (!ws))); // ensure ws pointer exists
-        for (int oc = 0; oc < n; ++oc) {
-            if (use_workspace) {
-                assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
-                if (ws_dt == data_type::u8) {
-                    ws[ws_offset + oc] = 0;
-                } else
-                    reinterpret_cast<int *>(ws)[ws_offset + oc] = 0;
-            }
-            dst[oc] = nstl::numeric_limits<data_t>::lowest();
-        }
-    }
+            const size_t ws_offset, const data_type_t ws_dt) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };

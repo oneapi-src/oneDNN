@@ -68,6 +68,71 @@ void nhwc_pooling_fwd_t<d_type>::array_add(
     }
 }
 
+template <data_type_t d_type>
+void nhwc_pooling_fwd_t<d_type>::array_nhwc_max(const int n, ker_data_t *dst,
+        const ker_data_t *src, unsigned char *ws, const size_t ws_offset,
+        const data_type_t ws_dt, const int index) const {
+    assert(ws);
+    PRAGMA_OMP_SIMD()
+    for (int oc = 0; oc < n; ++oc) {
+        auto s = src[oc];
+        ker_data_t mv = dst[oc];
+
+        // update index of maximum
+#if defined __INTEL_COMPILER
+        if (s > mv) {
+            // if (ws && (s > mv)) {
+            assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
+            if (ws_dt == data_type::u8) {
+                assert(0 <= index && index <= 255);
+                ws[ws_offset + oc] = index;
+            } else
+                reinterpret_cast<int *>(ws)[ws_offset + oc] = index;
+        }
+#else
+        // Need to add explicit predicates for GCC to vectorize this.
+        // And although the resulting code is ugly, it is still 4 times
+        // faster than scalar
+        assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
+
+        if (ws_dt == data_type::u8) {
+            assert(0 <= index && index <= 255);
+            unsigned char predicate = (s > mv) ? 0xff : 0;
+            unsigned char current_value = ws[ws_offset + oc];
+            current_value = (predicate & (unsigned char)index)
+                    | ((~predicate) & current_value);
+            ws[ws_offset + oc] = current_value;
+        } else {
+            auto wint = reinterpret_cast<int *>(ws);
+            unsigned int predicate = (s > mv) ? 0xffffffff : 0;
+            unsigned int current_value = wint[ws_offset + oc];
+            current_value = (predicate & (unsigned int)index)
+                    | ((~predicate) & current_value);
+            wint[ws_offset + oc] = current_value;
+        }
+#endif
+        // update maximum
+        dst[oc] = nstl::max(s, mv);
+    }
+}
+
+template <data_type_t d_type>
+void nhwc_pooling_fwd_t<d_type>::array_nhwc_initialize(const int n,
+        ker_data_t *dst, unsigned char *ws, const size_t ws_offset,
+        const data_type_t ws_dt) const {
+    assert(ws && (ws_dt == data_type::u8 || ws_dt == data_type::s32));
+#if SAFE_TO_USE_OMP_SIMD
+    PRAGMA_OMP_SIMD()
+#endif
+    for (int oc = 0; oc < n; ++oc) {
+        if (ws_dt == data_type::u8)
+            ws[ws_offset + oc] = 0;
+        else
+            reinterpret_cast<int *>(ws)[ws_offset + oc] = 0;
+        dst[oc] = nstl::numeric_limits<data_t>::lowest();
+    }
+}
+
 using namespace nstl;
 using namespace nhwc_pooling;
 
@@ -128,12 +193,16 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
             // simple loops unless they are singled out
             // into separate helper routines:
             //    array_nhwc_initialize, array_nhwc_max
-            if (!ws)
-                array_nhwc_initialize<false>(
+            if (!ws) {
+                auto *d = dst + dst_offset_init;
+                PRAGMA_OMP_SIMD()
+                for (int oc = 0; oc < OC; ++oc) {
+                    d[oc] = nstl::numeric_limits<data_t>::lowest();
+                }
+            } else {
+                array_nhwc_initialize(
                         OC, dst + dst_offset_init, ws, ws_offset_init, ws_dt);
-            else
-                array_nhwc_initialize<true>(
-                        OC, dst + dst_offset_init, ws, ws_offset_init, ws_dt);
+            }
 
             for_(int kd = 0; kd < KD; ++kd)
             for_(int kh = 0; kh < KH; ++kh)
@@ -149,14 +218,18 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
                 size_t src_offset_init = strided_offset(mb, src_n_stride, id,
                         src_d_stride, ih, src_h_stride, iw, src_w_stride);
 
-                if (!ws)
-                    array_nhwc_max<false>(OC, dst + dst_offset_init,
+                if (!ws) {
+                    auto *s = src + src_offset_init;
+                    auto *d = dst + dst_offset_init;
+                    PRAGMA_OMP_SIMD()
+                    for (int oc = 0; oc < OC; ++oc) {
+                        d[oc] = nstl::max(s[oc], d[oc]);
+                    }
+                } else {
+                    array_nhwc_max(OC, dst + dst_offset_init,
                             src + src_offset_init, ws, ws_offset_init, ws_dt,
                             kd * KH * KW + kh * KW + kw);
-                else
-                    array_nhwc_max<true>(OC, dst + dst_offset_init,
-                            src + src_offset_init, ws, ws_offset_init, ws_dt,
-                            kd * KH * KW + kh * KW + kw);
+                }
             }
         } else {
             // pooling_avg
@@ -268,12 +341,16 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
                     // simple loops unless they are singled out
                     // into separate helper routines:
                     //    array_nhwc_initialize, array_nhwc_max
-                    if (!ws)
-                        array_nhwc_initialize<false>(
+                    if (!ws) {
+                        PRAGMA_OMP_SIMD()
+                        for (int oc = 0; oc < OC; ++oc) {
+                            dst_f32[oc]
+                                    = nstl::numeric_limits<data_t>::lowest();
+                        }
+                    } else {
+                        array_nhwc_initialize(
                                 OC, dst_f32, ws, ws_offset_init, ws_dt);
-                    else
-                        array_nhwc_initialize<true>(
-                                OC, dst_f32, ws, ws_offset_init, ws_dt);
+                    }
 
                     for_(int kd = 0; kd < KD; ++kd)
                     for_(int kh = 0; kh < KH; ++kh)
@@ -293,14 +370,17 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
                         cvt_bfloat16_to_float(
                                 src_f32, &src[src_offset_init], OC);
 
-                        if (!ws)
-                            array_nhwc_max<false>(OC, dst_f32, src_f32, ws,
+                        if (!ws) {
+                            PRAGMA_OMP_SIMD()
+                            for (int oc = 0; oc < OC; ++oc) {
+                                dst_f32[oc]
+                                        = nstl::max(src_f32[oc], dst_f32[oc]);
+                            }
+                        } else {
+                            array_nhwc_max(OC, dst_f32, src_f32, ws,
                                     ws_offset_init, ws_dt,
                                     kd * KH * KW + kh * KW + kw);
-                        else
-                            array_nhwc_max<true>(OC, dst_f32, src_f32, ws,
-                                    ws_offset_init, ws_dt,
-                                    kd * KH * KW + kh * KW + kw);
+                        }
                     }
                     cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
                 } else {
