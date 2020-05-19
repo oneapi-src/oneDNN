@@ -290,7 +290,8 @@ static int compare_padded_area_for_zeros(const engine_t &engine_tgt,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int fill_data(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+int fill_data(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
@@ -311,7 +312,9 @@ int fill_data(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
         // Note 2: We also advance the state to avoid having only
         // small values as first chunk input.  The +1 is necessary to
         // avoid generating zeros in first chunk.
-        std::minstd_rand msr(idx_start + 1);
+        // Note 3: we multiply by kind + 1 to have different values in
+        // src/dst and diff_dst. The +1 is to avoid 0 again.
+        std::minstd_rand msr((idx_start + 1) * (kind + 1));
         msr.discard(1);
         std::uniform_int_distribution<> igen(0, 10);
         // TODO: 0.09 due to log impl doesn't give good accuracy in 0.99 points
@@ -384,7 +387,7 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
-    SAFE(fill_data(p, src_dt, src_fp), WARN);
+    SAFE(fill_data(p, SRC, src_dt, src_fp), WARN);
 
     args_t args;
 
@@ -413,7 +416,7 @@ int doit(const prb_t *p, res_t *r) {
         }
         dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 
-        SAFE(fill_data(p, d_dst_dt, d_dst_fp), WARN);
+        SAFE(fill_data(p, DST, d_dst_dt, d_dst_fp), WARN);
 
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
