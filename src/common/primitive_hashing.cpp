@@ -40,11 +40,6 @@ key_t::key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr)
     init_mds(pd);
 }
 
-key_t::key_t(const primitive_desc_t *pd, int impl_nthr)
-    : key_t(pd, nullptr, impl_nthr) {
-    init_mds(pd);
-}
-
 void key_t::init_mds(const primitive_desc_t *pd) {
     // Put only **relevant** memory descriptors to the list that might
     // affect the equality. The current cases are:
