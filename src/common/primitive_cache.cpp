@@ -40,13 +40,13 @@ status_t get_primitive_cache_size(int *size) {
     if (size == nullptr) return dnnl::impl::status::invalid_arguments;
     *size = 0;
 #ifdef DNNL_ENABLE_PRIMITIVE_CACHE
-    utils::lock_read_t lock_r(primitive_cache_t::rw_mutex());
     *size = primitive_cache().get_size();
 #endif
     return dnnl::impl::status::success;
 }
 
 status_t lru_primitive_cache_t::set_capacity(int capacity) {
+    utils::lock_write_t lock_w(rw_mutex());
     capacity_ = (size_t)capacity;
     // Check if number of entries exceeds the new capacity
     if (cache_list_.size() > capacity_) {
@@ -58,11 +58,13 @@ status_t lru_primitive_cache_t::set_capacity(int capacity) {
 }
 
 int lru_primitive_cache_t::get_capacity() const {
+    utils::lock_read_t lock_r(rw_mutex());
     return (int)capacity_;
 }
 
 // For undocumented API
 int lru_primitive_cache_t::get_size() const {
+    utils::lock_read_t lock_r(rw_mutex());
     return (int)cache_list_.size();
 }
 
@@ -152,8 +154,6 @@ dnnl::impl::status_t dnnl_get_primitive_cache_capacity(int *capacity) {
     if (capacity == nullptr) return dnnl::impl::status::invalid_arguments;
     *capacity = 0;
 #ifdef DNNL_ENABLE_PRIMITIVE_CACHE
-    dnnl::impl::utils::lock_read_t lock_r(
-            dnnl::impl::primitive_cache_t::rw_mutex());
     *capacity = dnnl::impl::primitive_cache().get_capacity();
 #endif
     return dnnl::impl::status::success;
@@ -162,8 +162,6 @@ dnnl::impl::status_t dnnl_get_primitive_cache_capacity(int *capacity) {
 dnnl::impl::status_t dnnl_set_primitive_cache_capacity(int capacity) {
     if (capacity < 0) return dnnl::impl::status::invalid_arguments;
 #ifdef DNNL_ENABLE_PRIMITIVE_CACHE
-    dnnl::impl::utils::lock_write_t lock_w(
-            dnnl::impl::primitive_cache_t::rw_mutex());
     return dnnl::impl::primitive_cache().set_capacity(capacity);
 #endif
     return dnnl::impl::status::success;

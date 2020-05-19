@@ -52,12 +52,12 @@ struct primitive_cache_t : public c_compatible {
 
     virtual int get_size() const = 0;
 
+protected:
     static utils::rw_mutex_t &rw_mutex() {
         static utils::rw_mutex_t mutex;
         return mutex;
     }
 
-protected:
     void lock_read(bool need_lock) {
         if (need_lock) rw_mutex().lock_read();
     }
