@@ -23,14 +23,6 @@
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #endif
 
-#ifndef POST_OP_DATA_T
-#if DT_F16 == 1
-#define POST_OP_DATA_T half
-#else
-#define POST_OP_DATA_T float
-#endif
-#endif
-
 #ifndef DATA_MAX
 #if DT_F16 == 1
 #define DATA_MAX HALF_MAX
@@ -47,117 +39,111 @@
 #define ELTWISE_ALPHA0 0
 #endif
 
-POST_OP_DATA_T relu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+float relu_fwd(float s, float alpha) {
     return s > 0 ? s : (ELTWISE_ALPHA0 ? 0 : s * alpha);
 }
-POST_OP_DATA_T relu_bwd(
-        POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+float relu_bwd(float dd, float s, float alpha) {
     return s > 0 ? dd : dd * alpha;
 }
-POST_OP_DATA_T relu_bwd_use_dst(
-        POST_OP_DATA_T dd, POST_OP_DATA_T d, POST_OP_DATA_T alpha) {
+float relu_bwd_use_dst(float dd, float d, float alpha) {
     return d > 0 ? dd : dd * alpha;
 }
 
-POST_OP_DATA_T linear_fwd(
-        POST_OP_DATA_T s, POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
+float linear_fwd(float s, float alpha, float beta) {
     return alpha * s + beta;
 }
-POST_OP_DATA_T linear_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T alpha) {
+float linear_bwd(float dd, float alpha) {
     return dd * alpha;
 }
 
-POST_OP_DATA_T bounded_relu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+float bounded_relu_fwd(float s, float alpha) {
     s = s > 0 ? s : 0;
     return s > alpha ? alpha : s;
 }
-POST_OP_DATA_T bounded_relu_bwd(
-        POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+float bounded_relu_bwd(float dd, float s, float alpha) {
     return dd * (0 < s && s <= alpha ? 1 : 0);
 }
 
-POST_OP_DATA_T soft_relu_fwd(POST_OP_DATA_T s) {
-    return s < log((POST_OP_DATA_T)DATA_MAX) ? log1p(exp(s)) : s;
+float soft_relu_fwd(float s) {
+    return s < log((float)DATA_MAX) ? log1p(exp(s)) : s;
 }
-POST_OP_DATA_T soft_relu_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+float soft_relu_bwd(float dd, float s) {
     return dd / (1 + exp(-s));
 }
 
-POST_OP_DATA_T logistic_fwd(POST_OP_DATA_T s) {
+float logistic_fwd(float s) {
     return 1.0f / (1.0f + exp(-s));
 }
-POST_OP_DATA_T logistic_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
-    POST_OP_DATA_T v = logistic_fwd(s);
+float logistic_bwd(float dd, float s) {
+    float v = logistic_fwd(s);
     return dd * v * (1 - v);
 }
-POST_OP_DATA_T logistic_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
+float logistic_bwd_use_dst(float dd, float d) {
     return dd * d * (1 - d);
 }
 
-POST_OP_DATA_T square_fwd(POST_OP_DATA_T s) {
+float square_fwd(float s) {
     return s * s;
 }
-POST_OP_DATA_T square_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+float square_bwd(float dd, float s) {
     return dd * 2 * s;
 }
 
-POST_OP_DATA_T sqrt_fwd(POST_OP_DATA_T s) {
+float sqrt_fwd(float s) {
     return sqrt(s);
 }
-POST_OP_DATA_T sqrt_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+float sqrt_bwd(float dd, float s) {
     return dd / (2 * sqrt(s));
 }
-POST_OP_DATA_T sqrt_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
+float sqrt_bwd_use_dst(float dd, float d) {
     return dd / (2 * d);
 }
 
-POST_OP_DATA_T abs_fwd(POST_OP_DATA_T s) {
+float abs_fwd(float s) {
     return s > 0 ? s : -s;
 }
-POST_OP_DATA_T abs_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+float abs_bwd(float dd, float s) {
     return s > 0 ? dd : s < 0 ? -dd : 0;
 }
 
-POST_OP_DATA_T tanh_fwd(POST_OP_DATA_T s) {
+float tanh_fwd(float s) {
     return tanh(s);
 }
-POST_OP_DATA_T tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
-    POST_OP_DATA_T e = tanh_fwd(s);
+float tanh_bwd(float dd, float s) {
+    float e = tanh_fwd(s);
     return dd * (1 - e) * (1 + e);
 }
-POST_OP_DATA_T tanh_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
+float tanh_bwd_use_dst(float dd, float d) {
     return dd * (1 - d) * (1 + d);
 }
 
-POST_OP_DATA_T elu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+float elu_fwd(float s, float alpha) {
     return s > 0 ? s : alpha * expm1(s);
 }
-POST_OP_DATA_T elu_bwd(
-        POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+float elu_bwd(float dd, float s, float alpha) {
     return dd * (s > 0 ? 1 : alpha * exp(s));
 }
-POST_OP_DATA_T elu_bwd_use_dst(
-        POST_OP_DATA_T dd, POST_OP_DATA_T d, POST_OP_DATA_T alpha) {
+float elu_bwd_use_dst(float dd, float d, float alpha) {
     return dd * (d > 0 ? 1 : d + alpha);
 }
 
-POST_OP_DATA_T exp_fwd(POST_OP_DATA_T s) {
+float exp_fwd(float s) {
     return exp(s);
 }
-POST_OP_DATA_T exp_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+float exp_bwd(float dd, float s) {
     return dd * exp_fwd(s);
 }
-POST_OP_DATA_T exp_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
+float exp_bwd_use_dst(float dd, float d) {
     return dd * d;
 }
 
-POST_OP_DATA_T gelu_tanh_fwd(POST_OP_DATA_T s) {
+float gelu_tanh_fwd(float s) {
     const float a = 0.797884f;
     const float b = 0.044715f;
     const float g = a * s * (1.0f + b * s * s);
     return (0.5f * s * (1.0f + tanh_fwd(g)));
 }
-POST_OP_DATA_T gelu_tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+float gelu_tanh_bwd(float dd, float s) {
     const float a = 0.797884f;
     const float b = 0.044715f;
     const float g = a * s * (1.0f + b * s * s);
@@ -167,60 +153,54 @@ POST_OP_DATA_T gelu_tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
                     * (1.0f + s * (1.0f - tanh_fwd(g)) * dg));
 }
 
-POST_OP_DATA_T swish_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
+float swish_fwd(float s, float alpha) {
     float w = -alpha * s;
     return s / (1.0f + exp(w));
 }
-POST_OP_DATA_T swish_bwd(
-        POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
-    POST_OP_DATA_T v = logistic_fwd(alpha * s);
+float swish_bwd(float dd, float s, float alpha) {
+    float v = logistic_fwd(alpha * s);
     return dd * (v + s * alpha * v * (1.0f - v));
 }
 
-POST_OP_DATA_T log_fwd(POST_OP_DATA_T s) {
+float log_fwd(float s) {
     return log(s);
 }
-POST_OP_DATA_T log_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+float log_bwd(float dd, float s) {
     return dd / s;
 }
 
-POST_OP_DATA_T clip_fwd(
-        POST_OP_DATA_T s, POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
+float clip_fwd(float s, float alpha, float beta) {
     s = s > alpha ? s : alpha;
     return s > beta ? beta : s;
 }
-POST_OP_DATA_T clip_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s,
-        POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
+float clip_bwd(float dd, float s, float alpha, float beta) {
     return dd * (alpha < s && s <= beta ? 1 : 0);
 }
 
-POST_OP_DATA_T pow_fwd(
-        POST_OP_DATA_T s, POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
+float pow_fwd(float s, float alpha, float beta) {
     return alpha * pow(s, beta);
 }
-POST_OP_DATA_T pow_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s,
-        POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
+float pow_bwd(float dd, float s, float alpha, float beta) {
     if (beta == 0) return 0;
 
     float v = pow_fwd(s, alpha * beta, beta - 1);
     return dd * v;
 }
 
-POST_OP_DATA_T gelu_erf_fwd(POST_OP_DATA_T s) {
+float gelu_erf_fwd(float s) {
     const float sqrt_2_over_2 = 0.707106769084930419921875f;
     float v = s * sqrt_2_over_2;
     return 0.5f * s * (1.f + erf(v));
 }
 
-POST_OP_DATA_T gelu_erf_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+float gelu_erf_bwd(float dd, float s) {
     const float two_over_sqrt_pi = 1.12837922573089599609375f;
     const float sqrt_2_over_2 = 0.707106769084930419921875f;
     float v = s * sqrt_2_over_2;
     return dd * 0.5f * (1.f + erf(v) + v * two_over_sqrt_pi * exp(-v * v));
 }
 
-POST_OP_DATA_T fwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T alpha_,
-        POST_OP_DATA_T beta_, POST_OP_DATA_T scale_) {
+float fwd_eltwise(float x, float alpha_, float beta_, float scale_) {
 #ifdef ELTWISE_ALG
     switch (ELTWISE_ALG) {
         case RELU: return scale_ * relu_fwd(x, alpha_); break;
@@ -255,8 +235,7 @@ POST_OP_DATA_T fwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T alpha_,
 #endif
 }
 
-POST_OP_DATA_T bwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T y,
-        POST_OP_DATA_T alpha_, POST_OP_DATA_T beta_) {
+float bwd_eltwise(float x, float y, float alpha_, float beta_) {
 #ifdef ELTWISE_ALG
     switch (ELTWISE_ALG) {
         case RELU: return relu_bwd(x, y, alpha_); break;
