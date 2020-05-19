@@ -138,11 +138,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const int oc_idx = w_groups ? 1 : 0;
         const int oc = input_d.dims()[oc_idx];
         const int g = w_groups ? (input_d.dims()[0]) : 1;
+        const bool compensation_mask_suitable_for_group = IMPLICATION(
+                w_groups, output_d.extra().compensation_mask & (1 << 1));
 
         return simple_attr_check(attr, true, false)
                 && output_d.matches_tag(tag_o) && input_d.is_plain()
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
+                && compensation_mask_suitable_for_group
                 && (input_d.data_type() == f32 || input_d.data_type() == s8)
                 && output_d.data_type() == s8
                 && (D_mask == 1 || D_mask == (size_t)g * oc);
@@ -262,11 +265,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 OIdhw2i8o4i, OIdhw4o4i);
         const int oc = (input_d.dims()[w_groups ? 1 : 0]);
         const int g = w_groups ? input_d.dims()[0] : 1;
+        const bool compensation_mask_suitable_for_group = IMPLICATION(
+                w_groups, output_d.extra().compensation_mask & (1 << 1));
 
         return simple_attr_check(attr, true, false)
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
+                && compensation_mask_suitable_for_group
                 && (input_d.data_type() == f32 || input_d.data_type() == s8)
                 && output_d.data_type() == s8
                 && (D_mask == 1 || D_mask == (size_t)g * oc);
@@ -395,11 +401,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
         const int oc = input_d.dims()[1];
         const int g = input_d.dims()[0];
+        const bool compensation_mask_suitable_for_group
+                = output_d.extra().compensation_mask & (1 << 1);
 
         return order_keep && simple_attr_check(attr, true, false)
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
+                && compensation_mask_suitable_for_group
                 && (input_d.data_type() == f32 || input_d.data_type() == s8)
                 && output_d.data_type() == s8
                 && (D_mask == 1 || D_mask == (size_t)g * oc);
