@@ -51,6 +51,16 @@
 #define HAS_PAD_W (PW > 0 || (OW - 1) * SW - PW + (KW - 1) * (1 + DW) >= IW)
 #define OC_PAD_BLOCK (OC % OC_BLOCK ? (OC / OC_BLOCK + 1) * OC_BLOCK : OC)
 
+#if DT_F32
+#define BLOCK_READ_BOUND 1
+#define BLOCK_WRITE_BOUND 4
+#elif DT_F16
+#define BLOCK_READ_BOUND 2
+#define BLOCK_WRITE_BOUND 8
+#else
+#error "Wrong Data Type"
+#endif
+
 inline DATA_T read_ic_block(const __global DATA_T *ptr, int off) {
     const int local_id = get_local_id(0);
 #if IC == 3
@@ -60,9 +70,11 @@ inline DATA_T read_ic_block(const __global DATA_T *ptr, int off) {
     int tail = (IS_DW ? G_WO_PADDING : IC_WO_PADDING) - off;
     if (tail < IC_BLOCK) { return (local_id < tail) ? ptr[local_id] : 0; }
 #endif
-    // intel_sub_group_block_read requires 4-byte aligment
-    if (!((ulong)ptr & 0x3)) return _BLOCK_READ(ptr);
+#if (IS_DW ? G_WO_PADDING : IC_WO_PADDING) % BLOCK_READ_BOUND != 0
     return ptr[local_id];
+#else
+    return _BLOCK_READ(ptr);
+#endif
 #endif
 }
 
@@ -72,9 +84,11 @@ inline DATA_T read_oc_block(const __global DATA_T *ptr, int off) {
     int tail = (IS_DW ? G_WO_PADDING : OC_WO_PADDING) - off;
     if (tail < OC_BLOCK) { return (local_id < tail) ? ptr[local_id] : 0; }
 #endif
-    // intel_sub_group_block_read requires 4-byte aligment
-    if (!((ulong)ptr & 0x3)) return _BLOCK_READ(ptr);
+#if (IS_DW ? G_WO_PADDING : OC_WO_PADDING) % BLOCK_READ_BOUND != 0
     return ptr[local_id];
+#else
+    return _BLOCK_READ(ptr);
+#endif
 }
 
 inline void write_oc_block(__global DATA_T *ptr, int off, DATA_T value) {
@@ -86,10 +100,12 @@ inline void write_oc_block(__global DATA_T *ptr, int off, DATA_T value) {
         return;
     }
 #endif
-    // intel_sub_group_block_write requires 16-byte aligment
-    if (!((ulong)ptr & 0xf)) return _BLOCK_WRITE(ptr, value);
+#if (IS_DW ? G_WO_PADDING : OC_WO_PADDING) % BLOCK_WRITE_BOUND != 0
     ptr[local_id] = value;
     return;
+#else
+    return _BLOCK_WRITE(ptr, value);
+#endif
 }
 
 void multiply_blocks_8x8_ic3(DATA_T *res, DATA_T blockA, const DATA_T *blockB) {
