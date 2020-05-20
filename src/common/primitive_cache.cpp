@@ -25,7 +25,7 @@ namespace dnnl {
 namespace impl {
 
 primitive_cache_t &primitive_cache() {
-#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     static const int capacity
             = getenv_int("DNNL_PRIMITIVE_CACHE_CAPACITY", 1024);
 #else
@@ -39,7 +39,7 @@ primitive_cache_t &primitive_cache() {
 status_t get_primitive_cache_size(int *size) {
     if (size == nullptr) return dnnl::impl::status::invalid_arguments;
     *size = 0;
-#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     *size = primitive_cache().get_size();
 #endif
     return dnnl::impl::status::success;
@@ -153,7 +153,7 @@ void lru_primitive_cache_t::evict(size_t n) {
 dnnl::impl::status_t dnnl_get_primitive_cache_capacity(int *capacity) {
     if (capacity == nullptr) return dnnl::impl::status::invalid_arguments;
     *capacity = 0;
-#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     *capacity = dnnl::impl::primitive_cache().get_capacity();
 #endif
     return dnnl::impl::status::success;
@@ -161,7 +161,7 @@ dnnl::impl::status_t dnnl_get_primitive_cache_capacity(int *capacity) {
 
 dnnl::impl::status_t dnnl_set_primitive_cache_capacity(int capacity) {
     if (capacity < 0) return dnnl::impl::status::invalid_arguments;
-#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     return dnnl::impl::primitive_cache().set_capacity(capacity);
 #endif
     return dnnl::impl::status::success;

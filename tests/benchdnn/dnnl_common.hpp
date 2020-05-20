@@ -230,7 +230,7 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
 
     DNN_SAFE_CLEAN(dnnl_primitive_create(&_prim, _pd), WARN, cleanup_pd);
 
-#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     // The idea is to create the requested primitive twice for different engines.
     // Rationale:
     // 1. Make sure that the primitive cache is robust for the cases when:

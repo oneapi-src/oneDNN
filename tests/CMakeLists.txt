@@ -77,8 +77,8 @@ endif()
 
 add_definitions(-DNOMINMAX) # to allow std::max on Windows with parentheses
 
-if(DNNL_ENABLE_PRIMITIVE_CACHE)
-    add_definitions(-DDNNL_ENABLE_PRIMITIVE_CACHE)
+if(NOT DNNL_ENABLE_PRIMITIVE_CACHE)
+    add_definitions(-DDNNL_DISABLE_PRIMITIVE_CACHE)
 endif()
 
 if ("${DNNL_CPU_THREADING_RUNTIME}" STREQUAL "THREADPOOL")
