@@ -48,7 +48,7 @@ jit_avx512_common_lrn_kernel_bwd_nhwc_t<
     const auto res = std::div(C, 16);
     const auto &C_tail = res.rem;
     const auto &num_full_16c_blocks = res.quot;
-    static const auto stack_space = zmm_size * 9;
+    static const auto stack_space = zmm_size_ * 9;
 
     this->preamble();
     if (C_tail) reserve_stack_space(stack_space);
@@ -64,11 +64,11 @@ jit_avx512_common_lrn_kernel_bwd_nhwc_t<
 template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::reserve_stack_space(
         std::size_t space) {
-    const unsigned maxCounter = (space / zmm_size) - 1;
+    const unsigned maxCounter = (space / zmm_size_) - 1;
     this->sub(rsp, space);
     this->vxorps(zmm4, zmm4, zmm4);
     for (unsigned i = 0; i < maxCounter; ++i)
-        this->vmovups(ptr[rsp + i * zmm_size], zmm4);
+        this->vmovups(ptr[rsp + i * zmm_size_], zmm4);
 }
 
 template <data_type_t d_type>
@@ -91,7 +91,7 @@ int jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::get_stack_offset(
     else if (reg == this->src_)
         stack_postion = 5;
 
-    return zmm_size
+    return zmm_size_
             * (stack_postion + (tail_proc == tail_mode::NextTail ? -1 : 0));
 }
 
@@ -150,7 +150,7 @@ void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::set_up_ker_params() {
 #undef GET_OFF
 
     this->mov(this->imm_addr64_, float2int(this->nalphabeta_));
-    this->movq(this->xnalphabeta_, this->imm_addr64_);
+    this->vmovq(this->xnalphabeta_, this->imm_addr64_);
     this->vbroadcastss(this->znalphabeta_, this->xnalphabeta_);
 }
 
@@ -403,12 +403,12 @@ void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::load_compute_data(
 
 template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::store_compute_data(
-        int loop_size_param, tail_mode tail_m, unsigned C_tail) {
+        int loop_size_param, tail_mode tail_proc, unsigned C_tail) {
     const int loop_size = loop_size_param;
 
-    if (tail_m == tail_mode::CurrentTail) {
+    if (tail_proc == tail_mode::CurrentTail) {
         this->store_tail(C_tail, this->zreg(0, this->zdiffsrc_), this->diffsrc_,
-                0, 8 * zmm_size, tmp_store_from_stack_idx_tail_);
+                0, 8 * zmm_size_, tmp_store_from_stack_idx_tail_);
     } else {
         Label unaligned_store, end_store;
         this->test(this->diffsrc_, this->vlen_ - 1);

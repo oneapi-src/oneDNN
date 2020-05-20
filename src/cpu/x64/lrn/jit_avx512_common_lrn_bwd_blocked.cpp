@@ -52,9 +52,9 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
     HW_ = J.H * J.W;
     int LSB = this->use_h_parallelism_ ? W_ : HW_;
 
-    this->sub(this->t_, this->reg_block_ * buffer_block_);
+    this->sub(this->rsp, this->reg_block_ * buffer_block_);
     this->mov(this->imm_addr64_, float2int(this->nalphabeta_));
-    this->movq(this->xnalphabeta_, this->imm_addr64_);
+    this->vmovq(this->xnalphabeta_, this->imm_addr64_);
     this->vbroadcastss(this->znalphabeta_, this->xnalphabeta_);
 
     version_ = J.version;
@@ -63,7 +63,7 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
             || version_ == across_version::Single) {
         this->vpxorq(xmm1, xmm1, xmm1);
         for (int irb = 0; irb < this->reg_block_; irb++) {
-            this->vmovups(ptr[this->t_ + irb * buffer_block_], xmm1);
+            this->vmovups(ptr[this->rsp + irb * buffer_block_], xmm1);
         }
     }
     if (version_ == across_version::Last
@@ -71,7 +71,7 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
         this->vpxorq(xmm1, xmm1, xmm1);
         for (int irb = 0; irb < this->reg_block_; irb++) {
             this->vmovups(
-                    ptr[this->t_ + irb * buffer_block_ + buffer_nest_offset_],
+                    ptr[this->rsp + irb * buffer_block_ + buffer_nest_offset_],
                     xmm1);
         }
     }
@@ -103,7 +103,7 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
 
     compute_loop(LSREST, 1, this->use_h_parallelism_ ? 0 : 1);
 
-    this->add(this->t_, this->reg_block_ * buffer_block_);
+    this->add(this->rsp, this->reg_block_ * buffer_block_);
     this->postamble();
 
     ker = reinterpret_cast<decltype(ker)>(
@@ -201,31 +201,31 @@ void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::compute_loop(
 
     if (version_ != across_version::First
             && version_ != across_version::Single) {
-        IRB_LOOP(this->vmovups(ptr[this->t_ + irb * buffer_block_],
+        IRB_LOOP(this->vmovups(ptr[this->rsp + irb * buffer_block_],
                 this->xreg(irb, xdiffdst_prev_)));
     }
-    IRB_LOOP(this->vmovups(
-            this->EVEX_compress_addr(this->t_, irb * buffer_block_ + xmm_size_),
+    IRB_LOOP(this->vmovups(this->EVEX_compress_addr(
+                                   this->rsp, irb * buffer_block_ + xmm_size_),
             this->zreg(irb, this->zdiffsrc_)));
     if (version_ != across_version::Last
             && version_ != across_version::Single) {
         IRB_LOOP(this->vmovups(
-                ptr[this->t_ + irb * buffer_block_ + buffer_nest_offset_],
+                ptr[this->rsp + irb * buffer_block_ + buffer_nest_offset_],
                 this->xreg(irb, xdiffdst_next_)));
     }
     size_t acc_size = sizeof(acc_data_t);
     IRB_LOOP(this->vmovups(this->zreg(irb, this->z_prev_[0]),
-            this->EVEX_compress_addr(
-                    this->t_, irb * buffer_block_ + xmm_size_ - 2 * acc_size)));
+            this->EVEX_compress_addr(this->rsp,
+                    irb * buffer_block_ + xmm_size_ - 2 * acc_size)));
     IRB_LOOP(this->vmovups(this->zreg(irb, this->z_prev_[1]),
-            this->EVEX_compress_addr(
-                    this->t_, irb * buffer_block_ + xmm_size_ - 1 * acc_size)));
+            this->EVEX_compress_addr(this->rsp,
+                    irb * buffer_block_ + xmm_size_ - 1 * acc_size)));
     IRB_LOOP(this->vmovups(this->zreg(irb, this->z_next_[0]),
-            this->EVEX_compress_addr(
-                    this->t_, irb * buffer_block_ + xmm_size_ + 1 * acc_size)));
+            this->EVEX_compress_addr(this->rsp,
+                    irb * buffer_block_ + xmm_size_ + 1 * acc_size)));
     IRB_LOOP(this->vmovups(this->zreg(irb, this->z_next_[1]),
-            this->EVEX_compress_addr(
-                    this->t_, irb * buffer_block_ + xmm_size_ + 2 * acc_size)));
+            this->EVEX_compress_addr(this->rsp,
+                    irb * buffer_block_ + xmm_size_ + 2 * acc_size)));
     IRB_LOOP(this->vaddps(this->zreg(irb, this->zdiffsrc_),
             this->zreg(irb, this->zdiffsrc_),
             this->zreg(irb, this->z_prev_[0])));

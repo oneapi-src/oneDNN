@@ -61,7 +61,6 @@ private:
     int HW_, W_;
     across_version version_;
 
-    const Reg64 t_ = rsp;
     const Reg64 hw_ = r10;
 
     const int xws1_prev_ = 3;

@@ -160,7 +160,6 @@ void jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>::compute_loop(
                 this->ws1_, (irb + prf2_offt) * this->vlen_)));
     }
 
-    //     loop_size = loop_size_param;
     if (loop_size == 0) return;
 
     // --- loading source data to special buffer to form convenient data layout

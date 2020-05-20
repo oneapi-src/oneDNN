@@ -55,14 +55,14 @@ public:
         const int32_t *mask_ptr;
     };
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd);
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd_t);
     void (*ker)(jit_args_fwd_t *);
     void operator()(jit_args_fwd_t *arg) { ker(arg); }
 
 protected:
-    std::function<Zmm(int irb, int i)> zreg;
-    std::function<Ymm(int irb, int i)> yreg;
-    std::function<Xmm(int irb, int i)> xreg;
+    Zmm zreg(int irb, int i) const;
+    Ymm yreg(int irb, int i) const;
+    Xmm xreg(int irb, int i) const;
 
     void store_data(const Address addr, Zmm zr, Ymm yr);
     void load_tail(int tail_value, Reg64 src, int src_mem_offset,
@@ -110,6 +110,9 @@ protected:
     const int reg_block_;
     static constexpr int vlen_ = d_type == bf16 ? 32 : 64;
     std::unique_ptr<bf16_emulation_t> bf16_emu_ = nullptr;
+
+private:
+    const int regs_used_per_block_;
 };
 
 } // namespace lrn

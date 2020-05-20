@@ -46,7 +46,7 @@ template <>
 void jit_avx512_common_lrn_kernel_bwd_t<f32>::load_data(
         Xmm reg, const Address p, bool from_stack) {
     this->vmovups(reg, p);
-};
+}
 
 template <>
 void jit_avx512_common_lrn_kernel_bwd_t<bf16>::load_data(
@@ -56,12 +56,12 @@ void jit_avx512_common_lrn_kernel_bwd_t<bf16>::load_data(
         this->vpslld(reg, reg, 0x10);
     } else
         this->vmovups(reg, p);
-};
+}
 
 template <>
 void jit_avx512_common_lrn_kernel_bwd_t<bf16>::store_data(
         bool nt, const Address addr, Zmm zr) {
-    Ymm yr = Ymm(zr.getIdx());
+    const Ymm yr = Ymm(zr.getIdx());
     if (mayiuse(avx512_core_bf16))
         vcvtneps2bf16(yr, zr);
     else
@@ -71,8 +71,8 @@ void jit_avx512_common_lrn_kernel_bwd_t<bf16>::store_data(
 
 template <>
 void jit_avx512_common_lrn_kernel_bwd_t<f32>::store_data(
-        bool nt, const Address addr, Zmm zr) {
-    if (nt)
+        bool non_temp_hint, const Address addr, Zmm zr) {
+    if (non_temp_hint)
         uni_vmovntps(addr, zr);
     else
         uni_vmovups(addr, zr);
@@ -166,7 +166,7 @@ void jit_avx512_common_lrn_kernel_bwd_t<bf16>::store_tail(int tail_value,
         this->mov(this->imm_addr16_, word[rsp + tmp_stack_offset]);
         this->mov(word[dst + dst_mem_offset], this->imm_addr16_);
     }
-};
+}
 
 template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_avx512_common_lrn_kernel_bwd_t(
@@ -187,18 +187,8 @@ jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_avx512_common_lrn_kernel_bwd_t(
     , nalphabeta_(-2 * alpha * beta)
     , emulateBfloat_(d_type == bf16 && !mayiuse(avx512_core_bf16))
     , reg_block_ {(d_type == bf16 && !mayiuse(avx512_core_bf16) ? 26 : 30)
-              / (std::max(this->local_size_ + 2, 7))} {
-
-    const int regs_used_per_block = std::max(this->local_size_ + 2, 7);
-    zreg = [regs_used_per_block](int irb, int i) {
-        return Zmm(irb * regs_used_per_block + i);
-    };
-    yreg = [regs_used_per_block](int irb, int i) {
-        return Ymm(irb * regs_used_per_block + i);
-    };
-    xreg = [regs_used_per_block](int irb, int i) {
-        return Xmm(irb * regs_used_per_block + i);
-    };
+              / (std::max(this->local_size_ + 2, 7))}
+    , regs_used_per_block_ {std::max(this->local_size_ + 2, 7)} {
 
     if (emulateBfloat_) {
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
@@ -206,6 +196,21 @@ jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_avx512_common_lrn_kernel_bwd_t(
                 bf16_emu_scratch_, bf16_emu_reserv_4_);
         bf16_emu_->init_vcvtneps2bf16();
     }
+}
+
+template <data_type_t d_type>
+Zmm jit_avx512_common_lrn_kernel_bwd_t<d_type>::zreg(int irb, int i) const {
+    return Zmm(irb * regs_used_per_block_ + i);
+}
+
+template <data_type_t d_type>
+Ymm jit_avx512_common_lrn_kernel_bwd_t<d_type>::yreg(int irb, int i) const {
+    return Ymm(irb * regs_used_per_block_ + i);
+}
+
+template <data_type_t d_type>
+Xmm jit_avx512_common_lrn_kernel_bwd_t<d_type>::xreg(int irb, int i) const {
+    return Xmm(irb * regs_used_per_block_ + i);
 }
 
 template class jit_avx512_common_lrn_kernel_bwd_t<f32>;

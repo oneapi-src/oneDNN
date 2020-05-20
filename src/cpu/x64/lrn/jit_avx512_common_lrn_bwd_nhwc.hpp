@@ -40,29 +40,29 @@ public:
             int local_size, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_bwd_nhwc_f)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_bwd_nhwc_t)
 
 private:
     void set_up_ker_params();
     void execute_compute_loop(unsigned num_full_16c_blocks, unsigned C_tail);
-    void compute_loop(across_version version, tail_mode tail_m,
+    void compute_loop(across_version version, tail_mode tail_proc,
             unsigned C_tail = 0, int loop_size_param = 1);
     void compute(int loop_size_param, tail_mode tail_proc);
     void increment_loop_params(std::size_t offset);
     void load_compute_data(
             across_version version, tail_mode tail_proc, int loop_size_param);
     void store_compute_data(
-            int loop_size_param, tail_mode tail_mode, unsigned C_tail);
+            int loop_size_param, tail_mode tail_m, unsigned C_tail);
     void reserve_stack_space(std::size_t space);
     void unreserve_stack_space(std::size_t space);
     void load_data_to_stack(
-            unsigned C_tail, across_version version, tail_mode tail_mode);
-    int get_stack_offset(const Reg64 reg, tail_mode tail_mode);
+            unsigned C_tail, across_version version, tail_mode tail_proc);
+    int get_stack_offset(const Reg64 reg, tail_mode tail_proc);
 
     const std::vector<int> tmp_mask_prev_;
     const std::vector<int> tmp_mask_next_;
 
-    static constexpr int zmm_size = 64;
+    static constexpr int zmm_size_ = 64;
     static constexpr int tmp_load_to_stack_idx_prev_ = 12;
     static constexpr int tmp_load_to_stack_idx_tail_ = 13;
     static constexpr int tmp_store_from_stack_idx_tail_ = 14;

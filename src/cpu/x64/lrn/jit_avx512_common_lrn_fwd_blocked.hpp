@@ -31,8 +31,7 @@ class jit_avx512_common_lrn_kernel_fwd_blocked_t
     : public jit_avx512_common_lrn_kernel_fwd_t<d_type> {
 
 public:
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd_t::
-                    jit_avx512_common_lrn_kernel_fwd_blocked_t)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd_blocked_t)
 
     jit_avx512_common_lrn_kernel_fwd_blocked_t(const struct nChw16c_across_t &J,
             prop_kind_t prop_kind, int use_h_parallel, float alpha, float beta,

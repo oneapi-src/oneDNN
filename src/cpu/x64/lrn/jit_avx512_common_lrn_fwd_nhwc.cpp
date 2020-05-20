@@ -230,62 +230,62 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_compute_data(
                 this->EVEX_compress_addr(this->src_, irb * this->vlen_)));
     }
 
-    int reg, mask, pos;
-    std::vector<std::tuple<int, int, int>> prev_v;
+    struct entry_t {
+        int reg, mask, pos;
+        entry_t(int reg, int mask, int pos)
+            : reg {reg}, mask {mask}, pos {pos} {}
+    };
+    std::vector<entry_t> prev_v;
     for (int pos = 0; pos < this->half_ls_; ++pos) {
         prev_v.emplace_back(this->z_prev_[pos], this->tmp_mask_prev_[pos],
                 this->half_ls_ - pos);
-    };
+    }
     if (version == across_version::First || version == across_version::Single) {
-        for (const auto &reg_mask_pos : prev_v) {
-            std::tie(reg, mask, pos) = reg_mask_pos;
-            load_shifted_padded_with_zeros(
-                    reg, this->zc_, mask, -1 * pos * mask_shift);
+        for (const auto &entry : prev_v) {
+            load_shifted_padded_with_zeros(entry.reg, this->zc_, entry.mask,
+                    -1 * entry.pos * mask_shift);
         }
     } else {
         if (tail_proc == tail_mode::CurrentTail) {
-            for (const auto &reg_mask_pos : prev_v) {
-                std::tie(reg, mask, pos) = reg_mask_pos;
-                this->load_data(this->zreg(0, reg),
-                        this->EVEX_compress_addr(
-                                rsp, zmm_size - 1 * pos * sizeof(acc_data_t)),
+            for (const auto &entry : prev_v) {
+                this->load_data(this->zreg(0, entry.reg),
+                        this->EVEX_compress_addr(rsp,
+                                zmm_size - 1 * entry.pos * sizeof(acc_data_t)),
                         true);
             }
         } else {
-            for (const auto &reg_mask_pos : prev_v) {
-                std::tie(reg, mask, pos) = reg_mask_pos;
-                IRB_LOOP(this->load_data(this->zreg(irb, reg),
+            for (const auto &entry : prev_v) {
+                IRB_LOOP(this->load_data(this->zreg(irb, entry.reg),
                         this->EVEX_compress_addr(this->src_,
-                                (irb * this->vlen_) - 1 * pos * acc_size)));
+                                (irb * this->vlen_)
+                                        - 1 * entry.pos * acc_size)));
             }
         }
     }
 
-    std::vector<std::tuple<int, int, int>> next_v;
+    std::vector<entry_t> next_v;
     for (int pos = 0; pos < this->half_ls_; ++pos) {
         next_v.emplace_back(
                 this->z_next_[pos], this->tmp_mask_next_[pos], pos + 1);
     }
     if (version == across_version::Last || version == across_version::Single) {
-        for (const auto &reg_mask_pos : next_v) {
-            std::tie(reg, mask, pos) = reg_mask_pos;
+        for (const auto &entry : next_v) {
             load_shifted_padded_with_zeros(
-                    reg, this->zc_, mask, pos * mask_shift);
+                    entry.reg, this->zc_, entry.mask, entry.pos * mask_shift);
         }
     } else {
         if (tail_proc == tail_mode::NextTail) {
-            for (const auto &reg_mask_pos : next_v) {
-                std::tie(reg, mask, pos) = reg_mask_pos;
-                this->load_data(this->zreg(0, reg),
-                        this->EVEX_compress_addr(rsp, pos * sizeof(acc_data_t)),
+            for (const auto &entry : next_v) {
+                this->load_data(this->zreg(0, entry.reg),
+                        this->EVEX_compress_addr(
+                                rsp, entry.pos * sizeof(acc_data_t)),
                         true);
             }
         } else {
-            for (const auto &reg_mask_pos : next_v) {
-                std::tie(reg, mask, pos) = reg_mask_pos;
-                IRB_LOOP(this->load_data(this->zreg(irb, reg),
+            for (const auto &entry : next_v) {
+                IRB_LOOP(this->load_data(this->zreg(irb, entry.reg),
                         this->EVEX_compress_addr(this->src_,
-                                (irb * this->vlen_) + pos * acc_size)));
+                                (irb * this->vlen_) + entry.pos * acc_size)));
             }
         }
     }
