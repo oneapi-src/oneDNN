@@ -510,8 +510,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     }
 
     bool args_ok = true
-        && IMPLICATION(flat, one_of(src_d.format(), ncw, nwc, nchw, nhwc,
-            ncdhw, ndhwc)
+        && IMPLICATION(flat, one_of(src_d.format(), ncw, nchw, ncdhw)
             && one_of(weights_d.format(), Owi8o, gOwi8o, Ohwi8o, gOhwi8o,
                 Odhwi8o, gOdhwi8o))
         && IMPLICATION(mimo, one_of(src_d.format(), nCw8c, nChw8c, nCdhw8c)
@@ -1089,8 +1088,7 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     }
 
     bool args_ok = true
-        && IMPLICATION(flat, one_of(src_d.format(), ncw, nwc, nchw, nhwc, ncdhw,
-                ndhwc)
+        && IMPLICATION(flat, one_of(src_d.format(), ncw, nchw, ncdhw)
                 && one_of(diff_weights_d.format(), Owi8o, gOwi8o, Ohwi8o,
                     gOhwi8o, Odhwi8o, gOdhwi8o))
         && IMPLICATION(mimo, one_of(src_d.format(), nCw8c, nChw8c, nCdhw8c)
