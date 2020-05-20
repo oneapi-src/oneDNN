@@ -524,9 +524,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     bool args_ok = true
             && IMPLICATION(flat,
-                    true
-                            && one_of(jcp.src_tag, ncw, nwc, nchw, nhwc, ncdhw,
-                                    ndhwc)
+                    true && one_of(jcp.src_tag, ncw, nchw, ncdhw)
                             && one_of(jcp.wei_tag, Owi8o, gOwi8o, Ohwi8o,
                                     gOhwi8o, Odhwi8o, gOdhwi8o))
             && IMPLICATION(mimo,
@@ -1117,9 +1115,7 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     bool args_ok = true
             && IMPLICATION(flat,
-                    true
-                            && one_of(jcp.src_tag, ncw, nwc, nchw, nhwc, ncdhw,
-                                    ndhwc)
+                    true && one_of(jcp.src_tag, ncw, nchw, ncdhw)
                             && one_of(jcp.wei_tag, Owi8o, gOwi8o, Ohwi8o,
                                     gOhwi8o, Odhwi8o, gOdhwi8o))
             && IMPLICATION(mimo,
