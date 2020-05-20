@@ -30,9 +30,14 @@ namespace concat {
 void check_correctness(const settings_t &s) {
     for_(const auto &i_sdt : s.sdt)
     for_(const auto &i_ddt : s.ddt)
-    for_(const auto &i_stag : s.stag)
+    for_(const auto &i_stag_ : s.stag)
     for_(const auto &i_dtag : s.dtag)
     for (const auto &i_axis : s.axis) {
+
+        // broadcast tag if needed
+        auto i_stag = i_stag_;
+        if (i_stag.size() == 1) i_stag.assign(s.sdims.size(), i_stag[0]);
+
         if (s.sdims.size() != i_stag.size()) // want 1:1 match of sdims and tag
             SAFE_V(FAIL);
 
@@ -79,10 +84,6 @@ int bench(int argc, char **argv) {
             catch_unknown_options(argv[0]);
 
             parse_multi_dims(s.sdims, argv[0]);
-
-            // sdims fully define a problem. As sdims are parsed every time it's
-            // safe to process default tag for whatever number of inputs.
-            if (s.stag.empty()) s.stag = {{s.sdims.size(), "abx"}};
 
             check_correctness(s);
         }

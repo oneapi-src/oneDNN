@@ -40,7 +40,7 @@ struct settings_t {
     std::vector<dims_t> sdims;
 
     std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
-    std::vector<std::vector<std::string>> stag;
+    std::vector<std::vector<std::string>> stag {{tag::abx}};
     std::vector<std::string> dtag {tag::undef};
     std::vector<int> axis {1};
     bool allow_unimpl = false;

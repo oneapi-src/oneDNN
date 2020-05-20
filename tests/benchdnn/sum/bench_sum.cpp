@@ -29,17 +29,13 @@ namespace sum {
 
 void check_correctness(const settings_t &s) {
     for (const auto &i_sdt : s.sdt) {
-        // unlike concat, number of inputs is defined by amount of elements in
-        // sdt, not by dims. As we allow to pass multiple values separated by
-        // comma for sdt, setting default tag has to happen when sdt is known,
-        // thus, inside the loop. E.g.: --sdt=f32:f32,f32:f32:f32 3x4x5x6
-        const std::vector<std::vector<std::string>> def_stag {
-                {i_sdt.size(), "abx"}};
-        auto &upd_stag = s.stag.empty() ? def_stag : s.stag;
-
         for_(const auto &i_ddt : s.ddt)
-        for_(const auto &i_stag : upd_stag)
+        for_(const auto &i_stag_ : s.stag)
         for (const auto &i_dtag : s.dtag) {
+            // broadcast tag if needed
+            auto i_stag = i_stag_;
+            if (i_stag.size() == 1) i_stag.assign(i_sdt.size(), i_stag[0]);
+
             if (i_sdt.size() != i_stag.size()) // expect 1:1 match of dt and tag
                 SAFE_V(FAIL);
 

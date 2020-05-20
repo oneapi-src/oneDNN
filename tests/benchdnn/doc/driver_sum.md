@@ -33,8 +33,10 @@ the end to specify fewer dimensions.
 The sum primitive accepts at least two input sources. That is why it has a
 slightly different interface than almost every other driver. Specifying several
 inputs is done via the special ':' delimiter, e.g. --sdt=f32:s32, which means
-that the first source will be of type f32 and the second will be s32. The driver
-requires the same amount of `--sdt` and `--stag` provided.
+that the first source will be of type f32 and the second will be s32. `--stag`
+option must either specify a single tag (this tag will be used for all input
+tensors) or specify the same number of tags as the number of data types in
+`--sdt` delimited by ':'.
 
 
 ## Scales

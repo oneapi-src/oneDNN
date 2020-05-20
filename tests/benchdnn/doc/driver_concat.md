@@ -34,7 +34,9 @@ The concat primitive accepts at least two input sources. That is why it has a
 slightly different interface than almost every other driver. Specifying several
 inputs is done via the special ':' delimiter, e.g. 2x3x2x2:2x5x2x2, which means
 that two tensors of the same shape except one dimension will be concatenated.
-The driver requires the same amount of `--stag` and tensors provided.
+`--stag` option must either specify a single tag (this tag will be used for all
+input tensors) or specify the same number of tags as the number of tensors
+delimited by ':'.
 
 
 ## Essence of Testing
