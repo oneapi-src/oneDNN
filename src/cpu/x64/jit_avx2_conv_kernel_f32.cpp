@@ -862,6 +862,8 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     jcp.src_tag = diff_src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
     jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
+    jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
+
     bool is_data_layout_nxc
             = utils::everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);
     auto required_dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
