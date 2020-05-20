@@ -226,7 +226,7 @@ struct key_t {
     std::type_index impl_id_;
     int impl_nthr_;
     std::vector<memory_desc_t> mds;
-    engine_kind_t kind_;
+    engine_kind_t engine_kind_;
     runtime_kind_t runtime_kind_;
     intptr_t device_id_;
 
@@ -302,7 +302,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
         seed = hash_combine(seed, hash_combine(0, key.impl_id_));
         seed = hash_combine(seed, hash_combine(0, key.impl_nthr_));
         seed = hash_combine(
-                seed, hash_combine(0, static_cast<size_t>(key.kind_)));
+                seed, hash_combine(0, static_cast<size_t>(key.engine_kind_)));
         seed = hash_combine(
                 seed, hash_combine(0, static_cast<size_t>(key.runtime_kind_)));
         seed = hash_combine(
