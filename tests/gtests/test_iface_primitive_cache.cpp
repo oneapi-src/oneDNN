@@ -46,13 +46,14 @@ void fill_primitive_cache(int n) {
 
 TEST(primitive_cache_test, TestDefaultCapacity) {
     auto default_capacity = get_primitive_cache_capacity();
-#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     ASSERT_EQ(default_capacity, 1024);
 #else
     ASSERT_EQ(default_capacity, 0);
-    return;
 #endif
 }
+
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
 
 TEST(primitive_cache_test, TestInitState) {
     ASSERT_EQ(get_primitive_cache_size(), 0);
@@ -102,5 +103,6 @@ TEST(primitive_cache_test, TestCacheHit) {
     fill_primitive_cache(1);
     ASSERT_EQ(get_primitive_cache_size(), 1);
 }
+#endif
 
 } // namespace dnnl

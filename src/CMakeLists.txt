@@ -47,7 +47,9 @@ endif()
 
 if(DNNL_ENABLE_PRIMITIVE_CACHE)
     message(STATUS "Primitive cache is enabled")
-    add_definitions(-DDNNL_ENABLE_PRIMITIVE_CACHE)
+else()
+    add_definitions(-DDNNL_DISABLE_PRIMITIVE_CACHE)
+    message(STATUS "Primitive cache is disabled")
 endif()
 
 if(DNNL_ENABLE_JIT_PROFILING AND UNIX AND NOT APPLE)
