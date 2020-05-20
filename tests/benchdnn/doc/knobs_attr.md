@@ -79,12 +79,12 @@ Eltwise operations that support no alpha or beta:
   - `logistic`
   - `sqrt`
   - `square`
-  - `srelu`
+  - `soft_relu`
   - `tanh`
   - `gelu_erf`
 
 Eltwise operations that support only alpha:
-  - `brelu`
+  - `bounded_relu`
   - `elu`
   - `relu`
 

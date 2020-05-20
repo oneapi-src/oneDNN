@@ -298,6 +298,7 @@ static po_table_entry_t kind_table[] = {
         {pk_t::DW_K3S2P1, "dw_k3s2p1", dnnl_convolution_auto},
         // eltwise
         {pk_t::ABS, "abs", dnnl_eltwise_abs},
+        {pk_t::BRELU, "bounded_relu", dnnl_eltwise_bounded_relu},
         {pk_t::BRELU, "brelu", dnnl_eltwise_bounded_relu},
         {pk_t::CLIP, "clip", dnnl_eltwise_clip},
         {pk_t::ELU, "elu", dnnl_eltwise_elu},
@@ -317,6 +318,7 @@ static po_table_entry_t kind_table[] = {
         {pk_t::SQRT, "sqrt", dnnl_eltwise_sqrt},
         {pk_t::SQRT_DST, "sqrt_dst", dnnl_eltwise_sqrt_use_dst_for_bwd},
         {pk_t::SQUARE, "square", dnnl_eltwise_square},
+        {pk_t::SRELU, "soft_relu", dnnl_eltwise_soft_relu},
         {pk_t::SRELU, "srelu", dnnl_eltwise_soft_relu},
         {pk_t::SWISH, "swish", dnnl_eltwise_swish},
         {pk_t::TANH, "tanh", dnnl_eltwise_tanh},
@@ -333,19 +335,19 @@ pk_t attr_t::post_ops_t::str2kind(const char *str) {
 }
 
 const char *attr_t::post_ops_t::kind2str(pk_t kind) {
-    if (kind >= KIND_TOTAL) {
-        assert(!"unknown attr::post_ops::kind");
-        return kind_table[KIND_TOTAL].kind_name;
+    for (const auto &e : kind_table) {
+        if (e.kind == kind) return e.kind_name;
     }
-    return kind_table[kind].kind_name;
+    assert(!"unknown attr::post_ops::kind");
+    return kind_table[KIND_TOTAL].kind_name;
 }
 
 dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(pk_t kind) {
-    if (kind >= KIND_TOTAL) {
-        assert(!"unknown attr::post_ops::kind");
-        return kind_table[KIND_TOTAL].dnnl_kind;
+    for (const auto &e : kind_table) {
+        if (e.kind == kind) return e.dnnl_kind;
     }
-    return kind_table[kind].dnnl_kind;
+    assert(!"unknown attr::post_ops::kind");
+    return kind_table[KIND_TOTAL].dnnl_kind;
 }
 
 int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {

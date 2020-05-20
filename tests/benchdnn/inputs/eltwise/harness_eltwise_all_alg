@@ -1,7 +1,7 @@
 # harness includes reasonable algorithm coverage.
 # no reset here since it does not cover data types and tags.
 --alpha=0 --beta=0
---alg=abs,exp,exp_dst,gelu_erf,gelu_tanh,log,logistic,logistic_dst,sqrt,sqrt_dst,square,srelu,tanh,tanh_dst
+--alg=abs,exp,exp_dst,gelu_erf,gelu_tanh,log,logistic,logistic_dst,sqrt,sqrt_dst,square,soft_relu,tanh,tanh_dst
 --batch=shapes_eltwise
 
 --alpha= --beta=0
@@ -9,7 +9,7 @@
 --batch=shapes_eltwise
 
 --alpha=0,0.25 --beta=0
---alg=brelu,elu_dst,relu_dst
+--alg=bounded_relu,elu_dst,relu_dst
 --batch=shapes_eltwise
 
 --alpha=-0.25,0 --beta=0,0.25

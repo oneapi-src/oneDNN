@@ -11,5 +11,5 @@
 --attr=post_ops='sum;tanh:0:0:2.5' --batch=shapes_gemm
 --attr=post_ops='sum;logistic:0:0:2.5' --batch=shapes_gemm
 --cfg=f32_no_limits # kinds that overrun int_max_exact
---attr=post_ops='sum;srelu' --batch=shapes_gemm
+--attr=post_ops='sum;soft_relu' --batch=shapes_gemm
 --attr=post_ops='sum;pow:0.5:0.33' --batch=shapes_gemm
