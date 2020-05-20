@@ -20,10 +20,10 @@ in comparison to fp32.
 
 oneDNN supports training and inference with the following data types:
 
-| Usage mode | CPU                | GPU        |
-| :---       | :---               | :---       |
-| Inference  | f32, bf16, s8/u8   | f32, f16   |
-| Training   | f32, bf16          | f32        |
+| Usage mode | CPU                | GPU                     |
+| :---       | :---               | :---                    |
+| Inference  | f32, bf16, s8/u8   | f32, bf16, f16, s8/u8   |
+| Training   | f32, bf16          | f32, bf16               |
 
 @note
     Using lower precision arithmetic may require changes in the deep learning
@@ -89,4 +89,4 @@ do not provide performance benefits over fp32.
 | f32       | optimized
 | bf16      | functional only
 | f16       | optimized
-| s8, u8    | functional only
+| s8, u8    | optimized for Xe architecture (DG1 and Tiger Lake)

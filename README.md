@@ -117,6 +117,7 @@ The library is optimized for the following GPUs:
 * Intel HD Graphics
 * Intel UHD Graphics
 * Intel Iris Plus Graphics
+* Xe architecture (DG1 and Tiger Lake)
 
 ## Requirements for Building from Source
 
