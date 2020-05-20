@@ -34,7 +34,7 @@ key_t::key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr)
     , attr_(*pd->attr())
     , impl_id_(pd->impl_id())
     , impl_nthr_(impl_nthr)
-    , kind_(engine ? engine->kind() : engine_kind::any_engine)
+    , engine_kind_(engine ? engine->kind() : engine_kind::any_engine)
     , runtime_kind_(engine ? engine->runtime_kind() : runtime_kind::none)
     , device_id_(engine ? engine->device_id() : 0) {
     init_mds(pd);
@@ -126,12 +126,19 @@ void key_t::init_mds(const primitive_desc_t *pd) {
 
 bool key_t::operator==(const key_t &rhs) const {
     DNNL_SHORT_CIRCUIT_SELF_COMPARISON(rhs);
-
-    bool ret = true && primitive_kind_ == rhs.primitive_kind_
-            && impl_id_ == rhs.impl_id_ && impl_nthr_ == rhs.impl_nthr_
-            && mds.size() == rhs.mds.size() && attr_ == rhs.attr_
-            && kind_ == rhs.kind_ && runtime_kind_ == rhs.runtime_kind_
-            && device_id_ == rhs.device_id_ && op_desc_ == rhs.op_desc_;
+    // clang-format off
+    bool ret = true
+        // Less expensive comparisons come first
+        && primitive_kind_ == rhs.primitive_kind_
+        && engine_kind_ == rhs.engine_kind_
+        && runtime_kind_ == rhs.runtime_kind_
+        && device_id_ == rhs.device_id_
+        && mds.size() == rhs.mds.size()
+        && impl_id_ == rhs.impl_id_
+        && impl_nthr_ == rhs.impl_nthr_
+        && attr_ == rhs.attr_
+        && op_desc_ == rhs.op_desc_;
+    // clang-format on
 
     if (!ret) return false;
 
