@@ -215,9 +215,7 @@ struct gen12lp_x8s8s32x_convolution_bwd_data_t : public gpu_primitive_t {
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
-        compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
+        create_kernel(engine, &kernel_, kernel_name, kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
