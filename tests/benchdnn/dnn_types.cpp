@@ -290,36 +290,39 @@ typedef struct {
     dnnl_alg_kind_t dnnl_kind;
 } po_table_entry_t;
 
-static po_table_entry_t kind_table[] = {{pk_t::SUM, "sum", dnnl_alg_kind_undef},
+static po_table_entry_t kind_table[] = {
+        // sum
+        {pk_t::SUM, "sum", dnnl_alg_kind_undef},
+        // depthwise convolution
         {pk_t::DW_K3S1P1, "dw_k3s1p1", dnnl_convolution_auto},
         {pk_t::DW_K3S2P1, "dw_k3s2p1", dnnl_convolution_auto},
-        {pk_t::RELU, "relu", dnnl_eltwise_relu},
-        {pk_t::TANH, "tanh", dnnl_eltwise_tanh},
-        {pk_t::ELU, "elu", dnnl_eltwise_elu},
-        {pk_t::SQUARE, "square", dnnl_eltwise_square},
+        // eltwise
         {pk_t::ABS, "abs", dnnl_eltwise_abs},
-        {pk_t::SQRT, "sqrt", dnnl_eltwise_sqrt},
-        {pk_t::LINEAR, "linear", dnnl_eltwise_linear},
         {pk_t::BRELU, "brelu", dnnl_eltwise_bounded_relu},
-        {pk_t::SRELU, "srelu", dnnl_eltwise_soft_relu},
-        {pk_t::LOGISTIC, "logistic", dnnl_eltwise_logistic},
-        {pk_t::EXP, "exp", dnnl_eltwise_exp},
-        {pk_t::GELU_TANH, "gelu_tanh", dnnl_eltwise_gelu_tanh},
-        {pk_t::SWISH, "swish", dnnl_eltwise_swish},
-        {pk_t::LOG, "log", dnnl_eltwise_log},
         {pk_t::CLIP, "clip", dnnl_eltwise_clip},
-        {pk_t::POW, "pow", dnnl_eltwise_pow},
-        {pk_t::GELU_ERF, "gelu_erf", dnnl_eltwise_gelu_erf},
-
-        {pk_t::RELU_DST, "relu_dst", dnnl_eltwise_relu_use_dst_for_bwd},
-        {pk_t::TANH_DST, "tanh_dst", dnnl_eltwise_tanh_use_dst_for_bwd},
+        {pk_t::ELU, "elu", dnnl_eltwise_elu},
         {pk_t::ELU_DST, "elu_dst", dnnl_eltwise_elu_use_dst_for_bwd},
-        {pk_t::SQRT_DST, "sqrt_dst", dnnl_eltwise_sqrt_use_dst_for_bwd},
+        {pk_t::EXP, "exp", dnnl_eltwise_exp},
+        {pk_t::EXP_DST, "exp_dst", dnnl_eltwise_exp_use_dst_for_bwd},
+        {pk_t::GELU_ERF, "gelu_erf", dnnl_eltwise_gelu_erf},
+        {pk_t::GELU_TANH, "gelu_tanh", dnnl_eltwise_gelu_tanh},
+        {pk_t::LINEAR, "linear", dnnl_eltwise_linear},
+        {pk_t::LOG, "log", dnnl_eltwise_log},
+        {pk_t::LOGISTIC, "logistic", dnnl_eltwise_logistic},
         {pk_t::LOGISTIC_DST, "logistic_dst",
                 dnnl_eltwise_logistic_use_dst_for_bwd},
-        {pk_t::EXP_DST, "exp_dst", dnnl_eltwise_exp_use_dst_for_bwd},
-
-        {pk_t::KIND_TOTAL, "unknown", dnnl_alg_kind_undef}};
+        {pk_t::POW, "pow", dnnl_eltwise_pow},
+        {pk_t::RELU, "relu", dnnl_eltwise_relu},
+        {pk_t::RELU_DST, "relu_dst", dnnl_eltwise_relu_use_dst_for_bwd},
+        {pk_t::SQRT, "sqrt", dnnl_eltwise_sqrt},
+        {pk_t::SQRT_DST, "sqrt_dst", dnnl_eltwise_sqrt_use_dst_for_bwd},
+        {pk_t::SQUARE, "square", dnnl_eltwise_square},
+        {pk_t::SRELU, "srelu", dnnl_eltwise_soft_relu},
+        {pk_t::SWISH, "swish", dnnl_eltwise_swish},
+        {pk_t::TANH, "tanh", dnnl_eltwise_tanh},
+        {pk_t::TANH_DST, "tanh_dst", dnnl_eltwise_tanh_use_dst_for_bwd},
+        // guard entry
+        {pk_t::KIND_TOTAL, "kind_undef", dnnl_alg_kind_undef}};
 
 pk_t attr_t::post_ops_t::str2kind(const char *str) {
     for (const auto &e : kind_table) {
@@ -362,11 +365,19 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
         }
         if (len == capacity) return FAIL;
 
-        for (kind_t k = (kind_t)((int)0); true; k = (kind_t)((int)k + 1)) {
+        for (const auto &table_entry : kind_table) {
+            const auto k = table_entry.kind;
             if (k == KIND_TOTAL) return FAIL;
 
-            const char *ks = kind2str(k);
-            if (!strncasecmp(ks, s, strlen(ks))) {
+            // extract full input kind from input string and compare full names
+            // to avoid situations when a substring of original name is a valid
+            // alg_kind too, like log and logistic, or relu and relu_dst.
+            std::string input(s);
+            // Parse until first of valid delimiters is met.
+            std::string input_kind(input, 0, input.find_first_of(":;\'"));
+            const char *ks = table_entry.kind_name;
+
+            if (input_kind.compare(ks) == 0) {
                 auto &e = entry[len];
 
                 e.kind = k;
@@ -447,7 +458,8 @@ int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
 }
 
 bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
-    return kind >= pk_t::RELU && kind < pk_t::KIND_TOTAL;
+    static_assert(pk_t::ABS - 1 == pk_t::DW_K3S2P1, "Function is broken");
+    return kind >= pk_t::ABS && kind < pk_t::KIND_TOTAL;
 }
 
 int attr_t::post_ops_t::eltwise_index() const {

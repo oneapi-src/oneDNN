@@ -157,36 +157,36 @@ struct attr_t {
 
     struct post_ops_t {
         enum kind_t {
+            // sum
             SUM,
-
+            // depthwise convolution
             DW_K3S1P1,
             DW_K3S2P1,
-
-            RELU,
-            TANH,
-            ELU,
-            SQUARE,
+            // eltwise
             ABS,
-            SQRT,
-            LINEAR,
             BRELU,
-            SRELU,
-            LOGISTIC,
-            EXP,
-            GELU_TANH,
-            SWISH,
-            LOG,
             CLIP,
-            POW,
-            GELU_ERF,
-
-            RELU_DST,
-            TANH_DST,
+            ELU,
             ELU_DST,
-            SQRT_DST,
-            LOGISTIC_DST,
+            EXP,
             EXP_DST,
-
+            GELU_ERF,
+            GELU_TANH,
+            LINEAR,
+            LOG,
+            LOGISTIC,
+            LOGISTIC_DST,
+            POW,
+            RELU,
+            RELU_DST,
+            SQRT,
+            SQRT_DST,
+            SQUARE,
+            SRELU,
+            SWISH,
+            TANH,
+            TANH_DST,
+            // guard entry
             KIND_TOTAL
         };
         static kind_t str2kind(const char *str);
