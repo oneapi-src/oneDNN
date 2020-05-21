@@ -1497,7 +1497,6 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             // gemm implementation which we cannot control
             bool is_blocking_applicable = true
                     && DNNL_X64 // FIXME: workaround to avoid exhaustive search
-                    && !is_bf16_conv // TODO: apply blocking to bf16
                     && !is_3d
                     && (!jcp.im2col_sz
                             // spatial is small
@@ -1527,6 +1526,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
 
                 auto calc_max_icb = [=](int nthr_oc, int ocb, int osb,
                                             int oc_per_thr, int os_per_thr) {
+                    if (is_bf16_conv) return jcp.ic;
                     const int block_out_size = ocb * osb;
                     // TODO: need more precise calculation if stride more than
                     // kernel size
@@ -1684,11 +1684,12 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                         best_icb, jcp.oc, jcp.os);
 
                 int icb {best_icb};
-                const int nthr_oc_max = max_threads;
+                const int nthr_oc_max = is_bf16_conv ? 1 : max_threads;
                 for (int nthr_oc = 1; nthr_oc <= nthr_oc_max; ++nthr_oc) {
                     const int max_oc_per_thr = div_up(jcp.oc, nthr_oc);
-                    const int min_oc_per_thr
-                            = nstl::min(min_oc_block, max_oc_per_thr);
+                    const int min_oc_per_thr = is_bf16_conv
+                            ? jcp.oc
+                            : nstl::min(min_oc_block, max_oc_per_thr);
                     const int max_os_per_thr = nstl::min(jcp.os,
                             div_up(spatial,
                                     nstl::max(1, max_threads / nthr_oc)));
@@ -1720,6 +1721,9 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                 jcp.oc_block = best_ocb;
                 jcp.os_block = best_osb;
                 jcp.ic_block = best_icb;
+                assert(IMPLICATION(is_bf16_conv,
+                        jcp.oc_block == jcp.oc && jcp.ic_block == jcp.ic));
+
                 // TODO: define loop order
                 // if im2col then gemm_loop_rlb and gemm_loop_lrb looks
                 // preferable otherwise other loop orders are possible
