@@ -85,8 +85,10 @@ status_t ocl_memory_storage_t::map_data(
 status_t ocl_memory_storage_t::unmap_data(
         void *mapped_ptr, stream_t *stream) const {
     if (!mapped_ptr) return status::success;
-    OCL_CHECK(clEnqueueUnmapMemObject(get_map_queue(engine(), stream),
-            mem_object_, const_cast<void *>(mapped_ptr), 0, nullptr, nullptr));
+    auto queue = get_map_queue(engine(), stream);
+    OCL_CHECK(clEnqueueUnmapMemObject(queue, mem_object_,
+            const_cast<void *>(mapped_ptr), 0, nullptr, nullptr));
+    OCL_CHECK(clFinish(queue));
     return status::success;
 }
 
