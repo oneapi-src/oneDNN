@@ -3,4 +3,4 @@
 --batch=harness_conv_auto
 
 # memory-tags
-# TBD
+--batch=harness_conv_tags
