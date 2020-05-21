@@ -1,0 +1,9 @@
+{% extends "!breadcrumbs.html" %}
+    {% block breadcrumbs %}
+      <li><a href="{{ pathto(master_doc) }}">oneAPI Specification</a> &raquo;</li>
+        {% for doc in parents %}
+          {% if loop.first %}
+          <li><a href="{{ doc.link|e }}">{{ doc.title }}</a> </li>
+          {% endif %}
+        {% endfor %}
+    {% endblock %}
