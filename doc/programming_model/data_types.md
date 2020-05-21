@@ -45,7 +45,8 @@ While all the platforms oneDNN supports have hardware acceleration for
 fp32 arithmetics, that is not the case for other data types. Support for low
 precision data types may not be available for older platforms. The next sections
 explain limitations that exist for low precision data types for
-Intel(R) Architecture processors and Intel Processor Graphics/Xe architecture.
+Intel(R) Architecture processors, Intel Processor Graphics and
+Xe architecture-based Graphics.
 
 ### Intel(R) Architecture Processors
 
@@ -78,16 +79,17 @@ types that oneDNN recognizes.
   hardware acceleration for bfloat16 is 3-4x lower in comparison to
   the same operations on the fp32 data type.
 
-### Intel(R) Processor Graphics and Xe architecture
+### Intel(R) Processor Graphics and Xe architecture-based Graphics
 
 Intel Processor Graphics provides hardware acceleration for fp32 and fp16
-arithmetic. Xe architecture additionally provides acceleration for int8 
-arithmetic (both signed and unsigned). Implementations for bf16 data type 
-are functional only and do not provide performance benefits at the moment.
+arithmetic. Xe architecture-based Graphics additionally provides
+acceleration for int8 arithmetic (both signed and unsigned). Implementations
+for the bf16 data type are functional only and do not currently provide
+performance benefits.
 
 | Data type | Support level
 | :---      | :---
 | f32       | optimized
 | bf16      | functional only
 | f16       | optimized
-| s8, u8    | optimized for Xe architecture (DG1 and Tiger Lake)
+| s8, u8    | optimized for Xe architecture-based Graphics (code named DG1 and Tiger Lake)
