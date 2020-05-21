@@ -1,5 +1,5 @@
 ===================
-Full back mechanism
+Fall back mechanism
 ===================
 
 The LLGA partition may not be able to compile or execute since the LLGA partition is formed with incomplete information. As the LLGA partition is determined at the graph optimization stage, the input tensor shape may or may not be available. When it is compiled with the input shape information, the compilation may fail since some input shape is not supported.  Even for a successfully compiled partition, it may fail at the execution time since the partition execution may generate intermediate tensor with dynamic tensor shape according to the input tensor value, like a different image may produce different number of region proposal in object detection model.
