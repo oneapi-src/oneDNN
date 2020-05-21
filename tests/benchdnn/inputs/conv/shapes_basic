@@ -1,0 +1,32 @@
+# basic shapes
+# 1. 1st convolution
+# 2. 1x1 convolution
+# 3. 3x3 convolution
+# 4. gemm-based convolution (kernel less than padding)
+# 5. grouped convolution
+# 6. depthwise convolution
+
+# one dimensional shapes
+g1ic3oc16_iw5ow5kw3pw1_n"1d_conv:1st"
+g1ic16oc16_iw5ow5kw1pw0_n"1d_conv:1x1"
+g1ic16oc16_iw5ow5kw3pw1_n"1d_conv:3x3"
+g1ic16oc16_iw5ow8kw3pw3_n"1d_conv:gemm"
+g4ic16oc16_iw5ow5kw3pw1_n"1d_conv:grouped"
+g16ic16oc16_iw5ow5kw3pw1_n"1d_conv:depthwise"
+
+# two dimensional shapes
+g1ic3oc16_ih5oh5kh3ph1_n"2d_conv:1st"
+g1ic16oc16_ih5oh5kh1ph0_n"2d_conv:1x1"
+g1ic16oc16_ih5oh5kh3ph1_n"2d_conv:3x3"
+g1ic16oc16_ih5oh8kh3ph3_n"2d_conv:gemm"
+g4ic16oc16_ih5oh5kh3ph1_n"2d_conv:grouped"
+g16ic16oc16_ih5oh5kh3ph1_n"2d_conv:depthwise"
+
+# three dimensional shapes
+g1ic3oc16_id5od5kd3pd1_n"3d_conv:1st"
+g1ic16oc16_id5od5kd1pd0_n"3d_conv:1x1"
+g1ic16oc16_id5od5kd3pd1_n"3d_conv:3x3"
+g1ic16oc16_id5od8kd3pd3_n"3d_conv:gemm"
+g4ic16oc16_id5od5kd3pd1_n"3d_conv:grouped"
+g16ic16oc16_id5od5kd3pd1_n"3d_conv:depthwise"
+
