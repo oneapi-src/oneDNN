@@ -30,7 +30,7 @@ namespace primitive_hashing {
 
 key_t::key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr)
     : primitive_kind_(pd->kind())
-    , op_desc_(primitive_kind_, pd->op_desc())
+    , op_desc_(pd->op_desc())
     , attr_(*pd->attr())
     , impl_id_(pd->impl_id())
     , impl_nthr_(impl_nthr)
