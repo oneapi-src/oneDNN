@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath('conf'))
 # element_conf needs to import this conf
 sys.path.insert(0, os.path.abspath('.'))
 
-project = 'oneLLGA'
+project = 'oneAPI'
 
 from element_conf import *
 
