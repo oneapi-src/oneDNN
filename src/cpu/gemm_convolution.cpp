@@ -220,8 +220,9 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
     const size_t weights_g_size = weights_oc_size * jcp.oc;
     const bool is_problem_3d = pd()->ndims() == 5;
 
-    assert(IMPLICATION(
-            is_problem_3d, jcp.os_block == jcp.os && jcp.ic_block == jcp.ic));
+    assert(IMPLICATION(is_problem_3d,
+            jcp.os_block == jcp.os && jcp.ic_block == jcp.ic
+                    && jcp.os_nb_block == 1));
 
     status_t st = status::success;
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
@@ -493,10 +494,9 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
     const size_t dst_step = (size_t)jcp.oc * M;
     const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
 
-    const dim_t m = jcp.os;
+    const dim_t m = jcp.os_block;
     const dim_t K = jcp.oc;
     const dim_t N = jcp.ic * jcp.ks;
-    const dim_t LDC = jcp.im2col_sz ? m : M;
 
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
     const bool is_problem_3d = pd()->ndims() == 5;
@@ -520,14 +520,19 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
             }
 
             const data_t *_weights = weights + g * weights_g_size;
-            for (int od = 0; od < jcp.od; ++od) {
+            for_(int od = 0; od < jcp.od; ++od)
+            for (int os_nb = 0; os_nb < jcp.os_nb_block; ++os_nb) {
+                auto out_off = os_nb * m + od * jcp.os;
                 const data_t *_diff_dst
-                        = diff_dst + (n * jcp.ngroups + g) * dst_step + od * m;
+                        = diff_dst + (n * jcp.ngroups + g) * dst_step + out_off;
+                const dim_t os_block
+                        = nstl::min((dim_t)jcp.os_block, jcp.os - os_nb * m);
+                const dim_t LDC = jcp.im2col_sz ? os_block : M;
 
                 const data_t zero = 0.0, one = 1.0;
-                status_t st_thr = extended_sgemm("N", "T", &m, &N, &K, &one,
-                        _diff_dst, &M, _weights, &N, &zero,
-                        jcp.im2col_sz ? _col : _diff_src + od * m, &LDC);
+                status_t st_thr = extended_sgemm("N", "T", &os_block, &N, &K,
+                        &one, _diff_dst, &M, _weights, &N, &zero,
+                        jcp.im2col_sz ? _col : _diff_src + out_off, &LDC);
                 if (st_thr != status::success) {
                     st = st_thr;
                     return;
@@ -535,11 +540,12 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
 
                 if (jcp.im2col_sz) {
                     if (!is_problem_3d)
-                        jit_gemm_convolution_utils::col2im(
-                                jcp, _col, _diff_src);
-                    else
-                        jit_gemm_convolution_utils::col2im_3d(
-                                jcp, _col, _diff_src, od);
+                        jit_gemm_convolution_utils::col2im(jcp, _col, _diff_src,
+                                os_nb * jcp.os_block, os_block);
+                    else {
+                        jit_gemm_convolution_utils::col2im_3d(jcp, _col,
+                                _diff_src, od, os_nb * jcp.os_block, os_block);
+                    }
                 }
             }
             nd_iterator_step(g, jcp.ngroups, n, jcp.mb);
