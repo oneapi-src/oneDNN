@@ -33,10 +33,10 @@ using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::cpu::x64::bf16_support;
 
-// This code is moved out from execute_backward_data() and
-// execute_backward_weights() to avoid warnings with gcc 7.x compilers:
+// Below two stand-alone functions are moved out from execute_backward_data
+// and execute_backward_weights to avoid warnings with gcc 6.x and 7.x compilers
 // "declared with greater visibility than the type of its field"
-// when one lambda  function is delcared whithin the other one
+// when one lambda function is delcared whithin the other one
 void store_bfloat16_in_parallel(bfloat16_t *output_data, const float *acc_data,
         size_t parallel_work, size_t parallel_work_size, bool do_in_parallel) {
     parallel(do_in_parallel ? 0 : 1, [&](const int ithr, const int nthr) {
@@ -46,6 +46,23 @@ void store_bfloat16_in_parallel(bfloat16_t *output_data, const float *acc_data,
             cvt_float_to_bfloat16(&output_data[start * parallel_work_size],
                     &acc_data[start * parallel_work_size],
                     (end - start) * parallel_work_size);
+    });
+}
+
+void cvt_acc_to_dst(const conv_gemm_conf_t &jcp, size_t g_start, size_t g_end,
+        const float *acc_base, bfloat16_t *diff_weights) {
+    const size_t parallel_work_size = jcp.ic * jcp.ks;
+    parallel(jcp.nthr == 1 ? 0 : 1, [&](const int ithr, const int nthr) {
+        size_t w_start = 0, w_end = 0;
+        balance211(parallel_work_size, nthr, ithr, w_start, w_end);
+        for_(auto w = w_start; w < w_end; ++w)
+        for (auto g = g_start; g < g_end; ++g) {
+            const float *__restrict acc_ptr
+                    = acc_base + (w * jcp.ngroups + g) * jcp.oc;
+            bfloat16_t *__restrict dw_ptr
+                    = diff_weights + (w * jcp.ngroups + g) * jcp.oc;
+            cvt_float_to_bfloat16(dw_ptr, acc_ptr, jcp.oc);
+        }
     });
 }
 
@@ -991,23 +1008,8 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                         g_end, jcp, weights_reduce_base, diff_weights);
             } else if (diff_wei_data_type == data_type::bf16
                     && g_end > g_start) {
-                const size_t parallel_work_size = jcp.ic * jcp.ks;
-                parallel(jcp.nthr == 1 ? 0 : 1,
-                        [&](const int ithr, const int nthr) {
-                            size_t w_start = 0, w_end = 0;
-                            balance211(parallel_work_size, nthr, ithr, w_start,
-                                    w_end);
-                            for_(auto w = w_start; w < w_end; ++w)
-                            for (auto g = g_start; g < g_end; ++g) {
-                                const float *__restrict acc_ptr
-                                        = (const float *)acc_base
-                                        + (w * jcp.ngroups + g) * jcp.oc;
-                                bfloat16_t *__restrict dw_ptr
-                                        = (bfloat16_t *)diff_weights
-                                        + (w * jcp.ngroups + g) * jcp.oc;
-                                cvt_float_to_bfloat16(dw_ptr, acc_ptr, jcp.oc);
-                            }
-                        });
+                cvt_acc_to_dst(jcp, g_start, g_end, (const float *)acc_base,
+                        (bfloat16_t *)diff_weights);
             }
         } else {
             if (need_reduction && dnnl_thr_syncable()) dnnl_thr_barrier();
