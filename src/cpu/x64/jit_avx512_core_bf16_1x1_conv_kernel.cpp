@@ -653,6 +653,112 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
     store();
 }
 
+void jit_avx512_core_bf16_1x1_conv_kernel::compute_diff_bias(
+        int load_loop_blk) {
+    if (IMPLICATION(jcp.with_bias, jcp.prop_kind != backward_weights)) return;
+    Label skip_diff_bias;
+    test(reg_reduce_pos_flag, FLAG_COMPUTE_BIAS);
+    jz(skip_diff_bias, T_NEAR);
+
+    auto vunit = Zmm(31);
+    auto vreg_prm = Zmm(30);
+
+    auto get_load_offset = [=](int i_reduce, int i_load) {
+        dim_t lmul
+                = jcp.load_block * (is_load_layout_nxc() ? 1 : jcp.reduce_dim);
+        dim_t rmul = (is_load_layout_nxc() ? jcp.load_dim : jcp.load_block);
+        return (i_load * lmul + i_reduce * rmul) * jcp.typesize_in;
+    };
+    auto load_ptr = [=](int i_reduce, int i_load, int offset = 0) {
+        return EVEX_compress_addr(
+                aux_reg_load_data, get_load_offset(i_reduce, i_load) + offset);
+    };
+    auto bias_ptr = [=](int i_load) {
+        return ptr[reg_bias_data + i_load * jcp.load_block * jcp.typesize_acc];
+    };
+
+    auto vreg_acc = [=](int i_load) { return Zmm(i_load); };
+    auto vreg_load = [=](int i_load) { return Zmm(load_loop_blk + i_load); };
+
+    auto compute_diff_bias_block = [=](bool is_tail) {
+        for (int i_load = 0; i_load < load_loop_blk; i_load++) {
+            auto vacc = vreg_acc(i_load);
+            auto vload = vreg_load(i_load);
+            auto vload_masked = is_load_layout_nxc() || is_tail
+                    ? vload | half_mask | T_z
+                    : vload;
+            if (jcp.uses_permw_transposition) {
+                vmovdqu16(vload_masked, load_ptr(0, i_load));
+                if (is_load_layout_nxc() && !is_tail) {
+                    const int shift_16_elems = 16 * jcp.typesize_in;
+                    vmovdqu16(vload | half_mask_hi,
+                            load_ptr(0, i_load, -shift_16_elems));
+                }
+                vpermw(vload, vreg_prm, vload);
+            } else {
+                vmovups(vload_masked, load_ptr(0, i_load));
+            }
+            if (!isa_has_bf16(jcp.isa))
+                bf16_emu_->vdpbf16ps(vacc, vload, vunit);
+            else
+                vdpbf16ps(vacc, vload, vunit);
+        }
+    };
+
+    auto reg_unit_val = bcast_loop_iter.cvt16();
+    mov(reg_unit_val, 0x3f80); // bf16 value of 1.
+    vpbroadcastw(vunit, reg_unit_val);
+
+    if (jcp.uses_permw_transposition) {
+        mov(bcast_loop_iter, dst_prm_table);
+        vmovups(vreg_prm, ptr[bcast_loop_iter]);
+    }
+    for (int i_load = 0; i_load < load_loop_blk; i_load++) {
+        auto vacc = vreg_acc(i_load);
+        vpxord(vacc, vacc, vacc);
+    }
+
+    mov(aux_reg_load_data, reg_load_data);
+    mov(reduce_loop_iter, reg_reduce_loop_work);
+    const int reduce_step = 2;
+    Label reduce_loop, reduce_loop_tail, reduce_loop_exit;
+    cmp(reduce_loop_iter, reduce_step);
+    jl(reduce_loop_tail, T_NEAR);
+
+    L(reduce_loop);
+    {
+        compute_diff_bias_block(false);
+        add(aux_reg_load_data, get_load_offset(reduce_step, 0));
+        sub(reduce_loop_iter, reduce_step);
+        cmp(reduce_loop_iter, reduce_step);
+        jge(reduce_loop, T_NEAR);
+    }
+
+    L(reduce_loop_tail);
+    cmp(reduce_loop_iter, 0);
+    jle(reduce_loop_exit, T_NEAR);
+
+    compute_diff_bias_block(true);
+    L(reduce_loop_exit);
+
+    Label skip_reading;
+    test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST); // If FLAG_REDUCE_FIRST
+    jnz(skip_reading, T_NEAR);
+
+    for (int i_load = 0; i_load < load_loop_blk; i_load++) {
+        auto vacc = vreg_acc(i_load);
+        vaddps(vacc, vacc, bias_ptr(i_load));
+    }
+
+    L(skip_reading);
+    for (int i_load = 0; i_load < load_loop_blk; i_load++) {
+        auto vacc = vreg_acc(i_load);
+        vmovups(bias_ptr(i_load), vacc);
+    }
+
+    L(skip_diff_bias);
+}
+
 void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
     preamble();
 
@@ -687,6 +793,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
     }
 
     auto load_loop_body = [=](int load_loop_blk) {
+        compute_diff_bias(load_loop_blk);
         mov(ptr[rsp + reg_load_loop_work_off], reg_load_loop_work);
         bcast_loop(load_loop_blk);
         mov(reg_load_loop_work, ptr[rsp + reg_load_loop_work_off]);
@@ -719,6 +826,8 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
             case backward_weights:
                 for (int i_load = 0; i_load < load_loop_blk; i_load++)
                     add(reg_output_data, reg_output_stride);
+                add(reg_bias_data,
+                        load_loop_blk * jcp.load_block * jcp.typesize_acc);
                 break;
             default: assert(!"invalid prop_kind");
         }
@@ -1334,22 +1443,23 @@ void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
         const jit_1x1_conv_conf_t &jcp) {
     using namespace dnnl::impl::memory_tracking::names;
 
-    if (jcp.with_bias) {
-        if (jcp.bia_dt == data_type::bf16
-                && jcp.prop_kind == backward_weights) {
-            scratchpad.book(key_conv_bias_bf16_convert_wsp,
-                    jcp.ngroups * jcp.oc, jcp.typesize_acc);
-        } else if (utils::one_of(jcp.prop_kind, forward_inference,
-                           forward_training, backward_weights)
-                && jcp.oc != jcp.oc_without_padding)
-            scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_bia);
+    if (jcp.with_bias && jcp.oc != jcp.oc_without_padding
+            && utils::one_of(jcp.prop_kind, forward_inference, forward_training,
+                    backward_weights)) {
+        scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_bia);
     }
     if (jcp.prop_kind == backward_weights) {
         const size_t wei_size = (size_t)jcp.ngroups * jcp.oc * jcp.ic;
-        const int n_buffers
+        const int n_wei_buffers
                 = jcp.dst_dt == data_type::bf16 ? jcp.nthr_mb : jcp.nthr_mb - 1;
-        scratchpad.book(
-                key_conv_wei_reduction, wei_size * n_buffers, jcp.typesize_acc);
+        const size_t bias_size = (size_t)jcp.ngroups * jcp.oc;
+        const int n_bias_buffers = jcp.with_bias
+                ? (jcp.bia_dt == data_type::bf16 ? jcp.nthr_mb
+                                                 : jcp.nthr_mb - 1)
+                : 0;
+        const size_t wei_bia_size
+                = wei_size * n_wei_buffers + bias_size * n_bias_buffers;
+        scratchpad.book(key_conv_wei_reduction, wei_bia_size, jcp.typesize_acc);
 
         if (!jcp.uses_permw_transposition) {
             const size_t dst_diff_tr_size_per_thr
@@ -1361,15 +1471,6 @@ void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
                     * jcp.ic_block * jcp.nb_bcast_blocking_max;
             scratchpad.book(key_conv_tr_src, jcp.nthr * src_tr_size_per_thr,
                     jcp.typesize_in);
-        }
-
-        if (jcp.with_bias) {
-            const bool ddst_layout_nxc = utils::one_of(jcp.dst_tag,
-                    format_tag::ndhwc, format_tag::nhwc, format_tag::nwc);
-            const size_t d_dst_f32_size
-                    = (size_t)jcp.oc_block * (ddst_layout_nxc ? 1 : jcp.os);
-            scratchpad.book(key_conv_dst_bf16_convert_wsp,
-                    jcp.nthr * d_dst_f32_size, jcp.typesize_acc);
         }
     }
 

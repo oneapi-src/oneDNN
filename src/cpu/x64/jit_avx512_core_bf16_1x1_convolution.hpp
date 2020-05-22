@@ -452,15 +452,9 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
                     *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
-            init_balancers();
-
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_);
-
-            auto reducer_bia_scratchpad = memory_tracking::registrar_t(
-                    scratchpad, memory_tracking::names::prefix_reducer_bia);
-            reducer_bia_conf_.init_scratchpad(reducer_bia_scratchpad);
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
@@ -469,7 +463,6 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
 
         // TODO (Roma): structs conf header cleanup
         jit_1x1_conv_conf_t jcp_;
-        cpu_reducer_t<data_type::f32>::conf_t reducer_bia_conf_;
         reduce_to_unit_stride_t rtus_;
 
     protected:
@@ -484,16 +477,6 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
             bool ok = set_default_formats_common(dat_tag, wei_tag, dat_tag);
             return ok;
         }
-
-    private:
-        void init_balancers() {
-            const size_t max_buffer_size = jcp_.nthr * 3 * 5 * 5 * 16 * 16;
-            if (with_bias()) {
-                reducer_bia_conf_.init(reduce_balancer_t(jcp_.nthr,
-                        jcp_.oc_block, jcp_.ngroups * jcp_.nb_load, jcp_.mb,
-                        max_buffer_size, true));
-            }
-        }
     };
 
     template <cpu_isa_t isa, typename conv_t>
@@ -504,7 +487,6 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
     ~jit_avx512_core_bf16_1x1_convolution_bwd_weights_t() {
         delete acc_ker_;
         delete kernel_;
-        delete reducer_bias_;
         delete rtus_driver_;
         delete tr_reorder_;
         delete tr_reorder_nhwc_src_;
@@ -527,7 +509,6 @@ private:
 
     jit_avx512_core_bf16_1x1_conv_kernel *kernel_;
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
-    cpu_reducer_t<data_type::f32> *reducer_bias_;
 
     /* reduction to unit stride */
     rtus_driver_t<avx512_common> *rtus_driver_;

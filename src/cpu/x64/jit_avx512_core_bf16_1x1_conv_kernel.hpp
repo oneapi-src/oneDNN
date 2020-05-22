@@ -133,6 +133,7 @@ private:
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
+    void compute_diff_bias(int load_loop_blk);
 
     void generate();
     static void balance(jit_1x1_conv_conf_t &jcp, int nthreads);
