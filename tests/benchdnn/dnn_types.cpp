@@ -688,8 +688,9 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
             scales = gen_scs;
         }
 
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr, count,
-                scale_mask, runtime ? &DNNL_RUNTIME_F32_VAL : scales));
+        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr,
+                runtime ? 1 : count, scale_mask,
+                runtime ? &DNNL_RUNTIME_F32_VAL : scales));
         if (gen_scs) zfree(gen_scs);
     } else if (!attr.scales.is_def()) {
         // Only common policy is supported at this point
