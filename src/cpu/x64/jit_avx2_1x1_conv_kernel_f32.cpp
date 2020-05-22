@@ -508,11 +508,11 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     const int simd_w = 8;
 
-    if (is_data_layout_nxc && (jcp.ic % simd_w != 0 || jcp.oc % simd_w != 0))
-        return status::unimplemented;
-
-    jcp.oc = rnd_up(jcp.oc, simd_w);
-    jcp.ic = rnd_up(jcp.ic, simd_w);
+    bool ok_to_pad_channels = true && !is_data_layout_nxc && jcp.ngroups == 1;
+    if (ok_to_pad_channels) {
+        jcp.oc = rnd_up(jcp.oc, simd_w);
+        jcp.ic = rnd_up(jcp.ic, simd_w);
+    }
 
     bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == dat_tag
             && jcp.wei_tag == wei_tag && jcp.dst_tag == dat_tag;
