@@ -97,13 +97,13 @@ To build oneDNN with support for threadpool threading, set `DNNL_CPU_RUNTIME` to
 $ cmake -DDNNL_CPU_RUNTIME=THREADPOOL ..
 ~~~
 
-The `DNNL_TEST_THREADPOOL_IMPL` CMake variable controls which of the three
+The `_DNNL_TEST_THREADPOOL_IMPL` CMake variable controls which of the three
 threadpool implementations would be used for testing: `STANDALONE`, `TBB`, or
 `EIGEN`. The latter two require also passing `TBBROOT` or `Eigen3_DIR` paths
 to CMake. For example:
 
 ~~~sh
-$ cmake -DDNNL_CPU_RUNTIME=THREADPOOL -DDNNL_TEST_THREADPOOL_IMPL=EIGEN -DEigen3_DIR=/path/to/eigen/share/eigen3/cmake ..
+$ cmake -DDNNL_CPU_RUNTIME=THREADPOOL -D_DNNL_TEST_THREADPOOL_IMPL=EIGEN -DEigen3_DIR=/path/to/eigen/share/eigen3/cmake ..
 ~~~
 
 Threadpool threading support is experimental and has the same limitations as
