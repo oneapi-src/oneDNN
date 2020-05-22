@@ -9,15 +9,14 @@
 where *conv-knobs* are:
 
  - `--dir={FWD_B [default], FWD_D, FWD_I, BWD_D, BWD_W, BWD_WB}`
-            -- dnnl_prop_kind_t. Refer to the common glossary in README.md for
-            details.
+            -- dnnl_prop_kind_t. Refer to [direction](knobs_dir.md) for details.
  - `--cfg={f32 [default], ...}` -- Refer to ``Configurations`` below.
  - `--stag={any [default], ...}` -- physical src memory layout.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--wtag={any [default], ...}` -- physical wei memory layout.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--dtag={any [default], ...}` -- physical dst memory layout.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--alg={DIRECT [default], WINO, AUTO}` -- convolution algorithm. `WINO` is
             Winograd-based convolution. `AUTO` will pick one of `DIRECT` or
             `WINO` automatically, library-based decision.
@@ -38,25 +37,16 @@ and *conv-desc* is a problem descriptor. The canonical form is:
 ```
     gXmbX_icXidXihXiwX_ocXodXohXowX_kdXkhXkwX_sdXshXswX_pdXphXpwX_ddXdhXdwX_nS
 ```
-Here `X` is an integer number and `S` is a string literal without spaces (`n`
-stands for name). The special symbol `_` is ignored, so it may be used as a
-delimiter for better readability. Refer to the common glossary in README.md for
-the entity name and description.
-
-There are default values for some entities in case they were not specified:
- - g = 1;
- - mb = 2;
- - sd/sh/sw = 1;
- - dd/dh/dw = 0;
-There are also implicit rules:
- - Output shape may be deduced from the input and kernel size.
- - Values for smaller dimensions may be copied from the biggest.
+Refer to [descriptor](knobs_desc.md) for details. Input shape and kernel size
+are mandatory inputs. Output shape and padding may be deduced based on the
+values provided.
 
 ## Precision Configurations
 
-`--cfg` option specifies what data type will be used for a problem. It also
-defines the data filling strategy. It is implicit for the integer type
-saturation. This option also defines the threshold for computation errors.
+`--cfg` option specifies what [data types](knobs_dt.md) will be used for a
+problem. It also defines the data filling strategy. It is implicit for the
+integer type saturation. This option also defines the threshold for computation
+errors.
 
 The table below shows supported name configurations for this driver:
 
@@ -173,24 +163,3 @@ More examples with different driver options can be found at
 inputs/conv/test_*** or inputs/conv/harness_***. Examples with different
 driver descriptors can be found at inputs/conv/shapes_***.
 
-## Naming
-
-The convention for naming files in benchdnn for convolution is the following:
-
-* **shapes_\<label\>**: a file containing one or more specific convolution
-shape inputs e.g. `ic16ih10oc32oh10kh3sh1ph1n"conv_1"`. These are
-independent of any benchdnn configuration such as data-type and direction,
-etc.
-
-* **set_\<label\>**: a group of **shapes_\<label\>** files. These are
-independent of any benchdnn configuration. The general rule is to group
-single-feature inputs into a single *batch* (e.g. all *topology* based
-inputs, all *regression* based inputs, all 2D convolutions, etc).
-
-* **harness_\<label\>**: a deployable suite of configurations and shapes.
-Entries in a harness test may include many instances and combinations of
-batch files and configurations (e.g `--mb`, `--dir`, `--skip-impl`,
-`--batch={topology, shape_conv_2d, shape_conv_3d, shape_conv_regression}`).
-
-* **test_conv_\<label\>**: These files are used for deploying testing
-via command-line `make <test>`.

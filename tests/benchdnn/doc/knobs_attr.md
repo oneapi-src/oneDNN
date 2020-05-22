@@ -84,9 +84,9 @@ when output tensor has integer data type.
 with kernel size of 3, strides of 1 and 2 correspondently and paddings of 1.
 These kinds are applicable only for convolution operation with kernel size of 1
 as of now. They support optional argument `DST_DT`, which defines destination
-tensor data type. Refer to the common glossary in README.md for data type
-details. Optional argument `OUTPUTSCALE` defines the semantics of output scale
-as for `--attr-oscale` with same syntax. It requires `DST_DT` to be specified.
+tensor data type. Refer to [data types](knobs_dt.md) for details. Optional
+argument `OUTPUTSCALE` defines the semantics of output scale as for
+`--attr-oscale` with the same syntax. It requires `DST_DT` to be specified.
 
 Operations may be called in any order, e.g. apply `SUM` at first and then apply
 `ELTWISE`, or vice versa - apply `ELTWISE` and then `SUM` it with destination.

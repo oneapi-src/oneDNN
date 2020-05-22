@@ -7,17 +7,18 @@
 
 where *softmax-knobs* are:
 
- - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t. Refer to the common
-            glossary in README.md for details.
+ - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t.
+            Refer to [direction](knobs_dir.md) for details.
  - `--dt={f32 [default], bf16, f16}` -- src and dst data type.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--alg={SOFTMAX [default], LOGSOFTMAX}` -- algorithm type.
             `SOFTMAX` enables softmax primitive;
             `LOGSOFTMAX` enables logsoftmax primitive;
-            Refer to ``doc/primitives/softmax.md`` and
-            ``doc/primitives/logsoftmax.md`` for details.
+            Refer to [softmax primitive](https://oneapi-src.github.io/oneDNN/dev_guide_softmax.html)
+            and [logsoftmax primitive](https://oneapi-src.github.io/oneDNN/dev_guide_logsoftmax.html)
+            for details.
  - `--axis=INT` -- dimension on which operation will be performed.
             Default is `1`, corresponds to channels in logical memory layout.
  - `--mb=INT` -- override minibatch size specified in the problem description.

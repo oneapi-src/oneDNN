@@ -8,15 +8,14 @@
 where *sum-knobs* are:
 
  - `--sdt={f32:f32 [default], ...}` -- src data type. Refer to ``Inputs`` below.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--ddt={f32 [default], s32, s8, u8, bf16, f16}` -- dst data type.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--stag={nchw:nchw [default], ...}` -- physical src memory layout.
             Refer to ``Inputs`` below.
-            Refer to the common glossary in README.md for details.
- - `--dtag={undef [default], ...}` -- physical dst memory layout. `undef` means
-            dst will be deduced automatically from given parameters.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
+ - `--dtag={undef [default], ...}` -- physical dst memory layout.
+            Refer to [tags](knobs_tag.md) for details.
  - `--scales={N1:N2[:N3]...}` -- input scales. Refer to ``Scales`` below.
             The default is 0.25, 1, 4.
 

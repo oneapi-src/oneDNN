@@ -8,17 +8,18 @@
 where *bnorm-knobs* are:
 
  - `--dir={FWD_D [default], FWD_I, BWD_D, BWD_DW}` -- dnnl_prop_kind_t.
-            Refer to the common glossary in README.md for details.
+            Refer to [direction](knobs_dir.md) for details.
  - `--dt={f32 [default], s8, bf16, f16}` -- src and dst data types.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--flags=[|G|S|R]` -- batch normalization flags, default `none`; where
             multiple simultaneous flags are supported.
             `G` is dnnl_use_global_stats;
             `S` is dnnl_use_scaleshift;
             `R` is dnnl_fuse_norm_relu;
-            Refer to ``doc/primitives/batch_normalization.md`` for details.
+            Refer to [batch normalization primitive](https://oneapi-src.github.io/oneDNN/dev_guide_batch_normalization.html)
+            for details.
  - `--attr-post-ops="STRING"` -- post operation primitive attribute. No post
             operations are set by default. Refer to [attributes](knobs_attr.md)
             for details.
@@ -38,19 +39,10 @@ where *bnorm-knobs* are:
 
 and *bnorm-desc* is a problem descriptor. The canonical form is:
 ```
-    mbXicX_idXihXiwX_epsY_nS
+    mbXicX_idXihXiwX_epsF_nS
 ```
-Here `X` is an integer number, `Y` is a real number, and `S` is a string literal
-without spaces (`n` stands for name). The special symbol `_` is ignored, so it
-may be used as a delimiter for better readability. Refer to the common glossary
-in README.md for the entity name and description.
-
-There are default values for some entities in case they were not specified:
- - mb = 2;
- - eps = 1./16;
-There are also implicit rules:
- - Values for smaller dimensions may be copied from the biggest.
-
+Refer to [descriptor](knobs_desc.md) for details. `epsF` stands for Batch
+Normalization epsilon value and accepts float F values. The default is `1.f/16`.
 
 ## Essence of Testing
 TBA.

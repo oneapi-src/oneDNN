@@ -8,7 +8,7 @@
 where *rnn-knobs* are:
 
  - `--prop={FWD_D [default], BWD_DW}` -- dnnl_prop_kind_t.
-            Refer to the common glossary in README.md for details.
+            Refer to [direction](knobs_dir.md) for details.
  - `--cfg={f32 [default], ...}` -- refer to ``Configurations`` below.
  - `--alg={VANILLA_RNN [default], VANILLA_LSTM, VANILLA_GRU, LBR_GRU}`
             -- RNN algorithm.
@@ -43,9 +43,10 @@ Description of RNN descriptor symbols:
 
 ## Precision Configurations
 
-The `--cfg` option specifies the data type to be used for a problem. It also
-defines the data filling strategy. It is implicit for the integer type
-saturation. This option also defines the threshold for computation errors.
+The `--cfg` option specifies the [data types](knobs_dt.md) to be used for a
+problem. It also defines the data filling strategy. It is implicit for the
+integer type saturation. This option also defines the threshold for computation
+errors.
 
 The table below shows supported name configurations for this driver:
 

@@ -8,14 +8,15 @@
 where *binary-knobs* are:
 
  - `--sdt={f32 [default], bf16}` -- src data type.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--ddt={f32 [default], bf16}` -- dst data type.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--stag={nchw:nchw [default], ...}` -- physical src memory layout.
             Refer to ``Inputs`` below.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--alg={ADD [default], MUL, MAX, MIN}` -- algorithm for binary operations.
-            Refer to ``doc/primitives/binary.md`` for details.
+            Refer to [binary primitive](https://oneapi-src.github.io/oneDNN/dev_guide_binary.html)
+            for details.
  - `--attr-scales="STRING"` -- per argument scales primitive attribute. No
             scales are set by default. Refer to [attributes](knobs_attr.md) for
             details.

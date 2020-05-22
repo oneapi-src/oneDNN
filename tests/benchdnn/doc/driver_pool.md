@@ -8,15 +8,16 @@
 where *pool-knobs* are:
 
  - `--dir={FWD_D [default], FWD_I, BWD_D}` -- dnnl_prop_kind_t.
-            Refer to the common glossary in README.md for details.
+            Refer to [direction](knobs_dir.md) for details.
  - `--cfg={f32 [default], ...}` -- Refer to ``Configurations`` below.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--alg={MAX [default], AVG_NP, AVG_P}` -- pooling algorithm.
             `MAX` is dnnl_pooling_max;
             `AVG_NP` is dnnl_pooling_avg_exclude_padding;
             `AVG_P` is dnnl_pooling_avg_include_padding;
-            Refer to ``doc/primitives/pooling.md`` for details.
+            Refer to [pooling primitive](https://oneapi-src.github.io/oneDNN/dev_guide_pooling.html)
+            for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
@@ -25,24 +26,15 @@ and *pool-desc* is a problem descriptor. The canonical form is:
 ```
     mbXicX_idXihXiwX_odXohXowX_kdXkhXkwX_sdXshXswX_pdXphXpwX_nS
 ```
-Here `X` is an integer number and `S` is a string literal without spaces (`n`
-stands for name). The special symbol `_` is ignored, so it may be used as a
-delimiter for better readability. Refer to the common glossary in README.md for
-the entity name and description.
-
-There are default values for some entities in case they were not specified:
- - mb = 2;
- - sd/sh/sw = 1;
-There are also implicit rules:
- - Output shape may be deduced from the input and kernel size.
- - Values for smaller dimensions may be copied from the biggest.
-
+Refer to [descriptor](knobs_desc.md) for details. Input shape and kernel size
+are mandatory inputs. Output shape and padding may be deduced based on the
+values provided.
 
 ## Precision Configurations
 
-`--cfg` option specifies what data type will be used for a problem. It is
-implicit for the integer type saturation. This option also defines the threshold
-for computation errors.
+`--cfg` option specifies what [data types](knobs_dt.md) will be used for a
+problem. It is implicit for the integer type saturation. This option also
+defines the threshold for computation errors.
 
 The table below shows supported name configurations for this driver:
 

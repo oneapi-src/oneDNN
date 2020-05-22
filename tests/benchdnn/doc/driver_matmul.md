@@ -10,11 +10,11 @@ where *matmul-knobs* are:
  - `--cfg={f32 [default], ...}` -- refer to ``Configurations`` in
             driver_conv.md.
  - `--stag={ab [default], any, ...}` -- memory format of the source memory.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--wtag={ab [default], any, ...}` -- memory format of the weights memory.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--dtag={ab [default], any, ...}` -- memory format of the destination memory.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--runtime_mb=BOOL` -- specify whether `mb` dimension is a run-time
             parameter.
  - `--runtime_m=BOOL` -- specify whether `m` dimension is a run-time parameter.
@@ -30,7 +30,7 @@ where *matmul-knobs* are:
             for details.
  - `--bia_dt={undef [default], f32, s32, s8, u8}` -- bias data type.
             To run MatMul without bias, use `undef` data type (default).
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--bia_mask=INT` -- a bit-mask that indicates which bias dimensions are
             broadcasted. 0-bit means broadcast, 1-bit means full dimension.
 
@@ -40,8 +40,7 @@ and *matmul-desc* is a problem descriptor. The canonical form is:
 ```
 Here `X` is an integer number and `S` is a string literal without spaces (`n`
 stands for name). The special symbol `_` is ignored, so it may be used as a
-delimiter for better readability. Refer to the common glossary in README.md for
-the entity name and description.
+delimiter for better readability.
 
 The `mb` can be omitted, in which case the problem is treated as regular
 2D matrix multiplication. With `mb` set to a non-zero value, batched matrix
