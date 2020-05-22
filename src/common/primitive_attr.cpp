@@ -335,7 +335,8 @@ status_t dnnl_primitive_attr_get_output_scales(const primitive_attr_t *attr,
 status_t dnnl_primitive_attr_set_output_scales(
         primitive_attr_t *attr, dim_t count, int mask, const float *scales) {
     bool ok = !any_null(attr, scales) && count > 0 && mask >= 0
-            && attr->scales_.has_default_values();
+            && attr->scales_.has_default_values()
+            && IMPLICATION(is_runtime_value(*scales), count == 1);
     if (!ok) return invalid_arguments;
 
     return attr->output_scales_.set(count, mask, scales);
@@ -344,7 +345,8 @@ status_t dnnl_primitive_attr_set_output_scales(
 status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
         dim_t count, int mask, const float *scales) {
     bool ok = !any_null(attr, scales) && count > 0 && mask >= 0 && arg >= 0
-            && attr->output_scales_.has_default_values();
+            && attr->output_scales_.has_default_values()
+            && IMPLICATION(is_runtime_value(*scales), count == 1);
     if (!ok) return invalid_arguments;
 
     return attr->scales_.set(arg, count, mask, scales);
@@ -366,7 +368,8 @@ status_t dnnl_primitive_attr_get_zero_points(const primitive_attr_t *attr,
 
 status_t dnnl_primitive_attr_set_zero_points(primitive_attr_t *attr, int arg,
         dim_t count, int mask, const int *zero_points) {
-    bool ok = !any_null(attr, zero_points) && count > 0 && mask >= 0;
+    bool ok = !any_null(attr, zero_points) && count > 0 && mask >= 0
+            && IMPLICATION(is_runtime_value(*zero_points), count == 1);
     if (!ok) return invalid_arguments;
     return attr->zero_points_.set(arg, count, mask, zero_points);
 }
