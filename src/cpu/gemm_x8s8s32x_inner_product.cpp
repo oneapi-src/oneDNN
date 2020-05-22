@@ -63,7 +63,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
             &off_c);
     if (st != status::success) return st;
 
-    if (!pd()->attr()->has_default_values() || !pd()->dst_is_acc_
+    if (!pd()->attr()->has_default_values() || dst_type != data_type::s32
             || pd()->with_bias()) {
         const bool force_sequential
                 = pp_kernel_->sequential_kernel() || MB * OC < 2000;
