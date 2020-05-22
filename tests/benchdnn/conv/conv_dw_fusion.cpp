@@ -58,8 +58,9 @@ dnnl_primitive_attr_t create_dnnl_fusion_attr(
             scales = gen_scs;
         }
 
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr, count,
-                scale_mask, runtime ? &DNNL_RUNTIME_F32_VAL : scales));
+        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr,
+                runtime ? 1 : count, scale_mask,
+                runtime ? &DNNL_RUNTIME_F32_VAL : scales));
         if (gen_scs) zfree(gen_scs);
     }
 
