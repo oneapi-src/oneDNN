@@ -2143,6 +2143,120 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     }
 }
 
+void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
+        compute_diff_bias_init() {
+    auto reg_unit_val = reg_tmp.cvt16();
+    mov(reg_unit_val, 0x3f80); // bf16 value of 1.
+    vpbroadcastw(vreg_bias_unit, reg_unit_val);
+
+    mov(reg_tmp, ptr[param + GET_OFF(bias)]);
+    vmovups(vreg_bias_acc, ptr[reg_tmp]);
+
+    if (jcp.uses_permw_transposition) {
+        mov(reg_tmp, dst_prm_table);
+        vmovups(get_perm_reg(), ptr[reg_tmp]);
+    }
+}
+
+void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_diff_bias_row(
+        bool is_partial) {
+    if (!jcp.with_bias) return;
+    mov(reg_tmp, ptr[param + GET_OFF(flags)]);
+    Label skip_label;
+    test(reg_tmp, FLAG_IC_FIRST);
+    jz(skip_label, T_NEAR);
+
+    if (is_partial) compute_diff_bias_init();
+
+    auto compute_step = [&](bool is_tail) {
+        if (jcp.transpose_dst) {
+            UNUSED(is_tail);
+            vmovups(vreg_bias_ddst, ptr[reg_ddst]);
+        } else {
+            auto vreg_ddst_load = is_ddst_layout_nxc() || is_tail
+                    ? vreg_bias_ddst | m_0000ffff | T_z
+                    : vreg_bias_ddst;
+            vmovdqu16(vreg_ddst_load, ptr[reg_ddst]);
+            if (is_ddst_layout_nxc() && !is_tail) {
+                const int shift_16_elems = 16 * jcp.typesize_in;
+                vmovdqu16(vreg_bias_ddst | m_ffff0000,
+                        ptr[reg_ddst + get_ddst_offset(1) - shift_16_elems]);
+            }
+            vpermw(vreg_bias_ddst, get_perm_reg(), vreg_bias_ddst);
+        }
+        if (!isa_has_bf16(jcp.isa))
+            bf16_emu_->vdpbf16ps(vreg_bias_acc, vreg_bias_ddst, vreg_bias_unit);
+        else
+            vdpbf16ps(vreg_bias_acc, vreg_bias_ddst, vreg_bias_unit);
+    };
+
+    Label ow_loop, ow_tail;
+    int niters = jcp.tr_ow / 2;
+    if (niters > 0) {
+        mov(reg_tmp, jcp.tr_ow / 2);
+        L(ow_loop);
+        compute_step(false);
+        add(reg_ddst, get_ddst_offset(2));
+        sub(reg_tmp, 1);
+        jnz(ow_loop, T_NEAR);
+    }
+    if (jcp.tr_ow % 2) compute_step(true);
+
+    if (niters > 0) sub(reg_ddst, get_ddst_offset(2 * niters));
+
+    if (is_partial) {
+        mov(reg_tmp, ptr[param + GET_OFF(bias)]);
+        vmovups(ptr[reg_tmp], vreg_bias_acc);
+    }
+
+    L(skip_label);
+}
+void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
+        maybe_compute_diff_bias() {
+    // In harness_3d_reduction case calculation of diff_bias is called
+    // for every ow row separately to be aligned with od loop in
+    // compute_od_loop_common()
+    if (!jcp.with_bias || jcp.harness == harness_3d_reduction) return;
+    mov(reg_tmp, ptr[param + GET_OFF(flags)]);
+
+    Label skip_label;
+    test(reg_tmp, FLAG_IC_FIRST);
+    jz(skip_label, T_NEAR);
+
+    switch (jcp.harness) {
+        case harness_2d_reduction:
+            mov(reg_oj, ptr[param + GET_OFF(os_index_end)]);
+            sub(reg_oj, ptr[param + GET_OFF(os_index_begin)]);
+            break;
+        case harness_mb_reduction:
+        case harness_compute_full_spatial: mov(reg_oj, jcp.oh); break;
+        case harness_3d_reduction:
+        default: assert(!"Invalid harness type");
+    }
+
+    compute_diff_bias_init();
+
+    cmp(reg_oj, 0);
+    jle(skip_label, T_NEAR); // nothing to do
+    Label bias_loop;
+    L(bias_loop);
+    {
+        compute_diff_bias_row(false);
+        add(reg_ddst, get_ddst_offset(0, 1));
+
+        sub(reg_oj, 1);
+        jnz(bias_loop, T_NEAR);
+    }
+
+    mov(reg_tmp, ptr[param + GET_OFF(bias)]);
+    vmovups(ptr[reg_tmp], vreg_bias_acc);
+
+    // restore reg_ddst value
+    mov(reg_ddst, ptr[param + GET_OFF(dst)]);
+
+    L(skip_label);
+}
+
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
         int ur_w, int pad_l, int pad_r, int ic_block_step, int src_offset,
         int kernel_offset, int ddst_offset, bool is_tail) {
@@ -2651,6 +2765,10 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_disp() {
         compute_oh_step_common(ic_block_step);
     }
 
+    // In harness_3d_reduction case calculation of diff_bias is called
+    // for every ow row separately to be aligned with od loop in
+    // compute_od_loop_common()
+    if (jcp.harness == harness_3d_reduction) compute_diff_bias_row();
     if (jcp.ndims == 5) {
         mov(reg_src, aux_reg_src);
         mov(reg_kernel, aux_reg_kernel);
@@ -2662,7 +2780,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_disp() {
 }
 
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::maybe_zero_kernel() {
-    if (jcp.harness == harness_compute_full_spatial) return;
+    if (jcp.harness == harness_compute_full_spatial && !jcp.with_bias) return;
     Label skip_zeroing, zeroing_loop;
 
     mov(reg_tmp, ptr[param + GET_OFF(channel)]);
@@ -2671,6 +2789,20 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::maybe_zero_kernel() {
 
     Zmm zero = Zmm(0);
     vpxord(zero, zero, zero);
+    if (jcp.with_bias) {
+        Label skip_bias_zeroing;
+        mov(reg_tmp, ptr[param + GET_OFF(flags)]);
+        test(reg_tmp, FLAG_IC_FIRST);
+        jz(skip_bias_zeroing, T_NEAR);
+
+        mov(reg_tmp, ptr[param + GET_OFF(bias)]);
+        vmovups(ptr[reg_tmp], zero);
+
+        L(skip_bias_zeroing);
+        if (jcp.harness == harness_compute_full_spatial)
+            jmp(skip_zeroing, T_NEAR);
+    }
+
     const size_t kernel_block_bytes
             = get_kernel_offset(0, jcp.kw * jcp.kh * jcp.kd);
     Label icb_block_label, icb_block_label_cb;
@@ -3453,6 +3585,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::compute_loop() {
     mov(reg_kernel, ptr[param + GET_OFF(filt)]);
 
     maybe_zero_kernel();
+    maybe_compute_diff_bias();
 
     switch (jcp.harness) {
         case harness_3d_reduction: compute_od_loop_common(true); break;
@@ -3850,18 +3983,25 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
         }
     }
 
-    if (jcp.nthr_mb > 1 || jcp.wei_dt == data_type::bf16) {
+    if (IMPLICATION(jcp.nthr_mb == 1,
+                (jcp.with_bias && jcp.bia_dt == data_type::bf16)
+                        || jcp.wei_dt == data_type::bf16)) {
         const size_t wei_size
                 = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw * jcp.kd;
         const size_t bia_size = jcp.ngroups * jcp.oc;
 
         const int num_wei_buffers
                 = jcp.wei_dt == data_type::bf16 ? jcp.nthr_mb : jcp.nthr_mb - 1;
+        const int num_bia_buffers = jcp.with_bias
+                ? (jcp.bia_dt == data_type::bf16 ? jcp.nthr_mb
+                                                 : jcp.nthr_mb - 1)
+                : 0;
 
-        const size_t wei_bia_reduction_size = wei_size + bia_size;
+        const size_t wei_bia_reduction_size
+                = wei_size * num_wei_buffers + bia_size * num_bia_buffers;
 
-        scratchpad.book<float>(key_conv_wei_bia_reduction,
-                wei_bia_reduction_size * num_wei_buffers);
+        scratchpad.book<float>(
+                key_conv_wei_bia_reduction, wei_bia_reduction_size);
 
         if (dnnl_thr_syncable())
             scratchpad.book<simple_barrier::ctx_t>(
@@ -3869,18 +4009,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
     }
 
     if (jcp.with_bias) {
-        const bool is_ddst_layout_nxc = utils::one_of(jcp.dst_tag,
-                format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
-        const size_t dst_f32_size = jcp.oc_block
-                * (is_ddst_layout_nxc ? 1 : (size_t)jcp.od * jcp.oh * jcp.ow);
-        scratchpad.book(key_conv_dst_bf16_convert_wsp, jcp.nthr * dst_f32_size,
-                jcp.typesize_out);
-
         if (jcp.oc != jcp.oc_without_padding && jcp.bia_dt == data_type::f32)
             scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_bia);
-        else if (jcp.bia_dt == data_type::bf16)
-            scratchpad.book<float>(
-                    key_conv_bias_bf16_convert_wsp, jcp.oc * jcp.ngroups);
     }
 }
 

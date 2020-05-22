@@ -539,7 +539,10 @@ private:
     reg64_t reg_ddst_d = rbx;
     reg64_t aux_reg_src = r12;
     reg64_t aux_reg_kernel = r13;
-    reg64_t reg_bias = rbx;
+
+    Xbyak::Zmm vreg_bias_acc = Xbyak::Zmm(0);
+    Xbyak::Zmm vreg_bias_unit = Xbyak::Zmm(1);
+    Xbyak::Zmm vreg_bias_ddst = Xbyak::Zmm(2);
 
     Xbyak::Zmm one = Xbyak::Zmm(27);
     Xbyak::Zmm even = Xbyak::Zmm(28);
@@ -572,6 +575,9 @@ private:
     inline void compute_oh_loop_common(bool partial = false);
     inline void compute_od_loop_common(bool partial = false);
     void compute_full_spat_loop();
+    void compute_diff_bias_init();
+    void compute_diff_bias_row(bool is_partial = true);
+    void maybe_compute_diff_bias();
     void convert_src_to_vnni_format(
             int ur_w, int pad_l, int pad_r, int src_offset);
     inline void compute_ic_block_step_vpermw_expl(int ur_w, int pad_l,
