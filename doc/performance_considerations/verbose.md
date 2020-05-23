@@ -25,7 +25,7 @@ set architecture.
 Each subsequent line of verbose information is formatted as a comma-separated list
 containing:
 - `dnnl_verbose` marker string
-- operation: `create[:cache_hit]`, `create[:cache_miss]` or `exec`
+- operation: `create:<cache_hit|cache_miss>` or `exec`
 - engine kind: `cpu` or `gpu`
 - primitive name: `convolution`, `reorder`, `sum`, etc
 - primitive implementation
