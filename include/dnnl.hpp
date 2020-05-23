@@ -10671,6 +10671,9 @@ inline status set_max_cpu_isa(cpu_isa isa) {
 /// @} dnnl_api_service
 
 /// @addtogroup dnnl_api_primitive_cache Primitive Cache
+///
+/// A set of functions that provide primitive cache control.
+///
 /// @{
 
 /// Returns the number of primitives that can be held in the primitive cache
