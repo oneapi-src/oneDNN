@@ -43,7 +43,7 @@ if(DPCPP_SUPPORTED)
     list(APPEND EXTRA_SHARED_LIBS OpenCL)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
-    if(UNIX AND LevelZero_FOUND)
+    if(LevelZero_FOUND)
         set(DNNL_WITH_LEVEL_ZERO TRUE)
         include_directories(${LevelZero_INCLUDE_DIRS})
     endif()

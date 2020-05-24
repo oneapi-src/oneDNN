@@ -19,11 +19,10 @@
 
 #if defined(DNNL_WITH_LEVEL_ZERO)
 
-#ifndef __linux__
-#error "Level Zero is supported with Linux only"
+#if !(defined(__linux__) || defined(_WIN32))
+#error "Level Zero is supported with Linux and Windows only"
 #endif
 
-#include <dlfcn.h>
 #include <level_zero/ze_api.h>
 
 #include "common/verbose.hpp"
@@ -43,24 +42,10 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
+void *find_ze_symbol(const char *symbol);
 template <typename F>
 F find_ze_symbol(const char *symbol) {
-    const char *ze_loader_name = "libze_loader.so";
-    void *handle = dlopen(ze_loader_name, RTLD_NOW | RTLD_LOCAL);
-    if (!handle) {
-        if (get_verbose())
-            printf("dnnl_verbose,gpu,error,cannot find Level Zero loader "
-                   "library\n");
-        assert(!"not expected");
-        return nullptr;
-    }
-    void *f = dlsym(handle, symbol);
-    if (!f) {
-        if (get_verbose())
-            printf("dnnl_verbose,gpu,error,cannot find symbol: %s\n", symbol);
-        assert(!"not expected");
-    }
-    return (F)f;
+    return (F)find_ze_symbol(symbol);
 }
 
 inline status_t func_zeModuleCreate(ze_device_handle_t hDevice,
