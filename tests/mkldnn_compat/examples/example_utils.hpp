@@ -24,7 +24,27 @@
 
 #include "mkldnn.hpp"
 
-static mkldnn::engine::kind parse_engine_kind(
+#if MKLDNN_CPU_THREADING_RUNTIME == MKLDNN_RUNTIME_OMP
+
+#ifdef _MSC_VER
+#define PRAGMA_MACRo(x) __pragma(x)
+#define PRAGMA_MACRO(x) PRAGMA_MACRo(x)
+#else
+#define PRAGMA_MACRo(x) _Pragma(#x)
+#define PRAGMA_MACRO(x) PRAGMA_MACRo(x)
+#endif
+
+// MSVC doesn't support collapse clause in omp parallel
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
+#define collapse(x)
+#endif
+
+#define PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(n) PRAGMA_MACRO(omp parallel for collapse(n))
+#else // MKLDNN_CPU_THREADING_RUNTIME == MKLDNN_RUNTIME_OMP
+#define PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(n)
+#endif
+
+inline mkldnn::engine::kind parse_engine_kind(
         int argc, char **argv, int extra_args = 0) {
     // Returns default engine kind, i.e. CPU, if none given
     if (argc == 1) {
