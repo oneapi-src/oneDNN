@@ -1065,10 +1065,7 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(1, weights);
     arg_list.set(2, bias);
     arg_list.set(3, dst);
-    arg_list.set(4, attr_info.eltwise_alpha);
-    arg_list.set(5, attr_info.eltwise_beta);
-    arg_list.set(6, attr_info.eltwise_scale);
-    arg_list.set(7, attr_info.sum_scale);
+    append_post_ops_to_arg_list(arg_list, 4, attr_info.all_post_ops);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
 

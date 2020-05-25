@@ -85,6 +85,8 @@ struct attr_info_t {
 
         attr_info_t attr_info;
 
+        attr_info.all_post_ops = po;
+
         // Eltwise
         attr_info.eltwise_idx = po.find(primitive_kind::eltwise);
         attr_info.with_eltwise = (attr_info.eltwise_idx != -1);
@@ -144,6 +146,8 @@ struct attr_info_t {
     }
 
     bool initialized = false;
+
+    post_ops_t all_post_ops;
 
     bool with_eltwise;
     int eltwise_idx;
@@ -668,6 +672,13 @@ inline void def_offsets(const int offs[4][MAX_NDIMS],
     }
 }
 
+inline void def_binary_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
+    kernel_ctx.define_int("BINARY_ADD", alg_kind::binary_add);
+    kernel_ctx.define_int("BINARY_MUL", alg_kind::binary_mul);
+    kernel_ctx.define_int("BINARY_MIN", alg_kind::binary_min);
+    kernel_ctx.define_int("BINARY_MAX", alg_kind::binary_max);
+}
+
 inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);
     kernel_ctx.define_int("LINEAR", alg_kind::eltwise_linear);
@@ -696,9 +707,86 @@ inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("EXP_DST", alg_kind::eltwise_exp_use_dst_for_bwd);
 }
 
+inline void def_post_ops_cfg(
+        compute::kernel_ctx_t &kernel_ctx, const post_ops_t &all_post_ops) {
+    const int po_nop_id = 0;
+    const int po_binary_id = 1;
+    const int po_eltwise_id = 2;
+    const int po_sum_id = 3;
+
+    kernel_ctx.define_int("PO_BINARY", po_binary_id);
+    kernel_ctx.define_int("PO_ELTWISE", po_eltwise_id);
+    kernel_ctx.define_int("PO_SUM", po_sum_id);
+
+    std::string po_kernel_args = "-DPOST_OP_ARGS=\"";
+
+    int nof_supported_post_ops = 0;
+
+    for (int idx = 0; idx < 2; ++idx, ++nof_supported_post_ops) {
+        if (all_post_ops.len_ > idx && all_post_ops.entry_[idx].is_eltwise()) {
+            auto &eltwise = all_post_ops.entry_[idx].eltwise;
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_KIND", po_eltwise_id);
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_ALG", eltwise.alg);
+        } else if (all_post_ops.len_ > idx
+                && all_post_ops.entry_[idx].is_sum(false)) {
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_KIND", po_sum_id);
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_ALG", alg_kind::undef);
+        } else {
+            // empty post op
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_KIND", po_nop_id);
+            // *_ALG need to be set but it's unused when kind is NOP
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_ALG", alg_kind::undef);
+            --nof_supported_post_ops;
+        }
+        po_kernel_args
+                += ", float po_" + std::to_string(idx) + "_eltwise_alpha";
+        po_kernel_args += ", float po_" + std::to_string(idx) + "_eltwise_beta";
+        po_kernel_args
+                += ", float po_" + std::to_string(idx) + "_eltwise_scale";
+        po_kernel_args += ", float po_" + std::to_string(idx) + "_sum_scale";
+    }
+
+    kernel_ctx.define_int("POST_OP_CHAIN_LENGTH", nof_supported_post_ops);
+    po_kernel_args += "\"";
+    kernel_ctx.add_option(po_kernel_args);
+}
+
+inline int append_post_ops_to_arg_list(compute::kernel_arg_list_t &arg_list,
+        int post_op_idx, const post_ops_t &all_post_ops) {
+    for (int idx = 0; idx < 2; ++idx) {
+
+        if (all_post_ops.entry_[idx].is_eltwise()) {
+            auto &eltwise = all_post_ops.entry_[idx].eltwise;
+            arg_list.set(post_op_idx++, eltwise.alpha);
+            arg_list.set(post_op_idx++, eltwise.beta);
+            arg_list.set(post_op_idx++, eltwise.scale);
+        } else {
+            arg_list.set(post_op_idx++, 1.0f); // _eltwise_alpha
+            arg_list.set(post_op_idx++, 0.0f); // _eltwise_beta
+            arg_list.set(post_op_idx++, 1.0f); // _eltwise_scale
+        }
+
+        if (all_post_ops.entry_[idx].is_sum(false)) {
+            auto &sum = all_post_ops.entry_[idx].sum;
+            arg_list.set(post_op_idx++, sum.scale);
+        } else {
+            arg_list.set(post_op_idx++, 1.0f);
+        }
+    }
+    return post_op_idx;
+}
+
 inline void def_attr_info(
         compute::kernel_ctx_t &kernel_ctx, const attr_info_t &attr_info) {
     assert(attr_info.initialized);
+
+    kernel_ctx.define_int("WITH_POST_OP", attr_info.all_post_ops.len_ > 0);
 
     kernel_ctx.define_int("WITH_ELTWISE", attr_info.with_eltwise);
     kernel_ctx.define_int("ELTWISE_IDX", attr_info.eltwise_idx);
@@ -717,7 +805,10 @@ inline void def_attr_info(
     kernel_ctx.define_int("SCALES_PER_OC", attr_info.with_per_oc_oscales);
     kernel_ctx.define_int("SCALES_COMMON", attr_info.with_common_oscales);
 
+    def_binary_alg_kinds(kernel_ctx);
     def_eltwise_alg_kinds(kernel_ctx);
+
+    def_post_ops_cfg(kernel_ctx, attr_info.all_post_ops);
 }
 
 inline void def_data_type(

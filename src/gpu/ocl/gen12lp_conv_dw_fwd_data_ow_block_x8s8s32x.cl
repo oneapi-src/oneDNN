@@ -40,8 +40,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
         const __global char *wei, const __global float *bias,
-        __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale, float sum_scale, float scale,
+        __global DST_DATA_T *dst POST_OP_ARGS, float scale,
         const __global float *scales_per_oc) {
     const int osp = get_global_id(1);
     const int od = osp / (OWB * OH);
@@ -459,35 +458,22 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
         src += IC_BLOCK * MB_BLOCK * IW * (IH * (1 + DD) - KH * (1 + DH));
     }
 
-#if WITH_ELTWISE || WITH_SUM && !SUM_SCALE1 || SCALES_PER_OC || SCALES_COMMON
+#if WITH_POST_OP && !SUM_SCALE1 || SCALES_PER_OC || SCALES_COMMON
     float16 tmp00 = convert_float16(S0) * SCALE;
     float16 tmp01 = convert_float16(S1) * SCALE;
-#define CONVERT_TO_ACC convert_float16
+#define ACC_DATA_TYPE float
 #define ACC0 tmp00
 #define ACC1 tmp01
-#define DO_ELTWISE() \
-    do { \
-        for (uint i = 0; i < 16; i++) { \
-            tmp00[i] = fwd_eltwise( \
-                    tmp00[i], eltwise_alpha, eltwise_beta, eltwise_scale); \
-            tmp01[i] = fwd_eltwise( \
-                    tmp01[i], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        } \
-    } while (0)
 #else
-#define CONVERT_TO_ACC convert_int16
+#define ACC_DATA_TYPE int
 #define ACC0 S0
 #define ACC1 S1
 #endif
 
-#if ELTWISE_IDX == 0
-    DO_ELTWISE();
-#endif
-
-#if WITH_SUM
     DST_DATA16_T D0 = 0;
     DST_DATA16_T D1 = 0;
 
+#if WITH_SUM
     if (OW_TAIL != 0 && ow + OW_BLOCK >= OW) {
         block_read_dst(min(8, OW_TAIL), &D0, dst);
         block_read_dst(OW_TAIL - 8, &D1, dst + 8 * OC_BLOCK);
@@ -495,18 +481,12 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
         block_read_dst(min(8, OW_BLOCK), &D0, dst);
         block_read_dst(OW_BLOCK - 8, &D1, dst + 8 * OC_BLOCK);
     }
-#if SUM_SCALE1
-    ACC0 += CONVERT_TO_ACC(AS_SUM_DATA16_T(D0));
-    ACC1 += CONVERT_TO_ACC(AS_SUM_DATA16_T(D1));
-#else // SUM_SCALE == 1
-    ACC0 += CONVERT_TO_ACC(AS_SUM_DATA16_T(D0)) * sum_scale;
-    ACC1 += CONVERT_TO_ACC(AS_SUM_DATA16_T(D1)) * sum_scale;
-#endif // SUM_SCALE == 1
 #endif // WITH_SUM
 
-#if ELTWISE_IDX == 1
-    DO_ELTWISE();
-#endif
+    SUM_DATA16_T D0_sdt = AS_SUM_DATA16_T(D0);
+    SUM_DATA16_T D1_sdt = AS_SUM_DATA16_T(D1);
+    APPLY_POST_OPS(ACC0, ACC_DATA_TYPE, D0_sdt, SUM_DATA_T);
+    APPLY_POST_OPS(ACC1, ACC_DATA_TYPE, D1_sdt, SUM_DATA_T);
 
     DST_DATA16_T R0 = CONVERT_DST_DATA16_T(ACC0);
     DST_DATA16_T R1 = CONVERT_DST_DATA16_T(ACC1);

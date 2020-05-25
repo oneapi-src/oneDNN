@@ -35,8 +35,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
         const __global char *wei, const __global float *bias,
-        __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale, float sum_scale, float scale,
+        __global DST_DATA_T *dst POST_OP_ARGS, float scale,
         const __global float *scales_per_oc) {
 
     const int osp = get_global_id(1);
@@ -182,16 +181,6 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     float8 tmp00 = convert_float8(S00);
     float8 tmp01 = convert_float8(S01);
 
-#define DO_ELTWISE() \
-    do { \
-        for (uint i = 0; i < 8; i++) { \
-            tmp00[i] = fwd_eltwise( \
-                    tmp00[i], eltwise_alpha, eltwise_beta, eltwise_scale); \
-            tmp01[i] = fwd_eltwise( \
-                    tmp01[i], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        } \
-    } while (0)
-
 #if SCALES_PER_OC
     float2 scales = as_float2(intel_sub_group_block_read2(
             (const __global uint *)&scales_per_oc[g]));
@@ -208,23 +197,15 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     tmp01 *= SCALE_VEC8;
 #endif
 
-#if ELTWISE_IDX == 0
-    DO_ELTWISE();
-#endif
+    SUM_DATA16_T D00;
 #if WITH_SUM
-    SUM_DATA16_T D00 = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst));
-#if SUM_SCALE
-    tmp00 += convert_float8(D00.s01234567);
-    tmp01 += convert_float8(D00.s89abcdef);
-#else // SUM_SCALE
-    tmp00 += convert_float8(D00.s01234567) * sum_scale;
-    tmp01 += convert_float8(D00.s89abcdef) * sum_scale;
-#endif // SUM_SCALE
+    D00 = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst));
 #endif // WITH_SUM
-#if ELTWISE_IDX == 1
-    DO_ELTWISE();
-#endif
 
-    DST_DATA16_T R0 = CONVERT_DST_DATA16_T((float16)(tmp00, tmp01));
+    float16 tmp_x16 = (float16)(tmp00, tmp01);
+    APPLY_POST_OPS(tmp_x16, float, D00, SUM_DATA_T);
+
+    DST_DATA16_T R0 = CONVERT_DST_DATA16_T(tmp_x16);
+
     BLOCK_WRITE_DST16(dst, R0);
 }

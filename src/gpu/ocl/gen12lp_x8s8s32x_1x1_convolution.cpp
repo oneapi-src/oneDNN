@@ -204,25 +204,24 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
     arg_list.set(1, weights);
     arg_list.set(2, bias);
     arg_list.set(3, dst);
-    arg_list.set(4, conf.attr_info.eltwise_alpha);
-    arg_list.set(5, conf.attr_info.eltwise_beta);
-    arg_list.set(6, conf.attr_info.eltwise_scale);
-    arg_list.set(7, conf.attr_info.sum_scale);
+
+    unsigned arg_idx = append_post_ops_to_arg_list(
+            arg_list, 4, conf.attr_info.all_post_ops);
 
     if (conf.attr_info.common_oscales) {
         float scales = pd()->attr()->output_scales_.scales_[0];
-        arg_list.set(8, scales);
+        arg_list.set(arg_idx++, scales);
     } else {
-        arg_list.set(8, 1.0f);
+        arg_list.set(arg_idx++, 1.0f);
     }
 
     if (conf.attr_info.with_per_oc_oscales) {
         if (conf.attr_info.with_runtime_oscales)
-            arg_list.set(9, oscales);
+            arg_list.set(arg_idx++, oscales);
         else
-            arg_list.set(9, CTX_GPU_RES_STORAGE(SCALES_));
+            arg_list.set(arg_idx++, CTX_GPU_RES_STORAGE(SCALES_));
     } else {
-        arg_list.set(9, memory_storage_t::empty_storage());
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
     }
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);

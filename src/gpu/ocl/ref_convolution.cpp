@@ -188,10 +188,6 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     auto &conf = pd()->conf;
-    auto eltwise_alpha = conf.attr_info.eltwise_alpha;
-    auto eltwise_beta = conf.attr_info.eltwise_beta;
-    auto eltwise_scale = conf.attr_info.eltwise_scale;
-    auto sum_scale = conf.attr_info.sum_scale;
     auto common_oscales = conf.attr_info.common_oscales;
 
     compute::kernel_arg_list_t arg_list;
@@ -199,18 +195,18 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(1, weights);
     arg_list.set(2, bias);
     arg_list.set(3, dst);
-    arg_list.set(4, eltwise_alpha);
-    arg_list.set(5, eltwise_beta);
-    arg_list.set(6, eltwise_scale);
-    arg_list.set(7, sum_scale);
-    arg_list.set(8, common_oscales);
+
+    unsigned arg_idx = append_post_ops_to_arg_list(
+            arg_list, 4, conf.attr_info.all_post_ops);
+
+    arg_list.set(arg_idx, common_oscales);
     if (conf.attr_info.with_per_oc_oscales) {
         if (conf.attr_info.with_runtime_oscales)
-            arg_list.set(9, oscales);
+            arg_list.set(++arg_idx, oscales);
         else
-            arg_list.set(9, CTX_GPU_RES_STORAGE(SCALES_));
+            arg_list.set(++arg_idx, CTX_GPU_RES_STORAGE(SCALES_));
     } else {
-        arg_list.set(9, memory_storage_t::empty_storage());
+        arg_list.set(++arg_idx, memory_storage_t::empty_storage());
     }
 
     auto nd_range = pd()->conf.dispatch.nd_range();

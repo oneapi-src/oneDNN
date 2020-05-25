@@ -65,9 +65,8 @@
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
-        const __global float *bias, __global DST_DATA_T *dst,
-        float eltwise_alpha, float eltwise_beta, float eltwise_scale,
-        float sum_scale, float scale, const __global float *scales_per_oc) {
+        const __global float *bias, __global DST_DATA_T *dst POST_OP_ARGS,
+        float scale, const __global float *scales_per_oc) {
 
     const int group_oc = get_group_id(0) * OC_GROUP;
     const int group_mb = get_group_id(2) * MB_GROUP;
@@ -554,91 +553,31 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
     tmp1 *= SCALE_VEC4;
 #endif
 
-#if WITH_SUM
-#define DO_SUM() \
-    do { \
-        SUM_DATA4_T d = AS_SUM_DATA4_T(BLOCK_READ_DST4(dst)); \
-        float4 df = convert_float4(d); \
-        tmp = fma(df, (float4)sum_scale, tmp); \
-    } while (0)
+#if WITH_POST_OP
 
-#define DO_SUM_4() \
-    do { \
-        SUM_DATA16_T d = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst)); \
-        float8 df0 = convert_float8(d.s01234567); \
-        float8 df1 = convert_float8(d.s89abcdef); \
-        tmp0 = fma(df0, (float8)sum_scale, tmp0); \
-        tmp1 = fma(df1, (float8)sum_scale, tmp1); \
-    } while (0)
+#define DO_POST_OP() \
+    { \
+        SUM_DATA4_T d; \
+        if (WITH_SUM) d = AS_SUM_DATA4_T(BLOCK_READ_DST4(dst)); \
+        APPLY_POST_OPS(tmp, float, d, SUM_DATA_T); \
+    }
+
+#define DO_POST_OP_4() \
+    { \
+        SUM_DATA16_T d; \
+        if (WITH_SUM) d = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst)); \
+        float16 tmp_x16 = (float16)(tmp0, tmp1); \
+        APPLY_POST_OPS(tmp_x16, float, d, SUM_DATA_T); \
+        tmp0 = tmp_x16.s01234567; \
+        tmp1 = tmp_x16.s89abcdef; \
+    }
+
 #else
-#define DO_SUM() ;
-#define DO_SUM_4() ;
-#endif
 
-#define ELTWISE() \
-    do { \
-        tmp[0] = fwd_eltwise( \
-                tmp[0], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp[1] = fwd_eltwise( \
-                tmp[1], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp[2] = fwd_eltwise( \
-                tmp[2], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp[3] = fwd_eltwise( \
-                tmp[3], eltwise_alpha, eltwise_beta, eltwise_scale); \
-    } while (0)
+#define DO_POST_OP() ;
+#define DO_POST_OP_4() ;
 
-#define ELTWISE_4() \
-    do { \
-        tmp0.s0 = fwd_eltwise( \
-                tmp0.s0, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s1 = fwd_eltwise( \
-                tmp0.s1, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s2 = fwd_eltwise( \
-                tmp0.s2, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s3 = fwd_eltwise( \
-                tmp0.s3, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s4 = fwd_eltwise( \
-                tmp0.s4, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s5 = fwd_eltwise( \
-                tmp0.s5, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s6 = fwd_eltwise( \
-                tmp0.s6, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s7 = fwd_eltwise( \
-                tmp0.s7, eltwise_alpha, eltwise_beta, eltwise_scale); \
-\
-        tmp1.s0 = fwd_eltwise( \
-                tmp1.s0, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s1 = fwd_eltwise( \
-                tmp1.s1, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s2 = fwd_eltwise( \
-                tmp1.s2, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s3 = fwd_eltwise( \
-                tmp1.s3, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s4 = fwd_eltwise( \
-                tmp1.s4, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s5 = fwd_eltwise( \
-                tmp1.s5, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s6 = fwd_eltwise( \
-                tmp1.s6, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s7 = fwd_eltwise( \
-                tmp1.s7, eltwise_alpha, eltwise_beta, eltwise_scale); \
-    } while (0)
-
-#if ELTWISE_IDX == 0
-#define DO_ELTWISE() ELTWISE();
-#define DO_ELTWISE_4() ELTWISE_4();
-#else
-#define DO_ELTWISE() ;
-#define DO_ELTWISE_4() ;
-#endif
-
-#if ELTWISE_IDX == 1
-#define DO_POST_SUM_ELTWISE() ELTWISE();
-#define DO_POST_SUM_ELTWISE_4() ELTWISE_4();
-#else
-#define DO_POST_SUM_ELTWISE() ;
-#define DO_POST_SUM_ELTWISE_4() ;
-#endif
+#endif // #if WITH_POST_OP
 
 #define PACK(C0, C1, C2, C3, idx) \
     do { \
@@ -686,9 +625,7 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
     do { \
         PACK(C0, C1, C2, C3, i); \
         QUANTIZE_ADD_BIAS(); \
-        DO_ELTWISE(); \
-        DO_SUM(); \
-        DO_POST_SUM_ELTWISE(); \
+        DO_POST_OP(); \
         CONVERT_PACK(); \
         BLOCK_WRITE_DST4(dst, tmp_cvt); \
         dst += OC_BLOCK * MB_BLOCK; \
@@ -698,9 +635,7 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
     do { \
         PACK_4(C0, C1, C2, C3, i); \
         QUANTIZE_ADD_BIAS_4(); \
-        DO_ELTWISE_4(); \
-        DO_SUM_4(); \
-        DO_POST_SUM_ELTWISE_4(); \
+        DO_POST_OP_4(); \
         CONVERT_PACK_4(); \
         BLOCK_WRITE_DST16(dst, R); \
         dst += 4 * OC_BLOCK; \
