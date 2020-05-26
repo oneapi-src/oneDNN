@@ -5778,6 +5778,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         // for performance, the weights must fit in cache.
         use_nxc_harness
                 = (data_size / nthreads + kernel_size > L2_cache_size / 3)
+                && (jcp.oc % jcp.simd_w == 0) && (jcp.ic % jcp.simd_w == 0)
                 && jcp.kw > 1 && ndims == 3
                 && (kernel_size < L2_cache_size / 2);
     }
