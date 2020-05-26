@@ -71,6 +71,23 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_ncdhw(
     });
 }
 
+template <data_type_t dst_type, data_type_t bia_type>
+void ref_deconvolution_fwd_t::compute_fwd_bias_ndhwc(
+        typename prec_traits<dst_type>::type *dst,
+        const typename prec_traits<bia_type>::type *bias) const {
+    const dim_t MB = pd()->MB();
+    const dim_t SP = pd()->OW() * pd()->OH() * pd()->OD();
+    const dim_t OC = pd()->OC();
+
+    parallel_nd(MB, SP, [&](dim_t mb, dim_t sp) {
+        const dim_t offset = (mb * SP + sp) * OC;
+        PRAGMA_OMP_SIMD()
+        for (dim_t oc = 0; oc < OC; ++oc) {
+            dst[offset + oc] += bias[oc];
+        }
+    });
+}
+
 template <data_type_t dst_type, data_type_t bia_type, int blksize>
 void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(
         typename prec_traits<dst_type>::type *dst,
@@ -108,6 +125,9 @@ void ref_deconvolution_fwd_t::compute_bias(const exec_ctx_t &ctx) const {
         case ncdhw:
         case nchw:
         case ncw: compute_fwd_bias_ncdhw<dst_type, bia_type>(dst, bias); break;
+        case ndhwc:
+        case nhwc:
+        case nwc: compute_fwd_bias_ndhwc<dst_type, bia_type>(dst, bias); break;
         case nCdhw8c:
         case nChw8c:
         case nCw8c:
@@ -190,6 +210,27 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ncdhw(
     });
 }
 
+template <data_type_t dbia_type, data_type_t ddst_type>
+void ref_deconvolution_bwd_weights_t::compute_bwd_bias_ndhwc(
+        typename prec_traits<dbia_type>::type *diff_bias,
+        const typename prec_traits<ddst_type>::type *diff_dst) const {
+    const dim_t MB = pd()->MB();
+    const dim_t SP = pd()->OW() * pd()->OH() * pd()->OD();
+    const dim_t OC = pd()->OC();
+
+    parallel_nd(OC, [&](dim_t oc) {
+        float db = 0;
+        for (dim_t mb = 0; mb < MB; ++mb) {
+            PRAGMA_OMP_SIMD(reduction(+ : db))
+            for (dim_t sp = 0; sp < SP; ++sp) {
+                const dim_t offset = (mb * SP + sp) * OC + oc;
+                db += diff_dst[offset];
+            }
+        }
+        diff_bias[oc] = static_cast<typename prec_traits<dbia_type>::type>(db);
+    });
+}
+
 template <data_type_t dbia_type, data_type_t ddst_type, int blksize>
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc(
         typename prec_traits<dbia_type>::type *diff_bias,
@@ -238,6 +279,11 @@ void ref_deconvolution_bwd_weights_t::compute_bias(
         case nchw:
         case ncw:
             compute_bwd_bias_ncdhw<dbia_type, ddst_type>(diff_bias, diff_dst);
+            break;
+        case ndhwc:
+        case nhwc:
+        case nwc:
+            compute_bwd_bias_ndhwc<dbia_type, ddst_type>(diff_bias, diff_dst);
             break;
         case nCdhw8c:
         case nChw8c:
