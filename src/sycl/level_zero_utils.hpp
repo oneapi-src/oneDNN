@@ -98,21 +98,10 @@ inline device_uuid_t get_device_uuid(const cl::sycl::device &dev) {
 
     const auto &ze_device_id = ze_device_properties.uuid.id;
 
-    constexpr int half_ze_uuid_size = ZE_MAX_DEVICE_UUID_SIZE / 2;
-    const int uuid_size = 2;
-    uint64_t uuid[uuid_size] = {};
-
-    for (int i = 0; i < uuid_size; i++) {
-        for (int j = half_ze_uuid_size - 1; j >= 0; j--) {
-            for (int k = CHAR_BIT - 1; k >= 0; k--) {
-                uint64_t bit_pos = j * CHAR_BIT + k;
-
-                int ze_device_id_idx
-                        = i * sizeof(uint64_t) + (half_ze_uuid_size - 1) - j;
-                uint64_t bit_val = (ze_device_id[ze_device_id_idx] >> k) & 1ULL;
-                uuid[i] |= (bit_val << bit_pos);
-            }
-        }
+    uint64_t uuid[ZE_MAX_DEVICE_UUID_SIZE / sizeof(uint64_t)] = {};
+    for (size_t i = 0; i < ZE_MAX_DEVICE_UUID_SIZE; ++i) {
+        size_t shift = i % sizeof(uint64_t) * CHAR_BIT;
+        uuid[i / sizeof(uint64_t)] |= (((uint64_t)ze_device_id[i]) << shift);
     }
     return device_uuid_t(uuid[0], uuid[1]);
 }
