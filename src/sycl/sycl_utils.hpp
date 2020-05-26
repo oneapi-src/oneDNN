@@ -167,7 +167,7 @@ inline device_id_t sycl_device_id(const cl::sycl::device &dev) {
     if (dev.is_host())
         return std::make_tuple(static_cast<int>(backend_t::host), 0, 0);
 
-    device_id_t device_id;
+    device_id_t device_id = {static_cast<int>(backend_t::unknown), 0, 0};
 #ifdef DNNL_SYCL_DPCPP
     switch (get_sycl_backend(dev)) {
         case backend_t::opencl:
@@ -175,27 +175,23 @@ inline device_id_t sycl_device_id(const cl::sycl::device &dev) {
                     reinterpret_cast<uint64_t>(dev.get()), 0);
             break;
         case backend_t::level0: {
+#if defined(DNNL_WITH_LEVEL_ZERO)
             device_id = std::tuple_cat(
                     std::make_tuple(static_cast<int>(backend_t::level0)),
-#if defined(DNNL_WITH_LEVEL_ZERO)
-                    get_device_uuid(dev)
+                    get_device_uuid(dev));
 #else
-                    std::make_tuple<uint64_t, uint64_t>(0, 0)
-#endif
-            );
-#if !defined(DNNL_WITH_LEVEL_ZERO)
-            assert(std::get<0>(device_id) != 0);
-            assert(std::get<1>(device_id) != 0);
+            assert(!"unreachable");
 #endif
             break;
         }
-        case backend_t::unknown: assert(!"unreachable"); break;
+        case backend_t::unknown: assert(!"unknown backend"); break;
         default: assert(!"unreachable");
     }
 #else
     device_id = std::make_tuple(static_cast<int>(backend_t::opencl),
             reinterpret_cast<uint64_t>(dev.get()), 0);
 #endif
+    assert(std::get<0>(device_id) != static_cast<int>(backend_t::unknown));
     return device_id;
 }
 
