@@ -129,6 +129,8 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                                         *conv_pd_->diff_src_md(),
                                         utils::pick(
                                                 ndims() - 3, ncw, nchw, ncdhw),
+                                        utils::pick(
+                                                ndims() - 3, nwc, nhwc, ndhwc),
                                         utils::pick(ndims() - 3, nCw16c,
                                                 nChw16c, nCdhw16c)));
                 bool ok = true
@@ -164,6 +166,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
                 dst_tag_ = memory_desc_matches_one_of_tag(dst_md_,
                         utils::pick(ndims() - 3, ncw, nchw, ncdhw),
+                        utils::pick(ndims() - 3, nwc, nhwc, ndhwc),
                         utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
                         utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
 
@@ -228,6 +231,10 @@ private:
     void compute_fwd_bias(float *dst, const float *bias) const;
     template <data_type_t dst_type, data_type_t bia_type>
     void compute_fwd_bias_ncdhw(typename prec_traits<dst_type>::type *dst,
+            const typename prec_traits<bia_type>::type *bias) const;
+
+    template <data_type_t dst_type, data_type_t bia_type>
+    void compute_fwd_bias_ndhwc(typename prec_traits<dst_type>::type *dst,
             const typename prec_traits<bia_type>::type *bias) const;
 
     template <data_type_t dst_type, data_type_t bia_type, int blksize>
@@ -392,6 +399,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
                                         == data_type::bf16,
                         memory_desc_matches_one_of_tag(*conv_pd_->src_md(),
                                 utils::pick(ndims() - 3, ncw, nchw, ncdhw),
+                                utils::pick(ndims() - 3, nwc, nhwc, ndhwc),
                                 utils::pick(ndims() - 3, nCw16c, nChw16c,
                                         nCdhw16c)));
                 if (conv_pd_->diff_weights_md()->extra.flags == 0
@@ -432,6 +440,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
 
                 dst_tag_ = memory_desc_matches_one_of_tag(diff_dst_md_,
                         utils::pick(ndims() - 3, ncw, nchw, ncdhw),
+                        utils::pick(ndims() - 3, nwc, nhwc, ndhwc),
                         utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
                         utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
                 init_scratchpad();
@@ -494,6 +503,11 @@ private:
 
     template <data_type_t dbia_type, data_type_t ddst_type>
     void compute_bwd_bias_ncdhw(
+            typename prec_traits<dbia_type>::type *diff_bias,
+            const typename prec_traits<ddst_type>::type *diff_dst) const;
+
+    template <data_type_t dbia_type, data_type_t ddst_type>
+    void compute_bwd_bias_ndhwc(
             typename prec_traits<dbia_type>::type *diff_bias,
             const typename prec_traits<ddst_type>::type *diff_dst) const;
 
