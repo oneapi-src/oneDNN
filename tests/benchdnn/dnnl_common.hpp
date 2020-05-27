@@ -301,6 +301,8 @@ void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
 void maybe_prepare_runtime_scales(
         dnn_mem_t &scales_m, const attr_bundle_t &attr_bundle);
 
+void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
+        const attr_t &attr, int arg, int64_t count, const int32_t *zero_points);
 void maybe_prepare_runtime_zero_points(
         dnn_mem_t &zero_points_m, const attr_t &attr, int arg);
 

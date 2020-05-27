@@ -586,6 +586,12 @@ std::ostream &operator<<(std::ostream &s, const policy_t &policy) {
     return s;
 }
 
+std::ostream &operator<<(
+        std::ostream &s, const attr_t::zero_points_t::policy_t &policy) {
+    s << attr_t::zero_points_t::policy2str(policy);
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale) {
     s << scale.policy << ":" << scale.scale;
     if (scale.runtime) s << '*';
@@ -599,7 +605,8 @@ std::ostream &operator<<(
         if (!first) s << '_';
         first = false;
 
-        s << arg2str.at(point.first) << point.second.value;
+        s << arg2str.at(point.first) << point.second.policy << ":"
+          << point.second.value;
         if (point.second.runtime) s << '*';
     }
 
@@ -765,11 +772,17 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
 
     if (!attr.zero_points.is_def()) {
         for (const auto &zero_points : attr.zero_points) {
+            const bool runtime = zero_points.second.runtime;
+            const auto mask = zero_points.second.policy
+                            == attr_t::zero_points_t::policy_t::PER_DIM_1
+                    ? 1 << 1
+                    : 0;
+            SAFE_V((runtime == true || mask == 0) ? OK : FAIL);
+
             DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(dnnl_attr,
-                    zero_points.first,
-                    /* count */ 1, /* mask */ 0,
-                    zero_points.second.runtime ? &DNNL_RUNTIME_S32_VAL
-                                               : &zero_points.second.value));
+                    zero_points.first, /* count */ 1, mask,
+                    runtime ? &DNNL_RUNTIME_S32_VAL
+                            : &zero_points.second.value));
         }
     }
 
@@ -904,6 +917,18 @@ void maybe_oscale(const attr_t &attr, float &d, float *scales, int64_t oc) {
     if (!attr.oscale.is_def()) {
         int64_t idx = attr.oscale.policy == policy_t::COMMON ? 0 : oc;
         d *= scales[idx];
+    }
+}
+
+void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
+        int64_t c, int arg, bool opposite_zero_point) {
+    const auto &e = attr.zero_points.get(arg);
+
+    if (!attr.zero_points.is_def(arg)) {
+        const int zp_mult_idx
+                = e.policy == attr_t::zero_points_t::policy_t::COMMON ? 0 : 1;
+        const int zp_sign = opposite_zero_point ? -1 : 1;
+        d -= zp_sign * zero_points[c * zp_mult_idx];
     }
 }
 

@@ -306,8 +306,11 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
                 const int gen
                         = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
-                const float value = non_base ? c.f_min + gen * c.f_step % range
-                                             : c.f_base;
+                float value = non_base ? c.f_min + gen * c.f_step % range
+                                       : c.f_base;
+
+                maybe_zero_point(
+                        p->attr, value, p->src_zp, ic, DNNL_ARG_SRC, true);
 
                 ((float *)mem_00)[src_off_f(p, mb, 0, ic, id, ih, iw)] = value;
             });
@@ -706,6 +709,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t bia_dt(bia_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
     dnn_mem_t scales;
+    dnn_mem_t src_zero_points_m;
 
     dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
@@ -717,6 +721,8 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
     SAFE(fill_bia(p, bia_dt, bia_fp, r), WARN);
     maybe_prepare_runtime_scales(scales, p->attr, p->oc, p->scales);
+    maybe_prepare_runtime_zero_points(
+            src_zero_points_m, p->attr, DNNL_ARG_SRC, p->ic, p->src_zp);
 
     args_t args;
 
@@ -727,6 +733,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
 
         SAFE(execute_and_wait(c, args), WARN);
 

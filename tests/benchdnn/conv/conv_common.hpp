@@ -116,6 +116,7 @@ struct settings_t {
     std::vector<int64_t> mb {0};
     std::vector<alg_t> alg {DIRECT};
     std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
+    std::vector<attr_t::zero_points_t> zero_points {attr_t::zero_points_t()};
     std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     attr_t attr = {};
     const char *pattern = NULL;
@@ -133,6 +134,8 @@ struct settings_t {
 
 // moved out of prb_t to support fusion
 float *generate_oscales(const attr_t::scale_t &oscale, int N);
+int32_t *generate_zero_points(
+        int arg, const attr_t::zero_points_t &zero_points, int N);
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
@@ -149,13 +152,16 @@ struct prb_t : public desc_t {
         , attr(attr)
         , ops(0)
         , scales(NULL)
+        , src_zp(NULL)
         , is_deconv(is_deconv) {
         if (mb) this->mb = mb;
         count_ops();
         scales = generate_oscales(attr.oscale, oc);
+        src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, ic);
     }
     ~prb_t() {
         if (scales) zfree(scales);
+        if (src_zp) zfree(src_zp);
     }
 
     dir_t dir;
@@ -166,6 +172,7 @@ struct prb_t : public desc_t {
 
     double ops;
     float *scales;
+    int32_t *src_zp;
     bool is_deconv;
 
     void count_ops();

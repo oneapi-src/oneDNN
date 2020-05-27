@@ -195,13 +195,24 @@ void maybe_prepare_runtime_scales(
             (int64_t)attr_bundle.oscale.size(), attr_bundle.oscale.data());
 }
 
-void maybe_prepare_runtime_zero_points(
-        dnn_mem_t &zero_points_m, const attr_t &attr, int arg) {
+void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
+        const attr_t &attr, int arg, int64_t count,
+        const int32_t *zero_points) {
     if (!attr.zero_points.runtime(arg)) return;
 
-    int64_t count = 1;
-    zero_points_m = dnn_mem_t(1, &count, dnnl_s32, dnnl_a, get_test_engine());
-    ((int *)zero_points_m)[0] = attr.zero_points[arg];
+    using P = attr_t::zero_points_t::policy_t;
+    const auto e = attr.zero_points.get(arg);
+    const int64_t cnt = e.policy == P::COMMON ? 1 : count;
+
+    zero_points_m = dnn_mem_t(1, &cnt, dnnl_s32, dnnl_a, get_test_engine());
+    for (int64_t c = 0; c < cnt; ++c)
+        ((int32_t *)zero_points_m)[c] = zero_points[c];
+}
+
+void maybe_prepare_runtime_zero_points(
+        dnn_mem_t &zero_points_m, const attr_t &attr, int arg) {
+    const auto e = attr.zero_points.get(arg);
+    maybe_prepare_runtime_zero_points(zero_points_m, attr, arg, 1, &(e.value));
 }
 
 bool check_md_consistency_with_tag(

@@ -146,10 +146,14 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                 for (int64_t kw = 0; kw < KW; ++kw) {
                     const int64_t iw = ow * SW - PW + kw * DW;
                     if (iw < 0 || iw >= IW) continue;
+
                     for (int64_t ic = 0; ic < ICG; ++ic) {
                         int64_t src_off = ((ic * ID + id) * IH + ih) * IW + iw;
                         int64_t wei_off = ((ic * KD + kd) * KH + kh) * KW + kw;
-                        d += src_loc[src_off] * wei_loc[wei_off];
+                        float s = src_loc[src_off];
+                        maybe_zero_point(p->attr, s, p->src_zp, g * ICG + ic,
+                                DNNL_ARG_SRC);
+                        d += s * wei_loc[wei_off];
                     }
                 }
             }
