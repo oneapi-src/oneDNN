@@ -1702,12 +1702,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     auto src_addr = [=](int i_iw, int i_ic, ptrdiff_t extra_offset = 0,
                             bool vnni_bcast = false) {
         auto local_offset = get_src_offset(i_ic, i_iw);
-        if (vnni_bcast)
-            return EVEX_compress_addr(
-                    reg_src, local_offset + src_offset + extra_offset, true);
-        else
-            return EVEX_compress_addr(
-                    reg_src, local_offset + src_offset + extra_offset);
+        return EVEX_compress_addr(
+                reg_src, local_offset + src_offset + extra_offset, vnni_bcast);
     };
     auto ddst_addr = [=](int i_ur) {
         auto ow_scale = 2;
@@ -1843,11 +1839,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     auto src_addr = [=](int i_iw, int i_ic, ptrdiff_t extra_offset = 0,
                             bool vnni_bcast = false) {
         int local_offset = i_ic * reorder_bytes + 2 * jcp.typesize_in * i_iw;
-
-        if (vnni_bcast)
-            return EVEX_compress_addr(rsp, local_offset, true);
-        else
-            return EVEX_compress_addr(rsp, local_offset);
+        return EVEX_compress_addr(rsp, local_offset, vnni_bcast);
     };
     auto ddst_addr = [=](int i_ur) {
         auto ow_scale = 2;
@@ -2010,12 +2002,17 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
                 auto acc = zmm_ker(i_kw, i_ic);
                 auto ddst = zmm_ddst(i_ur);
 
-                if (!isa_has_bf16(jcp.isa)) {
+                const bool isa_supports_bf16 = isa_has_bf16(jcp.isa);
+                auto src_stack_addr
+                        = src_addr(i_iw, i_ic, 0, isa_supports_bf16);
+
+                if (isa_supports_bf16)
+                    vdpbf16ps(acc, ddst, src_stack_addr);
+                else {
                     auto src = Zmm(zmm_src_reg);
-                    vpbroadcastd(src, src_addr(i_iw, i_ic, 0));
+                    vpbroadcastd(src, src_stack_addr);
                     bf16_emu_->vdpbf16ps(acc, ddst, src);
-                } else
-                    vdpbf16ps(acc, ddst, src_addr(i_iw, i_ic, 0, true));
+                }
             }
         }
     }
@@ -2717,7 +2714,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
             add(reg_src, get_src_offset(0, 0, filter_h_to_src(1)));
             add(reg_kernel, get_kernel_offset(0, jcp.kw));
         } else if (jcp.is_1stconv && !jcp.transpose_src) {
-            // Fixup reg_src to to point to the correct location
+            // Fixup reg_src to point to the correct location
             safe_add(reg_src,
                     get_src_offset(0, 0, filter_h_to_src(1))
                             - src_offset * (jcp.ic_block / ic_block_step),
@@ -4127,7 +4124,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     // jcp.uses_permw_transposition = false shows better performance for
     // resnet50 v1.5 problems
     // jcp.uses_permw_transposition = true works better for 3d 1x1x1 problems
-    const bool is_permw_appicable
+    const bool is_permw_applicable
             = !jcp.is_1stconv && jcp.stride_w == 1 && jcp.dilate_w == 0;
     const bool apply_permw_blocked = !is_data_layout_nxc && ndims == 5
             && jcp.kw == 1 && jcp.ic_block_step > 4;
@@ -4135,7 +4132,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     const bool apply_permw_nxc = is_data_layout_nxc && ndims == 3
             && nstl::max(jcp.ic, jcp.oc) <= 32;
     jcp.uses_permw_transposition
-            = is_permw_appicable && (apply_permw_blocked || apply_permw_nxc);
+            = is_permw_applicable && (apply_permw_blocked || apply_permw_nxc);
 
     jcp.kernel_kind = embd_bcast;
     if (jcp.uses_permw_transposition && jcp.kw <= 3)
