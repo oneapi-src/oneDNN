@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "sycl/sycl_buffer_memory_storage.hpp"
+#include "sycl/sycl_engine_base.hpp"
 
 #include <CL/sycl.hpp>
 
@@ -110,7 +111,14 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::clone() const {
 }
 
 status_t sycl_buffer_memory_storage_t::init_allocate(size_t size) {
+    const auto &device
+            = utils::downcast<sycl_engine_base_t *>(engine())->device();
+    if (size > device.get_info<cl::sycl::info::device::max_mem_alloc_size>()) {
+        return status::out_of_memory;
+    }
+
     buffer_.reset(new buffer_u8_t(cl::sycl::range<1>(size)));
+    if (!buffer_) return status::out_of_memory;
     return status::success;
 }
 
