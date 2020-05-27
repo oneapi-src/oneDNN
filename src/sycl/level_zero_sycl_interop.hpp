@@ -22,7 +22,8 @@
 #include <CL/sycl.hpp>
 #include <level_zero/ze_api.h>
 
-#if defined(DNNL_SYCL_DPCPP) && defined(__SYCL_COMPILER_VERSION) \
+#if defined(DNNL_SYCL_DPCPP) && defined(__INTEL_CLANG_COMPILER) \
+        && defined(__SYCL_COMPILER_VERSION) \
         && (__SYCL_COMPILER_VERSION > 20200511)
 #include <CL/sycl/backend/Intel_level0.hpp>
 #define USE_DIRECT_LEVEL_ZERO_SYCL_INTEROP
