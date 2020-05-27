@@ -33,9 +33,6 @@ protected:
 };
 
 TEST_F(scratchpad_alloc_test, ScratchpadAllocTest) {
-    SKIP_IF(eng.get_kind() == engine::kind::gpu,
-            "GPU does not support the global scratchpad.");
-
     auto dtype = dt::s8;
 
     auto strm = stream(eng);
