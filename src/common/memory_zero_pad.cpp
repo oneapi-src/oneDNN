@@ -262,6 +262,7 @@ status_t memory_t::typed_zero_pad(const exec_ctx_t &ctx) const {
     // the last line of defence
     typed_zero_pad_generic_blocked<dt>(mdw, data);
 
+    ctx.unmap_memory_storage(memory_storage(), mapped_ptr, ctx.stream());
     return success;
 }
 
