@@ -115,7 +115,31 @@ struct attr_t {
     };
 
     struct zero_points_t {
+        enum policy_t {
+            NONE = 0,
+            COMMON,
+            // reorder section
+            // XXX: order is important, from longer name to a shorter one
+            // TODO: generalize, use numbers instead of predefined enum
+            PER_DIM_01,
+            PER_DIM_0,
+            PER_DIM_1,
+            // reorder section ends
+            POLICY_TOTAL
+        };
+
         struct entry_t {
+            entry_t() : policy(NONE), value(0), runtime(false) {}
+
+            entry_t(policy_t apolicy, int avalue, bool aruntime)
+                : policy(apolicy), value(avalue), runtime(aruntime) {}
+
+            entry_t(const entry_t &other)
+                : policy(other.policy)
+                , value(other.value)
+                , runtime(other.runtime) {}
+
+            policy_t policy = NONE;
             int value;
             bool runtime;
         };
@@ -124,6 +148,9 @@ struct attr_t {
 
         int operator[](int arg) const { return get(arg).value; }
         bool runtime(int arg) const { return get(arg).runtime; }
+
+        static policy_t str2policy(const char *str);
+        static const char *policy2str(policy_t policy);
 
         bool is_def() const { return points.empty(); }
 

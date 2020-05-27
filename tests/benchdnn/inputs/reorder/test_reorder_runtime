@@ -47,22 +47,22 @@
 --sdt=f32,s32,s8,u8
 --ddt=f32,s32,s8,u8
 
---attr-oscale=per_dim_1:0.* --attr-zero-points=src:1*_dst:2*;
+--attr-oscale=per_dim_1:0.* --attr-zero-points=src:common:1*_dst:common:2*;
 --stag=abx,axb,aBx4b,aBx8b,aBx16b
 --dtag=abx,axb,aBx8b,aBx16b
 2x64x3x3
 
---attr-oscale=per_dim_0:0.* --attr-zero-points=src:1_dst:2*;
+--attr-oscale=per_dim_0:0.* --attr-zero-points=src:common:1_dst:common:2*;
 --stag=abx,xba
 --dtag=abx,xba
 2x64x3x3
 
---attr-oscale=per_dim_01:0.* --attr-zero-points=src:-1*_dst:2*;
+--attr-oscale=per_dim_01:0.* --attr-zero-points=src:common:-1*_dst:common:2*;
 --stag=abx,gOIhw16i16o
 --dtag=abx,gOIhw16i16o
 3x32x32x2x2
 
---attr-oscale=common:0.* --attr-zero-points=src:1*_dst:2*;
+--attr-oscale=common:0.* --attr-zero-points=src:common:1*_dst:common:2*;
 --stag=abx,axb
 --dtag=abx,axb
 2x8x8 # special 8x8 kernel
@@ -73,6 +73,6 @@
 
 --stag=abx,xba
 --dtag=abx,xba
---attr-oscale=per_dim_1:0.5* --attr-zero-points=src:1*_dst:-2*;
+--attr-oscale=per_dim_1:0.5* --attr-zero-points=src:common:1*_dst:common:-2*;
 --sdt=f32 --ddt=f16 3x5x7x11
 --sdt=f16 --ddt=f32 3x5x7x11

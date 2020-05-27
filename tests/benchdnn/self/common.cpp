@@ -59,12 +59,15 @@ static int check_attr2str() {
     attr.oscale.runtime = false;
     CHECK_PRINT_EQ(attr, "oscale=per_dim_01:3.2;");
 
-    attr.zero_points.set(DNNL_ARG_SRC, {1, false});
-    CHECK_PRINT_EQ(attr, "oscale=per_dim_01:3.2;zero_points=src:1;");
+    attr.zero_points.set(
+            DNNL_ARG_SRC, {attr_t::zero_points_t::policy_t::COMMON, 1, false});
+    CHECK_PRINT_EQ(attr, "oscale=per_dim_01:3.2;zero_points=src:common:1;");
 
-    attr.zero_points.set(DNNL_ARG_WEIGHTS, {2, true});
-    CHECK_PRINT_EQ2(attr, "oscale=per_dim_01:3.2;zero_points=src:1_wei:2*;",
-            "oscale=per_dim_01:3.2;zero_points=wei:2*_src:1;");
+    attr.zero_points.set(DNNL_ARG_WEIGHTS,
+            {attr_t::zero_points_t::policy_t::COMMON, 2, true});
+    CHECK_PRINT_EQ2(attr,
+            "oscale=per_dim_01:3.2;zero_points=src:common:1_wei:common:2*;",
+            "oscale=per_dim_01:3.2;zero_points=wei:common:2*_src:common:1;");
 
     attr = attr_t();
     attr.scales.set(DNNL_ARG_SRC_0, attr_t::scale_t(policy_t::COMMON, 2.3));
