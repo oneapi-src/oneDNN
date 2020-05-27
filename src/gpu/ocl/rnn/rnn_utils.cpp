@@ -128,9 +128,21 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 
     bool is_gru = utils::one_of(
             rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
+
     // Decide if to merge gemm across iterations
-    rnn.merge_gemm_layer = (rnn.is_fwd || is_gru);
-    rnn.merge_gemm_iter = !rnn.is_fwd;
+    auto src_layer_ld = src_layer_d.blocking_desc().strides[1];
+    auto dst_layer_ld = dst_layer_d.blocking_desc().strides[1];
+    auto src_layer_is_trivial_stride
+            = src_layer_d.blocking_desc().strides[0] == (src_layer_ld * rnn.mb);
+    auto dst_layer_is_trivial_stride
+            = dst_layer_d.blocking_desc().strides[0] == (dst_layer_ld * rnn.mb);
+
+    rnn.merge_gemm_layer = ((rnn.is_fwd && src_layer_is_trivial_stride)
+                                   || ((rd.prop_kind == prop_kind::backward)
+                                           && dst_layer_is_trivial_stride))
+            && (((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd) || rnn.is_int8);
+    rnn.merge_gemm_iter
+            = dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru);
 
     // Decide to copy bias
     rnn.copy_bias = rnn.is_int8;
@@ -268,7 +280,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     // Used for storing the intermediate value from fwd pass in training lbr gru
     rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dhc * aux_elsz;
     rnn.ws_grid_comp_size = (size_t)rnn.is_lbr * rnn.is_training * rnn.n_layer
-            * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell;
+            * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell * aux_elsz;
 }
 
 int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
@@ -301,12 +313,12 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
     current_offset += rnn.ws_c_states_size;
 
     current_offset = utils::rnd_up(current_offset, page_size);
-    ws_diff_states_offset = current_offset;
-    current_offset += rnn.ws_diff_states_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
     ws_grid_comp_offset = current_offset;
     current_offset += rnn.ws_grid_comp_size;
+
+    current_offset = utils::rnd_up(current_offset, page_size);
+    ws_diff_states_offset = current_offset;
+    current_offset += rnn.ws_diff_states_size;
 
     workspace_size = rnn.use_workspace ? current_offset : 0;
 

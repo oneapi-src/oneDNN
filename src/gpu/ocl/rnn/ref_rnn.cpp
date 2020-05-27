@@ -41,10 +41,10 @@
 #define DPRINT(fmt, ...) \
     printf(fmt, __VA_ARGS__); \
     fflush(0)
-#define WS_PRINT(s, w) ws_print(s, w)
+#define WS_PRINT(c, s, w) ws_print(c, s, w)
 #else
 #define DPRINT(fmt, ...)
-#define WS_PRINT(s, w)
+#define WS_PRINT(c, s, w)
 #endif
 
 namespace dnnl {
@@ -628,8 +628,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             = rnn_conf.merge_gemm_iter ? batch * rnn_conf.n_iter : batch;
 
     bool gemm_ok = true;
-    int beta = this->is_lbr() ? 0.0 : 1.0;
-
+    int gemm_iter_fwd_beta = this->is_lbr() ? 0.0 : 1.0;
+    int gemm_iter_bwd_beta = this->is_lbr() ? 1.0f : 0.0f;
     switch (aprop) {
         case prop_kind::forward:
             gemm_ok = true
@@ -644,7 +644,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                                     batch, sic, rnn_conf.weights_iter_ld,
                                     rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
                                     weights_type, src_type,
-                                    rnn_conf.acc_data_type, false, beta));
+                                    rnn_conf.acc_data_type, false,
+                                    gemm_iter_fwd_beta));
             break;
         case prop_kind::backward:
             gemm_ok = true
@@ -654,7 +655,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                                     rnn_conf.scratch_gates_ld,
                                     rnn_conf.diff_states_ws_ld, weights_type,
                                     src_type, rnn_conf.acc_data_type, false,
-                                    0.0f),
+                                    gemm_iter_bwd_beta),
                             create_gemm_pd(gemm_layer_bwd_pd_, slc,
                                     layer_merged_size, n_gates * dhc,
                                     rnn_conf.weights_layer_ld,
@@ -819,7 +820,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     // different number of GEMMs.
     bool is_lbr = this->pd()->is_lbr();
 
-    void *scratchpad_ptr {nullptr}, *scratchpad_gates_ptr {nullptr},
+    void *scratchpad_ptr {nullptr}, *scratch_gates_ptr {nullptr},
             *scratch_cell_ptr {nullptr};
 
     memory_t *workspace = (aprop == prop_kind::forward)
@@ -837,7 +838,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 
     auto scratchpad_gates
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
-    scratchpad_gates->get_data_handle(&scratchpad_gates_ptr);
+    scratchpad_gates->get_data_handle(&scratch_gates_ptr);
 
     auto scratch_cell
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
@@ -869,7 +870,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             if (is_lbr && gemm_kind == gemm_iter_fwd) {
                 gemm_C_->set_data_handle(scratch_cell_ptr);
             } else {
-                gemm_C_->set_data_handle(scratchpad_gates_ptr);
+                gemm_C_->set_data_handle(scratch_gates_ptr);
             }
             break;
         case gemm_iter_bwd:
@@ -880,7 +881,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             weights->memory_storage()->get_data_handle(&weights_ptr);
 
             gemm_A_->set_data_handle(weights_ptr);
-            gemm_B_->set_data_handle(scratchpad_gates_ptr);
+            if (is_lbr && gemm_kind == gemm_iter_bwd) {
+                gemm_B_->set_data_handle(scratch_cell_ptr);
+            } else {
+                gemm_B_->set_data_handle(scratch_gates_ptr);
+            }
             gemm_C_->set_data_handle(scratchpad_ptr);
             break;
         case gemm_diff_wei_iter:
@@ -889,8 +894,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
                     ? ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER)
                     : ctx.output(DNNL_ARG_DIFF_WEIGHTS_LAYER);
             weights->memory_storage()->get_data_handle(&weights_ptr);
-
-            gemm_A_->set_data_handle(scratchpad_gates_ptr);
+            if (is_lbr && gemm_kind == gemm_diff_wei_iter) {
+                gemm_A_->set_data_handle(scratch_cell_ptr);
+            } else {
+                gemm_A_->set_data_handle(scratch_gates_ptr);
+            }
             gemm_B_->set_data_handle(scratchpad_ptr);
             gemm_C_->set_data_handle(weights_ptr);
             break;
@@ -953,7 +961,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
         int lay, int iter, int n_gates, int dhc, int batch,
-        const memory_storage_t &scratch_gates,
+        const memory_storage_t &scratch_gates, const memory_storage_t &scratch_cell,
         const memory_storage_t &diff_bias) const {
 
     compute::kernel_arg_list_t arg_list;
@@ -962,6 +970,7 @@ void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
     arg_list.set(2, iter);
     arg_list.set(3, diff_bias);
     arg_list.set(4, scratch_gates);
+    arg_list.set(5, scratch_cell);
 
     auto nd_range = compute::nd_range_t({n_gates, dhc});
 
@@ -1216,7 +1225,7 @@ void _ref_rnn_common_t<aprop>::ws_set(const exec_ctx_t &ctx,
 
 #if DEBUGPRINT
 template <prop_kind_t aprop>
-void _ref_rnn_common_t<aprop>::ws_print(
+void _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &workspace_) const {
     compute::kernel_arg_list_t arg_list;
@@ -1434,7 +1443,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     }
 
     DPRINT("\n%s(%d) WS before bias prepare\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(compute_stream, workspace_);
+    WS_PRINT(ctx, compute_stream, workspace_);
 
     // TODO: implement without copies
     bool is_lr = !one_of(rnn.exec_dir, r2l, r2l);
@@ -1461,7 +1470,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
                 bias_native_);
     }
     DPRINT("\n%s(%d) WS before copy init\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(compute_stream, workspace_);
+    WS_PRINT(ctx, compute_stream, workspace_);
 
     float shift = (pd()->attr()->rnn_data_qparams_.shift_);
     float scale = (pd()->attr()->rnn_data_qparams_.scale_);
@@ -1476,7 +1485,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             diff_dst_iter_c_native_, shift, scale, quantize);
 
     DPRINT("\n%s(%d) WS before grid\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(compute_stream, workspace_);
+    WS_PRINT(ctx, compute_stream, workspace_);
 
     const memory_storage_t *tm_scales_buf = nullptr;
     if (pd()->rnn_conf.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
@@ -1493,7 +1502,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             tm_scales_buf);
 
     DPRINT("\n%s(%d) WS before copy res\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(compute_stream, workspace_);
+    WS_PRINT(ctx, compute_stream, workspace_);
 
     // Finally we copy the results to the result buffers
 

@@ -42,6 +42,8 @@
 // TODO just to debug
 #define WS_NAN_FILLING 0
 
+#define DEBUGPRINT 0
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -313,13 +315,14 @@ private:
             const float shift, const float scale, const bool dequantize) const;
     void gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
             int n_gates, int dhc, int batch, const memory_storage_t &gates,
+            const memory_storage_t &cell,
             const memory_storage_t &diff_bias) const;
     void ws_set(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream,
             const memory_storage_t &workspace, const cl_ulong ws_offset,
             const int ws_part, const float val, const size_t size) const;
 #if DEBUGPRINT
-    void ws_print(compute::compute_stream_t *s,
+    void ws_print(const exec_ctx_t &ctx, compute::compute_stream_t *s,
             const memory_storage_t &workspace) const;
     compute::kernel_t ws_print_kernel_;
 #endif

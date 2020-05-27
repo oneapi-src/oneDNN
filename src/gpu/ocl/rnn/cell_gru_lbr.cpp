@@ -79,7 +79,65 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 scratch_gates, scratch_cell, scales, bias, tm_scales);
 
     } else {
-        assert(!"backward is unimplemented");
+        AOC<size_t, 3> off_weights_i(
+                weights_input, n_layer, n_dir, n_parts_weights_layer);
+        AOC<size_t, 3> off_weights_st(
+                weights_states, n_layer, n_dir, n_parts_weights_iter);
+
+        (this->*elemwise_func)(ctx, dir, lay, iter, dhc, wic, batch, workspace,
+                scratch_gates, scratch_cell, scales, bias, tm_scales);
+
+        cl_ulong offset_w_state = (cl_ulong)(off_weights_st(lay, dir, 0))
+                * types::data_type_size(wei_t);
+        cl_ulong offset_w_input = (cl_ulong)(off_weights_i(lay, dir, 0))
+                * types::data_type_size(src_t);
+        cl_ulong offset_workspace_common = ws_diff_states_offset_
+                + OFF5(lay, n_layer + 1, dir, n_dir, 0, n_states + 1, iter,
+                          n_iter + 1, 0, rnn.states_nld * rnn.diff_states_ws_ld)
+                        * sizeof(float);
+        cl_ulong offset_diff_states = ws_diff_states_offset_
+                + OFF5(lay, n_layer + 1, dir, n_dir, n_states, n_states + 1,
+                          iter, n_iter + 1, 0,
+                          rnn.states_nld * rnn.diff_states_ws_ld)
+                        * sizeof(float);
+        cl_ulong offset_workspace_layer = ws_states_offset_
+                + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1, n_iter + 1, 0,
+                          batch * rnn.states_ws_ld)
+                        * types::data_type_size(src_t);
+        cl_ulong offset_diff_weights_layer
+                = OFF3(lay, n_layer, dir, n_dir, 0,
+                          rnn.diff_weights_layer_nld
+                                  * rnn.diff_weights_layer_ld)
+                * sizeof(float);
+        cl_ulong offset_workspace_iter = ws_states_offset_
+                + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter, n_iter + 1, 0,
+                          batch * rnn.states_ws_ld)
+                        * types::data_type_size(src_t);
+        cl_ulong offset_weights_iter
+                = OFF3(lay, n_layer, dir, n_dir, 0,
+                          rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld)
+                * sizeof(float);
+
+        if (!rnn.merge_gemm_layer) {
+
+            gemm_primitive(engine, ctx, scratch_gates, offset_scratch_memory,
+                    workspace, offset_workspace_layer, diff_weights_layer,
+                    offset_diff_weights_layer, gemm_diff_wei_layer);
+
+            gemm_primitive(engine, ctx, w_input, offset_w_input, scratch_gates,
+                    offset_scratch_memory, workspace, offset_diff_states,
+                    gemm_layer_bwd);
+        }
+
+        gemm_primitive(engine, ctx, w_state, offset_w_state, scratch_cell, 0,
+                workspace, offset_workspace_common, gemm_iter_bwd);
+
+        gemm_primitive(engine, ctx, scratch_cell, 0, workspace,
+                offset_workspace_iter, diff_weights_iter, offset_weights_iter,
+                gemm_diff_wei_iter);
+
+        gates_reduction(ctx, dir, lay, iter, n_gates, dhc, batch, scratch_gates,
+                scratch_cell, diff_bias);
     }
 }
 

@@ -69,6 +69,11 @@
     (i0) * N_DIR *N_ITER *BATCH *GATES_WS_LD + (i1)*N_ITER *BATCH *GATES_WS_LD \
             + (i2)*BATCH *GATES_WS_LD + (i3)*GATES_WS_LD + (i4)*DHC + (i5)
 
+// grid offset for lbr GRU, LD = DHC
+#define OFF_WS_GRID_OFFSET(i0, i1, i2, i3, i4) \
+    OFF5((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_ITER + 1, (i3), BATCH, (i4), \
+            DHC)
+
 #if N_ITER_SCRATCH_GATES == 1
 // if no merge gemm, scratch_gates contain data for single cell,
 // so we ignore iter dim
@@ -88,6 +93,7 @@
 #define CELL_SCRATCH_MEM(i1, i2, i3) OFF_SCRATCH_MEM(0, i1, i2, i3)
 #define CELL_WS_STATE(i4, i5) OFF_WS_STATE(0, 0, 0, i4, i5)
 #define CELL_WS_DIFF_STATES(i2, i4, i5) OFF_WS_DIFF_STATES(0, 0, i2, 0, i4, i5)
+#define CELL_WS_GRID_COMP(i3, i4) OFF_WS_GRID_OFFSET(0, 0, 0, i3, i4)
 
 #define OFF_KER_BIAS(i0, i1) OFF2((i0), N_GATES, (i1), DHC)
 
