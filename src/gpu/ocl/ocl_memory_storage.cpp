@@ -99,16 +99,17 @@ std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
     assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
 
-    cl_buffer_region buffer_region = {parent_offset() + offset, size};
+    cl_buffer_region buffer_region = {base_offset_ + offset, size};
     ocl_wrapper_t<cl_mem> sub_buffer = clCreateSubBuffer(parent_mem_object(),
             mem_flags, CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
     assert(err == CL_SUCCESS);
     if (err != CL_SUCCESS) return nullptr;
 
-    auto sub_storage = new ocl_memory_storage_t(
-            this->engine(), parent_storage(), parent_offset() + offset);
+    auto sub_storage
+            = new ocl_memory_storage_t(this->engine(), parent_storage());
     if (sub_storage)
         sub_storage->init(memory_flags_t::use_runtime_ptr, size, sub_buffer);
+    sub_storage->base_offset_ = base_offset_ + offset;
     return std::unique_ptr<memory_storage_t>(sub_storage);
 }
 

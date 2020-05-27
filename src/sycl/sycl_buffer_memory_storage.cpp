@@ -31,9 +31,9 @@ struct map_tag;
 sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(engine_t *engine)
     : sycl_memory_storage_base_t(engine) {}
 
-sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(engine_t *engine,
-        const memory_storage_t *parent_storage, size_t parent_offset)
-    : sycl_memory_storage_base_t(engine, parent_storage, parent_offset) {}
+sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(
+        engine_t *engine, const memory_storage_t *parent_storage)
+    : sycl_memory_storage_base_t(engine, parent_storage) {}
 
 status_t sycl_buffer_memory_storage_t::map_data(
         void **mapped_ptr, stream_t *stream) const {
@@ -62,7 +62,7 @@ status_t sycl_buffer_memory_storage_t::unmap_data(
 std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
         size_t offset, size_t size) const {
     auto storage = utils::make_unique<sycl_buffer_memory_storage_t>(
-            engine(), parent_storage(), parent_offset() + offset);
+            engine(), parent_storage());
     if (!storage) return nullptr;
 
     status_t status
@@ -71,13 +71,11 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
 
     if (engine()->kind() == engine_kind::cpu) {
         storage->buffer_ = buffer_;
-        storage->base_offset_ = parent_offset() + offset;
     } else {
 #ifdef DNNL_SYCL_DPCPP
-        buffer_u8_t *sub_buffer;
-        sub_buffer = buffer_ ? new buffer_u8_t(
-                             parent_buffer(), parent_offset() + offset, size)
-                             : nullptr;
+        buffer_u8_t *sub_buffer = buffer_
+                ? new buffer_u8_t(parent_buffer(), base_offset_ + offset, size)
+                : nullptr;
 #endif
 #ifdef DNNL_SYCL_COMPUTECPP
         // XXX: Workaround for ComputeCpp. Sub-buffers support is broken in
@@ -86,14 +84,13 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
         // request the memory several times).
         // Apparently this workaround does NOT work in general case but at
         // least covers all the existing cases in the library at the moment.
-        auto sub_buffer = (!buffer_ || size == 0)
-                ? nullptr
-                : (parent_offset() + offset != 0)
+        auto sub_buffer = (!buffer_ || size == 0) ? nullptr
+                                                  : (base_offset_ + offset != 0)
                         ? new buffer_u8_t(cl::sycl::range<1>(size))
                         : new buffer_u8_t(*buffer_);
 #endif
         storage->buffer_.reset(sub_buffer);
-        storage->base_offset_ = 0;
+        storage->base_offset_ = base_offset_ + offset;
     }
 
     return storage;

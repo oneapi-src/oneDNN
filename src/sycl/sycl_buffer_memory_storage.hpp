@@ -33,8 +33,8 @@ class sycl_buffer_memory_storage_t : public sycl_memory_storage_base_t {
 public:
     sycl_buffer_memory_storage_t(engine_t *engine);
 
-    sycl_buffer_memory_storage_t(engine_t *engine,
-            const memory_storage_t *parent_storage, size_t parent_offset);
+    sycl_buffer_memory_storage_t(
+            engine_t *engine, const memory_storage_t *parent_storage);
 
     buffer_u8_t &buffer() const { return *buffer_; }
 
