@@ -152,19 +152,18 @@ POST_OP_DATA_T exp_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
 }
 
 POST_OP_DATA_T gelu_tanh_fwd(POST_OP_DATA_T s) {
-    const float a = 0.797884f;
-    const float b = 0.044715f;
-    const float g = a * s * (1.0f + b * s * s);
-    return (0.5f * s * (1.0f + tanh_fwd(g)));
+    const float sqrt_2_over_pi = 0.79788458347320556640625f;
+    const float fitting_const = 0.044715f;
+    const float g = sqrt_2_over_pi * s * (1.f + fitting_const * s * s);
+    return (0.5f * s * (1.f + tanh_fwd(g)));
 }
 POST_OP_DATA_T gelu_tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
-    const float a = 0.797884f;
-    const float b = 0.044715f;
-    const float g = a * s * (1.0f + b * s * s);
-    const float dg = a * (1.0f + 3.0f * b * s * s);
-    return dd
-            * (0.5f * (1.0f + tanh_fwd(g))
-                    * (1.0f + s * (1.0f - tanh_fwd(g)) * dg));
+    const float sqrt_2_over_pi = 0.79788458347320556640625f;
+    const float fitting_const = 0.044715f;
+    const float g = sqrt_2_over_pi * s * (1.f + fitting_const * s * s);
+    const float dg = sqrt_2_over_pi * (1.f + 3.f * fitting_const * s * s);
+    const float v = tanh_fwd(g);
+    return dd * 0.5f * (1.f + v) * (1.f + s * (1.f - v) * dg);
 }
 
 POST_OP_DATA_T swish_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
