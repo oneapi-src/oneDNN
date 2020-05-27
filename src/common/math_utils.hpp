@@ -274,15 +274,15 @@ inline U exp_bwd_use_dst(T dd, T d) {
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U gelu_tanh_fwd(T s) {
-    const float sqrt_2_over_pi = 0.797884;
-    const float fitting_const = 0.044715;
+    const float sqrt_2_over_pi = 0.79788458347320556640625f;
+    const float fitting_const = 0.044715f;
     float v = tanh_fwd(sqrt_2_over_pi * s * (1 + fitting_const * s * s));
     return (U)(0.5 * s * (1. + v));
 }
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U gelu_tanh_bwd(T dd, T s) {
-    const float sqrt_2_over_pi = 0.79788458347320556640625;
-    const float fitting_const = 0.044715;
+    const float sqrt_2_over_pi = 0.79788458347320556640625f;
+    const float fitting_const = 0.044715f;
     float g = s * sqrt_2_over_pi * (1 + fitting_const * s * s);
     float dg = sqrt_2_over_pi * (1 + 3 * fitting_const * s * s);
     float v = tanh_fwd(g);
