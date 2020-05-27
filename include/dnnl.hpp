@@ -2875,7 +2875,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
     /// @param idx Source index.
     /// @returns Source memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
-    ///     source parameter with index @p pdx.
+    ///     source parameter with index @p idx.
     memory::desc src_desc(int idx) const {
         return query_md(query::src_md, idx);
     }
@@ -2884,7 +2884,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
     /// @param idx Destination index.
     /// @returns Destination memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
-    ///     destination parameter with index @p pdx.
+    ///     destination parameter with index @p idx.
     memory::desc dst_desc(int idx) const {
         return query_md(query::dst_md, idx);
     }
@@ -2893,7 +2893,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
     /// @param idx Weights index.
     /// @returns Weights memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
-    ///     weights parameter with index @p pdx.
+    ///     weights parameter with index @p idx.
     memory::desc weights_desc(int idx) const {
         return query_md(query::weights_md, idx);
     }
@@ -2902,7 +2902,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
     /// @param idx Diff source index.
     /// @returns Diff source memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
-    ///     diff source parameter with index @p pdx.
+    ///     diff source parameter with index @p idx.
     memory::desc diff_src_desc(int idx) const {
         return query_md(query::diff_src_md, idx);
     }
@@ -2911,7 +2911,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
     /// @param idx Diff destination index.
     /// @returns Diff destination memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
-    ///     diff destination parameter with index @p pdx.
+    ///     diff destination parameter with index @p idx.
     memory::desc diff_dst_desc(int idx) const {
         return query_md(query::diff_dst_md, idx);
     }
@@ -2920,7 +2920,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
     /// @param idx Diff weights index.
     /// @returns Diff weights memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
-    ///     diff weights parameter with index @p pdx.
+    ///     diff weights parameter with index @p idx.
     memory::desc diff_weights_desc(int idx) const {
         return query_md(query::diff_weights_md, idx);
     }
