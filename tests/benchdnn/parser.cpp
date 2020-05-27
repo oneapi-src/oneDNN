@@ -28,36 +28,40 @@ namespace parser {
 bool last_parsed_is_problem = false;
 
 // vector types
-bool parse_dir(std::vector<dir_t> &dir, const char *str,
-        const std::string &option_name /* = "dir"*/) {
-    return parse_vector_option(dir, str2dir, str, option_name);
+bool parse_dir(std::vector<dir_t> &dir, const std::vector<dir_t> &def_dir,
+        const char *str, const std::string &option_name /* = "dir"*/) {
+    return parse_vector_option(dir, def_dir, str2dir, str, option_name);
 }
 
-bool parse_dt(std::vector<dnnl_data_type_t> &dt, const char *str,
+bool parse_dt(std::vector<dnnl_data_type_t> &dt,
+        const std::vector<dnnl_data_type_t> &def_dt, const char *str,
         const std::string &option_name /* = "dt"*/) {
-    return parse_vector_option(dt, str2dt, str, option_name);
+    return parse_vector_option(dt, def_dt, str2dt, str, option_name);
 }
 
 bool parse_multi_dt(std::vector<std::vector<dnnl_data_type_t>> &dt,
+        const std::vector<std::vector<dnnl_data_type_t>> &def_dt,
         const char *str, const std::string &option_name /* = "sdt"*/) {
-    return parse_multivector_option(dt, str2dt, str, option_name);
+    return parse_multivector_option(dt, def_dt, str2dt, str, option_name);
 }
 
-bool parse_tag(std::vector<std::string> &tag, const char *str,
+bool parse_tag(std::vector<std::string> &tag,
+        const std::vector<std::string> &def_tag, const char *str,
         const std::string &option_name /* = "tag"*/) {
     auto ret_string = [](const char *str) { return std::string(str); };
-    return parse_vector_option(tag, ret_string, str, option_name);
+    return parse_vector_option(tag, def_tag, ret_string, str, option_name);
 }
 
 bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
-        const char *str, const std::string &option_name /* = "stag"*/) {
+        const std::vector<std::vector<std::string>> &def_tag, const char *str,
+        const std::string &option_name /* = "stag"*/) {
     auto ret_string = [](const char *str) { return std::string(str); };
-    return parse_multivector_option(tag, ret_string, str, option_name);
+    return parse_multivector_option(tag, def_tag, ret_string, str, option_name);
 }
 
-bool parse_mb(std::vector<int64_t> &mb, const char *str,
-        const std::string &option_name /* = "mb"*/) {
-    return parse_vector_option(mb, atoi, str, option_name);
+bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
+        const char *str, const std::string &option_name /* = "mb"*/) {
+    return parse_vector_option(mb, def_mb, atoi, str, option_name);
 }
 
 bool parse_attr(attr_t &attr, const char *str,
@@ -70,9 +74,9 @@ bool parse_attr(attr_t &attr, const char *str,
     return false;
 }
 
-bool parse_axis(std::vector<int> &axis, const char *str,
-        const std::string &option_name /* = "axis"*/) {
-    return parse_vector_option(axis, atoi, str, option_name);
+bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
+        const char *str, const std::string &option_name /* = "axis"*/) {
+    return parse_vector_option(axis, def_axis, atoi, str, option_name);
 }
 
 bool parse_test_pattern_match(const char *&match, const char *str,
@@ -85,36 +89,37 @@ bool parse_test_pattern_match(const char *&match, const char *str,
     return false;
 }
 
-bool parse_inplace(std::vector<bool> &inplace, const char *str,
+bool parse_inplace(std::vector<bool> &inplace,
+        const std::vector<bool> &def_inplace, const char *str,
         const std::string &option_name /* = "inplace"*/) {
-    return parse_vector_option(inplace, str2bool, str, option_name);
+    return parse_vector_option(
+            inplace, def_inplace, str2bool, str, option_name);
 }
 
-bool parse_skip_nonlinear(std::vector<bool> &skip, const char *str,
+bool parse_skip_nonlinear(std::vector<bool> &skip,
+        const std::vector<bool> &def_skip, const char *str,
         const std::string &option_name /* = "skip-nonlinear"*/) {
-    return parse_vector_option(skip, str2bool, str, option_name);
+    return parse_vector_option(skip, def_skip, str2bool, str, option_name);
 }
 
-bool parse_trivial_strides(std::vector<bool> &ts, const char *str,
+bool parse_trivial_strides(std::vector<bool> &ts,
+        const std::vector<bool> &def_ts, const char *str,
         const std::string &option_name /* = "trivial-strides"*/) {
-    return parse_vector_option(ts, str2bool, str, option_name);
+    return parse_vector_option(ts, def_ts, str2bool, str, option_name);
 }
 
-bool parse_scale_policy(std::vector<policy_t> &policy, const char *str,
+bool parse_scale_policy(std::vector<policy_t> &policy,
+        const std::vector<policy_t> &def_policy, const char *str,
         const std::string &option_name /*= "scaling"*/) {
     return parse_vector_option(
-            policy, attr_t::scale_t::str2policy, str, option_name);
+            policy, def_policy, attr_t::scale_t::str2policy, str, option_name);
 }
 
 // plain types
 bool parse_allow_unimpl(bool &allow_unimpl, const char *str,
         const std::string &option_name /* = "allow-unimpl"*/) {
-    return parse_single_value_option(allow_unimpl, str2bool, str, option_name);
-}
-
-bool parse_fast_ref_gpu(
-        const char *str, const std::string &option_name /* = "fast-ref-gpu"*/) {
-    return parse_single_value_option(fast_ref_gpu, str2bool, str, option_name);
+    return parse_single_value_option(
+            allow_unimpl, false, str2bool, str, option_name);
 }
 
 bool parse_perf_template(const char *&pt, const char *pt_def,
@@ -187,38 +192,32 @@ void parse_dims(dims_t &dims, const char *str) {
     // func below provides fragile compatibility of verbose output for v0
     // eltwise and softmax. Remove once we stop supporting v0.
     if (parse_dims_as_desc(dims, str)) return;
-    parse_vector_str(dims, atoi, str, 'x');
+    parse_vector_str(dims, dims_t(), atoi, str, 'x');
 }
 
 void parse_multi_dims(std::vector<dims_t> &dims, const char *str) {
-    parse_multivector_str(dims, atoi, str, ':', 'x');
+    std::vector<dims_t> def {dims_t()};
+    parse_multivector_str(dims, def, atoi, str, ':', 'x');
 }
 
 // service functions
 static bool parse_bench_mode(
         const char *str, const std::string &option_name = "mode") {
     return parse_single_value_option(
-            bench_mode, str2bench_mode, str, option_name);
+            bench_mode, CORR, str2bench_mode, str, option_name);
 }
 
 static bool parse_max_ms_per_prb(
         const char *str, const std::string &option_name = "max-ms-per-prb") {
-    if (parse_single_value_option(max_ms_per_prb, atof, str, option_name)) {
-        if (max_ms_per_prb < 100)
-            max_ms_per_prb = 100;
-        else if (max_ms_per_prb > 60e3)
-            max_ms_per_prb = 60e3;
-        return true;
-    }
+    if (parse_single_value_option(max_ms_per_prb, 3e3, atof, str, option_name))
+        return max_ms_per_prb = MAX2(100, MIN2(max_ms_per_prb, 60e3)), true;
     return false;
 }
 
 static bool parse_fix_times_per_prb(
         const char *str, const std::string &option_name = "fix-times-per-prb") {
-    if (parse_single_value_option(fix_times_per_prb, atoi, str, option_name)) {
-        if (fix_times_per_prb < 0) fix_times_per_prb = 0;
-        return true;
-    }
+    if (parse_single_value_option(fix_times_per_prb, 0, atoi, str, option_name))
+        return fix_times_per_prb = MAX2(0, fix_times_per_prb), true;
     return false;
 }
 
@@ -229,29 +228,38 @@ static bool parse_verbose(
         verbose = atoi(str + pattern.size());
         return true;
     }
-    return parse_single_value_option(verbose, atoi, str, option_name);
+    return parse_single_value_option(verbose, 0, atoi, str, option_name);
 }
 
 static bool parse_engine_kind(
         const char *str, const std::string &option_name = "engine") {
     return parse_single_value_option(
-            engine_tgt_kind, str2engine_kind, str, option_name);
+            engine_tgt_kind, dnnl_cpu, str2engine_kind, str, option_name);
+}
+
+static bool parse_fast_ref_gpu(
+        const char *str, const std::string &option_name = "fast-ref-gpu") {
+    return parse_single_value_option(
+            fast_ref_gpu, true, str2bool, str, option_name);
 }
 
 static bool parse_canonical(
         const char *str, const std::string &option_name = "canonical") {
-    return parse_single_value_option(canonical, str2bool, str, option_name);
+    return parse_single_value_option(
+            canonical, false, str2bool, str, option_name);
 }
 
 static bool parse_mem_check(
         const char *str, const std::string &option_name = "mem-check") {
-    return parse_single_value_option(mem_check, str2bool, str, option_name);
+    return parse_single_value_option(
+            mem_check, true, str2bool, str, option_name);
 }
 
 static bool parse_scratchpad_mode(
         const char *str, const std::string &option_name = "scratchpad") {
-    return parse_single_value_option(
-            scratchpad_mode, str2scratchpad_mode, str, option_name);
+    return parse_single_value_option(scratchpad_mode,
+            dnnl_scratchpad_mode_library, str2scratchpad_mode, str,
+            option_name);
 }
 
 static bool parse_skip_impl(

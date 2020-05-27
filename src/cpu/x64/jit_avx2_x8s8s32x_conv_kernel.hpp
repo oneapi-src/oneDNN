@@ -65,6 +65,7 @@ private:
 
     /* data registers */
     const Xbyak::Reg64 reg_ptr_scales = rax;
+    const Xbyak::Reg64 reg_ptr_saturation_ubound = rax;
     const Xbyak::Reg64 reg_inp = r8;
     const Xbyak::Reg64 reg_ker = r9;
     const Xbyak::Reg64 reg_out = r10;
@@ -98,6 +99,7 @@ private:
     const Vmm vmm_prev_dst = Vmm(15);
     /* used during write-out section of store_output */
     const Vmm vmm_zero = Vmm(15);
+    const Vmm vmm_saturation = Vmm(15);
 
     /* used in compute_ker (but set during prepare_output) */
     const Vmm vmm_shift = vmm_comp; // only for signed input

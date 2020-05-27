@@ -51,9 +51,10 @@ struct jit_uni_binary_t : public primitive_t {
                     && utils::everyone_is(src_type, src_md(0)->data_type,
                             src_md(1)->data_type)
                     && set_default_params() == status::success
-                    && !has_zero_dim_memory() && is_applicable()
+                    && !has_zero_dim_memory()
                     && memory_desc_wrapper(src_md(0))
                             == memory_desc_wrapper(dst_md(0))
+                    && is_applicable()
                     && attr()->has_default_values(sm::post_ops)
                     && attr_post_ops_ok();
             if (!ok) return status::unimplemented;
@@ -65,12 +66,20 @@ struct jit_uni_binary_t : public primitive_t {
         bool is_applicable() {
             const memory_desc_wrapper src0_d(src_md(0));
             const memory_desc_wrapper src1_d(src_md(1));
+            const memory_desc_wrapper dst_d(dst_md());
+
+            // check density first to avoid same non-dense src0 and src1 to pass
+            // the next check
+            bool ok = src0_d.is_dense(true) && src1_d.is_dense(true)
+                    && dst_d.is_dense(true);
+            if (!ok) return false;
+
             // full tensor operation
             if (src0_d == src1_d) return true;
 
             // broadcast operation
             const auto ndims = src0_d.ndims();
-            bool ok = ndims >= 2;
+            ok = ndims >= 2;
             // only supported case for now is NxCxDxHxW:{N,1}xCx1x1x1
             const auto &bcast_dims = broadcast_dims();
             ok = ok && bcast_dims[1] == 0;
@@ -103,7 +112,7 @@ struct jit_uni_binary_t : public primitive_t {
     jit_uni_binary_t(const pd_t *apd);
     ~jit_uni_binary_t();
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

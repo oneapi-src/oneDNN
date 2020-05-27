@@ -68,7 +68,7 @@ dnnl::engine::kind validate_engine_kind(dnnl::engine::kind akind) {
 struct example_allows_unimplemented : public std::exception {
     example_allows_unimplemented(const char *message) noexcept
         : message(message) {}
-    virtual const char *what() const noexcept override { return message; }
+    const char *what() const noexcept override { return message; }
     const char *message;
 };
 

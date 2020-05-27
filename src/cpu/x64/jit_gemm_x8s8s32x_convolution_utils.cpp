@@ -46,9 +46,9 @@ struct jit_pp_ker_t : pp_ker_t, jit_generator {
         generate();
     }
 
-    virtual void operator()(void *void_dst, const acc_data_t *acc,
-            const char *bias, const float *scales, float nslope,
-            float sum_scale, float signed_scale, int g, size_t start,
+    void operator()(void *void_dst, const acc_data_t *acc, const char *bias,
+            const float *scales, float nslope, float sum_scale,
+            float signed_scale, int g, size_t start,
             size_t end) const override {
         assert(ker_);
 
@@ -112,6 +112,7 @@ void jit_pp_ker_t::generate() {
     Reg64 reg_oc_offset = r9;
     Reg64 reg_rem_mask_short = r10;
     Reg64 reg_rem_mask_vlen = r11;
+    Reg64 reg_tmp_comp = r12; // used to broadcast scalar values to vreg
     Opmask kreg_rem_mask_short = k1;
     Opmask kreg_rem_mask_vlen = k3;
 
@@ -123,6 +124,7 @@ void jit_pp_ker_t::generate() {
     Zmm vreg_nslope = Zmm(2);
     Zmm vreg_sum_scale = Zmm(3);
     Zmm vreg_signed_scale = Zmm(4);
+    Zmm vreg_saturation_ubound = Zmm(5);
 
     size_t def_unroll = 4;
     size_t max_unroll = 12;
@@ -132,9 +134,9 @@ void jit_pp_ker_t::generate() {
         zmm_step = 3;
     }
 
-    auto vreg_dst = [&](int idx) { return Zmm(5 + idx * zmm_step + 0); };
-    auto vreg_bias = [&](int idx) { return Zmm(5 + idx * zmm_step + 1); };
-    auto vreg_prev_dst = [&](int idx) { return Zmm(5 + idx * zmm_step + 2); };
+    auto vreg_dst = [&](int idx) { return Zmm(6 + idx * zmm_step + 0); };
+    auto vreg_bias = [&](int idx) { return Zmm(6 + idx * zmm_step + 1); };
+    auto vreg_prev_dst = [&](int idx) { return Zmm(6 + idx * zmm_step + 2); };
 
     preamble();
 
@@ -157,8 +159,9 @@ void jit_pp_ker_t::generate() {
     sub(reg_rem_mask_vlen, 1);
     kmovq(kreg_rem_mask_vlen, reg_rem_mask_vlen);
 
-    if (do_eltwise_ || dst_data_type_ == data_type::u8)
-        vxorps(vreg_zero, vreg_zero, vreg_zero);
+    if (do_eltwise_) vxorps(vreg_zero, vreg_zero, vreg_zero);
+    init_saturate_f32(vreg_zero, vreg_saturation_ubound, reg_tmp_comp,
+            data_type::f32, dst_data_type_);
 
     // Load accumulated value, convert to float, apply sum (if any),
     // bias (if any), scaling, and relu (if any);
@@ -234,11 +237,12 @@ void jit_pp_ker_t::generate() {
         if (do_eltwise_)
             eltwise_injector_->compute_vector(vreg_dst(idx).getIdx());
 
-        if (dst_data_type_ != data_type::f32)
+        if (one_of(dst_data_type_, data_type::u8, data_type::s8,
+                    data_type::s32)) {
+            saturate_f32(vreg_dst(idx), vreg_zero, vreg_saturation_ubound,
+                    dst_data_type_);
             vcvtps2dq(vreg_dst(idx), vreg_dst(idx));
-
-        if (dst_data_type_ == data_type::u8)
-            vpmaxsd(vreg_dst(idx), vreg_dst(idx), vreg_zero);
+        }
 
         switch (dst_data_type_) {
             case data_type::s8: vpmovsdb(dst_addr, vreg_dst_); break;

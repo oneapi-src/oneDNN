@@ -33,6 +33,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+using namespace dnnl::impl::data_type;
 using namespace Xbyak;
 
 struct i8i8_binary_kernel_t {
@@ -95,6 +96,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
     Vmm vreg_sum_scale = Vmm(isa == avx512_common ? 19 : 11);
     Xmm xreg_sum_scale = Xmm(11);
     Vmm vreg_zero = Vmm(isa == avx512_common ? 20 : 12);
+    Vmm vreg_saturation_ubound = Vmm(isa == avx512_common ? 21 : 13);
 
     Xmm xreg_tmp = Xmm(0);
 
@@ -220,7 +222,11 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
     virtual void compute_dst(int unroll, bool tail = false) = 0;
 
     void forward() {
+        auto dst_type = pd_->dst_md(0)->data_type;
         uni_vpxor(vreg_zero, vreg_zero, vreg_zero);
+        init_saturate_f32(
+                vreg_zero, vreg_saturation_ubound, reg_tmp, f32, dst_type);
+
         // Only mask 0 is supported at this point
         if (do_scale_src0_)
             vbroadcastss(vreg_scales_src0, dword[reg_scales_src0]);
@@ -291,13 +297,16 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
     : public jit_uni_i8i8_binary_kernel_t<avx512_common> {
 
     void cvt2odt(const Operand &dst, const Vmm &src, data_type_t odt) {
+        assert(utils::one_of(
+                odt, data_type::u8, data_type::s8, data_type::s32));
+
+        // properly saturate in f32
+        saturate_f32(src, vreg_zero, vreg_saturation_ubound, odt);
         vcvtps2dq(src, src);
+
         switch (odt) {
             case data_type::s8: vpmovsdb(dst, src); break;
-            case data_type::u8:
-                vpmaxsd(src, src, vreg_zero);
-                vpmovusdb(dst, src);
-                break;
+            case data_type::u8: vpmovusdb(dst, src); break;
             default: assert(!"unreachable");
         }
     }
@@ -347,6 +356,8 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>
 
     void cvt2odt(const Vmm &v, data_type_t odt) {
         // f32 -> s32
+        // properly saturate in f32
+        saturate_f32(v, vreg_zero, vreg_saturation_ubound, odt);
         vcvtps2dq(v, v);
         // v = { 8x32 }
         vpackssdw(v, v, vreg_zero);

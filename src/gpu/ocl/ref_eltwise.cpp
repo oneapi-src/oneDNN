@@ -54,7 +54,7 @@ static status_t init_conf_common(eltwise_conf_t &conf, offsets_t &off,
         else
             conf.dispatch.define_dim(utils::format("D%d", i), 1);
     }
-    conf.dispatch.generate();
+    conf.dispatch.generate(/*generate_lws=*/false);
 
     return status::success;
 }
@@ -109,7 +109,6 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     arg_list.set(3, beta);
 
     auto nd_range = conf.dispatch.nd_range();
-
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }
 
@@ -143,7 +142,6 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
     arg_list.set(4, beta);
 
     auto nd_range = conf.dispatch.nd_range();
-
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;

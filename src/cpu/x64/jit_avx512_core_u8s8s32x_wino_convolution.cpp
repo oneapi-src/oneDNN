@@ -36,6 +36,7 @@ namespace x64 {
 
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
+using namespace dnnl::impl::data_type;
 using namespace Xbyak;
 
 namespace {
@@ -307,6 +308,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t : public jit_generator {
     Zmm vreg_prev_dst = Zmm(2);
     Zmm zmm_bias_alpha = Zmm(2);
     Xmm xmm_bias_alpha = Xmm(2);
+    Zmm vreg_saturation_ubound = Zmm(3);
 
     Opmask y_mask = Opmask(1);
     Opmask r_mask = Opmask(2);
@@ -331,6 +333,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t : public jit_generator {
     Reg64 reg_ptr_bias = rbx;
     Reg64 reg_ptr_scales = abi_not_param1;
     Reg64 reg_ptr_sum_scale = rdx;
+    Reg64 reg_ptr_saturation_ubound = rax;
 };
 
 bool jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::maybe_relu(int position) {
@@ -400,6 +403,9 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
             if (jcp.bia_dt != data_type::f32) vcvtdq2ps(vreg_bias, vreg_bias);
             vmulps(vreg_bias, vreg_bias, zmm_bias_alpha); // *alpha
         }
+
+        init_saturate_f32(vreg_zero, vreg_saturation_ubound,
+                reg_ptr_saturation_ubound, f32, jcp.dst_dt);
         for (int y = 0; y < jcp.m; y++) {
             kmovw(y_mask, ptr[reg_ptr_v_y_masks + sizeof(uint16_t) * y]);
             for (int x = 0; x < jcp.m; x++) {
@@ -439,8 +445,15 @@ void jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t::generate() {
                         vfmadd231ps(
                                 zmm, vreg_prev_dst, zword_b[reg_ptr_sum_scale]);
                 }
-                if (maybe_relu(1)) vmaxps(zmm, vreg_zero, zmm);
-                if (jcp.dst_dt != data_type::f32) vcvtps2dq(zmm, zmm);
+                // we skip max if dst_dt == u8 as it will happen in saturation
+                if (maybe_relu(1) && (jcp.dst_dt != u8))
+                    vmaxps(zmm, vreg_zero, zmm);
+
+                if (utils::one_of(jcp.dst_dt, u8, s8, s32)) {
+                    saturate_f32(
+                            zmm, vreg_zero, vreg_saturation_ubound, jcp.dst_dt);
+                    vcvtps2dq(zmm, zmm);
+                }
                 switch (jcp.dst_dt) {
                     case data_type::f32:
                     case data_type::s32: vmovups(addr, zmm | r_mask); break;

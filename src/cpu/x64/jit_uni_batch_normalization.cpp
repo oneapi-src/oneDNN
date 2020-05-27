@@ -1942,7 +1942,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
             && !has_zero_dim_memory() && one_of(ndims(), 4, 5)
             && one_of(src_md()->data_type, f32, bf16)
             && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
-            && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
+            && check_scale_shift_data_type()
             && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;
 
@@ -2030,10 +2030,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
                     everyone_is(bf16, src_md()->data_type,
                             diff_src_md()->data_type))
             && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
-            && IMPLICATION(use_scaleshift(),
-                    utils::everyone_is(f32, weights_md()->data_type,
-                            diff_weights_md()->data_type))
-            && attr()->has_default_values();
+            && check_scale_shift_data_type() && attr()->has_default_values();
     if (!ok) return status::unimplemented;
 
     const memory_desc_wrapper src_d(src_md());

@@ -88,13 +88,12 @@ public:
         if (num_threads <= 0) num_threads = read_num_threads_from_env();
         tp_.reset(new EigenThreadPool(num_threads));
     }
-    virtual int get_num_threads() const override { return tp_->NumThreads(); }
-    virtual bool get_in_parallel() const override {
+    int get_num_threads() const override { return tp_->NumThreads(); }
+    bool get_in_parallel() const override {
         return tp_->CurrentThreadId() != -1;
     }
-    virtual uint64_t get_flags() const override { return ASYNCHRONOUS; }
-    virtual void parallel_for(
-            int n, const std::function<void(int, int)> &fn) override {
+    uint64_t get_flags() const override { return ASYNCHRONOUS; }
+    void parallel_for(int n, const std::function<void(int, int)> &fn) override {
         int nthr = get_num_threads();
         int njobs = std::min(n, nthr);
 
@@ -122,13 +121,12 @@ namespace testing {
 class threadpool : public threadpool_iface {
 public:
     explicit threadpool(int num_threads = 0) { (void)num_threads; }
-    virtual int get_num_threads() const override {
+    int get_num_threads() const override {
         return tbb::this_task_arena::max_concurrency();
     }
-    virtual bool get_in_parallel() const override { return 0; }
-    virtual uint64_t get_flags() const override { return 0; }
-    virtual void parallel_for(
-            int n, const std::function<void(int, int)> &fn) override {
+    bool get_in_parallel() const override { return 0; }
+    uint64_t get_flags() const override { return 0; }
+    void parallel_for(int n, const std::function<void(int, int)> &fn) override {
         tbb::parallel_for(
                 0, n, [&](int i) { fn(i, n); }, tbb::static_partitioner());
     }

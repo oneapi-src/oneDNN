@@ -103,6 +103,7 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         CPU_INSTANCE_X64(jit_avx512_core_bf16_1x1_convolution_fwd_t<f32>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_convolution_fwd_t)
         CPU_INSTANCE_X64(gemm_bf16_convolution_fwd_t<f32>)
+        CPU_INSTANCE(ref_convolution_fwd_t<bf16, bf16, f32, f32>)
         nullptr,
     }},
     {{forward, bf16, bf16, bf16}, {
@@ -110,6 +111,7 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         CPU_INSTANCE_X64(jit_avx512_core_bf16_1x1_convolution_fwd_t<bf16>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_convolution_fwd_t)
         CPU_INSTANCE_X64(gemm_bf16_convolution_fwd_t<bf16>)
+        CPU_INSTANCE(ref_convolution_fwd_t<bf16, bf16, bf16, f32>)
         CPU_INSTANCE(ref_fused_convolution_fwd_t)
         nullptr,
     }},
@@ -133,6 +135,7 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         CPU_INSTANCE_X64(jit_avx512_core_bf16_1x1_convolution_bwd_data_t<f32>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_convolution_bwd_data_t)
         CPU_INSTANCE_X64(gemm_bf16_convolution_bwd_data_t<f32>)
+        CPU_INSTANCE(ref_convolution_bwd_data_t<f32, bf16, bf16, f32>)
         nullptr,
     }},
     {{backward_data, bf16, bf16, bf16}, {
@@ -140,6 +143,7 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         CPU_INSTANCE_X64(jit_avx512_core_bf16_1x1_convolution_bwd_data_t<bf16>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_convolution_bwd_data_t)
         CPU_INSTANCE_X64(gemm_bf16_convolution_bwd_data_t<bf16>)
+        CPU_INSTANCE(ref_convolution_bwd_data_t<bf16, bf16, bf16, f32>)
         nullptr,
     }},
     // BWD_W fp
@@ -162,6 +166,7 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         CPU_INSTANCE_X64(jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<f32>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_convolution_bwd_weights_t)
         CPU_INSTANCE_X64(gemm_bf16_convolution_bwd_weights_t<f32>)
+        CPU_INSTANCE(ref_convolution_bwd_weights_t<bf16, f32, bf16, f32>)
         nullptr,
     }},
     {{backward_weights, bf16, bf16, bf16}, {
@@ -169,6 +174,7 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         CPU_INSTANCE_X64(jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<bf16>)
         CPU_INSTANCE_X64(jit_avx512_core_bf16_convolution_bwd_weights_t)
         CPU_INSTANCE_X64(gemm_bf16_convolution_bwd_weights_t<bf16>)
+        CPU_INSTANCE(ref_convolution_bwd_weights_t<bf16, bf16, bf16, f32>)
         nullptr,
     }},
     // FWD int8 (src:s8)

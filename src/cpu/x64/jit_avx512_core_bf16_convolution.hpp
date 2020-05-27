@@ -84,7 +84,7 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->ndims() == 3)
             execute_forward_1d(ctx);
         else if (pd()->ndims() == 4)
@@ -149,7 +149,7 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->ndims() < 5)
             execute_backward_data(ctx);
         else if (pd()->ndims() == 5)
@@ -236,7 +236,7 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights(ctx);
         return status::success;
     }
@@ -259,6 +259,12 @@ private:
             src_data_t *tr_src1, const src_data_t *src1, int my_work) const;
     void trans_dst(diff_dst_data_t *tr_diff_dst1,
             const diff_dst_data_t *diff_dst1, int my_work) const;
+    void trans_src_nxc(src_data_t *tr_src, const src_data_t *src_base,
+            int spatial_start, dim_t spatial_start_offset, dim_t channel_shift,
+            int my_work) const;
+    void trans_dst_nxc(diff_dst_data_t *tr_diff_dst,
+            const diff_dst_data_t *diff_dst_base, int spatial_start,
+            dim_t spatial_start_offset, dim_t channel_shift, int my_work) const;
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
 

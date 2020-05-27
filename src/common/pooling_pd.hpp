@@ -39,11 +39,11 @@ struct pooling_pd_t : public primitive_desc_t {
         , ws_md_() {}
 
     const pooling_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override {
+    const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual status_t query(query_t what, int idx, void *result) const override {
+    status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
@@ -152,7 +152,7 @@ struct pooling_fwd_pd_t : public pooling_pd_t {
         , src_md_(desc_.src_desc)
         , dst_md_(desc_.dst_desc) {}
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
@@ -163,7 +163,7 @@ struct pooling_fwd_pd_t : public pooling_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_DST: return dst_md(0);
@@ -171,19 +171,19 @@ struct pooling_fwd_pd_t : public pooling_pd_t {
         }
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(int index = 0) const override {
         return index == 0 ? &src_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *dst_md(int index = 0) const override {
+    const memory_desc_t *dst_md(int index = 0) const override {
         return index == 0 ? &dst_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *workspace_md(int index = 0) const override {
+    const memory_desc_t *workspace_md(int index = 0) const override {
         return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_
                                                          : &glob_zero_md;
     }
 
-    virtual int n_inputs() const override { return 1; }
-    virtual int n_outputs() const override {
+    int n_inputs() const override { return 1; }
+    int n_outputs() const override {
         return 1 + (!types::is_zero_md(workspace_md()));
     }
 
@@ -212,7 +212,7 @@ struct pooling_bwd_pd_t : public pooling_pd_t {
         , diff_src_md_(desc_.diff_src_desc)
         , diff_dst_md_(desc_.diff_dst_desc) {}
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_DIFF_DST) return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DIFF_SRC) return arg_usage_t::output;
@@ -223,7 +223,7 @@ struct pooling_bwd_pd_t : public pooling_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
             case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
@@ -231,21 +231,21 @@ struct pooling_bwd_pd_t : public pooling_pd_t {
         }
     }
 
-    virtual const memory_desc_t *diff_src_md(int index = 0) const override {
+    const memory_desc_t *diff_src_md(int index = 0) const override {
         return index == 0 ? &diff_src_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *diff_dst_md(int index = 0) const override {
+    const memory_desc_t *diff_dst_md(int index = 0) const override {
         return index == 0 ? &diff_dst_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *workspace_md(int index = 0) const override {
+    const memory_desc_t *workspace_md(int index = 0) const override {
         return index == 0 && !types::is_zero_md(&ws_md_) ? &ws_md_
                                                          : &glob_zero_md;
     }
 
-    virtual int n_inputs() const override {
+    int n_inputs() const override {
         return 1 + (!types::is_zero_md(workspace_md()));
     }
-    virtual int n_outputs() const override { return 1; }
+    int n_outputs() const override { return 1; }
 
 protected:
     memory_desc_t diff_src_md_;

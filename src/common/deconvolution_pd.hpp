@@ -40,11 +40,11 @@ struct deconvolution_pd_t : public primitive_desc_t {
         , hint_fwd_pd_(hint_fwd_pd) {}
 
     const deconvolution_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override {
+    const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual status_t query(query_t what, int idx, void *result) const override {
+    status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
             case query::prop_kind:
                 *(prop_kind_t *)result = desc()->prop_kind;
@@ -178,7 +178,7 @@ struct deconvolution_fwd_pd_t : public deconvolution_pd_t {
         , bias_md_(desc_.bias_desc)
         , dst_md_(desc_.dst_desc) {}
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS))
             return arg_usage_t::input;
 
@@ -189,7 +189,7 @@ struct deconvolution_fwd_pd_t : public deconvolution_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_WEIGHTS: return weights_md(0);
@@ -199,20 +199,20 @@ struct deconvolution_fwd_pd_t : public deconvolution_pd_t {
         }
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(int index = 0) const override {
         return index == 0 ? &src_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *dst_md(int index = 0) const override {
+    const memory_desc_t *dst_md(int index = 0) const override {
         return index == 0 ? &dst_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *weights_md(int index = 0) const override {
+    const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_md_;
         if (index == 1 && with_bias()) return &bias_md_;
         return &glob_zero_md;
     }
 
-    virtual int n_inputs() const override { return 2 + with_bias(); }
-    virtual int n_outputs() const override { return 1; }
+    int n_inputs() const override { return 2 + with_bias(); }
+    int n_outputs() const override { return 1; }
 
 protected:
     memory_desc_t src_md_;
@@ -233,7 +233,7 @@ struct deconvolution_bwd_data_pd_t : public deconvolution_pd_t {
         , weights_md_(desc_.weights_desc)
         , diff_dst_md_(desc_.diff_dst_desc) {}
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_WEIGHTS, DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
 
@@ -242,7 +242,7 @@ struct deconvolution_bwd_data_pd_t : public deconvolution_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
             case DNNL_ARG_WEIGHTS: return weights_md(0);
@@ -252,18 +252,18 @@ struct deconvolution_bwd_data_pd_t : public deconvolution_pd_t {
         }
     }
 
-    virtual const memory_desc_t *diff_src_md(int index = 0) const override {
+    const memory_desc_t *diff_src_md(int index = 0) const override {
         return index == 0 ? &diff_src_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *diff_dst_md(int index = 0) const override {
+    const memory_desc_t *diff_dst_md(int index = 0) const override {
         return index == 0 ? &diff_dst_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *weights_md(int index = 0) const override {
+    const memory_desc_t *weights_md(int index = 0) const override {
         return index == 0 ? &weights_md_ : &glob_zero_md;
     }
 
-    virtual int n_inputs() const override { return 2; }
-    virtual int n_outputs() const override { return 1; }
+    int n_inputs() const override { return 2; }
+    int n_outputs() const override { return 1; }
 
 protected:
     memory_desc_t diff_src_md_;
@@ -284,7 +284,7 @@ struct deconvolution_bwd_weights_pd_t : public deconvolution_pd_t {
         , diff_bias_md_(desc_.diff_bias_desc)
         , diff_dst_md_(desc_.diff_dst_desc) {}
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
 
@@ -296,7 +296,7 @@ struct deconvolution_bwd_weights_pd_t : public deconvolution_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_DIFF_WEIGHTS: return diff_weights_md(0);
@@ -306,20 +306,20 @@ struct deconvolution_bwd_weights_pd_t : public deconvolution_pd_t {
         }
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(int index = 0) const override {
         return index == 0 ? &src_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *diff_dst_md(int index = 0) const override {
+    const memory_desc_t *diff_dst_md(int index = 0) const override {
         return index == 0 ? &diff_dst_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *diff_weights_md(int index = 0) const override {
+    const memory_desc_t *diff_weights_md(int index = 0) const override {
         if (index == 0) return &diff_weights_md_;
         if (index == 1 && with_bias()) return &diff_bias_md_;
         return &glob_zero_md;
     }
 
-    virtual int n_inputs() const override { return 2; }
-    virtual int n_outputs() const override { return 1 + with_bias(); }
+    int n_inputs() const override { return 2; }
+    int n_outputs() const override { return 1 + with_bias(); }
 
 protected:
     memory_desc_t src_md_;

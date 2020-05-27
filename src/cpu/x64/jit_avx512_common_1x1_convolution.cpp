@@ -155,8 +155,9 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
     auto init_load = [&](int ocb, int ocb_end, int &load_step) {
         load_step = step(nb_load_blocking, ocb_end - ocb, nb_load_blocking_max);
-        p.load_dim = this_block_size(ocb * jcp.oc_block, ocb_end * jcp.oc_block,
-                load_step * jcp.oc_block);
+        const auto max_oc = nstl::min(ocb_end * jcp.oc_block, jcp.oc);
+        p.load_dim = this_block_size(
+                ocb * jcp.oc_block, max_oc, load_step * jcp.oc_block);
     };
 
     auto init_reduce = [&](int icb) {
@@ -172,26 +173,30 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
     auto ker_1x1 = [&](int ocb, int ocb_start, int icb, int n, int g, int od,
                            int oh, int ow, int id, int ih, int iw) {
-        const int _ocb = g * nb_oc + ocb;
         const bool is_dst_layout_nxc = utils::one_of(jcp.dst_tag,
                 format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
-        const int oc_off_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * _ocb;
+        const int oc_off_idx = is_dst_layout_nxc
+                ? g * jcp.oc + ocb * jcp.oc_block
+                : g * nb_oc + ocb;
         const size_t dst_off = data_blk_off(dst_d, n, oc_off_idx, od, oh, ow);
 
         p.output_data = jcp.with_dw_conv ? pbuf + (oh % jcp_dw_kh) * row_offset
                                          : &dst[dst_off];
-        p.bias_data = &bias[_ocb * jcp.oc_block];
+        p.bias_data
+                = &bias[oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block)];
+
         p.load_data
                 = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
                                                : weights_d.blk_off(ocb, icb)];
-
-        const int _icb = g * nb_ic + icb;
         const bool is_src_layout_nxc = utils::one_of(jcp.src_tag,
                 format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
-        const int ic_off_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * _icb;
+        const int ic_off_idx = is_src_layout_nxc
+                ? g * jcp.ic + icb * jcp.ic_block
+                : g * nb_ic + icb;
         if (pd()->rtus_.reduce_src_) {
             rp.ws = rtus_space + ithr * pd()->rtus_.space_per_thread_
-                    + (is_src_layout_nxc ? 1 : jcp.is) * _icb * jcp.ic_block;
+                    + (is_src_layout_nxc ? ic_off_idx
+                                         : jcp.is * ic_off_idx * jcp.ic_block);
             if (ocb == ocb_start) {
                 rp.src = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
                 rtus_driver_->ker_(&rp);
@@ -462,6 +467,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 
         int nboc_inner = reduce_outer ? 1 : nb_oc;
         int ocb_inner_step = reduce_outer ? 1 : nb_oc_blocking;
+        const int max_ic = nstl::min(icb_end * jcp.ic_block, jcp.ic);
 
         for (int ocb_outer = 0; ocb_outer < nboc_outer;
                 ocb_outer += ocb_outer_step) {
@@ -474,8 +480,8 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
                 load_step = step(jcp.nb_load_blocking, jcp.nb_load - icb,
                         jcp.nb_load_blocking_max);
 
-                p.load_dim = this_block_size(icb * jcp.ic_block,
-                        icb_end * jcp.ic_block, load_step * jcp.ic_block);
+                p.load_dim = this_block_size(
+                        icb * jcp.ic_block, max_ic, load_step * jcp.ic_block);
                 rp.icb = p.load_dim;
 
                 int bcast_step;
@@ -502,13 +508,12 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
                     const int ih = oh * stride_h;
                     const int iw = ow * stride_w;
                     rp.iw_start = iw;
-
-                    const int _icb = g * nb_ic + icb;
                     const bool is_dsrc_layout_nxc
                             = utils::one_of(jcp.src_tag, format_tag::nwc,
                                     format_tag::nhwc, format_tag::ndhwc);
-                    const int ic_off_idx
-                            = (is_dsrc_layout_nxc ? jcp.ic_block : 1) * _icb;
+                    const int ic_off_idx = is_dsrc_layout_nxc
+                            ? g * jcp.ic + icb * jcp.ic_block
+                            : g * nb_ic + icb;
                     rp.src = diff_src
                             + data_blk_off(
                                     diff_src_d, n, ic_off_idx, id, ih, iw);
@@ -529,13 +534,12 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
                         int ocb = reduce_outer ? ocb_outer : ocb_inner;
                         int nb_oc_blocking_step
                                 = reduce_outer ? cur_ocb_outer : cur_ocb_inner;
-                        const int _ocb = g * nb_oc + ocb;
                         const bool is_ddst_layout_nxc
                                 = utils::one_of(jcp.dst_tag, format_tag::nwc,
                                         format_tag::nhwc, format_tag::ndhwc);
-                        const int oc_off_idx
-                                = (is_ddst_layout_nxc ? jcp.oc_block : 1)
-                                * _ocb;
+                        const int oc_off_idx = is_ddst_layout_nxc
+                                ? g * jcp.oc + ocb * jcp.oc_block
+                                : g * nb_oc + ocb;
                         size_t diff_dst_off = data_blk_off(
                                 diff_dst_d, n, oc_off_idx, od, oh, ow);
                         p.bcast_data = &diff_dst[diff_dst_off];
@@ -609,7 +613,10 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<data_t>(key_conv_rtus_space)
             : NULL;
-    data_t *diff_bias = pd()->wants_padded_bias()
+    const bool is_bias_padded
+            = pd()->with_bias() && jcp.oc_without_padding % jcp.oc_block != 0;
+
+    data_t *diff_bias = is_bias_padded
             ? scratchpad.get<data_t>(key_conv_padded_bias)
             : diff_bias_in;
     auto wei_reduction = scratchpad.get<data_t>(key_conv_wei_reduction);
@@ -624,7 +631,8 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
     }
 
     const int ndims = src_d.ndims();
-    const int wei_size = jcp.ngroups * jcp.oc * jcp.ic;
+    const int wei_size = jcp.ngroups * rnd_up(jcp.oc, jcp.oc_block)
+            * rnd_up(jcp.ic, jcp.ic_block);
 
     simple_barrier::ctx_t reduction_barrier;
     simple_barrier::ctx_init(&reduction_barrier);
@@ -755,6 +763,16 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
         const int g_work = g_end - g_start;
         const int oc_b_work = oc_b_end - oc_b_start;
         const int ic_b_work = ic_b_end - ic_b_start;
+        const bool cache_aliasing
+                = (jcp.ic * jcp.ngroups * sizeof(float)) % 1024 == 0;
+        int reduce_step = jcp.nb_reduce_blocking;
+        int reduce_step_max = jcp.nb_reduce_blocking_max;
+        if (is_src_layout_nxc && cache_aliasing) {
+            // Experiments show 4 is a magic number with the tested shapes.
+            // TODO: maybe tune for shapes with sp_dim%4 != 0
+            reduce_step = nstl::min(4, reduce_step);
+            reduce_step_max = reduce_step;
+        }
 
         data_t *diff_wei = ithr_mb == 0
                 ? diff_weights
@@ -765,17 +783,21 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                 mb_sp_b += sp_b_step) {
             int img {0}, sp_b {0};
             nd_iterator_init(mb_sp_b, img, jcp.mb, sp_b, sp_nb);
-            sp_b_step = step(jcp.nb_reduce_blocking,
+            sp_b_step = step(reduce_step,
                     nstl::min(sp_nb - sp_b, mb_sp_b_end - mb_sp_b),
-                    jcp.nb_reduce_blocking_max);
+                    reduce_step_max);
 
             for (int g = g_start; g < g_end; ++g) {
                 int load_step = 0;
                 int bcast_step = 0;
                 for (int ic_b = ic_b_start; ic_b < ic_b_end;
                         ic_b += bcast_step) {
-                    bcast_step = step(nb_ic_blocking, ic_b_end - ic_b,
-                            jcp.nb_bcast_blocking_max);
+                    if (is_src_layout_nxc && cache_aliasing) {
+                        bcast_step = ic_b_work;
+                    } else {
+                        bcast_step = step(nb_ic_blocking, ic_b_end - ic_b,
+                                jcp.nb_bcast_blocking_max);
+                    }
                     if (jcp.transpose_src) {
                         if (jcp.nthr_oc_b > 1)
                             simple_barrier::barrier(
@@ -797,7 +819,9 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                                 jcp.nb_load_blocking_max);
                         const int _ic_b = g * nb_ic + ic_b;
                         const int _ic_b_tr = g * nb_ic + ic_b_start;
-                        const int _oc_b = g * nb_oc + oc_b;
+                        const int oc_off_idx = is_ddst_layout_nxc
+                                ? g * jcp.oc + oc_b * jcp.oc_block
+                                : g * nb_oc + oc_b;
 
                         data_t *store_to;
 
@@ -813,21 +837,21 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                                 : &src[src_d.blk_off(img, ic_off_idx)];
 
                         int sp_b_end = sp_b + sp_b_step;
-                        const data_t *pdiff_dst
-                                = &diff_dst[diff_dst_d.blk_off(img,
-                                        (is_ddst_layout_nxc ? jcp.oc_block : 1)
-                                                * _oc_b)];
+                        const data_t *pdiff_dst = &diff_dst[diff_dst_d.blk_off(
+                                img, oc_off_idx)];
                         const data_t *local_src = diff_src;
 
                         auto p = jit_1x1_conv_call_s();
                         auto rp = rtus_driver_t<avx512_common>::call_params_t();
 
-                        p.output_stride
-                                = jcp.ic * jcp.oc_block * jcp.typesize_out;
+                        p.output_stride = utils::rnd_up(jcp.ic, jcp.ic_block)
+                                * jcp.oc_block * jcp.typesize_out;
 
-                        p.load_dim = load_step * jcp.oc_block;
+                        p.load_dim = this_block_size(oc_b * jcp.oc_block,
+                                jcp.oc, load_step * jcp.oc_block);
 
-                        p.bcast_dim = bcast_step * jcp.ic_block;
+                        p.bcast_dim = this_block_size(ic_b * jcp.ic_block,
+                                jcp.ic, bcast_step * jcp.ic_block);
                         rp.icb = p.bcast_dim;
                         p.output_data = store_to;
 
@@ -937,22 +961,26 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
         for (int img = img_start; img < img_end; ++img) {
             int g = g_start, ocb = ocb_start;
             for (int b_job_loc = 0; b_job_loc < b_njobs; ++b_job_loc) {
-                const size_t _oc = g * jcp.nb_load + ocb;
+                const int oc_off_idx = is_ddst_layout_nxc
+                        ? g * jcp.oc + ocb * jcp.oc_block
+                        : g * jcp.nb_load + ocb;
+                const data_t *d_dst
+                        = &diff_dst[diff_dst_d.blk_off(img, oc_off_idx)];
 
-                const data_t *d_dst = &diff_dst[diff_dst_d.blk_off(
-                        img, (is_ddst_layout_nxc ? jcp.oc_block : 1) * _oc)];
                 data_t *d_bias = rb->get_local_ptr(ithr, diff_bias,
                                          reducer_bia_scratchpad)
                         + b_job_loc * rb->balancer().job_size_;
                 const int sp_shift = is_ddst_layout_nxc ? jcp.ngroups * jcp.oc
                                                         : jcp.oc_block;
+                const auto max_oc = this_block_size(
+                        ocb * jcp.oc_block, jcp.oc, jcp.oc_block);
                 if (img == img_start)
                     for (int o = 0; o < 16; ++o)
                         d_bias[o] = 0.;
 
                 for (int os = 0; os < jcp.os; ++os) {
                     PRAGMA_OMP_SIMD()
-                    for (int o = 0; o < 16; ++o)
+                    for (int o = 0; o < max_oc; ++o)
                         d_bias[o] += d_dst[o];
                     d_dst += sp_shift;
                 }
@@ -1043,9 +1071,14 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
     }
 
     /* TODO: put this in ker_bias */
-    if (pd()->wants_padded_bias()) {
-        assert(jcp.ngroups == 1);
-        utils::array_copy(diff_bias_in, diff_bias, jcp.oc_without_padding);
+    if (is_bias_padded) {
+        assert(IMPLICATION(!is_ddst_layout_nxc, jcp.ngroups == 1));
+        const int padded_stride = rnd_up(jcp.oc, jcp.oc_block);
+        const int stride = jcp.oc_without_padding;
+        for (int g = 0; g < jcp.ngroups; ++g) {
+            utils::array_copy(diff_bias_in + g * stride,
+                    diff_bias + g * padded_stride, stride);
+        }
     }
 }
 

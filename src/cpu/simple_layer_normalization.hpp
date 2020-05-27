@@ -85,7 +85,7 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
         }
     };
 
-    virtual status_t init(engine_t *engine) override {
+    status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
         stat_kernel_.reset(lnorm_utils::statistics_kernel_t::create(pd()));
@@ -108,7 +108,7 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
         reorder_->execute(r_ctx);
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         /* LN supports arbitrary layout for input/output statistics.
          * For best performance we compute LN with statistics in the same format
          * as data tensor (i.e. data in abcd, stats in abc) and user's
@@ -203,7 +203,7 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
         }
     };
 
-    virtual status_t init(engine_t *engine) override {
+    status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
         diff_ss_kernel_.reset(lnorm_utils::diff_ss_kernel_t::create(pd()));
@@ -226,7 +226,7 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
         reorder_->execute(r_ctx);
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         /* LN supports arbitrary layout for input/output statistics.
          * For best performance we compute LN with statistics in the same format

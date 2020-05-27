@@ -64,13 +64,15 @@ int bench(int argc, char **argv) {
     driver_name = "binary";
     using namespace parser;
     static settings_t s;
+    static const settings_t def {};
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_multi_dt(s.sdt, argv[0])
-                || parse_dt(s.ddt, argv[0], "ddt")
-                || parse_multi_tag(s.stag, argv[0])
-                || parse_vector_option(s.alg, str2alg, argv[0], "alg")
-                || parse_inplace(s.inplace, argv[0])
+                || parse_batch(bench, argv[0])
+                || parse_multi_dt(s.sdt, def.sdt, argv[0])
+                || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
+                || parse_multi_tag(s.stag, def.stag, argv[0])
+                || parse_alg(s.alg, def.alg, str2alg, argv[0])
+                || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_attr(s.attr, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,

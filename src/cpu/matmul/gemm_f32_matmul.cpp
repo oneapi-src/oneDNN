@@ -117,16 +117,23 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
 }
 
 status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
-    const auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    const auto weights = CTX_IN_MEM(const weights_data_t *, DNNL_ARG_WEIGHTS);
-    const auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const weights_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     DEFINE_SCALES_BUFFER(scales);
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
+    const auto bias_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
+
+    // apply offset0, since offsets are computed directly (not via mdw.off())
+    src += src_d.offset0();
+    weights += weights_d.offset0();
+    if (bias) bias += bias_d.offset0() * bias_d.data_type_size();
+    dst += dst_d.offset0();
 
     const gemm_based::params_t &params = pd()->params();
 

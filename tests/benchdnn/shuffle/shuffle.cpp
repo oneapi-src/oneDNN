@@ -109,6 +109,7 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
             WARN);
 
     dnnl_primitive_desc_t _hint = NULL;
+    auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(_hint); };
     if (p->dir & FLAG_BWD) {
         dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
                 &_hint, &sd, NULL, engine_tgt, NULL);
@@ -116,13 +117,13 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
             return r->state = UNIMPLEMENTED, OK;
         SAFE(init_fwd_status, WARN);
 
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&data_d, p->ndims, p->dims.data(),
-                         p->dt, dnnl_format_tag_any),
-                WARN);
+        DNN_SAFE_CLEAN(dnnl_memory_desc_init_by_tag(&data_d, p->ndims,
+                               p->dims.data(), p->dt, dnnl_format_tag_any),
+                WARN, cleanup_pd);
 
-        DNN_SAFE(dnnl_shuffle_backward_desc_init(
-                         &sd, &data_d, p->axis, p->group),
-                WARN);
+        DNN_SAFE_CLEAN(dnnl_shuffle_backward_desc_init(
+                               &sd, &data_d, p->axis, p->group),
+                WARN, cleanup_pd);
     }
 
     auto dnnl_attr = create_dnnl_attr(attr_t());
@@ -146,7 +147,7 @@ int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
 
-    dnnl_primitive_t s;
+    dnnl_primitive_t s {};
     SAFE(init_prim(&s, init_pd, engine_tgt, p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 

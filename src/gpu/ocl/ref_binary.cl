@@ -98,7 +98,9 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 
     // SRC1_D1 = IC for SRC1, using the dispatch ap
     int block_size
-            = dims0[1] + d1_block > SRC1_D1 ? (SRC1_D1 % d1_block) : d1_block;
+            = dims0[1] + d1_block > SRC1_D1 && min(d1_block, SRC0_D1) <= SRC1_D1
+            ? (SRC1_D1 % d1_block)
+            : d1_block;
 
     for (int ic = 0; ic < block_size; ++ic) {
         // using tmp vars to handle float calculations for bf16 datatypes

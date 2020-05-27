@@ -41,6 +41,7 @@ void check_correctness(const settings_t &s) {
             case alg_t::ABS:
             case alg_t::EXP:
             case alg_t::EXP_DST:
+            case alg_t::GELU_ERF:
             case alg_t::GELU_TANH:
             case alg_t::LOG:
             case alg_t::LOGISTIC:
@@ -51,28 +52,27 @@ void check_correctness(const settings_t &s) {
             case alg_t::SRELU:
             case alg_t::TANH:
             case alg_t::TANH_DST:
-            case alg_t::GELU_ERF:
-                // Skip everything but alpha = 0 and beta = 0
-                if (i_alpha != 0 || i_beta != 0) continue;
+                if (i_alpha != 0)
+                    BENCHDNN_PRINT(2, "%s\n",
+                            "WARNING: non-zero alpha is ignored. "
+                            "Consider adding --alpha=0 to a command line.");
+                if (i_beta != 0)
+                    BENCHDNN_PRINT(2, "%s\n",
+                            "WARNING: non-zero beta is ignored. "
+                            "Consider adding --beta=0 to a command line.");
                 break;
-            case alg_t::ELU:
-            case alg_t::RELU:
-            case alg_t::SWISH:
-                // Test any alpha value but beta = 0
-                if (i_beta != 0) continue;
-                break;
-            case alg_t::ELU_DST:
-            case alg_t::RELU_DST:
             case alg_t::BRELU:
-                // Test non-negative alpha value but beta = 0
-                if (i_alpha < 0 || i_beta != 0) continue;
+            case alg_t::ELU:
+            case alg_t::ELU_DST:
+            case alg_t::RELU:
+            case alg_t::RELU_DST:
+            case alg_t::SWISH:
+                if (i_beta != 0)
+                    BENCHDNN_PRINT(2, "%s\n",
+                            "WARNING: non-zero beta is ignored. "
+                            "Consider adding --beta=0 to a command line.");
                 break;
-            case alg_t::CLIP:
-                // Test beta >= alpha values
-                if (i_beta < i_alpha) continue;
-                break;
-
-            default:; // Test any alpha and beta values
+            default:;
         };
 
         const prb_t p(s.dims, i_dir, i_dt, i_tag, i_alg, i_alpha, i_beta,
@@ -102,15 +102,20 @@ int bench(int argc, char **argv) {
     driver_name = "eltwise";
     using namespace parser;
     static settings_t s;
+    static const settings_t def {};
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_dir(s.dir, argv[0])
-                || parse_dt(s.dt, argv[0]) || parse_tag(s.tag, argv[0])
-                || parse_vector_option(s.alpha, atof, argv[0], "alpha")
-                || parse_vector_option(s.beta, atof, argv[0], "beta")
+                || parse_batch(bench, argv[0])
+                || parse_dir(s.dir, def.dir, argv[0])
+                || parse_dt(s.dt, def.dt, argv[0])
+                || parse_tag(s.tag, def.tag, argv[0])
                 || parse_vector_option(
-                        s.alg, attr_t::post_ops_t::str2kind, argv[0], "alg")
-                || parse_inplace(s.inplace, argv[0]) || parse_mb(s.mb, argv[0])
+                        s.alpha, def.alpha, atof, argv[0], "alpha")
+                || parse_vector_option(s.beta, def.beta, atof, argv[0], "beta")
+                || parse_vector_option(s.alg, def.alg,
+                        attr_t::post_ops_t::str2kind, argv[0], "alg")
+                || parse_inplace(s.inplace, def.inplace, argv[0])
+                || parse_mb(s.mb, def.mb, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])

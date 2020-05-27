@@ -113,7 +113,7 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -143,9 +143,7 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
                                 diff_src_md()->data_type)
                             || utils::everyone_is(bf16, src_md()->data_type,
                                     diff_src_md()->data_type))
-                    && IMPLICATION(use_scaleshift(),
-                            utils::everyone_is(f32, weights_md()->data_type,
-                                    diff_weights_md()->data_type))
+                    && check_scale_shift_data_type()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -191,7 +189,7 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
     }
 

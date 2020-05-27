@@ -17,9 +17,9 @@ oneAPI Deep Neural Network Library (oneDNN)
 
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
-The library is optimized for Intel Architecture Processors and Intel Processor
-Graphics. Support for other architectures such as Arm\* 64-bit Architecture
-(AArch64) is experimental.
+The library is optimized for Intel Architecture Processors, Intel Processor
+Graphics and Xe architecture-based Graphics. Support for other architectures
+such as Arm\* 64-bit Architecture (AArch64) is experimental.
 See the [System Requirements](#system-requirements) section below.
 
 This is a development branch for oneDNN v2.0 Beta. This is pre-production software
@@ -126,6 +126,7 @@ The library is optimized for the following GPUs:
 * Intel HD Graphics
 * Intel UHD Graphics
 * Intel Iris Plus Graphics
+* Xe architecture-based Graphics (code named DG1 and Tiger Lake)
 
 ## Requirements for Building from Source
 
@@ -162,10 +163,10 @@ Intel C++ Compiler.
 
 ### GPU Engine
 
-Intel Processor Graphics is supported by the oneDNN GPU engine. The GPU engine
-is disabled in the default build configuration. The engine can be configured to
-use the OCL or DPCPP runtime. The following additional requirements apply
-when GPU engine is enabled:
+Intel Processor Graphics and Xe architecture-based Graphics are supported by
+the oneDNN GPU engine. The GPU engine is disabled in the default build
+configuration. The following additional requirements apply when GPU engine
+is enabled:
 * OCL runtime requires
     * OpenCL\* runtime library (OpenCL version 1.2 or later)
     * OpenCL driver (with kernel language support for OpenCL C 2.0 or later)

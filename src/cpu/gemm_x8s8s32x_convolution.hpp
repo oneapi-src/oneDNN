@@ -32,10 +32,6 @@
 
 #include "cpu/gemm/gemm.hpp"
 
-#if DNNL_X64
-#include "cpu/x64/cpu_isa_traits.hpp"
-#endif
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -61,64 +57,21 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                             utils::one_of(desc()->bias_desc.data_type, f32, s32,
                                     s8, u8))
                     && !has_zero_dim_memory()
-                    && set_default_formats_common(
-                            dat_tag(), format_tag::any, dat_tag())
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
                             | primitive_attr_t::skip_mask_t::post_ops)
-                    && output_scales_mask_ok() && post_ops_ok()
-                    && memory_desc_matches_tag(*src_md(), dat_tag())
-                    && memory_desc_matches_tag(*dst_md(), dat_tag())
-                    && set_or_check_wei_format();
+                    && output_scales_mask_ok() && post_ops_ok();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *desc(), src_md(), weights_md(0), dst_md(),
+                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
                     dnnl_get_max_threads());
         }
 
         conv_gemm_conf_t jcp_;
 
     protected:
-        format_tag_t dat_tag() const {
-            int ndims = src_md()->ndims;
-            return utils::pick(ndims - 3, format_tag::nwc, format_tag::nhwc,
-                    format_tag::ndhwc);
-        }
-
-        bool set_or_check_wei_format() {
-            using namespace format_tag;
-            int ndims = src_md()->ndims;
-
-            const bool is_src_s8 = src_md_.data_type == data_type::s8;
-
-            memory_desc_t want_wei_md = weights_md_;
-            memory_desc_init_by_tag(want_wei_md,
-                    with_groups() ? utils::pick(ndims - 3, wigo, hwigo, dhwigo)
-                                  : utils::pick(ndims - 3, wio, hwio, dhwio));
-
-            if (is_src_s8) {
-                want_wei_md.extra.flags = 0
-                        | memory_extra_flags::compensation_conv_s8s8
-                        | memory_extra_flags::scale_adjust;
-                want_wei_md.extra.compensation_mask
-                        = (1 << 0) + (with_groups() ? (1 << 1) : 0);
-                want_wei_md.extra.scale_adjust = 1.f;
-#if DNNL_X64
-                if (!x64::mayiuse(x64::avx512_core_vnni))
-                    want_wei_md.extra.scale_adjust = 0.5f;
-#endif
-            }
-
-            if (weights_md_.format_kind == format_kind::any) {
-                weights_md_ = want_wei_md;
-                return true;
-            }
-
-            return weights_md_ == want_wei_md;
-        }
-
         bool output_scales_mask_ok() const {
             const auto &mask = attr()->output_scales_.mask_;
             return mask == 0 || mask == 1 << 1;
@@ -151,7 +104,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -190,39 +143,22 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
                             utils::one_of(desc()->bias_desc.data_type, f32, s32,
                                     s8, u8))
                     && !has_zero_dim_memory()
-                    && set_default_formats_common(
-                            dat_tag(), wei_tag(), dat_tag())
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale)
-                    && output_scales_mask_ok()
-                    && memory_desc_matches_tag(*diff_src_md(), dat_tag())
-                    && memory_desc_matches_tag(*diff_dst_md(), dat_tag())
-                    && memory_desc_matches_tag(*weights_md(), wei_tag());
+                    && output_scales_mask_ok();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *desc(), diff_src_md(), weights_md(), diff_dst_md(),
-                    dnnl_get_max_threads());
+                    *desc(), diff_src_md_, weights_md_, diff_dst_md_, bias_md_,
+                    *attr(), dnnl_get_max_threads());
         }
 
-        virtual bool support_bias() const override { return true; }
+        bool support_bias() const override { return true; }
 
         conv_gemm_conf_t jcp_;
 
     protected:
-        format_tag_t dat_tag() const {
-            int ndims = diff_src_md()->ndims;
-            return utils::pick(ndims - 3, format_tag::nwc, format_tag::nhwc,
-                    format_tag::ndhwc);
-        }
-
-        format_tag_t wei_tag() const {
-            using namespace format_tag;
-            int ndims = diff_src_md()->ndims;
-            return with_groups() ? utils::pick(ndims - 3, wigo, hwigo, dhwigo)
-                                 : utils::pick(ndims - 3, wio, hwio, dhwio);
-        }
         bool output_scales_mask_ok() const {
             const auto &mask = attr()->output_scales_.mask_;
             return mask == 0 || mask == 1 << 1;
@@ -236,7 +172,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<dst_type>::type diff_src_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
 

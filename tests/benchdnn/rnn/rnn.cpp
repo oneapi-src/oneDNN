@@ -613,7 +613,7 @@ int doit(const prb_t &p, res_t *r) {
 
     if (p.maybe_skip()) return r->state = SKIPPED, OK;
 
-    dnnl_primitive_t c;
+    dnnl_primitive_t c {};
     SAFE(init_prim(&c, init_pd, engine_tgt_fwd, &p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
     auto cleanup = [&]() {
@@ -765,7 +765,7 @@ int doit(const prb_t &p, res_t *r) {
     }
 
     if (p.prop == dnnl_backward) {
-        dnnl_primitive_t bwd_p;
+        dnnl_primitive_t bwd_p {};
         int status
                 = init_prim(&bwd_p, init_pd, engine_tgt_bwd, &p, r, FLAG_BWD);
         dnnl_primitive_destroy(c);

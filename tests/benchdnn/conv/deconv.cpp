@@ -186,7 +186,7 @@ int doit(const prb_t *p, res_t *r) {
     swap(p_tr.id, p_tr.od);
     swap(p_tr.iw, p_tr.ow);
 
-    dnnl_primitive_t d;
+    dnnl_primitive_t d {};
     SAFE(init_prim(&d, init_pd, engine_tgt, p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 

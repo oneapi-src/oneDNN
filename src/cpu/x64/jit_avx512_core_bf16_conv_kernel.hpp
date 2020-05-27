@@ -75,16 +75,16 @@ private:
 
     reg64_t param = abi_param1; //L: RDI, W: RCX
 
-    reg64_t reg_inp = r8;
+    reg64_t reg_src = r8;
     reg64_t reg_ker = r9;
-    reg64_t reg_out = r10;
+    reg64_t reg_dst = r10;
     reg64_t reg_owb = r11;
 
-    reg64_t aux_reg_inp = r12;
+    reg64_t aux_reg_src = r12;
     reg64_t aux_reg_ker = r13;
 
     reg64_t aux_reg_ker_d = r14;
-    reg64_t aux_reg_inp_d = r15;
+    reg64_t aux_reg_src_d = r15;
 
     reg64_t reg_icb = rax;
     reg64_t reg_bias = rbx;
@@ -94,21 +94,21 @@ private:
     reg64_t reg_oi = rdx;
     reg64_t reg_kh = rsi;
 
-    reg64_t reg_out_long_offt = r14;
+    reg64_t reg_dst_long_offt = r14;
 
-    Vmm vmm_out(int i_ur, int i_oc) {
+    Vmm vmm_dst(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
         return Vmm(idx);
     }
 
-    Vmm vmm_inp(int i_ic, int nb_x_blocking) {
+    Vmm vmm_src(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < 31);
         return Vmm(idx);
     }
 
-    Vmm_down_t vmm_inp_down(int i_ic, int nb_x_blocking) {
+    Vmm_down_t vmm_src_down(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < 31);
         return Vmm_down_t(idx);
@@ -131,37 +131,59 @@ private:
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
     bf16_emulation_t *bf16_emu_;
 
-    inline void prepare_output(int ur_w);
-    inline void store_output(int ur_w);
+    inline void prepare_dst(int ur_w);
+    inline void store_dst(int ur_w);
     inline void compute_loop(int ur_w, int pad_l, int pad_r);
 
     void generate();
 
-    size_t get_output_offset(int oi, int n_oc_block) {
-        return (size_t)jcp.typesize_out
-                * ((size_t)n_oc_block * jcp.oh * jcp.ow * jcp.od + oi)
-                * jcp.oc_block;
+    inline dim_t get_dst_offset(dim_t sp_idx, int ocb) {
+        const bool is_layout_nxc = is_dst_layout_nxc();
+        dim_t sp_str = is_layout_nxc ? jcp.ngroups * jcp.oc : jcp.oc_block;
+        dim_t ocb_str = jcp.oc_block
+                * (is_layout_nxc ? 1 : (dim_t)jcp.od * jcp.oh * jcp.ow);
+        return jcp.typesize_out * (ocb_str * ocb + sp_str * sp_idx);
     }
 
-    size_t get_input_offset(int ki, int ic, int oi, int pad_l) {
-        size_t scale = 2; //bf16 vnni is used
-        size_t iw_str = jcp.is_1stconv ? 1 : jcp.ic_block;
-        size_t ic_str = jcp.is_1stconv ? (size_t)jcp.iw * jcp.ih * jcp.id : 1;
-        return (size_t)jcp.typesize_in
-                * ((size_t)(ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l)
-                                * iw_str
-                        + scale * ic * ic_str);
+    inline dim_t filter_w_to_src(int kw, int ow = 0, int pad_l = 0) {
+        return kw * (jcp.dilate_w + 1) + ow * jcp.stride_w - pad_l;
+    };
+    inline dim_t filter_h_to_src(int kh) {
+        return kh * (jcp.dilate_h + 1) * jcp.iw;
+    };
+    inline dim_t filter_d_to_src(int kd) {
+        return kd * (jcp.dilate_d + 1) * jcp.iw * jcp.ih;
+    };
+
+    inline dim_t get_src_offset(dim_t ic_idx, dim_t isp) {
+        int icb = ic_idx / jcp.ic_block;
+        int ic = ic_idx % jcp.ic_block;
+        dim_t isp_str = is_src_layout_nxc()
+                ? jcp.ngroups * jcp.ic
+                : (jcp.is_1stconv ? 1 : jcp.ic_block);
+        dim_t full_spatial_size = (dim_t)jcp.iw * jcp.ih * jcp.id;
+        dim_t ic_str = jcp.is_1stconv && !is_src_layout_nxc()
+                ? full_spatial_size
+                : 1;
+        dim_t icb_str
+                = (is_src_layout_nxc() ? 1 : full_spatial_size) * jcp.ic_block;
+        return jcp.typesize_in * (isp_str * isp + icb_str * icb + ic_str * ic);
     }
 
-    size_t get_kernel_offset(int ki, int ic, int n_oc_block, int ker_number) {
+    inline dim_t get_kernel_offset(
+            int ocb, int ic_idx, int kw, int kh = 0, int kd = 0) {
         int scale = 2; //bf16 vnni is used
         int rnd_ic_block = utils::rnd_up(jcp.ic_block, scale);
+        int icb = ic_idx / jcp.ic_block;
+        int ic = ic_idx % jcp.ic_block;
+        dim_t ksp_str = rnd_ic_block * jcp.oc_block;
+        dim_t ksp_idx = kd * jcp.kh * jcp.kw + kh * jcp.kw + kw;
 
-        size_t oc_block_stride
-                = (size_t)jcp.nb_ic * rnd_ic_block * jcp.kh * jcp.kw * jcp.kd;
-        return jcp.typesize_in * jcp.oc_block
-                * (n_oc_block * oc_block_stride + (ic + ker_number) * scale
-                        + ki * rnd_ic_block);
+        dim_t icb_str = jcp.kd * jcp.kh * jcp.kw * ksp_str;
+        dim_t ocb_str = jcp.nb_ic * icb_str;
+        dim_t ic_off = (ic / scale) * jcp.oc_block * scale + (ic % scale);
+        return jcp.typesize_in
+                * (ocb * ocb_str + icb * icb_str + ksp_idx * ksp_str + ic_off);
     }
 
     int get_ow_start(int ki, int pad_l) {
@@ -175,6 +197,14 @@ private:
                         utils::div_up(
                                 pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1),
                                 jcp.stride_w));
+    }
+    inline bool is_src_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_dst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
     }
 };
 
@@ -278,19 +308,19 @@ private:
 
     reg64_t reg_ocb = r11;
 
-    Vmm vmm_inp(int i_ic) {
+    Vmm vmm_ddst(int i_ic) {
         int idx = i_ic + jcp.nb_ic_blocking * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
         return Vmm(idx);
     }
 
-    Vmm_down_t vmm_inp_down(int i_ic) {
+    Vmm_down_t vmm_ddst_down(int i_ic) {
         int idx = i_ic + jcp.nb_ic_blocking * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
         return Vmm_down_t(idx);
     }
 
-    Vmm vmm_out(int i_ur, int i_oc) {
+    Vmm vmm_dsrc(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
         return Vmm(idx);
@@ -330,6 +360,56 @@ private:
             res += jcp.stride_w;
 
         return ur_w - res;
+    }
+
+    inline int filter_h_to_dst(int kh) {
+        return kh * (jcp.dilate_h + 1) * jcp.ow;
+    };
+    inline int filter_d_to_dst(int kd) {
+        return kd * (jcp.dilate_d + 1) * jcp.ow * jcp.oh;
+    };
+
+    inline size_t get_diff_src_offset(int iw_idx, int n_ic_block) {
+        const bool is_nxc_layout = is_dsrc_layout_nxc();
+        size_t iw_str = is_nxc_layout ? jcp.ngroups * jcp.ic : jcp.ic_block;
+        size_t icb_str = jcp.ic_block
+                * (is_nxc_layout ? 1 : (size_t)jcp.id * jcp.ih * jcp.iw);
+        return jcp.typesize_out * (iw_str * iw_idx + icb_str * n_ic_block);
+    }
+
+    inline size_t get_diff_dst_offset(
+            int osp_idx, int oc_within_block_idx, int oc_block_idx = 0) {
+        const bool is_nxc_layout = is_ddst_layout_nxc();
+        size_t osp_str = is_nxc_layout ? jcp.ngroups * jcp.oc : jcp.oc_block;
+        size_t ocb_str = jcp.oc_block
+                * (is_nxc_layout ? 1 : (size_t)jcp.od * jcp.oh * jcp.ow);
+        return jcp.typesize_in
+                * (osp_str * osp_idx + ocb_str * oc_block_idx
+                        + oc_within_block_idx);
+    }
+
+    inline size_t get_kernel_offset(
+            int icb, int oc_idx, int kw, int kh = 0, int kd = 0) {
+        int scale = 2; //bf16 vnni is used
+        int ocb = oc_idx / jcp.oc_block;
+        int oc = oc_idx % jcp.oc_block;
+        size_t ksp_str = jcp.ic_block * jcp.oc_block;
+        size_t ksp_idx = kd * jcp.kh * jcp.kw + kh * jcp.kw + kw;
+
+        size_t icb_str = jcp.kd * jcp.kh * jcp.kw * ksp_str;
+        size_t ocb_str = jcp.nb_ic * icb_str;
+        size_t oc_off = (oc / scale) * jcp.ic_block * scale + (oc % scale);
+        return jcp.typesize_in
+                * (ocb * ocb_str + icb * icb_str + ksp_idx * ksp_str + oc_off);
+    }
+
+    inline bool is_dsrc_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_ddst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
     }
 };
 
@@ -437,9 +517,9 @@ private:
     static const int max_ur_w;
 
     reg64_t param = abi_param1;
-    reg64_t reg_input = rax;
+    reg64_t reg_src = rax;
     reg64_t reg_kernel = rdx;
-    reg64_t reg_output = rsi;
+    reg64_t reg_ddst = rsi;
     reg64_t b_ic = abi_not_param1;
     reg64_t kj = r8;
     reg64_t reg_kh = r9;
@@ -448,15 +528,16 @@ private:
     reg64_t reg_tmp = r14;
     reg64_t reg_ih_shift = reg_tmp;
     reg64_t reg_long_offt = r14;
+    reg64_t reg_icb = rbx;
 
     reg64_t ki = r11;
     reg64_t reg_oj_setup = r11;
     reg64_t reg_kd_count = r12;
     reg64_t reg_oi = r12;
     reg64_t reg_d_index = r13;
-    reg64_t reg_input_d = r15;
-    reg64_t reg_output_d = rbx;
-    reg64_t aux_reg_input = r12;
+    reg64_t reg_src_d = r15;
+    reg64_t reg_ddst_d = rbx;
+    reg64_t aux_reg_src = r12;
     reg64_t aux_reg_kernel = r13;
     reg64_t reg_bias = rbx;
 
@@ -474,17 +555,17 @@ private:
     inline void oh_step_comeback_pointers();
     inline void compute_oh_step_unroll_ow(int ic_block_step);
     inline void compute_ic_block_step(int ur_w, int pad_l, int pad_r,
-            int ic_block_step, int input_offset, int kernel_offset,
-            int output_offset, bool is_tail = false);
+            int ic_block_step, int src_offset, int kernel_offset,
+            int ddst_offset, bool is_tail = false);
     inline void compute_ic_block_step_extern(int ur_w, int pad_l, int pad_r,
-            int ic_block_step, int input_offset, int kernel_offset,
-            int output_offset, bool is_tail = false);
+            int ic_block_step, int src_offset, int kernel_offset,
+            int ddst_offset, bool is_tail = false);
     inline void compute_ic_block_step_interleave(int ur_w, int pad_l, int pad_r,
-            int ic_block_step, int input_offset, int kernel_offset,
-            int output_offset, bool is_tail = false);
+            int ic_block_step, int src_offset, int kernel_offset,
+            int ddst_offset, bool is_tail = false);
     inline void compute_ic_block_step_vpermw(int ur_w, int pad_l, int pad_r,
-            int ic_block_step, int input_offset, int kernel_offset,
-            int output_offset, bool is_tail = false);
+            int ic_block_step, int src_offset, int kernel_offset,
+            int ddst_offset, bool is_tail = false);
     inline void compute_oh_step_common(int ic_block_step);
     inline void compute_oh_step_disp();
     inline void compute_loop();
@@ -492,10 +573,20 @@ private:
     inline void compute_od_loop_common(bool partial = false);
     void compute_full_spat_loop();
     void convert_src_to_vnni_format(
-            int ur_w, int pad_l, int pad_r, int input_offset);
+            int ur_w, int pad_l, int pad_r, int src_offset);
     inline void compute_ic_block_step_vpermw_expl(int ur_w, int pad_l,
-            int pad_r, int ic_block_step, int input_offset, int kernel_offset,
-            int output_offset, bool is_tail = false);
+            int pad_r, int ic_block_step, int src_offset, int kernel_offset,
+            int ddst_offset, bool is_tail = false);
+    inline bool is_src_layout_nxc() {
+        return jcp.uses_permw_transposition
+                && utils::one_of(jcp.src_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+    }
+    inline bool is_ddst_layout_nxc() {
+        return jcp.uses_permw_transposition
+                && utils::one_of(jcp.dst_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+    }
 
     void generate();
 
@@ -539,12 +630,58 @@ private:
         return rt;
     };
 
-    ptrdiff_t get_inp_offset(
-            int pad_l, int i_ur, int i_kw, ptrdiff_t base_offset_bytes) {
-        ptrdiff_t local_offset_bytes
-                = jcp.typesize_in * (i_ur + i_kw - pad_l) * jcp.ic_block;
-        return base_offset_bytes + local_offset_bytes;
+    inline dim_t filter_w_to_src(int kw, int ow = 0, int pad_l = 0) {
+        int stride_w = jcp.transpose_src ? 1 : jcp.stride_w;
+        return kw * (jcp.dilate_w + 1) + ow * stride_w - pad_l;
     };
+    inline dim_t filter_h_to_src(int kh) { return kh * (jcp.dilate_h + 1); };
+    inline dim_t filter_d_to_src(int kd) {
+        return kd * (jcp.dilate_d + 1) * jcp.ih;
+    };
+
+    inline dim_t get_src_offset(dim_t ic_idx, dim_t w_idx, dim_t hd_idx = 0) {
+        // For is_src_layout_nxc() the ic_idx index inside the block
+        // is supported only ic_idx == jcp.ic_block is considered as a shift
+        // within one block and not as moving to the next ic block.
+        assert(IMPLICATION(!is_src_layout_nxc(), ic_idx <= jcp.ic_block));
+        dim_t icb = is_src_layout_nxc() ? ic_idx / jcp.ic_block : 0;
+        dim_t ic = is_src_layout_nxc() ? ic_idx % jcp.ic_block : ic_idx;
+        dim_t iw_str = jcp.is_1stconv || jcp.transpose_src
+                ? 1
+                : (is_src_layout_nxc() ? jcp.ngroups * jcp.ic : jcp.ic_block);
+        dim_t ihid_str
+                = jcp.tr_iw * (jcp.transpose_src ? jcp.ic_block : iw_str);
+        // jcp.transpose_src w_idx might be greater than jcp.tr_iw as right zero
+        // padding memory is shared with left zero padding of the next block
+        dim_t isp_off = hd_idx * ihid_str + w_idx * iw_str;
+        dim_t full_spatial_size = (dim_t)jcp.tr_iw * jcp.ih * jcp.id;
+        dim_t ic_str = jcp.transpose_src
+                ? jcp.tr_iw
+                : (jcp.is_1stconv ? full_spatial_size : 1);
+        dim_t icb_str
+                = jcp.ic_block * (is_src_layout_nxc() ? 1 : full_spatial_size);
+        return jcp.typesize_in * (isp_off + icb_str * icb + ic_str * ic);
+    };
+
+    inline dim_t get_ddst_offset(dim_t w_idx, dim_t hd_idx = 0) {
+        int ow_per_oc = jcp.transpose_dst ? 2 : 1;
+        int ch_mult
+                = is_ddst_layout_nxc() ? jcp.ngroups * jcp.oc : jcp.oc_block;
+        dim_t hd_off = jcp.tr_ow * ch_mult * hd_idx;
+        dim_t w_off
+                = w_idx / ow_per_oc * ow_per_oc * ch_mult + w_idx % ow_per_oc;
+        return jcp.typesize_in * (w_off + hd_off);
+    }
+
+    inline dim_t get_kernel_offset(int ic_idx, dim_t ksp_idx) {
+        // Only the ic_idx index inside the block is supported,
+        // ic_idx == jcp.ic_block is considered as a shift inside one block
+        // and not as moving to the next ic block.
+        // Negative values are supported for negative shift.
+        assert(nstl::abs(ic_idx) <= jcp.ic_block);
+        return jcp.typesize_out * jcp.oc_block
+                * (ksp_idx * jcp.ic_block + ic_idx);
+    }
 
     Xbyak::Zmm get_perm_reg() {
         int idx = !(jcp.uses_permw_transposition
@@ -568,11 +705,13 @@ private:
     int stack_space_needed;
     int permw_buffer_start;
     int kd_count_offset;
-    int input_d_offset;
-    int output_d_offset;
+    int src_d_offset;
+    int ddst_d_offset;
     int d_index_offset;
     int trans_tmp_offset;
     int ih_dilate_shift;
+    int icb_loop_ker_ptr;
+    int icb_loop_src_ptr;
 };
 } // namespace x64
 } // namespace cpu

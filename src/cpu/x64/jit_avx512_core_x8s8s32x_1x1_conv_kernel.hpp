@@ -53,9 +53,11 @@ struct _jit_avx512_core_x8s8s32x_1x1_conv_kernel : public jit_generator {
 private:
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
 
+    /* register mapping */
     const Xbyak::Reg64 reg_last_load = r8;
     const Xbyak::Reg64 reg_bcast_data = r8;
     const Xbyak::Reg64 reg_ptr_scales = r8;
+    const Xbyak::Reg64 reg_ptr_saturation_ubound = r8;
     const Xbyak::Reg64 reg_output_data = r9;
     const Xbyak::Reg64 reg_load_data = r10;
     const Xbyak::Reg64 reg_ptr_sum_scale = r10;
@@ -78,6 +80,7 @@ private:
     const Xbyak::Opmask vmask = k7;
 
     const Vmm vmm_tmp = Vmm(28);
+    const Vmm vmm_saturation = Vmm(28);
     const Vmm vmm_one = Vmm(29);
     const Vmm vmm_zero = Vmm(30);
     const Vmm vmm_prev_dst = Vmm(30);

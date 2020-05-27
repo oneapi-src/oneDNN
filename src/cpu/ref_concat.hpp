@@ -131,7 +131,7 @@ struct ref_concat_t : public primitive_t {
 
     ref_concat_t(const pd_t *apd) : primitive_t(apd) {}
 
-    virtual status_t init(engine_t *engine) override {
+    status_t init(engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i)
@@ -139,7 +139,9 @@ struct ref_concat_t : public primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    ~ref_concat_t() = default;
+
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         engine_t *engine = ctx.stream()->engine();
         const auto n = pd()->n_inputs();

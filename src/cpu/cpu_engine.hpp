@@ -130,9 +130,8 @@ public:
 
 class cpu_engine_factory_t : public engine_factory_t {
 public:
-    virtual size_t count() const override { return 1; }
-    virtual status_t engine_create(
-            engine_t **engine, size_t index) const override {
+    size_t count() const override { return 1; }
+    status_t engine_create(engine_t **engine, size_t index) const override {
         assert(index == 0);
         *engine = new cpu_engine_t();
         return status::success;

@@ -22,13 +22,12 @@
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include "dnnl_threadpool_iface.hpp"
 class fake_threadpool : public dnnl::threadpool_iface {
-    virtual int get_num_threads() const override { return 1; }
-    virtual bool get_in_parallel() const override { return 0; }
-    virtual void parallel_for(
-            int n, const std::function<void(int, int)> &fn) override {
+    int get_num_threads() const override { return 1; }
+    bool get_in_parallel() const override { return 0; }
+    void parallel_for(int n, const std::function<void(int, int)> &fn) override {
         fn(0, 1);
     }
-    virtual uint64_t get_flags() const override { return 0; }
+    uint64_t get_flags() const override { return 0; }
 };
 #endif
 

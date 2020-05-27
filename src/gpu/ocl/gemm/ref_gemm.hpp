@@ -97,7 +97,7 @@ struct ref_gemm_t : public gpu_gemm_t {
 
         bool with_bias() const { return desc()->bias_type != data_type::undef; }
 
-        attr_info_t attr_info;
+        attr_info_t attr_info = {};
     };
 
     ref_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
@@ -127,7 +127,7 @@ struct ref_gemm_t : public gpu_gemm_t {
         return status::success;
     }
 
-    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
+    status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 protected:
     status_t init_res_storage(

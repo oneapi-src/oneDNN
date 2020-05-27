@@ -8,15 +8,15 @@
 # small test case to check GEMM and non-GEMM ops accuracy
 --skip-nonlinear=true,false
 --prop=FWD_D,BWD_DW
---alg=vanilla_rnn
---activation=relu,tanh,logistic
+--alg=VANILLA_RNN
+--activation=RELU,TANH,LOGISTIC
 --batch=rnn_small
 
---activation=undef
---alg=vanilla_lstm
+--activation=UNDEF
+--alg=VANILLA_LSTM
 --with-peephole=false,true
 --batch=rnn_small
---alg=vanilla_gru,lbr_gru
+--alg=VANILLA_GRU,LBR_GRU
 --with-peephole=false
 --batch=rnn_small
 

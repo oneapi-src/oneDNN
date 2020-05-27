@@ -120,6 +120,7 @@ private:
 
     Xbyak::Opmask full_mask = Xbyak::Opmask(7);
     Xbyak::Opmask half_mask = Xbyak::Opmask(6);
+    Xbyak::Opmask half_mask_hi = Xbyak::Opmask(5);
     Xbyak::Label dst_prm_table;
 
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
@@ -135,6 +136,41 @@ private:
 
     void generate();
     static void balance(jit_1x1_conv_conf_t &jcp, int nthreads);
+    inline bool is_bcast_layout_nxc() {
+        switch (jcp.prop_kind) {
+            case prop_kind::forward_training:
+            case prop_kind::forward_inference:
+                return utils::one_of(jcp.src_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+            case prop_kind::backward_data:
+                return utils::one_of(jcp.dst_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+            case prop_kind::backward_weights:
+                return jcp.uses_permw_transposition
+                        && utils::one_of(jcp.src_tag, format_tag::ndhwc,
+                                format_tag::nhwc, format_tag::nwc);
+            default: assert(!"invalid prop_kind"); return false;
+        }
+    }
+    inline bool is_load_layout_nxc() {
+        return jcp.prop_kind == prop_kind::backward_weights
+                && jcp.uses_permw_transposition
+                && utils::one_of(jcp.dst_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+    }
+    inline bool is_out_layout_nxc() {
+        switch (jcp.prop_kind) {
+            case prop_kind::forward_training:
+            case prop_kind::forward_inference:
+                return utils::one_of(jcp.dst_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+            case prop_kind::backward_data:
+                return utils::one_of(jcp.src_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+            case prop_kind::backward_weights: return false;
+            default: assert(!"invalid prop_kind"); return false;
+        }
+    }
 
     bf16_emulation_t *bf16_emu_;
 };

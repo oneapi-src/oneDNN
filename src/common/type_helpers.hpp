@@ -86,6 +86,25 @@ inline size_t data_type_size(data_type_t data_type) {
     return 0; /* not supposed to be reachable */
 }
 
+template <typename T>
+inline T max_value(data_type_t data_type) {
+    using namespace data_type;
+#define CASE(x) \
+    case x: \
+        return static_cast<T>(nstl::numeric_limits<prec_traits<x>::type>::max())
+    switch (data_type) {
+        CASE(f16);
+        CASE(bf16);
+        CASE(s32);
+        CASE(s8);
+        CASE(u8);
+        case data_type::undef:
+        default: assert(!"unknown data_type");
+    }
+    return static_cast<T>(0); /* not supposed to be reachable */
+#undef CASE
+}
+
 inline format_kind_t format_tag_to_kind(format_tag_t tag) {
     switch (tag) {
         case format_tag::undef: return format_kind::undef;

@@ -220,7 +220,8 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
     };
 
     auto init_reduce = [&]() {
-        p.reduce_dim = this_block_size(0, jcp.ic, jcp.ic);
+        p.reduce_dim = this_block_size(
+                0, jcp.ic_without_padding, jcp.ic_without_padding);
         rp.icb = p.reduce_dim;
     };
 

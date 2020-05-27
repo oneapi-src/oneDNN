@@ -92,8 +92,12 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         const char *kernel_name = nullptr;
-        if (pd()->conf.is_nhwc && pd()->conf.src_data_type == data_type::f32) {
-            kernel_name = "gen9_conv_nhwc_fwd_f32";
+
+        if (pd()->conf.is_nhwc
+                && utils::one_of(pd()->conf.src_data_type, data_type::f32,
+                        data_type::f16)) {
+            kernel_name = "gen9_conv_nhwc_fwd";
+
         } else if (pd()->conf.is_depthwise) {
             kernel_name = "gen9_conv_dw_fwd";
         } else if (utils::one_of(pd()->desc()->src_desc.data_type,
@@ -113,7 +117,7 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -197,7 +201,7 @@ struct gen9_convolution_bwd_data_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
 
@@ -267,7 +271,7 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
     }
 

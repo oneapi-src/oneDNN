@@ -560,7 +560,7 @@ int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
 
-    dnnl_primitive_t c;
+    dnnl_primitive_t c {};
     // TODO: align init_pd interface with a common one which is used
     // in the rest of the benchdnn drivers
     auto init_pd = [&](const engine_t &engine_tgt, const prb_t *p,
@@ -615,7 +615,7 @@ int doit(const prb_t *p, res_t *r) {
 
     // Try to use CPU primitive as the reference in GPU testing to reduce
     // testing time
-    dnnl_primitive_t c_ref = nullptr;
+    dnnl_primitive_t c_ref {};
     engine_t engine_cpu(dnnl_cpu);
 
     if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu) {

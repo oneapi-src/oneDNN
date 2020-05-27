@@ -118,7 +118,7 @@ struct ref_matmul_t : public gpu_primitive_t {
         data_type_t dst_dt_ = data_type::undef;
         data_type_t wei_dt_ = data_type::undef;
 
-        attr_info_t attr_info_;
+        attr_info_t attr_info_ = {};
 
     private:
         bool attr_oscale_ok() const {
@@ -180,7 +180,7 @@ struct ref_matmul_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_ref(ctx);
     }
 

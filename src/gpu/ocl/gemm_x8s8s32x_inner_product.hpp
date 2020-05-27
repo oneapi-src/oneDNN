@@ -217,7 +217,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
         memory_desc_t scales_md_;
         memory_desc_t ip_scratchpad_md_;
 
-        attr_info_t attr_info_;
+        attr_info_t attr_info_ = {};
 
     private:
         void init_scratchpad() {
@@ -275,7 +275,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 

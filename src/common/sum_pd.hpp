@@ -50,11 +50,11 @@ struct sum_pd_t : public primitive_desc_t {
     }
 
     const sum_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override {
+    const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (arg >= DNNL_ARG_MULTIPLE_SRC
                 && arg < DNNL_ARG_MULTIPLE_SRC + n_inputs())
             return arg_usage_t::input;
@@ -64,25 +64,25 @@ struct sum_pd_t : public primitive_desc_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         int src_index = arg - DNNL_ARG_MULTIPLE_SRC;
         if (src_index >= 0 && src_index < n_inputs()) return src_md(src_index);
         if (arg == DNNL_ARG_DST) return dst_md(0);
         return primitive_desc_t::arg_md(arg);
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(int index = 0) const override {
         return index < n_inputs() ? &src_mds_[index] : &glob_zero_md;
     }
-    virtual const memory_desc_t *dst_md(int index = 0) const override {
+    const memory_desc_t *dst_md(int index = 0) const override {
         return index == 0 ? &dst_md_ : &glob_zero_md;
     }
     const memory_desc_t *dst_acc_md() const {
         return need_output_reorder() ? &dst_acc_md_ : &dst_md_;
     }
 
-    virtual int n_inputs() const override { return n_; }
-    virtual int n_outputs() const override { return 1; }
+    int n_inputs() const override { return n_; }
+    int n_outputs() const override { return 1; }
 
     const float *scales() const { return &scales_[0]; }
 
@@ -158,14 +158,14 @@ protected:
         _pd->init_scratchpad_md(); \
         return safe_ptr_assign<sum_pd_t>(*sum_pd, _pd); \
     } \
-    virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
+    status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
             engine_t *engine, bool is_primitive_nested) const override { \
         return primitive_t::create_primitive_common<__VA_ARGS__, pd_t>( \
                 primitive, this, engine, false, is_primitive_nested); \
     } \
-    virtual pd_t *clone() const override { return new pd_t(*this); } \
-    virtual const char *name() const override { return impl_name; } \
-    virtual std::type_index impl_id() const override { return typeid(pd_t); }
+    pd_t *clone() const override { return new pd_t(*this); } \
+    const char *name() const override { return impl_name; } \
+    std::type_index impl_id() const override { return typeid(pd_t); }
 
 #define DECLARE_SUM_PD_T(impl_name, ...) \
     DECLARE_SUM_PD_t(impl_name, __VA_ARGS__)

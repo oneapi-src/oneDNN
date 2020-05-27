@@ -19,6 +19,11 @@
 #include "cpu/ref_resampling.hpp"
 #include "cpu/simple_resampling.hpp"
 
+#if DNNL_X64
+#include "cpu/x64/jit_avx512_common_resampling.hpp"
+using namespace dnnl::impl::cpu::x64;
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -30,8 +35,14 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 static const pd_create_f impl_list[] = {
+        CPU_INSTANCE_X64(jit_avx512_common_resampling_fwd_t<f32>)
+        CPU_INSTANCE_X64(jit_avx512_common_resampling_fwd_t<bf16>)
+        CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t<f32>)
+        CPU_INSTANCE_X64(jit_avx512_common_resampling_bwd_t<bf16>)
         CPU_INSTANCE(simple_resampling_fwd_t<f32>)
+        CPU_INSTANCE(simple_resampling_fwd_t<bf16>)
         CPU_INSTANCE(simple_resampling_bwd_t<f32>)
+        CPU_INSTANCE(simple_resampling_bwd_t<bf16>)
         CPU_INSTANCE(ref_resampling_fwd_t<f32>)
         CPU_INSTANCE(ref_resampling_fwd_t<bf16>)
         CPU_INSTANCE(ref_resampling_bwd_t<f32>)

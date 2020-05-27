@@ -64,7 +64,8 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
                 init_default_ws();
 
             auto scratchpad = scratchpad_registry().registrar();
-            return jit_uni_pool_kernel<isa>::init_conf(jpp_, scratchpad, this);
+            return jit_uni_pool_kernel<isa>::init_conf(
+                    jpp_, scratchpad, this, dnnl_get_max_threads());
         }
 
         jit_pool_conf_t jpp_;
@@ -77,7 +78,7 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
 
     using data_t = typename prec_traits<d_type>::type;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
         auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
         auto ws = CTX_OUT_MEM(char *, DNNL_ARG_WORKSPACE);
@@ -126,7 +127,8 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
             auto scratchpad = scratchpad_registry().registrar();
-            return jit_uni_pool_kernel<isa>::init_conf(jpp_, scratchpad, this);
+            return jit_uni_pool_kernel<isa>::init_conf(
+                    jpp_, scratchpad, this, dnnl_get_max_threads());
         }
 
         jit_pool_conf_t jpp_;
@@ -139,7 +141,7 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
 
     using data_t = typename prec_traits<d_type>::type;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
         auto ws = CTX_IN_MEM(const char *, DNNL_ARG_WORKSPACE);
         auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);

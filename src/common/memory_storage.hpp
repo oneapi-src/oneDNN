@@ -106,17 +106,17 @@ private:
 struct empty_memory_storage_t : public memory_storage_t {
     empty_memory_storage_t() : memory_storage_t(nullptr) {}
 
-    virtual status_t get_data_handle(void **handle) const override {
+    status_t get_data_handle(void **handle) const override {
         *handle = nullptr;
         return status::success;
     }
 
-    virtual status_t set_data_handle(void *handle) override {
+    status_t set_data_handle(void *handle) override {
         assert(!"not expected");
         return status::runtime_error;
     }
 
-    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+    std::unique_ptr<memory_storage_t> get_sub_storage(
             size_t offset, size_t size) const override {
         assert(!"not expected");
         return nullptr;
@@ -128,7 +128,7 @@ struct empty_memory_storage_t : public memory_storage_t {
     }
 
 protected:
-    virtual status_t init_allocate(size_t) override { return status::success; }
+    status_t init_allocate(size_t) override { return status::success; }
 };
 
 inline memory_storage_t &memory_storage_t::empty_storage() {

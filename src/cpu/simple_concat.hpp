@@ -162,7 +162,7 @@ struct simple_concat_t : public primitive_t {
 
     simple_concat_t(const pd_t *apd) : primitive_t(apd) {}
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(const exec_ctx_t &ctx) const override;
 
     typedef typename prec_traits<data_type>::type data_t;
 

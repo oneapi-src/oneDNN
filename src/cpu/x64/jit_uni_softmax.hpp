@@ -92,7 +92,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
     jit_uni_softmax_fwd_t(const pd_t *apd);
     ~jit_uni_softmax_fwd_t();
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -155,7 +155,7 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
     jit_uni_softmax_bwd_t(const pd_t *apd);
     ~jit_uni_softmax_bwd_t();
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

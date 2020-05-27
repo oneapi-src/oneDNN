@@ -235,14 +235,14 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                 = (size_t *)malloc(sizeof(size_t) * offset_wei_sz, 64);
     }
 
-    virtual status_t init(engine_t *engine) override;
+    status_t init(engine_t *engine) override;
 
     ~_ref_rnn_common_t() {
         free(offset_wei_input_);
         free(offset_wei_state_);
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_(ctx);
     }
 

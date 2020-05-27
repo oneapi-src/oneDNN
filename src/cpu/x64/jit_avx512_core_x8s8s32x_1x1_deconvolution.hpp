@@ -138,7 +138,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         nested_scratchpad_t ns(
                 ctx, memory_tracking::names::key_nested, conv_p_);
         // XXX: create a new ctx for convolution?

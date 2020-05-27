@@ -84,11 +84,11 @@ struct reorder_pd_t : public primitive_desc_t {
     }
 
     const reorder_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override {
+    const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_FROM) return arg_usage_t::input;
 
         if (arg == DNNL_ARG_TO) return arg_usage_t::output;
@@ -96,7 +96,7 @@ struct reorder_pd_t : public primitive_desc_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_FROM: return src_md(0);
             case DNNL_ARG_TO: return dst_md(0);
@@ -104,15 +104,15 @@ struct reorder_pd_t : public primitive_desc_t {
         }
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(int index = 0) const override {
         return index == 0 ? &src_md_ : &glob_zero_md;
     }
-    virtual const memory_desc_t *dst_md(int index = 0) const override {
+    const memory_desc_t *dst_md(int index = 0) const override {
         return index == 0 ? &dst_md_ : &glob_zero_md;
     }
 
-    virtual int n_inputs() const override { return 1; }
-    virtual int n_outputs() const override { return 1; }
+    int n_inputs() const override { return 1; }
+    int n_outputs() const override { return 1; }
 
     float alpha() const { return attr()->output_scales_.scales_[0]; }
     float beta() const {

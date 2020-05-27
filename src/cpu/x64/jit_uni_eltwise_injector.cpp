@@ -1418,7 +1418,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     static const table_t gelu_tanh_consts {
             {gelu_tanh_fitting_const, {0, 0x3d372713}},
             {gelu_tanh_fitting_const_times_three, {1, 0x3e095d4f}},
-            {gelu_tanh_sqrt_two_over_pi, {2, 0x3f4c4229}},
+            {gelu_tanh_sqrt_two_over_pi, {2, 0x3f4c422a}},
     };
 
     // gelu_erf(x) constants (formula defined)

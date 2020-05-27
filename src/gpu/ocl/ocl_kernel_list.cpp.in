@@ -18,24 +18,24 @@
 #include <string>
 #include <unordered_map>
 
-#include "gpu/ocl/ocl_kernel_list.hpp"
-
-@OCL_KERNEL_LIST_EXTERN@
+#include "gpu/ocl/kernel_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-const char **get_ocl_kernel_source(const char *kernel_name) {
+@KER_LIST_EXTERN@
+
+const char **get_kernel_source(const char *name) {
     static const std::unordered_map<std::string, const char ** > kernel_list = {
-        @OCL_KERNEL_LIST_ENTRIES@
+        @KER_LIST_ENTRIES@
     };
 
-    if (!kernel_name) return nullptr;
+    if (!name) return nullptr;
 
-    assert(kernel_list.count(kernel_name) == 1);
-    return kernel_list.at(kernel_name);
+    assert(kernel_list.count(name) == 1);
+    return kernel_list.at(name);
 }
 
 } // namespace ocl

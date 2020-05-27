@@ -173,14 +173,25 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     // Idea behind filling: integer diff_dst values decrease norms unlike fp32
     // values in [-1.f, 1.f] range. To decrease norms more, make data pretty
     // sparse as answers sum all diff_dst values.
-    dnnl::impl::parallel(0, [&](int ithr, int nthr) {
-        int64_t chunk_size = (nelems + nthr - 1) / nthr;
-        int64_t idx_start = ithr * chunk_size;
+
+    /* Do fixed partitioning to have same filling for any number of threads */
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+
+    dnnl::impl::parallel_nd(n_chunks, [&](int idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
-        std::minstd_rand msr;
+
+        // Note: we use a different seed for each chunk to avoid
+        // repeating patterns. We could use discard(idx_start) too but
+        // it has a complexity in O(idx_start). We also add 1 to avoid
+        // seeding with 0.
+        std::minstd_rand msr(idx_start + 1);
+        msr.discard(1);
+
         std::uniform_int_distribution<> igen_val(-2, 2);
         std::uniform_int_distribution<> igen_coin(0, 256 * 1024);
-        msr.discard(idx_start);
+
         // at least 20 non-zero elems
         float sparsity = MAX2(0.05f, MIN2(1.f, 20.f / nelems));
 
@@ -444,7 +455,7 @@ int doit(const prb_t *p, res_t *r) {
     engine_t engine_tgt_fwd(engine_tgt_kind);
     engine_t engine_tgt_bwd(engine_tgt_kind);
 
-    dnnl_primitive_t b;
+    dnnl_primitive_t b {};
     SAFE(init_prim(&b, init_pd, engine_tgt_fwd, p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
@@ -544,7 +555,7 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     if (p->dir & FLAG_BWD) {
-        dnnl_primitive_t bwd_p;
+        dnnl_primitive_t bwd_p {};
         int status = init_prim(
                 &bwd_p, init_pd, engine_tgt_bwd, p, r, FLAG_BWD, const_fpd);
         dnnl_primitive_destroy(b);

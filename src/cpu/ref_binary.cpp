@@ -96,6 +96,7 @@ void ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
 
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
+    const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const auto alg = pd()->desc()->alg_kind;
 
@@ -145,7 +146,8 @@ void ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
     parallel_nd(nelems_A, [&](dim_t i) {
         auto off_A = src0_d.off_l(i);
         auto off_B = is_tensor_op ? src1_d.off_l(i) : map_idx_B(i);
-        perform_op(&dst[off_A], src0[off_A], src1[off_B], params);
+        auto off_C = dst_d.off_l(i);
+        perform_op(&dst[off_C], src0[off_A], src1[off_B], params);
     });
 }
 

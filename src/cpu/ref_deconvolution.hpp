@@ -190,11 +190,11 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
     ref_deconvolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    virtual status_t init(engine_t *engine) override {
+    status_t init(engine_t *engine) override {
         return pd()->conv_pd_->create_primitive(conv_p_, engine);
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         const auto &args = ctx.args();
         exec_args_t conv_args;
@@ -331,11 +331,11 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
 
     ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
-    virtual status_t init(engine_t *engine) override {
+    status_t init(engine_t *engine) override {
         return pd()->conv_pd_->create_primitive(conv_p_, engine);
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         const auto &args = ctx.args();
         exec_args_t conv_args;
@@ -459,11 +459,11 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
 
     ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
-    virtual status_t init(engine_t *engine) override {
+    status_t init(engine_t *engine) override {
         return pd()->conv_pd_->create_primitive(conv_p_, engine);
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         const auto &args = ctx.args();
         exec_args_t conv_args;

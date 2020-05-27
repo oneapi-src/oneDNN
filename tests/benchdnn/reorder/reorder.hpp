@@ -74,7 +74,7 @@ struct settings_t {
     std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
     std::vector<flag_t> oflag {FLAG_NONE};
     std::vector<unsigned> runtime_dim_mask {0};
-    alg_t alg = ALG_REF;
+    std::vector<alg_t> alg {ALG_REF};
     attr_t attr = {};
     bool allow_unimpl = false;
 
@@ -136,30 +136,22 @@ struct perf_report_t : public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_desc(std::ostream &s) const override {
+    void dump_desc(std::ostream &s) const override { s << p_->reorder.dims; }
+
+    void dump_desc_csv(std::ostream &s) const override {
         s << p_->reorder.dims;
     }
 
-    virtual void dump_desc_csv(std::ostream &s) const override {
-        s << p_->reorder.dims;
-    }
-
-    virtual void dump_flags(std::ostream &s) const override {
+    void dump_flags(std::ostream &s) const override {
         s << flag2str(p_->oflag);
     }
 
-    virtual double ops() const override { return p_->ops; }
-    virtual const attr_t *attr() const override { return &p_->attr; }
-    virtual const std::vector<dnnl_data_type_t> *sdt() const override {
-        return &sdt_;
-    }
-    virtual const dnnl_data_type_t *ddt() const override { return &ddt_; }
-    virtual const std::vector<std::string> *stag() const override {
-        return &stag_;
-    }
-    virtual const std::string *dtag() const override {
-        return &p_->reorder.tag_out;
-    }
+    double ops() const override { return p_->ops; }
+    const attr_t *attr() const override { return &p_->attr; }
+    const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }
+    const dnnl_data_type_t *ddt() const override { return &ddt_; }
+    const std::vector<std::string> *stag() const override { return &stag_; }
+    const std::string *dtag() const override { return &p_->reorder.tag_out; }
 
 private:
     const prb_t *p_ = NULL;

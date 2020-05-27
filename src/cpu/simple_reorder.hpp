@@ -139,10 +139,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const int oc = input_d.dims()[oc_idx];
         const int g = w_groups ? (input_d.dims()[0]) : 1;
 
+        const bool compensation_mask_ok
+                = output_d.extra().compensation_mask == (w_groups ? 0x3 : 0x1);
+
         return simple_attr_check(attr, true, false)
                 && output_d.matches_tag(tag_o) && input_d.is_plain()
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
+                && compensation_mask_ok
                 && (input_d.data_type() == f32 || input_d.data_type() == s8)
                 && output_d.data_type() == s8
                 && (D_mask == 1 || D_mask == (size_t)g * oc);
@@ -263,10 +267,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const int oc = (input_d.dims()[w_groups ? 1 : 0]);
         const int g = w_groups ? input_d.dims()[0] : 1;
 
+        const bool compensation_mask_ok
+                = output_d.extra().compensation_mask == (w_groups ? 0x3 : 0x1);
+
         return simple_attr_check(attr, true, false)
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
+                && compensation_mask_ok
                 && (input_d.data_type() == f32 || input_d.data_type() == s8)
                 && output_d.data_type() == s8
                 && (D_mask == 1 || D_mask == (size_t)g * oc);
@@ -393,10 +401,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const size_t D_mask = utils::array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
-        const int oc = input_d.dims()[1];
-        const int g = input_d.dims()[0];
+        const dim_t g = input_d.dims()[0];
+        const dim_t oc = input_d.dims()[1];
+        const dim_t ic = input_d.dims()[2];
 
-        return order_keep && simple_attr_check(attr, true, false)
+        return order_keep && oc == 1 && ic == 1 // depth-wise case
+                && simple_attr_check(attr, true, false)
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
@@ -1386,7 +1396,7 @@ struct simple_reorder_t : public primitive_t {
 
     simple_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
                 pd(), ctx);
     }

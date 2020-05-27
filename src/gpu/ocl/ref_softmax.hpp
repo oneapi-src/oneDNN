@@ -136,7 +136,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_generic(ctx);
     }
 
@@ -214,7 +214,7 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
         return status::success;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_generic(ctx);
     }
 

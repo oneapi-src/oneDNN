@@ -72,14 +72,7 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
 
     const bool is_nspc
             = utils::one_of(dat_tag, format_tag::nwc, format_tag::nhwc);
-    if (is_nspc) {
-        if (!mayiuse(avx512_common)) return;
-        const size_t typesize = types::data_type_size(src_d->data_type);
-        if (!mayiuse(avx512_core)
-                && (typesize == sizeof(int8_t)
-                        || typesize == sizeof(bfloat16_t)))
-            return;
-    }
+    if (is_nspc && !mayiuse(avx2)) return;
 
     // rtus is applicable, configure it.
     self->rtus_.reduce_src_ = true;
@@ -150,6 +143,8 @@ struct rtus_driver_t : public jit_generator {
     Xbyak::Reg64 reg_cur_iw = r9;
     Xbyak::Reg64 reg_cur_src = r10;
     Xbyak::Reg64 reg_cur_src_fin = reg_cur_iw; /* just reuse */
+
+    Xbyak::Opmask tail_mask = k2;
 
     // nspc section
     Xbyak::Reg64 reg_cur_icb = rax;
@@ -304,46 +299,61 @@ struct rtus_driver_t : public jit_generator {
         mov(reg_cur_src, reg_src);
         mov(reg_cur_iw, reg_iw_start);
 
-        push(rcx); // preserve rcx, used for shift
-        mov(reg_icb_remainder, reg_icb);
-        and_(reg_icb_remainder,
-                (vlen_ / typesize_) - 1); // # of elements in tail
-        mov(reg_tail_mask, 1);
-        shl(reg_tail_mask, reg_icb_remainder.cvt8());
-        dec(reg_tail_mask);
-        pop(rcx);
+        if (isa == avx512_common) {
+            push(rcx); // preserve rcx, used for shift
+            mov(reg_icb_remainder, reg_icb);
+            and_(reg_icb_remainder,
+                    (vlen_ / typesize_) - 1); // # of elements in tail
+            mov(reg_tail_mask, 1);
+            shl(reg_tail_mask, reg_icb_remainder.cvt8());
+            dec(reg_tail_mask);
+            pop(rcx);
 
-        Opmask tail_mask = k2;
-        switch (typesize_) {
-            case 4: kmovw(tail_mask, reg_tail_mask.cvt32()); break;
-            case 2: kmovd(tail_mask, reg_tail_mask.cvt32()); break;
-            case 1: kmovq(tail_mask, reg_tail_mask); break;
-            default: assert(!"Unsupported typesize");
+            switch (typesize_) {
+                case 4: kmovw(tail_mask, reg_tail_mask.cvt32()); break;
+                case 2: kmovd(tail_mask, reg_tail_mask.cvt32()); break;
+                case 1: kmovq(tail_mask, reg_tail_mask); break;
+                default: assert(!"Unsupported typesize");
+            }
         }
 
-        auto load_reg
-                = [=](const Xbyak::Xmm &vreg, const Xbyak::Address &addr) {
-                      switch (typesize_) {
-                          case 4: vmovups(vreg, addr); break;
-                          case 2: vmovdqu16(vreg, addr); break;
-                          case 1: vmovdqu8(vreg, addr); break;
-                          default: assert(!"Unsupported typesize");
-                      }
-                  };
+        auto load_reg = [=](const Xmm &vreg, const Reg64 &reg,
+                                const int64_t offset, const int load_size) {
+            if (isa == avx512_common) {
+                const Address &addr = ptr[reg + offset];
+                switch (typesize_) {
+                    case 4: vmovups(vreg, addr); break;
+                    case 2: vmovdqu16(vreg, addr); break;
+                    case 1: vmovdqu8(vreg, addr); break;
+                    default: assert(!"Unsupported typesize");
+                }
+            } else {
+                load_bytes(vreg, reg, offset, load_size);
+            }
+        };
 
-        auto store_reg
-                = [=](const Xbyak::Address &addr, const Xbyak::Xmm &vreg) {
-                      switch (typesize_) {
-                          case 4: vmovups(addr, vreg); break;
-                          case 2: vmovdqu16(addr, vreg); break;
-                          case 1: vmovdqu8(addr, vreg); break;
-                          default: assert(!"Unsupported typesize");
-                      }
-                  };
+        auto store_reg = [=](const Reg64 &reg, const Xmm &vreg,
+                                 const int64_t offset, const int store_size) {
+            if (isa == avx512_common) {
+                const Address &addr = ptr[reg + offset];
+                switch (typesize_) {
+                    case 4: vmovups(addr, vreg); break;
+                    case 2: vmovdqu16(addr, vreg); break;
+                    case 1: vmovdqu8(addr, vreg); break;
+                    default: assert(!"Unsupported typesize");
+                }
+            } else {
+                store_bytes(vreg, reg, offset, store_size);
+            }
+        };
 
         mov(reg_ws_copy, reg_ws);
         shl(reg_icb, vlen_shift_);
+
         const size_t w_step_factor = ic_ * typesize_;
+        const size_t max_load_store_bytes = 16;
+        const size_t load_store_size
+                = isa == avx512_common ? vlen_ : max_load_store_bytes;
 
         Label is_loop, ic_loop, ic_loop_tail, ic_loop_finish;
         L(is_loop);
@@ -354,23 +364,23 @@ struct rtus_driver_t : public jit_generator {
 
             L(ic_loop);
             {
-                cmp(reg_cur_icb, vlen_);
+                cmp(reg_cur_icb, load_store_size);
                 jl(ic_loop_tail);
 
                 if (src_to_ws_) {
-                    load_reg(reg_v, ptr[reg_cur_src]);
-                    store_reg(ptr[reg_ws], reg_v);
+                    load_reg(reg_v, reg_cur_src, 0, load_store_size);
+                    store_reg(reg_ws, reg_v, 0, load_store_size);
                 } else {
-                    load_reg(reg_v, ptr[reg_ws]);
-                    store_reg(ptr[reg_cur_src], reg_v);
+                    load_reg(reg_v, reg_ws, 0, load_store_size);
+                    store_reg(reg_cur_src, reg_v, 0, load_store_size);
                     for (int w = 1; w < stride_w_; ++w)
-                        store_reg(
-                                ptr[reg_cur_src + w * w_step_factor], reg_zero);
+                        store_reg(reg_cur_src, reg_zero, w * w_step_factor,
+                                load_store_size);
                 }
-                add(reg_ws, vlen_);
-                add(reg_cur_src, vlen_);
+                add(reg_ws, load_store_size);
+                add(reg_cur_src, load_store_size);
 
-                sub(reg_cur_icb, vlen_);
+                sub(reg_cur_icb, load_store_size);
                 jmp(ic_loop);
             }
 
@@ -380,14 +390,16 @@ struct rtus_driver_t : public jit_generator {
                 je(ic_loop_finish);
 
                 if (src_to_ws_) {
-                    load_reg(reg_v | tail_mask, ptr[reg_cur_src]);
-                    store_reg(ptr[reg_ws], reg_v | tail_mask);
+                    load_reg(
+                            reg_v | tail_mask, reg_cur_src, 0, load_store_size);
+                    store_reg(reg_ws, reg_v | tail_mask, 0, load_store_size);
                 } else {
-                    load_reg(reg_v | tail_mask, ptr[reg_ws]);
-                    store_reg(ptr[reg_cur_src], reg_v | tail_mask);
+                    load_reg(reg_v | tail_mask, reg_ws, 0, load_store_size);
+                    store_reg(
+                            reg_cur_src, reg_v | tail_mask, 0, load_store_size);
                     for (int w = 1; w < stride_w_; ++w)
-                        store_reg(ptr[reg_cur_src + w * w_step_factor],
-                                reg_zero | tail_mask);
+                        store_reg(reg_cur_src, reg_zero | tail_mask,
+                                w * w_step_factor, load_store_size);
                 }
             }
             L(ic_loop_finish);
@@ -402,26 +414,39 @@ struct rtus_driver_t : public jit_generator {
                 Label skip_h_step;
                 add(reg_cur_iw, stride_w_);
                 cmp(reg_cur_iw, iw_);
-                jl(skip_h_step);
+                jl(skip_h_step, T_NEAR);
 
                 if (src_to_ws_) {
                     add(reg_src, (src_step_h_ - iw_) * w_step_factor);
                 } else {
                     mov(reg_cur_src_fin, reg_cur_src);
                     add(reg_cur_src_fin, (src_step_h_ - iw_) * w_step_factor);
-                    Label ih_loop_nhwc, ic_ih_loop_nhwc;
+                    Label ih_loop_nhwc, ic_ih_loop_nhwc, ic_tail_ih_loop_nhwc,
+                            ic_finish_ih_loop_nhwc;
                     L(ih_loop_nhwc);
                     mov(reg_cur_src, reg_src);
                     mov(reg_cur_icb, reg_icb);
                     L(ic_ih_loop_nhwc);
+                    cmp(reg_cur_icb, load_store_size);
+                    jl(ic_tail_ih_loop_nhwc);
 
                     for (int w = 0; w < stride_w_; ++w)
-                        store_reg(
-                                ptr[reg_cur_src + w * w_step_factor], reg_zero);
+                        store_reg(reg_cur_src, reg_zero, w * w_step_factor,
+                                load_store_size);
 
-                    add(reg_cur_src, vlen_);
-                    sub(reg_cur_icb, vlen_);
+                    add(reg_cur_src, load_store_size);
+                    sub(reg_cur_icb, load_store_size);
                     jnz(ic_ih_loop_nhwc);
+
+                    L(ic_tail_ih_loop_nhwc);
+                    cmp(reg_cur_icb, 0);
+                    jle(ic_finish_ih_loop_nhwc);
+
+                    for (int w = 0; w < stride_w_; ++w)
+                        store_reg(reg_cur_src, reg_zero | tail_mask,
+                                w * w_step_factor, load_store_size);
+
+                    L(ic_finish_ih_loop_nhwc);
 
                     add(reg_src, stride_w_ * w_step_factor);
                     cmp(reg_src, reg_cur_src_fin);

@@ -54,6 +54,14 @@ bool has_data_type_support(data_type_t data_type) {
     }
 }
 
+float s8s8_weights_scale_factor() {
+#if DNNL_X64
+    return x64::mayiuse(x64::avx512_core_vnni) ? 1.0f : 0.5f;
+#else
+    return 1.0f;
+#endif
+}
+
 unsigned get_per_core_cache_size(int level) {
     auto guess = [](int level) {
         switch (level) {

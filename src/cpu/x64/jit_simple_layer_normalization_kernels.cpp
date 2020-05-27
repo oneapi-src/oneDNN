@@ -35,8 +35,7 @@ struct jit_statistics_kernel_t : statistics_kernel_t, jit_generator {
         generate();
     }
 
-    virtual void operator()(
-            const float *src, float *mean, float *var) const override {
+    void operator()(const float *src, float *mean, float *var) const override {
         assert(ker_);
         ker_args_t args;
         args.src = src;
@@ -168,7 +167,7 @@ struct jit_data_kernel_t : data_kernel_t, jit_generator {
         generate();
     }
 
-    virtual void operator()(const float *src, float *dst, const float *ss,
+    void operator()(const float *src, float *dst, const float *ss,
             const float *mean, const float *var) const override {
         assert(ker_);
         ker_args_t args;
@@ -280,8 +279,8 @@ struct jit_diff_ss_kernel_t : diff_ss_kernel_t, jit_generator {
         generate();
     }
 
-    virtual void operator()(const float *src, const float *diff_dst,
-            float *diff_gamma, float *diff_beta, const float *mean,
+    void operator()(const float *src, const float *diff_dst, float *diff_gamma,
+            float *diff_beta, const float *mean,
             const float *var) const override {
         assert(ker_);
         ker_args_t args;
@@ -398,8 +397,8 @@ struct jit_diff_data_kernel_t : diff_data_kernel_t, jit_generator {
         generate();
     }
 
-    virtual void operator()(const float *src, const float *diff_dst,
-            float *diff_src, const float *ss, const float *mean,
+    void operator()(const float *src, const float *diff_dst, float *diff_src,
+            const float *ss, const float *mean,
             const float *var) const override {
         assert(ker_);
         ker_args_t args;

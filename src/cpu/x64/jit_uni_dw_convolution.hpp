@@ -82,7 +82,7 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<src_type>::type data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
     }
@@ -161,7 +161,7 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<diff_dst_type>::type wei_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_data(ctx);
         return status::success;
     }
@@ -251,7 +251,7 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<src_type>::type diff_dst_data_t;
     typedef typename prec_traits<diff_weights_type>::type diff_weights_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights(ctx);
         execute_reduction(ctx);
         return status::success;

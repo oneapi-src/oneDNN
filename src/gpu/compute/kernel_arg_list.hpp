@@ -36,6 +36,7 @@ enum class kernel_arg_kind_t {
     global,
     local,
     scalar,
+    svm,
 };
 
 enum class scalar_type_t {
@@ -113,6 +114,7 @@ public:
 
     bool is_global() const { return kind() == kernel_arg_kind_t::global; }
     bool is_local() const { return kind() == kernel_arg_kind_t::local; }
+    bool is_svm_pointer() const { return kind_ == kernel_arg_kind_t::svm; }
 
     kernel_arg_t &set_value(const memory_storage_t &storage) {
         kind_ = kernel_arg_kind_t::global;
@@ -139,6 +141,13 @@ public:
         size_ = size;
         value_ = nullptr;
         return *this;
+    }
+
+    void set_value(void *svm_ptr, kernel_arg_kind_t kind) {
+        assert(kind == kernel_arg_kind_t::svm);
+        kind_ = kernel_arg_kind_t::svm;
+        size_ = 0;
+        value_ = svm_ptr;
     }
 
     const void *value() const {
@@ -173,6 +182,12 @@ public:
         assert(index < max_args);
         nargs_ = nstl::max(nargs_, index + 1);
         args_[index].set_value(storage);
+    }
+
+    void set(int index, void *value, kernel_arg_kind_t kind) {
+        assert(index < max_args);
+        nargs_ = nstl::max(nargs_, index + 1);
+        args_[index].set_value(value, kind);
     }
 
     template <class T,

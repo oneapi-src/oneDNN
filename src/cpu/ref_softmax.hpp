@@ -83,7 +83,7 @@ struct ref_softmax_fwd_t : public primitive_t {
 
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         if (use_dense_)
             execute_forward_dense(ctx);
         else
@@ -141,7 +141,7 @@ struct ref_softmax_bwd_t : public primitive_t {
 
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         if (use_dense_)
             execute_backward_dense(ctx);
         else

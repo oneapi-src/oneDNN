@@ -30,7 +30,8 @@ MathJax.Hub.Config({
 	    diffdstiter: '\\operatorname{diff\\_dst\\_iter}',
 	    diffdstiterc: '\\operatorname{diff\\_dst\\_iter\\_c}',
 	    diffgamma: '\\operatorname{diff\\_\\gamma}',
-	    diffbeta: '\\operatorname{diff\\_\\beta}'
+	    diffbeta: '\\operatorname{diff\\_\\beta}',
+	    workspace: '\\operatorname{workspace}'
 	}
     }
 });

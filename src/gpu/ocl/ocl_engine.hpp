@@ -31,15 +31,14 @@ public:
         MAYBE_UNUSED(engine_kind);
     }
 
-    virtual size_t count() const override {
+    size_t count() const override {
         std::vector<cl_device_id> ocl_devices;
         status_t status = get_ocl_devices(&ocl_devices, CL_DEVICE_TYPE_GPU);
         if (status != status::success) return status;
         return ocl_devices.size();
     }
 
-    virtual status_t engine_create(
-            engine_t **engine, size_t index) const override {
+    status_t engine_create(engine_t **engine, size_t index) const override {
         status_t status;
         std::vector<cl_device_id> ocl_devices;
 

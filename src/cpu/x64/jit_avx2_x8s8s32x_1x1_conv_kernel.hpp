@@ -80,6 +80,7 @@ private:
     const Xbyak::Reg64 reg_reduce_loop_iter = r13;
     const Xbyak::Reg64 aux_reg_bcast_data = r14;
     const Xbyak::Reg64 aux_reg_load_data = r15;
+    const Xbyak::Reg64 aux_reg_saturation = r15;
     const Xbyak::Reg64 reg_reduce_pos_flag = rax;
     const Xbyak::Reg64 aux1_reg_bcast_data = rbx;
     const Xbyak::Reg64 reg_bcast_loop_work = rbx;
@@ -92,6 +93,7 @@ private:
     const Xbyak::Ymm ymm_zero = Xbyak::Ymm(14);
     const Xbyak::Ymm ymm_shift = Xbyak::Ymm(14);
     const Xbyak::Ymm ymm_bcast = Xbyak::Ymm(15);
+    const Xbyak::Ymm ymm_saturation = Xbyak::Ymm(15);
 
     constexpr static int simd_w = 8;
     constexpr static int reg64_size = sizeof(int64_t);

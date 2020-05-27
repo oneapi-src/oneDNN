@@ -59,7 +59,8 @@ enum conv_harness_t {
     harness_2d_reduction,
     harness_3d_reduction,
     harness_mb_reduction,
-    harness_compute_full_spatial
+    harness_compute_full_spatial,
+    harness_nxc
 };
 
 enum {
@@ -125,8 +126,10 @@ struct jit_conv_conf_t {
     int nb_ic_L2;
     int h_blocking;
     int nb_oc_L2;
+    int ic_tail, oc_tail;
     int ur_h, ur_w;
     int ur_w_tail;
+    int ur_ic, ur_kw;
     bool is_1stconv;
     int nonblk_group_off;
     /* fma avx512_core */
@@ -176,6 +179,7 @@ struct jit_conv_conf_t {
     int oh_blk_size;
     // s8s8 convolution
     bool signed_input;
+    bool need_saturation;
     float wei_adj_scale;
 
     bool uses_permw_transposition;
@@ -374,6 +378,10 @@ struct jit_conv_call_s {
     size_t ur_str_w;
     size_t ch_blocks;
     size_t ch_blocks_prf;
+    size_t reduce_work;
+    size_t reduce_work_prf;
+    size_t load_work;
+    size_t load_work_prf;
     size_t t_overflow;
     size_t b_overflow;
     size_t f_overflow;
@@ -520,9 +528,9 @@ struct jit_pool_conf_t {
     data_type_t ind_dt;
 
     int c_block, c_tail, nb_c;
+    int ur_bc, ur_bc_tail;
     int ur_c, ur_c_tail;
-    int ur_w;
-    int ur_w_tail;
+    int ur;
     size_t tail[4];
     bool safe_c_tail;
     data_type_t src_dt;
@@ -545,7 +553,9 @@ struct jit_pool_call_s {
     const void *src_prf;
     const void *dst_prf;
     const void *indices_prf;
-    size_t oh;
+    size_t zero_ih;
+    size_t zero_id;
+    const void *zero_ptr;
     size_t kd_padding;
     size_t kh_padding;
     size_t kh_padding_shift;
@@ -553,6 +563,7 @@ struct jit_pool_call_s {
     size_t kw_padding;
     const void *init_value;
     float ker_area_h;
+    size_t ur_bc;
 };
 
 } // namespace x64

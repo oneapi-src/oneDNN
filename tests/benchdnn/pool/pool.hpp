@@ -85,7 +85,7 @@ struct settings_t {
         this->perf_template = perf_template;
     }
 
-    desc_t desc;
+    desc_t desc {};
 
     std::vector<dir_t> dir {FWD_D};
     std::vector<const dt_conf_t *> cfg {conf_f32};
@@ -129,17 +129,15 @@ struct perf_report_t : public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_alg(std::ostream &s) const override {
-        s << alg2str(p_->alg);
-    }
+    void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
 
-    virtual void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
+    void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
 
-    virtual void dump_desc(std::ostream &s) const override {
+    void dump_desc(std::ostream &s) const override {
         s << static_cast<const desc_t &>(*p_);
     }
 
-    virtual void dump_desc_csv(std::ostream &s) const override {
+    void dump_desc_csv(std::ostream &s) const override {
         s << p_->mb << ','
 
           << p_->ic << ',' << p_->id << ',' << p_->ih << ',' << p_->iw << ','
@@ -153,9 +151,9 @@ struct perf_report_t : public base_perf_report_t {
           << p_->pd << ',' << p_->ph << ',' << p_->pw;
     }
 
-    virtual const char *name() const override { return p_->name; }
-    virtual const dir_t *dir() const override { return &p_->dir; }
-    virtual const std::string *tag() const override { return &p_->tag; }
+    const char *name() const override { return p_->name; }
+    const dir_t *dir() const override { return &p_->dir; }
+    const std::string *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;

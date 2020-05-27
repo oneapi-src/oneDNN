@@ -98,19 +98,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
     auto bcast_ptr = [=](int u, int j) {
         assert(j < jcp.ur);
         assert(u <= jcp.reduce_loop_unroll);
-        size_t offt;
-        if (one_of(jcp.prop_kind, forward_training, forward_inference,
-                    backward_data)) {
-            assert(jcp.reduce_loop_unroll == (jcp.prop_kind == backward_data)
-                            ? jcp.oc_block
-                            : jcp.ic_block);
-            auto height = (jcp.prop_kind == backward_data) ? jcp.os : jcp.is;
-            offt = (u == jcp.reduce_loop_unroll)
-                    ? (height + j) * jcp.reduce_loop_unroll
-                    : j * jcp.reduce_loop_unroll + u;
-        } else
-            offt = u * jcp.ic_block + j;
-        return ptr[aux_reg_bcast_data + sizeof(float) * offt];
+        return ptr[aux_reg_bcast_data + get_bcast_offset(u, j)];
     };
 
     auto load_ptr = [=](int u, int i) {
@@ -121,9 +109,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
             case backward_data:
                 offt = (i * jcp.oc_block + u0) * jcp.ic_block;
                 break;
-            case backward_weights:
-                offt = (i * jcp.os + u0) * jcp.oc_block;
-                break;
+            case backward_weights: offt = get_bwd_w_load_offset(i, u0); break;
             default: offt = (i * jcp.ic + u0) * jcp.oc_block;
         }
         return ptr[aux_reg_load_data + u1 * jcp.reduce_loop_load_step
@@ -132,18 +118,17 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
 
     auto output_ptr = [=](int i, int j) {
         switch (jcp.prop_kind) {
-            case backward_data:
-                return ptr[aux_reg_output_data
-                        + (i * jcp.is + j) * jcp.ic_block * sizeof(float)];
             case backward_weights:
                 return ptr[aux_reg_output_data
                         + (i ? reg_output_stride * i
                              : 0) // TODO: Xbyak should allow 0 scale
                         + sizeof(float) * jcp.oc_block * j];
+            case backward_data:
             default:
                 return ptr[aux_reg_output_data
-                        + (i * (jcp.with_dw_conv ? jcp.ow : jcp.os) + j)
-                                * jcp.oc_block * sizeof(float)];
+                        + (i * get_output_i_offset()
+                                  + j * get_output_j_offset())
+                                * sizeof(float)];
         }
     };
 
@@ -342,12 +327,11 @@ void jit_avx2_1x1_conv_kernel_f32::generate() {
                 add(reg_bias_data,
                         load_loop_blk * jcp.oc_block * sizeof(float));
                 add(reg_output_data,
-                        load_loop_blk * (jcp.with_dw_conv ? jcp.ow : jcp.os)
-                                * jcp.oc_block * sizeof(float));
+                        get_load_loop_output_fwd_offset(load_loop_blk));
                 break;
             case backward_data:
                 add(reg_output_data,
-                        load_loop_blk * jcp.is * jcp.ic_block * sizeof(float));
+                        get_load_loop_output_bwd_d_offset(load_loop_blk));
                 break;
             case backward_weights:
                 for (int i = 0; i < load_loop_blk; i++)
@@ -502,20 +486,30 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
             return status::unimplemented;
     }
 
-    const int is_bwd_d = jcp.prop_kind == backward_data;
+    const auto dat_tag_nxc = utils::pick(ndims - 3, nwc, nhwc, ndhwc);
+    const auto dat_tag_blocked = utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+    if (src_d.matches_tag(dat_tag_nxc)) {
+        if (!dst_d.matches_tag(dat_tag_nxc)) return status::unimplemented;
+        jcp.src_tag = jcp.dst_tag = dat_tag_nxc;
+    } else {
+        jcp.src_tag = jcp.dst_tag = dat_tag_blocked;
+    }
+    const bool is_data_layout_nxc
+            = utils::everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);
+    const auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_blocked;
 
-    format_tag_t dat_tag = utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+    const int is_bwd_d = jcp.prop_kind == backward_data;
     format_tag_t wei_tag = with_groups
             ? utils::pick(2 * ndims - 6 + is_bwd_d, gOIw8i8o, gOIw8o8i,
                     gOIhw8i8o, gOIdhw8o8i, gOIhw8i8o, gOIdhw8o8i)
             : utils::pick(2 * ndims - 6 + is_bwd_d, OIw8i8o, OIw8o8i, OIhw8i8o,
                     OIhw8o8i, OIdhw8i8o, OIdhw8o8i);
-
-    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
-    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
     jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
 
     const int simd_w = 8;
+
+    if (is_data_layout_nxc && (jcp.ic % simd_w != 0 || jcp.oc % simd_w != 0))
+        return status::unimplemented;
 
     jcp.oc = rnd_up(jcp.oc, simd_w);
     jcp.ic = rnd_up(jcp.ic, simd_w);
@@ -558,14 +552,16 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.bcast_block = jcp.ur;
 
         jcp.reduce_loop_unroll = jcp.reduce_block;
-        jcp.reduce_loop_bcast_step
-                = jcp.reduce_loop_unroll * jcp.is * sizeof(float);
+        jcp.reduce_loop_bcast_step = jcp.reduce_loop_unroll
+                * (is_data_layout_nxc ? 1 : jcp.is) * sizeof(float);
         jcp.reduce_loop_load_step
                 = jcp.reduce_loop_unroll * jcp.oc_block * sizeof(float);
 
-        jcp.bcast_loop_output_step = jcp.ur * jcp.oc_block * sizeof(float);
+        jcp.bcast_loop_output_step = jcp.ur
+                * (is_data_layout_nxc ? jcp.oc : jcp.oc_block) * sizeof(float);
         jcp.bcast_loop_output_substep = -1; // unused
-        jcp.bcast_loop_bcast_step = jcp.ur * jcp.ic_block * sizeof(float);
+        jcp.bcast_loop_bcast_step = jcp.ur
+                * (is_data_layout_nxc ? jcp.ic : jcp.ic_block) * sizeof(float);
         jcp.bcast_loop_bcast_substep = -1; // unused
 
         jcp.load_loop_load_step = jcp.ic * jcp.oc_block * sizeof(float);
@@ -581,20 +577,22 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.reduce_block = jcp.oc_block;
 
         jcp.load_dim = jcp.ic;
-        jcp.load_block = jcp.oc_block;
+        jcp.load_block = jcp.ic_block;
 
         jcp.bcast_dim = jcp.os;
         jcp.bcast_block = jcp.ur;
 
         jcp.reduce_loop_unroll = jcp.reduce_block;
-        jcp.reduce_loop_bcast_step
-                = jcp.reduce_loop_unroll * jcp.os * sizeof(float);
+        jcp.reduce_loop_bcast_step = jcp.reduce_loop_unroll
+                * (is_data_layout_nxc ? 1 : jcp.os) * sizeof(float);
         jcp.reduce_loop_load_step
                 = jcp.reduce_loop_unroll * jcp.ic * sizeof(float);
 
-        jcp.bcast_loop_output_step = jcp.ur * jcp.ic_block * sizeof(float);
+        jcp.bcast_loop_output_step = jcp.ur
+                * (is_data_layout_nxc ? jcp.ic : jcp.ic_block) * sizeof(float);
         jcp.bcast_loop_output_substep = -1; // unused
-        jcp.bcast_loop_bcast_step = jcp.ur * jcp.oc_block * sizeof(float);
+        jcp.bcast_loop_bcast_step = jcp.ur
+                * (is_data_layout_nxc ? jcp.oc : jcp.oc_block) * sizeof(float);
         jcp.bcast_loop_bcast_substep = -1; // unused
 
         jcp.load_loop_load_step = jcp.oc_block * jcp.ic_block * sizeof(float);
@@ -616,18 +614,20 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.bcast_block = jcp.ic_block;
 
         jcp.reduce_loop_unroll = jcp.reduce_block;
-        jcp.reduce_loop_bcast_step
-                = jcp.reduce_loop_unroll * jcp.ic_block * sizeof(float);
-        jcp.reduce_loop_load_step
-                = jcp.reduce_loop_unroll * jcp.oc_block * sizeof(float);
+        jcp.reduce_loop_bcast_step = jcp.reduce_loop_unroll
+                * (is_data_layout_nxc ? jcp.ic : jcp.ic_block) * sizeof(float);
+        jcp.reduce_loop_load_step = jcp.reduce_loop_unroll
+                * (is_data_layout_nxc ? jcp.oc : jcp.oc_block) * sizeof(float);
 
         jcp.bcast_loop_output_step
                 = jcp.oc_block * jcp.ic_block * sizeof(float);
         jcp.bcast_loop_output_substep = jcp.oc_block * jcp.ur * sizeof(float);
-        jcp.bcast_loop_bcast_step = jcp.ic_block * jcp.is * sizeof(float);
+        jcp.bcast_loop_bcast_step = jcp.ic_block
+                * (is_data_layout_nxc ? 1 : jcp.is) * sizeof(float);
         jcp.bcast_loop_bcast_substep = jcp.ur * sizeof(float);
 
-        jcp.load_loop_load_step = jcp.oc_block * jcp.os * sizeof(float);
+        jcp.load_loop_load_step = jcp.oc_block
+                * (is_data_layout_nxc ? 1 : jcp.os) * sizeof(float);
         jcp.load_loop_iter_step = jcp.oc_block;
 
         /* --- */

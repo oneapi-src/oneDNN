@@ -38,32 +38,30 @@ public:
             engine_t *engine, const memory_storage_t *parent_storage)
         : memory_storage_t(engine, parent_storage) {}
 
-    virtual status_t get_data_handle(void **handle) const override {
+    status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(mem_object_.get());
         return status::success;
     }
 
-    virtual status_t set_data_handle(void *handle) override {
+    status_t set_data_handle(void *handle) override {
         mem_object_ = ocl_wrapper_t<cl_mem>(static_cast<cl_mem>(handle), true);
         return status::success;
     }
 
-    virtual status_t map_data(
-            void **mapped_ptr, stream_t *stream) const override;
-    virtual status_t unmap_data(
-            void *mapped_ptr, stream_t *stream) const override;
+    status_t map_data(void **mapped_ptr, stream_t *stream) const override;
+    status_t unmap_data(void *mapped_ptr, stream_t *stream) const override;
 
     cl_mem mem_object() const { return mem_object_.get(); }
 
-    virtual bool is_host_accessible() const override { return false; }
+    bool is_host_accessible() const override { return false; }
 
-    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+    std::unique_ptr<memory_storage_t> get_sub_storage(
             size_t offset, size_t size) const override;
 
     virtual std::unique_ptr<memory_storage_t> clone() const override;
 
 protected:
-    virtual status_t init_allocate(size_t size) override;
+    status_t init_allocate(size_t size) override;
 
 private:
     cl_mem parent_mem_object() const;

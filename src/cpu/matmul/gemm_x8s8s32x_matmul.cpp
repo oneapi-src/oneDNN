@@ -147,15 +147,26 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         const exec_ctx_t &ctx) const {
     using math::get_bias;
 
-    const auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
-    const auto weights = CTX_IN_MEM(const weights_data_t *, DNNL_ARG_WEIGHTS);
-    const auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const weights_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     DEFINE_SCALES_BUFFER(scales);
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(weights_zero_point, DNNL_ARG_WEIGHTS);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
+
+    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
+    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
+    const auto bias_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
+    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
+
+    // apply offset0, since offsets are computed directly (not via mdw.off())
+    src += src_d.offset0();
+    weights += weights_d.offset0();
+    if (bias) bias += bias_d.offset0() * bias_d.data_type_size();
+    dst += dst_d.offset0();
 
     src_data_t gemm_off_a = (src_data_t)src_zero_point;
     weights_data_t gemm_off_b = (weights_data_t)weights_zero_point;
@@ -165,10 +176,6 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         gemm_off_a = gemm_off_b = 0;
     }
     const float dst_zero_point_f32 = (float)dst_zero_point;
-
-    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
-    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
-    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
 
     const gemm_based::params_t &params = pd()->params();
     bool dst_is_acc = params.dst_is_acc_;

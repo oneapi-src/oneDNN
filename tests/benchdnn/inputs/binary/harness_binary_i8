@@ -10,3 +10,7 @@
 --ddt=u8 --sdt=u8:s8,u8:u8
 --batch=shapes_common
 
+
+# check for proper saturation
+--attr=scales='src:common:4.29497e+09_src1:common:4.29497e+09'
+--batch=shapes_common

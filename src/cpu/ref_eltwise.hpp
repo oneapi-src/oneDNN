@@ -84,7 +84,7 @@ struct ref_eltwise_fwd_t : public primitive_t {
     ref_eltwise_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->use_dense_)
             execute_forward_dense(ctx);
         else if (pd()->use_nCspBc_padded_)
@@ -149,7 +149,7 @@ struct ref_eltwise_bwd_t : public primitive_t {
     ref_eltwise_bwd_t(const pd_t *apd) : primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->use_dense_)
             execute_backward_dense(ctx);
         else

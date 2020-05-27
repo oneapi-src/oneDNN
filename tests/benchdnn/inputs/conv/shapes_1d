@@ -20,8 +20,8 @@ mb1ic32iw100oc32kw2pw0sw1n"conv1d:10"
 mb1ic32iw121oc32kw6pw0sw1n"conv1d:11"
 mb1ic512iw300oc512kw1pw0sw1n"conv1d:12"
 
-mb1ic32iw32oc32kw5pw0sw1n"conv1d:13"
-mb1ic32iw100oc32kw2pw0sw1n"conv1d:14"
+mb1ic32iw32oc32kw5pw0sw2n"conv1d:13"
+mb1ic32iw100oc32kw2pw0sw3n"conv1d:14"
 mb1ic32iw121oc32kw6pw0sw4n"conv1d:15"
 
 mb1ic32iw32oc32kw5pw1sw1n"conv1d:16"

@@ -314,7 +314,8 @@ int main(int argc, char **argv) {
             memory_format_propagation_tutorial, parse_engine_kind(argc, argv));
 }
 
-/// @page memory_format_propagation_cpp
+/// @page memory_format_propagation_cpp Memory format propagation
+/// @subsection memory_format_propagation_results Results
 ///
 /// Upon compiling and run the example the output should be just:
 ///

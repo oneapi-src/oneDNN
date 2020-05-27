@@ -24,6 +24,11 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
+#include "../cpu/platform.hpp"
+#if DNNL_X64
+#include "immintrin.h"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace math {
@@ -86,11 +91,30 @@ inline U x_m_square(T x) {
 }
 
 /* activation */
+
+/** rounds @p f to an integer according to the mxcsr register */
+inline int mxcsr_round(float f) ATTR_NO_MSAN {
+#if DNNL_X64
+    return _mm_cvtss_si32(_mm_load_ss(&f));
+#else
+    return (int)nearbyintf(f); // optimism
+#endif
+}
+
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
-inline U relu_fwd(T s, A alpha) {
+inline typename utils::enable_if<nstl::is_integral<U>::value, U>::type relu_fwd(
+        T s, A alpha) {
+    return s > 0 ? s : (U)mxcsr_round(static_cast<float>(s * alpha));
+}
+
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline typename utils::enable_if<!nstl::is_integral<U>::value, U>::type
+relu_fwd(T s, A alpha) {
     return s > 0 ? s : (U)(s * alpha);
 }
+
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline U relu_bwd(T dd, T s, A alpha) {
@@ -253,7 +277,7 @@ inline U gelu_tanh_fwd(T s) {
 }
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U gelu_tanh_bwd(T dd, T s) {
-    const float sqrt_2_over_pi = 0.797884;
+    const float sqrt_2_over_pi = 0.79788458347320556640625;
     const float fitting_const = 0.044715;
     float g = s * sqrt_2_over_pi * (1 + fitting_const * s * s);
     float dg = sqrt_2_over_pi * (1 + 3 * fitting_const * s * s);
@@ -326,7 +350,7 @@ inline bool is_eltwise_ok(
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(alg == eltwise_clip, beta >= alpha)
             && IMPLICATION(one_of(dt, dnnl_s32, dnnl_s8, dnnl_u8),
-                    alg == eltwise_relu && alpha == 0);
+                    alg == eltwise_relu);
 
     const bool eltwise_use_dst
             = one_of(alg, eltwise_relu_use_dst_for_bwd,
@@ -387,6 +411,7 @@ inline float get_bias(const char *bias, size_t offset, data_type_t data_type) {
     switch (data_type) {
         CASE(data_type::s8);
         CASE(data_type::u8);
+        CASE(data_type::bf16);
         CASE(data_type::s32);
         CASE(data_type::f32);
         default: assert(!"unimplemented");

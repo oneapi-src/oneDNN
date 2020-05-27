@@ -83,7 +83,7 @@ struct ref_shuffle_t : public primitive_t {
 
     typedef typename typesize_traits<data_type_size>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         using namespace format_tag;
         switch (pd()->dat_tag_) {
             case nCdhw16c: execute_<nCdhw16c>(ctx); break;

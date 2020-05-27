@@ -101,11 +101,11 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             return status::success;
         }
 
-        virtual const memory_desc_t *dst_md(int index = 0) const override {
+        const memory_desc_t *dst_md(int index = 0) const override {
             return jcp_.with_dw_conv ? dw_conv_pd_->dst_md(index) : &dst_md_;
         }
 
-        virtual const memory_desc_t *arg_md(int index = 0) const override {
+        const memory_desc_t *arg_md(int index = 0) const override {
             if (jcp_.with_dw_conv) {
                 switch (index) {
                     case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS:
@@ -118,7 +118,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             return convolution_fwd_pd_t::arg_md(index);
         }
 
-        virtual arg_usage_t arg_usage(int arg) const override {
+        arg_usage_t arg_usage(int arg) const override {
 
             if (utils::one_of(arg, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
                         DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS))
@@ -306,7 +306,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
     // may not be dst_data_t.
     typedef typename prec_traits<dst_type>::type dw_wei_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
     }
@@ -400,7 +400,7 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_data(ctx);
         return status::success;
     }
@@ -507,9 +507,11 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
         delete reducer_bias_;
         delete rtus_driver_;
         delete tr_reorder_;
+        delete tr_reorder_nhwc_src_;
+        delete tr_reorder_nhwc_ddst_;
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights(ctx);
         return status::success;
     }
@@ -531,6 +533,8 @@ private:
     rtus_driver_t<avx512_common> *rtus_driver_;
 
     jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t *tr_reorder_;
+    jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t *tr_reorder_nhwc_src_;
+    jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t *tr_reorder_nhwc_ddst_;
 };
 
 } // namespace x64

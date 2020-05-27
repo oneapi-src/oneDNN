@@ -29,7 +29,7 @@ namespace dnnl {
 namespace impl {
 
 struct matmul_pd_t : public primitive_desc_t {
-    static const auto base_pkind = primitive_kind::matmul;
+    static constexpr auto base_pkind = primitive_kind::matmul;
 
     typedef matmul_pd_t base_class;
     typedef matmul_pd_t hint_class;
@@ -44,11 +44,11 @@ struct matmul_pd_t : public primitive_desc_t {
         , dst_md_(desc_.dst_desc) {}
 
     const matmul_desc_t *desc() const { return &desc_; }
-    virtual const op_desc_t *op_desc() const override {
+    const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual status_t query(query_t what, int idx, void *result) const override {
+    status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
             case query::matmul_d:
                 *(const matmul_desc_t **)result = desc();
@@ -58,7 +58,7 @@ struct matmul_pd_t : public primitive_desc_t {
         return status::success;
     }
 
-    virtual arg_usage_t arg_usage(int arg) const override {
+    arg_usage_t arg_usage(int arg) const override {
         const bool input = utils::one_of(
                 arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS);
         if (input) return arg_usage_t::input;
@@ -68,7 +68,7 @@ struct matmul_pd_t : public primitive_desc_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
-    virtual const memory_desc_t *arg_md(int arg) const override {
+    const memory_desc_t *arg_md(int arg) const override {
         switch (arg) {
             case DNNL_ARG_SRC: return src_md(0);
             case DNNL_ARG_WEIGHTS: return weights_md(0);
@@ -78,20 +78,20 @@ struct matmul_pd_t : public primitive_desc_t {
         }
     }
 
-    virtual const memory_desc_t *src_md(int index = 0) const override {
+    const memory_desc_t *src_md(int index = 0) const override {
         return index == 0 ? &src_md_ : &glob_zero_md;
     }
 
-    virtual const memory_desc_t *weights_md(int index = 0) const override {
+    const memory_desc_t *weights_md(int index = 0) const override {
         return utils::pick(index, &weights_md_, &bias_md_, &glob_zero_md);
     }
 
-    virtual const memory_desc_t *dst_md(int index = 0) const override {
+    const memory_desc_t *dst_md(int index = 0) const override {
         return index == 0 ? &dst_md_ : &glob_zero_md;
     }
 
-    virtual int n_inputs() const override { return 2 + with_bias(); }
-    virtual int n_outputs() const override { return 1; }
+    int n_inputs() const override { return 2 + with_bias(); }
+    int n_outputs() const override { return 1; }
 
     bool has_zero_dim_memory() const {
         return memory_desc_wrapper(dst_md(0)).has_zero_dim();

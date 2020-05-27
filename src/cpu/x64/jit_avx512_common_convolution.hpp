@@ -81,7 +81,7 @@ struct jit_avx512_common_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<wei_type>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->ndims() == 3)
             execute_forward_1d(ctx);
         else if (pd()->ndims() == 4)
@@ -152,7 +152,7 @@ struct jit_avx512_common_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<wei_type>::type wei_data_t;
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->ndims() == 3)
             execute_backward_data_1d(ctx);
         else if (pd()->ndims() == 4)
@@ -240,7 +240,7 @@ struct jit_avx512_common_convolution_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<diff_weights_type>::type diff_weights_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights(ctx);
         return status::success;
     }
@@ -249,6 +249,7 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     void prepare_scratchpad_data(const exec_ctx_t &ctx) const;
     struct thread_info_t;
+    void compute_diff_weights_nxc(const thread_info_t *) const;
     void compute_diff_weights(const thread_info_t *) const;
     void compute_diff_weights_2d(const thread_info_t *) const;
     void compute_diff_weights_3d(const thread_info_t *) const;

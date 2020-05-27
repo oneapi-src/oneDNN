@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,18 +14,27 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_KERNEL_LIST_HPP
-#define GPU_OCL_OCL_KERNEL_LIST_HPP
+#ifndef CPU_X64_LRN_LRN_EXECUTOR_HPP
+#define CPU_X64_LRN_LRN_EXECUTOR_HPP
+
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace gpu {
-namespace ocl {
+namespace cpu {
+namespace x64 {
+namespace lrn {
 
-const char **get_ocl_kernel_source(const char *kernel_name);
+class i_lrn_executor_t {
+public:
+    virtual status_t execute(const exec_ctx_t &ctx) const = 0;
+    virtual ~i_lrn_executor_t() = default;
+};
 
-} // namespace ocl
-} // namespace gpu
+} // namespace lrn
+} // namespace x64
+} // namespace cpu
 } // namespace impl
 } // namespace dnnl
 

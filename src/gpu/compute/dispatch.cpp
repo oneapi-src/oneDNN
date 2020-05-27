@@ -201,7 +201,7 @@ void dispatch_t::def_kernel_macros(kernel_ctx_t &kernel_ctx) const {
     }
 }
 
-void dispatch_t::generate() {
+void dispatch_t::generate(bool generate_lws) {
     // Keep order of elements with the same nesting level unchanged.
     std::stable_sort(dims_, dims_ + ndims_,
             [](const dim_info_t &a, const dim_info_t &b) {
@@ -303,7 +303,7 @@ void dispatch_t::generate() {
         with_lws = true;
     }
 
-    nd_range_ = nd_range_t(gws, with_lws ? lws : nullptr);
+    nd_range_ = nd_range_t(gws, with_lws && generate_lws ? lws : nullptr);
     generate_called = true;
 }
 

@@ -70,7 +70,7 @@ public:
         attr_suffix_ = suffix;
     }
 
-    void generate();
+    void generate(bool generate_lws = true);
 
 private:
     // Dimension information necessary for mapping to global work IDs.

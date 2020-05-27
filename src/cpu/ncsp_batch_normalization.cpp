@@ -411,7 +411,9 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                         _src = reinterpret_cast<const acc_data_t *>(
                                 src + s_off);
                     }
+#if SAFE_TO_USE_OMP_SIMD
                     PRAGMA_OMP_SIMD(reduction(+ : diff_gamma, diff_beta))
+#endif
                     for (dim_t sp = S_s; sp < S_e; ++sp) {
                         const dim_t d_off = s_off + sp;
                         acc_data_t dd;

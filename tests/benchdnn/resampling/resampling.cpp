@@ -146,7 +146,7 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
             : p->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
     std::string src_tag = (p->dir & FLAG_FWD) ? p->tag : tag::any;
-    std::string dst_tag = (p->dir & FLAG_BWD) ? p->tag : tag::any;
+    std::string dst_tag = tag::any;
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_dims, p->dt,
                      convert_tag(src_tag, p->ndims)),
@@ -173,9 +173,18 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
 
     dnnl_primitive_desc_t _hint = NULL;
     if (p->dir & FLAG_BWD) {
+        dnnl_memory_desc_t fwd_src_d, fwd_dst_d;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&fwd_src_d, p->ndims, src_dims,
+                         p->dt, convert_tag(p->tag, p->ndims)),
+                WARN);
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&fwd_dst_d, p->ndims, dst_dims,
+                         p->dt, convert_tag(tag::any, p->ndims)),
+                WARN);
+
         dnnl_resampling_desc_t rd_fwd;
         DNN_SAFE(dnnl_resampling_forward_desc_init(&rd_fwd,
-                         dnnl_forward_training, alg, nullptr, &src_d, &dst_d),
+                         dnnl_forward_training, alg, nullptr, &fwd_src_d,
+                         &fwd_dst_d),
                 WARN);
         dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
                 &_hint, &rd_fwd, NULL, engine_tgt, NULL);
@@ -212,7 +221,7 @@ int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
 
-    dnnl_primitive_t rp;
+    dnnl_primitive_t rp {};
     SAFE(init_prim(&rp, init_pd, engine_tgt, p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 

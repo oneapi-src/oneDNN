@@ -305,42 +305,55 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
             }
         };
 
+        const int unroll = 8;
+
         const bool interim_f32 = (prb_.itype != f32)
                 || utils::one_of(f32, prb_.itype, prb_.otype);
 
-        for (int i = 0; i < 8; i++) {
+        const bool need_saturation
+                = (utils::one_of(prb_.otype, u8, s8, s32) && interim_f32);
+
+        for (int i = 0; i < unroll; i++) {
             using namespace data_type;
 
-            load(Ymm(i), i_addr(i_off + i * is(0)), 8 * itype_sz);
+            load(Ymm(i), i_addr(i_off + i * is(0)), unroll * itype_sz);
 
             if (interim_f32) cvt2ps(Ymm(i), Ymm(i), prb_.itype);
         }
 
-        for (int i = 0; i < 8 / 2; i++) {
-            vunpcklps(Ymm(8 + i), Ymm(2 * i), Ymm(2 * i + 1));
+        for (int i = 0; i < unroll / 2; i++) {
+            vunpcklps(Ymm(unroll + i), Ymm(2 * i), Ymm(2 * i + 1));
             vunpckhps(Ymm(i), Ymm(2 * i), Ymm(2 * i + 1));
         }
 
         const unsigned int lfloat = 0x44;
         const unsigned int ufloat = 0xee;
-        for (int i = 0; i < 8 / 2; i++) {
-            int j = i % 2 == 0 ? 8 + i : i - 1;
-            vshufps(Ymm(8 / 2 + 2 * i), Ymm(j), Ymm(j + 1), lfloat);
-            vshufps(Ymm(8 / 2 + 2 * i + 1), Ymm(j), Ymm(j + 1), ufloat);
+        for (int i = 0; i < unroll / 2; i++) {
+            int j = i % 2 == 0 ? unroll + i : i - 1;
+            vshufps(Ymm(unroll / 2 + 2 * i), Ymm(j), Ymm(j + 1), lfloat);
+            vshufps(Ymm(unroll / 2 + 2 * i + 1), Ymm(j), Ymm(j + 1), ufloat);
         }
 
         const unsigned int lquad = 0x20;
-        for (int i = 0; i < 8 / 2; i++)
-            vperm2f128(Ymm(i), Ymm(8 / 2 + i), Ymm(8 + i), lquad);
+        for (int i = 0; i < unroll / 2; i++)
+            vperm2f128(Ymm(i), Ymm(unroll / 2 + i), Ymm(unroll + i), lquad);
 
         const unsigned int uquad = 0x31;
-        for (int i = 8 / 2; i < 8; i++)
-            vperm2f128(Ymm(i), Ymm(i), Ymm(8 / 2 + i), uquad);
+        for (int i = unroll / 2; i < unroll; i++)
+            vperm2f128(Ymm(i), Ymm(i), Ymm(unroll / 2 + i), uquad);
 
-        for (int i = 0; i < 8; i++) {
+        if (need_saturation) {
+            init_saturate_f32(ymm_zero, ymm_saturation_ubound, reg_tmp,
+                    interim_f32 ? f32 : prb_.itype, prb_.otype);
+            for (int i = 0; i < unroll; i++)
+                saturate_f32(
+                        Ymm(i), ymm_zero, ymm_saturation_ubound, prb_.otype);
+        }
+
+        for (int i = 0; i < unroll; i++) {
             if (prb_.otype != f32)
                 cvt2odt(Ymm(i), prb_.otype, interim_f32 ? f32 : prb_.itype);
-            store(o_addr(o_off + i * os(1)), Ymm(i), 8 * otype_sz);
+            store(o_addr(o_off + i * os(1)), Ymm(i), unroll * otype_sz);
         }
     }
 
@@ -381,7 +394,9 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
         if (!can_do) return false;
 
         for (int off = 0; off < len;) {
-            const int unroll = nstl::min(16, (len - off) / simd_w);
+            // TODO: we need extra reg for proper saturation if otype == s32
+            const int unroll
+                    = nstl::min(16 - (prb_.otype == s32), (len - off) / simd_w);
 
             for (int ur = 0; ur < unroll; ++ur)
                 uni_vmovups(Vmm(ur), i_addr(off + ur * simd_w));
@@ -521,6 +536,9 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
                 || utils::one_of(f32, prb_.itype, prb_.otype)
                 || prb_.scale_type != scale_type_t::NONE || prb_.beta != 0.f;
 
+        const bool need_saturation
+                = (utils::one_of(prb_.otype, u8, s8, s32) && interim_f32);
+
         if (!can_load_xmm && can_store_xmm) {
             assert(ur_step == 4);
             /* load with stride */
@@ -551,12 +569,21 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
                     && prb_.scale_type != scale_type_t::MANY
                     && prb_.beta == 0.f;
             if (fast_return) {
-                for (int ur = 0; ur < reg_unroll; ur += load_step) {
-                    if (prb_.scale_type == scale_type_t::COMMON)
+                if (prb_.scale_type == scale_type_t::COMMON)
+                    for (int ur = 0; ur < reg_unroll; ur += load_step)
                         mulps(Xmm(ur), xmm_scale);
-                    if (prb_.otype != f32)
+                if (prb_.otype != f32) {
+                    init_saturate_f32(xmm_zero, xmm_saturation_ubound, reg_tmp,
+                            interim_f32 ? f32 : prb_.itype, prb_.otype);
+                    for (int ur = 0; ur < reg_unroll; ur += load_step) {
+                        if (need_saturation)
+                            saturate_f32(Xmm(ur), xmm_zero,
+                                    xmm_saturation_ubound, prb_.otype);
                         cvt2odt(Xmm(ur), prb_.otype,
                                 interim_f32 ? f32 : prb_.itype);
+                    }
+                }
+                for (int ur = 0; ur < reg_unroll; ur += load_step) {
                     for (int r = 0; r < load_step; ++r) {
                         if (otype_sz == 4)
                             pextrd(o_addr(o_off[ur + r]), Xmm(ur), r);
@@ -682,6 +709,15 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
             }
         }
 
+        if (need_saturation) {
+            init_saturate_f32(
+                    xmm_zero, xmm_saturation_ubound, reg_tmp, f32, prb_.otype);
+            for (int ur = 0; ur < reg_unroll; ur += ur_step) {
+                saturate_f32(
+                        Xmm(ur), xmm_zero, xmm_saturation_ubound, prb_.otype);
+            }
+        }
+
         for (int ur = 0; ur < reg_unroll; ur += ur_step) {
             if (prb_.otype != f32)
                 cvt2odt(Xmm(ur), prb_.otype, interim_f32 ? f32 : prb_.itype);
@@ -760,9 +796,10 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
         if (n_jit_loops > 0)
             loop_begin(l_loop[0], reg_cnt[0], n(nfu + 0) / ldu);
 
-        const bool optimized = false || process_direct_copy<avx>(d.len_unroll)
-                || process_direct_copy<sse41>(d.len_unroll)
-                || process_unroll_tr8x8(d.len_unroll);
+        bool optimized = false;
+        optimized = optimized || process_direct_copy<avx>(d.len_unroll);
+        optimized = optimized || process_direct_copy<sse41>(d.len_unroll);
+        optimized = optimized || process_unroll_tr8x8(d.len_unroll);
         if (!optimized) process_unroll_generic(d.len_unroll);
 
         if (n_jit_loops > 0)
@@ -853,6 +890,8 @@ private:
     Ymm ymm_zero = ymm14;
     Ymm ymm_8x127b = ymm13;
     Xmm xmm_tmp = xmm12;
+    Xmm xmm_saturation_ubound = xmm12;
+    Ymm ymm_saturation_ubound = ymm12;
 
     /* bf16 support on SKX */
     bf16_emulation_t *bf16_emu_;
@@ -1225,7 +1264,7 @@ struct jit_uni_reorder_t : public primitive_t {
         }
     }
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         auto in = CTX_IN_MEM(const char *, DNNL_ARG_FROM);
         auto out = CTX_OUT_MEM(char *, DNNL_ARG_TO);
         DEFINE_SCALES_BUFFER(scales);

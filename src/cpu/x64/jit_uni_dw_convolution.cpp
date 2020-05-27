@@ -69,41 +69,90 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
 
     const int dil_h = jcp.dilate_h + 1;
     const int str_h = jcp.stride_h;
-    const int ch_num = jcp.nb_ch_blocking;
+    const int ch_step = jcp.nb_ch_blocking;
     const int ow = 0;
     const int iw = 0;
     const int kw = 0;
-    const int chb_work = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
+    const int chb_work = utils::div_up(jcp.nb_ch, ch_step);
+    const auto is_src_layout_nxc = jcp.src_tag == format_tag::nhwc;
+    const auto is_dst_layout_nxc = jcp.dst_tag == format_tag::nhwc;
 
-    parallel_nd(jcp.mb, chb_work, jcp.oh, [&](int n, int chb, int oh) {
-        int ch = chb * jcp.nb_ch_blocking;
+    const int work_amount = jcp.mb * chb_work * jcp.oh;
+    const auto nthr = jcp.nthr;
 
-        const int i_t_overflow = nstl::max(0, (int)(jcp.t_pad - oh * str_h));
-        const int i_b_overflow = nstl::max(jcp.ih,
-                                         (int)(oh * str_h + (jcp.kh - 1) * dil_h
-                                                 - jcp.t_pad + 1))
-                - jcp.ih;
+    parallel(nthr, [&](const int ithr, const int nthr) {
+        int start {0}, end {0};
+        balance211(work_amount, nthr, ithr, start, end);
 
-        const int ih = nstl::max((int)(oh * str_h - jcp.t_pad
-                                         + div_up(i_t_overflow, dil_h) * dil_h),
-                0);
-        const int kh = div_up(i_t_overflow, dil_h);
-        const int kh_padding = jcp.kh - div_up(i_t_overflow, dil_h)
-                - div_up(i_b_overflow, dil_h);
+        int n {0}, chb {0}, oh {0};
+        if (jcp.loop_order == loop_ngcw)
+            utils::nd_iterator_init(
+                    start, n, jcp.mb, chb, chb_work, oh, jcp.oh);
+        else if (jcp.loop_order == loop_nhwcg)
+            utils::nd_iterator_init(
+                    start, n, jcp.mb, oh, jcp.oh, chb, chb_work);
+        else
+            assert(!"unsupported loop order");
 
-        auto par_conv = jit_conv_call_s();
-        par_conv.src
-                = jcp.is_fused_conv ? src : &src[src_d.blk_off(n, ch, ih, iw)];
-        par_conv.dst = &dst[dst_d.blk_off(n, ch, oh, ow)];
+        auto iwork = start;
+        while (iwork < end) {
 
-        par_conv.filt = &weights[weights_d.blk_off(ch, 0, 0, kh, kw)];
-        if (bias) par_conv.bias = &bias[bias_d.blk_off(ch * jcp.ch_block)];
+            int ch = chb * ch_step;
 
-        par_conv.kh_padding = (size_t)nstl::max(0, kh_padding);
+            const int i_t_overflow
+                    = nstl::max(0, (int)(jcp.t_pad - oh * str_h));
+            const int i_b_overflow
+                    = nstl::max(jcp.ih,
+                              (int)(oh * str_h + (jcp.kh - 1) * dil_h
+                                      - jcp.t_pad + 1))
+                    - jcp.ih;
 
-        par_conv.ch_blocks = nstl::min(ch + ch_num, jcp.nb_ch) - ch;
+            const int ih
+                    = nstl::max((int)(oh * str_h - jcp.t_pad
+                                        + div_up(i_t_overflow, dil_h) * dil_h),
+                            0);
+            const int kh = div_up(i_t_overflow, dil_h);
+            const int kh_padding = jcp.kh - div_up(i_t_overflow, dil_h)
+                    - div_up(i_b_overflow, dil_h);
 
-        kernel_->jit_ker(&par_conv);
+            const auto ic_off_idx = is_src_layout_nxc ? ch * jcp.ch_block : ch;
+            const auto oc_off_idx = is_dst_layout_nxc ? ch * jcp.ch_block : ch;
+
+            auto par_conv = jit_conv_call_s();
+            par_conv.src = jcp.is_fused_conv
+                    ? src
+                    : &src[src_d.blk_off(n, ic_off_idx, ih, iw)];
+            par_conv.dst = &dst[dst_d.blk_off(n, oc_off_idx, oh, ow)];
+
+            par_conv.filt = &weights[weights_d.blk_off(ch, 0, 0, kh, kw)];
+            if (bias) par_conv.bias = &bias[bias_d.blk_off(ch * jcp.ch_block)];
+
+            par_conv.kh_padding = (size_t)nstl::max(0, kh_padding);
+
+            if (is_src_layout_nxc) {
+                // maximize jit work along contiguous dimension
+                int work_rem = end - iwork;
+                par_conv.ch_blocks = ch + work_rem * ch_step >= jcp.nb_ch
+                        ? jcp.nb_ch - ch
+                        : work_rem * ch_step;
+                assert(jcp.loop_order == loop_nhwcg);
+            } else {
+                par_conv.ch_blocks
+                        = utils::this_block_size(ch, jcp.nb_ch, ch_step);
+                assert(jcp.loop_order != loop_nhwcg);
+            }
+
+            kernel_->jit_ker(&par_conv);
+
+            if (jcp.loop_order == loop_ngcw) {
+                ++iwork;
+                utils::nd_iterator_step(n, jcp.mb, chb, chb_work, oh, jcp.oh);
+            } else if (jcp.loop_order == loop_nhwcg) {
+                utils::nd_iterator_jump(
+                        iwork, end, n, jcp.mb, oh, jcp.oh, chb, chb_work);
+            } else
+                assert(!"unsupported loop order");
+        }
     });
 
     if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);

@@ -53,19 +53,14 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
                             utils::one_of(desc()->bias_desc.data_type,
                                     data_type::bf16, data_type::f32))
                     && !has_zero_dim_memory()
-                    && set_default_formats_common(
-                            dat_tag(), wei_tag(), dat_tag())
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops)
-                    && post_ops_ok()
-                    && memory_desc_matches_tag(*src_md(), dat_tag())
-                    && memory_desc_matches_tag(*dst_md(), dat_tag())
-                    && memory_desc_matches_tag(*weights_md(), wei_tag());
+                    && post_ops_ok();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *desc(), src_md(), weights_md(0), dst_md(),
+                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
                     dnnl_get_max_threads());
         }
 
@@ -84,17 +79,6 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
         conv_gemm_conf_t jcp_;
 
     protected:
-        format_tag_t dat_tag() const {
-            using namespace format_tag;
-            return utils::pick(ndims() - 3, ncw, nchw, ncdhw);
-        }
-
-        format_tag_t wei_tag() const {
-            using namespace format_tag;
-            return with_groups() ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
-                                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
-        }
-
         bool post_ops_ok() const {
             auto const &po = attr()->post_ops_;
             auto is_eltwise
@@ -131,12 +115,19 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
-        return execute_forward(ctx);
+    status_t execute(const exec_ctx_t &ctx) const override {
+        const bool is_nspc = pd()->jcp_.is_nspc;
+        return is_nspc ? execute_forward_nspc(ctx) : execute_forward_ncsp(ctx);
     }
 
 private:
-    status_t execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward_ncsp(const exec_ctx_t &ctx) const;
+    status_t execute_forward_nspc(const exec_ctx_t &ctx) const;
+    status_t execute_forward_thr_nspc(const int ithr, const int nthr,
+            const src_data_t *src_base, const wei_data_t *wei_base,
+            const float *bia_base, dst_data_t *dst_base,
+            const memory_tracking::grantor_t &scratchpad) const;
+
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     class pp_ker_t : jit_generator {
@@ -149,6 +140,8 @@ private:
             delete eltwise_injector_;
         }
 
+        void operator()(dst_data_t *dst, const acc_data_t *acc,
+                const acc_data_t *bias, float sum_scale, size_t oc_work);
         void operator()(dst_data_t *dst, const acc_data_t *acc,
                 const acc_data_t *bias, float sum_scale, size_t dst_str,
                 size_t acc_str, size_t len, bool do_parallel);
@@ -256,34 +249,16 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_data_type, data_type::bf16,
                             data_type::undef, data_type::bf16, data_type::f32)
-                    && !has_zero_dim_memory()
-                    && set_default_formats_common(
-                            dat_tag(), wei_tag(), dat_tag())
-                    && attr()->has_default_values()
-                    && memory_desc_matches_tag(*diff_src_md(), dat_tag())
-                    && memory_desc_matches_tag(*diff_dst_md(), dat_tag())
-                    && memory_desc_matches_tag(*weights_md(), wei_tag());
+                    && !has_zero_dim_memory() && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *desc(), diff_src_md(), weights_md(0), diff_dst_md(),
-                    dnnl_get_max_threads());
+                    *desc(), diff_src_md_, weights_md_, diff_dst_md_, bias_md_,
+                    *attr(), dnnl_get_max_threads());
         }
 
         conv_gemm_conf_t jcp_;
-
-    protected:
-        format_tag_t dat_tag() const {
-            using namespace format_tag;
-            return utils::pick(ndims() - 3, ncw, nchw, ncdhw);
-        }
-
-        format_tag_t wei_tag() const {
-            using namespace format_tag;
-            return with_groups() ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
-                                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
-        }
     };
 
     gemm_bf16_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
@@ -293,12 +268,20 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<diff_src_data_type>::type diff_src_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
-        return execute_backward_data(ctx);
+    status_t execute(const exec_ctx_t &ctx) const override {
+        const bool is_nspc = pd()->jcp_.is_nspc;
+        return is_nspc ? execute_backward_data_nspc(ctx)
+                       : execute_backward_data_ncsp(ctx);
     }
 
 private:
-    status_t execute_backward_data(const exec_ctx_t &ctx) const;
+    status_t execute_backward_data_ncsp(const exec_ctx_t &ctx) const;
+    status_t execute_backward_data_nspc(const exec_ctx_t &ctx) const;
+    status_t execute_backward_data_thr_nspc(const int ithr, const int nthr,
+            diff_src_data_t *diff_src_base, const wei_data_t *wei_base,
+            const diff_dst_data_t *diff_dst_base,
+            const memory_tracking::grantor_t &scratchpad) const;
+
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
@@ -321,33 +304,16 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(desc()->diff_bias_desc.data_type,
                                     data_type::bf16, data_type::f32))
-                    && !has_zero_dim_memory() && attr()->has_default_values()
-                    && set_default_formats_common(
-                            dat_tag(), wei_tag(), dat_tag())
-                    && memory_desc_matches_tag(*src_md(), dat_tag())
-                    && memory_desc_matches_tag(*diff_dst_md(), dat_tag())
-                    && memory_desc_matches_tag(*diff_weights_md(), wei_tag());
+                    && !has_zero_dim_memory() && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *desc(), src_md(), diff_weights_md(0), diff_dst_md(),
-                    dnnl_get_max_threads());
+                    *desc(), src_md_, diff_weights_md_, diff_dst_md_,
+                    diff_bias_md_, *attr(), dnnl_get_max_threads());
         }
 
         conv_gemm_conf_t jcp_;
-
-    protected:
-        format_tag_t dat_tag() const {
-            using namespace format_tag;
-            return utils::pick(ndims() - 3, ncw, nchw, ncdhw);
-        }
-
-        format_tag_t wei_tag() const {
-            using namespace format_tag;
-            return with_groups() ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
-                                 : utils::pick(ndims() - 3, oiw, oihw, oidhw);
-        }
     };
 
     gemm_bf16_convolution_bwd_weights_t(const pd_t *apd)
@@ -362,16 +328,23 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<diff_wei_data_type>::type diff_wei_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
-        return execute_backward_weights(ctx);
+    status_t execute(const exec_ctx_t &ctx) const override {
+        const bool is_nspc = pd()->jcp_.is_nspc;
+        return is_nspc ? execute_backward_weights_nspc(ctx)
+                       : execute_backward_weights_ncsp(ctx);
     }
 
 private:
-    void bf16_bwd_weights_reduction_par(int ithr_mb, int nthr_mb,
+    void bf16_bwd_weights_reduction_par_ncsp(int ithr_mb, int nthr_mb,
             const conv_gemm_conf_t &jcp, const acc_data_t *weights_reduce_base,
             diff_wei_data_t *weights_base) const;
+    void bf16_bwd_weights_reduction_par_nspc(int ithr_mb, int nthr_mb,
+            size_t g_start, size_t g_end, const conv_gemm_conf_t &jcp,
+            const acc_data_t *weights_reduce_base,
+            diff_wei_data_t *weights_base) const;
 
-    status_t execute_backward_weights(const exec_ctx_t &ctx) const;
+    status_t execute_backward_weights_ncsp(const exec_ctx_t &ctx) const;
+    status_t execute_backward_weights_nspc(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;

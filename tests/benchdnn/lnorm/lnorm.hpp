@@ -134,24 +134,20 @@ struct perf_report_t : public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_desc(std::ostream &s) const override { s << p_->dims; }
+    void dump_desc(std::ostream &s) const override { s << p_->dims; }
 
-    virtual void dump_desc_csv(std::ostream &s) const override {
-        s << p_->dims;
-    }
+    void dump_desc_csv(std::ostream &s) const override { s << p_->dims; }
 
-    virtual void dump_flags(std::ostream &s) const override {
+    void dump_flags(std::ostream &s) const override {
         s << flags2str(p_->flags);
     }
 
-    virtual double ops() const override { return p_->ops; }
-    virtual const attr_t *attr() const override { return &p_->attr; }
-    virtual const dir_t *dir() const override { return &p_->dir; }
-    virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    virtual const std::string *tag() const override { return &p_->tag; }
-    virtual const std::string *stat_tag() const override {
-        return &p_->stat_tag;
-    }
+    double ops() const override { return p_->ops; }
+    const attr_t *attr() const override { return &p_->attr; }
+    const dir_t *dir() const override { return &p_->dir; }
+    const dnnl_data_type_t *dt() const override { return &p_->dt; }
+    const std::string *tag() const override { return &p_->tag; }
+    const std::string *stat_tag() const override { return &p_->stat_tag; }
 
 private:
     const prb_t *p_ = NULL;

@@ -77,6 +77,7 @@
 /// user's source data entering oneDNN with the NCHW format.
 /// @page performance_profiling_cpp
 /// @snippet performance_profiling.cpp Set dimensions
+/// @page performance_profiling_cpp
 /// @note Here the library allocates memory.
 /// @page performance_profiling_cpp
 /// @snippet performance_profiling.cpp Create memory objects

@@ -42,7 +42,7 @@ struct ref_pp_ker_t : pp_ker_t {
 
     using acc_data_t = pp_ker_t::acc_data_t;
 
-    virtual void operator()(void *dst, const acc_data_t *acc, const char *bias,
+    void operator()(void *dst, const acc_data_t *acc, const char *bias,
             const float *scales, float nslope, float sum_scale,
             float signed_scale, int g, size_t start, size_t end) const override;
 

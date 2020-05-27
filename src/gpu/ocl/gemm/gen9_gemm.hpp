@@ -335,7 +335,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
         int eu_count_ = 0;
 
         type gemm_type_ = type::copy_based;
-        attr_info_t attr_info_;
+
+        attr_info_t attr_info_ = {};
 
     protected:
 #ifdef _WIN32
@@ -456,7 +457,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
         return status::success;
     }
 
-    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
+    status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
     status_t launch_beta(const gemm_exec_ctx_t &ctx,

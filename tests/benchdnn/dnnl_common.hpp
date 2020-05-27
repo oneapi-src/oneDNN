@@ -156,11 +156,12 @@ inline float epsilon_dt(dnnl_data_type_t dt) {
 
 template <dnnl_data_type_t dt>
 inline float saturate(float val) {
-    return MAX2((float)dnnl::impl::nstl::numeric_limits<
-                        typename prec_traits<dt>::type>::lowest(),
+    auto res = MAX2((float)dnnl::impl::nstl::numeric_limits<
+                            typename prec_traits<dt>::type>::lowest(),
             MIN2((float)dnnl::impl::nstl::numeric_limits<
                          typename prec_traits<dt>::type>::max(),
-                    mxcsr_round(val)));
+                    val));
+    return mxcsr_round(res);
 }
 
 inline float maybe_saturate(dnnl_data_type_t dt, float value) {
@@ -217,8 +218,8 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
     // create 1st engine
     engine.reset(engine_tgt_kind);
 
-    dnnl_primitive_desc_t _pd;
-    dnnl_primitive_t _prim;
+    dnnl_primitive_desc_t _pd {};
+    dnnl_primitive_t _prim {};
 
     auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(_pd); };
     auto cleanup_prim = [&]() { dnnl_primitive_destroy(_prim); };
@@ -229,7 +230,7 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
 
     DNN_SAFE_CLEAN(dnnl_primitive_create(&_prim, _pd), WARN, cleanup_pd);
 
-#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
     // The idea is to create the requested primitive twice for different engines.
     // Rationale:
     // 1. Make sure that the primitive cache is robust for the cases when:
