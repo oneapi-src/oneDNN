@@ -1,0 +1,23 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage[active,tightpage]{preview}
+
+\thispagestyle{empty}
+
+\begin{document}
+\begin{preview}
+
+\begin{align*}
+    i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1,l} + B_i) \\
+    f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1,l} + B_f) \\
+    & \\
+    \tilde{c}_t &= \tanh(W_{\tilde{c}} \cdot h_{t,l-1} + U_{\tilde{c}} \cdot h_{t-1,l} + B_{\tilde{c}}) \\
+    c_t &= f_t * c_{t-1} + i_t * \tilde{c}_t \\
+    & \\
+    o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1,l} + B_o) \\
+    h_t &= \tanh(c_t) * o_t
+\end{align*}
+
+\end{preview}
+\end{document}

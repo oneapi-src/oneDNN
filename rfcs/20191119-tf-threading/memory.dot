@@ -1,0 +1,22 @@
+digraph {
+    ranksep=2;
+    size="7.5,7.5";
+    {
+        rank=same;
+        node [label="",shape=point,style=invis] y;
+        node [fillcolor=khaki,style=filled,label="Dirty",shape=oval] d;
+    };
+
+    {
+        rank=same;
+        node [label="",style=invis,shape=point] x;
+        node [fillcolor=lawngreen,style=filled,label="Clean",shape=oval] c;
+    };
+
+    x -> c [fontname=Courier,label=" create_clean() \n create(zero padding not required) "];
+    c -> c [fontname=Courier,label=" set_handle_clean() \n compute() \n set_handle(zero padding not required) "];
+    d -> c [fontname=Courier,label=" set_handle_clean() \n compute()"];
+    y -> d [fontname=Courier,label=" create(zero padding required) "];
+    d -> d [fontname=Courier,label=" set_handle(zero padding required) "];
+    c -> d [fontname=Courier,label=" set_handle(zero padding required) "];
+}
