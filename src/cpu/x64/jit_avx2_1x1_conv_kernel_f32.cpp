@@ -487,16 +487,12 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     }
 
     const auto dat_tag_nxc = utils::pick(ndims - 3, nwc, nhwc, ndhwc);
-    const auto dat_tag_blocked = utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
-    if (src_d.matches_tag(dat_tag_nxc)) {
-        if (!dst_d.matches_tag(dat_tag_nxc)) return status::unimplemented;
-        jcp.src_tag = jcp.dst_tag = dat_tag_nxc;
-    } else {
-        jcp.src_tag = jcp.dst_tag = dat_tag_blocked;
-    }
+    const auto dat_tag_nCx8c = utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+    jcp.src_tag = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
+    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
     const bool is_data_layout_nxc
             = utils::everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);
-    const auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_blocked;
+    const auto dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
 
     const int is_bwd_d = jcp.prop_kind == backward_data;
     format_tag_t wei_tag = with_groups
