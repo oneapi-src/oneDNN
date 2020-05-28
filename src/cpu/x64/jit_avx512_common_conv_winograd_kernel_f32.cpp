@@ -331,6 +331,9 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d) {
 
+    // This kernel only supports 2D convolutions.
+    if (src_d.ndims() != 4) return status::unimplemented;
+
     if (mayiuse(avx512_core))
         return status::unimplemented;
     else if (!mayiuse(avx512_common))
@@ -1011,6 +1014,9 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &diff_dst_d,
         const memory_desc_wrapper &diff_weights_d) {
     jcp.nthr = dnnl_get_max_threads();
+
+    // This kernel only supports 2D convolutions.
+    if (src_d.ndims() != 4) return status::unimplemented;
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
 
