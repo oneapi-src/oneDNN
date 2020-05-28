@@ -77,8 +77,7 @@ static void fwd_compute_block_sizes(
     conf.ic_block = nstl::min(conf.ic, 16);
 
     conf.omb = (conf.mb_block == 1 && conf.mb % 16 == 0) ? 16 : conf.mb_block;
-    conf.ocb = (conf.ver == ver_16mb16c) ? conf.oc
-                                         : utils::max_div(conf.oc / 16, 8) * 16;
+    conf.ocb = utils::max_div(conf.oc / 16, 8) * 16;
 }
 
 status_t gen9_convolution_fwd_t::pd_t::init_conf() {
