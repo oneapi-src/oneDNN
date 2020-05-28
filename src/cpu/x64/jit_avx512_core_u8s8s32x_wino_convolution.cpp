@@ -756,6 +756,10 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
             && one_of(jcp.t_pad, 0, 1) && one_of(jcp.l_pad, 0, 1);
     if (!ok) return status::unimplemented;
 
+    format_tag_t dat_tag = format_tag::nhwc;
+    if (!src_d.matches_tag(dat_tag)) return status::unimplemented;
+    if (!dst_d.matches_tag(dat_tag)) return status::unimplemented;
+
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
