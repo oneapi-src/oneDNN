@@ -149,9 +149,9 @@ void jit_avx512_common_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
 
 void jit_avx512_common_1x1_conv_kernel::reduce_loop(
         int load_loop_blk, int ur, int substep, bool wraparound) {
-    const bool out_layout_nxc = is_out_layout_nxc();
-    const bool load_layout_nxc = is_load_layout_nxc();
-    const bool bcast_layout_nxc = is_bcast_layout_nxc();
+    const bool out_layout_nxc = is_out_layout_nxc(jcp);
+    const bool load_layout_nxc = is_load_layout_nxc(jcp);
+    const bool bcast_layout_nxc = is_bcast_layout_nxc(jcp);
     const int reduce_dim_tail = jcp.reduce_dim % jcp.reduce_block;
     const int load_dim_tail = jcp.load_dim % jcp.load_block;
 
@@ -547,7 +547,7 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
                         load_loop_blk * jcp.load_block * jcp.typesize_out);
                 add(reg_output_data,
                         load_loop_blk * jcp.load_block * jcp.typesize_out
-                                * (is_out_layout_nxc()
+                                * (is_out_layout_nxc(jcp)
                                                 ? 1
                                                 : (jcp.with_dw_conv
                                                                 ? jcp.ow
@@ -556,7 +556,7 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
             case backward_data:
                 add(reg_output_data,
                         load_loop_blk * jcp.load_block * jcp.typesize_out
-                                * (is_out_layout_nxc() ? 1 : jcp.bcast_dim));
+                                * (is_out_layout_nxc(jcp) ? 1 : jcp.bcast_dim));
                 break;
             case backward_weights:
                 for (int i_load = 0; i_load < load_loop_blk; i_load++)

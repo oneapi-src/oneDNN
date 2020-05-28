@@ -25,6 +25,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/x64/jit_avx2_1x1_conv_kernel_f32.hpp"
+#include "cpu/x64/jit_uni_1x1_conv_utils.hpp"
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 
@@ -98,7 +99,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
     auto bcast_ptr = [=](int u, int j) {
         assert(j < jcp.ur);
         assert(u <= jcp.reduce_loop_unroll);
-        return ptr[aux_reg_bcast_data + get_bcast_offset(u, j)];
+        return ptr[aux_reg_bcast_data + get_bcast_offset(jcp, u, j)];
     };
 
     auto load_ptr = [=](int u, int i) {
@@ -109,7 +110,9 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
             case backward_data:
                 offt = (i * jcp.oc_block + u0) * jcp.ic_block;
                 break;
-            case backward_weights: offt = get_bwd_w_load_offset(i, u0); break;
+            case backward_weights:
+                offt = get_load_bwd_w_offset(jcp, i, u0);
+                break;
             default: offt = (i * jcp.ic + u0) * jcp.oc_block;
         }
         return ptr[aux_reg_load_data + u1 * jcp.reduce_loop_load_step
@@ -126,8 +129,8 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
             case backward_data:
             default:
                 return ptr[aux_reg_output_data
-                        + (i * get_output_i_offset()
-                                  + j * get_output_j_offset())
+                        + (i * get_output_i_offset(jcp)
+                                  + j * get_output_j_offset(jcp))
                                 * sizeof(float)];
         }
     };
@@ -327,11 +330,11 @@ void jit_avx2_1x1_conv_kernel_f32::generate() {
                 add(reg_bias_data,
                         load_loop_blk * jcp.oc_block * sizeof(float));
                 add(reg_output_data,
-                        get_load_loop_output_fwd_offset(load_loop_blk));
+                        get_load_loop_output_fwd_offset(jcp, load_loop_blk));
                 break;
             case backward_data:
                 add(reg_output_data,
-                        get_load_loop_output_bwd_d_offset(load_loop_blk));
+                        get_load_loop_output_bwd_d_offset(jcp, load_loop_blk));
                 break;
             case backward_weights:
                 for (int i = 0; i < load_loop_blk; i++)

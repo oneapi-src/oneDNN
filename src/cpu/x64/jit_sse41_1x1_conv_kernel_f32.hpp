@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
+
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
@@ -90,64 +91,6 @@ private:
     void generate_bcast_loop(int load_loop_blk);
     void generate_reduce_loop(int load_loop_blk, int ur);
     void generate_diff_bias_loop(int load_loop_blk);
-
-    inline bool is_bcast_layout_nxc() {
-        switch (jcp.prop_kind) {
-            case prop_kind::forward_training:
-            case prop_kind::forward_inference:
-                return utils::one_of(jcp.src_tag, format_tag::ndhwc,
-                        format_tag::nhwc, format_tag::nwc);
-            default: assert(!"invalid prop_kind"); return false;
-        }
-    }
-
-    inline bool is_load_layout_nxc() {
-        return jcp.prop_kind == prop_kind::backward_weights
-                && utils::one_of(jcp.dst_tag, format_tag::ndhwc,
-                        format_tag::nhwc, format_tag::nwc);
-    }
-
-    inline bool is_out_layout_nxc() {
-        switch (jcp.prop_kind) {
-            case prop_kind::forward_training:
-            case prop_kind::forward_inference:
-                return utils::one_of(jcp.dst_tag, format_tag::ndhwc,
-                        format_tag::nhwc, format_tag::nwc);
-            default: assert(!"invalid prop_kind"); return false;
-        }
-    }
-
-    inline size_t get_bcast_j_offset() {
-        return is_bcast_layout_nxc() ? jcp.reduce_dim : jcp.reduce_loop_unroll;
-    }
-
-    inline size_t get_bcast_offset(int u, int j) {
-        if (is_bcast_layout_nxc() || u != jcp.reduce_loop_unroll) {
-            return j * get_bcast_j_offset() + u;
-        } else {
-            return (jcp.bcast_dim + j) * get_bcast_j_offset();
-        }
-    }
-
-    inline size_t get_output_i_offset() {
-        if (is_out_layout_nxc()) {
-            return jcp.load_block;
-        } else {
-            return (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) * jcp.load_block;
-        }
-    }
-
-    inline size_t get_output_j_offset() {
-        return is_out_layout_nxc() ? jcp.load_dim : jcp.load_block;
-    }
-
-    inline size_t get_load_loop_output_fwd_offset(int load_loop_blk) {
-        size_t offset = load_loop_blk * jcp.oc_block * sizeof(float);
-        if (!is_out_layout_nxc()) {
-            offset *= jcp.with_dw_conv ? jcp.ow : jcp.os;
-        }
-        return offset;
-    }
 
     void generate();
 };
