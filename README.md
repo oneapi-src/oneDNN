@@ -261,11 +261,12 @@ at dnnl.maintainers@intel.com.
 We welcome community contributions to oneDNN. If you have an idea on how
 to improve the library:
 
-* For changes impacting the public API, submit
-  an [RFC pull request](CONTRIBUTING.md#RFC_pull_requests).
+* For changes impacting the public API or library overall, such as adding new
+  primitives or changes to the architecture, submit an
+  [RFC pull request](https://github.com/oneapi-src/oneDNN/tree/rfcs).
 * Ensure that the changes are consistent with the
- [code contribution guidelines](CONTRIBUTING.md#code_contribution_guidelines)
- and [coding style](CONTRIBUTING.md#coding_style).
+  [code contribution guidelines](CONTRIBUTING.md#code_contribution_guidelines)
+  and [coding style](CONTRIBUTING.md#coding_style).
 * Ensure that you can build the product and run all the examples with your
   patch.
 * Submit a [pull request](https://github.com/oneapi-src/oneDNN/pulls).
