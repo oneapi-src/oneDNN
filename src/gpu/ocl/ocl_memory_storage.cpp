@@ -93,6 +93,11 @@ status_t ocl_memory_storage_t::unmap_data(
 
 std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
         size_t offset, size_t size) const {
+    // Fast return on size = 0.
+    // It also seems clCreateSubBuffer() does not work properly for such case.
+    // Assumption: returned sub-storage won't be used for extracting cl_mem.
+    if (size == 0) return nullptr;
+
     cl_mem_flags mem_flags;
     cl_int err;
     err = clGetMemObjectInfo(
@@ -115,6 +120,7 @@ std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
 
     if (!parent_mem) parent_mem = mem_object();
 
+    assert(size != 0);
     cl_buffer_region buffer_region = {parent_off + offset, size};
     ocl_wrapper_t<cl_mem> sub_buffer = clCreateSubBuffer(parent_mem, mem_flags,
             CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
