@@ -18,6 +18,7 @@
 
 #include "dnnl_thread.hpp"
 #include "dnnl_traits.hpp"
+#include "stream.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -186,14 +187,15 @@ void typed_zero_pad_generic_blocked(
 }
 
 template <data_type_t dt>
-status_t memory_t::typed_zero_pad(const exec_ctx_t &ctx) const {
-    const memory_desc_wrapper mdw(md());
+status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
+    const memory_desc_wrapper mdw(memory->md());
+    memory_storage_t *memory_storage = memory->memory_storage();
 
     if (mdw.format_kind() != format_kind::blocked) return unimplemented;
 
     if (mdw.nelems(false) == mdw.nelems(true)) return success;
 
-    void *mapped_ptr = ctx.map_memory_storage(memory_storage(), ctx.stream());
+    void *mapped_ptr = ctx.map_memory_storage(memory_storage, ctx.stream());
 
     auto *data = static_cast<typename prec_traits<dt>::type *>(mapped_ptr);
     auto blk = mdw.blocking_desc();
@@ -212,7 +214,7 @@ status_t memory_t::typed_zero_pad(const exec_ctx_t &ctx) const {
         if (blksize == blksize_) { \
             typed_zero_pad_blk<dt, blk_kind, blksize_>(mdw, data); \
             ctx.unmap_memory_storage( \
-                    memory_storage(), mapped_ptr, ctx.stream()); \
+                    memory_storage, mapped_ptr, ctx.stream()); \
             return success; \
         } \
     } while (0)
@@ -262,11 +264,34 @@ status_t memory_t::typed_zero_pad(const exec_ctx_t &ctx) const {
     // the last line of defence
     typed_zero_pad_generic_blocked<dt>(mdw, data);
 
-    ctx.unmap_memory_storage(memory_storage(), mapped_ptr, ctx.stream());
+    ctx.unmap_memory_storage(memory_storage, mapped_ptr, ctx.stream());
     return success;
 }
 
+static status_t zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
+    memory_desc_wrapper mdw(memory->md());
+    switch (mdw.data_type()) {
+        case f16: return typed_zero_pad<f16>(memory, ctx);
+        case bf16: return typed_zero_pad<bf16>(memory, ctx);
+        case f32: return typed_zero_pad<f32>(memory, ctx);
+        case s32: return typed_zero_pad<s32>(memory, ctx);
+        case s8: return typed_zero_pad<s8>(memory, ctx);
+        case u8: return typed_zero_pad<u8>(memory, ctx);
+        default: assert(!"memory is undefined"); return unimplemented;
+    }
+    return unimplemented;
+}
+
+status_t stream_t::zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
+    return ::zero_pad(memory, ctx);
+}
+
 status_t memory_t::zero_pad(stream_t *stream) const {
+    if (stream == nullptr) {
+        engine_t *engine;
+        engine = memory_storage()->engine();
+        stream = engine->service_stream();
+    }
     return zero_pad(exec_ctx_t(stream));
 }
 
@@ -276,16 +301,18 @@ status_t memory_t::zero_pad(const exec_ctx_t &ctx) const {
             || mdw.is_zero() || !mdw.is_blocking_desc();
     if (skip_zeroing) return success;
 
-    status_t status = status::success;
-    switch (mdw.data_type()) {
-        case f16: return typed_zero_pad<f16>(ctx);
-        case bf16: return typed_zero_pad<bf16>(ctx);
-        case f32: return typed_zero_pad<f32>(ctx);
-        case s32: return typed_zero_pad<s32>(ctx);
-        case s8: return typed_zero_pad<s8>(ctx);
-        case u8: return typed_zero_pad<u8>(ctx);
-        default: assert(!"memory is undefined"); return unimplemented;
+    stream_t *stream = ctx.stream();
+    status_t status;
+    if (stream == nullptr) {
+        engine_t *engine;
+        engine = memory_storage()->engine();
+        stream = engine->service_stream();
     }
+
+    if (stream != nullptr)
+        status = stream->zero_pad(this, ctx);
+    else
+        status = ::zero_pad(this, ctx);
 
     return status;
 }

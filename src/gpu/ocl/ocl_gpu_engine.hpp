@@ -100,7 +100,7 @@ public:
         return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
     }
 
-    stream_t *service_stream() const { return service_stream_.get(); }
+    stream_t *service_stream() const override { return service_stream_.get(); }
 
 private:
     cl_device_id device_;
