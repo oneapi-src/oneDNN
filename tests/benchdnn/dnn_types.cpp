@@ -849,14 +849,10 @@ dnnl_format_tag_t convert_tag(const std::string &tag_str, int ndims) {
     return str2fmt_tag(tag_str.c_str());
 }
 
-void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr) {
+void maybe_oscale(const attr_t &attr, float &d, float *scales, int64_t oc) {
     if (!attr.oscale.is_def()) {
-        const auto &s = attr.oscale;
-        if (s.policy == policy_t::COMMON) {
-            d *= s.scale;
-        } else {
-            d *= scales[oc];
-        }
+        int64_t idx = attr.oscale.policy == policy_t::COMMON ? 0 : oc;
+        d *= scales[idx];
     }
 }
 
@@ -931,23 +927,23 @@ float compute_eltwise_bwd(
     return NAN;
 }
 
-void maybe_post_ops(float &d, float dst, const attr_t &attr) {
+void maybe_post_ops(const attr_t &attr, float &val, float sum_val) {
     using namespace dnnl::impl::math;
 
     const auto &ops = attr.post_ops;
     for (int idx = 0; idx < ops.len; ++idx) {
         const auto &e = ops.entry[idx];
 
-        const auto &s = e.eltwise.scale;
-        const auto &a = e.eltwise.alpha;
-        const auto &b = e.eltwise.beta;
-
-        if (e.kind == pk_t::SUM)
-            d += e.sum.scale * dst;
-        else if (e.is_convolution_kind())
-            return;
-        else if (e.is_eltwise_kind())
-            d = compute_eltwise_fwd(e.kind, d, s, a, b);
+        if (e.kind == pk_t::SUM) {
+            val += e.sum.scale * sum_val;
+        } else if (e.is_convolution_kind()) {
+            continue;
+        } else if (e.is_eltwise_kind()) {
+            const auto &s = e.eltwise.scale;
+            const auto &a = e.eltwise.alpha;
+            const auto &b = e.eltwise.beta;
+            val = compute_eltwise_fwd(e.kind, val, s, a, b);
+        }
     }
 }
 

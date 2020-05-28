@@ -55,8 +55,8 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &src_m,
             float *bia_ptr = (float *)bia_m;
             tmp += bia_ptr[wei_off];
         }
-        maybe_scale(tmp, p->scales, n, p->attr);
-        maybe_post_ops(tmp, dst, p->attr);
+        maybe_oscale(p->attr, tmp, p->scales, n);
+        maybe_post_ops(p->attr, tmp, dst);
         tmp += dst_zero_point;
         dst = tmp;
     });

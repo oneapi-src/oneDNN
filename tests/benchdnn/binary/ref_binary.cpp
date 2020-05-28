@@ -33,7 +33,7 @@ void perform_op(const prb_t *p, float *dst, float x, float y) {
     } else {
         assert(!"operation not supported!");
     }
-    maybe_post_ops(res, *dst, p->attr);
+    maybe_post_ops(p->attr, res, *dst);
     *dst = res;
 };
 
