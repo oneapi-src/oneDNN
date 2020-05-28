@@ -52,8 +52,26 @@ set(DNNL_LIBRARY_TYPE "SHARED" CACHE STRING
     "specifies whether oneDNN library should be SHARED or STATIC")
 option(DNNL_BUILD_EXAMPLES "builds examples"  ON)
 option(DNNL_BUILD_TESTS "builds tests" ON)
-option(DNNL_BUILD_FOR_CI "specifies whether oneDNN library should be built for CI" OFF)
+option(DNNL_BUILD_FOR_CI
+    "specifies whether oneDNN library will use special testing environment for
+    internal testing processes"
+    OFF)
 option(DNNL_WERROR "treat warnings as errors" OFF)
+
+set(DNNL_TEST_SET "CI" CACHE STRING
+    "specifies testing targets coverage. Supports CI, NIGHTLY.
+
+    When CI option is set, it enables a subset of test targets to run. When
+    NIGHTLY option is set, it enables a broader set of test targets to run.")
+# Transfer string literal into a number to support nested inclusions easier
+set(DNNL_TEST_SET_CI "1")
+set(DNNL_TEST_SET_NIGHTLY "2")
+
+if(DNNL_TEST_SET STREQUAL "NIGHTLY")
+    set(DNNL_TEST_SET ${DNNL_TEST_SET_NIGHTLY})
+else()
+    set(DNNL_TEST_SET ${DNNL_TEST_SET_CI})
+endif()
 
 set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
     "specifies installation mode; supports DEFAULT or BUNDLE.
