@@ -322,7 +322,9 @@ int dst_idx(int mb_block, int oc_outer, int ow_block) {
                     && ((iw) + iw_off < 0 || (iw) + iw_off >= IW)) \
                 continue; \
             for (int ic_outer = 0; ic_outer < IC_OUTER; ic_outer++) \
-                for (int mb_block = 0; mb_block < MB_BLOCK; mb_block += 8) { \
+                __attribute__((opencl_unroll_hint)) /*  attr:no-format */ \
+                        for (int mb_block = 0; mb_block < MB_BLOCK; \
+                                mb_block += 8) { \
                     int mb_bound = min(8, MB_BLOCK - mb_block); \
                     DATA_T A[8]; \
                     int off = src_off( \

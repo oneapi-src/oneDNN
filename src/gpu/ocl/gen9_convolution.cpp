@@ -44,7 +44,14 @@ static void fwd_compute_block_sizes(
     }
     max_ow_block = nstl::min(conf.ow, max_ow_block);
 
-    conf.mb_block = (conf.ver == ver_16mb16c ? 16 : 1);
+    if (conf.ver == ver_16mb16c) {
+        conf.mb_block = (conf.src_data_type == data_type::f16)
+                ? (conf.mb % 32 == 0 ? 32 : 16)
+                : 16;
+    } else {
+        conf.mb_block = 1;
+    }
+
     conf.ow_block = utils::max_div(conf.ow, max_ow_block);
 
     if (conf.ow_block < max_ow_block / 2) {
