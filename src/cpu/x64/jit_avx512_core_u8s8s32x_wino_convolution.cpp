@@ -708,6 +708,9 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bias_d(&bias_md);
 
+    // This kernel only supports 2D convolutions.
+    if (src_d.ndims() != 4) return status::unimplemented;
+
     const bool with_groups = wei_d.ndims() == src_d.ndims() + 1;
 
     jcp.nthr = dnnl_get_max_threads();

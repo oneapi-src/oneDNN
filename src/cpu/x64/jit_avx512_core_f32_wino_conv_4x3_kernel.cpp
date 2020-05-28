@@ -1109,6 +1109,9 @@ status_t _jit_avx512_core_f32_wino_conv_4x3_data_kernel::init_conf_common(
         const memory_desc_wrapper &dst_d) {
     if (!mayiuse(avx512_core)) { return status::unimplemented; }
 
+    // This kernel only supports 2D convolutions.
+    if (src_d.ndims() != 4) return status::unimplemented;
+
     jcp.nthr = dnnl_get_max_threads();
 
     jcp.ver = ver_avx512_core;
@@ -2464,6 +2467,9 @@ status_t jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel::init_conf(
         return status::unimplemented;
     else
         jcp.ver = ver_avx512_core;
+
+    // This kernel only supports 2D convolutions.
+    if (src_d.ndims() != 4) return status::unimplemented;
 
     jcp.nthr = dnnl_get_max_threads();
 
