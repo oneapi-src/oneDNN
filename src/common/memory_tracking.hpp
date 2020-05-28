@@ -323,22 +323,6 @@ struct registry_t {
         return get(offset_map_.at(key), base_ptr);
     }
 
-    std::unique_ptr<memory_storage_t> get_memory_storage(
-            const key_t &key, const memory_storage_t *base_mem_storage) const {
-        if (!base_mem_storage) {
-            assert(size() == 0);
-            return nullptr;
-        }
-        if (offset_map_.count(key) != 1) return nullptr;
-
-        const auto &e = offset_map_.at(key);
-        const size_t aligned_offset
-                = reinterpret_cast<size_t>(utils::align_ptr<char>(
-                        reinterpret_cast<char *>(e.offset), e.alignment));
-        assert(aligned_offset + e.size <= size());
-        return base_mem_storage->get_sub_storage(aligned_offset, e.size);
-    }
-
     entry_t get(const key_t &key) const {
         if (size() == 0 || offset_map_.count(key) != 1)
             return entry_t {0, 0, 0, 0};
