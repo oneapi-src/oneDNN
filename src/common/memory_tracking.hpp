@@ -497,6 +497,7 @@ struct grantor_t {
             return nullptr;
         }
         auto e = registry_.get(make_key(prefix_, key));
+        if (e.size == 0) return nullptr;
 
         if (is_cpu_engine(base_mem_storage_)) {
             char *host_ptr
