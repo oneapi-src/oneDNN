@@ -63,9 +63,6 @@ protected:
     const dnnl::impl::memory_desc_t md_;
 
 private:
-    template <dnnl::impl::data_type_t>
-    dnnl::impl::status_t typed_zero_pad(dnnl_stream *stream) const;
-
     dnnl_memory() = delete;
     DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_memory);
 

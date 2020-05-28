@@ -111,7 +111,7 @@ public:
         return enable_ngen_kernels_;
     }
 
-    stream_t *service_stream() const { return service_stream_.get(); }
+    stream_t *service_stream() const override { return service_stream_.get(); }
 
 private:
     cl_device_id device_;

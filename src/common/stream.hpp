@@ -51,6 +51,8 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
     virtual void before_exec_hook() {}
     virtual void after_exec_hook() {}
 
+    virtual dnnl::impl::status_t zero_pad(const dnnl::impl::memory_t *memory);
+
 protected:
     dnnl::impl::engine_t *engine_;
     unsigned flags_;

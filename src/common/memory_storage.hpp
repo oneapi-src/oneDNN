@@ -18,6 +18,7 @@
 #define COMMON_MEMORY_STORAGE_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
 
 #include <assert.h>
