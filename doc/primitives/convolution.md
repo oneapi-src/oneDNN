@@ -61,9 +61,10 @@ IC_G \times KH \times KW \f$ 5D tensors for 2D convolutions with groups.
         \bias(g \cdot OC_G + oc_g) + \\
         +
         \sum_{ic_g=0}^{IC_G-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-            \src(n, g \cdot IC_G + ic_g, oh + kh - PH_L, ow + kw - PW_L)
-        \cdot
-        \weights(g, oc_g, ic_g, kh, kw),
+            \src(n, g \cdot IC_G + ic_g, oh \cdot SH + kh - PH_L,
+                    ow \cdot SW + kw - PW_L)
+            \cdot
+            \weights(g, oc_g, ic_g, kh, kw),
 \f]
 
 where
@@ -80,8 +81,8 @@ The case when \f$OC_G = IC_G = 1\f$ is also known as *a depthwise convolution*.
         \bias(oc) + \\
         +
         \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-            \src(n, ic, oh + kh \cdot (DH + 1) - PH_L,
-                    ow + kw \cdot (DW + 1) - PW_L)
+            \src(n, ic, oh \cdot SH + kh \cdot (DH + 1) - PH_L,
+                    ow \cdot SW + kw \cdot (DW + 1) - PW_L)
             \cdot
             \weights(oc, ic, kh, kw).
 \f]
