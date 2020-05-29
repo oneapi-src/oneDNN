@@ -115,9 +115,10 @@ std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
 
     auto sub_storage
             = new ocl_memory_storage_t(this->engine(), parent_storage());
-    if (sub_storage)
+    if (sub_storage) {
         sub_storage->init(memory_flags_t::use_runtime_ptr, size, sub_buffer);
-    sub_storage->base_offset_ = base_offset_ + offset;
+        sub_storage->base_offset_ = base_offset_ + offset;
+    }
     return std::unique_ptr<memory_storage_t>(sub_storage);
 }
 
