@@ -172,6 +172,16 @@ const char *state2str(res_state_t state, bool allow_unimpl) {
     return "STATE_UNDEF";
 }
 
+const char *skip_reason2str(skip_reason_t skip_reason) {
+#define CASE(x) \
+    if (skip_reason == x) return STRINGIFY(x)
+    CASE(CASE_NOT_SUPPORTED);
+    CASE(NOT_ENOUGH_RAM);
+    CASE(SKIP_IMPL_HIT);
+#undef CASE
+    return "SKIP_UNKNOWN";
+}
+
 void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
         int status, const char *pstr) {
     auto &bs = benchdnn_stat;
@@ -192,7 +202,8 @@ void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
             break;
         case SKIPPED:
             assert(status == OK);
-            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            BENCHDNN_PRINT(0, "%d:%s (%s) __REPRO: %s\n", bs.tests, state,
+                    skip_reason2str(res.reason), pstr);
             bs.skipped++;
             break;
         case UNIMPLEMENTED:

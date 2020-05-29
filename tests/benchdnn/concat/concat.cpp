@@ -142,7 +142,7 @@ int doit(const prb_t *p, res_t *r) {
 
     if (dnn_mem_t::check_mem_size(const_pd) != OK) {
         DNN_SAFE_V(dnnl_primitive_destroy(c));
-        return r->state = SKIPPED, OK;
+        return r->state = SKIPPED, r->reason = NOT_ENOUGH_RAM, OK;
     }
 
     const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {

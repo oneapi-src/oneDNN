@@ -445,7 +445,7 @@ int init_pd(const engine_t &engine_tgt, const prb_t *p,
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 r->impl_name.c_str());
         DNN_SAFE(dnnl_primitive_desc_destroy(bpd), WARN);
-        return r->state = SKIPPED, OK;
+        return r->state = SKIPPED, r->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
         if (!strstr(r->impl_name.c_str(), "jit")) {
@@ -476,7 +476,7 @@ int doit(const prb_t *p, res_t *r) {
 
     if (dnn_mem_t::check_mem_size(const_fpd) != OK) {
         DNN_SAFE_V(dnnl_primitive_destroy(b));
-        return r->state = SKIPPED, OK;
+        return r->state = SKIPPED, r->reason = NOT_ENOUGH_RAM, OK;
     }
 
     const auto q = [](const_dnnl_primitive_desc_t pd,
@@ -580,7 +580,7 @@ int doit(const prb_t *p, res_t *r) {
 
         if (dnn_mem_t::check_mem_size(const_bpd) != OK) {
             DNN_SAFE_V(dnnl_primitive_destroy(b));
-            return r->state = SKIPPED, OK;
+            return r->state = SKIPPED, r->reason = NOT_ENOUGH_RAM, OK;
         }
 
         const auto &d_data_md = q(const_bpd, DNNL_ARG_DIFF_DST);
