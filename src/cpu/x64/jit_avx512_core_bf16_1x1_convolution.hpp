@@ -93,8 +93,9 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             }
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+            status = jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_);
+            if (status != status::success) return status;
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
@@ -358,8 +359,9 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+            status = jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_);
+            if (status != status::success) return status;
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
             return status::success;
@@ -453,8 +455,9 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+            status = jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_);
+            if (status != status::success) return status;
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 

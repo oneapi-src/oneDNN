@@ -1438,7 +1438,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     return status::success;
 }
 
-void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+status_t jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad,
         const jit_1x1_conv_conf_t &jcp) {
     using namespace dnnl::impl::memory_tracking::names;
@@ -1491,6 +1491,18 @@ void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
     const size_t store_buffer_size
             = (size_t)jcp.nthr * jcp.bcast_dim * max_load_per_thread;
     scratchpad.book(key_conv_store_wsp, store_buffer_size, jcp.typesize_acc);
+
+    // Heuristic threshold for requested scratchpad memory to avoid
+    // possible crash on memory allocation.
+    size_t scratchpad_limit_by_absolute_value = (size_t)20 * (1 << 30); // 20Gb
+
+    // Note: currently ignore this check for depthwise-fusion implementation
+    // because of memory requirements in the latter.
+    if (!jcp.with_dw_conv
+            && scratchpad.size() > scratchpad_limit_by_absolute_value)
+        return status::unimplemented;
+
+    return status::success;
 }
 
 void jit_avx512_core_bf16_1x1_conv_kernel::balance(

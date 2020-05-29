@@ -65,7 +65,7 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
             const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
             int nthreads, bool reduce_src);
 
-    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+    static status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_1x1_conv_conf_t &jcp);
 
     const jit_1x1_conv_conf_t &jcp;
