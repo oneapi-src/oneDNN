@@ -282,8 +282,7 @@ TEST_F(attr_test, DepthwiseFusion) {
 
     for (auto dt : test_dts) {
 
-        memory::desc dat_md {
-                {1024, 512, 512, 512}, dt, memory::format_tag::any};
+        memory::desc dat_md {{1024, 512, 64, 64}, dt, memory::format_tag::any};
         memory::desc wht_md {{512, 512, 1, 1}, dt, memory::format_tag::any};
 
         auto cd_desc = convolution_forward::desc(prop_kind::forward_inference,
