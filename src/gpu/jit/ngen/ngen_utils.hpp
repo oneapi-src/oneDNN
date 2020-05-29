@@ -20,7 +20,6 @@
 #include <cstdint>
 
 #include <immintrin.h>
-#include <nmmintrin.h>
 
 #ifdef _MSC_VER
 #include <intrin.h>

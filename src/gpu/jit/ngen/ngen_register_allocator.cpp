@@ -17,7 +17,6 @@
 #include "ngen_register_allocator.hpp"
 #include "ngen_utils.hpp"
 #include <iomanip>
-#include <immintrin.h>
 #include <iostream>
 
 namespace ngen {
