@@ -262,8 +262,6 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
 
             jcp_dw->dw_conv_buffer_oc
                     = jcp_1x1.nb_load_blocking * jcp_1x1.oc_block;
-            jcp_1x1.bcast_loop_output_step
-                    = jcp_1x1.ur * jcp_1x1.load_block * jcp_1x1.typesize_out;
 
             registrar_t scratchpad(scratchpad_registry_);
             registrar_t dw_scratchpad(scratchpad, names::prefix_fusion);
