@@ -396,8 +396,9 @@ DEALINGS IN THE SOFTWARE.
 MIT License
 ===========
 
-Intel Graphics Compute Runtime (src/gpu/jit/ngen/npack/{elf_structs,hash}.hpp)
-------------------------------------------------------------------------------
+Intel(R) Graphics Compute Runtime for oneAPI Level Zero and OpenCL(TM) Driver
+(src/gpu/jit/ngen/npack/{elf_structs,hash}.hpp)
+-----------------------------------------------------------------------------
 
 MIT License
 
@@ -422,8 +423,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-Intel Graphics Compiler (src/gpu/jit/ngen/npack/neo_structs.hpp)
-----------------------------------------------------------------
+Intel(R) Graphics Compiler (src/gpu/jit/ngen/npack/neo_structs.hpp)
+-------------------------------------------------------------------
 
 MIT License
 
