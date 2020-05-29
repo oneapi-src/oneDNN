@@ -595,7 +595,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
 int doit(const prb_t &p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
-    if (p.maybe_skip()) return r->state = SKIPPED, OK;
+    if (p.maybe_skip())
+        return r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED, OK;
 
     dnnl_primitive_t c {};
     SAFE(init_prim(&c, init_pd, &p, r), WARN);
@@ -610,7 +611,7 @@ int doit(const prb_t &p, res_t *r) {
 
     if (dnn_mem_t::check_mem_size(const_fpd) != OK) {
         DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
-        return r->state = SKIPPED, OK;
+        return r->state = SKIPPED, r->reason = NOT_ENOUGH_RAM, OK;
     }
 
     const auto q = [](const_dnnl_primitive_desc_t pd,
@@ -753,7 +754,7 @@ int doit(const prb_t &p, res_t *r) {
 
         if (dnn_mem_t::check_mem_size(const_bpd) != OK) {
             DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
-            return r->state = SKIPPED, OK;
+            return r->state = SKIPPED, r->reason = NOT_ENOUGH_RAM, OK;
         }
 
         const auto &bwd_weights_layer_md = q(const_bpd, DNNL_ARG_WEIGHTS_LAYER);
