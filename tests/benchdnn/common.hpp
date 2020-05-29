@@ -193,11 +193,20 @@ enum res_state_t {
 };
 const char *state2str(res_state_t state, bool allow_unimpl);
 
+enum skip_reason_t {
+    SKIP_UNKNOWN = 0,
+    CASE_NOT_SUPPORTED,
+    NOT_ENOUGH_RAM,
+    SKIP_IMPL_HIT,
+};
+const char *skip_reason2str(skip_reason_t skip_reason);
+
 struct res_t {
     res_state_t state;
     size_t errors, total;
     benchdnn_timer_t timer;
     std::string impl_name;
+    skip_reason_t reason;
 };
 
 void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
