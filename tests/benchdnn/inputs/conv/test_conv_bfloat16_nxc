@@ -36,7 +36,7 @@
 --attr=post_ops='relu' --batch=shapes_googlenet_v3
 --attr=post_ops='sum;tanh:1:1:2.5' --batch=shapes_tails
 
---batch=harness_conv_dw_nxc_bfloat16
+--batch=harness_conv_dw_bfloat16_nxc
 
 # Test src-transpose padding handling in bf16 bwd-w convolution
 --reset --mb=2
