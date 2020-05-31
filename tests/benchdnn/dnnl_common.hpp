@@ -210,6 +210,18 @@ private:
     std::vector<std::pair<int, const dnn_mem_t *>> args_;
 };
 
+// Engine used to run oneDNN primitives for testing.
+inline const engine_t &get_test_engine() {
+    static const engine_t instance(engine_tgt_kind);
+    return instance;
+}
+
+// Engine used to run reference implementations (fast-ref-gpu option).
+inline const engine_t &get_cpu_engine() {
+    static const engine_t instance(dnnl_cpu);
+    return instance;
+}
+
 // this function is used to create a primitive and engine
 template <typename func_t, typename prb_t>
 int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
