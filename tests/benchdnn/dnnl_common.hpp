@@ -222,7 +222,51 @@ inline const engine_t &get_cpu_engine() {
     return instance;
 }
 
-// this function is used to create a primitive and engine
+template <typename func_t, typename prb_t>
+int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
+        res_t *r, dir_t dir = FLAG_FWD,
+        const_dnnl_primitive_desc_t hint = nullptr) {
+
+    dnnl_primitive_desc_t pd {};
+    dnnl_primitive_t return_prim {};
+
+    auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(pd); };
+    auto cleanup_prim = [&]() { dnnl_primitive_destroy(return_prim); };
+#ifndef DNNL_DISABLE_PRIMITIVE_CACHE
+    // The idea is to create the requested primitive twice using
+    // different engines.
+    // Rationale:
+    // 1. Make sure that the primitive cache is robust for the cases when:
+    //   - CPU engine is re-created
+    //   - GPU engine is re-created for the same device but different context
+    // These 2 cases are commonly used or expected to be used in the frameworks.
+    // 2. (for GPU only) Identify context dependent parts in primitive
+    // implementations, e.g. if a primitive implementation contains
+    // a memory_storage_t (for scales, zero points or buffers), which depends
+    // on a particular engine then it should fail at execution time.
+
+    // The first primitive creation using a temporary engine.
+    engine_t engine(engine_tgt_kind);
+    int status = init_pd_func(engine, p, pd, r, dir, hint);
+    if (status != OK) return status;
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
+    DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);
+    DNN_SAFE(dnnl_primitive_destroy(return_prim), WARN);
+
+#endif
+    // The second (if the cache is enabled) primitive creation using
+    // the global test engine.
+    status = init_pd_func(get_test_engine(), p, pd, r, dir, hint);
+    if (status != OK) return status;
+    // This primitive is expected to come from the cache.
+    DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
+    DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);
+    (*prim) = return_prim;
+    return OK;
+}
+
+// TODO: Remove this as soon as it's no longer used.
 template <typename func_t, typename prb_t>
 int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
         engine_t &engine, prb_t *p, res_t *r, dir_t dir = FLAG_FWD,
