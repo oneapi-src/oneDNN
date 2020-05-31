@@ -37,7 +37,7 @@ void prep_bia_dims(
         bia_dims[d] = (p->bia_mask & (1 << d)) ? dst_dims[d] : 1;
 }
 
-static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+static int init_pd(dnnl_engine_t engine, const prb_t *p,
         dnnl_primitive_desc_t &mpd, res_t *r, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     const int64_t MB = p->runtime_mb ? DNNL_RUNTIME_DIM_VAL : p->mb;
@@ -78,8 +78,8 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
     auto dnnl_attr = create_dnnl_attr(p->attr, p->n, p->scales);
 
     dnnl_status_t init_status = dnnl_success;
-    init_status = dnnl_primitive_desc_create(
-            &mpd, &op_d, dnnl_attr, engine_tgt, NULL);
+    init_status
+            = dnnl_primitive_desc_create(&mpd, &op_d, dnnl_attr, engine, NULL);
     dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
@@ -203,10 +203,9 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-    engine_t engine_tgt;
 
     dnnl_primitive_t m {};
-    SAFE(init_prim(&m, init_pd, engine_tgt, p, r), WARN);
+    SAFE(init_prim(&m, init_pd, p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
@@ -260,21 +259,23 @@ int doit(const prb_t *p, res_t *r) {
     }
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
-    dnn_mem_t src_dt(src_md, engine_tgt);
-    dnn_mem_t wei_dt(wei_md, engine_tgt);
-    dnn_mem_t dst_dt(dst_md, engine_tgt);
+    const auto &test_engine = get_test_engine();
+
+    dnn_mem_t src_dt(src_md, test_engine);
+    dnn_mem_t wei_dt(wei_md, test_engine);
+    dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t bia_dt;
     if (p->bia_dt != dnnl_data_type_undef)
-        bia_dt = dnn_mem_t(bia_md, engine_tgt);
-    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
+        bia_dt = dnn_mem_t(bia_md, test_engine);
+    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     const auto fp = dnnl_f32;
-    dnn_mem_t src_fp(p->ndims, src_md.dims, fp, NULL, engine_tgt);
-    dnn_mem_t wei_fp(p->ndims, wei_md.dims, fp, NULL, engine_tgt);
-    dnn_mem_t dst_fp(p->ndims, dst_md.dims, fp, NULL, engine_tgt);
+    dnn_mem_t src_fp(p->ndims, src_md.dims, fp, NULL, test_engine);
+    dnn_mem_t wei_fp(p->ndims, wei_md.dims, fp, NULL, test_engine);
+    dnn_mem_t dst_fp(p->ndims, dst_md.dims, fp, NULL, test_engine);
     dnn_mem_t bia_fp;
     if (p->bia_dt != dnnl_data_type_undef)
-        bia_fp = dnn_mem_t(p->ndims, bia_md.dims, fp, NULL, engine_tgt);
+        bia_fp = dnn_mem_t(p->ndims, bia_md.dims, fp, NULL, test_engine);
 
     SAFE(fill_data(SRC, p, src_dt, src_fp, r), WARN);
     SAFE(fill_data(WEI, p, wei_dt, wei_fp, r), WARN);
@@ -284,13 +285,13 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t scales;
     dnn_mem_t src_zero_points_m, wei_zero_points_m, dst_zero_points_m;
-    maybe_prepare_runtime_scales(scales, p->attr, p->n, p->scales, engine_tgt);
+    maybe_prepare_runtime_scales(scales, p->attr, p->n, p->scales, test_engine);
     maybe_prepare_runtime_zero_points(
-            src_zero_points_m, p->attr, DNNL_ARG_SRC, engine_tgt);
+            src_zero_points_m, p->attr, DNNL_ARG_SRC, test_engine);
     maybe_prepare_runtime_zero_points(
-            wei_zero_points_m, p->attr, DNNL_ARG_WEIGHTS, engine_tgt);
+            wei_zero_points_m, p->attr, DNNL_ARG_WEIGHTS, test_engine);
     maybe_prepare_runtime_zero_points(
-            dst_zero_points_m, p->attr, DNNL_ARG_DST, engine_tgt);
+            dst_zero_points_m, p->attr, DNNL_ARG_DST, test_engine);
 
     args_t args;
 
@@ -303,15 +304,15 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS, wei_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
-    DNN_SAFE(execute_and_wait(m, engine_tgt, args), WARN);
+    DNN_SAFE(execute_and_wait(m, test_engine, args), WARN);
 
     if (bench_mode & CORR) {
-        compute_ref(engine_tgt, p, src_fp, wei_fp, bia_fp, dst_fp);
-        dnn_mem_t c(dst_dt, fp, get_abx_tag(p->ndims), engine_tgt);
+        compute_ref(test_engine, p, src_fp, wei_fp, bia_fp, dst_fp);
+        dnn_mem_t c(dst_dt, fp, get_abx_tag(p->ndims), test_engine);
         SAFE(compare_dat(p, DST, c, dst_fp, r), WARN);
     }
 
-    measure_perf(r->timer, engine_tgt, m, args);
+    measure_perf(r->timer, test_engine, m, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(m));
 
