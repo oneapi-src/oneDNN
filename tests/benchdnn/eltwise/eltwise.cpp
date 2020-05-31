@@ -30,7 +30,7 @@
 
 namespace eltwise {
 
-static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+static int init_pd(dnnl_engine_t engine, const prb_t *p,
         dnnl_primitive_desc_t &epd, res_t *r, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_eltwise_desc_t ed;
@@ -61,8 +61,8 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
 
     auto dnnl_attr = create_dnnl_attr(attr_t());
 
-    dnnl_status_t init_status = dnnl_primitive_desc_create(
-            &epd, &ed, dnnl_attr, engine_tgt, NULL);
+    dnnl_status_t init_status
+            = dnnl_primitive_desc_create(&epd, &ed, dnnl_attr, engine, NULL);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
@@ -225,7 +225,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int compare_padded_area_for_zeros(const engine_t &engine_tgt,
+static int compare_padded_area_for_zeros(
         const prb_t *p, const dnn_mem_t &mem_dt, res_t *r) {
     const auto nelems = mem_dt.nelems();
     const auto nelems_padded = mem_dt.nelems(true);
@@ -240,12 +240,13 @@ static int compare_padded_area_for_zeros(const engine_t &engine_tgt,
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&pad_data_d, md.ndims, padded_dims,
                      md.data_type, convert_tag(p->tag, p->ndims)),
             WARN);
-    dnn_mem_t padded_mem_dt(pad_data_d, engine_tgt);
+    dnn_mem_t padded_mem_dt(pad_data_d, get_test_engine());
     for (int64_t i = 0; i < nelems_padded; i++)
         padded_mem_dt.set_elem(i, mem_dt.get_elem(i));
 
     const auto tag = get_abx_tag(md.ndims);
-    dnn_mem_t plain_padded_mem_dt(padded_mem_dt, md.data_type, tag, engine_tgt);
+    dnn_mem_t plain_padded_mem_dt(
+            padded_mem_dt, md.data_type, tag, get_test_engine());
 
     r->errors = 0;
     r->total = nelems_padded - nelems;
@@ -349,10 +350,9 @@ int fill_data(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-    engine_t engine_tgt;
 
     dnnl_primitive_t e {};
-    SAFE(init_prim(&e, init_pd, engine_tgt, p, r), WARN);
+    SAFE(init_prim(&e, init_pd, p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
@@ -374,16 +374,18 @@ int doit(const prb_t *p, res_t *r) {
     const auto fp = dnnl_f32;
     const auto tag = get_abx_tag(p->ndims);
 
-    dnn_mem_t src_fp(data_md, fp, tag, engine_tgt);
-    dnn_mem_t src_dt(data_md, engine_tgt);
+    const auto &test_engine = get_test_engine();
+
+    dnn_mem_t src_fp(data_md, fp, tag, test_engine);
+    dnn_mem_t src_dt(data_md, test_engine);
 
     // we need src_fp for proper comparison, => no in-place reference
-    dnn_mem_t dst_fp(data_md, fp, tag, engine_tgt);
+    dnn_mem_t dst_fp(data_md, fp, tag, test_engine);
     dnn_mem_t placeholder_dst_dt;
-    if (!p->inplace) { placeholder_dst_dt = dnn_mem_t(data_md, engine_tgt); }
+    if (!p->inplace) { placeholder_dst_dt = dnn_mem_t(data_md, test_engine); }
     dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
-    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
+    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
@@ -396,23 +398,23 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(e, engine_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(e, test_engine, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
-            dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
+            dnn_mem_t dst(dst_dt, fp, tag, test_engine);
             SAFE(compare(p, src_fp, dst_fp, dst, r), WARN);
-            SAFE(compare_padded_area_for_zeros(engine_tgt, p, dst_dt, r), WARN);
+            SAFE(compare_padded_area_for_zeros(p, dst_dt, r), WARN);
         }
     } else {
         const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
 
-        dnn_mem_t d_dst_fp = dnn_mem_t(d_data_md, fp, tag, engine_tgt);
-        d_dst_dt = dnn_mem_t(d_data_md, engine_tgt);
+        dnn_mem_t d_dst_fp = dnn_mem_t(d_data_md, fp, tag, test_engine);
+        d_dst_dt = dnn_mem_t(d_data_md, test_engine);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
         if (!p->inplace) {
-            placeholder_d_src_dt = dnn_mem_t(d_data_md, engine_tgt);
+            placeholder_d_src_dt = dnn_mem_t(d_data_md, test_engine);
         }
         dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 
@@ -433,19 +435,18 @@ int doit(const prb_t *p, res_t *r) {
         } else {
             args.set(DNNL_ARG_SRC, src_dt);
         }
-        DNN_SAFE(execute_and_wait(e, engine_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(e, test_engine, args), WARN);
 
         if (bench_mode & CORR) {
             dnn_mem_t &arg_fp = p->use_dst() ? dst_fp : src_fp;
             compute_ref_bwd(p, arg_fp, d_dst_fp, d_src_fp);
-            dnn_mem_t d_src(d_src_dt, fp, tag, engine_tgt);
+            dnn_mem_t d_src(d_src_dt, fp, tag, test_engine);
             SAFE(compare(p, arg_fp, d_src_fp, d_src, r), WARN);
-            SAFE(compare_padded_area_for_zeros(engine_tgt, p, d_src_dt, r),
-                    WARN);
+            SAFE(compare_padded_area_for_zeros(p, d_src_dt, r), WARN);
         }
     }
 
-    measure_perf(r->timer, engine_tgt, e, args);
+    measure_perf(r->timer, test_engine, e, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(e));
 
