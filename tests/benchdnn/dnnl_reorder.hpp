@@ -32,8 +32,6 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     std::shared_ptr<const dnn_mem_t> r_src(&src, [](const dnn_mem_t *) {});
     std::shared_ptr<dnn_mem_t> r_dst(&dst, [](dnn_mem_t *) {});
 
-    engine_t engine_tgt(engine_tgt_kind);
-
     dnnl_primitive_desc_t r_pd = nullptr;
     dnnl_primitive_t r {};
 
@@ -54,18 +52,18 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     std::string driver = std::string(driver_name);
     bool is_reorder_related_driver = (driver == std::string("reorder")
             || driver == std::string("sum") || driver == std::string("concat"));
-    engine_t engine_cpu(dnnl_cpu);
+    const auto &cpu_engine = get_cpu_engine();
     if (!is_reorder_related_driver
             && (src.engine_kind() == dnnl_gpu
                     || dst.engine_kind() == dnnl_gpu)) {
 
         dnnl_status_t status = dnnl_reorder_primitive_desc_create(
-                &r_pd, &src.md_, engine_cpu, &dst.md_, engine_cpu, attr);
+                &r_pd, &src.md_, cpu_engine, &dst.md_, cpu_engine, attr);
         if (status == dnnl_success) {
             // Create CPU memory objects wrapping mapped pointers of source and
             // destination
-            r_src.reset(new dnn_mem_t(src.md_, engine_cpu, (void *)src));
-            r_dst.reset(new dnn_mem_t(dst.md_, engine_cpu, (void *)dst));
+            r_src.reset(new dnn_mem_t(src.md_, cpu_engine, (void *)src));
+            r_dst.reset(new dnn_mem_t(dst.md_, cpu_engine, (void *)dst));
         }
     }
 #endif
@@ -85,11 +83,11 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
 
     dnn_mem_t scales, src_zero_points_m, dst_zero_points_m;
     if (attr_bundle) {
-        maybe_prepare_runtime_scales(scales, *attr_bundle, engine_tgt);
+        maybe_prepare_runtime_scales(scales, *attr_bundle);
         maybe_prepare_runtime_zero_points(
-                src_zero_points_m, attr_bundle->attr, DNNL_ARG_SRC, engine_tgt);
+                src_zero_points_m, attr_bundle->attr, DNNL_ARG_SRC);
         maybe_prepare_runtime_zero_points(
-                dst_zero_points_m, attr_bundle->attr, DNNL_ARG_DST, engine_tgt);
+                dst_zero_points_m, attr_bundle->attr, DNNL_ARG_DST);
     }
 
     args_t args;

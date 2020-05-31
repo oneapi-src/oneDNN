@@ -166,30 +166,29 @@ int measure_perf(benchdnn_timer_t &t, dnnl_engine_t engine,
 }
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
-        int64_t scale_cnt, const float *scales, dnnl_engine_t engine) {
+        int64_t scale_cnt, const float *scales) {
     if (!attr.oscale.runtime) return;
 
     using P = attr_t::scale_t::policy_t;
     const int64_t count = attr.oscale.policy == P::COMMON ? 1 : scale_cnt;
 
-    scales_m = dnn_mem_t(1, &count, dnnl_f32, dnnl_a, engine);
+    scales_m = dnn_mem_t(1, &count, dnnl_f32, dnnl_a, get_test_engine());
     for (int64_t c = 0; c < count; ++c)
         ((float *)scales_m)[c] = scales[c];
 }
 
-void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
-        const attr_bundle_t &attr_bundle, dnnl_engine_t engine) {
+void maybe_prepare_runtime_scales(
+        dnn_mem_t &scales_m, const attr_bundle_t &attr_bundle) {
     maybe_prepare_runtime_scales(scales_m, attr_bundle.attr,
-            (int64_t)attr_bundle.oscale.size(), attr_bundle.oscale.data(),
-            engine);
+            (int64_t)attr_bundle.oscale.size(), attr_bundle.oscale.data());
 }
 
-void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
-        const attr_t &attr, int arg, dnnl_engine_t engine) {
+void maybe_prepare_runtime_zero_points(
+        dnn_mem_t &zero_points_m, const attr_t &attr, int arg) {
     if (!attr.zero_points.runtime(arg)) return;
 
     int64_t count = 1;
-    zero_points_m = dnn_mem_t(1, &count, dnnl_s32, dnnl_a, engine);
+    zero_points_m = dnn_mem_t(1, &count, dnnl_s32, dnnl_a, get_test_engine());
     ((int *)zero_points_m)[0] = attr.zero_points[arg];
 }
 

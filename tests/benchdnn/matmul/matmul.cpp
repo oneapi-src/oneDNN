@@ -285,13 +285,11 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t scales;
     dnn_mem_t src_zero_points_m, wei_zero_points_m, dst_zero_points_m;
-    maybe_prepare_runtime_scales(scales, p->attr, p->n, p->scales, test_engine);
+    maybe_prepare_runtime_scales(scales, p->attr, p->n, p->scales);
+    maybe_prepare_runtime_zero_points(src_zero_points_m, p->attr, DNNL_ARG_SRC);
     maybe_prepare_runtime_zero_points(
-            src_zero_points_m, p->attr, DNNL_ARG_SRC, test_engine);
-    maybe_prepare_runtime_zero_points(
-            wei_zero_points_m, p->attr, DNNL_ARG_WEIGHTS, test_engine);
-    maybe_prepare_runtime_zero_points(
-            dst_zero_points_m, p->attr, DNNL_ARG_DST, test_engine);
+            wei_zero_points_m, p->attr, DNNL_ARG_WEIGHTS);
+    maybe_prepare_runtime_zero_points(dst_zero_points_m, p->attr, DNNL_ARG_DST);
 
     args_t args;
 

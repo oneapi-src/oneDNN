@@ -643,8 +643,7 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
     SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
     SAFE(fill_bia(p, bia_dt, bia_fp, r), WARN);
-    maybe_prepare_runtime_scales(
-            scales, p->attr, p->oc, p->scales, test_engine);
+    maybe_prepare_runtime_scales(scales, p->attr, p->oc, p->scales);
 
     args_t args;
 

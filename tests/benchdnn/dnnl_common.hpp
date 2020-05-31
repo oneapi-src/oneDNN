@@ -326,12 +326,12 @@ int measure_perf(benchdnn_timer_t &t, dnnl_engine_t engine,
         dnnl_primitive_t prim, args_t &args);
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
-        int64_t scale_cnt, const float *scales, dnnl_engine_t engine_tgt);
-void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
-        const attr_bundle_t &attr_bundle, dnnl_engine_t engine_tgt);
+        int64_t scale_cnt, const float *scales);
+void maybe_prepare_runtime_scales(
+        dnn_mem_t &scales_m, const attr_bundle_t &attr_bundle);
 
-void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
-        const attr_t &attr, int arg, dnnl_engine_t engine_tgt);
+void maybe_prepare_runtime_zero_points(
+        dnn_mem_t &zero_points_m, const attr_t &attr, int arg);
 
 bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag);
