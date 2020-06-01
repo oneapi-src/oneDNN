@@ -266,8 +266,7 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
     return OK;
 }
 
-dnnl_status_t execute_and_wait(
-        dnnl_primitive_t prim, dnnl_engine_t engine, const args_t &args);
+dnnl_status_t execute_and_wait(dnnl_primitive_t prim, const args_t &args);
 
 int measure_perf(benchdnn_timer_t &t, dnnl_engine_t engine,
         dnnl_primitive_t prim, args_t &args);

@@ -302,7 +302,7 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS, wei_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
-    DNN_SAFE(execute_and_wait(m, test_engine, args), WARN);
+    DNN_SAFE(execute_and_wait(m, args), WARN);
 
     if (bench_mode & CORR) {
         compute_ref(test_engine, p, src_fp, wei_fp, bia_fp, dst_fp);

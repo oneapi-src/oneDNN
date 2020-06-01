@@ -39,7 +39,7 @@ void exec_conv(get_args_func get_args, const prb_t *p, dnnl_primitive_t c_ref,
     dnn_mem_t dst_ref(dst_m.md_, engine_ref, (void *)dst_m);
 
     args_t args = get_args(p, src_ref, wei_ref, bia_ref, dst_ref);
-    execute_and_wait(c_ref, engine_ref, args);
+    execute_and_wait(c_ref, args);
 }
 
 args_t get_args_conv_fwd(const prb_t *p, dnn_mem_t &src_ref, dnn_mem_t &wei_ref,

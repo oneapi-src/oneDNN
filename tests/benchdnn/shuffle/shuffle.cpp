@@ -191,7 +191,7 @@ int doit(const prb_t *p, res_t *r) {
     args.set(o_arg, dst_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    DNN_SAFE(execute_and_wait(s, test_engine, args), WARN);
+    DNN_SAFE(execute_and_wait(s, args), WARN);
 
     if (bench_mode & CORR) {
         compute_shuffle(p, src_fp, dst_fp);

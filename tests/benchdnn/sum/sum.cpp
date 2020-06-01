@@ -180,7 +180,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
     }
 
-    DNN_SAFE(execute_and_wait(s, test_engine, args), WARN);
+    DNN_SAFE(execute_and_wait(s, args), WARN);
 
     if (bench_mode & CORR) {
         compute_ref(p, src_fp, dst_fp);

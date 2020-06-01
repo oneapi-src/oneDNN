@@ -63,13 +63,22 @@ void execute_map_args(const args_t &args) {
         if (!args.dnn_mem(i).is_mapped()) args.dnn_mem(i).map();
 }
 
-dnnl_status_t execute_and_wait(
-        dnnl_primitive_t prim, dnnl_engine_t engine, const args_t &args) {
+dnnl_status_t execute_and_wait(dnnl_primitive_t prim, const args_t &args) {
+    const_dnnl_primitive_desc_t pd;
+    dnnl_engine_t engine;
+
+    dnnl_status_t status = dnnl_success;
+    status = dnnl_primitive_get_primitive_desc(prim, &pd);
+    if (status != dnnl_success) return status;
+
+    status = dnnl_primitive_desc_query(pd, dnnl_query_engine, 0, &engine);
+    if (status != dnnl_success) return status;
+
     stream_t stream(engine);
     std::vector<dnnl_exec_arg_t> dnnl_args;
     execute_unmap_args(args, dnnl_args);
 
-    dnnl_status_t status = dnnl_primitive_execute(
+    status = dnnl_primitive_execute(
             prim, stream, (int)dnnl_args.size(), dnnl_args.data());
     if (status != dnnl_success) return status;
     status = dnnl_stream_wait(stream);

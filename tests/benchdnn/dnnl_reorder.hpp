@@ -75,11 +75,11 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     }
 
     DNN_SAFE(dnnl_primitive_create(&r, r_pd), CRIT);
-    dnnl_engine_t reorder_engine;
-    DNN_SAFE(dnnl_primitive_desc_query(
-                     r_pd, dnnl_query_engine, 0, &reorder_engine),
-            CRIT);
-    DNN_SAFE(dnnl_primitive_desc_destroy(r_pd), CRIT);
+    dnnl_status_t pd_destroy_status = dnnl_primitive_desc_destroy(r_pd);
+    if (pd_destroy_status != dnnl_success) {
+        dnnl_primitive_destroy(r);
+        DNN_SAFE(pd_destroy_status, CRIT);
+    }
 
     dnn_mem_t scales, src_zero_points_m, dst_zero_points_m;
     if (attr_bundle) {
@@ -97,7 +97,7 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
-    DNN_SAFE(execute_and_wait(r, reorder_engine, args), CRIT);
+    DNN_SAFE(execute_and_wait(r, args), CRIT);
     DNN_SAFE(dnnl_primitive_destroy(r), CRIT);
 
     return OK;
