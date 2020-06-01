@@ -121,6 +121,7 @@ PKIND_TRAITS_INST(layer_normalization);
 PKIND_TRAITS_INST(inner_product);
 PKIND_TRAITS_INST(rnn);
 PKIND_TRAITS_INST(gemm);
+PKIND_TRAITS_INST(zero_pad);
 PKIND_TRAITS_INST(binary);
 PKIND_TRAITS_INST(logsoftmax);
 PKIND_TRAITS_INST(matmul);

@@ -48,6 +48,10 @@ struct dnnl_sum_desc_t {
     std::vector<dnnl_memory_desc_t> src_mds;
 };
 
+struct dnnl_zero_pad_desc_t {
+    dnnl_primitive_kind_t primitive_kind;
+};
+
 } // namespace impl
 } // namespace dnnl
 

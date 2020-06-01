@@ -52,7 +52,7 @@ void key_t::init_mds(const primitive_desc_t *pd) {
     //
     // XXX: There is too much knowledge about in the internals...
 
-    switch (primitive_kind_) {
+    switch ((int)primitive_kind_) {
         case primitive_kind::batch_normalization: {
             break;
         }
@@ -118,6 +118,9 @@ void key_t::init_mds(const primitive_desc_t *pd) {
             break;
         }
         case primitive_kind::sum: {
+            break;
+        }
+        case primitive_kind::zero_pad: {
             break;
         }
         default: assert(!"unknown primitive_kind");
@@ -637,6 +640,13 @@ size_t get_desc_hash(const sum_desc_t &desc) {
     // Array of mds
     seed = get_array_hash(seed, desc.src_mds.data(), desc.n);
     // Combined hash for sum desc
+    return seed;
+}
+
+size_t get_desc_hash(const zero_pad_desc_t &desc) {
+    size_t seed = 0;
+    // Kinds
+    seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
     return seed;
 }
 

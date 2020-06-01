@@ -26,6 +26,8 @@
 #include "common/memory_storage.hpp"
 #include "common/nstl.hpp"
 
+#include "gpu/zero_pad_struct.h"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -52,6 +54,7 @@ enum class scalar_type_t {
     _uint,
     _ulong,
     _ushort,
+    _zero_pad_mask_t,
 };
 
 template <typename T>
@@ -102,6 +105,10 @@ struct scalar_type_traits<int32_t> {
 template <>
 struct scalar_type_traits<int64_t> {
     static const auto type = scalar_type_t::_long;
+};
+template <>
+struct scalar_type_traits<zero_pad_mask_t> {
+    static const auto type = scalar_type_t::_zero_pad_mask_t;
 };
 
 class kernel_arg_t {
@@ -188,10 +195,7 @@ public:
         args_[index].set_value(value, kind);
     }
 
-    template <class T,
-            typename = typename std::enable_if<std::is_arithmetic<T>::value
-                    || std::is_same<T, float16_t>::value
-                    || std::is_same<T, bfloat16_t>::value>::type>
+    template <class T>
     void set(int index, const T &value) {
         assert(index < max_args);
         nargs_ = nstl::max(nargs_, index + 1);

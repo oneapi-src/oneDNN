@@ -620,6 +620,10 @@ const primitive_kind_t binary = dnnl_binary;
 const primitive_kind_t logsoftmax = dnnl_logsoftmax;
 const primitive_kind_t matmul = dnnl_matmul;
 const primitive_kind_t resampling = dnnl_resampling;
+
+// Internal only primitive kinds.
+const primitive_kind_t internal_only_start = (primitive_kind_t)(1 << 12);
+const primitive_kind_t zero_pad = internal_only_start;
 } // namespace primitive_kind
 
 using query_t = dnnl_query_t;
@@ -674,6 +678,10 @@ const query_t exec_arg_md = dnnl_query_exec_arg_md;
 
 const query_t workspace_md = dnnl_query_workspace_md;
 const query_t scratchpad_md = dnnl_query_scratchpad_md;
+
+// Internal only query kinds.
+const query_t internal_only_start = (query_t)(1 << 12);
+const query_t zero_pad_d = internal_only_start;
 } // namespace query
 
 using blocking_desc_t = dnnl_blocking_desc_t;
@@ -706,6 +714,7 @@ using gemm_desc_t = dnnl_gemm_desc_t;
 using concat_desc_t = dnnl_concat_desc_t;
 using reorder_desc_t = dnnl_reorder_desc_t;
 using sum_desc_t = dnnl_sum_desc_t;
+using zero_pad_desc_t = dnnl_zero_pad_desc_t;
 
 /* C op_desc_t, which eventually are just (void*) */
 using c_op_desc_t = dnnl_op_desc_t;
@@ -732,6 +741,7 @@ struct op_desc_t {
         binary_desc_t binary;
         matmul_desc_t matmul;
         resampling_desc_t resampling;
+        zero_pad_desc_t zero_pad;
     };
 
 #define DECL_CTOR_AND_CONVERTERS(c_type) \
@@ -760,6 +770,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(binary_desc_t);
     DECL_CTOR_AND_CONVERTERS(matmul_desc_t);
     DECL_CTOR_AND_CONVERTERS(resampling_desc_t);
+    DECL_CTOR_AND_CONVERTERS(zero_pad_desc_t);
 
     // concat_desc_t and sum_desc_t have data members which have non-trivial
     // special member functions hence the default destructor is implicitly

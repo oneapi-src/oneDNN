@@ -43,7 +43,7 @@ struct cached_op_desc_t {
                 *(reinterpret_cast<const pkind##_desc_t *>(op_desc))); \
         break;
 
-        switch (kind_) {
+        switch ((int)kind_) {
             CASE(batch_normalization)
             CASE(binary)
             CASE(convolution)
@@ -61,6 +61,7 @@ struct cached_op_desc_t {
             CASE(softmax)
             CASE(concat)
             CASE(sum)
+            CASE(zero_pad)
             default: assert(!"unknown primitive kind");
         }
 #undef CASE
@@ -71,7 +72,7 @@ struct cached_op_desc_t {
 #define CASE(pkind) \
     case primitive_kind::pkind: new (&pkind) pkind##_desc_t(other.pkind); break;
 
-        switch (kind_) {
+        switch ((int)kind_) {
             CASE(batch_normalization)
             CASE(binary)
             CASE(convolution)
@@ -89,6 +90,7 @@ struct cached_op_desc_t {
             CASE(softmax)
             CASE(concat)
             CASE(sum)
+            CASE(zero_pad);
             default: assert(!"unknown primitive kind");
         }
 #undef CASE
@@ -101,7 +103,7 @@ struct cached_op_desc_t {
     case primitive_kind::pkind: ret = pkind == other.pkind; break;
 
         bool ret = true;
-        switch (kind_) {
+        switch ((int)kind_) {
             CASE(batch_normalization)
             CASE(binary)
             CASE(concat)
@@ -119,6 +121,7 @@ struct cached_op_desc_t {
             CASE(shuffle)
             CASE(softmax)
             CASE(sum)
+            CASE(zero_pad)
             default: assert(!"unknown primitive kind");
         }
 #undef CASE
@@ -147,10 +150,11 @@ struct cached_op_desc_t {
     DECLARE_CONVERSION_OPERATOR(shuffle)
     DECLARE_CONVERSION_OPERATOR(softmax)
     DECLARE_CONVERSION_OPERATOR(sum)
+    DECLARE_CONVERSION_OPERATOR(zero_pad)
 #undef DECLARE_CONVERSION_OPERATOR
 
     ~cached_op_desc_t() {
-        switch (kind_) {
+        switch ((int)kind_) {
             case primitive_kind::batch_normalization:
             case primitive_kind::binary:
             case primitive_kind::convolution:
@@ -166,7 +170,8 @@ struct cached_op_desc_t {
             case primitive_kind::resampling:
             case primitive_kind::rnn:
             case primitive_kind::shuffle:
-            case primitive_kind::softmax: break;
+            case primitive_kind::softmax:
+            case primitive_kind::zero_pad: break;
             case primitive_kind::concat: concat.~dnnl_concat_desc_t(); break;
             case primitive_kind::sum: sum.~dnnl_sum_desc_t(); break;
             default: assert(!"unknown primitive_kind");
@@ -212,6 +217,7 @@ private:
         // This desc is common for softmax and logsoftmax
         softmax_desc_t softmax;
         sum_desc_t sum;
+        zero_pad_desc_t zero_pad;
     };
 };
 
@@ -220,7 +226,7 @@ struct key_t {
 
     bool operator==(const key_t &other) const;
 
-    dnnl_primitive_kind_t primitive_kind_;
+    primitive_kind_t primitive_kind_;
     cached_op_desc_t op_desc_;
     primitive_attr_t attr_;
     std::type_index impl_id_;
@@ -262,6 +268,7 @@ size_t get_desc_hash(const rnn_desc_t &desc);
 size_t get_desc_hash(const shuffle_desc_t &desc);
 size_t get_desc_hash(const softmax_desc_t &desc);
 size_t get_desc_hash(const sum_desc_t &desc);
+size_t get_desc_hash(const zero_pad_desc_t &desc);
 
 template <typename T>
 size_t get_array_hash(size_t seed, const T *v, int size) {
@@ -314,7 +321,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
                 seed, get_desc_hash((pkind##_desc_t)key.op_desc_)); \
         break;
 
-        switch (key.primitive_kind_) {
+        switch ((int)key.primitive_kind_) {
             CASE(batch_normalization)
             CASE(binary)
             CASE(concat)
@@ -333,6 +340,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
             CASE(shuffle)
             CASE(softmax)
             CASE(sum)
+            CASE(zero_pad)
             default: assert(!"unknown primitive_kind");
         }
 #undef CASE
