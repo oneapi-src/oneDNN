@@ -43,6 +43,7 @@
 #include "gpu/ocl/ref_resampling.hpp"
 #include "gpu/ocl/ref_shuffle.hpp"
 #include "gpu/ocl/ref_softmax.hpp"
+#include "gpu/ocl/ref_zero_pad.hpp"
 #include "gpu/ocl/rnn/ref_rnn.hpp"
 
 namespace dnnl {
@@ -132,6 +133,9 @@ static const pd_create_f gpu_impl_list[] = {
         // Resampling
         INSTANCE(ocl::ref_resampling_fwd_t),
         INSTANCE(ocl::ref_resampling_bwd_t),
+
+        // Zero Pad
+        INSTANCE(ocl::ref_zero_pad_t),
         nullptr,
 };
 

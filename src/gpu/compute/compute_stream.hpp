@@ -44,6 +44,9 @@ public:
             const kernel_t &kernel, const kernel_arg_list_t &arg_list) {
         return kernel.parallel_for(*this, range, arg_list);
     }
+
+protected:
+    status_t zero_pad(const memory_t *memory, const exec_ctx_t &ctx) override;
 };
 
 } // namespace compute

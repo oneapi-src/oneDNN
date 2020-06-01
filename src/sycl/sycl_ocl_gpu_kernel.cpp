@@ -17,6 +17,7 @@
 #include <CL/sycl.hpp>
 
 #include "common/utils.hpp"
+#include "gpu/zero_pad_struct.h"
 #include "sycl/level_zero_sycl_interop.hpp"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_ocl_gpu_kernel.hpp"
@@ -41,6 +42,9 @@ static void set_scalar_arg(
             break;
         case sizeof(uint64_t):
             cgh.set_arg(index, *static_cast<const uint64_t *>(value));
+            break;
+        case sizeof(zero_pad_mask_t):
+            cgh.set_arg(index, *static_cast<const zero_pad_mask_t *>(value));
             break;
         default:
             assert(!"Please add another case");

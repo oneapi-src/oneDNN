@@ -508,6 +508,11 @@ inline bool operator==(const sum_desc_t &lhs, const sum_desc_t &rhs) {
     }
     return ret;
 }
+
+inline bool operator==(const zero_pad_desc_t &lhs, const zero_pad_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind);
+    return ret;
+}
 // clang-format on
 #undef COMPARE_DESC_MEMBERS
 #undef COMPARE_DESC_ARRAY_MEMBERS

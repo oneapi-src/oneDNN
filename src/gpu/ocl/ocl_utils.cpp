@@ -87,6 +87,7 @@ status_t get_ocl_kernel_arg_type(
     CASE(uint)
     CASE(ulong)
     CASE(ushort)
+    CASE(zero_pad_mask_t)
 #undef CASE
 
     assert(!"Not expected");
