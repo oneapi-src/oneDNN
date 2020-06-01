@@ -22,13 +22,13 @@
 #include <sstream>
 #include <string>
 
-/// @page memory_format_propagation_cpp Memory format propagation
+/// @page memory_format_propagation_cpp Memory Format Propagation
 /// This example demonstrates memory format propagation, which is critical for
 /// deep learning applications performance.
 ///
 /// > Example code: @ref memory_format_propagation.cpp
 ///
-/// Format propagation is one of the central notions that needs to be
+/// Memory format propagation is one of the central notions that needs to be
 /// well-understood to use oneDNN correctly.
 ///
 /// Convolution and inner product primitives choose the memory format when you

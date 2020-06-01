@@ -141,7 +141,7 @@ The **LSTM** primitive behaves slightly differently than the convolution and
 inner product primitives, or u8/s8 GEMM. Even though its hidden state is
 represented by the u8 data type, the non-symmetric quantization is assumed.
 Namely, the formula is:
-- \f$data_{f32}(:) = \frac{1}{scale}(data_{u8}(:) - shift)\f$.
+- \f$data_{f32}[:] = \frac{1}{scale}(data_{u8}[:] - shift)\f$.
 
 But similarly to the other primitives, the LSTM primitive doesn't handle
 potential overflows automatically. It is up to the user to specify the
@@ -151,7 +151,7 @@ dnnl::primitive_attr::set_rnn_weights_qparams()).
 The recommended ones are:
  - Data (hidden states) use `scale = 127`, and `shift = 128`.
  - Weights use `scale = 63 / W_max`,
-   where `W_max` is \f$\max | W_{f32}(:)| {}_{} \f$.
+   where `W_max` is \f$\max | W_{f32}[:]| {}_{} \f$.
 
 
 #### 1.2. Processors with the Intel DL Boost Support

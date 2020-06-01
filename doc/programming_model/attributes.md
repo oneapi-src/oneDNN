@@ -27,11 +27,11 @@ create them before use and must set required specifics using the corresponding
 setters. The attributes are copied during primitive descriptor creation, so
 users can change or destroy attributes right after that.
 
-If nothing special is required, attributes can stay empty, which is equivalent
-to the default attributes. For that purpose in the C API users can pass `NULL`
-as an attribute to the @ref dnnl_primitive_desc_create function. In the C++
-API, primitive descriptors' constructors have empty attributes as default
-parameters, so unless required users can simply omit them.
+If not modified, attributes can stay empty, which is equivalent to the default
+attributes. For that purpose, in the C API users can pass `NULL` as an
+attribute to the @ref dnnl_primitive_desc_create function. In the C++ API,
+primitive descriptors' constructors have empty attributes as default
+parameters, so, unless they are required, users can simply omit them.
 
 ## Attributes Usage
 
@@ -89,17 +89,14 @@ The detailed explanation is provided in the corresponding sections.
 ## Attribute Related Error Handling
 @anchor dev_guide_attributes_error_handling
 
-Unfortunately, the attribute extension API allows specifying properties that the
-library currently doesn't support. Since the attributes are created separately
-from the corresponding primitive descriptor, users can successfully set
+Because the attributes are created separately from the corresponding primitive
+descriptor, consistency checks are delayed. Users can successfully set
 attributes in whatever configuration they want. However, when they try to
-create a primitive descriptor with the attribute it might appear that neither
-implementation supports such a configuration. In this case a user will get
-#dnnl_unimplemented in the case of the C API or a corresponding
- @ref dnnl::error object as an exception in the case of the C++ API.
- Unfortunately, the library doesn't currently provide any hints about what
- exactly is going wrong in this case. The corresponding section of the
- documentation simply documents the primitives' capabilities.
+create a primitive descriptor with the attributes they set, it might happen
+that there is no primitive implementation that supports such a configuration.
+In this case, the library will return #dnnl_unimplemented in the case of the C
+API or throw a corresponding @ref dnnl::error exception in the case of the C++
+API. Unfortunately, the library doesn't currently provide any hints about what
+exactly is going wrong in this case. The corresponding section of the
+documentation simply documents the primitives' capabilities.
 
-@warning
-    Error handling of attributes might be complicated and obscure.

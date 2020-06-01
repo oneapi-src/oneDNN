@@ -147,42 +147,22 @@ applied to specific dimensions, as explained below:
   channel ![Multi-value scaling format](./images/img_multiscalar.png)
 
 The **mask** parameter determines the dimension to which the scales array is
-applied, where the i<sup>th</sup>-bit(s) of mask selects the dimension or
-dimensions d<sub>i</sub> (where _d_ is an _n_-dimensional output tensor with
-logical dimensions as [*d0, d1, ..., dn-1*]). For example:
+applied. The \f$i\f$-th bit of the mask selects the dimension
+\f$D_i\f$ of an \f$n\f$-dimensional output tensor \f$T[D_0, \ldots,
+D_{n-1}]\f$. For example:
 
 + The single-scale format always has mask = 0.
 
-+ For a 5-dimensional tensor T[g0, o1,i2,h3,w4] where the numbering indicates
-  the bit-index:
++ For a 5-dimensional tensor \f$T[G_0, O_1, I_2, H_3, W_4]\f$ where the
+  indices correspond to the positions of bits in the mask:
 
-  + A mask = 2 = 2<sup>1</sup> selects the output channel for scaling.
+  + A \f$mask = 2 = 2^1\f$ selects the output channel for scaling.
 
-  + A mask = 3 = 2<sup>0</sup> | 2<sup>1</sup> selects the group and output channels.
+  + A \f$mask = 3 = 2^1 | 2^0\f$ selects the group and output channels.
 
-Mask is always applied to the logical dimension; this is independent of
-the dimension format that the primitive might select. The dimensions in
-oneDNN are defined as follows:
-+ 2D dimensional data the order of dimensions is always: (n, c)
-+ 4D dimensional data the order is always: (n, c, h, w)
-+ 5D dimensional weights the order is always: (g, oc, ic, kh, kw)
-
-Fused **post-ops** allow chaining operations during
-the primitive computation. Note that the resulting output value from
-post-ops is always affected by the scaling factor. The supported operations are:
-
-+ Accumulation where the primitive sums the resulting values from previously
-  computed activations as:
-  - \f$dst[ ] \leftarrow scale * dst[] + op(...)\f$, instead of
-  - \f$dst[ ] \leftarrow op(...)\f$
-
-+ Element-wise (eltwise) operation with kind, alpha and beta parameters as:
-  - \f$dst[ ] \leftarrow scale * eltwise\_op ( op(...) )\f$, instead of
-  - \f$dst[ ] \leftarrow op(...)\f$
-
-The list of supported eltwise operations for int8 is currently limited to ReLU.
-For instance, post-ops may only configure a convolution with accumulation
-followed by eltwise (relu).
+Fused [post-ops](@ref dev_guide_attributes_post_ops) allow chaining
+computations. Note that the resulting output value from post-ops is always
+affected by the scaling factor.
 
 ## Example
 
