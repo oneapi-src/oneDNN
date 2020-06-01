@@ -268,7 +268,7 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare(p, d_src, d_src_fp, r), WARN);
         }
     }
-    measure_perf(r->timer, test_engine, l, args);
+    measure_perf(r->timer, l, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(l));
 

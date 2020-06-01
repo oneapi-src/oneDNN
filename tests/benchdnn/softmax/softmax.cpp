@@ -289,7 +289,7 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
-    measure_perf(r->timer, test_engine, s, args);
+    measure_perf(r->timer, s, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(s));
 

@@ -268,8 +268,7 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
 
 dnnl_status_t execute_and_wait(dnnl_primitive_t prim, const args_t &args);
 
-int measure_perf(benchdnn_timer_t &t, dnnl_engine_t engine,
-        dnnl_primitive_t prim, args_t &args);
+int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
         int64_t scale_cnt, const float *scales);

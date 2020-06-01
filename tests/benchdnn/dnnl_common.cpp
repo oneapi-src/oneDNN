@@ -151,14 +151,13 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
     return OK;
 }
 
-int measure_perf(benchdnn_timer_t &t, dnnl_engine_t engine,
-        dnnl_primitive_t prim, args_t &args) {
+int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args) {
     dnnl_engine_kind_t engine_kind;
-    DNN_SAFE(dnnl_engine_get_kind(engine, &engine_kind), CRIT);
+    DNN_SAFE(dnnl_engine_get_kind(get_test_engine(), &engine_kind), CRIT);
 
     int ret = OK;
     if (bench_mode & PERF) {
-        stream_t stream(engine);
+        stream_t stream(get_test_engine());
         std::vector<dnnl_exec_arg_t> dnnl_args;
         execute_unmap_args(args, dnnl_args);
 
