@@ -127,8 +127,8 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
         conf.ic_block = 32;
 
         if (conf.mb == 8 || conf.mb % 16 == 0
-                || !(conf.kw == 3 && conf.stride_w <= 2
-                        && conf.dilate_w == 0)) {
+                || !(conf.kw <= 4 && conf.stride_w <= 2 && conf.dilate_w == 0
+                        && conf.l_pad < 4)) {
             conf.ver = ver_mb_block;
             conf.mb_block = 32;
             conf.ow_block = 1;
@@ -136,11 +136,12 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
             conf.ver = ver_ow_block;
             conf.mb_block = 1;
             conf.ow_block = 1;
-            if (conf.ow < 15) {
+            int off = conf.kw == 4 ? 1 : 0;
+            if (conf.ow < 15 - off) {
                 conf.ow_block = conf.ow;
             } else {
                 for (int i = 0; i < 7; ++i) {
-                    conf.ow_block = utils::max_div(conf.ow + i, 14);
+                    conf.ow_block = utils::max_div(conf.ow + i, 14 - off);
                     if (conf.ow_block > 4) break;
                 }
             }
@@ -319,6 +320,11 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("OW_PADDED",
             utils::rnd_up(
                     utils::div_up(conf.ow, conf.ow_block), conf.lws_d[1]));
+    kernel_ctx.define_int("G_PADDED",
+            utils::div_up(conf.ngroups, conf.oc_block) * conf.oc_block);
+    int ow = nstl::max(
+            1, utils::div_up(conf.iw + 2 * conf.l_pad, conf.stride_w));
+    kernel_ctx.define_int("OWX", ow);
     kernel_ctx.define_int("OWB", utils::div_up(conf.ow, conf.ow_block));
 
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
@@ -337,8 +343,13 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_kernel_ctx(
             nstl::min(utils::div_up(conf.ow, conf.ow_block),
                     utils::div_up(conf.iw, conf.ow_block * conf.stride_w)));
 
+    int divx
+            = conf.iw + conf.l_pad < conf.stride_w * conf.ow_block + conf.kw - 1
+            ? conf.iw + conf.l_pad - conf.ow_block * conf.stride_w
+            : (conf.iw + conf.l_pad) % (conf.stride_w * conf.ow_block);
     kernel_ctx.define_int("OW_TAIL", conf.ow % conf.ow_block);
-    kernel_ctx.define_int("IW_TAIL", conf.iw % (conf.stride_w * conf.ow_block));
+    kernel_ctx.define_int("IW_TAIL",
+            divx < conf.kw - 1 ? conf.stride_w * conf.ow_block + divx : divx);
     kernel_ctx.define_int("OW_SLM_TAIL",
             conf.iw
                     - conf.stride_w * conf.ow_block

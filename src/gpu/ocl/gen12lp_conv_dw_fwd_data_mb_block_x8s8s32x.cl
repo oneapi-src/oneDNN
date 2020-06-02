@@ -67,8 +67,8 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
                                              sp += 4) {
         const int4 s = {sp, sp + 1, sp + 2, sp + 3};
         const int4 kd = s / (KH * KW);
-        const int4 kh = (s % (KH * KW)) / KH;
-        const int4 kw = (s % (KH * KW)) % KH;
+        const int4 kh = (s % (KH * KW)) / KW;
+        const int4 kw = (s % (KH * KW)) % KW;
         const int4 src_index
                 = (kd * (1 + DD) * IH * IW + kh * (1 + DH) * IW + kw * (1 + DW))
                 * MB_BLOCK * IC_BLOCK;
@@ -141,8 +141,8 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     __attribute__((opencl_unroll_hint)) for (int sp = KDHW_SIZE - KDHW_SIZE % 4;
                                              sp < KDHW_SIZE; sp++) {
         const int kd = sp / (KH * KW);
-        const int kh = (sp % (KH * KW)) / KH;
-        const int kw = (sp % (KH * KW)) % KH;
+        const int kh = (sp % (KH * KW)) / KW;
+        const int kw = (sp % (KH * KW)) % KW;
         const int src_index
                 = (kd * (1 + DD) * IH * IW + kh * (1 + DH) * IW + kw * (1 + DW))
                 * MB_BLOCK * IC_BLOCK;

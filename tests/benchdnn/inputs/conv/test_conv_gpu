@@ -23,6 +23,7 @@ mb2ic256ih14oc1024oh14kh1ph0n
 mb2ic32ih14oc32oh14kh1ph0n
 mb2ic32ih7oc512oh7kh1ph0n
 mb2ic512ih14oc32oh14kh1ph0n
+--batch=shapes_regression_dw
 
 --reset --cfg=u8s8u8,u8s8s8
 --stag=any
