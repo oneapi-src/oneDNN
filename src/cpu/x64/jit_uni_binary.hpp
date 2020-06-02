@@ -45,6 +45,9 @@ struct jit_uni_binary_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
+            memory_desc_wrapper dst_md_(dst_md());
+            const auto &po = attr()->post_ops_;
+            int elt_idx = po.find(primitive_kind::eltwise);
 
             bool ok = mayiuse(avx2)
                     && IMPLICATION(src_type == bf16, mayiuse(avx512_core))
@@ -56,7 +59,11 @@ struct jit_uni_binary_t : public primitive_t {
                             == memory_desc_wrapper(dst_md(0))
                     && is_applicable()
                     && attr()->has_default_values(sm::post_ops)
-                    && attr_post_ops_ok();
+                    && attr_post_ops_ok()
+                    && (elt_idx == -1
+                            || IMPLICATION(!dst_md_.is_dense(),
+                                    is_zero_preserved(
+                                            po.entry_[elt_idx].eltwise)));
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -106,6 +113,12 @@ struct jit_uni_binary_t : public primitive_t {
             };
 
             return valid_bd(src0_d) && valid_bd(src1_d);
+        }
+
+        bool is_zero_preserved(
+                const dnnl_post_ops::entry_t::eltwise_t eltwise) const {
+            return math::eltwise_fwd_preserves_zero(
+                    eltwise.alg, eltwise.alpha, eltwise.beta);
         }
     };
 
