@@ -83,7 +83,7 @@ inline size_t data_type_size(data_type_t data_type) {
         case data_type::undef:
         default: assert(!"unknown data_type");
     }
-    return 0; /* not supposed to be reachable */
+    return (size_t)-1; /* not supposed to be reachable */
 }
 
 template <typename T>
