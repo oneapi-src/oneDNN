@@ -414,24 +414,28 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
         } else {
             for_(dim_t oc = 0; oc < OC; ++oc)
             for_(dim_t kd = 0; kd < KD; ++kd)
-            for_(dim_t kh = 0; kh < KH; ++kh)
-            for (dim_t kw = 0; kw < KW; ++kw) {
-                dim_t ow = iw - kw * KDW + padL;
-                dim_t oh = ih - kh * KDH + padT;
+            for (dim_t kh = 0; kh < KH; ++kh) {
+                // Note: placing these 2 params outside the `kw-loop` because
+                // of a compiler-generated bug.
                 dim_t od = id - kd * KDD + padFront;
-                if (ow < 0 || oh < 0 || od < 0 || ow % KSW != 0 || oh % KSH != 0
-                        || od % KSD != 0)
-                    continue;
-                ow /= KSW;
-                oh /= KSH;
-                od /= KSD;
-                if (od >= OD || oh >= OH || ow >= OW) continue;
-                const dim_t diff_dst_off = oc + od * diff_dst_od_stride
-                        + oh * diff_dst_oh_stride + ow * diff_dst_ow_stride;
                 const dim_t weights_off = oc * weights_oc_stride
-                        + kd * weights_kd_stride + kh * weights_kh_stride + kw;
-                d += (acc_data_t)diff_dst_loc[diff_dst_off]
-                        * weights_loc[weights_off];
+                        + kd * weights_kd_stride + kh * weights_kh_stride;
+                for (dim_t kw = 0; kw < KW; ++kw) {
+                    dim_t ow = iw - kw * KDW + padL;
+                    dim_t oh = ih - kh * KDH + padT;
+                    if (ow < 0 || oh < 0 || od < 0 || ow % KSW != 0
+                            || oh % KSH != 0 || od % KSD != 0)
+                        continue;
+                    ow /= KSW;
+                    oh /= KSH;
+                    od /= KSD;
+                    if (od >= OD || oh >= OH || ow >= OW) continue;
+                    const dim_t diff_dst_off = oc + od * diff_dst_od_stride
+                            + oh * diff_dst_oh_stride + ow * diff_dst_ow_stride;
+                    const dim_t weights_off_ = weights_off + kw;
+                    d += (acc_data_t)diff_dst_loc[diff_dst_off]
+                            * weights_loc[weights_off_];
+                }
             }
         }
         return d;
