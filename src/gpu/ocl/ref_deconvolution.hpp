@@ -154,6 +154,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
                     dst_md_ = *conv_pd_->diff_src_md();
                 if (bias_md_.format_kind == format_kind::any)
                     CHECK(memory_desc_init_by_tag(bias_md_, x));
+                init_scratchpad();
 
                 return status::success;
             }
@@ -263,6 +264,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
                     diff_src_md_ = *conv_pd_->dst_md();
                 if (diff_dst_md_.format_kind == format_kind::any)
                     diff_dst_md_ = *conv_pd_->src_md();
+                init_scratchpad();
 
                 return status::success;
             }
@@ -374,6 +376,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
                     diff_dst_md_ = *conv_pd_->src_md();
                 if (diff_bias_md_.format_kind == format_kind::any)
                     CHECK(memory_desc_init_by_tag(diff_bias_md_, x));
+                init_scratchpad();
 
                 return status::success;
             }
