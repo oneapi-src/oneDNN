@@ -154,17 +154,17 @@
 #define DEF_ACC_DATA2_T float2
 #define DEF_ACC_DATA4_T float4
 #define DEF_ACC_DATA8_T float8
-#define TO_DATA_T(v) convert_f32_to_bf16(v)
-#define TO_DEF_ACC_DATA_T(v) convert_bf16_to_f32(v)
-#define DATA_TO_REF convert_bf16_to_f32
-#define CONVERT_DATA_T convert_f32_to_bf16
-#define CONVERT_DATA2_T convert_f32_to_bf16_vec2
-#define CONVERT_DATA4_T convert_f32_to_bf16_vec4
-#define CONVERT_DATA8_T convert_f32_to_bf16_vec8
-#define CONVERT_FLOAT_T convert_bf16_to_f32
-#define CONVERT_FLOAT2_T convert_bf16_to_f32_vec2
-#define CONVERT_FLOAT4_T convert_bf16_to_f32_vec4
-#define CONVERT_FLOAT8_T convert_bf16_to_f32_vec8
+#define TO_DATA_T(v) cvt_f32_to_bf16(v)
+#define TO_DEF_ACC_DATA_T(v) cvt_bf16_to_f32(v)
+#define DATA_TO_REF cvt_bf16_to_f32
+#define CONVERT_DATA_T cvt_f32_to_bf16
+#define CONVERT_DATA2_T cvt_f32_to_bf16
+#define CONVERT_DATA4_T cvt_f32_to_bf16
+#define CONVERT_DATA8_T cvt_f32_to_bf16
+#define CONVERT_FLOAT_T cvt_bf16_to_f32
+#define CONVERT_FLOAT2_T cvt_bf16_to_f32
+#define CONVERT_FLOAT4_T cvt_bf16_to_f32
+#define CONVERT_FLOAT8_T cvt_bf16_to_f32
 #define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read_us
@@ -411,16 +411,16 @@
 #define AS_MMAD_DATA4_T CONCAT2(as_, MMAD_DATA4_T)
 #define AS_MMAD_DATA8_T CONCAT2(as_, MMAD_DATA8_T)
 #if SRC_DT_BF16
-#define SRC_TO_REF(x) convert_bf16_to_f32(x)
-#define SRC_TO_REF8(x) convert_bf16_to_f32_vec8(x)
-#define REF_TO_SRC(x) convert_f32_to_bf16(x)
+#define SRC_TO_REF(x) cvt_bf16_to_f32(x)
+#define SRC_TO_REF8(x) cvt_bf16_to_f32(x)
+#define REF_TO_SRC(x) cvt_f32_to_bf16(x)
 #else
 #define SRC_TO_REF(x) (x)
 #define SRC_TO_REF8(x) (x)
 #define REF_TO_SRC(x) (x)
 #endif
 #if SRC_DT_BF16
-#define TO_SRC(x) convert_f32_to_bf16(x)
+#define TO_SRC(x) cvt_f32_to_bf16(x)
 #elif SRC_DT_U8
 #define TO_SRC(x) convert_uchar_sat_rte(x)
 #elif SRC_DT_S8
@@ -435,16 +435,16 @@
 #ifdef A_DATA_T
 #define A_DATA8_T CONCAT2(A_DATA_T, 8)
 #if A_DT_BF16
-#define A_TO_REF(x) convert_bf16_to_f32(x)
-#define A_TO_REF8(x) convert_bf16_to_f32_vec8(x)
-#define REF_TO_A(x) convert_f32_to_bf16(x)
+#define A_TO_REF(x) cvt_bf16_to_f32(x)
+#define A_TO_REF8(x) cvt_bf16_to_f32(x)
+#define REF_TO_A(x) cvt_f32_to_bf16(x)
 #else
 #define A_TO_REF(x) (x)
 #define A_TO_REF8(x) (x)
 #define REF_TO_A(x) (x)
 #endif
 #if A_DT_BF16
-#define TO_A(x) convert_f32_to_bf16(x)
+#define TO_A(x) cvt_f32_to_bf16(x)
 #elif A_DT_U8
 #define TO_A(x) convert_uchar_sat_rte(x)
 #elif A_DT_S8
@@ -458,14 +458,14 @@
 
 #ifdef WEI_DATA_T
 #if WEI_DT_BF16
-#define WEI_TO_REF(x) convert_bf16_to_f32(x)
-#define REF_TO_WEI(x) convert_f32_to_bf16(x)
+#define WEI_TO_REF(x) cvt_bf16_to_f32(x)
+#define REF_TO_WEI(x) cvt_f32_to_bf16(x)
 #else
 #define WEI_TO_REF(x) (x)
 #define REF_TO_WEI(x) (x)
 #endif
 #if WEI_DT_BF16
-#define TO_WEI(x) convert_f32_to_bf16(x)
+#define TO_WEI(x) cvt_f32_to_bf16(x)
 #elif WEI_DT_U8
 #define TO_WEI(x) convert_uchar_sat_rte(x)
 #elif WEI_DT_S8
@@ -479,14 +479,14 @@
 
 #ifdef B_DATA_T
 #if B_DT_BF16
-#define B_TO_REF(x) convert_bf16_to_f32(x)
-#define REF_TO_B(x) convert_f32_to_bf16(x)
+#define B_TO_REF(x) cvt_bf16_to_f32(x)
+#define REF_TO_B(x) cvt_f32_to_bf16(x)
 #else
 #define B_TO_REF(x) (x)
 #define REF_TO_B(x) (x)
 #endif
 #if B_DT_BF16
-#define TO_B(x) convert_f32_to_bf16(x)
+#define TO_B(x) cvt_f32_to_bf16(x)
 #elif B_DT_U8
 #define TO_B(x) convert_uchar_sat_rte(x)
 #elif B_DT_S8
@@ -500,14 +500,14 @@
 
 #ifdef BIA_DATA_T
 #if BIA_DT_BF16
-#define BIA_TO_REF(x) convert_bf16_to_f32(x)
-#define REF_TO_BIA(x) convert_f32_to_bf16(x)
+#define BIA_TO_REF(x) cvt_bf16_to_f32(x)
+#define REF_TO_BIA(x) cvt_f32_to_bf16(x)
 #else
 #define BIA_TO_REF(x) (x)
 #define REF_TO_BIA(x) (x)
 #endif
 #if BIA_DT_BF16
-#define TO_BIA(x) convert_f32_to_bf16(x)
+#define TO_BIA(x) cvt_f32_to_bf16(x)
 #elif BIA_DT_U8
 #define TO_BIA(x) convert_uchar_sat_rte(x)
 #elif BIA_DT_S8
@@ -584,10 +584,10 @@
 #endif
 
 #if DST_DT_BF16
-#define DST_TO_REF(x) convert_bf16_to_f32(x)
-#define DST_TO_REF8(x) convert_bf16_to_f32_vec8(x)
-#define REF_TO_DST(x) convert_f32_to_bf16(x)
-#define REF_TO_DST8(x) convert_f32_to_bf16_vec8(convert_float8(x))
+#define DST_TO_REF(x) cvt_bf16_to_f32(x)
+#define DST_TO_REF8(x) cvt_bf16_to_f32(x)
+#define REF_TO_DST(x) cvt_f32_to_bf16(x)
+#define REF_TO_DST8(x) cvt_f32_to_bf16(convert_float8(x))
 #else
 #define DST_TO_REF(x) (x)
 #define DST_TO_REF8(x) (x)
@@ -595,10 +595,10 @@
 #define REF_TO_DST8(x) (x)
 #endif
 #if DST_DT_BF16
-#define TO_DST(x) convert_f32_to_bf16(x)
-#define TO_DST2(x) convert_f32_to_bf16_vec2(convert_float8(x))
-#define TO_DST4(x) convert_f32_to_bf16_vec4(convert_float8(x))
-#define TO_DST8(x) convert_f32_to_bf16_vec8(convert_float8(x))
+#define TO_DST(x) cvt_f32_to_bf16(x)
+#define TO_DST2(x) cvt_f32_to_bf16(convert_float8(x))
+#define TO_DST4(x) cvt_f32_to_bf16(convert_float8(x))
+#define TO_DST8(x) cvt_f32_to_bf16(convert_float8(x))
 #elif DST_DT_F16
 #define TO_DST(x) convert_half(x)
 #define TO_DST2(x) convert_half2(x)
@@ -634,10 +634,10 @@
 #ifdef C_DATA_T
 #define C_DATA8_T CONCAT2(C_DATA_T, 8)
 #if C_DT_BF16
-#define C_TO_REF(x) convert_bf16_to_f32(x)
-#define C_TO_REF8(x) convert_bf16_to_f32_vec8(x)
-#define REF_TO_C(x) convert_f32_to_bf16(x)
-#define REF_TO_C8(x) convert_f32_to_bf16_vec8(convert_float8(x))
+#define C_TO_REF(x) cvt_bf16_to_f32(x)
+#define C_TO_REF8(x) cvt_bf16_to_f32(x)
+#define REF_TO_C(x) cvt_f32_to_bf16(x)
+#define REF_TO_C8(x) cvt_f32_to_bf16(convert_float8(x))
 #else
 #define C_TO_REF(x) (x)
 #define C_TO_REF8(x) (x)
@@ -645,8 +645,8 @@
 #define REF_TO_C8(x) (x)
 #endif
 #if C_DT_BF16
-#define TO_C(x) convert_f32_to_bf16(x)
-#define TO_C8(x) convert_f32_to_bf16_vec8(convert_float8(x))
+#define TO_C(x) cvt_f32_to_bf16(x)
+#define TO_C8(x) cvt_f32_to_bf16(convert_float8(x))
 #elif C_DT_F16
 #define TO_C(x) convert_half(x)
 #define TO_C8(x) convert_half8(x)

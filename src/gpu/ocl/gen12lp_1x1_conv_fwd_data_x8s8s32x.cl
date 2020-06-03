@@ -31,10 +31,11 @@
 #define BLOCK_READ_SRC(data, idx) \
     data = AS_MMAD_DATA4_T( \
             intel_sub_group_block_read4((__global uint *)&src[idx]));
-DECLARE_MMAD(_full0, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 4, 8)
-DECLARE_MMAD(_tail0, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 4,
-        IC_NBLOCKS_TAIL)
-#define MMAD_FULL0 mmad_full0
+
+DECLARE_MMAD(
+        mmad_tail0, IC_NBLOCKS_TAIL, 4, SRC_DATA_BLOCK_T, int8, ACC_DATA_BLOCK)
+
+#define MMAD_FULL0 mmad8x4
 #define MMAD_TAIL0 mmad_tail0
 #else
 #define BLOCK0 8
@@ -43,10 +44,11 @@ DECLARE_MMAD(_tail0, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 4,
 #define BLOCK_READ_SRC(data, idx) \
     data = AS_MMAD_DATA8_T( \
             intel_sub_group_block_read8((__global uint *)&src[idx]));
-DECLARE_MMAD(_full0, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 8, 8)
-DECLARE_MMAD(_tail0, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 8,
-        IC_NBLOCKS_TAIL)
-#define MMAD_FULL0 mmad_full0
+
+DECLARE_MMAD(
+        mmad_tail0, IC_NBLOCKS_TAIL, 8, SRC_DATA_BLOCK_T, int8, ACC_DATA_BLOCK)
+
+#define MMAD_FULL0 mmad8x8
 #define MMAD_TAIL0 mmad_tail0
 #endif
 
@@ -58,10 +60,11 @@ DECLARE_MMAD(_tail0, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 8,
 #define BLOCK_READ_SRC1(data, idx) \
     data = AS_MMAD_DATA4_T( \
             intel_sub_group_block_read4((__global uint *)&src[idx]));
-DECLARE_MMAD(_full1, SRC_DATA_BLOCK_T1, ACC_DATA_BLOCK1, MMAD_DATA8_T, 4, 8)
-DECLARE_MMAD(_tail1, SRC_DATA_BLOCK_T1, ACC_DATA_BLOCK1, MMAD_DATA8_T, 4,
-        IC_NBLOCKS_TAIL)
-#define MMAD_FULL1 mmad_full1
+
+DECLARE_MMAD(mmad_tail1, IC_NBLOCKS_TAIL, 4, SRC_DATA_BLOCK_T1, int8,
+        ACC_DATA_BLOCK1)
+
+#define MMAD_FULL1 mmad8x4
 #define MMAD_TAIL1 mmad_tail1
 #else
 #define BLOCK1 8
@@ -71,18 +74,17 @@ DECLARE_MMAD(_tail1, SRC_DATA_BLOCK_T1, ACC_DATA_BLOCK1, MMAD_DATA8_T, 4,
 #define BLOCK_READ_SRC1(data, idx) \
     data = AS_MMAD_DATA8_T( \
             intel_sub_group_block_read8((__global uint *)&src[idx]));
-DECLARE_MMAD(_full1, SRC_DATA_BLOCK_T1, ACC_DATA_BLOCK1, MMAD_DATA8_T, 8, 8)
-DECLARE_MMAD(_tail1, SRC_DATA_BLOCK_T1, ACC_DATA_BLOCK1, MMAD_DATA8_T, 8,
-        IC_NBLOCKS_TAIL)
-#define MMAD_FULL1 mmad_full1
+DECLARE_MMAD(mmad_tail1, IC_NBLOCKS_TAIL, 8, SRC_DATA_BLOCK_T1, int8,
+        ACC_DATA_BLOCK1)
+#define MMAD_FULL1 mmad8x8
 #define MMAD_TAIL1 mmad_tail1
 #endif
 
 #if INT8_WEI_SLM
 #define BLOCK_READ_WHT_1x32(data, idx) \
-    data = as_int(READ_LOCAL_1((__local uint *)&wei_tmp[idx]));
+    data = as_int(block_read((__local uint *)&wei_tmp[idx]));
 #define BLOCK_READ_WHT_8x32(data, idx) \
-    data = as_int8(READ_LOCAL_8((__local uint *)&wei_tmp[idx]));
+    data = as_int8(block_read8((__local uint *)&wei_tmp[idx]));
 #else
 #define BLOCK_READ_WHT_1x32(data, idx) \
     data = as_int(intel_sub_group_block_read((__global uint *)&wei[idx]));
@@ -190,7 +192,7 @@ gen12lp_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
             = wei + sp_local_id * KERNEL_BLOCK_OFFSET / LWS_1; \
     __local char *wei_copy_to \
             = wei_slm + sp_local_id * KERNEL_BLOCK_OFFSET / LWS_1; \
-    WRITE_LOCAL_4((__local uint *)wei_copy_to, \
+    block_write4((__local uint *)wei_copy_to, \
             intel_sub_group_block_read4((__global uint *)wei_copy_from)); \
     __local char *wei_tmp = wei_slm; \
     barrier(CLK_LOCAL_MEM_FENCE);

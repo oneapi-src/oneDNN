@@ -104,37 +104,37 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
                 intel_sub_group_block_read_uc8((const __global uchar *)(wei)));
         char4 W1 = W.s0246;
         char4 W2 = W.s1357;
-        S00.s0 = IMAD(
+        S00.s0 = idot4(
                 (SRC_DATA4_T)(A00.s0, A10.s0, A20.s0, A30.s0), W1, S00.s0);
-        S00.s1 = IMAD(
+        S00.s1 = idot4(
                 (SRC_DATA4_T)(A00.s1, A10.s1, A20.s1, A30.s1), W2, S00.s1);
-        S00.s2 = IMAD(
+        S00.s2 = idot4(
                 (SRC_DATA4_T)(A00.s2, A10.s2, A20.s2, A30.s2), W1, S00.s2);
-        S00.s3 = IMAD(
+        S00.s3 = idot4(
                 (SRC_DATA4_T)(A00.s3, A10.s3, A20.s3, A30.s3), W2, S00.s3);
-        S00.s4 = IMAD(
+        S00.s4 = idot4(
                 (SRC_DATA4_T)(A00.s4, A10.s4, A20.s4, A30.s4), W1, S00.s4);
-        S00.s5 = IMAD(
+        S00.s5 = idot4(
                 (SRC_DATA4_T)(A00.s5, A10.s5, A20.s5, A30.s5), W2, S00.s5);
-        S00.s6 = IMAD(
+        S00.s6 = idot4(
                 (SRC_DATA4_T)(A00.s6, A10.s6, A20.s6, A30.s6), W1, S00.s6);
-        S00.s7 = IMAD(
+        S00.s7 = idot4(
                 (SRC_DATA4_T)(A00.s7, A10.s7, A20.s7, A30.s7), W2, S00.s7);
-        S01.s0 = IMAD(
+        S01.s0 = idot4(
                 (SRC_DATA4_T)(A00.s8, A10.s8, A20.s8, A30.s8), W1, S01.s0);
-        S01.s1 = IMAD(
+        S01.s1 = idot4(
                 (SRC_DATA4_T)(A00.s9, A10.s9, A20.s9, A30.s9), W2, S01.s1);
-        S01.s2 = IMAD(
+        S01.s2 = idot4(
                 (SRC_DATA4_T)(A00.sa, A10.sa, A20.sa, A30.sa), W1, S01.s2);
-        S01.s3 = IMAD(
+        S01.s3 = idot4(
                 (SRC_DATA4_T)(A00.sb, A10.sb, A20.sb, A30.sb), W2, S01.s3);
-        S01.s4 = IMAD(
+        S01.s4 = idot4(
                 (SRC_DATA4_T)(A00.sc, A10.sc, A20.sc, A30.sc), W1, S01.s4);
-        S01.s5 = IMAD(
+        S01.s5 = idot4(
                 (SRC_DATA4_T)(A00.sd, A10.sd, A20.sd, A30.sd), W2, S01.s5);
-        S01.s6 = IMAD(
+        S01.s6 = idot4(
                 (SRC_DATA4_T)(A00.se, A10.se, A20.se, A30.se), W1, S01.s6);
-        S01.s7 = IMAD(
+        S01.s7 = idot4(
                 (SRC_DATA4_T)(A00.sf, A10.sf, A20.sf, A30.sf), W2, S01.s7);
         wei += 4 * OC_BLOCK;
     }

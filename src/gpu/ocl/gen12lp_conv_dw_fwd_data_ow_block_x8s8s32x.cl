@@ -274,181 +274,181 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
 #endif
             char8 W = as_char8(WW);
 #if SW == 1
-            S0.s0 = IMAD(A0.s0123, W.s0246, S0.s0);
+            S0.s0 = idot4(A0.s0123, W.s0246, S0.s0);
 #if OW_BLOCK >= 2
-            S0.s2 = IMAD(A0.s1234, W.s0246, S0.s2);
+            S0.s2 = idot4(A0.s1234, W.s0246, S0.s2);
 #endif
 #if OW_BLOCK >= 3
-            S0.s4 = IMAD(A0.s2345, W.s0246, S0.s4);
+            S0.s4 = idot4(A0.s2345, W.s0246, S0.s4);
 #endif
 #if OW_BLOCK >= 4
-            S0.s6 = IMAD(A0.s3456, W.s0246, S0.s6);
+            S0.s6 = idot4(A0.s3456, W.s0246, S0.s6);
 #endif
 #if OW_BLOCK >= 5
-            S0.s8 = IMAD(A0.s4567, W.s0246, S0.s8);
+            S0.s8 = idot4(A0.s4567, W.s0246, S0.s8);
 #endif
 #if OC_BLOCK >= 6
-            S0.sa = IMAD(A0.s5678, W.s0246, S0.sa);
+            S0.sa = idot4(A0.s5678, W.s0246, S0.sa);
 #endif
 #if OW_BLOCK >= 7
-            S0.sc = IMAD(A0.s6789, W.s0246, S0.sc);
+            S0.sc = idot4(A0.s6789, W.s0246, S0.sc);
 #endif
 #if OW_BLOCK >= 8
-            S0.se = IMAD(A0.s789a, W.s0246, S0.se);
+            S0.se = idot4(A0.s789a, W.s0246, S0.se);
 #endif
 #if OW_BLOCK >= 9
-            S1.s0 = IMAD(A0.s89ab, W.s0246, S1.s0);
+            S1.s0 = idot4(A0.s89ab, W.s0246, S1.s0);
 #endif
 #if OW_BLOCK >= 10
-            S1.s2 = IMAD(A0.s9abc, W.s0246, S1.s2);
+            S1.s2 = idot4(A0.s9abc, W.s0246, S1.s2);
 #endif
 #if OW_BLOCK >= 11
-            S1.s4 = IMAD(A0.sabcd, W.s0246, S1.s4);
+            S1.s4 = idot4(A0.sabcd, W.s0246, S1.s4);
 #endif
 #if OW_BLOCK >= 12
-            S1.s6 = IMAD(A0.sbcde, W.s0246, S1.s6);
+            S1.s6 = idot4(A0.sbcde, W.s0246, S1.s6);
 #endif
 #if OW_BLOCK >= 13
-            S1.s8 = IMAD(A0.scdef, W.s0246, S1.s8);
+            S1.s8 = idot4(A0.scdef, W.s0246, S1.s8);
 #endif
 #if OW_BLOCK >= 14
-            S1.sa = IMAD((SRC_DATA4_T)(A0.sde, A0.sf, 0), W.s0246, S1.sa);
+            S1.sa = idot4((SRC_DATA4_T)(A0.sde, A0.sf, 0), W.s0246, S1.sa);
 #endif
 #if OW_BLOCK >= 15
-            S1.sc = IMAD((SRC_DATA4_T)(A0.sef, right0, 0), W.s0246, S1.sc);
+            S1.sc = idot4((SRC_DATA4_T)(A0.sef, right0, 0), W.s0246, S1.sc);
 #endif
 
-            S0.s1 = IMAD(A1.s0123, W.s1357, S0.s1);
+            S0.s1 = idot4(A1.s0123, W.s1357, S0.s1);
 #if OW_BLOCK >= 2
-            S0.s3 = IMAD(A1.s1234, W.s1357, S0.s3);
+            S0.s3 = idot4(A1.s1234, W.s1357, S0.s3);
 #endif
 #if OW_BLOCK >= 3
-            S0.s5 = IMAD(A1.s2345, W.s1357, S0.s5);
+            S0.s5 = idot4(A1.s2345, W.s1357, S0.s5);
 #endif
 #if OW_BLOCK >= 4
-            S0.s7 = IMAD(A1.s3456, W.s1357, S0.s7);
+            S0.s7 = idot4(A1.s3456, W.s1357, S0.s7);
 #endif
 #if OW_BLOCK >= 5
-            S0.s9 = IMAD(A1.s4567, W.s1357, S0.s9);
+            S0.s9 = idot4(A1.s4567, W.s1357, S0.s9);
 #endif
 #if OW_BLOCK >= 6
-            S0.sb = IMAD(A1.s5678, W.s1357, S0.sb);
+            S0.sb = idot4(A1.s5678, W.s1357, S0.sb);
 #endif
 #if OW_BLOCK >= 7
-            S0.sd = IMAD(A1.s6789, W.s1357, S0.sd);
+            S0.sd = idot4(A1.s6789, W.s1357, S0.sd);
 #endif
 #if OW_BLOCK >= 8
-            S0.sf = IMAD(A1.s789a, W.s1357, S0.sf);
+            S0.sf = idot4(A1.s789a, W.s1357, S0.sf);
 #endif
 #if OW_BLOCK >= 9
-            S1.s1 = IMAD(A1.s89ab, W.s1357, S1.s1);
+            S1.s1 = idot4(A1.s89ab, W.s1357, S1.s1);
 #endif
 #if OW_BLOCK >= 10
-            S1.s3 = IMAD(A1.s9abc, W.s1357, S1.s3);
+            S1.s3 = idot4(A1.s9abc, W.s1357, S1.s3);
 #endif
 #if OW_BLOCK >= 11
-            S1.s5 = IMAD(A1.sabcd, W.s1357, S1.s5);
+            S1.s5 = idot4(A1.sabcd, W.s1357, S1.s5);
 #endif
 #if OW_BLOCK >= 12
-            S1.s7 = IMAD(A1.sbcde, W.s1357, S1.s7);
+            S1.s7 = idot4(A1.sbcde, W.s1357, S1.s7);
 #endif
 #if OW_BLOCK >= 13
-            S1.s9 = IMAD(A1.scdef, W.s1357, S1.s9);
+            S1.s9 = idot4(A1.scdef, W.s1357, S1.s9);
 #endif
 #if OW_BLOCK >= 14
-            S1.sb = IMAD((SRC_DATA4_T)(A1.sde, A1.sf, 0), W.s1357, S1.sb);
+            S1.sb = idot4((SRC_DATA4_T)(A1.sde, A1.sf, 0), W.s1357, S1.sb);
 #endif
 #if OW_BLOCK >= 15
-            S1.sd = IMAD((SRC_DATA4_T)(A1.sef, right1, 0), W.s1357, S1.sd);
+            S1.sd = idot4((SRC_DATA4_T)(A1.sef, right1, 0), W.s1357, S1.sd);
 #endif
 
 #elif SW == 2
-            S0.s0 = IMAD(A0.s0123, W.s0246, S0.s0);
+            S0.s0 = idot4(A0.s0123, W.s0246, S0.s0);
 #if OW_BLOCK >= 2
-            S0.s2 = IMAD(A0.s2345, W.s0246, S0.s2);
+            S0.s2 = idot4(A0.s2345, W.s0246, S0.s2);
 #endif
 #if OW_BLOCK >= 3
-            S0.s4 = IMAD(A0.s4567, W.s0246, S0.s4);
+            S0.s4 = idot4(A0.s4567, W.s0246, S0.s4);
 #endif
 #if OW_BLOCK >= 4
-            S0.s6 = IMAD(A0.s6789, W.s0246, S0.s6);
+            S0.s6 = idot4(A0.s6789, W.s0246, S0.s6);
 #endif
 #if OW_BLOCK >= 5
-            S0.s8 = IMAD(A0.s89ab, W.s0246, S0.s8);
+            S0.s8 = idot4(A0.s89ab, W.s0246, S0.s8);
 #endif
 #if OW_BLOCK >= 6
-            S0.sa = IMAD(A0.sabcd, W.s0246, S0.sa);
+            S0.sa = idot4(A0.sabcd, W.s0246, S0.sa);
 #endif
 #if OW_BLOCK >= 7
-            S0.sc = IMAD(A0.scdef, W.s0246, S0.sc);
+            S0.sc = idot4(A0.scdef, W.s0246, S0.sc);
 #endif
 #if OW_BLOCK >= 8
-            S0.se = IMAD((SRC_DATA4_T)(A0.sef, right0.s0, 0), W.s0246, S0.se);
+            S0.se = idot4((SRC_DATA4_T)(A0.sef, right0.s0, 0), W.s0246, S0.se);
 #endif
 #if OW_BLOCK >= 9
-            S1.s0 = IMAD(right0.s0123, W.s0246, S1.s0);
+            S1.s0 = idot4(right0.s0123, W.s0246, S1.s0);
 #endif
 #if OW_BLOCK >= 10
-            S1.s2 = IMAD(right0.s2345, W.s0246, S1.s2);
+            S1.s2 = idot4(right0.s2345, W.s0246, S1.s2);
 #endif
 #if OW_BLOCK >= 11
-            S1.s4 = IMAD(right0.s4567, W.s0246, S1.s4);
+            S1.s4 = idot4(right0.s4567, W.s0246, S1.s4);
 #endif
 #if OW_BLOCK >= 12
-            S1.s6 = IMAD(right0.s6789, W.s0246, S1.s6);
+            S1.s6 = idot4(right0.s6789, W.s0246, S1.s6);
 #endif
 #if OW_BLOCK >= 13
-            S1.s8 = IMAD(right0.s89ab, W.s0246, S1.s8);
+            S1.s8 = idot4(right0.s89ab, W.s0246, S1.s8);
 #endif
 #if OW_BLOCK >= 14
-            S1.sa = IMAD(right0.sabcd, W.s0246, S1.sa);
+            S1.sa = idot4(right0.sabcd, W.s0246, S1.sa);
 #endif
 #if OW_BLOCK >= 15
-            S1.sc = IMAD(right0.scdef, W.s0246, S1.sc);
+            S1.sc = idot4(right0.scdef, W.s0246, S1.sc);
 #endif
 
-            S0.s1 = IMAD(A1.s0123, W.s1357, S0.s1);
+            S0.s1 = idot4(A1.s0123, W.s1357, S0.s1);
 #if OW_BLOCK >= 2
-            S0.s3 = IMAD(A1.s2345, W.s1357, S0.s3);
+            S0.s3 = idot4(A1.s2345, W.s1357, S0.s3);
 #endif
 #if OW_BLOCK >= 3
-            S0.s5 = IMAD(A1.s4567, W.s1357, S0.s5);
+            S0.s5 = idot4(A1.s4567, W.s1357, S0.s5);
 #endif
 #if OW_BLOCK >= 4
-            S0.s7 = IMAD(A1.s6789, W.s1357, S0.s7);
+            S0.s7 = idot4(A1.s6789, W.s1357, S0.s7);
 #endif
 #if OW_BLOCK >= 5
-            S0.s9 = IMAD(A1.s89ab, W.s1357, S0.s9);
+            S0.s9 = idot4(A1.s89ab, W.s1357, S0.s9);
 #endif
 #if OW_BLOCK >= 6
-            S0.sb = IMAD(A1.sabcd, W.s1357, S0.sb);
+            S0.sb = idot4(A1.sabcd, W.s1357, S0.sb);
 #endif
 #if OW_BLOCK >= 7
-            S0.sd = IMAD(A1.scdef, W.s1357, S0.sd);
+            S0.sd = idot4(A1.scdef, W.s1357, S0.sd);
 #endif
 #if OW_BLOCK >= 8
-            S0.sf = IMAD((SRC_DATA4_T)(A1.sef, right1.s0, 0), W.s1357, S0.sf);
+            S0.sf = idot4((SRC_DATA4_T)(A1.sef, right1.s0, 0), W.s1357, S0.sf);
 #endif
 #if OW_BLOCK >= 9
-            S1.s1 = IMAD(right1.s0123, W.s1357, S1.s1);
+            S1.s1 = idot4(right1.s0123, W.s1357, S1.s1);
 #endif
 #if OW_BLOCK >= 10
-            S1.s3 = IMAD(right1.s2345, W.s1357, S1.s3);
+            S1.s3 = idot4(right1.s2345, W.s1357, S1.s3);
 #endif
 #if OW_BLOCK >= 11
-            S1.s5 = IMAD(right1.s4567, W.s1357, S1.s5);
+            S1.s5 = idot4(right1.s4567, W.s1357, S1.s5);
 #endif
 #if OW_BLOCK >= 12
-            S1.s7 = IMAD(right1.s6789, W.s1357, S1.s7);
+            S1.s7 = idot4(right1.s6789, W.s1357, S1.s7);
 #endif
 #if OW_BLOCK >= 13
-            S1.s9 = IMAD(right1.s89ab, W.s1357, S1.s9);
+            S1.s9 = idot4(right1.s89ab, W.s1357, S1.s9);
 #endif
 #if OW_BLOCK >= 14
-            S1.sb = IMAD(right1.sabcd, W.s1357, S1.sb);
+            S1.sb = idot4(right1.sabcd, W.s1357, S1.sb);
 #endif
 #if OW_BLOCK >= 15
-            S1.sd = IMAD(right1.scdef, W.s1357, S1.sd);
+            S1.sd = idot4(right1.scdef, W.s1357, S1.sd);
 #endif
 #else
 #error // SW > 2

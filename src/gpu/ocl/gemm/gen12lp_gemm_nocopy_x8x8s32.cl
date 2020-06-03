@@ -216,33 +216,33 @@
 
 #define DO_FMA_TN(h, i) \
     do { \
-        ci[0][i] = IMAD(AS_B_TYPE4(sub_group_broadcast(as_int(bi), i)), \
+        ci[0][i] = idot4(AS_B_TYPE4(sub_group_broadcast(as_int(bi), i)), \
                 AS_A_TYPE4(ai[0]), ci[0][i]); \
-        ci[1][i] = IMAD(AS_B_TYPE4(sub_group_broadcast(as_int(bi), i)), \
+        ci[1][i] = idot4(AS_B_TYPE4(sub_group_broadcast(as_int(bi), i)), \
                 AS_A_TYPE4(ai[1]), ci[1][i]); \
     } while (0)
 
 #define DO_FMA_NN(h, i) \
     do { \
-        ci[0][i] = IMAD(AS_B_TYPE4(sub_group_broadcast(as_int(bi), i)), \
+        ci[0][i] = idot4(AS_B_TYPE4(sub_group_broadcast(as_int(bi), i)), \
                 AS_A_TYPE4(ait[0]), ci[0][i]); \
-        ci[1][i] = IMAD(AS_B_TYPE4(sub_group_broadcast(as_int(bi), i)), \
+        ci[1][i] = idot4(AS_B_TYPE4(sub_group_broadcast(as_int(bi), i)), \
                 AS_A_TYPE4(ait[1]), ci[1][i]); \
     } while (0)
 
 #define DO_FMA_NT(h, i) \
     do { \
-        ci[0][i] = IMAD(AS_B_TYPE4(sub_group_broadcast(as_int(biit), i)), \
+        ci[0][i] = idot4(AS_B_TYPE4(sub_group_broadcast(as_int(biit), i)), \
                 AS_A_TYPE4(ait[0]), ci[0][i]); \
-        ci[1][i] = IMAD(AS_B_TYPE4(sub_group_broadcast(as_int(biit), i)), \
+        ci[1][i] = idot4(AS_B_TYPE4(sub_group_broadcast(as_int(biit), i)), \
                 AS_A_TYPE4(ait[1]), ci[1][i]); \
     } while (0)
 
 #define DO_FMA_TT(h, i) \
     do { \
-        ci[0][i] = IMAD(AS_B_TYPE4(sub_group_broadcast(as_int(biit), i)), \
+        ci[0][i] = idot4(AS_B_TYPE4(sub_group_broadcast(as_int(biit), i)), \
                 AS_A_TYPE4(ai[0]), ci[0][i]); \
-        ci[1][i] = IMAD(AS_B_TYPE4(sub_group_broadcast(as_int(biit), i)), \
+        ci[1][i] = idot4(AS_B_TYPE4(sub_group_broadcast(as_int(biit), i)), \
                 AS_A_TYPE4(ai[1]), ci[1][i]); \
     } while (0)
 

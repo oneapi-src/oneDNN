@@ -29,22 +29,24 @@
 #define ACC_DATA_BLOCK int4
 #define SRC_DATA_BLOCK_T MMAD_DATA4_T
 #define READ_BLOCK intel_sub_group_block_read4
-#define WRITE_LOCAL WRITE_LOCAL_4
-DECLARE_MMAD(_full, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 4, 8)
-DECLARE_MMAD(_tail, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 4,
-        IC_NBLOCKS_TAIL)
-#define MMAD_FULL mmad_full
+#define WRITE_LOCAL block_write4
+
+DECLARE_MMAD(
+        mmad_tail, IC_NBLOCKS_TAIL, 4, SRC_DATA_BLOCK_T, int8, ACC_DATA_BLOCK)
+
+#define MMAD_FULL mmad8x4
 #define MMAD_TAIL mmad_tail
 #else
 #define BLOCK 8
 #define ACC_DATA_BLOCK int8
 #define SRC_DATA_BLOCK_T MMAD_DATA8_T
 #define READ_BLOCK intel_sub_group_block_read8
-#define WRITE_LOCAL WRITE_LOCAL_8
-DECLARE_MMAD(_full, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 8, 8)
-DECLARE_MMAD(_tail, SRC_DATA_BLOCK_T, ACC_DATA_BLOCK, MMAD_DATA8_T, 8,
-        IC_NBLOCKS_TAIL)
-#define MMAD_FULL mmad_full
+#define WRITE_LOCAL block_write8
+
+DECLARE_MMAD(
+        mmad_tail, IC_NBLOCKS_TAIL, 8, SRC_DATA_BLOCK_T, int8, ACC_DATA_BLOCK)
+
+#define MMAD_FULL mmad8x8
 #define MMAD_TAIL mmad_tail
 #endif
 
@@ -126,7 +128,7 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
 #if PW > 0
     if (left_tail) {
         for (int i = 0; i < PW; i++) {
-            WRITE_LOCAL_1(S_slice + i * 8, 0);
+            block_write(S_slice + i * 8, 0);
         }
     }
 #endif
@@ -135,13 +137,13 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
     if (right_tail) {
         for (int i = OW_SLM_TAIL; i < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW;
                 i++) {
-            WRITE_LOCAL_1(S_part + i * 8, 0);
+            block_write(S_part + i * 8, 0);
         }
     }
 #if SLM_WORKING_GROUPS < OW_NCHUNK
     if (empty) {
         for (int i = 0; i < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW; i++) {
-            WRITE_LOCAL_1(S_part + i * 8, 0);
+            block_write(S_part + i * 8, 0);
         }
     }
 #endif
@@ -178,7 +180,7 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
 #if PW > 0
                         if (left_nozero_tail) {
                             for (int i = -PW; i < 0; i++) {
-                                WRITE_LOCAL_1(S_part + i * 8,
+                                block_write(S_part + i * 8,
                                         intel_sub_group_block_read(
                                                 (const __global uint *)(&src[i
                                                         * IC_BLOCK])));
@@ -190,7 +192,7 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
                             for (int i = SW * OW_BLOCK; i
                                     < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW;
                                     i++) {
-                                WRITE_LOCAL_1(S_part + i * 8,
+                                block_write(S_part + i * 8,
                                         intel_sub_group_block_read(
                                                 (const __global uint *)(&src[i
                                                         * IC_BLOCK])));
@@ -205,7 +207,7 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
                                     opencl_unroll_hint)) for (int i = 0;
                                                               i < OW_SLM_TAIL;
                                                               i++) {
-                                WRITE_LOCAL_1(S_part + i * 8,
+                                block_write(S_part + i * 8,
                                         intel_sub_group_block_read(
                                                 (const __global uint *)(&src[i
                                                         * IC_BLOCK])));
@@ -239,7 +241,7 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
                                                          kw++) {
                     __attribute__((opencl_unroll_hint(
                             OW_BLOCK))) for (int i = 0; i < OW_BLOCK; i++) {
-                        S0[i] = READ_LOCAL_1(
+                        S0[i] = block_read(
                                 S_work + (kw * (1 + DW) + SW * i) * 8);
                     }
 
