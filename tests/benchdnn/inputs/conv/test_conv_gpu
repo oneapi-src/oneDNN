@@ -43,6 +43,9 @@ mb2ic512ih14oc32oh14kh1ph0n
 # test scale and post-ops
 --batch=harness_conv_attrs_gpu
 
+# test zero points
+--batch=harness_conv_attrs_int8_asymmetric
+
 # test padding
 --reset --cfg=f16,f32
 --stag=any,axb

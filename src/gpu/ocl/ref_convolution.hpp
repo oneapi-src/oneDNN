@@ -46,6 +46,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
 
             const auto attr_skip_mask
                     = primitive_attr_t::skip_mask_t::oscale_runtime
+                    | primitive_attr_t::skip_mask_t::zero_points_runtime
                     | primitive_attr_t::skip_mask_t::post_ops
                     | primitive_attr_t::skip_mask_t::sum_dt;
 
@@ -62,7 +63,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                     && this->set_default_formats()
                     && attr()->has_default_values(
                             attr_skip_mask, dst_md_.data_type)
-                    && post_ops_ok(attr())
+                    && post_ops_ok(attr()) && zero_points_ok(attr())
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8, u8)
                                     && utils::one_of(

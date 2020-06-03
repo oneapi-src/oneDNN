@@ -63,6 +63,20 @@ protected:
 
         return false;
     }
+
+    bool zero_points_ok(const primitive_attr_t *attr) const {
+        using namespace data_type;
+        const auto src_type = invariant_src_md()->data_type;
+        int mask_src = 0, mask_dst = 0;
+        attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+        attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+
+        return IMPLICATION(!utils::one_of(src_type, s8, u8),
+                       attr->zero_points_.has_default_values())
+                && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                && (mask_src == 0 || mask_src == 1 << 1)
+                && (mask_dst == 0 || mask_dst == 1 << 1);
+    }
 };
 
 struct gpu_convolution_bwd_data_pd_t : public convolution_bwd_data_pd_t {

@@ -141,6 +141,25 @@ struct attr_info_t {
         attr_info.src1_scale = *src1_scales.scales_;
         assert(src1_scales.mask_ == 0);
 
+        // zero points
+        const auto &zp = attr->zero_points_;
+        attr_info.with_src_zpoints = !zp.has_default_values(DNNL_ARG_SRC);
+        attr_info.with_dst_zpoints = !zp.has_default_values(DNNL_ARG_DST);
+
+        attr_info.with_per_ic_src_zpoints = attr_info.with_src_zpoints
+                && !zp.defined(DNNL_ARG_SRC) && !zp.common(DNNL_ARG_SRC);
+        attr_info.common_src_zpoint
+                = attr_info.with_src_zpoints && zp.defined(DNNL_ARG_SRC)
+                ? *zp.get(DNNL_ARG_SRC)
+                : 0;
+
+        attr_info.with_per_oc_dst_zpoints = attr_info.with_dst_zpoints
+                && !zp.defined(DNNL_ARG_DST) && !zp.common(DNNL_ARG_DST);
+        attr_info.common_dst_zpoint
+                = attr_info.with_dst_zpoints && zp.defined(DNNL_ARG_DST)
+                ? *zp.get(DNNL_ARG_DST)
+                : 0;
+
         attr_info.initialized = true;
         return attr_info;
     }
@@ -172,6 +191,13 @@ struct attr_info_t {
 
     bool with_src1_scale;
     float src1_scale;
+
+    bool with_src_zpoints;
+    bool with_dst_zpoints;
+    bool with_per_ic_src_zpoints;
+    bool with_per_oc_dst_zpoints;
+    int common_src_zpoint;
+    int common_dst_zpoint;
 };
 
 struct offsets_t {
@@ -810,6 +836,15 @@ inline void def_attr_info(
     kernel_ctx.define_int("SCALES_COMMON", attr_info.with_common_oscales);
 
     def_binary_alg_kinds(kernel_ctx);
+    kernel_ctx.define_int("WITH_SRC_ZPOINTS", attr_info.with_src_zpoints);
+    kernel_ctx.define_int("WITH_DST_ZPOINTS", attr_info.with_dst_zpoints);
+    kernel_ctx.define_int("SRC_ZPOINT_COMMON", attr_info.common_src_zpoint);
+    kernel_ctx.define_int("DST_ZPOINT_COMMON", attr_info.common_dst_zpoint);
+    kernel_ctx.define_int(
+            "WITH_SRC_ZPOINTS_PER_IC", attr_info.with_per_ic_src_zpoints);
+    kernel_ctx.define_int(
+            "WITH_DST_ZPOINTS_PER_OC", attr_info.with_per_oc_dst_zpoints);
+
     def_eltwise_alg_kinds(kernel_ctx);
 
     def_post_ops_cfg(kernel_ctx, attr_info.all_post_ops);

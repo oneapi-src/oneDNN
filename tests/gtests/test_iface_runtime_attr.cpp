@@ -140,10 +140,9 @@ TEST_F(runtime_attr_test, TestConv) {
 
     for (auto arg :
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
-        if (get_test_engine_kind() == engine::kind::cpu
-                && ((src_md.data_type() == data_type::s8
-                            || src_md.data_type() == data_type::u8)
-                        && (arg == DNNL_ARG_SRC || arg == DNNL_ARG_DST))) {
+        if ((src_md.data_type() == data_type::s8
+                    || src_md.data_type() == data_type::u8)
+                && (arg == DNNL_ARG_SRC || arg == DNNL_ARG_DST)) {
             CHECK_OK(convolution_forward::primitive_desc(
                     op_d, gen_attr_with_zp(false, arg), eng));
             CHECK_OK(convolution_forward::primitive_desc(
