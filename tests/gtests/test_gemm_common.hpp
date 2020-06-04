@@ -261,6 +261,38 @@ inline test_params make_test_params_pack(
     params.pack_params = pack_params;
     return params;
 }
+
+/* FIXME: remove this when possible.
+ * Currently, USM suffers from two issues:
+ * 1. Accessing it from multiple threads might lead to old (not updated results)
+ * 2. USM pointers accessed on host only from TBB parallel region could also
+ *    be updated at random point in time.
+ * Accessing the data (traversing all pages) from the main thread seems to fix
+ * both issues for now.
+ */
+template <typename c_dt>
+void maybe_sync_mem(const test_memory &c_mem, int64_t size) {
+#if defined(DNNL_SYCL_DPCPP) && defined(DNNL_USE_DPCPP_USM)
+    size *= sizeof(c_dt);
+
+    auto c = map_memory<char>(c_mem);
+
+    const size_t step = 4096;
+    char *c_begin = c, *c_end = c_begin + size;
+
+    for (volatile char *c_ptr = c_begin; c_ptr < c_end; c_ptr += step)
+        *c_ptr ^= 0x3c;
+    *(c_end - 1) ^= 0x3c;
+
+    for (volatile char *c_ptr = c_begin; c_ptr < c_end; c_ptr += step)
+        *c_ptr ^= 0x3c;
+    *(c_end - 1) ^= 0x3c;
+#else
+    UNUSED(c_mem);
+    UNUSED(size);
+#endif
+}
+
 /* Test implementation description.
  *
  * To reduce the time spent in GEMM validation the test matrices A, B, and C
@@ -427,6 +459,8 @@ struct ref_gemm {
     static void call(const test_params &p, int64_t M, int64_t N,
             const test_memory &a_mem, const test_memory &b_mem,
             const test_memory &c_mem, const test_memory &) {
+        maybe_sync_mem<c_dt>(c_mem, p.off.c + p.M * p.ldc);
+
         auto a = map_memory<a_dt>(a_mem);
         auto b = map_memory<b_dt>(b_mem);
         auto c = map_memory<c_dt>(c_mem);
@@ -507,6 +541,8 @@ struct ref_gemm<a_dt, b_dt, int32_t> {
 template <typename a_dt, typename c_dt>
 void compare(const test_params &p, const test_memory &c_mem,
         const test_memory &c_ref_mem) {
+    maybe_sync_mem<c_dt>(c_mem, p.off.c + p.M * p.ldc);
+
     using data_type = memory::data_type;
     auto c = map_memory<c_dt>(c_mem);
     auto c_ref = map_memory<c_dt>(c_ref_mem);
