@@ -44,13 +44,24 @@ void check_correctness(const settings_t &s) {
     for (const auto &i_mb : s.mb) {
         if (i_with_peephole && i_alg != VANILLA_LSTM) continue;
 
-        const dt_conf_t &cfg = dt_conf_t::create(i_cfg);
-        check_case_validity(cfg, i_scale_policy);
+        if (!(i_scale_policy == policy_t::COMMON
+                    || i_scale_policy == policy_t::PER_OC)) {
+            std::stringstream ss;
+            ss << i_scale_policy;
+            const std::string cpp_pstr = ss.str();
+            const char *policy_s = cpp_pstr.c_str();
+            fprintf(stderr,
+                    "ERROR: rnn driver: --scaling=%s is invalid, supported "
+                    "values are `common` and `per_oc`.\n",
+                    policy_s),
+                    fflush(stderr);
+            SAFE_V(FAIL);
+        }
 
-        const prb_t p(s.desc, cfg, i_prop, i_alg, i_with_peephole,
-                i_with_projection, i_direction, s.attr, i_scale_policy, s.flags,
-                i_activation, s.alpha, s.beta, i_skip_nonlinear,
-                i_trivial_strides, i_mb);
+        const prb_t p(s.desc, dt_conf_t::create(i_cfg), i_prop, i_alg,
+                i_with_peephole, i_with_projection, i_direction, s.attr,
+                i_scale_policy, s.flags, i_activation, s.alpha, s.beta,
+                i_skip_nonlinear, i_trivial_strides, i_mb);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();

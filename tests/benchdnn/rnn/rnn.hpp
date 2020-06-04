@@ -450,8 +450,6 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &diff_weights_iter_m, dnn_mem_t &diff_weights_peephole_m,
         dnn_mem_t &diff_weights_projection_m, dnn_mem_t &diff_bias_m);
 
-void check_case_validity(const dt_conf_t &cfg, policy_t policy);
-
 int doit(const prb_t &p, res_t *res);
 int bench(int argc, char **argv);
 
