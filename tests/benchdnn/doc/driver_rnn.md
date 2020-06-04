@@ -29,17 +29,17 @@ and *rnn-desc* is a problem descriptor. The canonical form is:
 ```
 Here `X` is an integer number and `S` is a string literal without spaces (`n`
 stands for name). The special symbol `_` is ignored, so it may be used as a
-delimiter for better readability. Refer to the common glossary in README.md for
-the entity name and description.
+delimiter for better readability.
 
-Description of RNN descriptor symbols: TBA.
-
-There are default values for some entities in case they were not specified:
- - l = 1;
- - t = 1;
- - mb = 2;
- - slc = dhc = sic;
-
+Description of RNN descriptor symbols:
+ - `l` is the number of layers. The default value is `1`.
+ - `t` is the number of timesteps (so the sequence length). The default value
+             is `1`.
+ - `mb` is the minibatch. The default value is `2`.
+ - `sic` is the feature size of `src_iter`. No default value.
+ - `slc` is the feature size of `src_layer`. The default value is `sic`.
+ - `dhc` is the hidden feature size. For GRU it is equal to `dst_iter` feature
+             size. The default value is `sic`.
 
 ## Precision Configurations
 
