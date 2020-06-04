@@ -39,7 +39,7 @@ function(read_lines ker_file ker_lines)
 
     set(pp_lines)
     foreach(l ${contents})
-        if(l MATCHES "\\s*#include \"(.*)\"")
+        if(l MATCHES "^\\s*#include \"(.*)\"")
             set(inc_file "${KER_INC_DIR}/${CMAKE_MATCH_1}")
             set(inc_lines)
             read_lines(${inc_file} inc_lines)
