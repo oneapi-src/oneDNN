@@ -183,10 +183,27 @@ set(DNNL_USE_CLANG_SANITIZER "" CACHE STRING
     Undefined: enables UndefinedBehaviourSanitizer
     This feature is experimental and is only available on Linux.")
 
-option(_DNNL_USE_MKL "use BLAS functions from Intel MKL" OFF)
-
 option(DNNL_ENABLE_MEM_DEBUG "enables memory-related debug functionality,
     such as buffer overflow (default) and underflow, using gtests and benchdnn.
     Additionaly, this option enables testing of out-of-memory handling by the
     library, such as failed memory allocations, using primitive-related gtests.
     This feature is experimental and is only available on Linux." OFF)
+
+# =============================
+# External BLAS library options
+# =============================
+
+set(DNNL_BLAS_VENDOR "NONE" CACHE STRING
+    "Use an external BLAS library. Valid values:
+      - NONE (default)
+        Use in-house implementation.
+      - MKL
+        Intel Math Kernel Library
+        (https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html)
+      - OPENBLAS
+        (https://www.openblas.net)
+      - ARMPL
+        Arm Performance Libraries
+        (https://developer.arm.com/tools-and-software/server-and-hpc/compile/arm-compiler-for-linux/arm-performance-libraries)
+      - ANY
+        FindBLAS will search default library paths for a known BLAS installation.")
