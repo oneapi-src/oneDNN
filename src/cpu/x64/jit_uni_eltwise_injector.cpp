@@ -1218,6 +1218,12 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_gprs_count() {
 };
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::round_compute_vector_fwd(
+        const Vmm &vmm_src) {
+    h->uni_vroundps(vmm_src, vmm_src, _op_mxcsr);
+}
+
+template <cpu_isa_t isa>
 size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
     using namespace alg_kind;
     if (is_fwd_) {
@@ -1245,6 +1251,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_clip: return 0;
             case eltwise_pow: return 2;
             case eltwise_gelu_erf: return 5;
+            case eltwise_round: return 0;
             default: assert(!"unsupported eltwise algorithm");
         }
     } else {
@@ -1324,6 +1331,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 case eltwise_gelu_erf:
                     gelu_erf_compute_vector_fwd(Vmm(idx));
                     break;
+                case eltwise_round: round_compute_vector_fwd(Vmm(idx)); break;
                 default: assert(!"unsupported eltwise algorithm");
             }
         } else {

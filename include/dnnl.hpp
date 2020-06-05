@@ -519,6 +519,8 @@ enum class algorithm {
     eltwise_clip = dnnl_eltwise_clip,
     /// Elementwise: pow
     eltwise_pow = dnnl_eltwise_pow,
+    /// Elementwise: round
+    eltwise_round = dnnl_eltwise_round,
     /// Elementwise: rectified linar unit (ReLU) (dst for backward)
     eltwise_relu_use_dst_for_bwd = dnnl_eltwise_relu_use_dst_for_bwd,
     /// Elementwise: hyperbolic tangent non-linearity (tanh) (dst for backward)

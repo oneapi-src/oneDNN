@@ -30,6 +30,7 @@ The following operations are supported:
 | logistic     | #dnnl_eltwise_logistic <br> #dnnl_eltwise_logistic_use_dst_for_bwd | \f$ d = \frac{1}{1+e^{-s}} \f$ | \f$ ds = \frac{dd}{1+e^{-s}} \cdot (1 - \frac{1}{1+e^{-s}}) \f$ | \f$ ds = dd \cdot d \cdot (1 - d) \f$
 | pow          | #dnnl_eltwise_pow          | \f$ d = \alpha s^{\beta} \f$ | \f$ ds = dd \cdot \alpha \beta s^{\beta - 1} \f$ | --
 | relu         | #dnnl_eltwise_relu <br> #dnnl_eltwise_relu_use_dst_for_bwd | \f$ d = \begin{cases} s & \text{if}\ s > 0 \\ \alpha s & \text{if}\ s \leq 0 \end{cases} \f$ | \f$ ds = \begin{cases} dd & \text{if}\ s > 0 \\ \alpha \cdot dd & \text{if}\ s \leq 0 \end{cases} \f$ | \f$ ds = \begin{cases} dd & \text{if}\ d > 0 \\ \alpha \cdot dd & \text{if}\ d \leq 0 \end{cases}. See\ (2). \f$
+| round        | #dnnl_eltwise_round        | \f$ d = round(s) \f$ | -- | -- |
 | soft_relu    | #dnnl_eltwise_soft_relu    | \f$ d = \log_{e}(1+e^s) \f$ | \f$ ds = \frac{dd}{1 + e^{-s}} \f$ | --
 | sqrt         | #dnnl_eltwise_sqrt <br> #dnnl_eltwise_sqrt_use_dst_for_bwd | \f$ d = \sqrt{s} \f$ | \f$ ds = \frac{dd}{2\sqrt{s}} \f$ | \f$ ds = \frac{dd}{2d} \f$
 | square       | #dnnl_eltwise_square       | \f$ d = s^2 \f$ | \f$ ds = dd \cdot 2 s \f$ | --
@@ -52,6 +53,10 @@ The backward propagation computes \f$\diffsrc(\overline{s})\f$, based on
 operations support a computation using \f$\dst(\overline{s})\f$ memory produced
 during forward propagation. Refer to the table above for a list of operations
 supporting destination as input memory and the corresponding formulas.
+
+#### Exceptions
+The eltwise primitive with algorithm round does not support backward
+propagation.
 
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution

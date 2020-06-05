@@ -25,9 +25,6 @@
 #include "utils.hpp"
 
 #include "../cpu/platform.hpp"
-#if DNNL_X64
-#include "immintrin.h"
-#endif
 
 namespace dnnl {
 namespace impl {
@@ -92,13 +89,18 @@ inline U x_m_square(T x) {
 
 /* activation */
 
+/** rounds @p f to an integer according to the mxcsr register */
+inline float mxcsr_round(float f) ATTR_NO_MSAN {
+    return nearbyintf(f);
+}
+
 /** converts @p f to an integer according to the mxcsr register */
 inline int mxcsr_cvt(float f) ATTR_NO_MSAN {
-#if DNNL_X64
-    return _mm_cvtss_si32(_mm_load_ss(&f));
-#else
-    return (int)nearbyintf(f); // optimism
-#endif
+    return (int)mxcsr_round(f);
+}
+
+inline float round_fwd(float s) {
+    return mxcsr_round(s);
 }
 
 template <typename T, typename A,
@@ -350,9 +352,11 @@ inline bool is_eltwise_ok(
                       eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                       eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
                       eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
-                      eltwise_log, eltwise_clip, eltwise_pow, eltwise_gelu_erf)
+                      eltwise_log, eltwise_clip, eltwise_pow, eltwise_gelu_erf,
+                      eltwise_round)
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(alg == eltwise_clip, beta >= alpha)
+            && IMPLICATION(alg == eltwise_round, dt == dnnl_f32)
             && IMPLICATION(one_of(dt, dnnl_s32, dnnl_s8), alg == eltwise_relu)
             && IMPLICATION(
                     dt == dnnl_u8, one_of(alg, eltwise_relu, eltwise_linear));

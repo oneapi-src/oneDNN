@@ -697,6 +697,7 @@ inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("CLIP", alg_kind::eltwise_clip);
     kernel_ctx.define_int("POW", alg_kind::eltwise_pow);
     kernel_ctx.define_int("GELU_ERF", alg_kind::eltwise_gelu_erf);
+    kernel_ctx.define_int("ROUND", alg_kind::eltwise_round);
 
     kernel_ctx.define_int("RELU_DST", alg_kind::eltwise_relu_use_dst_for_bwd);
     kernel_ctx.define_int(

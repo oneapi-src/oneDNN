@@ -538,6 +538,7 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_eltwise_clip) return "eltwise_clip";
     if (v == dnnl_eltwise_pow) return "eltwise_pow";
     if (v == dnnl_eltwise_gelu_erf) return "eltwise_gelu_erf";
+    if (v == dnnl_eltwise_round) return "eltwise_round";
     if (v == dnnl_eltwise_relu_use_dst_for_bwd) return "eltwise_relu_use_dst_for_bwd";
     if (v == dnnl_eltwise_tanh_use_dst_for_bwd) return "eltwise_tanh_use_dst_for_bwd";
     if (v == dnnl_eltwise_elu_use_dst_for_bwd) return "eltwise_elu_use_dst_for_bwd";

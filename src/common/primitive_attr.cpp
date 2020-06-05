@@ -172,7 +172,7 @@ status_t post_ops_t::append_sum(float scale, data_type_t dt) {
 
 status_t post_ops_t::append_eltwise(
         float scale, alg_kind_t alg, float alpha, float beta) {
-    if (!math::is_eltwise_ok(data_type::undef, alg, alpha, beta))
+    if (!math::is_eltwise_ok(data_type::f32, alg, alpha, beta))
         return invalid_arguments;
 
     if (len_ == capacity) return out_of_memory;

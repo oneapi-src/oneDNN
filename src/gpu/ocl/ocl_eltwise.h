@@ -199,6 +199,10 @@ float gelu_erf_bwd(float dd, float s) {
     return dd * 0.5f * (1.f + erf(v) + v * two_over_sqrt_pi * exp(-v * v));
 }
 
+float round_fwd(float s) {
+    return rint(s);
+}
+
 float fwd_eltwise_common(
         int eltwise_alg, float x, float alpha_, float beta_, float scale_) {
     switch (eltwise_alg) {
@@ -219,6 +223,7 @@ float fwd_eltwise_common(
         case CLIP: return scale_ * clip_fwd(x, alpha_, beta_); break;
         case POW: return scale_ * pow_fwd(x, alpha_, beta_); break;
         case GELU_ERF: return scale_ * gelu_erf_fwd(x); break;
+        case ROUND: return scale_ * round_fwd(x); break;
 
         case RELU_DST: return scale_ * relu_fwd(x, alpha_); break;
         case LOGISTIC_DST: return scale_ * logistic_fwd(x); break;

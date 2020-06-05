@@ -178,6 +178,7 @@ struct attr_t {
             POW,
             RELU,
             RELU_DST,
+            ROUND,
             SQRT,
             SQRT_DST,
             SQUARE,

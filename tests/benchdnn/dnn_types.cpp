@@ -292,6 +292,7 @@ static po_table_entry_t kind_table[] = {
         {pk_t::POW, "pow", dnnl_eltwise_pow},
         {pk_t::RELU, "relu", dnnl_eltwise_relu},
         {pk_t::RELU_DST, "relu_dst", dnnl_eltwise_relu_use_dst_for_bwd},
+        {pk_t::ROUND, "round", dnnl_eltwise_round},
         {pk_t::SQRT, "sqrt", dnnl_eltwise_sqrt},
         {pk_t::SQRT_DST, "sqrt_dst", dnnl_eltwise_sqrt_use_dst_for_bwd},
         {pk_t::SQUARE, "square", dnnl_eltwise_square},
@@ -881,6 +882,7 @@ float compute_eltwise_fwd(
         case pk_t::CLIP: return scale * clip_fwd(src, alpha, beta);
         case pk_t::POW: return scale * pow_fwd(src, alpha, beta);
         case pk_t::GELU_ERF: return scale * gelu_erf_fwd(src);
+        case pk_t::ROUND: return scale * round_fwd(src);
 
         case pk_t::RELU_DST: return scale * relu_fwd(src, alpha);
         case pk_t::TANH_DST: return scale * tanh_fwd(src);

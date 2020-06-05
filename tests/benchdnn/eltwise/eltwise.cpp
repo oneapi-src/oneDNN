@@ -288,13 +288,12 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
 
     bool is_invalid = false;
     switch (p->alg) {
-        case alg_t::CLIP:
-            if (p->beta < p->alpha) is_invalid = true;
-            break;
+        case alg_t::CLIP: is_invalid = p->beta < p->alpha; break;
         case alg_t::BRELU:
         case alg_t::ELU_DST:
-        case alg_t::RELU_DST:
-            if (p->alpha < 0) is_invalid = true;
+        case alg_t::RELU_DST: is_invalid = p->alpha < 0; break;
+        case alg_t::ROUND:
+            is_invalid = p->dt != dnnl_f32 || p->dir & FLAG_BWD;
             break;
         default: break;
     };

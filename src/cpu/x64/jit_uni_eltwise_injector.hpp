@@ -68,7 +68,7 @@ struct jit_uni_eltwise_injector_f32 {
                 eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                 eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
                 eltwise_exp, eltwise_gelu_tanh, eltwise_swish, eltwise_log,
-                eltwise_clip, eltwise_pow, eltwise_gelu_erf,
+                eltwise_clip, eltwise_pow, eltwise_gelu_erf, eltwise_round,
                 eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
                 eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
                 eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd));
@@ -112,7 +112,8 @@ private:
         _cmp_le_os = jit_generator::_cmp_le_os,
         _cmp_ge_os = jit_generator::_cmp_nlt_us,
         _cmp_gt_os = jit_generator::_cmp_nle_us,
-        _op_floor = jit_generator::_op_floor
+        _op_floor = jit_generator::_op_floor,
+        _op_mxcsr = jit_generator::_op_mxcsr
     };
 
     static constexpr bool has_avx512() {
@@ -165,6 +166,7 @@ private:
     void clip_compute_vector_fwd(const Vmm &vmm_src);
     void pow_compute_vector_fwd(const Vmm &vmm_src);
     void gelu_erf_compute_vector_fwd(const Vmm &vmm_src);
+    void round_compute_vector_fwd(const Vmm &vmm_src);
 
     void exp_compute_vector_bwd(const Vmm &vmm_src);
     void relu_compute_vector_bwd(const Vmm &vmm_src);
