@@ -23,6 +23,7 @@
 #include "common/convolution_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include "cpu/cpu_eltwise_pd.hpp"
 #include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
@@ -48,7 +49,8 @@ struct cpu_convolution_fwd_pd_t : public convolution_fwd_pd_t {
         int idx = po.find(primitive_kind::eltwise);
         if (idx == -1) return false;
         const auto &ee = po.entry_[idx].eltwise;
-        return !math::eltwise_fwd_preserves_zero(ee.alg, ee.alpha, ee.beta);
+        return !cpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
+                ee.alg, ee.alpha, ee.beta);
     }
 };
 

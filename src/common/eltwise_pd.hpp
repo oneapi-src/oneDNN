@@ -129,9 +129,30 @@ struct eltwise_fwd_pd_t : public eltwise_pd_t {
     int n_inputs() const override { return 1; }
     int n_outputs() const override { return 1; }
 
+    static bool eltwise_preserves_zero(
+            alg_kind_t alg, float alpha, float beta) {
+        using namespace alg_kind;
+        using namespace utils;
+        return one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
+                       eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_swish,
+                       eltwise_bounded_relu, eltwise_gelu_tanh,
+                       eltwise_gelu_erf)
+                || one_of(alg, eltwise_relu_use_dst_for_bwd,
+                        eltwise_tanh_use_dst_for_bwd,
+                        eltwise_elu_use_dst_for_bwd,
+                        eltwise_sqrt_use_dst_for_bwd)
+                || (alg == eltwise_clip && alpha <= 0 && beta >= 0)
+                || (alg == eltwise_linear && beta == 0)
+                || (alg == eltwise_pow && beta > 0);
+    }
+
+    static bool eltwise_preserves_zero(
+            const post_ops_t::entry_t::eltwise_t &eltwise) {
+        return eltwise_preserves_zero(eltwise.alg, eltwise.alpha, eltwise.beta);
+    }
+
     bool is_zero_preserved() const {
-        return math::eltwise_fwd_preserves_zero(
-                desc_.alg_kind, desc_.alpha, desc_.beta);
+        return eltwise_preserves_zero(desc_.alg_kind, desc_.alpha, desc_.beta);
     }
 };
 
@@ -180,9 +201,31 @@ struct eltwise_bwd_pd_t : public eltwise_pd_t {
     int n_inputs() const override { return 2; }
     int n_outputs() const override { return 1; }
 
+    static bool eltwise_preserves_zero(
+            alg_kind_t alg, float alpha, float beta) {
+        // Unlike forward counterpart, bwd works on two tensors (with same formats)
+        // and if alg moves zero to non-zero, it's fine, because diff_dst will
+        // still have zeros in padding and multiplication of zero and non-zero
+        // gives desired result. However, it doesn't work in case of special fp
+        // values which are NaN or infinity which give NaN when multiplying on
+        // zero, so excluding all those algs from here.
+        using namespace alg_kind;
+        using namespace utils;
+        return one_of(alg, eltwise_abs, eltwise_bounded_relu, eltwise_clip,
+                       eltwise_elu, eltwise_exp, eltwise_gelu_erf,
+                       eltwise_gelu_tanh, eltwise_linear, eltwise_logistic,
+                       eltwise_relu, eltwise_soft_relu, eltwise_square,
+                       eltwise_swish, eltwise_tanh)
+                || one_of(alg, eltwise_elu_use_dst_for_bwd,
+                        eltwise_exp_use_dst_for_bwd,
+                        eltwise_logistic_use_dst_for_bwd,
+                        eltwise_relu_use_dst_for_bwd,
+                        eltwise_tanh_use_dst_for_bwd)
+                || (alg == eltwise_pow && beta >= 1);
+    }
+
     bool is_zero_preserved() const {
-        return math::eltwise_bwd_preserves_zero(
-                desc_.alg_kind, desc_.alpha, desc_.beta);
+        return eltwise_preserves_zero(desc_.alg_kind, desc_.alpha, desc_.beta);
     }
 
 protected:

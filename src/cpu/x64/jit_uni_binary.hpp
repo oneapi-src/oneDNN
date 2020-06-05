@@ -24,6 +24,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_eltwise_pd.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 
 #include "cpu/cpu_binary_pd.hpp"
@@ -62,8 +63,10 @@ struct jit_uni_binary_t : public primitive_t {
                     && attr_post_ops_ok()
                     && (elt_idx == -1
                             || IMPLICATION(!dst_md_.is_dense(),
-                                    is_zero_preserved(
-                                            po.entry_[elt_idx].eltwise)));
+                                    cpu_eltwise_fwd_pd_t::
+                                            eltwise_preserves_zero(
+                                                    po.entry_[elt_idx]
+                                                            .eltwise)));
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -113,12 +116,6 @@ struct jit_uni_binary_t : public primitive_t {
             };
 
             return valid_bd(src0_d) && valid_bd(src1_d);
-        }
-
-        bool is_zero_preserved(
-                const dnnl_post_ops::entry_t::eltwise_t eltwise) const {
-            return math::eltwise_fwd_preserves_zero(
-                    eltwise.alg, eltwise.alpha, eltwise.beta);
         }
     };
 

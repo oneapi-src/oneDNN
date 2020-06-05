@@ -23,6 +23,7 @@
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
+#include "gpu/gpu_eltwise_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
