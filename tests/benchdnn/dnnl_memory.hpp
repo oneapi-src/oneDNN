@@ -279,4 +279,7 @@ private:
     }
 };
 
+// Check that zero padding is preserved.
+int check_zero_padding(const dnn_mem_t &mem, int arg);
+
 #endif

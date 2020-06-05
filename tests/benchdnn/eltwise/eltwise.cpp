@@ -225,72 +225,6 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int compare_padded_area_for_zeros(
-        const prb_t *p, const dnn_mem_t &mem_dt, res_t *r) {
-    const auto nelems = mem_dt.nelems();
-    const auto nelems_padded = mem_dt.nelems(true);
-    if (nelems == nelems_padded) return OK; // no padding - no worries
-
-    const auto md = mem_dt.md_;
-    const dnnl_dim_t *padded_dims = md.padded_dims;
-
-    // Create memory with dims = md.padded_dims with same format.
-    // This way reorder to plain format keeps padding values.
-    dnnl_memory_desc_t pad_data_d;
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&pad_data_d, md.ndims, padded_dims,
-                     md.data_type, convert_tag(p->tag, p->ndims)),
-            WARN);
-    dnn_mem_t padded_mem_dt(pad_data_d, get_test_engine());
-    for (int64_t i = 0; i < nelems_padded; i++)
-        padded_mem_dt.set_elem(i, mem_dt.get_elem(i));
-
-    const auto tag = get_abx_tag(md.ndims);
-    dnn_mem_t plain_padded_mem_dt(
-            padded_mem_dt, md.data_type, tag, get_test_engine());
-
-    r->errors = 0;
-    r->total = nelems_padded - nelems;
-
-    const auto bd = md.format_desc.blocking;
-    int in_blk = bd.inner_nblks;
-
-    // TODO: temporary don't test layouts w/ double and more blocking
-    if (in_blk > 1) return OK;
-
-    int64_t idx = bd.inner_idxs[in_blk - 1];
-    int64_t outer = 1, inner = 1;
-    for (int64_t i = 0; i < idx; i++)
-        outer *= md.dims[i];
-
-    for (int64_t i = idx + 1; i < md.ndims; i++)
-        inner *= md.dims[i];
-
-    dnnl::impl::parallel_nd(outer, [&](int64_t ou) {
-        int64_t offt = (ou * md.padded_dims[idx] + md.dims[idx]) * inner;
-        for (int64_t ax = 0; ax < md.padded_dims[idx] - md.dims[idx]; ++ax) {
-            for (int64_t in = offt; in < inner + offt; ++in) {
-                auto i = ax * inner + in;
-                auto dt = plain_padded_mem_dt.get_elem(i);
-
-                bool ok = dt == 0;
-                r->errors += !ok;
-
-                const bool dump = false
-                        || (!ok && (r->errors < 10 || verbose >= 10))
-                        || (verbose >= 50 && i < 30) || (verbose >= 99);
-                if (dump) {
-                    BENCHDNN_PRINT(
-                            0, "[%4ld] fp:  0.f dt:% 9.6g \n", (long)i, dt);
-                }
-            }
-        }
-    });
-
-    if (r->errors) r->state = FAILED;
-
-    return r->state == FAILED ? FAIL : OK;
-}
-
 int fill_data(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
@@ -426,7 +360,6 @@ int doit(const prb_t *p, res_t *r) {
             compute_ref_fwd(p, src_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, tag, test_engine);
             SAFE(compare(p, src_fp, dst_fp, dst, r), WARN);
-            SAFE(compare_padded_area_for_zeros(p, dst_dt, r), WARN);
         }
     } else {
         const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
@@ -464,7 +397,6 @@ int doit(const prb_t *p, res_t *r) {
             compute_ref_bwd(p, arg_fp, d_dst_fp, d_src_fp);
             dnn_mem_t d_src(d_src_dt, fp, tag, test_engine);
             SAFE(compare(p, arg_fp, d_src_fp, d_src, r), WARN);
-            SAFE(compare_padded_area_for_zeros(p, d_src_dt, r), WARN);
         }
     }
 

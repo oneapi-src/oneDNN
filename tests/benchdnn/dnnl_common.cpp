@@ -82,6 +82,13 @@ int execute_and_wait(dnnl_primitive_t prim, const args_t &args) {
     DNN_SAFE(dnnl_stream_wait(stream), CRIT);
 
     execute_map_args(args);
+
+    if (bench_mode & CORR) {
+        for (int i = 0; i < args.size(); ++i) {
+            SAFE(check_zero_padding(args.dnn_mem(i), args.arg(i)), WARN);
+        }
+    }
+
     return OK;
 }
 
