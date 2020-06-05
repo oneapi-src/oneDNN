@@ -1,7 +1,6 @@
 # Test different combinations of memory format tags for input tensors
 --reset
 --allow-unimpl=true
---skip-impl=ref # workaround a compiler bug for dw convolutions
 --mb=2
 
 # Source or destination tensor may be in plain layout
@@ -28,4 +27,3 @@
 --cfg=u8s8u8
 --dir=FWD_B
 --batch=shapes_basic
-
