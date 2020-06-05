@@ -24,6 +24,7 @@ extensions = [
     'sphinx.ext.githubpages',
     'sphinx.ext.graphviz',
     'sphinxcontrib.spelling',
+    'sphinx-prompt',
     'sphinx_substitution_extensions',
     'breathe',
     # 'dalapi', # oneDAL API generator
