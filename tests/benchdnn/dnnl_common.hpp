@@ -226,7 +226,7 @@ template <typename func_t, typename prb_t>
 int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
         res_t *r, dir_t dir = FLAG_FWD,
         const_dnnl_primitive_desc_t hint = nullptr) {
-
+    int status = OK;
     dnnl_primitive_desc_t pd {};
     dnnl_primitive_t return_prim {};
 
@@ -247,7 +247,7 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
 
     // The first primitive creation using a temporary engine.
     engine_t engine(engine_tgt_kind);
-    int status = init_pd_func(engine, p, pd, r, dir, hint);
+    status = init_pd_func(engine, p, pd, r, dir, hint);
     if (status != OK) return status;
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
     DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
