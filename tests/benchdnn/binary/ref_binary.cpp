@@ -20,29 +20,20 @@
 
 namespace binary {
 
-void perform_op(const prb_t *p, float *dst, float x, float y) {
-    float res = 0;
-    if (p->alg == ADD) {
-        res = x + y;
-    } else if (p->alg == MUL) {
-        res = x * y;
-    } else if (p->alg == MAX) {
-        res = MAX2(x, y);
-    } else if (p->alg == MIN) {
-        res = MIN2(x, y);
+float compute_binary(alg_t alg, float src0, float src1) {
+    if (alg == ADD) {
+        return src0 + src1;
+    } else if (alg == MUL) {
+        return src0 * src1;
+    } else if (alg == MAX) {
+        return MAX2(src0, src1);
+    } else if (alg == MIN) {
+        return MIN2(src0, src1);
     } else {
         assert(!"operation not supported!");
     }
-    maybe_post_ops(p->attr, res, *dst);
-    *dst = res;
+    return 0;
 };
-
-int64_t map_idx_B(const prb_t *p, int64_t idx) {
-    dims_t dims = off2dims_idx(p->sdims[0], idx);
-    for (int d = 0; d < p->ndims[0]; ++d)
-        dims[d] *= (!p->broadcast_dims[d]);
-    return dims_off(p->sdims[1], dims);
-}
 
 void compute_ref(const prb_t *p, const dnn_mem_t &src0, const dnn_mem_t &src1,
         dnn_mem_t &dst) {
@@ -54,11 +45,15 @@ void compute_ref(const prb_t *p, const dnn_mem_t &src0, const dnn_mem_t &src1,
             p->attr.scales.get(DNNL_ARG_SRC_1).scale};
 
     const auto nelems_A = src0.nelems();
-    const auto nelems_B = src1.nelems();
+    const auto broadcast_mask = p->get_broadcast_mask();
 
     dnnl::impl::parallel_nd(nelems_A, [&](int64_t i) {
-        int64_t idx_B = nelems_B == nelems_A ? i : map_idx_B(p, i);
-        perform_op(p, &dst_ptr[i], scales[0] * A[i], scales[1] * B[idx_B]);
+        auto idx_B = src0.get_scale_idx(i, broadcast_mask);
+        float res = compute_binary(
+                p->alg, scales[0] * A[i], scales[1] * B[idx_B]);
+        float &dst = dst_ptr[i];
+        maybe_post_ops(p->attr, res, dst);
+        dst = res;
     });
 }
 
