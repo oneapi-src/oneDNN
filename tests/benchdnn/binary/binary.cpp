@@ -130,10 +130,9 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int fill_src(
-        const prb_t *p, int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+int fill_src(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
-    const auto dt = p->sdt[input_idx];
+    const auto dt = mem_dt.dt();
     const int range = 16;
     const int f_min = dt == dnnl_u8 ? 0 : -range / 2;
 
@@ -142,7 +141,7 @@ int fill_src(
         const float value = (dt == dnnl_bf16 || dt == dnnl_f16)
                 ? (f_min + gen) / range
                 : (f_min + gen) * (1.0f + 4.0f / range);
-        mem_fp.set_elem(i, maybe_saturate(dt, value));
+        mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
@@ -188,11 +187,11 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t src0_fp(src0_md, fp, tag, test_engine);
     dnn_mem_t src0_dt(src0_md, test_engine);
-    SAFE(fill_src(p, 0, src0_dt, src0_fp), WARN);
+    SAFE(fill_src(0, src0_dt, src0_fp), WARN);
 
     dnn_mem_t src1_fp(src1_md, fp, tag, test_engine);
     dnn_mem_t src1_dt(src1_md, test_engine);
-    SAFE(fill_src(p, 1, src1_dt, src1_fp), WARN);
+    SAFE(fill_src(1, src1_dt, src1_fp), WARN);
 
     dnn_mem_t &dst_fp = src0_fp; // in-place in ref code
     dnn_mem_t placeholder_dst_dt;
