@@ -199,6 +199,13 @@ struct attr_t {
             TANH,
             TANH_DST,
             ELTWISE_END, // a guard to check kind is eltwise
+            // binary
+            BINARY_START, // a guard to check kind is binary
+            ADD,
+            MAX,
+            MIN,
+            MUL,
+            BINARY_END, // a guard to check kind is binary
             // guard entry
             KIND_TOTAL
         };
@@ -356,6 +363,7 @@ float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
         float scale, float alpha, float beta);
 float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta);
+float compute_binary(attr_t::post_ops_t::kind_t kind, float src0, float src1);
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val = 0.f);
 
 #endif

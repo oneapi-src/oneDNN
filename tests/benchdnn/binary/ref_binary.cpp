@@ -20,21 +20,6 @@
 
 namespace binary {
 
-float compute_binary(alg_t alg, float src0, float src1) {
-    if (alg == ADD) {
-        return src0 + src1;
-    } else if (alg == MUL) {
-        return src0 * src1;
-    } else if (alg == MAX) {
-        return MAX2(src0, src1);
-    } else if (alg == MIN) {
-        return MIN2(src0, src1);
-    } else {
-        assert(!"operation not supported!");
-    }
-    return 0;
-};
-
 void compute_ref(const prb_t *p, const dnn_mem_t &src0, const dnn_mem_t &src1,
         dnn_mem_t &dst) {
     float *dst_ptr = (float *)dst;

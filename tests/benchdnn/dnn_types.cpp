@@ -303,6 +303,13 @@ static po_table_entry_t kind_table[] = {
         {pk_t::TANH, "tanh", dnnl_eltwise_tanh},
         {pk_t::TANH_DST, "tanh_dst", dnnl_eltwise_tanh_use_dst_for_bwd},
         {pk_t::ELTWISE_END, "eltwise_undef", dnnl_alg_kind_undef},
+        // binary
+        {pk_t::BINARY_START, "binary_undef", dnnl_alg_kind_undef},
+        {pk_t::ADD, "add", dnnl_binary_add},
+        {pk_t::MAX, "max", dnnl_binary_max},
+        {pk_t::MIN, "min", dnnl_binary_min},
+        {pk_t::MUL, "mul", dnnl_binary_mul},
+        {pk_t::BINARY_END, "binary_undef", dnnl_alg_kind_undef},
         // guard entry
         {pk_t::KIND_TOTAL, "kind_undef", dnnl_alg_kind_undef}};
 
@@ -389,6 +396,7 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
                     e.convolution.dst_dt = dnnl_f32;
                     e.convolution.stride = k == DW_K3S1P1 ? 1 : 2;
                     e.convolution.oscale = attr_t::scale_t();
+
                     if (*s == ':') ++s;
                     auto *end = s;
                     while (*s && isalnum(*s))
@@ -926,6 +934,21 @@ float compute_eltwise_bwd(
         default: assert(!"unknown attr::post_ops::kind");
     }
     return NAN;
+}
+
+float compute_binary(pk_t kind, float src0, float src1) {
+    if (kind == pk_t::ADD) {
+        return src0 + src1;
+    } else if (kind == pk_t::MUL) {
+        return src0 * src1;
+    } else if (kind == pk_t::MAX) {
+        return MAX2(src0, src1);
+    } else if (kind == pk_t::MIN) {
+        return MIN2(src0, src1);
+    } else {
+        assert(!"operation not supported!");
+    }
+    return 0;
 }
 
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val) {

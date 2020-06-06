@@ -29,10 +29,7 @@
 
 namespace binary {
 
-enum alg_t { ADD, MUL, MAX, MIN };
-alg_t str2alg(const char *str);
-const char *alg2str(alg_t alg);
-dnnl_alg_kind_t alg2alg_kind(alg_t alg);
+using alg_t = attr_t::post_ops_t::kind_t;
 
 struct settings_t {
     settings_t() = default;
@@ -47,7 +44,7 @@ struct settings_t {
     std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::vector<std::string>> stag {{tag::abx, tag::abx}};
-    std::vector<alg_t> alg {ADD};
+    std::vector<alg_t> alg {alg_t::ADD};
     std::vector<bool> inplace {false};
     std::vector<attr_t::arg_scales_t> scales {attr_t::arg_scales_t()};
     std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
@@ -111,7 +108,7 @@ struct perf_report_t : public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
+    void dump_alg(std::ostream &s) const override { s << p_->alg; }
 
     void dump_desc(std::ostream &s) const override { s << p_->sdims; }
 

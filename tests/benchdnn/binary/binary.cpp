@@ -61,7 +61,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                      p->sdims[0].data(), p->ddt, dnnl_format_tag_any),
             WARN);
 
-    dnnl_alg_kind_t alg = alg2alg_kind(p->alg);
+    dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(p->alg);
 
     DNN_SAFE(dnnl_binary_desc_init(&bd, alg, &src_d[0], &src_d[1], &dst_d),
             WARN);

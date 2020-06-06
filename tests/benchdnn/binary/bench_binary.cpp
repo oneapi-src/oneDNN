@@ -35,9 +35,12 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_scales : s.scales)
     for_(const auto &i_post_ops : s.post_ops)
     for (auto i_inplace : s.inplace) {
-        const bool ok = s.sdims.size() == i_sdt.size()
+        bool ok = s.sdims.size() == i_sdt.size()
                 && i_sdt.size() == i_stag.size()
                 && s.sdims.size() == 2; // expect just two inputs
+        if (!ok) SAFE_V(FAIL);
+
+        ok = i_alg > alg_t::BINARY_START && i_alg < alg_t::BINARY_END;
         if (!ok) SAFE_V(FAIL);
 
         attr_t attr(i_scales, i_post_ops);
@@ -75,7 +78,8 @@ int bench(int argc, char **argv) {
                 || parse_multi_dt(s.sdt, def.sdt, argv[0])
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_multi_tag(s.stag, def.stag, argv[0])
-                || parse_alg(s.alg, def.alg, str2alg, argv[0])
+                || parse_alg(
+                        s.alg, def.alg, attr_t::post_ops_t::str2kind, argv[0])
                 || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_attr(s.attr, argv[0])
                 || parse_attr_scales(s.scales, argv[0])
