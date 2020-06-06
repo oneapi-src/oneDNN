@@ -88,7 +88,7 @@ struct attr_t {
             // reorder section ends
             POLICY_TOTAL
         };
-        scale_t() : policy(COMMON), scale(1.) {}
+        scale_t() = default;
         scale_t(policy_t policy, float scale) : policy(policy), scale(scale) {}
 
         static policy_t str2policy(const char *str);
@@ -97,6 +97,17 @@ struct attr_t {
         int from_str(const char *str, const char **end_s);
 
         bool is_def() const { return policy == COMMON && scale == 1.; }
+
+        static int get_default_mask(policy_t policy) {
+            switch (policy) {
+                case PER_DIM_0: return (1 << 0);
+                case PER_OC:
+                case PER_DIM_1: return (1 << 1);
+                case PER_DIM_01: return (1 << 0) + (1 << 1);
+                case COMMON: return 0;
+                default: SAFE_V(FAIL); return 0;
+            }
+        }
 
         policy_t policy = COMMON;
         float scale = 1.;
