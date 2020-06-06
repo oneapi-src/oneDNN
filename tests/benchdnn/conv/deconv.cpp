@@ -287,7 +287,8 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             dnn_mem_t zero_fp;
-            compute_ref_fwd(&p_tr, nullptr, dst_fp, wei_tr_fp, zero_fp, src_fp);
+            compute_ref_fwd(&p_tr, nullptr, dst_fp, wei_tr_fp, zero_fp,
+                    std::vector<dnn_mem_t>(), src_fp);
             dnn_mem_t src(src_dt, fp, src_tag, test_engine);
             SAFE(compare_src(p, src, src_fp, r, true), WARN);
         }

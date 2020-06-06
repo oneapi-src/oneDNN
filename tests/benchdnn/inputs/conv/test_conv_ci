@@ -10,7 +10,8 @@
 --cfg=f32,bf16bf16bf16,f16
 --stag=any,axb
 --dtag=any,axb
---attr-post-ops='','sum:0.5','linear:0.25:0.5','sum:0.25;relu'
+--attr-post-ops='','sum:0.5','linear:0.25:0.5','add:f32',\
+                'mul:s8:per_oc;sum:0.25;relu'
 --batch=shapes_basic
 ### Wino
 --alg=wino
@@ -18,6 +19,7 @@
 --stag=any
 --dtag=any
 # TODO: non-relu and non-unit relu scale is not supported by wino
+# TODO: binary post op is not supported by wino
 --attr-post-ops='','sum:0.5','relu','sum:0.25;relu'
 --batch=shapes_basic
 ## Backward
@@ -44,7 +46,8 @@
 --cfg=u8s8s32
 --stag=any,axb
 --dtag=any,axb
---attr-post-ops='','sum:0.5','linear:0.25:0.5','sum:0.25;relu:0:0:0.75'
+--attr-post-ops='','sum:0.5','linear:0.25:0.5','add:f32',\
+                'mul:s8:per_oc;sum:0.25;relu:0:0:0.75'
 --batch=shapes_basic
 ## Wino
 --alg=wino
@@ -52,5 +55,6 @@
 --stag=any
 --dtag=any
 # TODO: non-relu and non-unit relu scale is not supported by wino
+# TODO: binary post op is not supported by wino
 --attr-post-ops='','sum:0.5','relu','sum:0.25;relu:0:0:0.75'
 --batch=shapes_basic

@@ -302,7 +302,7 @@ int32_t *generate_zero_points(
         return zp;
     }
 
-    assert(e.policy == policy_t::PER_OC);
+    assert(e.policy == policy_t::PER_DIM_1);
 
     int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t) * N, 64);
     SAFE_V(zp != NULL ? OK : FAIL);

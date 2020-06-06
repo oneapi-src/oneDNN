@@ -252,10 +252,16 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
                 dim_t dst_off = get_data_off(
                         dst_d, ndims, mb, g * OC + oc, od, oh, ow);
 
+                dim_t dst_l_off = (mb * OC * G + g * OC + oc) * OD * OH * OW
+                        + od * OH * OW + oh * OW + ow;
+
                 maybe_oscale(a, g, oc);
 
                 ref_post_ops_t::args_t args;
                 args.dst_val = dst[dst_off];
+                args.ctx = &ctx;
+                args.l_offset = dst_l_off;
+                args.dst_md = pd()->dst_md();
                 ref_post_ops->execute(a, args);
 
                 if (dst_zero_point)
