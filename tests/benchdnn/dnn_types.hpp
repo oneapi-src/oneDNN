@@ -173,6 +173,7 @@ struct attr_t {
             DW_K3S1P1,
             DW_K3S2P1,
             // eltwise
+            ELTWISE_START, // a guard to check kind is eltwise
             ABS,
             BRELU,
             CLIP,
@@ -197,6 +198,7 @@ struct attr_t {
             SWISH,
             TANH,
             TANH_DST,
+            ELTWISE_END, // a guard to check kind is eltwise
             // guard entry
             KIND_TOTAL
         };

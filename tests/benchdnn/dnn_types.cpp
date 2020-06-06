@@ -274,6 +274,7 @@ static po_table_entry_t kind_table[] = {
         {pk_t::DW_K3S1P1, "dw_k3s1p1", dnnl_convolution_auto},
         {pk_t::DW_K3S2P1, "dw_k3s2p1", dnnl_convolution_auto},
         // eltwise
+        {pk_t::ELTWISE_START, "eltwise_undef", dnnl_alg_kind_undef},
         {pk_t::ABS, "abs", dnnl_eltwise_abs},
         {pk_t::BRELU, "bounded_relu", dnnl_eltwise_bounded_relu},
         {pk_t::BRELU, "brelu", dnnl_eltwise_bounded_relu},
@@ -301,6 +302,7 @@ static po_table_entry_t kind_table[] = {
         {pk_t::SWISH, "swish", dnnl_eltwise_swish},
         {pk_t::TANH, "tanh", dnnl_eltwise_tanh},
         {pk_t::TANH_DST, "tanh_dst", dnnl_eltwise_tanh_use_dst_for_bwd},
+        {pk_t::ELTWISE_END, "eltwise_undef", dnnl_alg_kind_undef},
         // guard entry
         {pk_t::KIND_TOTAL, "kind_undef", dnnl_alg_kind_undef}};
 
@@ -450,8 +452,7 @@ int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
 }
 
 bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
-    static_assert(pk_t::ABS - 1 == pk_t::DW_K3S2P1, "Function is broken");
-    return kind >= pk_t::ABS && kind < pk_t::KIND_TOTAL;
+    return kind > pk_t::ELTWISE_START && kind < pk_t::ELTWISE_END;
 }
 
 int attr_t::post_ops_t::eltwise_index() const {
