@@ -258,7 +258,16 @@ void prb_t::count_ops() {
 }
 
 float *generate_oscales(const attr_t::scale_t &oscale, int N) {
-    if (oscale.policy != policy_t::PER_OC) return NULL;
+    if (oscale.is_def()) return NULL;
+
+    if (oscale.policy == policy_t::COMMON) {
+        float *scales = (float *)zmalloc(sizeof(float), 4);
+        SAFE_V(scales != NULL ? OK : FAIL);
+        scales[0] = oscale.scale;
+        return scales;
+    }
+
+    assert(oscale.policy == policy_t::PER_OC);
 
     float *scales = (float *)zmalloc(sizeof(float) * N, 64);
     SAFE_V(scales != NULL ? OK : FAIL);

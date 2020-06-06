@@ -115,6 +115,7 @@ struct settings_t {
     void reset() { *this = settings_t(perf_template); }
 };
 
+// moved out of prb_t to support fusion
 float *generate_oscales(const attr_t::scale_t &oscale, int N);
 
 struct prb_t : public desc_t {
