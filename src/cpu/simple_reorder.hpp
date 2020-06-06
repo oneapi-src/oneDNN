@@ -33,6 +33,7 @@
 #include "cpu/cpu_reorder_pd.hpp"
 
 #include "cpu/simple_q10n.hpp"
+#include "simple_reorder_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -795,7 +796,178 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && (tag_traits<tag_o>::block_dims == bd::_A
                         || tag_traits<tag_o>::block_dims == bd::_B)
                 && tag_traits<tag_o>::ndims >= 3
-                && tag_traits<tag_o>::ndims <= 6>::type> {
+                && tag_traits<tag_o>::ndims <= 6
+                && type_i == data_type::f32
+                && type_o == data_type::f32>::type> {
+    PLAIN_TO_BLOCKED_IS_APPLICABLE();
+
+    GET_SCRATCHPAD_SIZE_ZERO();
+
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
+        DECLARE_COMMON_PARAMS();
+
+        const auto &flat_d = order_keep ? input_d : output_d;
+        const auto &block_d = order_keep ? output_d : input_d;
+        const auto &dims = input_d.dims();
+        const auto &pdims = block_d.padded_dims();
+
+        constexpr int ndims = tag_traits<tag_o>::ndims;
+        constexpr int blk_idx = tag_traits<tag_o>::block_dims == bd::_A ? 0 : 1;
+
+        const dim_t H0 = dims[0];
+        const dim_t H1 = dims[1];
+        const dim_t M0 = ndims >= 6 ? dims[ndims - 4] : 1;
+        const dim_t M1 = ndims >= 5 ? dims[ndims - 3] : 1;
+        const dim_t M2 = ndims >= 4 ? dims[ndims - 2] : 1;
+        const dim_t L = dims[ndims - 1];
+        const dim_t l_blk_stride = block_d.blocking_desc().strides[ndims - 1];
+        const dim_t l_flat_stride = flat_d.blocking_desc().strides[ndims - 1];
+        const dim_t blk_flat_stride = flat_d.blocking_desc().strides[blk_idx];
+        using namespace data_type;
+        using namespace utils;
+
+        constexpr int blksize = false
+                ? 0
+                : one_of(tag_traits<tag_o>::inner_blks, ib::_4a, ib::_4b)
+                        ? 4
+                        : one_of(tag_traits<tag_o>::inner_blks, ib::_8a,
+                                  ib::_8b)
+                                ? 8
+                                : 16;
+
+        if (l_flat_stride == 1 && l_blk_stride == blksize
+                && alpha == 1.0 && beta == 0.0) {
+            // Transpose case:
+            //   blksize x blk_flat_stride <--> blk_flat_stride x blksize
+            //   parallel_nd((H0 * H1)/blksize, blk_flat_stride/blksize)
+            //
+            //   transpose in blksize x blksize block
+            //
+            const auto BH = (pdims[0] * pdims[1]) / blksize;
+            const auto FL = (blk_flat_stride + blksize -1) / blksize;
+            const auto bh_stride = blk_flat_stride * blksize;
+
+            // TODO: understand offset0
+            assert(input_d.offset0() == 0);
+            assert(output_d.offset0() == 0);
+
+            parallel_nd(BH, FL, [&](dim_t bh, dim_t fl) {
+                auto flt_off = bh * bh_stride + fl * blksize;
+                auto blk_off = bh * bh_stride + fl * blksize * blksize;
+                const auto tail = nstl::min<int>(blksize,
+                        blk_flat_stride - fl * blksize);
+
+                // XXX: cautious in future
+                auto *i = input + (order_keep ? flt_off : blk_off);
+                auto *o = output + (order_keep ? blk_off : flt_off);
+
+                typedef transpose_ker<
+                        policy::float_to_float,
+                        policy::inst_policy<selector>,
+                        policy::coalesced_io> ker;
+                ker::doit<blksize, order_keep>(
+                        o, i, blk_flat_stride, tail);
+                    });
+            return status::success;
+        } else {
+        constexpr bool f32bf16
+                = one_of(type_i, f32, bf16) && one_of(type_o, f32, bf16);
+
+        auto wrap_qz_a1b0 = [=](data_t<type_o> &out, data_t<type_i> inp) {
+            if (f32bf16)
+                out = inp;
+            else
+                out = _qz_a1b0<type_i, type_o>()(inp);
+        };
+
+        auto wrap_qz = [=](data_t<type_o> &out, data_t<type_i> inp, float alpha,
+                               float beta) {
+            if (f32bf16)
+                out = alpha * inp + (beta ? beta * out : 0);
+            else
+                out = _qz<type_i, type_o>()(inp, out, alpha, beta);
+        };
+
+        auto ker = [&](const data_t<type_i> *i, data_t<type_o> *o, int block) {
+            if (alpha == 1.0 && beta == 0.0) {
+                for_(int l = 0; l < L; ++l)
+                for (int blk = 0; blk < block; ++blk) {
+                    const dim_t flat_off
+                            = blk * blk_flat_stride + l * l_flat_stride;
+                    const dim_t blk_offset = l * l_blk_stride + blk;
+                    if (order_keep)
+                        wrap_qz_a1b0(o[blk_offset], i[flat_off]);
+                    else
+                        wrap_qz_a1b0(o[flat_off], i[blk_offset]);
+                }
+            } else {
+                for_(int l = 0; l < L; ++l)
+                for (int blk = 0; blk < block; ++blk) {
+                    const dim_t flat_off
+                            = blk * blk_flat_stride + l * l_flat_stride;
+                    const dim_t blk_offset = l * l_blk_stride + blk;
+                    if (order_keep)
+                        wrap_qz(o[blk_offset], i[flat_off], alpha, beta);
+                    else
+                        wrap_qz(o[flat_off], i[blk_offset], alpha, beta);
+                }
+            }
+        };
+
+#define off(md, h0, h1, m0, m1, m2) \
+    (ndims >= 6 ? (md).blk_off(h0, h1, m0, m1, m2) \
+                : ndims >= 5 ? (md).blk_off(h0, h1, m1, m2) \
+                             : ndims >= 4 \
+                                    ? (md).blk_off(h0, h1, m2) \
+                                    : /* ndims >= 3 ? */ (md).blk_off(h0, h1))
+
+        constexpr int i_mult = order_keep ? blksize : 1;
+        constexpr int o_mult = order_keep ? 1 : blksize;
+
+        if (blk_idx == 0) {
+            const dim_t BH0 = pdims[0] / blksize;
+            parallel_nd(BH0, H1, M0, M1, M2,
+                    [&](dim_t bh0, dim_t h1, dim_t m0, dim_t m1, dim_t m2) {
+                        auto i = &input[off(
+                                input_d, bh0 * i_mult, h1, m0, m1, m2)];
+                        auto o = &output[off(
+                                output_d, bh0 * o_mult, h1, m0, m1, m2)];
+                        const int block
+                                = nstl::min<int>(blksize, H0 - bh0 * blksize);
+                        ker(i, o, block);
+                    });
+        } else if (blk_idx == 1) {
+            const dim_t BH1 = pdims[1] / blksize;
+            parallel_nd(H0, BH1, M0, M1, M2,
+                    [&](dim_t h0, dim_t bh1, dim_t m0, dim_t m1, dim_t m2) {
+                        auto i = &input[off(
+                                input_d, h0, bh1 * i_mult, m0, m1, m2)];
+                        auto o = &output[off(
+                                output_d, h0, bh1 * o_mult, m0, m1, m2)];
+                        const int block
+                                = nstl::min<int>(blksize, H1 - bh1 * blksize);
+                        ker(i, o, block);
+                    });
+        } else {
+            assert(!"unimplemented");
+        }
+
+#undef off
+
+        return status::success;
+    }
+    }
+};
+
+template <SIMPLE_REORDER_TEMPL_DECL>
+struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
+        typename utils::enable_if<tag_i == format_tag::any
+                && (tag_traits<tag_o>::block_dims == bd::_A
+                        || tag_traits<tag_o>::block_dims == bd::_B)
+                && tag_traits<tag_o>::ndims >= 3
+                && tag_traits<tag_o>::ndims <= 6
+                && !(type_i == data_type::f32
+                        && type_o == data_type::f32)>::type> {
     PLAIN_TO_BLOCKED_IS_APPLICABLE();
 
     GET_SCRATCHPAD_SIZE_ZERO();
