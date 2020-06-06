@@ -82,9 +82,12 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
 
         ref_post_ops_t::args_t args;
         args.dst_val = dst_f;
+        args.ctx = &ctx;
+        args.l_offset = i;
+        args.dst_md = pd()->dst_md();
         ref_post_ops->execute(acc, args);
 
-        dst[off_C] = qz_a1b0<float, dst_data_t>()(acc);
+        dst[off_C] = cpu::saturate_and_round<dst_data_t>(acc);
     });
 
     return status::success;

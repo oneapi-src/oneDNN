@@ -117,7 +117,10 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     DNN_SAFE(dnnl_binary_desc_init(&bd, alg, &src_d[0], &src_d[1], &dst_d),
             WARN);
 
-    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args_t());
+    attr_args_t attr_args;
+    attr_args.prepare_binary_post_op_mds(
+            p->attr, p->ndims[0], p->sdims[0].data());
+    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, NULL);
@@ -185,6 +188,13 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common(p->sdt, FWD_D, r);
+    if (r->state == SKIPPED) return;
+
+    // TODO: temporary disable binary post-op on GPU
+    if (engine_tgt_kind == dnnl_gpu && p->attr.post_ops.binary_index() != -1) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 int doit(const prb_t *p, res_t *r) {
@@ -239,17 +249,22 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t &dst_dt = p->inplace ? src0_dt : placeholder_dst_dt;
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
+    SAFE(setup_binary_po(const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+            WARN);
 
     args_t args;
     args.set(DNNL_ARG_SRC_0, src0_dt);
     args.set(DNNL_ARG_SRC_1, src1_dt);
     args.set(DNNL_ARG_DST, dst_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+    args.set(binary_po_args, binary_po_dt);
 
     SAFE(execute_and_wait(b, args), WARN);
 
     if (bench_mode & CORR) {
-        compute_ref(p, src0_fp, src1_fp, dst_fp);
+        compute_ref(p, src0_fp, src1_fp, binary_po_fp, dst_fp);
         dnn_mem_t dst(dst_dt, fp, tag, test_engine);
         SAFE(compare(p, dst_fp, dst, r), WARN);
     }

@@ -88,7 +88,7 @@ struct binary_pd_t : public primitive_desc_t {
         return index == 0 ? &dst_md_ : &glob_zero_md;
     }
 
-    int n_inputs() const override { return 2; }
+    int n_inputs() const override { return 2 + n_binary_po_inputs(); }
     int n_outputs() const override { return 1; }
 
     const dims_t &broadcast_dims() const { return broadcast_dims_; }
