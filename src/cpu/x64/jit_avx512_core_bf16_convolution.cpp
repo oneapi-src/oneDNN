@@ -394,9 +394,6 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
 
         while (start < end) {
             int icb = icc * jcp.nb_ic_blocking;
-            int g_icb = g * jcp.nb_ic + icb;
-            int g_ocb = g * jcp.nb_oc;
-
             int work_rem = end - start;
             int ih_e = ih_s + work_rem > jcp.ih ? jcp.ih : ih_s + work_rem;
 
@@ -440,11 +437,13 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
             assert(kd_len >= 0);
 
             const bool is_dsrc_layout_nxc = jcp.src_tag == format_tag::ndhwc;
-            const int ic_idx = (is_dsrc_layout_nxc ? jcp.ic_block : 1) * g_icb;
+            const int ic_idx = is_dsrc_layout_nxc
+                    ? g * jcp.ic + icb * jcp.ic_block
+                    : g * jcp.nb_ic + icb;
             auto diff_src_w = diff_src
                     + jcp.typesize_out * diff_src_d.blk_off(n, ic_idx, id_s);
             const bool is_ddst_layout_nxc = jcp.dst_tag == format_tag::ndhwc;
-            const int oc_idx = (is_ddst_layout_nxc ? jcp.oc_block : 1) * g_ocb;
+            const int oc_idx = is_ddst_layout_nxc ? g * jcp.oc : g * jcp.nb_oc;
             auto diff_dst_w = diff_dst + diff_dst_d.blk_off(n, oc_idx, od_s);
             auto wht_w = weights + wht_blk_off(weights_d, g, 0, icb, kd_lo);
 
@@ -486,6 +485,8 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
                 }
                 assert(kh_len >= 0);
 
+                par_conv.load_work = utils::this_block_size(icb * jcp.ic_block,
+                        jcp.ic, jcp.nb_ic_blocking * jcp.ic_block);
                 par_conv.src = diff_src_w
                         + jcp.typesize_out * ij * diff_src_h_stride;
                 par_conv.dst = diff_dst_w + oj * diff_dst_h_stride;
@@ -545,9 +546,6 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
 
         while (start < end) {
             int icb = icc * jcp.nb_ic_blocking;
-            int g_icb = g * jcp.nb_ic + icb;
-            int g_ocb = g * jcp.nb_oc;
-
             int work_rem = end - start;
             int ih_e = ih_s + work_rem > jcp.ih ? jcp.ih : ih_s + work_rem;
             int iw_s = iwb * jcp.iw_block;
@@ -557,10 +555,12 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
             auto diff_dst_w = diff_dst;
             const bool is_ddst_layout_nxc = utils::one_of(
                     jcp.dst_tag, format_tag::nwc, format_tag::nhwc);
-            const int oc_idx = (is_ddst_layout_nxc ? jcp.oc_block : 1) * g_ocb;
+            const int oc_idx = is_ddst_layout_nxc ? g * jcp.oc : g * jcp.nb_oc;
             const bool is_dsrc_layout_nxc = utils::one_of(
                     jcp.src_tag, format_tag::nwc, format_tag::nhwc);
-            const int ic_idx = (is_dsrc_layout_nxc ? jcp.ic_block : 1) * g_icb;
+            const int ic_idx = is_dsrc_layout_nxc
+                    ? g * jcp.ic + icb * jcp.ic_block
+                    : g * jcp.nb_ic + icb;
             if (jcp.ndims == 3) {
                 diff_src_w += jcp.typesize_out
                         * diff_src_d.blk_off(n, ic_idx, iw_s);
@@ -610,6 +610,8 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
                 }
                 assert(k_len >= 0);
 
+                par_conv.load_work = utils::this_block_size(icb * jcp.ic_block,
+                        jcp.ic, jcp.nb_ic_blocking * jcp.ic_block);
                 par_conv.src = diff_src_w
                         + jcp.typesize_out * ij * diff_src_h_stride;
                 par_conv.dst = diff_dst_w + oj * diff_dst_h_stride;

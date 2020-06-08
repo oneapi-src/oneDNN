@@ -324,7 +324,11 @@ private:
     reg64_t reg_oi = rbx;
     reg64_t reg_kh = abi_not_param1;
 
-    reg64_t reg_ocb = r11;
+    reg64_t reg_oc = r11;
+    reg64_t reg_ic = aux_reg_ker_d;
+
+    Xbyak::Opmask k_ic_tail_mask = Xbyak::Opmask(2);
+    Xbyak::Opmask k_ic_tail_mask_extended = Xbyak::Opmask(3);
 
     Vmm vmm_ddst(int i_ic) {
         int idx = i_ic + jcp.nb_ic_blocking * jcp.ur_w;
@@ -342,6 +346,21 @@ private:
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx < ker_reg_base_idx);
         return Vmm(idx);
+    }
+
+    inline Vmm may_be_mask_vmm(Vmm vmm, bool mask_flag, bool zero_mask,
+            bool use_extended_mask = false) {
+        if (mask_flag) {
+            vmm = vmm
+                    | (use_extended_mask ? k_ic_tail_mask_extended
+                                         : k_ic_tail_mask);
+            if (zero_mask) vmm = vmm | T_z;
+        }
+        return vmm;
+    }
+
+    inline Vmm_down_t may_be_mask_vmm(Vmm_down_t vmm, bool mask_flag) {
+        return mask_flag ? vmm | k_ic_tail_mask : vmm;
     }
 
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);

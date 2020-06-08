@@ -943,6 +943,7 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::prepare_output(int ur_w) {
 template <typename Vmm>
 void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::store_output(int ur_w) {
     if (!isa_has_bf16(jcp.isa)) bf16_emu_->init_vcvtneps2bf16();
+    const int ic_tail = jcp.ic_tail;
 
     if (jcp.dst_dt == data_type::f32) {
         for (int k = 0; k < jcp.nb_ic_blocking; k++)
@@ -950,14 +951,14 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::store_output(int ur_w) {
                 Vmm vmm = vmm_dsrc(j, k);
                 size_t aux_diff_src_offset = get_diff_src_offset(j, k);
                 auto addr = EVEX_compress_addr(reg_src, aux_diff_src_offset);
-
-                vmovups(addr, vmm);
+                // mask only needed for last ic_block
+                bool mask_flag = ic_tail && k + 1 == jcp.nb_ic_blocking;
+                vmovups(addr, may_be_mask_vmm(vmm, mask_flag, false));
             }
     } else if (jcp.dst_dt == data_type::bf16) {
         if (isa_has_bf16(jcp.isa) && is_ddst_layout_nxc()) {
             // Optimization: use single store instruction for pair of the
             // nearest vectors along IC dimension
-            assert(jcp.simd_w == 16);
             for (int j = 0; j < ur_w; j++) {
                 int k = 0;
                 for (; k < rnd_dn(jcp.nb_ic_blocking, 2); k += 2) {
@@ -966,7 +967,9 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::store_output(int ur_w) {
                     size_t aux_dsrc_offset = get_diff_src_offset(j, k);
                     auto addr = EVEX_compress_addr(reg_src, aux_dsrc_offset);
                     vcvtne2ps2bf16(vmm, vmm_next, vmm);
-                    vmovups(addr, vmm);
+                    bool mask_flag = ic_tail && k + 2 == jcp.nb_ic_blocking;
+                    vmovdqu16(
+                            addr, may_be_mask_vmm(vmm, mask_flag, false, true));
                 }
                 if (jcp.nb_ic_blocking % 2 != 0) {
                     Vmm vmm = vmm_dsrc(j, k);
@@ -974,10 +977,13 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::store_output(int ur_w) {
                     size_t aux_dsrc_offset = get_diff_src_offset(j, k);
                     auto addr = EVEX_compress_addr(reg_src, aux_dsrc_offset);
                     vcvtneps2bf16(vmm_down, vmm);
-                    vmovups(addr, vmm_down);
+                    // for xmm, upper half is zero after conversion to
+                    // bf16, so mask always & mask for tails
+                    bool mask_flag = jcp.simd_w == 4 || ic_tail;
+                    vmovdqu16(addr, may_be_mask_vmm(vmm_down, mask_flag));
                 }
             }
-        } else if (isa_has_bf16(jcp.isa) /* && is_ddst_layout_nxc() */) {
+        } else if (isa_has_bf16(jcp.isa) /* && !is_ddst_layout_nxc() */) {
             // Optimization: use single store instruction for pair of the
             // nearest vectors along WIDTH dimension
             int store_idx = 0;
@@ -1010,10 +1016,10 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::store_output(int ur_w) {
                             = EVEX_compress_addr(reg_src, aux_diff_src_offset);
                     auto vmm_down_str = Vmm_down_t(reg_idx);
                     vcvtneps2bf16(vmm_down_str, vmm_dsrc(j, k));
-                    if (jcp.simd_w == 4)
-                        vpextrq(addr, vmm_down_str, 0);
-                    else
-                        vmovups(addr, vmm_down_str);
+                    // for xmm, upper half is zero after conversion to
+                    // bf16, so mask always & mask for tails
+                    bool mask_flag = jcp.simd_w == 4;
+                    vmovdqu16(addr, may_be_mask_vmm(vmm_down_str, mask_flag));
                     store_idx++;
                 }
             }
@@ -1027,10 +1033,11 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::store_output(int ur_w) {
                     auto vmm_down = vmm_ddst_down(0);
                     bf16_emu_->vcvtneps2bf16(
                             Ymm(vmm_down.getIdx()), Zmm(vmm.getIdx()));
-                    if (jcp.simd_w == 4)
-                        vpextrq(addr, vmm_down, 0);
-                    else
-                        vmovups(addr, vmm_down);
+                    bool mask_flag = (ic_tail && k + 1 == jcp.nb_ic_blocking)
+                            // for xmm, upper half is zero after conversion to
+                            // bf16, so mask always & mask for tails
+                            || jcp.simd_w == 4;
+                    vmovdqu16(addr, may_be_mask_vmm(vmm_down, mask_flag));
                 }
         }
     } else
@@ -1041,10 +1048,10 @@ template <typename Vmm>
 void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
         int ur_w, int l_overflow, int r_overflow) {
     int kw = jcp.kw;
-    int oc_block = jcp.oc_block;
     int dilate_w = jcp.dilate_w + 1;
     int stride_w = jcp.stride_w;
     int stride_h = jcp.stride_h;
+    const int oc_tail = jcp.oc_tail;
     Label kh_label, skip_compute_label;
 
     prepare_output(ur_w);
@@ -1060,7 +1067,7 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
 
     // OC loop
     Label ocb_label;
-    mov(reg_ocb, jcp.nb_oc);
+    mov(reg_oc, jcp.oc);
     L(ocb_label);
 
     if (jcp.ndims < 5) {
@@ -1078,6 +1085,7 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
         mov(aux_reg_ker, aux_reg_ker_d);
     }
 
+    std::vector<Label> oc_tail_jmp(jcp.kw);
     mov(reg_kj, reg_kh);
     L(kh_label);
     {
@@ -1092,19 +1100,39 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
                     jj_start == ref_jj_start && jj_end == ref_jj_end));
             UNUSED(ref_jj_start);
             UNUSED(ref_jj_end);
-
-            for (int oc = 0; oc < div_up(nstl::min(oc_block, jcp.oc), 2);
-                    oc++) {
+            const int oc_step = 2;
+            for (int oc = 0;
+                    oc < rnd_up(nstl::min(jcp.oc_block, jcp.oc), oc_step);
+                    oc += oc_step) {
+                if (oc_tail && oc == rnd_up(oc_tail, oc_step)) {
+                    cmp(reg_oc, oc_tail);
+                    je(oc_tail_jmp[ki], T_NEAR);
+                }
                 for (int jj = jj_start; jj < jj_end; jj += stride_w) {
                     assert((jj + jcp.l_pad - ki * dilate_w) % stride_w == 0);
                     int ow_idx = (jj + jcp.l_pad - ki * dilate_w) / stride_w;
-                    auto aux_ddst_offset = get_diff_dst_offset(ow_idx, 2 * oc);
+                    auto aux_ddst_offset = get_diff_dst_offset(ow_idx, oc);
                     auto ddst = vmm_ddst(jj / stride_w);
-                    vpbroadcastd(ddst, ptr[aux_reg_dst + aux_ddst_offset]);
+                    const bool tail_load = oc_tail && oc == rnd_dn(oc_tail, 2);
+                    const bool need_single_load = oc + 1 == oc_tail;
+
+                    if (tail_load && need_single_load) {
+                        Label mask_load, load_done;
+                        cmp(reg_oc, oc + 2);
+                        jl(mask_load, T_NEAR);
+                        vpbroadcastd(ddst, ptr[aux_reg_dst + aux_ddst_offset]);
+                        jmp(load_done, T_NEAR);
+                        L(mask_load);
+                        // We broadcast w here. As the weights are zero-padded
+                        // at oc + 1, vdpbf16ps({0, w}, {dst, dst}) is okay.
+                        vpbroadcastw(ddst, ptr[aux_reg_dst + aux_ddst_offset]);
+                        L(load_done);
+                    } else {
+                        vpbroadcastd(ddst, ptr[aux_reg_dst + aux_ddst_offset]);
+                    }
                 }
                 for (int kk = 0; kk < jcp.nb_ic_blocking; kk++) {
-                    size_t aux_kernel_offset
-                            = get_kernel_offset(kk, 2 * oc, ki);
+                    size_t aux_kernel_offset = get_kernel_offset(kk, oc, ki);
                     vmovups(vmm_wei,
                             EVEX_compress_addr(aux_reg_ker, aux_kernel_offset));
 
@@ -1120,6 +1148,7 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
                     }
                 }
             }
+            L(oc_tail_jmp[ki]);
         }
 
         add(aux_reg_ker, get_kernel_offset(0, 0, 0, stride_h));
@@ -1145,8 +1174,8 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
     add(reg_dst, diff_dst_step);
     add(reg_ker, ker_step);
 
-    dec(reg_ocb);
-    cmp(reg_ocb, 0);
+    sub(reg_oc, jcp.oc_block);
+    cmp(reg_oc, 0);
     jg(ocb_label, T_NEAR);
 
     sub(reg_dst, diff_dst_step * jcp.nb_oc);
@@ -1171,6 +1200,37 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::generate() {
     const auto src_shift = get_diff_src_offset(ur_w, 0);
 
     preamble();
+
+    if (jcp.simd_w == 4) {
+        Reg32 reg_tail_32 = reg_oc.cvt32();
+        mov(reg_tail_32, (1 << jcp.simd_w) - 1);
+        kmovb(k_ic_tail_mask, reg_tail_32);
+    }
+
+    if (jcp.ic_tail) {
+        Label done;
+        // dummy mask all 1's
+        if (jcp.simd_w != 4)
+            kxnord(k_ic_tail_mask, k_ic_tail_mask, k_ic_tail_mask);
+        // To account for special store optimization, where two ic_blocks are
+        // combined with one single write, extend the mask for 32bits (32 bf16s)
+        const bool need_extended_mask
+                = isa_has_bf16(jcp.isa) && jcp.nb_ic_blocking > 1;
+        if (need_extended_mask)
+            kxnord(k_ic_tail_mask_extended, k_ic_tail_mask_extended,
+                    k_ic_tail_mask_extended);
+
+        test(byte[param1 + GET_OFF(load_work)], jcp.ic_block - 1);
+        jz(done, T_NEAR);
+        Reg32 reg_tail_32 = reg_ic.cvt32();
+        mov(reg_tail_32, (1 << jcp.ic_tail) - 1);
+        kmovd(k_ic_tail_mask, reg_tail_32);
+        if (need_extended_mask) {
+            mov(reg_tail_32, (1 << (jcp.ic_tail + jcp.simd_w)) - 1);
+            kmovd(k_ic_tail_mask_extended, reg_tail_32);
+        }
+        L(done);
+    }
 
     mov(reg_src, ptr[param + GET_OFF(src)]);
     mov(reg_dst, ptr[param + GET_OFF(dst)]);
@@ -1397,11 +1457,14 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
     bool is_data_layout_nxc
             = utils::everyone_is(dat_tag_nxc, curr_src_tag, curr_dst_tag);
 
-    bool ok_to_pad_channels = jcp.ngroups == 1;
+    bool ok_to_pad_channels = jcp.ngroups == 1 && !is_data_layout_nxc;
 
     jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
 
-    const bool ok_to_try_lower_zmm = true && !is_data_layout_nxc
+    const bool ok_to_try_lower_zmm = true
+            && IMPLICATION(is_data_layout_nxc,
+                    jcp.oc < jcp.simd_w && jcp.ic < jcp.simd_w
+                            && jcp.ngroups > 1)
             && !ok_to_pad_channels
             && (jcp.ic % jcp.simd_w != 0 || jcp.oc % jcp.simd_w != 0);
 
@@ -1422,16 +1485,19 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
         jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
     }
 
-    bool args_ok = jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0;
-    if (!args_ok) return status::unimplemented;
+    if (!IMPLICATION(!is_data_layout_nxc,
+                jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0))
+        return status::unimplemented;
+    jcp.ic_tail = is_data_layout_nxc ? jcp.ic % jcp.simd_w : 0;
+    jcp.oc_tail = is_data_layout_nxc ? jcp.oc % jcp.simd_w : 0;
 
     format_tag_t wei_tag, dat_tag;
 
     if (jcp.simd_w == 8) {
-        dat_tag = dat_tag_nCx8c;
+        dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx8c;
         wei_tag = utils::pick(ndims - 3, gOIw4o8i2o, gOIhw4o8i2o, gOIdhw4o8i2o);
     } else if (jcp.simd_w == 4) {
-        dat_tag = dat_tag_nCx4c;
+        dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx4c;
         wei_tag = utils::pick(ndims - 3, gOIw2o4i2o, gOIhw2o4i2o, gOIdhw2o4i2o);
     } else {
         dat_tag = is_data_layout_nxc ? dat_tag_nxc : dat_tag_nCx16c;
@@ -1459,14 +1525,14 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
         if (jcp.wei_tag != wei_tag) return status::unimplemented;
     }
 
-    args_ok = true && jcp.ic <= diff_src_d.padded_dims()[1]
+    bool args_ok = true && jcp.ic <= diff_src_d.padded_dims()[1]
             && jcp.oc <= diff_dst_d.padded_dims()[1]
             && jcp.ic <= weights_d.padded_dims()[with_groups + 1]
             && jcp.oc <= weights_d.padded_dims()[with_groups + 0];
     if (!args_ok) return status::unimplemented;
 
-    jcp.nb_ic = jcp.ic / jcp.ic_block;
-    jcp.nb_oc = jcp.oc / jcp.oc_block;
+    jcp.nb_ic = utils::div_up(jcp.ic, jcp.ic_block);
+    jcp.nb_oc = utils::div_up(jcp.oc, jcp.oc_block);
 
     jcp.ur_w = jcp.stride_w;
 
