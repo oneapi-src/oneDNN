@@ -86,7 +86,8 @@ private:
     reg64_t aux_reg_ker_d = r14;
     reg64_t aux_reg_src_d = r15;
 
-    reg64_t reg_icb = rax;
+    reg64_t reg_ic = rax;
+    reg64_t reg_oc = aux_reg_src_d;
     reg64_t reg_bias = rbx;
 
     reg64_t reg_kj = abi_not_param1;
@@ -114,6 +115,21 @@ private:
         return Vmm_down_t(idx);
     }
 
+    inline Vmm may_be_mask_vmm(Vmm vmm, bool mask_flag, bool zero_mask,
+            bool use_extended_mask = false) {
+        if (mask_flag) {
+            vmm = vmm
+                    | (use_extended_mask ? k_oc_tail_mask_extended
+                                         : k_oc_tail_mask);
+            if (zero_mask) vmm = vmm | T_z;
+        }
+        return vmm;
+    }
+
+    inline Vmm_down_t may_be_mask_vmm(Vmm_down_t vmm, bool mask_flag) {
+        return (mask_flag) ? vmm | k_oc_tail_mask : vmm;
+    }
+
     Vmm vmm_wei = Vmm(31);
     Vmm vmm_prev_dst = Vmm(31);
     Vmm vmm_bias = Vmm(31);
@@ -121,12 +137,14 @@ private:
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);
     Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(27);
     Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(28);
-    reg64_t bf16_emu_scratch = reg_icb;
+    reg64_t bf16_emu_scratch = reg_ic;
     Xbyak::Zmm bf16_emu_reserv_4 = Xbyak::Zmm(29);
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(30);
 
-    Xbyak::Opmask odd_load_mask = Xbyak::Opmask(1);
-    Xbyak::Opmask even_load_mask = Xbyak::Opmask(2);
+    Xbyak::Opmask odd_load_mask = Xbyak::Opmask(2);
+    Xbyak::Opmask even_load_mask = Xbyak::Opmask(3);
+    Xbyak::Opmask k_oc_tail_mask = Xbyak::Opmask(4);
+    Xbyak::Opmask k_oc_tail_mask_extended = Xbyak::Opmask(5);
 
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
     bf16_emulation_t *bf16_emu_;

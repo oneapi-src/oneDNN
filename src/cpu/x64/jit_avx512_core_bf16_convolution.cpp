@@ -93,23 +93,26 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
 
         while (start < end) {
             int ocb = occ * jcp.nb_oc_blocking;
-            int g_ocb = g * jcp.nb_oc + ocb;
-            int g_oc = g_ocb * jcp.oc_block;
-            int g_icb = g * jcp.nb_ic;
-
             int ow_s = owb * jcp.ow_block;
             int iw_s = ow_s * jcp.stride_w;
 
-            auto bias_w = bias ? bias + g_oc * bia_dt_size : nullptr;
             const bool is_dst_layout_nxc = jcp.dst_tag == format_tag::nwc;
-            const int oc_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * g_ocb;
+            const int oc_idx = is_dst_layout_nxc
+                    ? g * jcp.oc + ocb * jcp.oc_block
+                    : g * jcp.nb_oc + ocb;
             auto dst_w
                     = dst + jcp.typesize_out * dst_d.blk_off(n, oc_idx, ow_s);
+            auto bias_w = bias ? bias
+                            + bia_dt_size * oc_idx
+                                    * (is_dst_layout_nxc ? 1 : jcp.oc_block)
+                               : nullptr;
             const bool is_src_layout_nxc = jcp.src_tag == format_tag::nwc;
-            const int ic_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * g_icb;
+            const int ic_idx = is_src_layout_nxc ? g * jcp.ic : g * jcp.nb_ic;
             auto src_w = src + src_d.blk_off(n, ic_idx, iw_s);
             auto wht_w = weights + wht_blk_off(weights_d, g, ocb);
 
+            par_conv.load_work = this_block_size(ocb * jcp.oc_block, jcp.oc,
+                    jcp.nb_oc_blocking * jcp.oc_block);
             par_conv.src = src_w;
             par_conv.dst = dst_w;
             par_conv.filt = wht_w;
@@ -176,24 +179,24 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
         while (start < end) {
 
             int ocb = occ * jcp.nb_oc_blocking;
-            int g_ocb = g * jcp.nb_oc + ocb;
-            int g_oc = g_ocb * jcp.oc_block;
-            int g_icb = g * jcp.nb_ic;
-
             int work_rem = end - start;
             int ih_s = -jcp.t_pad + oh_s * jcp.stride_h;
             int oh_e = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
             int ow_s = owb * jcp.ow_block;
             int iw_s = ow_s * jcp.stride_w;
 
-            auto bias_w = bias ? bias + bia_dt_size * g_oc : nullptr;
-
             const bool is_dst_layout_nxc = jcp.dst_tag == format_tag::nhwc;
-            const int oc_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * g_ocb;
+            const int oc_idx = is_dst_layout_nxc
+                    ? g * jcp.oc + ocb * jcp.oc_block
+                    : g * jcp.nb_oc + ocb;
             auto dst_w = dst
                     + jcp.typesize_out * dst_d.blk_off(n, oc_idx, oh_s, ow_s);
+            auto bias_w = bias ? bias
+                            + bia_dt_size * oc_idx
+                                    * (is_dst_layout_nxc ? 1 : jcp.oc_block)
+                               : nullptr;
             const bool is_src_layout_nxc = jcp.src_tag == format_tag::nhwc;
-            const int ic_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * g_icb;
+            const int ic_idx = is_src_layout_nxc ? g * jcp.ic : g * jcp.nb_ic;
             auto src_w = src + src_d.blk_off(n, ic_idx, ih_s, iw_s);
             auto wht_w = weights + wht_blk_off(weights_d, g, ocb, 0);
 
@@ -209,6 +212,8 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
                 auto aux_src = src_w + i_t_overflow * dilate_h * src_h_stride;
                 auto aux_wht = wht_w + i_t_overflow * wht_h_stride;
 
+                par_conv.load_work = utils::this_block_size(ocb * jcp.oc_block,
+                        jcp.oc, jcp.nb_oc_blocking * jcp.oc_block);
                 par_conv.src = aux_src;
                 par_conv.dst = dst_w;
                 par_conv.filt = aux_wht;
@@ -280,10 +285,6 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
         while (start < end) {
 
             int ocb = occ * jcp.nb_oc_blocking;
-            int g_ocb = g * jcp.nb_oc + ocb;
-            int g_oc = g_ocb * jcp.oc_block;
-            int g_icb = g * jcp.nb_ic;
-
             int work_rem = end - start;
             int ih_s = -jcp.t_pad + oh_s * jcp.stride_h;
             int oh_e = oh_s + work_rem > jcp.oh ? jcp.oh : oh_s + work_rem;
@@ -298,15 +299,19 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
                     dilate_d);
             int kd_padding = nstl::max(0, jcp.kd - d_t_overflow - d_b_overflow);
 
-            auto bias_w = bias ? bias + g_oc * bia_dt_size : nullptr;
-
             const bool is_dst_layout_nxc = jcp.dst_tag == format_tag::ndhwc;
-            const int oc_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * g_ocb;
+            const int oc_idx = is_dst_layout_nxc
+                    ? g * jcp.oc + ocb * jcp.oc_block
+                    : g * jcp.nb_oc + ocb;
             auto dst_w = dst
                     + jcp.typesize_out
                             * dst_d.blk_off(n, oc_idx, od_s, oh_s, ow_s);
+            auto bias_w = bias ? bias
+                            + bia_dt_size * oc_idx
+                                    * (is_dst_layout_nxc ? 1 : jcp.oc_block)
+                               : nullptr;
             const bool is_src_layout_nxc = jcp.src_tag == format_tag::ndhwc;
-            const int ic_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * g_icb;
+            const int ic_idx = is_src_layout_nxc ? g * jcp.ic : g * jcp.nb_ic;
             auto src_w = src + src_d.blk_off(n, ic_idx, id_s, ih_s, iw_s)
                     + d_t_overflow * dilate_d * src_d_stride;
             auto wht_w = weights + wht_blk_off(weights_d, g, ocb, 0)
@@ -324,6 +329,8 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
                 auto aux_src = src_w + i_t_overflow * dilate_h * src_h_stride;
                 auto aux_wht = wht_w + i_t_overflow * wht_h_stride;
 
+                par_conv.load_work = utils::this_block_size(ocb * jcp.oc_block,
+                        jcp.oc, jcp.nb_oc_blocking * jcp.oc_block);
                 par_conv.src = aux_src;
                 par_conv.dst = dst_w;
                 par_conv.filt = aux_wht;
