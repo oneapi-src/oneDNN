@@ -49,10 +49,14 @@ inline void pick_loop_order(jit_conv_conf_t &jcp) {
     auto w = (jcp.prop_kind == backward_data) ? jcp.iw : jcp.ow;
     auto h = (jcp.prop_kind == backward_data) ? jcp.ih : jcp.oh;
 
-    // ow-threading is currently implemented for forward only
-    // TODO: single code for fwd and bwd after ow-thr for bwd
-    // meaningless switch was removed
-    if (jcp.prop_kind == backward_data) {
+    if (utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc)
+            && jcp.ngroups > 1 && jcp.oc < 16) {
+        jcp.loop_order = loop_nhwcg;
+    } else if (jcp.prop_kind == backward_data) {
+        // ow-threading is currently implemented for forward only
+        // TODO: single code for fwd and bwd after ow-thr for bwd
+        // meaningless switch was removed
         if (jcp.ndims < 5)
             jcp.loop_order = (w <= small_spatial && h <= small_spatial)
                     ? loop_cwgn
