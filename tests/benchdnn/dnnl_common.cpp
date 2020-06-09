@@ -214,8 +214,9 @@ void check_known_skipped_case_common(
     static auto isa = dnnl_get_effective_cpu_isa();
     // rely on dnnl_cpu_isa_t enum order where AVX512_MIC < AVX512_CORE
     for (const auto &i_dt : v_dt) {
-        // bf16 is supported on AVX512-CORE+ only
-        if (isa < dnnl_cpu_isa_avx512_core && i_dt == dnnl_bf16) {
+        // bf16 is supported on AVX512-CORE+
+        if ((engine_tgt_kind == dnnl_cpu && isa < dnnl_cpu_isa_avx512_core)
+                && i_dt == dnnl_bf16) {
             r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
             break;
         }
