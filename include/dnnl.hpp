@@ -3185,12 +3185,6 @@ struct reorder : public primitive {
         ///     If @p allow_empty is true, the constructor does not throw if a
         ///     primitive descriptor cannot be created.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @param src_engine Engine on which the source memory object will be
         ///     located.
         /// @param src_md Source memory descriptor.
@@ -3334,15 +3328,6 @@ struct concat : public primitive {
         /// Constructs a primitive descriptor for an out-of-place concatenation
         /// primitive.
         ///
-        /// Inputs:
-        ///  - `src[0]` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src[1]` (#dnnl::primitive_desc_base::src_desc(`1`))
-        ///  - ...
-        ///  - `src[n - 1]` (#dnnl::primitive_desc_base::src_desc(`n - 1`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @param dst Destination memory descriptor.
         /// @param concat_dimension Source tensors will be concatenated over
         ///     dimension with this index. Note that order of dimensions does
@@ -3434,15 +3419,6 @@ struct sum : public primitive {
         primitive_desc() = default;
 
         /// Constructs a primitive descriptor for a sum primitive.
-        ///
-        /// Inputs:
-        ///  - `src[0]` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src[1]` (#dnnl::primitive_desc_base::src_desc(`1`))
-        ///  - ...
-        ///  - `src[n - 1]` (#dnnl::primitive_desc_base::src_desc(`n - 1`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
         ///
         /// @param dst Destination memory descriptor.
         /// @param scales Vector of scales to multiply data in each source
@@ -3617,14 +3593,6 @@ struct convolution_forward : public primitive {
         /// Constructs a descriptor for a convolution forward propagation
         /// primitive with bias.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -3673,13 +3641,6 @@ struct convolution_forward : public primitive {
         /// Constructs a descriptor for a convolution forward propagation
         /// primitive without bias.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -3724,14 +3685,6 @@ struct convolution_forward : public primitive {
 
         /// Constructs a descriptor for a dilated convolution forward
         /// propagation primitive with bias.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -3783,13 +3736,6 @@ struct convolution_forward : public primitive {
 
         /// Constructs a descriptor for a dilated convolution forward
         /// propagation primitive without bias.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -3920,13 +3866,6 @@ struct convolution_backward_data : public primitive {
         /// Constructs a descriptor for a convolution backward propagation
         /// primitive.
         ///
-        /// Inputs:
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -3967,13 +3906,6 @@ struct convolution_backward_data : public primitive {
 
         /// Constructs a descriptor for dilated convolution backward
         /// propagation primitive.
-        ///
-        /// Inputs:
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -4102,14 +4034,6 @@ struct convolution_backward_weights : public primitive {
         /// Constructs a descriptor for a convolution weights gradient primitive
         /// with bias.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_weights` (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///  - `diff_bias` (#dnnl::primitive_desc_base::diff_weights_desc(`1`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -4155,13 +4079,6 @@ struct convolution_backward_weights : public primitive {
         /// Constructs a descriptor for a convolution weights gradient primitive
         /// without bias.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_weights` (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -4202,14 +4119,6 @@ struct convolution_backward_weights : public primitive {
 
         /// Constructs a descriptor for a dilated convolution weights gradient
         /// primitive with bias.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_weights` (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///  - `diff_bias` (#dnnl::primitive_desc_base::diff_weights_desc(`1`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -4259,13 +4168,6 @@ struct convolution_backward_weights : public primitive {
 
         /// Constructs a descriptor for a dilated convolution weights gradient
         /// primitive without bias.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_weights` (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -4412,14 +4314,6 @@ struct deconvolution_forward : public primitive {
         /// Constructs a descriptor for a deconvolution forward propagation
         /// primitive with bias.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -4467,13 +4361,6 @@ struct deconvolution_forward : public primitive {
         /// Constructs a descriptor for a deconvolution forward propagation
         /// primitive without bias.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -4517,14 +4404,6 @@ struct deconvolution_forward : public primitive {
 
         /// Constructs a descriptor for a dilated deconvolution forward
         /// propagation primitive with bias.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -4575,13 +4454,6 @@ struct deconvolution_forward : public primitive {
 
         /// Constructs a descriptor for a dilated deconvolution forward
         /// propagation primitive without bias.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -4707,13 +4579,6 @@ struct deconvolution_backward_data : public primitive {
         /// Constructs a descriptor for a deconvolution backward propagation
         /// primitive.
         ///
-        /// Inputs:
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -4753,13 +4618,6 @@ struct deconvolution_backward_data : public primitive {
 
         /// Constructs a descriptor for a dilated deconvolution backward
         /// propagation primitive.
-        ///
-        /// Inputs:
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -4887,14 +4745,6 @@ struct deconvolution_backward_weights : public primitive {
         /// Constructs a descriptor for a deconvolution weights gradient
         /// primitive with bias.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_weights` (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///  - `diff_bias` (#dnnl::primitive_desc_base::diff_weights_desc(`1`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -4939,13 +4789,6 @@ struct deconvolution_backward_weights : public primitive {
         /// Constructs a descriptor for a deconvolution weights gradient primitive
         /// without bias.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_weights` (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -4985,14 +4828,6 @@ struct deconvolution_backward_weights : public primitive {
 
         /// Constructs a descriptor for a dilated deconvolution weights gradient
         /// primitive with bias.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_weights` (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///  - `diff_bias` (#dnnl::primitive_desc_base::diff_weights_desc(`1`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -5041,13 +4876,6 @@ struct deconvolution_backward_weights : public primitive {
 
         /// Constructs a descriptor for a dilated deconvolution weights gradient
         /// primitive without bias.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_weights` (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -5192,17 +5020,6 @@ struct lrn_forward : public primitive {
 
         /// Constructs a descriptor for a LRN forward propagation primitive.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if @p alg_kind = #dnnl::algorithm::pooling_max and @p
-        ///     prop_kind = #dnnl::prop_kind::forward_training; must be
-        ///     queried for using @ref dnnl::primitive_desc_base::query_md()
-        ///     after a corresponding primitive descriptor is created
-        ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -5297,17 +5114,6 @@ struct lrn_backward : public primitive {
         dnnl_lrn_desc_t data;
 
         /// Constructs a descriptor for an LRN backward propagation primitive.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if the underlying implementation requires it; must be queried
-        ///     for using @ref dnnl::primitive_desc_base::query_md() after a
-        ///     corresponding primitive descriptor is created
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
         ///
         /// @param aalgorithm LRN algorithm kind: either
         ///     #dnnl::algorithm::lrn_across_channels, or
@@ -5421,17 +5227,6 @@ struct pooling_forward : public primitive {
 
         /// Constructs a descriptor for pooling forward propagation primitive.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if @p alg_kind = #dnnl::algorithm::pooling_max and @p
-        ///     prop_kind = #dnnl::prop_kind::forward_training; must be
-        ///     queried for using @ref dnnl::primitive_desc_base::query_md()
-        ///     after a corresponding primitive descriptor is created
-        ///
         /// Arrays @p strides, @p kernel, @p padding_l, and @p padding_r
         /// contain values for spatial dimensions only and hence must have the
         /// same number of elements as there are spatial dimensions. The order
@@ -5543,16 +5338,6 @@ struct pooling_backward : public primitive {
         dnnl_pooling_desc_t data;
 
         /// Constructs a descriptor for pooling backward propagation primitive.
-        ///
-        /// Inputs:
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if @p alg_kind = #dnnl::algorithm::pooling_max; must be
-        ///     queried for using @ref dnnl::primitive_desc_base::query_md()
-        ///     after a corresponding primitive descriptor is created
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
         ///
         /// Arrays @p strides, @p kernel, @p padding_l, and @p padding_r
         /// contain values for spatial dimensions only and hence must have the
@@ -5695,12 +5480,6 @@ struct eltwise_forward : public primitive {
         /// Constructs a descriptor for an elementwise forward propagation
         /// primitive.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -5793,13 +5572,6 @@ struct eltwise_backward : public primitive {
 
         /// Constructs a descriptor for an elementwise backward propagation
         /// primitive.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
         ///
         /// @param aalgorithm Elementwise algorithm kind.
         /// @param diff_data_desc Diff source and destination memory
@@ -5917,12 +5689,6 @@ struct softmax_forward : public primitive {
         /// Constructs a descriptor for a softmax forward propagation
         /// primitive.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -6012,13 +5778,6 @@ struct softmax_backward : public primitive {
 
         /// Constructs a descriptor for a softmax backward propagation
         /// primitive.
-        ///
-        /// Inputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
         ///
         /// @param diff_data_desc Diff source and diff destination memory
         ///     descriptor.
@@ -6130,12 +5889,6 @@ struct logsoftmax_forward : public primitive {
         /// Constructs a descriptor for a logsoftmax forward propagation
         /// primitive.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -6229,13 +5982,6 @@ struct logsoftmax_backward : public primitive {
 
         /// Constructs a descriptor for a logsoftmax backward propagation
         /// primitive.
-        ///
-        /// Inputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
         ///
         /// @param diff_data_desc Diff source and diff destination memory
         ///     descriptors.
@@ -6359,35 +6105,6 @@ struct batch_normalization_forward : public primitive {
 
         /// Constructs a batch normalization descriptor for forward
         /// propagation.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `mean` (#dnnl::primitive_desc_base::src_desc(`1`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     set in @p flags
-        ///  - `variance` (#dnnl::primitive_desc_base::src_desc(`2`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     set in @p flags
-        ///  - `scale_and_shift` (#dnnl::primitive_desc_base::weights_desc(`0`)),
-        ///     if #dnnl::normalization_flags::use_scale_shift bit-flag is set
-        ///     in @p flags
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `mean` (#dnnl::primitive_desc_base::dst_desc(`1`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     not set in @p flags and @p prop_kind =
-        ///     #dnnl::prop_kind::forward_training
-        ///  - `variance` (#dnnl::primitive_desc_base::dst_desc(`2`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     not set in @p flags and @p prop_kind =
-        ///     #dnnl::prop_kind::forward_training
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if #dnnl::normalization_flags::fuse_norm_relu bit-flag is set
-        ///     in @p flags and @p prop_kind =
-        ///     #dnnl::prop_kind::forward_training; must be queried
-        ///     for using @ref primitive_desc_base::query_md() after a
-        ///     corresponding primitive descriptor is created
         ///
         /// @note
         ///     In-place operation is supported: the dst can refer to the same
@@ -6517,25 +6234,6 @@ struct batch_normalization_backward : public primitive {
 
         /// Constructs a batch normalization descriptor for backward
         /// propagation.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `mean` (#dnnl::primitive_desc_base::src_desc(`1`))
-        ///  - `variance` (#dnnl::primitive_desc_base::src_desc(`2`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `scale_and_shift` (#dnnl::primitive_desc_base::weights_desc(`0`)),
-        ///     if #dnnl::normalization_flags::use_scale_shift bit-flag is
-        ///     set in @p flags
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if #dnnl::normalization_flags::fuse_norm_relu bit-flag is set
-        ///     in @p flags
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///  - `diff_scale_and_shift`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`0`)),
-        ///     if #dnnl::normalization_flags::use_scale_shift bit-flag is
-        ///     set in @p flags and @p prop_kind = #dnnl::prop_kind::backward
         ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::backward_data and #dnnl::prop_kind::backward
@@ -6690,29 +6388,6 @@ struct layer_normalization_forward : public primitive {
         /// Constructs a descriptor for layer normalization forward
         /// propagation primitive.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `mean` (#dnnl::primitive_desc_base::src_desc(`1`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     set in @p flags
-        ///  - `variance` (#dnnl::primitive_desc_base::src_desc(`2`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     set in @p flags
-        ///  - `scale_and_shift` (#dnnl::primitive_desc_base::weights_desc(`0`)),
-        ///     if #dnnl::normalization_flags::use_scale_shift bit-flag is set
-        ///     in @p flags
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `mean` (#dnnl::primitive_desc_base::dst_desc(`1`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     not set in @p flags and @p prop_kind =
-        ///     #dnnl::prop_kind::forward_training
-        ///  - `variance` (#dnnl::primitive_desc_base::dst_desc(`2`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     not set in @p flags and @p prop_kind =
-        ///     #dnnl::prop_kind::forward_training
-        ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -6734,29 +6409,6 @@ struct layer_normalization_forward : public primitive {
 
         /// Constructs a descriptor for layer normalization forward
         /// propagation primitive.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `mean` (#dnnl::primitive_desc_base::src_desc(`1`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     set in @p flags
-        ///  - `variance` (#dnnl::primitive_desc_base::src_desc(`2`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     set in @p flags
-        ///  - `scale_and_shift` (#dnnl::primitive_desc_base::weights_desc(`0`)),
-        ///     if #dnnl::normalization_flags::use_scale_shift bit-flag is set
-        ///     in @p flags
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `mean` (#dnnl::primitive_desc_base::dst_desc(`1`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     not set in @p flags and @p prop_kind =
-        ///     #dnnl::prop_kind::forward_training
-        ///  - `variance` (#dnnl::primitive_desc_base::dst_desc(`2`)),
-        ///     if #dnnl::normalization_flags::use_global_stats bit-flag is
-        ///     not set in @p flags and @p prop_kind =
-        ///     #dnnl::prop_kind::forward_training
         ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
@@ -6881,22 +6533,6 @@ struct layer_normalization_backward : public primitive {
         /// Constructs a descriptor for layer normalization backward
         /// propagation primitive.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `mean` (#dnnl::primitive_desc_base::src_desc(`1`))
-        ///  - `variance` (#dnnl::primitive_desc_base::src_desc(`2`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `scale_and_shift` (#dnnl::primitive_desc_base::weights_desc(`0`)),
-        ///     if #dnnl::normalization_flags::use_scale_shift bit-flag is
-        ///     set in @p flags
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///  - `diff_scale_and_shift`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`0`)), if
-        ///     #dnnl::normalization_flags::use_scale_shift bit-flag is set
-        ///     in @p flags and @p prop_kind = #dnnl::prop_kind::backward
-        ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::backward_data and #dnnl::prop_kind::backward
         ///     (diffs for all parameters are computed in this case).
@@ -6921,22 +6557,6 @@ struct layer_normalization_backward : public primitive {
 
         /// Constructs a descriptor for layer normalization backward
         /// propagation primitive.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `mean` (#dnnl::primitive_desc_base::src_desc(`1`))
-        ///  - `variance` (#dnnl::primitive_desc_base::src_desc(`2`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `scale_and_shift` (#dnnl::primitive_desc_base::weights_desc(`0`)),
-        ///     if #dnnl::normalization_flags::use_scale_shift bit-flag is
-        ///     set in @p flags
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///  - `diff_scale_and_shift`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`0`)), if
-        ///     #dnnl::normalization_flags::use_scale_shift bit-flag is set
-        ///     in @p flags and @p prop_kind = #dnnl::prop_kind::backward
         ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::backward_data and #dnnl::prop_kind::backward
@@ -7077,14 +6697,6 @@ struct inner_product_forward : public primitive {
         /// Constructs a descriptor for an inner product forward propagation
         /// primitive with bias.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -7109,13 +6721,6 @@ struct inner_product_forward : public primitive {
 
         /// Constructs a descriptor for an inner product forward propagation
         /// primitive without bias.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -7216,13 +6821,6 @@ struct inner_product_backward_data : public primitive {
 
         /// Constructs a descriptor for an inner product backward propagation
         /// primitive.
-        ///
-        /// Inputs:
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -7326,14 +6924,6 @@ struct inner_product_backward_weights : public primitive {
         /// Constructs a descriptor for an inner product descriptor weights
         /// update primitive with bias.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_weights` (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///  - `diff_bias` (#dnnl::primitive_desc_base::diff_weights_desc(`1`))
-        ///
         /// @note
         ///     All the memory descriptors may be initialized with the
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -7356,13 +6946,6 @@ struct inner_product_backward_weights : public primitive {
 
         /// Constructs a descriptor for an inner product descriptor weights
         /// update primitive without bias.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_weights` (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -7698,22 +7281,6 @@ struct vanilla_rnn_forward : public primitive {
         /// This would then indicate that the RNN forward propagation primitive
         /// should not use them and should default to zero values instead.
         ///
-        /// Inputs:
-        ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src_iter` (#dnnl::primitive_desc_base::src_desc(`1`)), if used
-        ///  - `weights_layer` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `weights_iter` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`2`)), if used
-        ///
-        /// Outputs:
-        ///  - `dst_layer` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `dst_iter` (#dnnl::primitive_desc_base::dst_desc(`1`)), if used
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if @p prop_kind equals #dnnl::prop_kind::forward_training;
-        ///     must be queried for using @ref
-        ///     dnnl::primitive_desc_base::query_md() after a corresponding
-        ///     primitive descriptor is created
-        ///
         /// @note
         ///     All memory descriptors except @p src_iter_desc can be
         ///     initialized with an #dnnl::memory::format_tag::any value of @p
@@ -7875,31 +7442,6 @@ struct vanilla_rnn_backward : public primitive {
         /// This would then indicate that the RNN backward propagation
         /// primitive should not use the respective data and should use zero
         /// values instead.
-        ///
-        /// Inputs:
-        ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src_iter` (#dnnl::primitive_desc_base::src_desc(`1`)), if used
-        ///  - `weights_layer` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `weights_iter` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`2`)), if used
-        ///  - `dst_layer` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `dst_iter` (#dnnl::primitive_desc_base::dst_desc(`1`)), if used
-        ///  - `diff_dst_layer` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `diff_dst_iter`
-        ///     (#dnnl::primitive_desc_base::diff_dst_desc(`1`)), if used
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src_layer`
-        ///     (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///  - `diff_src_iter`
-        ///     (#dnnl::primitive_desc_base::diff_src_desc(`1`)), if used
-        ///  - `diff_weights_layer`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///  - `diff_weights_iter`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`1`))
-        ///  - `diff_bias`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`2`)), if used
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
@@ -8137,35 +7679,6 @@ struct lstm_forward : public primitive {
         ///     All memory descriptors can be initialized with an
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
-        /// Inputs:
-        ///  - src_layer (#dnnl::primitive_desc_base::src_desc (0))
-        ///  - src_iter (#dnnl::primitive_desc_base::src_desc (1)), if used
-        ///  - src_iter_c (#dnnl::primitive_desc_base::src_desc (2)), if used
-        ///  - weights_layer (#dnnl::primitive_desc_base::weights_desc (0))
-        ///  - weights_iter (#dnnl::primitive_desc_base::weights_desc (1))
-        ///  - weights_peephole (#dnnl::primitive_desc_base::weights_desc (2)),
-        ///    if used
-        ///  - weights_projection
-        ///    (#dnnl::primitive_desc_base::weights_desc (index)), if used and
-        ///    index is:
-        ///    - 2, if there is no weights_peephole
-        ///    - 3, otherwise
-        ///  - bias (#dnnl::primitive_desc_base::weights_desc (index)), if used
-        ///    and index is:
-        ///    - 2, if neither weights_peephole nor weights_projection is used
-        ///    - 3, if one of weights_peephole or weights_projection is used
-        ///    - 4, if both weights_peephole and weights_projection are used
-        ///
-        /// Outputs:
-        ///  - dst_layer (#dnnl::primitive_desc_base::dst_desc (0))
-        ///  - dst_iter (#dnnl::primitive_desc_base::dst_desc (1)), if used
-        ///  - dst_iter_c (#dnnl::primitive_desc_base::dst_desc (2)), if used
-        ///  - workspace (#dnnl::primitive_desc_base::workspace_desc (0)),
-        ///     if @p prop_kind equals #dnnl::prop_kind::forward_training;
-        ///     must be queried for using @ref
-        ///     dnnl::primitive_desc_base::query_md() after a corresponding
-        ///     primitive descriptor is created
-        ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -8233,29 +7746,6 @@ struct lstm_forward : public primitive {
         /// primitive should not use them and should default to zero values
         /// instead.
         ///
-        /// Inputs:
-        ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src_iter` (#dnnl::primitive_desc_base::src_desc(`1`)), if used
-        ///  - `src_iter_c` (#dnnl::primitive_desc_base::src_desc(`2`)), if used
-        ///  - `weights_layer` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `weights_iter` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///  - `weights_peephole` (#dnnl::primitive_desc_base::weights_desc(`2`)),
-        ///    if used
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`2`)), if used and
-        ///    LSTM is without peephole
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`3`)), if used and
-        ///    LSTM is with peephole
-        ///
-        /// Outputs:
-        ///  - `dst_layer` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `dst_iter` (#dnnl::primitive_desc_base::dst_desc(`1`)), if used
-        ///  - `dst_iter_c` (#dnnl::primitive_desc_base::dst_desc(`2`)), if used
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if @p prop_kind equals #dnnl::prop_kind::forward_training;
-        ///     must be queried for using @ref
-        ///     dnnl::primitive_desc_base::query_md() after a corresponding
-        ///     primitive descriptor is created
-        ///
         /// @note
         ///     All memory descriptors can be initialized with an
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -8319,24 +7809,6 @@ struct lstm_forward : public primitive {
         /// This would then indicate that the LSTM forward propagation
         /// primitive should not use them and should default to zero values
         /// instead.
-        ///
-        /// Inputs:
-        ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src_iter` (#dnnl::primitive_desc_base::src_desc(`1`)), if used
-        ///  - `src_iter_c` (#dnnl::primitive_desc_base::src_desc(`2`)), if used
-        ///  - `weights_layer` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `weights_iter` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`2`)), if used
-        ///
-        /// Outputs:
-        ///  - `dst_layer` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `dst_iter` (#dnnl::primitive_desc_base::dst_desc(`1`)), if used
-        ///  - `dst_iter_c` (#dnnl::primitive_desc_base::dst_desc(`2`)), if used
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if @p prop_kind equals #dnnl::prop_kind::forward_training;
-        ///     must be queried for using @ref
-        ///     dnnl::primitive_desc_base::query_md() after a
-        ///     corresponding primitive descriptor is created
         ///
         /// @note
         ///     All memory descriptors can be initialized with an
@@ -8529,61 +8001,6 @@ struct lstm_backward : public primitive {
         ///     All memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
-        /// Inputs:
-        ///  - src_layer (#dnnl::primitive_desc_base::src_desc (0))
-        ///  - src_iter (#dnnl::primitive_desc_base::src_desc (1)), if used
-        ///  - src_iter_c (#dnnl::primitive_desc_base::src_desc (2)), if used
-        ///  - weights_layer (#dnnl::primitive_desc_base::weights_desc (0))
-        ///  - weights_iter (#dnnl::primitive_desc_base::weights_desc (1))
-        ///  - weights_peephole (#dnnl::primitive_desc_base::weights_desc (2)),
-        ///    if used
-        ///  - weights_projection
-        ///    (#dnnl::primitive_desc_base::weights_desc (index)), if used and
-        ///    index is:
-        ///    - 2, if there is no weights_peephole
-        ///    - 3, otherwise
-        ///  - bias (#dnnl::primitive_desc_base::weights_desc (index)), if used
-        ///    and index is:
-        ///    - 2, if neither weights_peephole nor weights_projection is used
-        ///    - 3, if one of weights_peephole or weights_projection is used
-        ///    - 4, if both weights_peephole and weights_projection are used
-        ///  - dst_layer (#dnnl::primitive_desc_base::dst_desc (0))
-        ///  - dst_iter (#dnnl::primitive_desc_base::dst_desc (1)), if used
-        ///  - dst_iter_c (#dnnl::primitive_desc_base::dst_desc (2)), if used
-        ///  - diff_dst_layer (#dnnl::primitive_desc_base::diff_dst_desc (0))
-        ///  - diff_dst_iter
-        ///     (#dnnl::primitive_desc_base::diff_dst_desc (1)), if used
-        ///  - diff_dst_iter_c
-        ///     (#dnnl::primitive_desc_base::diff_dst_desc (2)), if used
-        ///  - workspace (#dnnl::primitive_desc_base::workspace_desc (0))
-        ///
-        /// Outputs:
-        ///  - diff_src_layer (#dnnl::primitive_desc_base::diff_src_desc (0))
-        ///  - diff_src_iter
-        ///     (#dnnl::primitive_desc_base::diff_src_desc (1)), if used
-        ///  - diff_src_iter_c
-        ///     (#dnnl::primitive_desc_base::diff_src_desc (2)), if used
-        ///  - diff_weights_layer
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc (0))
-        ///  - diff_weights_iter
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc (1))
-        ///  - diff_weights_peephole
-        ///    (#dnnl::primitive_desc_base::diff_weights_desc (2)), if used
-        ///  - diff_weights_projection
-        ///    (#dnnl::primitive_desc_base::diff_weights_desc (index)), if used
-        ///    and index is:
-        ///    - 2, if there is no diff_weights_peephole
-        ///    - 3, otherwise
-        ///  - diff_bias
-        ///    (#dnnl::primitive_desc_base::diff_weights_desc (index)), if used
-        ///    and index is:
-        ///    - 2, if neither diff_weights_peephole nor
-        ///         diff_weights_projection is used
-        ///    - 3, if one of diff_weights_peephole or diff_weights_projection
-        ///         is used
-        ///    - 4, if both diff_weights_peephole and diff_weights_projection
-        ///         are used
-        ///
         /// @param aprop_kind Propagation kind. Must be
         ///     #dnnl::prop_kind::backward.
         /// @param direction RNN direction. See @ref dnnl::rnn_direction for
@@ -8702,45 +8119,6 @@ struct lstm_backward : public primitive {
         ///     All memory descriptors may be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
-        /// Inputs:
-        ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src_iter` (#dnnl::primitive_desc_base::src_desc(`1`)), if used
-        ///  - `src_iter_c` (#dnnl::primitive_desc_base::src_desc(`2`)), if used
-        ///  - `weights_layer` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `weights_iter` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///  - `weights_peephole` (#dnnl::primitive_desc_base::weights_desc(`2`)),
-        ///    if used
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`2`)), if used and
-        ///    LSTM is without peephole
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`3`)), if used and
-        ///    LSTM is with peephole
-        ///  - `dst_layer` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `dst_iter` (#dnnl::primitive_desc_base::dst_desc(`1`)), if used
-        ///  - `dst_iter_c` (#dnnl::primitive_desc_base::dst_desc(`2`)), if used
-        ///  - `diff_dst_layer` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `diff_dst_iter`
-        ///     (#dnnl::primitive_desc_base::diff_dst_desc(`1`)), if used
-        ///  - `diff_dst_iter_c`
-        ///     (#dnnl::primitive_desc_base::diff_dst_desc(`2`)), if used
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src_layer` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///  - `diff_src_iter`
-        ///     (#dnnl::primitive_desc_base::diff_src_desc(`1`)), if used
-        ///  - `diff_src_iter_c`
-        ///     (#dnnl::primitive_desc_base::diff_src_desc(`2`)), if used
-        ///  - `diff_weights_layer`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///  - `diff_weights_iter`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`1`))
-        ///  - `diff_weights_peephole`
-        ///    (#dnnl::primitive_desc_base::diff_weights_desc(`2`)), if used
-        ///  - `diff_bias` (#dnnl::primitive_desc_base::diff_weights_desc(`2`)),
-        ///    if used and LSTM is without peephole
-        ///  - `diff_bias` (#dnnl::primitive_desc_base::diff_weights_desc(`3`)),
-        ///    if used and LSTM is with peephole
-        ///
         /// @param aprop_kind Propagation kind. Must be
         ///     #dnnl::prop_kind::backward.
         /// @param direction RNN direction. See @ref dnnl::rnn_direction for
@@ -8845,36 +8223,6 @@ struct lstm_backward : public primitive {
         /// @note
         ///     All memory descriptors may be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
-        ///
-        /// Inputs:
-        ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src_iter` (#dnnl::primitive_desc_base::src_desc(`1`)), if used
-        ///  - `src_iter_c` (#dnnl::primitive_desc_base::src_desc(`2`)), if used
-        ///  - `weights_layer` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `weights_iter` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`2`)), if used
-        ///  - `dst_layer` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `dst_iter` (#dnnl::primitive_desc_base::dst_desc(`1`)), if used
-        ///  - `dst_iter_c` (#dnnl::primitive_desc_base::dst_desc(`2`)), if used
-        ///  - `diff_dst_layer` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `diff_dst_iter`
-        ///     (#dnnl::primitive_desc_base::diff_dst_desc(`1`)), if used
-        ///  - `diff_dst_iter_c`
-        ///     (#dnnl::primitive_desc_base::diff_dst_desc(`2`)), if used
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src_layer` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///  - `diff_src_iter`
-        ///     (#dnnl::primitive_desc_base::diff_src_desc(`1`)), if used
-        ///  - `diff_src_iter_c`
-        ///     (#dnnl::primitive_desc_base::diff_src_desc(`2`)), if used
-        ///  - `diff_weights_layer`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///  - `diff_weights_iter`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`1`))
-        ///  - `diff_bias`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`2`)), if used
         ///
         /// @param aprop_kind Propagation kind. Must be
         ///     #dnnl::prop_kind::backward.
@@ -9141,22 +8489,6 @@ struct gru_forward : public primitive {
         /// This would then indicate that the GRU forward propagation primitive
         /// should not use them and should default to zero values instead.
         ///
-        /// Inputs:
-        ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src_iter` (#dnnl::primitive_desc_base::src_desc(`1`)), if used
-        ///  - `weights_layer` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `weights_iter` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`2`)), if used
-        ///
-        /// Outputs:
-        ///  - `dst_layer` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `dst_iter` (#dnnl::primitive_desc_base::dst_desc(`1`)), if used
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if @p prop_kind equals #dnnl::prop_kind::forward_training;
-        ///     must be queried for using @ref
-        ///     dnnl::primitive_desc_base::query_md() after a corresponding
-        ///     primitive descriptor is created
-        ///
         /// @note
         ///     All memory descriptors except @p src_iter_desc may be
         ///     initialized with an #dnnl::memory::format_tag::any value of @p
@@ -9306,30 +8638,6 @@ struct gru_backward : public primitive {
         /// This would then indicate that the GRU backward propagation
         /// primitive should not use them and should default to zero values
         /// instead.
-        ///
-        /// Inputs:
-        ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src_iter` (#dnnl::primitive_desc_base::src_desc(`1`)), if used
-        ///  - `weights_layer` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `weights_iter` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`2`)), if used
-        ///  - `dst_layer` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `dst_iter` (#dnnl::primitive_desc_base::dst_desc(`1`)), if used
-        ///  - `diff_dst_layer` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `diff_dst_iter`
-        ///     (#dnnl::primitive_desc_base::diff_dst_desc(`1`)), if used
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src_layer` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///  - `diff_src_iter`
-        ///     (#dnnl::primitive_desc_base::diff_src_desc(`1`)), if used
-        ///  - `diff_weights_layer`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///  - `diff_weights_iter`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`1`))
-        ///  - `diff_bias`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`2`)), if used
         ///
         /// @note
         ///     All memory descriptors may be initialized with
@@ -9546,22 +8854,6 @@ struct lbr_gru_forward : public primitive {
         /// primitive should not use them and should default to zero values
         /// instead.
         ///
-        /// Inputs:
-        ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src_iter` (#dnnl::primitive_desc_base::src_desc(`1`)), if used
-        ///  - `weights_layer` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `weights_iter` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`2`)), if used
-        ///
-        /// Outputs:
-        ///  - `dst_layer` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `dst_iter` (#dnnl::primitive_desc_base::dst_desc(`1`)), if used
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`)),
-        ///     if @p prop_kind equals #dnnl::prop_kind::forward_training;
-        ///     must be queried for using @ref
-        ///     dnnl::primitive_desc_base::query_md() after a corresponding
-        ///     primitive descriptor is created
-        ///
         /// @note
         ///     All memory descriptors except @p src_iter_desc may be
         ///     initialized with an #dnnl::memory::format_tag::any value of @p
@@ -9714,30 +9006,6 @@ struct lbr_gru_backward : public primitive {
         /// This would then indicate that the LBR GRU backward propagation
         /// primitive should not use them and should default to zero values
         /// instead.
-        ///
-        /// Inputs:
-        ///  - `src_layer` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src_iter` (#dnnl::primitive_desc_base::src_desc(`1`)), if used
-        ///  - `weights_layer` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `weights_iter` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`2`)), if used
-        ///  - `dst_layer` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///  - `dst_iter` (#dnnl::primitive_desc_base::dst_desc(`1`)), if used
-        ///  - `diff_dst_layer` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///  - `diff_dst_iter`
-        ///     (#dnnl::primitive_desc_base::diff_dst_desc(`1`)), if used
-        ///  - `workspace` (#dnnl::primitive_desc_base::workspace_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src_layer` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///  - `diff_src_iter`
-        ///     (#dnnl::primitive_desc_base::diff_src_desc(`1`)), if used
-        ///  - `diff_weights_layer`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`0`))
-        ///  - `diff_weights_iter`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`1`))
-        ///  - `diff_bias`
-        ///     (#dnnl::primitive_desc_base::diff_weights_desc(`2`)), if used
         ///
         /// @note
         ///     All memory descriptors may be initialized with
@@ -9958,12 +9226,6 @@ struct shuffle_forward : public primitive {
         /// Constructs a descriptor for a shuffle forward propagation
         /// primitive.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -10038,12 +9300,6 @@ struct shuffle_backward : public primitive {
 
         /// Constructs a descriptor for a shuffle backward propagation
         /// primitive.
-        ///
-        /// Inputs:
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
         ///
         /// @param diff_data_desc Diff source and diff destination memory
         ///     descriptor.
@@ -10131,13 +9387,6 @@ struct binary : public primitive {
 
         /// Constructs a descriptor for an elementwise binary operator
         /// primitive.
-        ///
-        /// Inputs:
-        ///  - `src0` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `src1` (#dnnl::primitive_desc_base::src_desc(`1`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
         ///
         /// @param aalgorithm Elementwise binary algorithm.
         /// @param src0 Memory descriptor for source tensor #0.
@@ -10236,13 +9485,6 @@ struct matmul : public primitive {
 
         /// Constructs a descriptor for a matmul primitive.
         ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @param src_desc Memory descriptor for source (matrix A).
         /// @param weights_desc Memory descriptor for weights (matrix B).
         /// @param dst_desc Memory descriptor for destination (matrix C).
@@ -10255,14 +9497,6 @@ struct matmul : public primitive {
         }
 
         /// Constructs a descriptor for a matmul primitive.
-        ///
-        /// Inputs:
-        ///  - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///  - `weights` (#dnnl::primitive_desc_base::weights_desc(`0`))
-        ///  - `bias` (#dnnl::primitive_desc_base::weights_desc(`1`))
-        ///
-        /// Outputs:
-        ///  - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
         ///
         /// @param src_desc Memory descriptor for source (matrix A).
         /// @param weights_desc Memory descriptor for weights (matrix B).
@@ -10362,12 +9596,6 @@ struct resampling_forward : public primitive {
         /// Constructs a descriptor for a resampling forward propagation
         /// primitive using source and destination memory descriptors.
         ///
-        /// Inputs:
-        /// - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///
-        /// Outputs:
-        /// - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
-        ///
         /// @note
         ///     Destination memory descriptor may be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
@@ -10392,9 +9620,6 @@ struct resampling_forward : public primitive {
         /// Constructs a descriptor for a resampling forward propagation
         /// primitive using source memory descriptor and factors.
         ///
-        /// Inputs:
-        /// - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///
         /// @param aprop_kind Propagation kind. Possible values are
         ///     #dnnl::prop_kind::forward_training, and
         ///     #dnnl::prop_kind::forward_inference.
@@ -10416,12 +9641,6 @@ struct resampling_forward : public primitive {
 
         /// Constructs a descriptor for a resampling forward propagation
         /// primitive.
-        ///
-        /// Inputs:
-        /// - `src` (#dnnl::primitive_desc_base::src_desc(`0`))
-        ///
-        /// Outputs:
-        /// - `dst` (#dnnl::primitive_desc_base::dst_desc(`0`))
         ///
         /// @note
         ///     The destination memory descriptor may be initialized with
@@ -10521,12 +9740,6 @@ struct resampling_backward : public primitive {
         /// Constructs a descriptor for a resampling backward propagation
         /// primitive using source and destination memory descriptors.
         ///
-        /// Inputs:
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
-        ///
         /// @param aalgorithm resampling algorithm kind: either
         ///     #dnnl::algorithm::resampling_nearest, or
         ///     #dnnl::algorithm::resampling_linear
@@ -10542,12 +9755,6 @@ struct resampling_backward : public primitive {
 
         /// Constructs a descriptor for resampling backward propagation
         /// primitive.
-        ///
-        /// Inputs:
-        ///  - `diff_dst` (#dnnl::primitive_desc_base::diff_dst_desc(`0`))
-        ///
-        /// Outputs:
-        ///  - `diff_src` (#dnnl::primitive_desc_base::diff_src_desc(`0`))
         ///
         /// @param aalgorithm resampling algorithm kind: either
         ///     #dnnl::algorithm::resampling_nearest, or
