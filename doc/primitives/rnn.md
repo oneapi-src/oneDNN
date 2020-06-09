@@ -218,14 +218,12 @@ implicitly require the order of these gates to be `u`, `r`, and `o`. The
 following equation gives the mathematical definition of these gates.
 
 \f[
-
 \begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
 o_t &= tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
 h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 \end{align}
-
 \f]
 
 where \f$W_*\f$ are in \weightslayer, \f$U_*\f$ are in
@@ -251,14 +249,12 @@ The following equation describes the mathematical behavior of the
 Linear-Before-Reset GRU cell.
 
 \f[
-
 \begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
 o_t &= tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
 h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 \end{align}
-
 \f]
 
 Note that for all tensors with a dimension depending on the gates number, except
@@ -284,6 +280,7 @@ once again by another forward pass.
 # Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index         |
 | ---                    | ---                              |
 | \srclayer              | DNNL_ARG_SRC_LAYER               |

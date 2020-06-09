@@ -55,6 +55,7 @@ Essentially, backward propagation is the same as forward propagation with
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_SRC             |
@@ -95,8 +96,8 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
 Shuffle operation typically appear in CNN topologies. Hence, in the library the
 shuffle primitive is optimized for the corresponding memory formats:
 
-| Spatial | Logical tensor | Shuffle Axis | Implementations optimized for memory formats                               |
-| :--     | :--            | :--          | :--                                                                        |
+| Spatial | Logical tensor | Shuffle Axis | Implementations optimized for memory formats                       |
+| :--     | :--            | :--          | :--                                                                |
 | 2D      | NCHW           | 1 (C)        | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*     |
 | 3D      | NCDHW          | 1 (C)        | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^* |
 

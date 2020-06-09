@@ -21,7 +21,9 @@ propagations.  The backward propagation for the concatenation operation is
 simply an identity operation.
 
 ## Execution Arguments
-When executed, the inputs and outputs should be mapped to an execution argument index as specified by the following table.
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_MULTIPLE_SRC    |

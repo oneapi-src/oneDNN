@@ -102,6 +102,7 @@ requires different inputs and outputs.  For clarity, a summary is shown below.
 
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output      | Execution argument index  |
 | ---                         | ---                       |
 | \src                        | DNNL_ARG_SRC              |
@@ -113,7 +114,6 @@ argument index as specified by the following table.
 | \diffdst                    | DNNL_ARG_DIFF_DST         |
 | \diffsrc                    | DNNL_ARG_DIFF_SRC         |
 | \f$\diffgamma, \diffbeta\f$ | DNNL_ARG_DIFF_SCALE_SHIFT |
-
 
 ## Implementation Details
 

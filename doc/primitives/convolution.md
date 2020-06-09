@@ -38,7 +38,7 @@ if \f$ih < 0\f$, or \f$ih \geq IH\f$, or \f$iw < 0\f$, or \f$iw \geq IW\f$.
 
 #### Regular Convolution
 
-\f[\dst(n, oc, oh, ow) =  \bias(oc) + \\
+\f[\dst(n, oc, oh, ow) =  \bias(oc) \\
     + \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
         \src(n, ic, oh \cdot SH + kh - PH_L, ow \cdot SW + kw - PW_L)
         \cdot
@@ -58,7 +58,7 @@ IC_G \times KH \times KW \f$ 5D tensors for 2D convolutions with groups.
 
 \f[
     \dst(n, g \cdot OC_G + oc_g, oh, ow) =
-        \bias(g \cdot OC_G + oc_g) + \\
+        \bias(g \cdot OC_G + oc_g) \\
         +
         \sum_{ic_g=0}^{IC_G-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
             \src(n, g \cdot IC_G + ic_g, oh \cdot SH + kh - PH_L,
@@ -78,7 +78,7 @@ The case when \f$OC_G = IC_G = 1\f$ is also known as *a depthwise convolution*.
 
 \f[
     \dst(n, oc, oh, ow) =
-        \bias(oc) + \\
+        \bias(oc) \\
         +
         \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
             \src(n, ic, oh \cdot SH + kh \cdot (DH + 1) - PH_L,
@@ -128,6 +128,7 @@ update.
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_SRC             |

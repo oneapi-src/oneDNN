@@ -36,6 +36,7 @@ of dimensions as the \dst.
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_SRC             |

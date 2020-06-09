@@ -22,6 +22,7 @@ The binary primitive does not have a notion of forward or backward propagations.
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \f$\src_0\f$           | DNNL_ARG_SRC_0           |
