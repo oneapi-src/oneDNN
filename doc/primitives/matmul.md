@@ -134,7 +134,7 @@ argument with index set to
 
 1. Check @ref dev_guide_data_types.
 
-2. The CPU engine doesn't support `u8` data type for weights.
+2. The CPU engine does not support `u8` data type for weights.
 
 ## Performance Tips
 

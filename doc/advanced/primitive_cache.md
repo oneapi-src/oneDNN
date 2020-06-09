@@ -12,7 +12,7 @@ primitive implementations, etc. It can significantly reduce primitive creation
 overhead, especially when an application or a framework creates primitives
 for every instance of inference or iteration of training process.
 
-The primitive cache is global hence a user doesn't have to maintain any
+The primitive cache is global hence a user does not have to maintain any
 persistent oneDNN resources to benefit from the primitive cache.
 
 ## Managing Memory Consumption

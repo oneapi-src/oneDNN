@@ -53,7 +53,7 @@ dnnl_primitive_attr_set_SOMETHING_ELSE(attr, other_params);
 dnnl_primitive_desc_t op_pd; // operation primitive descriptor
 dnnl_primitive_desc_create(&op_pd, &op_d, attr, engine, hint_fwd_pd);
 
-// changing attr object here doesn't have any effect on op_pd
+// changing attr object here does not have any effect on op_pd
 
 // once attr is no more used we can immediately destroy it
 dnnl_primitive_attr_destroy(attr);
@@ -96,7 +96,7 @@ create a primitive descriptor with the attributes they set, it might happen
 that there is no primitive implementation that supports such a configuration.
 In this case, the library will return #dnnl_unimplemented in the case of the C
 API or throw a corresponding @ref dnnl::error exception in the case of the C++
-API. Unfortunately, the library doesn't currently provide any hints about what
+API. Unfortunately, the library does not currently provide any hints about what
 exactly is going wrong in this case. The corresponding section of the
 documentation simply documents the primitives' capabilities.
 

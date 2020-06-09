@@ -47,7 +47,7 @@ Average pooling supports two algorithms:
 #### Difference Between Forward Training and Forward Inference
 
 - Max pooling requires a `workspace` for the #dnnl_forward_training propagation
-  kind, and doesn't require it for #dnnl_forward_inference (see details below).
+  kind, and does not require it for #dnnl_forward_inference (see details below).
 
 ### Backward
 

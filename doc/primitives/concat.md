@@ -16,9 +16,9 @@ standard @ref dev_guide_conventions):
 
 where \f$c = C_1 + .. + C_{i-1} {}_{} + c'\f$.
 
-The concat primitive doesn't have a notion of forward or backward propagations.
-The backward propagation for the concatenation operation is simply an identity
-operation.
+The concat primitive does not have a notion of forward or backward
+propagations.  The backward propagation for the concatenation operation is
+simply an identity operation.
 
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution argument index as specified by the following table.
@@ -55,7 +55,7 @@ meaning associated with any logical dimensions.
 
 ### Post-ops and Attributes
 
-The concat primitive doesn't support any post-ops or attributes.
+The concat primitive does not support any post-ops or attributes.
 
 ## Implementation Limitations
 

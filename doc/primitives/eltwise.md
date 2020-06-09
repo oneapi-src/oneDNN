@@ -126,7 +126,7 @@ meaning associated with any logical dimensions.
 
 ### Post-ops and Attributes
 
-The eltwise primitive doesn't support any post-ops or attributes.
+The eltwise primitive does not support any post-ops or attributes.
 
 @anchor dg_eltwise_impl_limits
 ## Implementation Limitations
@@ -151,7 +151,7 @@ The eltwise primitive doesn't support any post-ops or attributes.
 
     - Moreover, such operations can be fused as a
       [post-op](@ref dev_guide_attributes) with the previous operation if that
-      operation doesn't require its \dst to compute the backward
+      operation does not require its \dst to compute the backward
       propagation (e.g., if the convolution operation satisfies these
       conditions).
 

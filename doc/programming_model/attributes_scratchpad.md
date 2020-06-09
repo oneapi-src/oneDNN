@@ -136,7 +136,7 @@ dnnl::primitive::primitive_desc op_pd(op_d, attr, engine);
 // Query the scratchpad memory descriptor
 dnnl::memory::desc scratchpad_md = op_pd.scratchpad_desc();
 
-// Note, that a primitive doesn't consume memory in this configuration:
+// Note, that a primitive does not consume memory in this configuration:
 assert(op_pd.query_s64(dnnl::query::memory_consumption_s64) == 0);
 
 // Create a primitive

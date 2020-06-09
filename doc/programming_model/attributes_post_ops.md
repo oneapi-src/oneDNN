@@ -50,7 +50,7 @@ primitive::primitive_desc op_pd(params, attr); // create a pd with the attr
 @warning
     Different primitives may have different post-ops support.  Moreover, the
     support might also depend on the actual implementation of a primitive. For
-    instance, the library generally doesn't support post-ops for reference
+    instance, the library generally does not support post-ops for reference
     primitives (which are typically very slow, so there is no point in doing
     the actual fusion). Robust code should handle errors accordingly. See the
     [section on attributes error handling](@ref dev_guide_attributes_error_handling).

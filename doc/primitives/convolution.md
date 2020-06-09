@@ -220,7 +220,7 @@ if the scales are not known at the primitive descriptor creation stage.
 In this case, the user must provide the scales as an additional input memory
 object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
 
-@note The library doesn't prevent using post-ops in training, but note that
+@note The library does not prevent using post-ops in training, but note that
 not all post-ops are feasible for training usage. For instance, using ReLU
 with non-zero negative slope parameter as a post-op would not produce an
 additional output `workspace` that is required to compute backward propagation

@@ -113,7 +113,7 @@ of any preceding compute-intensive primitive.
 
 ### Post-ops and Attributes
 
-The LRN primitive doesn't support any post-ops or attributes.
+The LRN primitive does not support any post-ops or attributes.
 
 
 @anchor dg_lrn_impl_limits

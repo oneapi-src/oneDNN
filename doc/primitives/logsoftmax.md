@@ -76,7 +76,7 @@ argument index as specified by the following table.
 
 ### Post-ops and Attributes
 
-The logsoftmax primitive doesn't support any post-ops or attributes.
+The logsoftmax primitive does not support any post-ops or attributes.
 
 ### Data Type Support
 

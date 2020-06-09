@@ -15,7 +15,7 @@ The sum primitive sums \f$N\f$ tensors (the variable names follow the standard
         \src_i(\overline{x})
 \f]
 
-The sum primitive doesn't have a notion of forward or backward propagations.
+The sum primitive does not have a notion of forward or backward propagations.
 The backward propagation for the sum operation is simply an identity operation.
 
 ## Execution Arguments
@@ -40,7 +40,7 @@ argument index as specified by the following table.
 
 ### Post-ops and Attributes
 
-The sum primitive doesn't support any post-ops or attributes.
+The sum primitive does not support any post-ops or attributes.
 
 ### Data Types Support
 

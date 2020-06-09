@@ -283,7 +283,7 @@ In Intel MKL-DNN v1.0, constructing a memory object using special value
 `MKLDNN_MEMORY_ALLOCATE` for a handle results in the buffer being allocated by
 the library. This makes the behavior of the C API memory object constructor
 aligned with its C++ API `mkldnn::memory` counterpart. Note that the C++ API
-memory object class still has an extra constructor that doesn't take a handle
+memory object class still has an extra constructor that does not take a handle
 at all, and asks the library to allocate the buffer (that is, the same behavior
 as calling with the handle equal to `MKLDNN_MEMORY_ALLOCATE`).
 
@@ -346,7 +346,7 @@ These changes bring new data types and functions, such as:
     // create a memory
     // native_handle can:
     //  - point to the user allocated memory, i.e. valid handle. In this case the
-    //    library doesn't own allocated memory.
+    //    library does not own allocated memory.
     //  - be MKLDNN_NATIVE_HANDLE_ALLOCATE to ask the library to allocate and
     //    attach memory. In this case the library owns allocated memory.
     //  - be MKLDNN_NATIVE_HANDLE_NONE to create mkldnn_memory w/o attached memory.

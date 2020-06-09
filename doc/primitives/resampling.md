@@ -120,7 +120,7 @@ source and destination memory objects:
 
 ### Post-ops and Attributes
 
-The resampling primitive doesn't support any post-ops or attributes.
+The resampling primitive does not support any post-ops or attributes.
 
 ## Implementation Limitations
 

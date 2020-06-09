@@ -45,7 +45,7 @@ For the rest of this guide, we will assume that \f$0_{x\_int8} = 0\f$.
 Depending on the architecture, the behavior of int8 computations might slightly
 vary. For more details, refer to @ref dev_guide_int8_computations.
 
-This guide doesn't cover how the appropriate scaling factor can be found.
+This guide does not cover how the appropriate scaling factor can be found.
 Refer to the materials in the [Introduction](@ref dgaq_intro).
 
 ### Example: Convolution Quantization Workflow
@@ -80,7 +80,7 @@ where
 - \f$downconvert\_f32\_to\_s8()\f$ converts an `f32` value to `s8` with
   potential saturation if the values are out of the range of the INT8 data type.
 
-Note that in order to perform the operation, one doesn't need to know the
+Note that in order to perform the operation, one does not need to know the
 exact scaling factors for all the tensors; it is enough to know only the
 \f$output\_scale\f$. The library utilizes this fact: a user needs to provide
 only this one extra parameter to the convolution primitive (see the [Output
@@ -140,7 +140,7 @@ where
 ## API
 
 The library API to support for INT8 was designed for the model described above.
-However, it doesn't require users to follow exactly this model. As long as
+However, it does not require users to follow exactly this model. As long as
 users can fit their model into the given functionality everything should work
 fine. Having this in mind we tried to design a minimal and simple yet powerful
 enough quantization API.

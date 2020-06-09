@@ -143,7 +143,7 @@ represented by the u8 data type, the non-symmetric quantization is assumed.
 Namely, the formula is:
 - \f$data_{f32}[:] = \frac{1}{scale}(data_{u8}[:] - shift)\f$.
 
-But similarly to the other primitives, the LSTM primitive doesn't handle
+But similarly to the other primitives, the LSTM primitive does not handle
 potential overflows automatically. It is up to the user to specify the
 appropriate quantization parameters (see
 dnnl::primitive_attr::set_rnn_data_qparams() and
@@ -264,7 +264,7 @@ the implementations are given below:
 
 2. **s8/s8 GEMM** (dnnl_gemm_s8s8s32()) does nothing to handle the overflow
    issue. It is up to the user to prepare the data so that the
-   overflow/saturation doesn't occur. For instance, the user can specify
+   overflow/saturation does not occur. For instance, the user can specify
    s7 `[-64, 63]` instead of s8 for the second input.
 
    @warning
