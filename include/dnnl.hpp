@@ -1864,10 +1864,10 @@ struct memory : public handle<dnnl_memory_t> {
         ///    dimension has no padding (i.e.
         ///    `padded_dims[dim] == dims[dim] && dims[dim] == 1`).
         /// 3. Split a dimension into multiple ones. This is possible only if
-        ///    the size of the dimension is exactly equal to the product of the
-        ///    split ones and the dimension does not have padding (i.e.
+        ///    the product of all tensor diumensions stays constant and the
+        ///    dimension being split does not have padding (i.e.
         ///    `padded_dims[dim] = dims[dim]`).
-        /// 4. Joining multiple consecutive dimensions into a single one. As in
+        /// 4. Join multiple consecutive dimensions into a single one. As in
         ///    the cases above, this requires that the dimensions do not have
         ///    padding and that the memory format is such that in physical
         ///    memory these dimensions are dense and have the same order as
