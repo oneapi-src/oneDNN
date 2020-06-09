@@ -372,12 +372,12 @@ struct primitive : public handle<dnnl_primitive_t> {
     /// primitive_desc::query_md(#query::exec_arg_md, index) unless using
     /// dynamic shapes (see DNNL_RUNTIME_DIM_VAL).
     ///
-    /// @param stream Stream object. The stream must belong to the same engine
-    ///               as the primitive.
+    /// @param astream Stream object. The stream must belong to the same engine
+    ///     as the primitive.
     /// @param args Arguments map.
     /// @param deps Optional vector with `cl::sycl::event` dependencies.
     ///
-    cl::sycl::event DNNL_API execute_sycl(const stream &stream,
+    cl::sycl::event DNNL_API execute_sycl(const stream &astream,
             const std::unordered_map<int, memory> &args,
             const std::vector<cl::sycl::event> &deps = {}) const;
 #endif
@@ -1142,11 +1142,12 @@ struct stream : public handle<dnnl_stream_t> {
 #if DNNL_WITH_SYCL
     /// Constructs a stream for the specified engine and the SYCL queue.
     ///
-    /// @param eng Engine object to use for the stream.
-    /// @param aqueue SYCL queue to use for the stream.
-    DNNL_API stream(const engine &eng, cl::sycl::queue &aqueue);
+    /// @param aengine Engine object to use for the stream.
+    /// @param queue SYCL queue to use for the stream.
+    DNNL_API stream(const engine &aengine, cl::sycl::queue &queue);
 
     /// Returns the underlying SYCL queue object.
+    /// @returns SYCL queue object.
     cl::sycl::queue DNNL_API get_sycl_queue() const;
 #endif
 
@@ -1198,10 +1199,12 @@ DNNL_DEFINE_BITMASK_OPS(stream::flags)
 ///     format to a primitive's format.
 ///
 /// 2. **Memory object** -- an engine-specific object that handles the data
-///     and its description (a memory descriptor). For the CPU engine, the
-///     data handle is simply a pointer to @c void. The data handle can be
-///     queried using #dnnl::memory::get_data_handle() and set using
-///     #dnnl::memory::set_data_handle(). A memory object can also be
+///     and its description (a memory descriptor). With CPU engine or with
+///     USM, the data handle is simply a pointer to @c void. The data handle
+///     can be queried using #dnnl::memory::get_data_handle() and set using
+///     #dnnl::memory::set_data_handle(). The underlying SYCL buffer, when
+///     used, can be queried using #dnnl::memory::get_sycl_buffer and and set
+///     using #dnnl::memory::set_sycl_buffer. A memory object can also be
 ///     queried for the underlying memory descriptor and for its engine using
 ///     #dnnl::memory::get_desc() and dnnl::memory::get_engine().
 ///
@@ -2092,12 +2095,12 @@ struct memory : public handle<dnnl_memory_t> {
     /// Constructs a memory object from a SYCL buffer.
     ///
     /// @param md Memory descriptor.
-    /// @param engine Engine.
-    /// @param buf SYCL buffer.
+    /// @param aengine Engine to store the data on.
+    /// @param buf A SYCL buffer.
     template <typename T, int ndims = 1>
-    memory(const desc &md, const engine &engine,
+    memory(const desc &md, const engine &aengine,
             cl::sycl::buffer<T, ndims> &buf)
-        : memory(md, engine, DNNL_MEMORY_NONE) {
+        : memory(md, aengine, DNNL_MEMORY_NONE) {
         set_sycl_buffer(buf);
     }
 #endif
@@ -2129,7 +2132,8 @@ struct memory : public handle<dnnl_memory_t> {
 
     /// Returns the underlying memory buffer.
     ///
-    /// On the CPU engine this is a pointer to the allocated memory.
+    /// On the CPU engine, or when using USM, this is a pointer to the
+    /// allocated memory.
     void *get_data_handle() const {
         void *handle;
         error::wrap_c_api(dnnl_memory_get_data_handle(get(), &handle),
@@ -2160,8 +2164,10 @@ struct memory : public handle<dnnl_memory_t> {
     ///     zeroes to the padding area if it exists. Hence, the @p handle
     ///     parameter cannot and does not have a const qualifier.
     ///
-    /// @param handle Data handle. For the CPU engine, the data handle
-    ///     is a pointer to the actual data. For OpenCL it is a cl_mem.
+    /// @param handle Memory buffer to use as the underlying storage. On the
+    ///     CPU engine or when USM is used, the data handle is a pointer to
+    ///     the actual data. For OpenCL it is a cl_mem. It must have at least
+    ///     get_desc().get_size() bytes allocated.
     /// @param stream Stream to use to execute padding in.
     void set_data_handle(void *handle, const stream &stream) const {
         error::wrap_c_api(
@@ -2175,8 +2181,10 @@ struct memory : public handle<dnnl_memory_t> {
     /// #dnnl::memory::set_data_handle(void *, const stream &) const
     /// for more information.
     ///
-    /// @param handle Data handle. For the CPU engine, the data handle
-    ///     is a pointer to the actual data. For OpenCL it is a cl_mem.
+    /// @param handle Memory buffer to use as the underlying storage. For the
+    ///     CPU engine, the data handle is a pointer to the actual data. For
+    ///     OpenCL it is a cl_mem. It must have at least get_desc().get_size()
+    ///     bytes allocated.
     void set_data_handle(void *handle) const {
         error::wrap_c_api(
                 dnnl_memory_set_data_handle_v2(get(), handle, nullptr),
@@ -2252,6 +2260,8 @@ struct memory : public handle<dnnl_memory_t> {
     ///
     /// @tparam T Type of the requested buffer.
     /// @tparam ndims Number of dimensions of the requested buffer.
+    /// @param offset Offset within the returned buffer at which the memory
+    ///               object's data starts. Only meaningful for 1D buffers.
     template <typename T, int ndims = 1>
     cl::sycl::buffer<T, ndims> get_sycl_buffer(size_t *offset = nullptr) const {
         static_assert(ndims == 1, "only 1D buffers supported");
@@ -3380,8 +3390,18 @@ struct reorder : public primitive {
 #ifdef DNNL_SYCL_DPCPP
     using primitive::execute_sycl;
 
-    cl::sycl::event execute_sycl(stream &astream, memory &src, memory &dst,
-            const std::vector<cl::sycl::event> &deps = {}) const {
+    /// Executes the reorder primitive (SYCL-aware version)
+    ///
+    /// @param astream Stream object. The stream must belong to the same engine
+    ///               as the primitive.
+    /// @param src Source memory object.
+    /// @param dst Destination memory object.
+    /// @param deps Vector of SYCL events that the execution should depend on.
+    ///
+    /// @returns SYCL event that corresponds to the SYCL queue underlying the
+    ///          @p stream.
+    cl::sycl::event execute_sycl(const stream &astream, memory &src,
+            memory &dst, const std::vector<cl::sycl::event> &deps = {}) const {
         return primitive::execute_sycl(astream,
                 {{DNNL_ARG_FROM, src},
                         { DNNL_ARG_TO,
