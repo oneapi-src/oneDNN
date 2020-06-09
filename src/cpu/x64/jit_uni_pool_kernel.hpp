@@ -81,6 +81,9 @@ private:
     Ymm ymm_tmp_1 = Ymm(0);
     Vmm vmm_tmp_1 = Vmm(0);
 
+    Xmm x_padd_mask = Xmm(1);
+    Xmm x_padd_mask_avx_high = Xmm(4);
+
     Xmm xmm_ker_area_h = Xmm(2);
     Xmm xmm_one = Xmm(2);
     Xmm xmm_tmp = Xmm(3);
@@ -108,6 +111,7 @@ private:
     Opmask k_index_mask = Opmask(6);
     Opmask k_store_mask = Opmask(7);
     Opmask k_mask_cvt = Opmask(5);
+    Opmask k_padd_mask = Opmask(4);
 
     // Here be some (tame) dragons. This kernel does not follow the regular
     // OS-agnostic ABI pattern because when isa is sse41 it uses maskmovdqu
@@ -144,9 +148,12 @@ private:
 
     Reg32 reg_shuf_mask = esi;
 
+    bool sse_high_half = false;
+
     int prev_kw;
     void (*jit_ker)(jit_pool_call_s *);
 
+    void prepare_tail_mask();
     void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r);
     void avg_step(int ur_w, int ur_bc, int pad_l, int pad_r);
     void max_step_fwd(int ur_w, int ur_bc, int pad_l, int pad_r);
