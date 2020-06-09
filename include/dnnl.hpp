@@ -377,7 +377,7 @@ struct primitive : public handle<dnnl_primitive_t> {
     /// @param args Arguments map.
     /// @param deps Optional vector with `cl::sycl::event` dependencies.
     ///
-    cl::sycl::event DNNL_API execute_sycl(stream &astream,
+    cl::sycl::event DNNL_API execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<cl::sycl::event> &deps = {}) const;
 #endif

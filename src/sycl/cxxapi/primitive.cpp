@@ -27,7 +27,7 @@
 
 namespace dnnl {
 
-cl::sycl::event primitive::execute_sycl(stream &stream,
+cl::sycl::event primitive::execute_sycl(const stream &stream,
         const std::unordered_map<int, memory> &aargs,
         const std::vector<cl::sycl::event> &deps) const {
     auto *sycl_stream
