@@ -63,10 +63,12 @@ The RNN API provides four cell functions:
 
 ## Vanilla RNN
 
-A single-gate recurrent cell initialized with
-`vanilla_rnn_forward::desc` or `vanilla_rnn_forward::desc` as in the following example.
+A single-gate recurrent cell initialized
+with #dnnl::vanilla_rnn_forward::desc::desc()
+or #dnnl::vanilla_rnn_forward::desc::desc() as in the following example.
+
 ~~~cpp
-    auto vanilla_rnn_desc = vanilla_rnn_forward::desc(
+    auto vanilla_rnn_desc = dnnl::vanilla_rnn_forward::desc(
         aprop, activation, direction, src_layer_desc, src_iter_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
@@ -87,8 +89,9 @@ h_t &= activation(a_t)
 
 ### LSTM (or Vanilla LSTM)
 
-A four-gate long short-term memory recurrent cell initialized with
-`lstm_forward::desc` or `lstm_backward::desc` as in the following example.
+A four-gate long short-term memory recurrent cell initialized
+with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
+as in the following example.
 
 ~~~cpp
     auto lstm_desc = lstm_forward::desc(
@@ -107,11 +110,11 @@ for the forward pass:
 i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1, l} + B_i) \\
 f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1, l} + B_f) \\
 \\
-\tilde c_t &= tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
+\tilde c_t &= \tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
 c_t &= f_t * c_{t-1} + i_t * \tilde c_t \\
 \\
 o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1, l} + B_o) \\
-h_t &= tanh(c_t) * o_t
+h_t &= \tanh(c_t) * o_t
 \end{align}
 \f]
 
@@ -125,11 +128,12 @@ channels(\dstiter)\f$.
 
 ### LSTM with Peephole
 
-A four-gate long short-term memory recurrent cell with peephole initialized with
-`lstm_forward::desc` or `lstm_backward::desc` as in the following example.
+A four-gate long short-term memory recurrent cell with peephole initialized
+with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
+as in the following example.
 
 ~~~cpp
-    auto lstm_desc = lstm_forward::desc(
+    auto lstm_desc = dnnl::lstm_forward::desc(
         aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
         weights_layer_desc, weights_iter_desc, weights_peephole_desc,
         bias_desc, dst_layer_desc, dst_iter_h_desc, dst_iter_c_desc);
@@ -146,11 +150,11 @@ and output for the forward pass:
 i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1, l} + P_i \cdot c_{t-1} + B_i) \\
 f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1, l} + P_f \cdot c_{t-1} + B_f) \\
 \\
-\tilde c_t &= tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
+\tilde c_t &= \tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
 c_t &= f_t * c_{t-1} + i_t * \tilde c_t \\
 \\
 o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1, l} + P_o \cdot c_t + B_o) \\
-h_t &= tanh(c_t) * o_t
+h_t &= \tanh(c_t) * o_t
 \end{align}
 \f]
 
@@ -165,10 +169,11 @@ primitive without peephole.
 ### LSTM with Projection
 
 A four-gate long short-term memory recurrent cell with projection initialized
-with `lstm_forward::desc` or `lstm_backward::desc` as in the following example.
+with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
+as in the following example.
 
 ~~~cpp
-    auto lstm_desc = lstm_forward::desc(
+    auto lstm_desc = dnnl::lstm_forward::desc(
         aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
         weights_layer_desc, weights_iter_desc, weights_peephole_desc,
         weights_projection_desc, bias_desc, dst_layer_desc, dst_iter_h_desc,
@@ -204,10 +209,12 @@ primitive without projection.
 
 ## GRU
 
-A three-gate gated recurrent unit cell, initialized with
-`gru_forward::desc` or `gru_backward::desc` as in the following example.
+A three-gate gated recurrent unit cell, initialized
+with #dnnl::gru_forward::desc::desc() or #dnnl::gru_backward::desc::desc()
+as in the following example.
+
 ~~~cpp
-    auto gru_desc = gru_forward::desc(
+    auto gru_desc = dnnl::gru_forward::desc(
         aprop, direction, src_layer_desc, src_iter_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
@@ -221,7 +228,7 @@ following equation gives the mathematical definition of these gates.
 \begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
-o_t &= tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
+o_t &= \tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
 h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 \end{align}
 \f]
@@ -237,9 +244,11 @@ This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 ## Linear-Before-Reset GRU
 
 A three-gate gated recurrent unit cell with linear layer applied before the
-reset gate, initialized with or  as in the following example.
+reset gate, initialized with #dnnl::lbr_gru_forward::desc::desc()
+or #dnnl::lbr_gru_backward::desc::desc() as in the following example.
+
 ~~~cpp
-    auto lbr_gru_desc = lbr_gru_forward::desc(
+    auto lbr_gru_desc = dnnl::lbr_gru_forward::desc(
         aprop, direction, src_layer_desc, src_iter_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
@@ -252,7 +261,7 @@ Linear-Before-Reset GRU cell.
 \begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
-o_t &= tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
+o_t &= \tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
 h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 \end{align}
 \f]

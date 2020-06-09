@@ -35,7 +35,7 @@ where
     \end{cases}
 \f]
 
-Here, \f$u \in [0, \frac{C}{G})\f$ and \f$v \in [0, G)\f$.
+Here, \f$0 \leq u < \frac{C}{G}\f$ and \f$0 \leq v < G\f$.
 
 #### Difference Between Forward Training and Forward Inference
 

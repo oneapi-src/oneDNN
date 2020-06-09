@@ -24,8 +24,8 @@ Furthermore, let the remaining convolution parameters be:
 | --:--                                | :--        | :--        | :--        | :--                                                                                                                    |
 | Padding: <br>Front, top, and left    | \f$PD_L\f$ | \f$PH_L\f$ | \f$PW_L\f$ | In the API we use `padding_l` to indicate the corresponding vector of paddings (`_l` in the name stands for **left**)  |
 | Padding: <br>Back, bottom, and right | \f$PD_R\f$ | \f$PH_R\f$ | \f$PW_R\f$ | In the API we use `padding_r` to indicate the corresponding vector of paddings (`_r` in the name stands for **right**) |
-| Stride                               | \f$SD\f$   | \f$SH\f$   | \f$SW\f$   | Non-strided convolution should have the stride parameters equal `1`                                                    |
-| Dilation                             | \f$DD\f$   | \f$DH\f$   | \f$DW\f$   | Dilation starts with 0, so non-dilated convolution should have the dilation parameters equal `0`                       |
+| Stride                               | \f$SD\f$   | \f$SH\f$   | \f$SW\f$   | Convolution without strides is defined by setting the stride parameters to 1                                           |
+| Dilation                             | \f$DD\f$   | \f$DH\f$   | \f$DW\f$   | Non-dilated convolution is defined by setting the dilation parameters to 0                                             |
 
 The following formulas show how oneDNN computes convolutions. They are
 broken down into several types to simplify the exposition, but in reality the
@@ -94,11 +94,6 @@ Here:
 
 - \f$OW = \left\lfloor{\frac{IW - DKW + PW_L + PW_R}{SW}}
         \right\rfloor + 1,\f$ where \f$DKW = 1 + (KW - 1) \cdot (DW + 1)\f$.
-
-@note
-    In oneDNN dilation parameter equals 0 corresponds to non-dilated, i.e.
-    regular, convolution. Other libraries might use another convention, where
-    dilation parameter equals 1 corresponds to regular convolution.
 
 #### Deconvolution (Transposed Convolution)
 
