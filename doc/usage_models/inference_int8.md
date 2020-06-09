@@ -12,9 +12,9 @@ instruction, at the cost of reduced (but acceptable) accuracy.
 
 ## Int8 Workflow
 
-There are different ways to use lower precision to perform inference.  Please
-go through the @ref dev_guide_attributes_quantization page to get the initial
-understanding of what kind of quantization model oneDNN supports.
+There are different ways to use lower precision to perform inference. The
+@ref dev_guide_attributes_quantization page describes what kind of
+quantization model oneDNN supports.
 
 ### Quantization Process
 To operate with int8 data types from a higher-precision format (for example,
@@ -22,72 +22,66 @@ To operate with int8 data types from a higher-precision format (for example,
 process converts a given input into a lower-precision format. The precision and
 accuracy factors are determined by the scaling factors.
 
-### Scale
-The scale is usually obtained from sampling the dataset of previous executions
-in the original format (for example, the activations and weights from training
-in fp32) and is formulated as:
+### Range of the Data
+The data range is usually obtained by sampling the dataset of previous
+executions in the original data type (for example, the activations and weights
+from training in f32):
 
-+ \f$ R_{\{\alpha,w\}} = max(abs(T_{\{\alpha,w\}}))\f$
++ \f$ R = \max(abs(T))\f$.
 
-where \f$T_{\{\alpha,w\}} {}_{}\f$ is a tensor corresponding
-to either the weights \f$w\f$ or the activations \f$\alpha\f$.
-
-The purpose is to establish the range of values used in the computation,
-where selecting a proper scaling factor prevents over- or underflows during
+Here \f$T\f$ is a tensor corresponding to either the weights or the
+activations. Establishing the range of values used in the computation, and
+selecting a proper scaling factor, prevents over- or underflows during
 computation of the lower-precision results.
 
-### Quantization Factor
-The next step is to calculate the **quantization factor** for converting the
-values into the corresponding int8 range. This is also known as the **scale**
-or **scaling factor** applied to the original high-precision values and is
-calculated as:
+### Scaling Factor
+The **quantization factor** is used to convert the
+original values into the corresponding int8 range and is calculated as:
 
 + \f$ Q_{\alpha} = \frac{255}{R_{\alpha}}\f$ is the
 quantization factor for activations with non-negative values.
 
 + \f$ Q_{w} = \frac{127}{R_{w}}\f$ is the quantization factor for weights.
 
-The low-precision values, known as the **quantized** activation, weights, and
-bias values, are calculated as:
+The **quantized** activation, weights, and bias values are calculated as:
 
-+ \f$\alpha_{u8} = \lceil Q_{\alpha} \alpha_{f32} \rceil \in [0,255]\f$
++ \f$\alpha_{u8} = \lceil Q_{\alpha} \alpha_{f32} \rceil \in [0,255]\f$,
 
-+ \f$W_{s8} = \lceil Q_{w} W_{f32} \rceil \in [-127,127]\f$
++ \f$W_{s8} = \lceil Q_{w} W_{f32} \rceil \in [-127,127]\f$,
 
-+ \f$b_{s32} = \lceil Q_{\alpha} Q_{w} b_{f32} \rceil \in [-2^{31},2^{31}-1]\f$
++ \f$b_{s32} = \lceil Q_{\alpha} Q_{w} b_{f32} \rceil \in [-2^{31},2^{31}-1]\f$.
 
-where the function \f$ \lceil \rceil \f$ rounds to the selected rounding mode
-(typically determined by the MXCSR register; the default value is
- RoundNearestEven).
+Here \f$ \lceil \rceil \f$ denotes rounding according to the active rounding
+mode (typically determined by the MXCSR register; the default value is
+RoundNearestEven).
 
-When the destination value (for example, from a convolution) is stored as a
-signed 32-bit integer, the result is bound to the same quantization *scaling*
-factors:
+When the destination value is stored as a signed 32-bit integer, the result is
+bound to the same quantization **scaling factors**:
 
-+ \f$X_{s32} = W_{s8} \times \alpha{u8} + b_{s32} \approx Q_{\alpha} Q_{\omega} X_{f32}\f$
++ \f$X_{s32} = W_{s8} \cdot \alpha{u8} + b_{s32} \approx Q_{\alpha} Q_{\omega} X_{f32}\f$,
 
-+ where \f$X_{f32} = W_{f32} \times \alpha_{f32} + b_{f32}\f$
++ where \f$X_{f32} = W_{f32} \cdot \alpha_{f32} + b_{f32}\f$.
 
-where the approximated value is due to the rounded values.
+Here the approximation is used to denote rounding.
 
-Inversely, the dequantized value is calculated as:
+The dequantized value is calculated as
 
-+ \f$X_{f32} \approx \frac{1}{Q_{\alpha} Q_{\omega}} X_{s32} \f$
++ \f$X_{f32} \approx \frac{1}{Q_{\alpha} Q_{\omega}} X_{s32} \f$.
 
 ### Quantization Example
-To show how the int8 parameters are obtained, suppose we first start off with a
-set of arbitrary high-precision input and output values. These values come from
-sampling a previously executed training run and are in their original 32-bit
-floating point format as:
+To show how the quantization parameters are obtained, suppose we first start
+with a set of high-precision input and output values. These values come from
+sampling a previously executed training run and are stored as 32-bit floating
+point values:
 
-+ activations: \f$ T_{\alpha} = [15, 14, 15 ... 8, 11 ]\f$
-  where \f$ max(abs(T_{\alpha})) = 15\f$
++ activations: \f$ T_{\alpha} = [15, 14, 15, \ldots, 8, 11 ]\f$
+  where \f$ \max(abs(T_{\alpha})) = 15\f$
 
-+ weights:\f$ T_{\omega} = [-5.1 , 6.8, ... -1.2, 9.8 ]\f$
-  where \f$ max(abs(T_{\omega})) = 9.8\f$
++ weights:\f$ T_{\omega} = [-5.1 , 6.8, \ldots, -1.2, 9.8 ]\f$
+  where \f$ \max(abs(T_{\omega})) = 9.8\f$
 
-+ bias:\f$ T_{\alpha} = [ 2.4, -5.2 ... -8 ]\f$
-  where \f$ max(abs(T_{\alpha})) = 8\f$
++ bias:\f$ T_{\alpha} = [ 2.4, -5.2, \ldots, -8 ]\f$
+  where \f$ \max(abs(T_{\alpha})) = 8\f$
 
 The scaling factors are:
 
@@ -95,46 +89,39 @@ The scaling factors are:
 
 + \f$ Q_{w} = \frac{127}{R_{w}} = \frac{127}{9.8} = 12.96\f$
 
-Finally, the quantized input values for the 8-bit operation are calculated as:
+Finally, the quantized input values for the int8 operation are calculated as:
 
 + \f$\alpha_{u8} = \lceil Q_{\alpha} \alpha_{f32} \rceil\f$
-   \f$ = \lceil 17 \times [15, 14, ... 11 ] \rceil = [255, 238, ... 187] \f$
+   \f$ = \Bigl \lceil 17 \cdot [15, 14, \ldots, 11 ] \Bigr \rceil = [255, 238, \ldots, 187] \f$
 
 + \f$W_{s8} = \lceil Q_{w} W_{f32} \rceil
-    = \lceil 12.96 \times [-5.1 , 6.8, ... -1.2, 9.8 ] \rceil
-    = [-66, 88, ... -15, 127] \f$
+    = \Bigl \lceil 12.96 \cdot [-5.1 , 6.8, \ldots, -1.2, 9.8 ] \Bigr \rceil
+    = [-66, 88, \ldots, -15, 127] \f$
 
 + \f$b_{s32} = \lceil Q_{\alpha} Q_{w} b_{f32} \rceil
-    = \lceil 17 \times 12.96 \times [ 2.4, -5.2 ... -8 ] \rceil
-    = [528, -1145, ... -1762] \f$
+    = \Bigl \lceil 17 \cdot 12.96 \cdot [ 2.4, -5.2 \ldots, -8 ] \Bigr \rceil
+    = [528, -1145, \ldots, -1762] \f$
 
 These arrays are the new inputs for the int8 net.
 
 ## int8 Support
 
-oneDNN supports low-precision computations for inference through the
-int8 primitives. int8 primitives are ordinary oneDNN primitives that
-have their input and output parameters configured to 8-bit types. int8
-primitives are optimized for high performance on the compatible hardware
-(see @ref dev_guide_data_types).
+oneDNN supports int8 computations for inference by allowing one to specify that
+primitives' input and output memory objects use int8 data types. int8
+primitive implementations are optimized for high performance on the compatible
+hardware (see @ref dev_guide_data_types).
 
 ### Attributes
 
-oneDNN primitive behavior may be extended for additional
-functionalities involving output data transformation. These additional features
-are configured via **primitive attributes**. The primitive attributes
-definition is an opaque structure for passing extra parameters to a primitive
-descriptor. These parameters include a scaling factor and fused post-ops.
-All operation primitives support the attributes structure;
-however, some configurations are not implemented and result in *failed
-primitive creation*.
+Scaling factors can be configured using **primitive attributes**. It is also
+possible to specify fused post-ops. All primitives support the attributes, but
+not all combinations of parameters are supported. In the case of an unsupported
+combination, the library returns an error.
 
-The **scaling factor**, as previously described, is known prior to the
-inference operation where the values are calculated from a set of formulas. In
-oneDNN, the scaling factor is applied to the output of a primitive.
+In oneDNN, the scaling factor is applied to the output of a primitive.
 Moreover, to perform input transformations (for example, source, bias, and
-weights), oneDNN performs quantizing and dequantizing of data for int8
-through the **Reorder Primitive**.
+weights), oneDNN performs quantizing and dequantizing of data for int8 using
+the **reorder primitive**.
 
 oneDNN has two formats for defining the output scaling factor. Depending
 on the configuration set by the scaling mask, either the output is scaled
