@@ -183,8 +183,7 @@ status_t gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
 
                 for (dim_t mb = 1; mb < MB; ++mb)
                     cvt_bfloat16_and_add_to_float(&diff_bias_acc[oc_s],
-                            &((bfloat16_t *)diff_dst)[mb * OC + oc_s],
-                            &diff_bias_acc[oc_s], len);
+                            &((bfloat16_t *)diff_dst)[mb * OC + oc_s], len);
 
                 if (!pd()->diff_bias_is_acc_)
                     cvt_float_to_bfloat16(&((bfloat16_t *)diff_bias)[oc_s],

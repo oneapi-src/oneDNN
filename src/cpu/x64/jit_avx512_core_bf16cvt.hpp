@@ -329,7 +329,6 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
 
         mov(reg_inp, ptr[abi_param1 + GET_OFF(inp)]);
         mov(reg_out, ptr[abi_param1 + GET_OFF(out)]);
-        if (with_add_) mov(reg_add, ptr[abi_param1 + GET_OFF(add)]);
 
         if (is_dynamic_size_) { // determine nelems after JIT is called
             mov(reg_nelems, ptr[abi_param1 + GET_OFF(nelems)]);
@@ -342,18 +341,16 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
                     cmp(reg_nelems, simd_w_ * unroll);
                     jl(l_simd_loop[i], T_NEAR);
                     for (int j = 0; j < simd_w_ * unroll; j += simd_w_) {
+                        auto out_addr = zword[reg_out + sizeof(float) * j];
+
                         vpmovzxwd(
                                 zmm_cvt, ptr[reg_inp + sizeof(bfloat16_t) * j]);
                         vpslld(zmm_cvt, zmm_cvt, 0x10);
-                        if (with_add_)
-                            vaddps(zmm_cvt, zmm_cvt,
-                                    zword[reg_add + sizeof(float) * j]);
-                        vmovdqu32(zword[reg_out + sizeof(float) * j], zmm_cvt);
+                        if (with_add_) vaddps(zmm_cvt, zmm_cvt, out_addr);
+                        vmovdqu32(out_addr, zmm_cvt);
                     }
                     add(reg_inp, simd_w_ * unroll * sizeof(bfloat16_t));
                     add(reg_out, simd_w_ * unroll * sizeof(float));
-                    if (with_add_)
-                        add(reg_add, simd_w_ * unroll * sizeof(float));
                     sub(reg_nelems, simd_w_ * unroll);
                     jmp(l_simd_loop[i + 1], T_NEAR);
                 }
@@ -370,7 +367,7 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
             vpmovzxwd(zmm_cvt | ktail_mask | T_z, zword[reg_inp]);
             vpslld(zmm_cvt, zmm_cvt, 0x10);
             if (with_add_)
-                vaddps(zmm_cvt | ktail_mask | T_z, zmm_cvt, zword[reg_add]);
+                vaddps(zmm_cvt | ktail_mask | T_z, zmm_cvt, zword[reg_out]);
             vmovdqu32(zword[reg_out] | ktail_mask, zmm_cvt);
             L(l_simd_notail);
 
@@ -386,16 +383,15 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
                 mov(reg_nelems, number_of_loops);
                 L(l_number_of_loops);
                 for (size_t i = 0; i < loop_length; i += simd_w_) {
+                    auto out_addr = zword[reg_out + sizeof(float) * i];
+
                     vpmovzxwd(zmm_cvt, ptr[reg_inp + sizeof(bfloat16_t) * i]);
                     vpslld(zmm_cvt, zmm_cvt, 0x10);
-                    if (with_add_)
-                        vaddps(zmm_cvt, zmm_cvt,
-                                zword[reg_add + sizeof(float) * i]);
-                    vmovups(zword[reg_out + sizeof(float) * i], zmm_cvt);
+                    if (with_add_) vaddps(zmm_cvt, zmm_cvt, out_addr);
+                    vmovups(out_addr, zmm_cvt);
                 }
                 add(reg_inp, sizeof(bfloat16_t) * loop_length);
                 add(reg_out, sizeof(float) * loop_length);
-                if (with_add_) add(reg_add, sizeof(float) * loop_length);
 
                 dec(reg_nelems);
                 cmp(reg_nelems, 0);
@@ -404,16 +400,15 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
 
             if (tail_of_loops > 0) {
                 for (size_t i = 0; i < tail_of_loops; i += simd_w_) {
+                    auto out_addr = zword[reg_out + sizeof(float) * i];
+
                     vpmovzxwd(zmm_cvt, ptr[reg_inp + sizeof(bfloat16_t) * i]);
                     vpslld(zmm_cvt, zmm_cvt, 0x10);
-                    if (with_add_)
-                        vaddps(zmm_cvt, zmm_cvt,
-                                zword[reg_add + sizeof(float) * i]);
-                    vmovups(zword[reg_out + sizeof(float) * i], zmm_cvt);
+                    if (with_add_) vaddps(zmm_cvt, zmm_cvt, out_addr);
+                    vmovups(out_addr, zmm_cvt);
                 }
                 add(reg_inp, sizeof(bfloat16_t) * tail_of_loops);
                 add(reg_out, sizeof(float) * tail_of_loops);
-                if (with_add_) add(reg_add, sizeof(float) * tail_of_loops);
             }
             if (tail_mask_ != 0) {
                 mov(reg32_mask, tail_mask_);
@@ -422,7 +417,7 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
                 vpmovzxwd(zmm_cvt | ktail_mask | T_z, ptr[reg_inp]);
                 vpslld(zmm_cvt, zmm_cvt, 0x10);
                 if (with_add_)
-                    vaddps(zmm_cvt | ktail_mask | T_z, zmm_cvt, zword[reg_add]);
+                    vaddps(zmm_cvt | ktail_mask | T_z, zmm_cvt, zword[reg_out]);
                 vmovups(zword[reg_out] | ktail_mask, zmm_cvt);
             }
         }
@@ -449,7 +444,6 @@ private:
 
     Xbyak::Reg64 reg_inp = rax;
     Xbyak::Reg64 reg_out = rbx;
-    Xbyak::Reg64 reg_add = r11;
     Xbyak::Reg64 reg_nelems = rdx;
 
     Xbyak::Reg64 reg64_tail = rcx;
