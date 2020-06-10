@@ -30,7 +30,7 @@
 #endif
 
 #if INPUT_DT_BF16
-#define TO_INPUT(x) convert_f32_to_bf16(x)
+#define TO_INPUT(x) cvt_f32_to_bf16(x)
 #else
 #define TO_INPUT(x) (x)
 #endif
