@@ -121,7 +121,7 @@ void cvt_bfloat16_and_add_to_float(
         p_.out = (void *)out;
         p_.nelems = nelems;
         static const cpu::x64::jit_avx512_core_cvt_bf16_to_ps_t
-                cvt_bf16_add_to_ps {0, true};
+                cvt_bf16_add_to_ps {true};
         cvt_bf16_add_to_ps.jit_ker(&p_);
         return;
     }
