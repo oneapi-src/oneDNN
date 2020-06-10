@@ -90,7 +90,7 @@ status_t zero_points_t::set(
             = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);
     const bool ok = count == 1
             && IMPLICATION(mask != 0,
-                    arg == DNNL_ARG_DST
+                    utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_DST)
                             && zero_points[0] == DNNL_RUNTIME_S32_VAL)
             && IMPLICATION(!supported_arg, *zero_points == 0);
     if (!ok) return status::unimplemented;

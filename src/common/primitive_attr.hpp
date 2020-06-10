@@ -257,7 +257,7 @@ struct zero_points_t : public c_compatible {
     }
 
     // arg-specific checks
-    bool common(int arg) const { return true; }
+    bool common(int arg) const { return get_mask(arg) == 0; }
     bool defined(int arg) const { return !is_runtime_value(*get(arg)); }
     bool has_default_values(int arg) const {
         return *get(arg) == 0 && get_mask(arg) == 0;

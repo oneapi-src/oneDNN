@@ -42,6 +42,7 @@ struct ref_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            using smask_t = primitive_attr_t::skip_mask_t;
 
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
@@ -58,11 +59,12 @@ struct ref_convolution_fwd_t : public primitive_t {
                                     && IMPLICATION(src_type == f32,
                                             bias_md_.data_type == f32))
                     && set_default_formats()
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
-                                    | primitive_attr_t::skip_mask_t::post_ops,
+                    && attr()->has_default_values(smask_t::oscale
+                                    | smask_t::zero_points_runtime
+                                    | smask_t::post_ops,
                             dst_type)
-                    && output_scales_mask_ok() && post_ops_ok();
+                    && output_scales_mask_ok() && zero_points_ok()
+                    && post_ops_ok();
             return ok ? status::success : status::unimplemented;
         }
 
@@ -82,6 +84,18 @@ struct ref_convolution_fwd_t : public primitive_t {
             return IMPLICATION(!utils::one_of(src_type, s8, u8),
                            attr()->output_scales_.has_default_values())
                     && (mask == 0 || mask == 1 << 1);
+        }
+
+        bool zero_points_ok() const {
+            using namespace data_type;
+            int mask_src = 0;
+            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+
+            return IMPLICATION(!utils::one_of(src_type, s8, u8),
+                           attr()->zero_points_.has_default_values())
+                    && attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                    && attr()->zero_points_.has_default_values(DNNL_ARG_DST)
+                    && (mask_src == 0 || mask_src == 1 << 1);
         }
 
         bool post_ops_ok() const {
@@ -126,12 +140,11 @@ struct ref_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     ref_eltwise_scalar_fwd_t *eltwises_[dnnl_post_ops::capacity];
 };
@@ -190,12 +203,11 @@ struct ref_convolution_bwd_data_t : public primitive_t {
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_data(ctx);
-        return status::success;
+        return execute_backward_data(ctx);
     }
 
 private:
-    void execute_backward_data(const exec_ctx_t &ctx) const;
+    status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
@@ -240,12 +252,11 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward_weights(ctx);
-        return status::success;
+        return execute_backward_weights(ctx);
     }
 
 private:
-    void execute_backward_weights(const exec_ctx_t &ctx) const;
+    status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
