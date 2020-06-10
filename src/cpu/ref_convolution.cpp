@@ -130,14 +130,20 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
             = !pd()->attr()->zero_points_.common(DNNL_ARG_DST);
 
     auto maybe_postops = [=](float &d, dst_data_t dst) {
-        // Sum and post ops:
-        const post_ops_t &ops = pd()->attr()->post_ops_;
-        for (int idx = 0; idx < ops.len_; ++idx) {
-            const auto &e = ops.entry_[idx];
-            if (e.kind == dnnl_sum)
-                d += e.sum.scale * dst;
-            else
-                d = eltwises_[idx]->compute_scalar(d);
+        auto eltwise_it = eltwise_ker_.begin();
+        const post_ops_t &po = pd()->attr()->post_ops_;
+
+        for (auto idx = 0; idx < po.len(); ++idx) {
+            using namespace primitive_kind;
+            const auto &e = po.entry_[idx];
+            switch (e.kind) {
+                case sum: d += e.sum.scale * dst; break;
+                case eltwise:
+                    d = (*eltwise_it)->compute_scalar(d);
+                    ++eltwise_it;
+                    break;
+                default: assert(!"unsupported post op primitive kind!"); break;
+            }
         }
     };
 

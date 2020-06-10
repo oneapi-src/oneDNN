@@ -753,13 +753,13 @@ inline void def_post_ops_cfg(
     int nof_supported_post_ops = 0;
 
     for (int idx = 0; idx < 2; ++idx, ++nof_supported_post_ops) {
-        if (all_post_ops.len_ > idx && all_post_ops.entry_[idx].is_eltwise()) {
+        if (all_post_ops.len() > idx && all_post_ops.entry_[idx].is_eltwise()) {
             auto &eltwise = all_post_ops.entry_[idx].eltwise;
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_eltwise_id);
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_ALG", eltwise.alg);
-        } else if (all_post_ops.len_ > idx
+        } else if (all_post_ops.len() > idx
                 && all_post_ops.entry_[idx].is_sum(false)) {
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_sum_id);
@@ -790,21 +790,22 @@ inline void def_post_ops_cfg(
 inline int append_post_ops_to_arg_list(compute::kernel_arg_list_t &arg_list,
         int post_op_idx, const post_ops_t &all_post_ops) {
     for (int idx = 0; idx < 2; ++idx) {
+        post_ops_t::entry_t e = all_post_ops.len() >= idx + 1
+                ? all_post_ops.entry_[idx]
+                : post_ops_t::entry_t();
 
-        if (all_post_ops.entry_[idx].is_eltwise()) {
-            auto &eltwise = all_post_ops.entry_[idx].eltwise;
-            arg_list.set(post_op_idx++, eltwise.alpha);
-            arg_list.set(post_op_idx++, eltwise.beta);
-            arg_list.set(post_op_idx++, eltwise.scale);
+        if (e.is_eltwise()) {
+            arg_list.set(post_op_idx++, e.eltwise.alpha);
+            arg_list.set(post_op_idx++, e.eltwise.beta);
+            arg_list.set(post_op_idx++, e.eltwise.scale);
         } else {
             arg_list.set(post_op_idx++, 1.0f); // _eltwise_alpha
             arg_list.set(post_op_idx++, 0.0f); // _eltwise_beta
             arg_list.set(post_op_idx++, 1.0f); // _eltwise_scale
         }
 
-        if (all_post_ops.entry_[idx].is_sum(false)) {
-            auto &sum = all_post_ops.entry_[idx].sum;
-            arg_list.set(post_op_idx++, sum.scale);
+        if (e.is_sum(false)) {
+            arg_list.set(post_op_idx++, e.sum.scale);
         } else {
             arg_list.set(post_op_idx++, 1.0f);
         }
@@ -816,7 +817,7 @@ inline void def_attr_info(
         compute::kernel_ctx_t &kernel_ctx, const attr_info_t &attr_info) {
     assert(attr_info.initialized);
 
-    kernel_ctx.define_int("WITH_POST_OP", attr_info.all_post_ops.len_ > 0);
+    kernel_ctx.define_int("WITH_POST_OP", attr_info.all_post_ops.len() > 0);
 
     kernel_ctx.define_int("WITH_ELTWISE", attr_info.with_eltwise);
     kernel_ctx.define_int("ELTWISE_IDX", attr_info.eltwise_idx);

@@ -74,7 +74,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init(
     auto check_attr_post_ops = [&]() -> bool {
         using namespace primitive_kind;
         const auto &p = attr()->post_ops_;
-        switch (p.len_) {
+        switch (p.len()) {
             case 0: return true;
             case 1: return p.contain(sum, 0) || p.contain(eltwise, 0);
             case 2: return p.contain(sum, 0) && p.contain(eltwise, 1);

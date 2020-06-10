@@ -1254,7 +1254,7 @@ bool jit_avx512_common_conv_fwd_kernel::post_ops_ok(
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
-    switch (p.len_) {
+    switch (p.len()) {
         case 0: return true; // no post_ops
         case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
         case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise

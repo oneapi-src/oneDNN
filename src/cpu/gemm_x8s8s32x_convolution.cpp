@@ -87,7 +87,7 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
     const float sum_scale = do_sum ? post_ops.entry_[0].sum.scale : 0;
 
     float nslope = 0;
-    for (int idx = 0; idx < post_ops.len_; ++idx) {
+    for (int idx = 0; idx < post_ops.len(); ++idx) {
         const auto &e = post_ops.entry_[idx];
         if (e.is_relu(true, false)) {
             nslope = e.eltwise.alpha;

@@ -100,7 +100,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                             expect_data_types(f16, f16, f16, f16, f16),
                             expect_data_types(f32, f32, f32, f32, f32))
                     && attr()->has_default_values(attr_skip_mask)
-                    && attr()->post_ops_.len_ <= 1
+                    && attr()->post_ops_.len() <= 1
                     && IMPLICATION(attr_info_.with_eltwise, !with_bias())
                     && !attr_info_.with_sum
                     && dense_consitency_check(src_md(), weights_md(), dst_md())

@@ -264,7 +264,7 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
             seed = get_array_hash(seed, zero_points, count);
         }
     // post_ops: entry[:]
-    for (int i = 0; i < attr.post_ops_.len_; i++) {
+    for (int i = 0; i < attr.post_ops_.len(); i++) {
         const auto &entry = attr.post_ops_.entry_[i];
         switch (entry.kind) {
             case primitive_kind::eltwise:

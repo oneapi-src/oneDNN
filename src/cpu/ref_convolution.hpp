@@ -107,7 +107,7 @@ struct ref_convolution_fwd_t : public primitive_t {
             auto is_eltwise
                     = [&](int idx) { return po.entry_[idx].is_eltwise(); };
 
-            switch (po.len_) {
+            switch (po.len()) {
                 case 0: return true;
                 case 1: return is_eltwise(0) || po.contain(sum, 0);
                 case 2:
@@ -120,19 +120,14 @@ struct ref_convolution_fwd_t : public primitive_t {
     };
 
     ref_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        for (int idx = 0; idx < dnnl_post_ops::capacity; ++idx)
-            eltwises_[idx] = nullptr;
-        auto &post_ops = pd()->attr()->post_ops_;
-        for (int idx = 0; idx < post_ops.len_; ++idx) {
-            const auto &e = post_ops.entry_[idx];
-            if (e.kind != dnnl_sum)
-                eltwises_[idx] = new ref_eltwise_scalar_fwd_t(e.eltwise);
+        using namespace primitive_kind;
+        const auto &po = pd()->attr()->post_ops_;
+        for (auto idx = 0; idx < po.len(); ++idx) {
+            if (po.contain(eltwise, idx))
+                eltwise_ker_.push_back(
+                        utils::make_unique<ref_eltwise_scalar_fwd_t>(
+                                po.entry_[idx].eltwise));
         }
-    }
-
-    ~ref_convolution_fwd_t() {
-        for (int idx = 0; idx < dnnl_post_ops::capacity; ++idx)
-            if (eltwises_[idx] != nullptr) delete eltwises_[idx];
     }
 
     typedef typename prec_traits<src_type>::type src_data_t;
@@ -147,7 +142,7 @@ struct ref_convolution_fwd_t : public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    ref_eltwise_scalar_fwd_t *eltwises_[dnnl_post_ops::capacity];
+    std::vector<std::unique_ptr<ref_eltwise_scalar_fwd_t>> eltwise_ker_;
 };
 
 template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,

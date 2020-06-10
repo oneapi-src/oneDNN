@@ -51,8 +51,8 @@ struct ref_inner_product_fwd_t : public primitive_t {
                                     weights_md(1)->data_type, f32, s32, s8, u8))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops)
-                    && attr()->post_ops_.len_ <= 1
-                    && IMPLICATION(attr()->post_ops_.len_ == 1,
+                    && attr()->post_ops_.len() <= 1
+                    && IMPLICATION(attr()->post_ops_.len() == 1,
                             attr()->post_ops_.entry_[0].is_relu(true, false))
                     && set_default_params() == status::success;
             return ok ? status::success : status::unimplemented;

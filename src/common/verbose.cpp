@@ -244,7 +244,7 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
     const post_ops_t &po = attr->post_ops_;
     if (!po.has_default_values()) {
         DPRINT(str, len, written, "post_ops:'");
-        for (int i = 0; i < po.len_; ++i) {
+        for (int i = 0; i < po.len(); ++i) {
             const post_ops_t::entry_t &e = po.entry_[i];
             if (e.is_sum()) {
                 DPRINT(str, len, written, "sum;");

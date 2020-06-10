@@ -67,7 +67,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
         (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
                 scratch_gates, scratch_cell, scales, bias, tm_scales, PART_TWO);
     } else {
-        assert("Bwd Vanilla GRU is unimplemented");
+        assert(!"Bwd Vanilla GRU is unimplemented");
     }
 }
 

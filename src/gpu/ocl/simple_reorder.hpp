@@ -59,8 +59,8 @@ struct simple_reorder_t : public gpu_primitive_t {
                                     src_engine)
                                     ->mayiuse(compute::device_ext_t::khr_fp16))
                     && (attr()->has_default_values()
-                            || IMPLICATION(post_ops.len_ != 0,
-                                    post_ops.len_ == 1
+                            || IMPLICATION(post_ops.len() != 0,
+                                    post_ops.len() == 1
                                             && post_ops.entry_[0].kind
                                                     == primitive_kind::sum));
 

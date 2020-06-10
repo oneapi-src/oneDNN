@@ -78,7 +78,7 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
             auto is_eltwise
                     = [&](int idx) { return po.entry_[idx].is_eltwise(false); };
             auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(false); };
-            switch (po.len_) {
+            switch (po.len()) {
                 case 0: return true; // no post_ops
                 case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
                 case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise

@@ -101,7 +101,8 @@ bool simple_fmt_check(bool order_keep, impl::format_tag_t tag_i,
 }
 bool simple_po_check(const primitive_attr_t *attr) {
     const auto &po = attr->post_ops_;
-    return po.len_ == 0 || (po.len_ == 1 && po.contain(primitive_kind::sum, 0));
+    return po.len() == 0
+            || (po.len() == 1 && po.contain(primitive_kind::sum, 0));
 }
 bool simple_attr_check(const primitive_attr_t *attr, bool many_scales_support,
         bool sum_support) {

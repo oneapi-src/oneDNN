@@ -453,7 +453,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         }
     };
 
-    dnnl_post_ops() : len_(0) {}
+    dnnl_post_ops() : entry_() {}
 
     dnnl::impl::status_t append_sum(
             float scale, dnnl::impl::data_type_t dt = dnnl_data_type_undef);
@@ -468,15 +468,16 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
     int find(dnnl::impl::primitive_kind_t kind, int start = 0,
             int stop = -1) const {
-        if (stop == -1) stop = len_;
-        stop = dnnl::impl::nstl::min(stop, len_);
+        if (stop == -1) stop = len();
+        stop = dnnl::impl::nstl::min(stop, len());
         for (int idx = start; idx < stop; ++idx)
             if (entry_[idx].kind == kind) return idx;
         return -1;
     }
 
     bool defined() const;
-    bool has_default_values() const { return len_ == 0; }
+    int len() const { return (int)entry_.size(); }
+    bool has_default_values() const { return len() == 0; }
 
     bool sum_with_default_dt(
             dnnl::impl::data_type_t dst_dt = dnnl_data_type_undef) const {
@@ -490,27 +491,28 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
     }
 
     bool operator==(const dnnl_post_ops &rhs) const {
-        bool ret = len_ == rhs.len_
-                && dnnl::impl::utils::array_cmp(entry_, rhs.entry_, len_);
+        bool ret = len() == rhs.len();
+        for (int i = 0; i < len(); ++i)
+            ret = ret && entry_[i] == rhs.entry_[i];
         return ret;
     }
 
     dnnl::impl::status_t copy_from(const dnnl_post_ops &other) {
         using namespace dnnl::impl;
 
-        len_ = other.len_;
-        for (int idx = 0; idx < len_; ++idx) {
-            if (entry_[idx] == other.entry_[idx]) continue;
+        for (int idx = 0; idx < other.len(); ++idx) {
+            if (len() > idx) {
+                if (entry_[idx] == other.entry_[idx]) continue;
+            } else {
+                entry_.emplace_back();
+            }
             CHECK(entry_[idx].copy_from(other.entry_[idx]));
         }
 
         return status::success;
     }
 
-    enum { capacity = 4 };
-
-    int len_;
-    entry_t entry_[capacity];
+    std::vector<entry_t> entry_;
 };
 
 struct dnnl_primitive_attr : public dnnl::impl::c_compatible {

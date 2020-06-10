@@ -579,7 +579,7 @@ bool jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::post_ops_ok(
 
     auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
 
-    switch (p.len_) {
+    switch (p.len()) {
         case 0: return true;
         case 1: return is_relu(0) || p.contain(sum, 0);
         case 2:

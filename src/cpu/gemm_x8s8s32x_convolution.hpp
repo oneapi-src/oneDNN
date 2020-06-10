@@ -84,7 +84,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
             auto is_eltwise
                     = [&](int idx) { return po.entry_[idx].is_eltwise(); };
 
-            switch (po.len_) {
+            switch (po.len()) {
                 case 0: return true;
                 case 1: return is_eltwise(0) || po.contain(sum, 0);
                 case 2:

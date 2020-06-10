@@ -75,10 +75,10 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
                     && utils::one_of(d->c_type, data_type::s32)
                     && attr()->has_default_values(attr_skip_mask)
                     && zero_points_ok() && attr()->output_scales_.mask_ == 0
-                    && IMPLICATION(attr()->post_ops_.len_ == 1,
+                    && IMPLICATION(attr()->post_ops_.len() == 1,
                             attr()->post_ops_.find(eltwise) != -1
                                     || attr()->post_ops_.find(sum) != -1)
-                    && IMPLICATION(attr()->post_ops_.len_ == 2,
+                    && IMPLICATION(attr()->post_ops_.len() == 2,
                             attr()->post_ops_.find(sum) == 0
                                     && attr()->post_ops_.find(eltwise) == 1)
                     && compute_engine->mayiuse(
