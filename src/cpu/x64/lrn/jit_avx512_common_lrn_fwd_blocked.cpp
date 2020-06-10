@@ -67,14 +67,14 @@ jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>::
 
     if (version_ == across_version::First
             || version_ == across_version::Single) {
-        this->vpxorq(xmm2, xmm2, xmm2);
+        this->uni_vpxor(xmm2, xmm2, xmm2);
         for (int irb = 0; irb < this->reg_block_; irb++) {
             this->vmovups(ptr[t_ + irb * buffer_block_], xmm2);
         }
     }
     if (version_ == across_version::Last
             || version_ == across_version::Single) {
-        this->vpxorq(xmm2, xmm2, xmm2);
+        this->uni_vpxor(xmm2, xmm2, xmm2);
         for (int irb = 0; irb < this->reg_block_; irb++) {
             this->vmovups(
                     ptr[t_ + irb * buffer_block_ + buffer_nest_offset_], xmm2);

@@ -66,7 +66,7 @@ void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::reserve_stack_space(
         std::size_t space) {
     const unsigned maxCounter = (space / zmm_size_) - 1;
     this->sub(rsp, space);
-    this->vxorps(zmm4, zmm4, zmm4);
+    this->uni_vpxor(zmm4, zmm4, zmm4);
     for (unsigned i = 0; i < maxCounter; ++i)
         this->vmovups(ptr[rsp + i * zmm_size_], zmm4);
 }
@@ -295,7 +295,7 @@ void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::load_compute_data(
     static constexpr int acc_size = d_type == bf16 ? 2 : 4;
     const auto load_shifted_padded_with_zeros
             = [this](int dstIdx, int srcIdx, int maskTmpIdx, int offset) {
-                  this->vpxorq(this->zreg(0, dstIdx), this->zreg(0, dstIdx),
+                  this->uni_vpxor(this->zreg(0, dstIdx), this->zreg(0, dstIdx),
                           this->zreg(0, dstIdx));
                   this->load_data(this->zreg(0, maskTmpIdx),
                           this->EVEX_compress_addr(this->mask_, offset), true);

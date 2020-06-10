@@ -186,10 +186,13 @@ jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_avx512_common_lrn_kernel_bwd_t(
     }()}
     , nalphabeta_(-2 * alpha * beta)
     , emulateBfloat_(d_type == bf16 && !mayiuse(avx512_core_bf16))
-    , reg_block_ {(d_type == bf16 && !mayiuse(avx512_core_bf16) ? 26 : 30)
-              / (std::max(this->local_size_ + 2, 7))}
-    , regs_used_per_block_ {std::max(this->local_size_ + 2, 7)} {
-
+    , regs_used_per_block_ {std::max(this->local_size_ + 2, 7)}
+    , reg_block_ {[this]() {
+        const int max_possible_reg_block
+                = (emulateBfloat_ ? 27 : 31) / this->regs_used_per_block_;
+        return mayiuse(avx512_core) ? max_possible_reg_block
+                                    : std::min(max_possible_reg_block, 2);
+    }()} {
     if (emulateBfloat_) {
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
                 bf16_emu_reserv_1_, bf16_emu_reserv_2_, bf16_emu_reserv_3_,

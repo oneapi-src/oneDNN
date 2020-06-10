@@ -185,10 +185,13 @@ jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_avx512_common_lrn_kernel_fwd_t(
     }()}
     , zsum_ {std::max(local_size_ + 2, 6)}
     , emulateBfloat_(d_type == bf16 && !mayiuse(avx512_core_bf16))
-    , reg_block_ {(d_type == bf16 && !mayiuse(avx512_core_bf16) ? 26 : 30)
-              / (std::max(this->local_size_ + 1, 6))}
-    , regs_used_per_block_ {std::max(this->local_size_ + 1, 6)} {
-
+    , regs_used_per_block_ {std::max(this->local_size_ + 2, 6)}
+    , reg_block_ {[this]() {
+        const int max_possible_reg_block
+                = (emulateBfloat_ ? 26 : 30) / this->regs_used_per_block_;
+        return mayiuse(avx512_core) ? max_possible_reg_block
+                                    : std::min(max_possible_reg_block, 2);
+    }()} {
     if (emulateBfloat_) {
         bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
                 bf16_emu_reserv_1_, bf16_emu_reserv_2_, bf16_emu_reserv_3_,
@@ -209,7 +212,7 @@ Ymm jit_avx512_common_lrn_kernel_fwd_t<d_type>::yreg(int irb, int i) const {
 
 template <data_type_t d_type>
 Xmm jit_avx512_common_lrn_kernel_fwd_t<d_type>::xreg(int irb, int i) const {
-    return Xmm(irb * 3 + i);
+    return Xmm(irb * regs_used_per_block_ + i);
 }
 
 template class jit_avx512_common_lrn_kernel_fwd_t<f32>;

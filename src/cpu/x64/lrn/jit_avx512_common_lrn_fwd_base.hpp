@@ -107,12 +107,10 @@ protected:
     const Zmm bf16_emu_reserv_4_ = zmm31;
 
     const bool emulateBfloat_;
+    const int regs_used_per_block_;
     const int reg_block_;
     static constexpr int vlen_ = d_type == bf16 ? 32 : 64;
     std::unique_ptr<bf16_emulation_t> bf16_emu_ = nullptr;
-
-private:
-    const int regs_used_per_block_;
 };
 
 } // namespace lrn

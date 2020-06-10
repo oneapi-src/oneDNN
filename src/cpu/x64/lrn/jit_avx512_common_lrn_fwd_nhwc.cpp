@@ -61,7 +61,7 @@ template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::reserve_stack_space(
         std::size_t space) {
     this->sub(rsp, space);
-    this->uni_vxorps(zmm4, zmm4, zmm4);
+    this->uni_vpxor(zmm4, zmm4, zmm4);
     for (unsigned i = 0; i < 2u; ++i)
         this->vmovups(ptr[rsp + i * zmm_size], zmm4);
 }
@@ -214,7 +214,7 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_compute_data(
     static constexpr int mask_shift = sizeof(int32_t);
     const auto load_shifted_padded_with_zeros
             = [&](int dstIdx, int srcIdx, int maskTmpIdx, int offset) {
-                  this->uni_vxorps(this->zreg(0, dstIdx), this->zreg(0, dstIdx),
+                  this->uni_vpxor(this->zreg(0, dstIdx), this->zreg(0, dstIdx),
                           this->zreg(0, dstIdx));
                   this->load_data(this->zreg(0, maskTmpIdx),
                           this->EVEX_compress_addr(this->mask_, offset), true);
