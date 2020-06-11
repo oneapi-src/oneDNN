@@ -579,17 +579,17 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
 
     const auto it = entry_map_.find(log_predefined_vals);
     assert(it != entry_map_.end());
-    const auto table_start_idx = (*it).second.first;
+    const auto table_start_idx = (*it).second.off;
 
     auto gather_table_values = [&](const Vmm &vmm_dst, const Vmm &vmm_idxs,
                                        size_t offt = 0) {
-        Xbyak::Address table_idx = h->ptr[p_table + table_start_idx * vlen
-                + offt + vmm_idxs * sizeof(float)];
+        Xbyak::Address table_idx = h->ptr[p_table + table_start_idx + offt
+                + vmm_idxs * sizeof(float)];
         if (has_avx512()) {
             h->kmovw(k_mask, table_val(log_full_k_reg_mask));
             h->vgatherdps(vmm_dst | k_mask, table_idx);
         } else if (isa == avx2) {
-            h->uni_vmovups(vmm_mask, table_val(log_full_vector_reg_mask));
+            h->uni_vmovups(vmm_mask, table_val(sign_mask));
             h->vgatherdps(vmm_dst, table_idx, vmm_mask);
         } else if (isa == sse41) {
             Xbyak::Reg64 reg_tmp
@@ -609,8 +609,7 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
             for (size_t i = 0; i < vlen / sizeof(float); ++i) {
                 h->mov(reg_tmp.cvt32(), h->ptr[h->rsp + i * sizeof(float)]);
                 h->shl(reg_tmp.cvt32(), 2); // multiply by simd_w
-                table_idx = h->ptr[p_table + table_start_idx * vlen + offt
-                        + reg_tmp];
+                table_idx = h->ptr[p_table + table_start_idx + offt + reg_tmp];
                 h->mov(reg_tmp.cvt32(), table_idx);
                 h->mov(h->ptr[h->rsp + i * sizeof(float)], reg_tmp.cvt32());
             }
@@ -1311,63 +1310,77 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
     h->align(64);
     h->L(l_table);
 
-    // Run through the map an insert values stored there
+    // Assumption: entries can be inserted with dd, so they should be 4 bytes.
+    assert(sizeof(table_entry_val_t) == 4);
+
+    // Assumption: iterating on entry_map_ here has the same order as
+    // when we set the offsets. We verify that in asserts.
+    // table_entry_val_t is assumed to be 32 bits
+#ifndef NDEBUG
+    size_t off = 0;
+    key_t curr_key = undef_key;
+    int key_occurences = 0;
+#endif
+
+    // Run through the map and insert values stored there
     for (auto it = entry_map_.begin(); it != entry_map_.end(); it++) {
-        const auto &t_e = (*it).second; // get map entry for a given key
-        const auto &val = t_e.second; // get hex value
-        for (size_t d = 0; d < vlen / sizeof(float); ++d)
-            h->dd(val);
+        const auto &te = (*it).second; // get map entry for a given key
+        const auto len = te.bcast ? vlen : sizeof(table_entry_val_t);
+        for (size_t d = 0; d < len; d += sizeof(table_entry_val_t))
+            h->dd(te.val);
+
+#ifndef NDEBUG
+        // we check that the precomputed offsets match the registered ones
+        const auto &key = (*it).first; // get map entry key
+        if (key != curr_key) {
+            curr_key = key;
+            key_occurences = 0;
+        }
+        key_occurences++;
+        auto expected_off = table_off(key, key_occurences - 1);
+        assert(off == expected_off);
+        MAYBE_UNUSED(expected_off);
+        off += len;
+#endif
     }
 }
 
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
-    // This function is responsible to pick all necessary constants for a given
-    // algorithm, compute right offset for them to be used in table_val() and
-    // save the hexadecimal value of them, which will be finally used in
-    // prepare_table(). We rely on fact that map iterator will walk through the
-    // map in the same order as we saved entries there.
-
-    // IMPORTANT NOTICE: a single key should have a single offset value match.
-    // Thus, polynomials have a single offset. This is due multimap.find() may
-    // return any value for a given key if there are multiple pairs
-    // {key, val[i]}. Proper offset calculation is handled by alg compute code.
+    // This function is responsible to pick all necessary constants
+    // for a given algorithm, compute right offset for them to be used
+    // in table_val() and save the hexadecimal value of them, which
+    // will be finally used in prepare_table(). We rely on fact that
+    // the map iterator order is deterministic for a fixed map.
 
     // common values used in several algorithms
-    static const table_t common_values {
-            {zero, {0, 0x00000000}},
-            {half, {1, 0x3f000000}},
-            {one, {2, 0x3f800000}},
-            {two, {3, 0x40000000}},
-            {minus_one, {4, 0xbf800000}},
-            {minus_two, {5, 0xc0000000}},
-            {ln2f, {6, 0x3f317218}},
-            {positive_mask, {7, 0x7fffffff}},
-            {sign_mask, {8, 0x80000000}},
-            {exponent_bias, {9, 0x0000007f}},
-    };
+    static const table_t common_values {{zero, {0x00000000, true}},
+            {half, {0x3f000000, true}}, {one, {0x3f800000, true}},
+            {two, {0x40000000, true}}, {minus_one, {0xbf800000, true}},
+            {minus_two, {0xc0000000, true}}, {ln2f, {0x3f317218, true}},
+            {positive_mask, {0x7fffffff, true}},
+            {sign_mask, {0x80000000, true}},
+            {exponent_bias, {0x0000007f, true}}};
 
     // exp(x) constants
-    static const table_t exp_consts {
-            {exp_log2ef, {0, 0x3fb8aa3b}},
-            {exp_ln_flt_max_f, {1, 0x42b17218}},
-            {exp_ln_flt_min_f, {2, 0xc2aeac50}},
-    };
+    static const table_t exp_consts {{exp_log2ef, {0x3fb8aa3b, true}},
+            {exp_ln_flt_max_f, {0x42b17218, true}},
+            {exp_ln_flt_min_f, {0xc2aeac50, true}}};
 
     // exp(x) polynomial approximation
     static const table_t exp_polynomial {
-            {exp_pol, {0, 0x3f7ffffb}}, // p1 = 0.999999701f
-            {exp_pol, {0, 0x3efffee3}}, // p2 = 0.499991506f
-            {exp_pol, {0, 0x3e2aad40}}, // p3 = 0.166676521f
-            {exp_pol, {0, 0x3d2b9d0d}}, // p4 = 0.0418978221f
-            {exp_pol, {0, 0x3c07cfce}}, // p5 = 0.00828929059f
+            {exp_pol, {0x3f7ffffb, true}}, // p1 = 0.999999701f
+            {exp_pol, {0x3efffee3, true}}, // p2 = 0.499991506f
+            {exp_pol, {0x3e2aad40, true}}, // p3 = 0.166676521f
+            {exp_pol, {0x3d2b9d0d, true}}, // p4 = 0.0418978221f
+            {exp_pol, {0x3c07cfce, true}} // p5 = 0.00828929059f
     };
 
     // tanh(x) constants for four interval approximation
     static const table_t tanh_consts {
-            {tanh_bound_x, {0, 0x39ddb3d7}},
-            {tanh_bound_pol, {1, 0x3f0c9f54}},
-            {tanh_bound_one, {2, 0x41102cb4}},
+            {tanh_bound_x, {0x39ddb3d7, true}},
+            {tanh_bound_pol, {0x3f0c9f54, true}},
+            {tanh_bound_one, {0x41102cb4, true}},
     };
 
     // tanh(x) polynomial approximation
@@ -1388,139 +1401,170 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     //        (0x1.10be3ep-3 + x^0x1p1 * (-0x1.ae57b4p-5
     //        + x^0x1p1 * 0x1.09fa1p-6))))
     static const table_t tanh_polynomial {
-            {tanh_pol, {0, 0x3f7fffff}}, // p0 = 0x1.fffffep-1
-            {tanh_pol, {0, 0xbeaaa9cf}}, // p1 = 0x1.55539ep-2
-            {tanh_pol, {0, 0x3e085f1f}}, // p2 = 0x1.10be3ep-3
-            {tanh_pol, {0, 0xbd572bda}}, // p3 = 0x1.ae57b4p-5
-            {tanh_pol, {0, 0x3c84fd08}}, // p4 = 0x1.09fa1p-6
+            {tanh_pol, {0x3f7fffff, true}}, // p0 = 0x1.fffffep-1
+            {tanh_pol, {0xbeaaa9cf, true}}, // p1 = 0x1.55539ep-2
+            {tanh_pol, {0x3e085f1f, true}}, // p2 = 0x1.10be3ep-3
+            {tanh_pol, {0xbd572bda, true}}, // p3 = 0x1.ae57b4p-5
+            {tanh_pol, {0x3c84fd08, true}}, // p4 = 0x1.09fa1p-6
     };
 
     // soft_relu(x) constants
     static const table_t soft_relu_consts {
-            {soft_relu_one_twenty_six, {0, 0x42fc0000}},
-            {soft_relu_mantissa_sign_mask, {1, 0x807fffff}},
+            {soft_relu_one_twenty_six, {0x42fc0000, true}},
+            {soft_relu_mantissa_sign_mask, {0x807fffff, true}},
     };
 
     // soft_relu ln(1 + x) polynomial approximation
     static const table_t soft_relu_polynomial {
-            {soft_relu_pol, {0, 0xb2b4637d}}, // p0 = 0.0000000244f
-            {soft_relu_pol, {0, 0x3f7fff8e}}, // p1 = 0.9999976971f
-            {soft_relu_pol, {0, 0xbf001759}}, // p2 = -0.5002478215f
-            {soft_relu_pol, {0, 0x3ea70608}}, // p3 = 0.3272714505f
-            {soft_relu_pol, {0, 0xbea3d7bf}}, // p4 = -0.3153830071f
-            {soft_relu_pol, {0, 0xbe361d04}}, // p5 = -0.1701777461f
-            {soft_relu_pol, {0, 0xbfa8f1e6}}, // p6 = -1.3254635147f
-            {soft_relu_pol, {0, 0xbfe1e812}}, // p7 = -1.7971917960f
-            {soft_relu_pol, {0, 0xbfc4d30e}}, // p8 = -1.5652673123f
+            {soft_relu_pol, {0xb2b4637d, true}}, // p0 = 0.0000000244f
+            {soft_relu_pol, {0x3f7fff8e, true}}, // p1 = 0.9999976971f
+            {soft_relu_pol, {0xbf001759, true}}, // p2 = -0.5002478215f
+            {soft_relu_pol, {0x3ea70608, true}}, // p3 = 0.3272714505f
+            {soft_relu_pol, {0xbea3d7bf, true}}, // p4 = -0.3153830071f
+            {soft_relu_pol, {0xbe361d04, true}}, // p5 = -0.1701777461f
+            {soft_relu_pol, {0xbfa8f1e6, true}}, // p6 = -1.3254635147f
+            {soft_relu_pol, {0xbfe1e812, true}}, // p7 = -1.7971917960f
+            {soft_relu_pol, {0xbfc4d30e, true}}, // p8 = -1.5652673123f
     };
 
     // gelu_tanh(x) constants (formula defined)
     static const table_t gelu_tanh_consts {
-            {gelu_tanh_fitting_const, {0, 0x3d372713}},
-            {gelu_tanh_fitting_const_times_three, {1, 0x3e095d4f}},
-            {gelu_tanh_sqrt_two_over_pi, {2, 0x3f4c422a}},
+            {gelu_tanh_fitting_const, {0x3d372713, true}},
+            {gelu_tanh_fitting_const_times_three, {0x3e095d4f, true}},
+            {gelu_tanh_sqrt_two_over_pi, {0x3f4c422a, true}},
     };
 
     // gelu_erf(x) constants (formula defined)
     static const table_t gelu_erf_consts {
-            {gelu_erf_approx_const, {0, 0x3ea7ba05}},
-            {gelu_erf_one_over_sqrt_two, {1, 0x3f3504f3}},
-            {gelu_erf_one_over_sqrt_pi, {2, 0x3f106eba}},
+            {gelu_erf_approx_const, {0x3ea7ba05, true}},
+            {gelu_erf_one_over_sqrt_two, {0x3f3504f3, true}},
+            {gelu_erf_one_over_sqrt_pi, {0x3f106eba, true}},
     };
 
     // gelu_erf(x) polynomial approximation
     static const table_t gelu_erf_polynomial {
-            {gelu_erf_pol, {0, 0x3e827906}}, // p1 = 0.254829592f
-            {gelu_erf_pol, {0, 0xbe91a98e}}, // p2 = -0.284496736f
-            {gelu_erf_pol, {0, 0x3fb5f0e3}}, // p3 = 1.421413741f
-            {gelu_erf_pol, {0, 0xbfba00e3}}, // p4 = -1.453152027f
-            {gelu_erf_pol, {0, 0x3f87dc22}}, // p5 = 1.061405429f
+            {gelu_erf_pol, {0x3e827906, true}}, // p1 = 0.254829592f
+            {gelu_erf_pol, {0xbe91a98e, true}}, // p2 = -0.284496736f
+            {gelu_erf_pol, {0x3fb5f0e3, true}}, // p3 = 1.421413741f
+            {gelu_erf_pol, {0xbfba00e3, true}}, // p4 = -1.453152027f
+            {gelu_erf_pol, {0x3f87dc22, true}}, // p5 = 1.061405429f
     };
 
     // log(x) constants
     static const table_t log_consts {
-            {log_minus_inf, {0, 0xff800000}},
-            {log_qnan, {1, 0x7fc00000}},
-            {log_mantissa_mask, {2, 0x007fffff}},
-            {log_full_k_reg_mask, {3, 0x0000ffff}},
-            {log_full_vector_reg_mask, {4, 0xffffffff}},
-            {log_five_bit_offset, {5, 0x0000001f}},
+            {log_minus_inf, {0xff800000, true}},
+            {log_qnan, {0x7fc00000, true}},
+            {log_mantissa_mask, {0x007fffff, true}},
+            {log_full_k_reg_mask, {0x0000ffff, true}},
+            {log_five_bit_offset, {0x0000001f, true}},
     };
 
     // log(x) polynomial approximation
     static const table_t log_polynomial {
-            {log_pol, {0, 0xbf000000}}, // p1 = -0.5f
-            {log_pol, {0, 0x3eaaaaab}}, // p2 =  0.333333343f
-            {log_pol, {0, 0xbe8004ab}}, // p3 = -0.250035613f
-            {log_pol, {0, 0x3e4cc8a3}}, // p4 =  0.199984118f
+            {log_pol, {0xbf000000, true}}, // p1 = -0.5f
+            {log_pol, {0x3eaaaaab, true}}, // p2 =  0.333333343f
+            {log_pol, {0xbe8004ab, true}}, // p3 = -0.250035613f
+            {log_pol, {0x3e4cc8a3, true}}, // p4 =  0.199984118f
     };
 
     // log(x) pre-defined values. First goes index}, then val[index].
     static const table_t log_predefined_values {
-            {log_predefined_vals, {0, 0x3f800000}}, //  0: 1
-            {log_predefined_vals, {0, 0xc2b00f34}}, //  1: -88.029693603515625
-            {log_predefined_vals, {0, 0x3f780000}}, //  2: 0.96875
-            {log_predefined_vals, {0, 0xc2affef2}}, //  3: -87.9979400634765625
-            {log_predefined_vals, {0, 0x3f700000}}, //  4: 0.9375
-            {log_predefined_vals, {0, 0xc2afee29}}, //  5: -87.9651565551757812
-            {log_predefined_vals, {0, 0x3f680000}}, //  6: 0.90625
-            {log_predefined_vals, {0, 0xc2afdccd}}, //  7: -87.9312515258789062
-            {log_predefined_vals, {0, 0x3f600000}}, //  8: 0.875
-            {log_predefined_vals, {0, 0xc2afcad6}}, //  9: -87.8961639404296875
-            {log_predefined_vals, {0, 0x3f580000}}, // 10: 0.84375
-            {log_predefined_vals, {0, 0xc2afb837}}, // 11: -87.859794616699218
-            {log_predefined_vals, {0, 0x3f580000}}, // 12: 0.84375
-            {log_predefined_vals, {0, 0xc2afb837}}, // 13: -87.859794616699218
-            {log_predefined_vals, {0, 0x3f500000}}, // 14: 0.8125
-            {log_predefined_vals, {0, 0xc2afa4e4}}, // 15: -87.822052001953125
-            {log_predefined_vals, {0, 0x3f480000}}, // 16: 0.78125
-            {log_predefined_vals, {0, 0xc2af90cf}}, // 17: -87.782829284667968
-            {log_predefined_vals, {0, 0x3f480000}}, // 18: 0.78125
-            {log_predefined_vals, {0, 0xc2af90cf}}, // 19: -87.782829284667968
-            {log_predefined_vals, {0, 0x3f400000}}, // 20: 0.75
-            {log_predefined_vals, {0, 0xc2af7be9}}, // 21: -87.742012023925781
-            {log_predefined_vals, {0, 0x3f400000}}, // 22: 0.75
-            {log_predefined_vals, {0, 0xc2af7be9}}, // 23: -87.742012023925781
-            {log_predefined_vals, {0, 0x3f380000}}, // 24: 0.71875
-            {log_predefined_vals, {0, 0xc2af661e}}, // 25: -87.699447631835937
-            {log_predefined_vals, {0, 0x3f380000}}, // 26: 0.71875
-            {log_predefined_vals, {0, 0xc2af661e}}, // 27: -87.699447631835937
-            {log_predefined_vals, {0, 0x3f300000}}, // 28: 0.6875
-            {log_predefined_vals, {0, 0xc2af4f5c}}, // 29: -87.654998779296875
-            {log_predefined_vals, {0, 0x3f300000}}, // 30: 0.6875
-            {log_predefined_vals, {0, 0xc2af4f5c}}, // 31: -87.654998779296875
-            {log_predefined_vals, {0, 0x3fa80000}}, // 32: 1.3125
-            {log_predefined_vals, {0, 0xc2b09a6f}}, // 33: -88.301628112792968
-            {log_predefined_vals, {0, 0x3fa80000}}, // 34: 1.3125
-            {log_predefined_vals, {0, 0xc2b09a6f}}, // 35: -88.301628112792968
-            {log_predefined_vals, {0, 0x3fa00000}}, // 36: 1.25
-            {log_predefined_vals, {0, 0xc2b08174}}, // 37: -88.252838134765625
-            {log_predefined_vals, {0, 0x3fa00000}}, // 38: 1.25
-            {log_predefined_vals, {0, 0xc2b08174}}, // 39: -88.252838134765625
-            {log_predefined_vals, {0, 0x3fa00000}}, // 40: 1.25
-            {log_predefined_vals, {0, 0xc2b08174}}, // 41: -88.252838134765625
-            {log_predefined_vals, {0, 0x3f980000}}, // 42: 1.1875
-            {log_predefined_vals, {0, 0xc2b06731}}, // 43: -88.201545715332031
-            {log_predefined_vals, {0, 0x3f980000}}, // 44: 1.1875
-            {log_predefined_vals, {0, 0xc2b06731}}, // 45: -88.201545715332031
-            {log_predefined_vals, {0, 0x3f900000}}, // 46: 1.125
-            {log_predefined_vals, {0, 0xc2b04b82}}, // 47: -88.147476196289062
-            {log_predefined_vals, {0, 0x3f900000}}, // 48: 1.125
-            {log_predefined_vals, {0, 0xc2b04b82}}, // 49: -88.147476196289062
-            {log_predefined_vals, {0, 0x3f900000}}, // 50: 1.125
-            {log_predefined_vals, {0, 0xc2b04b82}}, // 51: -88.147476196289062
-            {log_predefined_vals, {0, 0x3f900000}}, // 52: 1.125
-            {log_predefined_vals, {0, 0xc2b04b82}}, // 53: -88.147476196289062
-            {log_predefined_vals, {0, 0x3f880000}}, // 54: 1.0625
-            {log_predefined_vals, {0, 0xc2b02e3e}}, // 55: -88.090316772460937
-            {log_predefined_vals, {0, 0x3f880000}}, // 56: 1.0625
-            {log_predefined_vals, {0, 0xc2b02e3e}}, // 57: -88.090316772460937
-            {log_predefined_vals, {0, 0x3f880000}}, // 58: 1.0625
-            {log_predefined_vals, {0, 0xc2b02e3e}}, // 59: -88.090316772460937
-            {log_predefined_vals, {0, 0x3f800000}}, // 60: 1
-            {log_predefined_vals, {0, 0xc2b00f34}}, // 61: -88.029693603515625
-            {log_predefined_vals, {0, 0x3f800000}}, // 62: 1
-            {log_predefined_vals, {0, 0xc2b00f34}}, // 63: -88.029693603515625
+            {log_predefined_vals, {0x3f800000, true}}, //  0: 1
+            {log_predefined_vals,
+                    {0xc2b00f34, true}}, //  1: -88.029693603515625
+            {log_predefined_vals, {0x3f780000, true}}, //  2: 0.96875
+            {log_predefined_vals,
+                    {0xc2affef2, true}}, //  3: -87.9979400634765625
+            {log_predefined_vals, {0x3f700000, true}}, //  4: 0.9375
+            {log_predefined_vals,
+                    {0xc2afee29, true}}, //  5: -87.9651565551757812
+            {log_predefined_vals, {0x3f680000, true}}, //  6: 0.90625
+            {log_predefined_vals,
+                    {0xc2afdccd, true}}, //  7: -87.9312515258789062
+            {log_predefined_vals, {0x3f600000, true}}, //  8: 0.875
+            {log_predefined_vals,
+                    {0xc2afcad6, true}}, //  9: -87.8961639404296875
+            {log_predefined_vals, {0x3f580000, true}}, // 10: 0.84375
+            {log_predefined_vals,
+                    {0xc2afb837, true}}, // 11: -87.859794616699218
+            {log_predefined_vals, {0x3f580000, true}}, // 12: 0.84375
+            {log_predefined_vals,
+                    {0xc2afb837, true}}, // 13: -87.859794616699218
+            {log_predefined_vals, {0x3f500000, true}}, // 14: 0.8125
+            {log_predefined_vals,
+                    {0xc2afa4e4, true}}, // 15: -87.822052001953125
+            {log_predefined_vals, {0x3f480000, true}}, // 16: 0.78125
+            {log_predefined_vals,
+                    {0xc2af90cf, true}}, // 17: -87.782829284667968
+            {log_predefined_vals, {0x3f480000, true}}, // 18: 0.78125
+            {log_predefined_vals,
+                    {0xc2af90cf, true}}, // 19: -87.782829284667968
+            {log_predefined_vals, {0x3f400000, true}}, // 20: 0.75
+            {log_predefined_vals,
+                    {0xc2af7be9, true}}, // 21: -87.742012023925781
+            {log_predefined_vals, {0x3f400000, true}}, // 22: 0.75
+            {log_predefined_vals,
+                    {0xc2af7be9, true}}, // 23: -87.742012023925781
+            {log_predefined_vals, {0x3f380000, true}}, // 24: 0.71875
+            {log_predefined_vals,
+                    {0xc2af661e, true}}, // 25: -87.699447631835937
+            {log_predefined_vals, {0x3f380000, true}}, // 26: 0.71875
+            {log_predefined_vals,
+                    {0xc2af661e, true}}, // 27: -87.699447631835937
+            {log_predefined_vals, {0x3f300000, true}}, // 28: 0.6875
+            {log_predefined_vals,
+                    {0xc2af4f5c, true}}, // 29: -87.654998779296875
+            {log_predefined_vals, {0x3f300000, true}}, // 30: 0.6875
+            {log_predefined_vals,
+                    {0xc2af4f5c, true}}, // 31: -87.654998779296875
+            {log_predefined_vals, {0x3fa80000, true}}, // 32: 1.3125
+            {log_predefined_vals,
+                    {0xc2b09a6f, true}}, // 33: -88.301628112792968
+            {log_predefined_vals, {0x3fa80000, true}}, // 34: 1.3125
+            {log_predefined_vals,
+                    {0xc2b09a6f, true}}, // 35: -88.301628112792968
+            {log_predefined_vals, {0x3fa00000, true}}, // 36: 1.25
+            {log_predefined_vals,
+                    {0xc2b08174, true}}, // 37: -88.252838134765625
+            {log_predefined_vals, {0x3fa00000, true}}, // 38: 1.25
+            {log_predefined_vals,
+                    {0xc2b08174, true}}, // 39: -88.252838134765625
+            {log_predefined_vals, {0x3fa00000, true}}, // 40: 1.25
+            {log_predefined_vals,
+                    {0xc2b08174, true}}, // 41: -88.252838134765625
+            {log_predefined_vals, {0x3f980000, true}}, // 42: 1.1875
+            {log_predefined_vals,
+                    {0xc2b06731, true}}, // 43: -88.201545715332031
+            {log_predefined_vals, {0x3f980000, true}}, // 44: 1.1875
+            {log_predefined_vals,
+                    {0xc2b06731, true}}, // 45: -88.201545715332031
+            {log_predefined_vals, {0x3f900000, true}}, // 46: 1.125
+            {log_predefined_vals,
+                    {0xc2b04b82, true}}, // 47: -88.147476196289062
+            {log_predefined_vals, {0x3f900000, true}}, // 48: 1.125
+            {log_predefined_vals,
+                    {0xc2b04b82, true}}, // 49: -88.147476196289062
+            {log_predefined_vals, {0x3f900000, true}}, // 50: 1.125
+            {log_predefined_vals,
+                    {0xc2b04b82, true}}, // 51: -88.147476196289062
+            {log_predefined_vals, {0x3f900000, true}}, // 52: 1.125
+            {log_predefined_vals,
+                    {0xc2b04b82, true}}, // 53: -88.147476196289062
+            {log_predefined_vals, {0x3f880000, true}}, // 54: 1.0625
+            {log_predefined_vals,
+                    {0xc2b02e3e, true}}, // 55: -88.090316772460937
+            {log_predefined_vals, {0x3f880000, true}}, // 56: 1.0625
+            {log_predefined_vals,
+                    {0xc2b02e3e, true}}, // 57: -88.090316772460937
+            {log_predefined_vals, {0x3f880000, true}}, // 58: 1.0625
+            {log_predefined_vals,
+                    {0xc2b02e3e, true}}, // 59: -88.090316772460937
+            {log_predefined_vals, {0x3f800000, true}}, // 60: 1
+            {log_predefined_vals,
+                    {0xc2b00f34, true}}, // 61: -88.029693603515625
+            {log_predefined_vals, {0x3f800000, true}}, // 62: 1
+            {log_predefined_vals,
+                    {0xc2b00f34, true}}, // 63: -88.029693603515625
     };
 
     // This object takes care about which constants and polynomials to include.
@@ -1563,25 +1607,24 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     };
 
     need_t need(alg_);
-    size_t off = 0;
 
-    auto push_arg_entry_of = [&](const key_t key, const float val) {
-        table_entry_t te = std::make_pair(off++, float2int(val));
+    auto push_arg_entry_of = [&](const key_t key, const table_entry_val_t val,
+                                     const bool broadcast) {
+        mapped_table_entry_t te {0, val, broadcast};
         entry_map_.insert(std::make_pair(key, te));
     };
 
     auto push_entries_of = [&](const table_t &t) {
         for (auto it = t.begin(); it != t.end(); it++) {
+            auto key = (*it).first;
             auto te = (*it).second; // copy values from table
-            te.first += off; // shift offset with current off value
-            entry_map_.insert(std::make_pair((*it).first, te)); // put in map
+            push_arg_entry_of(key, te.val, te.bcast);
         }
-        off += t.size();
     };
 
-    push_arg_entry_of(scale, scale_);
-    push_arg_entry_of(alpha, alpha_);
-    push_arg_entry_of(beta, beta_);
+    push_arg_entry_of(scale, float2int(scale_), true);
+    push_arg_entry_of(alpha, float2int(alpha_), true);
+    push_arg_entry_of(beta, float2int(beta_), true);
     push_entries_of(common_values);
     if (need.exp()) push_entries_of(exp_consts);
     if (need.exp()) push_entries_of(exp_polynomial);
@@ -1595,6 +1638,17 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     if (need.log()) push_entries_of(log_consts);
     if (need.log()) push_entries_of(log_polynomial);
     if (need.log()) push_entries_of(log_predefined_values);
+
+    // Now that we registered the entries, we set the offsets.  No
+    // entries should be registered after this point.  This allows to
+    // expect the same order when injecting the table entries in
+    // prepare_table.
+    size_t off = 0;
+    for (auto it = entry_map_.begin(); it != entry_map_.end(); it++) {
+        auto &te = (*it).second;
+        te.off = off;
+        off += te.bcast ? vlen : sizeof(table_entry_val_t);
+    }
 }
 
 template struct jit_uni_eltwise_injector_f32<avx512_core>;
