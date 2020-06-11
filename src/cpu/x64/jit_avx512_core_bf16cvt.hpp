@@ -314,23 +314,27 @@ private:
 struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_cvt_bf16_to_ps_t)
 
-    jit_avx512_core_cvt_bf16_to_ps_t(bool with_add = false)
-        : with_add_(with_add) {
+    jit_avx512_core_cvt_bf16_to_ps_t(
+            bool with_add = false, size_t row_stride = 0)
+        : with_add_(with_add), row_stride_(row_stride) {
         generate();
         jit_ker_ = (decltype(jit_ker_))getCode();
     }
 
     void generate();
 
-    void jit_ker(float *out, const bfloat16_t *inp, size_t nelems) const {
-        jit_ker_(out, inp, nelems);
+    void jit_ker(float *out, const bfloat16_t *inp, size_t nelems,
+            size_t rows = 1) const {
+        jit_ker_(out, inp, nelems, rows);
         msan_unpoison(out, nelems * sizeof(float));
     }
 
 private:
     bool with_add_;
+    size_t row_stride_;
 
-    void (*jit_ker_)(float *out, const bfloat16_t *inp, size_t nelems);
+    void (*jit_ker_)(
+            float *out, const bfloat16_t *inp, size_t nelems, size_t nrows);
 };
 
 // performs element-by-element sum of inp and add float arrays and stores
