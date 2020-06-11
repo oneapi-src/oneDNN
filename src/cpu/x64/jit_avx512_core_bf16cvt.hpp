@@ -315,79 +315,88 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_cvt_bf16_to_ps_t)
 
     jit_avx512_core_cvt_bf16_to_ps_t(bool with_add = false)
-        : simd_w_(16), with_add_(with_add) {
+        : with_add_(with_add) {
         generate();
-        jit_ker_ = (void (*)(bf16_support::jit_call_t *))getCode();
+        jit_ker_ = (decltype(jit_ker_))getCode();
     }
 
     void generate() {
-        preamble();
+        const int simd = 16;
 
-        mov(reg_inp, ptr[abi_param1 + GET_OFF(inp)]);
-        mov(reg_out, ptr[abi_param1 + GET_OFF(out)]);
+        Xbyak::Reg64 reg_out = abi_param1;
+        Xbyak::Reg64 reg_inp = abi_param2;
+        Xbyak::Reg64 reg_nelems = abi_param3;
 
-        mov(reg_nelems, ptr[abi_param1 + GET_OFF(nelems)]);
+        auto vreg = [&](int offset) { return Xbyak::Zmm(8 + offset / simd); };
+
         constexpr int n_unroll = 2; // unroll by powers of 2 from 2^n to 2^0
-        Xbyak::Label l_simd_loop[n_unroll + 2], l_simd_notail;
+        Xbyak::Label l_simd_loop[n_unroll + 2];
         for (int i = n_unroll; i >= 0; i--) {
             const int unroll = 1 << i; // 4, 2, 1
             L(l_simd_loop[i + 1]);
             {
-                cmp(reg_nelems, simd_w_ * unroll);
+                cmp(reg_nelems, simd * unroll);
                 jl(l_simd_loop[i], T_NEAR);
-                for (int j = 0; j < simd_w_ * unroll; j += simd_w_) {
+                for (int j = 0; j < simd * unroll; j += simd) {
                     auto out_addr = zword[reg_out + sizeof(float) * j];
 
-                    vpmovzxwd(zmm_cvt, ptr[reg_inp + sizeof(bfloat16_t) * j]);
-                    vpslld(zmm_cvt, zmm_cvt, 0x10);
-                    if (with_add_) vaddps(zmm_cvt, zmm_cvt, out_addr);
-                    vmovdqu32(out_addr, zmm_cvt);
+                    vpmovzxwd(vreg(j), ptr[reg_inp + sizeof(bfloat16_t) * j]);
+                    vpslld(vreg(j), vreg(j), 0x10);
+                    if (with_add_) vaddps(vreg(j), vreg(j), out_addr);
+                    vmovdqu32(out_addr, vreg(j));
                 }
-                add(reg_inp, simd_w_ * unroll * sizeof(bfloat16_t));
-                add(reg_out, simd_w_ * unroll * sizeof(float));
-                sub(reg_nelems, simd_w_ * unroll);
-                jmp(l_simd_loop[i + 1], T_NEAR);
+                add(reg_inp, simd * unroll * sizeof(bfloat16_t));
+                add(reg_out, simd * unroll * sizeof(float));
+                sub(reg_nelems, simd * unroll);
+                if (i == n_unroll && n_unroll != 0)
+                    jmp(l_simd_loop[i + 1], T_NEAR);
             }
         }
         L(l_simd_loop[0]);
+
+        Xbyak::Label l_simd_tail;
         test(reg_nelems, reg_nelems);
-        jz(l_simd_notail);
-        // JIT of `tail_mask_ = (1 << (nelems_ % simd_w_)) - 1;`
+        jnz(l_simd_tail);
+        ret();
+
+        L(l_simd_tail);
+
+        // tail processing
+        Xbyak::Reg8 reg8_mask_shift = cl;
+        Xbyak::Reg32 reg32_mask = r10d;
+        Xbyak::Opmask ktail_mask = k1;
+
+#ifdef _WIN32
+        assert(reg_inp == rcx);
+        reg_inp = rdi;
+        mov(reg_inp, rcx);
+#endif
+
+        // ktail_mask <-- (1 << (nelems % simd)) - 1
         mov(reg32_mask, 1);
-        mov(reg64_tail, reg_nelems);
+        mov(reg8_mask_shift.cvt64(), reg_nelems);
         shl(reg32_mask, reg8_mask_shift);
         sub(reg32_mask, 1);
         kmovd(ktail_mask, reg32_mask);
-        vpmovzxwd(zmm_cvt | ktail_mask | T_z, zword[reg_inp]);
-        vpslld(zmm_cvt, zmm_cvt, 0x10);
-        if (with_add_)
-            vaddps(zmm_cvt | ktail_mask | T_z, zmm_cvt, zword[reg_out]);
-        vmovdqu32(zword[reg_out] | ktail_mask, zmm_cvt);
-        L(l_simd_notail);
 
-        postamble();
+        vpmovzxwd(vreg(0) | ktail_mask | T_z, zword[reg_inp]);
+        vpslld(vreg(0), vreg(0), 0x10);
+        if (with_add_)
+            vaddps(vreg(0) | ktail_mask | T_z, vreg(0), zword[reg_out]);
+        vmovdqu32(zword[reg_out] | ktail_mask, vreg(0));
+
+        ret();
     }
 
-    void jit_ker(bf16_support::jit_call_t *params) const {
-        jit_ker_(params);
-        msan_unpoison(params->out, params->nelems * sizeof(float));
+    void jit_ker(float *out, const bfloat16_t *inp, size_t nelems) const {
+        jit_ker_(out, inp, nelems);
+        msan_unpoison(out, nelems * sizeof(float));
     }
 
 private:
-    int simd_w_;
     bool with_add_;
-    void (*jit_ker_)(bf16_support::jit_call_t *);
 
-    Xbyak::Opmask ktail_mask = k1;
-    Xbyak::Zmm zmm_cvt = Xbyak::Zmm(0);
-
-    Xbyak::Reg64 reg_inp = rax;
-    Xbyak::Reg64 reg_out = rbx;
-    Xbyak::Reg64 reg_nelems = rdx;
-
-    Xbyak::Reg64 reg64_tail = rcx;
-    Xbyak::Reg8 reg8_mask_shift = cl;
-    Xbyak::Reg32 reg32_mask = r8d;
+    void (*jit_ker_)(float *out, const bfloat16_t *inp, size_t nelems);
 };
 
 // performs element-by-element sum of inp and add float arrays and stores
