@@ -56,8 +56,20 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
 
     assert(preserved_vecs_count == vecs_to_preserve);
 
+    // Same logic but to allocate gprs
+    size_t preserved_gprs_count = 0;
+    for (size_t gpr_idx = 0; gpr_idx <= Operand::R15; ++gpr_idx) {
+        int _idx = Operand::R15 - gpr_idx; // we allocate from the end
+        if (preserved_gprs_count < aux_gprs_count()
+                && !utils::one_of(_idx, p_table.getIdx(), Operand::RSP))
+            preserved_gpr_idxs[preserved_gprs_count++] = _idx;
+    }
+    assert(preserved_gprs_count == aux_gprs_count());
+
     if (save_state_) {
         h->push(p_table);
+        for (size_t i = 0; i < preserved_gprs_count; ++i)
+            h->push(Reg64(preserved_gpr_idxs[i]));
 
         if (preserved_vecs_count) h->sub(h->rsp, preserved_vecs_count * vlen);
 
@@ -110,6 +122,8 @@ void jit_uni_eltwise_injector_f32<isa>::injector_postamble() {
 
     if (preserved_vecs_count) h->add(h->rsp, preserved_vecs_count * vlen);
 
+    for (int i = aux_gprs_count() - 1; i >= 0; --i)
+        h->pop(Reg64(preserved_gpr_idxs[i]));
     h->pop(p_table);
 }
 
@@ -1137,6 +1151,17 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_bwd(
     h->uni_vfmadd231ps(vmm_aux2, vmm_src, table_val(half));
     h->uni_vmovups(vmm_src, vmm_aux2);
 }
+
+template <cpu_isa_t isa>
+size_t jit_uni_eltwise_injector_f32<isa>::aux_gprs_count() {
+    using namespace alg_kind;
+    switch (alg_) {
+        case eltwise_tanh:
+        case eltwise_gelu_tanh: return isa == sse41 ? 4 : 0;
+        default: return 0;
+    }
+    return 0;
+};
 
 template <cpu_isa_t isa>
 size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {

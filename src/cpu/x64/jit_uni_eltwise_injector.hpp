@@ -121,6 +121,7 @@ private:
 
     static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
     static constexpr size_t preserved_vecs_max = 5;
+    static constexpr size_t preserved_gprs_max = 4;
     static constexpr size_t vecs_count = has_avx512() ? 32 : 16;
     static constexpr int n_mantissa_bits = 23;
     static constexpr int k_mask_size = 8;
@@ -128,11 +129,13 @@ private:
     size_t vecs_to_preserve = 0;
     size_t preserved_vecs_count = 0;
     size_t preserved_vec_idxs[preserved_vecs_max] = {0};
+    size_t preserved_gpr_idxs[preserved_gprs_max] = {0};
     size_t start_idx_tail = 0;
 
     Vmm vmm_mask, vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3, vmm_aux4;
 
     size_t aux_vecs_count();
+    size_t aux_gprs_count();
 
     void compute_body(size_t start_idx, size_t end_idx);
     void injector_preamble(size_t start_idx, size_t end_idx);
