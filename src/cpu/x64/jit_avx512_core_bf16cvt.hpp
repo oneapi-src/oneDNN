@@ -39,6 +39,7 @@ struct jit_call_t {
     void *out;
     void *add;
     size_t nelems;
+    int mask;
 };
 } // namespace bf16_support
 
@@ -472,6 +473,7 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
     void generate() {
         preamble();
 
+        mov(reg32_tail, ptr[abi_param1 + GET_OFF(mask)]);
         mov(reg_inp, ptr[abi_param1 + GET_OFF(inp)]);
         mov(reg_out, ptr[abi_param1 + GET_OFF(out)]);
         mov(reg_nelems, ptr[abi_param1 + GET_OFF(nelems)]);
@@ -481,11 +483,8 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
             return Xbyak::Zmm(idx);
         };
 
-        mov(reg32_tail, 0x00ff);
-        kmovw(ktail_mask_lo, reg32_tail);
-
-        mov(reg32_tail, 0xff00);
-        kmovw(ktail_mask_hi, reg32_tail);
+        kmovd(ktail_mask_lo, reg32_tail);
+        kshiftld(ktail_mask_hi, ktail_mask_lo, 16);
 
         Xbyak::Label dst_prm_table;
         mov(reg_prm, dst_prm_table);
@@ -506,9 +505,9 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
                     if (in_stride_ == 16)
                         vmovups(zmm_inp, zword[reg_inp + j * sizeofcacheline]);
                     else {
-                        vmovups(zmm_inp | ktail_mask_lo | T_z,
+                        vmovdqu16(zmm_inp | ktail_mask_lo | T_z,
                                 zword[reg_inp + 2 * j * in_stride_bytes]);
-                        vmovups(zmm_inp | ktail_mask_hi,
+                        vmovdqu16(zmm_inp | ktail_mask_hi,
                                 zword[reg_inp + (2 * j + 1) * in_stride_bytes
                                         - 32]);
                     }
@@ -532,7 +531,7 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
 
         auto zmm_inp = zmm_reg(0);
         vpxord(zmm_inp, zmm_inp, zmm_inp);
-        vmovups(zmm_inp | ktail_mask_lo | T_z, ptr[reg_inp]);
+        vmovdqu16(zmm_inp | ktail_mask_lo | T_z, ptr[reg_inp]);
         vpermw(zmm_inp, zmm_prm, zmm_inp);
         vmovups(zword[reg_out], zmm_inp);
 
