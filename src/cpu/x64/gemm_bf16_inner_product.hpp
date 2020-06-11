@@ -31,6 +31,8 @@
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm_inner_product_utils.hpp"
 
+#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -268,7 +270,11 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
         }
     };
 
-    gemm_bf16_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
+    gemm_bf16_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {
+        if (pd()->with_bias())
+            bias_reduction_.reset(new jit_avx512_core_cvt_bf16_to_ps_t(
+                    true, (size_t)pd()->OC()));
+    }
 
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
@@ -284,6 +290,8 @@ private:
 
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     void execute_backward_bias(const exec_ctx_t &ctx) const;
+
+    std::unique_ptr<jit_avx512_core_cvt_bf16_to_ps_t> bias_reduction_;
 };
 
 } // namespace x64

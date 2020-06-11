@@ -218,10 +218,9 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
             for (dim_t oc = 0; oc < oc_len; ++oc)
                 db[oc] = 0;
 
-            for (dim_t mb = 0; mb < mb_len; ++mb)
-                cvt_bfloat16_and_add_to_float(db,
-                        &((bfloat16_t *)diff_dst)[(mb_s + mb) * OC + oc_s],
-                        oc_len);
+            bias_reduction_->jit_ker(db,
+                    &((bfloat16_t *)diff_dst)[mb_s * OC + oc_s], (size_t)oc_len,
+                    (size_t)mb_len);
 
             if (!diff_bias_is_acc && nthr_MB == 1)
                 cvt_float_to_bfloat16(
