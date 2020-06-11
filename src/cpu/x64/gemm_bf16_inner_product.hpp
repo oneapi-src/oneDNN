@@ -219,27 +219,52 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             diff_wei_is_acc_ = diff_wei_data_type == f32;
-            diff_bias_is_acc_
-                    = with_bias() && diff_weights_md(1)->data_type == f32;
+            bias_reduction_nthr_ = dnnl_get_max_threads();
 
             init_scratchpad();
 
             return status::success;
         }
 
-        bool diff_wei_is_acc_, diff_bias_is_acc_;
+        bool diff_wei_is_acc_;
+        int bias_reduction_nthr_;
+        static const dim_t bias_blksize = 32;
+
+        void get_bias_partitioning(
+                dim_t &OC_per_thread, int &nthr_OCB, int &nthr_MB) const {
+            dim_t OCB = utils::div_up(OC(), bias_blksize);
+            dim_t OCB_per_thread = utils::div_up(OCB, bias_reduction_nthr_);
+
+            OC_per_thread = OCB_per_thread * bias_blksize;
+            nthr_OCB = utils::div_up(OCB, OCB_per_thread);
+            nthr_MB = bias_reduction_nthr_ / nthr_OCB;
+
+            assert(nthr_OCB * nthr_MB <= bias_reduction_nthr_);
+        }
 
     private:
         void init_scratchpad() {
+            using namespace memory_tracking;
             auto scratchpad = scratchpad_registry().registrar();
+
             if (!diff_wei_is_acc_)
                 scratchpad.template book<acc_data_t>(
-                        memory_tracking::names::key_iprod_int_dat_in_acc_dt,
+                        names::key_iprod_int_dat_in_acc_dt,
                         OC() * IC_total_padded());
-            if (with_bias() && !diff_bias_is_acc_)
-                scratchpad.template book<acc_data_t>(
-                        memory_tracking::names::key_iprod_bias_bf16_convert_wsp,
-                        OC());
+
+            if (with_bias()) {
+                dim_t OC_per_thread {0};
+                int nthr_OCB {0}, nthr_MB {0};
+                get_bias_partitioning(OC_per_thread, nthr_OCB, nthr_MB);
+
+                const bool diff_bias_is_acc = nthr_MB == 1
+                        && diff_weights_md(1)->data_type == data_type::f32;
+
+                if (!diff_bias_is_acc)
+                    scratchpad.template book<acc_data_t>(
+                            names::key_iprod_bias_bf16_convert_wsp,
+                            nthr_OCB * nthr_MB * OC_per_thread);
+            }
         }
     };
 

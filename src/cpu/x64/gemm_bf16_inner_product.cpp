@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
+
 #include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -178,31 +180,87 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
     const dim_t MB = pd()->MB();
     const dim_t OC = pd()->OC();
 
-    constexpr dim_t blksize = 16;
-    const dim_t OC_blocks = utils::div_up(OC, blksize);
-    float *diff_bias_acc = pd()->diff_bias_is_acc_
+    constexpr dim_t blksize = pd_t::bias_blksize;
+    const dim_t OCB = utils::div_up(OC, blksize);
+
+    dim_t OC_per_thread {0};
+    int nthr_OCB {0}, nthr_MB {0};
+    pd()->get_bias_partitioning(OC_per_thread, nthr_OCB, nthr_MB);
+
+    const bool diff_bias_is_acc
+            = nthr_MB == 1 && diff_bias_d.data_type() == data_type::f32;
+    float *diff_bias_acc = diff_bias_is_acc
             ? (float *)diff_bias
             : (float *)ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     key_iprod_bias_bf16_convert_wsp);
 
-    parallel(0, [&](const int ithr, const int nthr) {
-        dim_t oc_s {0}, oc_e {0};
-        balance211(OC_blocks, nthr, ithr, oc_s, oc_e);
-        oc_s = std::min(oc_s * blksize, OC);
-        oc_e = std::min(oc_e * blksize, OC);
-        auto len = oc_e - oc_s;
+    parallel(pd()->bias_reduction_nthr_, [&](int ithr, int nthr) {
+        if (ithr < nthr_OCB * nthr_MB) {
+            const int ithr_MB = ithr / nthr_OCB;
+            const int ithr_OCB = ithr % nthr_OCB;
 
-        if (len > 0) {
-            cvt_bfloat16_to_float(
-                    &diff_bias_acc[oc_s], &((bfloat16_t *)diff_dst)[oc_s], len);
+            dim_t ocb_s {0}, ocb_e {0};
+            balance211(OCB, nthr_OCB, ithr_OCB, ocb_s, ocb_e);
+            const dim_t oc_s = std::min(ocb_s * blksize, OC);
+            const dim_t oc_e = std::min(ocb_e * blksize, OC);
+            const dim_t oc_len = oc_e - oc_s;
 
-            for (dim_t mb = 1; mb < MB; ++mb)
-                cvt_bfloat16_and_add_to_float(&diff_bias_acc[oc_s],
-                        &((bfloat16_t *)diff_dst)[mb * OC + oc_s], len);
+            dim_t mb_s {0}, mb_e {0};
+            balance211(MB, nthr_MB, ithr_MB, mb_s, mb_e);
+            const dim_t mb_len = mb_e - mb_s;
 
-            if (!pd()->diff_bias_is_acc_)
-                cvt_float_to_bfloat16(&((bfloat16_t *)diff_bias)[oc_s],
-                        &diff_bias_acc[oc_s], len);
+            const dim_t db_offset = diff_bias_is_acc
+                    ? oc_s
+                    : (ithr_OCB * nthr_MB + ithr_MB) * OC_per_thread;
+            float *db = diff_bias_acc + db_offset;
+
+            PRAGMA_OMP_SIMD()
+            for (dim_t oc = 0; oc < oc_len; ++oc)
+                db[oc] = 0;
+
+            for (dim_t mb = 0; mb < mb_len; ++mb)
+                cvt_bfloat16_and_add_to_float(db,
+                        &((bfloat16_t *)diff_dst)[(mb_s + mb) * OC + oc_s],
+                        oc_len);
+
+            if (!diff_bias_is_acc && nthr_MB == 1)
+                cvt_float_to_bfloat16(
+                        &((bfloat16_t *)diff_bias)[oc_s], db, oc_len);
+        }
+    });
+
+    if (nthr_MB == 1) return; // no reduction required
+
+    parallel(pd()->bias_reduction_nthr_, [&](int ithr, int nthr) {
+        if (ithr < nthr_OCB) {
+            const int ithr_OCB = ithr;
+
+            dim_t ocb_s {0}, ocb_e {0};
+            balance211(OCB, nthr_OCB, ithr_OCB, ocb_s, ocb_e);
+            const dim_t oc_s = std::min(ocb_s * blksize, OC);
+            const dim_t oc_e = std::min(ocb_e * blksize, OC);
+            const dim_t oc_len = oc_e - oc_s;
+
+            float *db = diff_bias_acc + ithr_OCB * nthr_MB * OC_per_thread;
+
+            for (dim_t thr_MB = 1; thr_MB < nthr_MB; ++thr_MB) {
+                const float *thr_db = db + thr_MB * OC_per_thread;
+
+                PRAGMA_OMP_SIMD()
+                for (dim_t oc = 0; oc < oc_len; ++oc)
+                    db[oc] += thr_db[oc];
+            }
+
+            if (diff_bias_d.data_type() == data_type::f32) {
+                float *res = &((float *)diff_bias)[oc_s];
+
+                PRAGMA_OMP_SIMD()
+                for (dim_t oc = 0; oc < oc_len; ++oc)
+                    res[oc] = db[oc];
+            } else {
+                cvt_float_to_bfloat16(
+                        &((bfloat16_t *)diff_bias)[oc_s], db, oc_len);
+            }
         }
     });
 }
