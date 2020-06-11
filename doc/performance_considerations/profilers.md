@@ -5,7 +5,7 @@ oneDNN uses JIT (just-in-time) code generation based on primitive parameters and
 instruction set supported by the system. In order to correctly attribute
 performance event information, profilers need to be notified about
 address ranges containing JIT-ed code. oneDNN supports two profilers:
-VTune Amplifier and Linux perf.
+VTune(TM) Amplifier and Linux perf.
 
 ## Build-time Controls
 
@@ -23,7 +23,7 @@ variable can be used to manage integration with performance profilers.
 
 | Environment variable | Value            | Description
 | :---                 | :---             | :---
-| DNNL_JIT_PROFILE     | **1**            | **Enables VTune integration (default)**
+| DNNL_JIT_PROFILE     | **1**            | **Enables VTune Amplifier integration (default)**
 |                      | 2                | Enables basic Linux perf integration
 |                      | 6                | Enables Linux perf integration with JIT dump output
 |                      | 14               | Enables Linux perf integration with JIT dump output and TSC timestamps
