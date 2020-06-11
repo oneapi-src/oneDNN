@@ -30,6 +30,7 @@
 #include <unordered_set>
 
 #include "common/c_types_map.hpp"
+#include "common/internal_defs.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
@@ -252,6 +253,14 @@ ocl_wrapper_t<T> make_ocl_wrapper(T t) {
 
 status_t get_ocl_kernel_arg_type(
         compute::scalar_type_t *type, cl_kernel ocl_kernel, int idx);
+
+#ifdef DNNL_ENABLE_MEM_DEBUG
+cl_mem DNNL_WEAK clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
+        size_t size, void *host_ptr, cl_int *errcode_ret);
+#else
+cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
+        size_t size, void *host_ptr, cl_int *errcode_ret);
+#endif
 
 } // namespace ocl
 } // namespace gpu

@@ -194,7 +194,7 @@ protected:
 
             ASSERT_EQ(sum_pd.dst_desc().data.ndims, dst_desc.data.ndims);
         }
-        ASSERT_NO_THROW(dst = memory(sum_pd.dst_desc(), eng));
+        dst = memory(sum_pd.dst_desc(), eng);
         // test construction from a C pd
         sum_pd = sum::primitive_desc(sum_pd.get());
 

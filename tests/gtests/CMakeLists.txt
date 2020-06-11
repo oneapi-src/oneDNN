@@ -19,6 +19,15 @@ add_subdirectory (gtest)
 set(APP_NAME "gtest")
 set(MAIN_SRC_GTEST ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 list(APPEND MAIN_SRC_GTEST ${TEST_THREAD})
+list(APPEND MAIN_SRC_GTEST ${CMAKE_CURRENT_SOURCE_DIR}/test_malloc.cpp)
+
+# Windows does not support weak/strong symbols and no guarrantees by the linker
+# for out_of_memory testing to work. Not tested on macOS
+if(UNIX)
+    if(DNNL_ENABLE_MEM_DEBUG)
+        add_definitions(-DDNNL_ENABLE_MEM_DEBUG)
+    endif()
+endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}/gtest
@@ -88,11 +97,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_global_scratchpad.cpp
                               )
 
-# Clang sanitizer complains about a large memory allocation
-# Exclude this test as the allocation is intentional
 if(NOT DNNL_USE_CLANG_SANITIZER)
-    list(APPEND PRIM_TEST_CASES_SRC test_alloc_scratchpad.cpp)
-
     # Due to the following tests have long run-time, move them to Nightly set
     if(DNNL_TEST_SET GREATER DNNL_TEST_SET_CI)
         file(GLOB LARGE_PRIM_TEST_CASES_SRC

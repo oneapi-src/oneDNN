@@ -70,6 +70,14 @@ if(WIN32)
     endif()
 endif()
 
+# Windows does not support weak/strong symbols and no guarrantees by the linker
+# for out_of_memory testing to work. Not tested on macOS
+if(UNIX)
+    if(DNNL_ENABLE_MEM_DEBUG)
+        add_definitions(-DDNNL_ENABLE_MEM_DEBUG)
+    endif()
+endif()
+
 add_subdirectory(common)
 add_subdirectory(cpu)
 

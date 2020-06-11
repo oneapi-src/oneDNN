@@ -18,15 +18,26 @@
 #define DNNL_TEST_COMMON_OCL_HPP
 
 #include "dnnl.hpp"
+#include "dnnl_debug.h"
+#include "gpu/ocl/ocl_utils.hpp"
 #include "gtest/gtest.h"
 
 #include <CL/cl.h>
 
-#define OCL_CHECK(x) \
+// Define a separate macro, that does not clash with OCL_CHECK from the library.
+#ifdef DNNL_ENABLE_MEM_DEBUG
+#define TEST_OCL_CHECK(x) \
+    do { \
+        dnnl_status_t s = dnnl::impl::gpu::ocl::convert_to_dnnl(x); \
+        dnnl::error::wrap_c_api(s, dnnl_status2str(s)); \
+    } while (0)
+#else
+#define TEST_OCL_CHECK(x) \
     do { \
         int s = int(x); \
         EXPECT_EQ(s, CL_SUCCESS) << "OpenCL error: " << s; \
     } while (0)
+#endif
 
 static inline cl_device_id find_ocl_device(cl_device_type dev_type) {
     cl_int err;
@@ -45,7 +56,7 @@ static inline cl_device_id find_ocl_device(cl_device_type dev_type) {
 
         const size_t max_platform_vendor_size = 256;
         std::string platform_vendor(max_platform_vendor_size + 1, 0);
-        OCL_CHECK(clGetPlatformInfo(ocl_platform, CL_PLATFORM_VENDOR,
+        TEST_OCL_CHECK(clGetPlatformInfo(ocl_platform, CL_PLATFORM_VENDOR,
                 max_platform_vendor_size * sizeof(char), &platform_vendor[0],
                 nullptr));
         cl_uint ndevices;

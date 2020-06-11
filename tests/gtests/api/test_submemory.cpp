@@ -29,7 +29,7 @@ namespace dnnl {
 class submemory_test_cpp : public ::testing::TestWithParam<dnnl_engine_kind_t> {
 };
 
-TEST_P(submemory_test_cpp, SubmemoryMemoryInteraction) {
+HANDLE_EXCEPTIONS_FOR_TEST_P(submemory_test_cpp, SubmemoryMemoryInteraction) {
     auto engine_kind = static_cast<engine::kind>(GetParam());
 
     SKIP_IF(engine::get_count(engine_kind) == 0,

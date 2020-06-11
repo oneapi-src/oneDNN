@@ -21,33 +21,49 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include <cstdlib>
 #include <map>
 #include <vector>
 
 #include "bfloat16.hpp"
 #include "float16.hpp"
+#include "internal_defs.hpp"
 #include "z_magic.hpp"
 
 namespace dnnl {
 namespace impl {
 
+#ifdef DNNL_ENABLE_MEM_DEBUG
+// Export the malloc symbol (for SHARED build) or define it as weak (for STATIC
+// build) in order to replace it with a custom one from an object file at link
+// time.
+void DNNL_WEAK *malloc(size_t size, int alignment);
+// Use glibc malloc (and, consequently, free) when DNNL_ENABLE_MEM_DEBUG is
+// enabled, such that the operator new doesn't fail during out_of_memory
+// testing.
+#define MALLOC(size, alignment) ::malloc(size)
+#define FREE(ptr) ::free(ptr)
+#else
 void *malloc(size_t size, int alignment);
+#define MALLOC(size, alignment) malloc(size, alignment)
+#define FREE(ptr) free(ptr)
+#endif
 void free(void *p);
 
 struct c_compatible {
     enum { default_alignment = 64 };
     static void *operator new(size_t sz) {
-        return malloc(sz, default_alignment);
+        return MALLOC(sz, default_alignment);
     }
     static void *operator new(size_t sz, void *p) {
         UNUSED(sz);
         return p;
     }
     static void *operator new[](size_t sz) {
-        return malloc(sz, default_alignment);
+        return MALLOC(sz, default_alignment);
     }
-    static void operator delete(void *p) { free(p); }
-    static void operator delete[](void *p) { free(p); }
+    static void operator delete(void *p) { FREE(p); }
+    static void operator delete[](void *p) { FREE(p); }
 
 protected:
     // This member is intended as a check for whether all necessary members in
@@ -56,6 +72,9 @@ protected:
     // in a constructor.
     bool is_initialized_ = true;
 };
+
+#undef MALLOC
+#undef FREE
 
 namespace nstl {
 

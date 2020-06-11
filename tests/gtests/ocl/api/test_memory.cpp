@@ -28,7 +28,7 @@ namespace dnnl {
 
 class ocl_memory_test_c : public ::testing::Test {
 protected:
-    virtual void SetUp() {
+    HANDLE_EXCEPTIONS_FOR_TEST_SETUP() {
         if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
 
         DNNL_CHECK(dnnl_engine_create(&engine, dnnl_gpu, 0));
@@ -59,7 +59,9 @@ protected:
     dnnl_memory_t memory = nullptr;
 };
 
-TEST_F(ocl_memory_test_c, BasicInteropC) {
+class ocl_memory_test_cpp : public ::testing::Test {};
+
+HANDLE_EXCEPTIONS_FOR_TEST_F(ocl_memory_test_c, BasicInteropC) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 
@@ -70,7 +72,7 @@ TEST_F(ocl_memory_test_c, BasicInteropC) {
     cl_int err;
     cl_mem interop_ocl_mem = clCreateBuffer(ocl_ctx, CL_MEM_READ_WRITE,
             sizeof(float) * N * C * H * W, nullptr, &err);
-    OCL_CHECK(err);
+    TEST_OCL_CHECK(err);
 
     DNNL_CHECK(dnnl_memory_set_ocl_mem_object(memory, interop_ocl_mem));
 
@@ -81,15 +83,15 @@ TEST_F(ocl_memory_test_c, BasicInteropC) {
     memory = nullptr;
 
     cl_uint ref_count;
-    OCL_CHECK(clGetMemObjectInfo(interop_ocl_mem, CL_MEM_REFERENCE_COUNT,
+    TEST_OCL_CHECK(clGetMemObjectInfo(interop_ocl_mem, CL_MEM_REFERENCE_COUNT,
             sizeof(cl_uint), &ref_count, nullptr));
     int i_ref_count = int(ref_count);
     ASSERT_EQ(i_ref_count, 1);
 
-    OCL_CHECK(clReleaseMemObject(interop_ocl_mem));
+    TEST_OCL_CHECK(clReleaseMemObject(interop_ocl_mem));
 }
 
-TEST(ocl_memory_test_cpp, BasicInteropCpp) {
+HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_test_cpp, BasicInteropCpp) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 
@@ -101,7 +103,7 @@ TEST(ocl_memory_test_cpp, BasicInteropCpp) {
     cl_int err;
     cl_mem interop_ocl_mem = clCreateBuffer(ocl_ctx, CL_MEM_READ_WRITE,
             sizeof(float) * tz[0] * tz[1] * tz[2] * tz[3], nullptr, &err);
-    OCL_CHECK(err);
+    TEST_OCL_CHECK(err);
 
     {
         memory::desc mem_d(
@@ -118,12 +120,12 @@ TEST(ocl_memory_test_cpp, BasicInteropCpp) {
     }
 
     cl_uint ref_count;
-    OCL_CHECK(clGetMemObjectInfo(interop_ocl_mem, CL_MEM_REFERENCE_COUNT,
+    TEST_OCL_CHECK(clGetMemObjectInfo(interop_ocl_mem, CL_MEM_REFERENCE_COUNT,
             sizeof(cl_uint), &ref_count, nullptr));
     int i_ref_count = int(ref_count);
     ASSERT_EQ(i_ref_count, 1);
 
-    OCL_CHECK(clReleaseMemObject(interop_ocl_mem));
+    TEST_OCL_CHECK(clReleaseMemObject(interop_ocl_mem));
 }
 
 } // namespace dnnl

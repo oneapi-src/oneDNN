@@ -234,6 +234,10 @@ protected:
         test_resampling_desc_t pd = p.test_pd;
 
         memory::dims src_dims = {pd.mb, pd.c}, dst_dims = {pd.mb, pd.c};
+        // When `out_of_memory` testing is enabled, factors is expanded each
+        // time `Test()` is executed for any test. Clear the vector to avoid
+        // having its size > DNNL_MAX_NDIMS.
+        factors.clear();
         if (p.ndims == 5) {
             factors.push_back(pd.fd);
             src_dims.push_back(pd.id);

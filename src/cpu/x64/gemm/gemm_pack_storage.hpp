@@ -58,9 +58,11 @@ struct gemm_pack_storage_t {
     }
 
     template <typename data_type>
-    gemm_pack_storage_t(data_type *data_) {
+    gemm_pack_storage_t(data_type *data_) : base(nullptr) {
         reset((void *)data_);
     }
+
+    gemm_pack_storage_t() : base(nullptr) {}
 
     std::tuple<int, int> thread_slice_info(int ithr) const {
         assert(ithr < nthr());
@@ -349,11 +351,13 @@ protected:
 
 struct gemm_pack_storage_shell_t : public gemm_pack_storage_t {
 
-    gemm_pack_storage_shell_t(
-            int max_nthr, bool has_row_sums = false, bool has_col_sums = false)
-        : gemm_pack_storage_t(malloc(shell_size(max_nthr), 64)) {
-
-        setup(max_nthr, has_row_sums, has_col_sums);
+    gemm_pack_storage_shell_t(int max_nthr, bool has_row_sums = false,
+            bool has_col_sums = false) {
+        void *ptr = malloc(shell_size(max_nthr), 64);
+        if (ptr) {
+            reset(ptr);
+            setup(max_nthr, has_row_sums, has_col_sums);
+        }
     }
 
     ~gemm_pack_storage_shell_t() { free(get()); }
