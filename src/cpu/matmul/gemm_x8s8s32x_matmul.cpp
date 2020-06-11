@@ -91,7 +91,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init(
     // set states
 
     // copy attributes and drop src and weights zero points
-    params_.pp_attr_ = *attr();
+    CHECK(params_.pp_attr_.copy_from(*attr()));
     params_.pp_attr_.zero_points_.set(DNNL_ARG_SRC, 0);
     params_.pp_attr_.zero_points_.set(DNNL_ARG_WEIGHTS, 0);
 

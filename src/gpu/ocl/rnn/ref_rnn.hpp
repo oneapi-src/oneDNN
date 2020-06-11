@@ -89,13 +89,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
         pd_t(const pd_t &other) : base_pd_t(other) { copy_from(other); }
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            base_pd_t::operator=(other);
-            copy_from(other);
-            return *this;
-        }
-
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
         status_t init(engine_t *engine);

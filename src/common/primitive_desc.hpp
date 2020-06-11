@@ -225,6 +225,8 @@ protected:
         return fwd_pd && fwd_pd->workspace_md()
                 && *fwd_pd->workspace_md() == *workspace_md();
     }
+
+    primitive_desc_t &operator=(const primitive_desc_t &other) = delete;
 };
 
 } // namespace impl

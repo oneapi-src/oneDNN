@@ -92,15 +92,6 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             , conv_supports_bias_(other.conv_supports_bias_)
             , dst_tag_(other.dst_tag_) {}
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_deconvolution_fwd_pd_t::operator=(other);
-            conv_pd_.reset(other.conv_pd_->clone());
-            conv_supports_bias_ = other.conv_supports_bias_;
-            dst_tag_ = other.dst_tag_;
-            return *this;
-        }
-
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_fwd_t);
@@ -111,7 +102,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
-            primitive_attr_t conv_attr = *attr();
+            primitive_attr_t conv_attr(*attr());
             conv_attr.set_scratchpad_mode(scratchpad_mode::user);
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
@@ -258,13 +249,6 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
             : cpu_deconvolution_bwd_data_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_deconvolution_bwd_data_pd_t::operator=(other);
-            conv_pd_.reset(other.conv_pd_->clone());
-            return *this;
-        }
-
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_data_t);
@@ -275,7 +259,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
             convolution_desc_t cd;
             status_t status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
-            primitive_attr_t conv_attr = *attr();
+            primitive_attr_t conv_attr(*attr());
             conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
@@ -369,13 +353,6 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             , conv_pd_(other.conv_pd_->clone())
             , dst_tag_(other.dst_tag_) {}
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_deconvolution_bwd_weights_pd_t::operator=(other);
-            conv_pd_.reset(other.conv_pd_->clone());
-            return *this;
-        }
-
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_weights_t);
@@ -387,7 +364,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             convolution_desc_t cd;
             status_t status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
-            primitive_attr_t conv_attr = *attr();
+            primitive_attr_t conv_attr(*attr());
             conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(

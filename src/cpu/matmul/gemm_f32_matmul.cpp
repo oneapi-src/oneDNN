@@ -87,7 +87,7 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     if (!check_attr_oscale()) return status::unimplemented;
 
     // set state
-    params_.pp_attr_ = *attr();
+    CHECK(params_.pp_attr_.copy_from(*attr()));
     params_.gemm_applies_output_scales_
             = attr()->output_scales_.mask_ == 0 && !with_bias();
     if (params_.gemm_applies_output_scales_)
@@ -102,7 +102,7 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
             params_.gemm_beta_ = po.entry_[sum_idx].sum.scale;
             // drop sum from pp_attributes, as it will be applied by gemm
             for (int i = 0; i < po.len_ - 1; ++i)
-                po.entry_[i] = po.entry_[i + 1];
+                CHECK(po.entry_[i].copy_from(po.entry_[i + 1]));
             po.len_ -= 1;
         }
     } else {

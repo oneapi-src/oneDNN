@@ -86,6 +86,8 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         return return_pd;
     }
 
+    const dnnl::impl::primitive_attr_t &attr() const { return attr_; }
+
 protected:
     int idx_;
     dnnl::impl::engine_t *engine_;

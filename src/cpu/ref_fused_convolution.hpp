@@ -82,13 +82,6 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             copy_from(other);
         }
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_convolution_fwd_pd_t::operator=(other);
-            copy_from(other);
-            return *this;
-        }
-
         DECLARE_COMMON_PD_T(name_.c_str(), ref_fused_convolution_fwd_t);
 
         virtual status_t init(engine_t *engine) {
@@ -185,13 +178,13 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 
         status_t init_ops(engine_t *engine) {
             using namespace data_type;
-            auto root_attr = *attr();
+            primitive_attr_t root_attr(*attr());
             root_attr.set_scratchpad_mode(scratchpad_mode::user);
             auto po_op_iter
                     = attr()->post_ops_.find(primitive_kind::convolution);
             if (po_op_iter == -1) return status::unimplemented;
 
-            primitive_attr_t attr_1x1 = *attr();
+            primitive_attr_t attr_1x1(*attr());
             attr_1x1.post_ops_.len_ = po_op_iter;
             attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
 

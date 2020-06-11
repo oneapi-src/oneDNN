@@ -40,13 +40,6 @@ struct ref_concat_t : public gpu_primitive_t {
 
         ~pd_t() = default;
 
-        pd_t &operator=(const pd_t &rhs) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            gpu_concat_pd_t::operator=(rhs);
-            copy(rhs);
-            return *this;
-        }
-
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
         status_t init(engine_t *engine) {

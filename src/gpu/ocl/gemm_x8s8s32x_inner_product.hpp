@@ -63,7 +63,7 @@ inline status_t create_gemm_x8s8s32x_pd(
     gemm_desc.c_type = c_dt;
     gemm_desc.acc_type = c_dt;
 
-    primitive_attr_t gemm_attr = attr;
+    primitive_attr_t gemm_attr(attr);
     gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
     dnnl_primitive_desc_iterator it(
             engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);

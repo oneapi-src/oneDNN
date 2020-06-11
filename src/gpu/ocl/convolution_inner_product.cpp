@@ -78,7 +78,7 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
             &conv_src_md, &conv_wei_md, invariant_bia_md(), &conv_dst_md,
             &strides[0], &padding[0], &padding_r[0]));
 
-    primitive_attr_t conv_attr = *attr();
+    primitive_attr_t conv_attr(*attr());
     conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
     dnnl_primitive_desc_iterator it(
@@ -100,7 +100,7 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
         conf.reorder_dst = true;
         auto r_impls = engine->get_reorder_implementation_list(
                 &dst_conv, &ip_dst_md);
-        primitive_attr_t r_attr = default_attr();
+        primitive_attr_t r_attr(default_attr());
         r_attr.set_scratchpad_mode(scratchpad_mode::user);
         for (auto r = r_impls; *r; ++r) {
             reorder_pd_t *r_pd = nullptr;
@@ -115,7 +115,7 @@ status_t convolution_inner_product_fwd_t::pd_t::init_conf(engine_t *engine) {
         if (conf.attr_info.with_sum) {
             auto r_impls = engine->get_reorder_implementation_list(
                     &ip_dst_md, &dst_conv);
-            primitive_attr_t r_attr = default_attr();
+            primitive_attr_t r_attr(default_attr());
             r_attr.set_scratchpad_mode(scratchpad_mode::user);
             for (auto r = r_impls; *r; ++r) {
                 reorder_pd_t *r_pd = nullptr;

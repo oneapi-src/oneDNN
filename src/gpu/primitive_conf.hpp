@@ -85,7 +85,7 @@ struct attr_info_t {
 
         attr_info_t attr_info;
 
-        attr_info.all_post_ops = po;
+        attr_info.all_post_ops.copy_from(po);
 
         // Eltwise
         attr_info.eltwise_idx = po.find(primitive_kind::eltwise);

@@ -54,13 +54,6 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             copy(other);
         }
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_convolution_fwd_pd_t::operator=(other);
-            copy(other);
-            return *this;
-        }
-
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_1x1:", jcp_.isa, ""),
                 jit_avx512_core_bf16_1x1_convolution_fwd_t);
 
@@ -179,7 +172,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             using namespace memory_tracking;
             auto &jcp_1x1 = jcp_;
             jit_conv_conf_t *jcp_dw = nullptr;
-            auto attr_1x1 = *attr();
+            primitive_attr_t attr_1x1(*attr());
             attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
 
             const auto &src_md = dst_md_;

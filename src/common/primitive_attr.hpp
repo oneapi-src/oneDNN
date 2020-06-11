@@ -84,15 +84,6 @@ struct rnn_tparams_t : public c_compatible {
         return true;
     }
 
-    rnn_tparams_t &operator=(const rnn_tparams_t &rhs) {
-        DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-        status_t status
-                = set(rhs.test_mode_, rhs.ngates_, rhs.scales_, rhs.cscale_);
-        assert(status == status::success);
-        (void)status;
-        return *this;
-    }
-
     bool has_default_values() const {
         return (test_mode_ == false && scales_ == nullptr && ngates_ == 0
                 && cscale_ == 0.0f);
@@ -113,6 +104,17 @@ struct rnn_tparams_t : public c_compatible {
         return status::success;
     }
 
+    // copy_from() functions are used for each attribute member instead of
+    // operator= in order to return a status.
+    // TODO: consider replacing copy_from() functions with copy-constructors and
+    // std::move, since there are only a few places in the library that actually
+    // use them.
+    status_t copy_from(const rnn_tparams_t &other) {
+        if (*this == other) return status::success;
+        return set(
+                other.test_mode_, other.ngates_, other.scales_, other.cscale_);
+    }
+
     bool test_mode_; /* we could also use scale_ == nullptr as a test to check test_mode*/
     float *scales_;
     dim_t ngates_; /* ngates is equel to the number of scales */
@@ -131,14 +133,6 @@ struct scales_t : public c_compatible {
     }
 
     ~scales_t() { cleanup(); }
-
-    scales_t &operator=(const scales_t &rhs) {
-        DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-        status_t status = set(rhs.count_, rhs.mask_, rhs.scales_);
-        assert(status == status::success);
-        (void)status;
-        return *this;
-    }
 
     bool operator==(const scales_t &rhs) const {
         bool ret = count_ == rhs.count_ && mask_ == rhs.mask_
@@ -161,6 +155,11 @@ struct scales_t : public c_compatible {
     status_t set(dim_t count, int mask, const float *scales);
     status_t set(float single_scale) { return this->set(1, 0, &single_scale); }
 
+    status_t copy_from(const scales_t &other) {
+        if (*this == other) return status::success;
+        return set(other.count_, other.mask_, other.scales_);
+    }
+
     dim_t count_;
     int mask_;
     float *scales_;
@@ -176,6 +175,8 @@ private:
         mask_ = 0;
         scales_ = scales_buf_;
     }
+
+    scales_t &operator=(const scales_t &other) = delete;
 };
 
 struct arg_scales_t : public c_compatible {
@@ -207,6 +208,30 @@ struct arg_scales_t : public c_compatible {
     status_t set(int arg, dim_t count, int mask, const float *scales);
     status_t set(int arg, float single_scale) {
         return set(arg, 1, 0, &single_scale);
+    }
+
+    status_t copy_from(const arg_scales_t &other) {
+        for (auto it = other.scales_.begin(); it != other.scales_.end(); ++it) {
+            // Find an entry that can match the arguments without constructing a
+            // new object.
+            if (scales_.count(it->first) == 1) {
+                auto &entry = scales_[it->first];
+                bool exists = entry.count_ == it->second.count_
+                        && entry.mask_ == it->second.mask_
+                        && !utils::any_null(entry.scales_, it->second.scales_)
+                        && !is_runtime_value(entry.scales_[0])
+                                == !is_runtime_value(it->second.scales_[0])
+                        && IMPLICATION(!is_runtime_value(entry.scales_[0]),
+                                utils::array_cmp(entry.scales_,
+                                        it->second.scales_, it->second.count_));
+
+                if (exists) continue;
+            }
+
+            CHECK(set(it->first, it->second.count_, it->second.mask_,
+                    it->second.scales_));
+        }
+        return status::success;
     }
 
     std::map<int, scales_t> scales_;
@@ -297,10 +322,18 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         entry_t() : kind(dnnl::impl::primitive_kind::undefined) {}
         entry_t(const entry_t &other) { copy_from(other); }
 
+        dnnl::impl::status_t copy_from(const entry_t &other) {
+            clear();
+            return set(other);
+        }
+
+        // TODO: This operator has to be deleted, and its usage has to be
+        // replaced with copy_from() or copy/move constructors in order to
+        // extract a status.
         entry_t &operator=(const entry_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             clear();
-            copy_from(other);
+            set(other);
             return *this;
         }
 
@@ -319,7 +352,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             float *scales;
         };
 
-        dnnl::impl::primitive_kind_t kind;
+        dnnl::impl::primitive_kind_t kind
+                = dnnl::impl::primitive_kind::undefined;
         union {
             struct {
                 float scale;
@@ -404,19 +438,20 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         void clear() {
             if (is_convolution() && depthwise_conv.scales)
                 dnnl::impl::free(depthwise_conv.scales);
+            depthwise_conv.scales = nullptr;
             return;
         }
 
-        void copy_from(const entry_t &other) {
+        dnnl::impl::status_t set(const entry_t &other) {
 
             // Copying by if (is_convolution()) {} else if(is_sum()) {}
             // else if(is_relu()) {} seems to be unreliable. memcpying for now.
             dnnl::impl::utils::array_copy(
                     (char *)this, (char *)&other, sizeof(*this));
             if (other.is_convolution()) {
-                set_depthwise_scales(other.depthwise_conv.scales);
+                return set_depthwise_scales(other.depthwise_conv.scales);
             }
-            return;
+            return dnnl::impl::status::success;
         }
     };
 
@@ -462,6 +497,18 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         return ret;
     }
 
+    dnnl::impl::status_t copy_from(const dnnl_post_ops &other) {
+        using namespace dnnl::impl;
+
+        len_ = other.len_;
+        for (int idx = 0; idx < len_; ++idx) {
+            if (entry_[idx] == other.entry_[idx]) continue;
+            CHECK(entry_[idx].copy_from(other.entry_[idx]));
+        }
+
+        return status::success;
+    }
+
     enum { capacity = 4 };
 
     int len_;
@@ -474,6 +521,22 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
 
     dnnl_primitive_attr *clone() const {
         return new dnnl_primitive_attr(*this);
+    }
+
+    dnnl::impl::status_t copy_from(const dnnl_primitive_attr &other) {
+        using namespace dnnl::impl;
+        if (*this == other) return dnnl::impl::status::success;
+
+        CHECK(output_scales_.copy_from(other.output_scales_));
+        CHECK(scales_.copy_from(other.scales_));
+        zero_points_ = other.zero_points_;
+        scratchpad_mode_ = other.scratchpad_mode_;
+        CHECK(post_ops_.copy_from(other.post_ops_));
+        rnn_data_qparams_ = other.rnn_data_qparams_;
+        CHECK(rnn_weights_qparams_.copy_from(other.rnn_weights_qparams_));
+        CHECK(rnn_tparams_.copy_from(other.rnn_tparams_));
+
+        return status::success;
     }
 
     enum class skip_mask_t : unsigned {
@@ -523,6 +586,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
     dnnl::impl::scales_t rnn_weights_qparams_;
     dnnl::impl::rnn_tparams_t rnn_tparams_;
+
+    dnnl_primitive_attr &operator=(const dnnl_primitive_attr &other) = delete;
 };
 
 inline dnnl_primitive_attr::skip_mask_t operator|(

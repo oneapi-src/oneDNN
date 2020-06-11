@@ -113,8 +113,8 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
                 = pd_->is_tensor_op() ? src0_d.nelems(true) : src0_d.dims()[1];
         tail_size_ = nelems % simd_w_;
 
-        scales[0] = pd_->attr()->scales_.get(DNNL_ARG_SRC_0);
-        scales[1] = pd_->attr()->scales_.get(DNNL_ARG_SRC_1);
+        scales[0].copy_from(pd_->attr()->scales_.get(DNNL_ARG_SRC_0));
+        scales[1].copy_from(pd_->attr()->scales_.get(DNNL_ARG_SRC_1));
 
         do_scale_src0_ = !scales[0].has_default_values();
         do_scale_src1_ = !scales[1].has_default_values();
@@ -449,8 +449,8 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type>::execute(
 
     static constexpr int nargs = 2;
     scales_t scales[nargs];
-    scales[0] = pd()->attr()->scales_.get(DNNL_ARG_SRC_0);
-    scales[1] = pd()->attr()->scales_.get(DNNL_ARG_SRC_1);
+    CHECK(scales[0].copy_from(pd()->attr()->scales_.get(DNNL_ARG_SRC_0)));
+    CHECK(scales[1].copy_from(pd()->attr()->scales_.get(DNNL_ARG_SRC_1)));
 
     if (pd()->is_tensor_op()) {
         const int simd_w = (*kernel_).vlen(); // 1-byte elements
