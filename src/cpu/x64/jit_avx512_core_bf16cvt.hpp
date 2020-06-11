@@ -320,73 +320,7 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
         jit_ker_ = (decltype(jit_ker_))getCode();
     }
 
-    void generate() {
-        const int simd = 16;
-
-        Xbyak::Reg64 reg_out = abi_param1;
-        Xbyak::Reg64 reg_inp = abi_param2;
-        Xbyak::Reg64 reg_nelems = abi_param3;
-
-        auto vreg = [&](int offset) { return Xbyak::Zmm(8 + offset / simd); };
-
-        constexpr int n_unroll = 2; // unroll by powers of 2 from 2^n to 2^0
-        Xbyak::Label l_simd_loop[n_unroll + 2];
-        for (int i = n_unroll; i >= 0; i--) {
-            const int unroll = 1 << i; // 4, 2, 1
-            L(l_simd_loop[i + 1]);
-            {
-                cmp(reg_nelems, simd * unroll);
-                jl(l_simd_loop[i], T_NEAR);
-                for (int j = 0; j < simd * unroll; j += simd) {
-                    auto out_addr = zword[reg_out + sizeof(float) * j];
-
-                    vpmovzxwd(vreg(j), ptr[reg_inp + sizeof(bfloat16_t) * j]);
-                    vpslld(vreg(j), vreg(j), 0x10);
-                    if (with_add_) vaddps(vreg(j), vreg(j), out_addr);
-                    vmovdqu32(out_addr, vreg(j));
-                }
-                add(reg_inp, simd * unroll * sizeof(bfloat16_t));
-                add(reg_out, simd * unroll * sizeof(float));
-                sub(reg_nelems, simd * unroll);
-                if (i == n_unroll && n_unroll != 0)
-                    jmp(l_simd_loop[i + 1], T_NEAR);
-            }
-        }
-        L(l_simd_loop[0]);
-
-        Xbyak::Label l_simd_tail;
-        test(reg_nelems, reg_nelems);
-        jnz(l_simd_tail);
-        ret();
-
-        L(l_simd_tail);
-
-        // tail processing
-        Xbyak::Reg8 reg8_mask_shift = cl;
-        Xbyak::Reg32 reg32_mask = r10d;
-        Xbyak::Opmask ktail_mask = k1;
-
-#ifdef _WIN32
-        assert(reg_inp == rcx);
-        reg_inp = rdi;
-        mov(reg_inp, rcx);
-#endif
-
-        // ktail_mask <-- (1 << (nelems % simd)) - 1
-        mov(reg32_mask, 1);
-        mov(reg8_mask_shift.cvt64(), reg_nelems);
-        shl(reg32_mask, reg8_mask_shift);
-        sub(reg32_mask, 1);
-        kmovd(ktail_mask, reg32_mask);
-
-        vpmovzxwd(vreg(0) | ktail_mask | T_z, zword[reg_inp]);
-        vpslld(vreg(0), vreg(0), 0x10);
-        if (with_add_)
-            vaddps(vreg(0) | ktail_mask | T_z, vreg(0), zword[reg_out]);
-        vmovdqu32(zword[reg_out] | ktail_mask, vreg(0));
-
-        ret();
-    }
+    void generate();
 
     void jit_ker(float *out, const bfloat16_t *inp, size_t nelems) const {
         jit_ker_(out, inp, nelems);
