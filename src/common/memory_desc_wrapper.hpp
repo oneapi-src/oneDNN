@@ -323,21 +323,10 @@ struct memory_desc_wrapper : public c_compatible {
      * a scalar \param l_offset. if \param is_pos_padded is true, \param
      * l_offset represents logical offset in already padded area */
     dim_t off_l(dim_t l_offset, bool is_pos_padded = false) const {
-        assert(is_blocking_desc());
-        dims_t pos;
-        for (int rd = 0; rd < ndims(); ++rd) {
-            const int d = ndims() - 1 - rd;
-            const dim_t cur_dim = is_pos_padded ? padded_dims()[d] : dims()[d];
-            /* switch to faster 32-bit division when possible. */
-            if (l_offset <= INT32_MAX && cur_dim <= INT32_MAX) {
-                pos[d] = (int32_t)l_offset % (int32_t)cur_dim;
-                l_offset = (int32_t)l_offset / (int32_t)cur_dim;
-            } else {
-                pos[d] = l_offset % cur_dim;
-                l_offset /= cur_dim;
-            }
-        }
-        return off_v(pos, is_pos_padded);
+        dims_t dims_pos;
+        const auto &cur_dims = is_pos_padded ? padded_dims() : dims();
+        utils::l_dims_by_l_offset(dims_pos, l_offset, cur_dims, ndims());
+        return off_v(dims_pos, is_pos_padded);
     }
 
     /** returns physical offset by logical one. logical offset is represented by

@@ -464,6 +464,36 @@ std::string format(const char *fmt, Args &&... args) {
     return format_impl(fmt, format_cvt_impl(std::forward<Args>(args))...);
 }
 
+// transforms @param l(ogical)_offset into a @param dims_pos based on input
+// dimensions @param dims and @param ndims.
+inline void l_dims_by_l_offset(
+        dims_t dims_pos, dim_t l_offset, const dims_t dims, int ndims) {
+    for (int rd = 0; rd < ndims; ++rd) {
+        const int d = ndims - 1 - rd;
+        /* switch to faster 32-bit division when possible. */
+        if (l_offset <= INT32_MAX && dims[d] <= INT32_MAX) {
+            dims_pos[d] = (int32_t)l_offset % (int32_t)dims[d];
+            l_offset = (int32_t)l_offset / (int32_t)dims[d];
+        } else {
+            dims_pos[d] = l_offset % dims[d];
+            l_offset /= dims[d];
+        }
+    }
+}
+
+inline int get_dims_mask(const dims_t dims1, const dims_t dims2, int ndims) {
+    int mask = 0;
+    for (int d = 0; d < ndims; ++d)
+        mask += dims1[d] == dims2[d] ? (1 << d) : 0;
+    return mask;
+};
+
+inline void apply_mask_on_dims(dims_t dims, int ndims, int mask) {
+    for (int d = 0; d < ndims; ++d) {
+        dims[d] = (mask & (1 << d)) ? dims[d] : 0;
+    }
+}
+
 } // namespace utils
 
 int32_t fetch_and_add(int32_t *dst, int32_t val);
