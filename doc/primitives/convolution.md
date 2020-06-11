@@ -5,6 +5,8 @@ Convolution {#dev_guide_convolution}
 > [API Reference](@ref dnnl_api_convolution)
 >
 
+## General
+
 The convolution primitive computes forward, backward, or weight update for a
 batched convolution operation on 1D, 2D, or 3D spatial data with bias.
 
@@ -121,6 +123,7 @@ different on forward propagation, backward propagation, and weights
 update.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 

@@ -5,13 +5,15 @@ Softmax {#dev_guide_softmax}
 > [API Reference](@ref dnnl_api_softmax)
 >
 
+## General
+
 The softmax primitive performs softmax along a particular axis on data with
 arbitrary dimensions. All other axes are treated as independent (batch).
 
+### Forward
+
 In general form, the operation is defined by the following formulas (the
 variable names follow the standard @ref dev_guide_conventions):
-
-### Forward
 
 \f[
     \dst(\overline{ou}, c, \overline{in}) =

@@ -5,15 +5,17 @@ LogSoftmax {#dev_guide_logsoftmax}
 > [API Reference](@ref dnnl_api_logsoftmax)
 >
 
+## General
+
 The logsoftmax primitive performs softmax along a particular axis on data with
 arbitrary dimensions followed by the logarithm function. All other axes are
 treated as independent (batch).
 
+### Forward
+
 In general form, the operation is defined by the following formulas (the
 variable names follow the standard @ref dev_guide_conventions). Second form is
 used as more numerically stable:
-
-### Forward
 
 \f[
     \dst(\overline{ou}, c, \overline{in}) =
@@ -56,6 +58,7 @@ The backward propagation computes \f$\diffsrc(ou, c, in)\f$, based on
 \f$\diffdst(ou, c, in)\f$ and \f$\dst(ou, c, in)\f$.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 

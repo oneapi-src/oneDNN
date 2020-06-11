@@ -5,6 +5,8 @@ Resampling {#dev_guide_resampling}
 > [API reference](@ref dnnl_api_resampling)
 >
 
+## General
+
 The resampling primitive computes forward or backward resampling operation on
 1D, 2D, or 3D spatial data. Resampling performs spatial scaling of original
 tensor using one of the supported interpolation algorithms:
@@ -73,6 +75,7 @@ and #dnnl_forward_inference propagation kinds.
 The backward propagation computes \diffsrc based on \diffdst.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 

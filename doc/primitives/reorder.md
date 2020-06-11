@@ -5,6 +5,8 @@ Reorder {#dev_guide_reorder}
 > [API Reference](@ref dnnl_api_reorder)
 >
 
+## General
+
 The reorder primitive copies data between different memory formats but doesn't
 change the tensor from mathematical perspective (the variable names follow the
 standard @ref dev_guide_conventions):
@@ -24,6 +26,7 @@ Using the attributes and post-ops users can also use reorder primitive to
 quantize the data (and if necessary change the memory format simultaneously).
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 

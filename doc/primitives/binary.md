@@ -5,6 +5,8 @@ Binary {#dev_guide_binary}
 > [API Reference](@ref dnnl_api_binary)
 >
 
+## General
+
 The binary primitive computes the result of a binary elementwise operation
 between tensors source 0 and source 1 (the variable names follow the standard
 @ref dev_guide_conventions):
@@ -20,6 +22,7 @@ value.
 The binary primitive does not have a notion of forward or backward propagations.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 

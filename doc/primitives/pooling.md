@@ -5,15 +5,17 @@ Pooling {#dev_guide_pooling}
 > [API Reference](@ref dnnl_api_pooling)
 >
 
+## General
+
 The pooling primitive performs forward or backward max or average pooling
 operation on 1D, 2D, or 3D spatial data.
+
+### Forward
 
 The pooling operation is defined by the following formulas.
 We show formulas only for 2D spatial data which are straightforward to
 generalize to cases of higher and lower dimensions. Variable names follow the
 standard @ref dev_guide_conventions.
-
-### Forward
 
 Max pooling:
 

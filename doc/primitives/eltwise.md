@@ -5,6 +5,10 @@ Eltwise {#dev_guide_eltwise}
 > [API Reference](@ref dnnl_api_eltwise)
 >
 
+## General
+
+### Forward
+
 The eltwise primitive applies an operation to every element of the tensor (the
 variable names follow the standard @ref dev_guide_conventions):
 
@@ -43,8 +47,8 @@ The following operations are supported:
 
 #### Difference Between Forward Training and Forward Inference
 
-There is no difference between the #dnnl_forward_training and
-#dnnl_forward_inference propagation kinds.
+There is no difference between the #dnnl_forward_training
+and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
@@ -59,6 +63,7 @@ The eltwise primitive with algorithm round does not support backward
 propagation.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 

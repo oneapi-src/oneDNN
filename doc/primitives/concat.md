@@ -5,6 +5,8 @@ Concat {#dev_guide_concat}
 > [API Reference](@ref dnnl_api_concat)
 >
 
+## General
+
 The concat primitive concatenates \f$N\f$ tensors over `concat_dimension` (here
 designated \f$C\f$) and is defined as (the variable names follow the
 standard @ref dev_guide_conventions):
@@ -21,6 +23,7 @@ propagation. The backward propagation for the concatenation operation is
 simply an identity operation.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 

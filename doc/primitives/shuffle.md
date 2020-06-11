@@ -5,6 +5,8 @@ Shuffle {#dev_guide_shuffle}
 > [API Reference](@ref dnnl_api_shuffle)
 >
 
+## General
+
 The shuffle primitive shuffles data along the shuffle axis (here is designated
 as \f$C\f$) with the group parameter \f$G\f$. Namely, the shuffle axis is
 thought to be a 2D tensor of size \f$(\frac{C}{G} \times G)\f$ and it is being
@@ -53,6 +55,7 @@ Essentially, backward propagation is the same as forward propagation with
 \f$g\f$ replaced by \f$C / g\f$.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 

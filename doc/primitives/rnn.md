@@ -5,6 +5,8 @@ RNN {#dev_guide_rnn}
 > [API Reference](@ref dnnl_api_rnn)
 >
 
+## General
+
 The RNN primitive computes a stack of unrolled recurrent cells, as depicted in
 Figure 1. \bias, \srciter and \dstiter are optional parameters (the
 variable names follow the standard @ref dev_guide_conventions). If not
@@ -51,7 +53,7 @@ And here is the equation for LSTM cells:
 \f]
 where \f$t,l\f$ are the indices of the timestamp and the layer of the cell being executed.
 
-# Cell Functions
+## Cell Functions
 
 The RNN API provides four cell functions:
 
@@ -61,7 +63,7 @@ The RNN API provides four cell functions:
 -   [Linear-before-reset GRU](#Linear-before-reset-GRU), a three-gate recurrent
     unit cell with the linear layer before the reset gate.
 
-## Vanilla RNN
+### Vanilla RNN
 
 A single-gate recurrent cell initialized
 with #dnnl::vanilla_rnn_forward::desc::desc()
@@ -85,9 +87,9 @@ h_t &= activation(a_t)
 \end{align}
 \f]
 
-## LSTM
+### LSTM
 
-### LSTM (or Vanilla LSTM)
+#### LSTM (or Vanilla LSTM)
 
 A four-gate long short-term memory recurrent cell initialized
 with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
@@ -126,7 +128,7 @@ In order for the dimensions to be consistent, we require
 \f$channels(\srciterc) = channels(\dstiterc) =
 channels(\dstiter)\f$.
 
-### LSTM with Peephole
+#### LSTM with Peephole
 
 A four-gate long short-term memory recurrent cell with peephole initialized
 with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
@@ -166,7 +168,7 @@ If the `weights_peephole_desc` passed to the operation descriptor constructor
 is a zero memory desciptor, the primitive will behave the same as in LSTM
 primitive without peephole.
 
-### LSTM with Projection
+#### LSTM with Projection
 
 A four-gate long short-term memory recurrent cell with projection initialized
 with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
@@ -207,7 +209,7 @@ If the `weights_projection_desc` passed to the operation descriptor constructor
 is a zero memory desciptor, the primitive will behave the same as in LSTM
 primitive without projection.
 
-## GRU
+### GRU
 
 A three-gate gated recurrent unit cell, initialized
 with #dnnl::gru_forward::desc::desc() or #dnnl::gru_backward::desc::desc()
@@ -241,7 +243,7 @@ achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
 This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 + B_u)\f$, and \f$1 – \sigma(a) = \sigma(-a)\f$.
 
-## Linear-Before-Reset GRU
+### Linear-Before-Reset GRU
 
 A three-gate gated recurrent unit cell with linear layer applied before the
 reset gate, initialized with #dnnl::lbr_gru_forward::desc::desc()
@@ -276,7 +278,7 @@ achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
 This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 + B_u)\f$, and \f$1 – \sigma(a) = \sigma(-a)\f$.
 
-# Considerations for Training
+## Considerations for Training
 
 When using the RNN API for training, the forward pass should use the
 `forward_training` propagation kind, and a workspace should be passed to
@@ -286,7 +288,8 @@ once again by another forward pass.
 
 @anchor dg_rnn_impl_limits
 
-# Execution Arguments
+## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
@@ -316,9 +319,9 @@ argument index as specified by the following table.
 | \diffdstiter           | DNNL_ARG_DIFF_DST_ITER           |
 | \diffdstiterc          | DNNL_ARG_DIFF_DST_ITER_C         |
 
-# Implementation details
+## Implementation details
 
-## Data Types
+### Data Type Support
 
 The following table lists the combination of data types supported by the RNN
 primitive for each input and output memory object.
@@ -340,7 +343,7 @@ primitive for each input and output memory object.
     There might be hardware and/or implementation specific restrictions.
     Check [Implementation Limitations](@ref dg_rnn_impl_limits) section below.
 
-## Data Representation
+### Data Representation
 
 In the oneDNN programming model, the RNN primitive is one of a few that support
 the placeholder memory format #dnnl::memory::format_tag::any (shortened to `any`
@@ -365,13 +368,13 @@ The RNN primitive supports padded tensors and views. So even if
 two memory descriptors share the same data layout, they might still be
 different.
 
-## Post-ops and Attributes
+### Post-ops and Attributes
 
 Currently post-ops and attributes are only used by the int8 variant of
 LSTM. See the markdown @ref cpu_rnn_inference_int8_cpp for more
 details on how to use and set these quantization parameters.
 
-# Implementation Limitations
+## Implementation Limitations
 
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
