@@ -255,8 +255,10 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
     }
 
 private:
-    status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    status_t execute_backward_weights(const exec_ctx_t &ctx) const;
+    void execute_backward_bias(const exec_ctx_t &ctx) const;
 };
 
 } // namespace x64

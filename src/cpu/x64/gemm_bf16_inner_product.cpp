@@ -119,11 +119,8 @@ status_t gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, DNNL_ARG_DIFF_WEIGHTS);
-    auto diff_bias = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_BIAS);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
-    const memory_desc_wrapper diff_bias_d(pd()->diff_weights_md(1));
-
     diff_dst += diff_dst_d.offset0();
 
     const dim_t MB = pd()->MB();
@@ -159,40 +156,55 @@ status_t gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
         });
     }
 
-    if (pd()->with_bias()) {
-        const size_t bias_dt_size
-                = types::data_type_size(pd()->diff_weights_md(1)->data_type);
-        diff_bias += bias_dt_size * diff_bias_d.offset0();
-        constexpr dim_t blksize = 16;
-        const dim_t OC_blocks = utils::div_up(OC, blksize);
-        float *diff_bias_acc = pd()->diff_bias_is_acc_
-                ? (float *)diff_bias
-                : (float *)ctx.get_scratchpad_grantor()
-                          .template get<acc_data_t>(
-                                  key_iprod_bias_bf16_convert_wsp);
-        parallel(0, [&](const int ithr, const int nthr) {
-            dim_t oc_s {0}, oc_e {0};
-            balance211(OC_blocks, nthr, ithr, oc_s, oc_e);
-            oc_s = std::min(oc_s * blksize, OC);
-            oc_e = std::min(oc_e * blksize, OC);
-            auto len = oc_e - oc_s;
-
-            if (len > 0) {
-                cvt_bfloat16_to_float(&diff_bias_acc[oc_s],
-                        &((bfloat16_t *)diff_dst)[oc_s], len);
-
-                for (dim_t mb = 1; mb < MB; ++mb)
-                    cvt_bfloat16_and_add_to_float(&diff_bias_acc[oc_s],
-                            &((bfloat16_t *)diff_dst)[mb * OC + oc_s], len);
-
-                if (!pd()->diff_bias_is_acc_)
-                    cvt_float_to_bfloat16(&((bfloat16_t *)diff_bias)[oc_s],
-                            &diff_bias_acc[oc_s], len);
-            }
-        });
-    }
+    execute_backward_bias(ctx);
 
     return status::success;
+}
+
+template <data_type_t diff_wei_data_type>
+void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
+        execute_backward_bias(const exec_ctx_t &ctx) const {
+    if (!pd()->with_bias()) return;
+
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto diff_bias = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_BIAS);
+
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_bias_d(pd()->diff_weights_md(1));
+
+    diff_dst += diff_dst_d.offset0();
+    diff_bias += diff_bias_d.data_type_size() * diff_bias_d.offset0();
+
+    const dim_t MB = pd()->MB();
+    const dim_t OC = pd()->OC();
+
+    constexpr dim_t blksize = 16;
+    const dim_t OC_blocks = utils::div_up(OC, blksize);
+    float *diff_bias_acc = pd()->diff_bias_is_acc_
+            ? (float *)diff_bias
+            : (float *)ctx.get_scratchpad_grantor().template get<acc_data_t>(
+                    key_iprod_bias_bf16_convert_wsp);
+
+    parallel(0, [&](const int ithr, const int nthr) {
+        dim_t oc_s {0}, oc_e {0};
+        balance211(OC_blocks, nthr, ithr, oc_s, oc_e);
+        oc_s = std::min(oc_s * blksize, OC);
+        oc_e = std::min(oc_e * blksize, OC);
+        auto len = oc_e - oc_s;
+
+        if (len > 0) {
+            cvt_bfloat16_to_float(
+                    &diff_bias_acc[oc_s], &((bfloat16_t *)diff_dst)[oc_s], len);
+
+            for (dim_t mb = 1; mb < MB; ++mb)
+                cvt_bfloat16_and_add_to_float(&diff_bias_acc[oc_s],
+                        &((bfloat16_t *)diff_dst)[mb * OC + oc_s], len);
+
+            if (!pd()->diff_bias_is_acc_)
+                cvt_float_to_bfloat16(&((bfloat16_t *)diff_bias)[oc_s],
+                        &diff_bias_acc[oc_s], len);
+        }
+    });
 }
 
 template struct gemm_bf16_inner_product_fwd_t<data_type::f32>;
