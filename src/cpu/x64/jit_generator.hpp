@@ -502,6 +502,16 @@ public:
         vpsignd(x1, x2, op);
     }
 
+    void uni_vpsubd(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op = Xbyak::Operand()) {
+        assert(x1.getIdx() == x2.getIdx());
+        psubd(x1, op);
+    }
+    void uni_vpsubd(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op = Xbyak::Operand()) {
+        vpsubd(x1, x2, op);
+    }
+
     void uni_vsubss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2 = Xbyak::Operand()) {
         assert(x.isEqualIfNotInherited(op1));

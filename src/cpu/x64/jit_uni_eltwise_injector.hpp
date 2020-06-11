@@ -202,10 +202,11 @@ private:
         exp_ln_flt_max_f, // logf(FLT_MAX) - max normal value
         exp_ln_flt_min_f, // logf(FLT_MIN) - min normal value
         exp_pol, // see correspondent table for float values
-        tanh_bound_x, // arg below which tanh(x) = x
-        tanh_bound_pol, // arg below which polynomial approx is valid
-        tanh_bound_one, // arg after which tanh(x) = 1.f
-        tanh_pol, // see correspondent table for float values
+        tanh_idx_bias, // bias applied during index computation
+        tanh_idx_mask, // mask applied to extract index
+        tanh_linear_ubound, // arg below which tanh(x) = x
+        tanh_saturation_lbound, // arg after which tanh(x) = 1.f
+        tanh_pol_table, // table of polynomial coefficients
         soft_relu_one_twenty_six, // 126.f
         soft_relu_mantissa_sign_mask, // mask for mantissa bits and sign
         soft_relu_pol, // see correspondent table for float values
