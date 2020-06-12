@@ -37,7 +37,7 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
     set_default_conf(conf, cd, *src_md(), *weights_md(), *dst_md(),
             *weights_md(1), *attr());
 
-    if (conf.is_depthwise || conf.kh != 1 || conf.kw != 1
+    if (conf.is_depthwise || conf.kw != 1 || conf.kh != 1 || conf.kd != 1
             || (conf.with_groups && conf.ngroups > 1
                     && (conf.oc % 32 != 0 || conf.ic % 32 != 0)))
         return status::unimplemented;
@@ -50,23 +50,31 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
     conf.ic_block = 32;
     conf.nchunk = utils::div_up(conf.oc * conf.ngroups, conf.oc_block);
 
+    const bool is_stride1
+            = conf.stride_d == 1 && conf.stride_h == 1 && conf.stride_w == 1;
+    if (is_stride1) {
+        // reshape to nCx32c
+        conf.iw = conf.iw * conf.ih * conf.id;
+        conf.ow = conf.ow * conf.oh * conf.od;
+        conf.ih = conf.id = 1;
+        conf.oh = conf.od = 1;
+    }
+
     if (conf.mb == 8 || conf.mb % 16 == 0) {
         conf.mb_block = 32;
         conf.sp_block = 1;
     } else {
-        if (conf.stride_h != 1 || conf.stride_w != 1)
-            return status::unimplemented;
         conf.mb_block = 1;
         conf.sp_block = 4;
         auto approx_clocks = [&](const int block) {
             int ic_chunks = utils::div_up(conf.ic, conf.ic_block);
-            bool use_slm = (utils::div_up(conf.ow * conf.oh, block)) % 8 == 0;
+            bool use_slm = utils::div_up(conf.ow, block) % 8 == 0;
             int mem_clocks = ic_chunks * (16 - use_slm * 6)
                     + block / 2 * (ic_chunks + 1);
             int compute_clocks = 32 * block * ic_chunks;
-            return utils::div_up(conf.nchunk * conf.mb
-                                   * utils::div_up(conf.ow * conf.oh, block),
-                           dev_info->hw_threads())
+            int num_threads = conf.nchunk * conf.mb * conf.od * conf.oh
+                    * utils::div_up(conf.ow, block);
+            return utils::div_up(num_threads, dev_info->hw_threads())
                     * (compute_clocks + mem_clocks);
         };
         auto clock_compare = [&](const int &block1, const int &block2) {
@@ -79,18 +87,18 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
     conf.src_data_type = src_mdw.data_type();
     conf.dst_data_type = dst_mdw.data_type();
 
-    int ow_group
-            = ((utils::div_up(conf.ow * conf.oh, conf.sp_block)) % 8) ? 1 : 8;
+    const int ow_group = (utils::div_up(conf.ow, conf.sp_block) % 8) ? 1 : 8;
 
     conf.sub_group_size = 8;
     conf.lws_d[0] = conf.sub_group_size;
     conf.lws_d[1] = ow_group;
     conf.lws_d[2] = 1;
 
-    conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
-    conf.gws_d[1] = utils::rnd_up(
-            utils::div_up(conf.ow * conf.oh, conf.sp_block), conf.lws_d[1]);
+    const int num_sp_threads
+            = utils::div_up(conf.ow, conf.sp_block) * conf.oh * conf.od;
 
+    conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
+    conf.gws_d[1] = utils::rnd_up(num_sp_threads, conf.lws_d[1]);
     conf.gws_d[2] = utils::div_up(conf.mb, utils::div_up(conf.mb_block, 2));
 
     conf.with_bias = cd.bias_desc.format_kind != format_kind::undef;
@@ -131,13 +139,17 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("IC", conf.ic_without_padding);
+    kernel_ctx.define_int("ID", conf.id);
     kernel_ctx.define_int("IH", conf.ih);
     kernel_ctx.define_int("IW", conf.iw);
     kernel_ctx.define_int("OC", conf.oc_without_padding);
+    kernel_ctx.define_int("OD", conf.od);
     kernel_ctx.define_int("OH", conf.oh);
     kernel_ctx.define_int("OW", conf.ow);
+    kernel_ctx.define_int("KD", conf.kd);
     kernel_ctx.define_int("KH", conf.kh);
     kernel_ctx.define_int("KW", conf.kw);
+    kernel_ctx.define_int("SD", conf.stride_d);
     kernel_ctx.define_int("SH", conf.stride_h);
     kernel_ctx.define_int("SW", conf.stride_w);
 
@@ -158,12 +170,11 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("OC_NCHUNK", utils::div_up(conf.oc, conf.oc_block));
     kernel_ctx.define_int("IC_NCHUNK", utils::div_up(conf.ic, conf.ic_block));
 
-    kernel_ctx.define_int("INT8_WEI_SLM",
-            utils::div_up(conf.ow * conf.oh, conf.sp_block) % 8 == 0);
+    kernel_ctx.define_int(
+            "INT8_WEI_SLM", utils::div_up(conf.ow, conf.sp_block) % 8 == 0);
     kernel_ctx.define_int("SP_TAIL",
-            utils::div_up(conf.ow * conf.oh, conf.sp_block) % conf.lws_d[1]
-                    == 0);
-    kernel_ctx.define_int("OUT_SP_TAIL", (conf.ow * conf.oh) % conf.sp_block);
+            utils::div_up(conf.ow, conf.sp_block) % conf.lws_d[1] == 0);
+    kernel_ctx.define_int("OUT_SP_TAIL", conf.ow % conf.sp_block);
 
     kernel_ctx.set_data_type(conf.dst_data_type);
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");
