@@ -92,8 +92,8 @@ inline U x_m_square(T x) {
 
 /* activation */
 
-/** rounds @p f to an integer according to the mxcsr register */
-inline int mxcsr_round(float f) ATTR_NO_MSAN {
+/** converts @p f to an integer according to the mxcsr register */
+inline int mxcsr_cvt(float f) ATTR_NO_MSAN {
 #if DNNL_X64
     return _mm_cvtss_si32(_mm_load_ss(&f));
 #else
@@ -105,7 +105,7 @@ template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline typename utils::enable_if<nstl::is_integral<U>::value, U>::type relu_fwd(
         T s, A alpha) {
-    return s > 0 ? s : (U)mxcsr_round(static_cast<float>(s * alpha));
+    return s > 0 ? s : (U)mxcsr_cvt(static_cast<float>(s * alpha));
 }
 
 template <typename T, typename A,

@@ -237,7 +237,7 @@ int flip_coin(ptrdiff_t seed, float probability);
 
 int64_t div_up(const int64_t a, const int64_t b);
 int64_t next_pow2(int64_t a);
-int mxcsr_round(float f);
+int mxcsr_cvt(float f);
 
 /* set '0' across *arr:+size */
 void array_set(char *arr, size_t size);

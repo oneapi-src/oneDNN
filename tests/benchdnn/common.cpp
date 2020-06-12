@@ -557,7 +557,7 @@ int64_t next_pow2(int64_t a) {
 #include <immintrin.h>
 #include <xmmintrin.h>
 
-int mxcsr_round(float f) {
+int mxcsr_cvt(float f) {
     return _mm_cvtss_si32(_mm_load_ss(&f));
 }
 void init_fp_mode() {
@@ -565,7 +565,7 @@ void init_fp_mode() {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 }
 #else
-int mxcsr_round(float f) {
+int mxcsr_cvt(float f) {
     return (int)nearbyintf(f);
 }
 void init_fp_mode() {}

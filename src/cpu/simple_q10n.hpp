@@ -81,13 +81,13 @@ inline uint8_t saturate<uint8_t, int8_t>(const int8_t &x) {
 template <typename out_t>
 typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
 out_round(float v) {
-    return (out_t)math::mxcsr_round(v);
+    return (out_t)math::mxcsr_cvt(v);
 }
 
 template <typename out_t>
 typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
 out_round(double v) {
-    return (out_t)math::mxcsr_round((float)v);
+    return (out_t)math::mxcsr_cvt((float)v);
 }
 
 template <typename out_t>

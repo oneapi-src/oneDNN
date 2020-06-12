@@ -187,7 +187,7 @@ inline float saturate(float val) {
             MIN2((float)dnnl::impl::nstl::numeric_limits<
                          typename prec_traits<dt>::type>::max(),
                     val));
-    return mxcsr_round(res);
+    return mxcsr_cvt(res);
 }
 
 inline float maybe_saturate(dnnl_data_type_t dt, float value) {

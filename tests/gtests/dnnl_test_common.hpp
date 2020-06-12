@@ -133,18 +133,18 @@ inline void assert_eq<float>(float a, float b) {
 
 #if defined(__x86_64__) || defined(_M_X64)
 #include <immintrin.h>
-inline int mxcsr_round(float f) {
+inline int mxcsr_cvt(float f) {
     return _mm_cvtss_si32(_mm_load_ss(&f));
 }
 #else
-inline int mxcsr_round(float f) {
+inline int mxcsr_cvt(float f) {
     return (int)nearbyintf(f);
 }
 #endif
 
 template <typename data_t>
 data_t out_round(float x) {
-    return (data_t)mxcsr_round(x);
+    return (data_t)mxcsr_cvt(x);
 }
 template <>
 inline float out_round<float>(float x) {

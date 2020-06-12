@@ -40,7 +40,7 @@ float maybe_q(const prb_t &p, float h) {
     float fp = p.data_scale * h + p.data_shift;
     if (fp > p.cfg[SRC_LAYER].max) fp = p.cfg[SRC_LAYER].max;
     if (fp < p.cfg[SRC_LAYER].min) fp = p.cfg[SRC_LAYER].min;
-    fp = mxcsr_round(fp);
+    fp = mxcsr_cvt(fp);
     return fp;
 }
 
