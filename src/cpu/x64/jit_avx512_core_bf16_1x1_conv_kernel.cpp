@@ -1319,8 +1319,10 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         // in case of is_data_layout_nxc = true
         // jcp.uses_permw_transposition = false shows better performance for
         // the most problems according to performance measurements
-        jcp.uses_permw_transposition
-                = !is_data_layout_nxc && jcp.oh > 14 && jcp.ow > 14;
+        jcp.uses_permw_transposition = !is_data_layout_nxc && jcp.oh > 14
+                && jcp.ow > 14
+                // Performance improvement for i3d shapes
+                && IMPLICATION(ndims == 5, jcp.oc <= 64);
 
         if (jcp.uses_permw_transposition) {
             int rdim = nstl::min(256, jcp.reduce_dim);
