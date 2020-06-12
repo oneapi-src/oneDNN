@@ -16,6 +16,7 @@
 # i8
 # i8 - 1x1 tests
 --reset --cfg=u8s8u8,u8s8s8,u8s8s32
+--stag=any,axb
 --dir=FWD_I,FWD_B
 --mb=2,16
 mb2ic256ih14oc1024oh14kh1ph0n
@@ -24,11 +25,18 @@ mb2ic32ih7oc512oh7kh1ph0n
 mb2ic512ih14oc32oh14kh1ph0n
 
 --reset --cfg=u8s8u8,u8s8s8
+--stag=any
 --mb=2,16
 --dir=FWD_B,BWD_D --batch=set_gpu
 
+--reset --cfg=u8s8u8,u8s8s8
+--stag=axb
+--mb=2,16
+--dir=FWD_B --batch=set_gpu
+
 --reset --cfg=u8s8s32,u8s8f32
 --mb=2,16
+--stag=any,axb
 --dir=FWD_B --batch=set_gpu
 
 # test scale and post-ops
