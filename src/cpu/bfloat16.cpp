@@ -107,20 +107,6 @@ void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t nelems) {
         out[i] = inp[i];
 }
 
-void cvt_bfloat16_and_add_to_float(
-        float *out, const bfloat16_t *inp, size_t nelems) {
-#if DNNL_X64
-    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
-        static const cpu::x64::jit_avx512_core_cvt_bf16_to_ps_t kernel(true);
-        return kernel.jit_ker(out, inp, nelems);
-    }
-#endif
-
-    PRAGMA_OMP_SIMD()
-    for (size_t i = 0; i < nelems; ++i)
-        out[i] += (float)inp[i];
-}
-
 void add_floats_and_cvt_to_bfloat16(
         bfloat16_t *out, const float *inp0, const float *inp1, size_t nelems) {
 #if DNNL_X64
