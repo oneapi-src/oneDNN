@@ -149,12 +149,17 @@ status_t gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
 
     if (!pd()->diff_wei_is_acc_) {
         parallel(0, [&](int ithr, int nthr) {
+            constexpr size_t blksize = 64;
             size_t start = 0, end = 0;
             size_t work_size = M * N;
-            balance211(work_size, nthr, ithr, start, end);
-            if (end > start)
+            balance211(
+                    utils::div_up(work_size, blksize), nthr, ithr, start, end);
+            start = std::min(work_size, start * blksize);
+            end = std::min(work_size, end * blksize);
+            if (end > start) {
                 cvt_float_to_bfloat16((bfloat16_t *)&diff_weights[start],
                         (const float *)&acc[start], end - start);
+            }
         });
     }
 
