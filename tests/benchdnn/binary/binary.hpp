@@ -48,7 +48,7 @@ struct settings_t {
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::vector<std::string>> stag {{tag::abx, tag::abx}};
     std::vector<alg_t> alg {ADD};
-    std::vector<bool> inplace {true};
+    std::vector<bool> inplace {false};
     std::vector<attr_t::arg_scales_t> scales {attr_t::arg_scales_t()};
     std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     attr_t attr = {};

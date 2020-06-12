@@ -22,7 +22,7 @@ where *lnorm-knobs* are:
             Refer to ``doc/primitives/layer_normalization.md`` for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
-            Default is `true`.
+            Default is `false`.
 
 and *lnorm-desc* is a problem descriptor. The canonical form is:
 ```

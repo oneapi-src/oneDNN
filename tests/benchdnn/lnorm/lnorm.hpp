@@ -57,7 +57,7 @@ struct settings_t {
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
     std::vector<std::string> tag {tag::abx}, stat_tag {tag::any};
     std::vector<flags_t> flags {NONE};
-    std::vector<bool> inplace {true};
+    std::vector<bool> inplace {false};
     check_alg_t check_alg = check_alg_t::ALG_AUTO;
     const char *pattern = NULL;
 

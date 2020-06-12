@@ -25,7 +25,7 @@ where *softmax-knobs* are:
              problem descriptor. The default is `0`.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
-            The default is `true`.
+            The default is `false`.
 
 and *softmax-desc* is a problem descriptor. The canonical form is:
 ```

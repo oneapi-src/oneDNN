@@ -24,7 +24,7 @@ where *binary-knobs* are:
             for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
-            Default is `true`.
+            Default is `false`.
 
 and *binary-desc* is a problem descriptor. The canonical form is:
 ```

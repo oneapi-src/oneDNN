@@ -24,7 +24,7 @@ where *bnorm-knobs* are:
             for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
-            Default is `true`.
+            Default is `false`.
  - `--debug-check-ws=BOOL` -- checks if workspace has correct values. Feature is
             based on internal knowledge of a library implementation. The default
             is `false`.
