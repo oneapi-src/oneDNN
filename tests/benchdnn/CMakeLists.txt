@@ -59,7 +59,7 @@ function(register_benchdnn_test name engine cmd)
     set(benchdnn_target ${name}_${engine})
 
     if(DNNL_BUILD_FOR_CI)
-       string(REPLACE " " ";" cmd
+        string(REPLACE " " ";" cmd
             "benchdnn -v1 --engine=${engine} ${cmd}")
         if (ARGC GREATER 3)
             string(REPLACE " " ";" cmd2

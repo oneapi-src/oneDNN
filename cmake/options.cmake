@@ -168,7 +168,7 @@ set(OPENCLROOT "" CACHE STRING
 
 option(BENCHDNN_USE_RDPMC
     "enables rdpms counter to report precise cpu frequency in benchdnn.
-     CAUTION: may not work on all cpus (hence disabled by default)"
+    CAUTION: may not work on all cpus (hence disabled by default)"
     OFF) # disabled by default
 
 # =========================
