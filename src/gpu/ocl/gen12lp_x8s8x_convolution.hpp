@@ -84,6 +84,9 @@ struct gen12lp_x8s8x_convolution_fwd_t : public gpu_primitive_t {
 
             ok = set_default_formats_common(
                     conf.src_tag, conf.wei_tag, conf.dst_tag);
+
+            auto *dev_info = compute_engine->device_info();
+
             return ok ? status::success : status::unimplemented;
         }
 

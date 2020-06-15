@@ -73,8 +73,8 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
         const __global int *dst_compensation) {
 
     const int group_oc = get_group_id(0) * OC_GROUP;
-    const int group_mb = get_group_id(2) * MB_GROUP;
     const int group_sp = get_group_id(1) * SP_GROUP;
+    const int group_mb = get_group_id(2) * MB_GROUP;
     const int sub_group_id = get_sub_group_id();
     const int sub_local_id = get_sub_group_local_id();
     const int oc = (sub_group_id % OC_GROUP);
@@ -113,7 +113,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
     wei += 4 * KDHW_SIZE * OC_BLOCK * (group_oc + oc);
 
     /* WORK WITH SLM */
-    const bool left_tail = iw < 0;
+    const bool left_tail = iw < 0 || iw >= IW;
     const bool left_nozero_tail = sub_group_id == 0 && iw >= 0;
     const bool right_tail = (iw + PW + SLM_TAIL >= IW) && (iw + PW < IW);
     const bool empty = (iw + PW >= IW);
@@ -141,7 +141,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 #endif
             /* KW */
             /* left tail */
-#if PW > 0
+#if PW > 0 || OW != OWX
             if (left_tail) {
                 for (int i = -PW; i < 0; i++) {
                     S_part[i] = 0;
@@ -151,21 +151,20 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
             /* right tail */
 #if ZERO_TAIL > 0
             if (right_tail) {
-                for (int i = SLM_TAIL;
-                        i < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW; i++) {
+                for (int i = OW_SLM_TAIL;
+                        i < SW * OW_BLOCK + (KW - 1) * (1 + DW); i++) {
                     S_part[i] = 0;
                 }
             }
 #if SLM_NCHUNK < OW_NCHUNK
             if (empty) {
-                for (int i = 0; i < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW;
-                        i++) {
-                    WRITE_SLM_BLOCK(S_part + i * 8, 0);
+                for (int i = 0; i < SW * OW_BLOCK + (KW - 1) * (1 + DW); i++) {
+                    S_part[i] = 0;
                 }
             }
 #endif
 #endif
-#if SLM_NCHUNK < OW_NCHUNK
+#if SLM_NCHUNK < OW_NCHUNK || OW != OWX
             if (iw + PW < IW) {
 #endif
 #if OW_NCHUNK > LWS_1
@@ -252,7 +251,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 #if OW_NCHUNK > LWS_1
                 }
 #endif
-#if SLM_NCHUNK < OW_NCHUNK
+#if SLM_NCHUNK < OW_NCHUNK || OW != OWX
             }
 #endif
 #if KH > 1
@@ -815,7 +814,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 #if OW_TAIL > 8
 #if OW_TAIL < 12
             for (int i = 8; i < OW_TAIL; i++) {
-                STORE_DST(C01, C11, C21, C31, i);
+                STORE_DST(C01, C11, C21, C31, i - 8);
             }
 #else
 #if MB_BLOCK == 32
@@ -830,7 +829,7 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 #if OW_TAIL > 12
 #if OW_TAIL < 16
             for (int i = 12; i < OW_TAIL; i++) {
-                STORE_DST(C01, C11, C21, C31, i);
+                STORE_DST(C01, C11, C21, C31, i - 8);
             }
 #else
 #if MB_BLOCK == 32
