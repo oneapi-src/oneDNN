@@ -17,7 +17,7 @@
 #include "cpu/platform.hpp"
 
 #if DNNL_X64
-#include "cpu/x64/jit_simple_layer_normalization_kernels.hpp"
+#include "cpu/x64/jit_uni_layer_normalization_kernels.hpp"
 #endif
 
 #include "cpu/simple_layer_normalization_kernels.hpp"
@@ -27,7 +27,10 @@ namespace impl {
 namespace cpu {
 namespace lnorm_utils {
 
-void statistics_kernel_t::operator()(
+using namespace data_type;
+
+template <>
+void statistics_kernel_t<f32>::operator()(
         const float *src, float *mean, float *var) const {
     float v_mean = 0;
     PRAGMA_OMP_SIMD(reduction(+ : v_mean))
@@ -48,9 +51,10 @@ void statistics_kernel_t::operator()(
     *var = v_variance;
 }
 
-void data_kernel_t::operator()(const float *src, float *dst, const float *ss,
-        const float *mean, const float *var) const {
-    float inv_sqrtvar = 1. / sqrtf(*var + eps_);
+template <>
+void data_kernel_t<f32>::operator()(const float *src, float *dst,
+        const float *ss, const float *mean, const float *var) const {
+    const float inv_sqrtvar = 1. / sqrtf(*var + eps_);
     PRAGMA_OMP_SIMD()
     for (dim_t c = 0; c < C_; ++c) {
         const float sm = (use_scaleshift_ ? ss[c] : 1.0f) * inv_sqrtvar;
@@ -59,10 +63,11 @@ void data_kernel_t::operator()(const float *src, float *dst, const float *ss,
     }
 }
 
-void diff_ss_kernel_t::operator()(const float *src, const float *diff_dst,
+template <>
+void diff_ss_kernel_t<f32>::operator()(const float *src, const float *diff_dst,
         float *diff_gamma, float *diff_beta, const float *mean,
         const float *var) const {
-    float inv_sqrtvar = 1. / sqrtf(*var + eps_);
+    const float inv_sqrtvar = 1. / sqrtf(*var + eps_);
     PRAGMA_OMP_SIMD()
     for (dim_t c = 0; c < C_; c++) {
         float dd = diff_dst[c];
@@ -71,10 +76,11 @@ void diff_ss_kernel_t::operator()(const float *src, const float *diff_dst,
     }
 }
 
-void diff_data_kernel_t::operator()(const float *src, const float *diff_dst,
-        float *diff_src, const float *ss, const float *mean,
-        const float *var) const {
-    float inv_sqrtvar = 1.f / sqrtf(*var + eps_);
+template <>
+void diff_data_kernel_t<f32>::operator()(const float *src,
+        const float *diff_dst, float *diff_src, const float *ss,
+        const float *mean, const float *var) const {
+    const float inv_sqrtvar = 1.f / sqrtf(*var + eps_);
     float dd_gamma = 0, dd_gamma_x = 0;
     if (calculate_diff_stats_) {
         PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
@@ -87,7 +93,7 @@ void diff_data_kernel_t::operator()(const float *src, const float *diff_dst,
     }
     PRAGMA_OMP_SIMD()
     for (dim_t c = 0; c < C_; c++) {
-        float gamma = use_scaleshift_ ? ss[c] : 1;
+        const float gamma = use_scaleshift_ ? ss[c] : 1;
         float v_diff_src = diff_dst[c] * gamma;
         if (calculate_diff_stats_)
             v_diff_src -= dd_gamma / C_
@@ -97,45 +103,98 @@ void diff_data_kernel_t::operator()(const float *src, const float *diff_dst,
     }
 }
 
+template <>
+void diff_data_kernel_t<bf16>::operator()(const bfloat16_t *src,
+        const bfloat16_t *diff_dst, bfloat16_t *diff_src, const float *ss,
+        const float *mean, const float *var) const {
+    assert(!"No default diff_data_kernel_t operator() for bf16 input!");
+}
+
+template <>
+void statistics_kernel_t<bf16>::operator()(
+        const bfloat16_t *src, float *mean, float *var) const {
+    assert(!"No default statistics_kernel_t operator() for bf16 input!");
+}
+
+template <>
+void data_kernel_t<bf16>::operator()(const bfloat16_t *src, bfloat16_t *dst,
+        const float *ss, const float *mean, const float *var) const {
+    assert(!"No default data_kernel_t operator() for bf16 input!");
+}
+
+template <>
+void diff_ss_kernel_t<bf16>::operator()(const bfloat16_t *src,
+        const bfloat16_t *diff_dst, float *diff_gamma, float *diff_beta,
+        const float *mean, const float *var) const {
+    assert(!"No default diff_ss_kernel_t operator() for bf16 input!");
+}
+
 // Interface section
 
-statistics_kernel_t *statistics_kernel_t::create(
+template <data_type_t data_type>
+statistics_kernel_t<data_type> *statistics_kernel_t<data_type>::create(
         const layer_normalization_pd_t *pd) {
 #if DNNL_X64
-    auto *res = x64::lnorm_utils::jit_statistics_kernel_create(pd);
-    if (res) return res;
+    auto *res = x64::lnorm_utils::statistics_kernel_create<data_type>(pd);
+    return res;
 #endif
-
-    return new statistics_kernel_t(pd);
+    if (data_type == bf16) {
+        assert(!"No default statistics_kernel_t for bf16 input!");
+        return nullptr;
+    }
+    return new statistics_kernel_t<data_type>(pd);
 }
 
-data_kernel_t *data_kernel_t::create(const layer_normalization_pd_t *pd) {
-#if DNNL_X64
-    auto *res = x64::lnorm_utils::jit_data_kernel_create(pd);
-    if (res) return res;
-#endif
-
-    return new data_kernel_t(pd);
-}
-
-diff_ss_kernel_t *diff_ss_kernel_t::create(const layer_normalization_pd_t *pd) {
-#if DNNL_X64
-    auto *res = x64::lnorm_utils::jit_diff_ss_kernel_create(pd);
-    if (res) return res;
-#endif
-
-    return new diff_ss_kernel_t(pd);
-}
-
-diff_data_kernel_t *diff_data_kernel_t::create(
+template <data_type_t data_type>
+data_kernel_t<data_type> *data_kernel_t<data_type>::create(
         const layer_normalization_pd_t *pd) {
 #if DNNL_X64
-    auto *res = x64::lnorm_utils::jit_diff_data_kernel_create(pd);
-    if (res) return res;
+    auto *res = x64::lnorm_utils::data_kernel_create<data_type>(pd);
+    return res;
 #endif
-
-    return new diff_data_kernel_t(pd);
+    if (data_type == bf16) {
+        assert(!"No default data_kernel_t for bf16 input!");
+        return nullptr;
+    }
+    return new data_kernel_t<data_type>(pd);
 }
+
+template <data_type_t data_type>
+diff_ss_kernel_t<data_type> *diff_ss_kernel_t<data_type>::create(
+        const layer_normalization_pd_t *pd) {
+#if DNNL_X64
+    auto *res = x64::lnorm_utils::diff_ss_kernel_create<data_type>(pd);
+    return res;
+#endif
+    if (data_type == bf16) {
+        assert(!"No default diff_ss_kernel_t for bf16 input!");
+        return nullptr;
+    }
+    return new diff_ss_kernel_t<data_type>(pd);
+}
+
+template <data_type_t data_type>
+diff_data_kernel_t<data_type> *diff_data_kernel_t<data_type>::create(
+        const layer_normalization_pd_t *pd) {
+#if DNNL_X64
+    auto *res = x64::lnorm_utils::diff_data_kernel_create<data_type>(pd);
+    return res;
+#endif
+    if (data_type == bf16) {
+        assert(!"No default diff_data_kernel_t for bf16 input!");
+        return nullptr;
+    }
+    return new diff_data_kernel_t<data_type>(pd);
+}
+
+template struct statistics_kernel_t<f32>;
+template struct statistics_kernel_t<bf16>;
+template struct diff_ss_kernel_t<f32>;
+template struct diff_ss_kernel_t<bf16>;
+template struct data_kernel_t<f32>;
+template struct data_kernel_t<bf16>;
+template struct diff_data_kernel_t<f32>;
+template struct diff_data_kernel_t<bf16>;
 
 } // namespace lnorm_utils
 } // namespace cpu

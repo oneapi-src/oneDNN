@@ -30,8 +30,10 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 static const pd_create_f impl_list[] = {
-        CPU_INSTANCE(simple_layer_normalization_fwd_t)
-        CPU_INSTANCE(simple_layer_normalization_bwd_t)
+        CPU_INSTANCE(simple_layer_normalization_fwd_t<f32>)
+        CPU_INSTANCE(simple_layer_normalization_bwd_t<f32>)
+        CPU_INSTANCE(simple_layer_normalization_fwd_t<bf16>)
+        CPU_INSTANCE(simple_layer_normalization_bwd_t<bf16>)
         CPU_INSTANCE(ref_layer_normalization_fwd_t<f32>)
         CPU_INSTANCE(ref_layer_normalization_bwd_t<f32>)
         CPU_INSTANCE(ref_layer_normalization_fwd_t<bf16>)

@@ -19,6 +19,7 @@
 
 #include <memory>
 
+#include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
@@ -26,14 +27,14 @@
 #include "common/stream.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/simple_layer_normalization_kernels.hpp"
-
 #include "cpu/cpu_layer_normalization_pd.hpp"
+#include "cpu/simple_layer_normalization_kernels.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
+template <data_type_t data_type>
 struct simple_layer_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_fwd_pd_t {
         pd_t(const layer_normalization_desc_t *adesc,
@@ -63,8 +64,10 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             if (use_tmp_stats()) {
-                scratchpad.book<float>(key_lnorm_tmp_mean, across_axis());
-                scratchpad.book<float>(key_lnorm_tmp_var, across_axis());
+                scratchpad.template book<float>(
+                        key_lnorm_tmp_mean, across_axis());
+                scratchpad.template book<float>(
+                        key_lnorm_tmp_var, across_axis());
             }
             if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
                 scratchpad.book(key_nested, reorder_pd_->scratchpad_registry());
@@ -81,8 +84,9 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
-        stat_kernel_.reset(lnorm_utils::statistics_kernel_t::create(pd()));
-        data_kernel_.reset(lnorm_utils::data_kernel_t::create(pd()));
+        stat_kernel_.reset(
+                lnorm_utils::statistics_kernel_t<data_type>::create(pd()));
+        data_kernel_.reset(lnorm_utils::data_kernel_t<data_type>::create(pd()));
         return status::success;
     }
 
@@ -136,14 +140,16 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
     }
 
 private:
+    using data_t = typename prec_traits<data_type>::type;
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<lnorm_utils::statistics_kernel_t> stat_kernel_;
-    std::unique_ptr<lnorm_utils::data_kernel_t> data_kernel_;
+    std::unique_ptr<lnorm_utils::statistics_kernel_t<data_type>> stat_kernel_;
+    std::unique_ptr<lnorm_utils::data_kernel_t<data_type>> data_kernel_;
     std::shared_ptr<primitive_t> reorder_;
 };
 
+template <data_type_t data_type>
 struct simple_layer_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_bwd_pd_t {
         pd_t(const layer_normalization_desc_t *adesc,
@@ -172,12 +178,15 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             if (use_tmp_stats()) {
-                scratchpad.book<float>(key_lnorm_tmp_mean, across_axis());
-                scratchpad.book<float>(key_lnorm_tmp_var, across_axis());
+                scratchpad.template book<float>(
+                        key_lnorm_tmp_mean, across_axis());
+                scratchpad.template book<float>(
+                        key_lnorm_tmp_var, across_axis());
             }
-            scratchpad.book<float>(key_lnorm_reduction,
+            scratchpad.template book<float>(key_lnorm_reduction,
                     2 * norm_axis() * dnnl_get_max_threads());
-            scratchpad.book<float>(key_lnorm_tmp_diff_ss, 2 * norm_axis());
+            scratchpad.template book<float>(
+                    key_lnorm_tmp_diff_ss, 2 * norm_axis());
             if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
                 scratchpad.book(key_nested, reorder_pd_->scratchpad_registry());
             }
@@ -193,8 +202,10 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
-        diff_ss_kernel_.reset(lnorm_utils::diff_ss_kernel_t::create(pd()));
-        diff_data_kernel_.reset(lnorm_utils::diff_data_kernel_t::create(pd()));
+        diff_ss_kernel_.reset(
+                lnorm_utils::diff_ss_kernel_t<data_type>::create(pd()));
+        diff_data_kernel_.reset(
+                lnorm_utils::diff_data_kernel_t<data_type>::create(pd()));
         return status::success;
     }
 
@@ -242,11 +253,13 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
     }
 
 private:
+    using data_t = typename prec_traits<data_type>::type;
     void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<lnorm_utils::diff_ss_kernel_t> diff_ss_kernel_;
-    std::unique_ptr<lnorm_utils::diff_data_kernel_t> diff_data_kernel_;
+    std::unique_ptr<lnorm_utils::diff_ss_kernel_t<data_type>> diff_ss_kernel_;
+    std::unique_ptr<lnorm_utils::diff_data_kernel_t<data_type>>
+            diff_data_kernel_;
     std::shared_ptr<primitive_t> reorder_;
 };
 

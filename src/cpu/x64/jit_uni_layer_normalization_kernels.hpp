@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_SIMPLE_LAYER_NORMALIZATION_KERNELS_HPP
-#define CPU_X64_JIT_SIMPLE_LAYER_NORMALIZATION_KERNELS_HPP
+#ifndef CPU_X64_JIT_UNI_LAYER_NORMALIZATION_KERNELS_HPP
+#define CPU_X64_JIT_UNI_LAYER_NORMALIZATION_KERNELS_HPP
 
 #include "cpu/simple_layer_normalization_kernels.hpp"
 
@@ -25,16 +25,20 @@ namespace cpu {
 namespace x64 {
 namespace lnorm_utils {
 
-cpu::lnorm_utils::statistics_kernel_t *jit_statistics_kernel_create(
+template <data_type_t d_type>
+cpu::lnorm_utils::statistics_kernel_t<d_type> *statistics_kernel_create(
         const layer_normalization_pd_t *pd);
 
-cpu::lnorm_utils::data_kernel_t *jit_data_kernel_create(
+template <data_type_t d_type>
+cpu::lnorm_utils::data_kernel_t<d_type> *data_kernel_create(
         const layer_normalization_pd_t *pd);
 
-cpu::lnorm_utils::diff_ss_kernel_t *jit_diff_ss_kernel_create(
+template <data_type_t d_type>
+cpu::lnorm_utils::diff_ss_kernel_t<d_type> *diff_ss_kernel_create(
         const layer_normalization_pd_t *pd);
 
-cpu::lnorm_utils::diff_data_kernel_t *jit_diff_data_kernel_create(
+template <data_type_t d_type>
+cpu::lnorm_utils::diff_data_kernel_t<d_type> *diff_data_kernel_create(
         const layer_normalization_pd_t *pd);
 
 } // namespace lnorm_utils
