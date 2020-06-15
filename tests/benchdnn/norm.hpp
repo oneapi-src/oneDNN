@@ -19,6 +19,7 @@
 
 #include <assert.h>
 #include <float.h>
+#include <limits>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -74,6 +75,11 @@ struct diff_norm_t {
 
     real_t rel_diff(int type) const {
         if (type == norm_t::L0) return diff_.norm_[type];
+        if (a_.norm_[type] == 0)
+            return diff_.norm_[type] == 0
+                    ? 0
+                    : std::numeric_limits<real_t>::infinity();
+        assert(a_.norm_[type] != 0);
         return diff_.norm_[type] / a_.norm_[type];
     }
 
