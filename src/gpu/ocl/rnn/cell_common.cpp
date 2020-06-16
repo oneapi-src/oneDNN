@@ -136,7 +136,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                     offset_weights_iter, gemm_diff_wei_iter);
         }
         gates_reduction(ctx, dir, lay, iter, n_gates, dhc, batch, scratch_gates,
-            scratch_cell, diff_bias);
+                scratch_cell, diff_bias);
     }
 }
 template cell_execution_sig(ref_rnn_fwd_t::cell_execution);

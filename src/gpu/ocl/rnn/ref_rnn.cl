@@ -863,8 +863,7 @@ __kernel void ref_rnn_gates_reduction(int dir, int lay, int iter,
             + OFF_SCRATCH_MEM(iter, 0, 0, 0);
 
     for (int j = 0; j < BATCH; j++) {
-        diff_bias[i * DHC + k]
-                += SRC_TO_REF(gates[j * SCRATCH_GATES_LD + i * DHC + k]);
+        diff_bias[i * DHC + k] += SRC_TO_REF(gates[CELL_SCRATCH_MEM(j, i, k)]);
     }
 
 #if CELL_KIND == LBR_GRU

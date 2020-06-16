@@ -961,7 +961,8 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
         int lay, int iter, int n_gates, int dhc, int batch,
-        const memory_storage_t &scratch_gates, const memory_storage_t &scratch_cell,
+        const memory_storage_t &scratch_gates,
+        const memory_storage_t &scratch_cell,
         const memory_storage_t &diff_bias) const {
 
     compute::kernel_arg_list_t arg_list;

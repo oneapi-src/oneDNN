@@ -45,15 +45,17 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                     OFF2(iter, n_iter, 0, rnn.gates_nld * rnn.scratch_gates_ld)
                     * rnn.scratch_gates_elsz)
             : (size_t)0;
+
+    cl_ulong offset_src = ws_states_offset_
+            + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1, n_iter + 1, 0,
+                      batch * rnn.states_ws_ld)
+                    * types::data_type_size(src_t);
+
     if (aprop == prop_kind::forward) {
 
         // offsets for gemm by bytes
         cl_ulong offset_states = (cl_ulong)(ws_states_offset_
                 + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter, n_iter + 1, 0,
-                          batch * rnn.states_ws_ld)
-                        * types::data_type_size(src_t));
-        cl_ulong offset_input = (cl_ulong)(ws_states_offset_
-                + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1, n_iter + 1, 0,
                           batch * rnn.states_ws_ld)
                         * types::data_type_size(src_t));
         cl_ulong offset_w_input
@@ -68,7 +70,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         // call made when cell execution is enabled
         if (!rnn.merge_gemm_layer)
             gemm_primitive(engine, ctx, w_input, offset_w_input, workspace,
-                    offset_input, scratch_gates, offset_scratch_memory,
+                    offset_src, scratch_gates, offset_scratch_memory,
                     gemm_layer_fwd);
 
         // call to gemm iter
@@ -100,10 +102,6 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                           iter, n_iter + 1, 0,
                           rnn.states_nld * rnn.diff_states_ws_ld)
                         * sizeof(float);
-        cl_ulong offset_workspace_layer = ws_states_offset_
-                + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1, n_iter + 1, 0,
-                          batch * rnn.states_ws_ld)
-                        * types::data_type_size(src_t);
         cl_ulong offset_diff_weights_layer
                 = OFF3(lay, n_layer, dir, n_dir, 0,
                           rnn.diff_weights_layer_nld
@@ -113,7 +111,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter, n_iter + 1, 0,
                           batch * rnn.states_ws_ld)
                         * types::data_type_size(src_t);
-        cl_ulong offset_weights_iter
+        cl_ulong offset_diff_weights_iter
                 = OFF3(lay, n_layer, dir, n_dir, 0,
                           rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld)
                 * sizeof(float);
@@ -121,7 +119,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
         if (!rnn.merge_gemm_layer) {
 
             gemm_primitive(engine, ctx, scratch_gates, offset_scratch_memory,
-                    workspace, offset_workspace_layer, diff_weights_layer,
+                    workspace, offset_src, diff_weights_layer,
                     offset_diff_weights_layer, gemm_diff_wei_layer);
 
             gemm_primitive(engine, ctx, w_input, offset_w_input, scratch_gates,
@@ -133,8 +131,8 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru_lbr)) {
                 workspace, offset_workspace_common, gemm_iter_bwd);
 
         gemm_primitive(engine, ctx, scratch_cell, 0, workspace,
-                offset_workspace_iter, diff_weights_iter, offset_weights_iter,
-                gemm_diff_wei_iter);
+                offset_workspace_iter, diff_weights_iter,
+                offset_diff_weights_iter, gemm_diff_wei_iter);
 
         gates_reduction(ctx, dir, lay, iter, n_gates, dhc, batch, scratch_gates,
                 scratch_cell, diff_bias);
