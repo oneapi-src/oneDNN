@@ -303,7 +303,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
         switch (isa) {
             case sse41:
                 for (int i = 0; i < XMM_float_lanes_count; ++i)
-                    h->vpextrd(gpr_idx[i].cvt32(), vmm_pol_idx, i);
+                    h->pextrd(gpr_idx[i].cvt32(), vmm_pol_idx, i);
                 break;
             case avx2:
                 // needed for gather instruction
@@ -1210,6 +1210,7 @@ template <cpu_isa_t isa>
 size_t jit_uni_eltwise_injector_f32<isa>::aux_gprs_count() {
     using namespace alg_kind;
     switch (alg_) {
+        case eltwise_tanh_use_dst_for_bwd:
         case eltwise_tanh:
         case eltwise_gelu_tanh: return isa == sse41 ? 4 : 0;
         default: return 0;
