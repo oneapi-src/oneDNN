@@ -294,7 +294,12 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                     auto vreg_acc = vreg_accum(i_load, i_ur);
-                    if (i_load + 1 == load_loop_blk && load_dim_tail) {
+                    // for nxc_layout-bwd_w, weights are still padded and the
+                    // output_ptr here can be uninitialized scratchpad.
+                    // To ensure final output (after reduction) is zero-padded,
+                    // here we zero-pad output by omitting the mask.
+                    if (jcp.prop_kind != backward_weights
+                            && i_load + 1 == load_loop_blk && load_dim_tail) {
                         vreg_acc = vreg_acc | k_load_dim_mask;
                     }
 
