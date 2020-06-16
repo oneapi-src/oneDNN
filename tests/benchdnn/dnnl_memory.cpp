@@ -250,7 +250,7 @@ int check_zero_padding_impl(const dnn_mem_t &mem, int arg) {
                             "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
                             "," IFMT "] fp:  0.f dt:% 9.6g \n",
                             (long)idx, arg, pos[0], pos[1], pos[2], pos[3],
-                            pos[4], pos[5], mem.get_elem(l_idx));
+                            pos[4], pos[5], mem.get_elem(idx));
                 }
             }
         }
