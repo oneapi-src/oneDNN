@@ -64,6 +64,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
             if (status == status::success) {
                 primitive_desc_t *_conv_pd = nullptr;
                 primitive_attr_t conv_attr(*attr());
+                if (!conv_attr.is_initialized()) return status::out_of_memory;
                 conv_attr.set_scratchpad_mode(scratchpad_mode::user);
                 status = primitive_desc_t::create<conv_pd_t>(&_conv_pd,
                         (op_desc_t *)&cd, &conv_attr, engine, nullptr);

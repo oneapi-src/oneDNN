@@ -523,6 +523,11 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         return new dnnl_primitive_attr(*this);
     }
 
+    dnnl_primitive_attr(const dnnl_primitive_attr &other) {
+        if (copy_from(other) != dnnl::impl::status::success)
+            is_initialized_ = false;
+    }
+
     dnnl::impl::status_t copy_from(const dnnl_primitive_attr &other) {
         using namespace dnnl::impl;
         if (*this == other) return dnnl::impl::status::success;
@@ -538,6 +543,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
 
         return status::success;
     }
+
+    bool is_initialized() const { return is_initialized_; }
 
     enum class skip_mask_t : unsigned {
         none = 0,

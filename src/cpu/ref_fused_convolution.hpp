@@ -179,17 +179,20 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
         status_t init_ops(engine_t *engine) {
             using namespace data_type;
             primitive_attr_t root_attr(*attr());
+            if (!root_attr.is_initialized()) return status::out_of_memory;
             root_attr.set_scratchpad_mode(scratchpad_mode::user);
             auto po_op_iter
                     = attr()->post_ops_.find(primitive_kind::convolution);
             if (po_op_iter == -1) return status::unimplemented;
 
             primitive_attr_t attr_1x1(*attr());
+            if (!attr_1x1.is_initialized()) return status::out_of_memory;
             attr_1x1.post_ops_.len_ = po_op_iter;
             attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
                     engine, op_desc(), &attr_1x1, nullptr);
+            if (!it.is_initialized()) return status::out_of_memory;
             ++it;
             primitive_desc_t *root_pd = it.fetch_once();
             if (!root_pd) return status::unimplemented;
@@ -244,6 +247,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                             root_attr, attr_dw, po_op_iter));
                     dnnl_primitive_desc_iterator it(
                             engine, (op_desc_t *)&cd_dw, &attr_dw, nullptr);
+                    if (!it.is_initialized()) return status::out_of_memory;
                     ++it;
                     append_conv_pd = (it.fetch_once());
                     if (!append_conv_pd) return status::unimplemented;

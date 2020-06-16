@@ -45,7 +45,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         pd_t(const pd_t &other) : cpu_convolution_fwd_pd_t(other) {
-            copy(other);
+            if (copy(other) != status::success) is_initialized_ = false;
         }
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", sse41, ""),
@@ -117,11 +117,13 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
-        void copy(const pd_t &other) {
+        status_t copy(const pd_t &other) {
             jcp_ = other.jcp_;
-            if (other.dw_conv_pd_)
+            if (other.dw_conv_pd_) {
                 dw_conv_pd_.reset(other.dw_conv_pd_->clone());
-            return;
+                if (!dw_conv_pd_) return status::out_of_memory;
+            }
+            return status::success;
         }
 
         status_t depthwise_po_init(engine_t *engine) {
@@ -129,6 +131,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
             using namespace memory_tracking;
             auto &jcp_1x1 = jcp_;
             primitive_attr_t attr_1x1(*attr());
+            if (!attr_1x1.is_initialized()) return status::out_of_memory;
             attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
             const auto &src_md = dst_md_;
             const memory_desc_wrapper src_d(src_md);

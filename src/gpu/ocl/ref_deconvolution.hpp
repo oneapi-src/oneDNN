@@ -103,9 +103,11 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr(*attr());
+            if (!conv_attr.is_initialized()) return status::out_of_memory;
             conv_attr.set_scratchpad_mode(scratchpad_mode::user);
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
+            if (!it.is_initialized()) return status::out_of_memory;
             ++it;
             conv_pd_.reset(it.fetch_once());
             return status::success;
@@ -219,9 +221,11 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr(*attr());
+            if (!conv_attr.is_initialized()) return status::out_of_memory;
             conv_attr.set_scratchpad_mode(scratchpad_mode::user);
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
+            if (!it.is_initialized()) return status::out_of_memory;
             ++it;
             conv_pd_.reset(it.fetch_once());
             return status::success;
@@ -321,9 +325,11 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
             primitive_attr_t conv_attr(*attr());
+            if (!conv_attr.is_initialized()) return status::out_of_memory;
             conv_attr.set_scratchpad_mode(scratchpad_mode::user);
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
+            if (!it.is_initialized()) return status::out_of_memory;
             ++it;
             conv_pd_.reset(it.fetch_once());
             return status::success;

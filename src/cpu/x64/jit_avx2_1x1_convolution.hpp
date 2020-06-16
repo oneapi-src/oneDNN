@@ -50,7 +50,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
             , jcp_dw_(nullptr) {}
 
         pd_t(const pd_t &other) : cpu_convolution_fwd_pd_t(other) {
-            copy(other);
+            if (copy(other) != status::success) is_initialized_ = false;
         }
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", jcp_.isa, ""),
@@ -135,13 +135,14 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
-        void copy(const pd_t &other) {
+        status_t copy(const pd_t &other) {
             jcp_ = other.jcp_;
             rtus_ = other.rtus_;
             jcp_dw_ = nullptr;
             if (other.dw_conv_pd_) {
                 dw_conv_pd_.reset(static_cast<cpu_convolution_fwd_pd_t *>(
                         other.dw_conv_pd_->clone()));
+                if (!dw_conv_pd_) return status::out_of_memory;
                 if (jcp_.isa == avx2) {
                     jcp_dw_ = &(static_cast<dw_pd_t<avx2> *>(dw_conv_pd_.get())
                                         ->jcp_);
@@ -150,6 +151,8 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
                                         ->jcp_);
                 }
             }
+
+            return status::success;
         }
 
         status_t depthwise_po_init(engine_t *engine) {
@@ -157,6 +160,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
             using namespace memory_tracking;
             auto &jcp_1x1 = jcp_;
             primitive_attr_t attr_1x1(*attr());
+            if (!attr_1x1.is_initialized()) return status::out_of_memory;
             jit_conv_conf_t *jcp_dw = nullptr;
             attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
 

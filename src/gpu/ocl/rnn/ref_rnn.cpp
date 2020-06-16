@@ -610,6 +610,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         attr.post_ops_.append_sum(beta);
         dnnl_primitive_desc_iterator it(
                 engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
+        if (!it.is_initialized()) return status::out_of_memory;
         ++it;
         gemm_pd.reset(it.fetch_once());
         if (!gemm_pd) return status::unimplemented;

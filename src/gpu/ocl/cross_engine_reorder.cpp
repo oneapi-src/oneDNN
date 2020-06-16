@@ -58,6 +58,7 @@ status_t cross_engine_reorder_t::pd_t::init(
     auto r_impls = reorder_engine->get_reorder_implementation_list(
             src_md(), dst_md());
     primitive_attr_t r_attr(*attr());
+    if (!r_attr.is_initialized()) return status::out_of_memory;
     r_attr.set_scratchpad_mode(scratchpad_mode::user);
     for (auto r = r_impls; *r; ++r) {
         reorder_pd_t *r_pd = nullptr;

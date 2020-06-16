@@ -48,6 +48,13 @@ struct c_compatible {
     }
     static void operator delete(void *p) { free(p); }
     static void operator delete[](void *p) { free(p); }
+
+protected:
+    // This member is intended as a check for whether all necessary members in
+    // derived classes have been allocated. Consequently status::out_of_memory
+    // should be returned if a fail occurs. This member should be modified only
+    // in a constructor.
+    bool is_initialized_ = true;
 };
 
 namespace nstl {

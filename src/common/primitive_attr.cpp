@@ -298,6 +298,7 @@ status_t dnnl_primitive_attr_clone(
     if (any_null(attr, existing_attr)) return invalid_arguments;
 
     auto new_attr = utils::make_unique<primitive_attr_t>(*existing_attr);
+    if (!new_attr->is_initialized()) return out_of_memory;
 
     return safe_ptr_assign<dnnl_primitive_attr>(*attr, new_attr.release());
 }
