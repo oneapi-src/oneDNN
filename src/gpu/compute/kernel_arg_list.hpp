@@ -106,8 +106,6 @@ struct scalar_type_traits<int64_t> {
 
 class kernel_arg_t {
 public:
-    static constexpr size_t max_size = 8;
-
     kernel_arg_kind_t kind() const { return kind_; }
     scalar_type_t scalar_type() const { return scalar_type_; }
     size_t size() const { return size_; }
@@ -123,16 +121,19 @@ public:
         return *this;
     }
 
-    template <typename T,
-            typename = typename std::enable_if<std::is_arithmetic<T>::value
-                    || std::is_same<T, float16_t>::value
-                    || std::is_same<T, bfloat16_t>::value>::type>
-    kernel_arg_t &set_value(const T &value) {
+    template <typename T>
+    kernel_arg_t &set_value(const T &value, void *&data_pool) {
+        assert(size_ <= sizeof(T));
+        if (value_ == nullptr) {
+            assert(data_pool != nullptr);
+            size_ = sizeof(T);
+            data_pool = utils::align_ptr(data_pool, alignof(T));
+            value_ = data_pool;
+            data_pool = static_cast<char *>(data_pool) + size_;
+        }
         kind_ = kernel_arg_kind_t::scalar;
         scalar_type_ = scalar_type_traits<T>::type;
-        new (&scalar_storage_) T(value);
-        size_ = sizeof(T);
-        value_ = nullptr;
+        new (const_cast<void *>(value_)) T(value);
         return *this;
     }
 
@@ -152,8 +153,6 @@ public:
 
     const void *value() const {
         assert(kind() != kernel_arg_kind_t::undef);
-        if (kind() == kernel_arg_kind_t::scalar)
-            return static_cast<const void *>(&scalar_storage_);
         return value_;
     }
 
@@ -164,20 +163,19 @@ public:
         return *(const T *)value();
     }
 
-    static kernel_arg_t cast(
-            scalar_type_t other_type, const kernel_arg_t &other);
+    static kernel_arg_t cast(scalar_type_t other_type,
+            const kernel_arg_t &other, void *&cast_storage);
 
 private:
     kernel_arg_kind_t kind_ = kernel_arg_kind_t::undef;
     scalar_type_t scalar_type_ = scalar_type_t::undef;
     size_t size_ = 0;
     const void *value_ = nullptr;
-
-    typename std::aligned_storage<max_size, max_size>::type scalar_storage_;
 };
 
 class kernel_arg_list_t {
 public:
+    kernel_arg_list_t() { nargs_ = 0; }
     void set(int index, const memory_storage_t &storage) {
         assert(index < max_args);
         nargs_ = nstl::max(nargs_, index + 1);
@@ -195,12 +193,12 @@ public:
                     || std::is_same<T, float16_t>::value
                     || std::is_same<T, bfloat16_t>::value>::type>
     void set(int index, const T &value) {
-        static_assert(
-                sizeof(T) <= kernel_arg_t::max_size, "Type size is too large");
-
         assert(index < max_args);
         nargs_ = nstl::max(nargs_, index + 1);
-        args_[index].set_value(value);
+        args_[index].set_value(value, unused_storage);
+
+        assert(unused_storage
+                <= reinterpret_cast<char *>(&scalar_storage_) + storage_size);
     }
 
     void set(int index, size_t size, std::nullptr_t) {
@@ -223,9 +221,19 @@ public:
 
 private:
     static constexpr int max_args = 32;
+    static constexpr int storage_size = 256;
+    static constexpr int storage_alginment = 8;
 
     int nargs_ = 0;
     kernel_arg_t args_[max_args];
+    typename std::aligned_storage<storage_size, storage_alginment>::type
+            scalar_storage_;
+    void *unused_storage = &scalar_storage_;
+
+    kernel_arg_list_t(const kernel_arg_list_t &) = delete;
+    kernel_arg_list_t(kernel_arg_list_t &&) = delete;
+    kernel_arg_list_t &operator=(const kernel_arg_list_t &) = delete;
+    kernel_arg_list_t &operator=(kernel_arg_list_t &&) = delete;
 };
 
 } // namespace compute

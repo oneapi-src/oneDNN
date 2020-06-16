@@ -86,7 +86,11 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             compute::scalar_type_t real_arg_type;
             CHECK(get_ocl_kernel_arg_type(&real_arg_type, ocl_kernel_, i));
             // Convert if types do not match.
-            auto cvt_arg = compute::kernel_arg_t::cast(real_arg_type, arg);
+            typename std::aligned_storage<sizeof(float), sizeof(float)>::type
+                    tmp_storage;
+            void *cast_storage = &tmp_storage;
+            auto cvt_arg = compute::kernel_arg_t::cast(
+                    real_arg_type, arg, cast_storage);
             set_err = clSetKernelArg(
                     ocl_kernel_, i, cvt_arg.size(), cvt_arg.value());
         }
