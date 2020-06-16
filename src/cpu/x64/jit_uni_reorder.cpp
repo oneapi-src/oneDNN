@@ -357,15 +357,19 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
         }
     }
 
-    bool process_unroll_tr8x8(int len) {
+    bool can_do_tr8x8() {
         using namespace data_type;
-        bool can_do = true && mayiuse(avx2) && prb_.ndims >= 2
+
+        return mayiuse(avx2) && prb_.ndims >= 2
                 && ((utils::one_of(prb_.itype, u8, s8, s32, f32, bf16)
                         && utils::one_of(prb_.otype, u8, s8, s32, f32, bf16)))
                 && utils::everyone_is(8, n(0), n(1))
                 && utils::everyone_is(1, os(0), is(1))
                 && prb_.scale_type == scale_type_t::NONE && prb_.beta == 0.f;
-        if (!can_do) return false;
+    }
+
+    bool process_unroll_tr8x8(int len) {
+        if (!can_do_tr8x8()) return false;
 
         const int step_size = n(0) * n(1);
         int i_off = 0, o_off = 0;
@@ -847,7 +851,7 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
         mov(reg_ptr_out, PARAM(out));
 #undef PARAM
 
-        if (mayiuse(avx2)) {
+        if (can_do_tr8x8()) {
             vxorps(ymm_zero, ymm_zero, ymm_zero);
 
             if (prb_.itype == data_type::u8 && prb_.otype == data_type::s8) {
