@@ -217,8 +217,11 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                 gpu::compute::scalar_type_t real_arg_type;
                 gpu::ocl::get_ocl_kernel_arg_type(
                         &real_arg_type, ocl_kernel_, i);
-                auto cvt_arg
-                        = gpu::compute::kernel_arg_t::cast(real_arg_type, arg);
+                typename std::aligned_storage<sizeof(float),
+                        sizeof(float)>::type tmp_storage;
+                void *cast_storage = &tmp_storage;
+                auto cvt_arg = gpu::compute::kernel_arg_t::cast(
+                        real_arg_type, arg, cast_storage);
                 set_scalar_arg(cgh, (int)i, cvt_arg.size(), cvt_arg.value());
             }
         }

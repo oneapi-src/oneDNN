@@ -21,7 +21,8 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
-kernel_arg_t kernel_arg_t::cast(scalar_type_t type, const kernel_arg_t &arg) {
+kernel_arg_t kernel_arg_t::cast(
+        scalar_type_t type, const kernel_arg_t &arg, void *&cast_storage) {
     assert(arg.kind() == kernel_arg_kind_t::scalar);
 
     if (type == arg.scalar_type()) return arg;
@@ -30,10 +31,11 @@ kernel_arg_t kernel_arg_t::cast(scalar_type_t type, const kernel_arg_t &arg) {
     kernel_arg_t ret;
     switch (type) {
         case scalar_type_t::_half:
-            return ret.set_value((float16_t)arg.as<float>());
+            return ret.set_value((float16_t)arg.as<float>(), cast_storage);
         case scalar_type_t::_uchar:
-            return ret.set_value((uint8_t)arg.as<int>());
-        case scalar_type_t::_char: return ret.set_value((int8_t)arg.as<int>());
+            return ret.set_value((uint8_t)arg.as<int>(), cast_storage);
+        case scalar_type_t::_char:
+            return ret.set_value((int8_t)arg.as<int>(), cast_storage);
         default:
             assert(!"Cannot convert argument to the kernel argument type.");
             return arg;
