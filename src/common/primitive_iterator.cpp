@@ -71,6 +71,10 @@ primitive_desc_iface_t *dnnl_primitive_desc_iterator_fetch(
     if (iterator == nullptr) return nullptr;
     primitive_desc_iface_t *pd
             = new primitive_desc_iface_t(*(*iterator), iterator->engine());
+    if (pd->impl() == nullptr) {
+        delete pd;
+        return nullptr;
+    }
     return pd;
 }
 

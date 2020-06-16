@@ -3565,7 +3565,7 @@ private:
         dnnl_primitive_desc_t pd = dnnl_primitive_desc_iterator_fetch(
                 pd_iterator.get(allow_empty_));
         error::wrap_c_api(pd != nullptr || allow_empty_ ? dnnl_success
-                                                        : dnnl_runtime_error,
+                                                        : dnnl_out_of_memory,
                 "could not fetch a primitive descriptor from a primitive "
                 "descriptor iterator");
         reset(pd);
