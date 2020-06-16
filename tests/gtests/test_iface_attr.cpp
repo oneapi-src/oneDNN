@@ -317,4 +317,40 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test, DepthwiseFusion) {
     }
 }
 
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test, TestGetAttr) {
+    auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind != engine::kind::cpu,
+            "Depthwise fusion is only supported on CPU engine");
+
+    engine eng {engine_kind, 0};
+
+    auto dt = memory::data_type::s8;
+    dnnl::primitive_attr attr_s, attr_os, attr_dw;
+    dnnl::post_ops ops;
+    std::vector<float> scales(512);
+    ops.append_dw_k3s1p1(dt, dt, dt, 1 << 1, scales);
+    attr_s.set_scales(DNNL_ARG_SRC_0, 0, {0.2f});
+    attr_os.set_output_scales(1 << 1, scales);
+    attr_dw.set_post_ops(ops);
+
+    memory::desc dat_md {{512, 512, 3, 3}, dt, memory::format_tag::nchw};
+    memory::desc wht_md {{512, 512, 1, 1}, dt, memory::format_tag::nchw};
+    auto bin_desc = binary::desc(algorithm::binary_add, wht_md, wht_md, wht_md);
+    auto cd_desc = convolution_forward::desc(prop_kind::forward_inference,
+            algorithm::convolution_auto, dat_md, wht_md, dat_md, {1, 1}, {0, 0},
+            {0, 0});
+    auto bin_pd = binary::primitive_desc(bin_desc, attr_s, eng);
+    auto cd_pd_os = convolution_forward::primitive_desc(cd_desc, attr_os, eng);
+    auto cd_pd_dw = convolution_forward::primitive_desc(cd_desc, attr_dw, eng);
+    if (test_out_of_memory()) {
+        attr_s = bin_pd.get_primitive_attr();
+        attr_os = cd_pd_os.get_primitive_attr();
+        attr_dw = cd_pd_dw.get_primitive_attr();
+    } else {
+        ASSERT_NO_THROW(attr_s = bin_pd.get_primitive_attr());
+        ASSERT_NO_THROW(attr_os = cd_pd_os.get_primitive_attr());
+        ASSERT_NO_THROW(attr_dw = cd_pd_dw.get_primitive_attr());
+    }
+}
+
 } // namespace dnnl
