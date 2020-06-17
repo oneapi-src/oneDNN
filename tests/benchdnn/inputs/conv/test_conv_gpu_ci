@@ -20,5 +20,5 @@
 --dir=FWD_I
 --cfg=u8s8s32
 --attr-oscale=,common:0.25,per_oc:5
---attr-post-ops='','sum:0.25;relu:0.5:0:0.75'
+--attr-post-ops='','sum:0.25;add:f32:per_oc;relu:0.5:0:0.75'
 --batch=shapes_basic_gpu

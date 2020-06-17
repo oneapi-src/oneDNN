@@ -520,7 +520,7 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::execute_forward(
     arg_list.set(3, dst);
 
     unsigned arg_idx = append_post_ops_to_arg_list(
-            arg_list, 4, conf.attr_info.all_post_ops);
+            ctx, arg_list, 4, conf.attr_info.all_post_ops);
 
     if (conf.attr_info.common_oscales) {
         float scales = pd()->attr()->output_scales_.scales_[0];
@@ -557,6 +557,9 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::execute_forward(
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
+    if (!post_ops_preserves_zeroes(ctx, conf.attr_info.all_post_ops)) {
+        ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
+    }
     return status;
 }
 

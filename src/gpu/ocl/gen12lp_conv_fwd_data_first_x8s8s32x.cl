@@ -644,27 +644,49 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
 
 #if WITH_POST_OP
 
-#define DO_POST_OP() \
+#define DO_POST_OP(i) \
     { \
         SUM_DATA4_T d; \
         if (WITH_SUM) d = AS_SUM_DATA4_T(BLOCK_READ_DST4(dst)); \
-        APPLY_POST_OPS(tmp, float, d, SUM_DATA_T); \
+        for (int didx = 0; didx < 4; ++didx) { \
+            float tmp_i = tmp[didx]; \
+            SUM_DATA_T d_i = d[didx]; \
+            const int po_mb = group_mb % MB; \
+            const int po_oc \
+                    = (oc * OC_BLOCK + ((didx * SUB_GROUP_SIZE) % OC_BLOCK) \
+                              + sub_local_id) \
+                    % (OC * G); \
+            APPLY_POST_OPS(tmp_i, float, d_i, SUM_DATA_T, po_mb, 1, po_oc, 1, \
+                    0, 1, 0, 1, 0, 1, 0, 1); \
+            tmp[didx] = tmp_i; \
+        } \
     }
 
-#define DO_POST_OP_4() \
+#define DO_POST_OP_4(i) \
     { \
         SUM_DATA16_T d; \
         if (WITH_SUM) d = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst)); \
         float16 tmp_x16 = (float16)(tmp0, tmp1); \
-        APPLY_POST_OPS(tmp_x16, float, d, SUM_DATA_T); \
+        for (int didx = 0; didx < 16; ++didx) { \
+            float tmp_i = tmp_x16[didx]; \
+            SUM_DATA_T d_i = d[didx]; \
+            const int po_mb = group_mb % MB; \
+            const int po_oc \
+                    = (oc * OC_BLOCK + ((didx * SUB_GROUP_SIZE) % OC_BLOCK) \
+                              + sub_local_id) \
+                    % (OC * G); \
+            APPLY_POST_OPS(tmp_i, float, d_i, SUM_DATA_T, po_mb, 1, po_oc, 1, \
+                    0, 1, 0, 1, 0, 1, 0, 1); \
+            tmp_x16[didx] = tmp_i; \
+        } \
         tmp0 = tmp_x16.s01234567; \
         tmp1 = tmp_x16.s89abcdef; \
     }
 
 #else
 
-#define DO_POST_OP() ;
-#define DO_POST_OP_4() ;
+#define DO_POST_OP(i) ;
+#define DO_POST_OP_4(i) ;
 
 #endif // #if WITH_POST_OP
 
@@ -714,7 +736,7 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
     do { \
         PACK(C0, C1, C2, C3, i); \
         QUANTIZE_ADD_BIAS(); \
-        DO_POST_OP(); \
+        DO_POST_OP(i); \
         ADD_DST_COMPENSATION(); \
         ZERO_PAD_DST(); \
         CONVERT_PACK(); \
@@ -726,7 +748,7 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
     do { \
         PACK_4(C0, C1, C2, C3, i); \
         QUANTIZE_ADD_BIAS_4(); \
-        DO_POST_OP_4(); \
+        DO_POST_OP_4(i); \
         ADD_DST_COMPENSATION_4(); \
         ZERO_PAD_DST_4(); \
         CONVERT_PACK_4(); \

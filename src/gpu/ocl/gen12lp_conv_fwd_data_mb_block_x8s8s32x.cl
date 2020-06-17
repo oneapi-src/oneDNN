@@ -64,6 +64,7 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
     // XXX: Each work-group calculates 16 mb instead of 32
     const int mb = get_group_id(2) % mb_blocks;
     const int sub_group_id = get_sub_group_id();
+    const int ocl_local_id = get_local_id(0);
     const int oc = (sub_group_id % OC_GROUP);
     const int sp = (sub_group_id / OC_GROUP);
 
@@ -330,8 +331,20 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
         for (int n_i = 0; n_i < 8; n_i++) { \
             PACK(C0, C1, C2, C3, n_i); \
             QUANTIZE_ADD_BIAS(); \
-            float4 df = convert_float4(AS_SUM_DATA4_T(D[n_i])); \
-            APPLY_POST_OPS(tmp, float, df, float); \
+            for (int didx = 0; didx < 4; ++didx) { \
+                float tmp_i = tmp[didx]; \
+                float d_i = convert_float(AS_SUM_DATA_T(D[n_i][didx])); \
+                const int po_mb \
+                        = (group_mb * MB_BLOCK + mb * MB_BLOCK / mb_blocks \
+                                  + mb_stride + n_i) \
+                        % MB; \
+                const int po_oc = (group_oc * OC_BLOCK + didx * SUB_GROUP_SIZE \
+                                          + ocl_local_id) \
+                        % (OC * G); \
+                APPLY_POST_OPS(tmp_i, float, d_i, float, po_mb, 1, po_oc, 1, \
+                        0, 1, 0, 1, 0, 1, 0, 1); \
+                tmp[didx] = tmp_i; \
+            } \
             ADD_DST_COMPENSATION(); \
             ZERO_PAD_DST(); \
             CONVERT_PACK(n_i); \

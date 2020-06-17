@@ -703,7 +703,17 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
     if (WITH_SUM) { read_dst_block(S, dst, ow); }
 
-    APPLY_POST_OPS(C, DATA_T, S, DATA_T);
+    for (int didx = 0; didx < MB_BLOCK * OC_OUTER * OW_BLOCK; ++didx) {
+        float accum = CONVERT_FLOAT_T(C[didx]);
+        float sum = CONVERT_FLOAT_T(S[didx]);
+        const int po_mb = (mb + didx / (OC_OUTER * OW_BLOCK)) % MB;
+        const int po_oc = (g * OC + oc + local_id
+                                  + (((didx / OW_BLOCK) % OC_OUTER) * 16))
+                % (OC * G);
+        APPLY_POST_OPS(accum, float, sum, float, po_mb, 1, po_oc, 1, od, 1, oh,
+                1, ow, 1, 0, 1);
+        C[didx] = TO_DATA_T(accum);
+    }
 
     write_dst_block((DATA_T *)(&C), dst, ow);
 }

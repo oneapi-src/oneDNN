@@ -38,30 +38,22 @@ protected:
         auto is_eltwise
                 = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
         auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
+        auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
 
-        bool is_int8 = utils::one_of(
-                invariant_src_md()->data_type, data_type::s8, data_type::u8);
-
-        for (int i = 0; i < p.len(); ++i) {
-            if (is_sum(i)) {
-                if (p.entry_[i].sum.dt != dnnl_data_type_undef
-                        && types::data_type_size(p.entry_[i].sum.dt)
+        bool is_po_ok = true;
+        for (int po_idx = 0; po_idx < p.len(); ++po_idx) {
+            is_po_ok &= is_eltwise(po_idx) | is_sum(po_idx) | is_binary(po_idx);
+            if (is_sum(po_idx)) {
+                if (p.entry_[po_idx].sum.dt != dnnl_data_type_undef
+                        && types::data_type_size(p.entry_[po_idx].sum.dt)
                                 != types::data_type_size(dst_md()->data_type))
-                    return false;
+                    is_po_ok = false;
             }
         }
 
-        switch (p.len()) {
-            case 0: return true; // no post_ops
-            case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-            case 2:
-                // sum -> eltwise (or eltwise -> sum for int8)
-                return (is_sum(0) && is_eltwise(1))
-                        || (is_int8 && is_eltwise(0) && is_sum(1));
-            default: return false;
-        }
+        if (p.len() > 10) is_po_ok = false;
 
-        return false;
+        return is_po_ok;
     }
 
     bool zero_points_ok(const primitive_attr_t *attr) const {

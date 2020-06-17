@@ -21,9 +21,12 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "common/memory_storage.hpp"
 #include "common/primitive_attr.hpp"
+#include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_eltwise_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -721,6 +724,63 @@ inline void def_offsets(const int offs[4][MAX_NDIMS],
     }
 }
 
+inline void def_data_type(
+        compute::kernel_ctx_t &kernel_ctx, data_type_t dt, const char *str) {
+    switch (dt) {
+        case data_type::bf16:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=ushort -D%s_DT_BF16", str, str));
+            break;
+        case data_type::f16:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=half -D%s_DT_F16", str, str));
+            break;
+        case data_type::f32:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=float -D%s_DT_F32", str, str));
+            break;
+        case data_type::s8:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=char -D%s_DT_S8", str, str));
+            break;
+        case data_type::u8:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=uchar -D%s_DT_U8", str, str));
+            break;
+        case data_type::s32:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=int -D%s_DT_S32", str, str));
+            break;
+        default: assert(!"unsupported data type"); break;
+    }
+}
+
+inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
+        const memory_desc_info_t &md_info, const char *prefix) {
+    def_data_type(kernel_ctx, md_info.data_type, prefix);
+
+    kernel_ctx.define_int(utils::format("%s_OFFSET0", prefix), md_info.offset0);
+    kernel_ctx.define_int(utils::format("%s_NDIMS", prefix), md_info.ndims);
+
+    kernel_ctx.define_int(utils::format("%s_NLEVELS", prefix), md_info.nlevels);
+
+    for (int d = 0; d < MAX_NDIMS; ++d) {
+        int dim = (d < md_info.ndims) ? md_info.dims[d] : 1;
+        int padded_dim = (d < md_info.ndims) ? md_info.padded_dims[d] : 1;
+        kernel_ctx.define_int(utils::format("%s_D%d", prefix, d), dim);
+        kernel_ctx.define_int(utils::format("%s_PD%d", prefix, d), padded_dim);
+
+        for (int l = 0; l < md_info.nlevels + 1; ++l) {
+            int block = (d < md_info.ndims) ? md_info.blocks[d][l] : 1;
+            int stride = (d < md_info.ndims) ? md_info.strides[d][l] : 0;
+            kernel_ctx.define_int(
+                    utils::format("%s_B%d_%d", prefix, d, l), block);
+            kernel_ctx.define_int(
+                    utils::format("%s_S%d_%d", prefix, d, l), stride);
+        }
+    }
+}
+
 inline void def_binary_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("BINARY_ADD", alg_kind::binary_add);
     kernel_ctx.define_int("BINARY_MUL", alg_kind::binary_mul);
@@ -769,23 +829,41 @@ inline void def_post_ops_cfg(
     kernel_ctx.define_int("PO_SUM", po_sum_id);
 
     std::string po_kernel_args = "-DPOST_OP_ARGS=\"";
-
     int nof_supported_post_ops = 0;
 
-    for (int idx = 0; idx < 2; ++idx, ++nof_supported_post_ops) {
-        if (all_post_ops.len() > idx && all_post_ops.entry_[idx].is_eltwise()) {
-            auto &eltwise = all_post_ops.entry_[idx].eltwise;
+    auto add_po_defines = [&](const std::string &bin_arg_name,
+                                  const post_ops_t::entry_t &e, int idx) {
+        if (e.is_binary()) {
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_KIND", po_binary_id);
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_ALG", e.binary.alg);
+
+            const memory_desc_wrapper src1_mdw(e.binary.src1_desc);
+            const auto mdi = memory_desc_info_t::create(src1_mdw);
+            def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
+        } else {
+            dnnl_memory_desc_t empty_mem_desc;
+            dnnl_dims_t empty_dims = {1, 1, 1, 1};
+            dnnl_memory_desc_init_by_tag(&empty_mem_desc, 4, empty_dims,
+                    data_type_t::dnnl_s8, format_tag_t::dnnl_nchw);
+            const memory_desc_wrapper src1_mdw(empty_mem_desc);
+            const auto mdi = memory_desc_info_t::create(src1_mdw);
+            def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
+        }
+        if (e.is_eltwise(false)) {
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_eltwise_id);
             kernel_ctx.define_int(
-                    "PO_" + std::to_string(idx) + "_ALG", eltwise.alg);
-        } else if (all_post_ops.len() > idx
-                && all_post_ops.entry_[idx].is_sum(false)) {
+                    "PO_" + std::to_string(idx) + "_ALG", e.eltwise.alg);
+        }
+        if (e.is_sum(false)) {
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_sum_id);
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_ALG", alg_kind::undef);
-        } else {
+        }
+        if (!(e.is_binary() || e.is_eltwise(false) || e.is_sum(false))) {
             // empty post op
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_nop_id);
@@ -794,12 +872,28 @@ inline void def_post_ops_cfg(
                     "PO_" + std::to_string(idx) + "_ALG", alg_kind::undef);
             --nof_supported_post_ops;
         }
+        po_kernel_args += ", const __global PO_" + std::to_string(idx)
+                + "_BIN_ARG_DATA_T *po_" + std::to_string(idx) + "_binary_arg";
         po_kernel_args
                 += ", float po_" + std::to_string(idx) + "_eltwise_alpha";
         po_kernel_args += ", float po_" + std::to_string(idx) + "_eltwise_beta";
         po_kernel_args
                 += ", float po_" + std::to_string(idx) + "_eltwise_scale";
         po_kernel_args += ", float po_" + std::to_string(idx) + "_sum_scale";
+    };
+
+    for (int idx = 0; idx < all_post_ops.len();
+            ++idx, ++nof_supported_post_ops) {
+        const std::string bin_arg_name
+                = "PO_" + std::to_string(idx) + "_BIN_ARG";
+        add_po_defines(bin_arg_name, all_post_ops.entry_[idx], idx);
+    }
+    post_ops_t::entry_t empty_po = post_ops_t::entry_t();
+    for (int idx = all_post_ops.len(); idx < 10;
+            ++idx, ++nof_supported_post_ops) {
+        const std::string bin_arg_name
+                = "PO_" + std::to_string(idx) + "_BIN_ARG";
+        add_po_defines(bin_arg_name, empty_po, idx);
     }
 
     kernel_ctx.define_int("POST_OP_CHAIN_LENGTH", nof_supported_post_ops);
@@ -807,12 +901,17 @@ inline void def_post_ops_cfg(
     kernel_ctx.add_option(po_kernel_args);
 }
 
-inline int append_post_ops_to_arg_list(compute::kernel_arg_list_t &arg_list,
-        int post_op_idx, const post_ops_t &all_post_ops) {
-    for (int idx = 0; idx < 2; ++idx) {
-        post_ops_t::entry_t e = all_post_ops.len() >= idx + 1
-                ? all_post_ops.entry_[idx]
-                : post_ops_t::entry_t();
+inline int append_post_ops_to_arg_list(const exec_ctx_t &ctx,
+        compute::kernel_arg_list_t &arg_list, int post_op_idx,
+        const post_ops_t &all_post_ops) {
+    auto set_arg_entry = [&](const post_ops_t::entry_t &e, int po_idx) {
+        if (e.is_binary()) {
+            auto &binary_arg = CTX_IN_STORAGE(
+                    DNNL_ARG_ATTR_MULTIPLE_POST_OP(po_idx) | DNNL_ARG_SRC_1);
+            arg_list.set(post_op_idx++, binary_arg);
+        } else {
+            arg_list.set(post_op_idx++, memory_storage_t::empty_storage());
+        }
 
         if (e.is_eltwise()) {
             arg_list.set(post_op_idx++, e.eltwise.alpha);
@@ -829,8 +928,35 @@ inline int append_post_ops_to_arg_list(compute::kernel_arg_list_t &arg_list,
         } else {
             arg_list.set(post_op_idx++, 1.0f);
         }
+    };
+
+    for (int idx = 0; idx < all_post_ops.len(); ++idx) {
+        set_arg_entry(all_post_ops.entry_[idx], idx);
+    }
+    post_ops_t::entry_t empty_po = post_ops_t::entry_t();
+    for (int idx = all_post_ops.len(); idx < 10; ++idx) {
+        set_arg_entry(empty_po, 0);
     }
     return post_op_idx;
+}
+
+inline bool post_ops_preserves_zeroes(
+        const exec_ctx_t &ctx, const post_ops_t &all_post_ops) {
+    bool preserve_zeroes = true;
+    for (int idx = 0; idx < all_post_ops.len(); ++idx) {
+        const post_ops_t::entry_t &po_entry = all_post_ops.entry_[idx];
+        if (po_entry.is_binary()) {
+            // only binary mul is preserving zeroes
+            preserve_zeroes &= po_entry.binary.alg
+                    == dnnl::impl::alg_kind_t::dnnl_binary_mul;
+        }
+        if (po_entry.is_eltwise(false)) {
+            preserve_zeroes &= gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
+                    po_entry.eltwise.alg, po_entry.eltwise.alpha,
+                    po_entry.eltwise.beta);
+        }
+    }
+    return preserve_zeroes;
 }
 
 inline void def_attr_info(
@@ -856,7 +982,6 @@ inline void def_attr_info(
     kernel_ctx.define_int("SCALES_PER_OC", attr_info.with_per_oc_oscales);
     kernel_ctx.define_int("SCALES_COMMON", attr_info.with_common_oscales);
 
-    def_binary_alg_kinds(kernel_ctx);
     kernel_ctx.define_int("WITH_SRC_ZPOINTS", attr_info.with_src_zpoints);
     kernel_ctx.define_int("WITH_DST_ZPOINTS", attr_info.with_dst_zpoints);
     kernel_ctx.define_int("SRC_ZPOINT_COMMON", attr_info.common_src_zpoint);
@@ -866,64 +991,10 @@ inline void def_attr_info(
     kernel_ctx.define_int(
             "WITH_DST_ZPOINTS_PER_OC", attr_info.with_per_oc_dst_zpoints);
 
+    def_binary_alg_kinds(kernel_ctx);
     def_eltwise_alg_kinds(kernel_ctx);
 
     def_post_ops_cfg(kernel_ctx, attr_info.all_post_ops);
-}
-
-inline void def_data_type(
-        compute::kernel_ctx_t &kernel_ctx, data_type_t dt, const char *str) {
-    switch (dt) {
-        case data_type::bf16:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=ushort -D%s_DT_BF16", str, str));
-            break;
-        case data_type::f16:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=half -D%s_DT_F16", str, str));
-            break;
-        case data_type::f32:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=float -D%s_DT_F32", str, str));
-            break;
-        case data_type::s8:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=char -D%s_DT_S8", str, str));
-            break;
-        case data_type::u8:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=uchar -D%s_DT_U8", str, str));
-            break;
-        case data_type::s32:
-            kernel_ctx.add_option(
-                    utils::format("-D%s_DATA_T=int -D%s_DT_S32", str, str));
-            break;
-        default: assert(!"unsupported data type"); break;
-    }
-}
-
-inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
-        const memory_desc_info_t &md_info, const char *prefix) {
-    def_data_type(kernel_ctx, md_info.data_type, prefix);
-
-    kernel_ctx.define_int(utils::format("%s_OFFSET0", prefix), md_info.offset0);
-    kernel_ctx.define_int(utils::format("%s_NDIMS", prefix), md_info.ndims);
-
-    for (int d = 0; d < MAX_NDIMS; ++d) {
-        int dim = (d < md_info.ndims) ? md_info.dims[d] : 1;
-        int padded_dim = (d < md_info.ndims) ? md_info.padded_dims[d] : 1;
-        kernel_ctx.define_int(utils::format("%s_D%d", prefix, d), dim);
-        kernel_ctx.define_int(utils::format("%s_PD%d", prefix, d), padded_dim);
-
-        for (int l = 0; l < md_info.nlevels + 1; ++l) {
-            int block = (d < md_info.ndims) ? md_info.blocks[d][l] : 1;
-            int stride = (d < md_info.ndims) ? md_info.strides[d][l] : 0;
-            kernel_ctx.define_int(
-                    utils::format("%s_B%d_%d", prefix, d, l), block);
-            kernel_ctx.define_int(
-                    utils::format("%s_S%d_%d", prefix, d, l), stride);
-        }
-    }
 }
 
 inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,

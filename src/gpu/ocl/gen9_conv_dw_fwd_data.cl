@@ -117,7 +117,16 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
                 BLOCK_READ((const __global BLOCK_DATA_T *)&dst[k * OC_BLOCK]));
     }
 #endif
-    APPLY_POST_OPS(S00, DATA_T, D00, DATA_T);
+
+    for (int didx = 0; didx < OW_BLOCK; ++didx) {
+        DATA_T accum = S00[didx];
+        DATA_T sum = D00[didx];
+        const int po_mb = mb;
+        const int po_oc = g + get_local_id(0);
+        APPLY_POST_OPS(accum, DATA_T, sum, DATA_T, po_mb, 1, po_oc, 1, 0, 1, 0,
+                1, 0, 1, 0, 1);
+        S00[didx] = accum;
+    }
 
     if (OW % OW_BLOCK == 0 || ow + OW_BLOCK <= OW) {
         __attribute__((opencl_unroll_hint)) // attr:no-format
@@ -211,8 +220,24 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
 #endif
 
-    APPLY_POST_OPS(S00, DATA_T, D00, DATA_T);
-    APPLY_POST_OPS(S01, DATA_T, D01, DATA_T);
+    for (int didx = 0; didx < 8; ++didx) {
+        DATA_T accum = S00[didx];
+        DATA_T sum = D00[didx];
+        const int po_mb = mb + didx;
+        const int po_oc = g + get_local_id(0);
+        APPLY_POST_OPS(accum, DATA_T, sum, DATA_T, po_mb, 1, po_oc, 1, 0, 1, 0,
+                1, 0, 1, 0, 1);
+        S00[didx] = accum;
+    }
+    for (int didx = 0; didx < 8; ++didx) {
+        DATA_T accum = S01[didx];
+        DATA_T sum = D01[didx];
+        const int po_mb = 8 + mb + didx;
+        const int po_oc = g + get_local_id(0);
+        APPLY_POST_OPS(accum, DATA_T, sum, DATA_T, po_mb, 1, po_oc, 1, 0, 1, 0,
+                1, 0, 1, 0, 1);
+        S01[didx] = accum;
+    }
 
     BLOCK_WRITE8((__global BLOCK_DATA_T *)&dst[0], AS_UINT8_T(S00));
     BLOCK_WRITE8((__global BLOCK_DATA_T *)&dst[8 * OC_BLOCK], AS_UINT8_T(S01));

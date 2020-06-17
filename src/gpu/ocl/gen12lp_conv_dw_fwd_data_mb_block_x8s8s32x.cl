@@ -42,6 +42,7 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
         const __global int *dst_compensation) {
 
     const int osp = get_global_id(1);
+    const int ocl_local_id = get_local_id(0);
     const int od = osp / (OW * OH);
     const int ohw = osp % (OW * OH);
     const int ow = (ohw % OW);
@@ -267,7 +268,16 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
 #endif // WITH_SUM
 
     float16 tmp_x16 = (float16)(tmp00, tmp01);
-    APPLY_POST_OPS(tmp_x16, float, D00, SUM_DATA_T);
+
+    for (int didx = 0; didx < 16; ++didx) {
+        float tmp_i = tmp_x16[didx];
+        SUM_DATA_T d_i = D00[didx];
+        const int po_mb = mb /* * MB_BLOCK */ + didx / 2 + mb_half;
+        const int po_oc = g * OC + (didx % 2) * SUB_GROUP_SIZE + ocl_local_id;
+        APPLY_POST_OPS(tmp_i, float, d_i, SUM_DATA_T, po_mb, 1, po_oc, 1, 0, 1,
+                0, 1, 0, 1, 0, 1);
+        tmp_x16[didx] = tmp_i;
+    }
 
 #if WITH_DST_ZPOINTS
     float2 dst_zp

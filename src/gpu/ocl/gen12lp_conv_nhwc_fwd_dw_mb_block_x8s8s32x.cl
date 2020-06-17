@@ -239,7 +239,8 @@ conv_nhwc_fwd_dw_mb_block_x8s8s32x(const __global uchar *src,
     block_read_dst_as_sum(&D00, dst, g);
 #endif
     float16 tmp_x16 = (float16)(tmp00, tmp01);
-    APPLY_POST_OPS(tmp_x16, float, D00, SUM_DATA_T);
+    APPLY_POST_OPS(tmp_x16, float, D00, SUM_DATA_T, 0, 1, 0, 1, 0, 1, 0, 1, 0,
+            1, 0, 1);
     DST_DATA16_T R0 = CONVERT_DST_DATA16_T(tmp_x16);
     block_write_dst((DST_DATA16_T *)&R0, dst, g);
 }

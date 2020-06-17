@@ -580,12 +580,6 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
             {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, p->dir, r);
     if (r->state == SKIPPED) return;
 
-    // TODO: temporary disable binary post-op on GPU
-    if (engine_tgt_kind == dnnl_gpu && p->attr.post_ops.binary_index() != -1) {
-        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
-
     // Winograd implementation limitations.
     if (p->alg == WINO) {
         static auto isa = dnnl_get_effective_cpu_isa();
@@ -694,7 +688,9 @@ int doit(const prb_t *p, res_t *r) {
     // testing time
     dnnl_primitive_t c_ref {};
 
-    if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu) {
+    if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu
+            && // TODO: temporary disable cpu as ref for testcases with binary post-ops
+            p->attr.post_ops.binary_index() == -1) {
         dnnl_primitive_desc_t cpd_ref = nullptr;
         SAFE(init_pd_custom(get_cpu_engine(), p, cpd_ref, nullptr, fp, fp, fp,
                      fp, fp, src_tag, wei_tag, tag::x, src_tag),

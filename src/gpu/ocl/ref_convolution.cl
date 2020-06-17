@@ -76,7 +76,8 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
             AS_SUM_DATA_T(dst[DST_OFF(n, g * OC + oc, od, oh, ow)]));
 #endif
 
-    APPLY_POST_OPS(tmp, POST_OP_DATA_T, sum_src, POST_OP_DATA_T);
+    APPLY_POST_OPS(tmp, POST_OP_DATA_T, sum_src, POST_OP_DATA_T, n, 1,
+            g * OC + oc, 1, od, 1, oh, 1, ow, 1, 0, 1);
 
 #if WITH_DST_ZPOINTS
     const int dst_zp = DST_ZPOINT_COMMON != 0

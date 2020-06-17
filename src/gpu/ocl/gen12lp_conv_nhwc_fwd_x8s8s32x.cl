@@ -425,8 +425,18 @@ conv_nhwc_fwd_x8s8s32x(const __global SRC_DATA_T *src, const __global char *wei,
         for (int n_i = 0; n_i < OW_BLOCK; n_i++) { \
             PACK(C0, C1, C2, C3, n_i); \
             QUANTIZE_ADD_BIAS(); \
-            float4 df = convert_float4(AS_SUM_DATA4_T(D[n_i])); \
-            APPLY_POST_OPS(tmp, float, df, float); \
+            for (int didx = 0; didx < 4; ++didx) { \
+                float tmp_i = tmp[didx]; \
+                float dni_i = convert_float(AS_SUM_DATA_T(D[n_i][didx])); \
+                int po_mb; \
+                po_mb = group_mb % MB; \
+                const int po_oc = ((group_oc + oc) * OC_BLOCK + local_id \
+                                          + didx * SUB_GROUP_SIZE) \
+                        % (OC * G); \
+                APPLY_POST_OPS(tmp_i, float, dni_i, float, po_mb, 1, po_oc, 1, \
+                        0, 1, 0, 1, 0, 1, 0, 1); \
+                tmp[didx] = tmp_i; \
+            } \
             CONVERT_PACK(n_i); \
         } \
     } while (0)
