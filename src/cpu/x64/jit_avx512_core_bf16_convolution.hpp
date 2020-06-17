@@ -245,11 +245,12 @@ private:
     void trans_dst(diff_dst_data_t *tr_diff_dst1,
             const diff_dst_data_t *diff_dst1, int my_work) const;
     void trans_src_nxc(src_data_t *tr_src, const src_data_t *src_base,
-            int spatial_start, dim_t spatial_start_offset, dim_t channel_shift,
-            int my_work) const;
+            int spatial_start, dim_t spatial_start_offset, int icb_start,
+            dim_t chb_stride, int my_work) const;
     void trans_dst_nxc(diff_dst_data_t *tr_diff_dst,
             const diff_dst_data_t *diff_dst_base, int spatial_start,
-            dim_t spatial_start_offset, dim_t channel_shift, int my_work) const;
+            dim_t spatial_start_offset, int ocb_start, dim_t chb_stride,
+            int my_work) const;
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
 
