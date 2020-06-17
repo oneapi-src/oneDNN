@@ -161,10 +161,8 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __kernel void
 conv_nhwc_fwd_x8s8s32x(const __global SRC_DATA_T *src, const __global char *wei,
-        const __global float *bias, __global DATA_T *dst, float eltwise_alpha,
-        float eltwise_beta, float eltwise_scale, float sum_scale, float scale,
-        const __global float *scales_per_oc) {
-
+        const __global float *bias, __global DATA_T *dst POST_OP_ARGS,
+        float scale, const __global float *scales_per_oc) {
     const int group_oc = get_group_id(0) * OC_GROUP;
     const int group_mb = get_group_id(2) * MB_GROUP;
     const int group_sp = get_group_id(1) * SP_GROUP;
@@ -190,9 +188,6 @@ conv_nhwc_fwd_x8s8s32x(const __global SRC_DATA_T *src, const __global char *wei,
     const int ih = gih - PH;
 
     const int local_id = get_sub_group_local_id();
-
-    const __global SRC_DATA_T *src_param = src;
-    __global DATA_T *dst_param = dst;
 
     __local uint S_slice[SRC_SLM_SIZE];
     __local uint *S_part = S_slice + IC_BLOCK / 4 * (sp * SW * OW_BLOCK + PW);
@@ -408,40 +403,7 @@ conv_nhwc_fwd_x8s8s32x(const __global SRC_DATA_T *src, const __global char *wei,
                 read_oc_block4(dst + G * OC * 6, (group_oc + oc) * OC_BLOCK),
                 read_oc_block4(dst + G * OC * 7, (group_oc + oc) * OC_BLOCK));
 #endif
-
-#define DO_SUM(d) \
-    do { \
-        float4 df = convert_float4(d); \
-        tmp = fma(df, (float4)sum_scale, tmp); \
-    } while (0)
-
-#else
-#define DO_SUM(d)
 #endif // with_sum
-
-#define ELTWISE() \
-    do { \
-        tmp[0] = fwd_eltwise( \
-                tmp[0], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp[1] = fwd_eltwise( \
-                tmp[1], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp[2] = fwd_eltwise( \
-                tmp[2], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp[3] = fwd_eltwise( \
-                tmp[3], eltwise_alpha, eltwise_beta, eltwise_scale); \
-    } while (0)
-
-#if ELTWISE_IDX == 0
-#define DO_ELTWISE() ELTWISE();
-#else
-#define DO_ELTWISE()
-#endif
-
-#if ELTWISE_IDX == 1
-#define DO_POST_SUM_ELTWISE() ELTWISE();
-#else
-#define DO_POST_SUM_ELTWISE()
-#endif
 
 #define PACK(C0, C1, C2, C3, idx) \
     do { \
@@ -461,9 +423,8 @@ conv_nhwc_fwd_x8s8s32x(const __global SRC_DATA_T *src, const __global char *wei,
         for (int n_i = 0; n_i < OW_BLOCK; n_i++) { \
             PACK(C0, C1, C2, C3, n_i); \
             QUANTIZE_ADD_BIAS(); \
-            DO_ELTWISE(); \
-            DO_SUM(D[n_i]); \
-            DO_POST_SUM_ELTWISE(); \
+            float4 df = convert_float4(AS_SUM_DATA4_T(D[n_i])); \
+            APPLY_POST_OPS(tmp, float, df, float); \
             CONVERT_PACK(n_i); \
         } \
     } while (0)
