@@ -535,6 +535,10 @@ private:
     // Used by compute_ic_block_step_vpermw
     Xbyak::Opmask m_0000ffff = Xbyak::Opmask(2);
     Xbyak::Opmask m_ffff0000 = Xbyak::Opmask(3);
+    Xbyak::Opmask m_0000_oc_tail = Xbyak::Opmask(4);
+    Xbyak::Opmask m_oc_tail_0000 = Xbyak::Opmask(5);
+    Xbyak::Opmask m_0000_ic_tail = Xbyak::Opmask(6);
+    Xbyak::Opmask m_ic_tail_0000 = Xbyak::Opmask(7);
     // Used by compute_ic_block_step_extern (1st_conv only)
     Xbyak::Opmask everyother_mask = Xbyak::Opmask(6);
     Xbyak::Opmask everyother_shift_mask = Xbyak::Opmask(7);
@@ -617,6 +621,8 @@ private:
     void maybe_compute_diff_bias();
     void convert_src_to_vnni_format(
             int ur_w, int pad_l, int pad_r, int src_offset);
+    void may_be_set_oc_tail_mask();
+    void may_be_reset_oc_tail_mask();
     inline void compute_ic_block_step_vpermw_expl(int ur_w, int pad_l,
             int pad_r, int ic_block_step, int src_offset, int kernel_offset,
             int ddst_offset, bool is_tail = false);
