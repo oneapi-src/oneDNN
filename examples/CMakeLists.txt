@@ -51,15 +51,12 @@ foreach(f ${sources})
     endif()
 endforeach()
 
-# Skip CPU examples that do not work with SYCL
+# In case of SYCL, skip CPU examples that directly work with raw pointers
 if(DNNL_CPU_SYCL)
-    foreach(f
-            cpu_cnn_training_f32.c
-            cpu_rnn_inference_int8.cpp
-            cpu_rnn_inference_f32.cpp)
-        get_filename_component(f_path
-                ${CMAKE_CURRENT_LIST_DIR}/${f} ABSOLUTE)
-        list(REMOVE_ITEM sources "${f_path}")
+    foreach(f ${sources})
+        if(${f} MATCHES "cpu_")
+            list(REMOVE_ITEM sources "${f}")
+        endif()
     endforeach()
 endif()
 
@@ -67,13 +64,6 @@ endif()
 if(DNNL_SYCL_COMPUTECPP)
     list(REMOVE_ITEM sources "${CMAKE_CURRENT_LIST_DIR}/sycl_interop_usm.cpp")
 endif()
-
-# Skip matmul examples with SYCL
-foreach(f ${sources})
-    if(DNNL_WITH_SYCL AND ${f} MATCHES "matmul")
-        list(REMOVE_ITEM sources "${f}")
-    endif()
-endforeach()
 
 foreach(src ${sources})
     file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR} ${src})
