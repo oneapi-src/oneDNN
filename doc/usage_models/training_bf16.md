@@ -49,4 +49,4 @@ converting the result to `bf16` afterwards.
 
 ## Example
 
-The @ref cpu_cnn_training_bf16_cpp shows how to use `bf16` to train CNNs.
+The @ref cnn_training_bf16_cpp shows how to use `bf16` to train CNNs.

@@ -200,7 +200,7 @@ with oneDNN:
 
 Most of these techniques are shown in the following examples:
 - @ref cnn_training_f32_cpp
-- @ref cpu_cnn_training_bf16_cpp
+- @ref cnn_training_bf16_cpp
 
 @anchor dev_guide_inference_and_training_aspects_workspace
 ## Workspace
