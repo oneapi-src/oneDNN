@@ -43,6 +43,15 @@ void check_correctness(const settings_t &s) {
         attr_t attr(i_oscale, i_zero_points, i_post_ops);
         handle_legacy_attr(attr, s.attr);
 
+        if (attr.oscale.policy == policy_t::PER_OC) {
+            fprintf(stderr,
+                    "ERROR: reorder driver: `per_oc` policy is not supported "
+                    "due to potential ambiguity. Please use one of `per_dim_0` "
+                    "or `per_dim_1` policies.\n"),
+                    fflush(stderr);
+            SAFE_V(FAIL);
+        }
+
         std::vector<float> attr_scale = {attr.oscale.scale};
         auto &scale = attr.oscale.scale == 0 ? s.def_scale : attr_scale;
 
