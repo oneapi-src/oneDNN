@@ -357,9 +357,8 @@ inline bool is_eltwise_ok(
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(alg == eltwise_clip, beta >= alpha)
             && IMPLICATION(alg == eltwise_round, dt == dnnl_f32)
-            && IMPLICATION(one_of(dt, dnnl_s32, dnnl_s8), alg == eltwise_relu)
-            && IMPLICATION(
-                    dt == dnnl_u8, one_of(alg, eltwise_relu, eltwise_linear));
+            && IMPLICATION(one_of(dt, dnnl_s32, dnnl_s8, dnnl_u8),
+                    one_of(alg, eltwise_relu, eltwise_linear));
 
     const bool eltwise_use_dst
             = one_of(alg, eltwise_relu_use_dst_for_bwd,
