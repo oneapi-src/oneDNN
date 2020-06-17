@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -62,6 +62,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.is_training = utils::one_of(
             rd.prop_kind, prop_kind::forward_training, prop_kind::backward);
     rnn.is_lbr = rd.cell_kind == dnnl_lbr_gru;
+    rnn.is_vanilla_gru = rd.cell_kind == dnnl_vanilla_gru;
 
     switch (rd.direction) {
         case dnnl_unidirectional_left2right: rnn.exec_dir = l2r; break;
@@ -113,17 +114,15 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.gates_nld = rnn.mb;
     rnn.states_nld = rnn.mb;
 
-    bool is_orig_gru = rd.cell_kind == alg_kind::vanilla_gru;
-
     // Set the correct number of weights parts
     rnn.n_parts_weights_layer = 1;
     rnn.parts_weights_layer[0] = rnn.n_gates;
     rnn.parts_weights_layer[1] = 0;
 
     //there are two parts for VANILLA GRU weights iteration
-    rnn.n_parts_weights_iter = is_orig_gru ? 2 : 1;
-    rnn.parts_weights_iter[0] = is_orig_gru ? 2 : rnn.n_gates;
-    rnn.parts_weights_iter[1] = is_orig_gru ? 1 : 0;
+    rnn.n_parts_weights_iter = rnn.is_vanilla_gru ? 2 : 1;
+    rnn.parts_weights_iter[0] = rnn.is_vanilla_gru ? 2 : rnn.n_gates;
+    rnn.parts_weights_iter[1] = rnn.is_vanilla_gru ? 1 : 0;
 
     rnn.n_parts_bias = 1;
     rnn.parts_bias[0] = rnn.n_bias;

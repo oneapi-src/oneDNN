@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ namespace ocl {
 
 enum gemm_kind_t {
     gemm_iter_fwd,
+    gemm_iter_fwd_2,
     gemm_layer_fwd,
     gemm_iter_bwd,
     gemm_layer_bwd,
@@ -63,7 +64,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
     typedef elemwise_sig((class_name::*elemwise_f));
     typedef cell_execution_sig((class_name::*cell_execution_f));
     typedef grid_execution_sig((class_name::*grid_execution_f));
-
     typedef gemm_sig((class_name::*gemm_t));
     typedef weights_assign_sig((class_name::*weights_assign_t));
 
@@ -72,6 +72,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                     gpu_rnn_fwd_pd_t, gpu_rnn_bwd_pd_t>::type;
     enum {
         key_gemm_iter_fwd = memory_tracking::names::key_nested_multiple,
+        key_gemm_iter_fwd_2,
         key_gemm_layer_fwd,
         key_gemm_iter_bwd,
         key_gemm_layer_bwd,
@@ -99,6 +100,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         data_type_t weights_type;
 
         std::unique_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;
         std::unique_ptr<primitive_desc_t> gemm_layer_fwd_pd_;
         std::unique_ptr<primitive_desc_t> gemm_iter_bwd_pd_;
         std::unique_ptr<primitive_desc_t> gemm_layer_bwd_pd_;
@@ -122,6 +124,9 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                             gemm_iter_fwd_pd_->scratchpad_registry());
                     scratchpad.book(key_gemm_layer_fwd,
                             gemm_layer_fwd_pd_->scratchpad_registry());
+                    if (conf.is_vanilla_gru)
+                        scratchpad.book(key_gemm_iter_fwd_2,
+                                gemm_iter_fwd_2_pd_->scratchpad_registry());
                     break;
                 case prop_kind::backward:
                     scratchpad.book(key_gemm_iter_bwd,
@@ -149,6 +154,9 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                             : nullptr);
             gemm_iter_fwd_pd_.reset(other.gemm_iter_fwd_pd_
                             ? other.gemm_iter_fwd_pd_->clone()
+                            : nullptr);
+            gemm_iter_fwd_2_pd_.reset(other.gemm_iter_fwd_2_pd_
+                            ? other.gemm_iter_fwd_2_pd_->clone()
                             : nullptr);
             gemm_layer_bwd_pd_.reset(other.gemm_layer_bwd_pd_
                             ? other.gemm_layer_bwd_pd_->clone()
@@ -189,6 +197,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                 break;
             case dnnl_vanilla_gru:
                 cell_func = &class_name::cell_execution_gru;
+                elemwise_func = &class_name::gru_elemwise;
                 break;
             case dnnl_lbr_gru:
                 cell_func = &class_name::cell_execution_gru_lbr;
@@ -229,8 +238,9 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 protected:
     primitive_list_t nested_primitives() const override {
         return {gemm_layer_fwd_.get(), gemm_iter_fwd_.get(),
-                gemm_layer_bwd_.get(), gemm_iter_bwd_.get(),
-                gemm_diff_wei_layer_.get(), gemm_diff_wei_iter_.get()};
+                gemm_iter_fwd_2_.get(), gemm_layer_bwd_.get(),
+                gemm_iter_bwd_.get(), gemm_diff_wei_layer_.get(),
+                gemm_diff_wei_iter_.get()};
     }
 
     status_t init_res_storage(
@@ -251,8 +261,10 @@ private:
     elemwise_sig(lstm_elemwise);
     elemwise_sig(lstm_elemwise_u8s8);
     elemwise_sig(gru_lbr_elemwise);
+    elemwise_sig(gru_elemwise);
 
     gemm_sig(gemm_primitive);
+
     weights_assign_sig(assign_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
@@ -316,6 +328,7 @@ private:
     // ptrs to GEMM primitives
     std::shared_ptr<primitive_t> gemm_layer_fwd_;
     std::shared_ptr<primitive_t> gemm_iter_fwd_;
+    std::shared_ptr<primitive_t> gemm_iter_fwd_2_;
     std::shared_ptr<primitive_t> gemm_layer_bwd_;
     std::shared_ptr<primitive_t> gemm_iter_bwd_;
     std::shared_ptr<primitive_t> gemm_diff_wei_layer_;

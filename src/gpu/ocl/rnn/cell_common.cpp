@@ -22,6 +22,7 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+#define PART 1
 
 using namespace dnnl::impl::utils;
 using namespace rnn_utils;
@@ -50,7 +51,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 gemm_iter_fwd);
 
         (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scales, bias, tm_scales);
+                scratch_gates, scratch_cell, scales, bias, tm_scales, PART);
 
     } else { // backward
         cl_ulong cell_diff_wei_iter_off, cell_diff_wei_lay_off,
@@ -61,7 +62,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                 cell_diff_ws_lay_off, cell_diff_ws_iter_off);
 
         (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
-                scratch_gates, scratch_cell, scales, bias, tm_scales);
+                scratch_gates, scratch_cell, scales, bias, tm_scales, PART);
 
         gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset,
                 scratch_gates, cell_scratch_offset, workspace,

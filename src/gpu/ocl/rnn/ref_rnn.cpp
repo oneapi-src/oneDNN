@@ -119,6 +119,7 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     conf.with_dst_iter = rnn_pd->with_dst_iter();
     conf.with_dst_iter_c = rnn_pd->with_dst_iter_c();
     conf.is_lbr = rnn.is_lbr;
+    conf.is_vanilla_gru = rnn.is_vanilla_gru;
     conf.copy_bias = rnn.copy_bias;
     conf.is_int8 = rnn.is_int8;
     conf.is_training = rnn.is_training;
@@ -470,7 +471,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
     bool ok = true
             && one_of(cell_kind, alg_kind::vanilla_rnn, alg_kind::vanilla_lstm,
-                    alg_kind::lbr_gru)
+                    alg_kind::lbr_gru, alg_kind::vanilla_gru)
             && !this->is_lstm_peephole() && !this->is_lstm_projection()
             && IMPLICATION(aprop == prop_kind::forward,
                     one_of(this->desc()->prop_kind, forward_training,
@@ -641,7 +642,21 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                                     rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
                                     weights_type, src_type,
                                     rnn_conf.acc_data_type, false, 0.0),
-                            create_gemm_pd(gemm_iter_fwd_pd_, n_gates * dhc,
+                            rnn_conf.is_vanilla_gru
+                            ? create_gemm_pd(gemm_iter_fwd_pd_,
+                                    (n_gates - 1) * dhc, batch, sic,
+                                    rnn_conf.weights_iter_ld,
+                                    rnn_conf.states_ws_ld,
+                                    rnn_conf.scratch_gates_ld, weights_type,
+                                    src_type, rnn_conf.acc_data_type, false,
+                                    gemm_iter_fwd_beta),
+                            create_gemm_pd(gemm_iter_fwd_2_pd_, dhc, batch, sic,
+                                    rnn_conf.weights_iter_ld,
+                                    rnn_conf.states_ws_ld,
+                                    rnn_conf.scratch_gates_ld, weights_type,
+                                    src_type, rnn_conf.acc_data_type, false,
+                                    gemm_iter_fwd_beta)
+                            : create_gemm_pd(gemm_iter_fwd_pd_, n_gates * dhc,
                                     batch, sic, rnn_conf.weights_iter_ld,
                                     rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
                                     weights_type, src_type,
@@ -736,7 +751,12 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
                             pd()->gemm_layer_fwd_pd_->create_primitive(
                                     gemm_layer_fwd_, engine),
                             pd()->gemm_iter_fwd_pd_->create_primitive(
-                                    gemm_iter_fwd_, engine));
+                                    gemm_iter_fwd_, engine),
+                            pd()->conf.is_vanilla_gru
+                                    ? pd()->gemm_iter_fwd_2_pd_
+                                              ->create_primitive(
+                                                      gemm_iter_fwd_2_, engine)
+                                    : status::success);
             break;
         case prop_kind::backward:
             gemm_ok = true
@@ -848,6 +868,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     switch (gemm_kind) {
         case gemm_iter_fwd:
         case gemm_layer_fwd:
+        case gemm_iter_fwd_2:
             weights = (gemm_kind == gemm_layer_fwd)
                     ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
                     : ctx.input(DNNL_ARG_WEIGHTS_ITER);
@@ -915,6 +936,10 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
         case gemm_iter_fwd:
             init_gemm_nested_scratchpad(gemm_iter_fwd_, key_gemm_iter_fwd);
             gpu_gemm(gemm_iter_fwd_)->execute(gemm_ctx);
+            break;
+        case gemm_iter_fwd_2:
+            init_gemm_nested_scratchpad(gemm_iter_fwd_2_, key_gemm_iter_fwd_2);
+            gpu_gemm(gemm_iter_fwd_2_)->execute(gemm_ctx);
             break;
         case gemm_layer_fwd:
             init_gemm_nested_scratchpad(gemm_layer_fwd_, key_gemm_layer_fwd);
@@ -1239,10 +1264,11 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     int sic = rnn.sic;
     int dhc = rnn.dhc;
     int dlc = rnn.dlc;
-    bool is_orig_gru = rnn_pd->cell_kind() == alg_kind::vanilla_gru;
     int n_parts_weights_iter = rnn.n_parts_weights_iter;
     int n_parts_weights_layer = rnn.n_parts_weights_layer;
+
     bool is_fwd = rnn.is_fwd;
+    bool is_vanilla_gru = rnn.is_vanilla_gru;
 
     auto &src_layer_native_ = CTX_IN_STORAGE(DNNL_ARG_SRC_LAYER);
     auto &src_iter_native_ = CTX_IN_STORAGE(DNNL_ARG_SRC_ITER);
@@ -1307,10 +1333,9 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
         DPRINT("  sic             = %d\n", sic);
         DPRINT("  dhc             = %d\n", dhc);
         DPRINT("  dlc             = %d\n", dlc);
-        DPRINT("  wic             = %d\n", nstl::max(slc, nstl::max(sic, dhc)));
         DPRINT("%s\n", "+++++++++++++++");
         DPRINT("  is_fwd          = %s\n", is_fwd ? "yes" : "no");
-        DPRINT("  is_orig_gru     = %s\n", is_orig_gru ? "yes" : "no");
+        DPRINT("  is_vanilla_gru  = %s\n", is_vanilla_gru ? "yes" : "no");
         DPRINT("  use_workspace   = %s\n", rnn.use_workspace ? "yes" : "no");
         DPRINT("%s\n", "+++++++++++++++");
         DPRINT("  with_src_iter   = %s\n",
@@ -1329,7 +1354,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     prints();
 #else
     UNUSED(dlc);
-    UNUSED(is_orig_gru);
+    UNUSED(is_vanilla_gru);
     UNUSED(prints);
 #endif
 
@@ -1468,6 +1493,10 @@ template <>
 elemwise_sig(ref_rnn_fwd_t::gru_lbr_elemwise);
 template <>
 elemwise_sig(ref_rnn_bwd_t::gru_lbr_elemwise);
+template <>
+elemwise_sig(ref_rnn_fwd_t::gru_elemwise);
+template <>
+elemwise_sig(ref_rnn_bwd_t::gru_elemwise);
 
 template struct _ref_rnn_common_t<prop_kind::forward>;
 template struct _ref_rnn_common_t<prop_kind::backward>;

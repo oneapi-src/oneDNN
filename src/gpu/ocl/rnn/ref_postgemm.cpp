@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -121,6 +121,29 @@ elemwise_sig((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
 template elemwise_sig(ref_rnn_fwd_t::gru_lbr_elemwise);
 template elemwise_sig(ref_rnn_bwd_t::gru_lbr_elemwise);
 
+template <prop_kind_t aprop>
+elemwise_sig((_ref_rnn_common_t<aprop>::gru_elemwise)) {
+    auto nd_range = compute::nd_range_t({dhc, batch});
+
+    const compute::kernel_t &kernel = (aprop == prop_kind::forward)
+            ? elemwise_fwd_kernel_
+            : elemwise_bwd_kernel_;
+
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, dir);
+    arg_list.set(1, lay);
+    arg_list.set(2, iter);
+    arg_list.set(3, workspace);
+    arg_list.set(4, scratch_gates);
+    arg_list.set(5, bias);
+    arg_list.set(6, pd()->desc()->alpha);
+    arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
+    arg_list.set(8, pd()->rnn_conf.tm_cscale);
+    arg_list.set(9, part);
+    parallel_for(ctx, nd_range, kernel, arg_list);
+}
+template elemwise_sig(ref_rnn_fwd_t::gru_elemwise);
+template elemwise_sig(ref_rnn_bwd_t::gru_elemwise);
 } // namespace ocl
 } // namespace gpu
 } // namespace impl

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@
             const memory_storage_t &scratch_gates, \
             const memory_storage_t &scratch_cell, \
             const memory_storage_t *scales, const memory_storage_t &bias, \
-            const memory_storage_t *tm_scales) const
+            const memory_storage_t *tm_scales, int part) const
 
 #define cell_execution_sig(f) \
     void f(engine_t *engine, const exec_ctx_t &ctx, int dir, int lay, \
@@ -130,7 +130,7 @@ struct conf_t {
     int diff_weights_iter_ld, diff_weights_iter_nld;
     int states_nld, states_ws_ld, diff_states_ws_ld;
     int weights_iter_compensation_size, weights_layer_compensation_size;
-    bool is_fwd, is_training, is_lbr, is_int8, is_testmode;
+    bool is_fwd, is_training, is_lbr, is_int8, is_testmode, is_vanilla_gru;
     bool use_workspace;
 
     // for test mode (--skip_nonliner=true of benchdnn)

@@ -310,6 +310,7 @@ struct rnn_conf_t {
     bool with_dst_iter;
     bool with_dst_iter_c;
     bool is_lbr;
+    bool is_vanilla_gru;
     bool is_fwd;
     bool copy_bias;
     bool is_int8;
