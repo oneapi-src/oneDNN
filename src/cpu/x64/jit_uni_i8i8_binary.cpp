@@ -79,6 +79,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
     Reg64 reg_dst = r10;
     Reg64 reg_offt_src0 = r11;
     Reg64 reg_offt_src0_count = r12;
+    Reg64 reg_offt_src1 = rax;
     Reg64 reg_reverse_spat_offt = r13;
     Reg64 reg_tmp = r14;
     Reg64 reg_elt_inj_table = r15;
@@ -90,6 +91,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
     bool do_scale_src1_ = false;
     bool do_sum_ = false;
     float sum_scale_ = 0.f;
+    bool broadcast_src1_value_ = false;
 
     Vmm vreg_scales_src0 = Vmm(isa == avx512_common ? 17 : 9);
     Vmm vreg_scales_src1 = Vmm(isa == avx512_common ? 18 : 10);
@@ -97,6 +99,8 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
     Xmm xreg_sum_scale = Xmm(11);
     Vmm vreg_zero = Vmm(isa == avx512_common ? 20 : 12);
     Vmm vreg_saturation_ubound = Vmm(isa == avx512_common ? 21 : 13);
+    Vmm vreg_bcast_src1 = Vmm(isa == avx512_common ? 22 : 14);
+    Xmm xreg_bcast_src1 = Xmm(14);
 
     Xmm xreg_tmp = Xmm(0);
 
@@ -109,6 +113,9 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
 
     void init() {
         const memory_desc_wrapper src0_d(pd_->src_md(0));
+        const memory_desc_wrapper src1_d(pd_->src_md(1));
+
+        broadcast_src1_value_ = src1_d.nelems() == 1;
         const dim_t nelems
                 = pd_->is_tensor_op() ? src0_d.nelems(true) : src0_d.dims()[1];
         tail_size_ = nelems % simd_w_;
@@ -155,7 +162,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
     }
 
     Address src1_ptr(size_t offt = 0) {
-        return vmmword[reg_src1 + reg_offt_src0 + offt];
+        return vmmword[reg_src1 + reg_offt_src1 + offt];
     }
 
     Address dst_ptr(size_t offt = 0) {
@@ -238,14 +245,26 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
         // reverse spat_offt to dispatch between labels
         mov(reg_reverse_spat_offt, reg_offt_src0_count);
         xor_(reg_offt_src0, reg_offt_src0); // offt_src0 to get addr of src0/dst
+        xor_(reg_offt_src1, reg_offt_src1); // offt_src1 to get addr of src1
+
+        // bcast vreg just one time per kernel call
+        if (broadcast_src1_value_) {
+            uni_vpxor(xreg_bcast_src1, xreg_bcast_src1, xreg_bcast_src1);
+            vpinsrb(xreg_bcast_src1, xreg_bcast_src1, src1_ptr(0), 0);
+            uni_vcvtdq2ps(xreg_bcast_src1, xreg_bcast_src1);
+            uni_vbroadcastss(vreg_bcast_src1, xreg_bcast_src1);
+        }
+
         L(unroll_loop);
         {
             size_t offt = unroll_regs_ * simd_w_;
             cmp(reg_reverse_spat_offt, offt);
             jl(unroll_loop_tail, T_NEAR);
+
             compute_dst(unroll_regs_);
             sub(reg_reverse_spat_offt, offt);
             add(reg_offt_src0, offt);
+            if (!broadcast_src1_value_) add(reg_offt_src1, offt);
             jmp(unroll_loop);
         }
 
@@ -257,6 +276,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
             compute_dst(1);
             sub(reg_reverse_spat_offt, simd_w_);
             add(reg_offt_src0, simd_w_);
+            if (!broadcast_src1_value_) add(reg_offt_src1, simd_w_);
             jmp(unroll_loop_tail);
         }
 
@@ -325,18 +345,24 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
     void compute_dst(int unroll, bool tail = false) override {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
-            Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
+            Vmm vreg_tmp_src1 = vreg_bcast_src1;
+            Vmm vreg_tmp = Vmm(2 * i + 2);
             int offt = simd_w_ * i;
             load(vreg_tmp_src0, src0_ptr(offt), DNNL_ARG_SRC_0, src0_type,
                     tail);
-            load(vreg_tmp_src1, src1_ptr(offt), DNNL_ARG_SRC_1, src1_type,
-                    tail);
-            perform_op(vreg_tmp_src0, vreg_tmp_src1, vreg_scales_src0,
+            if (!broadcast_src1_value_) {
+                vreg_tmp_src1 = vreg_tmp;
+                load(vreg_tmp_src1, src1_ptr(offt), DNNL_ARG_SRC_1, src1_type,
+                        tail);
+            }
+
+            // avoid multiple multiplication on input scale for broadcasted vreg
+            uni_vmovups(vreg_tmp, vreg_tmp_src1);
+            perform_op(vreg_tmp_src0, vreg_tmp, vreg_scales_src0,
                     vreg_scales_src1);
             if (do_sum_) {
-                load(vreg_tmp_src1, dst_ptr(offt), DNNL_ARG_DST, src0_type,
-                        tail);
-                uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp_src1, vreg_sum_scale);
+                load(vreg_tmp, dst_ptr(offt), DNNL_ARG_DST, src0_type, tail);
+                uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp, vreg_sum_scale);
             }
             if (eltwise_injector_)
                 eltwise_injector_->compute_vector(vreg_tmp_src0.getIdx());
@@ -387,18 +413,24 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>
     void compute_dst(int unroll, bool tail = false) override {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
-            Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
+            Vmm vreg_tmp_src1 = vreg_bcast_src1;
+            Vmm vreg_tmp = Vmm(2 * i + 2);
             int offt = simd_w_ * i;
             load(vreg_tmp_src0, src0_ptr(offt), DNNL_ARG_SRC_0, src0_type,
                     tail);
-            load(vreg_tmp_src1, src1_ptr(offt), DNNL_ARG_SRC_1, src1_type,
-                    tail);
-            perform_op(vreg_tmp_src0, vreg_tmp_src1, vreg_scales_src0,
+            if (!broadcast_src1_value_) {
+                vreg_tmp_src1 = vreg_tmp;
+                load(vreg_tmp_src1, src1_ptr(offt), DNNL_ARG_SRC_1, src1_type,
+                        tail);
+            }
+
+            // avoid multiple multiplication on input scale for broadcasted vreg
+            uni_vmovups(vreg_tmp, vreg_tmp_src1);
+            perform_op(vreg_tmp_src0, vreg_tmp, vreg_scales_src0,
                     vreg_scales_src1);
             if (do_sum_) {
-                load(vreg_tmp_src1, dst_ptr(offt), DNNL_ARG_DST, src0_type,
-                        tail);
-                uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp_src1, vreg_sum_scale);
+                load(vreg_tmp, dst_ptr(offt), DNNL_ARG_DST, src0_type, tail);
+                uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp, vreg_sum_scale);
             }
             if (eltwise_injector_)
                 eltwise_injector_->compute_vector(vreg_tmp_src0.getIdx());

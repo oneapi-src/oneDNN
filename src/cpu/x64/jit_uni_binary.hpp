@@ -90,9 +90,9 @@ struct jit_uni_binary_t : public primitive_t {
             // broadcast operation
             const auto ndims = src0_d.ndims();
             ok = ndims >= 2;
-            // only supported case for now is NxCxDxHxW:{N,1}xCx1x1x1
+            // supported case: NxCxDxHxW:{NxCx1x1x1,1xCx1x1x1,1x1x1x1x1}
             const auto &bcast_dims = broadcast_dims();
-            ok = ok && bcast_dims[1] == 0;
+            ok = ok && IMPLICATION(bcast_dims[0] == 0, bcast_dims[1] == 0);
             for (int d = 2; d < ndims; ++d)
                 ok = ok && bcast_dims[d] == 1;
             if (!ok) return false;
@@ -106,13 +106,22 @@ struct jit_uni_binary_t : public primitive_t {
                         && bd1.strides[0] >= bd1.strides[1];
             }
 
+            const bool point_bcast = src1_d.nelems() == 1;
             // check blocking_desc consistency
             auto valid_bd = [&](const memory_desc_wrapper &mdw) {
                 int blksize = 8;
                 if (mayiuse(avx512_core)) blksize = 16;
                 const auto &bd = mdw.blocking_desc();
+                bool point_bcast_is_ok = true;
+                // this is zero pad guard; the problem appears for blocked
+                // formats when last C block has tails and `add` operation does
+                // not preserve zero in padded area. To be considered when
+                // implementing binary injector.
+                if (point_bcast)
+                    point_bcast_is_ok = src0_d.dims()[1] % blksize == 0;
+
                 return bd.inner_nblks == 1 && bd.inner_blks[0] == blksize
-                        && bd.inner_idxs[0] == 1;
+                        && bd.inner_idxs[0] == 1 && point_bcast_is_ok;
             };
 
             return valid_bd(src0_d) && valid_bd(src1_d);

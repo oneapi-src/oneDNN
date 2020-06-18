@@ -82,7 +82,7 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
             bool ok = ndims >= 2;
             // only supported case for now is NxCxDxHxW:{N,1}xCx1x1x1
             const auto &bcast_dims = broadcast_dims();
-            ok = ok && bcast_dims[1] == 0;
+            ok = ok && IMPLICATION(bcast_dims[0] == 0, bcast_dims[1] == 0);
             for (int d = 2; d < ndims; ++d)
                 ok = ok && bcast_dims[d] == 1;
             if (!ok) return false;

@@ -103,6 +103,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
     size_t offt_src0_ = 0;
     size_t offt_src1_ = 0;
     bool use_stride_src1_ = false;
+    bool broadcast_src1_value_ = false;
 
     static constexpr cpu_isa_t inject_isa
             = isa == avx512_core_bf16 ? avx512_core : isa;
@@ -111,6 +112,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
 
     void init() {
         const memory_desc_wrapper src0_d(pd_->src_md(0));
+        const memory_desc_wrapper src1_d(pd_->src_md(1));
         const auto &dims = src0_d.dims();
         const auto &strides = src0_d.blocking_desc().strides;
         const auto ndims = src0_d.ndims();
@@ -128,10 +130,14 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
         assert(op_type_ != op_t::none);
 
         // re-use same register for c_blocked and n_c_spatial cases
-        use_stride_src1_ = op_type_ == op_t::tensor
-                || op_type_ == op_t::bcast_n_spatial_c;
+        broadcast_src1_value_
+                = op_type_ == op_t::bcast_n_c_spatial || src1_d.nelems() == 1;
+        use_stride_src1_ = !broadcast_src1_value_
+                && (op_type_ == op_t::tensor
+                        || op_type_ == op_t::bcast_n_spatial_c);
 
-        dim_t nelems = 0;
+        // estimate tail processing based on src0
+        dim_t nelems = 0; // no tail in blocked case
         if (op_type_ == op_t::tensor)
             nelems = src0_d.nelems(true);
         else if (op_type_ == op_t::bcast_n_spatial_c)
@@ -377,9 +383,9 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
     }
 
     void compute_bcast(bool tail = false) override {
-        if (op_type_ == op_t::bcast_n_c_spatial)
+        if (broadcast_src1_value_)
             bcast(vbcast_src1, src1_ptr(), src_type);
-        else if (!offt_src1_)
+        else if (offt_src1_ == 0)
             load(vbcast_src1, src1_ptr(), src_type, tail);
     }
 
@@ -532,9 +538,9 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
     }
 
     void compute_bcast(bool tail = false) override {
-        if (op_type_ == op_t::bcast_n_c_spatial)
+        if (broadcast_src1_value_)
             bcast(vbcast_src1, src1_ptr(), src_type);
-        else if (!offt_src1_)
+        else if (offt_src1_ == 0)
             load(vbcast_src1, src1_ptr(), src_type, tail);
     }
 
@@ -598,9 +604,9 @@ struct jit_uni_binary_subkernel_t<avx2, src_type>
     }
 
     void compute_bcast(bool tail = false) override {
-        if (op_type_ == op_t::bcast_n_c_spatial)
+        if (broadcast_src1_value_)
             uni_vbroadcastss(vbcast_src1, src1_ptr());
-        else if (!offt_src1_)
+        else if (offt_src1_ == 0)
             load(vbcast_src1, src1_ptr(), tail);
     }
 
@@ -709,6 +715,7 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
         const dim_t nelems_slice_src1 = (bcast_dims[0] == 0)
                 ? utils::array_product(src1_d.padded_dims() + 1, ndims - 1)
                 : 0;
+        const bool point_broadcast = src1_d.nelems() == 1;
 
         if ((*kernel_).op_type() == binary_kernel_t::op_t::bcast_c_blocked) {
             const int simd_w = (*kernel_).vlen() / sizeof(float);
@@ -720,7 +727,8 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
                 p.spat_offt_count = SP * simd_w * sizeof(data_t);
                 p.dst = dst + mb * nelems_slice_src0 + C_blk * SP * simd_w;
                 p.src0 = src0 + mb * nelems_slice_src0 + C_blk * SP * simd_w;
-                p.src1 = src1 + mb * nelems_slice_src1 + C_blk * simd_w;
+                const dim_t src1_offset = point_broadcast ? 0 : C_blk * simd_w;
+                p.src1 = src1 + mb * nelems_slice_src1 + src1_offset;
                 (*kernel_)(&p);
             });
         } else if ((*kernel_).op_type()
@@ -745,7 +753,8 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
                 p.spat_offt_count = SP * sizeof(data_t);
                 p.dst = dst + mb * nelems_slice_src0 + c * SP;
                 p.src0 = src0 + mb * nelems_slice_src0 + c * SP;
-                p.src1 = src1 + mb * nelems_slice_src1 + c;
+                const dim_t src1_offset = point_broadcast ? 0 : c;
+                p.src1 = src1 + mb * nelems_slice_src1 + src1_offset;
                 (*kernel_)(&p);
             });
         }
