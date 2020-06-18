@@ -3,9 +3,9 @@
 --match=.*kh3[^0-9].*       # only 3x3 shapesolutions so far
 --mb=2                      # for fwd and bwd_d reduce mb
 --dir=FWD_B
---cfg=u8s8u8_wino  --batch=set_conv_all
---cfg=u8s8s8_wino  --batch=shapes_resnet_50
---cfg=u8s8s32_wino --batch=shapes_googlenet_v3
+--cfg=u8s8u8_wino  --batch=set_conv_all --batch=shapes_regression_padding
+--cfg=u8s8s8_wino  --batch=shapes_resnet_50 --batch=shapes_regression_padding
+--cfg=u8s8s32_wino --batch=shapes_googlenet_v3 --batch=shapes_regression_padding
 
 # Int8 Wino w/Attributes
 --reset --alg=wino
