@@ -596,11 +596,22 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
         static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic;
         static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core;
         bool is_int8 = p->cfg[WEI].dt == dnnl_s8;
+        auto opp_pad = [](int64_t idim, int64_t odim, int64_t kdim,
+                               int64_t sdim, int64_t pdim, int64_t ddim) {
+            return (odim - 1) * sdim - idim + ((kdim - 1) * (ddim + 1) + 1)
+                    - pdim;
+        };
+        const auto pad_r = opp_pad(p->iw, p->ow, p->kw, p->sw, p->pw, p->dw);
+        const auto pad_b = opp_pad(p->ih, p->oh, p->kh, p->sh, p->ph, p->dh);
+        bool pad_ok_f32 = p->pw <= 1 && p->ph <= 1 && pad_r <= 1 && pad_b <= 1;
+        bool pad_ok_int8
+                = p->pw <= 1 && p->ph <= 1 && p->pw == pad_r && p->ph == pad_b;
+
         bool shape_ok = p->ndims == 4 && p->g == 1 && p->kh == 3 && p->kw == 3
                 && p->sh == 1 && p->sw == 1 && p->dh == 0 && p->dw == 0
+                && IMPLICATION(!is_int8, pad_ok_f32)
                 && IMPLICATION(is_int8,
-                        (p->ic % 16 == 0) && (p->oc % 16 == 0) && p->ph == p->pw
-                                && p->ph <= 1 && p->pw <= 1);
+                        (p->ic % 16 == 0) && (p->oc % 16 == 0) && pad_ok_int8);
         bool bwd_is_syncable = IMPLICATION(
                 (p->dir & FLAG_BWD), dnnl::impl::dnnl_thr_syncable());
 
