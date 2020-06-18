@@ -3,10 +3,13 @@
 ## Introduction
 
 New headers structure and namespaces are needed for cross-component and oneAPI
-branding alignment.
+branding alignment. The request from the oneAPI program is to put oneDNN
+headers under the `oneapi` and also to provide a corresponding namespace. The
+changes will have to be reflected in the
+[spec](https://github.com/oneapi-src/oneAPI-spec/tree/master/source/elements/oneDNN).
 
-The main concern is how to reach alignment while keeping backward
-compatibility with existing code. The secondary concern is maintenance burden.
+The main concern is how to keep backward compatibility with the existing code.
+The secondary concern is maintenance burden.
 
 ## Proposal
 
@@ -32,6 +35,8 @@ There is no recommendation on whether longer or shorted namespace should be
 used in the spec yet; this is outside of the scope of this RFC.
 
 ### Installation paths changes
+
+oneDNN is free to decide on the header structure under `include/oneapi`.
 
 #### Option 1 -- recommended
 
