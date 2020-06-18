@@ -49,8 +49,8 @@ include
 │   └── dnnl.h
 ├── dnnl_types.h        (#include "oneapi[/dnnl]/dnnl_types.h")
 ├── dnnl_config.h       (#include "oneapi[/dnnl]/dnnl_config.h")
-├── dnnl.hpp            (#include "oneapi[/dnnl]/dnnl.hpp"")
-└── dnnl.h              (#include "oneapi[/dnnl]/dnnl.h"")
+├── dnnl.hpp            (#include "oneapi[/dnnl]/dnnl.hpp")
+└── dnnl.h              (#include "oneapi[/dnnl]/dnnl.h")
 ```
 
 The `/dnnl/` portion of the path may be present or not. The recommendation is
@@ -73,7 +73,8 @@ The warnings can be suppressed via `-Wno-cpp` (clang, gcc),
 `-diag-disable:1224` (icc). The MSVC message cannot be disabled, but it does
 not show as a warning, just a message. (However, the internal oneDNN CI will
 still treat them as warning because the word 'warning' appears in the
-message.)
+message.) However, it is *not recommended* to not cause additional confusion.
+The deprecation will be noted in the documentation.
 
 This option *is recommended*. The canonical include path to `dnnl.hpp` will
 become `#include "oneapi/dnnl/dnnl.hpp"`.
@@ -116,7 +117,7 @@ The following header files can be removed in oneDNN 3.0 or later.
 include
 ├── dnnl_types.h        (#include "oneapi/dnnl_types.h")
 ├── dnnl_config.h       (#include "oneapi/dnnl_config.h")
-├── dnnl.hpp            (#include "oneapi/dnnl.hpp"")
-└── dnnl.h              (#include "oneapi/dnnl.h"")
+├── dnnl.hpp            (#include "oneapi/dnnl.hpp")
+└── dnnl.h              (#include "oneapi/dnnl.h")
 ```
 
