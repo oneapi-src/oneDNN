@@ -31,8 +31,6 @@ namespace ocl {
 
 class ocl_gpu_kernel_t : public compute::kernel_impl_t {
 public:
-    ocl_gpu_kernel_t(cl_kernel ocl_kernel)
-        : state_(state_t::kernel), ocl_kernel_(ocl_kernel) {}
     ocl_gpu_kernel_t(const std::vector<unsigned char> &binary,
             const std::string &binary_name)
         : state_(state_t::binary)
@@ -61,6 +59,10 @@ public:
     }
 
     enum class state_t { binary, kernel };
+
+protected:
+    ocl_gpu_kernel_t(cl_kernel ocl_kernel)
+        : state_(state_t::kernel), ocl_kernel_(ocl_kernel) {}
 
 private:
     state_t state_;

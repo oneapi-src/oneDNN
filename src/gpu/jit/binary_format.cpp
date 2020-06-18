@@ -133,12 +133,17 @@ public:
         threadend(SWSB(sb2, 1), r127);
     }
 
-    static cl_kernel make_kernel(cl_context context, cl_device_id device) {
-        cl_kernel kernel = nullptr;
+    static compute::kernel_t make_kernel(
+            cl_context context, cl_device_id device) {
+        compute::kernel_t kernel;
 
         if (hw != HW::Unknown) {
             binary_format_kernel_t<hw> binary_format_kernel;
-            kernel = binary_format_kernel.getKernel(context, device);
+            auto binary = binary_format_kernel.getBinary(context, device);
+            const char *binary_name
+                    = binary_format_kernel.getExternalName().c_str();
+            kernel = compute::kernel_t(
+                    new ocl::ocl_gpu_kernel_t(binary, binary_name));
         } else {
             auto hw_detect = OpenCLCodeGenerator<HW::Unknown>::detectHW(
                     context, device);
@@ -155,7 +160,7 @@ public:
                     kernel = binary_format_kernel_t<HW::Gen12LP>::make_kernel(
                             context, device);
                     break;
-                default: kernel = nullptr; break;
+                default: break;
             }
         }
         return kernel;
@@ -172,7 +177,8 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
             gpu_engine->context(), gpu_engine->device());
     if (!kernel) return status::success;
 
-    auto compute_kernel = compute::kernel_t(new ocl::ocl_gpu_kernel_t(kernel));
+    compute::kernel_t realized_kernel;
+    CHECK(kernel.realize(&realized_kernel, engine));
 
     status_t status = status::success;
 
@@ -221,7 +227,7 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     arg_list.set(7, *result_buf.get());
 
     auto nd_range = compute::nd_range_t(gws, lws);
-    status = stream->parallel_for(nd_range, compute_kernel, arg_list);
+    status = stream->parallel_for(nd_range, realized_kernel, arg_list);
     if (status != status::success) return status::runtime_error;
 
     status = stream->wait();
