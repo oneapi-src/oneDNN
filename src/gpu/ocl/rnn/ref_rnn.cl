@@ -606,10 +606,15 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 
 #else
 
-__kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
-        __global char *ws, __global char *scr_gates, __global char *scr_cell,
+__kernel void ref_rnn_elemwise_fwd(
+        int dir, int lay, int iter, __global char *ws, __global char *scr_gates,
         __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
-        float tm_cscale) {
+        float tm_cscale
+#if CELL_KIND == LBR_GRU
+        ,
+        __global char *scr_cell
+#endif
+) {
 
     const int i = get_global_id(1); // batch
     const int j = get_global_id(0); // dhc
@@ -715,10 +720,15 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 #endif
 }
 #endif
-__kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
-        __global char *ws, __global char *scr_gates, __global char *scr_gate_r,
+__kernel void ref_rnn_elemwise_bwd(
+        int dir, int lay, int iter, __global char *ws, __global char *scr_gates,
         __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
-        float tm_cscale) {
+        float tm_cscale
+#if CELL_KIND == LBR_GRU
+        ,
+        __global char *scr_gate_r
+#endif
+) {
 
     const int i = get_global_id(1); // batch
     const int j = get_global_id(0); // dhc

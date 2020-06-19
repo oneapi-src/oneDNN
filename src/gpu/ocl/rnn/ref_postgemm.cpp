@@ -35,12 +35,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     arg_list.set(2, iter);
     arg_list.set(3, workspace);
     arg_list.set(4, scratch_gates);
-    arg_list.set(5, scratch_cell);
-    arg_list.set(6, bias);
-    arg_list.set(7, pd()->desc()->alpha);
+    arg_list.set(5, bias);
+    arg_list.set(6, pd()->desc()->alpha);
     // for test mode
-    arg_list.set(8, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.set(9, pd()->rnn_conf.tm_cscale);
+    arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
+    arg_list.set(8, pd()->rnn_conf.tm_cscale);
     parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::rnn_elemwise);
@@ -60,12 +59,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     arg_list.set(2, iter);
     arg_list.set(3, workspace);
     arg_list.set(4, scratch_gates);
-    arg_list.set(5, scratch_cell);
-    arg_list.set(6, bias);
-    arg_list.set(7, pd()->desc()->alpha);
+    arg_list.set(5, bias);
+    arg_list.set(6, pd()->desc()->alpha);
     // for test mode
-    arg_list.set(8, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.set(9, pd()->rnn_conf.tm_cscale);
+    arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
+    arg_list.set(8, pd()->rnn_conf.tm_cscale);
     parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise);
@@ -112,12 +110,12 @@ elemwise_sig((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
     arg_list.set(2, iter);
     arg_list.set(3, workspace);
     arg_list.set(4, scratch_gates);
-    arg_list.set(5, scratch_cell);
-    arg_list.set(6, bias);
-    arg_list.set(7, pd()->desc()->alpha);
+    arg_list.set(5, bias);
+    arg_list.set(6, pd()->desc()->alpha);
     // for test mode
-    arg_list.set(8, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
-    arg_list.set(9, pd()->rnn_conf.tm_cscale);
+    arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
+    arg_list.set(8, pd()->rnn_conf.tm_cscale);
+    arg_list.set(9, scratch_cell);
     parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::gru_lbr_elemwise);
