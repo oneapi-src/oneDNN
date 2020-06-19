@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2019 Intel Corporation
+* Copyright 2016-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@
 
 #ifndef XBYAK_XBYAK_UTIL_H_
 #define XBYAK_XBYAK_UTIL_H_
+#include <string.h>
 
 /**
 	utility class and functions for Xbyak
@@ -192,10 +193,10 @@ class Cpu {
 				}
 			}
 			/*
-			   Everybody lies, so we need some sane values to fall back on
+				Fallback values in case a hypervisor has 0xB leaf zeroed-out.
 			*/
-			numCores_[SmtLevel - 1] = std::max(1u, numCores_[SmtLevel - 1]);
-			numCores_[CoreLevel - 1] = std::max(numCores_[SmtLevel - 1], numCores_[CoreLevel - 1]);
+			numCores_[SmtLevel - 1] = (std::max)(1u, numCores_[SmtLevel - 1]);
+			numCores_[CoreLevel - 1] = (std::max)(numCores_[SmtLevel - 1], numCores_[CoreLevel - 1]);
 		} else {
 			/*
 				Failed to deremine num of cores without x2APIC support.
@@ -804,7 +805,7 @@ public:
 	};
 	Profiler()
 		: mode_(None)
-		, suffix_(0)
+		, suffix_("")
 		, startAddr_(0)
 #ifdef XBYAK_USE_PERF
 		, fp_(0)
@@ -878,7 +879,16 @@ public:
 #ifdef XBYAK_USE_PERF
 		if (mode_ == Perf) {
 			if (fp_ == 0) return;
-			fprintf(fp_, "%llx %zx %s%s\n", (long long)startAddr, funcSize, funcName, suffix_);
+			fprintf(fp_, "%llx %zx %s%s", (long long)startAddr, funcSize, funcName, suffix_);
+			/*
+				perf does not recognize the function name which is less than 3,
+				so append '_' at the end of the name if necessary
+			*/
+			size_t n = strlen(funcName) + strlen(suffix_);
+			for (size_t i = n; i < 3; i++) {
+				fprintf(fp_, "_");
+			}
+			fprintf(fp_, "\n");
 			fflush(fp_);
 		}
 #endif

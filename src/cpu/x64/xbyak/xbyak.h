@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2019 Intel Corporation
+* Copyright 2016-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,13 +54,8 @@
 	@note modified new BSD license
 	http://opensource.org/licenses/BSD-3-Clause
 */
-#if !defined(XBYAK_USE_OP_NAMES) && !defined(XBYAK_NO_OP_NAMES)
+#if (not +0) && !defined(XBYAK_NO_OP_NAMES) // trick to detect whether 'not' is operator or not
 	#define XBYAK_NO_OP_NAMES
-#endif
-#ifndef XBYAK_NO_OP_NAMES
-	#if not +0 // trick to detect whether 'not' is operator or not
-		#error "use -fno-operator-names option if you want to use and(), or(), xor(), not() as function names, Or define XBYAK_NO_OP_NAMES and use and_(), or_(), xor_(), not_()."
-	#endif
 #endif
 
 #include <stdio.h> // for debug print
@@ -74,7 +69,9 @@
 
 // #define XBYAK_DISABLE_AVX512
 
-//#define XBYAK_USE_MMAP_ALLOCATOR
+#if !defined(XBYAK_USE_MMAP_ALLOCATOR) && !defined(XBYAK_DONT_USE_MMAP_ALLOCATOR)
+	#define XBYAK_USE_MMAP_ALLOCATOR
+#endif
 #if !defined(__GNUC__) || defined(__MINGW32__)
 	#undef XBYAK_USE_MMAP_ALLOCATOR
 #endif
@@ -128,9 +125,12 @@
 	#include <sys/mman.h>
 	#include <stdlib.h>
 #endif
-#if defined(__APPLE__) && defined(MAP_JIT)
+#if defined(__APPLE__) && !defined(XBYAK_DONT_USE_MAP_JIT)
 	#define XBYAK_USE_MAP_JIT
 	#include <sys/sysctl.h>
+	#ifndef MAP_JIT
+		#define MAP_JIT 0x800
+	#endif
 #endif
 #if !defined(_MSC_VER) || (_MSC_VER >= 1600)
 	#include <stdint.h>
@@ -165,7 +165,7 @@ namespace Xbyak {
 
 enum {
 	DEFAULT_MAX_CODE_SIZE = 4096,
-	VERSION = 0x5850 /* 0xABCD = A.BC(D) */
+	VERSION = 0x5912 /* 0xABCD = A.BC(D) */
 };
 
 #ifndef MIE_INTEGER_TYPE_DEFINED
@@ -514,9 +514,8 @@ public:
 	}
 	// err if MMX/FPU/OPMASK/BNDREG
 	void setBit(int bit);
-	void setOpmaskIdx(int idx, bool ignore_idx0 = false)
+	void setOpmaskIdx(int idx, bool /*ignore_idx0*/ = true)
 	{
-		if (!ignore_idx0 && idx == 0) throw Error(ERR_K0_IS_INVALID);
 		if (mask_) throw Error(ERR_OPMASK_IS_ALREADY_SET);
 		mask_ = idx;
 	}
@@ -600,7 +599,7 @@ inline void Operand::setBit(int bit)
 {
 	if (bit != 8 && bit != 16 && bit != 32 && bit != 64 && bit != 128 && bit != 256 && bit != 512) goto ERR;
 	if (isBit(bit)) return;
-	if (is(MEM)) {
+	if (is(MEM | OPMASK)) {
 		bit_ = bit;
 		return;
 	}
@@ -1712,6 +1711,7 @@ private:
 		bool Vp = !((v ? v->isExtIdx2() : 0) | Hi16Vidx);
 		bool z = reg.hasZero() || base.hasZero() || (v ? v->hasZero() : false);
 		if (aaa == 0) aaa = verifyDuplicate(base.getOpmaskIdx(), reg.getOpmaskIdx(), (v ? v->getOpmaskIdx() : 0), ERR_OPMASK_IS_ALREADY_SET);
+		if (aaa == 0) z = 0; // clear T_z if mask is not set
 		db(0x62);
 		db((R ? 0x80 : 0) | (X ? 0x40 : 0) | (B ? 0x20 : 0) | (Rp ? 0x10 : 0) | (mm & 3));
 		db((w == 1 ? 0x80 : 0) | ((vvvv & 15) << 3) | 4 | (pp & 3));
@@ -1825,6 +1825,7 @@ private:
 			db(longCode); dd(disp - longJmpSize);
 		}
 	}
+	bool isNEAR(LabelType type) const { return type == T_NEAR || (type == T_AUTO && isDefaultJmpNEAR_); }
 	template<class T>
 	void opJmp(T& label, LabelType type, uint8 shortCode, uint8 longCode, uint8 longPref)
 	{
@@ -1834,7 +1835,7 @@ private:
 			makeJmp(inner::VerifyInInt32(offset - size_), type, shortCode, longCode, longPref);
 		} else {
 			int jmpSize = 0;
-			if (type == T_NEAR) {
+			if (isNEAR(type)) {
 				jmpSize = 4;
 				if (longPref) db(longPref);
 				db(longCode); dd(0);
@@ -1849,7 +1850,7 @@ private:
 	void opJmpAbs(const void *addr, LabelType type, uint8 shortCode, uint8 longCode, uint8 longPref = 0)
 	{
 		if (isAutoGrow()) {
-			if (type != T_NEAR) throw Error(ERR_ONLY_T_NEAR_IS_SUPPORTED_IN_AUTO_GROW);
+			if (!isNEAR(type)) throw Error(ERR_ONLY_T_NEAR_IS_SUPPORTED_IN_AUTO_GROW);
 			if (size_ + 16 >= maxSize_) growMemory();
 			if (longPref) db(longPref);
 			db(longCode);
@@ -2303,7 +2304,7 @@ public:
 	const Zmm zmm0, zmm1, zmm2, zmm3, zmm4, zmm5, zmm6, zmm7;
 	const Xmm &xm0, &xm1, &xm2, &xm3, &xm4, &xm5, &xm6, &xm7;
 	const Ymm &ym0, &ym1, &ym2, &ym3, &ym4, &ym5, &ym6, &ym7;
-	const Ymm &zm0, &zm1, &zm2, &zm3, &zm4, &zm5, &zm6, &zm7;
+	const Zmm &zm0, &zm1, &zm2, &zm3, &zm4, &zm5, &zm6, &zm7;
 	const Reg32 eax, ecx, edx, ebx, esp, ebp, esi, edi;
 	const Reg16 ax, cx, dx, bx, sp, bp, si, di;
 	const Reg8 al, cl, dl, bl, ah, ch, dh, bh;
@@ -2343,6 +2344,9 @@ public:
 #ifndef XBYAK_DISABLE_SEGMENT
 	const Segment es, cs, ss, ds, fs, gs;
 #endif
+private:
+	bool isDefaultJmpNEAR_;
+public:
 	void L(const std::string& label) { labelMgr_.defineSlabel(label); }
 	void L(Label& label) { labelMgr_.defineClabel(label); }
 	Label L() { Label label; L(label); return label; }
@@ -2362,6 +2366,8 @@ public:
 	void putL(std::string label) { putL_inner(label); }
 	void putL(const Label& label) { putL_inner(label); }
 
+	// set default type of `jmp` of undefined label to T_NEAR
+	void setDefaultJmpNEAR(bool isNear) { isDefaultJmpNEAR_ = isNear; }
 	void jmp(const Operand& op) { opR_ModM(op, BIT, 4, 0xFF, NONE, NONE, true); }
 	void jmp(std::string label, LabelType type = T_AUTO) { opJmp(label, type, 0xEB, 0xE9, 0); }
 	void jmp(const char *label, LabelType type = T_AUTO) { jmp(std::string(label), type); }
@@ -2620,6 +2626,7 @@ public:
 #ifndef XBYAK_DISABLE_SEGMENT
 		, es(Segment::es), cs(Segment::cs), ss(Segment::ss), ds(Segment::ds), fs(Segment::fs), gs(Segment::gs)
 #endif
+		, isDefaultJmpNEAR_(false)
 	{
 		labelMgr_.set(this);
 	}
