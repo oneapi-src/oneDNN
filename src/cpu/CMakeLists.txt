@@ -1,5 +1,6 @@
 #===============================================================================
 # Copyright 2019-2020 Intel Corporation
+# Copyright 2020 Arm Ltd. and affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,4 +66,7 @@ set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
 
 if (DNNL_TARGET_ARCH STREQUAL "X64")
     add_subdirectory(x64)
+endif()
+if (DNNL_TARGET_ARCH STREQUAL "AARCH64")
+    add_subdirectory(aarch64)
 endif()
