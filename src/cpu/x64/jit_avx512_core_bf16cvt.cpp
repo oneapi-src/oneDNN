@@ -35,13 +35,13 @@ void jit_avx512_core_cvt_bf16_to_ps_t::generate() {
     const bool long_row_stride = (row_stride_ * sizeof(bfloat16_t) >> 32) != 0;
 
 #ifdef _WIN32
-    Reg64 reg_out = rax; // instead of rcx
+    Reg64 reg_out = rax; // instead of abi_param1 (rcx)
     Reg64 reg_nrows = abi_param4;
     Reg64 reg_long_row_stride = rdi; // non-volatile
     const bool preserve_reg_long_row_stride = long_row_stride;
 #else
     Reg64 reg_out = abi_param1;
-    Reg64 reg_nrows = rax; // instead of rcx
+    Reg64 reg_nrows = rax; // instead of abi_param4 (rcx)
     Reg64 reg_long_row_stride = r8;
     const bool preserve_reg_long_row_stride = false;
 #endif
@@ -56,7 +56,11 @@ void jit_avx512_core_cvt_bf16_to_ps_t::generate() {
     Reg64 reg_rollback = r11; // - round_down(len, simd)
     Label l_exit;
 
-    auto vreg = [&](int offset) { return Zmm(8 + offset / simd); };
+    auto vreg = [&](int offset) {
+        const int id = offset / simd;
+        assert(0 <= id && id < 6); // volatile registers on both win & lnx
+        return Zmm(id);
+    };
 
     auto safe_ret = [&]() {
         if (preserve_reg_long_row_stride) pop(reg_long_row_stride);
