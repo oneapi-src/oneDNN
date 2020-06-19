@@ -14,3 +14,5 @@
 --batch=shapes_vgg_19
 --batch=shapes_yolov2
 --batch=shapes_3d_resnext101
+--batch=shapes_pointnet
+--batch=shapes_ffn
