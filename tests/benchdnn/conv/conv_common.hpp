@@ -43,6 +43,7 @@ struct desc_t {
     int64_t kd, kh, kw;
     int64_t sd, sh, sw;
     int64_t pd, ph, pw;
+    int64_t pd_r, ph_r, pw_r; // End side padding for each dimension
     int64_t dd, dh, dw;
     bool has_groups;
 

@@ -510,14 +510,7 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     dnnl_dim_t dilates_nd[] = {p->dd, p->dh, p->dw};
     dnnl_dim_t padding_nd[] = {p->pd, p->ph, p->pw};
-
-    auto bph = [](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph,
-                       int64_t dh) {
-        return (oh - 1) * sh - ih + ((kh - 1) * (dh + 1) + 1) - ph;
-    };
-    dnnl_dim_t padding_r_nd[] = {bph(p->id, p->od, p->kd, p->sd, p->pd, p->dd),
-            bph(p->ih, p->oh, p->kh, p->sh, p->ph, p->dh),
-            bph(p->iw, p->ow, p->kw, p->sw, p->pw, p->dw)};
+    dnnl_dim_t padding_r_nd[] = {p->pd_r, p->ph_r, p->pw_r};
 
     dnnl_dim_t *strides = strides_nd + (5 - p->ndims);
     dnnl_dim_t *dilates = dilates_nd + (5 - p->ndims);
@@ -596,16 +589,11 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
         static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic;
         static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core;
         bool is_int8 = p->cfg[WEI].dt == dnnl_s8;
-        auto opp_pad = [](int64_t idim, int64_t odim, int64_t kdim,
-                               int64_t sdim, int64_t pdim, int64_t ddim) {
-            return (odim - 1) * sdim - idim + ((kdim - 1) * (ddim + 1) + 1)
-                    - pdim;
-        };
-        const auto pad_r = opp_pad(p->iw, p->ow, p->kw, p->sw, p->pw, p->dw);
-        const auto pad_b = opp_pad(p->ih, p->oh, p->kh, p->sh, p->ph, p->dh);
-        bool pad_ok_f32 = p->pw <= 1 && p->ph <= 1 && pad_r <= 1 && pad_b <= 1;
-        bool pad_ok_int8
-                = p->pw <= 1 && p->ph <= 1 && p->pw == pad_r && p->ph == pad_b;
+
+        bool pad_ok_f32
+                = p->pw <= 1 && p->ph <= 1 && p->pw_r <= 1 && p->ph_r <= 1;
+        bool pad_ok_int8 = p->pw <= 1 && p->ph <= 1 && p->pw == p->pw_r
+                && p->ph == p->ph_r;
 
         bool shape_ok = p->ndims == 4 && p->g == 1 && p->kh == 3 && p->kw == 3
                 && p->sh == 1 && p->sw == 1 && p->dh == 0 && p->dw == 0
