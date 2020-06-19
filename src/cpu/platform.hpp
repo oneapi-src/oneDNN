@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2020 Intel Corporation
+* Copyright 2020 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -71,9 +72,17 @@
 // Helper macros: expand the parameters only on the corresponding architecture.
 // Equivalent to: #if DNNL_$ARCH ... #endif
 #define DNNL_X64_ONLY(...) Z_CONDITIONAL_DO(DNNL_X64, __VA_ARGS__)
-#define DNNL_AARCH64_ONLY(...) Z_CONDITIONAL_DO(DNNL_AARCH64_ONLY, __VA_ARGS__)
 #define DNNL_PPC64_ONLY(...) Z_CONDITIONAL_DO(DNNL_PPC64_ONLY, __VA_ARGS__)
 #define DNNL_S390X_ONLY(...) Z_CONDITIONAL_DO(DNNL_S390X_ONLY, __VA_ARGS__)
+#define DNNL_AARCH64_ONLY(...) Z_CONDITIONAL_DO(DNNL_AARCH64, __VA_ARGS__)
+
+// Using Arm Compute Library kernels is optional for AArch64 builds
+// and can be enabled with the DNNL_AARCH64_USE_ACL CMake option
+#if defined(DNNL_AARCH64) && defined(DNNL_AARCH64_USE_ACL)
+#define DNNL_AARCH64_ACL_ONLY(...) __VA_ARGS__
+#else
+#define DNNL_AARCH64_ACL_ONLY(...)
+#endif
 
 namespace dnnl {
 namespace impl {
