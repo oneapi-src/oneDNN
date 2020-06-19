@@ -52,7 +52,8 @@ endif()
 if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel"))
     file(GLOB FILES_REQUIRED_BIGOBJ
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu_engine.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/cpu_reorder.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/cpu_reorder.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/cpu_convolution_list.cpp)
     set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
         PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
