@@ -6,5 +6,5 @@
 --ddt=bf16 --sdt=bf16:bf16
 
 --attr-post-ops='','sum:0.5','linear:2:0.125','sum:0.25;relu'
---batch=shapes_common
+--batch=option_set_all
 

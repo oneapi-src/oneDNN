@@ -1,10 +1,12 @@
 --reset
 
-
 --mb=2
 --dt=bf16
 --alg=ACROSS,WITHIN
 --dir=FWD_D,FWD_I,BWD_D
---tag=abx        --batch=set_lrn_all
---tag=axb,aBx16b --batch=lrn_2d_all
 
+--tag=abx
+--batch=shapes_0d
+
+--tag=abx,axb,aBx8b,aBx16b
+--batch=set_all

@@ -1,4 +1,0 @@
---batch=deconv_1d
---batch=deconv_3d
---batch=deconv_2d
---batch=deconv_dilated

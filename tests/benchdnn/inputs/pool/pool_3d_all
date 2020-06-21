@@ -1,5 +1,0 @@
-# all 3d pooling data set
-
---batch=pool_3d
---batch=pool_3d_unet
---batch=pool_i3d_resnet50_v1

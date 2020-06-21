@@ -11,7 +11,7 @@
                 'logistic:0:0:0.5', \
                 'linear:2:0.125', \
                 'sum:0.25;relu:-0.01'
---batch=shapes_common
+--batch=option_set_all
 
 ## scales
 --ddt=u8 --sdt=u8:u8
@@ -19,7 +19,7 @@
               src:common:0.25_src1:common:0.5, \
               src:common:0.125, \
               src1:common:2
---batch=shapes_common
+--batch=option_set_all
 
 ## post_ops + scales
 --ddt=s8 --sdt=s8:u8
@@ -31,8 +31,8 @@
                 'sum:0.5', \
                 'sum:0.5;logistic:0:0:2', \
                 'linear:2:0.125'
---batch=shapes_common
+--batch=option_set_all
 
 # check for proper saturation
 --attr-scales=src:common:4.29497e+09_src1:common:4.29497e+09
---batch=shapes_common
+--batch=option_set_all

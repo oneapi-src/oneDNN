@@ -1,0 +1,8 @@
+# basic checks for saturation
+--sdt=f32,s32,s8,u8
+--ddt=f32,s32,s8,u8
+
+--attr-oscale=common:4294967296
+--stag=abx,axb,aBx4b,aBx8b,aBx16b
+--dtag=abx,axb,aBx4b,aBx8b,aBx16b
+1x17x9x5 2x64x3x3

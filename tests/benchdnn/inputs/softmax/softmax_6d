@@ -1,9 +1,0 @@
-# 6d dataset
-
-# spatial is 1
-96x1024x1x1x1x1
-256x10x1x1x1x1
-
-# regular 6d
-3x101x29x23x19x3
-2x8x256x2x4x4

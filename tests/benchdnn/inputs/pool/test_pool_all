@@ -1,18 +1,19 @@
 --reset
 --mb=2
 
-# f32
---dir=FWD_D,FWD_I,BWD_D
+--alg=MAX,AVG_NP,AVG_P
+# Training
+--cfg=f32
+--dir=FWD_D,BWD_D
 --tag=abx,axb,aBx8b,aBx16b
---alg=MAX,AVG_NP,AVG_P --batch=set_pool_all
---alg=MAX,AVG_P        --batch=set_pool_ker_in_pad_all
+--batch=set_all
+--batch=set_topologies
 
-# int8
---cfg=s32,s8,u8
+# Inference
+--cfg=f32,s32,s8,u8
 --dir=FWD_I
 --tag=axb
---alg=MAX,AVG_NP,AVG_P --batch=set_pool_all
---alg=MAX,AVG_P        --batch=set_pool_ker_in_pad_all
+--batch=set_all
 
 # bf16
 --batch=test_pool_bfloat16

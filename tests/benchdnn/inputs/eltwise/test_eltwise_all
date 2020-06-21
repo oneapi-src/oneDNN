@@ -1,33 +1,22 @@
-# f32
 --reset
 
 --inplace=true,false
 --skip-impl="ref:any"
 
+# f32
 --dir=FWD_D,BWD_D
 --dt=f32
 --tag=abx,axb,aBx8b,aBx16b
---batch=harness_eltwise_all_alg
+--batch=option_set_all_algs
 
 # s32, s8, u8
---reset
---inplace=true,false
---skip-impl="ref:any"
-
 --dir=FWD_I
 --dt=s32,s8,u8
 --tag=axb
---beta=0
---alg=relu,linear
---batch=shapes_eltwise
+--batch=option_set_all_algs_int8
 
 # int linear saturation check
---dt=u8
---alpha=4294967296
---beta=0,0.125
---alg=linear
---batch=shapes_eltwise
+--batch=harness_eltwise_saturation
 
 # bf16
 --batch=test_eltwise_bfloat16
-

@@ -3,32 +3,39 @@
 --skip-impl=ref
 --mb=2
 
---dir=FWD_B,BWD_D,BWD_W,BWD_WB --batch=deconv_all
+--dir=FWD_B,BWD_D,BWD_W,BWD_WB
+--batch=set_all
+
+# 1x1
+--dir=FWD_B
+--attr-oscale=per_oc:2.25,common:2.25
+--attr-post-ops='sum','sum:1.5;relu'
+--cfg=s8s8f32,s8s8s32,s8s8s8,s8s8u8,u8s8f32,u8s8s32,u8s8s8,u8s8u8
+--batch=shapes_1x1
 
 # int8
 --dir=FWD_B
 
 # 1D
---cfg=u8s8u8 --batch=deconv_1d
+--cfg=u8s8u8 --batch=shapes_1d
 
 # 2D
+--cfg=u8s8f32,u8s8s32,s8s8s8
+--batch=shapes_2d
+
 --attr-oscale=per_oc:2.25;
---cfg=s8s8u8,u8s8u8 --batch=deconv_2d --batch=deconv_dilated
+--cfg=s8s8u8,u8s8u8
+--batch=shapes_2d --batch=shapes_dilated
 
 --attr-oscale=common:2.25;
---cfg=s8s8s32,u8s8s8 --batch=deconv_2d
-
---attr-oscale=
---cfg=u8s8f32,u8s8s32,s8s8s8 --batch=deconv_2d
+--cfg=s8s8s32,u8s8s8
+--batch=shapes_2d
 
 # 3D
---attr-oscale=common:3.14 --attr-post-ops='relu:0.5;sum'
---cfg=u8s8u8,s8s8u8 --batch=deconv_3d
-
-# 1x1
---cfg=f32
---attr-oscale=per_oc:2.25 --attr-post-ops='sum:1.5;relu' --batch=test_deconv_1x1
---attr-oscale=common:2.25 --attr-post-ops='sum:1.5'      --batch=test_deconv_1x1
+--attr-oscale=common:3.14
+--attr-post-ops='relu:0.5;sum'
+--cfg=u8s8u8,s8s8u8
+--batch=shapes_3d
 
 # bf16
 --batch=test_deconv_bfloat16

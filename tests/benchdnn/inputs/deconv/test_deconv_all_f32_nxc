@@ -3,4 +3,4 @@
 --skip-impl=ref
 --mb=2
 --stag=axb --dtag=axb
---dir=FWD_B,BWD_D,BWD_W,BWD_WB --batch=deconv_all
+--dir=FWD_B,BWD_D,BWD_W,BWD_WB --batch=set_all

@@ -1,40 +1,38 @@
 --reset
---trivial-strides=true,false
-
-# f32 tests
---cfg=f32,bf16
 
 # small test case to check GEMM and non-GEMM ops accuracy
+--cfg=f32,bf16
+--trivial-strides=true,false
 --skip-nonlinear=true,false
 --prop=FWD_D,BWD_DW
 --alg=VANILLA_RNN
 --activation=RELU,TANH,LOGISTIC
---batch=rnn_small
+--batch=shapes_small
 
 --activation=UNDEF
 --alg=VANILLA_LSTM
 --with-peephole=false,true
---batch=rnn_small
+--batch=shapes_small
 --alg=VANILLA_GRU,LBR_GRU
 --with-peephole=false
---batch=rnn_small
+--batch=shapes_small
 
-#larger test cases
---prop=FWD_D,BWD_DW
+# larger test cases
 --mb=50
+--prop=FWD_D,BWD_DW
 --with-peephole=false,true
---batch=test_lstm_large
+--batch=option_set_lstm_large
 --with-peephole=false
---batch=test_gru_large
---batch=test_rnn_large
+--batch=option_set_gru_large
+--batch=option_set_large
 
---prop=FWD_D
 --mb=1
+--prop=FWD_D
 --with-peephole=false,true
---batch=test_lstm_large
+--batch=option_set_lstm_large
 --with-peephole=false
---batch=test_gru_large
---batch=test_rnn_large
+--batch=option_set_gru_large
+--batch=option_set_large
 
 # int8 (only LSTM)
 --reset
@@ -45,11 +43,8 @@
 --alg=VANILLA_LSTM
 
 --skip-nonlinear=true,false
---batch=rnn_small
+--batch=shapes_small
 
 --skip-nonlinear=true
---trivial-strides=true
---mb=50
---batch=test_lstm_large
---mb=1
---batch=test_lstm_large
+--mb=1,50
+--batch=option_set_lstm_large

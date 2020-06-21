@@ -4,7 +4,7 @@
 --dir=FWD_D,BWD_D
 --dt=f32,bf16
 --tag=abx,aBx16b,ABx16a16b
---batch=harness_eltwise_all_alg
+--batch=option_set_all_algs
 
 # int8
 --reset
@@ -30,5 +30,5 @@
 --dir=FWD_I
 --dt=f16
 --tag=axb
---batch=harness_eltwise_all_alg
+--batch=option_set_all_algs
 

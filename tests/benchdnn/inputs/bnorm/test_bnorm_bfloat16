@@ -6,14 +6,12 @@
 
 --inplace=false
 --tag=abx,axb,aBx16b,aBx8b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_topo
---tag=abx,axb,aBx16b,aBx8b
---dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_topo_small
---dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_topo
---dir=FWD_I        --flags=GS      --attr-post-ops=       --batch=bnorm_2d
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=set_topologies
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=shapes_topologies_small
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=set_topologies
+--dir=FWD_I        --flags=GS      --attr-post-ops=       --batch=shapes_2d
 
 --inplace=true
---tag=abx,axb,aBx16b,aBx8b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_regressions
---dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_regressions
---dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_regressions
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=shapes_regressions
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=shapes_regressions
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=shapes_regressions

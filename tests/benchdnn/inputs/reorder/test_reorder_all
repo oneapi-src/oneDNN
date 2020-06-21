@@ -1,16 +1,6 @@
 #
 # f32 <-> s32 <-> s8 <-> u8
 #
-
-# basic checks for saturation
---sdt=f32,s32,s8,u8
---ddt=f32,s32,s8,u8
-
---attr-oscale=common:4294967296
---stag=abx,axb,aBx4b,aBx8b,aBx16b
---dtag=abx,axb,aBx8b,aBx16b
-1x8x16x32 2x64x3x3
-
 --reset
 --sdt=f32,s32,s8,u8
 --ddt=f32,s32,s8,u8
@@ -99,10 +89,14 @@
 --sdt=f32 --ddt=f16 3x5x7x11
 --sdt=f16 --ddt=f32 3x5x7x11
 
+# bf16
 --batch=test_reorder_bfloat16
 
 # Run-time
---batch=test_reorder_runtime
+--batch=harness_reorder_runtime
+
+# Saturation
+--batch=harness_reorder_saturation
 
 # Weights formats for AMX kernels
 --batch=harness_reorder_amx
