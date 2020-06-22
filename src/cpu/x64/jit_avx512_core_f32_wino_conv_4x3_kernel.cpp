@@ -1156,14 +1156,12 @@ status_t _jit_avx512_core_f32_wino_conv_4x3_data_kernel::init_conf_common(
                 is_winograd_faster_than_direct(jcp)))
         return status::unimplemented;
 
-    if (jcp.ngroups != 1) return status::unimplemented;
-    if ((jcp.kh != 3) || (jcp.kw != 3)) return status::unimplemented;
-    if ((jcp.dilate_h != 0) || (jcp.dilate_w != 0))
-        return status::unimplemented;
-    if ((jcp.stride_h != 1) || (jcp.stride_w != 1))
-        return status::unimplemented;
-    if ((jcp.ic % simd_w) != 0 || (jcp.oc % simd_w) != 0)
-        return status::unimplemented;
+    const bool prb_shape_ok = jcp.kh == 3 && jcp.kw == 3 && jcp.ngroups == 1
+            && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0 && jcp.stride_h == 1
+            && jcp.stride_w == 1 && jcp.dilate_h == 0 && jcp.dilate_w == 0
+            && jcp.l_pad <= 1 && jcp.r_pad <= 1 && jcp.t_pad <= 1
+            && jcp.b_pad <= 1;
+    if (!prb_shape_ok) return status::unimplemented;
 
     format_tag_t dat_tag = nChw16c;
     jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
@@ -2518,14 +2516,12 @@ status_t jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel::init_conf(
                 is_winograd_faster_than_direct(jcp)))
         return status::unimplemented;
 
-    if (jcp.ngroups != 1) return status::unimplemented;
-    if ((jcp.kh != 3) || (jcp.kw != 3)) return status::unimplemented;
-    if ((jcp.dilate_h != 0) || (jcp.dilate_w != 0))
-        return status::unimplemented;
-    if ((jcp.stride_h != 1) || (jcp.stride_w != 1))
-        return status::unimplemented;
-    if ((jcp.ic % simd_w) != 0 || (jcp.oc % simd_w) != 0)
-        return status::unimplemented;
+    const bool prb_shape_ok = jcp.kh == 3 && jcp.kw == 3 && jcp.ngroups == 1
+            && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0 && jcp.stride_h == 1
+            && jcp.stride_w == 1 && jcp.dilate_h == 0 && jcp.dilate_w == 0
+            && jcp.l_pad <= 1 && jcp.r_pad <= 1 && jcp.t_pad <= 1
+            && jcp.b_pad <= 1;
+    if (!prb_shape_ok) return status::unimplemented;
 
     format_tag_t dat_tag = nChw16c;
     format_tag_t wei_tag = with_groups ? gOIhw16i16o : OIhw16i16o;
