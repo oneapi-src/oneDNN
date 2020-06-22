@@ -87,7 +87,7 @@ struct gemm_info_t {
     // Gemv kernels
     void (*gemv_kernel[2])(const dim_t *m, const dim_t *n, const float *alpha,
             const a_type *a, const dim_t *lda, const b_type *x,
-            const dim_t *incy, c_type *y);
+            const dim_t *incx, c_type *y, const dim_t *incy);
 
     void (*gemv_s8s8s32_kernel)(const dim_t, const dim_t, const float,
             const int8_t *, const dim_t, const int8_t *, const float,

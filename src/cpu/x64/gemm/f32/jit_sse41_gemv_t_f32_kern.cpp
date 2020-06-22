@@ -241,8 +241,8 @@ void jit_sse41_gemv_t_f32_kern::generate() {
         mov(X_, arg_x_);
     }
 
-    mov(INCY_, arg_incy_);
     mov(Y_, arg_y_);
+    mov(INCY_, arg_incy_);
 
     sub(A_, -offset_a_ * size_);
     sub(X_, -offset_x_ * size_);
@@ -271,12 +271,14 @@ void jit_sse41_gemv_t_f32_kern::generate() {
     postamble();
 }
 
+// Function signature: gemv(*m, *n, *alpha, *a, *lda, *x, *incx, *y, *incy)
 jit_sse41_gemv_t_f32_kern::jit_sse41_gemv_t_f32_kern()
     : jit_generator(nullptr, 100000)
     , arg_lda_(0)
     , arg_x_(0)
-    , arg_incy_(0)
-    , arg_y_(0) {
+    , arg_incx_(0)
+    , arg_y_(0)
+    , arg_incy_(0) {
 
     // Assign integer registers
     M_ = abi_param1;
@@ -320,8 +322,9 @@ jit_sse41_gemv_t_f32_kern::jit_sse41_gemv_t_f32_kern()
 
     arg_lda_ = ptr[rsp + (args_offset - 16)];
     arg_x_ = ptr[rsp + (args_offset - 8)];
-    arg_incy_ = ptr[rsp + (args_offset + 0)];
+    arg_incx_ = ptr[rsp + (args_offset + 0)]; // Assumed 1 for A transpose.
     arg_y_ = ptr[rsp + (args_offset + 8)];
+    arg_incy_ = ptr[rsp + (args_offset + 16)]; // Assumed 1 for A non-transpose.
 
     generate();
 }

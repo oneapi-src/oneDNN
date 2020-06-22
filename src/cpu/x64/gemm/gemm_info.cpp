@@ -29,6 +29,7 @@
 
 #include "cpu/x64/gemm/bf16/common_s16.hpp"
 #include "cpu/x64/gemm/bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
+#include "cpu/x64/gemm/bf16/jit_avx512_core_gemv_bf16bf16f32_kern.hpp"
 
 #include "cpu/x64/gemm/f32/common_f32.hpp"
 #include "cpu/x64/gemm/f32/jit_avx2_kernel_sgemm_kern.hpp"
@@ -181,7 +182,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     // gemv_kern[trans]
     static void (*gemv_kern[2])(const dim_t *m, const dim_t *n,
             const float *alpha, const a_t *a, const dim_t *lda, const b_t *x,
-            const dim_t *incy, c_t *y)
+            const dim_t *incx, c_t *y, const dim_t *incy)
             = {NULL};
 
     static void (*gemv_s8s8s32_kern)(const dim_t, const dim_t, const float,
@@ -528,23 +529,37 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         }
 
         static jit_generator *gemv_kernel[2] = {NULL};
-        if (data_traits<a_t>::data_type == data_type::f32) {
-            if (mayiuse(avx)) {
-                gemv_kernel[do_trans] = new jit_avx_gemv_t_f32_kern();
-            } else if (mayiuse(sse41)) {
-                gemv_kernel[do_trans] = new jit_sse41_gemv_t_f32_kern();
-            }
-        }
-
         static jit_avx512_core_gemv_s8x8s32_kern *gemv_s8s8s32_kernel = NULL;
         static jit_avx512_core_gemv_s8x8s32_kern *gemv_s8u8s32_kernel = NULL;
         static jit_avx512_core_gemv_s8x8s32_kern *gemv_u8s8s32_kernel = NULL;
-        if (data_traits<a_t>::data_type == data_type::s8) {
-            if (mayiuse(avx512_core)) {
-                gemv_s8s8s32_kernel = new jit_avx512_core_gemv_s8x8s32_kern();
-                gemv_s8u8s32_kernel = new jit_avx512_core_gemv_s8x8s32_kern();
-                gemv_u8s8s32_kernel = new jit_avx512_core_gemv_s8x8s32_kern();
-            }
+        switch (data_traits<a_t>::data_type) {
+            case data_type::s8:
+                if (mayiuse(avx512_core)) {
+                    gemv_s8s8s32_kernel
+                            = new jit_avx512_core_gemv_s8x8s32_kern();
+                    gemv_s8u8s32_kernel
+                            = new jit_avx512_core_gemv_s8x8s32_kern();
+                    gemv_u8s8s32_kernel
+                            = new jit_avx512_core_gemv_s8x8s32_kern();
+                }
+                break;
+
+            case data_type::bf16:
+                if (mayiuse(avx512_core)) {
+                    for (int isTrans : {no_trans, do_trans})
+                        gemv_kernel[isTrans]
+                                = new jit_avx512_core_gemv_bf16bf16f32_kern(
+                                        isTrans);
+                }
+                break;
+
+            case data_type::f32:
+                if (mayiuse(avx)) {
+                    gemv_kernel[do_trans] = new jit_avx_gemv_t_f32_kern();
+                } else if (mayiuse(sse41)) {
+                    gemv_kernel[do_trans] = new jit_sse41_gemv_t_f32_kern();
+                }
+                break;
         }
 
         // Set copy kernels function pointer table
@@ -581,14 +596,15 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     }
 
         // Set gemv floating point kernels
-        if (data_traits<a_t>::data_type == data_type::f32) {
+        if (utils::one_of(data_traits<a_t>::data_type, data_type::f32,
+                    data_type::bf16)) {
             for (int isTrans : {no_trans, do_trans}) {
                 auto *p_gemv_kernel = gemv_kernel[isTrans];
                 if (p_gemv_kernel != NULL)
                     gemv_kern[isTrans] = p_gemv_kernel->getCode<void (*)(
                             const dim_t *, const dim_t *, const float *,
                             const a_t *, const dim_t *, const b_t *,
-                            const dim_t *, c_t *)>();
+                            const dim_t *, c_t *, const dim_t *)>();
             }
         }
 
