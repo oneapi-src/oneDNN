@@ -151,10 +151,10 @@ bool key_t::operator==(const key_t &rhs) const {
 // Combine hash of each memory_desc_t data member
 size_t get_md_hash(const memory_desc_t &md) {
     size_t seed = 0;
-    seed = get_array_hash(seed, md.dims, DNNL_MAX_NDIMS);
+    seed = get_array_hash(seed, md.dims, md.ndims);
     seed = hash_combine(seed, static_cast<size_t>(md.data_type));
-    seed = get_array_hash(seed, md.padded_dims, DNNL_MAX_NDIMS);
-    seed = get_array_hash(seed, md.padded_offsets, DNNL_MAX_NDIMS);
+    seed = get_array_hash(seed, md.padded_dims, md.ndims);
+    seed = get_array_hash(seed, md.padded_offsets, md.ndims);
     seed = hash_combine(seed, md.offset0);
     seed = hash_combine(seed, static_cast<size_t>(md.format_kind));
     // format desc
@@ -163,12 +163,12 @@ size_t get_md_hash(const memory_desc_t &md) {
         case format_kind::any: break;
         case format_kind::blocked:
             seed = get_array_hash(
-                    seed, md.format_desc.blocking.strides, DNNL_MAX_NDIMS);
+                    seed, md.format_desc.blocking.strides, md.ndims);
             seed = hash_combine(seed, md.format_desc.blocking.inner_nblks);
-            seed = get_array_hash(
-                    seed, md.format_desc.blocking.inner_blks, DNNL_MAX_NDIMS);
-            seed = get_array_hash(
-                    seed, md.format_desc.blocking.inner_idxs, DNNL_MAX_NDIMS);
+            seed = get_array_hash(seed, md.format_desc.blocking.inner_blks,
+                    md.format_desc.blocking.inner_nblks);
+            seed = get_array_hash(seed, md.format_desc.blocking.inner_idxs,
+                    md.format_desc.blocking.inner_nblks);
             break;
         case format_kind::wino:
             seed = hash_combine(seed,
