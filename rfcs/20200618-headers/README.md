@@ -57,24 +57,19 @@ The `/dnnl/` portion of the path may be present or not. The recommendation is
 *to include it* so that it is possible to extend dnnl library later in a
 straightforward manner.
 
-Additionally, the compatibility headers can complain like this:
+The files under `include/oneapi[/dnnl]/` will use complete include paths when
+referring to files in the same directory to remove any possibility of
+ambiguity.
 
 ```c++
-#ifdef _MSC_VER
-#pragma message "Warning: this header is deprecated. Please include oneapi[/dnnl]/dnnl.hpp instead"
-#else
-#warning "This header is deprecated. Please include oneapi[/dnnl]/dnnl.hpp instead"
-#endif
-
-#include "oneapi[/dnnl]/dnnl.hpp"
+// dnnl.h
+#include "oneapi[/dnnl]/dnnl_config.h"
+#include "oneapi[/dnnl]/dnnl_types.h"
 ```
 
-The warnings can be suppressed via `-Wno-cpp` (clang, gcc),
-`-diag-disable:1224` (icc). The MSVC message cannot be disabled, but it does
-not show as a warning, just a message. (However, the internal oneDNN CI will
-still treat them as warning because the word 'warning' appears in the
-message.) However, it is *not recommended* to not cause additional confusion.
-The deprecation will be noted in the documentation.
+Additionally, the compatibility headers can generate warnings when included,
+but this is *not recommented* to not cause additional confusion. The
+deprecation will be noted in the documentation.
 
 This option *is recommended*. The canonical include path to `dnnl.hpp` will
 become `#include "oneapi/dnnl/dnnl.hpp"`.
