@@ -18,8 +18,8 @@
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
-#include "cpu/x64/gemm/bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
 #include <iostream>
+#include "cpu/x64/gemm/bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
 
 #ifdef _WIN32
 static const bool is_windows = true;
@@ -102,7 +102,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::kernel_loop(
                                         * (2 * j + 2 * h * unroll_n
                                                 - offset_b_)]);
                 dot_product(c_regs_[0][j], b, a_regs_[0]);
-/*
+                /*
                 if (j == 1 && !(h & 1))
                     prefetch_b(ptr[BO_
                             + isize_
@@ -116,7 +116,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::kernel_loop(
 */
                 for (int i = 1; i < um_vecs; i++)
                     dot_product(c_regs_[i][j], b, a_regs_[i]);
-/*
+                /*
                 if (cfetch && (j == std::min(1, unroll_n - 1))) {
                     if (h == 3)
                         lea(CO2_, ptr[CO2_ + LDC_]);
@@ -136,7 +136,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::kernel_loop(
                                         * (16 * i + 2 * (h + 1) * unroll_m
                                                 - offset_a_)]);
             }
-//            if (h == 2) prefetch_x(ptr[AA_ - (offset_a_ * isize_)]);
+            //            if (h == 2) prefetch_x(ptr[AA_ - (offset_a_ * isize_)]);
         }
 
         add(AO_, 8 * isize_ * unroll_m);
@@ -257,7 +257,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::innerloop(
         vpunpcklwd(tmp, a, zero);
         vpunpckhwd(a, a, zero);
         vshufi32x4(a, tmp, a, 0x44);
-//        vshufi32x4(a, a, a, 0xD8);
+        //        vshufi32x4(a, a, a, 0xD8);
     }
 
     remainder_kernel(unroll_m, unroll_n, 1, 2);
