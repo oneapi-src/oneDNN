@@ -64,9 +64,8 @@ int find_negative(memory &mem, const memory::dims &adims) {
     std::vector<float> array(product(adims));
     read_from_dnnl_memory(array.data(), mem);
 
-    for (size_t e = 0; e < adims.size(); ++e) {
+    for (size_t e = 0; e < product(adims); ++e)
         negs += array[e] < 0.0f;
-    }
     return negs;
 }
 
@@ -104,7 +103,7 @@ void cross_engine_reorder_tutorial() {
     ///
     /// @snippet cross_engine_reorder.cpp Initialize stream
     // [Initialize stream]
-    auto stream_gpu = stream(gpu_engine);
+    auto stream_gpu = stream(gpu_engine, stream::flags::in_order);
     // [Initialize stream]
 
     /// @subsection cross_engine_reorder_cpp_sub2 Wrapping data into oneDNN GPU memory object
