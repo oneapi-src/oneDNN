@@ -110,7 +110,6 @@ struct rnn_tparams_t : public c_compatible {
     // std::move, since there are only a few places in the library that actually
     // use them.
     status_t copy_from(const rnn_tparams_t &other) {
-        if (*this == other) return status::success;
         return set(
                 other.test_mode_, other.ngates_, other.scales_, other.cscale_);
     }
@@ -156,7 +155,6 @@ struct scales_t : public c_compatible {
     status_t set(float single_scale) { return this->set(1, 0, &single_scale); }
 
     status_t copy_from(const scales_t &other) {
-        if (*this == other) return status::success;
         return set(other.count_, other.mask_, other.scales_);
     }
 
@@ -530,7 +528,6 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
 
     dnnl::impl::status_t copy_from(const dnnl_primitive_attr &other) {
         using namespace dnnl::impl;
-        if (*this == other) return dnnl::impl::status::success;
 
         CHECK(output_scales_.copy_from(other.output_scales_));
         CHECK(scales_.copy_from(other.scales_));
