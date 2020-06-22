@@ -62,7 +62,11 @@ struct gemm_pack_storage_t {
         reset((void *)data_);
     }
 
-    gemm_pack_storage_t() : base(nullptr) {}
+    gemm_pack_storage_t()
+        : base(nullptr)
+        , header(nullptr)
+        , matrix_header(nullptr)
+        , sums_header(nullptr) {}
 
     std::tuple<int, int> thread_slice_info(int ithr) const {
         assert(ithr < nthr());
