@@ -802,6 +802,10 @@ typedef enum {
     dnnl_matmul,
     /// A resampling primitive.
     dnnl_resampling,
+
+    /// Parameter to allow internal only primitives without undefined behavior.
+    /// This parameter is chosen to be valid for so long as sizeof(int) >= 2.
+    dnnl_primitive_kind_max = 0x7fff,
 } dnnl_primitive_kind_t;
 
 /// Kinds of algorithms.
@@ -2118,6 +2122,9 @@ typedef enum {
     dnnl_query_workspace_md, ///< workspace memory desc
     dnnl_query_scratchpad_md, ///< scratchpad memory desc
     dnnl_query_exec_arg_md = 255, ///< memory desc of an execute argument
+
+    // Max value to prevent UB for internal use only dnnl_query_t
+    dnnl_query_max = 0x7fff,
 } dnnl_query_t;
 
 /// @} dnnl_api_primitives_common
