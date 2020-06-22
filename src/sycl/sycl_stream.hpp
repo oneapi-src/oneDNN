@@ -123,14 +123,19 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         void *src_mapped_ptr;
         void *dst_mapped_ptr;
 
-        CHECK(src.map_data(&src_mapped_ptr, this));
-        CHECK(dst.map_data(&dst_mapped_ptr, this));
+        // When handling the copy by mapping/unmapping, we do not
+        // consume/produce events, so we have to synchronize the stream
+        // TODO: enqueue the copy
+        this->wait();
+        CHECK(src.map_data(&src_mapped_ptr, nullptr));
+        CHECK(dst.map_data(&dst_mapped_ptr, nullptr));
 
         utils::array_copy(static_cast<uint8_t *>(dst_mapped_ptr),
                 static_cast<const uint8_t *>(src_mapped_ptr), size);
 
-        CHECK(src.unmap_data(src_mapped_ptr, this));
-        CHECK(dst.unmap_data(dst_mapped_ptr, this));
+        CHECK(src.unmap_data(src_mapped_ptr, nullptr));
+        CHECK(dst.unmap_data(dst_mapped_ptr, nullptr));
+        this->wait();
 
         return status::success;
     }
@@ -138,6 +143,11 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
     virtual status_t fill(const memory_storage_t &dst, const void *pattern,
             size_t pattern_size, size_t size) override {
         void *mapped_ptr;
+
+        // When handling the filling by mapping/unmapping, we do not
+        // consume/produce events, so we have to synchronize the stream
+        // TODO: enqueue the fill (memset)
+        this->wait();
         CHECK(dst.map_data(&mapped_ptr, this));
 
         assert(size % pattern_size == 0);
@@ -147,6 +157,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         }
 
         CHECK(dst.unmap_data(mapped_ptr, this));
+        this->wait();
         return status::success;
     }
 
