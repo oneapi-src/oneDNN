@@ -19,6 +19,7 @@
 #include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/x64/gemm/bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
+#include <iostream>
 
 #ifdef _WIN32
 static const bool is_windows = true;
@@ -86,14 +87,14 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::dot_product(
 // Inner kernel.
 void jit_avx512_core_gemm_bf16bf16f32_kern::kernel_loop(
         int unroll_m, int unroll_n, bool cfetch) {
-    int um_vecs = (unroll_m + 15) >> 4;
+    int um_vecs = (unroll_m + 7) >> 3;
     Label label_kernel_loop;
 
     L_aligned(label_kernel_loop);
     {
         for (int h = 0; h < 4; h++) {
             for (int j = 0; j < unroll_n; j++) {
-                const Zmm b = b_regs_[j & 1];
+                const Ymm b = b_regs_[j & 1];
 
                 vbroadcastss(b,
                         ptr[BO_
@@ -101,7 +102,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::kernel_loop(
                                         * (2 * j + 2 * h * unroll_n
                                                 - offset_b_)]);
                 dot_product(c_regs_[0][j], b, a_regs_[0]);
-
+/*
                 if (j == 1 && !(h & 1))
                     prefetch_b(ptr[BO_
                             + isize_
@@ -112,10 +113,10 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::kernel_loop(
                             + isize_
                                     * (prefetch_size_a_ + 32 * (j / 3)
                                             + 2 * h * unroll_m - offset_a_)]);
-
+*/
                 for (int i = 1; i < um_vecs; i++)
                     dot_product(c_regs_[i][j], b, a_regs_[i]);
-
+/*
                 if (cfetch && (j == std::min(1, unroll_n - 1))) {
                     if (h == 3)
                         lea(CO2_, ptr[CO2_ + LDC_]);
@@ -125,16 +126,17 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::kernel_loop(
 
                 if (h == 3 && j == std::min(3, unroll_n - 1))
                     lea(AA_, ptr[AA_ + (32 * isize_)]);
+*/
             }
 
-            for (int i = 0; i < um_vecs; i++)
+            for (int i = 0; i < um_vecs; i++) {
                 vmovups(a_regs_[i],
                         ptr[AO_
                                 + isize_
-                                        * (32 * i + 2 * (h + 1) * unroll_m
+                                        * (16 * i + 2 * (h + 1) * unroll_m
                                                 - offset_a_)]);
-
-            if (h == 2) prefetch_x(ptr[AA_ - (offset_a_ * isize_)]);
+            }
+//            if (h == 2) prefetch_x(ptr[AA_ - (offset_a_ * isize_)]);
         }
 
         add(AO_, 8 * isize_ * unroll_m);
@@ -147,15 +149,16 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::kernel_loop(
 // k remainder loop for kernel.
 void jit_avx512_core_gemm_bf16bf16f32_kern::remainder_kernel(
         int unroll_m, int unroll_n, int unroll_k, int bwidth) {
+
     if ((unroll_m > UNROLL_M_) || (unroll_n > UNROLL_N_) || (unroll_m < 0)
             || (unroll_n < 0))
         return;
 
-    int um_vecs = (unroll_m + 15) >> 4;
+    int um_vecs = (unroll_m + 7) >> 3;
 
     for (int h = 0; h < unroll_k; h++) {
         for (int j = 0; j < unroll_n; j++) {
-            Zmm b = b_regs_[j & 1];
+            Ymm b = b_regs_[j & 1];
             auto b_src = ptr[BO_
                     + (-isize_ * offset_b_ + bwidth * (j + h * unroll_n))];
 
@@ -172,7 +175,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::remainder_kernel(
                 vmovups(a_regs_[i],
                         ptr[AO_
                                 + isize_
-                                        * (32 * i + (h + 1) * 2 * unroll_m
+                                        * (16 * i + (h + 1) * 2 * unroll_m
                                                 - offset_a_)]);
         }
     }
@@ -188,7 +191,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::innerloop(
             || (unroll_n < 0))
         return;
 
-    int um_vecs = (unroll_m + 15) >> 4;
+    int um_vecs = (unroll_m + 7) >> 3;
     int stage1 = unroll_n, stage2 = unroll_n;
 
     Label label_kernel_loop_1, label_k_main_loop_2, label_kernel_loop_2;
@@ -198,7 +201,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::innerloop(
 
     mov(AO_, A_);
     for (int i = 0; i < um_vecs; i++)
-        vmovups(a_regs_[i], ptr[AO_ + isize_ * (32 * i - offset_a_)]);
+        vmovups(a_regs_[i], ptr[AO_ + isize_ * (16 * i - offset_a_)]);
 
     mov(LoopCount_, K_);
     sar(LoopCount_, 3);
@@ -244,17 +247,17 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::innerloop(
     test(LoopCount_, 1);
     je(label_update_begin, T_NEAR);
 
-    Zmm zero = zmm6;
-    Zmm tmp = zmm5;
+    Ymm zero = ymm6;
+    Ymm tmp = ymm5;
 
     vpxorq(zero, zero, zero);
     for (int i = 0; i < um_vecs; i++) {
-        Zmm a = a_regs_[i];
-        vbroadcasti64x4(a, ptr[AO_ + isize_ * (16 * i - offset_a_)]);
+        Ymm a = a_regs_[i];
+        vbroadcasti64x2(a, ptr[AO_ + isize_ * (16 * i - offset_a_)]);
         vpunpcklwd(tmp, a, zero);
         vpunpckhwd(a, a, zero);
         vshufi32x4(a, tmp, a, 0x44);
-        vshufi32x4(a, a, a, 0xD8);
+//        vshufi32x4(a, a, a, 0xD8);
     }
 
     remainder_kernel(unroll_m, unroll_n, 1, 2);
@@ -276,11 +279,11 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::innerloop(
         int jj = j - c_off_j;
 
         for (int i = 0; i < um_vecs; i++) {
-            Zmm c = c_regs_[i][j];
-            Zmm c_old = zmm0;
+            Ymm c = c_regs_[i][j];
+            Ymm c_old = ymm0;
             decltype(LDC_ * jj) ldc_mult = (jj == 3) ? LDC3 : LDC_ * jj;
 
-            auto c_mem = ptr[CO1_ + ldc_mult + size_ * 16 * i];
+            auto c_mem = ptr[CO1_ + ldc_mult + size_ * 8 * i];
 
             if (beta_zero_) {
                 if (!alpha_one_) vmulps(c, c, alpha_);
@@ -390,7 +393,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::generate() {
 
     lea(LDC_, ptr[LDC_ * size_]);
 
-    for (int i = 0; i < (max_unroll_m_ >> 4); i++) {
+    for (int i = 0; i < (max_unroll_m_ >> 3); i++) {
         for (int j = 0; j < max_unroll_n_; j++) {
             auto &c = c_regs_[i][j];
             vpxorq(c, c, c);
@@ -404,7 +407,7 @@ void jit_avx512_core_gemm_bf16bf16f32_kern::generate() {
     outerloop(UNROLL_M_, UNROLL_N_, cur_outerloop_label);
 
     // m remainder loops.
-    for (int um = 32; um > 0; um >>= 1)
+    for (int um = 16; um > 0; um >>= 1)
         if (UNROLL_M_ > um) outerloop(um, UNROLL_N_, cur_outerloop_label);
 
     L(*cur_outerloop_label);
@@ -448,16 +451,16 @@ jit_avx512_core_gemm_bf16bf16f32_kern::jit_avx512_core_gemm_bf16bf16f32_kern(
     AA_ = is_windows ? rdi : rcx;
 
     // Assign vector registers
-    alpha_ = zmm7;
-    for (int i = 0; i < (max_unroll_m_ >> 4); i++)
-        a_regs_[i] = Zmm(i);
-    b_regs_[0] = zmm4;
-    b_regs_[1] = zmm5;
+    alpha_ = ymm7;
+    for (int i = 0; i < (max_unroll_m_ >> 3); i++)
+        a_regs_[i] = Ymm(i);
+    b_regs_[0] = ymm4;
+    b_regs_[1] = ymm5;
 
     int rn = 0;
-    for (int i = 0; i < (max_unroll_m_ >> 4); i++)
+    for (int i = 0; i < (max_unroll_m_ >> 3); i++)
         for (int j = 0; j < max_unroll_n_; j++)
-            c_regs_[i][j] = Zmm(8 + rn++);
+            c_regs_[i][j] = Ymm(8 + rn++);
 
     // Assign stack variables.
     stack_alloc_size_ = 32;

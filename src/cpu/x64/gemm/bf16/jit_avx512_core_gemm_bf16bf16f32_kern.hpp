@@ -54,7 +54,7 @@ protected:
     void generate();
 
 private:
-    static const int UNROLL_M_ = 48;
+    static const int UNROLL_M_ = 24;
     static const int UNROLL_N_ = 8;
 
     static const int isize_ = 2;
@@ -65,15 +65,15 @@ private:
     static const int prefetch_size_b_ = 32 * 4;
 
     static const int offset_a_ = 256, offset_b_ = 256;
-    static const int max_unroll_m_ = 48, max_unroll_n_ = 8;
+    static const int max_unroll_m_ = 24, max_unroll_n_ = 8;
 
     // Integer register assignments
     Xbyak::Reg64 M_, N_, K_, ALPHA_, A_, B_, C_, LDC_, I_, J_, LoopCount_;
     Xbyak::Reg64 AO_, BO_, CO1_, CO2_, AA_;
 
     // Vector register assignments
-    Xbyak::Zmm alpha_, a_regs_[max_unroll_m_ >> 4], b_regs_[2];
-    Xbyak::Zmm c_regs_[max_unroll_m_ >> 4][max_unroll_n_];
+    Xbyak::Ymm alpha_, a_regs_[max_unroll_m_ >> 3], b_regs_[2];
+    Xbyak::Ymm c_regs_[max_unroll_m_ >> 3][max_unroll_n_];
 
     // Stack variable assignments
     int stack_alloc_size_;
