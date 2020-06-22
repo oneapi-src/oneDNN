@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
+
 #include <assert.h>
 #include <float.h>
 #include <math.h>
@@ -167,7 +169,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto weights_batch_stride = weights_d.blocking_desc().strides[0];
     const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
 
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {

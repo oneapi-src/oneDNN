@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
+
 #include <assert.h>
 #include <float.h>
 #include <math.h>
@@ -198,7 +200,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
     const auto acc_batch_stride = M * N;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {
         // NOTE: inside lambda, type cast variables captured by reference using

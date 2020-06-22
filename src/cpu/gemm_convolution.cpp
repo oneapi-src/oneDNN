@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
+
 #include "dnnl_types.h"
 
 #include "common/c_types_map.hpp"
@@ -52,7 +54,7 @@ status_t gemm_convolution_fwd_t::execute_forward_nspc(
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     const conv_gemm_conf_t &jcp = pd()->jcp_;
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_forward_thr_nspc(
@@ -392,7 +394,7 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_nspc(
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     const conv_gemm_conf_t &jcp = pd()->jcp_;
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_backward_data_thr_nspc(ithr, nthr,
@@ -501,7 +503,7 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
     const bool is_problem_3d = pd()->ndims() == 5;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
 
@@ -581,7 +583,7 @@ status_t gemm_convolution_bwd_weights_t::execute_backward_weights_nspc(
     const dim_t LDA = jcp.im2col_sz ? jcp.oh * jcp.ow : jcp.ngroups * jcp.ic;
     const bool is_problem_3d = pd()->ndims() == 5;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
         size_t g_start {0}, g_end {0}, mb_start {0}, mb_end {0};
@@ -653,13 +655,17 @@ status_t gemm_convolution_bwd_weights_t::execute_backward_weights_nspc(
                                 _diff_weights, &LDC);
                         if (st_thr != status::success) {
                             st = st_thr;
-                            return;
+                            // Finish the loops early if failure occured.
+                            g = g_end;
+                            mb = mb_end;
+                            od = jcp.od;
                         }
                     }
                 }
             }
             if (need_reduction && dnnl_thr_syncable()) {
                 dnnl_thr_barrier();
+                if (st != status::success) return;
                 jit_gemm_convolution_utils::bwd_weights_reduction_par_nspc(
                         ithr_mb, nthr_mb, g_start, g_end, jcp,
                         weights_reduce_base, diff_weights);
@@ -745,7 +751,7 @@ status_t gemm_convolution_bwd_weights_t::execute_backward_weights_ncsp(
     const dim_t M = jcp.ic * jcp.ks;
     const bool is_problem_3d = pd()->ndims() == 5;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
         size_t g_start {0}, g_end {0}, mb_start {0}, mb_end {0};
@@ -813,13 +819,18 @@ status_t gemm_convolution_bwd_weights_t::execute_backward_weights_ncsp(
                                 _diff_weights, &M);
                         if (st_thr != status::success) {
                             st = st_thr;
-                            return;
+                            // Finish the loops early if failure occured.
+                            g = g_end;
+                            mb = mb_end;
+                            od = jcp.od;
+                            os_nb = jcp.os_nb_block;
                         }
                     }
                 }
             }
             if (need_reduction && dnnl_thr_syncable()) {
                 dnnl_thr_barrier();
+                if (st != status::success) return;
                 data_t *weights_base = diff_weights + g_start * weights_g_size;
                 jit_gemm_convolution_utils::bwd_weights_reduction_par_ncsp(
                         ithr_mb, nthr_mb, jcp, weights_reduce_base,

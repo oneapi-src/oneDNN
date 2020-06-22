@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
+
 #include "dnnl_types.h"
 
 #include "common/bfloat16.hpp"
@@ -336,7 +338,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_nspc(
     }
     assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_forward_thr_nspc(
                 ithr, nthr, src_base, wei_base, bia_base, dst_base, scratchpad);
@@ -515,7 +517,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
     const size_t work_amount
             = (size_t)jcp.ngroups * jcp.mb * jcp.od * jcp.os_nb_block;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         src_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
         if (is_problem_3d) {
@@ -597,7 +599,7 @@ status_t gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
     auto scratchpad = ctx.get_scratchpad_grantor();
     const conv_gemm_conf_t &jcp = pd()->jcp_;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_backward_data_thr_nspc(
                 ithr, nthr, diff_src_base, wei_base, diff_dst_base, scratchpad);
@@ -728,7 +730,7 @@ status_t gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
     const bool is_problem_3d = pd()->ndims() == 5;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         acc_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
@@ -912,7 +914,7 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     const dim_t LDA = jcp.im2col_sz ? jcp.oh * jcp.ow : jcp.ngroups * jcp.ic;
     const bool is_problem_3d = pd()->ndims() == 5;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
@@ -997,13 +999,17 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                                 _diff_weights, &LDC);
                         if (st_thr != status::success) {
                             st = st_thr;
-                            return;
+                            // Finish the loops early if failure occured.
+                            g = g_end;
+                            mb = mb_end;
+                            od = jcp.od;
                         }
                     }
                 }
             }
             if (need_reduction && dnnl_thr_syncable()) {
                 dnnl_thr_barrier();
+                if (st != status::success) return;
                 bf16_bwd_weights_reduction_par_nspc(ithr_mb, nthr_mb, g_start,
                         g_end, jcp, weights_reduce_base, diff_weights);
             } else if (diff_wei_data_type == data_type::bf16
@@ -1112,7 +1118,7 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     const dim_t M = jcp.ic * jcp.ks;
     const bool is_problem_3d = pd()->ndims() == 5;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
         size_t g_start {0}, g_end {0}, mb_start {0}, mb_end {0};
@@ -1182,13 +1188,18 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
 
                         if (st_thr != status::success) {
                             st = st_thr;
-                            return;
-                        };
+                            // Finish the loops early if failure occured.
+                            g = g_end;
+                            mb = mb_end;
+                            od = jcp.od;
+                            os_nb = jcp.os_nb_block;
+                        }
                     }
                 }
             }
             if (need_reduction && dnnl_thr_syncable()) {
                 dnnl_thr_barrier();
+                if (st != status::success) return;
                 diff_wei_data_t *weights_base
                         = diff_weights + g_start * weights_g_size;
                 bf16_bwd_weights_reduction_par_ncsp(ithr_mb, nthr_mb, jcp,
