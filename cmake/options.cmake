@@ -198,7 +198,7 @@ set(DNNL_BLAS_VENDOR "NONE" CACHE STRING
       - NONE (default)
         Use in-house implementation.
       - MKL
-        Intel Math Kernel Library
+        Intel Math Kernel Library (Intel MKL)
         (https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html)
       - OPENBLAS
         (https://www.openblas.net)
