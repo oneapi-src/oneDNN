@@ -24,10 +24,6 @@ file(GLOB_RECURSE SOURCES
 list(APPEND SOURCES ${TEST_THREAD})
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/conv
-    ${CMAKE_CURRENT_SOURCE_DIR}/ip
-    ${CMAKE_CURRENT_SOURCE_DIR}/shuffle
-    ${CMAKE_CURRENT_SOURCE_DIR}/reorder
     )
 
 if(BENCHDNN_USE_RDPMC)
@@ -54,30 +50,20 @@ if(WIN32 AND (NOT DNNL_BUILD_FOR_CI))
     )
 endif()
 
-# register benchdnn test case
-function(register_benchdnn_test name engine cmd)
-    set(benchdnn_target ${name}_${engine})
+function(register_benchdnn_test engine driver test_file)
+    if (ARGC GREATER 3)
+        message(ERROR "Incorrect use of function")
+    endif()
+
+    string(REPLACE "test_" "test_benchdnn_" target_name ${test_file})
+    set(cmd "-v1 --engine=${engine} --${driver} --batch=${test_file}")
+    set(benchdnn_target ${target_name}_${engine})
 
     if(DNNL_BUILD_FOR_CI)
-        string(REPLACE " " ";" cmd
-            "benchdnn -v1 --engine=${engine} ${cmd}")
-        if (ARGC GREATER 3)
-            string(REPLACE " " ";" cmd2
-                "benchdnn -v1 --engine=${engine} ${ARGV3}")
-        endif()
-
+        string(REPLACE " " ";" cmd "benchdnn ${cmd}")
         add_test(${benchdnn_target} ${cmd})
-        if (DEFINED cmd2)
-            set(second_target_name "${benchdnn_target}2")
-            add_test(${second_target_name} ${cmd2})
-        endif()
     else()
-        string(REPLACE " " ";" cmd
-            "$<TARGET_FILE:benchdnn> -v1 --engine=${engine} ${cmd}")
-        if (ARGC GREATER 3)
-            string(REPLACE " " ";" cmd2
-                "$<TARGET_FILE:benchdnn> -v1 --engine=${engine} ${ARGV3}")
-        endif()
+        string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
 
         if(WIN32)
             set(cmd "cmd;/c;${PROJECT_BINARY_DIR}/run_with_env.bat;${cmd}")
@@ -86,7 +72,6 @@ function(register_benchdnn_test name engine cmd)
 
         add_custom_target(${benchdnn_target}
             COMMAND ${cmd}
-            COMMAND ${cmd2} # if any
             DEPENDS benchdnn
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
@@ -97,163 +82,71 @@ function(register_benchdnn_test name engine cmd)
 
         # Create non-suffixed target for compatibility
         if (engine STREQUAL "cpu")
-            add_custom_target(${name} DEPENDS ${benchdnn_target})
-            maybe_configure_windows_test(${name} TARGET)
+            add_custom_target(${target_name} DEPENDS ${benchdnn_target})
+            maybe_configure_windows_test(${target_name} TARGET)
         endif()
     endif()
 endfunction()
 
-register_benchdnn_test(test_benchdnn_conv_topologies
-    cpu "--conv --batch=inputs/conv/test_conv_all_topologies")
-register_benchdnn_test(test_benchdnn_conv_topologies_f32_nxc
-    cpu "--conv --batch=inputs/conv/test_conv_all_topologies_f32_nxc")
-register_benchdnn_test(test_benchdnn_conv_bfloat16 # temporary proxy
-    cpu "--conv --batch=inputs/conv/test_conv_bfloat16")
-register_benchdnn_test(test_benchdnn_conv_bf16
-    cpu "--conv --batch=inputs/conv/test_conv_bfloat16")
-register_benchdnn_test(test_benchdnn_conv_bf16_nxc
-    cpu "--conv --batch=inputs/conv/test_conv_bfloat16_nxc")
-register_benchdnn_test(test_benchdnn_conv_f32
-    cpu "--conv --batch=inputs/conv/test_conv_f32")
-register_benchdnn_test(test_benchdnn_conv_f32_nxc
-    cpu "--conv --batch=inputs/conv/test_conv_f32_nxc")
-register_benchdnn_test(test_benchdnn_conv_3d
-    cpu "--conv --batch=inputs/conv/test_conv_3d")
-register_benchdnn_test(test_benchdnn_conv_3d_f32_nxc
-    cpu "--conv --batch=inputs/conv/test_conv_3d_f32_nxc")
-register_benchdnn_test(test_benchdnn_conv_wino_f32
-    cpu "--conv --batch=inputs/conv/test_conv_wino_f32")
-register_benchdnn_test(test_benchdnn_conv_wino_int8
-    cpu "--conv --batch=inputs/conv/test_conv_wino_int8")
-register_benchdnn_test(test_benchdnn_conv_depthwise
-    cpu "--conv --batch=inputs/conv/test_conv_depthwise")
-register_benchdnn_test(test_benchdnn_conv_dilated
-    cpu "--conv --batch=inputs/conv/test_conv_dilated")
-register_benchdnn_test(test_benchdnn_conv_dilated_f32_nxc
-    cpu "--conv --batch=inputs/conv/test_conv_dilated_f32_nxc")
-register_benchdnn_test(test_benchdnn_conv_attributes
-    cpu "--conv --batch=inputs/conv/test_conv_attrs")
-register_benchdnn_test(test_benchdnn_conv_attributes_f32_nxc
-    cpu "--conv --batch=inputs/conv/test_conv_attrs_f32_nxc")
-register_benchdnn_test(test_benchdnn_conv_int8
-    cpu "--conv --batch=inputs/conv/test_conv_int8")
-register_benchdnn_test(test_benchdnn_conv_function
-    cpu "--conv --batch=inputs/conv/test_conv_function")
-register_benchdnn_test(test_benchdnn_conv_gemm_f32
-    cpu "--conv --batch=inputs/conv/test_conv_gemm_f32")
-register_benchdnn_test(test_benchdnn_conv_gemm_f32_nxc
-    cpu "--conv --batch=inputs/conv/test_conv_gemm_f32_nxc")
-register_benchdnn_test(test_benchdnn_conv_gemm_int8
-    cpu "--conv --batch=inputs/conv/test_conv_gemm_int8")
-register_benchdnn_test(test_benchdnn_conv_gemm_bf16
-    cpu "--conv --batch=inputs/conv/test_conv_gemm_bfloat16")
-register_benchdnn_test(test_benchdnn_conv_gemm_bf16_nxc
-    cpu "--conv --batch=inputs/conv/test_conv_gemm_bfloat16_nxc")
-register_benchdnn_test(test_benchdnn_deconv
-    cpu "--deconv --batch=inputs/deconv/test_deconv_all")
-register_benchdnn_test(test_benchdnn_deconv_f32_nxc
-    cpu "--deconv --batch=inputs/deconv/test_deconv_all_f32_nxc")
-register_benchdnn_test(test_benchdnn_deconv_bf16
-    cpu "--deconv --batch=inputs/deconv/test_deconv_bfloat16")
-register_benchdnn_test(test_benchdnn_deconv_bf16_nxc
-    cpu "--deconv --batch=inputs/deconv/test_deconv_bfloat16_nxc")
-register_benchdnn_test(test_benchdnn_matmul
-    cpu "--matmul --batch=inputs/matmul/test_matmul_all")
-register_benchdnn_test(test_benchdnn_resampling
-    cpu "--resampling --batch=inputs/resampling/test_resampling_all")
-register_benchdnn_test(test_benchdnn_rnn
-    cpu "--rnn --batch=inputs/rnn/test_rnn_all")
-register_benchdnn_test(test_benchdnn_reorder
-    cpu "--reorder --batch=inputs/reorder/test_reorder_all")
-register_benchdnn_test(test_benchdnn_reorder_bf16
-    cpu "--reorder --batch=inputs/reorder/test_reorder_bfloat16")
-register_benchdnn_test(test_benchdnn_bnorm
-    cpu "--bnorm  --batch=inputs/bnorm/test_bnorm_all")
-register_benchdnn_test(test_benchdnn_lnorm
-    cpu "--lnorm  --batch=inputs/lnorm/test_lnorm_all")
-register_benchdnn_test(test_benchdnn_bnorm_bf16
-    cpu "--bnorm  --batch=inputs/bnorm/test_bnorm_bfloat16")
-register_benchdnn_test(test_benchdnn_ip
-    cpu "--ip --batch=inputs/ip/test_ip_all")
-register_benchdnn_test(test_benchdnn_ip_bf16
-    cpu "--ip --batch=inputs/ip/test_ip_bfloat16")
-register_benchdnn_test(test_benchdnn_shuffle
-    cpu "--shuffle --batch=inputs/shuffle/test_shuffle_all")
-register_benchdnn_test(test_benchdnn_shuffle_bf16
-    cpu "--shuffle --batch=inputs/shuffle/test_shuffle_bfloat16")
-register_benchdnn_test(test_benchdnn_softmax
-    cpu "--softmax --batch=inputs/softmax/test_softmax_all")
-register_benchdnn_test(test_benchdnn_softmax_bf16
-    cpu "--softmax --batch=inputs/softmax/test_softmax_bfloat16")
-register_benchdnn_test(test_benchdnn_pool
-    cpu "--pool --batch=inputs/pool/test_pool_all")
-register_benchdnn_test(test_benchdnn_pool_bf16
-    cpu "--pool --batch=inputs/pool/test_pool_bfloat16")
-register_benchdnn_test(test_benchdnn_sum
-    cpu "--sum --batch=inputs/sum/test_sum_all")
-register_benchdnn_test(test_benchdnn_sum_bf16
-    cpu "--sum --batch=inputs/sum/test_sum_bfloat16")
-register_benchdnn_test(test_benchdnn_eltwise
-    cpu "--eltwise --batch=inputs/eltwise/test_eltwise_all")
-register_benchdnn_test(test_benchdnn_eltwise_bf16
-    cpu "--eltwise --batch=inputs/eltwise/test_eltwise_bfloat16")
-register_benchdnn_test(test_benchdnn_concat
-    cpu "--concat --batch=inputs/concat/test_concat_all")
-register_benchdnn_test(test_benchdnn_concat_bf16
-    cpu "--concat --batch=inputs/concat/test_concat_bfloat16")
-register_benchdnn_test(test_benchdnn_lrn
-    cpu "--lrn --batch=inputs/lrn/test_lrn_all")
-register_benchdnn_test(test_benchdnn_lrn_bf16
-    cpu "--lrn --batch=inputs/lrn/test_lrn_bfloat16")
-register_benchdnn_test(test_benchdnn_binary
-    cpu "--binary --batch=inputs/binary/test_binary_all")
-register_benchdnn_test(test_benchdnn_binary_bf16
-    cpu "--binary --batch=inputs/binary/test_binary_bfloat16")
-register_benchdnn_test(test_benchdnn_regression
-    cpu
-    "--conv --batch=inputs/conv/test_conv_regression"
-    "--bnorm --batch=inputs/bnorm/test_bnorm_regressions"
-    )
-if(NOT DNNL_USE_CLANG_SANITIZER)
-    register_benchdnn_test(test_benchdnn_regression_large
-        cpu
-        "--bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
-        )
+function(register_all_tests engine driver test_files)
+    foreach(test_file ${test_files})
+        register_benchdnn_test(${engine} ${driver} ${test_file})
+    endforeach()
+endfunction()
+
+# The following section is responsible to register test_benchdnn_ targets
+# depending on DNNL_TEST_SET value.
+set(has_gpu false)
+if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+    set(has_gpu true)
 endif()
 
-if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
-    register_benchdnn_test(test_benchdnn_conv
-        gpu "--conv --batch=inputs/conv/test_conv_gpu")
-    register_benchdnn_test(test_benchdnn_deconv
-        gpu "--deconv --batch=inputs/deconv/test_deconv_gpu")
-    register_benchdnn_test(test_benchdnn_bnorm
-        gpu "--bnorm --batch=inputs/bnorm/test_bnorm_gpu")
-    register_benchdnn_test(test_benchdnn_lnorm
-        gpu "--lnorm --batch=inputs/lnorm/test_lnorm_gpu")
-    register_benchdnn_test(test_benchdnn_ip
-        gpu "--ip --batch=inputs/ip/test_ip_gpu")
-    register_benchdnn_test(test_benchdnn_rnn
-        gpu "--rnn --batch=inputs/rnn/test_rnn_gpu")
-    register_benchdnn_test(test_benchdnn_reorder
-        gpu "--reorder --batch=inputs/reorder/test_reorder_gpu")
-    register_benchdnn_test(test_benchdnn_pool
-        gpu "--pool --batch=inputs/pool/test_pool_gpu")
-    register_benchdnn_test(test_benchdnn_eltwise
-        gpu "--eltwise --batch=inputs/eltwise/test_eltwise_gpu")
-    register_benchdnn_test(test_benchdnn_shuffle
-        gpu "--shuffle --batch=inputs/shuffle/test_shuffle_gpu")
-    register_benchdnn_test(test_benchdnn_softmax
-        gpu "--softmax --batch=inputs/softmax/test_softmax_gpu")
-    register_benchdnn_test(test_benchdnn_sum
-        gpu "--sum --batch=inputs/sum/test_sum_gpu")
-    register_benchdnn_test(test_benchdnn_concat
-        gpu "--concat --batch=inputs/concat/test_concat_gpu")
-    register_benchdnn_test(test_benchdnn_lrn
-        gpu "--lrn --batch=inputs/lrn/test_lrn_gpu")
-    register_benchdnn_test(test_benchdnn_binary
-        gpu "--binary --batch=inputs/binary/test_binary_gpu")
-    register_benchdnn_test(test_benchdnn_matmul
-        gpu "--matmul --batch=inputs/matmul/test_matmul_gpu")
-    register_benchdnn_test(test_benchdnn_resampling
-        gpu "--resampling --batch=inputs/resampling/test_resampling_gpu")
-endif()
+# Very sad CMake 2.8.11 does not support continue() command.
+file(GLOB all_drivers RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/inputs inputs/*)
+foreach(driver ${all_drivers})
+    set(driver_dir ${CMAKE_CURRENT_SOURCE_DIR}/inputs/${driver})
+    # Collect input files in groups
+    file(GLOB test_files_large_cpu RELATIVE ${driver_dir}
+            inputs/${driver}/test_*_large$)
+    file(GLOB test_files_gpu_ci RELATIVE ${driver_dir}
+            inputs/${driver}/test_*_gpu_ci)
+    file(GLOB test_files_gpu RELATIVE ${driver_dir} inputs/${driver}/test_*_gpu)
+    file(GLOB test_files_ci RELATIVE ${driver_dir} inputs/${driver}/test_*_ci)
+    file(GLOB test_files_cpu RELATIVE ${driver_dir} inputs/${driver}/test_*)
+
+    # Register ci input files for ci only
+    if(DNNL_TEST_SET EQUAL DNNL_TEST_SET_CI)
+        # gpu_ci files may happen if cpu coverage can not be used on gpu
+        # Filter out gpu_ci inputs from ci
+        foreach(test_file ${test_files_gpu_ci})
+            string(REPLACE "${test_file}" "" test_files_ci "${test_files_ci}")
+        endforeach()
+
+        # use gpu_ci if not empty
+        if(has_gpu)
+            if(test_files_gpu_ci)
+                register_all_tests(gpu "${driver}" "${test_files_gpu_ci}")
+            else()
+                register_all_tests(gpu "${driver}" "${test_files_ci}")
+            endif()
+        endif()
+        register_all_tests(cpu "${driver}" "${test_files_ci}")
+    endif()
+
+    # Register nightly input files
+    if(DNNL_TEST_SET GREATER DNNL_TEST_SET_CI)
+        ## Filter out gpu, large cpu and invalid inputs from cpu
+        foreach(test_file ${test_files_large_cpu} ${test_files_gpu_ci}
+                ${test_files_gpu} ${test_files_ci} "test_conv_all;")
+            string(REPLACE "${test_file}" "" test_files_cpu "${test_files_cpu}")
+        endforeach()
+
+        if(NOT DNNL_USE_CLANG_SANITIZER)
+            register_all_tests(cpu "${driver}" "${test_files_large_cpu}")
+        endif()
+        if(has_gpu)
+            register_all_tests(gpu "${driver}" "${test_files_gpu}")
+        endif()
+        register_all_tests(cpu "${driver}" "${test_files_cpu}")
+    endif()
+endforeach()

@@ -1,0 +1,39 @@
+--reset
+
+# RNN
+--trivial-strides=true,false
+--prop=FWD_D,BWD_DW
+--cfg=f32,bf16,f16
+--direction=left2right,right2left,concat,sum
+--activation=RELU,TANH,LOGISTIC
+--alg=VANILLA_RNN
+--batch=shapes_small
+
+# LSTM, GRU
+--prop=FWD_D,BWD_DW
+--cfg=f32,bf16,f16
+--direction=left2right
+--activation=UNDEF
+--with-peephole=false,true
+--with-projection=false,true
+--alg=VANILLA_LSTM --batch=shapes_small
+
+--with-peephole=false
+--with-projection=false
+--alg=LBR_GRU --batch=shapes_small
+--alg=VANILLA_GRU --batch=shapes_gru_small
+
+# LSTM int8
+--trivial-strides=true
+--prop=FWD_D
+--alg=VANILLA_LSTM
+--direction=left2right
+--activation=UNDEF
+
+--cfg=u8u8u8f32,u8u8u8u8
+--scaling=common
+--batch=shapes_small
+
+--cfg=f32u8f32f32,f32u8f32u8
+--scaling=per_oc
+--batch=shapes_small
