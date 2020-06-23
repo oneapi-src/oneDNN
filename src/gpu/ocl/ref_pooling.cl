@@ -36,28 +36,31 @@ __kernel void ref_pooling_fwd(
 #if ALG_MAX && IS_TRAINING
                 ws[dst_off] = -1;
 #endif
-#if ALG_MAX
-#if DT_BF16
+#if ALG_AVG_P || ALG_AVG_NP
+                float d = 0;
+#endif
+#if ALG_MAX && DT_BF16
                 DEF_ACC_DATA_T d = DATA_MIN;
-#else // DT_BF16
+#elif ALG_MAX // DT_BF16
                 DATA_T d = DATA_MIN;
 #endif
                 for (int kd = 0; kd < KD; ++kd)
                     for (int kh = 0; kh < KH; ++kh) {
                         for (int kw = 0; kw < KW; ++kw) {
-                            const int id = od * SD - PD + kd;
-                            const int ih = oh * SH - PH + kh;
-                            const int iw = ow * SW - PW + kw;
+                            const int id = od * SD - PD + kd * (DD + 1);
+                            const int ih = oh * SH - PH + kh * (DH + 1);
+                            const int iw = ow * SW - PW + kw * (DW + 1);
 
                             if (id < 0 || id >= ID) continue;
                             if (ih < 0 || ih >= IH) continue;
                             if (iw < 0 || iw >= IW) continue;
 
-#if ALG_MAX && IS_TRAINING
+                            int src_off = SRC_OFF(mb, oc, id, ih, iw);
+#if ALG_MAX
+#if IS_TRAINING
                             if (ws[dst_off] < 0)
                                 ws[dst_off] = kd * KH * KW + kh * KW + kw;
 #endif
-                            int src_off = SRC_OFF(mb, oc, id, ih, iw);
 #if DT_BF16
                             DEF_ACC_DATA_T s = DATA_TO_REF(src[src_off]);
 #else // DT_BF16 == 0
@@ -65,38 +68,49 @@ __kernel void ref_pooling_fwd(
 #endif
                             if (s > d) {
                                 d = s;
-#if ALG_MAX && IS_TRAINING
+#if IS_TRAINING
                                 ws[dst_off] = kd * KH * KW + kh * KW + kw;
 #endif
                             }
+#else
+                            d += DATA_TO_REF(src[src_off]);
+#endif
                         }
                     }
+#if ALG_MAX
                 dst[dst_off] = CONVERT_DATA_T(d);
-#if ALG_MAX && IS_TRAINING
+#if IS_TRAINING
                 if (ws[dst_off] < 0) ws[dst_off] = 0;
 #endif
 #else
-                const int id_start = max(od * SD - PD, 0);
-                const int ih_start = max(oh * SH - PH, 0);
-                const int iw_start = max(ow * SW - PW, 0);
-                const int id_end = min(od * SD - PD + KD, ID);
-                const int ih_end = min(oh * SH - PH + KH, IH);
-                const int iw_end = min(ow * SW - PW + KW, IW);
-
 #if ALG_AVG_P
                 const int num_summands = KD * KW * KH;
 #else
-                const int num_summands = (ih_end - ih_start)
-                        * (iw_end - iw_start) * (id_end - id_start);
+                const int id_start = od * SD - PD;
+                const int ih_start = oh * SH - PH;
+                const int iw_start = ow * SW - PW;
+                const int id_end = od * SD - PD + (KD - 1) * DD + KD;
+                const int ih_end = oh * SH - PH + (KH - 1) * DH + KH;
+                const int iw_end = ow * SW - PW + (KW - 1) * DW + KW;
+
+                const int id_start_excluded
+                        = id_start < 0 ? (0 - id_start - 1) / (DD + 1) + 1 : 0;
+                const int ih_start_excluded
+                        = ih_start < 0 ? (0 - ih_start - 1) / (DH + 1) + 1 : 0;
+                const int iw_start_excluded
+                        = iw_start < 0 ? (0 - iw_start - 1) / (DW + 1) + 1 : 0;
+                const int id_end_excluded
+                        = id_end > ID ? (id_end - ID - 1) / (DD + 1) + 1 : 0;
+                const int ih_end_excluded
+                        = ih_end > IH ? (ih_end - IH - 1) / (DH + 1) + 1 : 0;
+                const int iw_end_excluded
+                        = iw_end > IW ? (iw_end - IW - 1) / (DW + 1) + 1 : 0;
+
+                const int num_summands
+                        = (KD - id_start_excluded - id_end_excluded)
+                        * (KH - ih_start_excluded - ih_end_excluded)
+                        * (KW - iw_start_excluded - iw_end_excluded);
 #endif
-                float d = 0;
-                for (int id = id_start; id < id_end; ++id)
-                    for (int ih = ih_start; ih < ih_end; ++ih) {
-                        for (int iw = iw_start; iw < iw_end; ++iw) {
-                            int src_off = SRC_OFF(mb, oc, id, ih, iw);
-                            d += DATA_TO_REF(src[src_off]);
-                        }
-                    }
                 dst[dst_off] = CONVERT_DATA_T(RINT(d / num_summands));
 #endif
             }
@@ -126,9 +140,9 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                 for (int kd = 0; kd < KD; ++kd)
                     for (int kh = 0; kh < KH; ++kh)
                         for (int kw = 0; kw < KW; ++kw) {
-                            int _od = id + PD - kd;
-                            int _oh = ih + PH - kh;
-                            int _ow = iw + PW - kw;
+                            int _od = id + PD - kd * (DD + 1);
+                            int _oh = ih + PH - kh * (DH + 1);
+                            int _ow = iw + PW - kw * (DW + 1);
                             if (_od % SD != 0 || _oh % SH != 0 || _ow % SW != 0)
                                 continue;
 
@@ -158,14 +172,40 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
 #elif ALG_AVG_P
                             const int denom = KD * KH * KW;
 #elif ALG_AVG_NP
-                            const int id_start = max(od * SD - PD, 0);
-                            const int ih_start = max(oh * SH - PH, 0);
-                            const int iw_start = max(ow * SW - PW, 0);
-                            const int id_end = min(od * SD - PD + KD, ID);
-                            const int ih_end = min(oh * SH - PH + KH, IH);
-                            const int iw_end = min(ow * SW - PW + KW, IW);
-                            const int denom = (ih_end - ih_start)
-                                    * (iw_end - iw_start) * (id_end - id_start);
+                            const int id_start = od * SD - PD;
+                            const int ih_start = oh * SH - PH;
+                            const int iw_start = ow * SW - PW;
+                            const int id_end
+                                    = od * SD - PD + (KD - 1) * DD + KD;
+                            const int ih_end
+                                    = oh * SH - PH + (KH - 1) * DH + KH;
+                            const int iw_end
+                                    = ow * SW - PW + (KW - 1) * DW + KW;
+
+                            const int id_start_excluded = id_start < 0
+                                    ? (0 - id_start - 1) / (DD + 1) + 1
+                                    : 0;
+                            const int ih_start_excluded = ih_start < 0
+                                    ? (0 - ih_start - 1) / (DH + 1) + 1
+                                    : 0;
+                            const int iw_start_excluded = iw_start < 0
+                                    ? (0 - iw_start - 1) / (DW + 1) + 1
+                                    : 0;
+                            const int id_end_excluded = id_end > ID
+                                    ? (id_end - ID - 1) / (DD + 1) + 1
+                                    : 0;
+                            const int ih_end_excluded = ih_end > IH
+                                    ? (ih_end - IH - 1) / (DH + 1) + 1
+                                    : 0;
+                            const int iw_end_excluded = iw_end > IW
+                                    ? (iw_end - IW - 1) / (DW + 1) + 1
+                                    : 0;
+
+                            const int denom
+                                    = (KD - id_start_excluded - id_end_excluded)
+                                    * (KH - ih_start_excluded - ih_end_excluded)
+                                    * (KW - iw_start_excluded
+                                            - iw_end_excluded);
 #endif
                             s += DATA_TO_REF(diff_dst[dst_off]) / denom;
                         }
@@ -186,9 +226,9 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                 const int kw = hw % KW;
                 const int kh = hw / KW;
 
-                const int id = od * SD - PD + kd;
-                const int ih = oh * SH - PH + kh;
-                const int iw = ow * SW - PW + kw;
+                const int id = od * SD - PD + kd * (DD + 1);
+                const int ih = oh * SH - PH + kh * (DH + 1);
+                const int iw = ow * SW - PW + kw * (DW + 1);
 
                 if (id < 0 || id >= ID) continue;
                 if (ih < 0 || ih >= IH) continue;
@@ -197,22 +237,39 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                 uint diff_src_offset = SRC_OFF(mb, oc, id, ih, iw);
                 diff_src[diff_src_offset] += d;
 #else
-                const int id_start = max(od * SD - PD, 0);
-                const int ih_start = max(oh * SH - PH, 0);
-                const int iw_start = max(ow * SW - PW, 0);
-                const int id_end = min(od * SD - PD + KD, ID);
-                const int ih_end = min(oh * SH - PH + KH, IH);
-                const int iw_end = min(ow * SW - PW + KW, IW);
+                const int id_start = od * SD - PD;
+                const int ih_start = oh * SH - PH;
+                const int iw_start = ow * SW - PW;
+                const int id_end = od * SD - PD + (KD - 1) * DD + KD;
+                const int ih_end = oh * SH - PH + (KH - 1) * DH + KH;
+                const int iw_end = ow * SW - PW + (KW - 1) * DW + KW;
+
+                const int id_start_excluded
+                        = id_start < 0 ? (0 - id_start - 1) / (DD + 1) + 1 : 0;
+                const int ih_start_excluded
+                        = ih_start < 0 ? (0 - ih_start - 1) / (DH + 1) + 1 : 0;
+                const int iw_start_excluded
+                        = iw_start < 0 ? (0 - iw_start - 1) / (DW + 1) + 1 : 0;
+                const int id_end_excluded
+                        = id_end > ID ? (id_end - ID - 1) / (DD + 1) + 1 : 0;
+                const int ih_end_excluded
+                        = ih_end > IH ? (ih_end - IH - 1) / (DH + 1) + 1 : 0;
+                const int iw_end_excluded
+                        = iw_end > IW ? (iw_end - IW - 1) / (DW + 1) + 1 : 0;
 
 #if ALG_AVG_P
                 const int num_summands = KD * KW * KH;
 #else
-                const int num_summands = (ih_end - ih_start)
-                        * (iw_end - iw_start) * (id_end - id_start);
+                const int num_summands
+                        = (KD - id_start_excluded - id_end_excluded)
+                        * (KH - ih_start_excluded - ih_end_excluded)
+                        * (KW - iw_start_excluded - iw_end_excluded);
 #endif
-                for (int id = id_start; id < id_end; ++id)
-                    for (int ih = ih_start; ih < ih_end; ++ih)
-                        for (int iw = iw_start; iw < iw_end; ++iw) {
+                for (int id = id_start; id < min(id_end, ID); id += DD + 1)
+                    for (int ih = ih_start; ih < min(ih_end, IH); ih += DH + 1)
+                        for (int iw = iw_start; iw < min(iw_end, IW);
+                                iw += DW + 1) {
+                            if (id < 0 || ih < 0 || iw < 0) continue;
                             const uint diff_src_offset
                                     = SRC_OFF(mb, oc, id, ih, iw);
                             diff_src[diff_src_offset] += d / num_summands;

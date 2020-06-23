@@ -23,7 +23,7 @@ Max pooling:
     \dst(n, c, oh, ow) =
         \max\limits_{kh, kw}
         \left(
-            \src(n, c, oh \cdot SH + kh - PH_L, ow \cdot SW +kw - PW_L)
+            \src(n, c, oh \cdot SH + kh \cdot (DH + 1) - PH_L, ow \cdot SW + kw \cdot (DW + 1) - PW_L)
         \right)
 \f]
 
@@ -33,7 +33,7 @@ Average pooling:
     \dst(n, c, oh, ow) =
         \frac{1}{DENOM}
         \sum\limits_{kh, kw}
-            \src(n, c, oh \cdot SH + kh - PH_L, ow \cdot SW +kw - PW_L)
+            \src(n, c, oh \cdot SH + kh \cdot (DH + 1) - PH_L, ow \cdot SW + kw \cdot (DW + 1) - PW_L)
 \f]
 
 Here output spatial dimensions are calculated similarly to how they are done in

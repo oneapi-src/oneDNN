@@ -57,7 +57,7 @@ dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
 
 int str2desc(desc_t *desc, const char *str) {
     /* canonical form:
-     * mbXicX_odXihXiwX_odXohXowX_kdXkhXkwX_sdXshXswX_pdXphXpwX_nS
+     * mbXicX_odXihXiwX_odXohXowX_kdXkhXkwX_sdXshXswX_pdXphXpwX_ddXdhXdwX_nS
      *
      * where X is number, S - string
      * note: symbol `_` is ignored
@@ -108,6 +108,9 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(pd);
         CASE_N(ph);
         CASE_N(pw);
+        CASE_N(dd);
+        CASE_N(dh);
+        CASE_N(dw);
         if (*s == 'n') {
             d.name = s + 1;
             break;
@@ -121,12 +124,14 @@ int str2desc(desc_t *desc, const char *str) {
     if (d.ic == 0) return FAIL;
     if (d.sd <= 0 || d.sh <= 0 || d.sw <= 0) return FAIL;
 
-    auto compute_out = [](int64_t i, int64_t k, int64_t s, int64_t p) {
-        return (i - k + 2 * p) / s + 1;
-    };
-    auto compute_pad = [](int64_t o, int64_t i, int64_t k, int64_t s) {
-        return ((o - 1) * s - i + k) / 2;
-    };
+    auto compute_out
+            = [](int64_t i, int64_t k, int64_t d, int64_t s, int64_t p) {
+                  return (i - (k - 1) * d + k + 2 * p) / s + 1;
+              };
+    auto compute_pad
+            = [](int64_t o, int64_t i, int64_t k, int64_t d, int64_t s) {
+                  return ((o - 1) * s - i + (k - 1) * d + k) / 2;
+              };
 
     const bool no_d = (d.id | d.kd | d.od) == 0 && d.sd == 1 && d.pd < 1;
     const bool no_h = (d.ih | d.kh | d.oh) == 0 && d.sh == 1 && d.ph < 1;
@@ -136,32 +141,32 @@ int str2desc(desc_t *desc, const char *str) {
         if (!d.id || !d.kd) return FAIL;
         if (!d.od) {
             if (d.pd < 0) d.pd = 0;
-            d.od = compute_out(d.id, d.kd, d.sd, d.pd);
+            d.od = compute_out(d.id, d.kd, d.dd, d.sd, d.pd);
         } else if (d.pd < 0)
-            d.pd = compute_pad(d.od, d.id, d.kd, d.sd);
+            d.pd = compute_pad(d.od, d.id, d.kd, d.dd, d.sd);
     }
 
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
         if (!d.oh) {
             if (d.ph < 0) d.ph = 0;
-            d.oh = compute_out(d.ih, d.kh, d.sh, d.ph);
+            d.oh = compute_out(d.ih, d.kh, d.dh, d.sh, d.ph);
         } else if (d.ph < 0)
-            d.ph = compute_pad(d.oh, d.ih, d.kh, d.sh);
+            d.ph = compute_pad(d.oh, d.ih, d.kh, d.dh, d.sh);
     }
 
     if (!no_w) {
         if (!d.iw || !d.kw) return FAIL;
         if (!d.ow) {
             if (d.pw < 0) d.pw = 0;
-            d.ow = compute_out(d.iw, d.kw, d.sw, d.pw);
+            d.ow = compute_out(d.iw, d.kw, d.dw, d.sw, d.pw);
         } else if (d.pw < 0)
-            d.pw = compute_pad(d.ow, d.iw, d.kw, d.sw);
+            d.pw = compute_pad(d.ow, d.iw, d.kw, d.dw, d.sw);
     }
 
-    if (sanitize_desc(d.ndims, {d.od, d.id, d.kd, d.sd, d.pd},
-                {d.oh, d.ih, d.kh, d.sh, d.ph}, {d.ow, d.iw, d.kw, d.sw, d.pw},
-                {1, 1, 1, 1, 0}, true)
+    if (sanitize_desc(d.ndims, {d.od, d.id, d.kd, d.sd, d.pd, d.dd},
+                {d.oh, d.ih, d.kh, d.sh, d.ph, d.dh},
+                {d.ow, d.iw, d.kw, d.sw, d.pw, d.dw}, {1, 1, 1, 1, 0, 0}, true)
             != OK)
         return FAIL;
 
@@ -174,8 +179,9 @@ int str2desc(desc_t *desc, const char *str) {
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     bool print_d = true, print_h = true, print_w = true;
     print_dhw(print_d, print_h, print_w, d.ndims,
-            {d.od, d.id, d.kd, d.sd, d.pd}, {d.oh, d.ih, d.kh, d.sh, d.ph},
-            {d.ow, d.iw, d.kw, d.sw, d.pw});
+            {d.od, d.id, d.kd, d.sd, d.pd, d.dd},
+            {d.oh, d.ih, d.kh, d.sh, d.ph, d.dh},
+            {d.ow, d.iw, d.kw, d.sw, d.pw, d.dw});
 
     auto print_spatial
             = [&](const char *d_str, int64_t d_val, const char *h_str,
@@ -195,6 +201,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
         print_spatial("sd", d.sd, "sh", d.sh, "sw", d.sw);
 
     print_spatial("pd", d.pd, "ph", d.ph, "pw", d.pw);
+    print_spatial("dd", d.dd, "dh", d.dh, "dw", d.dw);
 
     if (d.name) s << "n" << d.name;
 

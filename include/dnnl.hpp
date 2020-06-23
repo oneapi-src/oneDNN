@@ -314,6 +314,8 @@ struct primitive : public handle<dnnl_primitive_t> {
         matmul = dnnl_matmul,
         /// A resampling primitive.
         resampling = dnnl_resampling,
+        /// A pooling version 2 primitive.
+        pooling_v2 = dnnl_pooling_v2,
     };
 
     using handle::handle;
@@ -5407,6 +5409,7 @@ struct pooling_backward : public primitive {
         /// @param diff_dst_desc Diff destination memory descriptor.
         /// @param strides Vector of strides for spatial dimension.
         /// @param kernel Vector of kernel spatial dimensions.
+        /// @param dilation Array of dilations for spatial dimension.
         /// @param padding_l Vector of padding values for low indices for each
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
@@ -9899,6 +9902,264 @@ struct resampling_backward : public primitive {
 };
 
 /// @} dnnl_api_resampling
+
+/// @addtogroup dnnl_api_pooling Pooling
+///
+/// Pooling version 2 (dilated pooling).
+///
+/// A primitive to perform max or average pooling.
+///
+/// @sa @ref dev_guide_pooling in developer guide
+///
+/// @{
+
+/// Pooling v2 (dilated pooling) forward propagation primitive.
+struct pooling_v2_forward : public primitive {
+    /// Descriptor for a pooling forward propagation primitive.
+    struct desc {
+        dnnl_pooling_v2_desc_t data;
+
+        /// Constructs a descriptor for pooling v2
+        /// (dilated pooling) forward propagation primitive.
+        ///
+        /// Arrays @p strides, @p kernel, @p dilation, @p padding_l
+        /// and @p padding_r contain values for spatial dimensions only and
+        /// hence must have the same number of elements as there are spatial
+        /// dimensions. The order of values is the same as in the tensor:
+        /// depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+        ///
+        /// @param aprop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param aalgorithm Pooling algorithm kind: either
+        ///     #dnnl::algorithm::pooling_max,
+        ///     #dnnl::algorithm::pooling_avg_include_padding,
+        ///     or #dnnl::algorithm::pooling_avg (same as
+        ///     #dnnl::algorithm::pooling_avg_exclude_padding).
+        /// @param src_desc Source memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
+        /// @param strides Vector of strides for spatial dimension.
+        /// @param kernel Vector of kernel spatial dimensions.
+        /// @param dilation Array of dilations for spatial dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        desc(prop_kind aprop_kind, algorithm aalgorithm,
+                const memory::desc &src_desc, const memory::desc &dst_desc,
+                const memory::dims &strides, const memory::dims &kernel,
+                const memory::dims &dilation, const memory::dims &padding_l,
+                const memory::dims &padding_r) {
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(kernel, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
+            memory::validate_dims(dilation, src_desc.data.ndims - 2);
+            error::wrap_c_api(
+                    dnnl_pooling_v2_forward_desc_init(&data,
+                            dnnl::convert_to_c(aprop_kind),
+                            convert_to_c(aalgorithm), &src_desc.data,
+                            &dst_desc.data, &strides[0], &kernel[0],
+                            &dilation[0], &padding_l[0], &padding_r[0]),
+                    "could not create a descriptor for a pooling forward "
+                    "propagation primitive");
+        }
+    };
+
+    /// Primitive descriptor for a pooling forward propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
+
+        /// Constructs a primitive descriptor for a pooling v2
+        /// (dilated pooling) forward
+        /// propagation primitive.
+        ///
+        /// @param adesc Descriptor for a pooling forward propagation primitive.
+        /// @param aengine Engine to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const engine &aengine,
+                bool allow_empty = false)
+            : dnnl::primitive_desc(
+                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a pooling v2
+        /// (dilated pooling) forward
+        /// propagation primitive.
+        ///
+        /// @param adesc Descriptor for a pooling forward propagation primitive.
+        /// @param aengine Engine to use.
+        /// @param attr Primitive attributes to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const primitive_attr &attr,
+                const engine &aengine, bool allow_empty = false)
+            : dnnl::primitive_desc(
+                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a pooling v2
+        /// (dilated pooling) forward
+        /// propagation primitive from a C API primitive descriptor that must
+        /// have a matching kind.
+        ///
+        /// @param pd C API primitive descriptor for a pooling forward
+        ///     propagation primitive.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::pooling_v2,
+                    dnnl::prop_kind::forward_training,
+                    dnnl::prop_kind::forward_inference) {}
+
+        /// @copydoc dnnl::primitive_desc_base::src_desc()const
+        memory::desc src_desc() const { return base::src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc()const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc()const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
+    };
+
+    /// Default constructor. Produces an empty object.
+    pooling_v2_forward() = default;
+
+    /// Constructs a pooling v2 (dilated pooling) forward
+    /// propagation primitive.
+    /// @param pd Primitive descriptor for a pooling v2
+    /// (dilated pooling) forward propagation primitive.
+    pooling_v2_forward(const primitive_desc &pd) : primitive(pd) {}
+};
+
+/// Pooling v2 (dilated pooling) backward propagation primitive.
+struct pooling_v2_backward : public primitive {
+    /// Descriptor for a pooling backward propagation primitive.
+    struct desc {
+        dnnl_pooling_v2_desc_t data;
+
+        /// Constructs a descriptor for pooling v2 (dilated pooling) backward
+        /// propagation primitive.
+        ///
+        /// Arrays @p strides, @p kernel, @p dilation, @p padding_l
+        /// and @p padding_r contain values for spatial dimensions only and
+        /// hence must have the same number of elements as there are spatial
+        /// dimensions. The order of values is the same as in the tensor:
+        /// depth (for 3D tensors), height (for 3D and 2D tensors), and width.
+        ///
+        /// @param aalgorithm Pooling algorithm kind: either
+        ///     #dnnl::algorithm::pooling_max,
+        ///     #dnnl::algorithm::pooling_avg_include_padding,
+        ///     or #dnnl::algorithm::pooling_avg (same as
+        ///     #dnnl::algorithm::pooling_avg_exclude_padding).
+        /// @param diff_src_desc Diff source memory descriptor.
+        /// @param diff_dst_desc Diff destination memory descriptor.
+        /// @param strides Vector of strides for spatial dimension.
+        /// @param kernel Vector of kernel spatial dimensions.
+        /// @param dilation Array of dilations for spatial dimension.
+        /// @param padding_l Vector of padding values for low indices for each
+        ///     spatial dimension `([[front,] top,] left)`.
+        /// @param padding_r Vector of padding values for high indices for
+        ///     each spatial dimension `([[back,] bottom,] right)`.
+        desc(algorithm aalgorithm, const memory::desc &diff_src_desc,
+                const memory::desc &diff_dst_desc, const memory::dims &strides,
+                const memory::dims &kernel, const memory::dims &dilation,
+                const memory::dims &padding_l, const memory::dims &padding_r) {
+            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(kernel, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(dilation, diff_src_desc.data.ndims - 2);
+            error::wrap_c_api(
+                    dnnl_pooling_v2_backward_desc_init(&data,
+                            convert_to_c(aalgorithm), &diff_src_desc.data,
+                            &diff_dst_desc.data, &strides[0], &kernel[0],
+                            &dilation[0], &padding_l[0], &padding_r[0]),
+                    "could not create a descriptor for a pooling backward "
+                    "propagation primitive");
+        }
+    };
+
+    /// Primitive descriptor for a pooling v2 (dilated pooling) backward
+    /// propagation primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
+
+        /// Constructs a primitive descriptor for a pooling v2
+        /// (dilated pooling) backward
+        /// propagation primitive.
+        ///
+        /// @param adesc Descriptor for a pooling backward propagation primitive.
+        /// @param aengine Engine to use.
+        /// @param hint_fwd_pd Primitive descriptor for a pooling forward
+        ///     propagation primitive. It is used as a hint for deciding which
+        ///     memory format to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const engine &aengine,
+                const pooling_v2_forward::primitive_desc &hint_fwd_pd,
+                bool allow_empty = false)
+            : dnnl::primitive_desc(&adesc.data, nullptr, aengine,
+                    hint_fwd_pd.get(), allow_empty) {}
+
+        /// Constructs a primitive descriptor for a pooling v2
+        /// (dilated pooling) backward
+        /// propagation primitive.
+        ///
+        /// @param adesc Descriptor for a pooling backward propagation primitive.
+        /// @param attr Primitive attributes to use.
+        /// @param aengine Engine to use.
+        /// @param hint_fwd_pd Primitive descriptor for a pooling forward
+        ///     propagation primitive. It is used as a hint for deciding which
+        ///     memory format to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const primitive_attr &attr,
+                const engine &aengine,
+                const pooling_v2_forward::primitive_desc &hint_fwd_pd,
+                bool allow_empty = false)
+            : dnnl::primitive_desc(&adesc.data, &attr, aengine,
+                    hint_fwd_pd.get(), allow_empty) {}
+
+        /// Constructs a primitive descriptor for a pooling v2
+        /// (dilated pooling) backward
+        /// propagation primitive from a C API primitive descriptor that must
+        /// have a matching kind.
+        ///
+        /// @param pd C API primitive descriptor for a pooling backward
+        ///     propagation primitive.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::pooling_v2,
+                    dnnl::prop_kind::backward_data) {}
+
+        /// @copydoc dnnl::primitive_desc_base::src_desc()const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc()const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc()const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
+    };
+
+    /// Default constructor. Produces an empty object.
+    pooling_v2_backward() = default;
+
+    /// Constructs a pooling v2 (dilated pooling) backward
+    /// propagation primitive.
+    /// @param pd Primitive descriptor for a pooling backward propagation
+    ///     primitive.
+    pooling_v2_backward(const primitive_desc &pd) : primitive(pd) {}
+};
+
+/// @} dnnl_api_pooling_v2
 
 /// @} dnnl_api_primitives
 

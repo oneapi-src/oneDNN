@@ -355,10 +355,12 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     // {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, POOL_OH, POOL_OW}
     // kernel: {3, 3}
     // strides: {POOL_STRIDE, POOL_STRIDE}
+    // dilation: {0, 0}
     dnnl_dim_t *pool_dst_sizes = net_dst_sizes;
     dnnl_dim_t pool_kernel[2] = {3, 3};
     dnnl_dim_t pool_strides[2] = {POOL_STRIDE, POOL_STRIDE};
     dnnl_dim_t pool_padding[2] = {POOL_PAD, POOL_PAD};
+    dnnl_dim_t pool_dilation[2] = {0, 0};
 
     // create pooling memory descriptor on dst descriptor
     //  from previous primitive
@@ -375,10 +377,10 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
             &pool_user_dst_memory);
 
     // create a pooling
-    dnnl_pooling_desc_t pool_desc;
-    CHECK(dnnl_pooling_forward_desc_init(&pool_desc, dnnl_forward,
+    dnnl_pooling_v2_desc_t pool_desc;
+    CHECK(dnnl_pooling_v2_forward_desc_init(&pool_desc, dnnl_forward,
             dnnl_pooling_max, pool_src_md, &pool_dst_any_md, pool_strides,
-            pool_kernel, pool_padding, pool_padding));
+            pool_kernel, pool_dilation, pool_padding, pool_padding));
 
     dnnl_primitive_desc_t pool_pd;
     CHECK(dnnl_primitive_desc_create(&pool_pd, &pool_desc, NULL, engine, NULL));

@@ -449,6 +449,23 @@ inline bool operator==(const pooling_desc_t &lhs, const pooling_desc_t &rhs) {
     return ret;
 }
 
+inline bool operator==(const pooling_v2_desc_t &lhs, const pooling_v2_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(prop_kind)
+            && COMPARE_DESC_MEMBERS(alg_kind)
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(diff_src_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(diff_dst_desc)
+            && COMPARE_DESC_ARRAY_MEMBERS(strides, DNNL_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(kernel, DNNL_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(padding[0], DNNL_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(padding[1], DNNL_MAX_NDIMS)
+            && COMPARE_DESC_ARRAY_MEMBERS(dilation, DNNL_MAX_NDIMS)
+            && COMPARE_DESC_MEMBERS(accum_data_type);
+    return ret;
+}
+
 inline bool operator==(const reorder_desc_t &lhs, const reorder_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(src_md)

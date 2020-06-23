@@ -527,6 +527,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_eltwise) return "eltwise";
     if (v == dnnl_softmax) return "softmax";
     if (v == dnnl_pooling) return "pooling";
+    if (v == dnnl_pooling_v2) return "pooling_v2";
     if (v == dnnl_lrn) return "lrn";
     if (v == dnnl_batch_normalization) return "batch_normalization";
     if (v == dnnl_layer_normalization) return "layer_normalization";

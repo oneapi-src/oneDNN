@@ -72,7 +72,7 @@ const pd_create_f impl_list[] = {
 // clang-format on
 } // namespace
 
-const pd_create_f *get_pooling_impl_list(const pooling_desc_t *desc) {
+const pd_create_f *get_pooling_v2_impl_list(const pooling_v2_desc_t *desc) {
     UNUSED(desc);
     return impl_list;
 }

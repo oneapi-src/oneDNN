@@ -167,6 +167,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     dnnl_dim_t kernel_nd[] = {p->kd, p->kh, p->kw};
+    dnnl_dim_t dilation_nd[] = {p->dd, p->dh, p->dw};
     dnnl_dim_t padding_l_nd[] = {p->pd, p->ph, p->pw};
     dnnl_dim_t padding_r_nd[] = {p->pd_r, p->ph_r, p->pw_r};
 
@@ -174,19 +175,21 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     dnnl_dim_t *kernel = kernel_nd + (5 - p->ndims);
     dnnl_dim_t *padding_l = padding_l_nd + (5 - p->ndims);
     dnnl_dim_t *padding_r = padding_r_nd + (5 - p->ndims);
+    dnnl_dim_t *dilation = dilation_nd + (5 - p->ndims);
 
     dnnl_alg_kind_t alg = alg2alg_kind(p->alg);
-    dnnl_pooling_desc_t pd;
+    dnnl_pooling_v2_desc_t pd;
 
     if (dir & FLAG_FWD) {
         auto prop_kind = p->dir & FLAG_INF ? dnnl_forward_inference
                                            : dnnl_forward_training;
-        DNN_SAFE(dnnl_pooling_forward_desc_init(&pd, prop_kind, alg, &src_d,
-                         &dst_d, strides, kernel, padding_l, padding_r),
+        DNN_SAFE(dnnl_pooling_v2_forward_desc_init(&pd, prop_kind, alg, &src_d,
+                         &dst_d, strides, kernel, dilation, padding_l,
+                         padding_r),
                 WARN);
     } else {
-        DNN_SAFE(dnnl_pooling_backward_desc_init(&pd, alg, &src_d, &dst_d,
-                         strides, kernel, padding_l, padding_r),
+        DNN_SAFE(dnnl_pooling_v2_backward_desc_init(&pd, alg, &src_d, &dst_d,
+                         strides, kernel, dilation, padding_l, padding_r),
                 WARN);
     }
 
@@ -194,7 +197,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     attr_args.prepare_binary_post_op_mds(p->attr, p->ndims, dst_dims);
     auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
-    dnnl_status_t init_status
+    dnnl_status_t init_status;
+
+    init_status
             = dnnl_primitive_desc_create(&ppd, &pd, dnnl_attr, engine, hint);
 
     dnnl_primitive_attr_destroy(dnnl_attr);

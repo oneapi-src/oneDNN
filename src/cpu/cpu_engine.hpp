@@ -47,7 +47,7 @@ DECLARE_IMPL_LIST(layer_normalization);
 DECLARE_IMPL_LIST(lrn);
 DECLARE_IMPL_LIST(logsoftmax);
 DECLARE_IMPL_LIST(matmul);
-DECLARE_IMPL_LIST(pooling);
+DECLARE_IMPL_LIST(pooling_v2);
 DECLARE_IMPL_LIST(resampling);
 DECLARE_IMPL_LIST(rnn);
 DECLARE_IMPL_LIST(shuffle);
@@ -78,6 +78,7 @@ public:
             const op_desc_t *desc) const override {
         static const primitive_desc_create_f empty_list[] = {nullptr};
 
+// clang-format off
 #define CASE(kind) \
     case primitive_kind::kind: \
         return get_##kind##_impl_list((const kind##_desc_t *)desc);
@@ -92,7 +93,8 @@ public:
             CASE(lrn);
             CASE(logsoftmax);
             CASE(matmul);
-            CASE(pooling);
+            case primitive_kind::pooling:
+            CASE(pooling_v2);
             CASE(resampling);
             CASE(rnn);
             CASE(shuffle);
@@ -101,6 +103,7 @@ public:
         }
 #undef CASE
     }
+    // clang-format on
 };
 
 class cpu_engine_factory_t : public engine_factory_t {

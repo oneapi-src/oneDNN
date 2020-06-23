@@ -65,6 +65,8 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_lrn_backward.cpp
                               test_pooling_forward.cpp
                               test_pooling_backward.cpp
+                              test_pooling_v2_forward.cpp
+                              test_pooling_v2_backward.cpp
                               test_batch_normalization_f32.cpp
                               test_batch_normalization_s8.cpp
                               test_inner_product_forward.cpp

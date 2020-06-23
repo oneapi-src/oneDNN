@@ -353,10 +353,12 @@ void simple_net() {
     // {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, POOL_OH, POOL_OW}
     // kernel: {3, 3}
     // strides: {POOL_STRIDE, POOL_STRIDE}
+    // dilation: {0, 0}
     dnnl_dim_t *pool_dst_sizes = net_dst_sizes;
     dnnl_dim_t pool_kernel[2] = {3, 3};
     dnnl_dim_t pool_strides[2] = {POOL_STRIDE, POOL_STRIDE};
     dnnl_dim_t pool_padding[2] = {POOL_PAD, POOL_PAD};
+    dnnl_dim_t pool_dilation[2] = {0, 0};
 
     // create memory for user dst data
     dnnl_memory_t pool_user_dst_memory;
@@ -376,10 +378,10 @@ void simple_net() {
         CHECK(dnnl_memory_desc_init_by_tag(&pool_dst_md, 4, pool_dst_sizes,
                 dnnl_f32, dnnl_format_tag_any));
 
-        dnnl_pooling_desc_t pool_desc;
-        CHECK(dnnl_pooling_forward_desc_init(&pool_desc, dnnl_forward,
+        dnnl_pooling_v2_desc_t pool_desc;
+        CHECK(dnnl_pooling_v2_forward_desc_init(&pool_desc, dnnl_forward,
                 dnnl_pooling_max, pool_src_md, &pool_dst_md, pool_strides,
-                pool_kernel, pool_padding, pool_padding));
+                pool_kernel, pool_dilation, pool_padding, pool_padding));
 
         CHECK(dnnl_primitive_desc_create(
                 &pool_pd, &pool_desc, NULL, engine, NULL));
@@ -444,10 +446,10 @@ void simple_net() {
     const dnnl_memory_desc_t *pool_diff_dst_md = pool_dst_md;
 
     // create backward pooling descriptor
-    dnnl_pooling_desc_t pool_bwd_desc;
-    CHECK(dnnl_pooling_backward_desc_init(&pool_bwd_desc, dnnl_pooling_max,
+    dnnl_pooling_v2_desc_t pool_bwd_desc;
+    CHECK(dnnl_pooling_v2_backward_desc_init(&pool_bwd_desc, dnnl_pooling_max,
             pool_diff_src_md, pool_diff_dst_md, pool_strides, pool_kernel,
-            pool_padding, pool_padding));
+            pool_dilation, pool_padding, pool_padding));
 
     // backward primitive descriptor needs to hint forward descriptor
     dnnl_primitive_desc_t pool_bwd_pd;

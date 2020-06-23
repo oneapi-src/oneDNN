@@ -55,7 +55,7 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
                     && is_fwd() && !has_zero_dim_memory()
                     && everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values() && !is_dilated();
             if (!ok) return status::unimplemented;
 
             const bool is_training
@@ -121,7 +121,7 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
                     && !is_fwd() && !has_zero_dim_memory()
                     && everyone_is(d_type, diff_src_md()->data_type,
                             diff_dst_md()->data_type)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values() && !is_dilated();
             if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == alg_kind::pooling_max) {

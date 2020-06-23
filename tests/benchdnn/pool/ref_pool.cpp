@@ -29,21 +29,23 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
         const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
         const int64_t PD = p->pd, PH = p->ph, PW = p->pw;
         const int64_t SD = p->sd, SH = p->sh, SW = p->sw;
+        const int64_t DD = p->dd, DH = p->dh, DW = p->dw;
 
         // XXX: this is a hack to let tests with padded area to pass for bf16
         // dt due to the library initialize values with -max_dt, but not -INF.
         float max_value = lowest_dt(p->cfg[DST].dt);
         float avg_value = 0.;
         int ws_off = INT_MAX;
+        int num_summands = 0;
 
         for (int64_t kd = 0; kd < KD; ++kd) {
-            const int64_t id = od * SD - PD + kd;
+            const int64_t id = od * SD - PD + kd * (DD + 1);
             if (id < 0 || id >= ID) continue;
             for (int64_t kh = 0; kh < KH; ++kh) {
-                const int64_t ih = oh * SH - PH + kh;
+                const int64_t ih = oh * SH - PH + kh * (DH + 1);
                 if (ih < 0 || ih >= IH) continue;
                 for (int64_t kw = 0; kw < KW; ++kw) {
-                    const int64_t iw = ow * SW - PW + kw;
+                    const int64_t iw = ow * SW - PW + kw * (DW + 1);
                     if (iw < 0 || iw >= IW) continue;
 
                     float s = src.get_elem(src_off_f(p, mb, ic, id, ih, iw));
@@ -52,6 +54,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
                         ws_off = ker_off_f(p, kd, kh, kw);
                     }
                     avg_value += s;
+                    num_summands++;
                 }
             }
         }
@@ -97,17 +100,18 @@ void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
 
         const int64_t ID = p->id, IH = p->ih, IW = p->iw;
         const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
+        const int64_t DD = p->dd, DH = p->dh, DW = p->dw;
         const int64_t PD = p->pd, PH = p->ph, PW = p->pw;
         const int64_t SD = p->sd, SH = p->sh, SW = p->sw;
 
         for (int64_t kd = 0; kd < KD; ++kd) {
-            const int64_t id = od * SD - PD + kd;
+            const int64_t id = od * SD - PD + kd * (DD + 1);
             if (id < 0 || id >= ID) continue;
             for (int64_t kh = 0; kh < KH; ++kh) {
-                const int64_t ih = oh * SH - PH + kh;
+                const int64_t ih = oh * SH - PH + kh * (DH + 1);
                 if (ih < 0 || ih >= IH) continue;
                 for (int64_t kw = 0; kw < KW; ++kw) {
-                    const int64_t iw = ow * SW - PW + kw;
+                    const int64_t iw = ow * SW - PW + kw * (DW + 1);
                     if (iw < 0 || iw >= IW) continue;
 
                     float &S = ((
