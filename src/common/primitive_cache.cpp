@@ -104,6 +104,7 @@ void lru_primitive_cache_t::add(const key_t &key, const value_t &value) {
     // Place a new entry to cache_list_ and update cache_mapper_
     cache_list_.emplace_front(key, value);
     cache_mapper_.insert(std::make_pair(key, cache_list_.begin()));
+    assert(cache_list_.size() == cache_mapper_.size());
 }
 
 lru_primitive_cache_t::value_t lru_primitive_cache_t::get(const key_t &key) {
@@ -135,6 +136,7 @@ void lru_primitive_cache_t::remove_if_invalidated(
     // Remove the invalidated entry
     cache_list_.erase(it->second);
     cache_mapper_.erase(it);
+    assert(cache_list_.size() == cache_mapper_.size());
     unlock_write(need_lock);
 }
 
