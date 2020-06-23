@@ -162,8 +162,10 @@ size_t get_md_hash(const memory_desc_t &md) {
         case format_kind::undef:
         case format_kind::any: break;
         case format_kind::blocked:
-            seed = get_array_hash(
-                    seed, md.format_desc.blocking.strides, md.ndims);
+            for (int i = 0; i < md.ndims; i++) {
+                if (md.dims[i] == 1 && md.padded_dims[i] == 1) continue;
+                seed = hash_combine(seed, md.format_desc.blocking.strides[i]);
+            }
             seed = hash_combine(seed, md.format_desc.blocking.inner_nblks);
             seed = get_array_hash(seed, md.format_desc.blocking.inner_blks,
                     md.format_desc.blocking.inner_nblks);
