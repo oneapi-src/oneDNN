@@ -450,7 +450,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *p, dnnl_primitive_desc_t &bpd,
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common({p->dt}, r);
+    check_known_skipped_case_common({p->dt}, p->dir, r);
 }
 
 int doit(const prb_t *p, res_t *r) {

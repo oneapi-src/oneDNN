@@ -150,7 +150,7 @@ int fill_src(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common(p->sdt, r);
+    check_known_skipped_case_common(p->sdt, FWD_D, r);
 }
 
 int doit(const prb_t *p, res_t *r) {

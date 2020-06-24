@@ -130,7 +130,7 @@ int fill_src(
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common({p->sdt, p->ddt}, r);
+    check_known_skipped_case_common({p->sdt, p->ddt}, FWD_D, r);
 }
 
 int doit(const prb_t *p, res_t *r) {

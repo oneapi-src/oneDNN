@@ -283,7 +283,7 @@ int fill_data(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common({p->dt}, r);
+    check_known_skipped_case_common({p->dt}, p->dir, r);
     if (r->state == SKIPPED) return;
 
     bool is_invalid = false;

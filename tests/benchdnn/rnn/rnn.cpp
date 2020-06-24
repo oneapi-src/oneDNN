@@ -592,7 +592,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
 }
 
 void check_known_skipped_case(const prb_t &p, res_t *r) {
-    check_known_skipped_case_common({p.cfg[SRC_LAYER].dt}, r);
+    dir_t dir = str2dir(prop2str(p.prop));
+    check_known_skipped_case_common({p.cfg[SRC_LAYER].dt}, dir, r);
     if (r->state == SKIPPED) return;
 
     if (p.maybe_skip()) {

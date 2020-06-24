@@ -290,7 +290,7 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common(
-            {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, r);
+            {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, p->dir, r);
 }
 
 int doit(const prb_t *p, res_t *r) {

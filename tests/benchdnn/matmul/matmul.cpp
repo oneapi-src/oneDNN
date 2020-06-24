@@ -203,7 +203,7 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common(
-            {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, r);
+            {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, FWD_D, r);
 }
 
 int doit(const prb_t *p, res_t *r) {

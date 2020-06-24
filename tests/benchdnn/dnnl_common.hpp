@@ -310,6 +310,6 @@ bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag);
 
 void check_known_skipped_case_common(
-        const std::vector<dnnl_data_type_t> &v_dt, res_t *r);
+        const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *r);
 
 #endif

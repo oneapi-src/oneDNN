@@ -133,7 +133,7 @@ int fill_src(
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     std::vector<dnnl_data_type_t> dts = p->sdt;
     dts.push_back(p->ddt);
-    check_known_skipped_case_common(dts, r);
+    check_known_skipped_case_common(dts, FWD_D, r);
 }
 
 int doit(const prb_t *p, res_t *r) {

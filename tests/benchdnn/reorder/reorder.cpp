@@ -256,7 +256,8 @@ static int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common({p->conf_in->dt, p->conf_out->dt}, r);
+    check_known_skipped_case_common(
+            {p->conf_in->dt, p->conf_out->dt}, FWD_D, r);
 }
 
 int doit(const prb_t *p, res_t *r) {
