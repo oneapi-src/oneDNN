@@ -75,7 +75,12 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                                                     : dnnl_unimplemented,
             CRIT);
 
-    auto dnnl_attr = create_dnnl_attr(p->attr, p->n, p->scales);
+    // Overload PER_OC mask definition for batched case
+    int mask = 0;
+    if (p->attr.oscale.policy == policy_t::PER_OC)
+        mask = p->ndims == 3 ? 1 << 2 : 1 << 1;
+
+    auto dnnl_attr = create_dnnl_attr(p->attr, p->n, mask, p->scales);
 
     dnnl_status_t init_status = dnnl_success;
     init_status
@@ -204,6 +209,33 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common(
             {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, FWD_D, r);
+    if (r->state == SKIPPED) return;
+
+    // zero points for non-integral data type does not make sense
+    if (!p->attr.zero_points.is_def() && p->cfg[WEI].dt != dnnl_s8) {
+        r->state = SKIPPED, r->reason = INVALID_CASE;
+        return;
+    }
+
+    // memory layout should be defined when some dimension is unknown in pd
+    // creation time
+    if (p->runtime_mb
+            && (p->stag == "any" || p->wtag == "any" || p->dtag == "any")) {
+        r->state = SKIPPED, r->reason = INVALID_CASE;
+        return;
+    }
+    if (p->runtime_m && (p->stag == "any" || p->dtag == "any")) {
+        r->state = SKIPPED, r->reason = INVALID_CASE;
+        return;
+    }
+    if (p->runtime_n && (p->wtag == "any" || p->dtag == "any")) {
+        r->state = SKIPPED, r->reason = INVALID_CASE;
+        return;
+    }
+    if (p->runtime_k && (p->stag == "any" || p->wtag == "any")) {
+        r->state = SKIPPED, r->reason = INVALID_CASE;
+        return;
+    }
 }
 
 int doit(const prb_t *p, res_t *r) {
@@ -229,27 +261,43 @@ int doit(const prb_t *p, res_t *r) {
                 const_pd, dnnl_query_exec_arg_md, index);
     };
 
-    dnnl_memory_desc_t src_md, wei_md, dst_md, bia_md;
-    if (p->runtime_mb || p->runtime_m || p->runtime_n || p->runtime_k) {
+    dnnl_memory_desc_t src_md {}, wei_md {}, dst_md {}, bia_md {}, def_md {};
+    // query md if it was defined at pd creation time
+    if (!p->runtime_mb && !p->runtime_m && !p->runtime_k)
+        src_md = q(DNNL_ARG_SRC);
+    if (!p->runtime_mb && !p->runtime_n && !p->runtime_k)
+        wei_md = q(DNNL_ARG_WEIGHTS);
+    if (!p->runtime_mb && !p->runtime_m && !p->runtime_n) {
+        dst_md = q(DNNL_ARG_DST);
+        if (p->bia_dt != dnnl_data_type_undef) bia_md = q(DNNL_ARG_BIAS);
+    }
+
+    // if md is same as default, it means we need to re-create it
+    if (dnnl_memory_desc_equal(&src_md, &def_md)) {
+        assert(p->stag != "any");
         src_md.dims[0 + (p->ndims == 3)] = p->m;
         src_md.dims[1 + (p->ndims == 3)] = p->k;
-        wei_md.dims[0 + (p->ndims == 3)] = p->k;
-        wei_md.dims[1 + (p->ndims == 3)] = p->n;
-        dst_md.dims[0 + (p->ndims == 3)] = p->m;
-        dst_md.dims[1 + (p->ndims == 3)] = p->n;
-
-        if (p->ndims == 3) {
-            src_md.dims[0] = p->mb;
-            wei_md.dims[0] = p->mb;
-            dst_md.dims[0] = p->mb;
-        }
-
+        if (p->ndims == 3) src_md.dims[0] = p->mb;
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_md, p->ndims, src_md.dims,
                          p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
                 WARN);
+    }
+
+    if (dnnl_memory_desc_equal(&wei_md, &def_md)) {
+        assert(p->wtag != "any");
+        wei_md.dims[0 + (p->ndims == 3)] = p->k;
+        wei_md.dims[1 + (p->ndims == 3)] = p->n;
+        if (p->ndims == 3) wei_md.dims[0] = p->mb;
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_md, p->ndims, wei_md.dims,
                          p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
                 WARN);
+    }
+
+    if (dnnl_memory_desc_equal(&dst_md, &def_md)) {
+        assert(p->dtag != "any");
+        dst_md.dims[0 + (p->ndims == 3)] = p->m;
+        dst_md.dims[1 + (p->ndims == 3)] = p->n;
+        if (p->ndims == 3) dst_md.dims[0] = p->mb;
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_md, p->ndims, dst_md.dims,
                          p->cfg[DST].dt, convert_tag(p->dtag, p->ndims)),
                 WARN);
@@ -259,12 +307,8 @@ int doit(const prb_t *p, res_t *r) {
                              &bia_md, p->ndims, bia_md.dims, p->bia_dt, NULL),
                     WARN);
         }
-    } else {
-        src_md = q(DNNL_ARG_SRC);
-        wei_md = q(DNNL_ARG_WEIGHTS);
-        dst_md = q(DNNL_ARG_DST);
-        if (p->bia_dt != dnnl_data_type_undef) bia_md = q(DNNL_ARG_BIAS);
     }
+
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto &test_engine = get_test_engine();
