@@ -119,11 +119,11 @@ status_t ocl_stream_t::copy(
     return status::success;
 }
 
-status_t ocl_stream_t::fill(const memory_storage_t &dst, const void *pattern,
-        size_t pattern_size, size_t size) {
+status_t ocl_stream_t::fill(
+        const memory_storage_t &dst, uint8_t pattern, size_t size) {
     auto &ocl_dst = *utils::downcast<const ocl_memory_storage_t *>(&dst);
-    cl_int err = clEnqueueFillBuffer(queue(), ocl_dst.mem_object(), pattern,
-            pattern_size, dst.offset(), size, 0, nullptr, nullptr);
+    cl_int err = clEnqueueFillBuffer(queue(), ocl_dst.mem_object(), &pattern,
+            sizeof(uint8_t), dst.offset(), size, 0, nullptr, nullptr);
     OCL_CHECK(err);
     return status::success;
 }

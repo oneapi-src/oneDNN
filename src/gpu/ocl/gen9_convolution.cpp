@@ -1093,14 +1093,12 @@ status_t gen9_convolution_bwd_weights_t::execute_backward_weights(
 
     const auto &conf = pd()->conf;
 
-    const float zero = 0;
+    const uint8_t zero = 0;
     memory_desc_wrapper wei_mdw(pd()->diff_weights_md());
-    CHECK(compute_stream->fill(
-            diff_weights, &zero, sizeof(zero), wei_mdw.size()));
+    CHECK(compute_stream->fill(diff_weights, zero, wei_mdw.size()));
     if (conf.with_bias) {
         memory_desc_wrapper bia_mdw(pd()->diff_weights_md(1));
-        CHECK(compute_stream->fill(
-                diff_bias, &zero, sizeof(zero), bia_mdw.size()));
+        CHECK(compute_stream->fill(diff_bias, zero, bia_mdw.size()));
     }
 
     compute::kernel_arg_list_t arg_list;

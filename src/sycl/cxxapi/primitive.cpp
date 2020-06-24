@@ -53,7 +53,7 @@ cl::sycl::event primitive::execute_sycl(const stream &astream,
             "could not execute a primitive");
 
     // return output event
-    return sycl_stream->get_deps()[0];
+    return sycl_stream->get_output_event();
 }
 
 } // namespace dnnl
