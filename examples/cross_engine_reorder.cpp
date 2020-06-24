@@ -61,10 +61,11 @@ void fill(memory &mem, const memory::dims &adims) {
 
 int find_negative(memory &mem, const memory::dims &adims) {
     int negs = 0;
-    std::vector<float> array(product(adims));
+    size_t nelems = product(adims);
+    std::vector<float> array(nelems);
     read_from_dnnl_memory(array.data(), mem);
 
-    for (size_t e = 0; e < (size_t)product(adims); ++e)
+    for (size_t e = 0; e < nelems; ++e)
         negs += array[e] < 0.0f;
     return negs;
 }
