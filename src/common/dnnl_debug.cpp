@@ -137,7 +137,7 @@ int dnnl_md2dim_str(
 
 #define DPRINT_RT(val) \
     do { \
-        if ((val) == DNNL_RUNTIME_DIM_VAL) \
+        if (is_runtime_value(val)) \
             DPRINT("*"); \
         else \
             DPRINT("%" PRId64, (val)); \
