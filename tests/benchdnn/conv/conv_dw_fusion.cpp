@@ -313,6 +313,7 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *p) {
     cd.pw = 1;
     cd.has_groups = true;
     cd.ndims = p->ndims;
+    cd.init_pad_r(false); // is_deconv = false for conv descriptor
 
     return std::unique_ptr<prb_t>(new prb_t(cd, p->dir, p_dw_cfg, tag::any,
             tag::any, p->dtag, alg_t::DIRECT, fusion_attr, p->mb));

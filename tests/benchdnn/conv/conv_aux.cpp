@@ -183,17 +183,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             != OK)
         return FAIL;
 
-    auto opp_pad = [](bool is_deconv, int64_t idim, int64_t odim, int64_t kdim,
-                           int64_t sdim, int64_t pdim, int64_t ddim) {
-        return is_deconv ? (idim - 1) * sdim - odim
-                        + ((kdim - 1) * (ddim + 1) + 1) - pdim
-                         : (odim - 1) * sdim - idim
-                        + ((kdim - 1) * (ddim + 1) + 1) - pdim;
-    };
-    d.pw_r = opp_pad(is_deconv, d.iw, d.ow, d.kw, d.sw, d.pw, d.dw);
-    d.ph_r = opp_pad(is_deconv, d.ih, d.oh, d.kh, d.sh, d.ph, d.dh);
-    d.pd_r = opp_pad(is_deconv, d.id, d.od, d.kd, d.sd, d.pd, d.dd);
-
+    d.init_pad_r(is_deconv);
     *desc = d;
 
     return OK;

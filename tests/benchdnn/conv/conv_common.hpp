@@ -49,6 +49,21 @@ struct desc_t {
 
     const char *name;
     int ndims;
+
+    // Initialize dependent opposite-side paddings values
+    // from the shape parameters
+    void init_pad_r(bool is_deconv) {
+        pw_r = opp_pad(is_deconv, iw, ow, kw, sw, pw, dw);
+        ph_r = opp_pad(is_deconv, ih, oh, kh, sh, ph, dh);
+        pd_r = opp_pad(is_deconv, id, od, kd, sd, pd, dd);
+    }
+
+private:
+    int64_t opp_pad(bool is_deconv, int64_t i, int64_t o, int64_t k, int64_t s,
+            int64_t p, int64_t d) {
+        return is_deconv ? (i - 1) * s - o + ((k - 1) * (d + 1) + 1) - p
+                         : (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - p;
+    }
 };
 
 int str2desc(desc_t *desc, const char *str, bool is_deconv);
