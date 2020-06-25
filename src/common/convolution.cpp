@@ -90,8 +90,9 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
     const int g = with_groups ? weights_desc->dims[0] : 1;
     const int bias_dim = prop_kind == backward_data ? src_desc->dims[1]
                                                     : dst_desc->dims[1];
-    consistency = IMPLICATION(with_bias,
-                          bias_desc->ndims == 1 && bias_desc->dims[0])
+    consistency
+            = IMPLICATION(with_bias,
+                      bias_desc->ndims == 1 && bias_desc->dims[0] == bias_dim)
             && src_desc->dims[0] == dst_desc->dims[0]
             && src_desc->dims[1] == g * weights_desc->dims[with_groups + 1]
             && dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0];
