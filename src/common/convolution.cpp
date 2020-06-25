@@ -76,6 +76,27 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
         (prop_kind == backward_weights ? cd.diff_bias_desc : cd.bias_desc)
                 = *bias_desc;
 
+    cd.accum_data_type = types::default_accum_data_type(src_desc->data_type,
+            weights_desc->data_type, dst_desc->data_type, prop_kind);
+    if (cd.accum_data_type == data_type::undef) return invalid_arguments;
+
+    bool consistency = memory_desc_wrapper(weights_desc).nelems()
+            && src_desc->ndims == dst_desc->ndims
+            && utils::one_of(src_desc->ndims, 3, 4, 5)
+            && utils::one_of(
+                    weights_desc->ndims, src_desc->ndims, src_desc->ndims + 1);
+    if (!consistency) return invalid_arguments;
+
+    const int g = with_groups ? weights_desc->dims[0] : 1;
+    const int bias_dim = prop_kind == backward_data ? src_desc->dims[1]
+                                                    : dst_desc->dims[1];
+    consistency = IMPLICATION(with_bias,
+                          bias_desc->ndims == 1 && bias_desc->dims[0])
+            && src_desc->dims[0] == dst_desc->dims[0]
+            && src_desc->dims[1] == g * weights_desc->dims[with_groups + 1]
+            && dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0];
+    if (!consistency) return invalid_arguments;
+
     int sp_dims = src_desc->ndims - 2;
     utils::array_copy(cd.strides, strides, sp_dims);
     utils::array_copy(cd.padding[0], padding_l, sp_dims);
@@ -85,24 +106,6 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
     else
         utils::array_set(cd.dilates, 0, sp_dims);
 
-    cd.accum_data_type = types::default_accum_data_type(src_desc->data_type,
-            weights_desc->data_type, dst_desc->data_type, prop_kind);
-    if (cd.accum_data_type == data_type::undef) return invalid_arguments;
-
-    const int g = with_groups ? weights_desc->dims[0] : 1;
-    const int bias_dim = prop_kind == backward_data ? src_desc->dims[1]
-                                                    : dst_desc->dims[1];
-
-    bool consistency = true && memory_desc_wrapper(weights_desc).nelems()
-            && src_desc->ndims == dst_desc->ndims
-            && utils::one_of(src_desc->ndims, 3, 4, 5)
-            && utils::one_of(
-                    weights_desc->ndims, src_desc->ndims, src_desc->ndims + 1)
-            && (with_bias ? bias_desc->ndims == 1 : true)
-            && (with_bias ? bias_desc->dims[0] == bias_dim : true)
-            && src_desc->dims[0] == dst_desc->dims[0]
-            && src_desc->dims[1] == g * weights_desc->dims[with_groups + 1]
-            && dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0];
     for (int i = 2; i < src_desc->ndims; ++i) {
         int src = src_desc->dims[i];
         int ker = weights_desc->dims[with_groups + i];
