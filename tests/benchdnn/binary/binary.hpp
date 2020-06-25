@@ -117,6 +117,7 @@ struct perf_report_t : public base_perf_report_t {
     const std::vector<dnnl_data_type_t> *sdt() const override {
         return &p_->sdt;
     }
+    const attr_t *attr() const override { return &p_->attr; }
     const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
     const std::vector<std::string> *stag() const override { return &p_->stag; }
 

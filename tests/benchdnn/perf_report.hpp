@@ -91,6 +91,7 @@ struct base_perf_report_t {
         HANDLE("prop", if (prop()) s << prop2str(*prop()));
         HANDLE("tag", if (tag()) s << *tag());
         HANDLE("stat_tag", if (stat_tag()) s << *stat_tag());
+        HANDLE("wtag", if (wtag()) s << *wtag());
 
         HANDLE("bw", s << get_bw());
         HANDLE("flops", s << get_flops());
@@ -140,6 +141,7 @@ struct base_perf_report_t {
     virtual const std::string *stat_tag() const { return nullptr; }
     virtual const std::vector<std::string> *stag() const { return nullptr; }
     virtual const std::string *dtag() const { return nullptr; }
+    virtual const std::string *wtag() const { return nullptr; }
     virtual const dnnl_prop_kind_t *prop() const { return nullptr; }
 
     /* primitive-specific properties (but with common interface) */
