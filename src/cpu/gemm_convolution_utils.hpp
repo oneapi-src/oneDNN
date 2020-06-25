@@ -28,7 +28,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-enum conv_gemm_loop_order_t { gemm_loop_rlb, gemm_loop_lrb };
+enum conv_gemm_loop_order_t { gemm_loop_rlb, gemm_loop_lrb, gemm_loop_lbr };
 struct conv_gemm_conf_t {
     prop_kind_t prop_kind;
 

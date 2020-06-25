@@ -1526,7 +1526,6 @@ status_t init_conf(conv_gemm_conf_t &jcp,
 
                 auto calc_max_icb = [=](int nthr_oc, int ocb, int osb,
                                             int oc_per_thr, int os_per_thr) {
-                    if (is_bf16_conv) return jcp.ic;
                     const int block_out_size = ocb * osb;
                     // TODO: need more precise calculation if stride more than
                     // kernel size
@@ -1684,12 +1683,11 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                         best_icb, jcp.oc, jcp.os);
 
                 int icb {best_icb};
-                const int nthr_oc_max = is_bf16_conv ? 1 : max_threads;
+                const int nthr_oc_max = max_threads;
                 for (int nthr_oc = 1; nthr_oc <= nthr_oc_max; ++nthr_oc) {
                     const int max_oc_per_thr = div_up(jcp.oc, nthr_oc);
-                    const int min_oc_per_thr = is_bf16_conv
-                            ? jcp.oc
-                            : nstl::min(min_oc_block, max_oc_per_thr);
+                    const int min_oc_per_thr
+                            = nstl::min(min_oc_block, max_oc_per_thr);
                     const int max_os_per_thr = nstl::min(jcp.os,
                             div_up(spatial,
                                     nstl::max(1, max_threads / nthr_oc)));
@@ -1721,8 +1719,6 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                 jcp.oc_block = best_ocb;
                 jcp.os_block = best_osb;
                 jcp.ic_block = best_icb;
-                assert(IMPLICATION(is_bf16_conv,
-                        jcp.oc_block == jcp.oc && jcp.ic_block == jcp.ic));
 
                 // TODO: define loop order
                 // if im2col then gemm_loop_rlb and gemm_loop_lrb looks
@@ -1744,6 +1740,11 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                                         < gemm_thrld);
             }
             jcp.os_nb_block = div_up(jcp.os, jcp.os_block);
+
+            // BF16: other loops should be explored for potential
+            // performance speedup, but BF16-dst post-processing implementation
+            // would require enabling this support.
+            if (is_bf16_conv) jcp.loop_order = gemm_loop_lbr;
 
             if (jcp.im2col_sz)
                 jcp.im2col_sz = (ptrdiff_t)jcp.ic_block * jcp.ks * jcp.os_block;
@@ -1841,7 +1842,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                 size_t conv_acc_buffer_size = 0;
                 if (is_fwd)
                     conv_acc_buffer_size = jcp.nthr
-                            * rnd_up(jcp.oc * jcp.os_block,
+                            * rnd_up(jcp.oc_block * jcp.os_block,
                                     sizeof_cacheline_float);
                 else if (is_bwd_d)
                     conv_acc_buffer_size = jcp.nthr

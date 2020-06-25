@@ -145,7 +145,7 @@ private:
                 const acc_data_t *bias, float sum_scale, size_t oc_work);
         void operator()(dst_data_t *dst, const acc_data_t *acc,
                 const acc_data_t *bias, float sum_scale, size_t dst_str,
-                size_t acc_str, size_t len, bool do_parallel);
+                size_t acc_str, size_t sp_len, size_t oc);
 
     private:
         struct ker_args {
