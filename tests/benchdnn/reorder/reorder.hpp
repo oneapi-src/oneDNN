@@ -134,7 +134,8 @@ struct perf_report_t : public base_perf_report_t {
         p_ = p;
         sdt_ = {cfg2dt(p_->conf_in)};
         ddt_ = cfg2dt(p_->conf_out);
-        stag_ = {p_->reorder.tag_in};
+        stag_ = {fmt_tag2str(convert_tag(p_->reorder.tag_in, p_->ndims))};
+        dtag_ = fmt_tag2str(convert_tag(p_->reorder.tag_out, p_->ndims));
         base_report(r, prb_str);
     }
 
@@ -155,13 +156,14 @@ struct perf_report_t : public base_perf_report_t {
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }
     const dnnl_data_type_t *ddt() const override { return &ddt_; }
     const std::vector<std::string> *stag() const override { return &stag_; }
-    const std::string *dtag() const override { return &p_->reorder.tag_out; }
+    const std::string *dtag() const override { return &dtag_; }
 
 private:
     const prb_t *p_ = NULL;
     std::vector<dnnl_data_type_t> sdt_;
     dnnl_data_type_t ddt_;
     std::vector<std::string> stag_;
+    std::string dtag_;
 };
 
 int doit(const prb_t *p, res_t *res);

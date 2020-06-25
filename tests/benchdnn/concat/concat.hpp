@@ -103,6 +103,9 @@ struct perf_report_t : public base_perf_report_t {
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
         sdt_ = {p_->sdt};
+        for (size_t d = 0; d < p_->stag.size(); d++)
+            stag_.push_back(fmt_tag2str(convert_tag(p_->stag[d], p_->ndims)));
+        dtag_ = fmt_tag2str(convert_tag(p_->dtag, p_->ndims));
         base_report(r, prb_str);
     }
 
@@ -113,12 +116,14 @@ struct perf_report_t : public base_perf_report_t {
     const int *axis() const override { return &p_->axis; }
     const std::vector<dnnl_data_type_t> *sdt() const override { return &sdt_; }
     const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
-    const std::vector<std::string> *stag() const override { return &p_->stag; }
-    const std::string *dtag() const override { return &p_->dtag; }
+    const std::vector<std::string> *stag() const override { return &stag_; }
+    const std::string *dtag() const override { return &dtag_; }
 
 private:
     const prb_t *p_ = NULL;
     std::vector<dnnl_data_type_t> sdt_;
+    std::vector<std::string> stag_;
+    std::string dtag_;
 };
 
 void compute_ref(

@@ -94,6 +94,7 @@ struct perf_report_t : public base_perf_report_t {
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
+        tag_ = fmt_tag2str(convert_tag(p_->tag, p_->ndims));
         base_report(r, prb_str);
     }
 
@@ -106,10 +107,11 @@ struct perf_report_t : public base_perf_report_t {
     const int *axis() const override { return &p_->axis; }
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    const std::string *tag() const override { return &p_->tag; }
+    const std::string *tag() const override { return &tag_; }
 
 private:
     const prb_t *p_ = NULL;
+    std::string tag_;
 };
 
 inline void map_off_to_mb_ic(
