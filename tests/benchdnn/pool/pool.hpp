@@ -94,10 +94,10 @@ struct settings_t {
     std::vector<int64_t> mb {0};
 
     const char *perf_template_csv
-            = "perf,%engine%,%name%,%dir%,%cfg%,%tag%,%alg%,%DESC%,%-time%,%"
-              "0time%";
+            = "perf,%engine%,%impl%,%name%,%dir%,%cfg%,%tag%,%alg%,%DESC%,%-"
+              "time%,%0time%";
     const char *perf_template_def
-            = "perf,%engine%,%name%,%prb%,%-time%,%0time%";
+            = "perf,%engine%,%impl%,%name%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }

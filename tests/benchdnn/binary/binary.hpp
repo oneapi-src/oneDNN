@@ -51,9 +51,10 @@ struct settings_t {
     attr_t attr = {};
 
     const char *perf_template_csv
-            = "perf,%engine%,%sdt%,%ddt%,%stag%,%alg%,%attr%,%DESC%,%-time%,%"
-              "0time%";
-    const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
+            = "perf,%engine%,%impl%,%sdt%,%ddt%,%stag%,%alg%,%attr%,%DESC%,%-"
+              "time%,%0time%";
+    const char *perf_template_def
+            = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }

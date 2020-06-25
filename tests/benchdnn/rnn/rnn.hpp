@@ -224,12 +224,13 @@ struct settings_t {
     float alpha = 0.9f, beta = 0.0f;
 
     const char *perf_template_csv
-            = "perf,%engine%,%name%,%prop%,%cfg%,%alg%,%activation%,%direction%"
+            = "perf,%engine%,%impl%,%name%,%prop%,%cfg%,%alg%,%activation%,%"
+              "direction%"
               ","
               "%DESC%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
     const char *perf_template_def
-            = "perf,%engine%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,"
-              "%0time%,%0Gflops%";
+            = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-"
+              "Gflops%,%0time%,%0Gflops%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }

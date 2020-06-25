@@ -122,11 +122,11 @@ struct settings_t {
     const char *pattern = NULL;
 
     const char *perf_template_csv
-            = "perf,%engine%,%name%,%dir%,%cfg%,%alg%,%attr%,%DESC%,"
+            = "perf,%engine%,%impl%,%name%,%dir%,%cfg%,%alg%,%attr%,%DESC%,"
               "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
     const char *perf_template_def
-            = "perf,%engine%,%name%,%prb%,"
-              "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+            = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-"
+              "Gflops%,%0time%,%0Gflops%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
