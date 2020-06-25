@@ -509,6 +509,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_logsoftmax) return "logsoftmax";
     if (v == dnnl_matmul) return "matmul";
     if (v == dnnl_resampling) return "resampling";
+    if (v == dnnl_primitive_kind_max) return "primitive_kind_max";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
 }

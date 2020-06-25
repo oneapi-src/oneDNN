@@ -49,7 +49,11 @@ bool parse_tag(std::vector<std::string> &tag,
         const std::vector<std::string> &def_tag, const char *str,
         const std::string &option_name /* = "tag"*/) {
     auto ret_string = [](const char *str) { return std::string(str); };
-    return parse_vector_option(tag, def_tag, ret_string, str, option_name);
+    bool ok = parse_vector_option(tag, def_tag, ret_string, str, option_name);
+    static constexpr int ndims_3d = 5; // to check meta-tags in debug mode
+    for (size_t i = 0; i < tag.size(); i++)
+        ok = ok && convert_tag(tag[i], ndims_3d) != dnnl_format_tag_last;
+    return ok;
 }
 
 bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
