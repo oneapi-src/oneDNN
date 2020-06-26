@@ -710,6 +710,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
     dnn_mem_t scales;
     dnn_mem_t src_zero_points_m;
+    dnn_mem_t dst_zero_points_m;
 
     dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
@@ -723,6 +724,8 @@ int doit(const prb_t *p, res_t *r) {
     maybe_prepare_runtime_scales(scales, p->attr, p->oc, p->scales);
     maybe_prepare_runtime_zero_points(
             src_zero_points_m, p->attr, DNNL_ARG_SRC, p->ic, p->src_zp);
+    maybe_prepare_runtime_zero_points(
+            dst_zero_points_m, p->attr, DNNL_ARG_DST, p->oc, p->dst_zp);
 
     args_t args;
 
@@ -734,6 +737,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
+        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
         SAFE(execute_and_wait(c, args), WARN);
 

@@ -153,15 +153,18 @@ struct prb_t : public desc_t {
         , ops(0)
         , scales(NULL)
         , src_zp(NULL)
+        , dst_zp(NULL)
         , is_deconv(is_deconv) {
         if (mb) this->mb = mb;
         count_ops();
         scales = generate_oscales(attr.oscale, oc);
         src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, ic);
+        dst_zp = generate_zero_points(DNNL_ARG_DST, attr.zero_points, oc);
     }
     ~prb_t() {
         if (scales) zfree(scales);
         if (src_zp) zfree(src_zp);
+        if (dst_zp) zfree(dst_zp);
     }
 
     dir_t dir;
@@ -173,6 +176,7 @@ struct prb_t : public desc_t {
     double ops;
     float *scales;
     int32_t *src_zp;
+    int32_t *dst_zp;
     bool is_deconv;
 
     void count_ops();

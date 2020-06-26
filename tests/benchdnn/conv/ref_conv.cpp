@@ -177,6 +177,9 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                 maybe_oscale(p->attr, conv_res, p->scales, g * OCG + oc);
                 maybe_post_ops(p->attr, conv_res, dst);
 
+                maybe_zero_point(p->attr, conv_res, p->dst_zp, g * OCG + oc,
+                        DNNL_ARG_DST, true);
+
                 dst = conv_res;
             });
 }
