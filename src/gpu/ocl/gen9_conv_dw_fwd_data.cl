@@ -48,16 +48,14 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
             + (id * IH * IW + ih * IW + iw) * MB_BLOCK * IC_BLOCK;
     wei += g * KD * KH * KW;
 
-#if WITH_BIAS
-    DATA_T S00[OW_BLOCK];
-    DATA_T B = AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)&bias[g]));
-    __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
-    for (int k = 0; k < OW_BLOCK; k++) {
-        S00[k] = B;
-    }
-#else
     DATA_T S00[OW_BLOCK] = {DATA_ZERO};
-#endif
+    if (WITH_BIAS) {
+        const int bg_off = g + get_sub_group_local_id();
+        DATA_T b = (G_WO_PADDING % OC_BLOCK == 0 || bg_off < G_WO_PADDING)
+                ? bias[bg_off]
+                : DATA_ZERO;
+        unroll_for(int k = 0; k < OW_BLOCK; k++) { S00[k] = b; }
+    }
 
 #if KH != 1 || KW != 1 || KD != 1
     for (int kd = 0; kd < KD; kd++)
@@ -155,18 +153,17 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
             + (id * IH * IW + ih * IW + iw) * MB_BLOCK * IC_BLOCK;
     wei += g * KD * KH * KW;
 
-#if WITH_BIAS
-    DATA8_T S00, S01;
-    DATA_T B = AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)&bias[g]));
-    __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
-    for (int k = 0; k < 8; k++) {
-        S00[k] = B;
-        S01[k] = B;
-    }
-#else
     DATA8_T S00 = DATA_ZERO;
     DATA8_T S01 = DATA_ZERO;
-#endif
+
+    if (WITH_BIAS) {
+        const int bg_off = g + get_sub_group_local_id();
+        DATA_T b = (G % OC_BLOCK == 0 || bg_off < G) ? bias[bg_off] : DATA_ZERO;
+        unroll_for(int k = 0; k < 8; k++) {
+            S00[k] = b;
+            S01[k] = b;
+        }
+    }
 
 #if KH != 1 || KW != 1 || KD != 1
     for (int kd = 0; kd < KD; kd++)
