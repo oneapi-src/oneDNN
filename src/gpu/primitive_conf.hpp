@@ -499,6 +499,8 @@ struct eltwise_conf_t {
     alg_kind_t alg;
     bool is_forward;
     compute::dispatch_t dispatch;
+    memory_desc_info_t data_md_info;
+    memory_desc_info_t data_diff_md_info;
 };
 
 // Shuffle
