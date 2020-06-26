@@ -2218,7 +2218,7 @@ typedef struct {
 
 /// CPU instruction set flags
 typedef enum {
-    /// Any ISA (no restrictions)
+    /// Any ISA (excepting those listed as initial support)
     dnnl_cpu_isa_all = 0x0,
 
     /// Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)
@@ -2251,6 +2251,11 @@ typedef enum {
     /// for Intel Xeon Scalable processor family
     /// and Intel Core processor family.
     dnnl_cpu_isa_avx512_core_bf16 = 0xe7,
+
+    /// Intel AVX-512, Intel DL Boost and bfloat16 support and
+    /// Intel AMX with 8-bit integer and bfloat16 support
+    /// (initial support)
+    dnnl_cpu_isa_avx512_core_amx = 0x3e7,
 } dnnl_cpu_isa_t;
 
 /// @} dnnl_api_service
