@@ -618,6 +618,7 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("DH", conf.dilate_h);
     kernel_ctx.define_int("DW", conf.dilate_w);
     kernel_ctx.define_int("OC_PADDED", conf.oc);
+    kernel_ctx.define_int("G_WO_PADDING", conf.ngroups_without_padding);
     kernel_ctx.define_int("OC_WO_PADDING", conf.oc_without_padding);
     kernel_ctx.define_int("IC_WO_PADDING", conf.ic_without_padding);
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
