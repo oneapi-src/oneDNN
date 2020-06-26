@@ -2079,5 +2079,17 @@ void vshufi64x2(const Ymm& y1, const Ymm& y2, const Operand& op, uint8 imm) { op
 void kmovq(const Opmask& k, const Reg64& r) { opVex(k, 0, r, T_L0 | T_0F | T_F2 | T_W1, 0x92); }
 void kmovq(const Reg64& r, const Opmask& k) { opVex(r, 0, k, T_L0 | T_0F | T_F2 | T_W1, 0x93); }
 void vpbroadcastq(const Xmm& x, const Reg64& r) { opVex(x, 0, r, T_66 | T_0F38 | T_EW1 | T_YMM | T_MUST_EVEX, 0x7C); }
+void ldtilecfg(const Address& addr) { opAMX(tm0, tm0, addr, T_0F38 | T_W0 | T_TMM, 0x49); }
+void sttilecfg(const Address& addr) { opAMX(tm0, tm0, addr, T_66 | T_0F38 | T_W0 | T_TMM, 0x49); }
+void tdpbf16ps(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opAMX(x1, x3, x2, T_F3 | T_0F38 | T_W0 | T_TMM, 0x5c); }
+void tdpbssd(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opAMX(x1, x3, x2, T_F2 | T_0F38 | T_W0 | T_TMM, 0x5e); }
+void tdpbsud(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opAMX(x1, x3, x2, T_F3 | T_0F38 | T_W0 | T_TMM, 0x5e); }
+void tdpbusd(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opAMX(x1, x3, x2, T_66 | T_0F38 | T_W0 | T_TMM, 0x5e); }
+void tdpbuud(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opAMX(x1, x3, x2,        T_0F38 | T_W0 | T_TMM, 0x5e); }
+void tileloadd(const Tmm& tm, const Operand& op) { opAMX(tm, tm0, op, T_F2 | T_0F38 | T_W0 | T_TMM, 0x4b); }
+void tileloaddt1(const Tmm& tm, const Operand& op) { opAMX(tm, tm0, op, T_66 | T_0F38 | T_W0 | T_TMM, 0x4b); }
+void tilerelease() { db(0xc4); db(0xe2); db(0x78); db(0x49); db(0xc0); }
+void tilestored(const Operand& op, const Tmm& tm) { opAMX(tm, tm0, op, T_F3 | T_0F38 | T_W0 | T_TMM, 0x4b); }
+void tilezero(const Tmm& Tmm) { opAMX(Tmm, tm0, tm0, T_F2 | T_0F38 | T_W0 | T_TMM, 0x49); }
 #endif
 #endif

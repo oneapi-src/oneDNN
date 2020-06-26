@@ -398,6 +398,9 @@ public:
 	static const Type tAVX512_VPOPCNTDQ = uint64(1) << 56;
 	static const Type tAVX512_BF16 = uint64(1) << 57;
 	static const Type tAVX512_VP2INTERSECT = uint64(1) << 58;
+	static const Type tAMX_TILE = uint64(1) << 59;
+	static const Type tAMX_INT8 = uint64(1) << 60;
+	static const Type tAMX_BF16 = uint64(1) << 61;
 
 	Cpu()
 		: type_(NONE)
@@ -501,6 +504,9 @@ public:
 			if (EBX & (1U << 14)) type_ |= tMPX;
 			if (EBX & (1U << 29)) type_ |= tSHA;
 			if (ECX & (1U << 0)) type_ |= tPREFETCHWT1;
+			if (EDX & (1U << 24)) type_ |= tAMX_TILE;
+			if (EDX & (1U << 25)) type_ |= tAMX_INT8;
+			if (EDX & (1U << 22)) type_ |= tAMX_BF16;
 		}
 		setFamily();
 		setNumCores();
