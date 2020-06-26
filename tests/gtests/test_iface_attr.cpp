@@ -297,6 +297,9 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test, DepthwiseFusion) {
         // skip if above unfused impl is not jitted.
         if (impl_info_unfused.compare(0, 3, "jit") != 0) continue;
 
+        // skip if above unfused impl is jitted amx.
+        if (impl_info_unfused.find("amx") != std::string::npos) continue;
+
         dnnl::primitive_attr attr;
         dnnl::post_ops ops;
         ops.append_dw_k3s1p1(dt, dt, dt, 1 << 1, scales);
