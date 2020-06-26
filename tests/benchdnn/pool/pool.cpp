@@ -53,8 +53,9 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
         r->errors += !ok;
 
-        if ((!ok && (r->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30)) {
+        bool dump = (!ok && (r->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30) || (verbose >= 99);
+        if (dump) {
             int64_t mb = 0, ic = 0, d = 0, h = 0, w = 0;
             switch (kind) {
                 case SRC: inv_src_off_f(p, i, mb, ic, d, h, w); break;
@@ -222,6 +223,19 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common(
             {p->cfg[SRC].dt, p->cfg[DST].dt}, p->dir, r);
+    if (r->state == SKIPPED) return;
+
+    if (p->alg == AVG_NP) {
+        bool ker_in_pad_d = p->pd >= p->kd || p->pd_r >= p->kd;
+        bool ker_in_pad_h = p->ph >= p->kh || p->ph_r >= p->kh;
+        bool ker_in_pad_w = p->pw >= p->kw || p->pw_r >= p->kw;
+        bool ker_in_pad = ker_in_pad_d || ker_in_pad_h || ker_in_pad_w;
+
+        if (ker_in_pad) {
+            r->state = SKIPPED, r->reason = INVALID_CASE;
+            return;
+        }
+    }
 }
 
 int doit(const prb_t *p, res_t *r) {
