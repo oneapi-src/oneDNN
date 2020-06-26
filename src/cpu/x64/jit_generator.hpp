@@ -59,6 +59,12 @@ static inline int float2int(float x) {
     return utils::bit_cast<int>(x);
 }
 
+static inline void tc_configure_tile(
+        tileconfig_t *tc, int t, int rows, int cols) {
+    tc->rows[t] = rows;
+    tc->cols[t] = cols;
+}
+
 // TODO: A GPR class that hides ABI details from the JIT kernels and allows
 // numbering registers from 0 to 14 (x86_64) / 6 (x32) (gpr0, gpr1, ...) and
 // stack register (sr).

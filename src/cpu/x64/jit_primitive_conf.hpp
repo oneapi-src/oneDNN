@@ -160,6 +160,7 @@ struct jit_conv_conf_t {
     data_type_t bia_dt;
     /* bf16 data-type for output */
     data_type_t dst_dt;
+    data_type_t src_dt;
     /* bf16 weights update */
     data_type_t wei_dt;
     data_type_t dsrc_dt;
@@ -191,6 +192,34 @@ struct jit_conv_conf_t {
     // bf16 bwdw conv
     int tr_ow;
     bool is_hw_transp; // spatial dim height-width transposed
+
+    // Needed for Intel(R) Advanced Matrix Extensions (Intel(R) AMX) kernels
+    bool is_nspc; // activations in nwc, nhwc, or ndhwc layout
+    bool is_small_ic; // probably the same as is_1stconv, but maybe not
+    bool is_pbuffer_strided; // does pbuffer have strided sectors?
+    int n_stride_sets; // number of stride sectors (or sets) in pbuffer
+    int kw_step; // usually stride_w, unless !is_pbuffer_strided
+    int kw_per_tile; // mostly for 1st convs
+    int ic_block_int, ic_block_int_np;
+    int nb_ic_int;
+    int nb_oh_blocking;
+
+    int tile_width;
+    int tile_tail;
+    int oh_per_tile;
+    int ow_blocks;
+
+    int per_one_pstore;
+
+    int inp_buffer_size;
+    int wsp_buffer_size;
+
+    int nb_os;
+    int nb_os_blocking;
+    int nb_os2_blocking;
+    int os_tail;
+    int os_blocked;
+    int max_width;
 };
 
 // calculates filter size taking into account dilation
@@ -354,6 +383,8 @@ struct jit_conv_call_s {
     const void *scales;
     const void *acc_s32;
     const void *compensation;
+    const void *tile_cfg;
+    const void *tile_cfg_tail;
     size_t kd_offset;
     size_t kd_offset_prf;
     size_t kh_offset;
@@ -386,6 +417,10 @@ struct jit_conv_call_s {
     size_t b_overflow;
     size_t f_overflow;
     size_t back_overflow;
+    size_t last_h;
+    size_t tail;
+    size_t current_iw;
+    size_t is_osb;
     int flags;
     int flags_prf;
 };
