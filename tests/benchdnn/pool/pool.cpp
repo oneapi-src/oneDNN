@@ -169,13 +169,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     dnnl_dim_t kernel_nd[] = {p->kd, p->kh, p->kw};
     dnnl_dim_t padding_l_nd[] = {p->pd, p->ph, p->pw};
-
-    auto bph = [](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph) {
-        return (oh - 1) * sh - ih + kh - ph;
-    };
-    dnnl_dim_t padding_r_nd[] = {bph(p->id, p->od, p->kd, p->sd, p->pd),
-            bph(p->ih, p->oh, p->kh, p->sh, p->ph),
-            bph(p->iw, p->ow, p->kw, p->sw, p->pw)};
+    dnnl_dim_t padding_r_nd[] = {p->pd_r, p->ph_r, p->pw_r};
 
     dnnl_dim_t *strides = strides_nd + (5 - p->ndims);
     dnnl_dim_t *kernel = kernel_nd + (5 - p->ndims);

@@ -43,9 +43,24 @@ struct desc_t {
     int64_t kd, kh, kw;
     int64_t sd, sh, sw;
     int64_t pd, ph, pw;
+    int64_t pd_r, ph_r, pw_r; // End side padding for each dimension
 
     const char *name;
     int ndims;
+
+    // Initialize dependent opposite-side paddings values from the shape
+    // parameters
+    void init_pad_r() {
+        pw_r = opp_pad(iw, ow, kw, sw, pw, 0);
+        ph_r = opp_pad(ih, oh, kh, sh, ph, 0);
+        pd_r = opp_pad(id, od, kd, sd, pd, 0);
+    }
+
+private:
+    int64_t opp_pad(
+            int64_t i, int64_t o, int64_t k, int64_t s, int64_t p, int64_t d) {
+        return (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - p;
+    }
 };
 
 int str2desc(desc_t *desc, const char *str);
