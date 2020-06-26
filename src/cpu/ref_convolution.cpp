@@ -74,6 +74,7 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -125,6 +126,8 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
     // zp_idx_mult = 1 for per_dim1 zero points and 0, otherwise
     const int src_zp_idx_mult
             = !pd()->attr()->zero_points_.common(DNNL_ARG_SRC);
+    const int dst_zp_idx_mult
+            = !pd()->attr()->zero_points_.common(DNNL_ARG_DST);
 
     auto maybe_postops = [=](float &d, dst_data_t dst) {
         // Sum and post ops:
@@ -263,6 +266,10 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
 
                 maybe_oscale(a, g, oc);
                 maybe_postops(a, dst[dst_off]);
+
+                if (dst_zero_point)
+                    a += static_cast<acc_data_t>(
+                            dst_zero_point[dst_zp_idx_mult * (g * OC + oc)]);
 
                 if (is_int_conv)
                     dst[dst_off] = qz_a1b0<float, dst_data_t>()(a);
