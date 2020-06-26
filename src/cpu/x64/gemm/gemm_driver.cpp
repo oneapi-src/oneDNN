@@ -95,6 +95,8 @@ static inline void add_results(const dim_t m, const dim_t n, const float alpha,
         c_type *c_data, const dim_t ldc, const c_type *co,
         offset_type offsetc) {
 
+    constexpr bool is_int8 = data_traits<c_type>::data_type == data_type::s32;
+
     for (dim_t j = 0; j < n; ++j) {
         for (dim_t i = 0; i < m; ++i) {
             c_type ctemp = c_partial_sum[i + j * ldcp];
@@ -103,26 +105,48 @@ static inline void add_results(const dim_t m, const dim_t n, const float alpha,
                 if (beta == 0.0f) {
                     c_data[i + j * ldc] = ctemp;
                 } else {
-                    double c_float = (double)beta * (double)c_data[i + j * ldc];
-                    c_float += (double)ctemp;
-                    round_to_nearest(&c_data[i + j * ldc], c_float);
+                    if (is_int8) {
+                        double c_float
+                                = (double)beta * (double)c_data[i + j * ldc];
+                        c_float += (double)ctemp;
+                        round_to_nearest(&c_data[i + j * ldc], c_float);
+                    } else {
+                        c_data[i + j * ldc] *= beta;
+                        c_data[i + j * ldc] += ctemp;
+                    }
                 }
             } else if (alpha == -1.0f) {
                 if (beta == 0.0f) {
                     c_data[i + j * ldc] = -ctemp;
                 } else {
-                    double c_float = (double)beta * (double)c_data[i + j * ldc];
-                    c_float -= (double)ctemp;
-                    round_to_nearest(&c_data[i + j * ldc], c_float);
+                    if (is_int8) {
+                        double c_float
+                                = (double)beta * (double)c_data[i + j * ldc];
+                        c_float -= (double)ctemp;
+                        round_to_nearest(&c_data[i + j * ldc], c_float);
+                    } else {
+                        c_data[i + j * ldc] *= beta;
+                        c_data[i + j * ldc] -= ctemp;
+                    }
                 }
             } else {
                 if (beta == 0.0f) {
-                    double c_float = alpha * (double)ctemp;
-                    round_to_nearest(&c_data[i + j * ldc], c_float);
+                    if (is_int8) {
+                        double c_float = alpha * (double)ctemp;
+                        round_to_nearest(&c_data[i + j * ldc], c_float);
+                    } else {
+                        c_data[i + j * ldc] = alpha * ctemp;
+                    }
+
                 } else {
-                    double c_float = alpha * (double)ctemp
-                            + beta * (double)c_data[i + j * ldc];
-                    round_to_nearest(&c_data[i + j * ldc], c_float);
+                    if (is_int8) {
+                        double c_float = alpha * (double)ctemp
+                                + beta * (double)c_data[i + j * ldc];
+                        round_to_nearest(&c_data[i + j * ldc], c_float);
+                    } else {
+                        c_data[i + j * ldc] *= beta;
+                        c_data[i + j * ldc] += alpha * ctemp;
+                    }
                 }
             }
 
@@ -346,7 +370,7 @@ static dnnl_status_t gemm_packing_driver(int ithr, dim_t m, dim_t n, dim_t k,
 }
 
 template <typename a_type, typename b_type, typename c_type>
-void gemm_kernel(const dim_t m, const dim_t n, const dim_t k, const float alpha,
+void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
         const a_type *a, const b_type *b, float beta, c_type *c,
         const dim_t ldc, const c_type *a_row_sum, const c_type *b_col_sum,
         const c_type *co, offset_type offsetc,
@@ -367,9 +391,15 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k, const float alpha,
 
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+    constexpr bool is_f32 = data_traits<a_type>::data_type == data_type::f32;
+    bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
+    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    bool is_amx = is_int8_amx || is_bf16_amx;
+
     if (is_int8) {
-        a_type ao = arg->ao;
-        uint8_t bo = arg->bo;
+        c_type ao = arg->ao;
+        c_type bo = arg->bo;
         c_type co_0 = offsetc == offset_type::none ? 0 : co[0];
 
         if (bo != 0 || offsetc == offset_type::column) col_req = true;
@@ -440,20 +470,65 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k, const float alpha,
 
     bool isBeta0 = beta == 0.0f;
 
+    dim_t align_m = 0;
+    dim_t align_n = 0;
+    dim_t align_k = k;
+    if (is_amx) {
+        align_m = m - utils::rnd_dn(m, arg->um);
+        align_n = n - utils::rnd_dn(n, arg->un);
+        align_k = utils::rnd_up(k, arg->uk);
+    }
+    m -= align_m;
+    n -= align_n;
+
     /* Column and row offsets are ignored by non-integer compute kernels.
      * Scaling is done only for bfloat16 kernels.
      */
-    arg->kernel[isBeta0][col_req][row_req](
-            &m, &n, &k, &alpha, a, b, c, ldc, col_offset, row_offset);
+    if (m > 0) {
+        if (n > 0) {
+            arg->kernel[isBeta0][col_req][row_req](&m, &n, &align_k, &alpha, a,
+                    b, c, ldc, col_offset, row_offset);
+        }
+        if (align_n > 0) {
+            arg->kernel[isBeta0][col_req][row_req](&m, &align_n, &align_k,
+                    &alpha, a, b + n * align_k, c + n * ldc, ldc, col_offset,
+                    row_offset + n);
+        }
+    }
+    if (align_m > 0) {
+        if (n > 0) {
+            arg->kernel[isBeta0][col_req][row_req](&align_m, &n, &align_k,
+                    &alpha, a + m * align_k, b, c + m, ldc, col_offset + m,
+                    row_offset);
+        }
+        if (align_n > 0) {
+            arg->kernel[isBeta0][col_req][row_req](&align_m, &align_n, &align_k,
+                    &alpha, a + m * align_k, b + n * align_k, c + m + n * ldc,
+                    ldc, col_offset + m, row_offset + n);
+        }
+    }
+
+    m += align_m;
+    n += align_n;
     msan_unpoison_matrix(c, m, n, ldc, sizeof(*c));
 
     // sgemm kernels don't support bias yet.
-    if (data_traits<a_type>::data_type == data_type::f32) {
+    if (is_f32) {
         if (co && offsetc == offset_type::column) {
             for (dim_t j = 0; j < n; j++) {
                 for (dim_t i = 0; i < m; i++) {
                     c[i + j * ldc] += co[i];
                 }
+            }
+        }
+    }
+
+    // AMX igemm kernels don't support row & col sums yet.
+    if (is_int8_amx) {
+        for (dim_t j = 0; j < n; j++) {
+            for (dim_t i = 0; i < m; i++) {
+                if (row_req) c[i + j * ldc] += row_offset[j];
+                if (col_req) c[i + j * ldc] += col_offset[i];
             }
         }
     }
@@ -477,6 +552,10 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+    bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
+    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    bool is_amx = is_int8_amx || is_bf16_amx;
 
     const std::shared_ptr<const gemm_pack_storage_t> &a_packed = arg->a_packed;
     const std::shared_ptr<const gemm_pack_storage_t> &b_packed = arg->b_packed;
@@ -509,6 +588,13 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
     size_t a_buf_nelems = m_padd * k_padd;
     size_t b_buf_nelems = k_padd * n_padd;
+    // A and B buffers need more space due to zero-padding.
+    if (is_amx) {
+        a_buf_nelems = utils::rnd_up(m_padd, arg->um)
+                * utils::rnd_up(k_padd, arg->uk);
+        b_buf_nelems = utils::rnd_up(k_padd, arg->uk)
+                * utils::rnd_up(n_padd, arg->un);
+    }
     size_t a_row_sum_nelems = m_padd;
     size_t b_col_sum_nelems = n_padd;
 
@@ -523,7 +609,11 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                 + b_col_sum_nelems * sizeof(*c) + PAGE_4K;
     }
 
-    bool need_c_buffer = is_int8 && (alpha != 1.0f || (beta != 1 && beta != 0));
+    bool need_c_buffer
+            = (is_int8 && (alpha != 1.0f || (beta != 1.0f && beta != 0.0f)))
+            // AMX bfloat16 kernels don't support alpha scaling yet,
+            // so we need to use accumulation buffer even if beta == 0.
+            || (is_bf16_amx && alpha != 1.0f);
 
     if (need_c_buffer) {
         size_t c_buf_nelems = ldc_buf * n_padd;
@@ -549,7 +639,10 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
     c_type *bufferC = NULL;
     if (need_c_buffer) {
-        bufferC = (c_type *)align(b_col_sum + b_col_sum_nelems, PAGE_4K);
+        if (is_int8)
+            bufferC = (c_type *)align(b_col_sum + b_col_sum_nelems, PAGE_4K);
+        else
+            bufferC = (c_type *)align(bufferB + b_buf_nelems, PAGE_4K);
     }
 
     int a_block_copied = 0;
@@ -609,15 +702,31 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
                     if (a_packed) {
                         Um_forA = Um;
+
+                        // TODO Can we simplify this!
+                        dim_t buf_shift = 0;
+                        if (is_amx)
+                            buf_shift = Um_forA * utils::rnd_up(sizeK, arg->uk);
+                        else
+                            buf_shift = Um_forA * sizeK;
+
                         bufferA_eff = a_packed->matrix<a_type>(ithr, Bm, Bk)
-                                + Um_forA * sizeK;
+                                + buf_shift;
+
                         if (is_int8)
                             a_row_sum_eff = a_packed->row_sums<c_type>(
                                                     ithr, Bm, blk_k)
                                     + Um_forA;
                     } else {
-                        bufferA_eff = bufferA + Um_forA * sizeK;
-                        a_row_sum_eff = a_row_sum + Um_forA;
+                        // TODO Can we simplify this!
+                        dim_t buf_shift = 0;
+                        if (is_amx)
+                            buf_shift = Um_forA * utils::rnd_up(sizeK, arg->uk);
+                        else
+                            buf_shift = Um_forA * sizeK;
+
+                        bufferA_eff = bufferA + buf_shift;
+                        a_row_sum_eff = a_row_sum ? a_row_sum + Um_forA : NULL;
 
                         if (!a_block_copied) {
                             const a_type *a_block
@@ -696,16 +805,29 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
     size_t b_buf_nelems = k * n_padd;
     size_t b_col_sum_nelems = n_padd;
 
+    constexpr bool is_int8 = utils::one_of(
+            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+    bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
+    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    bool is_amx = is_int8_amx || is_bf16_amx;
+
+    // B buffer needs to large due to zero-padding.
+    if (is_amx)
+        b_buf_nelems
+                = utils::rnd_up(k, arg->uk) * utils::rnd_up(n_padd, arg->un);
+
     if (b_packed) b_buf_nelems = b_col_sum_nelems = 0;
 
     size_t mem_size = b_buf_nelems * sizeof(*b) + PAGE_4K;
 
-    constexpr bool is_int8 = utils::one_of(
-            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
-
     if (is_int8) { mem_size += b_col_sum_nelems * sizeof(*c) + PAGE_4K; }
 
-    bool need_c_buffer = is_int8 && (alpha != 1.0f || (beta != 1 && beta != 0));
+    bool need_c_buffer
+            = (is_int8 && (alpha != 1.0f || (beta != 1.0f && beta != 0.0f)))
+            // AMX bfloat16 kernels don't support alpha scaling yet,
+            // so we need to use accumulation buffer even if beta == 0.
+            || (is_bf16_amx && alpha != 1.0f);
 
     if (need_c_buffer) {
         size_t c_buf_nelems = ldc_buf * n_padd;
@@ -728,7 +850,10 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
     c_type *bufferC = NULL;
     if (need_c_buffer) {
-        bufferC = (c_type *)align(b_col_sum + b_col_sum_nelems, PAGE_4K);
+        if (is_int8)
+            bufferC = (c_type *)align(b_col_sum + b_col_sum_nelems, PAGE_4K);
+        else
+            bufferC = (c_type *)align(bufferB + b_buf_nelems, PAGE_4K);
     }
 
     dim_t sizeN = 0;
@@ -1261,6 +1386,10 @@ static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
 
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+    bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
+    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
+    bool is_amx = is_int8_amx || is_bf16_amx;
 
     const std::shared_ptr<const gemm_pack_storage_t> &a_packed = arg->a_packed;
 
@@ -1275,6 +1404,11 @@ static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
     dim_t k_padd = get_k_padd(ithr, k, arg);
 
     size_t a_buf_nelems = m_padd * k_padd;
+
+    // A buffer needs more space due to zero-padding.
+    if (is_amx)
+        a_buf_nelems = utils::rnd_up(m_padd, arg->um)
+                * utils::rnd_up(k_padd, arg->uk);
 
     // Allocate shared memory for A and its row sum buffers in master thread.
     char *mem = NULL;
@@ -1343,13 +1477,20 @@ static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
                     const a_type *a_block
                             = a + (Bm + offset) * strideAm + Bk * strideAn;
 
+                    dim_t buf_shift = 0;
+                    if (is_amx)
+                        buf_shift = offset * utils::rnd_up(sizeK, arg->uk);
+                    else
+                        buf_shift = offset * sizeK;
+
                     /* Row sum argument is ignored for non-integer kernels and
                      * scaling factor is ignored by 8-bit and 16-bit copy
                      * kernels.
                      */
+                    c_type *a_row_sum_eff
+                            = a_row_sum ? a_row_sum + offset : NULL;
                     arg->copyA(&sizeK, &band, a_block, &lda, &alpha,
-                            bufferA + offset * sizeK, NULL, NULL,
-                            a_row_sum + offset);
+                            bufferA + buf_shift, NULL, NULL, a_row_sum_eff);
                 }
             }
             if (!a_packed)
@@ -1811,8 +1952,6 @@ dnnl_status_t gemm_driver(const char *transA, const char *transB,
             packing, pack_dst, measure_only);
 
     // Check if copy algorithm kernels were generated on supported ISAs.
-    assert(args.hasKernels());
-
     if (!args.hasKernels()) return dnnl_unimplemented;
 
     return gemm_threading_driver(&args);
