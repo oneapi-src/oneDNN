@@ -64,7 +64,7 @@ int find_negative(memory &mem, const memory::dims &adims) {
     std::vector<float> array(product(adims));
     read_from_dnnl_memory(array.data(), mem);
 
-    for (size_t e = 0; e < product(adims); ++e)
+    for (size_t e = 0; e < (size_t)product(adims); ++e)
         negs += array[e] < 0.0f;
     return negs;
 }

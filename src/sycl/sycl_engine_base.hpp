@@ -120,7 +120,7 @@ public:
 
     backend_t backend() const { return backend_; }
 
-    stream_t *service_stream() const { return service_stream_.get(); }
+    stream_t *service_stream() const override { return service_stream_.get(); }
 
     cl_device_id ocl_device() const {
         assert(device_.is_cpu() || device_.is_gpu());
