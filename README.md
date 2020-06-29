@@ -19,7 +19,8 @@ oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
 The library is optimized for Intel Architecture Processors, Intel Processor
 Graphics and Xe architecture-based Graphics. Support for other architectures
-such as Arm\* 64-bit Architecture (AArch64) is experimental.
+such as Arm\* 64-bit Architecture (AArch64) and OpenPOWER\* Power ISA (PPC64)
+is experimental.
 See the [System Requirements](#system-requirements) section below.
 
 oneDNN is intended for deep learning applications and framework
@@ -88,11 +89,12 @@ If the configuration you need is not available, you can
 oneDNN supports platforms based on the following architectures:
 - [Intel 64 or AMD64](https://en.wikipedia.org/wiki/X86-64),
 - [Arm 64-bit Architecture (AArch64)](https://developer.arm.com/architectures/cpu-architecture/a-profile).
+- [OpenPOWER](https://openpowerfoundation.org/) / [IBM Power ISA](https://en.wikipedia.org/wiki/Power_ISA).
 
 > **WARNING**
 >
-> Arm 64-bit Architecture (AArch64) support is **experimental** with limited
-> testing validation.
+> Arm 64-bit Architecture (AArch64) and Power ISA (PPC64) support
+> is **experimental** with limited testing validation.
 
 The library is optimized for the following CPUs:
 * Intel Atom processor with Intel SSE4.1 support
@@ -123,7 +125,7 @@ The library is optimized for the following GPUs:
 ## Requirements for Building from Source
 
 oneDNN supports systems meeting the following requirements:
-* Operating system with Intel 64 architecture support
+* Operating system with Intel 64 / Arm 64 / Power architecture support
 * C++ compiler with C++11 standard support
 * [CMake](https://cmake.org/download/) 2.8.11 or later
 * [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
@@ -135,8 +137,8 @@ dependencies.
 ### CPU Engine
 
 oneDNN CPU engine is used to execute primitives on Intel Architecture
-Processors, 64-bit Arm Architecture (AArch64) processors, and compatible
-devices.
+Processors, 64-bit Arm Architecture (AArch64) processors,
+64-bit Power ISA (PPC64) processors, and compatible devices.
 
 The CPU engine is built by default and cannot be disabled at build time. The
 engine can be configured to use the OpenMP or TBB threading runtime. The
