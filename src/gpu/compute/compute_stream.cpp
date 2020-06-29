@@ -30,6 +30,8 @@ status_t compute_stream_t::zero_pad(
 
     if (mdw.nelems(false) == mdw.nelems(true)) return status::success;
 
+    if (!has_zero_pad_primitive()) return stream_t::zero_pad(memory, ctx);
+
     // Kernel only compiled to support data types of length 1, 2, or 4 currently
     if (!utils::one_of(mdw.data_type_size(), 1u, 2u, 4u))
         return status::unimplemented;
