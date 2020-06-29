@@ -122,9 +122,12 @@ if (TBB_FOUND)
     return()
 endif()
 
+foreach (_tbb_soversion 2 12)
 foreach (_tbb_component ${TBB_FIND_COMPONENTS})
-    set(_tbb_release_lib "${_tbb_lib_path}/lib${_tbb_component}.so.2")
-    set(_tbb_debug_lib "${_tbb_lib_path}/lib${_tbb_component}_debug.so.2")
+    set(_tbb_release_lib
+        "${_tbb_lib_path}/lib${_tbb_component}.so.${_tbb_soversion}")
+    set(_tbb_debug_lib
+        "${_tbb_lib_path}/lib${_tbb_component}_debug.so.${_tbb_soversion}")
 
     # oneDNN change: check library existence (BUILD_MODE related only, not both)
     string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
@@ -134,7 +137,8 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
         elseif (EXISTS "${_tbb_release_lib}")
             message(FATAL_ERROR
                 "Intel TBB release library is found here: ${_tbb_release_lib}. "
-                "But the debug library (lib${_tbb_component}_debug.so.2) is missing.")
+                "But the debug library
+                (lib${_tbb_component}_debug.so.${_tbb_soversion}) is missing.")
         endif()
     else()
         if (EXISTS "${_tbb_release_lib}")
@@ -159,10 +163,14 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
             list(APPEND TBB_IMPORTED_TARGETS TBB::${_tbb_component})
             set(TBB_${_tbb_component}_FOUND 1)
         endif()
-    elseif (TBB_FIND_REQUIRED AND TBB_FIND_REQUIRED_${_tbb_component})
-        message(FATAL_ERROR "Missed required Intel TBB component: ${_tbb_component}")
+        break()
     endif()
 endforeach()
+endforeach()
+
+if (NOT _lib_exists AND TBB_FIND_REQUIRED AND TBB_FIND_REQUIRED_${_tbb_component})
+    message(FATAL_ERROR "Missed required Intel TBB component: ${_tbb_component}")
+endif()
 
 unset(_tbb_x32_subdir)
 unset(_tbb_x64_subdir)

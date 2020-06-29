@@ -43,18 +43,27 @@ macro(find_package_tbb)
 
     if(TBB_FOUND)
         # Check for TBB version, required >= 2017
-        get_target_property(_tbb_include_dirs TBB::tbb
-            INTERFACE_INCLUDE_DIRECTORIES)
-        file(READ "${_tbb_include_dirs}/tbb/tbb_stddef.h" _tbb_stddef)
-        string(REGEX REPLACE
-            ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1"
-            TBB_INTERFACE_VERSION "${_tbb_stddef}")
-        if (${TBB_INTERFACE_VERSION} VERSION_LESS 9100)
-            if("${mode}" STREQUAL REQUIRED)
-                message(FATAL_ERROR "oneDNN requires TBB version 2017 or above")
+        foreach (_tbb_ver_header tbb_stddef.h version.h)
+            get_target_property(_tbb_include_dirs TBB::tbb
+                INTERFACE_INCLUDE_DIRECTORIES)
+            set(_tbb_ver_header_full_path
+                "${_tbb_include_dirs}/tbb/${_tbb_ver_header}")
+            if(EXISTS ${_tbb_ver_header_full_path})
+                file(READ "${_tbb_ver_header_full_path}" _tbb_ver)
+                string(REGEX REPLACE
+                    ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1"
+                    TBB_INTERFACE_VERSION "${_tbb_ver}")
+                if (${TBB_INTERFACE_VERSION} VERSION_LESS 9100)
+                    if("${mode}" STREQUAL REQUIRED)
+                        message(FATAL_ERROR
+                            "oneDNN requires TBB version 2017 or above")
+                    endif()
+                    unset(TBB_FOUND)
+                else()
+                    break()
+                endif()
             endif()
-            unset(TBB_FOUND)
-        endif()
+        endforeach()
     endif()
 endmacro()
 
