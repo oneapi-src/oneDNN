@@ -1065,6 +1065,8 @@ static inline void set_thread_opts_pack(int nthrs,
 
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
+
     bool do_m_blocking_only = do_m_blocking && !do_n_blocking;
 
     auto m = arg->m, n = arg->n, k = arg->k;
@@ -1124,6 +1126,12 @@ static inline void set_thread_opts_pack(int nthrs,
             nthrs--;
             for (int nk = 1; nk <= 4 && k >= ((KBLK + 1) * nk); nk++)
                 if (nthrs % nk == 0) nthr_k = nk;
+        }
+
+        // Allow up to 2 threads to be sacrificed for large k >> m, n.
+        if (nthr_k < 4 && k >= m * 4 && k >= n * 4 && nthrs > 10 && is_bf16) {
+            for (int nk = 1; nk <= 4 && k >= ((KBLK + 1) * nk); nk++)
+                if (nthrs % nk <= 2) nthr_k = nk;
         }
     }
 
