@@ -59,7 +59,8 @@ struct rnn_data_reorder_t : public primitive_t {
                                     && od.matches_tag(format_tag::tnc))
                     && IMPLICATION(id.ndims() == 4,
                             id.matches_tag(format_tag::ldnc)
-                                    && od.matches_tag(format_tag::ldnc));
+                                    && od.matches_tag(format_tag::ldnc))
+                    && !id.has_runtime_dims_or_strides();
             if (!args_ok) return invalid_arguments;
 
             auto _pd = new pd_t(attr, src_engine->kind(), src_md,
