@@ -63,15 +63,6 @@ set(DNNL_TEST_SET "CI" CACHE STRING
 
     When CI option is set, it enables a subset of test targets to run. When
     NIGHTLY option is set, it enables a broader set of test targets to run.")
-# Transfer string literal into a number to support nested inclusions easier
-set(DNNL_TEST_SET_CI "1")
-set(DNNL_TEST_SET_NIGHTLY "2")
-
-if(DNNL_TEST_SET STREQUAL "NIGHTLY")
-    set(DNNL_TEST_SET ${DNNL_TEST_SET_NIGHTLY})
-else()
-    set(DNNL_TEST_SET ${DNNL_TEST_SET_CI})
-endif()
 
 set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
     "specifies installation mode; supports DEFAULT or BUNDLE.
