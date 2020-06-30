@@ -29,7 +29,7 @@ namespace ocl {
 status_t ocl_memory_storage_t::init_allocate(size_t size) {
     auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine());
     cl_int err;
-    mem_object_ = clCreateBuffer(
+    mem_object_ = clCreateBuffer_wrapper(
             ocl_engine->context(), CL_MEM_READ_WRITE, size, nullptr, &err);
     OCL_CHECK(err);
     return status::success;

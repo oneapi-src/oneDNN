@@ -163,7 +163,11 @@ protected:
         return primitive_t::create_primitive_common<__VA_ARGS__, pd_t>( \
                 primitive, this, engine, false, is_primitive_nested); \
     } \
-    pd_t *clone() const override { return new pd_t(*this); } \
+    pd_t *clone() const override { \
+        auto new_pd = utils::make_unique<pd_t>(*this); \
+        if (!new_pd->is_initialized()) return nullptr; \
+        return new_pd.release(); \
+    } \
     const char *name() const override { return impl_name; } \
     std::type_index impl_id() const override { return typeid(pd_t); }
 

@@ -34,13 +34,6 @@ struct ref_sum_t : public primitive_t {
 
         pd_t(const pd_t &rhs) : cpu_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
 
-        pd_t &operator=(const pd_t &rhs) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            cpu_sum_pd_t::operator=(rhs);
-            clone_reorder_pds(rhs);
-            return *this;
-        }
-
         DECLARE_SUM_PD_T("ref:any", ref_sum_t);
 
         status_t init(engine_t *engine) {

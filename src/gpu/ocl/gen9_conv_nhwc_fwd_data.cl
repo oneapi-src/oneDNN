@@ -127,13 +127,8 @@ void multiply_blocks_8x8(
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 gen9_conv_nhwc_fwd(const __global DATA_T *src, const __global DATA_T *wei,
-        const __global DATA_T *bias, __global DATA_T *dst, float eltwise_alpha_,
-        float eltwise_beta_, float eltwise_scale_, float sum_scale_) {
+        const __global DATA_T *bias, __global DATA_T *dst POST_OP_ARGS) {
 
-    DATA_T eltwise_alpha = eltwise_alpha_;
-    DATA_T eltwise_beta = eltwise_beta_;
-    DATA_T eltwise_scale = eltwise_scale_;
-    DATA_T sum_scale = sum_scale_;
     const int sp = get_group_id(1);
     const int local_id = get_sub_group_local_id();
     const int ocb_mb = get_group_id(2);
@@ -156,9 +151,14 @@ gen9_conv_nhwc_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     const int oh = (ohw / OWB) * OH_BLOCK;
     const int ow = (ohw % OWB) * OW_BLOCK;
 
-    DATA_T blockC00[OW_BLOCK];
-    for (int i = 0; i < OW_BLOCK; i++)
-        blockC00[i] = WITH_BIAS ? bias[oc * OC_BLOCK + local_id] : 0;
+    DATA_T blockC00[OW_BLOCK] = {0};
+    if (WITH_BIAS) {
+        const int bc_off = oc * OC_BLOCK + local_id;
+        DATA_T b = (OC_WO_PADDING % OC_BLOCK == 0 || bc_off < OC_WO_PADDING)
+                ? bias[bc_off]
+                : DATA_ZERO;
+        unroll_for(int i = 0; i < OW_BLOCK; i++) { blockC00[i] = b; }
+    }
 
     int ih = oh * SH - PH;
     int iw = ow * SW - PW;
@@ -285,24 +285,16 @@ gen9_conv_nhwc_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     dst_write0 += g * OC_WO_PADDING + goc * OC_BLOCK;
 
     // Apply postops
-#if WITH_SUM
     DATA_T blockS00[OW_BLOCK];
+#if WITH_SUM
     for (int i = 0; i < min(OW_BLOCK, OW - ow); i++) {
         blockS00[i] = read_oc_block(
                 &dst_write0[i * G * OC_WO_PADDING], goc * OC_BLOCK);
     }
 
-    for (int i = 0; i < OW_BLOCK; i++) {
-        blockC00[i] = fma(blockS00[i], SUM_SCALE1 ? 1 : sum_scale, blockC00[i]);
-    }
 #endif // WITH_SUM
 
-#if WITH_ELTWISE
-    for (int i = 0; i < OW_BLOCK; i++) {
-        blockC00[i] = fwd_eltwise(
-                blockC00[i], eltwise_alpha, eltwise_beta, eltwise_scale);
-    }
-#endif
+    APPLY_POST_OPS(blockC00, DATA_T, blockS00, DATA_T);
 
     // Save
     for (int i = 0; i < min(OW_BLOCK, OW - ow); i++) {

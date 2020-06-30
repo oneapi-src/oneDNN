@@ -61,7 +61,7 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(u8, src_data_t, dst_data_t)
                             || utils::everyone_is(s8, src_data_t, dst_data_t))
-                    && IMPLICATION(utils::one_of(src_data_t, f16),
+                    && IMPLICATION(utils::one_of(src_data_t, f16, s8, u8),
                             desc()->prop_kind == forward_inference)
                     && IMPLICATION(src_data_t == u8 || src_data_t == s8,
                             desc()->accum_data_type == s32)

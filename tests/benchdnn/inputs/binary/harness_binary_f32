@@ -5,5 +5,6 @@
 --alg=ADD,MUL,MAX,MIN
 --ddt=f32 --sdt=f32:f32
 
+--attr-post-ops='','sum:0.5','linear:2:0.125','sum:0.25;relu:-0.01'
 --batch=shapes_common
 

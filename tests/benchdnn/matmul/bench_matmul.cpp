@@ -49,10 +49,15 @@ void check_correctness(const settings_t &s) {
     for_(auto i_runtime_m : s.runtime_m)
     for_(auto i_runtime_n : s.runtime_n)
     for_(auto i_runtime_k : s.runtime_k)
+    for_(const auto &i_oscale : s.oscale)
+    for_(const auto &i_zero_points : s.zero_points)
+    for_(const auto &i_post_ops : s.post_ops)
     for (const auto &i_bia_cfg : bia_cfg) {
+        attr_t attr(i_oscale, i_zero_points, i_post_ops);
+        handle_legacy_attr(attr, s.attr);
         const prb_t p(s.desc, i_cfg, i_stag, i_wtag, i_dtag, i_ld_src, i_ld_wei,
                 i_ld_dst, i_runtime_mb, i_runtime_m, i_runtime_n, i_runtime_k,
-                i_bia_cfg.first, i_bia_cfg.second, s.attr);
+                i_bia_cfg.first, i_bia_cfg.second, attr);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -63,7 +68,7 @@ void check_correctness(const settings_t &s) {
         const int status = doit(&p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
             perf_report_t pr(s.perf_template);
@@ -104,7 +109,9 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(
                         s.bia_mask, def.bia_mask, atoi, argv[0], "bia_mask")
                 || parse_attr(s.attr, argv[0])
-                || parse_allow_unimpl(s.allow_unimpl, argv[0])
+                || parse_attr_oscale(s.oscale, argv[0])
+                || parse_attr_zero_points(s.zero_points, argv[0])
+                || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

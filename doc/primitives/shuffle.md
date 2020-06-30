@@ -5,6 +5,8 @@ Shuffle {#dev_guide_shuffle}
 > [API Reference](@ref dnnl_api_shuffle)
 >
 
+## General
+
 The shuffle primitive shuffles data along the shuffle axis (here is designated
 as \f$C\f$) with the group parameter \f$G\f$. Namely, the shuffle axis is
 thought to be a 2D tensor of size \f$(\frac{C}{G} \times G)\f$ and it is being
@@ -35,7 +37,7 @@ where
     \end{cases}
 \f]
 
-Here, \f$u \in [0, \frac{C}{G})\f$ and \f$v \in [0, G)\f$.
+Here, \f$0 \leq u < \frac{C}{G}\f$ and \f$0 \leq v < G\f$.
 
 #### Difference Between Forward Training and Forward Inference
 
@@ -53,8 +55,10 @@ Essentially, backward propagation is the same as forward propagation with
 \f$g\f$ replaced by \f$C / g\f$.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_SRC             |
@@ -95,10 +99,10 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
 Shuffle operation typically appear in CNN topologies. Hence, in the library the
 shuffle primitive is optimized for the corresponding memory formats:
 
-| Spatial | Logical tensor | Shuffle Axis | Implementations optimized for memory formats                               |
-| :--     | :--            | :--          | :--                                                                        |
-| 2D      | NCHW           | 1 (C)        | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*             |
-| 3D      | NCDHW          | 1 (C)        | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^*         |
+| Spatial | Logical tensor | Shuffle Axis | Implementations optimized for memory formats                       |
+| :--     | :--            | :--          | :--                                                                |
+| 2D      | NCHW           | 1 (C)        | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*     |
+| 3D      | NCDHW          | 1 (C)        | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^* |
 
 Here *optimized^* means the format that
 [comes out](@ref memory_format_propagation_cpp)
@@ -106,7 +110,7 @@ of any preceding compute-intensive primitive.
 
 ### Post-ops and Attributes
 
-The shuffle primitive doesn't support any post-ops or attributes.
+The shuffle primitive does not support any post-ops or attributes.
 
 
 @anchor dg_shuffle_impl_limits

@@ -7,12 +7,12 @@
 
 where *shuffle-knobs* are:
 
- - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t. Refer to the common
-            glossary in README.md for details.
+ - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t.
+            Refer to [direction](knobs_dir.md) for details.
  - `--dt={f32 [default], s32, s8, u8, bf16, f16}` -- src and dst data type.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
  - `--axis=INT` -- dimension on which operation will be performed.
             Default is `1`, corresponds to channels in logical memory layout.
  - `--group=INT` -- number of elements to shuffle. The default is `1`.

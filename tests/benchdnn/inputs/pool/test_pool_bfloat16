@@ -1,6 +1,5 @@
 --reset
 --mb=2
---allow-unimpl=true
 
 # bf16
 --cfg=bf16

@@ -78,6 +78,7 @@ static const pd_create_f gpu_impl_list[] = {
 
         // Batch Normalization
         INSTANCE(ocl::gen9_batch_normalization_fwd_t),
+        INSTANCE(ocl::gen9_batch_normalization_bwd_t),
         INSTANCE(ocl::ref_batch_normalization_fwd_t),
         INSTANCE(ocl::ref_batch_normalization_bwd_t),
 

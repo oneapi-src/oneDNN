@@ -75,8 +75,10 @@ struct settings_t {
     std::vector<flag_t> oflag {FLAG_NONE};
     std::vector<unsigned> runtime_dim_mask {0};
     std::vector<alg_t> alg {ALG_REF};
+    std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
+    std::vector<attr_t::zero_points_t> zero_points {attr_t::zero_points_t()};
+    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     attr_t attr = {};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%flags%,%attr%,%DESC%,"

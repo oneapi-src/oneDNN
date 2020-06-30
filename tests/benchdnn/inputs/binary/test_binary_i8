@@ -1,6 +1,0 @@
-# all
---reset
-
---batch=harness_binary_i8
---batch=harness_binary_i8_attr
-

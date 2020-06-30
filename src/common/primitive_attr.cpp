@@ -60,8 +60,7 @@ status_t arg_scales_t::set(
         int arg, dim_t count, int mask, const float *scales) {
     if (!check_arg(arg)) return status::invalid_arguments;
 
-    scales_[arg] = scales_t(count, mask, scales);
-    return status::success;
+    return scales_[arg].set(count, mask, scales);
 }
 
 status_t arg_scales_t::get(
@@ -116,8 +115,8 @@ status_t zero_points_t::set(
 } // namespace impl
 } // namespace dnnl
 
-bool primitive_attr_t::has_default_values(
-        dnnl_primitive_attr::skip_mask_t mask) const {
+bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
+        dnnl::impl::data_type_t dst_dt) const {
     // prepare mask for runtime-parameters check
     skip_mask_t defined_mask {};
     if ((mask & skip_mask_t::oscale_runtime) == skip_mask_t::oscale_runtime)
@@ -139,6 +138,8 @@ bool primitive_attr_t::has_default_values(
                     rnn_data_qparams_.has_default_values())
             && IMPLICATION((bool)(~mask & skip_mask_t::rnn_weights_qparams),
                     rnn_weights_qparams_.has_default_values())
+            && IMPLICATION((bool)(~mask & skip_mask_t::sum_dt),
+                    post_ops_.sum_with_default_dt(dst_dt))
             && this->defined(defined_mask);
 }
 
@@ -156,11 +157,12 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
                     rnn_weights_qparams_.defined());
 }
 
-status_t post_ops_t::append_sum(float scale) {
+status_t post_ops_t::append_sum(float scale, data_type_t dt) {
     if (len_ == capacity) return out_of_memory;
 
     entry_[len_].kind = primitive_kind::sum;
     entry_[len_].sum.scale = scale;
+    entry_[len_].sum.dt = dt;
 
     len_++;
 
@@ -169,7 +171,7 @@ status_t post_ops_t::append_sum(float scale) {
 
 status_t post_ops_t::append_eltwise(
         float scale, alg_kind_t alg, float alpha, float beta) {
-    if (!math::is_eltwise_ok(data_type::undef, alg, alpha, beta))
+    if (!math::is_eltwise_ok(data_type::f32, alg, alpha, beta))
         return invalid_arguments;
 
     if (len_ == capacity) return out_of_memory;
@@ -280,8 +282,7 @@ status_t primitive_attr_t::set_scratchpad_mode(
 }
 
 status_t primitive_attr_t::set_post_ops(const post_ops_t &post_ops) {
-    this->post_ops_ = post_ops;
-    return success;
+    return post_ops_.copy_from(post_ops);
 }
 
 /* Public C API */
@@ -296,7 +297,10 @@ status_t dnnl_primitive_attr_clone(
         primitive_attr_t **attr, const primitive_attr_t *existing_attr) {
     if (any_null(attr, existing_attr)) return invalid_arguments;
 
-    return safe_ptr_assign<dnnl_primitive_attr>(*attr, existing_attr->clone());
+    auto new_attr = utils::make_unique<primitive_attr_t>(*existing_attr);
+    if (!new_attr->is_initialized()) return out_of_memory;
+
+    return safe_ptr_assign<dnnl_primitive_attr>(*attr, new_attr.release());
 }
 
 status_t dnnl_primitive_attr_destroy(primitive_attr_t *attr) {
@@ -420,6 +424,13 @@ status_t dnnl_post_ops_append_sum(post_ops_t *post_ops, float scale) {
     return post_ops->append_sum(scale);
 }
 
+status_t dnnl_post_ops_append_sum_v2(
+        post_ops_t *post_ops, float scale, data_type_t dt) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_sum(scale, dt);
+}
+
 namespace {
 bool simple_get_params_check(
         const post_ops_t *post_ops, int index, primitive_kind_t kind) {
@@ -437,6 +448,18 @@ status_t dnnl_post_ops_get_params_sum(
     if (!ok) return invalid_arguments;
 
     *scale = post_ops->entry_[index].sum.scale;
+    return success;
+}
+
+status_t dnnl_post_ops_get_params_sum_v2(
+        const post_ops_t *post_ops, int index, float *scale, data_type_t *dt) {
+    bool ok = true
+            && simple_get_params_check(post_ops, index, primitive_kind::sum)
+            && !any_null(scale);
+    if (!ok) return invalid_arguments;
+
+    *scale = post_ops->entry_[index].sum.scale;
+    *dt = post_ops->entry_[index].sum.dt;
     return success;
 }
 

@@ -65,7 +65,9 @@ struct ref_shuffle_t : public primitive_t {
         format_tag_t dat_tag_;
     };
 
-    ref_shuffle_t(const pd_t *apd) : primitive_t(apd) {
+    ref_shuffle_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         const int axis_size = pd()->axis_size();
         const int group_size = pd()->group_size();
         const int transpose_row
@@ -74,9 +76,11 @@ struct ref_shuffle_t : public primitive_t {
                 = pd()->is_fwd() ? axis_size / group_size : group_size;
         rev_transposed_ = (int *)malloc(
                 axis_size * sizeof(int), platform::get_cache_line_size());
+        if (rev_transposed_ == nullptr) return dnnl_out_of_memory;
         parallel_nd(transpose_col, transpose_row, [&](int i, int j) {
             rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
         });
+        return dnnl_success;
     }
 
     ~ref_shuffle_t() { free(rev_transposed_); }
@@ -105,7 +109,7 @@ private:
     template <format_tag_t tag>
     void execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    int *rev_transposed_;
+    int *rev_transposed_ = nullptr;
 };
 
 } // namespace cpu

@@ -69,7 +69,7 @@ TEST_P(memory_map_test_c, MapNullMemory) {
     DNNL_CHECK(dnnl_memory_destroy(mem));
 }
 
-TEST_P(memory_map_test_c, Map) {
+HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c, Map) {
     SKIP_IF(!engine, "Engine kind is not supported.");
 
     const int ndims = 1;
@@ -128,7 +128,7 @@ TEST_P(memory_map_test_c, Map) {
     DNNL_CHECK(dnnl_memory_destroy(mem_ref));
 }
 
-TEST_P(memory_map_test_cpp, Map) {
+HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_cpp, Map) {
     auto engine_kind = static_cast<engine::kind>(GetParam());
 
     SKIP_IF(engine::get_count(engine_kind) == 0,

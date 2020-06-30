@@ -312,7 +312,7 @@ So we came up with another solution using zero-padding. The idea is to round the
 channels up to make them multiples of the block size and pad the resulting tail
 with zeros (in the example above, `24 = div_up(17, 8) * 8`). Then primitives
 like convolutions might work with a rounded-up number of channels instead of
-the original ones and compute the correct result (adding zeros doesn't change
+the original ones and compute the correct result (adding zeros does not change
 the result).
 
 That enables supporting an arbitrary number of channels with almost no changes

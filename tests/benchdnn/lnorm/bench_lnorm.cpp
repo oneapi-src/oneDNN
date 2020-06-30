@@ -39,7 +39,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_flags : s.flags)
     for (auto i_inplace : s.inplace) {
         const prb_t p(s.dims, i_tag, i_stat_tag, i_dir, i_dt, i_flags,
-                i_inplace, s.attr, s.check_alg);
+                i_inplace, s.check_alg);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -52,7 +52,7 @@ void check_correctness(const settings_t &s) {
         const int status = doit(&p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
             perf_report_t pr(s.perf_template);
@@ -78,9 +78,7 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(
                         s.flags, def.flags, str2flags, argv[0], "flags")
                 || parse_inplace(s.inplace, def.inplace, argv[0])
-                || parse_attr(s.attr, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
-                || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

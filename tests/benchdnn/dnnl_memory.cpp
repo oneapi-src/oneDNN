@@ -14,14 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl.hpp"
-
-#include "dnnl_memory.hpp"
-#include "dnnl_reorder.hpp"
+#include <atomic>
+#include <numeric>
 
 #if DNNL_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
+
+#include "dnnl.hpp"
+
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
+#include "dnnl_reorder.hpp"
+
+#include "tests/test_thread.hpp"
 
 int dnn_mem_t::reorder(const dnn_mem_t &rhs, const attr_bundle_t *attr_bundle) {
     if (this == &rhs) return OK;
@@ -173,4 +179,150 @@ int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
     }
 
     return fits_device_ram ? OK : FAIL;
+}
+
+// Returns physical offset by logical one. Logical offset is represented by an
+// array pos. If is_pos_padded is true pos represents the position in already
+// padded area.
+static dnnl_dim_t md_off_v(const dnnl_memory_desc_t &md, const dnnl_dims_t pos,
+        bool is_pos_padded = false) {
+    assert(md.format_kind == dnnl_blocked);
+    const auto &blk = md.format_desc.blocking;
+
+    dnnl_dims_t pos_copy = {0};
+    for (int d = 0; d < md.ndims; ++d)
+        pos_copy[d] = pos[d] + (is_pos_padded ? 0 : md.padded_offsets[d]);
+
+    dnnl_dim_t phys_offset = md.offset0;
+
+    if (blk.inner_nblks > 0) {
+        dnnl_dim_t blk_stride = 1;
+        for (int iblk = blk.inner_nblks - 1; iblk >= 0; --iblk) {
+            const int d = blk.inner_idxs[iblk];
+
+            dnnl_dim_t p = pos_copy[d] % blk.inner_blks[iblk];
+            pos_copy[d] /= blk.inner_blks[iblk];
+
+            phys_offset += p * blk_stride;
+            blk_stride *= blk.inner_blks[iblk];
+        }
+    }
+
+    for (int d = 0; d < md.ndims; ++d) {
+        const dnnl_dim_t p = pos_copy[d];
+        phys_offset += p * blk.strides[d];
+    }
+
+    return phys_offset;
+}
+
+// Returns physical offset by logical one. logical offset is represented by a
+// scalar l_offset. If is_pos_padded is true, l_offset represents logical
+// offset in already padded area.
+dnnl_dim_t md_off_l(dnnl_dims_t _pos, const dnnl_memory_desc_t &md,
+        dnnl_dim_t l_offset, bool is_pos_padded = false) {
+    dnnl_dims_t pos;
+    for (int rd = 0; rd < md.ndims; ++rd) {
+        const int d = md.ndims - 1 - rd;
+        const dnnl_dim_t cur_dim
+                = is_pos_padded ? md.padded_dims[d] : md.dims[d];
+        pos[d] = l_offset % cur_dim;
+        if (_pos) _pos[d] = pos[d];
+        l_offset /= cur_dim;
+    }
+    return md_off_v(md, pos, is_pos_padded);
+}
+
+template <typename T>
+int check_zero_padding_impl(const dnn_mem_t &mem, int arg) {
+    const int ndims = mem.md_.ndims;
+    const auto *dims = mem.md_.dims;
+    const auto *pdims = mem.md_.padded_dims;
+
+    if (ndims == 0) return OK;
+    if (mem.md_.format_kind != dnnl_blocked) return OK;
+
+    auto product = [](const dnnl_dim_t *beg, const dnnl_dim_t *end) {
+        return std::accumulate(
+                beg, end, (dnnl_dim_t)1, std::multiplies<dnnl_dim_t>());
+    };
+
+    int errors = 0;
+    std::atomic<int> ok(true);
+
+    const T *mem_ptr = (const T *)mem;
+
+    for (int dim_m_idx = 0; dim_m_idx < ndims; ++dim_m_idx) {
+        if (dims[dim_m_idx] == pdims[dim_m_idx]) continue;
+
+        auto dim_l = product(pdims, pdims + dim_m_idx);
+        auto dim_r = product(pdims + dim_m_idx + 1, pdims + ndims);
+
+        dnnl::impl::parallel_nd(dim_l, dim_r, [&](dnnl_dim_t l, dnnl_dim_t r) {
+            for (dnnl_dim_t m = dims[dim_m_idx]; m < pdims[dim_m_idx]; ++m) {
+                auto l_idx = (l * pdims[dim_m_idx] + m) * dim_r + r;
+                auto idx = md_off_l(nullptr, mem.md_, l_idx, true);
+                if (!(mem_ptr[idx] == 0)) ok = false;
+            }
+        });
+
+        // Run the check one more time to report incorrect elements. This check
+        // is sequential.
+        if (!ok) {
+            for_(dnnl_dim_t l = 0; l < dim_l; ++l)
+            for_(dnnl_dim_t m = dims[dim_m_idx]; m < pdims[dim_m_idx]; ++m)
+            for (dnnl_dim_t r = 0; r < dim_r; ++r) {
+                auto l_idx = (l * pdims[dim_m_idx] + m) * dim_r + r;
+                dnnl_dims_t pos = {};
+                auto idx = md_off_l(pos, mem.md_, l_idx, true);
+
+                bool idx_ok = (mem_ptr[idx] == 0);
+                if (!idx_ok) errors++;
+
+                const bool dump = (!idx_ok && (errors < 10 || verbose >= 10))
+                        || (verbose >= 99);
+                if (dump) {
+                    BENCHDNN_PRINT(0,
+                            "[%4ld][arg:%d]"
+                            "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
+                            "," IFMT "] fp:  0.f dt:% 9.6g \n",
+                            (long)idx, arg, pos[0], pos[1], pos[2], pos[3],
+                            pos[4], pos[5], mem.get_elem(idx));
+                }
+            }
+        }
+    }
+
+    if (!ok) {
+        BENCHDNN_PRINT(0,
+                "@@@ [arg:%d] check_zero_padding failed (will turn into an "
+                "error soon) err:%d\n",
+                arg, (int)errors);
+    }
+
+    // TODO: Return FAIL in case of a failure. Temporarily, return OK
+    // regardless of the check result until all failures are fixed.
+    return OK;
+}
+
+int check_zero_padding(const dnn_mem_t &mem, int arg) {
+#define CASE(dt, type) \
+    case dt: return check_zero_padding_impl<type>(mem, arg);
+
+    switch (mem.md_.data_type) {
+        case dnnl_data_type_undef:
+            return OK;
+
+            CASE(dnnl_bf16, bfloat16_t);
+            CASE(dnnl_f16, float16_t);
+            CASE(dnnl_f32, float);
+            CASE(dnnl_s32, int32_t);
+            CASE(dnnl_s8, int8_t);
+            CASE(dnnl_u8, uint8_t);
+
+        default: assert(!"bad data_type");
+    };
+#undef CASE
+
+    return FAIL;
 }

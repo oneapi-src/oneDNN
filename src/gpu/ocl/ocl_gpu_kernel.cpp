@@ -55,6 +55,22 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                 auto *ocl_mem_storage
                         = utils::downcast<const ocl_memory_storage_t *>(
                                 mem_storage);
+
+                // Validate that the OpenCL contexts match for execution
+                // context and memory.
+                auto stream_ocl_ctx
+                        = utils::downcast<ocl_gpu_engine_t *>(stream.engine())
+                                  ->context();
+                auto memory_storage_ocl_ctx
+                        = utils::downcast<ocl_gpu_engine_t *>(
+                                ocl_mem_storage->engine())
+                                  ->context();
+                if (stream_ocl_ctx != memory_storage_ocl_ctx) {
+                    MAYBE_REPORT_ERROR(
+                            "mismatched OpenCL context for primitive/memory");
+                    return status::invalid_arguments;
+                }
+
                 ocl_mem = ocl_mem_storage->mem_object();
             }
             set_err = clSetKernelArg(ocl_kernel_, i, sizeof(cl_mem), &ocl_mem);

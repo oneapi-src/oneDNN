@@ -115,7 +115,7 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
     if (alpha != 1.0f) attr.output_scales_.set(alpha);
     if (beta != 0.0f) attr.post_ops_.append_sum(beta);
 
-    primitive_desc_t *pd_ptr;
+    primitive_desc_t *pd_ptr = nullptr;
     status = primitive_desc_t::create<pd_type>(&pd_ptr,
             reinterpret_cast<const op_desc_t *>(&op_desc), &attr, engine.get(),
             nullptr);

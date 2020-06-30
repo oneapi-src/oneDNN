@@ -26,91 +26,84 @@ using acc_data_t = float;
 template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
         jit_avx512_common_lrn_kernel_bwd_blocked_t(
-                const struct nChw16c_across_t &J, float A, float B,
-                int use_h_parallel, void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size)
-    , nalphabeta(-2 * A * B)
-    , use_h_parallelism(use_h_parallel)
-    , bf16_emu_(nullptr) {
-
-    vlen = d_type == bf16 ? 32 : 64;
-    reg_block = 3;
-    src_prev_offset = vlen - 4 * sizeof(data_t);
-
-    xmm_size = 4 * sizeof(acc_data_t);
-    zmm_size = 64;
-    buffer_block = xmm_size + zmm_size + xmm_size;
-    buffer_nest_offset = xmm_size + zmm_size;
-
-    if (d_type == bf16 && !mayiuse(avx512_core_bf16)) {
-        bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
-                bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
-                bf16_emu_reserv_4);
-        bf16_emu_->init_vcvtneps2bf16();
-    }
+                const struct nChw16c_across_t &J, float alpha, float beta,
+                int local_size, int use_h_parallel, void *code_ptr,
+                size_t code_size)
+    : jit_avx512_common_lrn_kernel_bwd_t<d_type>(
+            alpha, beta, local_size, code_ptr, code_size)
+    , xmm_size_ {4 * sizeof(acc_data_t)}
+    , zmm_size_ {64}
+    , buffer_block_ {xmm_size_ + zmm_size_ + xmm_size_}
+    , buffer_nest_offset_ {xmm_size_ + zmm_size_}
+    , src_prev_offset_ {static_cast<int>(this->vlen_ - 4 * sizeof(data_t))}
+    , use_h_parallelism_(use_h_parallel) {
 
     this->preamble();
 
 #define GET_OFF(field) offsetof(jit_args_bwd_t, field)
-    mov(src, ptr[param + GET_OFF(src)]);
-    mov(diffdst, ptr[param + GET_OFF(diff_dst)]);
-    mov(workspace0, ptr[param + GET_OFF(ws0)]);
-    mov(workspace1, ptr[param + GET_OFF(ws1)]);
-    mov(diffsrc, ptr[param + GET_OFF(diff_src)]);
+    this->mov(this->src_, ptr[this->param_ + GET_OFF(src)]);
+    this->mov(this->diffdst_, ptr[this->param_ + GET_OFF(diff_dst)]);
+    this->mov(this->workspace0_, ptr[this->param_ + GET_OFF(ws0)]);
+    this->mov(this->workspace1_, ptr[this->param_ + GET_OFF(ws1)]);
+    this->mov(this->diffsrc_, ptr[this->param_ + GET_OFF(diff_src)]);
 #undef GET_OFF
 
-    W = J.W;
-    HW = J.H * J.W;
-    int LSB = this->use_h_parallelism ? W : HW;
+    W_ = J.W;
+    HW_ = J.H * J.W;
+    int LSB = this->use_h_parallelism_ ? W_ : HW_;
 
-    sub(t, reg_block * buffer_block);
-    mov(imm_addr64, float2int(this->nalphabeta));
-    vmovq(xnalphabeta, imm_addr64);
-    vbroadcastss(znalphabeta, xnalphabeta);
+    this->sub(this->rsp, this->reg_block_ * buffer_block_);
+    this->mov(this->imm_addr64_, float2int(this->nalphabeta_));
+    this->vmovq(this->xnalphabeta_, this->imm_addr64_);
+    this->vbroadcastss(this->znalphabeta_, this->xnalphabeta_);
 
-    version = J.version;
+    version_ = J.version;
 
-    if (version == across_version::First || version == across_version::Single) {
-        vxorps(xmm1, xmm1, xmm1);
-        for (int irb = 0; irb < reg_block; irb++) {
-            vmovups(ptr[t + irb * buffer_block], xmm1);
+    if (version_ == across_version::First
+            || version_ == across_version::Single) {
+        this->uni_vpxor(xmm1, xmm1, xmm1);
+        for (int irb = 0; irb < this->reg_block_; irb++) {
+            this->vmovups(ptr[this->rsp + irb * buffer_block_], xmm1);
         }
     }
-    if (version == across_version::Last || version == across_version::Single) {
-        vxorps(xmm1, xmm1, xmm1);
-        for (int irb = 0; irb < reg_block; irb++) {
-            vmovups(ptr[t + irb * buffer_block + buffer_nest_offset], xmm1);
+    if (version_ == across_version::Last
+            || version_ == across_version::Single) {
+        this->uni_vpxor(xmm1, xmm1, xmm1);
+        for (int irb = 0; irb < this->reg_block_; irb++) {
+            this->vmovups(
+                    ptr[this->rsp + irb * buffer_block_ + buffer_nest_offset_],
+                    xmm1);
         }
     }
 
-    int LSREST = LSB % reg_block;
+    int LSREST = LSB % this->reg_block_;
     int LS = LSB - LSREST;
 
     Label lrn_loop;
 
     if (LS > 0) {
-        mov(hw, LS);
+        this->mov(hw_, LS);
 
-        L(lrn_loop);
+        this->L(lrn_loop);
         {
-            compute_loop(reg_block, 1, 1);
+            compute_loop(this->reg_block_, 1, 1);
 
-            add(src, reg_block * vlen);
-            add(diffsrc, reg_block * vlen);
-            add(diffdst, reg_block * vlen);
-            add(workspace0, reg_block * vlen);
-            add(workspace1, reg_block * vlen);
+            this->add(this->src_, this->reg_block_ * this->vlen_);
+            this->add(this->diffsrc_, this->reg_block_ * this->vlen_);
+            this->add(this->diffdst_, this->reg_block_ * this->vlen_);
+            this->add(this->workspace0_, this->reg_block_ * this->vlen_);
+            this->add(this->workspace1_, this->reg_block_ * this->vlen_);
 
-            for (int irb = 0; irb < reg_block; irb++)
-                dec(hw);
-            cmp(hw, 0);
-            jne(lrn_loop, T_NEAR);
+            for (int irb = 0; irb < this->reg_block_; irb++)
+                this->dec(hw_);
+            this->cmp(hw_, 0);
+            this->jne(lrn_loop, this->T_NEAR);
         }
     }
 
-    compute_loop(LSREST, 1, this->use_h_parallelism ? 0 : 1);
+    compute_loop(LSREST, 1, this->use_h_parallelism_ ? 0 : 1);
 
-    add(t, reg_block * buffer_block);
+    this->add(this->rsp, this->reg_block_ * buffer_block_);
     this->postamble();
 
     ker = reinterpret_cast<decltype(ker)>(
@@ -120,153 +113,158 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
 template <data_type_t d_type>
 void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::compute_loop(
         int loop_size_param, int prefetchL1, int prefetchL2) {
-    // loop_size - param for IRB_LOOP macro
+    // loop_size - this->param_ for IRB_LOOP macro
     int loop_size = loop_size_param;
-    const int prf0_offt = 1 * reg_block;
-    const int prf2_offt = 8 * reg_block;
-
-    auto xreg = [=](int irb, int i) { return Xmm(irb * 6 + i); };
-
-    auto zreg = [=](int irb, int i) { return Zmm(irb * 6 + i); };
-    auto load_data = [=](Xmm reg, const Address p) {
-        if (d_type == bf16) {
-            vpmovzxwd(reg, p);
-            vpslld(reg, reg, 0x10);
-        } else
-            vmovups(reg, p);
-    };
-
-    auto store_data = [=](bool nt, const Address addr, Zmm zr) {
-        if (d_type == bf16) {
-            Ymm yr = Ymm(zr.getIdx());
-            if (mayiuse(avx512_core_bf16))
-                vcvtneps2bf16(yr, zr);
-            else
-                bf16_emu_->vcvtneps2bf16(yr, zr);
-            vmovdqu16(addr, yr);
-        } else if (nt)
-            uni_vmovntps(addr, zr);
-        else
-            uni_vmovups(addr, zr);
-    };
+    const int prf0_offt = 1 * this->reg_block_;
+    const int prf2_offt = 8 * this->reg_block_;
 
     // ---- prefetching -------------------------------------------
-    if (version != across_version::First && version != across_version::Single) {
+    if (version_ != across_version::First
+            && version_ != across_version::Single) {
         if (prefetchL1)
-            IRB_LOOP(mic_prefetcht0(
-                    ptr[workspace1 + (irb + prf0_offt - 2 * HW) * vlen]));
+            IRB_LOOP(this->mic_prefetcht0(ptr[this->workspace1_
+                    + (irb + prf0_offt - 2 * HW_) * this->vlen_]));
         if (prefetchL1)
-            IRB_LOOP(mic_prefetcht0(
-                    ptr[diffdst + (irb + prf0_offt - HW) * vlen]));
+            IRB_LOOP(this->mic_prefetcht0(ptr[this->diffdst_
+                    + (irb + prf0_offt - HW_) * this->vlen_]));
     }
 
     if (prefetchL1)
-        IRB_LOOP(mic_prefetcht0(ptr[src + (irb + prf0_offt) * vlen]));
+        IRB_LOOP(this->mic_prefetcht0(
+                ptr[this->src_ + (irb + prf0_offt) * this->vlen_]));
     if (prefetchL2)
-        IRB_LOOP(mic_prefetcht2(ptr[src + (irb + prf2_offt) * vlen]));
+        IRB_LOOP(this->mic_prefetcht2(
+                ptr[this->src_ + (irb + prf2_offt) * this->vlen_]));
 
     if (prefetchL1)
-        IRB_LOOP(mic_prefetcht0(ptr[workspace1 + (irb + prf0_offt) * vlen]));
+        IRB_LOOP(this->mic_prefetcht0(
+                ptr[this->workspace1_ + (irb + prf0_offt) * this->vlen_]));
 
     if (prefetchL1)
-        IRB_LOOP(mic_prefetcht0(ptr[diffdst + (irb + prf0_offt) * vlen]));
+        IRB_LOOP(this->mic_prefetcht0(
+                ptr[this->diffdst_ + (irb + prf0_offt) * this->vlen_]));
 
-    if (version != across_version::Last && version != across_version::Single) {
+    if (version_ != across_version::Last
+            && version_ != across_version::Single) {
         if (prefetchL1)
-            IRB_LOOP(mic_prefetcht0(
-                    ptr[workspace1 + (irb + prf0_offt + 2 * HW) * vlen]));
+            IRB_LOOP(this->mic_prefetcht0(ptr[this->workspace1_
+                    + (irb + prf0_offt + 2 * HW_) * this->vlen_]));
         if (prefetchL2)
-            IRB_LOOP(mic_prefetcht2(
-                    ptr[workspace1 + (irb + prf2_offt + 2 * HW) * vlen]));
+            IRB_LOOP(this->mic_prefetcht2(ptr[this->workspace1_
+                    + (irb + prf2_offt + 2 * HW_) * this->vlen_]));
 
         if (prefetchL1)
-            IRB_LOOP(mic_prefetcht0(
-                    ptr[diffdst + (irb + prf0_offt + HW) * vlen]));
+            IRB_LOOP(this->mic_prefetcht0(ptr[this->diffdst_
+                    + (irb + prf0_offt + HW_) * this->vlen_]));
         if (prefetchL2)
-            IRB_LOOP(mic_prefetcht2(
-                    ptr[diffdst + (irb + prf2_offt + HW) * vlen]));
+            IRB_LOOP(this->mic_prefetcht2(ptr[this->diffdst_
+                    + (irb + prf2_offt + HW_) * this->vlen_]));
     }
     if (prefetchL1)
-        IRB_LOOP(mic_prefetcht0(ptr[workspace0 + (irb + prf0_offt) * vlen]));
+        IRB_LOOP(this->mic_prefetcht0(
+                ptr[this->workspace0_ + (irb + prf0_offt) * this->vlen_]));
     if (prefetchL2)
-        IRB_LOOP(mic_prefetcht2(ptr[workspace0 + (irb + prf2_offt) * vlen]));
+        IRB_LOOP(this->mic_prefetcht2(
+                ptr[this->workspace0_ + (irb + prf2_offt) * this->vlen_]));
     // -----------------------------------------------------------
 
     if (loop_size_param == 0) return;
 
-    if (version != across_version::First && version != across_version::Single) {
-        IRB_LOOP(load_data(xreg(irb, xws1_prev),
-                ptr[workspace1 + (irb - 2 * HW) * vlen + src_prev_offset]));
-        IRB_LOOP(load_data(xreg(irb, xdiffdst_prev),
-                ptr[diffdst + (irb - HW) * vlen + src_prev_offset]));
-        IRB_LOOP(vmulps(xreg(irb, xdiffdst_prev), xreg(irb, xdiffdst_prev),
-                xreg(irb, xws1_prev)));
+    if (version_ != across_version::First
+            && version_ != across_version::Single) {
+        IRB_LOOP(this->load_data(this->xreg(irb, xws1_prev_),
+                ptr[this->workspace1_ + (irb - 2 * HW_) * this->vlen_
+                        + src_prev_offset_]));
+        IRB_LOOP(this->load_data(this->xreg(irb, xdiffdst_prev_),
+                ptr[this->diffdst_ + (irb - HW_) * this->vlen_
+                        + src_prev_offset_]));
+        IRB_LOOP(this->vmulps(this->xreg(irb, xdiffdst_prev_),
+                this->xreg(irb, xdiffdst_prev_), this->xreg(irb, xws1_prev_)));
     }
 
-    IRB_LOOP(load_data(
-            zreg(irb, zws1), EVEX_compress_addr(workspace1, irb * vlen)));
-    IRB_LOOP(load_data(
-            zreg(irb, zdiffdst), EVEX_compress_addr(diffdst, irb * vlen)));
-    IRB_LOOP(vmulps(zreg(irb, zdiffsrc), zreg(irb, zdiffdst), zreg(irb, zws1)));
+    IRB_LOOP(this->load_data(this->zreg(irb, zws1_),
+            this->EVEX_compress_addr(this->workspace1_, irb * this->vlen_)));
+    IRB_LOOP(this->load_data(this->zreg(irb, this->zdiffdst_),
+            this->EVEX_compress_addr(this->diffdst_, irb * this->vlen_)));
+    IRB_LOOP(this->vmulps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zdiffdst_), this->zreg(irb, zws1_)));
 
-    if (version != across_version::Last && version != across_version::Single) {
-        IRB_LOOP(load_data(
-                xreg(irb, xws1_next), ptr[workspace1 + (irb + 2 * HW) * vlen]));
-        IRB_LOOP(load_data(
-                xreg(irb, xdiffdst_next), ptr[diffdst + (irb + HW) * vlen]));
-        IRB_LOOP(vmulps(xreg(irb, xdiffdst_next), xreg(irb, xdiffdst_next),
-                xreg(irb, xws1_next)));
+    if (version_ != across_version::Last
+            && version_ != across_version::Single) {
+        IRB_LOOP(this->load_data(this->xreg(irb, xws1_next_),
+                ptr[this->workspace1_ + (irb + 2 * HW_) * this->vlen_]));
+        IRB_LOOP(this->load_data(this->xreg(irb, xdiffdst_next_),
+                ptr[this->diffdst_ + (irb + HW_) * this->vlen_]));
+        IRB_LOOP(this->vmulps(this->xreg(irb, xdiffdst_next_),
+                this->xreg(irb, xdiffdst_next_), this->xreg(irb, xws1_next_)));
     }
 
-    if (version != across_version::First && version != across_version::Single) {
-        IRB_LOOP(
-                vmovups(ptr[t + irb * buffer_block], xreg(irb, xdiffdst_prev)));
+    if (version_ != across_version::First
+            && version_ != across_version::Single) {
+        IRB_LOOP(this->vmovups(ptr[this->rsp + irb * buffer_block_],
+                this->xreg(irb, xdiffdst_prev_)));
     }
-    IRB_LOOP(vmovups(EVEX_compress_addr(t, irb * buffer_block + xmm_size),
-            zreg(irb, zdiffsrc)));
-    if (version != across_version::Last && version != across_version::Single) {
-        IRB_LOOP(vmovups(ptr[t + irb * buffer_block + buffer_nest_offset],
-                xreg(irb, xdiffdst_next)));
+    IRB_LOOP(this->vmovups(this->EVEX_compress_addr(
+                                   this->rsp, irb * buffer_block_ + xmm_size_),
+            this->zreg(irb, this->zdiffsrc_)));
+    if (version_ != across_version::Last
+            && version_ != across_version::Single) {
+        IRB_LOOP(this->vmovups(
+                ptr[this->rsp + irb * buffer_block_ + buffer_nest_offset_],
+                this->xreg(irb, xdiffdst_next_)));
     }
     size_t acc_size = sizeof(acc_data_t);
-    IRB_LOOP(vmovups(zreg(irb, za),
-            EVEX_compress_addr(
-                    t, irb * buffer_block + xmm_size - 2 * acc_size)));
-    IRB_LOOP(vmovups(zreg(irb, zb),
-            EVEX_compress_addr(
-                    t, irb * buffer_block + xmm_size - 1 * acc_size)));
-    IRB_LOOP(vmovups(zreg(irb, zd),
-            EVEX_compress_addr(
-                    t, irb * buffer_block + xmm_size + 1 * acc_size)));
-    IRB_LOOP(vmovups(zreg(irb, ze),
-            EVEX_compress_addr(
-                    t, irb * buffer_block + xmm_size + 2 * acc_size)));
-    IRB_LOOP(vaddps(zreg(irb, zdiffsrc), zreg(irb, zdiffsrc), zreg(irb, za)));
-    assert(zsrc == za);
-    IRB_LOOP(load_data(zreg(irb, zsrc), EVEX_compress_addr(src, irb * vlen)));
-    IRB_LOOP(vaddps(zreg(irb, zdiffsrc), zreg(irb, zdiffsrc), zreg(irb, zb)));
-    IRB_LOOP(vaddps(zreg(irb, zdiffsrc), zreg(irb, zdiffsrc), zreg(irb, zd)));
-    IRB_LOOP(vaddps(zreg(irb, zdiffsrc), zreg(irb, zdiffsrc), zreg(irb, ze)));
-    IRB_LOOP(vmulps(zreg(irb, zsrc), zreg(irb, zsrc), znalphabeta));
+    IRB_LOOP(this->vmovups(this->zreg(irb, this->z_prev_[0]),
+            this->EVEX_compress_addr(this->rsp,
+                    irb * buffer_block_ + xmm_size_ - 2 * acc_size)));
+    IRB_LOOP(this->vmovups(this->zreg(irb, this->z_prev_[1]),
+            this->EVEX_compress_addr(this->rsp,
+                    irb * buffer_block_ + xmm_size_ - 1 * acc_size)));
+    IRB_LOOP(this->vmovups(this->zreg(irb, this->z_next_[0]),
+            this->EVEX_compress_addr(this->rsp,
+                    irb * buffer_block_ + xmm_size_ + 1 * acc_size)));
+    IRB_LOOP(this->vmovups(this->zreg(irb, this->z_next_[1]),
+            this->EVEX_compress_addr(this->rsp,
+                    irb * buffer_block_ + xmm_size_ + 2 * acc_size)));
+    IRB_LOOP(this->vaddps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->z_prev_[0])));
+    assert(this->zsrc_ == this->z_prev_[0]);
+    IRB_LOOP(this->load_data(this->zreg(irb, this->zsrc_),
+            this->EVEX_compress_addr(this->src_, irb * this->vlen_)));
+    IRB_LOOP(this->vaddps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->z_prev_[1])));
+    IRB_LOOP(this->vaddps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->z_next_[0])));
+    IRB_LOOP(this->vaddps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->z_next_[1])));
+    IRB_LOOP(this->vmulps(this->zreg(irb, this->zsrc_),
+            this->zreg(irb, this->zsrc_), this->znalphabeta_));
 
-    IRB_LOOP(load_data(
-            zreg(irb, zws0), EVEX_compress_addr(workspace0, irb * vlen)));
-    IRB_LOOP(vdivps(zreg(irb, zdiffdst), zreg(irb, zdiffdst), zreg(irb, zws0)));
-    IRB_LOOP(vfmadd213ps(
-            zreg(irb, zdiffsrc), zreg(irb, zsrc), zreg(irb, zdiffdst)));
+    IRB_LOOP(this->load_data(this->zreg(irb, this->zws0_),
+            this->EVEX_compress_addr(this->workspace0_, irb * this->vlen_)));
+    IRB_LOOP(this->vdivps(this->zreg(irb, this->zdiffdst_),
+            this->zreg(irb, this->zdiffdst_), this->zreg(irb, this->zws0_)));
+    IRB_LOOP(this->vfmadd213ps(this->zreg(irb, this->zdiffsrc_),
+            this->zreg(irb, this->zsrc_), this->zreg(irb, this->zdiffdst_)));
 
     Label unaligned_store, end_store;
-    test(diffsrc, vlen - 1);
-    jnz(unaligned_store, T_NEAR);
-    IRB_LOOP(store_data(true, EVEX_compress_addr(diffsrc, irb * vlen),
-            zreg(irb, zdiffsrc)));
-    jmp(end_store, T_NEAR);
-    L(unaligned_store);
+    this->test(this->diffsrc_, this->vlen_ - 1);
+    this->jnz(unaligned_store, this->T_NEAR);
+    IRB_LOOP(this->store_data(true,
+            this->EVEX_compress_addr(this->diffsrc_, irb * this->vlen_),
+            this->zreg(irb, this->zdiffsrc_)));
+    this->jmp(end_store, this->T_NEAR);
+    this->L(unaligned_store);
     {
-        IRB_LOOP(store_data(false, EVEX_compress_addr(diffsrc, irb * vlen),
-                zreg(irb, zdiffsrc)));
+        IRB_LOOP(this->store_data(false,
+                this->EVEX_compress_addr(this->diffsrc_, irb * this->vlen_),
+                this->zreg(irb, this->zdiffsrc_)));
     }
-    L(end_store);
+    this->L(end_store);
 }
 
 template class jit_avx512_common_lrn_kernel_bwd_blocked_t<f32>;

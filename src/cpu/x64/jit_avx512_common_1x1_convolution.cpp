@@ -919,10 +919,13 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                     const int g = g_start + sub_g_start;
                     const int oc_b = oc_b_start + sub_oc_b_start;
                     const int ic_b = ic_b_start + sub_ic_b_start;
-
-                    const int acc_size
+                    const int ic_to_accumulate
                             = nstl::min(end - w, ic_b_work - sub_ic_b_start)
-                            * jcp.ic_block * jcp.oc_block;
+                            * jcp.ic_block;
+                    const int acc_size
+                            = this_block_size(ic_b * jcp.ic_block,
+                                      jcp.ic_without_padding, ic_to_accumulate)
+                            * jcp.oc_block;
 
                     const size_t off
                             = wht_blk_off(diff_weights_d, g, oc_b, ic_b);
@@ -1039,10 +1042,14 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                         const int g = g_start + sub_g_start;
                         const int oc_b = oc_b_start + sub_oc_b_start;
                         const int ic_b = ic_b_start + sub_ic_b_start;
-
-                        const int acc_size
+                        const int ic_to_accumulate
                                 = nstl::min(end - w, ic_b_work - sub_ic_b_start)
-                                * jcp.ic_block * jcp.oc_block;
+                                * jcp.ic_block;
+                        const int acc_size
+                                = this_block_size(ic_b * jcp.ic_block,
+                                          jcp.ic_without_padding,
+                                          ic_to_accumulate)
+                                * jcp.oc_block;
 
                         const size_t off
                                 = wht_blk_off(diff_weights_d, g, oc_b, ic_b);

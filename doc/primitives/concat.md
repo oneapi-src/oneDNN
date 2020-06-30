@@ -5,8 +5,10 @@ Concat {#dev_guide_concat}
 > [API Reference](@ref dnnl_api_concat)
 >
 
-The concat primitive concatenates \f$N\f$ tensors over `concat_axis` (here
-designated as \f$C\f$ axis) and defined as (the variable names follow the
+## General
+
+The concat primitive concatenates \f$N\f$ tensors over `concat_dimension` (here
+designated \f$C\f$) and is defined as (the variable names follow the
 standard @ref dev_guide_conventions):
 
 \f[
@@ -16,12 +18,15 @@ standard @ref dev_guide_conventions):
 
 where \f$c = C_1 + .. + C_{i-1} {}_{} + c'\f$.
 
-The concat primitive doesn't have a notion of forward or backward propagations.
-The backward propagation for the concatenation operation is simply an identity
-operation.
+The concat primitive does not have a notion of forward or backward
+propagation. The backward propagation for the concatenation operation is
+simply an identity operation.
 
 ## Execution Arguments
-When executed, the inputs and outputs should be mapped to an execution argument index as specified by the following table.
+
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_MULTIPLE_SRC    |
@@ -36,8 +41,8 @@ When executed, the inputs and outputs should be mapped to an execution argument 
    most appropriate format.
 
 2. The concat primitive requires all source and destination tensors to have the
-   same shape except for the `concat_axis`. The destination dimension for the
-   `concat_axis` must be equal to the sum of the `concat_axis` dimensions of
+   same shape except for the `concat_dimension`. The destination dimension for the
+   `concat_dimension` must be equal to the sum of the `concat_dimension` dimensions of
    the sources (i.e. \f$C = \sum_i C_i\f$).
    Implicit broadcasting is not supported.
 
@@ -55,7 +60,7 @@ meaning associated with any logical dimensions.
 
 ### Post-ops and Attributes
 
-The concat primitive doesn't support any post-ops or attributes.
+The concat primitive does not support any post-ops or attributes.
 
 ## Implementation Limitations
 

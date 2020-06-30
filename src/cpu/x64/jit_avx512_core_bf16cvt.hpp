@@ -39,6 +39,7 @@ struct jit_call_t {
     void *out;
     void *add;
     size_t nelems;
+    int mask;
 };
 } // namespace bf16_support
 
@@ -314,148 +315,27 @@ private:
 struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_cvt_bf16_to_ps_t)
 
-    jit_avx512_core_cvt_bf16_to_ps_t(size_t nelems = 0, bool with_add = false)
-        : nelems_(nelems)
-        , simd_w_(16)
-        , tail_mask_((1 << (nelems_ % simd_w_)) - 1)
-        , with_add_(with_add)
-        , is_dynamic_size_(nelems_ == 0) {
+    jit_avx512_core_cvt_bf16_to_ps_t(
+            bool with_add = false, size_t row_stride = 0)
+        : with_add_(with_add), row_stride_(row_stride) {
         generate();
-        jit_ker_ = (void (*)(bf16_support::jit_call_t *))getCode();
+        jit_ker_ = (decltype(jit_ker_))getCode();
     }
 
-    void generate() {
-        preamble();
+    void generate();
 
-        mov(reg_inp, ptr[abi_param1 + GET_OFF(inp)]);
-        mov(reg_out, ptr[abi_param1 + GET_OFF(out)]);
-        if (with_add_) mov(reg_add, ptr[abi_param1 + GET_OFF(add)]);
-
-        if (is_dynamic_size_) { // determine nelems after JIT is called
-            mov(reg_nelems, ptr[abi_param1 + GET_OFF(nelems)]);
-            constexpr int n_unroll = 2; // unroll by powers of 2 from 2^n to 2^0
-            Xbyak::Label l_simd_loop[n_unroll + 2], l_simd_notail;
-            for (int i = n_unroll; i >= 0; i--) {
-                const int unroll = 1 << i; // 4, 2, 1
-                L(l_simd_loop[i + 1]);
-                {
-                    cmp(reg_nelems, simd_w_ * unroll);
-                    jl(l_simd_loop[i], T_NEAR);
-                    for (int j = 0; j < simd_w_ * unroll; j += simd_w_) {
-                        vpmovzxwd(
-                                zmm_cvt, ptr[reg_inp + sizeof(bfloat16_t) * j]);
-                        vpslld(zmm_cvt, zmm_cvt, 0x10);
-                        if (with_add_)
-                            vaddps(zmm_cvt, zmm_cvt,
-                                    zword[reg_add + sizeof(float) * j]);
-                        vmovdqu32(zword[reg_out + sizeof(float) * j], zmm_cvt);
-                    }
-                    add(reg_inp, simd_w_ * unroll * sizeof(bfloat16_t));
-                    add(reg_out, simd_w_ * unroll * sizeof(float));
-                    if (with_add_)
-                        add(reg_add, simd_w_ * unroll * sizeof(float));
-                    sub(reg_nelems, simd_w_ * unroll);
-                    jmp(l_simd_loop[i + 1], T_NEAR);
-                }
-            }
-            L(l_simd_loop[0]);
-            test(reg_nelems, reg_nelems);
-            jz(l_simd_notail);
-            // JIT of `tail_mask_ = (1 << (nelems_ % simd_w_)) - 1;`
-            mov(reg32_mask, 1);
-            mov(reg64_tail, reg_nelems);
-            shl(reg32_mask, reg8_mask_shift);
-            sub(reg32_mask, 1);
-            kmovd(ktail_mask, reg32_mask);
-            vpmovzxwd(zmm_cvt | ktail_mask | T_z, zword[reg_inp]);
-            vpslld(zmm_cvt, zmm_cvt, 0x10);
-            if (with_add_)
-                vaddps(zmm_cvt | ktail_mask | T_z, zmm_cvt, zword[reg_add]);
-            vmovdqu32(zword[reg_out] | ktail_mask, zmm_cvt);
-            L(l_simd_notail);
-
-        } else {
-
-            size_t blocked_size = (nelems_ / simd_w_) * simd_w_;
-            const size_t loop_length = 1024;
-            const size_t number_of_loops = blocked_size / loop_length;
-            const size_t tail_of_loops = blocked_size % loop_length;
-
-            if (number_of_loops > 0) {
-                Xbyak::Label l_number_of_loops;
-                mov(reg_nelems, number_of_loops);
-                L(l_number_of_loops);
-                for (size_t i = 0; i < loop_length; i += simd_w_) {
-                    vpmovzxwd(zmm_cvt, ptr[reg_inp + sizeof(bfloat16_t) * i]);
-                    vpslld(zmm_cvt, zmm_cvt, 0x10);
-                    if (with_add_)
-                        vaddps(zmm_cvt, zmm_cvt,
-                                zword[reg_add + sizeof(float) * i]);
-                    vmovups(zword[reg_out + sizeof(float) * i], zmm_cvt);
-                }
-                add(reg_inp, sizeof(bfloat16_t) * loop_length);
-                add(reg_out, sizeof(float) * loop_length);
-                if (with_add_) add(reg_add, sizeof(float) * loop_length);
-
-                dec(reg_nelems);
-                cmp(reg_nelems, 0);
-                jg(l_number_of_loops, T_NEAR);
-            }
-
-            if (tail_of_loops > 0) {
-                for (size_t i = 0; i < tail_of_loops; i += simd_w_) {
-                    vpmovzxwd(zmm_cvt, ptr[reg_inp + sizeof(bfloat16_t) * i]);
-                    vpslld(zmm_cvt, zmm_cvt, 0x10);
-                    if (with_add_)
-                        vaddps(zmm_cvt, zmm_cvt,
-                                zword[reg_add + sizeof(float) * i]);
-                    vmovups(zword[reg_out + sizeof(float) * i], zmm_cvt);
-                }
-                add(reg_inp, sizeof(bfloat16_t) * tail_of_loops);
-                add(reg_out, sizeof(float) * tail_of_loops);
-                if (with_add_) add(reg_add, sizeof(float) * tail_of_loops);
-            }
-            if (tail_mask_ != 0) {
-                mov(reg32_mask, tail_mask_);
-                kmovw(ktail_mask, reg32_mask);
-
-                vpmovzxwd(zmm_cvt | ktail_mask | T_z, ptr[reg_inp]);
-                vpslld(zmm_cvt, zmm_cvt, 0x10);
-                if (with_add_)
-                    vaddps(zmm_cvt | ktail_mask | T_z, zmm_cvt, zword[reg_add]);
-                vmovups(zword[reg_out] | ktail_mask, zmm_cvt);
-            }
-        }
-
-        postamble();
-    }
-
-    void jit_ker(bf16_support::jit_call_t *params) const {
-        jit_ker_(params);
-        msan_unpoison(params->out,
-                (nelems_ ? nelems_ : params->nelems) * sizeof(float));
+    void jit_ker(float *out, const bfloat16_t *inp, size_t nelems,
+            size_t rows = 1) const {
+        jit_ker_(out, inp, nelems, rows);
+        msan_unpoison(out, nelems * sizeof(float));
     }
 
 private:
-    size_t nelems_;
-    int simd_w_;
-    int tail_mask_;
     bool with_add_;
-    bool is_dynamic_size_;
-    void (*jit_ker_)(bf16_support::jit_call_t *);
+    size_t row_stride_;
 
-    Xbyak::Opmask ktail_mask = k1;
-    Xbyak::Zmm zmm_cvt = Xbyak::Zmm(0);
-
-    Xbyak::Reg64 reg_inp = rax;
-    Xbyak::Reg64 reg_out = rbx;
-    Xbyak::Reg64 reg_add = r11;
-    Xbyak::Reg64 reg_nelems = rdx;
-
-    Xbyak::Reg64 reg64_tail = rcx;
-    Xbyak::Reg32 reg32_tail = ecx;
-    Xbyak::Reg8 reg8_mask_shift = cl;
-    Xbyak::Reg32 reg32_mask = r8d;
+    void (*jit_ker_)(
+            float *out, const bfloat16_t *inp, size_t nelems, size_t nrows);
 };
 
 // performs element-by-element sum of inp and add float arrays and stores
@@ -593,6 +473,7 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
     void generate() {
         preamble();
 
+        mov(reg32_tail, ptr[abi_param1 + GET_OFF(mask)]);
         mov(reg_inp, ptr[abi_param1 + GET_OFF(inp)]);
         mov(reg_out, ptr[abi_param1 + GET_OFF(out)]);
         mov(reg_nelems, ptr[abi_param1 + GET_OFF(nelems)]);
@@ -602,11 +483,8 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
             return Xbyak::Zmm(idx);
         };
 
-        mov(reg32_tail, 0x00ff);
-        kmovw(ktail_mask_lo, reg32_tail);
-
-        mov(reg32_tail, 0xff00);
-        kmovw(ktail_mask_hi, reg32_tail);
+        kmovd(ktail_mask_lo, reg32_tail);
+        kshiftld(ktail_mask_hi, ktail_mask_lo, 16);
 
         Xbyak::Label dst_prm_table;
         mov(reg_prm, dst_prm_table);
@@ -627,9 +505,9 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
                     if (in_stride_ == 16)
                         vmovups(zmm_inp, zword[reg_inp + j * sizeofcacheline]);
                     else {
-                        vmovups(zmm_inp | ktail_mask_lo | T_z,
+                        vmovdqu16(zmm_inp | ktail_mask_lo | T_z,
                                 zword[reg_inp + 2 * j * in_stride_bytes]);
-                        vmovups(zmm_inp | ktail_mask_hi,
+                        vmovdqu16(zmm_inp | ktail_mask_hi,
                                 zword[reg_inp + (2 * j + 1) * in_stride_bytes
                                         - 32]);
                     }
@@ -653,7 +531,7 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
 
         auto zmm_inp = zmm_reg(0);
         vpxord(zmm_inp, zmm_inp, zmm_inp);
-        vmovups(zmm_inp | ktail_mask_lo | T_z, ptr[reg_inp]);
+        vmovdqu16(zmm_inp | ktail_mask_lo | T_z, ptr[reg_inp]);
         vpermw(zmm_inp, zmm_prm, zmm_inp);
         vmovups(zword[reg_out], zmm_inp);
 

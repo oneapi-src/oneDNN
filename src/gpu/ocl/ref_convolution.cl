@@ -21,8 +21,7 @@
 KERNEL_ATTR
 __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
         const __global WEI_DATA_T *wei, const __global BIA_DATA_T *bias,
-        __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale, float sum_scale, float scales,
+        __global DST_DATA_T *dst POST_OP_ARGS, float scales,
         const __global float *scales_per_oc) {
 
     const int n = GWS_GET_MB();
@@ -63,18 +62,13 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
 #endif
 #endif
 
-#if ELTWISE_IDX == 0
-    tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta, eltwise_scale);
-#endif
-
+    POST_OP_DATA_T sum_src;
 #if WITH_SUM
-    tmp += (SUM_SCALE1 ? 1 : sum_scale)
-            * (POST_OP_DATA_T)dst[DST_OFF(n, g * OC + oc, od, oh, ow)];
+    sum_src = (POST_OP_DATA_T)SUM_TO_REF(
+            AS_SUM_DATA_T(dst[DST_OFF(n, g * OC + oc, od, oh, ow)]));
 #endif
 
-#if ELTWISE_IDX == 1
-    tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta, eltwise_scale);
-#endif
+    APPLY_POST_OPS(tmp, POST_OP_DATA_T, sum_src, POST_OP_DATA_T);
 
     dst[DST_OFF(n, g * OC + oc, od, oh, ow)] = TO_DST(tmp);
 }

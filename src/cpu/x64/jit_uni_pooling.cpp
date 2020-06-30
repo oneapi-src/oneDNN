@@ -543,6 +543,17 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
                 arg.indices = static_cast<const void *>(
                         &indices[ind_off * ind_dt_size]);
             }
+            if (jpp.safe_c_tail) {
+                // 0xffff for avx512, otherwise 0xff*8
+                arg.padded_mask = isa != sse41 && isa != avx ? (uint16_t)-1
+                                                             : (size_t)-1;
+                if (c_off == jpp.nb_c - 1) {
+                    const int this_c_padded_block
+                            = jpp.c - jpp.c_without_padding;
+                    const int bit_in_mask = isa != sse41 && isa != avx ? 1 : 8;
+                    arg.padded_mask >>= this_c_padded_block * bit_in_mask;
+                }
+            }
         }
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
         arg.kh_padding_shift = i_t_overflow * jpp.kw;
@@ -613,6 +624,17 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(
         if (indices) {
             const size_t ind_off = indices_d.blk_off(n, c_off, od, oh);
             arg.indices = &indices[ind_off * ind_dt_size];
+            if (jpp.safe_c_tail) {
+                // 0xffff for avx512, otherwise 0xff*8
+                arg.padded_mask = isa != sse41 && isa != avx ? (uint16_t)-1
+                                                             : (size_t)-1;
+                if (c_off == jpp.nb_c - 1) {
+                    const int this_c_padded_block
+                            = jpp.c - jpp.c_without_padding;
+                    const int bit_in_mask = isa != sse41 && isa != avx ? 1 : 8;
+                    arg.padded_mask >>= this_c_padded_block * bit_in_mask;
+                }
+            }
         }
         arg.kd_padding = jpp.kd - d_t_overflow - d_b_overflow;
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;

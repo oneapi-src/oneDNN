@@ -47,13 +47,13 @@ protected:
         if (gpu_ocl_dev) {
             gpu_ocl_ctx = clCreateContext(
                     nullptr, 1, &gpu_ocl_dev, nullptr, nullptr, &err);
-            OCL_CHECK(err);
+            TEST_OCL_CHECK(err);
         }
 
         if (cpu_ocl_dev) {
             cpu_ocl_ctx = clCreateContext(
                     nullptr, 1, &cpu_ocl_dev, nullptr, nullptr, &err);
-            OCL_CHECK(err);
+            TEST_OCL_CHECK(err);
         }
     }
 
@@ -104,14 +104,14 @@ TEST_P(ocl_engine_test, BasicInteropC) {
         ASSERT_EQ(ctx, ocl_ctx);
 
         cl_uint ref_count;
-        OCL_CHECK(clGetContextInfo(ocl_ctx, CL_CONTEXT_REFERENCE_COUNT,
+        TEST_OCL_CHECK(clGetContextInfo(ocl_ctx, CL_CONTEXT_REFERENCE_COUNT,
                 sizeof(ref_count), &ref_count, nullptr));
         int i_ref_count = int(ref_count);
         ASSERT_EQ(i_ref_count, 2);
 
         DNNL_CHECK(dnnl_engine_destroy(eng));
 
-        OCL_CHECK(clGetContextInfo(ocl_ctx, CL_CONTEXT_REFERENCE_COUNT,
+        TEST_OCL_CHECK(clGetContextInfo(ocl_ctx, CL_CONTEXT_REFERENCE_COUNT,
                 sizeof(ref_count), &ref_count, nullptr));
         i_ref_count = int(ref_count);
         ASSERT_EQ(i_ref_count, 1);
@@ -151,7 +151,7 @@ TEST_P(ocl_engine_test, BasicInteropCpp) {
                     ASSERT_EQ(ctx, ocl_ctx);
 
                     cl_uint ref_count;
-                    OCL_CHECK(clGetContextInfo(ocl_ctx,
+                    TEST_OCL_CHECK(clGetContextInfo(ocl_ctx,
                             CL_CONTEXT_REFERENCE_COUNT, sizeof(ref_count),
                             &ref_count, nullptr));
                     int i_ref_count = int(ref_count);
@@ -159,8 +159,9 @@ TEST_P(ocl_engine_test, BasicInteropCpp) {
                 }
 
                 cl_uint ref_count;
-                OCL_CHECK(clGetContextInfo(ocl_ctx, CL_CONTEXT_REFERENCE_COUNT,
-                        sizeof(ref_count), &ref_count, nullptr));
+                TEST_OCL_CHECK(
+                        clGetContextInfo(ocl_ctx, CL_CONTEXT_REFERENCE_COUNT,
+                                sizeof(ref_count), &ref_count, nullptr));
                 int i_ref_count = int(ref_count);
                 ASSERT_EQ(i_ref_count, 1);
             },

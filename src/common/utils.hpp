@@ -335,8 +335,10 @@ inline bool nd_iterator_step() {
 template <typename U, typename W, typename... Args>
 inline bool nd_iterator_step(U &x, const W &X, Args &&... tuple) {
     if (nd_iterator_step(utils::forward<Args>(tuple)...)) {
-        x = (x + 1) % X;
-        return x == 0;
+        if (++x - X == 0) {
+            x = 0;
+            return true;
+        }
     }
     return false;
 }
@@ -359,8 +361,10 @@ template <typename U, typename W, typename Y, typename... Args>
 inline bool nd_iterator_jump(
         U &cur, const U end, W &x, const Y &X, Args &&... tuple) {
     if (nd_iterator_jump(cur, end, utils::forward<Args>(tuple)...)) {
-        x = (x + 1) % X;
-        return x == 0;
+        if (++x - X == 0) {
+            x = 0;
+            return true;
+        }
     }
     return false;
 }

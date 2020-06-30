@@ -53,7 +53,8 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
                             eltwise_sqrt, eltwise_soft_relu, eltwise_logistic,
                             eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
                             eltwise_log, eltwise_clip, eltwise_pow,
-                            eltwise_gelu_erf, eltwise_relu_use_dst_for_bwd,
+                            eltwise_gelu_erf, eltwise_round,
+                            eltwise_relu_use_dst_for_bwd,
                             eltwise_logistic_use_dst_for_bwd,
                             eltwise_tanh_use_dst_for_bwd,
                             eltwise_elu_use_dst_for_bwd,
@@ -61,7 +62,7 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
                             eltwise_exp_use_dst_for_bwd)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::f16, data_type::bf16,
-                            data_type::s32, data_type::s8)
+                            data_type::s32, data_type::s8, data_type::u8)
                     && attr()->has_default_values()
                     && IMPLICATION(utils::one_of(desc()->data_desc.data_type,
                                            data_type::s32, data_type::s8),

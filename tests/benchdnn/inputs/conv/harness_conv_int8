@@ -1,7 +1,6 @@
 # Int8
 --reset --dir=FWD_B --mb=2
 --skip-impl="ref:gemm"      # ! test jit version only
---allow-unimpl=true
 --cfg=u8s8u8  --batch=set_conv_all
 --cfg=u8s8s8  --batch=shapes_resnet_50
 --cfg=u8s8s32 --batch=shapes_googlenet_v3

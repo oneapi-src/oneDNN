@@ -119,7 +119,7 @@ dnnl_primitive_attr_t create_dnnl_fusion_attr(
     return dnnl_attr;
 }
 
-static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+static int init_pd(dnnl_engine_t engine, const prb_t *p,
         dnnl_primitive_desc_t &cpd, res_t *r, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_convolution_desc_t cd;
@@ -176,14 +176,7 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     dnnl_dim_t dilates_nd[] = {p->dd, p->dh, p->dw};
     dnnl_dim_t padding_nd[] = {p->pd, p->ph, p->pw};
-
-    auto bph = [](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph,
-                       int64_t dh) {
-        return (oh - 1) * sh - ih + ((kh - 1) * (dh + 1) + 1) - ph;
-    };
-    dnnl_dim_t padding_r_nd[] = {bph(p->id, p->od, p->kd, p->sd, p->pd, p->dd),
-            bph(p->ih, p->oh, p->kh, p->sh, p->ph, p->dh),
-            bph(p->iw, p->ow, p->kw, p->sw, p->pw, p->dw)};
+    dnnl_dim_t padding_r_nd[] = {p->pd_r, p->ph_r, p->pw_r};
 
     dnnl_dim_t *strides = strides_nd + (5 - p->ndims);
     dnnl_dim_t *dilates = dilates_nd + (5 - p->ndims);
@@ -228,8 +221,8 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
 
     auto dnnl_attr = create_dnnl_fusion_attr(p, p->oc);
 
-    dnnl_status_t init_status = dnnl_primitive_desc_create(
-            &cpd, &cd, dnnl_attr, engine_tgt, NULL);
+    dnnl_status_t init_status
+            = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, NULL);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
@@ -247,7 +240,7 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
                 r->impl_name.c_str());
         DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
-        return r->state = SKIPPED, OK;
+        return r->state = SKIPPED, r->reason = SKIP_IMPL_HIT, OK;
     } else {
         BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
     }
@@ -320,20 +313,26 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *p) {
     cd.pw = 1;
     cd.has_groups = true;
     cd.ndims = p->ndims;
+    cd.init_pad_r(false); // is_deconv = false for conv descriptor
 
     return std::unique_ptr<prb_t>(new prb_t(cd, p->dir, p_dw_cfg, tag::any,
             tag::any, p->dtag, alg_t::DIRECT, fusion_attr, p->mb));
 }
 
+void check_known_skipped_case(const prb_t *p, res_t *r) {
+    check_known_skipped_case_common(
+            {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, r);
+}
+
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-    engine_t engine_tgt;
-    engine_t engine_tgt_c0;
-    engine_t engine_tgt_c1;
+
+    check_known_skipped_case(p, r);
+    if (r->state == SKIPPED) return OK;
 
     // Original problem with fusion attributes
     dnnl_primitive_t c {};
-    SAFE(init_prim(&c, init_pd, engine_tgt, p, r), WARN);
+    SAFE(init_prim(&c, init_pd, p, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
@@ -343,7 +342,7 @@ int doit(const prb_t *p, res_t *r) {
     // due to quering not by arg md.
     if (dnn_mem_t::check_mem_size(const_pd) != OK) {
         DNN_SAFE_V(dnnl_primitive_destroy(c));
-        return r->state = SKIPPED, OK;
+        return r->state = SKIPPED, r->reason = NOT_ENOUGH_RAM, OK;
     }
 
     const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
@@ -384,24 +383,26 @@ int doit(const prb_t *p, res_t *r) {
             : q(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
-    dnn_mem_t src_dt(src_md, engine_tgt);
-    dnn_mem_t wei_dt(wei_md, engine_tgt);
-    dnn_mem_t bia_dt(bia_md, engine_tgt);
-    dnn_mem_t dst_dt(dst_md, engine_tgt);
-    dnn_mem_t fused_wei_dt(fused_wei_md, engine_tgt);
-    dnn_mem_t fused_bia_dt(fused_bia_md, engine_tgt);
-    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
+    const auto &test_engine = get_test_engine();
+
+    dnn_mem_t src_dt(src_md, test_engine);
+    dnn_mem_t wei_dt(wei_md, test_engine);
+    dnn_mem_t bia_dt(bia_md, test_engine);
+    dnn_mem_t dst_dt(dst_md, test_engine);
+    dnn_mem_t fused_wei_dt(fused_wei_md, test_engine);
+    dnn_mem_t fused_bia_dt(fused_bia_md, test_engine);
+    dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     const auto fp = dnnl_f32;
     const auto src_tag = get_abx_tag(src_md.ndims);
     const auto wei_tag = get_abx_tag(wei_md.ndims);
     const auto fused_wei_tag = get_abx_tag(fused_wei_md.ndims);
-    dnn_mem_t src_fp(src_md, fp, src_tag, engine_tgt);
-    dnn_mem_t wei_fp(wei_md, fp, wei_tag, engine_tgt);
-    dnn_mem_t bia_fp(bia_md, fp, dnnl_x, engine_tgt);
-    dnn_mem_t dst_fp(dst_md, fp, src_tag, engine_tgt);
-    dnn_mem_t fused_wei_fp(fused_wei_md, fp, fused_wei_tag, engine_tgt);
-    dnn_mem_t fused_bia_fp(fused_bia_md, fp, dnnl_x, engine_tgt);
+    dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
+    dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
+    dnn_mem_t bia_fp(bia_md, fp, dnnl_x, test_engine);
+    dnn_mem_t dst_fp(dst_md, fp, src_tag, test_engine);
+    dnn_mem_t fused_wei_fp(fused_wei_md, fp, fused_wei_tag, test_engine);
+    dnn_mem_t fused_bia_fp(fused_bia_md, fp, dnnl_x, test_engine);
 
     // Current filling doesn't work for fused_wei due to relying on prb values,
     // which are different for fused conv. This can be fixed later by relying
@@ -412,8 +413,8 @@ int doit(const prb_t *p, res_t *r) {
     // Fill first convolution
     std::unique_ptr<prb_t> p0 = get_first_conv_prb(p);
 
-    dnnl_primitive_t c0;
-    SAFE(init_prim(&c0, init_pd, engine_tgt_c0, p0.get(), r), WARN);
+    dnnl_primitive_t c0 {};
+    SAFE(init_prim(&c0, init_pd, p0.get(), r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd0;
@@ -443,28 +444,28 @@ int doit(const prb_t *p, res_t *r) {
     const auto src_tag0 = get_abx_tag(src_md0.ndims);
     const auto wei_tag0 = get_abx_tag(wei_md0.ndims);
 
-    dnn_mem_t src_dt0(src_md0, engine_tgt_c0);
-    dnn_mem_t wei_dt0(wei_md0, engine_tgt_c0);
-    dnn_mem_t bia_dt0(bia_md0, engine_tgt_c0);
-    dnn_mem_t dst_dt0(dst_md0, engine_tgt_c0);
-    dnn_mem_t scratchpad_dt0(scratchpad_md0, engine_tgt_c0);
+    dnn_mem_t src_dt0(src_md0, test_engine);
+    dnn_mem_t wei_dt0(wei_md0, test_engine);
+    dnn_mem_t bia_dt0(bia_md0, test_engine);
+    dnn_mem_t dst_dt0(dst_md0, test_engine);
+    dnn_mem_t scratchpad_dt0(scratchpad_md0, test_engine);
 
-    dnn_mem_t src_fp0(src_md0, fp, src_tag0, engine_tgt_c0);
-    dnn_mem_t wei_fp0(wei_md0, fp, wei_tag0, engine_tgt_c0);
-    dnn_mem_t bia_fp0(bia_md0, fp, dnnl_x, engine_tgt_c0);
-    dnn_mem_t dst_fp0(dst_md0, fp, src_tag0, engine_tgt_c0);
+    dnn_mem_t src_fp0(src_md0, fp, src_tag0, test_engine);
+    dnn_mem_t wei_fp0(wei_md0, fp, wei_tag0, test_engine);
+    dnn_mem_t bia_fp0(bia_md0, fp, dnnl_x, test_engine);
+    dnn_mem_t dst_fp0(dst_md0, fp, src_tag0, test_engine);
 
-    SAFE(conv::fill_src(engine_tgt_c0, p0.get(), src_dt0, src_fp0, r), WARN);
-    SAFE(conv::fill_wei(engine_tgt_c0, p0.get(), wei_dt0, wei_fp0, r), WARN);
-    SAFE(conv::fill_bia(engine_tgt_c0, p0.get(), bia_dt0, bia_fp0, r), WARN);
-    SAFE(conv::fill_dst(engine_tgt_c0, p0.get(), dst_dt0, dst_fp0, r), WARN);
+    SAFE(conv::fill_src(p0.get(), src_dt0, src_fp0, r), WARN);
+    SAFE(conv::fill_wei(p0.get(), wei_dt0, wei_fp0, r), WARN);
+    SAFE(conv::fill_bia(p0.get(), bia_dt0, bia_fp0, r), WARN);
+    SAFE(conv::fill_dst(p0.get(), dst_dt0, dst_fp0, r), WARN);
 
     // Fill next convolution
     std::unique_ptr<prb_t> p1 = get_fused_conv_prb(p);
     if (!p1) SAFE(FAIL, CRIT);
 
-    dnnl_primitive_t c1;
-    SAFE(init_prim(&c1, init_pd, engine_tgt_c1, p1.get(), r), WARN);
+    dnnl_primitive_t c1 {};
+    SAFE(init_prim(&c1, init_pd, p1.get(), r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd1;
@@ -494,19 +495,19 @@ int doit(const prb_t *p, res_t *r) {
 
     const auto src_tag1 = get_abx_tag(src_md1.ndims);
     const auto wei_tag1 = get_abx_tag(wei_md1.ndims);
-    dnn_mem_t src_dt1(src_md1, engine_tgt_c1);
-    dnn_mem_t wei_dt1(wei_md1, engine_tgt_c1);
-    dnn_mem_t bia_dt1(bia_md1, engine_tgt_c1);
-    dnn_mem_t dst_dt1(dst_md1, engine_tgt_c1);
-    dnn_mem_t scratchpad_dt1(scratchpad_md1, engine_tgt_c1);
+    dnn_mem_t src_dt1(src_md1, test_engine);
+    dnn_mem_t wei_dt1(wei_md1, test_engine);
+    dnn_mem_t bia_dt1(bia_md1, test_engine);
+    dnn_mem_t dst_dt1(dst_md1, test_engine);
+    dnn_mem_t scratchpad_dt1(scratchpad_md1, test_engine);
 
-    dnn_mem_t wei_fp1(wei_md1, fp, wei_tag1, engine_tgt_c1);
-    dnn_mem_t bia_fp1(bia_md1, fp, dnnl_x, engine_tgt_c1);
-    dnn_mem_t dst_fp1(dst_md1, fp, src_tag1, engine_tgt_c1);
+    dnn_mem_t wei_fp1(wei_md1, fp, wei_tag1, test_engine);
+    dnn_mem_t bia_fp1(bia_md1, fp, dnnl_x, test_engine);
+    dnn_mem_t dst_fp1(dst_md1, fp, src_tag1, test_engine);
 
-    SAFE(conv::fill_wei(engine_tgt_c1, p1.get(), wei_dt1, wei_fp1, r), WARN);
-    SAFE(conv::fill_bia(engine_tgt_c1, p1.get(), bia_dt1, bia_fp1, r), WARN);
-    SAFE(conv::fill_dst(engine_tgt_c1, p1.get(), dst_dt1, dst_fp1, r), WARN);
+    SAFE(conv::fill_wei(p1.get(), wei_dt1, wei_fp1, r), WARN);
+    SAFE(conv::fill_bia(p1.get(), bia_dt1, bia_fp1, r), WARN);
+    SAFE(conv::fill_dst(p1.get(), dst_dt1, dst_fp1, r), WARN);
 
     // TODO: fix this if irritates.
     // SAFE(conv::fill_src(p, src_dt, src_fp, r), WARN);
@@ -534,7 +535,7 @@ int doit(const prb_t *p, res_t *r) {
         args0.set(DNNL_ARG_DST, dst_dt0);
         args0.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt0);
 
-        DNN_SAFE(execute_and_wait(c0, engine_tgt_c0, args0), WARN);
+        SAFE(execute_and_wait(c0, args0), WARN);
         SAFE(src_dt1.reorder(dst_dt0), WARN);
 
         args1.set(DNNL_ARG_SRC, src_dt1);
@@ -543,7 +544,7 @@ int doit(const prb_t *p, res_t *r) {
         args1.set(DNNL_ARG_DST, dst_dt1);
         args1.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt1);
 
-        DNN_SAFE(execute_and_wait(c1, engine_tgt_c1, args1), WARN);
+        SAFE(execute_and_wait(c1, args1), WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
@@ -555,11 +556,11 @@ int doit(const prb_t *p, res_t *r) {
             args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS, fused_bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(c, engine_tgt, args), WARN);
+        SAFE(execute_and_wait(c, args), WARN);
 
         if (bench_mode & CORR) {
-            dnn_mem_t dst_fused(dst_dt, fp, src_tag, engine_tgt);
-            dnn_mem_t dst_unfused(dst_dt1, fp, src_tag, engine_tgt_c1);
+            dnn_mem_t dst_fused(dst_dt, fp, src_tag, test_engine);
+            dnn_mem_t dst_unfused(dst_dt1, fp, src_tag, test_engine);
             // Used p1 to avoid writing separate compare function. Compare uses
             // p->cfg which can be u8s8u8 while after fusion it may be u8s8s8,
             // thus, compare() will saturate values which is not correct.
@@ -570,7 +571,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(FAIL, CRIT);
     }
 
-    measure_perf(r->timer, engine_tgt, c, args);
+    measure_perf(r->timer, c, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(c));
     DNN_SAFE_V(dnnl_primitive_destroy(c0));

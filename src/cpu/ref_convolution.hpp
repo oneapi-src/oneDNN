@@ -60,7 +60,8 @@ struct ref_convolution_fwd_t : public primitive_t {
                     && set_default_formats()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
-                            | primitive_attr_t::skip_mask_t::post_ops)
+                                    | primitive_attr_t::skip_mask_t::post_ops,
+                            dst_type)
                     && output_scales_mask_ok() && post_ops_ok();
             return ok ? status::success : status::unimplemented;
         }

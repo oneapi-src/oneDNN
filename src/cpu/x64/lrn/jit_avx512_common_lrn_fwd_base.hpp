@@ -17,6 +17,7 @@
 #ifndef CPU_X64_LRN_JIT_AVX512_COMMON_LRN_FWD_BASE_HPP
 #define CPU_X64_LRN_JIT_AVX512_COMMON_LRN_FWD_BASE_HPP
 
+#include <functional>
 #include <memory>
 #include "common/c_types_map.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
@@ -41,7 +42,8 @@ template <data_type_t d_type>
 class jit_avx512_common_lrn_kernel_fwd_t : public jit_generator {
 public:
     jit_avx512_common_lrn_kernel_fwd_t(prop_kind_t prop_kind, float alpha,
-            float k, void *code_ptr, size_t code_size);
+            float beta, float k, int local_size, void *code_ptr,
+            size_t code_size);
 
     using data_t = typename prec_traits<d_type>::type;
 
@@ -49,18 +51,18 @@ public:
         jit_args_fwd_t();
         const data_t *src;
         data_t *dst, *ws0, *ws1;
-        static const int32_t mask[20];
+        static const int32_t mask[48];
         const int32_t *mask_ptr;
     };
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd);
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd_t);
     void (*ker)(jit_args_fwd_t *);
     void operator()(jit_args_fwd_t *arg) { ker(arg); }
 
 protected:
-    static inline Zmm zreg(int irb, int i) { return Zmm(irb * 7 + i); };
-    static inline Ymm yreg(int irb, int i) { return Ymm(irb * 7 + i); };
-    static inline Xmm xreg(int irb, int i) { return Xmm(irb * 3 + i); };
+    Zmm zreg(int irb, int i) const;
+    Ymm yreg(int irb, int i) const;
+    Xmm xreg(int irb, int i) const;
 
     void store_data(const Address addr, Zmm zr, Ymm yr);
     void load_tail(int tail_value, Reg64 src, int src_mem_offset,
@@ -70,7 +72,7 @@ protected:
             int tmp_stack_offset, int tmp_idx);
 
     prop_kind_t pk_;
-    float alpha_, k_;
+    float alpha_, beta_, k_;
     static constexpr int xmm_size_ = 4 * sizeof(acc_data_t);
     static constexpr int zmm_size_ = 64;
     const Reg64 imm_addr64_ = rbx;
@@ -85,22 +87,27 @@ protected:
     const Reg64 ws0_ = rdx;
     const Reg64 ws1_ = rsi;
     const Reg64 param_ = abi_param1;
-    static constexpr int zc_ = 7;
-    static constexpr int za_ = 2;
-    static constexpr int zb_ = 3;
-    static constexpr int zd_ = 5;
-    static constexpr int ze_ = 6;
-    static constexpr int zsum_ = 4;
+
+    const int local_size_;
+
+    static constexpr int zc_ = 2;
+    const std::vector<int> z_prev_;
+    const std::vector<int> z_next_;
+
+    const int zsum_;
+    static constexpr int zsrc_ = 2;
+    static constexpr int zdst_ = 3;
     static constexpr int zsum2_ = 5;
-    static constexpr int zbase_ = 3;
-    static constexpr int zsrc_ = 7;
-    static constexpr int zdst_ = 2;
+    static constexpr int zbase_ = 4;
+
     const Zmm bf16_emu_reserv_1_ = zmm28;
     const Zmm bf16_emu_reserv_2_ = zmm29;
     const Reg64 bf16_emu_scratch_ = rax;
     const Zmm bf16_emu_reserv_3_ = zmm30;
     const Zmm bf16_emu_reserv_4_ = zmm31;
+
     const bool emulateBfloat_;
+    const int regs_used_per_block_;
     const int reg_block_;
     static constexpr int vlen_ = d_type == bf16 ? 32 : 64;
     std::unique_ptr<bf16_emulation_t> bf16_emu_ = nullptr;

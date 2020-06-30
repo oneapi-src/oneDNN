@@ -37,6 +37,7 @@
     void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
             int wic, int batch, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
+            const memory_storage_t &scratch_cell, \
             const memory_storage_t *scales, const memory_storage_t &bias, \
             const memory_storage_t *tm_scales) const
 
@@ -48,6 +49,7 @@
             size_t *weights_states, int n_parts_weights_iter, \
             const memory_storage_t &bias, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
+            const memory_storage_t &scratch_cell, \
             const memory_storage_t &w_input, const memory_storage_t &w_state, \
             const memory_storage_t &diff_weights_layer, \
             const memory_storage_t &diff_weights_iter, \
@@ -62,6 +64,7 @@
             int n_parts_weights_iter, const memory_storage_t &bias, \
             const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
+            const memory_storage_t &scratch_cell, \
             const memory_storage_t &w_input, const memory_storage_t &w_state, \
             const memory_storage_t &diff_weights_layer, \
             const memory_storage_t &diff_weights_iter, \
@@ -144,14 +147,14 @@ struct conf_t {
 
     // Size of workspace for each tensor in bytes
     size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
-            ws_cell_comp_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
+            scratch_cell_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
 
     bool merge_gemm_iter, merge_gemm_layer, use_gemm, use_layer_packed_gemm,
             use_iter_packed_gemm;
 
     // Element size of each workspace part in bytes
-    int ws_gates_elsz, ws_states_elsz, ws_cell_comp_elsz, ws_c_states_elsz,
-            ws_grid_comp_elsz, ws_bias_elsz;
+    int ws_gates_elsz, ws_states_elsz, ws_c_states_elsz, ws_grid_comp_elsz,
+            ws_bias_elsz;
 
     size_t scratch_gates_size;
     int n_iter_scratch_gates;
@@ -185,7 +188,7 @@ void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 void set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_h_state_offset, size_t &ws_c_state_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
+        size_t &scratch_cell_offset, size_t &ws_bias_offset,
         size_t &scratch_gates_offset, size_t &scratchpad_size,
         size_t &workspace_size);
 void get_scratchpad_and_workspace_sizes(

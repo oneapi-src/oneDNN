@@ -178,7 +178,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
         float qf = f * data_scale + data_shift;
         qf = nstl::min(qf, 255.0f);
         qf = nstl::max(qf, 0.0f);
-        return (dst_layer_t)mxcsr_round(qf);
+        return (dst_layer_t)mxcsr_cvt(qf);
     };
 
     auto dequantize_s32_f32 = [&](gemm_acc_t s, int gate, int j) {

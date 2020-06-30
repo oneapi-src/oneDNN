@@ -322,7 +322,9 @@ int dst_idx(int mb_block, int oc_outer, int ow_block) {
                     && ((iw) + iw_off < 0 || (iw) + iw_off >= IW)) \
                 continue; \
             for (int ic_outer = 0; ic_outer < IC_OUTER; ic_outer++) \
-                for (int mb_block = 0; mb_block < MB_BLOCK; mb_block += 8) { \
+                __attribute__((opencl_unroll_hint)) /*  attr:no-format */ \
+                        for (int mb_block = 0; mb_block < MB_BLOCK; \
+                                mb_block += 8) { \
                     int mb_bound = min(8, MB_BLOCK - mb_block); \
                     DATA_T A[8]; \
                     int off = src_off( \
@@ -623,13 +625,7 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
-        const __global DATA_T *bia, __global DATA_T *dst, float eltwise_alpha_,
-        float eltwise_beta_, float eltwise_scale_, float sum_scale_) {
-
-    DATA_T eltwise_alpha = eltwise_alpha_;
-    DATA_T eltwise_beta = eltwise_beta_;
-    DATA_T eltwise_scale = eltwise_scale_;
-    DATA_T sum_scale = sum_scale_;
+        const __global DATA_T *bia, __global DATA_T *dst POST_OP_ARGS) {
 
     int local_id = get_local_id(0);
     int g_ocb = get_group_id(0);
@@ -655,14 +651,21 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     int id = od * SD - PD;
 
     DATA_T C[MB_BLOCK * OC_OUTER * OW_BLOCK] = {0};
-    for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++)
-        for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++)
-            for (int ow_block = 0; ow_block < OW_BLOCK; ow_block++) {
-                int c_off = dst_idx(mb_block, oc_outer, ow_block);
-                C[c_off] = WITH_BIAS
-                        ? bia[g * OC + oc + oc_outer * 16 + local_id]
-                        : 0;
+    if (WITH_BIAS) {
+        for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) {
+            for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) {
+                for (int ow_block = 0; ow_block < OW_BLOCK; ow_block++) {
+                    const int c_off = dst_idx(mb_block, oc_outer, ow_block);
+                    const int bg_off = g * OC;
+                    const int bc_off = oc + oc_outer * 16 + local_id;
+                    C[c_off] = (OC_WO_PADDING % OC_BLOCK == 0
+                                       || bc_off < OC_WO_PADDING)
+                            ? bia[bg_off + bc_off]
+                            : DATA_ZERO;
+                }
             }
+        }
+    }
 
     src += src_off(mb, g * IC, id, ih, iw);
     wei += wei_off(g, oc, 0, 0, 0, 0);
@@ -674,18 +677,11 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         loop_ic_outermost(src, wei, C, id, ih, iw);
     }
 
-    if (WITH_SUM) {
-        DATA_T S[MB_BLOCK * OC_OUTER * OW_BLOCK];
-        read_dst_block(S, dst, ow);
+    DATA_T S[MB_BLOCK * OC_OUTER * OW_BLOCK];
 
-        for (int i = 0; i < MB_BLOCK * OC_OUTER * OW_BLOCK; i++) {
-            C[i] = fma(S[i], SUM_SCALE1 ? 1 : sum_scale, C[i]);
-        }
-    }
-#if WITH_ELTWISE
-    for (int i = 0; i < MB_BLOCK * OC_OUTER * OW_BLOCK; i++) {
-        C[i] = fwd_eltwise(C[i], eltwise_alpha, eltwise_beta, eltwise_scale);
-    }
-#endif
+    if (WITH_SUM) { read_dst_block(S, dst, ow); }
+
+    APPLY_POST_OPS(C, DATA_T, S, DATA_T);
+
     write_dst_block(C, dst, ow);
 }

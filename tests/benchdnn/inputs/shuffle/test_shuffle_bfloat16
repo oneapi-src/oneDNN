@@ -2,7 +2,6 @@
 
 --group=4
 --dt=bf16
---allow-unimpl=true
 
 --dir=FWD_D
 --tag=abx,axb,aBx16b

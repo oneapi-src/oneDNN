@@ -18,11 +18,3 @@ mb2ic640iw10oc256
 --stag=abx,aBx16b,aBx8b,aBx4b
 mb2ic640ih10oc256
 mb2ic640id2ih10iw10oc256
-
---reset
---allow-unimpl=true
---skip-impl="ref"
---dir=FWD_D,BWD_D,BWD_WB
---stag=any        --wtag=ABcd16b16a mb2ic640ih10oc256
---stag=ABcd16b16a --wtag=any        mb2ic640ih10oc256
---stag=ABcd16b16a --wtag=ABcd16b16a mb2ic640ih10oc256

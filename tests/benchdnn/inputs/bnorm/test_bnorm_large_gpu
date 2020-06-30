@@ -1,28 +1,28 @@
 --reset
 
 --tag=abx,aBx16b,ABx16a16b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_1d --batch=bnorm_3d
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_1d
---dir=BWD_D        --flags=        --attr=                --batch=bnorm_1d
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_1d --batch=bnorm_3d
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_1d
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_1d
 
 --tag=abx,aBx16b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo_gpu
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_gpu
---dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_gpu
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_topo_gpu
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_topo_gpu
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_topo_gpu
 
 --mb=2
 --dt=f16,s8
---dir=FWD_I        --flags=GS      --attr=                --batch=bnorm_topo_gpu
---dir=FWD_I        --flags=GS      --attr=post_ops='relu' --batch=bnorm_topo_gpu
+--dir=FWD_I        --flags=GS      --attr-post-ops=       --batch=bnorm_topo_gpu
+--dir=FWD_I        --flags=GS      --attr-post-ops='relu' --batch=bnorm_topo_gpu
 
 --reset
 
 --mb=48
 --tag=ABx16a16b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo_gpu
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_gpu
---dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_gpu
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_topo_gpu
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_topo_gpu
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_topo_gpu
 
 --dt=f16,s8,bf16
---dir=FWD_I        --flags=GS      --attr=                --batch=bnorm_topo_gpu
---dir=FWD_I        --flags=GS      --attr=post_ops='relu' --batch=bnorm_topo_gpu
+--dir=FWD_I        --flags=GS      --attr-post-ops=       --batch=bnorm_topo_gpu
+--dir=FWD_I        --flags=GS      --attr-post-ops='relu' --batch=bnorm_topo_gpu

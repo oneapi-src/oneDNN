@@ -51,7 +51,8 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
 
     auto &len = attr_dw.post_ops_.len_;
     for (int i = dw_po_index + 1; i < attr_1x1.post_ops_.len_; ++i) {
-        attr_dw.post_ops_.entry_[len++] = attr_1x1.post_ops_.entry_[i];
+        CHECK(attr_dw.post_ops_.entry_[len++].copy_from(
+                attr_1x1.post_ops_.entry_[i]));
     }
 
     attr_dw.scratchpad_mode_ = attr_1x1.scratchpad_mode_;

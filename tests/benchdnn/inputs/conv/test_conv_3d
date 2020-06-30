@@ -7,7 +7,7 @@
 --batch=set_conv_3d
 
 # i8 3-D Convolution
---reset --allow-unimpl=true
+--reset
 --skip-impl="ref:gemm" # ! test jit version only
 --mb=2
 --cfg=u8s8s8,s8s8s32,u8s8s8

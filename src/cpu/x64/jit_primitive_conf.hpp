@@ -564,6 +564,7 @@ struct jit_pool_call_s {
     const void *init_value;
     float ker_area_h;
     size_t ur_bc;
+    size_t padded_mask;
 };
 
 } // namespace x64

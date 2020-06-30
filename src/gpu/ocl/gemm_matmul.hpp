@@ -56,11 +56,13 @@ status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd_,
     gemm_desc.bias_type = bias_dt;
     gemm_desc.bias_mask = bias_mask;
 
-    primitive_attr_t gemm_attr = *attr;
+    primitive_attr_t gemm_attr(*attr);
+    if (!gemm_attr.is_initialized()) return status::out_of_memory;
     gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
 
     dnnl_primitive_desc_iterator it(
             engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
+    if (!it.is_initialized()) return status::out_of_memory;
     ++it;
     gemm_pd_.reset(it.fetch_once());
     if (!gemm_pd_) return status::unimplemented;
@@ -76,13 +78,6 @@ struct gemm_matmul_t : public gpu_primitive_t {
 
         pd_t(const pd_t &other)
             : gpu_matmul_pd_t(other), gemm_pd_(other.gemm_pd_->clone()) {}
-
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            gpu_matmul_pd_t::operator=(other);
-            gemm_pd_.reset(other.gemm_pd_->clone());
-            return *this;
-        }
 
         DECLARE_COMMON_PD_T("ocl:gemm:any", gemm_matmul_t);
 
@@ -141,7 +136,8 @@ struct gemm_matmul_t : public gpu_primitive_t {
                     = [](const primitive_attr_t &attr,
                               primitive_attr_t &gemm_attr) {
                           if (!attr.output_scales_.has_default_values()) {
-                              gemm_attr.output_scales_ = attr.output_scales_;
+                              gemm_attr.output_scales_.copy_from(
+                                      attr.output_scales_);
                           }
 
                           auto map_gemm_zp = [&attr, &gemm_attr](

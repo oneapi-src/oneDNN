@@ -144,7 +144,8 @@ private:
         const dims_t &dims_B = src_md(1)->dims;
 
         for (int d = 0; d < ndims(); ++d)
-            broadcast_dims_[d] = dims_A[d] == dims_B[d] ? 0 : 1;
+            broadcast_dims_[d]
+                    = (dims_A[d] == dims_B[d] && dims_A[d] != 1) ? 0 : 1;
     }
 };
 

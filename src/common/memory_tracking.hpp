@@ -167,7 +167,6 @@ enum {
     key_conv_adjusted_scales,
     key_conv_bia_reduction,
     key_conv_bias_bf16_convert_wsp,
-    key_conv_dst_bf16_convert_wsp,
     key_conv_gemm_acc,
     key_conv_gemm_col,
     key_conv_gemm_imtr,

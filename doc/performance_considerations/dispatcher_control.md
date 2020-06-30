@@ -1,23 +1,49 @@
-CPU dispatcher control {#dev_guide_cpu_dispatcher_control}
+CPU Dispatcher Control {#dev_guide_cpu_dispatcher_control}
 ==========================================================
 
 oneDNN uses JIT code generation to implement most of its functionality and will
 choose the best code based on detected processor features. Sometimes it is
 necessary to control which features oneDNN detects. This is sometimes useful for
-debugging purposes or for performance exploration. To enable this, oneDNN
-provides two mechanisms: an environment variable `DNNL_MAX_CPU_ISA` and a
-function `dnnl::set_max_cpu_isa()`.
+debugging purposes or for performance exploration.
 
-The environment variable can be set to an upper-case name of the ISA as
-defined by the `dnnl::cpu_isa` enumeration. For example,
-`DNNL_MAX_CPU_ISA=AVX2` will instruct oneDNN to dispatch code that will run
-on systems with Intel AVX2 instruction set support. The `DNNL_MAX_CPU_ISA=ALL`
-setting implies no restrictions.
+## Build-time Controls
 
-The `dnnl::set_max_cpu_isa()` function allows changing the ISA at run-time.
+At build-time, support for this feature is controlled via cmake option
+`DNNL_ENABLE_JIT_PROFILING`.
+
+| CMake Option                | Supported values (defaults in bold) | Description
+| :---                        | :---                                | :---
+| DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
+
+## Run-time Controls
+
+When the feature is enabled at build-time, the `DNNL_MAX_CPU_ISA` environment
+variable can be used to limit processor features oneDNN is able to detect to
+certain Instruction Set Architecture (ISA) and older instruction sets.
+
+| Environment variable | Value            | Description
+| :---                 | :---             | :---
+| DNNL_MAX_CPU_ISA     | SSE41            | Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)
+|                      | AVX              | Intel Advanced Vector Extensions (Intel AVX)
+|                      | AVX2             | Intel Advanced Vector Extensions 2 (Intel AVX2)
+|                      | AVX512_MIC       | Intel Advanced Vector Extensions 512 (Intel AVX-512) with AVX512CD, AVX512ER, and AVX512PF extensions
+|                      | AVX512_MIC_4OPS  | Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW extensions
+|                      | AVX512_CORE      | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions
+|                      | AVX512_CORE_VNNI | Intel AVX-512 with Intel Deep Learning Boost (Intel DL Boost)
+|                      | AVX512_CORE_BF16 | Intel AVX-512 with Intel DL Boost and bfloat16 support
+|                      | **ALL**          | **No restrictions on ISA (default)**
+
+@note The ISAs are partially ordered:
+* SSE41 < AVX < AVX2,
+* AVX2 < AVX512_MIC < AVX512_MIC_4OPS,
+* AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16.
+
+This feature can also be managed at run-time with the following functions:
+* @ref dnnl::set_max_cpu_isa function allows changing the ISA at run-time.
 The limitation is that, it is possible to set the value only before the first
 JIT-ed function is generated. This limitation ensures that the JIT-ed code
 observe consistent CPU features both during generation and execution.
+* @ref dnnl::get_effective_cpu_isa function returns the currently used CPU ISA
+which is the highest available CPU ISA by default.
 
-This feature can be enabled or disabled at build time. See @ref
-dev_guide_build_options for more information.
+Function settings take precedence over environment variables.

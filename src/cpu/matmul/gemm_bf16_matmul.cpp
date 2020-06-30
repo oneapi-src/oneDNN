@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
+
 #include <assert.h>
 #include <float.h>
 #include <math.h>
@@ -97,7 +99,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
     if (!check_attr_oscale()) return status::unimplemented;
 
     // set state
-    params_.pp_attr_ = *attr();
+    CHECK(params_.pp_attr_.copy_from(*attr()));
     params_.gemm_applies_output_scales_
             = attr()->output_scales_.mask_ == 0 && !with_bias();
     if (params_.gemm_applies_output_scales_)
@@ -113,7 +115,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
             params_.gemm_beta_ = po.entry_[sum_idx].sum.scale;
             // drop sum from pp_attributes, as it will be applied by gemm
             for (int i = 0; i < po.len_ - 1; ++i)
-                po.entry_[i] = po.entry_[i + 1];
+                CHECK(po.entry_[i].copy_from(po.entry_[i + 1]));
             po.len_ -= 1;
         }
     } else {
@@ -198,7 +200,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
     const auto acc_batch_stride = M * N;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {
         // NOTE: inside lambda, type cast variables captured by reference using

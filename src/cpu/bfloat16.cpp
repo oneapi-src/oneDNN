@@ -97,40 +97,14 @@ void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp, size_t nelems) {
 void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t nelems) {
 #if DNNL_X64
     if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
-        cpu::x64::bf16_support::jit_call_t p_;
-        p_.inp = (void *)inp;
-        p_.out = (void *)out;
-        p_.nelems = nelems;
-        static const cpu::x64::jit_avx512_core_cvt_bf16_to_ps_t cvt_bf16_to_ps;
-        cvt_bf16_to_ps.jit_ker(&p_);
-        return;
+        static const cpu::x64::jit_avx512_core_cvt_bf16_to_ps_t kernel(false);
+        return kernel.jit_ker(out, inp, nelems);
     }
 #endif
 
     PRAGMA_OMP_SIMD()
     for (size_t i = 0; i < nelems; ++i)
         out[i] = inp[i];
-}
-
-void cvt_bfloat16_and_add_to_float(
-        float *out, const bfloat16_t *inp, const float *add, size_t nelems) {
-#if DNNL_X64
-    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
-        cpu::x64::bf16_support::jit_call_t p_;
-        p_.inp = (void *)inp;
-        p_.out = (void *)out;
-        p_.add = (void *)add;
-        p_.nelems = nelems;
-        static const cpu::x64::jit_avx512_core_cvt_bf16_to_ps_t
-                cvt_bf16_add_to_ps {0, true};
-        cvt_bf16_add_to_ps.jit_ker(&p_);
-        return;
-    }
-#endif
-
-    PRAGMA_OMP_SIMD()
-    for (size_t i = 0; i < nelems; ++i)
-        out[i] = (float)inp[i] + add[i];
 }
 
 void add_floats_and_cvt_to_bfloat16(

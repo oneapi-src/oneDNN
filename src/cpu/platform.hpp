@@ -63,6 +63,7 @@ namespace cpu {
 namespace platform {
 
 const char *get_isa_info();
+dnnl_cpu_isa_t get_effective_cpu_isa();
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
 
 bool DNNL_API has_data_type_support(data_type_t data_type);

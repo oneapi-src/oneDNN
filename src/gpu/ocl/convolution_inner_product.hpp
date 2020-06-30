@@ -45,16 +45,6 @@ struct convolution_inner_product_fwd_t : public primitive_t {
             if (rhs.rpd_postop_) rpd_postop_.reset(rhs.rpd_postop_->clone());
         }
 
-        pd_t &operator=(const pd_t &rhs) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            gpu_inner_product_fwd_pd_t::operator=(rhs);
-            cpd_.reset(rhs.cpd_->clone());
-            conf = rhs.conf;
-            if (rhs.rpd_dst_) rpd_dst_.reset(rhs.rpd_dst_->clone());
-            if (rhs.rpd_postop_) rpd_postop_.reset(rhs.rpd_postop_->clone());
-            return *this;
-        }
-
         DECLARE_COMMON_PD_T("ocl:conv", convolution_inner_product_fwd_t);
 
         status_t init(engine_t *engine) {

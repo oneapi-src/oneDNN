@@ -5,16 +5,18 @@ Layer Normalization {#dev_guide_layer_normalization}
 > [API Reference](@ref dnnl_api_layer_normalization)
 >
 
+## General
+
 The layer normalization primitive performs a forward or backward layer
 normalization operation on a 2-5D data tensor.
+
+### Forward
 
 The layer normalization operation performs normalization over the last logical
 axis of the data tensor and is defined by the following formulas. We show
 formulas only for 3D data, which are straightforward to generalize to
 cases of higher dimensions. Variable names follow the standard
 @ref dev_guide_conventions.
-
-### Forward
 
 \f[
     \dst(t, n, c) =
@@ -62,8 +64,8 @@ based on
 \f$\sigma^2(t, n)\f$, \f$\gamma(c) ^*\f$, and \f$\beta(c) ^*\f$.
 
 The tensors marked with an asterisk are used only when the primitive is
-configured to use \f$\gamma(c)\f$, and \f$\beta(c)\f$ (i.e.,
-#dnnl_use_scaleshift is set).
+configured to use \f$\gamma(c)\f$, and \f$\beta(c)\f$
+(i.e., #dnnl_use_scaleshift is set).
 
 ## Execution Arguments
 
@@ -80,6 +82,7 @@ requires different inputs and outputs. For clarity, a summary is shown below.
 
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output  | Execution argument index  |
 | ---                     | ---                       |
 | \src                    | DNNL_ARG_SRC              |

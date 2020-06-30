@@ -31,14 +31,14 @@ namespace matmul {
 void prb_t::generate_oscales() {
     if (attr.oscale.is_def()) return;
 
-    if (attr.oscale.policy == attr_t::scale_t::policy_t::COMMON) {
+    if (attr.oscale.policy == policy_t::COMMON) {
         scales = (float *)zmalloc(sizeof(float), 4);
         SAFE_V(scales != NULL ? OK : FAIL);
         scales[0] = attr.oscale.scale;
         return;
     }
 
-    assert(attr.oscale.policy == attr_t::scale_t::policy_t::PER_OC);
+    assert(attr.oscale.policy == policy_t::PER_OC);
 
     scales = (float *)zmalloc(sizeof(float) * n, 64);
     SAFE_V(scales != NULL ? OK : FAIL);
@@ -166,8 +166,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
             s << "--bia_mask=" << p.bia_mask << " ";
     }
 
-    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
-
+    s << p.attr;
     s << static_cast<const desc_t &>(p);
 
     return s;

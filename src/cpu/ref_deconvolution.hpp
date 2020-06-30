@@ -92,15 +92,6 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             , conv_supports_bias_(other.conv_supports_bias_)
             , dst_tag_(other.dst_tag_) {}
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_deconvolution_fwd_pd_t::operator=(other);
-            conv_pd_.reset(other.conv_pd_->clone());
-            conv_supports_bias_ = other.conv_supports_bias_;
-            dst_tag_ = other.dst_tag_;
-            return *this;
-        }
-
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_fwd_t);
@@ -111,35 +102,37 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
-            primitive_attr_t conv_attr = *attr();
+            primitive_attr_t conv_attr(*attr());
+            if (!conv_attr.is_initialized()) return status::out_of_memory;
             conv_attr.set_scratchpad_mode(scratchpad_mode::user);
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
+            if (!it.is_initialized()) return status::out_of_memory;
             while (++it != it.end()) {
-                primitive_desc_t *_conv_pd = it.fetch_once();
+                conv_pd_.reset(it.fetch_once());
                 conv_supports_bias_
-                        = static_cast<cpu_convolution_bwd_data_pd_t *>(_conv_pd)
+                        = utils::downcast<cpu_convolution_bwd_data_pd_t *>(
+                                conv_pd_.get())
                                   ->support_bias();
                 bool ref_deconv_supports_bias = true
                         && desc()->accum_data_type == data_type::f32
                         && utils::one_of(desc()->dst_desc.data_type, f32, bf16)
                         && IMPLICATION(desc()->src_desc.data_type == bf16,
                                 memory_desc_matches_one_of_tag(
-                                        *_conv_pd->diff_src_md(),
+                                        *conv_pd_->diff_src_md(),
                                         utils::pick(
                                                 ndims() - 3, ncw, nchw, ncdhw),
+                                        utils::pick(
+                                                ndims() - 3, nwc, nhwc, ndhwc),
                                         utils::pick(ndims() - 3, nCw16c,
                                                 nChw16c, nCdhw16c)));
                 bool ok = true
-                        && _conv_pd->weights_md()->extra.flags == 0
+                        && conv_pd_->weights_md()->extra.flags == 0
                         /* deconv reference code can process only f32 bias */
                         && IMPLICATION(with_bias(),
                                 conv_supports_bias_
                                         || ref_deconv_supports_bias);
-                if (ok) {
-                    conv_pd_.reset(_conv_pd);
-                    return status::success;
-                }
+                if (ok) return status::success;
             }
             return status::unimplemented;
         }
@@ -166,6 +159,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
                 dst_tag_ = memory_desc_matches_one_of_tag(dst_md_,
                         utils::pick(ndims() - 3, ncw, nchw, ncdhw),
+                        utils::pick(ndims() - 3, nwc, nhwc, ndhwc),
                         utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
                         utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
 
@@ -232,6 +226,10 @@ private:
     void compute_fwd_bias_ncdhw(typename prec_traits<dst_type>::type *dst,
             const typename prec_traits<bia_type>::type *bias) const;
 
+    template <data_type_t dst_type, data_type_t bia_type>
+    void compute_fwd_bias_ndhwc(typename prec_traits<dst_type>::type *dst,
+            const typename prec_traits<bia_type>::type *bias) const;
+
     template <data_type_t dst_type, data_type_t bia_type, int blksize>
     void compute_fwd_bias_nCdhwXc(typename prec_traits<dst_type>::type *dst,
             const typename prec_traits<bia_type>::type *bias) const;
@@ -253,13 +251,6 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
             : cpu_deconvolution_bwd_data_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_deconvolution_bwd_data_pd_t::operator=(other);
-            conv_pd_.reset(other.conv_pd_->clone());
-            return *this;
-        }
-
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_data_t);
@@ -270,17 +261,17 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
             convolution_desc_t cd;
             status_t status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
-            primitive_attr_t conv_attr = *attr();
+            primitive_attr_t conv_attr(*attr());
+            if (!conv_attr.is_initialized()) return status::out_of_memory;
             conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
+            if (!it.is_initialized()) return status::out_of_memory;
             while (++it != it.end()) {
-                primitive_desc_t *_conv_pd = it.fetch_once();
-                if (_conv_pd->weights_md()->extra.flags == 0) {
-                    conv_pd_.reset(_conv_pd);
+                conv_pd_.reset(it.fetch_once());
+                if (conv_pd_->weights_md()->extra.flags == 0)
                     return status::success;
-                }
             }
 
             return status::unimplemented;
@@ -366,13 +357,6 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             , conv_pd_(other.conv_pd_->clone())
             , dst_tag_(other.dst_tag_) {}
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_deconvolution_bwd_weights_pd_t::operator=(other);
-            conv_pd_.reset(other.conv_pd_->clone());
-            return *this;
-        }
-
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(conv_pd_->name(), ref_deconvolution_bwd_weights_t);
@@ -384,23 +368,25 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             convolution_desc_t cd;
             status_t status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
-            primitive_attr_t conv_attr = *attr();
+            primitive_attr_t conv_attr(*attr());
+            if (!conv_attr.is_initialized()) return status::out_of_memory;
             conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
                     engine, (op_desc_t *)&cd, &conv_attr, nullptr);
+            if (!it.is_initialized()) return status::out_of_memory;
             while (++it != it.end()) {
-                primitive_desc_t *_conv_pd = it.fetch_once();
+                conv_pd_.reset(it.fetch_once());
                 bool bf16_ref_deconv_supports_bias = IMPLICATION(with_bias()
                                 && desc()->src_desc.data_type
                                         == data_type::bf16,
-                        memory_desc_matches_one_of_tag(*_conv_pd->src_md(),
+                        memory_desc_matches_one_of_tag(*conv_pd_->src_md(),
                                 utils::pick(ndims() - 3, ncw, nchw, ncdhw),
+                                utils::pick(ndims() - 3, nwc, nhwc, ndhwc),
                                 utils::pick(ndims() - 3, nCw16c, nChw16c,
                                         nCdhw16c)));
-                if (_conv_pd->diff_weights_md()->extra.flags == 0
+                if (conv_pd_->diff_weights_md()->extra.flags == 0
                         && bf16_ref_deconv_supports_bias) {
-                    conv_pd_.reset(_conv_pd);
                     return status::success;
                 }
             }
@@ -437,6 +423,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
 
                 dst_tag_ = memory_desc_matches_one_of_tag(diff_dst_md_,
                         utils::pick(ndims() - 3, ncw, nchw, ncdhw),
+                        utils::pick(ndims() - 3, nwc, nhwc, ndhwc),
                         utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
                         utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
                 init_scratchpad();
@@ -499,6 +486,11 @@ private:
 
     template <data_type_t dbia_type, data_type_t ddst_type>
     void compute_bwd_bias_ncdhw(
+            typename prec_traits<dbia_type>::type *diff_bias,
+            const typename prec_traits<ddst_type>::type *diff_dst) const;
+
+    template <data_type_t dbia_type, data_type_t ddst_type>
+    void compute_bwd_bias_ndhwc(
             typename prec_traits<dbia_type>::type *diff_bias,
             const typename prec_traits<ddst_type>::type *diff_dst) const;
 

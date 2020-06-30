@@ -57,7 +57,7 @@ private:
     Xbyak::Xmm x_regs_[M_UNROLL_ >> 2], y_regs_[N_UNROLL_], acc_[N_UNROLL_];
 
     // Stack variable assignments
-    Xbyak::Address arg_lda_, arg_x_, arg_incy_, arg_y_;
+    Xbyak::Address arg_lda_, arg_x_, arg_incx_, arg_y_, arg_incy_;
 };
 
 } // namespace x64

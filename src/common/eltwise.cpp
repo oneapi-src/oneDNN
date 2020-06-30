@@ -26,6 +26,7 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::alg_kind;
 using namespace dnnl::impl::types;
 
 namespace {
@@ -37,6 +38,8 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
                     backward_data)
             && IMPLICATION(
                     prop_kind == backward_data, diff_data_desc != nullptr)
+            && IMPLICATION(alg_kind == eltwise_round,
+                    one_of(prop_kind, forward_training, forward_inference))
             && math::is_eltwise_ok(data_desc->data_type, alg_kind, alpha, beta);
     if (!args_ok) return invalid_arguments;
 

@@ -51,14 +51,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             , jcp_dw_(nullptr) {}
 
         pd_t(const pd_t &other) : cpu_convolution_fwd_pd_t(other) {
-            copy(other);
-        }
-
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_convolution_fwd_pd_t::operator=(other);
-            copy(other);
-            return *this;
+            if (copy(other) != status::success) is_initialized_ = false;
         }
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_1x1:", jcp_.isa, ""),
@@ -73,7 +66,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
                             utils::one_of(weights_md(1)->data_type,
                                     data_type::f32, data_type::bf16))
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
+                            primitive_attr_t::skip_mask_t::post_ops, dst_type)
                     && !has_zero_dim_memory() && set_default_formats();
 
             if (!ok) return status::unimplemented;
@@ -93,8 +86,9 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             }
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+            status = jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_);
+            if (status != status::success) return status;
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
@@ -147,7 +141,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
-        void copy(const pd_t &other) {
+        status_t copy(const pd_t &other) {
             jcp_ = other.jcp_;
             rtus_ = other.rtus_;
             jcp_dw_ = nullptr;
@@ -155,6 +149,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             if (other.dw_conv_pd_) {
                 dw_conv_pd_.reset(static_cast<cpu_convolution_fwd_pd_t *>(
                         other.dw_conv_pd_->clone()));
+                if (!dw_conv_pd_) return status::out_of_memory;
                 auto dw_dst_dt = dw_conv_pd_->dst_md()->data_type;
 
                 switch (dw_dst_dt) {
@@ -171,14 +166,15 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
                     default: assert(!"unreachable");
                 }
             }
-            return;
+            return status::success;
         }
 
         status_t depthwise_po_init(engine_t *engine) {
             using namespace memory_tracking;
             auto &jcp_1x1 = jcp_;
             jit_conv_conf_t *jcp_dw = nullptr;
-            auto attr_1x1 = *attr();
+            primitive_attr_t attr_1x1(*attr());
+            if (!attr_1x1.is_initialized()) return status::out_of_memory;
             attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
 
             const auto &src_md = dst_md_;
@@ -261,8 +257,6 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
 
             jcp_dw->dw_conv_buffer_oc
                     = jcp_1x1.nb_load_blocking * jcp_1x1.oc_block;
-            jcp_1x1.bcast_loop_output_step
-                    = jcp_1x1.ur * jcp_1x1.load_block * jcp_1x1.typesize_out;
 
             registrar_t scratchpad(scratchpad_registry_);
             registrar_t dw_scratchpad(scratchpad, names::prefix_fusion);
@@ -358,8 +352,9 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+            status = jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_);
+            if (status != status::success) return status;
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
             return status::success;
@@ -452,15 +447,10 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
                     *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
-            init_balancers();
-
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+            status = jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_);
-
-            auto reducer_bia_scratchpad = memory_tracking::registrar_t(
-                    scratchpad, memory_tracking::names::prefix_reducer_bia);
-            reducer_bia_conf_.init_scratchpad(reducer_bia_scratchpad);
+            if (status != status::success) return status;
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
@@ -469,7 +459,6 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
 
         // TODO (Roma): structs conf header cleanup
         jit_1x1_conv_conf_t jcp_;
-        cpu_reducer_t<data_type::f32>::conf_t reducer_bia_conf_;
         reduce_to_unit_stride_t rtus_;
 
     protected:
@@ -484,16 +473,6 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
             bool ok = set_default_formats_common(dat_tag, wei_tag, dat_tag);
             return ok;
         }
-
-    private:
-        void init_balancers() {
-            const size_t max_buffer_size = jcp_.nthr * 3 * 5 * 5 * 16 * 16;
-            if (with_bias()) {
-                reducer_bia_conf_.init(reduce_balancer_t(jcp_.nthr,
-                        jcp_.oc_block, jcp_.ngroups * jcp_.nb_load, jcp_.mb,
-                        max_buffer_size, true));
-            }
-        }
     };
 
     template <cpu_isa_t isa, typename conv_t>
@@ -504,7 +483,6 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
     ~jit_avx512_core_bf16_1x1_convolution_bwd_weights_t() {
         delete acc_ker_;
         delete kernel_;
-        delete reducer_bias_;
         delete rtus_driver_;
         delete tr_reorder_;
         delete tr_reorder_nhwc_src_;
@@ -527,7 +505,6 @@ private:
 
     jit_avx512_core_bf16_1x1_conv_kernel *kernel_;
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
-    cpu_reducer_t<data_type::f32> *reducer_bias_;
 
     /* reduction to unit stride */
     rtus_driver_t<avx512_common> *rtus_driver_;

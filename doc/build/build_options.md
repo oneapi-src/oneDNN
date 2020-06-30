@@ -3,7 +3,7 @@ Build Options {#dev_guide_build_options}
 
 oneDNN supports the following build-time options.
 
-| Option                      | Supported values (defaults in bold) | Description
+| CMake Option                | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
 | DNNL_LIBRARY_TYPE           | **SHARED**, STATIC                  | Defines the resulting library type
 | DNNL_CPU_RUNTIME            | **OMP**, TBB, SEQ, THREADPOOL, DPCPP| Defines the threading runtime for CPU engines
@@ -12,9 +12,10 @@ oneDNN supports the following build-time options.
 | DNNL_BUILD_TESTS            | **ON**, OFF                         | Controls building the tests
 | DNNL_ARCH_OPT_FLAGS         | *compiler flags*                    | Specifies compiler optimization flags (see warning note below)
 | DNNL_ENABLE_CONCURRENT_EXEC | ON, **OFF**                         | Disables sharing a common scratchpad between primitives in #dnnl::scratchpad_mode::library mode
-| DNNL_ENABLE_JIT_PROFILING   | **ON**, OFF                         | Enables integration with Intel(R) VTune(TM) Amplifier
-| DNNL_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                         | Enables primitive cache
-| DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                         | Enables controlling CPU dispatcher at run-time
+| DNNL_ENABLE_JIT_PROFILING   | **ON**, OFF                         | Enables [integration with performance profilers](@ref dev_guide_profilers)
+| DNNL_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                         | Enables [primitive cache](@ref dev_guide_primitive_cache)
+| DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
+| DNNL_VERBOSE                | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose)
 
 All other building options that can be found in CMake files are dedicated for
 the development/debug purposes and are subject to change without any notice.
@@ -97,13 +98,13 @@ To build oneDNN with support for threadpool threading, set `DNNL_CPU_RUNTIME` to
 $ cmake -DDNNL_CPU_RUNTIME=THREADPOOL ..
 ~~~
 
-The `DNNL_TEST_THREADPOOL_IMPL` CMake variable controls which of the three
+The `_DNNL_TEST_THREADPOOL_IMPL` CMake variable controls which of the three
 threadpool implementations would be used for testing: `STANDALONE`, `TBB`, or
 `EIGEN`. The latter two require also passing `TBBROOT` or `Eigen3_DIR` paths
 to CMake. For example:
 
 ~~~sh
-$ cmake -DDNNL_CPU_RUNTIME=THREADPOOL -DDNNL_TEST_THREADPOOL_IMPL=EIGEN -DEigen3_DIR=/path/to/eigen/share/eigen3/cmake ..
+$ cmake -DDNNL_CPU_RUNTIME=THREADPOOL -D_DNNL_TEST_THREADPOOL_IMPL=EIGEN -DEigen3_DIR=/path/to/eigen/share/eigen3/cmake ..
 ~~~
 
 Threadpool threading support is experimental and has the same limitations as

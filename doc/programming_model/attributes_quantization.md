@@ -16,16 +16,17 @@ Related materials:
 
 The primary quantization model that the library assumes is the following:
 \f[
-    x_{f32}(:) = scale_{f32} \cdot (x_{int8}(:) - 0_{x\_int8})
+    x_{f32}[:] = scale_{f32} \cdot (x_{int8}[:] - 0_{x\_int8})
 \f]
 
-where \f$scale_{f32}\f$ is somehow known in advance (typically, the process
-of obtaining these scale factors is called the *calibration* process). This
-might be counter-intuitive, but the library cannot compute any of the scale
-factors at run-time dynamically. Hence, the model is sometimes called a *static*
-quantization model. The main rationale to support only *static* quantization
-out-of-the-box is higher performance. Those who want to use *dynamic*
-quantization can do so in a few steps:
+where \f$scale_{f32}\f$ is a *scaling factor* that is somehow known in advance
+and \f$[:]\f$ is used to denote elementwise application of the formula to the
+arrays. Typically, the process of obtaining these scale factors is called the
+*calibration*. This might be counter-intuitive, but the library cannot compute
+any of the scale factors at run-time dynamically. Hence, the model is
+sometimes called a *static* quantization model. The main rationale to support
+only *static* quantization out-of-the-box is higher performance. To use
+*dynamic* quantization:
 1. Compute the result in higher precision, like #dnnl::memory::data_type::s32.
 2. Find the required characteristics, like min and max values, and derive
    the scale factor.
@@ -44,16 +45,16 @@ For the rest of this guide, we will assume that \f$0_{x\_int8} = 0\f$.
 Depending on the architecture, the behavior of int8 computations might slightly
 vary. For more details, refer to @ref dev_guide_int8_computations.
 
-This guide doesn't cover how the appropriate scaling factor can be found.
+This guide does not cover how the appropriate scaling factor can be found.
 Refer to the materials in the [Introduction](@ref dgaq_intro).
 
 ### Example: Convolution Quantization Workflow
 
-Let's consider a simple example: a convolution without bias. The tensors
-are represented as:
-- \f$\src_{f32}(:) = scale_{\src} \cdot \src_{int8}(:)\f$
-- \f$\weights_{f32}(:) = scale_{\weights} \cdot \weights_{int8}(:)\f$
-- \f$\dst_{f32}(:) = scale_{\dst} \cdot \dst_{int8}(:)\f$
+Consider a convolution without bias. The tensors are represented as:
+
+- \f$\src_{f32}[:] = scale_{\src} \cdot \src_{int8}[:]\f$
+- \f$\weights_{f32}[:] = scale_{\weights} \cdot \weights_{int8}[:]\f$
+- \f$\dst_{f32}[:] = scale_{\dst} \cdot \dst_{int8}[:]\f$
 
 Here the \f$\src_{f32}, \weights_{f32}, \dst_{f32}\f$ are not
 computed at all, the whole work happens with INT8 tensors.
@@ -62,16 +63,16 @@ As mentioned above, we also somehow know all the scaling factors:
 
 So the task is to compute the \f$\dst_{int8}\f$ tensor.
 
-Mathematically, the computations are pretty straightforward:
+Mathematically, the computations are straightforward:
 \f[
-    \dst_{int8}(:) =
+    \dst_{int8}[:] =
         downconvert\_f32\_to\_int8(
             output\_scale \cdot
             conv_{s32}(\src_{int8}, \weights_{int8})
         ),
 \f]
 
-where:
+where
 - \f$output\_scale := \frac{scale_{\src} \cdot scale_{\weights}}{scale_{\dst}}\f$;
 - \f$conv_{s32}\f$ is just a regular convolution which takes source and
   weights with INT8 data type and compute the result in INT32 data type (INT32
@@ -79,26 +80,26 @@ where:
 - \f$downconvert\_f32\_to\_s8()\f$ converts an `f32` value to `s8` with
   potential saturation if the values are out of the range of the INT8 data type.
 
-Note that in order to perform the operation, one doesn't need to know the
+Note that in order to perform the operation, one does not need to know the
 exact scaling factors for all the tensors; it is enough to know only the
-\f$output\_scale\f$. The library utilizes this fact; a user needs to provide
-only this one extra parameter (see the
-[Output Scaling Attribute](@ref dev_guide_attributes_quantization_output_scare)
-section below) to perform the convolution.
+\f$output\_scale\f$. The library utilizes this fact: a user needs to provide
+only this one extra parameter to the convolution primitive (see the [Output
+Scaling Attribute](@ref dev_guide_attributes_quantization_output_scare)
+section below).
 
 ### Per-Channel Scaling
 
 Some of the primitives have limited support of multiple scales for a quantized
-tensor. The most popular use-case is a @ref dev_guide_convolution primitive
+tensor. The most popular use case is the @ref dev_guide_convolution primitive
 that supports per-output-channel scaling factors for the weights, meaning that
 the actual convolution computations would need to scale different output
-channels differently. This is possible without significant performance drop
-because the per-output-channel re-quantization only required at the very end
+channels differently. This is possible without significant performance loss
+because the per-output-channel re-quantization is only required at the very end
 of the computations. It seems impossible to implement the same trick for the
 input channels, since that would require re-quantization for every input
 data point.
 
-Assume we have (the scales are designated as \f$\alpha\f$ to simplify reading):
+Let \f$\alpha\f$ denote scales:
 - \f$\src_{f32}(n, ic, ih, iw) = \alpha_{\src} \cdot \src_{int8}(n, ic, ih, iw)\f$
 - \f$\weights_{f32}(oc, ic, kh, kw) =
     \alpha_{\weights}(oc) \cdot \weights_{int8}(oc, ic, kh, kw)\f$
@@ -116,12 +117,13 @@ To compute the \f$\dst_{int8}\f$ we need to perform the following:
         ),
 \f]
 
-where now
+where
 - \f$output\_scale(oc) :=
     \frac{\alpha_{\src} \cdot \alpha_{\weights}(oc)}{\alpha_{\dst}}\f$.
 
-It is worth mentioning that a user has to prepare quantized weights accordingly.
-For oneDNN provides reorders that can perform per-channel scaling:
+It is worth mentioning that the user is responsible for preparing quantized
+weights accordingly. oneDNN provides reorders that can perform per-channel
+scaling:
 
 \f[
     \weights_{int8}(oc, ic, kh, kw) =
@@ -131,14 +133,14 @@ For oneDNN provides reorders that can perform per-channel scaling:
         ),
 \f]
 
-where:
+where
 - \f$output\_scale(oc) := \frac{1}{\alpha_{\weights}(oc_{})}\f$.
 
 
 ## API
 
 The library API to support for INT8 was designed for the model described above.
-However, it doesn't require users to follow exactly this model. As long as
+However, it does not require users to follow exactly this model. As long as
 users can fit their model into the given functionality everything should work
 fine. Having this in mind we tried to design a minimal and simple yet powerful
 enough quantization API.
@@ -174,7 +176,7 @@ API:
 - C++: @ref dnnl::primitive_attr::set_output_scales
 
 The primitives do not support output scales if source (and weights) tensors
-are of the int8 data type. In other words, regular `f32` convolution cannot
+are not of the int8 data type. In other words, regular `f32` convolution cannot
 scale the output result.
 
 The parameters (C++ API for simplicity):
@@ -188,19 +190,19 @@ void dnnl::primitive_attr::set_output_scales(
 In the simplest case, when there is only one common scale the attribute changes
 the op behavior from
 \f[
-    \dst(:) = Op(...)
+    \dst[:] = Op(...)
 \f]
 
 to
 
 \f[
-    \dst(:) = scale \cdot Op(...).
+    \dst[:] = scale \cdot Op(...).
 \f]
 
 To support scales per one or several dimensions, users must set the appropriate
 mask.
 
-Say the destination is \f$D_0 \times ... \times D_{n-1}\f$ tensor and
+Say the destination is a \f$D_0 \times ... \times D_{n-1}\f$ tensor and
 we want to have output scales per \f$d_i\f$ dimension
 (where \f$0 \le d_i < n\f$).
 
@@ -267,8 +269,8 @@ be the first one). Let's say we want to have an INT8 convolution with
 per-output channel scaling.
 
 ~~~cpp
-const float src_scale; // source scale factor: src_f32[:] = src_scale * src_s8[:]
-const float dst_scale; // destination scale factor: dst_f32[:] = dst_scale * dst_s8[:]
+const float src_scale; // src_f32[:] = src_scale * src_s8[:]
+const float dst_scale; // dst_f32[:] = dst_scale * dst_s8[:]
 
 // the scaling factors for quantized weights (as declared above)
 // An unique scale for each group and output-channel.
@@ -335,10 +337,10 @@ For details, refer to the
 example.
 
 That has an implication on the scaling factors passed to the library, however.
-Consider the following example of a convolution with \f$\tanh\f$ as a post-op:
+Consider the following example of a convolution with \f$\tanh\f$ post-op:
 
 \f[
-    \dst_{s8}(:) =
+    \dst_{s8}[:] =
         \frac{1}{scale_{\dst}}
         \cdot
         \tanh(
@@ -353,6 +355,6 @@ Consider the following example of a convolution with \f$\tanh\f$ as a post-op:
 As you can see:
 - The convolution output scales are now
   \f$conv\_output\_scale = scale_{\src} \cdot scale_{\weights}\f$,
-  i.e. no division by \f$scale_{\dst}\f$;
+  i.e. there is no division by \f$scale_{\dst}\f$;
 - And the post-ops scale for \f$\tanh\f$ is set to
   \f$scale\_tanh\_post\_op = \frac{1}{scale_{\dst}}\f$.

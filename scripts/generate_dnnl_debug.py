@@ -242,22 +242,26 @@ def str_to_func(enum, values, is_dnnl=True):
 '''
     special_values = []
     for v in values:
+        if 'last' in v:
+            continue
         if 'undef' in v:
             v_undef = v
             special_values.append(v)
             continue
-        if 'any' in v or 'last' in v:
+        if 'any' in v:
             special_values.append(v)
             continue
         func += '%sCASE(%s);\n' % (indent, sanitize_value(v))
     func += '#undef CASE\n'
     for v in special_values:
-        v_short = re.search(r'(any|undef|last)', v).group()
+        v_short = re.search(r'(any|undef)', v).group()
         func += '''%sif (!strcmp("%s", str) || !strcmp("%s", str))
         return %s;
 ''' % (indent, v_short, v, v)
     func += '%sassert(!"unknown %s");\n' % (indent, abbrev)
-    func += '%sreturn %s;\n}\n' % (indent, v_undef)
+    func += '%sreturn %s;\n}\n' % (indent,
+                                   v_undef if enum != 'dnnl_format_tag_t' else
+                                   'dnnl_format_tag_last')
     return func
 
 

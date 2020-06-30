@@ -5,6 +5,8 @@ Convolution {#dev_guide_convolution}
 > [API Reference](@ref dnnl_api_convolution)
 >
 
+## General
+
 The convolution primitive computes forward, backward, or weight update for a
 batched convolution operation on 1D, 2D, or 3D spatial data with bias.
 
@@ -24,8 +26,8 @@ Furthermore, let the remaining convolution parameters be:
 | --:--                                | :--        | :--        | :--        | :--                                                                                                                    |
 | Padding: <br>Front, top, and left    | \f$PD_L\f$ | \f$PH_L\f$ | \f$PW_L\f$ | In the API we use `padding_l` to indicate the corresponding vector of paddings (`_l` in the name stands for **left**)  |
 | Padding: <br>Back, bottom, and right | \f$PD_R\f$ | \f$PH_R\f$ | \f$PW_R\f$ | In the API we use `padding_r` to indicate the corresponding vector of paddings (`_r` in the name stands for **right**) |
-| Stride                               | \f$SD\f$   | \f$SH\f$   | \f$SW\f$   | Non-strided convolution should have the stride parameters equal `1`                                                    |
-| Dilation                             | \f$DD\f$   | \f$DH\f$   | \f$DW\f$   | Dilation starts with 0, so non-dilated convolution should have the dilation parameters equal `0`                       |
+| Stride                               | \f$SD\f$   | \f$SH\f$   | \f$SW\f$   | Convolution without strides is defined by setting the stride parameters to 1                                           |
+| Dilation                             | \f$DD\f$   | \f$DH\f$   | \f$DW\f$   | Non-dilated convolution is defined by setting the dilation parameters to 0                                             |
 
 The following formulas show how oneDNN computes convolutions. They are
 broken down into several types to simplify the exposition, but in reality the
@@ -38,7 +40,7 @@ if \f$ih < 0\f$, or \f$ih \geq IH\f$, or \f$iw < 0\f$, or \f$iw \geq IW\f$.
 
 #### Regular Convolution
 
-\f[\dst(n, oc, oh, ow) =  \bias(oc) + \\
+\f[\dst(n, oc, oh, ow) =  \bias(oc) \\
     + \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
         \src(n, ic, oh \cdot SH + kh - PH_L, ow \cdot SW + kw - PW_L)
         \cdot
@@ -58,12 +60,13 @@ IC_G \times KH \times KW \f$ 5D tensors for 2D convolutions with groups.
 
 \f[
     \dst(n, g \cdot OC_G + oc_g, oh, ow) =
-        \bias(g \cdot OC_G + oc_g) + \\
+        \bias(g \cdot OC_G + oc_g) \\
         +
         \sum_{ic_g=0}^{IC_G-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-            \src(n, g \cdot IC_G + ic_g, oh + kh - PH_L, ow + kw - PW_L)
-        \cdot
-        \weights(g, oc_g, ic_g, kh, kw),
+            \src(n, g \cdot IC_G + ic_g, oh \cdot SH + kh - PH_L,
+                    ow \cdot SW + kw - PW_L)
+            \cdot
+            \weights(g, oc_g, ic_g, kh, kw),
 \f]
 
 where
@@ -77,11 +80,11 @@ The case when \f$OC_G = IC_G = 1\f$ is also known as *a depthwise convolution*.
 
 \f[
     \dst(n, oc, oh, ow) =
-        \bias(oc) + \\
+        \bias(oc) \\
         +
         \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-            \src(n, ic, oh + kh \cdot (DH + 1) - PH_L,
-                    ow + kw \cdot (DW + 1) - PW_L)
+            \src(n, ic, oh \cdot SH + kh \cdot (DH + 1) - PH_L,
+                    ow \cdot SW + kw \cdot (DW + 1) - PW_L)
             \cdot
             \weights(oc, ic, kh, kw).
 \f]
@@ -93,11 +96,6 @@ Here:
 
 - \f$OW = \left\lfloor{\frac{IW - DKW + PW_L + PW_R}{SW}}
         \right\rfloor + 1,\f$ where \f$DKW = 1 + (KW - 1) \cdot (DW + 1)\f$.
-
-@note
-    In oneDNN dilation parameter equals 0 corresponds to non-dilated, i.e.
-    regular, convolution. Other libraries might use another convention, where
-    dilation parameter equals 1 corresponds to regular convolution.
 
 #### Deconvolution (Transposed Convolution)
 
@@ -125,8 +123,10 @@ different on forward propagation, backward propagation, and weights
 update.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_SRC             |
@@ -193,10 +193,13 @@ the convolution primitive is optimized for.
 | :--        | :--              | :--                           | :--
 | 1D, 2D, 3D |                  | `any`                         | *optimized*
 | 1D         | f32, bf16        | NCW / OIW, GOIW               | #dnnl_ncw (#dnnl_abc) / #dnnl_oiw (#dnnl_abc), #dnnl_goiw (#dnnl_abcd)
+| 1D         | "                | "                             | #dnnl_nwc (#dnnl_acb) / #dnnl_wio (#dnnl_cba), #dnnl_wigo (#dnnl_dcab)
 | 1D         | int8             | NCW / OIW                     | #dnnl_nwc (#dnnl_acb) / #dnnl_wio (#dnnl_cba)
 | 2D         | f32, bf16        | NCHW / OIHW, GOIHW            | #dnnl_nchw (#dnnl_abcd) / #dnnl_oihw (#dnnl_abcd), #dnnl_goihw (#dnnl_abcde)
+| 2D         | "                | "                             | #dnnl_nhwc (#dnnl_acdb) / #dnnl_hwio (#dnnl_cdba), #dnnl_hwigo (#dnnl_decab)
 | 2D         | int8             | NCHW / OIHW, GOIHW            | #dnnl_nhwc (#dnnl_acdb) / #dnnl_hwio (#dnnl_cdba), #dnnl_hwigo (#dnnl_decab)
 | 3D         | f32, bf16        | NCDHW / OIDHW, GOIDHW         | #dnnl_ncdhw (#dnnl_abcde) / #dnnl_oidhw (#dnnl_abcde), #dnnl_goidhw (#dnnl_abcdef)
+| 3D         | "                | "                             | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba), #dnnl_dhwigo (#dnnl_defcab)
 | 3D         | int8             | NCDHW / OIDHW                 | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba)
 
 ### Post-ops and Attributes
@@ -219,7 +222,7 @@ if the scales are not known at the primitive descriptor creation stage.
 In this case, the user must provide the scales as an additional input memory
 object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
 
-@note The library doesn't prevent using post-ops in training, but note that
+@note The library does not prevent using post-ops in training, but note that
 not all post-ops are feasible for training usage. For instance, using ReLU
 with non-zero negative slope parameter as a post-op would not produce an
 additional output `workspace` that is required to compute backward propagation

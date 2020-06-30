@@ -46,13 +46,6 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
             reordered_stat_md_ = other.reordered_stat_md_;
         }
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_layer_normalization_fwd_pd_t::operator=(other);
-            copy_from(other);
-            reordered_stat_md_ = other.reordered_stat_md_;
-            return *this;
-        }
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T("simple_layer_normalization:any",
@@ -162,12 +155,6 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
             copy_from(other);
         }
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            cpu_layer_normalization_bwd_pd_t::operator=(other);
-            copy_from(other);
-            return *this;
-        }
         ~pd_t() = default;
 
         DECLARE_COMMON_PD_T("simple_layer_normalization:any",

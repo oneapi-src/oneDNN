@@ -5,6 +5,8 @@ Matrix Multiplication {#dev_guide_matmul}
 > [API Reference](@ref dnnl_api_matmul)
 >
 
+## General
+
 The matrix multiplication (MatMul) primitive computes the product of two 2D
 tensors with optional bias addition (the variable names follow the standard @ref
 dev_guide_conventions):
@@ -34,8 +36,10 @@ the corresponding dimension. However, \bias must have the same number
 of dimensions as the \dst.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_SRC             |
@@ -134,7 +138,7 @@ argument with index set to
 
 1. Check @ref dev_guide_data_types.
 
-2. The CPU engine doesn't support `u8` data type for weights.
+2. The CPU engine does not support `u8` data type for weights.
 
 ## Performance Tips
 

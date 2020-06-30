@@ -82,10 +82,10 @@ void im2col_dt(const conv_gemm_conf_t &jcp, const im_dt *__restrict im,
 template <typename T>
 void col2im_dt(
         const conv_gemm_conf_t &jcp, const T *__restrict col, T *__restrict im);
-
-void col2im_3d(
-        const conv_gemm_conf_t &jcp, const float *col, float *im, int od);
-void col2im(const conv_gemm_conf_t &jcp, const float *col, float *im);
+void col2im_3d(const conv_gemm_conf_t &jcp, const float *col, float *im, int od,
+        int spatial_step, int spatial_block);
+void col2im(const conv_gemm_conf_t &jcp, const float *col, float *im,
+        int spatial_step, int spatial_block);
 
 status_t init_conf(conv_gemm_conf_t &jcp,
         memory_tracking::registrar_t &scratchpad, const convolution_desc_t &cd,

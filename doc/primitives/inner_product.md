@@ -5,9 +5,13 @@ Inner Product {#dev_guide_inner_product}
 > [API Reference](@ref dnnl_api_inner_product)
 >
 
+## General
+
 The inner product primitive (sometimes called fully connected) treats each
 activation in the minibatch as a vector and computes its product with a
 weights 2D tensor producing a 2D tensor as an output.
+
+### Forward
 
 More precisely, let \src, \weights, \bias and \dst be \f$N \times IC\f$,
 \f$OC \times IC\f$, \f$OC\f$, and \f$N \times OC\f$ tensors, respectively
@@ -41,8 +45,10 @@ different on forward propagation, backward propagation, and weights
 update.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_SRC             |

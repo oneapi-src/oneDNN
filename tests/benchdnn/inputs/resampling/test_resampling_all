@@ -9,9 +9,5 @@
 
 # bf16
 --dt=bf16
---allow-unimpl=true
---dir=FWD_D,BWD_D
---alg=nearest,linear
---tag=ncw,nwc                      --batch=resampling_1d
---tag=nchw,nChw16c                 --batch=resampling_2d --batch=maskrcnn
---tag=ncdhw,nCdhw16c               --batch=resampling_3d
+--tag=abx,axb,aBx16b
+--batch=set_resampling_all

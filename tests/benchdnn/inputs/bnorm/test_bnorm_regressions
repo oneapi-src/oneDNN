@@ -1,9 +1,9 @@
 --skip-impl=ref
 --tag=axb,abx,aBx8b,aBx16b
 
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_regressions
---dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_regressions
---dir=BWD_D        --flags=        --attr=                --batch=bnorm_regressions
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_regressions
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_regressions
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_regressions
 
 # Numerical stability issues
 # catastrophic cancellation results in error > machine_epsilon

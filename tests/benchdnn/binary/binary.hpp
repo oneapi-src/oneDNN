@@ -29,10 +29,7 @@
 
 namespace binary {
 
-enum alg_t { ADD, MUL, MAX, MIN };
-alg_t str2alg(const char *str);
-const char *alg2str(alg_t alg);
-dnnl_alg_kind_t alg2alg_kind(alg_t alg);
+using alg_t = attr_t::post_ops_t::kind_t;
 
 struct settings_t {
     settings_t() = default;
@@ -47,10 +44,11 @@ struct settings_t {
     std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::vector<std::string>> stag {{tag::abx, tag::abx}};
-    std::vector<alg_t> alg {ADD};
-    std::vector<bool> inplace {true};
+    std::vector<alg_t> alg {alg_t::ADD};
+    std::vector<bool> inplace {false};
+    std::vector<attr_t::arg_scales_t> scales {attr_t::arg_scales_t()};
+    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     attr_t attr = {};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%sdt%,%ddt%,%stag%,%alg%,%attr%,%DESC%,%-time%,%"
@@ -73,9 +71,7 @@ struct prb_t {
         , alg(alg)
         , inplace(inplace)
         , attr(attr)
-        , ndims({(int)sdims[0].size(), (int)sdims[1].size()}) {
-        get_broadcast_dims();
-    }
+        , ndims({(int)sdims[0].size(), (int)sdims[1].size()}) {}
     ~prb_t() {}
 
     std::vector<dims_t> sdims;
@@ -87,17 +83,19 @@ struct prb_t {
     attr_t attr;
     std::vector<int> ndims;
 
-    dims_t broadcast_dims;
-
     int n_inputs() const { return 2; }
 
-    void get_broadcast_dims() {
+    int get_broadcast_mask() const {
         const dims_t &dims_A = this->sdims[0];
         const dims_t &dims_B = this->sdims[1];
 
-        broadcast_dims.resize(ndims[0], 1);
+        int broadcast_mask = 0;
         for (int d = 0; d < ndims[1]; ++d)
-            broadcast_dims[d] = dims_A[d] == dims_B[d] ? 0 : 1;
+            broadcast_mask += dims_A[d] == dims_B[d] ? (1 << d) : 0;
+        // in case driver interface will support less dimensions for src1
+        for (int d = ndims[1] + 1; d < ndims[0]; ++d)
+            broadcast_mask += (1 << d);
+        return broadcast_mask;
     }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
@@ -110,7 +108,7 @@ struct perf_report_t : public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
+    void dump_alg(std::ostream &s) const override { s << p_->alg; }
 
     void dump_desc(std::ostream &s) const override { s << p_->sdims; }
 
@@ -125,24 +123,6 @@ struct perf_report_t : public base_perf_report_t {
 private:
     const prb_t *p_ = NULL;
 };
-
-// Returns physical offset for dims_idx based on values from dims.
-// E.g. AxBxCxD:Ax1x1x1 problem, for `a:b:c:d` point this should return `a` idx
-// for second tensor no matter what `b`, `c` or `d` values are.
-inline int64_t dims_off(const dims_t &dims, const dims_t &dims_idx) {
-    int64_t nelems = 1;
-    for (size_t d = 0; d < dims.size(); ++d)
-        nelems *= dims[d];
-
-    int64_t off = 0;
-    for (size_t d = 0; d < dims_idx.size(); ++d) {
-        if (d < dims.size()) // dims may have less dimensions than dims_idx
-            nelems /= dims[d];
-        off += (dims_idx[d] * nelems);
-    }
-
-    return off;
-}
 
 void compute_ref(const prb_t *p, const dnn_mem_t &src0, const dnn_mem_t &src1,
         dnn_mem_t &dst);

@@ -89,13 +89,12 @@ struct ref_binary_t : public primitive_t {
     using dst_data_t = typename prec_traits<dst_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_ref(ctx);
-        return status::success;
+        return execute_ref(ctx);
     }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    void execute_ref(const exec_ctx_t &ctx) const;
+    status_t execute_ref(const exec_ctx_t &ctx) const;
     std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_ker_;
 };
 

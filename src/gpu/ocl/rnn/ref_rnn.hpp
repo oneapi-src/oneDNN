@@ -42,6 +42,8 @@
 // TODO just to debug
 #define WS_NAN_FILLING 0
 
+#define DEBUGPRINT 0
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -87,13 +89,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
         pd_t(const pd_t &other) : base_pd_t(other) { copy_from(other); }
 
-        pd_t &operator=(const pd_t &other) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            base_pd_t::operator=(other);
-            copy_from(other);
-            return *this;
-        }
-
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
         status_t init(engine_t *engine);
@@ -121,6 +116,8 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
             scratchpad.book(key_rnn_space, scratchpad_sz, 1,
                     OCL_BUFFER_ALIGNMENT, 4096);
             scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 1,
+                    OCL_BUFFER_ALIGNMENT, 4096);
+            scratchpad.book(key_rnn_cell, rnn_conf.scratch_cell_size, 1,
                     OCL_BUFFER_ALIGNMENT, 4096);
             // book scratchpad for nested primitives
             switch (aprop) {
@@ -223,7 +220,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         size_t scratchpad_size, workspace_size;
         rnn_utils::set_offsets(pd()->rnn_conf, ws_gates_offset_,
                 ws_states_offset_, ws_c_states_offset_, ws_diff_states_offset_,
-                ws_grid_comp_offset_, ws_cell_comp_offset_, ws_bias_offset_,
+                ws_grid_comp_offset_, scratch_cell_offset_, ws_bias_offset_,
                 scratch_gates_offset_, scratchpad_size, workspace_size);
 
         int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
@@ -311,13 +308,14 @@ private:
             const float shift, const float scale, const bool dequantize) const;
     void gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
             int n_gates, int dhc, int batch, const memory_storage_t &gates,
+            const memory_storage_t &cell,
             const memory_storage_t &diff_bias) const;
     void ws_set(const exec_ctx_t &ctx,
             compute::compute_stream_t *compute_stream,
             const memory_storage_t &workspace, const cl_ulong ws_offset,
             const int ws_part, const float val, const size_t size) const;
 #if DEBUGPRINT
-    void ws_print(compute::compute_stream_t *s,
+    void ws_print(const exec_ctx_t &ctx, compute::compute_stream_t *s,
             const memory_storage_t &workspace) const;
     compute::kernel_t ws_print_kernel_;
 #endif
@@ -346,7 +344,7 @@ private:
     cl_ulong ws_c_states_offset_;
     cl_ulong ws_diff_states_offset_;
     cl_ulong ws_grid_comp_offset_;
-    cl_ulong ws_cell_comp_offset_;
+    cl_ulong scratch_cell_offset_;
     cl_ulong ws_bias_offset_;
     cl_ulong scratch_gates_offset_;
 

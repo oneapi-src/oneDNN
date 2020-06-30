@@ -387,7 +387,7 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                                 conv_res += with_bias
                                         ? ((float *)bia_m)[bia_off]
                                         : 0.f;
-                                maybe_post_ops(conv_res, dst, p->attr);
+                                maybe_post_ops(p->attr, conv_res, dst);
                                 dst = conv_res;
                             }
                         }

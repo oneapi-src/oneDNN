@@ -21,11 +21,11 @@
 #define KDHW_SIZE (KH * KW * KD)
 
 #if (PW % 4 == 0) && (SRC_SLM_SIZE % 4 == 0)
-#define WRITE_SLM_BLOCK(_P, _V) WRITE_LOCAL_1(_P, _V)
-#define WRITE_SLM_BLOCK_SHORT(_P, _V) WRITE_LOCAL_SHORT_1(_P, _V)
+#define WRITE_SLM_BLOCK(p, data) block_write(p, data)
+#define WRITE_SLM_BLOCK_SHORT(p, data) block_write_us(p, data)
 #else
-#define WRITE_SLM_BLOCK(_P, _V) subgroup_block_write_uint(_P, _V)
-#define WRITE_SLM_BLOCK_SHORT(_P, _V) subgroup_block_write_ushort(_P, _V)
+#define WRITE_SLM_BLOCK(p, data) block_write_emu(p, data)
+#define WRITE_SLM_BLOCK_SHORT(p, data) block_write_us_emu(p, data)
 #endif
 
 #define GET_INT_BLOCK(SRC_SLM, SLM_INDEX, SRC_GLOBAL, GLOBAL_INDEX) \
@@ -65,9 +65,8 @@
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
-        const __global float *bias, __global DST_DATA_T *dst,
-        float eltwise_alpha, float eltwise_beta, float eltwise_scale,
-        float sum_scale, float scale, const __global float *scales_per_oc) {
+        const __global float *bias, __global DST_DATA_T *dst POST_OP_ARGS,
+        float scale, const __global float *scales_per_oc) {
 
     const int group_oc = get_group_id(0) * OC_GROUP;
     const int group_mb = get_group_id(2) * MB_GROUP;
@@ -418,61 +417,61 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
             SS.s3 = S_work[SW * 11 + SRC_SLM_SIZE * KH * filter_id
                     + SRC_SLM_SIZE * filter_ih + filter_iw];
 #endif
-            C00.s0 = IMAD(AS_SRC_DATA4_T(S.s0), as_char4(W00), C00.s0);
-            C00.s1 = IMAD(AS_SRC_DATA4_T(S.s1), as_char4(W00), C00.s1);
-            C00.s2 = IMAD(AS_SRC_DATA4_T(S.s2), as_char4(W00), C00.s2);
-            C00.s3 = IMAD(AS_SRC_DATA4_T(S.s3), as_char4(W00), C00.s3);
-            C00.s4 = IMAD(AS_SRC_DATA4_T(S.s4), as_char4(W00), C00.s4);
-            C00.s5 = IMAD(AS_SRC_DATA4_T(S.s5), as_char4(W00), C00.s5);
-            C00.s6 = IMAD(AS_SRC_DATA4_T(S.s6), as_char4(W00), C00.s6);
-            C00.s7 = IMAD(AS_SRC_DATA4_T(S.s7), as_char4(W00), C00.s7);
+            C00.s0 = idot4(AS_SRC_DATA4_T(S.s0), as_char4(W00), C00.s0);
+            C00.s1 = idot4(AS_SRC_DATA4_T(S.s1), as_char4(W00), C00.s1);
+            C00.s2 = idot4(AS_SRC_DATA4_T(S.s2), as_char4(W00), C00.s2);
+            C00.s3 = idot4(AS_SRC_DATA4_T(S.s3), as_char4(W00), C00.s3);
+            C00.s4 = idot4(AS_SRC_DATA4_T(S.s4), as_char4(W00), C00.s4);
+            C00.s5 = idot4(AS_SRC_DATA4_T(S.s5), as_char4(W00), C00.s5);
+            C00.s6 = idot4(AS_SRC_DATA4_T(S.s6), as_char4(W00), C00.s6);
+            C00.s7 = idot4(AS_SRC_DATA4_T(S.s7), as_char4(W00), C00.s7);
 
-            C10.s0 = IMAD(AS_SRC_DATA4_T(S.s0), as_char4(W10), C10.s0);
-            C10.s1 = IMAD(AS_SRC_DATA4_T(S.s1), as_char4(W10), C10.s1);
-            C10.s2 = IMAD(AS_SRC_DATA4_T(S.s2), as_char4(W10), C10.s2);
-            C10.s3 = IMAD(AS_SRC_DATA4_T(S.s3), as_char4(W10), C10.s3);
-            C10.s4 = IMAD(AS_SRC_DATA4_T(S.s4), as_char4(W10), C10.s4);
-            C10.s5 = IMAD(AS_SRC_DATA4_T(S.s5), as_char4(W10), C10.s5);
-            C10.s6 = IMAD(AS_SRC_DATA4_T(S.s6), as_char4(W10), C10.s6);
-            C10.s7 = IMAD(AS_SRC_DATA4_T(S.s7), as_char4(W10), C10.s7);
+            C10.s0 = idot4(AS_SRC_DATA4_T(S.s0), as_char4(W10), C10.s0);
+            C10.s1 = idot4(AS_SRC_DATA4_T(S.s1), as_char4(W10), C10.s1);
+            C10.s2 = idot4(AS_SRC_DATA4_T(S.s2), as_char4(W10), C10.s2);
+            C10.s3 = idot4(AS_SRC_DATA4_T(S.s3), as_char4(W10), C10.s3);
+            C10.s4 = idot4(AS_SRC_DATA4_T(S.s4), as_char4(W10), C10.s4);
+            C10.s5 = idot4(AS_SRC_DATA4_T(S.s5), as_char4(W10), C10.s5);
+            C10.s6 = idot4(AS_SRC_DATA4_T(S.s6), as_char4(W10), C10.s6);
+            C10.s7 = idot4(AS_SRC_DATA4_T(S.s7), as_char4(W10), C10.s7);
 
-            C20.s0 = IMAD(AS_SRC_DATA4_T(S.s0), as_char4(W20), C20.s0);
-            C20.s1 = IMAD(AS_SRC_DATA4_T(S.s1), as_char4(W20), C20.s1);
-            C20.s2 = IMAD(AS_SRC_DATA4_T(S.s2), as_char4(W20), C20.s2);
-            C20.s3 = IMAD(AS_SRC_DATA4_T(S.s3), as_char4(W20), C20.s3);
-            C20.s4 = IMAD(AS_SRC_DATA4_T(S.s4), as_char4(W20), C20.s4);
-            C20.s5 = IMAD(AS_SRC_DATA4_T(S.s5), as_char4(W20), C20.s5);
-            C20.s6 = IMAD(AS_SRC_DATA4_T(S.s6), as_char4(W20), C20.s6);
-            C20.s7 = IMAD(AS_SRC_DATA4_T(S.s7), as_char4(W20), C20.s7);
+            C20.s0 = idot4(AS_SRC_DATA4_T(S.s0), as_char4(W20), C20.s0);
+            C20.s1 = idot4(AS_SRC_DATA4_T(S.s1), as_char4(W20), C20.s1);
+            C20.s2 = idot4(AS_SRC_DATA4_T(S.s2), as_char4(W20), C20.s2);
+            C20.s3 = idot4(AS_SRC_DATA4_T(S.s3), as_char4(W20), C20.s3);
+            C20.s4 = idot4(AS_SRC_DATA4_T(S.s4), as_char4(W20), C20.s4);
+            C20.s5 = idot4(AS_SRC_DATA4_T(S.s5), as_char4(W20), C20.s5);
+            C20.s6 = idot4(AS_SRC_DATA4_T(S.s6), as_char4(W20), C20.s6);
+            C20.s7 = idot4(AS_SRC_DATA4_T(S.s7), as_char4(W20), C20.s7);
 
-            C30.s0 = IMAD(AS_SRC_DATA4_T(S.s0), as_char4(W30), C30.s0);
-            C30.s1 = IMAD(AS_SRC_DATA4_T(S.s1), as_char4(W30), C30.s1);
-            C30.s2 = IMAD(AS_SRC_DATA4_T(S.s2), as_char4(W30), C30.s2);
-            C30.s3 = IMAD(AS_SRC_DATA4_T(S.s3), as_char4(W30), C30.s3);
-            C30.s4 = IMAD(AS_SRC_DATA4_T(S.s4), as_char4(W30), C30.s4);
-            C30.s5 = IMAD(AS_SRC_DATA4_T(S.s5), as_char4(W30), C30.s5);
-            C30.s6 = IMAD(AS_SRC_DATA4_T(S.s6), as_char4(W30), C30.s6);
-            C30.s7 = IMAD(AS_SRC_DATA4_T(S.s7), as_char4(W30), C30.s7);
+            C30.s0 = idot4(AS_SRC_DATA4_T(S.s0), as_char4(W30), C30.s0);
+            C30.s1 = idot4(AS_SRC_DATA4_T(S.s1), as_char4(W30), C30.s1);
+            C30.s2 = idot4(AS_SRC_DATA4_T(S.s2), as_char4(W30), C30.s2);
+            C30.s3 = idot4(AS_SRC_DATA4_T(S.s3), as_char4(W30), C30.s3);
+            C30.s4 = idot4(AS_SRC_DATA4_T(S.s4), as_char4(W30), C30.s4);
+            C30.s5 = idot4(AS_SRC_DATA4_T(S.s5), as_char4(W30), C30.s5);
+            C30.s6 = idot4(AS_SRC_DATA4_T(S.s6), as_char4(W30), C30.s6);
+            C30.s7 = idot4(AS_SRC_DATA4_T(S.s7), as_char4(W30), C30.s7);
 #if OW_BLOCK == 12
-            C01.s0 = IMAD(AS_SRC_DATA4_T(SS.s0), as_char4(W00), C01.s0);
-            C01.s1 = IMAD(AS_SRC_DATA4_T(SS.s1), as_char4(W00), C01.s1);
-            C01.s2 = IMAD(AS_SRC_DATA4_T(SS.s2), as_char4(W00), C01.s2);
-            C01.s3 = IMAD(AS_SRC_DATA4_T(SS.s3), as_char4(W00), C01.s3);
+            C01.s0 = idot4(AS_SRC_DATA4_T(SS.s0), as_char4(W00), C01.s0);
+            C01.s1 = idot4(AS_SRC_DATA4_T(SS.s1), as_char4(W00), C01.s1);
+            C01.s2 = idot4(AS_SRC_DATA4_T(SS.s2), as_char4(W00), C01.s2);
+            C01.s3 = idot4(AS_SRC_DATA4_T(SS.s3), as_char4(W00), C01.s3);
 
-            C11.s0 = IMAD(AS_SRC_DATA4_T(SS.s0), as_char4(W10), C11.s0);
-            C11.s1 = IMAD(AS_SRC_DATA4_T(SS.s1), as_char4(W10), C11.s1);
-            C11.s2 = IMAD(AS_SRC_DATA4_T(SS.s2), as_char4(W10), C11.s2);
-            C11.s3 = IMAD(AS_SRC_DATA4_T(SS.s3), as_char4(W10), C11.s3);
+            C11.s0 = idot4(AS_SRC_DATA4_T(SS.s0), as_char4(W10), C11.s0);
+            C11.s1 = idot4(AS_SRC_DATA4_T(SS.s1), as_char4(W10), C11.s1);
+            C11.s2 = idot4(AS_SRC_DATA4_T(SS.s2), as_char4(W10), C11.s2);
+            C11.s3 = idot4(AS_SRC_DATA4_T(SS.s3), as_char4(W10), C11.s3);
 
-            C21.s0 = IMAD(AS_SRC_DATA4_T(SS.s0), as_char4(W20), C21.s0);
-            C21.s1 = IMAD(AS_SRC_DATA4_T(SS.s1), as_char4(W20), C21.s1);
-            C21.s2 = IMAD(AS_SRC_DATA4_T(SS.s2), as_char4(W20), C21.s2);
-            C21.s3 = IMAD(AS_SRC_DATA4_T(SS.s3), as_char4(W20), C21.s3);
+            C21.s0 = idot4(AS_SRC_DATA4_T(SS.s0), as_char4(W20), C21.s0);
+            C21.s1 = idot4(AS_SRC_DATA4_T(SS.s1), as_char4(W20), C21.s1);
+            C21.s2 = idot4(AS_SRC_DATA4_T(SS.s2), as_char4(W20), C21.s2);
+            C21.s3 = idot4(AS_SRC_DATA4_T(SS.s3), as_char4(W20), C21.s3);
 
-            C31.s0 = IMAD(AS_SRC_DATA4_T(SS.s0), as_char4(W30), C31.s0);
-            C31.s1 = IMAD(AS_SRC_DATA4_T(SS.s1), as_char4(W30), C31.s1);
-            C31.s2 = IMAD(AS_SRC_DATA4_T(SS.s2), as_char4(W30), C31.s2);
-            C31.s3 = IMAD(AS_SRC_DATA4_T(SS.s3), as_char4(W30), C31.s3);
+            C31.s0 = idot4(AS_SRC_DATA4_T(SS.s0), as_char4(W30), C31.s0);
+            C31.s1 = idot4(AS_SRC_DATA4_T(SS.s1), as_char4(W30), C31.s1);
+            C31.s2 = idot4(AS_SRC_DATA4_T(SS.s2), as_char4(W30), C31.s2);
+            C31.s3 = idot4(AS_SRC_DATA4_T(SS.s3), as_char4(W30), C31.s3);
 #endif
 
 #if OW_BLOCK == 16
@@ -493,41 +492,41 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
             S.s7 = S_work[SW * 15 + SRC_SLM_SIZE * KH * filter_id
                     + SRC_SLM_SIZE * filter_ih + filter_iw];
 
-            C01.s0 = IMAD(AS_SRC_DATA4_T(S.s0), as_char4(W00), C01.s0);
-            C01.s1 = IMAD(AS_SRC_DATA4_T(S.s1), as_char4(W00), C01.s1);
-            C01.s2 = IMAD(AS_SRC_DATA4_T(S.s2), as_char4(W00), C01.s2);
-            C01.s3 = IMAD(AS_SRC_DATA4_T(S.s3), as_char4(W00), C01.s3);
-            C01.s4 = IMAD(AS_SRC_DATA4_T(S.s4), as_char4(W00), C01.s4);
-            C01.s5 = IMAD(AS_SRC_DATA4_T(S.s5), as_char4(W00), C01.s5);
-            C01.s6 = IMAD(AS_SRC_DATA4_T(S.s6), as_char4(W00), C01.s6);
-            C01.s7 = IMAD(AS_SRC_DATA4_T(S.s7), as_char4(W00), C01.s7);
+            C01.s0 = idot4(AS_SRC_DATA4_T(S.s0), as_char4(W00), C01.s0);
+            C01.s1 = idot4(AS_SRC_DATA4_T(S.s1), as_char4(W00), C01.s1);
+            C01.s2 = idot4(AS_SRC_DATA4_T(S.s2), as_char4(W00), C01.s2);
+            C01.s3 = idot4(AS_SRC_DATA4_T(S.s3), as_char4(W00), C01.s3);
+            C01.s4 = idot4(AS_SRC_DATA4_T(S.s4), as_char4(W00), C01.s4);
+            C01.s5 = idot4(AS_SRC_DATA4_T(S.s5), as_char4(W00), C01.s5);
+            C01.s6 = idot4(AS_SRC_DATA4_T(S.s6), as_char4(W00), C01.s6);
+            C01.s7 = idot4(AS_SRC_DATA4_T(S.s7), as_char4(W00), C01.s7);
 
-            C11.s0 = IMAD(AS_SRC_DATA4_T(S.s0), as_char4(W10), C11.s0);
-            C11.s1 = IMAD(AS_SRC_DATA4_T(S.s1), as_char4(W10), C11.s1);
-            C11.s2 = IMAD(AS_SRC_DATA4_T(S.s2), as_char4(W10), C11.s2);
-            C11.s3 = IMAD(AS_SRC_DATA4_T(S.s3), as_char4(W10), C11.s3);
-            C11.s4 = IMAD(AS_SRC_DATA4_T(S.s4), as_char4(W10), C11.s4);
-            C11.s5 = IMAD(AS_SRC_DATA4_T(S.s5), as_char4(W10), C11.s5);
-            C11.s6 = IMAD(AS_SRC_DATA4_T(S.s6), as_char4(W10), C11.s6);
-            C11.s7 = IMAD(AS_SRC_DATA4_T(S.s7), as_char4(W10), C11.s7);
+            C11.s0 = idot4(AS_SRC_DATA4_T(S.s0), as_char4(W10), C11.s0);
+            C11.s1 = idot4(AS_SRC_DATA4_T(S.s1), as_char4(W10), C11.s1);
+            C11.s2 = idot4(AS_SRC_DATA4_T(S.s2), as_char4(W10), C11.s2);
+            C11.s3 = idot4(AS_SRC_DATA4_T(S.s3), as_char4(W10), C11.s3);
+            C11.s4 = idot4(AS_SRC_DATA4_T(S.s4), as_char4(W10), C11.s4);
+            C11.s5 = idot4(AS_SRC_DATA4_T(S.s5), as_char4(W10), C11.s5);
+            C11.s6 = idot4(AS_SRC_DATA4_T(S.s6), as_char4(W10), C11.s6);
+            C11.s7 = idot4(AS_SRC_DATA4_T(S.s7), as_char4(W10), C11.s7);
 
-            C21.s0 = IMAD(AS_SRC_DATA4_T(S.s0), as_char4(W20), C21.s0);
-            C21.s1 = IMAD(AS_SRC_DATA4_T(S.s1), as_char4(W20), C21.s1);
-            C21.s2 = IMAD(AS_SRC_DATA4_T(S.s2), as_char4(W20), C21.s2);
-            C21.s3 = IMAD(AS_SRC_DATA4_T(S.s3), as_char4(W20), C21.s3);
-            C21.s4 = IMAD(AS_SRC_DATA4_T(S.s4), as_char4(W20), C21.s4);
-            C21.s5 = IMAD(AS_SRC_DATA4_T(S.s5), as_char4(W20), C21.s5);
-            C21.s6 = IMAD(AS_SRC_DATA4_T(S.s6), as_char4(W20), C21.s6);
-            C21.s7 = IMAD(AS_SRC_DATA4_T(S.s7), as_char4(W20), C21.s7);
+            C21.s0 = idot4(AS_SRC_DATA4_T(S.s0), as_char4(W20), C21.s0);
+            C21.s1 = idot4(AS_SRC_DATA4_T(S.s1), as_char4(W20), C21.s1);
+            C21.s2 = idot4(AS_SRC_DATA4_T(S.s2), as_char4(W20), C21.s2);
+            C21.s3 = idot4(AS_SRC_DATA4_T(S.s3), as_char4(W20), C21.s3);
+            C21.s4 = idot4(AS_SRC_DATA4_T(S.s4), as_char4(W20), C21.s4);
+            C21.s5 = idot4(AS_SRC_DATA4_T(S.s5), as_char4(W20), C21.s5);
+            C21.s6 = idot4(AS_SRC_DATA4_T(S.s6), as_char4(W20), C21.s6);
+            C21.s7 = idot4(AS_SRC_DATA4_T(S.s7), as_char4(W20), C21.s7);
 
-            C31.s0 = IMAD(AS_SRC_DATA4_T(S.s0), as_char4(W30), C31.s0);
-            C31.s1 = IMAD(AS_SRC_DATA4_T(S.s1), as_char4(W30), C31.s1);
-            C31.s2 = IMAD(AS_SRC_DATA4_T(S.s2), as_char4(W30), C31.s2);
-            C31.s3 = IMAD(AS_SRC_DATA4_T(S.s3), as_char4(W30), C31.s3);
-            C31.s4 = IMAD(AS_SRC_DATA4_T(S.s4), as_char4(W30), C31.s4);
-            C31.s5 = IMAD(AS_SRC_DATA4_T(S.s5), as_char4(W30), C31.s5);
-            C31.s6 = IMAD(AS_SRC_DATA4_T(S.s6), as_char4(W30), C31.s6);
-            C31.s7 = IMAD(AS_SRC_DATA4_T(S.s7), as_char4(W30), C31.s7);
+            C31.s0 = idot4(AS_SRC_DATA4_T(S.s0), as_char4(W30), C31.s0);
+            C31.s1 = idot4(AS_SRC_DATA4_T(S.s1), as_char4(W30), C31.s1);
+            C31.s2 = idot4(AS_SRC_DATA4_T(S.s2), as_char4(W30), C31.s2);
+            C31.s3 = idot4(AS_SRC_DATA4_T(S.s3), as_char4(W30), C31.s3);
+            C31.s4 = idot4(AS_SRC_DATA4_T(S.s4), as_char4(W30), C31.s4);
+            C31.s5 = idot4(AS_SRC_DATA4_T(S.s5), as_char4(W30), C31.s5);
+            C31.s6 = idot4(AS_SRC_DATA4_T(S.s6), as_char4(W30), C31.s6);
+            C31.s7 = idot4(AS_SRC_DATA4_T(S.s7), as_char4(W30), C31.s7);
 #endif
         }
         wei += OC_BLOCK;
@@ -554,91 +553,31 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
     tmp1 *= SCALE_VEC4;
 #endif
 
-#if WITH_SUM
-#define DO_SUM() \
-    do { \
-        DST_DATA4_T d = BLOCK_READ_DST4(dst); \
-        float4 df = convert_float4(d); \
-        tmp = fma(df, (float4)sum_scale, tmp); \
-    } while (0)
+#if WITH_POST_OP
 
-#define DO_SUM_4() \
-    do { \
-        DST_DATA16_T d = BLOCK_READ_DST16(dst); \
-        float8 df0 = convert_float8(d.s01234567); \
-        float8 df1 = convert_float8(d.s89abcdef); \
-        tmp0 = fma(df0, (float8)sum_scale, tmp0); \
-        tmp1 = fma(df1, (float8)sum_scale, tmp1); \
-    } while (0)
+#define DO_POST_OP() \
+    { \
+        SUM_DATA4_T d; \
+        if (WITH_SUM) d = AS_SUM_DATA4_T(BLOCK_READ_DST4(dst)); \
+        APPLY_POST_OPS(tmp, float, d, SUM_DATA_T); \
+    }
+
+#define DO_POST_OP_4() \
+    { \
+        SUM_DATA16_T d; \
+        if (WITH_SUM) d = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst)); \
+        float16 tmp_x16 = (float16)(tmp0, tmp1); \
+        APPLY_POST_OPS(tmp_x16, float, d, SUM_DATA_T); \
+        tmp0 = tmp_x16.s01234567; \
+        tmp1 = tmp_x16.s89abcdef; \
+    }
+
 #else
-#define DO_SUM() ;
-#define DO_SUM_4() ;
-#endif
 
-#define ELTWISE() \
-    do { \
-        tmp[0] = fwd_eltwise( \
-                tmp[0], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp[1] = fwd_eltwise( \
-                tmp[1], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp[2] = fwd_eltwise( \
-                tmp[2], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp[3] = fwd_eltwise( \
-                tmp[3], eltwise_alpha, eltwise_beta, eltwise_scale); \
-    } while (0)
+#define DO_POST_OP() ;
+#define DO_POST_OP_4() ;
 
-#define ELTWISE_4() \
-    do { \
-        tmp0.s0 = fwd_eltwise( \
-                tmp0.s0, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s1 = fwd_eltwise( \
-                tmp0.s1, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s2 = fwd_eltwise( \
-                tmp0.s2, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s3 = fwd_eltwise( \
-                tmp0.s3, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s4 = fwd_eltwise( \
-                tmp0.s4, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s5 = fwd_eltwise( \
-                tmp0.s5, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s6 = fwd_eltwise( \
-                tmp0.s6, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp0.s7 = fwd_eltwise( \
-                tmp0.s7, eltwise_alpha, eltwise_beta, eltwise_scale); \
-\
-        tmp1.s0 = fwd_eltwise( \
-                tmp1.s0, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s1 = fwd_eltwise( \
-                tmp1.s1, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s2 = fwd_eltwise( \
-                tmp1.s2, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s3 = fwd_eltwise( \
-                tmp1.s3, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s4 = fwd_eltwise( \
-                tmp1.s4, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s5 = fwd_eltwise( \
-                tmp1.s5, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s6 = fwd_eltwise( \
-                tmp1.s6, eltwise_alpha, eltwise_beta, eltwise_scale); \
-        tmp1.s7 = fwd_eltwise( \
-                tmp1.s7, eltwise_alpha, eltwise_beta, eltwise_scale); \
-    } while (0)
-
-#if WITH_ELTWISE && !WITH_POST_SUM_ELTWISE
-#define DO_ELTWISE() ELTWISE();
-#define DO_ELTWISE_4() ELTWISE_4();
-#else
-#define DO_ELTWISE() ;
-#define DO_ELTWISE_4() ;
-#endif
-
-#if WITH_POST_SUM_ELTWISE
-#define DO_POST_SUM_ELTWISE() ELTWISE();
-#define DO_POST_SUM_ELTWISE_4() ELTWISE_4();
-#else
-#define DO_POST_SUM_ELTWISE() ;
-#define DO_POST_SUM_ELTWISE_4() ;
-#endif
+#endif // #if WITH_POST_OP
 
 #define PACK(C0, C1, C2, C3, idx) \
     do { \
@@ -686,9 +625,7 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
     do { \
         PACK(C0, C1, C2, C3, i); \
         QUANTIZE_ADD_BIAS(); \
-        DO_ELTWISE(); \
-        DO_SUM(); \
-        DO_POST_SUM_ELTWISE(); \
+        DO_POST_OP(); \
         CONVERT_PACK(); \
         BLOCK_WRITE_DST4(dst, tmp_cvt); \
         dst += OC_BLOCK * MB_BLOCK; \
@@ -698,9 +635,7 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
     do { \
         PACK_4(C0, C1, C2, C3, i); \
         QUANTIZE_ADD_BIAS_4(); \
-        DO_ELTWISE_4(); \
-        DO_SUM_4(); \
-        DO_POST_SUM_ELTWISE_4(); \
+        DO_POST_OP_4(); \
         CONVERT_PACK_4(); \
         BLOCK_WRITE_DST16(dst, R); \
         dst += 4 * OC_BLOCK; \

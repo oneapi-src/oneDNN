@@ -117,7 +117,13 @@ protected:
     virtual void SetUp() {
         test_convolution_eltwise_params_t p = ::testing::TestWithParam<
                 test_convolution_eltwise_params_t>::GetParam();
+        catch_expected_failures(
+                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
 
+    virtual void Test() {
+        test_convolution_eltwise_params_t p = ::testing::TestWithParam<
+                test_convolution_eltwise_params_t>::GetParam();
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
         auto eng = get_test_engine();
         auto strm = stream(eng);
@@ -180,37 +186,31 @@ protected:
                 ++padR[1];
         }
 
-        auto test = [&]() {
-            dnnl::post_ops ops;
-            ops.append_eltwise(1.0, p.alg, p.eltwise_alpha, p.eltwise_beta);
+        dnnl::post_ops ops;
+        ops.append_eltwise(1.0, p.alg, p.eltwise_alpha, p.eltwise_beta);
 
-            dnnl::primitive_attr attr;
-            attr.set_post_ops(ops);
+        dnnl::primitive_attr attr;
+        attr.set_post_ops(ops);
 
-            auto conv_desc = with_bias
-                    ? convolution_forward::desc(prop_kind::forward_scoring,
-                            p.aalgorithm, c_src_desc, c_weights_desc,
-                            c_bias_desc, c_dst_desc, {cd.strh, cd.strw},
-                            {cd.dilh, cd.dilw}, {cd.padh, cd.padw}, padR)
-                    : convolution_forward::desc(prop_kind::forward_scoring,
-                            p.aalgorithm, c_src_desc, c_weights_desc,
-                            c_dst_desc, {cd.strh, cd.strw}, {cd.dilh, cd.dilw},
-                            {cd.padh, cd.padw}, padR);
+        auto conv_desc = with_bias
+                ? convolution_forward::desc(prop_kind::forward_scoring,
+                        p.aalgorithm, c_src_desc, c_weights_desc, c_bias_desc,
+                        c_dst_desc, {cd.strh, cd.strw}, {cd.dilh, cd.dilw},
+                        {cd.padh, cd.padw}, padR)
+                : convolution_forward::desc(prop_kind::forward_scoring,
+                        p.aalgorithm, c_src_desc, c_weights_desc, c_dst_desc,
+                        {cd.strh, cd.strw}, {cd.dilh, cd.dilw},
+                        {cd.padh, cd.padw}, padR);
 
-            auto conv_primitive_desc
-                    = convolution_forward::primitive_desc(conv_desc, attr, eng);
+        auto conv_primitive_desc
+                = convolution_forward::primitive_desc(conv_desc, attr, eng);
 
-            convolution_forward(conv_primitive_desc)
-                    .execute(strm,
-                            {{DNNL_ARG_SRC, c_src},
-                                    {DNNL_ARG_WEIGHTS, c_weights},
-                                    {DNNL_ARG_BIAS, c_bias},
-                                    {DNNL_ARG_DST, c_dst}});
-            strm.wait();
-        };
-
-        if (catch_expected_failures(test, p.expect_to_fail, p.expected_status))
-            return;
+        convolution_forward(conv_primitive_desc)
+                .execute(strm,
+                        {{DNNL_ARG_SRC, c_src}, {DNNL_ARG_WEIGHTS, c_weights},
+                                {DNNL_ARG_BIAS, c_bias},
+                                {DNNL_ARG_DST, c_dst}});
+        strm.wait();
 
         compute_ref_conv_eltwise_fwd<data_t_src, data_t_wei, data_t_wei,
                 data_t_dst>(cd, c_src, c_weights, c_bias, dst_ref, with_bias,

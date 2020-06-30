@@ -35,8 +35,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
         const __global char *wei, const __global float *bias,
-        __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale, float sum_scale, float scale,
+        __global DST_DATA_T *dst POST_OP_ARGS, float scale,
         const __global float *scales_per_oc) {
 
     const int osp = get_global_id(1);
@@ -68,8 +67,8 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
                                              sp += 4) {
         const int4 s = {sp, sp + 1, sp + 2, sp + 3};
         const int4 kd = s / (KH * KW);
-        const int4 kh = (s % (KH * KW)) / KH;
-        const int4 kw = (s % (KH * KW)) % KH;
+        const int4 kh = (s % (KH * KW)) / KW;
+        const int4 kw = (s % (KH * KW)) % KW;
         const int4 src_index
                 = (kd * (1 + DD) * IH * IW + kh * (1 + DH) * IW + kw * (1 + DW))
                 * MB_BLOCK * IC_BLOCK;
@@ -104,37 +103,37 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
                 intel_sub_group_block_read_uc8((const __global uchar *)(wei)));
         char4 W1 = W.s0246;
         char4 W2 = W.s1357;
-        S00.s0 = IMAD(
+        S00.s0 = idot4(
                 (SRC_DATA4_T)(A00.s0, A10.s0, A20.s0, A30.s0), W1, S00.s0);
-        S00.s1 = IMAD(
+        S00.s1 = idot4(
                 (SRC_DATA4_T)(A00.s1, A10.s1, A20.s1, A30.s1), W2, S00.s1);
-        S00.s2 = IMAD(
+        S00.s2 = idot4(
                 (SRC_DATA4_T)(A00.s2, A10.s2, A20.s2, A30.s2), W1, S00.s2);
-        S00.s3 = IMAD(
+        S00.s3 = idot4(
                 (SRC_DATA4_T)(A00.s3, A10.s3, A20.s3, A30.s3), W2, S00.s3);
-        S00.s4 = IMAD(
+        S00.s4 = idot4(
                 (SRC_DATA4_T)(A00.s4, A10.s4, A20.s4, A30.s4), W1, S00.s4);
-        S00.s5 = IMAD(
+        S00.s5 = idot4(
                 (SRC_DATA4_T)(A00.s5, A10.s5, A20.s5, A30.s5), W2, S00.s5);
-        S00.s6 = IMAD(
+        S00.s6 = idot4(
                 (SRC_DATA4_T)(A00.s6, A10.s6, A20.s6, A30.s6), W1, S00.s6);
-        S00.s7 = IMAD(
+        S00.s7 = idot4(
                 (SRC_DATA4_T)(A00.s7, A10.s7, A20.s7, A30.s7), W2, S00.s7);
-        S01.s0 = IMAD(
+        S01.s0 = idot4(
                 (SRC_DATA4_T)(A00.s8, A10.s8, A20.s8, A30.s8), W1, S01.s0);
-        S01.s1 = IMAD(
+        S01.s1 = idot4(
                 (SRC_DATA4_T)(A00.s9, A10.s9, A20.s9, A30.s9), W2, S01.s1);
-        S01.s2 = IMAD(
+        S01.s2 = idot4(
                 (SRC_DATA4_T)(A00.sa, A10.sa, A20.sa, A30.sa), W1, S01.s2);
-        S01.s3 = IMAD(
+        S01.s3 = idot4(
                 (SRC_DATA4_T)(A00.sb, A10.sb, A20.sb, A30.sb), W2, S01.s3);
-        S01.s4 = IMAD(
+        S01.s4 = idot4(
                 (SRC_DATA4_T)(A00.sc, A10.sc, A20.sc, A30.sc), W1, S01.s4);
-        S01.s5 = IMAD(
+        S01.s5 = idot4(
                 (SRC_DATA4_T)(A00.sd, A10.sd, A20.sd, A30.sd), W2, S01.s5);
-        S01.s6 = IMAD(
+        S01.s6 = idot4(
                 (SRC_DATA4_T)(A00.se, A10.se, A20.se, A30.se), W1, S01.s6);
-        S01.s7 = IMAD(
+        S01.s7 = idot4(
                 (SRC_DATA4_T)(A00.sf, A10.sf, A20.sf, A30.sf), W2, S01.s7);
         wei += 4 * OC_BLOCK;
     }
@@ -142,8 +141,8 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     __attribute__((opencl_unroll_hint)) for (int sp = KDHW_SIZE - KDHW_SIZE % 4;
                                              sp < KDHW_SIZE; sp++) {
         const int kd = sp / (KH * KW);
-        const int kh = (sp % (KH * KW)) / KH;
-        const int kw = (sp % (KH * KW)) % KH;
+        const int kh = (sp % (KH * KW)) / KW;
+        const int kw = (sp % (KH * KW)) % KW;
         const int src_index
                 = (kd * (1 + DD) * IH * IW + kh * (1 + DH) * IW + kw * (1 + DW))
                 * MB_BLOCK * IC_BLOCK;
@@ -182,16 +181,6 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     float8 tmp00 = convert_float8(S00);
     float8 tmp01 = convert_float8(S01);
 
-#define DO_ELTWISE() \
-    do { \
-        for (uint i = 0; i < 8; i++) { \
-            tmp00[i] = fwd_eltwise( \
-                    tmp00[i], eltwise_alpha, eltwise_beta, eltwise_scale); \
-            tmp01[i] = fwd_eltwise( \
-                    tmp01[i], eltwise_alpha, eltwise_beta, eltwise_scale); \
-        } \
-    } while (0)
-
 #if SCALES_PER_OC
     float2 scales = as_float2(intel_sub_group_block_read2(
             (const __global uint *)&scales_per_oc[g]));
@@ -208,23 +197,15 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     tmp01 *= SCALE_VEC8;
 #endif
 
-#if WITH_ELTWISE && !WITH_POST_SUM_ELTWISE
-    DO_ELTWISE();
-#endif
+    SUM_DATA16_T D00;
 #if WITH_SUM
-    DST_DATA16_T D00 = BLOCK_READ_DST16(dst);
-#if SUM_SCALE
-    tmp00 += convert_float8(D00.s01234567);
-    tmp01 += convert_float8(D00.s89abcdef);
-#else // SUM_SCALE
-    tmp00 += convert_float8(D00.s01234567) * sum_scale;
-    tmp01 += convert_float8(D00.s89abcdef) * sum_scale;
-#endif // SUM_SCALE
+    D00 = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst));
 #endif // WITH_SUM
-#if WITH_POST_SUM_ELTWISE
-    DO_ELTWISE();
-#endif
 
-    DST_DATA16_T R0 = CONVERT_DST_DATA16_T((float16)(tmp00, tmp01));
+    float16 tmp_x16 = (float16)(tmp00, tmp01);
+    APPLY_POST_OPS(tmp_x16, float, D00, SUM_DATA_T);
+
+    DST_DATA16_T R0 = CONVERT_DST_DATA16_T(tmp_x16);
+
     BLOCK_WRITE_DST16(dst, R0);
 }

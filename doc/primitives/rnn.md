@@ -5,6 +5,8 @@ RNN {#dev_guide_rnn}
 > [API Reference](@ref dnnl_api_rnn)
 >
 
+## General
+
 The RNN primitive computes a stack of unrolled recurrent cells, as depicted in
 Figure 1. \bias, \srciter and \dstiter are optional parameters (the
 variable names follow the standard @ref dev_guide_conventions). If not
@@ -51,7 +53,7 @@ And here is the equation for LSTM cells:
 \f]
 where \f$t,l\f$ are the indices of the timestamp and the layer of the cell being executed.
 
-# Cell Functions
+## Cell Functions
 
 The RNN API provides four cell functions:
 
@@ -61,12 +63,14 @@ The RNN API provides four cell functions:
 -   [Linear-before-reset GRU](#Linear-before-reset-GRU), a three-gate recurrent
     unit cell with the linear layer before the reset gate.
 
-## Vanilla RNN
+### Vanilla RNN
 
-A single-gate recurrent cell initialized with
-`vanilla_rnn_forward::desc` or `vanilla_rnn_forward::desc` as in the following example.
+A single-gate recurrent cell initialized
+with #dnnl::vanilla_rnn_forward::desc::desc()
+or #dnnl::vanilla_rnn_forward::desc::desc() as in the following example.
+
 ~~~cpp
-    auto vanilla_rnn_desc = vanilla_rnn_forward::desc(
+    auto vanilla_rnn_desc = dnnl::vanilla_rnn_forward::desc(
         aprop, activation, direction, src_layer_desc, src_iter_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
@@ -83,12 +87,13 @@ h_t &= activation(a_t)
 \end{align}
 \f]
 
-## LSTM
+### LSTM
 
-### LSTM (or Vanilla LSTM)
+#### LSTM (or Vanilla LSTM)
 
-A four-gate long short-term memory recurrent cell initialized with
-`lstm_forward::desc` or `lstm_backward::desc` as in the following example.
+A four-gate long short-term memory recurrent cell initialized
+with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
+as in the following example.
 
 ~~~cpp
     auto lstm_desc = lstm_forward::desc(
@@ -107,11 +112,11 @@ for the forward pass:
 i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1, l} + B_i) \\
 f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1, l} + B_f) \\
 \\
-\tilde c_t &= tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
+\tilde c_t &= \tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
 c_t &= f_t * c_{t-1} + i_t * \tilde c_t \\
 \\
 o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1, l} + B_o) \\
-h_t &= tanh(c_t) * o_t
+h_t &= \tanh(c_t) * o_t
 \end{align}
 \f]
 
@@ -123,13 +128,14 @@ In order for the dimensions to be consistent, we require
 \f$channels(\srciterc) = channels(\dstiterc) =
 channels(\dstiter)\f$.
 
-### LSTM with Peephole
+#### LSTM with Peephole
 
-A four-gate long short-term memory recurrent cell with peephole initialized with
-`lstm_forward::desc` or `lstm_backward::desc` as in the following example.
+A four-gate long short-term memory recurrent cell with peephole initialized
+with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
+as in the following example.
 
 ~~~cpp
-    auto lstm_desc = lstm_forward::desc(
+    auto lstm_desc = dnnl::lstm_forward::desc(
         aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
         weights_layer_desc, weights_iter_desc, weights_peephole_desc,
         bias_desc, dst_layer_desc, dst_iter_h_desc, dst_iter_c_desc);
@@ -146,11 +152,11 @@ and output for the forward pass:
 i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1, l} + P_i \cdot c_{t-1} + B_i) \\
 f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1, l} + P_f \cdot c_{t-1} + B_f) \\
 \\
-\tilde c_t &= tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
+\tilde c_t &= \tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
 c_t &= f_t * c_{t-1} + i_t * \tilde c_t \\
 \\
 o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1, l} + P_o \cdot c_t + B_o) \\
-h_t &= tanh(c_t) * o_t
+h_t &= \tanh(c_t) * o_t
 \end{align}
 \f]
 
@@ -162,13 +168,14 @@ If the `weights_peephole_desc` passed to the operation descriptor constructor
 is a zero memory desciptor, the primitive will behave the same as in LSTM
 primitive without peephole.
 
-### LSTM with Projection
+#### LSTM with Projection
 
 A four-gate long short-term memory recurrent cell with projection initialized
-with `lstm_forward::desc` or `lstm_backward::desc` as in the following example.
+with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
+as in the following example.
 
 ~~~cpp
-    auto lstm_desc = lstm_forward::desc(
+    auto lstm_desc = dnnl::lstm_forward::desc(
         aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
         weights_layer_desc, weights_iter_desc, weights_peephole_desc,
         weights_projection_desc, bias_desc, dst_layer_desc, dst_iter_h_desc,
@@ -202,12 +209,14 @@ If the `weights_projection_desc` passed to the operation descriptor constructor
 is a zero memory desciptor, the primitive will behave the same as in LSTM
 primitive without projection.
 
-## GRU
+### GRU
 
-A three-gate gated recurrent unit cell, initialized with
-`gru_forward::desc` or `gru_backward::desc` as in the following example.
+A three-gate gated recurrent unit cell, initialized
+with #dnnl::gru_forward::desc::desc() or #dnnl::gru_backward::desc::desc()
+as in the following example.
+
 ~~~cpp
-    auto gru_desc = gru_forward::desc(
+    auto gru_desc = dnnl::gru_forward::desc(
         aprop, direction, src_layer_desc, src_iter_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
@@ -218,14 +227,12 @@ implicitly require the order of these gates to be `u`, `r`, and `o`. The
 following equation gives the mathematical definition of these gates.
 
 \f[
-
 \begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
-o_t &= tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
+o_t &= \tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
 h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 \end{align}
-
 \f]
 
 where \f$W_*\f$ are in \weightslayer, \f$U_*\f$ are in
@@ -236,12 +243,14 @@ achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
 This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 + B_u)\f$, and \f$1 – \sigma(a) = \sigma(-a)\f$.
 
-## Linear-Before-Reset GRU
+### Linear-Before-Reset GRU
 
 A three-gate gated recurrent unit cell with linear layer applied before the
-reset gate, initialized with or  as in the following example.
+reset gate, initialized with #dnnl::lbr_gru_forward::desc::desc()
+or #dnnl::lbr_gru_backward::desc::desc() as in the following example.
+
 ~~~cpp
-    auto lbr_gru_desc = lbr_gru_forward::desc(
+    auto lbr_gru_desc = dnnl::lbr_gru_forward::desc(
         aprop, direction, src_layer_desc, src_iter_desc,
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
@@ -251,14 +260,12 @@ The following equation describes the mathematical behavior of the
 Linear-Before-Reset GRU cell.
 
 \f[
-
 \begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
-o_t &= tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
+o_t &= \tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
 h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 \end{align}
-
 \f]
 
 Note that for all tensors with a dimension depending on the gates number, except
@@ -271,7 +278,7 @@ achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
 This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 + B_u)\f$, and \f$1 – \sigma(a) = \sigma(-a)\f$.
 
-# Considerations for Training
+## Considerations for Training
 
 When using the RNN API for training, the forward pass should use the
 `forward_training` propagation kind, and a workspace should be passed to
@@ -281,9 +288,11 @@ once again by another forward pass.
 
 @anchor dg_rnn_impl_limits
 
-# Execution Arguments
+## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index         |
 | ---                    | ---                              |
 | \srclayer              | DNNL_ARG_SRC_LAYER               |
@@ -310,9 +319,9 @@ argument index as specified by the following table.
 | \diffdstiter           | DNNL_ARG_DIFF_DST_ITER           |
 | \diffdstiterc          | DNNL_ARG_DIFF_DST_ITER_C         |
 
-# Implementation details
+## Implementation details
 
-## Data Types
+### Data Type Support
 
 The following table lists the combination of data types supported by the RNN
 primitive for each input and output memory object.
@@ -334,7 +343,7 @@ primitive for each input and output memory object.
     There might be hardware and/or implementation specific restrictions.
     Check [Implementation Limitations](@ref dg_rnn_impl_limits) section below.
 
-## Data Representation
+### Data Representation
 
 In the oneDNN programming model, the RNN primitive is one of a few that support
 the placeholder memory format #dnnl::memory::format_tag::any (shortened to `any`
@@ -359,13 +368,13 @@ The RNN primitive supports padded tensors and views. So even if
 two memory descriptors share the same data layout, they might still be
 different.
 
-## Post-ops and Attributes
+### Post-ops and Attributes
 
 Currently post-ops and attributes are only used by the int8 variant of
 LSTM. See the markdown @ref cpu_rnn_inference_int8_cpp for more
 details on how to use and set these quantization parameters.
 
-# Implementation Limitations
+## Implementation Limitations
 
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.

@@ -149,9 +149,9 @@ void jit_avx512_common_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
 
 void jit_avx512_common_1x1_conv_kernel::reduce_loop(
         int load_loop_blk, int ur, int substep, bool wraparound) {
-    const bool out_layout_nxc = is_out_layout_nxc();
-    const bool load_layout_nxc = is_load_layout_nxc();
-    const bool bcast_layout_nxc = is_bcast_layout_nxc();
+    const bool out_layout_nxc = is_out_layout_nxc(jcp);
+    const bool load_layout_nxc = is_load_layout_nxc(jcp);
+    const bool bcast_layout_nxc = is_bcast_layout_nxc(jcp);
     const int reduce_dim_tail = jcp.reduce_dim % jcp.reduce_block;
     const int load_dim_tail = jcp.load_dim % jcp.load_block;
 
@@ -294,7 +294,12 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                     auto vreg_acc = vreg_accum(i_load, i_ur);
-                    if (i_load + 1 == load_loop_blk && load_dim_tail) {
+                    // for nxc_layout-bwd_w, weights are still padded and the
+                    // output_ptr here can be uninitialized scratchpad.
+                    // To ensure final output (after reduction) is zero-padded,
+                    // here we zero-pad output by omitting the mask.
+                    if (jcp.prop_kind != backward_weights
+                            && i_load + 1 == load_loop_blk && load_dim_tail) {
                         vreg_acc = vreg_acc | k_load_dim_mask;
                     }
 
@@ -547,7 +552,7 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
                         load_loop_blk * jcp.load_block * jcp.typesize_out);
                 add(reg_output_data,
                         load_loop_blk * jcp.load_block * jcp.typesize_out
-                                * (is_out_layout_nxc()
+                                * (is_out_layout_nxc(jcp)
                                                 ? 1
                                                 : (jcp.with_dw_conv
                                                                 ? jcp.ow
@@ -556,7 +561,7 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
             case backward_data:
                 add(reg_output_data,
                         load_loop_blk * jcp.load_block * jcp.typesize_out
-                                * (is_out_layout_nxc() ? 1 : jcp.bcast_dim));
+                                * (is_out_layout_nxc(jcp) ? 1 : jcp.bcast_dim));
                 break;
             case backward_weights:
                 for (int i_load = 0; i_load < load_loop_blk; i_load++)

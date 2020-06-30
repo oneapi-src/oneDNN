@@ -24,6 +24,37 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+unsigned get_block_size(bool is_backward, int hw_threads, int nn, int ic,
+        int work_size, int simd = 16) {
+    unsigned block_size = 256;
+    float thread_efficiency = 0;
+    int hw_thread_mult = hw_threads;
+    if (is_backward) {
+        do {
+            const unsigned nof_blocks = nstl::max(
+                    utils::rnd_dn(hw_thread_mult * simd, ic) / ic, 1);
+            const unsigned min_block_size
+                    = utils::rnd_up(work_size, nof_blocks) / nof_blocks;
+            const unsigned curr_block_size = utils::rnd_up(min_block_size, 8);
+            const unsigned nof_blocks_generated
+                    = utils::rnd_up(work_size, curr_block_size)
+                    / curr_block_size;
+            const unsigned threads_generated = nof_blocks_generated * ic / simd;
+            const float curr_thread_efficiency = float(threads_generated * nn)
+                    / float(utils::rnd_up(threads_generated * nn, hw_threads));
+            if (curr_thread_efficiency > thread_efficiency) {
+                thread_efficiency = curr_thread_efficiency;
+                block_size = curr_block_size;
+            }
+            if (curr_thread_efficiency == 1.0 || curr_block_size < 150) {
+                break;
+            }
+            hw_thread_mult += hw_threads;
+        } while (true);
+    }
+    return block_size;
+}
+
 static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         const batch_normalization_pd_t *pd, engine_t *engine) {
     using namespace dnnl::impl::format_tag;
@@ -89,10 +120,15 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         conf.sp = conf.id * conf.ih * conf.iw * conf.mb_block;
     }
 
+    const int max_sp_block_size = get_block_size(conf.is_backward,
+            compute_engine->device_info()->hw_threads(), conf.nn, conf.ic,
+            conf.sp);
+
     if (conf.nn == 1)
-        conf.stat_sp_block = 256;
+        conf.stat_sp_block = max_sp_block_size;
     else
-        conf.stat_sp_block = nstl::min(utils::rnd_up(conf.sp, 16), 256);
+        conf.stat_sp_block
+                = nstl::min(utils::rnd_up(conf.sp, 16), max_sp_block_size);
 
     conf.stat_sp_nblocks
             = utils::rnd_up(conf.sp, conf.stat_sp_block) / conf.stat_sp_block;
@@ -114,7 +150,15 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
     conf.dispatch_reduce_stat.generate();
 
-    conf.vect_size = 8;
+    if (conf.is_backward) {
+        // batchnorm backward is able to process data in blocks with size bigger
+        // than 8 but from experiments it looks like bigger blocks are slower on
+        // gen 9 gpu.
+        // TODO: investigate why increased block size decrease performance?
+        conf.vect_size = 8;
+    } else {
+        conf.vect_size = 8;
+    }
 
     const int sp_pad = utils::rnd_up(conf.sp, conf.vect_size);
     conf.sp_tail = utils::rnd_dn(conf.sp, conf.vect_size);
@@ -289,6 +333,86 @@ status_t gen9_batch_normalization_fwd_t::execute_forward(
     auto nd_range = conf.dispatch.nd_range();
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    return status;
+}
+
+status_t gen9_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, off, this, engine);
+}
+
+status_t gen9_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf, off);
+}
+
+void gen9_batch_normalization_bwd_t::pd_t::init_scratchpad() {
+    size_t size = 2 * conf.reduce_stat_nblocks * conf.ic;
+
+    auto scratchpad = scratchpad_registry().registrar();
+    scratchpad.book(key_bnorm_reduction, size,
+            types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
+}
+
+status_t gen9_batch_normalization_bwd_t::execute_backward(
+        const exec_ctx_t &ctx) const {
+
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &mean = CTX_IN_STORAGE(DNNL_ARG_MEAN);
+    auto &variance = CTX_IN_STORAGE(DNNL_ARG_VARIANCE);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &scaleshift = CTX_IN_STORAGE(DNNL_ARG_SCALE_SHIFT);
+    auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
+
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &diff_scaleshift_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE_SHIFT);
+
+    const auto &conf = pd()->conf;
+
+    std::unique_ptr<memory_storage_t> temp_reduce;
+    temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
+            key_bnorm_reduction);
+
+    auto &diff_scaleshift
+            = (!conf.diff_scaleshift) ? *temp_reduce : diff_scaleshift_;
+
+    status_t status;
+
+    compute::kernel_arg_list_t calc_stats_arg_list;
+    calc_stats_arg_list.set(0, src);
+    calc_stats_arg_list.set(1, mean);
+    calc_stats_arg_list.set(2, diff_dst);
+    calc_stats_arg_list.set(3, ws);
+    calc_stats_arg_list.set(4, *temp_reduce);
+
+    auto nd_range = conf.dispatch_calc_stat.nd_range();
+    status = parallel_for(
+            ctx, nd_range, calculate_stats_kernel_, calc_stats_arg_list);
+    if (status != status::success) return status;
+
+    compute::kernel_arg_list_t reduce_stats_arg_list;
+    reduce_stats_arg_list.set(0, *temp_reduce);
+    reduce_stats_arg_list.set(1, diff_scaleshift);
+    reduce_stats_arg_list.set(2, variance);
+    reduce_stats_arg_list.set(3, conf.eps);
+
+    auto nd_range_reduce_stat = conf.dispatch_reduce_stat.nd_range();
+    status = parallel_for(ctx, nd_range_reduce_stat, reduce_stats_kernel_,
+            reduce_stats_arg_list);
+    if (status != status::success) return status;
+
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, src);
+    arg_list.set(1, mean);
+    arg_list.set(2, variance);
+    arg_list.set(3, diff_dst);
+    arg_list.set(4, scaleshift);
+    arg_list.set(5, ws);
+    arg_list.set(6, diff_src);
+    arg_list.set(7, diff_scaleshift);
+    arg_list.set(8, conf.eps);
+
+    nd_range = conf.dispatch.nd_range();
+    status = parallel_for(ctx, nd_range, bwd_kernel_, arg_list);
 
     return status;
 }

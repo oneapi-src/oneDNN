@@ -60,11 +60,11 @@ or `DYLD_LIBRARY_PATH` (macOS) environment variable or the `rpath` mechanism.
 #### Support for macOS hardened runtime
 
 oneDNN requires the
-[com.apple.security.cs.allow-unsigned-executable-memory](https://developer.apple.com/documentation/bundleresources/entitlements/com_apple_security_cs_allow-unsigned-executable-memory)
+[com.apple.security.cs.allow-jit](https://developer.apple.com/documentation/bundleresources/entitlements/com_apple_security_cs_allow-jit)
 entitlement when it is integrated with an application that uses the macOS
 [hardened runtime](https://developer.apple.com/documentation/security/hardened_runtime_entitlements).
-This requirement comes from the fact that oneDNN generates executable code on
-the fly and does not sign it.
+This requirement comes from the fact that oneDNN generates code on
+the fly and then executes it.
 
 It can be enabled in Xcode or passed to `codesign` like this:
 ~~~sh
@@ -77,7 +77,7 @@ Example `Entitlements.plist`:
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+    <key>com.apple.security.cs.allow-jit</key><true/>
 </dict>
 </plist>
 ~~~

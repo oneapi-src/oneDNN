@@ -29,11 +29,6 @@
 #include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
-namespace deconv {
-/* some extra control parameters which shouldn't be placed in prb_t */
-extern bool allow_unimpl; /* true means do not treat unimplemented as error */
-} // namespace deconv
-
 namespace conv {
 
 enum alg_t { DIRECT, WINO, AUTO };
@@ -48,11 +43,27 @@ struct desc_t {
     int64_t kd, kh, kw;
     int64_t sd, sh, sw;
     int64_t pd, ph, pw;
+    int64_t pd_r, ph_r, pw_r; // End side padding for each dimension
     int64_t dd, dh, dw;
     bool has_groups;
 
     const char *name;
     int ndims;
+
+    // Initialize dependent opposite-side paddings values
+    // from the shape parameters
+    void init_pad_r(bool is_deconv) {
+        pw_r = opp_pad(is_deconv, iw, ow, kw, sw, pw, dw);
+        ph_r = opp_pad(is_deconv, ih, oh, kh, sh, ph, dh);
+        pd_r = opp_pad(is_deconv, id, od, kd, sd, pd, dd);
+    }
+
+private:
+    int64_t opp_pad(bool is_deconv, int64_t i, int64_t o, int64_t k, int64_t s,
+            int64_t p, int64_t d) {
+        return is_deconv ? (i - 1) * s - o + ((k - 1) * (d + 1) + 1) - p
+                         : (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - p;
+    }
 };
 
 int str2desc(desc_t *desc, const char *str, bool is_deconv);
@@ -104,8 +115,9 @@ struct settings_t {
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
     std::vector<int64_t> mb {0};
     std::vector<alg_t> alg {DIRECT};
+    std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
+    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     attr_t attr = {};
-    bool allow_unimpl = false;
     const char *pattern = NULL;
 
     const char *perf_template_csv
@@ -119,6 +131,7 @@ struct settings_t {
     void reset() { *this = settings_t(perf_template); }
 };
 
+// moved out of prb_t to support fusion
 float *generate_oscales(const attr_t::scale_t &oscale, int N);
 
 struct prb_t : public desc_t {
@@ -201,9 +214,6 @@ struct perf_report_t : public base_perf_report_t {
 private:
     const prb_t *p_ = NULL;
 };
-
-/* some extra control parameters which shouldn't be placed in prb_t */
-extern bool allow_unimpl; /* true means do not treat unimplemented as error */
 
 inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t g, int64_t ic,
         int64_t id, int64_t ih, int64_t iw) {
@@ -323,14 +333,10 @@ int compare_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
         bool final_compare = false);
 int compare_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
         bool final_compare = false);
-int fill_src(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r);
-int fill_wei(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r);
-int fill_bia(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r);
-int fill_dst(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r);
+int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
+int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
+int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
+int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
 double get_trust_nz_level(const prb_t *p, data_kind_t kind, bool final_compare);
 
 void compute_ref_bwd_bias(

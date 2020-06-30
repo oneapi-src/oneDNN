@@ -44,6 +44,10 @@ status_t dnnl_primitive_desc_iterator_create(
     auto it = new primitive_desc_iterator_t(engine, op_desc, attr,
             hint_fwd_pd ? hint_fwd_pd->impl().get() : nullptr);
     if (it == nullptr) return out_of_memory;
+    if (!it->is_initialized()) {
+        delete it;
+        return out_of_memory;
+    }
 
     ++(*it);
     if (*it == it->end()) {
@@ -67,6 +71,10 @@ primitive_desc_iface_t *dnnl_primitive_desc_iterator_fetch(
     if (iterator == nullptr) return nullptr;
     primitive_desc_iface_t *pd
             = new primitive_desc_iface_t(*(*iterator), iterator->engine());
+    if (pd->impl() == nullptr) {
+        delete pd;
+        return nullptr;
+    }
     return pd;
 }
 

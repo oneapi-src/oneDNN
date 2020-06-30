@@ -41,6 +41,16 @@ protected:
 
         bool is_int8 = utils::one_of(
                 invariant_src_md()->data_type, data_type::s8, data_type::u8);
+
+        for (int i = 0; i < p.len_; ++i) {
+            if (is_sum(i)) {
+                if (p.entry_[i].sum.dt != dnnl_data_type_undef
+                        && types::data_type_size(p.entry_[i].sum.dt)
+                                != types::data_type_size(dst_md()->data_type))
+                    return false;
+            }
+        }
+
         switch (p.len_) {
             case 0: return true; // no post_ops
             case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise

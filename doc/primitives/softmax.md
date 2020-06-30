@@ -5,13 +5,15 @@ Softmax {#dev_guide_softmax}
 > [API Reference](@ref dnnl_api_softmax)
 >
 
+## General
+
 The softmax primitive performs softmax along a particular axis on data with
 arbitrary dimensions. All other axes are treated as independent (batch).
 
+### Forward
+
 In general form, the operation is defined by the following formulas (the
 variable names follow the standard @ref dev_guide_conventions):
-
-### Forward
 
 \f[
     \dst(\overline{ou}, c, \overline{in}) =
@@ -49,6 +51,7 @@ The backward propagation computes \f$\diffsrc(ou, c, in)\f$, based on
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_SRC             |
@@ -67,7 +70,7 @@ argument index as specified by the following table.
 
 ### Post-ops and Attributes
 
-The softmax primitive doesn't support any post-ops or attributes.
+The softmax primitive does not support any post-ops or attributes.
 
 ### Data Type Support
 

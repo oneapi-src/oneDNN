@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
+
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
@@ -47,7 +49,7 @@ status_t _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
 
     assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_forward_thr(
@@ -198,7 +200,7 @@ status_t _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
 
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
-    status_t st = status::success;
+    std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_backward_data_thr(ithr, nthr, diff_dst_base,

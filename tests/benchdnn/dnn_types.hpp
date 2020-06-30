@@ -77,8 +77,7 @@ const char *data_kind2str(data_kind_t kind);
 struct attr_t {
     struct scale_t {
         enum policy_t {
-            NONE = 0,
-            COMMON,
+            COMMON = 0,
             PER_OC,
             // reorder section
             // XXX: order is important, from longer name to a shorter one
@@ -89,17 +88,28 @@ struct attr_t {
             // reorder section ends
             POLICY_TOTAL
         };
-        scale_t() : policy(NONE), scale(1.) {}
+        scale_t() = default;
         scale_t(policy_t policy, float scale) : policy(policy), scale(scale) {}
 
         static policy_t str2policy(const char *str);
         static const char *policy2str(policy_t policy);
 
-        int str2scale(const char *str, const char **end_s);
+        int from_str(const char *str, const char **end_s);
 
-        bool is_def() const { return this->policy == NONE; }
+        bool is_def() const { return policy == COMMON && scale == 1.; }
 
-        policy_t policy = NONE;
+        static int get_default_mask(policy_t policy) {
+            switch (policy) {
+                case PER_DIM_0: return (1 << 0);
+                case PER_OC:
+                case PER_DIM_1: return (1 << 1);
+                case PER_DIM_01: return (1 << 0) + (1 << 1);
+                case COMMON: return 0;
+                default: SAFE_V(FAIL); return 0;
+            }
+        }
+
+        policy_t policy = COMMON;
         float scale = 1.;
         bool runtime = false;
     };
@@ -138,8 +148,8 @@ struct attr_t {
     };
 
     struct arg_scales_t {
-        void set(int arg, scale_t::policy_t p, float scale) {
-            scales.insert(std::make_pair(arg, attr_t::scale_t(p, scale)));
+        void set(int arg, scale_t scale) {
+            scales.insert(std::make_pair(arg, scale));
         }
 
         scale_t get(int arg) const {
@@ -157,36 +167,46 @@ struct attr_t {
 
     struct post_ops_t {
         enum kind_t {
+            // sum
             SUM,
-
+            // depthwise convolution
             DW_K3S1P1,
             DW_K3S2P1,
-
-            RELU,
-            TANH,
-            ELU,
-            SQUARE,
+            // eltwise
+            ELTWISE_START, // a guard to check kind is eltwise
             ABS,
-            SQRT,
-            LINEAR,
             BRELU,
-            SRELU,
-            LOGISTIC,
-            EXP,
-            GELU_TANH,
-            SWISH,
-            LOG,
             CLIP,
-            POW,
-            GELU_ERF,
-
-            RELU_DST,
-            TANH_DST,
+            ELU,
             ELU_DST,
-            SQRT_DST,
-            LOGISTIC_DST,
+            EXP,
             EXP_DST,
-
+            GELU_ERF,
+            GELU_TANH,
+            LINEAR,
+            LOG,
+            LOGISTIC,
+            LOGISTIC_DST,
+            POW,
+            RELU,
+            RELU_DST,
+            ROUND,
+            SQRT,
+            SQRT_DST,
+            SQUARE,
+            SRELU,
+            SWISH,
+            TANH,
+            TANH_DST,
+            ELTWISE_END, // a guard to check kind is eltwise
+            // binary
+            BINARY_START, // a guard to check kind is binary
+            ADD,
+            MAX,
+            MIN,
+            MUL,
+            BINARY_END, // a guard to check kind is binary
+            // guard entry
             KIND_TOTAL
         };
         static kind_t str2kind(const char *str);
@@ -200,6 +220,7 @@ struct attr_t {
             union {
                 struct {
                     float scale;
+                    dnnl_data_type_t dt;
                 } sum;
                 struct {
                     dnnl_alg_kind_t alg;
@@ -231,6 +252,18 @@ struct attr_t {
         entry_t entry[4];
     };
 
+    attr_t() = default;
+
+    attr_t(const post_ops_t &po) : post_ops(po) {}
+
+    attr_t(const scale_t &s, const post_ops_t &po) : oscale(s), post_ops(po) {}
+
+    attr_t(const arg_scales_t &as, const post_ops_t &po)
+        : scales(as), post_ops(po) {}
+
+    attr_t(const scale_t &s, const zero_points_t &zp, const post_ops_t &po)
+        : oscale(s), zero_points(zp), post_ops(po) {}
+
     scale_t oscale;
     arg_scales_t scales;
     zero_points_t zero_points;
@@ -240,11 +273,14 @@ struct attr_t {
 };
 using policy_t = attr_t::scale_t::policy_t;
 
+void handle_legacy_attr(attr_t &attr, const attr_t &legacy_attr);
+
 int str2attr(attr_t *attr, const char *str);
 std::ostream &operator<<(std::ostream &s, const policy_t &policy);
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points);
+std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
@@ -284,57 +320,29 @@ private:
 };
 
 struct engine_t {
-    engine_t() = default;
-    engine_t(dnnl_engine_kind_t engine_kind) { create_engine(engine_kind); }
-
-    ~engine_t() {
-        if (engine_) destroy_engine();
-    }
-
-    void reset(dnnl_engine_kind_t engine_kind) {
-        if (engine_) destroy_engine();
-        create_engine(engine_kind);
-    }
-
-    operator dnnl_engine_t() const {
-        assert(engine_);
-        return engine_;
-    }
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(engine_t);
+    engine_t(dnnl_engine_kind_t engine_kind);
+    ~engine_t();
+    operator dnnl_engine_t() const { return engine_; }
 
 private:
-    void create_engine(dnnl_engine_kind_t engine_kind);
-    void destroy_engine();
-
-    dnnl_engine_t engine_ = nullptr;
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(engine_t);
+    dnnl_engine_t engine_;
 };
 
 struct stream_t {
-    stream_t(dnnl_engine_t engine) : engine_(engine) { create_stream(); }
-    ~stream_t() { destroy_stream(); }
-
-    void reset(dnnl_engine_t engine) {
-        engine_ = engine;
-        destroy_stream();
-        create_stream();
-    }
-
-    dnnl_engine_t engine() const { return engine_; }
-
+    stream_t(dnnl_engine_t engine);
+    ~stream_t();
     operator dnnl_stream_t() const { return stream_; }
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
 
 private:
-    void create_stream();
-    void destroy_stream();
-
-    dnnl_engine_t engine_;
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
     dnnl_stream_t stream_;
 };
 
 std::ostream &dump_global_params(std::ostream &s);
 
 dnnl_format_tag_t get_abx_tag(int ndims);
+dnnl_format_tag_t get_axb_tag(int ndims);
 dnnl_format_tag_t convert_tag(const std::string &tag_str, int ndims);
 
 dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
@@ -350,11 +358,12 @@ inline dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr) {
 dnnl_engine_kind_t str2engine_kind(const char *str);
 dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
 
-void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr);
+void maybe_oscale(const attr_t &attr, float &d, float *scales, int64_t oc);
 float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
         float scale, float alpha, float beta);
 float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta);
-void maybe_post_ops(float &d, float dst, const attr_t &attr);
+float compute_binary(attr_t::post_ops_t::kind_t kind, float src0, float src1);
+void maybe_post_ops(const attr_t &attr, float &val, float sum_val = 0.f);
 
 #endif

@@ -708,6 +708,9 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bias_d(&bias_md);
 
+    // This kernel only supports 2D convolutions.
+    if (src_d.ndims() != 4) return status::unimplemented;
+
     const bool with_groups = wei_d.ndims() == src_d.ndims() + 1;
 
     jcp.nthr = dnnl_get_max_threads();
@@ -755,6 +758,10 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
             && jcp.t_pad == jcp.b_pad && jcp.l_pad == jcp.r_pad
             && one_of(jcp.t_pad, 0, 1) && one_of(jcp.l_pad, 0, 1);
     if (!ok) return status::unimplemented;
+
+    format_tag_t dat_tag = format_tag::nhwc;
+    if (!src_d.matches_tag(dat_tag)) return status::unimplemented;
+    if (!dst_d.matches_tag(dat_tag)) return status::unimplemented;
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 

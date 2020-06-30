@@ -428,6 +428,16 @@ public:
         }
     }
 
+    void uni_vshufps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op, Xbyak::uint8 imm) {
+        if (mayiuse(avx))
+            vshufps(x1, x2, op, imm);
+        else {
+            movups(x1, x2);
+            shufps(x1, op, imm);
+        }
+    }
+
     void uni_vrcpss(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
         rcpss(x, op);
     }
@@ -500,6 +510,16 @@ public:
     void uni_vpsignd(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
         vpsignd(x1, x2, op);
+    }
+
+    void uni_vpsubd(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op = Xbyak::Operand()) {
+        assert(x1.getIdx() == x2.getIdx());
+        psubd(x1, op);
+    }
+    void uni_vpsubd(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op = Xbyak::Operand()) {
+        vpsubd(x1, x2, op);
     }
 
     void uni_vsubss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
@@ -764,6 +784,22 @@ public:
         vminps(x, op1, op2);
     }
 
+    void uni_vpmovsxbd(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
+        pmovsxbd(x, op);
+    }
+
+    void uni_vpmovsxbd(const Xbyak::Ymm &y, const Xbyak::Operand &op) {
+        vpmovsxbd(y, op);
+    }
+
+    void uni_vpmovzxbd(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
+        pmovzxbd(x, op);
+    }
+
+    void uni_vpmovzxbd(const Xbyak::Ymm &y, const Xbyak::Operand &op) {
+        vpmovzxbd(y, op);
+    }
+
     void uni_vcmpps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op, int cmp_predicate) {
         if (x1.getIdx() != x2.getIdx()) uni_vmovups(x1, x2);
@@ -915,11 +951,11 @@ public:
         Xbyak::Xmm tmp(vmm_ubound.getIdx());
         float saturation_ubound = types::max_value<float>(odt);
         mov(reg_tmp, float2int(saturation_ubound));
-        vmovq(tmp, reg_tmp);
+        uni_vmovq(tmp, reg_tmp);
         if (vmm_ubound.isYMM() || vmm_ubound.isZMM())
-            vbroadcastss(vmm_ubound, tmp);
+            uni_vbroadcastss(vmm_ubound, tmp);
         else
-            vshufps(vmm_ubound, tmp, tmp, 0);
+            uni_vshufps(vmm_ubound, tmp, tmp, 0);
     }
 
     template <typename Vmm>
@@ -935,8 +971,16 @@ public:
         // no need to apply lower saturation bound when odt is
         // signed, as cvtps2dq will return MIN_INT if the value
         // does not fit
-        if (odt == u8) vmaxps(vmm, vmm, vmm_lbound);
-        vminps(vmm, vmm, vmm_ubound);
+        if (odt == u8) {
+            if (mayiuse(avx))
+                vmaxps(vmm, vmm, vmm_lbound);
+            else
+                maxps(vmm, vmm_lbound);
+        }
+        if (mayiuse(avx))
+            vminps(vmm, vmm, vmm_ubound);
+        else
+            minps(vmm, vmm_ubound);
     }
 
     /**

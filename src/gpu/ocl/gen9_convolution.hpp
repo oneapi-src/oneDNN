@@ -23,6 +23,7 @@
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
+#include "gpu/gpu_eltwise_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
@@ -50,6 +51,7 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
             auto src_data_t = this->desc()->src_desc.data_type;
+            auto dst_data_t = this->desc()->dst_desc.data_type;
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
@@ -70,7 +72,7 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
                                             compute::device_ext_t::
                                                     intel_subgroups_short))
                     && !has_zero_dim_memory()
-                    && attr()->has_default_values(attr_skip_mask)
+                    && attr()->has_default_values(attr_skip_mask, dst_data_t)
                     && post_ops_ok(attr());
             if (!ok) return status::unimplemented;
 

@@ -133,7 +133,6 @@ static const std::map<int, const char *> arg2str = {
 policy_t attr_t::scale_t::str2policy(const char *str) {
 #define CASE(_plc) \
     if (!strcasecmp(STRINGIFY(_plc), str)) return _plc
-    CASE(NONE);
     CASE(COMMON);
     CASE(PER_OC);
     CASE(PER_DIM_0);
@@ -141,11 +140,10 @@ policy_t attr_t::scale_t::str2policy(const char *str) {
     CASE(PER_DIM_01);
 #undef CASE
     assert(!"unknown attr::scale::policy");
-    return NONE;
+    return COMMON;
 }
 
 const char *attr_t::scale_t::policy2str(policy_t policy) {
-    if (policy == NONE) return "none";
     if (policy == COMMON) return "common";
     if (policy == PER_OC) return "per_oc";
     if (policy == PER_DIM_0) return "per_dim_0";
@@ -155,48 +153,49 @@ const char *attr_t::scale_t::policy2str(policy_t policy) {
     return "unknown attr::scale::policy";
 }
 
-int attr_t::scale_t::str2scale(const char *str, const char **end_s) {
-    *this = attr_t::scale_t();
-
+int attr_t::scale_t::from_str(const char *str, const char **end_s) {
     if (str == NULL) return FAIL;
+
+    *this = attr_t::scale_t();
 
     const char *s_;
     const char *&s = end_s ? *end_s : s_;
     s = str;
 
-    for (policy_t p = NONE; true; p = (policy_t)((int)p + 1)) {
-        if (p == POLICY_TOTAL) return FAIL;
+    while (isalpha(*s)) {
+        for (policy_t p = COMMON; true; p = (policy_t)((int)p + 1)) {
+            if (p == POLICY_TOTAL) return FAIL;
 
-        const char *ps = policy2str(p);
-        if (!strncasecmp(ps, s, strlen(ps))) {
-            this->policy = p;
-            s += strlen(ps);
-            break;
+            const char *ps = policy2str(p);
+            if (!strncasecmp(ps, s, strlen(ps))) {
+                this->policy = p;
+                s += strlen(ps);
+                break;
+            }
         }
+
+        if (*s != ':') return OK;
+        s++;
+
+        char *end;
+        this->scale = strtof(s, &end);
+        if (this->scale < 0 || end == s) return FAIL;
+        s = end;
+
+        if (*s == '*') {
+            ++s;
+            this->runtime = true;
+        }
+
+        assert(*s == '\0' || *s == ';' || *s == '_');
     }
-
-    if (*s != ':') return OK;
-    s++;
-
-    char *end;
-    this->scale = strtof(s, &end);
-    if (this->scale < 0 || end == s) return FAIL;
-    s = end;
-
-    if (*s == '*') {
-        ++s;
-        if (this->policy != NONE) this->runtime = true;
-    }
-
-    assert(*s == '\0' || *s == ';');
-
     return OK;
 }
 
 int attr_t::zero_points_t::from_str(const char *str, const char **end_s) {
-    *this = attr_t::zero_points_t();
-
     if (str == NULL) return FAIL;
+
+    *this = attr_t::zero_points_t();
 
     const char *s_;
     const char *&s = end_s ? *end_s : s_;
@@ -232,45 +231,24 @@ int attr_t::zero_points_t::from_str(const char *str, const char **end_s) {
 }
 
 int attr_t::arg_scales_t::from_str(const char *str, const char **end_s) {
-    *this = attr_t::arg_scales_t();
-
     if (str == NULL) return FAIL;
+
+    *this = attr_t::arg_scales_t();
 
     const char *s_;
     const char *&s = end_s ? *end_s : s_;
     s = str;
-    // skip '
-    ++s;
 
-    while (true) {
-        if (*s == '\'') {
-            ++s;
-            return OK;
-        }
+    while (*s != '\0' && *s != ';') {
         const char *s_init_pos = s;
         for (const auto &arg : arg2str) {
             const size_t arg_name_len = strlen(arg.second);
             if (!strncasecmp(arg.second, s, arg_name_len)) {
                 s += arg_name_len;
-                policy_t policy;
-                for (policy_t p = policy_t::NONE; true;
-                        p = (policy_t)((int)p + 1)) {
-                    if (p == policy_t::POLICY_TOTAL) return FAIL;
-
-                    const char *ps = scale_t::policy2str(p);
-                    if (!strncasecmp(ps, s, strlen(ps))) {
-                        policy = p;
-                        s += strlen(ps);
-                        break;
-                    }
-                }
-                // skip :
-                s++;
-                char *end;
-                float scale = strtof(s, &end);
-                if (scale < 0 || end == s) return FAIL;
-                set(arg.first, policy, scale);
-                s = end;
+                attr_t::scale_t arg_scale;
+                auto rc = arg_scale.from_str(s, &s);
+                if (rc != OK) return rc;
+                set(arg.first, arg_scale);
                 break;
             }
         }
@@ -278,7 +256,6 @@ int attr_t::arg_scales_t::from_str(const char *str, const char **end_s) {
         while (*s == '_' || isspace(*s))
             ++s;
     }
-    assert(*s == '\0' || *s == ';');
     return OK;
 }
 
@@ -290,36 +267,51 @@ typedef struct {
     dnnl_alg_kind_t dnnl_kind;
 } po_table_entry_t;
 
-static po_table_entry_t kind_table[] = {{pk_t::SUM, "sum", dnnl_alg_kind_undef},
+static po_table_entry_t kind_table[] = {
+        // sum
+        {pk_t::SUM, "sum", dnnl_alg_kind_undef},
+        // depthwise convolution
         {pk_t::DW_K3S1P1, "dw_k3s1p1", dnnl_convolution_auto},
         {pk_t::DW_K3S2P1, "dw_k3s2p1", dnnl_convolution_auto},
-        {pk_t::RELU, "relu", dnnl_eltwise_relu},
-        {pk_t::TANH, "tanh", dnnl_eltwise_tanh},
-        {pk_t::ELU, "elu", dnnl_eltwise_elu},
-        {pk_t::SQUARE, "square", dnnl_eltwise_square},
+        // eltwise
+        {pk_t::ELTWISE_START, "eltwise_undef", dnnl_alg_kind_undef},
         {pk_t::ABS, "abs", dnnl_eltwise_abs},
-        {pk_t::SQRT, "sqrt", dnnl_eltwise_sqrt},
-        {pk_t::LINEAR, "linear", dnnl_eltwise_linear},
+        {pk_t::BRELU, "bounded_relu", dnnl_eltwise_bounded_relu},
         {pk_t::BRELU, "brelu", dnnl_eltwise_bounded_relu},
-        {pk_t::SRELU, "srelu", dnnl_eltwise_soft_relu},
-        {pk_t::LOGISTIC, "logistic", dnnl_eltwise_logistic},
-        {pk_t::EXP, "exp", dnnl_eltwise_exp},
-        {pk_t::GELU_TANH, "gelu_tanh", dnnl_eltwise_gelu_tanh},
-        {pk_t::SWISH, "swish", dnnl_eltwise_swish},
-        {pk_t::LOG, "log", dnnl_eltwise_log},
         {pk_t::CLIP, "clip", dnnl_eltwise_clip},
-        {pk_t::POW, "pow", dnnl_eltwise_pow},
-        {pk_t::GELU_ERF, "gelu_erf", dnnl_eltwise_gelu_erf},
-
-        {pk_t::RELU_DST, "relu_dst", dnnl_eltwise_relu_use_dst_for_bwd},
-        {pk_t::TANH_DST, "tanh_dst", dnnl_eltwise_tanh_use_dst_for_bwd},
+        {pk_t::ELU, "elu", dnnl_eltwise_elu},
         {pk_t::ELU_DST, "elu_dst", dnnl_eltwise_elu_use_dst_for_bwd},
-        {pk_t::SQRT_DST, "sqrt_dst", dnnl_eltwise_sqrt_use_dst_for_bwd},
+        {pk_t::EXP, "exp", dnnl_eltwise_exp},
+        {pk_t::EXP_DST, "exp_dst", dnnl_eltwise_exp_use_dst_for_bwd},
+        {pk_t::GELU_ERF, "gelu_erf", dnnl_eltwise_gelu_erf},
+        {pk_t::GELU_TANH, "gelu_tanh", dnnl_eltwise_gelu_tanh},
+        {pk_t::LINEAR, "linear", dnnl_eltwise_linear},
+        {pk_t::LOG, "log", dnnl_eltwise_log},
+        {pk_t::LOGISTIC, "logistic", dnnl_eltwise_logistic},
         {pk_t::LOGISTIC_DST, "logistic_dst",
                 dnnl_eltwise_logistic_use_dst_for_bwd},
-        {pk_t::EXP_DST, "exp_dst", dnnl_eltwise_exp_use_dst_for_bwd},
-
-        {pk_t::KIND_TOTAL, "unknown", dnnl_alg_kind_undef}};
+        {pk_t::POW, "pow", dnnl_eltwise_pow},
+        {pk_t::RELU, "relu", dnnl_eltwise_relu},
+        {pk_t::RELU_DST, "relu_dst", dnnl_eltwise_relu_use_dst_for_bwd},
+        {pk_t::ROUND, "round", dnnl_eltwise_round},
+        {pk_t::SQRT, "sqrt", dnnl_eltwise_sqrt},
+        {pk_t::SQRT_DST, "sqrt_dst", dnnl_eltwise_sqrt_use_dst_for_bwd},
+        {pk_t::SQUARE, "square", dnnl_eltwise_square},
+        {pk_t::SRELU, "soft_relu", dnnl_eltwise_soft_relu},
+        {pk_t::SRELU, "srelu", dnnl_eltwise_soft_relu},
+        {pk_t::SWISH, "swish", dnnl_eltwise_swish},
+        {pk_t::TANH, "tanh", dnnl_eltwise_tanh},
+        {pk_t::TANH_DST, "tanh_dst", dnnl_eltwise_tanh_use_dst_for_bwd},
+        {pk_t::ELTWISE_END, "eltwise_undef", dnnl_alg_kind_undef},
+        // binary
+        {pk_t::BINARY_START, "binary_undef", dnnl_alg_kind_undef},
+        {pk_t::ADD, "add", dnnl_binary_add},
+        {pk_t::MAX, "max", dnnl_binary_max},
+        {pk_t::MIN, "min", dnnl_binary_min},
+        {pk_t::MUL, "mul", dnnl_binary_mul},
+        {pk_t::BINARY_END, "binary_undef", dnnl_alg_kind_undef},
+        // guard entry
+        {pk_t::KIND_TOTAL, "kind_undef", dnnl_alg_kind_undef}};
 
 pk_t attr_t::post_ops_t::str2kind(const char *str) {
     for (const auto &e : kind_table) {
@@ -330,31 +322,34 @@ pk_t attr_t::post_ops_t::str2kind(const char *str) {
 }
 
 const char *attr_t::post_ops_t::kind2str(pk_t kind) {
-    if (kind >= KIND_TOTAL) {
-        assert(!"unknown attr::post_ops::kind");
-        return kind_table[KIND_TOTAL].kind_name;
+    for (const auto &e : kind_table) {
+        if (e.kind == kind) return e.kind_name;
     }
-    return kind_table[kind].kind_name;
+    assert(!"unknown attr::post_ops::kind");
+    return kind_table[KIND_TOTAL].kind_name;
 }
 
 dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(pk_t kind) {
-    if (kind >= KIND_TOTAL) {
-        assert(!"unknown attr::post_ops::kind");
-        return kind_table[KIND_TOTAL].dnnl_kind;
+    for (const auto &e : kind_table) {
+        if (e.kind == kind) return e.dnnl_kind;
     }
-    return kind_table[kind].dnnl_kind;
+    assert(!"unknown attr::post_ops::kind");
+    return kind_table[KIND_TOTAL].dnnl_kind;
 }
 
 int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
-    *this = post_ops_t();
+    if (str == NULL) return FAIL;
 
-    if (str == NULL || *str != '\'') return FAIL;
+    *this = post_ops_t();
 
     const char *s_;
     const char *&s = end_s ? *end_s : s_;
     s = str;
 
+    // "'" is mandatory as long as ";" is used as alg delimiter
+    if (*str != '\'') return FAIL;
     ++s;
+
     for (;;) {
         if (*s == '\'') {
             ++s;
@@ -362,28 +357,46 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
         }
         if (len == capacity) return FAIL;
 
-        for (kind_t k = (kind_t)((int)0); true; k = (kind_t)((int)k + 1)) {
+        for (const auto &table_entry : kind_table) {
+            const auto k = table_entry.kind;
             if (k == KIND_TOTAL) return FAIL;
 
-            const char *ks = kind2str(k);
-            if (!strncasecmp(ks, s, strlen(ks))) {
+            // extract full input kind from input string and compare full names
+            // to avoid situations when a substring of original name is a valid
+            // alg_kind too, like log and logistic, or relu and relu_dst.
+            std::string input(s);
+            // Parse until first of valid delimiters is met.
+            std::string input_kind(input, 0, input.find_first_of(":;\'"));
+            const char *ks = table_entry.kind_name;
+
+            if (input_kind.compare(ks) == 0) {
                 auto &e = entry[len];
 
                 e.kind = k;
                 s += strlen(ks);
                 if (k == SUM) {
+                    e.sum.scale = 1.f;
+                    e.sum.dt = dnnl_data_type_undef;
                     if (*s == ':') {
                         char *end;
+                        const char *end_dt;
                         e.sum.scale = strtof(++s, &end);
                         if (end == s) return FAIL;
                         s = end;
-                    } else {
-                        e.sum.scale = 1.f;
+                        if (*s == ':') ++s;
+                        end_dt = s;
+                        while (*s && isalnum(*s))
+                            ++s;
+                        if (end_dt != s) {
+                            e.sum.dt = str2dt(
+                                    std::string(end_dt, s - end_dt).c_str());
+                        }
                     }
                 } else if (e.is_convolution_kind()) {
                     e.convolution.dst_dt = dnnl_f32;
                     e.convolution.stride = k == DW_K3S1P1 ? 1 : 2;
                     e.convolution.oscale = attr_t::scale_t();
+
                     if (*s == ':') ++s;
                     auto *end = s;
                     while (*s && isalnum(*s))
@@ -394,7 +407,7 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
                         if (*s == ':') {
                             ++s;
                             attr_t::scale_t oscale;
-                            auto rc = oscale.str2scale(s, &s);
+                            auto rc = oscale.from_str(s, &s);
                             if (rc != OK) return rc;
                             e.convolution.oscale = oscale;
                         }
@@ -447,7 +460,7 @@ int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
 }
 
 bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
-    return kind >= pk_t::RELU && kind < pk_t::KIND_TOTAL;
+    return kind > pk_t::ELTWISE_START && kind < pk_t::ELTWISE_END;
 }
 
 int attr_t::post_ops_t::eltwise_index() const {
@@ -481,7 +494,7 @@ int str2attr(attr_t *attr, const char *str) {
         param = "oscale=";
         if (!strncasecmp(param, s, strlen(param))) {
             s += strlen(param);
-            rc = attr->oscale.str2scale(s, &s);
+            rc = attr->oscale.from_str(s, &s);
             if (rc != OK) return rc;
         }
 
@@ -512,6 +525,20 @@ int str2attr(attr_t *attr, const char *str) {
     return OK;
 }
 
+void handle_legacy_attr(attr_t &attr, const attr_t &legacy_attr) {
+    if (legacy_attr.is_def()) return;
+
+    if (!attr.is_def()) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "ERROR: both `--attr=` and one of `--attr-post-ops=`, "
+                "`--attr-scales=`, `--attr-zero-points=` or `--attr-oscale=` "
+                "options are specified, please use latter options.");
+        SAFE_V(FAIL);
+    }
+
+    attr = legacy_attr;
+}
+
 std::ostream &operator<<(std::ostream &s, const policy_t &policy) {
     s << attr_t::scale_t::policy2str(policy);
     return s;
@@ -539,7 +566,6 @@ std::ostream &operator<<(
 
 std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales) {
     const char *delim = "";
-    s << "'";
     for (const auto &v : scales.scales) {
         if (!v.second.is_def()) {
             s << delim << arg2str.at(v.first) << v.second.policy << ":"
@@ -547,7 +573,6 @@ std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales) {
             delim = "_";
         }
     }
-    s << "'";
     return s;
 }
 
@@ -566,13 +591,14 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
         s << e.kind;
 
         if (e.kind == pk_t::SUM) {
-            if (e.sum.scale != 1.0f) s << ":" << e.sum.scale;
+            if (e.sum.scale != 1.0f || e.sum.dt != dnnl_data_type_undef)
+                s << ":" << e.sum.scale;
+            if (e.sum.dt != dnnl_data_type_undef) s << ":" << e.sum.dt;
         } else if (e.is_convolution_kind()) {
             if (e.convolution.dst_dt != dnnl_f32)
                 s << ":" << e.convolution.dst_dt;
             const auto &co = e.convolution.oscale;
-            if (co.policy != policy_t::NONE)
-                s << ":" << co.policy << ":" << co.scale;
+            if (!co.is_def()) s << ":" << co;
         } else if (e.is_eltwise_kind()) {
             if (e.eltwise.scale != 1.f)
                 s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta << ":"
@@ -593,11 +619,14 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
-    if (!attr.oscale.is_def()) s << "oscale=" << attr.oscale << ";";
-    if (!attr.zero_points.is_def())
-        s << "zero_points=" << attr.zero_points << ";";
-    if (!attr.post_ops.is_def()) s << "post_ops=" << attr.post_ops << ";";
-    if (!attr.scales.is_def()) s << "scales=" << attr.scales << ";";
+    if (!attr.is_def()) {
+        if (!attr.oscale.is_def()) s << "--attr-oscale=" << attr.oscale << " ";
+        if (!attr.scales.is_def()) s << "--attr-scales=" << attr.scales << " ";
+        if (!attr.zero_points.is_def())
+            s << "--attr-zero-points=" << attr.zero_points << " ";
+        if (!attr.post_ops.is_def())
+            s << "--attr-post-ops=\"" << attr.post_ops << "\" ";
+    }
     return s;
 }
 
@@ -605,7 +634,8 @@ std::ostream &dump_global_params(std::ostream &s) {
     if (canonical || engine_tgt_kind != dnnl_cpu)
         s << "--engine=" << engine_kind2str(engine_tgt_kind) << " ";
     if (canonical || scratchpad_mode != dnnl_scratchpad_mode_library)
-        s << "--scratchpad=" << scratchpad_mode2str(scratchpad_mode) << " ";
+        s << "--attr-scratchpad=" << scratchpad_mode2str(scratchpad_mode)
+          << " ";
 
     s << "--" << driver_name << " ";
     return s;
@@ -707,7 +737,8 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
         for (int idx = 0; idx < attr.post_ops.len; ++idx) {
             const auto &e = attr.post_ops.entry[idx];
             if (e.kind == pk_t::SUM) {
-                DNN_SAFE_V(dnnl_post_ops_append_sum(ops, e.sum.scale));
+                DNN_SAFE_V(dnnl_post_ops_append_sum_v2(
+                        ops, e.sum.scale, e.sum.dt));
             } else if (e.is_eltwise_kind()) {
                 DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops, e.eltwise.scale,
                         e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
@@ -827,14 +858,10 @@ dnnl_format_tag_t convert_tag(const std::string &tag_str, int ndims) {
     return str2fmt_tag(tag_str.c_str());
 }
 
-void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr) {
+void maybe_oscale(const attr_t &attr, float &d, float *scales, int64_t oc) {
     if (!attr.oscale.is_def()) {
-        const auto &s = attr.oscale;
-        if (s.policy == policy_t::COMMON) {
-            d *= s.scale;
-        } else {
-            d *= scales[oc];
-        }
+        int64_t idx = attr.oscale.policy == policy_t::COMMON ? 0 : oc;
+        d *= scales[idx];
     }
 }
 
@@ -860,6 +887,7 @@ float compute_eltwise_fwd(
         case pk_t::CLIP: return scale * clip_fwd(src, alpha, beta);
         case pk_t::POW: return scale * pow_fwd(src, alpha, beta);
         case pk_t::GELU_ERF: return scale * gelu_erf_fwd(src);
+        case pk_t::ROUND: return scale * round_fwd(src);
 
         case pk_t::RELU_DST: return scale * relu_fwd(src, alpha);
         case pk_t::TANH_DST: return scale * tanh_fwd(src);
@@ -908,27 +936,42 @@ float compute_eltwise_bwd(
     return NAN;
 }
 
-void maybe_post_ops(float &d, float dst, const attr_t &attr) {
+float compute_binary(pk_t kind, float src0, float src1) {
+    if (kind == pk_t::ADD) {
+        return src0 + src1;
+    } else if (kind == pk_t::MUL) {
+        return src0 * src1;
+    } else if (kind == pk_t::MAX) {
+        return MAX2(src0, src1);
+    } else if (kind == pk_t::MIN) {
+        return MIN2(src0, src1);
+    } else {
+        assert(!"operation not supported!");
+    }
+    return 0;
+}
+
+void maybe_post_ops(const attr_t &attr, float &val, float sum_val) {
     using namespace dnnl::impl::math;
 
     const auto &ops = attr.post_ops;
     for (int idx = 0; idx < ops.len; ++idx) {
         const auto &e = ops.entry[idx];
 
-        const auto &s = e.eltwise.scale;
-        const auto &a = e.eltwise.alpha;
-        const auto &b = e.eltwise.beta;
-
-        if (e.kind == pk_t::SUM)
-            d += e.sum.scale * dst;
-        else if (e.is_convolution_kind())
-            return;
-        else if (e.is_eltwise_kind())
-            d = compute_eltwise_fwd(e.kind, d, s, a, b);
+        if (e.kind == pk_t::SUM) {
+            val += e.sum.scale * sum_val;
+        } else if (e.is_convolution_kind()) {
+            continue;
+        } else if (e.is_eltwise_kind()) {
+            const auto &s = e.eltwise.scale;
+            const auto &a = e.eltwise.alpha;
+            const auto &b = e.eltwise.beta;
+            val = compute_eltwise_fwd(e.kind, val, s, a, b);
+        }
     }
 }
 
-void engine_t::create_engine(dnnl_engine_kind_t engine_kind) {
+engine_t::engine_t(dnnl_engine_kind_t engine_kind) {
 #ifdef DNNL_SYCL_DPCPP
     if (engine_kind == dnnl_cpu) {
         static dnnl_engine_t inst = nullptr;
@@ -945,7 +988,7 @@ void engine_t::create_engine(dnnl_engine_kind_t engine_kind) {
 #endif
 }
 
-void engine_t::destroy_engine() {
+engine_t::~engine_t() {
 #ifdef DNNL_SYCL_DPCPP
     engine_ = NULL;
 #else
@@ -953,9 +996,9 @@ void engine_t::destroy_engine() {
 #endif
 }
 
-void stream_t::create_stream() {
+stream_t::stream_t(dnnl_engine_t engine) {
     dnnl_engine_kind_t engine_kind;
-    DNN_SAFE_V(dnnl_engine_get_kind(engine_, &engine_kind));
+    DNN_SAFE_V(dnnl_engine_get_kind(engine, &engine_kind));
 
     dnnl_stream_attr_t stream_attr;
     DNN_SAFE_V(dnnl_stream_attr_create(&stream_attr, engine_kind));
@@ -967,10 +1010,10 @@ void stream_t::create_stream() {
 #endif
 
     DNN_SAFE_V(dnnl_stream_create_v2(
-            &stream_, engine_, dnnl_stream_default_flags, stream_attr));
+            &stream_, engine, dnnl_stream_default_flags, stream_attr));
     dnnl_stream_attr_destroy(stream_attr);
 }
 
-void stream_t::destroy_stream() {
+stream_t::~stream_t() {
     DNN_SAFE_V(dnnl_stream_destroy(stream_));
 }

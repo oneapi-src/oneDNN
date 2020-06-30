@@ -49,7 +49,11 @@ bool parse_tag(std::vector<std::string> &tag,
         const std::vector<std::string> &def_tag, const char *str,
         const std::string &option_name /* = "tag"*/) {
     auto ret_string = [](const char *str) { return std::string(str); };
-    return parse_vector_option(tag, def_tag, ret_string, str, option_name);
+    bool ok = parse_vector_option(tag, def_tag, ret_string, str, option_name);
+    static constexpr int ndims_3d = 5; // to check meta-tags in debug mode
+    for (size_t i = 0; i < tag.size(); i++)
+        ok = ok && convert_tag(tag[i], ndims_3d) != dnnl_format_tag_last;
+    return ok;
 }
 
 bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
@@ -67,11 +71,40 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
 bool parse_attr(attr_t &attr, const char *str,
         const std::string &option_name /* = "attr"*/) {
     const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) != eol) {
-        SAFE_V(str2attr(&attr, str + pattern.size()));
-        return true;
+    if (pattern.find(str, 0, pattern.size()) == eol) return false;
+    static bool notice_printed = false;
+    if (!notice_printed) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "WARNING (DEPRECATION NOTICE): `--attr` option is deprecated. "
+                "Please use one of `--attr-oscale`, `--attr-post-ops`, "
+                "`--attr-scales` or `--attr-zero-points` to specify attributes "
+                "specific part for a problem. New options support mixing and "
+                "will iterate over all possible combinations.");
+        notice_printed = true;
     }
-    return false;
+    SAFE_V(str2attr(&attr, str + pattern.size()));
+    return true;
+}
+
+bool parse_attr_oscale(std::vector<attr_t::scale_t> &oscale, const char *str,
+        const std::string &option_name /* = "attr-oscale"*/) {
+    return parse_subattr(oscale, str, option_name);
+}
+
+bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
+        const std::string &option_name /* = "attr-post-ops"*/) {
+    return parse_subattr(po, str, option_name);
+}
+
+bool parse_attr_scales(std::vector<attr_t::arg_scales_t> &scales,
+        const char *str, const std::string &option_name /* = "attr-scales"*/) {
+    return parse_subattr(scales, str, option_name);
+}
+
+bool parse_attr_zero_points(std::vector<attr_t::zero_points_t> &zp,
+        const char *str,
+        const std::string &option_name /* = "attr-zero-points"*/) {
+    return parse_subattr(zp, str, option_name);
 }
 
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
@@ -116,12 +149,6 @@ bool parse_scale_policy(std::vector<policy_t> &policy,
 }
 
 // plain types
-bool parse_allow_unimpl(bool &allow_unimpl, const char *str,
-        const std::string &option_name /* = "allow-unimpl"*/) {
-    return parse_single_value_option(
-            allow_unimpl, false, str2bool, str, option_name);
-}
-
 bool parse_perf_template(const char *&pt, const char *pt_def,
         const char *pt_csv, const char *str,
         const std::string &option_name /* = "perf-template"*/) {
@@ -257,6 +284,23 @@ static bool parse_mem_check(
 
 static bool parse_scratchpad_mode(
         const char *str, const std::string &option_name = "scratchpad") {
+    const std::string pattern = get_pattern(option_name);
+    if (pattern.find(str, 0, pattern.size()) == eol) return false;
+
+    static bool notice_printed = false;
+    if (!notice_printed) {
+        BENCHDNN_PRINT(0, "%s\n",
+                "WARNING (DEPRECATION NOTICE): `--scratchpad` option is "
+                "deprecated. Please use `--attr-scratchpad` instead.");
+        notice_printed = true;
+    }
+    return parse_single_value_option(scratchpad_mode,
+            dnnl_scratchpad_mode_library, str2scratchpad_mode, str,
+            option_name);
+}
+
+static bool parse_attr_scratchpad_mode(
+        const char *str, const std::string &option_name = "attr-scratchpad") {
     return parse_single_value_option(scratchpad_mode,
             dnnl_scratchpad_mode_library, str2scratchpad_mode, str,
             option_name);
@@ -277,7 +321,8 @@ bool parse_bench_settings(const char *str) {
             || parse_fix_times_per_prb(str) || parse_verbose(str)
             || parse_engine_kind(str) || parse_fast_ref_gpu(str)
             || parse_canonical(str) || parse_mem_check(str)
-            || parse_scratchpad_mode(str) || parse_skip_impl(str);
+            || parse_scratchpad_mode(str) || parse_attr_scratchpad_mode(str)
+            || parse_skip_impl(str);
 }
 
 void catch_unknown_options(const char *str) {

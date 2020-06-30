@@ -8,15 +8,14 @@
 where *sum-knobs* are:
 
  - `--sdt={f32:f32 [default], ...}` -- src data type. Refer to ``Inputs`` below.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--ddt={f32 [default], s32, s8, u8, bf16, f16}` -- dst data type.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--stag={nchw:nchw [default], ...}` -- physical src memory layout.
             Refer to ``Inputs`` below.
-            Refer to the common glossary in README.md for details.
- - `--dtag={undef [default], ...}` -- physical dst memory layout. `undef` means
-            dst will be deduced automatically from given parameters.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
+ - `--dtag={undef [default], ...}` -- physical dst memory layout.
+            Refer to [tags](knobs_tag.md) for details.
  - `--scales={N1:N2[:N3]...}` -- input scales. Refer to ``Scales`` below.
             The default is 0.25, 1, 4.
 
@@ -33,8 +32,10 @@ the end to specify fewer dimensions.
 The sum primitive accepts at least two input sources. That is why it has a
 slightly different interface than almost every other driver. Specifying several
 inputs is done via the special ':' delimiter, e.g. --sdt=f32:s32, which means
-that the first source will be of type f32 and the second will be s32. The driver
-requires the same amount of `--sdt` and `--stag` provided.
+that the first source will be of type f32 and the second will be s32. `--stag`
+option must either specify a single tag (this tag will be used for all input
+tensors) or specify the same number of tags as the number of data types in
+`--sdt` delimited by ':'.
 
 
 ## Scales

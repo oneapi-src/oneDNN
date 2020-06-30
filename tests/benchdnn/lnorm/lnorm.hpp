@@ -57,10 +57,8 @@ struct settings_t {
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
     std::vector<std::string> tag {tag::abx}, stat_tag {tag::any};
     std::vector<flags_t> flags {NONE};
-    std::vector<bool> inplace {true};
+    std::vector<bool> inplace {false};
     check_alg_t check_alg = check_alg_t::ALG_AUTO;
-    attr_t attr = {};
-    bool allow_unimpl = false;
     const char *pattern = NULL;
 
     const char *perf_template_csv
@@ -76,8 +74,7 @@ struct settings_t {
 struct prb_t {
     prb_t(const dims_t &dims, const std::string &tag,
             const std::string &stat_tag, dir_t dir, dnnl_data_type_t dt,
-            flags_t flags, bool inplace, const attr_t &attr,
-            check_alg_t check_alg)
+            flags_t flags, bool inplace, check_alg_t check_alg)
         : check_alg(check_alg)
         , dims(dims)
         , tag(tag)
@@ -86,7 +83,6 @@ struct prb_t {
         , dt(dt)
         , flags(flags)
         , inplace(inplace)
-        , attr(attr)
         , ops(0)
         , ndims((int)dims.size()) {
         n = std::accumulate(
@@ -105,7 +101,6 @@ struct prb_t {
     dnnl_data_type_t dt;
     flags_t flags;
     bool inplace;
-    attr_t attr;
     float eps;
     double ops;
     int ndims;
@@ -143,7 +138,6 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     double ops() const override { return p_->ops; }
-    const attr_t *attr() const override { return &p_->attr; }
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }
     const std::string *tag() const override { return &p_->tag; }

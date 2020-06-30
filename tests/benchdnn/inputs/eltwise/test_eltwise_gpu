@@ -15,6 +15,15 @@
 --alg=relu --alpha=0 --beta=0
 --batch=shapes_eltwise
 
+# u8
+--reset
+--inplace=true,false
+--dir=FWD_I
+--dt=u8
+--tag=axb
+--alg=relu,linear
+--batch=shapes_eltwise
+
 # f16
 --reset
 --inplace=true,false

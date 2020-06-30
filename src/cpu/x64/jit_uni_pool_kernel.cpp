@@ -102,6 +102,8 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.mb = src_d.dims()[0];
     jpp.c_without_padding = src_d.dims()[1];
     jpp.c = utils::rnd_up(jpp.c_without_padding, simd_w);
+    jpp.safe_c_tail = jpp.tag_kind == jptg_blocked
+            && jpp.c - jpp.c_without_padding != 0;
     if (fmt_tag != ncsp_fmt_tag && jpp.c > src_d.padded_dims()[1])
         return status::unimplemented;
 
@@ -220,6 +222,23 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     }
 
     return status::success;
+}
+
+template <cpu_isa_t isa>
+void jit_uni_pool_kernel<isa>::prepare_tail_mask() {
+    if (isa == sse41) {
+        pmovzxbd(x_padd_mask,
+                ptr[reg_param + GET_OFF(padded_mask)
+                        + 4 * this->sse_high_half]);
+    } else if (isa == avx) {
+        vmovss(x_padd_mask,
+                ptr[reg_param + GET_OFF(padded_mask) + 0]); // read low 4 bytes
+        vmovss(x_padd_mask_avx_high,
+                ptr[reg_param + GET_OFF(padded_mask) + 4]); // read high 4 bytes
+    } else {
+        mov(tmp_gpr.cvt16(), ptr[reg_param + GET_OFF(padded_mask)]);
+        kmovw(k_padd_mask, tmp_gpr.cvt32());
+    }
 }
 
 template <cpu_isa_t isa>
@@ -482,6 +501,8 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(
         pop(reg_input);
     }
 
+    if (jpp.safe_c_tail) prepare_tail_mask();
+
     for_(int jj = 0; jj < ur_w; jj++)
     for (int bci = 0; bci < ur_bc; bci++) {
         auto accr_i = reg_ind(0, bci, jj);
@@ -507,6 +528,7 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(
             if (jpp.ind_dt == data_type::u8) {
                 auto xr = xreg(indr_i);
                 if (isa == sse41) {
+                    if (jpp.safe_c_tail) pand(xr, x_padd_mask);
                     for (int i = 0; i < 4; ++i)
                         pextrb(ptr[reg_index + step_index + i], xr, 4 * i);
                 } else if (isa == avx) {
@@ -517,21 +539,28 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(
                     }
                     if (mayiuse(avx2)) {
                         vpshufb(yr, yr, vmm_tmp);
+                        if (jpp.safe_c_tail) andps(xr, x_padd_mask);
                         vmovd(ptr[reg_index + step_index], xr);
                         vperm2i128(yr, yr, yr, 0x1u);
+                        if (jpp.safe_c_tail) andps(xr, x_padd_mask_avx_high);
                         vmovd(ptr[reg_index + step_index + 4], xr);
                     } else {
                         Xmm t(vmm_mask.getIdx());
                         vextractf128(t, yr, 0);
                         vpshufb(t, t, xmm_tmp);
+                        if (jpp.safe_c_tail) andps(t, x_padd_mask);
                         vmovd(ptr[reg_index + step_index], t);
                         vextractf128(t, yr, 1);
                         vpshufb(t, t,
                                 xmm_tmp); // ymm_tmp[:128]==ymm_tmp[127:0]
+                        if (jpp.safe_c_tail) andps(t, x_padd_mask_avx_high);
                         vmovd(ptr[reg_index + step_index + 4], t);
                     }
                 } else {
-                    vpmovusdb(xr, vr);
+                    if (jpp.safe_c_tail)
+                        vpmovusdb(xr | k_padd_mask | T_z, vr);
+                    else
+                        vpmovusdb(xr, vr);
                     vmovups(ptr[reg_index + step_index], vr | k_index_mask);
                 }
             } else {
@@ -807,7 +836,11 @@ void jit_uni_pool_kernel<isa>::generate() {
                               bool inc_reg = true) {
         step(ur_w, ur_bc, lpad, rpad);
 
-        if (isa == sse41) step_high_half(ur_w, ur_bc, lpad, rpad);
+        if (isa == sse41) {
+            sse_high_half = true;
+            step_high_half(ur_w, ur_bc, lpad, rpad);
+            sse_high_half = false;
+        }
 
         if (!inc_reg) return;
 

@@ -137,29 +137,6 @@ const char *data_kind2str(data_kind_t kind) {
     return "incorrect rnn data kind";
 }
 
-void check_case_validity(const dt_conf_t &cfg, policy_t policy) {
-    if (cfg.is_int8()
-            && (policy != policy_t::COMMON && policy != policy_t::PER_OC)) {
-        fprintf(stderr,
-                "%s driver: configuration `%s` requires scale policy "
-                "to be policy_t::COMMON or policy_t::PER_OC, exiting...\n",
-                driver_name, cfg.str().c_str());
-        exit(2);
-    }
-
-    if (!(policy == policy_t::NONE || policy == policy_t::COMMON
-                || policy == policy_t::PER_OC)) {
-        std::stringstream ss;
-        ss << policy;
-        const std::string cpp_pstr = ss.str();
-        const char *policy_s = cpp_pstr.c_str();
-        fprintf(stderr,
-                "rnn driver: scale_policy `%s` is not supported, exiting...\n",
-                policy_s);
-        exit(2);
-    }
-}
-
 int str2desc(desc_t *desc, const char *str) {
     desc_t d {0};
 
@@ -257,7 +234,6 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--scaling=" << p.wei_scales_policy << " ";
     if (canonical || p.trivial_strides != def.trivial_strides[0])
         s << "--trivial-strides=" << bool2str(p.trivial_strides) << " ";
-    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << static_cast<const desc_t &>(p);
 

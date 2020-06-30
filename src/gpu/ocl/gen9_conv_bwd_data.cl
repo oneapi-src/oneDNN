@@ -56,12 +56,28 @@ gen9_conv_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
 
     diff_dst += mb * OC * G * OD * OH * OW + g * OC * OD * OH * OW * MB_BLOCK;
 
-    DATA8_T blockC00 = WITH_BIAS
-            ? (DATA8_T)bias[g * IC + gic * IC_BLOCK + local_id]
-            : (DATA8_T)0.0f;
-    DATA8_T blockC01 = WITH_BIAS
-            ? (DATA8_T)bias[g * IC + gic * IC_BLOCK + local_id]
-            : (DATA8_T)0.0f;
+    DATA8_T blockC00 = (DATA8_T)DATA_ZERO;
+    DATA8_T blockC01 = (DATA8_T)DATA_ZERO;
+
+    if (WITH_BIAS) {
+#if IS_DW
+        const int bg_off = g * IC + local_id;
+        const int bc_off = gic * IC_BLOCK;
+        DATA_T b = (G_WO_PADDING % IC_BLOCK == 0 || bg_off < G_WO_PADDING)
+                ? bias[bg_off + bc_off]
+                : DATA_ZERO;
+#else
+        const int bg_off = g * IC;
+        const int bc_off = gic * IC_BLOCK + local_id;
+        DATA_T b = (IC_WO_PADDING % IC_BLOCK == 0 || bc_off < IC_WO_PADDING)
+                ? bias[bg_off + bc_off]
+                : DATA_ZERO;
+#endif
+        unroll_for(int i = 0; i < 8; ++i) {
+            blockC00[i] = b;
+            blockC01[i] = b;
+        }
+    }
 
     wei += gic * KD * KH * KW * OC_BLOCK * IC_BLOCK
             + g * IC * OC * KD * KH * KW;
@@ -244,12 +260,24 @@ gen9_conv_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
     const int iw = (ihw % IWB) * IW_BLOCK;
 
     diff_dst += mb * OC * G * OD * OH * OW + g * OC * OD * OH * OW * MB_BLOCK;
-    DATA_T blockC00[IW_BLOCK] = {0.0f};
+    DATA_T blockC00[IW_BLOCK] = {DATA_ZERO};
 
-#if WITH_BIAS
-    for (int i = 0; i < IW_BLOCK; i++)
-        blockC00[i] = bias[g * IC + gic * IC_BLOCK + local_id];
+    if (WITH_BIAS) {
+#if IS_DW
+        const int bg_off = g * IC + local_id;
+        const int bc_off = gic * IC_BLOCK;
+        DATA_T b = (G_WO_PADDING % IC_BLOCK == 0 || bg_off < G_WO_PADDING)
+                ? bias[bg_off + bc_off]
+                : DATA_ZERO;
+#else
+        const int bg_off = g * IC;
+        const int bc_off = gic * IC_BLOCK + local_id;
+        DATA_T b = (IC_WO_PADDING % IC_BLOCK == 0 || bc_off < IC_WO_PADDING)
+                ? bias[bg_off + bc_off]
+                : DATA_ZERO;
 #endif
+        unroll_for(int i = 0; i < IW_BLOCK; ++i) { blockC00[i] = b; }
+    }
 
     wei += gic * KD * KH * KW * OC_BLOCK * IC_BLOCK
             + g * IC * OC * KD * KH * KW;

@@ -46,7 +46,8 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
 
             const auto attr_skip_mask
                     = primitive_attr_t::skip_mask_t::oscale_runtime
-                    | primitive_attr_t::skip_mask_t::post_ops;
+                    | primitive_attr_t::skip_mask_t::post_ops
+                    | primitive_attr_t::skip_mask_t::sum_dt;
 
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(desc()->prop_kind,
@@ -59,7 +60,8 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
                     && this->set_default_formats()
-                    && attr()->has_default_values(attr_skip_mask)
+                    && attr()->has_default_values(
+                            attr_skip_mask, dst_md_.data_type)
                     && post_ops_ok(attr())
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8, u8)

@@ -72,8 +72,9 @@ enum cpu_isa_t : unsigned {
 
 const char *get_isa_info();
 
-cpu_isa_t DNNL_API get_max_cpu_isa(bool soft = false);
+cpu_isa_t DNNL_API get_max_cpu_isa_mask(bool soft = false);
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
+dnnl_cpu_isa_t get_effective_cpu_isa();
 
 template <cpu_isa_t>
 struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
@@ -157,7 +158,7 @@ static Xbyak::util::Cpu cpu;
 static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     using namespace Xbyak::util;
 
-    unsigned cpu_isa_mask = x64::get_max_cpu_isa(soft);
+    unsigned cpu_isa_mask = x64::get_max_cpu_isa_mask(soft);
     if ((cpu_isa_mask & cpu_isa) != cpu_isa) return false;
 
     switch (cpu_isa) {

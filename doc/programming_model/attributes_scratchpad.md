@@ -4,13 +4,13 @@ Primitive Attributes: Scratchpad {#dev_guide_attributes_scratchpad}
 Some primitives might require a temporary buffer while performing their
 computations. For instance, the operations that do not have enough independent
 work to utilize all cores on a system might use parallelization over the
-reduction axis (e.g. k-axis in matrix-matrix multiplication). In this case
-the threads compute partial results in a temporary buffer and once finished
-the library reduces partial results into the final one. Another example is
-a convolution implementation that uses GEMM. Before using a GEMM the source
-images needs to be rearranged by so-called `im2col` transformation.
-The transformation happens in a temporary buffer that is then used as an
-input for GEMM.
+reduction dimension (the K dimension in the GEMM notation). In this case
+different threads compute partial results in private temporary buffers, and
+then the private results are added to produce the final result. Another
+example is using matrix multiplication (GEMM) to implement convolution.
+Before calling GEMM, the source activations must be transformed using the
+im2col operation. The transformation result is written to a temporary buffer
+that is then used as an input for the GEMM.
 
 In both of these examples, the temporary buffer is no longer required
 once the primitive computation is completed. oneDNN refers to such a
@@ -29,12 +29,12 @@ convolution requires a scratchpad for the `im2col` data, while the
 direct convolution does not.
 
 Both types of implementation might need extra space for the reduction in case
-there are too few independent tasks. The `im2col` size is proportional to the
-size of the source image multiplied by the weights spatial size. The size of a
-buffer for reduction is proportional to the tensor size to be reduced (e.g.,
-`diff_weights` in the case of backward by weights) multiplied by the number of
-threads in the reduction groups (the upper bound is the overall number of
-threads).
+there are too few independent tasks. The amount of memory required by the
+`im2col` transformation is proportional to the size of the source image
+multiplied by the weights spatial size. The size of a buffer for reduction is
+proportional to the tensor size to be reduced (e.g., `diff_weights` in the
+case of backward by weights) multiplied by the number of threads in the
+reduction groups (the upper bound is the total number of threads).
 
 By contrast, some other primitives might require very little extra space. For
 instance, one of the implementation of the @ref dnnl::sum primitive requires
@@ -87,13 +87,9 @@ oneDNN supports two modes for handling scratchpads:
 
 The scratchpad mode is controlled though the
 @ref dnnl_primitive_attr_set_scratchpad_mode (C API) and
-@ref dnnl::primitive_attr::set_scratchpad_mode (C++ API) primitive attributes,
-and should be passed during the primitive descriptor creation
-(@ref dev_guide_attributes).
+@ref dnnl::primitive_attr::set_scratchpad_mode (C++ API) primitive attributes.
 
-It is worth mentioning that all primitives support both scratchpad modes.
-That is, primitive descriptor creation success or failure cannot depend on the
-scratchpad mode used.
+All primitives support both scratchpad modes.
 
 ## Scratchpad Memory Engine
 
@@ -140,7 +136,7 @@ dnnl::primitive::primitive_desc op_pd(op_d, attr, engine);
 // Query the scratchpad memory descriptor
 dnnl::memory::desc scratchpad_md = op_pd.scratchpad_desc();
 
-// Note, that a primitive doesn't consume memory in this configuration:
+// Note, that a primitive does not consume memory in this configuration:
 assert(op_pd.query_s64(dnnl::query::memory_consumption_s64) == 0);
 
 // Create a primitive

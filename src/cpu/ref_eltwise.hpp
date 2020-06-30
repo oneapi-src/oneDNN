@@ -72,7 +72,9 @@ struct ref_eltwise_fwd_t : public primitive_t {
 
             bool ok = is_fwd() && data_type == desc()->data_desc.data_type
                     && platform::has_data_type_support(data_type)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && IMPLICATION(desc()->data_desc.data_type == dnnl_u8,
+                            desc()->alg_kind == dnnl_eltwise_relu);
             if (!ok) return status::unimplemented;
 
             return status::success;

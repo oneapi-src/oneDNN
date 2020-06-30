@@ -926,6 +926,7 @@ static inline void set_thread_opts_nopack(int nthrs, int nthrs_spawn,
 
     dim_t m = arg->m;
     dim_t n = arg->n;
+    dim_t k = arg->k;
 
     thread_info.nthrs_m = 0;
     thread_info.nthrs_n = 0;
@@ -936,6 +937,7 @@ static inline void set_thread_opts_nopack(int nthrs, int nthrs_spawn,
     // TODO Check if we can use dynamic scheduling for sgemm.
     // TODO Check if we should use 3D blocking.
     thread_info.nthrs_k = 1;
+    thread_info.thread_k = k;
 
     bool condition_2D_bsrc = false;
     if (isSgemm) {
@@ -993,7 +995,26 @@ static inline void set_thread_opts_nopack(int nthrs, int nthrs_spawn,
             thread_info.nthrs_n = nthrs_n;
             thread_info.partition = partition_type::col_major_2d;
         } else {
-            if (n <= 64 || n >= 256) {
+            if (m == 800 && n == 300) {
+                // TODO: Expand this branch to other problem sizes.
+
+                auto &thread_m = thread_info.thread_m;
+                auto &thread_n = thread_info.thread_n;
+
+                const dim_t block_m = arg->um * 4;
+                constexpr dim_t block_n = 64;
+                constexpr dim_t small_m = 16;
+                constexpr dim_t small_n = 2;
+
+                std::tie(nthrs_m, nthrs_n)
+                        = gemm_utils::calc_nthr_2d(nthrs, m, n, block_m,
+                                block_n, small_m, small_n, thread_m, thread_n);
+
+                thread_info.nthrs_m = nthrs_m;
+                thread_info.nthrs_n = nthrs_n;
+                thread_info.partition = partition_type::mnk_3d;
+
+            } else if ((n <= 64 || n >= 256)) {
                 while (((nthrs_n > 1) && (n / nthrs_n < arg->un)
                                && (m / nthrs_m >= 2 * arg->um)
                                && mayiuse(avx512_core))

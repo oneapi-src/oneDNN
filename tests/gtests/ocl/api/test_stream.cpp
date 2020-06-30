@@ -70,9 +70,9 @@ TEST_F(ocl_stream_test_c, CreateC) {
 
     cl_device_id ocl_queue_dev;
     cl_context ocl_queue_ctx;
-    OCL_CHECK(clGetCommandQueueInfo(ocl_queue, CL_QUEUE_DEVICE,
+    TEST_OCL_CHECK(clGetCommandQueueInfo(ocl_queue, CL_QUEUE_DEVICE,
             sizeof(ocl_queue_dev), &ocl_queue_dev, nullptr));
-    OCL_CHECK(clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
+    TEST_OCL_CHECK(clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
             sizeof(ocl_queue_ctx), &ocl_queue_ctx, nullptr));
 
     ASSERT_EQ(ocl_dev, ocl_queue_dev);
@@ -90,9 +90,9 @@ TEST_F(ocl_stream_test_cpp, CreateCpp) {
 
     cl_device_id ocl_queue_dev;
     cl_context ocl_queue_ctx;
-    OCL_CHECK(clGetCommandQueueInfo(ocl_queue, CL_QUEUE_DEVICE,
+    TEST_OCL_CHECK(clGetCommandQueueInfo(ocl_queue, CL_QUEUE_DEVICE,
             sizeof(ocl_queue_dev), &ocl_queue_dev, nullptr));
-    OCL_CHECK(clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
+    TEST_OCL_CHECK(clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
             sizeof(ocl_queue_ctx), &ocl_queue_ctx, nullptr));
 
     ASSERT_EQ(ocl_dev, ocl_queue_dev);
@@ -111,7 +111,7 @@ TEST_F(ocl_stream_test_c, BasicInteropC) {
     cl_command_queue interop_ocl_queue
             = clCreateCommandQueue(ocl_ctx, ocl_dev, 0, &err);
 #endif
-    OCL_CHECK(err);
+    TEST_OCL_CHECK(err);
 
     dnnl_stream_t stream;
     DNNL_CHECK(dnnl_stream_create_ocl(&stream, eng, interop_ocl_queue));
@@ -121,19 +121,19 @@ TEST_F(ocl_stream_test_c, BasicInteropC) {
     ASSERT_EQ(ocl_queue, interop_ocl_queue);
 
     cl_uint ref_count;
-    OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue, CL_QUEUE_REFERENCE_COUNT,
-            sizeof(cl_uint), &ref_count, nullptr));
+    TEST_OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue,
+            CL_QUEUE_REFERENCE_COUNT, sizeof(cl_uint), &ref_count, nullptr));
     int i_ref_count = int(ref_count);
     ASSERT_EQ(i_ref_count, 2);
 
     DNNL_CHECK(dnnl_stream_destroy(stream));
 
-    OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue, CL_QUEUE_REFERENCE_COUNT,
-            sizeof(cl_uint), &ref_count, nullptr));
+    TEST_OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue,
+            CL_QUEUE_REFERENCE_COUNT, sizeof(cl_uint), &ref_count, nullptr));
     i_ref_count = int(ref_count);
     ASSERT_EQ(i_ref_count, 1);
 
-    OCL_CHECK(clReleaseCommandQueue(interop_ocl_queue));
+    TEST_OCL_CHECK(clReleaseCommandQueue(interop_ocl_queue));
 }
 
 TEST_F(ocl_stream_test_cpp, BasicInteropC) {
@@ -148,13 +148,13 @@ TEST_F(ocl_stream_test_cpp, BasicInteropC) {
     cl_command_queue interop_ocl_queue
             = clCreateCommandQueue(ocl_ctx, ocl_dev, 0, &err);
 #endif
-    OCL_CHECK(err);
+    TEST_OCL_CHECK(err);
 
     {
         stream s(eng, interop_ocl_queue);
 
         cl_uint ref_count;
-        OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue,
+        TEST_OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue,
                 CL_QUEUE_REFERENCE_COUNT, sizeof(cl_uint), &ref_count,
                 nullptr));
         int i_ref_count = int(ref_count);
@@ -165,12 +165,12 @@ TEST_F(ocl_stream_test_cpp, BasicInteropC) {
     }
 
     cl_uint ref_count;
-    OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue, CL_QUEUE_REFERENCE_COUNT,
-            sizeof(cl_uint), &ref_count, nullptr));
+    TEST_OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue,
+            CL_QUEUE_REFERENCE_COUNT, sizeof(cl_uint), &ref_count, nullptr));
     int i_ref_count = int(ref_count);
     ASSERT_EQ(i_ref_count, 1);
 
-    OCL_CHECK(clReleaseCommandQueue(interop_ocl_queue));
+    TEST_OCL_CHECK(clReleaseCommandQueue(interop_ocl_queue));
 }
 
 TEST_F(ocl_stream_test_c, InteropIncompatibleQueueC) {
@@ -183,7 +183,7 @@ TEST_F(ocl_stream_test_c, InteropIncompatibleQueueC) {
     cl_int err;
     cl_context cpu_ocl_ctx
             = clCreateContext(nullptr, 1, &cpu_ocl_dev, nullptr, nullptr, &err);
-    OCL_CHECK(err);
+    TEST_OCL_CHECK(err);
 
 #ifdef CL_VERSION_2_0
     cl_command_queue cpu_ocl_queue = clCreateCommandQueueWithProperties(
@@ -192,13 +192,13 @@ TEST_F(ocl_stream_test_c, InteropIncompatibleQueueC) {
     cl_command_queue cpu_ocl_queue
             = clCreateCommandQueue(cpu_ocl_ctx, cpu_ocl_dev, 0, &err);
 #endif
-    OCL_CHECK(err);
+    TEST_OCL_CHECK(err);
 
     dnnl_stream_t stream;
     dnnl_status_t status = dnnl_stream_create_ocl(&stream, eng, cpu_ocl_queue);
     ASSERT_EQ(status, dnnl_invalid_arguments);
 
-    OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));
+    TEST_OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));
 }
 
 TEST_F(ocl_stream_test_cpp, InteropIncompatibleQueueCpp) {
@@ -211,7 +211,7 @@ TEST_F(ocl_stream_test_cpp, InteropIncompatibleQueueCpp) {
     cl_int err;
     cl_context cpu_ocl_ctx
             = clCreateContext(nullptr, 1, &cpu_ocl_dev, nullptr, nullptr, &err);
-    OCL_CHECK(err);
+    TEST_OCL_CHECK(err);
 
 #ifdef CL_VERSION_2_0
     cl_command_queue cpu_ocl_queue = clCreateCommandQueueWithProperties(
@@ -220,12 +220,12 @@ TEST_F(ocl_stream_test_cpp, InteropIncompatibleQueueCpp) {
     cl_command_queue cpu_ocl_queue
             = clCreateCommandQueue(cpu_ocl_ctx, cpu_ocl_dev, 0, &err);
 #endif
-    OCL_CHECK(err);
+    TEST_OCL_CHECK(err);
 
     catch_expected_failures([&] { stream s(eng, cpu_ocl_queue); }, true,
             dnnl_invalid_arguments);
 
-    OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));
+    TEST_OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));
 }
 
 } // namespace dnnl

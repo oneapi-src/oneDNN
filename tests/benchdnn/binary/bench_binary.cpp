@@ -32,13 +32,20 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_ddt : s.ddt)
     for_(const auto &i_stag : s.stag)
     for_(const auto &i_alg : s.alg)
+    for_(const auto &i_scales : s.scales)
+    for_(const auto &i_post_ops : s.post_ops)
     for (auto i_inplace : s.inplace) {
-        const bool ok = s.sdims.size() == i_sdt.size()
+        bool ok = s.sdims.size() == i_sdt.size()
                 && i_sdt.size() == i_stag.size()
                 && s.sdims.size() == 2; // expect just two inputs
         if (!ok) SAFE_V(FAIL);
 
-        const prb_t p(s.sdims, i_sdt, i_ddt, i_stag, i_alg, i_inplace, s.attr);
+        ok = i_alg > alg_t::BINARY_START && i_alg < alg_t::BINARY_END;
+        if (!ok) SAFE_V(FAIL);
+
+        attr_t attr(i_scales, i_post_ops);
+        handle_legacy_attr(attr, s.attr);
+        const prb_t p(s.sdims, i_sdt, i_ddt, i_stag, i_alg, i_inplace, attr);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -49,7 +56,7 @@ void check_correctness(const settings_t &s) {
         int status = doit(&p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
             perf_report_t pr(s.perf_template);
@@ -71,10 +78,12 @@ int bench(int argc, char **argv) {
                 || parse_multi_dt(s.sdt, def.sdt, argv[0])
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_multi_tag(s.stag, def.stag, argv[0])
-                || parse_alg(s.alg, def.alg, str2alg, argv[0])
+                || parse_alg(
+                        s.alg, def.alg, attr_t::post_ops_t::str2kind, argv[0])
                 || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_attr(s.attr, argv[0])
-                || parse_allow_unimpl(s.allow_unimpl, argv[0])
+                || parse_attr_scales(s.scales, argv[0])
+                || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

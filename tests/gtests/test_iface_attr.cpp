@@ -94,7 +94,7 @@ TEST_F(attr_test, TestScratchpadArg) {
     }
 }
 
-TEST_F(attr_test, TestIntOutputScales) {
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test, TestIntOutputScales) {
     dnnl::primitive_attr attr;
 
     int mask;
@@ -179,7 +179,7 @@ TEST_F(attr_test, TestZeroPointsExpectFailure) {
     EXPECT_ANY_THROW(attr.set_zero_points(unsupported_arg, 1 << 1, {1, 2, 3}));
 }
 
-TEST_F(attr_test, TestScales) {
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test, TestScales) {
     dnnl::primitive_attr attr;
 
     const std::vector<int> supported_args = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
@@ -222,7 +222,7 @@ TEST_F(attr_test, TestScalesExpectFailure) {
     EXPECT_ANY_THROW(attr.set_scales(unsupported_arg, 1 << 1, {1, 2, 3}));
 }
 
-TEST_F(attr_test, TestPostOps) {
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test, TestPostOps) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
@@ -253,7 +253,7 @@ TEST_F(attr_test, TestPostOps) {
     ASSERT_FLOAT_EQ(beta, 4.4f);
 }
 
-TEST_F(attr_test, DepthwiseFusionPostop) {
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test, DepthwiseFusionPostop) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
@@ -296,7 +296,7 @@ TEST_F(attr_test, DepthwiseFusionPostop) {
     ASSERT_EQ(scales_in, scales_out);
 }
 
-TEST_F(attr_test, DepthwiseFusion) {
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test, DepthwiseFusion) {
 
     auto engine_kind = get_test_engine_kind();
     SKIP_IF(engine_kind != engine::kind::cpu,
@@ -313,8 +313,7 @@ TEST_F(attr_test, DepthwiseFusion) {
 
     for (auto dt : test_dts) {
 
-        memory::desc dat_md {
-                {1024, 512, 512, 512}, dt, memory::format_tag::any};
+        memory::desc dat_md {{1024, 512, 64, 64}, dt, memory::format_tag::any};
         memory::desc wht_md {{512, 512, 1, 1}, dt, memory::format_tag::any};
 
         auto cd_desc = convolution_forward::desc(prop_kind::forward_inference,
@@ -322,9 +321,9 @@ TEST_F(attr_test, DepthwiseFusion) {
                 {0, 0}, {0, 0});
 
         std::string impl_info_unfused;
-        ASSERT_NO_THROW(
-                auto pd = convolution_forward::primitive_desc(cd_desc, e);
-                impl_info_unfused = pd.impl_info_str(););
+
+        auto pd = convolution_forward::primitive_desc(cd_desc, e);
+        ASSERT_NO_THROW(impl_info_unfused = pd.impl_info_str(););
 
         // skip if above unfused impl is not jitted.
         if (impl_info_unfused.compare(0, 3, "jit") != 0) continue;
@@ -335,12 +334,53 @@ TEST_F(attr_test, DepthwiseFusion) {
         attr.set_post_ops(ops);
 
         std::string impl_info_fused;
-        ASSERT_NO_THROW(
-                auto pd = convolution_forward::primitive_desc(cd_desc, attr, e);
-                impl_info_fused = pd.impl_info_str(););
+
+        pd = convolution_forward::primitive_desc(cd_desc, attr, e);
+        ASSERT_NO_THROW(impl_info_fused = pd.impl_info_str(););
 
         // Make sure ref fused impl is not deployed.
-        ASSERT_EQ(impl_info_fused, impl_info_unfused);
+        // NOTE: When out_of_memory testing enabled, all implementations that
+        // construct primitive attributes will fail, hence the ref
+        // implementation is deployed.
+        if (!test_out_of_memory()) {
+            ASSERT_EQ(impl_info_fused, impl_info_unfused);
+        }
+    }
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test, TestGetAttr) {
+    auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind != engine::kind::cpu,
+            "Depthwise fusion is only supported on CPU engine");
+
+    engine eng {engine_kind, 0};
+
+    auto dt = memory::data_type::s8;
+    dnnl::primitive_attr attr_s, attr_os, attr_dw;
+    dnnl::post_ops ops;
+    std::vector<float> scales(512);
+    ops.append_dw_k3s1p1(dt, dt, dt, 1 << 1, scales);
+    attr_s.set_scales(DNNL_ARG_SRC_0, 0, {0.2f});
+    attr_os.set_output_scales(1 << 1, scales);
+    attr_dw.set_post_ops(ops);
+
+    memory::desc dat_md {{512, 512, 3, 3}, dt, memory::format_tag::nchw};
+    memory::desc wht_md {{512, 512, 1, 1}, dt, memory::format_tag::nchw};
+    auto bin_desc = binary::desc(algorithm::binary_add, wht_md, wht_md, wht_md);
+    auto cd_desc = convolution_forward::desc(prop_kind::forward_inference,
+            algorithm::convolution_auto, dat_md, wht_md, dat_md, {1, 1}, {0, 0},
+            {0, 0});
+    auto bin_pd = binary::primitive_desc(bin_desc, attr_s, eng);
+    auto cd_pd_os = convolution_forward::primitive_desc(cd_desc, attr_os, eng);
+    auto cd_pd_dw = convolution_forward::primitive_desc(cd_desc, attr_dw, eng);
+    if (test_out_of_memory()) {
+        attr_s = bin_pd.get_primitive_attr();
+        attr_os = cd_pd_os.get_primitive_attr();
+        attr_dw = cd_pd_dw.get_primitive_attr();
+    } else {
+        ASSERT_NO_THROW(attr_s = bin_pd.get_primitive_attr());
+        ASSERT_NO_THROW(attr_os = cd_pd_os.get_primitive_attr());
+        ASSERT_NO_THROW(attr_dw = cd_pd_dw.get_primitive_attr());
     }
 }
 

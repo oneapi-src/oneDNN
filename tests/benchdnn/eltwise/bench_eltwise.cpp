@@ -36,6 +36,9 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_beta : s.beta)
     for_(auto i_inplace : s.inplace)
     for (const auto &i_mb : s.mb) {
+        bool ok = i_alg > alg_t::ELTWISE_START && i_alg < alg_t::ELTWISE_END;
+        if (!ok) SAFE_V(FAIL);
+
         // iterator over alpha and beta (alphabetic order!)
         switch (i_alg) {
             case alg_t::ABS:
@@ -87,7 +90,7 @@ void check_correctness(const settings_t &s) {
         const int status = doit(&p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
             perf_report_t pr(s.perf_template);
@@ -112,11 +115,10 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(
                         s.alpha, def.alpha, atof, argv[0], "alpha")
                 || parse_vector_option(s.beta, def.beta, atof, argv[0], "beta")
-                || parse_vector_option(s.alg, def.alg,
-                        attr_t::post_ops_t::str2kind, argv[0], "alg")
+                || parse_alg(
+                        s.alg, def.alg, attr_t::post_ops_t::str2kind, argv[0])
                 || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])
-                || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

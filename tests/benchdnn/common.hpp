@@ -40,6 +40,8 @@
 #define MIN3(a, b, c) MIN2(a, MIN2(b, c))
 #define MAX3(a, b, c) MAX2(a, MAX2(b, c))
 
+#define IMPLICATION(cause, effect) (!(cause) || !!(effect))
+
 #if defined(_WIN32) && !defined(__GNUC__)
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
@@ -191,17 +193,28 @@ enum res_state_t {
     FAILED,
     LISTED
 };
-const char *state2str(res_state_t state, bool allow_unimpl);
+const char *state2str(res_state_t state);
+
+enum skip_reason_t {
+    SKIP_UNKNOWN = 0,
+    CASE_NOT_SUPPORTED,
+    DATA_TYPE_NOT_SUPPORTED,
+    INVALID_CASE,
+    NOT_ENOUGH_RAM,
+    SKIP_IMPL_HIT,
+};
+const char *skip_reason2str(skip_reason_t skip_reason);
 
 struct res_t {
     res_state_t state;
     size_t errors, total;
     benchdnn_timer_t timer;
     std::string impl_name;
+    skip_reason_t reason;
 };
 
-void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
-        int status, const char *pstr);
+void parse_result(
+        res_t &res, bool &want_perf_report, int status, const char *pstr);
 
 /* misc */
 void init_fp_mode();
@@ -224,7 +237,7 @@ int flip_coin(ptrdiff_t seed, float probability);
 
 int64_t div_up(const int64_t a, const int64_t b);
 int64_t next_pow2(int64_t a);
-int mxcsr_round(float f);
+int mxcsr_cvt(float f);
 
 /* set '0' across *arr:+size */
 void array_set(char *arr, size_t size);

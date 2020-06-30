@@ -53,9 +53,9 @@ static bool parse_multivector_str(std::vector<T> &vec,
         const std::vector<T> &def, F process_func, const char *str,
         char vector_delim = ',', char element_delim = ':') {
     auto process_subword = [&](const char *word) {
-        T v;
+        T v, empty_def_v; // defualt value is not expected to be set here
         // parse vector elements separated by @p element_delim
-        parse_vector_str(v, def[0], process_func, word, element_delim);
+        parse_vector_str(v, empty_def_v, process_func, word, element_delim);
         return v;
     };
 
@@ -102,6 +102,18 @@ static bool parse_alg(T &vec, const T &def, F process_func, const char *str,
     return parse_vector_option(vec, def, process_func, str, option_name);
 }
 
+template <typename T>
+bool parse_subattr(
+        std::vector<T> &vec, const char *str, const std::string &option_name) {
+    std::vector<T> def {T()};
+    auto parse_subattr_func = [](const char *s) {
+        T v;
+        SAFE_V(v.from_str(s, &s));
+        return v;
+    };
+    return parse_vector_option(vec, def, parse_subattr_func, str, option_name);
+}
+
 template <typename S>
 bool parse_reset(S &settings, const char *str,
         const std::string &option_name = "reset") {
@@ -137,6 +149,18 @@ bool parse_mb(std::vector<int64_t> &mb, const std::vector<int64_t> &def_mb,
 bool parse_attr(
         attr_t &attr, const char *str, const std::string &option_name = "attr");
 
+bool parse_attr_oscale(std::vector<attr_t::scale_t> &oscale, const char *str,
+        const std::string &option_name = "attr-oscale");
+
+bool parse_attr_post_ops(std::vector<attr_t::post_ops_t> &po, const char *str,
+        const std::string &option_name = "attr-post-ops");
+
+bool parse_attr_scales(std::vector<attr_t::arg_scales_t> &scales,
+        const char *str, const std::string &option_name = "attr-scales");
+
+bool parse_attr_zero_points(std::vector<attr_t::zero_points_t> &zp,
+        const char *str, const std::string &option_name = "attr-zero-points");
+
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
         const char *str, const std::string &option_name = "axis");
 
@@ -160,9 +184,6 @@ bool parse_scale_policy(std::vector<policy_t> &policy,
         const std::string &option_name = "scaling");
 
 // plain types
-bool parse_allow_unimpl(bool &allow_unimpl, const char *str,
-        const std::string &option_name = "allow-unimpl");
-
 bool parse_perf_template(const char *&pt, const char *pt_def,
         const char *pt_csv, const char *str,
         const std::string &option_name = "perf-template");

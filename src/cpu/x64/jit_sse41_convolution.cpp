@@ -53,6 +53,11 @@ void jit_sse41_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     int ocb_work = div_up(jcp.nb_oc, jcp.nb_oc_blocking);
     const size_t work_amount = jcp.mb * jcp.ngroups * ocb_work * jcp.oh;
 
+    const bool is_src_layout_nxc
+            = one_of(jcp.src_tag, format_tag::nwc, format_tag::nhwc);
+    const bool is_dst_layout_nxc
+            = one_of(jcp.dst_tag, format_tag::nwc, format_tag::nhwc);
+
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         assert(nthr == jcp.nthr);
 
@@ -83,8 +88,12 @@ void jit_sse41_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                                               - jcp.t_pad + 1)
                             - jcp.ih;
 
-                    const size_t _oc = g * jcp.nb_oc + ocb;
-                    const size_t _ic = g * jcp.nb_ic + icb;
+                    const size_t _oc
+                            = g * (is_dst_layout_nxc ? jcp.oc : jcp.nb_oc)
+                            + ocb * (is_dst_layout_nxc ? jcp.oc_block : 1);
+                    const size_t _ic
+                            = g * (is_src_layout_nxc ? jcp.ic : jcp.nb_ic)
+                            + icb * (is_src_layout_nxc ? jcp.ic_block : 1);
 
                     const int ih = nstl::max(ij - jcp.t_pad
                                     + div_up(i_t_overflow, (jcp.dilate_h + 1))
@@ -100,8 +109,8 @@ void jit_sse41_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
                     if (icb == 0) {
                         if (bias)
-                            par_conv.bias
-                                    = &bias[bias_d.blk_off(_oc * jcp.oc_block)];
+                            par_conv.bias = &bias[bias_d.blk_off(_oc
+                                    * (is_dst_layout_nxc ? 1 : jcp.oc_block))];
                         par_conv.flags |= FLAG_IC_FIRST;
                     }
 

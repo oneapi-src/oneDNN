@@ -41,10 +41,10 @@
 #define DPRINT(fmt, ...) \
     printf(fmt, __VA_ARGS__); \
     fflush(0)
-#define WS_PRINT(s, w) ws_print(s, w)
+#define WS_PRINT(c, s, w) ws_print(c, s, w)
 #else
 #define DPRINT(fmt, ...)
-#define WS_PRINT(s, w)
+#define WS_PRINT(c, s, w)
 #endif
 
 namespace dnnl {
@@ -178,7 +178,7 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
 
     rnn_utils::set_offsets(rnn, conf.ws_gates_offset, conf.ws_states_offset,
             conf.ws_c_state_offset, conf.ws_diff_states_offset,
-            conf.ws_grid_comp_offset, conf.ws_cell_comp_offset,
+            conf.ws_grid_comp_offset, conf.scratch_cell_offset,
             conf.ws_bias_offset, conf.scratch_gates_offset,
             conf.scratchpad_size, conf.workspace_size);
 
@@ -289,7 +289,6 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WS_C_STATE_OFFSET", conf.ws_c_state_offset);
     kernel_ctx.define_int("WS_DIFF_STATES_OFFSET", conf.ws_diff_states_offset);
     kernel_ctx.define_int("WS_GRID_COMP_OFFSET", conf.ws_grid_comp_offset);
-    kernel_ctx.define_int("WS_CELL_COMP_OFFSET", conf.ws_cell_comp_offset);
     kernel_ctx.define_int("WS_BIAS_OFFSET", conf.ws_bias_offset);
     kernel_ctx.define_int("SCRATCH_GATES_OFFSET", conf.scratch_gates_offset);
     kernel_ctx.define_int("STATES_WS_LD", conf.states_ws_ld);
@@ -470,7 +469,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     weights_type = weights_layer_dt;
 
     bool ok = true
-            && one_of(cell_kind, alg_kind::vanilla_rnn, alg_kind::vanilla_lstm)
+            && one_of(cell_kind, alg_kind::vanilla_rnn, alg_kind::vanilla_lstm,
+                    alg_kind::lbr_gru)
             && !this->is_lstm_peephole() && !this->is_lstm_projection()
             && IMPLICATION(aprop == prop_kind::forward,
                     one_of(this->desc()->prop_kind, forward_training,
@@ -479,7 +479,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                     one_of(this->desc()->prop_kind, backward))
             && src_layer_dt == src_type
             && ((aprop == prop_kind::forward && src_layer_dt == data_type::u8
-                        && weights_layer_dt == data_type::s8)
+                        && weights_layer_dt == data_type::s8
+                        && cell_kind == alg_kind::vanilla_lstm)
                     || (aprop == prop_kind::forward
                             && one_of(src_layer_dt, data_type::f16,
                                     data_type::f32, data_type::bf16)
@@ -609,6 +610,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         attr.post_ops_.append_sum(beta);
         dnnl_primitive_desc_iterator it(
                 engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
+        if (!it.is_initialized()) return status::out_of_memory;
         ++it;
         gemm_pd.reset(it.fetch_once());
         if (!gemm_pd) return status::unimplemented;
@@ -627,7 +629,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
             = rnn_conf.merge_gemm_iter ? batch * rnn_conf.n_iter : batch;
 
     bool gemm_ok = true;
-
+    int gemm_iter_fwd_beta = this->is_lbr() ? 0.0 : 1.0;
+    int gemm_iter_bwd_beta = this->is_lbr() ? 1.0f : 0.0f;
     switch (aprop) {
         case prop_kind::forward:
             gemm_ok = true
@@ -642,7 +645,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                                     batch, sic, rnn_conf.weights_iter_ld,
                                     rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
                                     weights_type, src_type,
-                                    rnn_conf.acc_data_type, false, 1.0));
+                                    rnn_conf.acc_data_type, false,
+                                    gemm_iter_fwd_beta));
             break;
         case prop_kind::backward:
             gemm_ok = true
@@ -652,7 +656,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                                     rnn_conf.scratch_gates_ld,
                                     rnn_conf.diff_states_ws_ld, weights_type,
                                     src_type, rnn_conf.acc_data_type, false,
-                                    0.0f),
+                                    gemm_iter_bwd_beta),
                             create_gemm_pd(gemm_layer_bwd_pd_, slc,
                                     layer_merged_size, n_gates * dhc,
                                     rnn_conf.weights_layer_ld,
@@ -815,6 +819,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     // FIXME: This should be created once per execute() instead of creating
     // memory before each gemm call. Each cell type (+prop kind) might have
     // different number of GEMMs.
+    bool is_lbr = this->pd()->is_lbr();
 
     memory_t *workspace = (aprop == prop_kind::forward)
             ? ctx.output(DNNL_ARG_WORKSPACE)
@@ -830,6 +835,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 
     auto scratchpad_gates
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
+
+    std::unique_ptr<memory_storage_t> scratchpad_cell;
+    if (is_lbr)
+        scratchpad_cell
+                = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
 
     memory_t *weights {nullptr};
 
@@ -847,7 +857,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
                     : ctx.input(DNNL_ARG_WEIGHTS_ITER);
             gemm_A_ = weights->memory_storage()->clone();
             gemm_B_ = scratchpad->clone();
-            gemm_C_ = scratchpad_gates->clone();
+            if (is_lbr && gemm_kind == gemm_iter_fwd) {
+                gemm_C_ = scratchpad_cell->clone();
+            } else {
+                gemm_C_ = scratchpad_gates->clone();
+            }
             break;
         case gemm_iter_bwd:
         case gemm_layer_bwd:
@@ -855,7 +869,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
                     ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
                     : ctx.input(DNNL_ARG_WEIGHTS_ITER);
             gemm_A_ = weights->memory_storage()->clone();
-            gemm_B_ = scratchpad_gates->clone();
+            if (is_lbr && gemm_kind == gemm_iter_bwd) {
+                gemm_B_ = scratchpad_cell->clone();
+            } else {
+                gemm_B_ = scratchpad_gates->clone();
+            }
             gemm_C_ = scratchpad->clone();
             break;
         case gemm_diff_wei_iter:
@@ -863,7 +881,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             weights = (gemm_kind == gemm_diff_wei_iter)
                     ? ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER)
                     : ctx.output(DNNL_ARG_DIFF_WEIGHTS_LAYER);
-            gemm_A_ = scratchpad_gates->clone();
+            if (is_lbr && gemm_kind == gemm_diff_wei_iter) {
+                gemm_A_ = scratchpad_cell->clone();
+            } else {
+                gemm_A_ = scratchpad_gates->clone();
+            }
             gemm_B_ = scratchpad->clone();
             gemm_C_ = weights->memory_storage()->clone();
             break;
@@ -923,6 +945,7 @@ template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
         int lay, int iter, int n_gates, int dhc, int batch,
         const memory_storage_t &scratch_gates,
+        const memory_storage_t &scratch_cell,
         const memory_storage_t &diff_bias) const {
 
     compute::kernel_arg_list_t arg_list;
@@ -931,6 +954,7 @@ void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
     arg_list.set(2, iter);
     arg_list.set(3, diff_bias);
     arg_list.set(4, scratch_gates);
+    arg_list.set(5, scratch_cell);
 
     auto nd_range = compute::nd_range_t({n_gates, dhc});
 
@@ -972,9 +996,9 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                         wic, batch, n_layer, n_dir, n_iter, n_gates, n_states,
                         n_bias, offset_wei_input_, n_parts_weights_layer,
                         offset_wei_state_, n_parts_weights_iter, bias,
-                        workspace, scratch_gates, w_input, w_state,
-                        diff_weights_layer, diff_weights_iter, diff_bias,
-                        scales, tm_scales);
+                        workspace, scratch_gates, scratch_cell, w_input,
+                        w_state, diff_weights_layer, diff_weights_iter,
+                        diff_bias, scales, tm_scales);
             }
 
             if (aprop == prop_kind::backward
@@ -1185,7 +1209,7 @@ void _ref_rnn_common_t<aprop>::ws_set(const exec_ctx_t &ctx,
 
 #if DEBUGPRINT
 template <prop_kind_t aprop>
-void _ref_rnn_common_t<aprop>::ws_print(
+void _ref_rnn_common_t<aprop>::ws_print(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &workspace_) const {
     compute::kernel_arg_list_t arg_list;
@@ -1315,6 +1339,12 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
     auto &scratch_gates = *scratchpad_gates.get();
 
+    empty_memory_storage_t empty_mem;
+    auto scratchpad_cell
+            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
+    auto &scratch_cell
+            = this->pd()->is_lbr() ? *scratchpad_cell.get() : empty_mem;
+
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
     auto &diff_src_iter_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER);
     auto &diff_src_iter_c_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER_C);
@@ -1397,7 +1427,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     }
 
     DPRINT("\n%s(%d) WS before bias prepare\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(compute_stream, workspace_);
+    WS_PRINT(ctx, compute_stream, workspace_);
 
     // TODO: implement without copies
     bool is_lr = !one_of(rnn.exec_dir, r2l, r2l);
@@ -1424,7 +1454,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
                 bias_native_);
     }
     DPRINT("\n%s(%d) WS before copy init\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(compute_stream, workspace_);
+    WS_PRINT(ctx, compute_stream, workspace_);
 
     float shift = (pd()->attr()->rnn_data_qparams_.shift_);
     float scale = (pd()->attr()->rnn_data_qparams_.scale_);
@@ -1439,7 +1469,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             diff_dst_iter_c_native_, shift, scale, quantize);
 
     DPRINT("\n%s(%d) WS before grid\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(compute_stream, workspace_);
+    WS_PRINT(ctx, compute_stream, workspace_);
 
     const memory_storage_t *tm_scales_buf = nullptr;
     if (pd()->rnn_conf.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
@@ -1450,13 +1480,13 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     (this->*grid_computation)(engine, ctx, dhc, slc, sic, wic, batch, n_layer,
             n_dir, n_iter, n_gates, n_states, n_bias, offset_wei_input_,
             n_parts_weights_layer, offset_wei_state_, n_parts_weights_iter,
-            bias_native_, workspace_, scratch_gates, w_input_native_,
-            w_state_native_, diff_weights_layer_native_,
+            bias_native_, workspace_, scratch_gates, scratch_cell,
+            w_input_native_, w_state_native_, diff_weights_layer_native_,
             diff_weights_iter_native_, diff_bias_native_, scales_buf,
             tm_scales_buf);
 
     DPRINT("\n%s(%d) WS before copy res\n\n", __FUNCTION__, __LINE__);
-    WS_PRINT(compute_stream, workspace_);
+    WS_PRINT(ctx, compute_stream, workspace_);
 
     // Finally we copy the results to the result buffers
 

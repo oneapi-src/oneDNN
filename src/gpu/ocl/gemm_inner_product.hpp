@@ -58,11 +58,13 @@ status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd,
     gemm_desc.c_type = c_dt;
     gemm_desc.acc_type = c_dt;
 
-    primitive_attr_t gemm_attr = attr;
+    primitive_attr_t gemm_attr(attr);
+    if (!gemm_attr.is_initialized()) return status::out_of_memory;
     gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
 
     dnnl_primitive_desc_iterator it(
             engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
+    if (!it.is_initialized()) return status::out_of_memory;
     ++it;
     gemm_pd.reset(it.fetch_once());
     if (!gemm_pd) return status::unimplemented;
@@ -79,13 +81,6 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             gemm_pd_.reset(rhs.gemm_pd_->clone());
         }
         ~pd_t() = default;
-
-        pd_t &operator=(const pd_t &rhs) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            gpu_inner_product_fwd_pd_t::operator=(rhs);
-            gemm_pd_.reset(rhs.gemm_pd_->clone());
-            return *this;
-        }
 
         DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_fwd_t);
 
@@ -192,13 +187,6 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
         }
         ~pd_t() = default;
 
-        pd_t &operator=(const pd_t &rhs) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            gpu_inner_product_bwd_data_pd_t::operator=(rhs);
-            if (rhs.gemm_pd_) gemm_pd_.reset(rhs.gemm_pd_->clone());
-            return *this;
-        }
-
         DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_bwd_data_t);
 
         status_t init(engine_t *engine) {
@@ -282,13 +270,6 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
             gemm_pd_.reset(rhs.gemm_pd_->clone());
         }
         ~pd_t() = default;
-
-        pd_t &operator=(const pd_t &rhs) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            gpu_ip_bwd_weights_pd_t::operator=(rhs);
-            gemm_pd_.reset(rhs.gemm_pd_->clone());
-            return *this;
-        }
 
         DECLARE_COMMON_PD_T("gemm:ocl", gemm_inner_product_bwd_weights_t);
 

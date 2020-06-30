@@ -65,7 +65,7 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
             const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
             int nthreads, bool reduce_src);
 
-    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+    static status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_1x1_conv_conf_t &jcp);
 
     const jit_1x1_conv_conf_t &jcp;
@@ -91,9 +91,10 @@ private:
     reg64_t reg_reduce_pos_flag = rax;
     reg64_t aux1_reg_bcast_data = rbx;
     reg64_t aux_reg_output_data = abi_not_param1;
-    reg64_t bcast_loop_iter = rdx;
+    reg64_t reg_bcast_loop_iter = rdx;
     reg64_t reg_load_loop_work = r13;
     reg64_t reduce_loop_iter = abi_param1;
+    reg64_t reg_load_dim_tail_mask = aux_reg_load_data;
 
     reg64_t imm_addr64 = aux_reg_load_data;
     reg64_t reg_bcast_loop_work = aux1_reg_bcast_data;
@@ -103,6 +104,13 @@ private:
     reg64_t aux_reg_store_buf = reg_load_loop_work;
 
     mask_t vmask = k7;
+    // Used for axb tail handling.
+    // k_load_dim_mask is dynamically updated with k_load_mask_tail_mask
+    // whenever tail is detected
+    mask_t k_load_dim_mask = Xbyak::Opmask(2);
+    mask_t k_load_dim_mask_extended = Xbyak::Opmask(3);
+    mask_t k_load_dim_tail_mask = Xbyak::Opmask(4);
+    mask_t k_load_dim_tail_mask_extended = Xbyak::Opmask(5);
 
     Xbyak::Xmm xmm_relu_ns = Xbyak::Xmm(30);
     Xbyak::Zmm zmm_relu_ns = Xbyak::Zmm(30);
@@ -133,6 +141,7 @@ private:
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
+    void compute_diff_bias(int load_loop_blk);
 
     void generate();
     static void balance(jit_1x1_conv_conf_t &jcp, int nthreads);
@@ -170,6 +179,21 @@ private:
             case prop_kind::backward_weights: return false;
             default: assert(!"invalid prop_kind"); return false;
         }
+    }
+
+    inline Xbyak::Zmm may_be_mask_zmm(Xbyak::Zmm zmm, bool mask_flag,
+            bool zero_mask, bool use_extended_mask = false) {
+        if (mask_flag) {
+            zmm = zmm
+                    | (use_extended_mask ? k_load_dim_mask_extended
+                                         : k_load_dim_mask);
+            if (zero_mask) zmm = zmm | T_z;
+        }
+        return zmm;
+    }
+
+    inline Xbyak::Ymm may_be_mask_ymm(Xbyak::Ymm ymm, bool mask_flag) {
+        return mask_flag ? ymm | k_load_dim_mask : ymm;
     }
 
     bf16_emulation_t *bf16_emu_;

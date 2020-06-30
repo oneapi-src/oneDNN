@@ -35,6 +35,7 @@ applications enabled with oneDNN:
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
 * [Chainer\*](https://chainer.org)
 * [DeepLearning4J\*](https://deeplearning4j.org)
+* [Korali](https://github.com/cselab/korali)
 * [MATLAB\* Deep Learning Toolbox](https://www.mathworks.com/help/deeplearning/)
 * [Menoh\*](https://github.com/pfnet-research/menoh)
 * [Microsoft\* Cognitive Toolkit (CNTK)](https://docs.microsoft.com/en-us/cognitive-toolkit)
@@ -167,7 +168,7 @@ Intel Processor Graphics and Xe architecture-based Graphics are supported by
 the oneDNN GPU engine. The GPU engine is disabled in the default build
 configuration. The following additional requirements apply when GPU engine
 is enabled:
-* OCL runtime requires
+* OpenCL runtime requires
     * OpenCL\* runtime library (OpenCL version 1.2 or later)
     * OpenCL driver (with kernel language support for OpenCL C 2.0 or later)
       with Intel subgroups extension support
@@ -293,11 +294,12 @@ at dnnl.maintainers@intel.com.
 We welcome community contributions to oneDNN. If you have an idea on how
 to improve the library:
 
-* For changes impacting the public API, submit
-  an [RFC pull request](CONTRIBUTING.md#RFC_pull_requests).
+* For changes impacting the public API or library overall, such as adding new
+  primitives or changes to the architecture, submit an
+  [RFC pull request](https://github.com/oneapi-src/oneDNN/tree/rfcs).
 * Ensure that the changes are consistent with the
- [code contribution guidelines](CONTRIBUTING.md#code_contribution_guidelines)
- and [coding style](CONTRIBUTING.md#coding_style).
+  [code contribution guidelines](CONTRIBUTING.md#code_contribution_guidelines)
+  and [coding style](CONTRIBUTING.md#coding_style).
 * Ensure that you can build the product and run all the examples with your
   patch.
 * Submit a [pull request](https://github.com/oneapi-src/oneDNN/pulls).
@@ -328,6 +330,10 @@ Apache License Version 2.0:
 
 Boost Software License, Version 1.0:
 * [Boost C++ Libraries](https://www.boost.org/)
+
+MIT License:
+* [Intel Graphics Compute Runtime for oneAPI Level Zero and OpenCL Driver](https://github.com/intel/compute-runtime)
+* [Intel Graphics Compiler](https://github.com/intel/intel-graphics-compiler)
 
 This third party software, even if included with the distribution of
 the Intel software, may be governed by separate license terms, including

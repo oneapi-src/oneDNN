@@ -44,7 +44,14 @@ static void fwd_compute_block_sizes(
     }
     max_ow_block = nstl::min(conf.ow, max_ow_block);
 
-    conf.mb_block = (conf.ver == ver_16mb16c ? 16 : 1);
+    if (conf.ver == ver_16mb16c) {
+        conf.mb_block = (conf.src_data_type == data_type::f16)
+                ? (conf.mb % 32 == 0 ? 32 : 16)
+                : 16;
+    } else {
+        conf.mb_block = 1;
+    }
+
     conf.ow_block = utils::max_div(conf.ow, max_ow_block);
 
     if (conf.ow_block < max_ow_block / 2) {
@@ -77,8 +84,7 @@ static void fwd_compute_block_sizes(
     conf.ic_block = nstl::min(conf.ic, 16);
 
     conf.omb = (conf.mb_block == 1 && conf.mb % 16 == 0) ? 16 : conf.mb_block;
-    conf.ocb = (conf.ver == ver_16mb16c) ? conf.oc
-                                         : utils::max_div(conf.oc / 16, 8) * 16;
+    conf.ocb = utils::max_div(conf.oc / 16, 8) * 16;
 }
 
 status_t gen9_convolution_fwd_t::pd_t::init_conf() {
@@ -612,6 +618,7 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("DH", conf.dilate_h);
     kernel_ctx.define_int("DW", conf.dilate_w);
     kernel_ctx.define_int("OC_PADDED", conf.oc);
+    kernel_ctx.define_int("G_WO_PADDING", conf.ngroups_without_padding);
     kernel_ctx.define_int("OC_WO_PADDING", conf.oc_without_padding);
     kernel_ctx.define_int("IC_WO_PADDING", conf.ic_without_padding);
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
@@ -1059,17 +1066,16 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(1, weights);
     arg_list.set(2, bias);
     arg_list.set(3, dst);
-    arg_list.set(4, attr_info.eltwise_alpha);
-    arg_list.set(5, attr_info.eltwise_beta);
-    arg_list.set(6, attr_info.eltwise_scale);
-    arg_list.set(7, attr_info.sum_scale);
+    append_post_ops_to_arg_list(arg_list, 4, attr_info.all_post_ops);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
-    if (!math::eltwise_fwd_preserves_zero(attr_info.eltwise_alg,
-                attr_info.eltwise_alpha, attr_info.eltwise_beta)) {
+    if (attr_info.with_eltwise
+            && !gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
+                    attr_info.eltwise_alg, attr_info.eltwise_alpha,
+                    attr_info.eltwise_beta)) {
         ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
     }
     return status;

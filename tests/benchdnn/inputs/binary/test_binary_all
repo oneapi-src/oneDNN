@@ -1,7 +1,7 @@
 # all
 --reset
 
---batch=test_binary_f32
---batch=test_binary_i8
---batch=test_binary_bf16
+--batch=harness_binary_f32
+--batch=harness_binary_bf16
+--batch=harness_binary_i8
 

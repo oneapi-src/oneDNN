@@ -88,7 +88,7 @@ perform_op(
 }
 
 template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
-void ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
+status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
         const exec_ctx_t &ctx) const {
     const auto src0 = CTX_IN_MEM(const src0_data_t *, DNNL_ARG_SRC_0);
     const auto src1 = CTX_IN_MEM(const src1_data_t *, DNNL_ARG_SRC_1);
@@ -106,10 +106,10 @@ void ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
     int args[nargs] = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
 
     if (nstl::is_integral<src0_data_t>::value)
-        scales[0] = pd()->attr()->scales_.get(args[0]);
+        CHECK(scales[0].copy_from(pd()->attr()->scales_.get(args[0])));
 
     if (nstl::is_integral<src0_data_t>::value)
-        scales[1] = pd()->attr()->scales_.get(args[1]);
+        CHECK(scales[1].copy_from(pd()->attr()->scales_.get(args[1])));
 
     bool do_scale_src0 = !scales[0].has_default_values();
     bool do_scale_src1 = !scales[1].has_default_values();
@@ -149,6 +149,8 @@ void ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
         auto off_C = dst_d.off_l(i);
         perform_op(&dst[off_C], src0[off_A], src1[off_B], params);
     });
+
+    return status::success;
 }
 
 using namespace data_type;

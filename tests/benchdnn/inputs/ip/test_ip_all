@@ -5,7 +5,7 @@
 
 --dir=FWD_B
 
---attr=post_ops='sum:0.5;relu:0.5'
+--attr-post-ops='sum:0.5;relu:0.5'
 --mb=2                     --batch=ip_all
 --mb=0                     --batch=shapes_non-spatial
 
@@ -16,16 +16,11 @@
 --cfg=s8s8f32,s8s8s32,s8s8s8,s8s8u8,u8s8f32,u8s8s32,u8s8s8,u8s8u8
 --mb=0                    --batch=shapes_non-spatial
 
---dir=FWD_B
---cfg=s8s8f32,s8s8s8,u8s8s32,u8s8u8
---attr=oscale=per_oc:2.25;post_ops='sum:0.5;relu:0.5'
+--attr-oscale=per_oc:2.25 --attr-post-ops='sum:0.5;relu:0.5'
 --mb=2                    --batch=ip_all
 --mb=0                    --batch=shapes_non-spatial
 
---dir=FWD_D
-# TODO: add u8s8f32 when ip will set proper threshold according to the post-op
---cfg=s8s8s32,s8s8u8,u8s8s8
---attr=oscale=common:0.025;post_ops='sum:0.5;tanh:0:0:10'
+--attr-oscale=common:0.025 --attr-post-ops='sum:0.5;square:0:0:10'
 --mb=2                    --batch=ip_all
 --mb=0                    --batch=shapes_non-spatial
 

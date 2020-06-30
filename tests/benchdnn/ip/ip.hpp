@@ -62,8 +62,9 @@ struct settings_t {
     std::vector<const dt_conf_t *> cfg {conf_f32};
     std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
     std::vector<int64_t> mb {0};
+    std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
+    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     attr_t attr = {};
-    bool allow_unimpl = false;
 
     const char *perf_template_csv
             = "perf,%engine%,%name%,%dir%,%cfg%,%attr%,%DESC%,"

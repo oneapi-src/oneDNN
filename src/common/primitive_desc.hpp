@@ -37,9 +37,13 @@ struct primitive_t;
 // Primitive descriptor implementation
 struct primitive_desc_t : public c_compatible {
     primitive_desc_t(const primitive_attr_t *attr, primitive_kind_t kind)
-        : attr_(*attr), kind_(kind) {}
+        : attr_(*attr), kind_(kind) {
+        is_initialized_ = is_initialized_ && attr_.is_initialized();
+    }
 
     primitive_desc_t(primitive_kind_t kind) : kind_(kind) {}
+
+    bool is_initialized() const { return is_initialized_; }
 
     virtual ~primitive_desc_t() = default;
     virtual primitive_desc_t *clone() const = 0;
@@ -196,6 +200,10 @@ struct primitive_desc_t : public c_compatible {
                 = reinterpret_cast<const typename pd_t::hint_class *>(hint_fwd);
         auto _pd = new pd_t((const pd_op_desc_t *)adesc, attr, hint);
         if (_pd == nullptr) return out_of_memory;
+        if (!_pd->is_initialized()) {
+            delete _pd;
+            return out_of_memory;
+        }
         if (_pd->init(engine) != success) {
             delete _pd;
             return unimplemented;
@@ -225,6 +233,8 @@ protected:
         return fwd_pd && fwd_pd->workspace_md()
                 && *fwd_pd->workspace_md() == *workspace_md();
     }
+
+    primitive_desc_t &operator=(const primitive_desc_t &other) = delete;
 };
 
 } // namespace impl
@@ -270,7 +280,11 @@ protected:
 };
 
 #define DECLARE_COMMON_PD_t(impl_name, impl_type, use_global_scratchpad) \
-    pd_t *clone() const override { return new pd_t(*this); } \
+    pd_t *clone() const override { \
+        auto new_pd = utils::make_unique<pd_t>(*this); \
+        if (!new_pd->is_initialized()) return nullptr; \
+        return new_pd.release(); \
+    } \
     status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
             engine_t *engine, bool is_primitive_nested) const override { \
         return primitive_t::create_primitive_common<impl_type, pd_t>( \

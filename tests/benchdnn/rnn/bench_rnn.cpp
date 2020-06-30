@@ -44,12 +44,23 @@ void check_correctness(const settings_t &s) {
     for (const auto &i_mb : s.mb) {
         if (i_with_peephole && i_alg != VANILLA_LSTM) continue;
 
-        const dt_conf_t &cfg = dt_conf_t::create(i_cfg);
-        check_case_validity(cfg, i_scale_policy);
+        if (!(i_scale_policy == policy_t::COMMON
+                    || i_scale_policy == policy_t::PER_OC)) {
+            std::stringstream ss;
+            ss << i_scale_policy;
+            const std::string cpp_pstr = ss.str();
+            const char *policy_s = cpp_pstr.c_str();
+            fprintf(stderr,
+                    "ERROR: rnn driver: --scaling=%s is invalid, supported "
+                    "values are `common` and `per_oc`.\n",
+                    policy_s),
+                    fflush(stderr);
+            SAFE_V(FAIL);
+        }
 
-        const prb_t p(s.desc, cfg, i_prop, i_alg, i_with_peephole,
-                i_with_projection, i_direction, s.attr, i_scale_policy, s.flags,
-                i_activation, s.alpha, s.beta, i_skip_nonlinear,
+        const prb_t p(s.desc, dt_conf_t::create(i_cfg), i_prop, i_alg,
+                i_with_peephole, i_with_projection, i_direction, i_scale_policy,
+                s.flags, i_activation, s.alpha, s.beta, i_skip_nonlinear,
                 i_trivial_strides, i_mb);
         std::stringstream ss;
         ss << p;
@@ -61,7 +72,7 @@ void check_correctness(const settings_t &s) {
         const int status = doit(p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
             perf_report_t pr(s.perf_template);
@@ -98,8 +109,6 @@ int bench(int argc, char **argv) {
                         str2bool, argv[0], "with-peephole")
                 || parse_vector_option(s.with_projection, def.with_projection,
                         str2bool, argv[0], "with-projection")
-                || parse_attr(s.attr, argv[0])
-                || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

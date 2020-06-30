@@ -52,8 +52,26 @@ set(DNNL_LIBRARY_TYPE "SHARED" CACHE STRING
     "specifies whether oneDNN library should be SHARED or STATIC")
 option(DNNL_BUILD_EXAMPLES "builds examples"  ON)
 option(DNNL_BUILD_TESTS "builds tests" ON)
-option(DNNL_BUILD_FOR_CI "specifies whether oneDNN library should be built for CI" OFF)
+option(DNNL_BUILD_FOR_CI
+    "specifies whether oneDNN library will use special testing environment for
+    internal testing processes"
+    OFF)
 option(DNNL_WERROR "treat warnings as errors" OFF)
+
+set(DNNL_TEST_SET "CI" CACHE STRING
+    "specifies testing targets coverage. Supports CI, NIGHTLY.
+
+    When CI option is set, it enables a subset of test targets to run. When
+    NIGHTLY option is set, it enables a broader set of test targets to run.")
+# Transfer string literal into a number to support nested inclusions easier
+set(DNNL_TEST_SET_CI "1")
+set(DNNL_TEST_SET_NIGHTLY "2")
+
+if(DNNL_TEST_SET STREQUAL "NIGHTLY")
+    set(DNNL_TEST_SET ${DNNL_TEST_SET_NIGHTLY})
+else()
+    set(DNNL_TEST_SET ${DNNL_TEST_SET_CI})
+endif()
 
 set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
     "specifies installation mode; supports DEFAULT or BUNDLE.
@@ -173,7 +191,7 @@ endif()
 
 option(BENCHDNN_USE_RDPMC
     "enables rdpms counter to report precise cpu frequency in benchdnn.
-     CAUTION: may not work on all cpus (hence disabled by default)"
+    CAUTION: may not work on all cpus (hence disabled by default)"
     OFF) # disabled by default
 
 # =========================
@@ -188,4 +206,27 @@ set(DNNL_USE_CLANG_SANITIZER "" CACHE STRING
     Undefined: enables UndefinedBehaviourSanitizer
     This feature is experimental and is only available on Linux.")
 
-option(_DNNL_USE_MKL "use BLAS functions from Intel MKL" OFF)
+option(DNNL_ENABLE_MEM_DEBUG "enables memory-related debug functionality,
+    such as buffer overflow (default) and underflow, using gtests and benchdnn.
+    Additionaly, this option enables testing of out-of-memory handling by the
+    library, such as failed memory allocations, using primitive-related gtests.
+    This feature is experimental and is only available on Linux." OFF)
+
+# =============================
+# External BLAS library options
+# =============================
+
+set(DNNL_BLAS_VENDOR "NONE" CACHE STRING
+    "Use an external BLAS library. Valid values:
+      - NONE (default)
+        Use in-house implementation.
+      - MKL
+        Intel Math Kernel Library (Intel MKL)
+        (https://software.intel.com/content/www/us/en/develop/tools/math-kernel-library.html)
+      - OPENBLAS
+        (https://www.openblas.net)
+      - ARMPL
+        Arm Performance Libraries
+        (https://developer.arm.com/tools-and-software/server-and-hpc/compile/arm-compiler-for-linux/arm-performance-libraries)
+      - ANY
+        FindBLAS will search default library paths for a known BLAS installation.")

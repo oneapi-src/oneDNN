@@ -41,6 +41,7 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         , last_idx_(0) {
         while (impl_list_[last_idx_] != nullptr)
             ++last_idx_;
+        is_initialized_ = is_initialized_ && attr_.is_initialized();
     }
 
     dnnl::impl::engine_t *engine() const { return engine_; }
@@ -85,6 +86,10 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         dnnl::impl::primitive_desc_t *return_pd = pd_.release();
         return return_pd;
     }
+
+    const dnnl::impl::primitive_attr_t &attr() const { return attr_; }
+
+    bool is_initialized() const { return is_initialized_; }
 
 protected:
     int idx_;

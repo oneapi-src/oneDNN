@@ -50,11 +50,10 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
             auto off = data_off(p, mb, c, d, h, w);
             float x_hat = (src.get_elem(off) - smean) * rcp_denom;
             float res = gamma * x_hat + beta;
-            float &D = ((float *)dst)[off];
             if (fuse_relu && res < 0) res = 0;
             if (need_ws) ws.set_elem(off, !!res);
-            maybe_post_ops(res, D, attr);
-            D = maybe_saturate(dt, res);
+            maybe_post_ops(attr, res);
+            dst.set_elem(off, maybe_saturate(dt, res));
             if (p->dir & FLAG_BWD) src_hat.set_elem(off, x_hat);
         }
     });

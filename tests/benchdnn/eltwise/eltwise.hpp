@@ -47,8 +47,7 @@ struct settings_t {
     std::vector<alg_t> alg {alg_t::RELU};
     std::vector<float> scales {0, 0.25, -0.25}, alpha {scales}, beta {scales};
     std::vector<int64_t> mb {0};
-    std::vector<bool> inplace {true};
-    bool allow_unimpl = false;
+    std::vector<bool> inplace {false};
 
     const char *perf_template_csv
             = "perf,%engine%,%dir%,%dt%,%tag%,%alg%,%DESC%,%-time%,%0time%";

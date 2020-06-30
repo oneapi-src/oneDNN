@@ -59,7 +59,7 @@ function(register_benchdnn_test name engine cmd)
     set(benchdnn_target ${name}_${engine})
 
     if(DNNL_BUILD_FOR_CI)
-       string(REPLACE " " ";" cmd
+        string(REPLACE " " ";" cmd
             "benchdnn -v1 --engine=${engine} ${cmd}")
         if (ARGC GREATER 3)
             string(REPLACE " " ";" cmd2
@@ -111,8 +111,8 @@ register_benchdnn_test(test_benchdnn_conv_bfloat16 # temporary proxy
     cpu "--conv --batch=inputs/conv/test_conv_bfloat16")
 register_benchdnn_test(test_benchdnn_conv_bf16
     cpu "--conv --batch=inputs/conv/test_conv_bfloat16")
-register_benchdnn_test(test_benchdnn_conv_nxc_bf16
-    cpu "--conv --batch=inputs/conv/test_conv_nxc_bfloat16")
+register_benchdnn_test(test_benchdnn_conv_bf16_nxc
+    cpu "--conv --batch=inputs/conv/test_conv_bfloat16_nxc")
 register_benchdnn_test(test_benchdnn_conv_f32
     cpu "--conv --batch=inputs/conv/test_conv_f32")
 register_benchdnn_test(test_benchdnn_conv_f32_nxc
@@ -121,10 +121,10 @@ register_benchdnn_test(test_benchdnn_conv_3d
     cpu "--conv --batch=inputs/conv/test_conv_3d")
 register_benchdnn_test(test_benchdnn_conv_3d_f32_nxc
     cpu "--conv --batch=inputs/conv/test_conv_3d_f32_nxc")
-register_benchdnn_test(test_benchdnn_conv_wino
-    cpu "--conv --batch=inputs/conv/test_conv_f32_wino")
-register_benchdnn_test(test_benchdnn_conv_int8_wino
-    cpu "--conv --batch=inputs/conv/test_conv_int8_wino")
+register_benchdnn_test(test_benchdnn_conv_wino_f32
+    cpu "--conv --batch=inputs/conv/test_conv_wino_f32")
+register_benchdnn_test(test_benchdnn_conv_wino_int8
+    cpu "--conv --batch=inputs/conv/test_conv_wino_int8")
 register_benchdnn_test(test_benchdnn_conv_depthwise
     cpu "--conv --batch=inputs/conv/test_conv_depthwise")
 register_benchdnn_test(test_benchdnn_conv_dilated
@@ -141,22 +141,22 @@ register_benchdnn_test(test_benchdnn_conv_function
     cpu "--conv --batch=inputs/conv/test_conv_function")
 register_benchdnn_test(test_benchdnn_conv_gemm_f32
     cpu "--conv --batch=inputs/conv/test_conv_gemm_f32")
-register_benchdnn_test(test_benchdnn_conv_gemm_nxc_f32
-    cpu "--conv --batch=inputs/conv/test_conv_gemm_nxc_f32")
+register_benchdnn_test(test_benchdnn_conv_gemm_f32_nxc
+    cpu "--conv --batch=inputs/conv/test_conv_gemm_f32_nxc")
 register_benchdnn_test(test_benchdnn_conv_gemm_int8
     cpu "--conv --batch=inputs/conv/test_conv_gemm_int8")
 register_benchdnn_test(test_benchdnn_conv_gemm_bf16
     cpu "--conv --batch=inputs/conv/test_conv_gemm_bfloat16")
-register_benchdnn_test(test_benchdnn_conv_gemm_nxc_bf16
-    cpu "--conv --batch=inputs/conv/test_conv_gemm_nxc_bfloat16")
+register_benchdnn_test(test_benchdnn_conv_gemm_bf16_nxc
+    cpu "--conv --batch=inputs/conv/test_conv_gemm_bfloat16_nxc")
 register_benchdnn_test(test_benchdnn_deconv
     cpu "--deconv --batch=inputs/deconv/test_deconv_all")
-register_benchdnn_test(test_benchdnn_deconv_nxc_f32
-    cpu "--deconv --batch=inputs/deconv/test_deconv_all_nxc_f32")
+register_benchdnn_test(test_benchdnn_deconv_f32_nxc
+    cpu "--deconv --batch=inputs/deconv/test_deconv_all_f32_nxc")
 register_benchdnn_test(test_benchdnn_deconv_bf16
     cpu "--deconv --batch=inputs/deconv/test_deconv_bfloat16")
-register_benchdnn_test(test_benchdnn_deconv_nxc_bf16
-    cpu "--deconv --batch=inputs/deconv/test_deconv_nxc_bfloat16")
+register_benchdnn_test(test_benchdnn_deconv_bf16_nxc
+    cpu "--deconv --batch=inputs/deconv/test_deconv_bfloat16_nxc")
 register_benchdnn_test(test_benchdnn_matmul
     cpu "--matmul --batch=inputs/matmul/test_matmul_all")
 register_benchdnn_test(test_benchdnn_resampling
@@ -208,7 +208,7 @@ register_benchdnn_test(test_benchdnn_lrn_bf16
 register_benchdnn_test(test_benchdnn_binary
     cpu "--binary --batch=inputs/binary/test_binary_all")
 register_benchdnn_test(test_benchdnn_binary_bf16
-    cpu "--binary --batch=inputs/binary/test_binary_bf16")
+    cpu "--binary --batch=inputs/binary/test_binary_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     cpu
     "--conv --batch=inputs/conv/test_conv_regression"

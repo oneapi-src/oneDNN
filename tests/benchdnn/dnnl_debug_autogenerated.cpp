@@ -266,10 +266,10 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(ihwo);
     CASE(iohw);
     CASE(oidhw);
+    CASE(iodhw);
     CASE(dhwio);
     CASE(odhwi);
     CASE(idhwo);
-    CASE(iodhw);
     CASE(goiw);
     CASE(wigo);
     CASE(goihw);
@@ -465,10 +465,8 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
         return dnnl_format_tag_undef;
     if (!strcmp("any", str) || !strcmp("dnnl_format_tag_any", str))
         return dnnl_format_tag_any;
-    if (!strcmp("last", str) || !strcmp("dnnl_format_tag_last", str))
-        return dnnl_format_tag_last;
     assert(!"unknown fmt_tag");
-    return dnnl_format_tag_undef;
+    return dnnl_format_tag_last;
 }
 
 const char *status2str(dnnl_status_t status) {

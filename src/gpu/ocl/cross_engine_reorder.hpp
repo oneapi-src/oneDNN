@@ -49,16 +49,6 @@ struct cross_engine_reorder_t : public gpu_primitive_t {
             , reorder_engine_kind_(rhs.reorder_engine_kind_)
             , do_reorder_(rhs.do_reorder_) {}
 
-        pd_t &operator=(const pd_t &rhs) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            reorder_pd_t::operator=(rhs);
-            reorder_pd_.reset(
-                    rhs.do_reorder_ ? rhs.reorder_pd_->clone() : nullptr);
-            reorder_engine_kind_ = rhs.reorder_engine_kind_;
-            do_reorder_ = rhs.do_reorder_;
-            return *this;
-        }
-
         DECLARE_COMMON_PD_T("ocl:cross_engine::any", cross_engine_reorder_t);
 
         DECLARE_GPU_REORDER_CREATE();

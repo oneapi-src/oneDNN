@@ -183,6 +183,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             != OK)
         return FAIL;
 
+    d.init_pad_r(is_deconv);
     *desc = d;
 
     return OK;
@@ -258,7 +259,16 @@ void prb_t::count_ops() {
 }
 
 float *generate_oscales(const attr_t::scale_t &oscale, int N) {
-    if (oscale.policy != policy_t::PER_OC) return NULL;
+    if (oscale.is_def()) return NULL;
+
+    if (oscale.policy == policy_t::COMMON) {
+        float *scales = (float *)zmalloc(sizeof(float), 4);
+        SAFE_V(scales != NULL ? OK : FAIL);
+        scales[0] = oscale.scale;
+        return scales;
+    }
+
+    assert(oscale.policy == policy_t::PER_OC);
 
     float *scales = (float *)zmalloc(sizeof(float) * N, 64);
     SAFE_V(scales != NULL ? OK : FAIL);
@@ -291,8 +301,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (canonical || p.dtag != def.dtag[0]) s << "--dtag=" << p.dtag << " ";
     if (canonical || p.alg != def.alg[0])
         s << "--alg=" << alg2str(p.alg) << " ";
-    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
+    s << p.attr;
     s << static_cast<const desc_t &>(p);
 
     return s;

@@ -8,15 +8,14 @@
 where *concat-knobs* are:
 
  - `--sdt={f32 [default], s32, s8, u8, bf16, f16}` -- src data type.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--ddt={f32 [default], s32, s8, u8, bf16, f16}` -- dst data type.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--stag={nchw:nchw [default], ...}` -- physical src memory layout.
             Refer to ``Inputs`` below.
-            Refer to the common glossary in README.md for details.
- - `--dtag={undef [default], ...}` -- physical dst memory layout. `undef` means
-            dst will be deduced automatically from given parameters.
-            Refer to the common glossary in README.md for details.
+            Refer to [tags](knobs_tag.md) for details.
+ - `--dtag={undef [default], ...}` -- physical dst memory layout.
+            Refer to [tags](knobs_tag.md) for details.
  - `--axis=INT` -- dimension on which operation will be performed.
             Default is `1`; corresponds to channels in logical memory layout.
 
@@ -34,7 +33,9 @@ The concat primitive accepts at least two input sources. That is why it has a
 slightly different interface than almost every other driver. Specifying several
 inputs is done via the special ':' delimiter, e.g. 2x3x2x2:2x5x2x2, which means
 that two tensors of the same shape except one dimension will be concatenated.
-The driver requires the same amount of `--stag` and tensors provided.
+`--stag` option must either specify a single tag (this tag will be used for all
+input tensors) or specify the same number of tags as the number of tensors
+delimited by ':'.
 
 
 ## Essence of Testing

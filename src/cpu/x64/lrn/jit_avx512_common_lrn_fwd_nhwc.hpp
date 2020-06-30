@@ -31,7 +31,8 @@ class jit_avx512_common_lrn_kernel_fwd_nhwc_t
     : public jit_avx512_common_lrn_kernel_fwd_t<d_type> {
 public:
     jit_avx512_common_lrn_kernel_fwd_nhwc_t(unsigned C, prop_kind_t prop_kind,
-            float alpha, float k, void *code_ptr = nullptr,
+            float alpha, float beta, float k, int local_size,
+            void *code_ptr = nullptr,
             size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd_nhwc_t);
@@ -60,10 +61,8 @@ private:
     void load_data_to_stack(
             unsigned C_tail, across_version version, tail_mode tail_mode);
 
-    static constexpr int tmp_mask_za_idx_ = 8;
-    static constexpr int tmp_mask_zb_idx_ = 9;
-    static constexpr int tmp_mask_zd_idx_ = 10;
-    static constexpr int tmp_mask_ze_idx_ = 11;
+    const std::vector<int> tmp_mask_prev_;
+    const std::vector<int> tmp_mask_next_;
     static constexpr int tmp_load_to_stack_idx_prev_ = 12;
     static constexpr int tmp_load_to_stack_idx_tail_ = 13;
     static constexpr int tmp_store_from_stack_idx_tail_ = 14;
@@ -71,6 +70,8 @@ private:
     static constexpr int zmm_size = 64;
     const Reg64 mask_ = r10;
     const Reg64 blockC_ = r9;
+
+    const int half_ls_;
 };
 
 } // namespace lrn

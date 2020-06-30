@@ -277,18 +277,18 @@ using pool_test_params_float = pool_test_params;
                                     1, 1, 1)})); \
     GPU_INSTANTIATE_TEST_SUITE_P(TestPoolingForward_gpu_3D, test, \
             ::testing::Values( \
-                    pool_test_params {prop_kind::forward_training, \
+                    pool_test_params {prop_kind::forward_inference, \
                             algorithm::pooling_max, memory::format_tag::ncdhw, \
                             memory::format_tag::ncdhw, \
                             EXPAND_SIZES_3D(4, 16, 10, 10, 10, 10, 10, 10, 2, \
                                     2, 2, 1, 1, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_training, \
+                    pool_test_params {prop_kind::forward_inference, \
                             algorithm::pooling_avg_exclude_padding, \
                             memory::format_tag::ncdhw, \
                             memory::format_tag::ncdhw, \
                             EXPAND_SIZES_3D(4, 16, 10, 10, 10, 10, 10, 10, 2, \
                                     2, 2, 1, 1, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_training, \
+                    pool_test_params {prop_kind::forward_inference, \
                             algorithm::pooling_avg_include_padding, \
                             memory::format_tag::ncdhw, \
                             memory::format_tag::ncdhw, \

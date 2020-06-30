@@ -37,14 +37,6 @@ struct ref_concat_t : public primitive_t {
         pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) { copy(rhs); }
         ~pd_t() = default;
 
-        pd_t &operator=(const pd_t &rhs) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            cpu_concat_pd_t::operator=(rhs);
-            reorder_pds_.clear();
-            copy(rhs);
-            return *this;
-        }
-
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
         status_t init(engine_t *engine) {

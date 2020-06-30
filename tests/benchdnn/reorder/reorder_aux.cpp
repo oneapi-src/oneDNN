@@ -68,8 +68,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--oflag=" << flag2str(p.oflag) << " ";
     if (canonical || p.runtime_dim_mask != def.runtime_dim_mask[0])
         s << "--runtime-dim-mask=" << p.runtime_dim_mask << " ";
-    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
+    s << p.attr;
     s << p.reorder.dims;
 
     return s;

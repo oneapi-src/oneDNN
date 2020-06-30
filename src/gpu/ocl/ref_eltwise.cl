@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_post_ops.h"
+#include "gpu/ocl/ocl_eltwise.h"
 #include "gpu/ocl/ocl_types.h"
 
 #define DATA_OFF(x0, x1, x2, x3, x4, x5) \
@@ -63,7 +63,12 @@ __kernel void ref_eltwise_fwd(
 #endif
             ;
 #endif
-    POST_OP_DATA_T tmp_s = DATA_TO_REF(src[data_off]);
+
+#if DT_F16 == 1
+    float tmp_s = CONVERT_FLOAT_T(src[data_off]);
+#else
+    float tmp_s = DATA_TO_REF(src[data_off]);
+#endif
 
     dst[data_off] = CONVERT_DATA_T(fwd_eltwise(tmp_s, alpha, beta, 1.0f));
 }

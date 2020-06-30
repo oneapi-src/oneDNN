@@ -5,11 +5,14 @@ Local Response Normalization (LRN) {#dev_guide_lrn}
 > [API Reference](@ref dnnl_api_lrn)
 >
 
-The LRN primitive performs a forward or backward local response normalization
-operation defined by the following formulas (the variable names follow the
-standard @ref dev_guide_conventions):
+## General
+
+The LRN primitive performs a forward or backward local response normalization.
 
 ### Forward
+
+The LRN operation is defined by the following formulas (the variable names
+follow the standard @ref dev_guide_conventions):
 
 LRN [across channels](#dnnl_lrn_across_channels):
 
@@ -45,8 +48,10 @@ The backward propagation computes \f$\diffsrc(n, c, h, w)\f$, based on
 \f$\diffdst(n, c, h, w)\f$ and \f$\src(n, c, h, w)\f$.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output | Execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_SRC             |
@@ -113,7 +118,7 @@ of any preceding compute-intensive primitive.
 
 ### Post-ops and Attributes
 
-The LRN primitive doesn't support any post-ops or attributes.
+The LRN primitive does not support any post-ops or attributes.
 
 
 @anchor dg_lrn_impl_limits

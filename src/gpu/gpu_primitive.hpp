@@ -46,7 +46,7 @@ struct gpu_primitive_t : public primitive_t {
             CHECK(rk.realize(&realized_kernel, engine));
             r->add_kernel(rk.id(), realized_kernel);
         }
-        init_res_storage(engine, r.get());
+        CHECK(init_res_storage(engine, r.get()));
         mapper.add(this, std::move(r));
 
         for (auto const &np : nested_primitives()) {

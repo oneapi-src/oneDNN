@@ -96,6 +96,7 @@ const alg_kind_t eltwise_sqrt_use_dst_for_bwd
 const alg_kind_t eltwise_logistic_use_dst_for_bwd
         = dnnl_eltwise_logistic_use_dst_for_bwd;
 const alg_kind_t eltwise_exp_use_dst_for_bwd = dnnl_eltwise_exp_use_dst_for_bwd;
+const alg_kind_t eltwise_round = dnnl_eltwise_round;
 const alg_kind_t pooling_max = dnnl_pooling_max;
 const alg_kind_t pooling_avg = dnnl_pooling_avg;
 const alg_kind_t pooling_avg_include_padding = dnnl_pooling_avg_include_padding;

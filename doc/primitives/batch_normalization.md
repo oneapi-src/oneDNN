@@ -5,15 +5,17 @@ Batch Normalization {#dev_guide_batch_normalization}
 > [API Reference](@ref dnnl_api_batch_normalization)
 >
 
+## General
+
 The batch normalization primitive performs a forward or backward batch
 normalization operation on tensors with number of dimensions equal to 2 or more.
+
+### Forward
 
 The batch normalization operation is defined by the following formulas. We show
 formulas only for 2D spatial data which are straightforward to generalize to
 cases of higher and lower dimensions. Variable names follow the standard
 @ref dev_guide_conventions.
-
-### Forward
 
 \f[
     \dst(n, c, h, w) =
@@ -102,6 +104,7 @@ requires different inputs and outputs.  For clarity, a summary is shown below.
 
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | Primitive input/output      | Execution argument index  |
 | ---                         | ---                       |
 | \src                        | DNNL_ARG_SRC              |
@@ -113,7 +116,6 @@ argument index as specified by the following table.
 | \diffdst                    | DNNL_ARG_DIFF_DST         |
 | \diffsrc                    | DNNL_ARG_DIFF_SRC         |
 | \f$\diffgamma, \diffbeta\f$ | DNNL_ARG_DIFF_SCALE_SHIFT |
-
 
 ## Implementation Details
 

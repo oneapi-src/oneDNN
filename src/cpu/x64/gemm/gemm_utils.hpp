@@ -17,6 +17,8 @@
 #ifndef CPU_X64_GEMM_GEMM_UTILS_HPP
 #define CPU_X64_GEMM_GEMM_UTILS_HPP
 
+#include <tuple>
+
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/utils.hpp"
@@ -28,6 +30,112 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 namespace gemm_utils {
+
+static inline std::tuple<int, int> calc_nthr_2d(int nthrs, dim_t m, dim_t n,
+        dim_t block_m, dim_t block_n, dim_t small_m, dim_t small_n,
+        dim_t &thread_m, dim_t &thread_n) {
+
+    int nthr_m = utils::div_up(m, block_m);
+    int nthr_n = utils::div_up(n, block_n);
+
+    if (nthr_m < 1) nthr_m = 1;
+    if (nthr_n < 1) nthr_n = 1;
+
+    float ratio_float = (float)nthr_m / nthr_n;
+
+    int ratio = 0;
+    if (nthr_m > nthr_n)
+        ratio = (int)ratio_float;
+    else
+        ratio = (int)(1. / ratio_float);
+
+    // scale down nthr_m and nthr_n if they are too large
+    while (nthr_m * nthr_n > 4 * nthrs) {
+        nthr_m /= 2;
+        nthr_n /= 2;
+    }
+
+    if (nthr_m < 1) nthr_m = 1;
+    if (nthr_n < 1) nthr_n = 1;
+
+    // Simple partition reduction
+    int counter = 0;
+    while (nthr_m * nthr_n > nthrs) {
+        if (nthr_m > nthr_n) {
+            if (counter < ratio)
+                nthr_m--;
+            else {
+                nthr_n--;
+                counter = -1;
+            }
+        } else {
+            if (counter < ratio)
+                nthr_n--;
+            else {
+                nthr_m--;
+                counter = -1;
+            }
+        }
+        counter++;
+    }
+
+    // Simple partition increment
+    counter = 0;
+    while (nthr_m * nthr_n < 0.95 * nthrs) {
+        if (nthr_m > nthr_n) {
+            if (counter < ratio)
+                nthr_m++;
+            else {
+                nthr_n++;
+                counter = -1;
+            }
+        } else {
+            if (counter < ratio)
+                nthr_n++;
+            else {
+                nthr_m++;
+                counter = -1;
+            }
+        }
+        counter++;
+    }
+
+    // if nothing works out, then this should work
+    if ((nthr_m * nthr_n > nthrs)) {
+
+        if (nthr_m <= nthr_n) {
+            nthr_m = (int)sqrt((double)nthrs);
+            if (nthr_m > utils::div_up(m, small_m))
+                nthr_m = utils::div_up(m, small_m);
+            nthr_n = nthrs / nthr_m;
+
+            while ((nthr_m > 1) && (nthr_m * nthr_n != nthrs)) {
+                nthr_m--;
+                nthr_n = nthrs / nthr_m;
+            }
+        } else {
+            nthr_n = (int)sqrt((double)nthrs);
+            if (nthr_n > utils::div_up(n, small_n))
+                nthr_n = utils::div_up(n, small_n);
+            nthr_m = nthrs / nthr_n;
+
+            while ((nthr_n > 1) && (nthr_m * nthr_n != nthrs)) {
+                nthr_n--;
+                nthr_m = nthrs / nthr_n;
+            }
+        }
+    }
+
+    thread_m = utils::div_up(m, nthr_m) + small_m - 1;
+    thread_n = utils::div_up(n, nthr_n) + small_n - 1;
+    thread_m -= thread_m % small_m;
+    thread_n -= thread_n % small_n;
+
+    if (thread_m * nthr_m > m) nthr_m = utils::div_up(m, thread_m);
+    if (thread_n * nthr_n > n) nthr_n = utils::div_up(n, thread_n);
+
+    return std::make_tuple(nthr_m, nthr_n);
+}
 
 template <typename T>
 static inline dim_t get_ld_padd(const dim_t x) {

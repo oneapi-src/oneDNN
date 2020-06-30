@@ -5,6 +5,8 @@ Sum {#dev_guide_sum}
 > [API Reference](@ref dnnl_api_sum)
 >
 
+## General
+
 The sum primitive sums \f$N\f$ tensors (the variable names follow the standard
 @ref dev_guide_conventions):
 
@@ -15,12 +17,14 @@ The sum primitive sums \f$N\f$ tensors (the variable names follow the standard
         \src_i(\overline{x})
 \f]
 
-The sum primitive doesn't have a notion of forward or backward propagations.
+The sum primitive does not have a notion of forward or backward propagations.
 The backward propagation for the sum operation is simply an identity operation.
 
 ## Execution Arguments
+
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
+
 | primitive input/output | execution argument index |
 | ---                    | ---                      |
 | \src                   | DNNL_ARG_MULTIPLE_SRC    |
@@ -40,7 +44,7 @@ argument index as specified by the following table.
 
 ### Post-ops and Attributes
 
-The sum primitive doesn't support any post-ops or attributes.
+The sum primitive does not support any post-ops or attributes.
 
 ### Data Types Support
 

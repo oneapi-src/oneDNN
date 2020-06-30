@@ -27,6 +27,7 @@
 #include <stddef.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_config.h"
 
 namespace dnnl {
 namespace impl {
@@ -55,7 +56,12 @@ static inline bool is_mem_debug_overflow() {
         return false;
 }
 
+// Export the memory_debug::malloc symbol to for external linkage.
+#ifdef DNNL_ENABLE_MEM_DEBUG
+void DNNL_API *malloc(size_t size, int alignment);
+#else
 void *malloc(size_t size, int alignment);
+#endif
 void free(void *p);
 
 size_t protect_size();

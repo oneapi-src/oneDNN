@@ -35,13 +35,6 @@ struct simple_concat_t : public primitive_t {
 
         pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) { copy_from(rhs); }
 
-        pd_t &operator=(const pd_t &rhs) {
-            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            cpu_concat_pd_t::operator=(rhs);
-            copy_from(rhs);
-            return *this;
-        }
-
         DECLARE_CONCAT_PD_T("simple:any", simple_concat_t);
 
         status_t init(engine_t *engine) {

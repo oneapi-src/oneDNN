@@ -7,14 +7,15 @@
 
 where *eltwise-knobs* are:
 
- - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t. Refer to the common
-            glossary in README.md for details.
+ - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t.
+            Refer to [direction](knobs_dir.md) for details.
  - `--dt={f32 [default], bf16, f16, s32, s8}` -- src and dst data type.
-            Refer to the common glossary in README.md for details.
+            Refer to [data types](knobs_dt.md) for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
-            Refer to the common glossary in README.md for details.
- - `--alg={RELU [default], ...}` -- dnnl_eltwise algorithm.
-            Refer to ``doc/primitives/eltwise.md`` for details.
+            Refer to [tags](knobs_tag.md) for details.
+ - `--alg={RELU [default], ...}` -- dnnl_eltwise algorithm. Refer to
+            [eltwise primitive](https://oneapi-src.github.io/oneDNN/dev_guide_eltwise.html)
+            for details.
  - `--alpha=FLOAT` -- float value corresponding to algorithm operation.
             Refer to ``Floating point arguments`` below.
  - `--beta=FLOAT` -- float value corresponding to algorithm operation.
@@ -24,7 +25,7 @@ where *eltwise-knobs* are:
              problem descriptor. The default is `0`.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.
-            The default is `true`.
+            The default is `false`.
 
 and *eltwise-desc* is a problem descriptor. The canonical form is:
 ```

@@ -78,12 +78,10 @@ struct gen9_gemm_t : public gpu_gemm_t {
             const auto d = desc();
 
             // LIMITATIONS:
-            // - batch is not supported
             // - runtime dims are not supported
             // - bias is not supported
-            bool limits_ok = d->batch == 1
-                    && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m, d->n, d->k,
-                            d->lda, d->ldb, d->ldc)
+            bool limits_ok = !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->batch,
+                                     d->m, d->n, d->k, d->lda, d->ldb, d->ldc)
                     && d->bias_type == data_type::undef;
 
             bool ok = limits_ok
@@ -114,6 +112,23 @@ struct gen9_gemm_t : public gpu_gemm_t {
                             attr()->post_ops_.find(sum) == 0
                                     && attr()->post_ops_.find(eltwise) == 1);
             if (!ok) return status::unimplemented;
+
+            // The threshold values for m, n and k were obtained by collecting
+            // performance results for the following batch and size values:
+            // - batch sizes: 4, 16, 64, 128, 256;
+            // - matrix sizes: 1, 16, 32, 64, 128, 512, 1024.
+            // Benchdnn with matmul driver was used for obtaining
+            // performance results.
+            // The size of 32 elements for m, n, k turned out not to
+            // introduce any performance regression for smaller sizes
+            // but gave performance benefit for bigger matrices.
+            bool is_batched = d->batch > 1;
+            const int threshold_m = 32;
+            const int threshold_n = 32;
+            const int threshold_k = 32;
+            bool size_ok = d->m > threshold_m && d->n > threshold_n
+                    && d->k > threshold_k;
+            if (is_batched && !size_ok) return status::unimplemented;
 
             auto *dev_info = compute_engine->device_info();
 

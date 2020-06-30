@@ -126,9 +126,23 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.parts_bias[0] = rnn.n_bias;
     rnn.parts_bias[1] = 0;
 
+    bool is_gru = utils::one_of(
+            rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
+
     // Decide if to merge gemm across iterations
-    rnn.merge_gemm_layer = true;
-    rnn.merge_gemm_iter = !rnn.is_fwd;
+    auto src_layer_ld = src_layer_d.blocking_desc().strides[1];
+    auto dst_layer_ld = dst_layer_d.blocking_desc().strides[1];
+    auto src_layer_is_trivial_stride
+            = src_layer_d.blocking_desc().strides[0] == (src_layer_ld * rnn.mb);
+    auto dst_layer_is_trivial_stride
+            = dst_layer_d.blocking_desc().strides[0] == (dst_layer_ld * rnn.mb);
+
+    rnn.merge_gemm_layer = ((rnn.is_fwd && src_layer_is_trivial_stride)
+                                   || ((rd.prop_kind == prop_kind::backward)
+                                           && dst_layer_is_trivial_stride))
+            && (((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd) || rnn.is_int8);
+    rnn.merge_gemm_iter
+            = dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru);
 
     // Decide to copy bias
     rnn.copy_bias = rnn.is_int8;
@@ -222,14 +236,9 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             : (rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(int32_t));
 
     // Different size required for forward and backward pass
-    if (rnn.is_fwd) {
-        rnn.scratch_gates_elsz = aux_elsz;
-    } else {
-        rnn.scratch_gates_elsz
-                = (rnn.dt_conf == all_f16 || rnn.dt_conf == all_bf16)
-                ? sizeof(cl_half)
-                : sizeof(float);
-    }
+    rnn.scratch_gates_elsz = (!rnn.is_fwd && rnn.dt_conf == all_bf16)
+            ? sizeof(cl_half)
+            : aux_elsz;
 
     // Set workspace sizes to store:
     // states to copmute a pass
@@ -264,13 +273,14 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.ws_bias_size
             = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dhc * aux_elsz;
 
-    // set other sizes, placeholder for GRU
-    rnn.ws_cell_comp_elsz = aux_elsz;
-
-    rnn.ws_per_cell = 0;
-    rnn.ws_cell_comp_size = 0;
-    rnn.ws_grid_comp_elsz = aux_elsz;
-    rnn.ws_grid_comp_size = 0;
+    // For intermediate step in post-gemm fwd lbr gru
+    rnn.scratch_cell_size = rnn.is_lbr ? (size_t)rnn.gates_nld
+                    * rnn.scratch_gates_ld * rnn.scratch_gates_elsz
+                                       : 0;
+    // Used for storing the intermediate value from fwd pass in training lbr gru
+    rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dhc * aux_elsz;
+    rnn.ws_grid_comp_size = (size_t)rnn.is_lbr * rnn.is_training * rnn.n_layer
+            * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell * aux_elsz;
 }
 
 int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
@@ -283,7 +293,7 @@ int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
 void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_c_states_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
+        size_t &scratch_cell_offset, size_t &ws_bias_offset,
         size_t &scratch_gates_offset, size_t &scratchpad_size,
         size_t &workspace_size) {
     const size_t page_size = 4096; // 2097152;
@@ -303,16 +313,12 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
     current_offset += rnn.ws_c_states_size;
 
     current_offset = utils::rnd_up(current_offset, page_size);
-    ws_diff_states_offset = current_offset;
-    current_offset += rnn.ws_diff_states_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
     ws_grid_comp_offset = current_offset;
     current_offset += rnn.ws_grid_comp_size;
 
     current_offset = utils::rnd_up(current_offset, page_size);
-    ws_cell_comp_offset = current_offset;
-    current_offset += rnn.ws_cell_comp_size;
+    ws_diff_states_offset = current_offset;
+    current_offset += rnn.ws_diff_states_size;
 
     workspace_size = rnn.use_workspace ? current_offset : 0;
 
@@ -326,6 +332,10 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
     scratch_gates_offset = current_offset;
     current_offset += rnn.scratch_gates_size;
 
+    current_offset = utils::rnd_up(current_offset, page_size);
+    scratch_cell_offset = current_offset;
+    current_offset += rnn.scratch_cell_size;
+
     if (rnn.copy_bias) {
         current_offset = utils::rnd_up(current_offset, page_size);
         ws_bias_offset = current_offset;
@@ -337,10 +347,10 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
 void rnn_utils::get_scratchpad_and_workspace_sizes(
         const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size) {
     size_t ws_gates_offset, ws_states_offset, ws_c_states_offset,
-            ws_diff_states_offset, ws_grid_comp_offset, ws_cell_comp_offset,
+            ws_diff_states_offset, ws_grid_comp_offset, scratch_cell_offset,
             ws_bias_offset, sratch_gates_offset;
     set_offsets(rnn, ws_gates_offset, ws_states_offset, ws_diff_states_offset,
-            ws_c_states_offset, ws_grid_comp_offset, ws_cell_comp_offset,
+            ws_c_states_offset, ws_grid_comp_offset, scratch_cell_offset,
             ws_bias_offset, sratch_gates_offset, scratchpad_size,
             workspace_size);
 }

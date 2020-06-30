@@ -45,21 +45,14 @@ criteria:
 
 ### RFC pull requests
 
-It is strongly advised to open an RFC pull request when contributing new
-primitives. In the RFC, please provide the following details:
+Significant library changes (new primitives, library architecture changes,
+API modifications, etc) require approval from oneDNN maintainers before
+opening a Pull Request with such implementation. For that we use the Request
+For Comments (RFC) process, which consists of opening, discussing, and
+accepting (promoting) RFC pull requests.
 
-* The expected performance benefit. This usually best presented as a profiling
-  information from a workload showing that a particular operation takes
-  significant percentage of the total time and thus is a good optimization
-  candidate.
-
-* The definition of the operation as a oneDNN primitive including interface
-  and semantics. It is OK to have sketches for the interface, but the
-  semantics should be fairly well defined.
-
-* If possible, provide information about similar compute operations. Sometimes
-  oneDNN primitives are super-sets of operations available in the
-  deep learning applications for the sake of greater portability across them.
+More information about the process can be found in the dedicated
+[`rfcs`](https://github.com/oneapi-src/oneDNN/tree/rfcs) branch.
 
 ## Code contribution guidelines
 
