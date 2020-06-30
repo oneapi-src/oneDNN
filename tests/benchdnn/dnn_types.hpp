@@ -116,8 +116,7 @@ struct attr_t {
 
     struct zero_points_t {
         enum policy_t {
-            NONE = 0,
-            COMMON,
+            COMMON = 0,
             // reorder section
             // XXX: order is important, from longer name to a shorter one
             // TODO: generalize, use numbers instead of predefined enum
@@ -129,9 +128,8 @@ struct attr_t {
         };
 
         struct entry_t {
-            entry_t() : policy(NONE), value(0), runtime(false) {}
-
-            entry_t(policy_t apolicy, int avalue, bool aruntime)
+            entry_t(policy_t apolicy = COMMON, int avalue = 0,
+                    bool aruntime = false)
                 : policy(apolicy), value(avalue), runtime(aruntime) {}
 
             entry_t(const entry_t &other)
@@ -139,9 +137,13 @@ struct attr_t {
                 , value(other.value)
                 , runtime(other.runtime) {}
 
-            policy_t policy = NONE;
-            int value;
-            bool runtime;
+            bool is_def() const {
+                return policy == COMMON && value == 0 && runtime == false;
+            }
+
+            policy_t policy = COMMON;
+            int value = 0;
+            bool runtime = false;
         };
 
         int from_str(const char *str, const char **end_s);
@@ -152,11 +154,14 @@ struct attr_t {
         static policy_t str2policy(const char *str);
         static const char *policy2str(policy_t policy);
 
+        bool is_def(int arg) const { return get(arg).is_def(); }
         bool is_def() const { return points.empty(); }
-        bool is_def(int arg) const { return get(arg).policy == NONE; }
 
+        void set(int arg, policy_t policy, int value, bool runtime) {
+            set(arg, entry_t(policy, value, runtime));
+        }
         void set(int arg, const entry_t &entry) {
-            if (entry.value != 0 || entry.runtime) points[arg] = entry;
+            if (!entry.is_def()) points[arg] = entry;
         }
         entry_t get(int arg) const {
             const auto it = points.find(arg);

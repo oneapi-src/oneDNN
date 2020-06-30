@@ -208,7 +208,7 @@ int attr_t::zero_points_t::from_str(const char *str, const char **end_s) {
                 s += arg_name_len;
 
                 policy_t policy;
-                for (policy_t p = policy_t::NONE; true;
+                for (policy_t p = policy_t::COMMON; true;
                         p = (policy_t)((int)p + 1)) {
                     if (p == policy_t::POLICY_TOTAL) return FAIL;
 
@@ -232,8 +232,7 @@ int attr_t::zero_points_t::from_str(const char *str, const char **end_s) {
                     runtime = true;
                     ++s;
                 }
-
-                set(arg.first, {policy, zero_point, runtime});
+                set(arg.first, policy, zero_point, runtime);
             }
         }
 
@@ -249,7 +248,6 @@ int attr_t::zero_points_t::from_str(const char *str, const char **end_s) {
 }
 
 const char *attr_t::zero_points_t::policy2str(policy_t policy) {
-    if (policy == NONE) return "none";
     if (policy == COMMON) return "common";
     if (policy == PER_DIM_0) return "per_dim_0";
     if (policy == PER_DIM_1) return "per_dim_1";
@@ -262,14 +260,13 @@ attr_t::zero_points_t::policy_t attr_t::zero_points_t::str2policy(
         const char *str) {
 #define CASE(_plc) \
     if (!strcasecmp(STRINGIFY(_plc), str)) return _plc
-    CASE(NONE);
     CASE(COMMON);
     CASE(PER_DIM_0);
     CASE(PER_DIM_1);
     CASE(PER_DIM_01);
 #undef CASE
     assert(!"unknown attr::scale::policy");
-    return NONE;
+    return COMMON;
 }
 
 int attr_t::arg_scales_t::from_str(const char *str, const char **end_s) {
