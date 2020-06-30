@@ -167,7 +167,8 @@ inline device_id_t sycl_device_id(const cl::sycl::device &dev) {
     if (dev.is_host())
         return std::make_tuple(static_cast<int>(backend_t::host), 0, 0);
 
-    device_id_t device_id = {static_cast<int>(backend_t::unknown), 0, 0};
+    device_id_t device_id
+            = device_id_t {static_cast<int>(backend_t::unknown), 0, 0};
 #ifdef DNNL_SYCL_DPCPP
     switch (get_sycl_backend(dev)) {
         case backend_t::opencl:
