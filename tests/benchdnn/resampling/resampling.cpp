@@ -66,8 +66,9 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
         r->errors += !ok;
 
-        if ((!ok && (r->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30)) {
+        const bool dump = (!ok && (r->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30) || (verbose >= 99);
+        if (dump) {
             int64_t mb = 0, ic = 0, d = 0, h = 0, w = 0;
             switch (kind) {
                 case SRC: inv_src_off_f(p, i, mb, ic, d, h, w); break;
