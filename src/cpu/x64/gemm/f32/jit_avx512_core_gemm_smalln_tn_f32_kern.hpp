@@ -29,7 +29,7 @@ template <typename a_type, typename b_type, typename c_type>
 dnnl_status_t jump_to_gemm_smalln_tn(
         const gemm_info_t<a_type, b_type, c_type> *arg);
 
-dnnl_status_t jit_avx512_core_gemm_tn_smalln_f32(const char *transa,
+dnnl_status_t jit_avx512_core_gemm_smalln_tn_f32(const char *transa,
         const char *transb, const dim_t *p_m, const dim_t *p_n,
         const dim_t *p_k, const float *p_alpha, const float *A,
         const dim_t *p_lda, const float *B, const dim_t *p_ldb,

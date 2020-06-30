@@ -38,10 +38,10 @@ static inline Xbyak::Ymm make_ymm(const Xbyak::Zmm &v) {
 
 namespace avx512_core_gemm_smalln_tn_f32 {
 
-struct xbyak_gemm_tn_smalln : public jit_generator {
+struct xbyak_gemm_smalln_tn : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_gemm_smalln_tn_xbyak_gemm)
 
-    xbyak_gemm_tn_smalln(int N, float beta, float alpha,
+    xbyak_gemm_smalln_tn(int N, float beta, float alpha,
             void *code_ptr = nullptr,
             size_t code_size = 80 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size) {
@@ -668,17 +668,17 @@ private:
     static uint32_t permute_ab[], permute_ba[], permute_ab1[], permute_ba1[];
 };
 
-uint32_t xbyak_gemm_tn_smalln::permute_ab[] = {0x00, 0x01, 0x02, 0x03, 0x10,
+uint32_t xbyak_gemm_smalln_tn::permute_ab[] = {0x00, 0x01, 0x02, 0x03, 0x10,
         0x11, 0x12, 0x13, 0x08, 0x09, 0x0A, 0x0B, 0x18, 0x19, 0x1A, 0x1B};
-uint32_t xbyak_gemm_tn_smalln::permute_ba[] = {0x04, 0x05, 0x06, 0x07, 0x14,
+uint32_t xbyak_gemm_smalln_tn::permute_ba[] = {0x04, 0x05, 0x06, 0x07, 0x14,
         0x15, 0x16, 0x17, 0x0C, 0x0D, 0x0E, 0x0F, 0x1C, 0x1D, 0x1E, 0x1F};
-uint32_t xbyak_gemm_tn_smalln::permute_ab1[] = {0x00, 0x10, 0x02, 0x12, 0x04,
+uint32_t xbyak_gemm_smalln_tn::permute_ab1[] = {0x00, 0x10, 0x02, 0x12, 0x04,
         0x14, 0x06, 0x16, 0x08, 0x18, 0x0A, 0x1A, 0x0C, 0x1C, 0x0E, 0x1E};
-uint32_t xbyak_gemm_tn_smalln::permute_ba1[] = {0x01, 0x11, 0x03, 0x13, 0x05,
+uint32_t xbyak_gemm_smalln_tn::permute_ba1[] = {0x01, 0x11, 0x03, 0x13, 0x05,
         0x15, 0x07, 0x17, 0x09, 0x19, 0x0B, 0x1B, 0x0D, 0x1D, 0x0F, 0x1F};
 
 /**
- * Currently N=4 kernels are not dispatched. For small/medium sizes using 
+ * Currently N=4 kernels are not dispatched. For small/medium sizes using
  * 2x N=2 is better. For larger sizes, the N=4 kernel is better.
  * TODO: Investigate this further.
  */
@@ -698,7 +698,7 @@ dnnl_status_t jump_to_gemm_smalln_tn(
             && mayiuse(avx512_core) && arg->co == nullptr) {
         auto transa_char = (arg->transa != do_trans) ? "N" : "T";
         auto transb_char = (arg->transb != do_trans) ? "N" : "T";
-        return jit_avx512_core_gemm_tn_smalln_f32(transa_char, transb_char,
+        return jit_avx512_core_gemm_smalln_tn_f32(transa_char, transb_char,
                 &arg->m, &arg->n, &arg->k, &arg->alpha, (float *)arg->a,
                 &arg->lda, (float *)arg->b, &arg->ldb, &arg->beta,
                 (float *)arg->c, &arg->ldc);
@@ -724,12 +724,12 @@ dnnl_status_t jump_to_gemm_smalln_tn(
     return dnnl_unimplemented;
 }
 
-void sgemm_tn_smalln_f32(const dim_t m, const dim_t n, const dim_t k,
+void sgemm_smalln_tn(const dim_t m, const dim_t n, const dim_t k,
         const float alpha, const float *A, const dim_t lda, const float *B,
         const dim_t ldb, const float beta, float *C, const dim_t ldc) {
     using namespace avx512_core_gemm_smalln_tn_f32;
 
-    static xbyak_gemm_tn_smalln *kernels[4][3][3];
+    static xbyak_gemm_smalln_tn *kernels[4][3][3];
     static std::once_flag initialized;
 
     std::call_once(initialized, [=] {
@@ -737,7 +737,7 @@ void sgemm_tn_smalln_f32(const dim_t m, const dim_t n, const dim_t k,
             for (float al : {0.0f, 1.0f, 2.0f}) {
                 for (float be : {0.0f, 1.0f, 2.0f}) {
                     kernels[N - 1][(dim_t)al][(dim_t)be]
-                            = new xbyak_gemm_tn_smalln(N, be, al);
+                            = new xbyak_gemm_smalln_tn(N, be, al);
                 }
             }
         }
@@ -758,16 +758,32 @@ void sgemm_tn_smalln_f32(const dim_t m, const dim_t n, const dim_t k,
 #define MINROWS 16 // Min rows each thread should process
 
 static dim_t smalln_set_num_threads(dim_t m, dim_t k, dim_t nthr_to_use) {
-    /** 
+    /**
      * Simple heuristics for determining num threads to use
      */
+
+    // For very small sizes, don't parallelize
+    if (m * k <= 8192) return 1;
+
     int nthr_16;
     if ((m & 15) == 0) { // Special handling if m is multiple of 16
-        // nthr_16: number of threads which divides m and less than nthr_to_use.
+        // nthr_16: number of threads such that each thread works on
+        // 2^n * 16 number of rows.
         nthr_16 = m >> 4;
         while (nthr_16 > nthr_to_use && (nthr_16 & 1) == 0)
             nthr_16 = nthr_16 >> 1;
-        nthr_to_use = 4 * nthr_16 < 3 * nthr_to_use ? nthr_to_use : nthr_16;
+        // Ideal number of threads is more than what we can use.
+        nthr_16 = (nthr_16 > nthr_to_use) ? nthr_to_use : nthr_16;
+        /**
+         * Check if nthr_16 should be used or nthr_to_use
+         * If each thread is working on less than MINROWS rows (based on nthr_16)
+         * use nthr_16. Each thread should be working on at least MINROWS rows.
+         */
+        bool use_orig_nthr = (m / nthr_16 <= MINROWS)
+                ? !(nthr_16 <= nthr_to_use)
+                : (4 * nthr_16 <= 3 * nthr_to_use);
+        nthr_to_use = use_orig_nthr ? nthr_to_use : nthr_16;
+
     } else
         // Make sure each thread processes at least MINROWS rows.
         while (m / nthr_to_use < MINROWS && nthr_to_use > 1)
@@ -776,14 +792,14 @@ static dim_t smalln_set_num_threads(dim_t m, dim_t k, dim_t nthr_to_use) {
     return nthr_to_use;
 }
 
-dnnl_status_t jit_avx512_core_gemm_tn_smalln_f32(const char *transa,
+dnnl_status_t jit_avx512_core_gemm_smalln_tn_f32(const char *transa,
         const char *transb, const dim_t *p_m, const dim_t *p_n,
         const dim_t *p_k, const float *p_alpha, const float *A,
         const dim_t *p_lda, const float *B, const dim_t *p_ldb,
         const float *p_beta, float *C, const dim_t *p_ldc) {
     using namespace avx512_core_gemm_smalln_tn_f32;
 
-    int nthr_to_use = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
+    int max_num_threads = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
 
     dim_t m = *p_m;
     dim_t n = *p_n;
@@ -796,19 +812,18 @@ dnnl_status_t jit_avx512_core_gemm_tn_smalln_f32(const char *transa,
 
     if (n <= 0 || m <= 0) return dnnl_success;
 
-    // For very small sizes, don't parallelize
-    if (m * k <= 8192) {
-        sgemm_tn_smalln_f32(m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+    max_num_threads = smalln_set_num_threads(m, k, max_num_threads);
+
+    if (max_num_threads == 1) {
+        sgemm_smalln_tn(m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
         return dnnl_success;
     }
 
-    nthr_to_use = smalln_set_num_threads(m, k, nthr_to_use);
-
-    parallel(nthr_to_use, [&](int ithr, int nthr) {
+    parallel(max_num_threads, [&](int ithr, int nthr) {
         dim_t mid = (m / nthr) & (~(MROW_ALIGN - 1));
         dim_t mpart = (ithr < nthr - 1) ? mid : m - mid * (nthr - 1);
-        sgemm_tn_smalln_f32(mpart, n, k, alpha, &A[ithr * lda * mid], lda, B,
-                ldb, beta, &C[ithr * mid], ldc);
+        sgemm_smalln_tn(mpart, n, k, alpha, &A[ithr * lda * mid], lda, B, ldb,
+                beta, &C[ithr * mid], ldc);
     });
     return dnnl_success;
 }
