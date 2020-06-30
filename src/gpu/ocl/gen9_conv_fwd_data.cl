@@ -610,7 +610,8 @@ DATA_T shuffle_a_value(int mb_block, int ic_block, int ow_outer, int ow_inner,
                             + src_off(0, 0, kd * (1 + DD), kh * (1 + DH), 0); \
                     const __global DATA_T *wei1 \
                             = (wei) + wei_off(0, 0, 0, kd, kh, kw); \
-                    for (int ic = 0; ic < IC; ic += IC_BLOCK) { \
+                    __attribute__((opencl_unroll_hint)) /*  attr:no-format */ \
+                            for (int ic = 0; ic < IC; ic += IC_BLOCK) { \
                         DATA_T B[IC_OUTER * OC_OUTER * IC_INNER]; \
                         read_wei_block(B, wei1); \
                         read_src_and_multiply(src1, (iw), kw, 0, (C), B); \
