@@ -66,13 +66,13 @@ private:
 
     using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx, Ymm,
             Zmm>::type;
-    Xmm xreg(int idx) {
-        return Xmm((utils::one_of(isa, avx512_common, avx512_core) ? 31 : 15)
-                - idx);
+    int reg_idx(int idx) {
+        return (utils::one_of(isa, avx512_common, avx512_core) ? 31 : 15) - idx;
     }
-    Ymm yreg(int idx) { return Ymm(xreg(idx).getIdx()); }
-    Zmm zreg(int idx) { return Zmm(xreg(idx).getIdx()); }
-    Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
+    Xmm xreg(int idx) { return Xmm(reg_idx(idx)); }
+    Ymm yreg(int idx) { return Ymm(reg_idx(idx)); }
+    Zmm zreg(int idx) { return Zmm(reg_idx(idx)); }
+    Vmm vreg(int idx) { return Vmm(reg_idx(idx)); }
 
     const Xbyak::AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx) ? yword : zword;
@@ -81,8 +81,8 @@ private:
     Ymm ymm_tmp_1 = Ymm(0);
     Vmm vmm_tmp_1 = Vmm(0);
 
-    Xmm x_padd_mask = Xmm(1);
-    Xmm x_padd_mask_avx_high = Xmm(4);
+    // Used only for avx and if c tail is present
+    Vmm vmm_c_tail_mask = Vmm(2);
 
     Xmm xmm_ker_area_h = Xmm(2);
     Xmm xmm_one = Xmm(2);
@@ -95,6 +95,7 @@ private:
 
     Vmm vmm_k_offset = Vmm(1);
 
+    // Used only for avx512 when bf16 is present
     inline Vmm vmm_idx() {
         if (!jpp.is_backward) {
             return (jpp.is_training) ? Vmm(4) : Vmm(1);
@@ -108,10 +109,9 @@ private:
     Reg64 bf16_emu_reserv_4 = r11;
     Zmm bf16_emu_reserv_5 = Zmm(8);
 
-    Opmask k_index_mask = Opmask(6);
-    Opmask k_store_mask = Opmask(7);
+    Opmask k_c_tail_mask = Opmask(4);
     Opmask k_mask_cvt = Opmask(5);
-    Opmask k_padd_mask = Opmask(4);
+    Opmask k_store_mask = Opmask(6);
 
     // Here be some (tame) dragons. This kernel does not follow the regular
     // OS-agnostic ABI pattern because when isa is sse41 it uses maskmovdqu
@@ -153,43 +153,135 @@ private:
     int prev_kw;
     void (*jit_ker)(jit_pool_call_s *);
 
-    void prepare_tail_mask();
-    void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r);
-    void avg_step(int ur_w, int ur_bc, int pad_l, int pad_r);
-    void max_step_fwd(int ur_w, int ur_bc, int pad_l, int pad_r);
-    void max_step_bwd(int ur_w, int ur_bc, int pad_l, int pad_r);
+    void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r,
+            bool with_c_tail_proccessing);
+    void avg_step(int ur_w, int ur_bc, int pad_l, int pad_r,
+            bool with_c_tail_proccessing);
+    void max_step_fwd(int ur_w, int ur_bc, int pad_l, int pad_r,
+            bool with_c_tail_proccessing);
+    void max_step_bwd(int ur_w, int ur_bc, int pad_l, int pad_r,
+            bool with_c_tail_proccessing);
 
-    void zero_diff_src(int ur_bc);
+    void zero_diff_src(int ur_bc, bool with_c_tail_proccessing);
 
-    void load(int idx, reg64_t reg_ptr, int offset) {
+    void prepare_tail_mask() {
+        if (isa >= avx512_common) {
+            size_t c_tail_mask = (1ULL << jpp.c_tail) - 1ULL;
+            mov(tmp_gpr.cvt32(), c_tail_mask);
+            kmovw(k_c_tail_mask, tmp_gpr.cvt32());
+        } else if (isa == avx) {
+            static const uint32_t mask[16] = {0xffffffff, 0xffffffff,
+                    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+                    0xffffffff, 0, 0, 0, 0, 0, 0, 0, 0};
+            mov(tmp_gpr, reinterpret_cast<size_t>(&mask[8 - jpp.c_tail]));
+            vmovups(vmm_c_tail_mask, ptr[tmp_gpr]);
+        }
+    }
+
+    void put_one_in_vmm() {
+        mov(tmp_gpr, 1);
+        uni_broadcast_reg_val(tmp_gpr.getIdx(), vmm_one.getIdx());
+    }
+
+    void uni_broadcast_reg_val(int reg_idx, int vmm_idx) {
+        movq(Xmm(vmm_idx), reg64_t(reg_idx));
+        uni_vpbroadcastd(Vmm(vmm_idx), Xmm(vmm_idx));
+    }
+
+    void push_vmm_val(int idx) {
+        Vmm val_to_store(idx);
+        sub(rsp, val_to_store.getBit());
+        uni_vmovups(ptr[rsp], val_to_store);
+    }
+
+    void pop_vmm_val(int idx) {
+        Vmm val_to_load(idx);
+        uni_vmovups(val_to_load, ptr[rsp]);
+        add(rsp, val_to_load.getBit());
+    }
+
+    void load(
+            int idx, reg64_t reg_ptr, int offset, bool is_c_tail_proccessing) {
         if (jpp.is_bf16) {
             /*TODO: maybe use vpmovzxwd + vpslld,
              * in order to free up vmm_idx() register */
-            vmovups(yreg(idx), ptr[reg_ptr + offset]);
-            vpermw(vreg(idx) | k_mask_cvt | T_z, vmm_idx(), vreg(idx));
+            if (is_c_tail_proccessing && !jpp.is_c_padded) {
+                Vmm vmm_to_load = is_c_tail_proccessing
+                        ? Vmm(idx) | k_c_tail_mask | T_z
+                        : Vmm(idx);
+                vpmovzxwd(vmm_to_load, ptr[reg_ptr + offset]);
+                vpslld(vmm_to_load, vmm_to_load, 16);
+            } else {
+                vmovups(Ymm(idx), ptr[reg_ptr + offset]);
+                vpermw(Vmm(idx) | k_mask_cvt | T_z, vmm_idx(), Vmm(idx));
+            }
         } else {
-            uni_vmovups(vreg(idx), ptr[reg_ptr + offset]);
+            if (is_c_tail_proccessing && !jpp.is_c_padded) {
+                if (isa == sse41) {
+                    for (int i = 0; i < jpp.c_tail % 4; i++) {
+                        pinsrd(Xmm(idx), ptr[reg_ptr + offset + i * 4], i);
+                    }
+                } else if (isa == avx) {
+                    vmaskmovps(
+                            Vmm(idx), vmm_c_tail_mask, ptr[reg_ptr + offset]);
+                } else {
+                    vmovups(Zmm(idx) | k_c_tail_mask | T_z,
+                            ptr[reg_ptr + offset]);
+                }
+            } else {
+                uni_vmovups(Vmm(idx), ptr[reg_ptr + offset]);
+            }
         }
     };
 
-    void step(int ur_w, int ur_bc, int pad_l, int pad_r) {
-        if (jpp.alg == alg_kind::pooling_max) {
-            if (jpp.is_backward)
-                max_step_bwd(ur_w, ur_bc, pad_l, pad_r);
-            else
-                max_step_fwd(ur_w, ur_bc, pad_l, pad_r);
-        } else
-            avg_step(ur_w, ur_bc, pad_l, pad_r);
+    void store(
+            int idx, reg64_t reg_ptr, int offset, bool is_c_tail_proccessing) {
+        if (jpp.is_bf16) {
+            if (is_c_tail_proccessing && !jpp.is_c_padded) {
+                vmovdqu16(ptr[reg_ptr + offset] | k_c_tail_mask, Ymm(idx));
+            } else {
+                vmovups(yword[reg_ptr + offset], Ymm(idx));
+            }
+        } else {
+            if (is_c_tail_proccessing && !jpp.is_c_padded) {
+                if (isa == sse41) {
+                    for (int i = 0; i < jpp.c_tail % 4; i++) {
+                        pextrd(ptr[reg_ptr + offset + i * 4], Xmm(idx), i);
+                    }
+                } else if (isa == avx) {
+                    vmaskmovps(
+                            ptr[reg_ptr + offset], vmm_c_tail_mask, Vmm(idx));
+                } else {
+                    vmovups(ptr[reg_ptr + offset] | k_c_tail_mask, Zmm(idx));
+                }
+            } else {
+                uni_vmovups(vmmword[reg_ptr + offset], Vmm(idx));
+            }
+        }
     }
 
-    void step_high_half(int ur_w, int ur_bc, int pad_l, int pad_r) {
+    void step(int ur_w, int ur_bc, int pad_l, int pad_r,
+            bool with_c_tail_proccessing) {
+        if (jpp.alg == alg_kind::pooling_max) {
+            if (jpp.is_backward)
+                max_step_bwd(
+                        ur_w, ur_bc, pad_l, pad_r, with_c_tail_proccessing);
+            else
+                max_step_fwd(
+                        ur_w, ur_bc, pad_l, pad_r, with_c_tail_proccessing);
+        } else
+            avg_step(ur_w, ur_bc, pad_l, pad_r, with_c_tail_proccessing);
+    }
+
+    void step_high_half(int ur_w, int ur_bc, int pad_l, int pad_r,
+            bool with_c_tail_processing) {
         add(reg_input, sizeof(float) * 4);
         add(reg_output, sizeof(float) * 4);
         if (jpp.alg == alg_kind::pooling_max
                 && (jpp.is_training || jpp.is_backward))
             add(reg_index, types::data_type_size(jpp.ind_dt) * 4);
 
-        step(ur_w, ur_bc, pad_l, pad_r);
+        step(ur_w, ur_bc, pad_l, pad_r, with_c_tail_processing);
     }
 
     void generate();
