@@ -66,7 +66,7 @@ TEST_F(sycl_stream_test, BasicInterop) {
     ::cl_int err;
     cl_command_queue interop_ocl_queue = clCreateCommandQueueWithProperties(
             ocl_ctx, ocl_dev, nullptr, &err);
-    OCL_CHECK(err);
+    TEST_OCL_CHECK(err);
 
     queue interop_sycl_queue(interop_ocl_queue, eng->get_sycl_context());
     clReleaseCommandQueue(interop_ocl_queue);
