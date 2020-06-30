@@ -78,7 +78,7 @@ static int compare(const prb_t *p, const dnnl_data_type_t dst_data_type,
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
         const float fp0 = fp_mem.get_elem(i);
-        const float fp = maybe_saturate(dst_data_type, fp0);
+        const float fp = round_to_nearest_representable(dst_data_type, fp0);
 
         const bool ok = dt == fp; // expect exact answer due to int values
 
@@ -121,7 +121,7 @@ int fill_src(
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((97 * i) - 17 * input_idx + 101) % range;
         const float value = f_min + gen;
-        mem_fp.set_elem(i, maybe_saturate(p->sdt, value));
+        mem_fp.set_elem(i, round_to_nearest_representable(p->sdt, value));
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);

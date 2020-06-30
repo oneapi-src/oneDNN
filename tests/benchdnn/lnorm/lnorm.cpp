@@ -289,7 +289,10 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
         for (int64_t c = 0; c < C; c++) {
             int64_t i = n * C + c;
             const float dt = dt_mem.get_elem(i);
-            const float fp = fp_mem.get_elem(i);
+            const float fp0 = fp_mem.get_elem(i);
+            const float fp = kind == DATA
+                    ? round_to_nearest_representable(p->dt, fp0)
+                    : fp0;
             diff_norm.update(fp, dt);
 
             const float diff = fabsf(fp - dt);

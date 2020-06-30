@@ -80,7 +80,7 @@ static int compare(const prb_t *p, const dnnl_data_type_t dst_data_type,
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
         const float fp0 = fp_mem.get_elem(i);
-        const float fp = maybe_saturate(dst_data_type, fp0);
+        const float fp = round_to_nearest_representable(dst_data_type, fp0);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
@@ -122,7 +122,7 @@ int fill_src(
         const float value = (dt == dnnl_bf16 || dt == dnnl_f16)
                 ? (f_min + gen) / range
                 : (f_min + gen) * (1.0f + 4.0f / range);
-        mem_fp.set_elem(i, maybe_saturate(dt, value));
+        mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);

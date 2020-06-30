@@ -45,7 +45,7 @@ static int prepare_fwd_with_stats(const prb_t *p, dnn_mem_t &src,
                 const int64_t sp = d * p->ih * p->iw + h * p->iw + w;
                 const int64_t l = l_base + sp;
                 const int64_t value = (l % 65) - 32;
-                s[sp] = maybe_saturate(p->dt, value);
+                s[sp] = round_to_nearest_representable(p->dt, value);
 
                 ((float *)mean)[c] = 4 * ((c % 5) - 2);
                 ((float *)var)[c] = ((c % 7) << 1);
@@ -234,7 +234,10 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     for (int64_t sp = 0; sp < SP; ++sp) {
         int64_t i = (n * C + c) * SP + sp;
         const float dt = dt_mem.get_elem(i);
-        const float fp = fp_mem.get_elem(i);
+        const float fp0 = fp_mem.get_elem(i);
+        const float fp = kind == DATA
+                ? round_to_nearest_representable(p->dt, fp0)
+                : fp0;
         diff_norm.update(fp, dt);
 
         if (rely_on_norm) continue;

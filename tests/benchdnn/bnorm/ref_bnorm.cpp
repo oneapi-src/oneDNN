@@ -31,8 +31,6 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
     const bool use_scale_shift = p->flags & USE_SCALESHIFT;
     const bool fuse_relu = p->flags & FUSE_NORM_RELU;
     const bool need_ws = p->need_ws();
-
-    const auto dt = p->dt;
     const auto &attr = p->attr;
 
     dnnl::impl::parallel_nd(C, [&](int64_t c) {
@@ -53,7 +51,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
             if (fuse_relu && res < 0) res = 0;
             if (need_ws) ws.set_elem(off, !!res);
             maybe_post_ops(attr, res);
-            dst.set_elem(off, maybe_saturate(dt, res));
+            dst.set_elem(off, res);
             if (p->dir & FLAG_BWD) src_hat.set_elem(off, x_hat);
         }
     });

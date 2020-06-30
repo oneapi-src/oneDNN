@@ -66,7 +66,7 @@ int fill_memory(const prb_t *p, data_kind_t kind, dnn_mem_t &mem,
         };
 
         const int rng = kind == SRC ? (idx % 7) : ((idx * 8 / 7) % 7);
-        mem.set_elem(idx, maybe_saturate(dt, gen[rng]));
+        mem.set_elem(idx, round_to_nearest_representable(dt, gen[rng]));
     }
 
     return OK;
@@ -108,9 +108,9 @@ int ref_reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 
         const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
         const float alpha = attr_bundle.oscale[scale_idx];
+        const float value = alpha * s + beta * d + dst_zero_point;
 
-        dst.set_elem(idx,
-                maybe_saturate(dst_dt, alpha * s + beta * d + dst_zero_point));
+        dst.set_elem(idx, round_to_nearest_representable(dst_dt, value));
     }
 
     return OK;

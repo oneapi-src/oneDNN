@@ -273,7 +273,7 @@ int fill_data(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
             // passes through simple reorder which converts -0 into +0.
             if (value == -0.f) value = 0.f;
 
-            mem_fp.set_elem(idx, maybe_saturate(p->dt, value));
+            mem_fp.set_elem(idx, value);
         }
     });
 

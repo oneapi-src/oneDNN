@@ -45,7 +45,7 @@ int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
         const float fp0 = mem_fp.get_elem(i);
-        const float fp = maybe_saturate(p->dt, fp0);
+        const float fp = round_to_nearest_representable(p->dt, fp0);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
