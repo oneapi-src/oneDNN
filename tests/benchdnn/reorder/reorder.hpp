@@ -117,6 +117,9 @@ struct prb_t {
     double ops;
     int ndims;
 
+    bool is_reorder_with_compensation() const {
+        return alg == ALG_BOOT && oflag != FLAG_NONE;
+    }
     void count_ops() {
         if (ops > 0) return;
 
