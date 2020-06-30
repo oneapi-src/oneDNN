@@ -41,6 +41,7 @@
 #include "cpu/x64/gemm/gemv_driver.hpp"
 
 #include "cpu/x64/gemm/f32/jit_avx512_common_gemm_f32.hpp"
+#include "cpu/x64/gemm/f32/jit_avx512_core_gemm_smalln_tn_f32_kern.hpp"
 #include "cpu/x64/gemm/f32/jit_avx_gemm_f32.hpp"
 
 #include "cpu/x64/gemm/s8x8s32/jit_avx512_core_gemv_s8x8s32.hpp"
@@ -1628,6 +1629,10 @@ static dnnl_status_t gemm_threading_driver(
     if ((arg->m <= 0) || (arg->n <= 0)) return dnnl_success;
 
     if (!is_a_packed && !is_b_packed && jump_to_gemv_s8x8s32(arg))
+        return dnnl_success;
+
+    if (!is_a_packed && !is_b_packed
+            && jump_to_gemm_smalln_tn(arg) == dnnl_success)
         return dnnl_success;
 
     if (!is_a_packed && !is_b_packed && jump_to_gemv(arg) == dnnl_success)
