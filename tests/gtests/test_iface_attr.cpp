@@ -63,7 +63,7 @@ TEST_F(attr_test, TestScratchpadModeEx) {
     }
 }
 
-TEST_F(attr_test, TestScratchpadArg) {
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test, TestScratchpadArg) {
     engine eng = get_test_engine();
 
     const memory::dim N = 2, C = 2, W = 2;
