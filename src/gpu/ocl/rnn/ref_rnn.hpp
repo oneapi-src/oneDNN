@@ -36,9 +36,6 @@
 #include "gpu/ocl/rnn/rnn_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
-// not implemented
-#define USE_MKL_PACKED_GEMM 0
-
 // TODO just to debug
 #define WS_NAN_FILLING 0
 
@@ -68,8 +65,7 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
     typedef grid_execution_sig((class_name::*grid_execution_f));
 
     typedef gemm_sig((class_name::*gemm_t));
-    typedef packing_sig((class_name::*packing_t));
-    typedef free_packed_sig((class_name::*free_packed_t));
+    typedef weights_assign_sig((class_name::*weights_assign_t));
 
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
@@ -171,50 +167,36 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
 
     _ref_rnn_common_t(const pd_t *apd) : gpu_primitive_t(apd) {
         using namespace rnn_utils;
-        /// @todo set max_feature_size assuming that we limit the number of
-        /// iterations and layer to one if slc != dhc and sic != dhc
-        /// respectively
-        ///
-        auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
-                                      packing_t &p, free_packed_t &f) {
-            g = packed_gemm ? &class_name::packed_gemm
-                            : &class_name::gemm_primitive;
-            p = pack_w ? &class_name::pack_weights
-                       : &class_name::no_pack_weights;
-            f = pack_w ? &class_name::free_packed_weights
-                       : &class_name::free_no_packed_weights;
+        auto assign_funcs = [](gemm_t &g, weights_assign_t &p) {
+            g = &class_name::gemm_primitive;
+            p = &class_name::assign_weights;
         };
 
-        set_pack_funcs(false, gemm_iter_func, false, weights_state_pack_func,
-                weights_state_free_packed_func);
-
-        set_pack_funcs(false, gemm_layer_func, false, weights_input_pack_func,
-                weights_input_free_packed_func);
+        assign_funcs(gemm_iter_func, weights_iter_assign_func);
+        assign_funcs(gemm_layer_func, weights_layer_assign_func);
 
         switch (pd()->cell_kind()) {
-            case alg_kind::vanilla_lstm:
+            case dnnl_vanilla_lstm:
                 cell_func = &class_name::cell_execution;
                 elemwise_func = pd()->src_type == data_type::u8
                                 && pd()->weights_type == data_type::s8
                         ? &class_name::lstm_elemwise_u8s8
                         : &class_name::lstm_elemwise;
                 break;
-            case alg_kind::vanilla_rnn: // @todo switch on cell kind
+            case dnnl_vanilla_rnn:
                 cell_func = &class_name::cell_execution;
                 elemwise_func = &class_name::rnn_elemwise;
                 break;
-            case alg_kind::vanilla_gru:
+            case dnnl_vanilla_gru:
                 cell_func = &class_name::cell_execution_gru;
                 break;
-            case alg_kind::lbr_gru:
+            case dnnl_lbr_gru:
                 cell_func = &class_name::cell_execution_gru_lbr;
                 elemwise_func = &class_name::gru_lbr_elemwise;
                 break;
             default: break;
         }
 
-        /// @todo put a heuristic to choose between linear execution and
-        /// wavefront
         grid_computation = &class_name::linear_execution;
 
         size_t scratchpad_size, workspace_size;
@@ -224,19 +206,20 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                 scratch_gates_offset_, scratchpad_size, workspace_size);
 
         int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
-        int offset_wei_sz = pd()->L() * pd()->D() * max_nparts;
+        int wei_offsets_iter_sz = pd()->L() * pd()->D() * max_nparts;
+        int wei_offsets_layer_sz = pd()->L() * pd()->D();
 
-        offset_wei_input_
-                = (size_t *)malloc(sizeof(size_t) * offset_wei_sz, 64);
-        offset_wei_state_
-                = (size_t *)malloc(sizeof(size_t) * offset_wei_sz, 64);
+        wei_layer_offset_ptr
+                = (size_t *)malloc(sizeof(size_t) * wei_offsets_layer_sz, 64);
+        wei_iter_offset_ptr
+                = (size_t *)malloc(sizeof(size_t) * wei_offsets_iter_sz, 64);
     }
 
     status_t init(engine_t *engine) override;
 
     ~_ref_rnn_common_t() {
-        free(offset_wei_input_);
-        free(offset_wei_state_);
+        free(wei_layer_offset_ptr);
+        free(wei_iter_offset_ptr);
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
@@ -257,21 +240,20 @@ private:
     status_t execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
+    // set the class names
     grid_execution_sig(linear_execution);
-    // grid_execution_sig(wavefront_execution);
+
     cell_execution_sig(cell_execution);
     cell_execution_sig(cell_execution_gru);
     cell_execution_sig(cell_execution_gru_lbr);
+
     elemwise_sig(rnn_elemwise);
     elemwise_sig(lstm_elemwise);
     elemwise_sig(lstm_elemwise_u8s8);
     elemwise_sig(gru_lbr_elemwise);
+
     gemm_sig(gemm_primitive);
-    gemm_sig(packed_gemm);
-    packing_sig(pack_weights);
-    packing_sig(no_pack_weights);
-    free_packed_sig(free_packed_weights);
-    free_packed_sig(free_no_packed_weights);
+    weights_assign_sig(assign_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
     void bias_prepare(const exec_ctx_t &ctx,
@@ -331,7 +313,7 @@ private:
     compute::kernel_t elemwise_bwd_kernel_;
     compute::kernel_t gates_reduction_kernel_;
 
-    // GEMM primitives.
+    // ptrs to GEMM primitives
     std::shared_ptr<primitive_t> gemm_layer_fwd_;
     std::shared_ptr<primitive_t> gemm_iter_fwd_;
     std::shared_ptr<primitive_t> gemm_layer_bwd_;
@@ -339,6 +321,8 @@ private:
     std::shared_ptr<primitive_t> gemm_diff_wei_layer_;
     std::shared_ptr<primitive_t> gemm_diff_wei_iter_;
 
+    // offset variables set in workspace and used in offset calculations for
+    // grid & cell execution and fwd & bwd kernel macros
     cl_ulong ws_gates_offset_;
     cl_ulong ws_states_offset_;
     cl_ulong ws_c_states_offset_;
@@ -348,21 +332,20 @@ private:
     cl_ulong ws_bias_offset_;
     cl_ulong scratch_gates_offset_;
 
-    size_t *offset_wei_input_;
-    size_t *offset_wei_state_;
+    // ptrs for storing weight offsets which are pre-calculated in
+    // in grid execution as weights_*_assing_func
+    size_t *wei_layer_offset_ptr;
+    size_t *wei_iter_offset_ptr;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;
 
-    packing_t weights_input_pack_func;
-    packing_t weights_state_pack_func;
+    weights_assign_t weights_layer_assign_func;
+    weights_assign_t weights_iter_assign_func;
 
     gemm_t gemm_iter_func;
     gemm_t gemm_layer_func;
     elemwise_f elemwise_func;
-
-    free_packed_t weights_input_free_packed_func;
-    free_packed_t weights_state_free_packed_func;
 
     enum { SCALES_ = 0, TM_SCALES_ = 1 };
 };

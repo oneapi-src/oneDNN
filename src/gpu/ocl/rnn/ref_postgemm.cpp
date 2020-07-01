@@ -120,6 +120,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::gru_lbr_elemwise)) {
 }
 template elemwise_sig(ref_rnn_fwd_t::gru_lbr_elemwise);
 template elemwise_sig(ref_rnn_bwd_t::gru_lbr_elemwise);
+
 } // namespace ocl
 } // namespace gpu
 } // namespace impl
