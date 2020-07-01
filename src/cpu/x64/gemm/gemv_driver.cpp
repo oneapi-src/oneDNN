@@ -338,7 +338,7 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
 
     c_t *ybuf = NULL;
     if (trans == no_trans && dnnl_thr_syncable() && !is_f32)
-        c_t *ybuf = (c_t *)malloc(sizeof(*ybuf) * m * (nthr_goal - 1), PAGE_4K);
+        ybuf = (c_t *)malloc(sizeof(*ybuf) * m * (nthr_goal - 1), PAGE_4K);
 
     parallel(nthr_goal, [&](int ithr, int nthr) {
         if (is_f32) {
