@@ -571,7 +571,6 @@ if(BLA_VENDOR MATCHES "Arm" OR BLA_VENDOR STREQUAL "All")
 
    # Arm Performance Libraries contains Fortran code and must be linked against libgfortran for a GCC build.
    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-     message(STATUS "gfortran")
      set(BLAS_armpl_LIB "${BLAS_armpl_LIB};gfortran")
    endif()
 
