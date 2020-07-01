@@ -32,8 +32,8 @@ The library is optimized for the following CPUs:
 * Intel(R) Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
 * Intel(R) Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
-* Intel Xeon Scalable processor (formerly Skylake and Cascade Lake)
-* future Intel Xeon Scalable processor (code name Cooper Lake)
+* Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, and Cooper
+  Lake)
 
 oneDNN detects the instruction set architecture (ISA) at runtime and uses
 just-in-time (JIT) code generation to deploy the code optimized
