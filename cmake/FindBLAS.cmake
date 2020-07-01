@@ -569,6 +569,15 @@ if(BLA_VENDOR MATCHES "Arm" OR BLA_VENDOR STREQUAL "All")
      set(BLAS_armpl_LIB "${BLAS_armpl_LIB}_mp")
    endif()
 
+   # Arm Performance Libraries contains Fortran code and must be linked against libgfortran for a GCC build.
+   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+     message(STATUS "gfortran")
+     set(BLAS_armpl_LIB "${BLAS_armpl_LIB};gfortran")
+   endif()
+
+   # Link against libamath, provided with ArmPL, which contains AArch64 optimised implementations of math.h functions.
+   set(BLAS_armpl_LIB "${BLAS_armpl_LIB};amath;m")
+
    if(NOT BLAS_LIBRARIES)
     check_blas_libraries(
       BLAS_LIBRARIES

@@ -204,6 +204,6 @@ set(DNNL_BLAS_VENDOR "NONE" CACHE STRING
         (https://www.openblas.net)
       - ARMPL
         Arm Performance Libraries
-        (https://developer.arm.com/tools-and-software/server-and-hpc/compile/arm-compiler-for-linux/arm-performance-libraries)
+        (https://developer.arm.com/tools-and-software/server-and-hpc/downloads/arm-performance-libraries)
       - ANY
         FindBLAS will search default library paths for a known BLAS installation.")
