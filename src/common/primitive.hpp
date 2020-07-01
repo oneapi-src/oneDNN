@@ -255,7 +255,7 @@ struct dnnl_primitive : public dnnl::impl::c_compatible {
     }
 
 protected:
-    ~dnnl_primitive() = default;
+    ~dnnl_primitive();
 
 private:
     std::atomic<int> counter_;

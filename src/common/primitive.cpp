@@ -160,6 +160,16 @@ dnnl_primitive::dnnl_primitive(
     , pd_(utils::make_unique<primitive_desc_iface_t>(
               primitive_->pd(), engine)) {}
 
+dnnl_primitive::~dnnl_primitive() {
+    if (scratchpad_debug::is_protect_scratchpad() && scratchpad_ != nullptr
+            && scratchpad_->get_memory_storage() != nullptr) {
+        const memory_tracking::registry_t &registry
+                = primitive_->pd()->scratchpad_registry();
+        scratchpad_debug::unprotect_scratchpad_buffer(
+                scratchpad_->get_memory_storage(), registry);
+    }
+}
+
 status_t dnnl_primitive::init() {
     const size_t scratchpad_size
             = primitive_->pd()->scratchpad_size(scratchpad_mode::library);
