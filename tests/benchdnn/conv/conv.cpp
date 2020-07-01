@@ -617,8 +617,14 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
         const bool plain_ok = is_int8 && !stag_is_abx && !dtag_is_abx
                 && (stag_is_axb || dtag_is_axb);
 
+        const auto &po = p->attr.post_ops;
+        const auto sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
+        const bool sum_post_op_ok
+                = sum_idx == -1 || po.entry[sum_idx].sum.scale == 1.f;
+
         if (!has_avx512_common || !shape_ok || (!has_avx512_bw && is_int8)
-                || !bwd_is_syncable || (is_plain && !plain_ok)) {
+                || !bwd_is_syncable || (is_plain && !plain_ok)
+                || !sum_post_op_ok) {
             r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
             return;
         }
