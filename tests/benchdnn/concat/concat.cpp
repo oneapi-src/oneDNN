@@ -131,6 +131,21 @@ int fill_src(
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common({p->sdt, p->ddt}, FWD_D, r);
+    if (r->state == SKIPPED) return;
+
+    // ref concat is reorder-based, hence, inherits some reorder limitations.
+    // bf16 reorder on cpu supports only bf16/f32 src_dt/dst_dt
+    bool valid_bf16_input = IMPLICATION(p->sdt == dnnl_bf16,
+            p->dtag == tag::undef || p->ddt == dnnl_f32 || p->ddt == dnnl_bf16);
+    bool valid_bf16_output
+            = IMPLICATION(p->ddt == dnnl_bf16 && p->dtag != tag::undef,
+                    (p->sdt == dnnl_f32 || p->sdt == dnnl_bf16));
+
+    if (engine_tgt_kind == dnnl_cpu
+            && (!valid_bf16_input || !valid_bf16_output)) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 int doit(const prb_t *p, res_t *r) {
