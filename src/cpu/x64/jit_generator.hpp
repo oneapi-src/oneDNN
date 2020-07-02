@@ -1026,7 +1026,7 @@ public:
         assert(IMPLICATION(load_size > 16, is_ymm));
 
         // TODO: Support this routine for every isa
-        assert(mayiuse(avx2) && "routine is not supported for the current isa");
+        assert(mayiuse(avx) && "routine is not supported for the current isa");
 
         auto xmm = Xbyak::Xmm(vmm.getIdx());
         auto ymm = Xbyak::Ymm(vmm.getIdx());
@@ -1103,8 +1103,8 @@ public:
         }
 
         if (load_size > 16) {
-            vinserti128(ymm, ymm, xmm, 1); // insert to upper bits of ymm
-            vinserti128(ymm, ymm, addr(0), 0); // insert to lower bits of ymm
+            vinsertf128(ymm, ymm, xmm, 1); // insert to upper bits of ymm
+            vinsertf128(ymm, ymm, addr(0), 0); // insert to lower bits of ymm
         }
     }
 
@@ -1146,7 +1146,7 @@ public:
 
         assert(IMPLICATION(store_size > 16, is_ymm));
 
-        assert(mayiuse(avx2) && "routine is not supported for the current isa");
+        assert(mayiuse(avx) && "routine is not supported for the current isa");
 
         auto xmm = Xbyak::Xmm(vmm.getIdx());
         auto ymm = Xbyak::Ymm(vmm.getIdx());
@@ -1167,7 +1167,7 @@ public:
             vmovdqu(addr(0), xmm); // load lower bits from ymm
             start_bytes = 16;
             bytes_to_store -= 16;
-            vextracti128(xmm, ymm, 1); // load upper bits from ymm into xmm
+            vextractf128(xmm, ymm, 1); // load upper bits from ymm into xmm
         }
 
         if (bytes_to_store >= 8 && bytes_to_store < 16)
