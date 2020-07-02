@@ -677,13 +677,19 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
 }
 
 std::ostream &dump_global_params(std::ostream &s) {
+    s << "--" << driver_name << " ";
+    if (canonical) s << "--canonical=" << bool2str(canonical) << " ";
     if (canonical || engine_tgt_kind != dnnl_cpu)
         s << "--engine=" << engine_kind2str(engine_tgt_kind) << " ";
     if (canonical || scratchpad_mode != dnnl_scratchpad_mode_library)
         s << "--attr-scratchpad=" << scratchpad_mode2str(scratchpad_mode)
           << " ";
+    if (canonical || fast_ref_gpu != true)
+        s << "--fast-ref-gpu=" << bool2str(fast_ref_gpu) << " ";
+    if (!skip_impl.empty()) s << "--skip-impl=" << skip_impl << " ";
+    if (canonical || mem_check != true)
+        s << "--mem-check=" << bool2str(mem_check) << " ";
 
-    s << "--" << driver_name << " ";
     return s;
 }
 
