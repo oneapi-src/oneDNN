@@ -300,7 +300,7 @@ status_t memory_t::zero_pad(stream_t *stream) const {
     if (stream == nullptr) {
         engine_t *engine;
         engine = memory_storage()->engine();
-        stream = engine->service_stream();
+        CHECK(engine->get_service_stream(stream));
     }
 
     if (stream != nullptr)

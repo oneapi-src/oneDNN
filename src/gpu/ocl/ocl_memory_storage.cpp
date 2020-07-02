@@ -36,16 +36,17 @@ status_t ocl_memory_storage_t::init_allocate(size_t size) {
 }
 
 namespace {
-cl_command_queue get_map_queue(engine_t *engine, stream_t *stream) {
+status_t get_map_queue(
+        cl_command_queue &queue, engine_t *engine, stream_t *stream) {
     ocl_stream_t *ocl_stream;
-    if (stream != nullptr)
-        ocl_stream = utils::downcast<ocl_stream_t *>(stream);
-    else {
+    if (stream == nullptr) {
         auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
-        ocl_stream
-                = utils::downcast<ocl_stream_t *>(ocl_engine->service_stream());
+        status_t status = ocl_engine->get_service_stream(stream);
+        if (status != status::success) { return status::runtime_error; }
     }
-    return ocl_stream->queue();
+    ocl_stream = utils::downcast<ocl_stream_t *>(stream);
+    queue = ocl_stream->queue();
+    return status::success;
 }
 } // namespace
 
@@ -74,20 +75,24 @@ status_t ocl_memory_storage_t::map_data(
         map_flags |= CL_MAP_WRITE;
     }
 
+    cl_command_queue queue;
+    CHECK(get_map_queue(queue, engine(), stream));
+
     // Use blocking operation to simplify the implementation and API
     cl_int err;
-    *mapped_ptr = clEnqueueMapBuffer(get_map_queue(engine(), stream),
-            mem_object(), CL_TRUE, map_flags, 0, mem_bytes, 0, nullptr, nullptr,
-            &err);
+    *mapped_ptr = clEnqueueMapBuffer(queue, mem_object(), CL_TRUE, map_flags, 0,
+            mem_bytes, 0, nullptr, nullptr, &err);
     return convert_to_dnnl(err);
 }
 
 status_t ocl_memory_storage_t::unmap_data(
         void *mapped_ptr, stream_t *stream) const {
     if (!mapped_ptr) return status::success;
-    OCL_CHECK(clEnqueueUnmapMemObject(get_map_queue(engine(), stream),
-            mem_object_, const_cast<void *>(mapped_ptr), 0, nullptr, nullptr));
-    OCL_CHECK(clFinish(get_map_queue(engine(), stream)));
+    cl_command_queue queue;
+    CHECK(get_map_queue(queue, engine(), stream));
+    OCL_CHECK(clEnqueueUnmapMemObject(queue, mem_object_,
+            const_cast<void *>(mapped_ptr), 0, nullptr, nullptr));
+    OCL_CHECK(clFinish(queue));
     return status::success;
 }
 

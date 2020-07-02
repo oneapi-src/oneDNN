@@ -205,9 +205,12 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     if (status != status::success) return status::runtime_error;
     result_buf.reset(storage);
 
-    auto stream = utils::downcast<ocl::ocl_stream_t *>(
-            gpu_engine->service_stream());
-    auto queue = stream->queue();
+    stream_t *stream;
+    status = gpu_engine->get_service_stream(stream);
+    if (status != status::success) return status::runtime_error;
+
+    auto ocl_stream = utils::downcast<ocl::ocl_stream_t *>(stream);
+    auto queue = ocl_stream->queue();
 
     OCL_CHECK(clEnqueueWriteBuffer(queue, (cl_mem)magic_buf->data_handle(),
             CL_TRUE, 0, sizeof(magic_ptr), &magic_ptr, 0, nullptr, nullptr));
@@ -227,10 +230,10 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     arg_list.set(7, *result_buf.get());
 
     auto nd_range = compute::nd_range_t(gws, lws);
-    status = stream->parallel_for(nd_range, realized_kernel, arg_list);
+    status = ocl_stream->parallel_for(nd_range, realized_kernel, arg_list);
     if (status != status::success) return status::runtime_error;
 
-    status = stream->wait();
+    status = ocl_stream->wait();
     if (status != status::success) return status::runtime_error;
 
     OCL_CHECK(clEnqueueReadBuffer(queue, (cl_mem)result_buf->data_handle(),

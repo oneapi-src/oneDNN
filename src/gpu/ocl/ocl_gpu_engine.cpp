@@ -48,11 +48,6 @@ status_t ocl_gpu_engine_t::init() {
     status_t status = check_device(engine_kind::gpu, device_, context_);
     if (status != status::success) return status;
 
-    stream_t *service_stream_ptr;
-    status = create_stream(
-            &service_stream_ptr, stream_flags::default_flags, nullptr);
-    if (status != status::success) return status;
-    service_stream_.reset(service_stream_ptr);
     return status::success;
 }
 

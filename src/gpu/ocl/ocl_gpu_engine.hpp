@@ -114,16 +114,12 @@ public:
         return enable_ngen_kernels_;
     }
 
-    stream_t *service_stream() const override { return service_stream_.get(); }
-
 private:
     cl_device_id device_;
     cl_context context_;
     bool is_user_context_;
     bool enable_ngen_kernels_;
     bool checked_ngen_kernels_;
-
-    std::unique_ptr<stream_t> service_stream_;
 
     void check_mayiuse_ngen_kernels();
 };
