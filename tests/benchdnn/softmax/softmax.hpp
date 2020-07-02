@@ -85,6 +85,8 @@ struct prb_t {
     int axis;
     bool inplace;
     int ndims;
+
+    bool maybe_skip_nvidia() const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

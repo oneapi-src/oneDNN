@@ -138,6 +138,10 @@ int fill_ws(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 static int init_pd(const engine_t &engine_tgt, const prb_t *p,
         dnnl_primitive_desc_t &ppd, res_t *r, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
+    if (p->maybe_skip_nvidia() && is_nvidia_gpu(engine_tgt)) {
+        return r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED, OK;
+    }
+
     dnnl_memory_desc_t src_d, dst_d;
 
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};

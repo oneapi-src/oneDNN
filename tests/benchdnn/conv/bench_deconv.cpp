@@ -39,7 +39,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_alg : s.alg)
     for (const auto &i_mb : s.mb) {
         const prb_t p(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg,
-                s.attr, i_mb);
+                s.attr, i_mb, true);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();

@@ -69,12 +69,16 @@ struct cudnn_reorder_t : public primitive_t {
                 return false;
 
             // Nvidia supports blocking only on channel dimension C
+            if (dst_md()->format_desc.blocking.inner_nblks > 1
+                    || src_md()->format_desc.blocking.inner_nblks > 1)
+                return false;
             if (utils::one_of(src_md()->data_type, data_type::s8)
                     && src_md()->format_desc.blocking.inner_nblks == 1) {
                 ok = ok && memory_desc_matches_nchw_vect_c(src_md());
             }
+            int blks = dst_md()->format_desc.blocking.inner_nblks;
             if (utils::one_of(dst_md()->data_type, data_type::s8)
-                    && dst_md()->format_desc.blocking.inner_nblks == 1) {
+                    && blks == 1) {
                 ok = ok && memory_desc_matches_nchw_vect_c(dst_md());
             }
             return ok;

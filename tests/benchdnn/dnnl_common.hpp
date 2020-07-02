@@ -287,4 +287,31 @@ bool check_md_consistency_with_tag(
 void check_known_skipped_case_common(
         const std::vector<dnnl_data_type_t> &v_dt, res_t *r);
 
+inline bool is_nvidia_gpu(const engine_t &engine_tgt) {
+    bool ret = false;
+
+#if DNNL_WITH_SYCL
+    constexpr int nvidia_vendor_id = 0x10DE;
+    auto eng = dnnl::engine(engine_tgt, true);
+    const auto eng_vendor_id
+            = eng.get_sycl_device()
+                      .get_info<cl::sycl::info::device::vendor_id>();
+    ret = (eng_vendor_id == nvidia_vendor_id);
+#endif
+
+    return ret;
+}
+
+inline bool cudnn_supported_tag_plain(dnnl_format_tag_t dnnl_fmt) {
+    return dnnl_fmt == dnnl_a || dnnl_fmt == dnnl_ab || dnnl_fmt == dnnl_abc
+            || dnnl_fmt == dnnl_abcd || dnnl_fmt == dnnl_abcde
+            || dnnl_fmt == dnnl_abcdef || dnnl_fmt == dnnl_acb
+            || dnnl_fmt == dnnl_acdb || dnnl_fmt == dnnl_acdeb;
+}
+
+inline bool cudnn_supported_tag_blocking(dnnl_format_tag_t dnnl_fmt) {
+    return dnnl_fmt == dnnl_aBc4b || dnnl_fmt == dnnl_aBcd4b
+            || dnnl_fmt == dnnl_aBcde4b || dnnl_fmt == dnnl_aBcdef4b;
+}
+
 #endif

@@ -251,6 +251,9 @@ static int init_pd_custom(const engine_t &engine_tgt, const prb_t *p,
                      p->conf_out->dt, convert_tag(rc.tag_out, p->ndims)),
             WARN);
 
+    if (p->maybe_skip_nvidia() && is_nvidia_gpu(engine_tgt)) {
+        return r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED, OK;
+    }
     // assign extra for dst_md
     dnnl_memory_extra_desc_t dst_md_extra {};
     fill_memory_extra(p, dst_md_extra);

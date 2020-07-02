@@ -55,15 +55,113 @@ struct cudnn_softmax_impl_base_t {
         }
         return status::success;
     }
+
+    status_t convert_dims_softmax(const dims_t orig_dims, int *modified_dims,
+            int axis, int ndims, format_tag_t tag,
+            cudnnTensorFormat_t &format) {
+
+        // Initialise all dims to 1
+        for (int i = 0; i < 4; i++) {
+            modified_dims[i] = 1;
+        }
+        if (axis == 1) {
+            // Copy dimensions into the new array
+            format = tag == dnnl_nhwc ? cudnnTensorFormat_t::CUDNN_TENSOR_NHWC
+                                      : cudnnTensorFormat_t::CUDNN_TENSOR_NCHW;
+            int num_dims = ndims < 4 ? ndims : 4;
+            for (int i = 0; i < num_dims; i++) {
+                modified_dims[i] = orig_dims[i];
+            }
+            for (int i = 4; i < ndims; i++) {
+                modified_dims[3] *= orig_dims[i];
+            }
+            return status::success;
+        }
+        format = cudnnTensorFormat_t::CUDNN_TENSOR_NCHW;
+        switch (tag) {
+            case dnnl_cn: {
+                modified_dims[0] = orig_dims[1];
+                modified_dims[1] = orig_dims[0];
+                break;
+            }
+            case dnnl_nchw: {
+                switch (axis) {
+                    case 0:
+                        modified_dims[1] = orig_dims[axis];
+                        modified_dims[2] = orig_dims[1];
+                        for (int i = 2; i < ndims; i++) {
+                            modified_dims[3] *= orig_dims[i];
+                        }
+                        break;
+                    default: {
+                        for (int i = 0; i < axis; i++) {
+                            modified_dims[0] *= orig_dims[i];
+                        }
+                        modified_dims[1] = orig_dims[axis];
+                        if (axis == ndims - 1) { return status::success; }
+                        for (int i = axis + 1; i < ndims; i++) {
+                            modified_dims[2] *= orig_dims[i];
+                        }
+                        break;
+                    }
+                }
+                break;
+            }
+            case dnnl_nhwc:
+                switch (axis) {
+                    case 0:
+                        modified_dims[1] = orig_dims[0];
+                        for (int i = 1; i < ndims; i++) {
+                            modified_dims[2] *= orig_dims[i];
+                        }
+                        break;
+                    case 2:
+                        modified_dims[0] = orig_dims[0];
+                        modified_dims[1] = orig_dims[2];
+                        for (int i = 3; i < ndims; i++) {
+                            modified_dims[2] *= orig_dims[i];
+                        }
+                        modified_dims[3] = orig_dims[1];
+                        break;
+                    case 3:
+                        modified_dims[0] = orig_dims[0] * orig_dims[2];
+                        modified_dims[1] = orig_dims[3];
+                        modified_dims[2] = ndims == 4 ? 1 : orig_dims[4];
+                        modified_dims[3] = orig_dims[1];
+                        break;
+                }
+                break;
+            default: return status::unimplemented;
+        }
+        return status::success;
+    }
+
+    status_t convert_tag(const memory_desc_t *md, format_tag_t &tag) {
+        const memory_desc_wrapper mem_wrapper(md);
+        if (mem_wrapper.matches_one_of_tag(format_tag::ba)) {
+            tag = dnnl_cn;
+        } else if (mem_wrapper.matches_one_of_tag(format_tag::ab,
+                           format_tag::abc, format_tag::abcd, format_tag::abcde,
+                           format_tag::abcdef)) {
+            tag = dnnl_nchw;
+        } else if (mem_wrapper.matches_one_of_tag(format_tag::acb,
+                           format_tag::acdb, format_tag::acdeb)) {
+            tag = dnnl_nhwc;
+        } else {
+            return status::unimplemented;
+        }
+        return status::success;
+    }
 };
 
 struct cudnn_softmax_fwd_impl_t : public cudnn_softmax_impl_base_t {
     int dims[DNNL_MAX_NDIMS];
     cudnnTensorDescriptor_t tensor_desc;
-    int strides[DNNL_MAX_NDIMS];
+    cudnnTensorFormat_t format;
 
     virtual status_t init(const softmax_pd_t *pd) override {
-        // If any of the dimensions are 0 we should not continue with creating cudnn descriptors
+        // If any of the dimensions are 0 we should not continue with
+        // creating cudnn descriptors
         if (has_zero_dims(pd->src_md(0)->dims, pd->ndims())) {
             return status::success;
         }
@@ -71,10 +169,10 @@ struct cudnn_softmax_fwd_impl_t : public cudnn_softmax_impl_base_t {
         if (pd->ndims() > CUDNN_DIM_MAX) { return status::invalid_arguments; }
         ndims = pd->ndims() < 4 ? 4 : pd->ndims();
 
-        convert_dims(pd->src_md()->padded_dims, dims, pd->ndims());
-
-        convert_dims(pd->src_md()->format_desc.blocking.strides, strides,
-                pd->ndims());
+        format_tag_t tag;
+        CHECK(convert_tag(pd->src_md(), tag));
+        CHECK(convert_dims_softmax(pd->src_md()->padded_dims, dims, pd->axis(),
+                pd->ndims(), tag, format));
 
         convert_alg_kind(pd->is_logsoftmax(), &alg_kind);
 
@@ -82,8 +180,8 @@ struct cudnn_softmax_fwd_impl_t : public cudnn_softmax_impl_base_t {
 
         CHECK(convert_data_type(pd->src_md(), &data_type));
 
-        CHECK(create_and_set_tensor_descriptor(
-                &tensor_desc, data_type, ndims, dims, strides));
+        CHECK(create_and_set_tensor_descriptor_ex(
+                &tensor_desc, format, data_type, 4, dims));
         return status::success;
     }
 
@@ -104,22 +202,23 @@ struct cudnn_softmax_bwd_impl_t : public cudnn_softmax_impl_base_t {
     int dims_dst[DNNL_MAX_NDIMS];
     cudnnTensorDescriptor_t tensor_dst_desc;
     cudnnTensorDescriptor_t tensor_diff_desc;
-    int strides[DNNL_MAX_NDIMS];
+    cudnnTensorFormat_t format;
 
     virtual status_t init(const softmax_pd_t *pd) override {
-        // If any of the dimensions are 0 we should not continue with creating cudnn descriptors
+        // If any of the dimensions are 0 we should not continue with
+        // creating cudnn descriptors
         if (memory_desc_wrapper(pd->desc()->diff_desc).has_zero_dim())
             return status::success;
 
         if (pd->ndims() > CUDNN_DIM_MAX) { return status::invalid_arguments; }
         ndims = pd->ndims() < 4 ? 4 : pd->ndims();
 
-        // Initialise data from descriptors
-        convert_dims(pd->dst_md()->padded_dims, dims_dst, pd->ndims());
-        convert_dims(pd->diff_src_md()->padded_dims, dims, pd->ndims());
-
-        convert_dims(pd->dst_md()->format_desc.blocking.strides, strides,
-                pd->ndims());
+        format_tag_t tag;
+        CHECK(convert_tag(pd->dst_md(), tag));
+        CHECK(convert_dims_softmax(pd->dst_md()->padded_dims, dims_dst,
+                pd->axis(), pd->ndims(), tag, format));
+        CHECK(convert_dims_softmax(pd->diff_src_md()->padded_dims, dims,
+                pd->axis(), pd->ndims(), tag, format));
 
         convert_alg_kind(pd->is_logsoftmax(), &alg_kind);
 
@@ -128,10 +227,10 @@ struct cudnn_softmax_bwd_impl_t : public cudnn_softmax_impl_base_t {
 
         CHECK(convert_data_type(pd->dst_md(), &data_type));
 
-        CHECK(create_and_set_tensor_descriptor(
-                &tensor_dst_desc, data_type, ndims, dims_dst, strides));
-        CHECK(create_and_set_tensor_descriptor(
-                &tensor_diff_desc, data_type, ndims, dims, strides));
+        CHECK(create_and_set_tensor_descriptor_ex(
+                &tensor_dst_desc, format, data_type, 4, dims_dst));
+        CHECK(create_and_set_tensor_descriptor_ex(
+                &tensor_diff_desc, format, data_type, 4, dims));
         return status::success;
     }
 

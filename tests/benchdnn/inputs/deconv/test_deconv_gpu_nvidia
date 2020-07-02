@@ -1,19 +1,16 @@
 # f32
 --reset
 --mb=2
---allow-unimpl=true
 --dir=FWD_B,BWD_D,BWD_WB --batch=deconv_all
 
 # f16
 --reset
 --cfg=f16
 --mb=2
---allow-unimpl=true
 --dir=FWD_B,BWD_D,BWD_WB --batch=deconv_all
 
 # NCHW
 --reset
---allow-unimpl=true
 --cfg=f32,f16
 --mb=2
 --dir=FWD_B,BWD_D,BWD_WB
@@ -21,11 +18,47 @@
 --stag=abcd
 --wtag=abcd
 --dtag=abcd
---batch=deconv_2d_no_groups
+mb256oc3oh227ow227ic96ih55iw55kh11kw11sh4sw4ph0pw0n"alexnet:deconv1"
+mb256oc96oh27ic256ih27kh5ph2n"alexnet:deconv2"
+mb256oc256oh13ic384ih13kh3ph1n"alexnet:deconv3"
+mb256oc384oh13ic384ih13kh3ph1n"alexnet:deconv4"
+mb256oc384oh13ic256ih13kh3ph1n"alexnet:deconv5"
+
+mb96ic64ih112iw112oc3oh224ow224kh7kw7sh2sw2ph3pw3n"googlenet_v1:conv1/7x7_s2"
+mb96ic64ih56oc64oh56kh1ph0n"googlenet_v1:conv2/3x3_reduce"
+mb96ic192ih56oc64oh56kh3ph1n"googlenet_v1:conv2/3x3"
+mb96ic64ih28oc192oh28kh1ph0n"googlenet_v1:inception_3a/1x1"
+mb96ic96ih28oc192oh28kh1ph0n"googlenet_v1:inception_3a/3x3_reduce"
+mb96ic128ih28oc96oh28kh3ph1n"googlenet_v1:inception_3a/3x3"
+
+--wtag=abcde
+g1mb256oc3oh227ow227ic96ih55iw55kh11kw11sh4sw4ph0pw0n"alexnet:deconv1"
+g2mb256oc96oh27ic256ih27kh5ph2n"alexnet:deconv2"
+g2mb256oc384oh13ic384ih13kh3ph1n"alexnet:deconv4"
+g2mb256oc384oh13ic256ih13kh3ph1n"alexnet:deconv5"
+g1mb96ic64ih112iw112oc3oh224ow224kh7kw7sh2sw2ph3pw3n"googlenet_v1:conv1/7x7_s2"
 
 #NHWC
 --stag=acdb
 --wtag=acdb
 --dtag=acdb
 --cfg=f32
---batch=deconv_2d_no_groups
+mb256oc3oh227ow227ic96ih55iw55kh11kw11sh4sw4ph0pw0n"alexnet:deconv1"
+mb256oc96oh27ic256ih27kh5ph2n"alexnet:deconv2"
+mb256oc256oh13ic384ih13kh3ph1n"alexnet:deconv3"
+mb256oc384oh13ic384ih13kh3ph1n"alexnet:deconv4"
+mb256oc384oh13ic256ih13kh3ph1n"alexnet:deconv5"
+
+mb96ic64ih112iw112oc3oh224ow224kh7kw7sh2sw2ph3pw3n"googlenet_v1:conv1/7x7_s2"
+mb96ic64ih56oc64oh56kh1ph0n"googlenet_v1:conv2/3x3_reduce"
+mb96ic192ih56oc64oh56kh3ph1n"googlenet_v1:conv2/3x3"
+mb96ic64ih28oc192oh28kh1ph0n"googlenet_v1:inception_3a/1x1"
+mb96ic96ih28oc192oh28kh1ph0n"googlenet_v1:inception_3a/3x3_reduce"
+mb96ic128ih28oc96oh28kh3ph1n"googlenet_v1:inception_3a/3x3"
+
+--wtag=abdec
+g1mb256oc3oh227ow227ic96ih55iw55kh11kw11sh4sw4ph0pw0n"alexnet:deconv1"
+g2mb256oc96oh27ic256ih27kh5ph2n"alexnet:deconv2"
+g2mb256oc384oh13ic384ih13kh3ph1n"alexnet:deconv4"
+g2mb256oc384oh13ic256ih13kh3ph1n"alexnet:deconv5"
+g1mb96ic64ih112iw112oc3oh224ow224kh7kw7sh2sw2ph3pw3n"googlenet_v1:conv1/7x7_s2"

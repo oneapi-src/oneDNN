@@ -3,7 +3,6 @@
 --mb=2
 --dir=FWD_B,FWD_D
 --cfg=s8s8s8
---allow-unimpl=true # ic % 4 != 0
 --batch=ip_all
 --attr=oscale=common:2.25;post_ops='relu:0' --batch=ip_all
 --attr=oscale=common:2.25;post_ops='tanh' --batch=ip_all

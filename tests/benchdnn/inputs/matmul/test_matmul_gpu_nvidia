@@ -2,7 +2,7 @@
 
 --cfg=f32,f16,s8s8f32
 --stag=ab,ba --wtag=ab,ba
---runtime_m=0 --runtime_n=0 --runtime_k=0
+--runtime_m=0,1 --runtime_n=0,1 --runtime_k=0,1
 --bia_dt=undef,f32
 --bia_mask=2,3                                        m128n1024k512
                                                       m64n4096k3584
@@ -20,7 +20,7 @@
 # test any
 --reset
 --cfg=f32,f16,s8s8f32,s8s8s8
---runtime_m=0,1 --runtime_n=0,1 --runtime_k=0,1
+--runtime_m=0 --runtime_n=0 --runtime_k=0
 --bia_dt=undef
 --stag=any --wtag=any --dtag=any
 --attr=oscale=common:1.5;post_ops='relu'            m512n1024k512

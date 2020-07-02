@@ -98,6 +98,7 @@ struct prb_t {
         for (int d = 0; d < ndims[1]; ++d)
             broadcast_dims[d] = dims_A[d] == dims_B[d] ? 0 : 1;
     }
+    bool maybe_skip_nvidia() const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

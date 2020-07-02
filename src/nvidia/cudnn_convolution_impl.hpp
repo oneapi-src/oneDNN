@@ -93,6 +93,7 @@ public:
             bool use_scratch_dst = false) {
         CHECK(configure_parameters(pd, use_scratch_dst));
         CHECK(create_cudnn_descs(pd));
+        CHECK(check_output_dims());
         CHECK(configure_alg_kind(engine, pd));
         CHECK(init_scratchpad(engine, pd));
 
@@ -101,6 +102,23 @@ public:
 
     virtual status_t init_zero_dims(convolution_pd_t *pd) {
         return status::success;
+    }
+    void get_dims_and_strides(int io) {
+        convert_dims(
+                dnnl_descs[io].dims, dims[io], dnnl_descs[io].ndims, ndims[io]);
+        if (ndims[io] > dnnl_descs[io].ndims) {
+            std::swap(dims[io][ndims[io] - 1], dims[io][ndims[io] - 2]);
+            if (ndims[io] == 4) {
+                if (formats[io] == CUDNN_TENSOR_NHWC) {
+                    propagate_strides(strides[io], dims[io], {1, 3, 2, 0});
+                } else {
+                    propagate_strides(strides[io], dims[io], {3, 2, 1, 0});
+                }
+            }
+        } else {
+            convert_dims(dnnl_descs[io].format_desc.blocking.strides,
+                    strides[io], dnnl_descs[io].ndims, ndims[io]);
+        }
     }
     status_t configure_parameters(convolution_pd_t *pd, bool use_scratch_dst) {
         if (pd->ndims() > CUDNN_DIM_MAX) { return status::invalid_arguments; }
@@ -116,32 +134,20 @@ public:
         dnnl_descs[y] = *pd->invariant_dst_md();
         if (with_bias) dnnl_descs[bias] = *pd->invariant_bia_md();
 
-        CHECK(get_formats());
-
-        ndims[x] = dnnl_descs[x].ndims;
-        ndims[weights] = dnnl_descs[weights].ndims;
-        ndims[y] = dnnl_descs[y].ndims;
+        ndims[x] = std::max(dnnl_descs[x].ndims, 4);
+        ndims[weights] = std::max(dnnl_descs[weights].ndims, 4 + with_groups);
+        ndims[y] = std::max(dnnl_descs[y].ndims, 4);
 
         CHECK(convert_data_type(&dnnl_descs[x], &data_types[x]));
         CHECK(convert_data_type(&dnnl_descs[weights], &data_types[weights]));
         CHECK(convert_data_type(&dnnl_descs[y], &data_types[y]));
+
+        CHECK(get_formats());
         set_compute_format();
-        convert_dims(dnnl_descs[x].dims, dims[x], ndims[x]);
-        convert_dims(dnnl_descs[weights].dims, dims[weights], ndims[weights],
-                4 + with_groups);
+        get_dims_and_strides(x);
+        get_dims_and_strides(weights);
+        get_dims_and_strides(y);
 
-        convert_dims(dnnl_descs[y].dims, dims[y], ndims[y]);
-        // Convert strides
-        convert_dims(dnnl_descs[x].format_desc.blocking.strides, strides[x],
-                ndims[x]);
-        convert_dims(dnnl_descs[weights].format_desc.blocking.strides,
-                strides[weights], ndims[weights]);
-        convert_dims(dnnl_descs[y].format_desc.blocking.strides, strides[y],
-                ndims[y]);
-
-        ndims[x] = std::max(4, ndims[x]);
-        ndims[weights] = std::max(4, ndims[weights]);
-        ndims[y] = std::max(4, ndims[y]);
         if (!supported_filter_format(&dnnl_descs[weights])) {
             set_filter_format(
                     ndims[weights], dims[weights], strides[NUM_IO], formats[x]);
@@ -153,6 +159,7 @@ public:
             formats[weights] = formats[x];
         } else {
             CHECK(get_filter_format());
+            get_dims_and_strides(weights);
         }
         if (with_groups) {
             dims[weights][1] *= pd->G();
@@ -224,13 +231,13 @@ public:
     status_t set_padding_and_dilation(convolution_pd_t *pd) {
         int actual_ndims = pd->ndims();
         if (actual_ndims == 3) {
-            padding[0] = static_cast<int>(pd->padL());
-            padding[1] = 0;
-            dilation[0] = static_cast<int>(pd->KDW() + 1);
-            dilation[1] = 1;
+            padding[0] = 0;
+            padding[1] = static_cast<int>(pd->padL());
+            dilation[0] = 1;
+            dilation[1] = static_cast<int>(pd->KDW() + 1);
 
-            filter_strides[0] = static_cast<int>(pd->KSW());
-            filter_strides[1] = 1;
+            filter_strides[0] = 1;
+            filter_strides[1] = static_cast<int>(pd->KSW());
         } else if (actual_ndims == 4) {
             padding[0] = static_cast<int>(pd->padT());
             padding[1] = static_cast<int>(pd->padL());

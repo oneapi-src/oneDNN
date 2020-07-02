@@ -1,18 +1,18 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*******************************************************************************/
+ * Copyright 2017-2020 Intel Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
 
 #ifndef IP_HPP
 #define IP_HPP
@@ -47,6 +47,9 @@ typedef struct dt_conf_t {
 } _dt_conf_t[DAT_TOTAL];
 
 extern const _dt_conf_t conf_f32;
+extern const _dt_conf_t conf_f16;
+extern const _dt_conf_t conf_s8s8f32;
+extern const _dt_conf_t conf_s8s8s8;
 
 struct settings_t {
     settings_t() = default;
@@ -110,6 +113,8 @@ struct prb_t : public desc_t {
     };
 
     void generate_oscales();
+
+    bool maybe_skip_nvidia() const;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };

@@ -148,4 +148,11 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
+bool prb_t::maybe_skip_nvidia() const {
+    bool tag_ok = cudnn_supported_tag_plain(convert_tag(tag, ndims));
+    bool ls_ok = (this->ls % 2); // Make sure local size is not even (issue #75)
+    bool alg_ok = this->alg == ACROSS;
+    return !tag_ok || !ls_ok || !alg_ok;
+}
+
 } // namespace lrn

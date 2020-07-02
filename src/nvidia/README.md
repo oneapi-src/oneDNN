@@ -197,6 +197,4 @@ to edges in order to avoid incorrect result.
 
 ### Matrix Multiplication
 The matrix multiplication primitive in the Nvidia backend is implemented with `cublasGemmEx` and `cublasGemmStridedBatchedEx` functions.
-
-* To support bias add, we use `cudnnAddTensor` function which does not support `bias_mask = 1`
 * Zero_points support is not provided by cublas and hence not supported by the Nvidia backend.

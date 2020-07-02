@@ -1,6 +1,112 @@
+#Testing NCHW
+--reset
+--cfg=f32
+--mb=16
+--stag=abcd
+--wtag=abcd
+--dtag=abcd
+--dir=FWD_B,BWD_D,BWD_WB
+mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2a_branch1*4"
+mb50ic64ih56oc64oh56kh1ph0n"resnet_50:res2a_branch2a"
+mb50ic64ih56oc64oh56kh3ph1n"resnet_50:res2a_branch2b*3"
+mb50ic256ih56oc64oh56kh1ph0n"resnet_50:res2b_branch2a*2"
+mb50ic256ih56iw56oc512oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch1"
+mb50ic256ih56iw56oc128oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch2a"
+mb50ic128ih28oc128oh28kh3ph1n"resnet_50:res3a_branch2b*4"
+mb50ic128ih28oc512oh28kh1ph0n"resnet_50:res3a_branch2c*4"
+mb50ic512ih28oc128oh28kh1ph0n"resnet_50:res3b_branch2a*3"
+
+
+--wtag=abcde
+g1mb256ic3ih227iw227oc96oh55ow55kh11kw11sh4sw4ph0pw0n"alexnet:conv1"
+g2mb256ic96ih27oc256oh27kh5ph2n"alexnet:conv2"
+g2mb256ic384ih13oc384oh13kh3ph1n"alexnet:conv4"
+g2mb256ic384ih13oc256oh13kh3ph1n"alexnet:conv5"
+
+--cfg=f16
+--wtag=abcd
+--dir=FWD_B
+mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2a_branch1*4"
+mb50ic64ih56oc64oh56kh1ph0n"resnet_50:res2a_branch2a"
+mb50ic64ih56oc64oh56kh3ph1n"resnet_50:res2a_branch2b*3"
+mb50ic256ih56oc64oh56kh1ph0n"resnet_50:res2b_branch2a*2"
+mb50ic256ih56iw56oc512oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch1"
+mb50ic256ih56iw56oc128oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch2a"
+mb50ic128ih28oc128oh28kh3ph1n"resnet_50:res3a_branch2b*4"
+mb50ic128ih28oc512oh28kh1ph0n"resnet_50:res3a_branch2c*4"
+mb50ic512ih28oc128oh28kh1ph0n"resnet_50:res3b_branch2a*3"
+
+--wtag=abcde
+g1mb256ic3ih227iw227oc96oh55ow55kh11kw11sh4sw4ph0pw0n"alexnet:conv1"
+g2mb256ic96ih27oc256oh27kh5ph2n"alexnet:conv2"
+g2mb256ic384ih13oc384oh13kh3ph1n"alexnet:conv4"
+g2mb256ic384ih13oc256oh13kh3ph1n"alexnet:conv5"
+
+#Testing NHWC
+--reset
+--cfg=f32
+--mb=16
+--stag=acdb
+--wtag=acdb
+--dtag=acdb
+--dir=FWD_B,BWD_D,BWD_WB
+mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2a_branch1*4"
+mb50ic64ih56oc64oh56kh1ph0n"resnet_50:res2a_branch2a"
+mb50ic64ih56oc64oh56kh3ph1n"resnet_50:res2a_branch2b*3"
+mb50ic256ih56oc64oh56kh1ph0n"resnet_50:res2b_branch2a*2"
+mb50ic256ih56iw56oc512oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch1"
+mb50ic256ih56iw56oc128oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch2a"
+mb50ic128ih28oc128oh28kh3ph1n"resnet_50:res3a_branch2b*4"
+mb50ic128ih28oc512oh28kh1ph0n"resnet_50:res3a_branch2c*4"
+mb50ic512ih28oc128oh28kh1ph0n"resnet_50:res3b_branch2a*3"
+
+
+--wtag=abdec
+g1mb256ic3ih227iw227oc96oh55ow55kh11kw11sh4sw4ph0pw0n"alexnet:conv1"
+g2mb256ic96ih27oc256oh27kh5ph2n"alexnet:conv2"
+g2mb256ic384ih13oc384oh13kh3ph1n"alexnet:conv4"
+g2mb256ic384ih13oc256oh13kh3ph1n"alexnet:conv5"
+
+--cfg=f16
+--wtag=acdb
+--dir=FWD_B
+mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2a_branch1*4"
+mb50ic64ih56oc64oh56kh1ph0n"resnet_50:res2a_branch2a"
+mb50ic64ih56oc64oh56kh3ph1n"resnet_50:res2a_branch2b*3"
+mb50ic256ih56oc64oh56kh1ph0n"resnet_50:res2b_branch2a*2"
+mb50ic256ih56iw56oc512oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch1"
+mb50ic256ih56iw56oc128oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch2a"
+mb50ic128ih28oc128oh28kh3ph1n"resnet_50:res3a_branch2b*4"
+mb50ic128ih28oc512oh28kh1ph0n"resnet_50:res3a_branch2c*4"
+mb50ic512ih28oc128oh28kh1ph0n"resnet_50:res3b_branch2a*3"
+
+
+--wtag=abdec
+g1mb256ic3ih227iw227oc96oh55ow55kh11kw11sh4sw4ph0pw0n"alexnet:conv1"
+g2mb256ic96ih27oc256oh27kh5ph2n"alexnet:conv2"
+g2mb256ic384ih13oc384oh13kh3ph1n"alexnet:conv4"
+g2mb256ic384ih13oc256oh13kh3ph1n"alexnet:conv5"
+
+--cfg=s8s8s8,s8s8f32
+--wtag=acdb
+mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2a_branch1*4"
+mb50ic64ih56oc64oh56kh1ph0n"resnet_50:res2a_branch2a"
+mb50ic64ih56oc64oh56kh3ph1n"resnet_50:res2a_branch2b*3"
+mb50ic256ih56oc64oh56kh1ph0n"resnet_50:res2b_branch2a*2"
+mb50ic256ih56iw56oc512oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch1"
+mb50ic256ih56iw56oc128oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch2a"
+mb50ic128ih28oc128oh28kh3ph1n"resnet_50:res3a_branch2b*4"
+mb50ic128ih28oc512oh28kh1ph0n"resnet_50:res3a_branch2c*4"
+mb50ic512ih28oc128oh28kh1ph0n"resnet_50:res3b_branch2a*3"
+
+--wtag=abdec
+g1mb256ic3ih227iw227oc96oh55ow55kh11kw11sh4sw4ph0pw0n"alexnet:conv1"
+g2mb256ic96ih27oc256oh27kh5ph2n"alexnet:conv2"
+g2mb256ic384ih13oc384oh13kh3ph1n"alexnet:conv4"
+g2mb256ic384ih13oc256oh13kh3ph1n"alexnet:conv5"
+
 # f32
 --reset
---allow-unimpl=true # only symmetric padding is supported so far
 --mb=2,16
 --dir=FWD_B,BWD_D,BWD_WB --batch=set_gpu
 
@@ -12,7 +118,6 @@
 # i8
 # i8 - 1x1 tests
 --reset --cfg=s8s8s8,s8s8f32
---allow-unimpl=true # only symmetric padding is supported so far
 --dir=FWD_I,FWD_B
 mb2ic256ih14oc1024oh14kh1ph0n
 mb2ic32ih14oc32oh14kh1ph0n
@@ -20,7 +125,6 @@ mb2ic32ih7oc512oh7kh1ph0n
 mb2ic512ih14oc32oh14kh1ph0n
 
 --reset --cfg=s8s8s8,s8s8f32
---allow-unimpl=true # only symmetric padding is supported so far
 --mb=2
 --dir=FWD_B --batch=set_gpu
 
@@ -29,7 +133,6 @@ mb2ic512ih14oc32oh14kh1ph0n
 
 # test padding
 --reset --cfg=f16,f32
---allow-unimpl=true # only symmetric padding is supported so far
 g1mb16ic16ih2iw9oc16oh2ow11kh2kw1sh2sw1ph1pw1
 g1mb16ic32id9ih1iw9oc32od3oh1ow5kd3kh1kw1sd3sh1sw3pd1ph0pw2dd1dh0dw0
 g1mb16ic32ih5iw9oc32oh1ow5kh4kw1sh3sw3ph1pw2dh1dw1
@@ -42,14 +145,12 @@ g1mb32ic32ih3iw4oc16oh4ow3kh1kw2sh2sw2ph2pw1dh1dw0
 # f32 wino
 --reset --cfg=f32_wino --alg=wino
 --match=.*kh3[^0-9].*
---allow-unimpl=true         # allow unimplemented for groups > 1
 --mb=2                      # for fwd and bwd_d reduce mb
 --dir=FWD_I,FWD_B,BWD_D,BWD_WB --batch=shapes_resnet_50
 
 # Testing io filter formats
 --reset
 --cfg=f32
---allow-unimpl=true
 --wtag=bacd
 --mb=16
 --dir=FWD_B,BWD_D,BWD_WB

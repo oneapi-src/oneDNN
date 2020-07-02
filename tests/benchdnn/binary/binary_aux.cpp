@@ -70,4 +70,31 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
+bool prb_t::maybe_skip_nvidia() const {
+    if (!this->attr.post_ops.is_def()) return true;
+    bool dt_ok = ddt == dnnl_s8 || ddt == dnnl_f16 || ddt == dnnl_f32;
+    if (!dt_ok) return true;
+    auto extra_supported_plain_tags = [](dnnl_format_tag_t tag) {
+        return tag == dnnl_acbde || tag == dnnl_acbdef || tag == dnnl_ba
+                || tag == dnnl_bac || tag == dnnl_bacd || tag == dnnl_bacde
+                || tag == dnnl_bca || tag == dnnl_bcda || tag == dnnl_cba
+                || tag == dnnl_cdba || tag == dnnl_cdeba || tag == dnnl_oiw
+                || tag == dnnl_oihw || tag == dnnl_oidhw || tag == dnnl_goiw
+                || tag == dnnl_goihw || tag == dnnl_goidhw;
+    };
+    for (auto i = 0; i < this->n_inputs(); i++) {
+        // Check data type
+        auto dt = sdt[i];
+        bool dt_ok = dt == dnnl_s8 || dt == dnnl_f16 || dt == dnnl_f32;
+        if (!dt_ok) return true;
+
+        // Check for supported plain tags
+        auto tag = convert_tag(this->stag[i], this->ndims[i]);
+        auto plain_tag_ok = cudnn_supported_tag_plain(tag)
+                || extra_supported_plain_tags(tag);
+        if (!plain_tag_ok) return true;
+    }
+    return false;
+}
+
 } // namespace binary

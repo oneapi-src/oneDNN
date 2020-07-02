@@ -40,5 +40,25 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     return s;
 }
+bool prb_t::maybe_skip_nvidia() const {
+    // Check data type
+    bool ddt_ok = ddt == dnnl_s8 || ddt == dnnl_f16 || ddt == dnnl_f32;
+    if (!ddt_ok) return true;
+    bool sdt_ok = sdt == dnnl_s8 || sdt == dnnl_f16 || sdt == dnnl_f32;
+    if (!sdt_ok) return true;
+
+    // Check for supported plain tags
+    auto dtag = convert_tag(this->dtag, this->ndims);
+    auto dtag_ok = cudnn_supported_tag_plain(dtag)
+            || dtag == dnnl_format_tag_undef || dtag == dnnl_format_tag_any;
+    if (!dtag_ok) return true;
+    for (auto i = 0; i < this->n_inputs(); i++) {
+        // Check for supported plain tags
+        auto stag = convert_tag(this->stag[i], this->ndims);
+        auto stag_ok = cudnn_supported_tag_plain(stag);
+        if (!stag_ok) return true;
+    }
+    return false;
+}
 
 } // namespace concat

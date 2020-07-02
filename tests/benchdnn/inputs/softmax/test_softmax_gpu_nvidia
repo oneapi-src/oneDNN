@@ -4,9 +4,9 @@
 --dir=FWD_D
 --alg=SOFTMAX,LOGSOFTMAX
 --inplace=true,false
---tag=nc           --axis=1     --batch=softmax_2d
+--tag=nc           --axis=0,1     --batch=softmax_2d
 --dir=FWD_D,BWD_D
---tag=abcde --axis=1 --batch=softmax_5d
+--tag=abcde --axis=0,1,2,3 --batch=softmax_5d
 --tag=abcdef --axis=1 --batch=softmax_6d
 
 --reset
@@ -14,6 +14,6 @@
 --alg=SOFTMAX,LOGSOFTMAX
 --dt=f16
 --inplace=true,false
---tag=nc --axis=1 --batch=softmax_2d
+--tag=nc --axis=0,1 --batch=softmax_2d
 
---tag=nchw,nhwc --axis=1 --batch=softmax_4d
+--tag=nchw,nhwc --axis=0,1,2,3 --batch=softmax_4d

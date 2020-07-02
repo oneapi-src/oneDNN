@@ -155,4 +155,58 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
+bool prb_t::maybe_skip_nvidia() const {
+    const auto dat_tag = convert_tag(this->tag, this->ndims);
+    if (!cudnn_supported_tag_plain(dat_tag)
+            && !cudnn_supported_tag_blocking(dat_tag)) {
+        return true;
+    }
+
+    if ((dir & FLAG_BWD) && (flags & GLOB_STATS)) { return true; }
+
+    const bool inference_ok
+            = IMPLICATION((this->dt == dnnl_s8 || this->dt == dnnl_f16),
+                    (this->dir & FLAG_INF) && (this->flags & GLOB_STATS));
+    if (!inference_ok) { return true; }
+
+    // The following shapes from test_bnorm_gpu_nvidia are not supported due to
+    // a RELU backward partioning issue in cuDNN
+    if (dir == dir_t::BWD_DW && (flags & FUSE_NORM_RELU)
+            && (flags & USE_SCALESHIFT)) {
+        if ((ih == 17 && iw == 17) || (ih == 35 && iw == 35)
+                || (ih == 73 && iw == 73)) {
+            return true;
+        }
+    }
+
+    // The following shapes from test_bnorm_gpu are skipped due to the same
+    // partioning issue
+    if (dir == dir_t::BWD_DW && (flags & FUSE_NORM_RELU)
+            && (flags & USE_SCALESHIFT)) {
+        if ((ih == 1 && iw == 10) || (ih == 1 && iw == 1)
+                || (ih == 40 && iw == 40 && id == 40)
+                || (ih == 10 && iw == 10 && id == 10)
+                || (ih == 112 && iw == 112) || (ih == 56 && iw == 56)
+                || (ih == 28 && iw == 28)
+                || (ih == 14 && iw == 14 || (ih == 7 && iw == 7)
+                        || (ih == 8 && iw == 8))) {
+            return true;
+        }
+    }
+
+    // The following shapes from test_bnorm_all are skipped due to the same
+    // partioning issue
+    if (dir == dir_t::BWD_DW && (flags & FUSE_NORM_RELU)
+            && (flags & USE_SCALESHIFT)) {
+        if ((ih == 15 && iw == 15) || (ih == 29 && iw == 29)
+                || (ih == 57 && iw == 57) || (ih == 71 && iw == 71)
+                || (ih == 147 && iw == 147) || (ih == 149 && iw == 149)
+                || (ih == 2 && iw == 2) || (ih == 4 && iw == 4)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 } // namespace bnorm

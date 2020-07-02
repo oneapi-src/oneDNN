@@ -70,6 +70,9 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
         else
             SAFE_V(FAIL);
     }
+    if (p->maybe_skip_nvidia() && is_nvidia_gpu(engine_tgt)) {
+        return r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED, OK;
+    }
 
     auto dnnl_attr = create_dnnl_attr(attr_t());
 
