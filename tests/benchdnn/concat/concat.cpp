@@ -31,6 +31,9 @@ namespace concat {
 static int init_pd(const engine_t &engine_tgt, const prb_t *p,
         dnnl_primitive_desc_t &cpd, res_t *r, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
+    if (p->maybe_skip_nvidia() && is_nvidia_gpu(engine_tgt)) {
+        return r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED, OK;
+    }
     std::vector<dnnl_memory_desc_t> src_d;
     src_d.resize(p->n_inputs());
 
@@ -49,6 +52,7 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
                          p->ddt, convert_tag(p->dtag, p->ndims)),
                 WARN);
     }
+
 
     auto dnnl_attr = create_dnnl_attr(attr_t());
 

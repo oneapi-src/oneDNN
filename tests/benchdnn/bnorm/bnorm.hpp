@@ -115,6 +115,8 @@ struct prb_t : public desc_t {
     bool need_ws() const {
         return (flags & FUSE_NORM_RELU) && !(dir & FLAG_INF);
     }
+
+    bool maybe_skip_nvidia() const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

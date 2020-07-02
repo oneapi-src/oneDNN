@@ -424,6 +424,13 @@ inline int init_pd_custom(const engine_t &engine_tgt, const prb_t *p,
         dnnl_format_tag_t wei_tag = dnnl_format_tag_undef,
         dnnl_format_tag_t bia_tag = dnnl_format_tag_undef,
         dnnl_format_tag_t dst_tag = dnnl_format_tag_undef) {
+
+    if (p->maybe_skip_nvidia() && is_nvidia_gpu(engine_tgt)) {
+        r->state = SKIPPED;
+        r->reason = CASE_NOT_SUPPORTED;
+        return OK;
+    }
+
     dnnl_convolution_desc_t cd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
@@ -561,6 +568,8 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
             {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, r);
     if (r->state == SKIPPED) return;
 
+//Prevent from skipping working nvidia winograd tests
+#ifndef DNNL_SYCL_CUDA
     // Winograd implementation limitations.
     if (p->alg == WINO) {
         static auto isa = dnnl_get_effective_cpu_isa();
@@ -592,6 +601,7 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
             return;
         }
     }
+#endif
 }
 
 int doit(const prb_t *p, res_t *r) {

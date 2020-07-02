@@ -1,18 +1,18 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*******************************************************************************/
+ * Copyright 2017-2020 Intel Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
 
 #include <float.h>
 #include <math.h>
@@ -278,6 +278,99 @@ float *generate_oscales(const attr_t::scale_t &oscale, int N) {
         }
     }
     return scales;
+}
+
+bool prb_t::maybe_skip_nvidia() const {
+    if (!(cfg == conf_f32 || cfg == conv::conf_f16 || cfg == conv::conf_s8s8f32
+                || cfg == conv::conf_s8s8s8)) {
+        return true;
+    }
+
+    auto check_dims = [](int n_dims, dnnl_dims_t &src_dhw, dnnl_dims_t &wei_dhw,
+                              dnnl_dims_t &dst_dhw, dnnl_dim_t(&dilates_nd)[3],
+                              dnnl_dim_t(&padding_nd)[3],
+                              dnnl_dim_t(&padding_r_nd)[3],
+                              dnnl_dim_t(&strides_nd)[3]) {
+        // Check output size w respect to padding
+        for (size_t i = 3 - n_dims; i < 3; ++i) {
+            int src = src_dhw[i];
+            int ker = wei_dhw[i];
+            int dil = dilates_nd[i] + 1;
+            int pad = padding_nd[i];
+            if (pad < padding_r_nd[i]) { return true; }
+            int str = strides_nd[i];
+            int dst = dst_dhw[i];
+            int ker_range = 1 + (ker - 1) * (dil + 1);
+            int expected_dst
+                    = 1 + (src + 2 * pad - (((ker - 1) * dil) + 1)) / str;
+            if (expected_dst != dst) { return true; }
+        }
+        return false;
+    };
+    auto bph = [](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph,
+                       int64_t dh) {
+        return (oh - 1) * sh - ih + ((kh - 1) * (dh + 1) + 1) - ph;
+    };
+
+    if (is_deconv) {
+        if (!(cfg == conv::conf_f32 || cfg == conv::conf_f16)) { return true; }
+        if (cfg[ACC].dt == dnnl_f16 && ndims == 5
+                && (dir == dir_t::FWD_B || dir == dir_t::FWD_D))
+            return true;
+        dnnl_dims_t src_dhw = {od, oh, ow};
+        dnnl_dims_t dst_dhw = {id, ih, iw};
+        dnnl_dims_t wei_dhw = {kd, kh, kw};
+        dnnl_dim_t strides_nd[] = {sd, sh, sw};
+        dnnl_dim_t dilates_nd[] = {dd, dh, dw};
+        dnnl_dim_t padding_nd[] = {pd, ph, pw};
+        dnnl_dim_t padding_r_nd[] = {bph(od, id, kd, sd, pd, dd),
+                bph(oh, ih, kh, sh, ph, dh), bph(ow, iw, kw, sw, pw, dw)};
+        int n_dims = this->ndims - 2;
+        if (check_dims(n_dims, src_dhw, wei_dhw, dst_dhw, dilates_nd,
+                    padding_nd, padding_r_nd, strides_nd)) {
+            return true;
+        }
+    } else {
+        // Check for grouped s8s8f32 convolutions which seem to fail
+        if (this->cfg[SRC].dt == dnnl_s8) {
+            if (ndims > 4) { return true; }
+            if (ic % 4 != 0 || oc % 4 != 0) { return true; }
+            if ((this->cfg[DST].dt == dnnl_f32 || this->attr.post_ops.len > 0)
+                    && this->g > 1) {
+                return true;
+            }
+        }
+        dnnl_dims_t src_dhw = {id, ih, iw};
+        dnnl_dims_t dst_dhw = {od, oh, ow};
+        dnnl_dims_t wei_dhw = {kd, kh, kw};
+        dnnl_dim_t strides_nd[3] = {sd, sh, sw};
+        dnnl_dim_t dilates_nd[3] = {dd, dh, dw};
+        dnnl_dim_t padding_nd[3] = {pd, ph, pw};
+
+        dnnl_dim_t padding_r_nd[] = {bph(id, od, kd, sd, pd, dd),
+                bph(ih, oh, kh, sh, ph, dh), bph(iw, ow, kw, sw, pw, dw)};
+        int n_dims = this->ndims - 2;
+        if (check_dims(n_dims, src_dhw, wei_dhw, dst_dhw, dilates_nd,
+                    padding_nd, padding_r_nd, strides_nd)) {
+            return true;
+        }
+        // Check for post-op restrictions
+        const auto &p = attr.post_ops;
+        auto idx = p.find(attr_t::post_ops_t::kind_t::LINEAR);
+        if (idx != -1) { return true; }
+        idx = p.find(attr_t::post_ops_t::kind_t::TANH);
+        if (idx != -1 && p.entry[idx].eltwise.beta != 0.f) { return true; }
+        idx = p.find(attr_t::post_ops_t::kind_t::ELU);
+        if (idx != -1 && p.entry[idx].eltwise.beta != 0.f) { return true; }
+        idx = p.find(attr_t::post_ops_t::kind_t::RELU);
+        if (idx != -1 && p.entry[idx].eltwise.alpha != 0.f) { return true; }
+        if (idx != -1 && p.entry[idx].eltwise.beta != 0.f) { return true; }
+        idx = p.find(attr_t::post_ops_t::kind_t::LOGISTIC);
+        if (idx != -1 && p.entry[idx].eltwise.beta != 0.f) { return true; }
+        idx = p.find(attr_t::post_ops_t::kind_t::BRELU);
+        if (idx != -1 && p.entry[idx].eltwise.beta != 0.f) { return true; }
+    }
+    return false;
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {

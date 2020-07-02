@@ -177,6 +177,20 @@ struct cudnn_matmul_impl_t {
 
     dnnl_data_type_t get_scratchpad_type() { return scratchpad_type_; }
 
+    void convert_dims_matmul(
+            const dnnl_dim_t *dims, int *new_dims, int n_dims) {
+        // Moving the dimensions because cudnnAddTensor doesn't work when
+        // bia_mask=1
+        if (n_dims == 3) { return convert_dims(dims, new_dims, n_dims); }
+        new_dims[0] = 1;
+        for (size_t i = 0; i < n_dims; i++) {
+            new_dims[i + 1] = static_cast<int>(dims[i]);
+        }
+        for (size_t i = n_dims; i < 4; i++) {
+            new_dims[i + 1] = 1;
+        }
+    }
+
     status_t init_gemm_parameters(const memory_desc_wrapper src_d,
             const memory_desc_wrapper weights_d,
             const memory_desc_wrapper dst_d) {
@@ -239,9 +253,9 @@ struct cudnn_matmul_impl_t {
             int dims[NUM_IO][DNNL_MAX_NDIMS];
             int strides[NUM_IO][DNNL_MAX_NDIMS];
 
-            convert_dims(dst_d.dims(), dims[dst], dst_d.ndims());
+            convert_dims_matmul(dst_d.dims(), dims[dst], dst_d.ndims());
             CHECK(convert_data_type(dst_d.md_, &data_types[dst], false));
-            convert_dims(
+            convert_dims_matmul(
                     dst_d.blocking_desc().strides, strides[dst], dst_d.ndims());
             CHECK(create_and_set_tensor_descriptor(&tensor_descs_[dst],
                     data_types[dst], ndims, dims[dst], strides[dst]));
@@ -258,9 +272,9 @@ struct cudnn_matmul_impl_t {
 
             if (with_bias_) {
                 // Create bias and destination tensor descriptors
-                convert_dims(bias_d.dims(), dims[bias], bias_d.ndims());
-                convert_dims(bias_d.blocking_desc().strides, strides[bias],
-                        bias_d.ndims());
+                convert_dims_matmul(bias_d.dims(), dims[bias], bias_d.ndims());
+                convert_dims_matmul(bias_d.blocking_desc().strides,
+                        strides[bias], bias_d.ndims());
                 CHECK(convert_data_type(bias_d.md_, &data_types[bias], false));
                 CHECK(create_and_set_tensor_descriptor(&tensor_descs_[bias],
                         data_types[bias], ndims, dims[bias], strides[bias]));

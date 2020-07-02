@@ -93,6 +93,7 @@ struct prb_t {
             ddims[i] = sdims0[i];
         ddims[axis] = axis_size();
     }
+    bool maybe_skip_nvidia() const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

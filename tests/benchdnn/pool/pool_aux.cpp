@@ -215,4 +215,48 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
+bool prb_t::maybe_skip_nvidia() const {
+    const auto dat_tag = convert_tag(this->tag, this->ndims);
+
+    if (!cudnn_supported_tag_plain(dat_tag)
+            && !cudnn_supported_tag_blocking(dat_tag)) {
+        return true;
+    }
+
+    if (cfg[SRC].dt == dnnl_u8 || cfg[SRC].dt == dnnl_s32) { return true; }
+
+    const bool is_4b = dat_tag == dnnl_aBc4b || dat_tag == dnnl_aBcd4b
+            || dat_tag == dnnl_aBcde4b;
+
+    if (cfg[SRC].dt != dnnl_s8 && is_4b) return true;
+    if (cfg[SRC].dt == dnnl_s8 && is_4b && ic % 4 != 0) return true;
+    if (cfg[SRC].dt == dnnl_f16 && dir != FWD_I) { return true; }
+
+    auto bph = [](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph) {
+        return (oh - 1) * sh - ih + kh - ph;
+    };
+
+    dnnl_dim_t padding_l_nd[] = {pd, ph, pw};
+    dnnl_dim_t padding_r_nd[] = {bph(id, od, kd, sd, pd),
+            bph(ih, oh, kh, sh, ph), bph(iw, ow, kw, sw, pw)};
+    dnnl_dim_t *padding_l = padding_l_nd + (5 - ndims);
+    dnnl_dim_t *padding_r = padding_r_nd + (5 - ndims);
+
+    const auto padFront = ndims >= 5 ? padding_l[ndims - 5] : 0;
+    const auto padT = ndims >= 4 ? padding_l[ndims - 4] : 0;
+    const auto padL = padding_l[ndims - 3];
+
+    const auto padBack = ndims >= 5 ? padding_r[ndims - 5] : 0;
+    const auto padB = ndims >= 4 ? padding_r[ndims - 4] : 0;
+    const auto padR = padding_r[ndims - 3];
+
+    // The following cases are skipped due to a padding limitation of cuDNN
+    if (alg == alg_t::AVG_P
+            && (padL < padR || padT < padB || padFront < padBack)) {
+        return true;
+    }
+
+    return false;
+}
+
 } // namespace pool

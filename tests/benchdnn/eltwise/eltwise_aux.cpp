@@ -39,4 +39,23 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
+bool prb_t::maybe_skip_nvidia() const {
+    bool fwd_ok = IMPLICATION(this->dir % FLAG_FWD,
+            (this->dt == dnnl_s8 || this->dt == dnnl_f16
+                    || this->dt == dnnl_f32)
+                    && (this->alg == attr_t::post_ops_t::RELU
+                            || this->alg == attr_t::post_ops_t::BRELU
+                            || this->alg == attr_t::post_ops_t::TANH
+                            || this->alg == attr_t::post_ops_t::ELU
+                            || this->alg == attr_t::post_ops_t::LOGISTIC));
+    bool bwd_ok = IMPLICATION(this->dir == BWD_D,
+            this->dt == dnnl_f32
+                    && (this->alg == attr_t::post_ops_t::RELU
+                            || this->alg == attr_t::post_ops_t::BRELU));
+    bool relu_ok
+            = IMPLICATION(this->alg == eltwise::alg_t::RELU, this->alpha == 0);
+    auto tag_ok = cudnn_supported_tag_plain(convert_tag(this->tag, ndims));
+    return !tag_ok || !fwd_ok || !bwd_ok || !relu_ok;
+}
+
 } // namespace eltwise

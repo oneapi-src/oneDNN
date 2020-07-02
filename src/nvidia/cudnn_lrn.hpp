@@ -57,7 +57,9 @@ struct cudnn_lrn_fwd_t : public primitive_t {
                     && utils::one_of(desc()->data_desc.data_type, f32, f16)
                     && attr()->has_default_values()
                     // Make sure local size is not even (issue #75)
-                    && desc_.local_size % 2;
+                    && desc_.local_size % 2
+                    // lrn does not support blocking
+                    && src_md()->format_desc.blocking.inner_nblks == 0;
             if (!ok) return status::unimplemented;
             if (has_zero_dim_memory()) { return status::success; };
 
@@ -101,7 +103,10 @@ struct cudnn_lrn_bwd_t : public primitive_t {
                     && set_default_formats_common()
                     && attr()->has_default_values()
                     && desc_.local_size
-                            % 2; // Make sure local size is not even (issue #75)
+                            % 2 // Make sure local size is not even (issue #75)
+                    // lrn does not support blocking
+                    && src_md()->format_desc.blocking.inner_nblks == 0
+                    && diff_dst_md()->format_desc.blocking.inner_nblks == 0;
             if (!ok) return status::unimplemented;
             if (has_zero_dim_memory()) { return status::success; };
 

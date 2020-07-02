@@ -79,6 +79,9 @@ typedef struct dt_conf_t {
 } _dt_conf_t[DAT_TOTAL];
 
 extern const _dt_conf_t conf_f32;
+extern const _dt_conf_t conf_f16;
+extern const _dt_conf_t conf_s8s8s8;
+extern const _dt_conf_t conf_s8s8f32;
 
 const dt_conf_t *str2cfg(const char *str);
 std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
@@ -150,6 +153,8 @@ struct prb_t : public desc_t {
     bool is_deconv;
 
     void count_ops();
+
+    bool maybe_skip_nvidia() const;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };

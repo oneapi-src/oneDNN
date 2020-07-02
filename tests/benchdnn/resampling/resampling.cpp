@@ -140,6 +140,10 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
         const_dnnl_primitive_desc_t hint) {
     dnnl_memory_desc_t src_d, dst_d;
 
+    if (p->maybe_skip_nvidia() && is_nvidia_gpu(engine_tgt)) {
+        return r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED, OK;
+    }
+
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
     dnnl_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
     dnnl_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};

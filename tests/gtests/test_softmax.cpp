@@ -47,7 +47,11 @@ protected:
         p = ::testing::TestWithParam<softmax_test_params<data_t>>::GetParam();
         SKIP_IF_CUDA(!cuda_check_format_tag(p.memory_format),
                 "Unsupported format tag");
-        SKIP_IF_CUDA(p.axis != 1, "Unsupported axis values for CUDA");
+        SKIP_IF_CUDA(!cuda_check_format_tag(p.diff_memory_format),
+                "Unsupported format tag");
+        auto prec = data_traits<data_t>::data_type;
+        SKIP_IF_CUDA(prec == memory::data_type::bf16,
+                "Unsupported datatype for CUDA");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -68,8 +72,6 @@ protected:
                 ? prop_kind::forward_training
                 : p.aprop_kind;
         auto prec = data_traits<data_t>::data_type;
-        SKIP_IF_CUDA(prec == memory::data_type::bf16,
-                "Unsupported datatype for CUDA");
         auto mem_desc = memory::desc(p.dims, prec, p.memory_format);
 
         // default op desc ctor
@@ -147,8 +149,6 @@ protected:
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
         auto prec = data_traits<data_t>::data_type;
-        SKIP_IF_CUDA(prec == memory::data_type::bf16,
-                "Unsupported datatype for CUDA");
         auto mem_desc = memory::desc(p.dims, prec, p.memory_format);
         auto diff_mem_desc = memory::desc(p.dims, prec, p.diff_memory_format);
 

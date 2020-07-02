@@ -173,4 +173,59 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
+bool prb_t::maybe_skip_nvidia() const {
+    // Only support f32, f16, s8s8s8, and s8s8f32. Bias must be f32, or
+    // optionally f16 in f16 config.
+    if (!(cfg == matmul::conf_f32 || cfg == matmul::conf_f16
+                || cfg == matmul::conf_s8s8f32 || cfg == matmul::conf_s8s8s8)) {
+        return true;
+    }
+
+    if (!(attr.oscale.is_def())) {
+        if (!(attr.oscale.policy == attr_t::scale_t::policy_t::COMMON)) {
+            return true;
+        }
+    }
+
+    if (!(attr.zero_points.is_def())) {
+        return true;
+    }
+
+    if (bia_dt != dnnl_data_type_undef
+            && !(bia_dt == dnnl_s8 || bia_dt == dnnl_f16
+                    || bia_dt == dnnl_f32)) {
+        return true;
+    }
+
+    // If 2 post-ops then must be sum->eltwise. Only sum and eltwise post-ops
+    // supported.
+    const auto &p = attr.post_ops;
+    auto idx = p.find(attr_t::post_ops_t::kind_t::LINEAR);
+    if (idx != -1) { return true; }
+    idx = p.find(attr_t::post_ops_t::kind_t::TANH);
+    if (idx != -1 && p.entry[idx].eltwise.beta != 0.f) { return true; }
+    idx = p.find(attr_t::post_ops_t::kind_t::ELU);
+    if (idx != -1 && p.entry[idx].eltwise.beta != 0.f) { return true; }
+    idx = p.find(attr_t::post_ops_t::kind_t::RELU);
+    if (idx != -1 && p.entry[idx].eltwise.alpha != 0.f) { return true; }
+    if (idx != -1 && p.entry[idx].eltwise.beta != 0.f) { return true; }
+    idx = p.find(attr_t::post_ops_t::kind_t::LOGISTIC);
+    if (idx != -1 && p.entry[idx].eltwise.beta != 0.f) { return true; }
+    idx = p.find(attr_t::post_ops_t::kind_t::BRELU);
+    if (idx != -1 && p.entry[idx].eltwise.beta != 0.f) { return true; }
+
+    if (p.len == 2) {
+        return !(p.entry[0].kind == attr_t::post_ops_t::kind_t::SUM
+                && (p.entry[1].kind == attr_t::post_ops_t::kind_t::TANH
+                        || p.entry[1].kind == attr_t::post_ops_t::kind_t::ELU
+                        || p.entry[1].kind == attr_t::post_ops_t::kind_t::RELU
+                        || p.entry[1].kind
+                                == attr_t::post_ops_t::kind_t::LOGISTIC
+                        || p.entry[1].kind
+                                == attr_t::post_ops_t::kind_t::BRELU));
+    }
+
+    return false;
+}
+
 } // namespace matmul

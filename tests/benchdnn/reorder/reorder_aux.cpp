@@ -75,4 +75,54 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
+bool prb_t::maybe_skip_nvidia() const {
+    if (this->attr.oscale.policy != attr_t::scale_t::COMMON) return true;
+    if(this->attr.oscale.runtime) return true;
+    auto extra_supported_plain_tags = [](dnnl_format_tag_t tag) {
+        return  tag == dnnl_acbde || tag == dnnl_acbdef
+                || tag == dnnl_ba || tag == dnnl_bac || tag == dnnl_bacd
+                || tag == dnnl_bacde || tag == dnnl_bca || tag == dnnl_bcda
+                || tag == dnnl_cba || tag == dnnl_cdba || tag == dnnl_cdeba
+                || tag == dnnl_oiw || tag == dnnl_oihw || tag == dnnl_oidhw
+                || tag == dnnl_goiw || tag == dnnl_goihw || tag == dnnl_goidhw;
+    };
+    auto extra_supported_blocking_tags
+            = [](dnnl_format_tag_t tag) { return tag == dnnl_ABc16a16b; };
+    for (auto i = 0; i < 2; i++) {
+        // Check data type
+        auto dt = i ? this->conf_in->dt : this->conf_out->dt;
+        bool dt_ok = dt == dnnl_s8 || dt == dnnl_f16 || dt == dnnl_f32;
+        // if (i && (dt == dnnl_s32 || dt == dnnl_u8)) dt_ok = true;
+        if (!dt_ok) return true;
+
+        // Check for supported plain tags
+        auto tag = convert_tag(
+                i ? this->reorder.tag_in : this->reorder.tag_out, this->ndims);
+        auto plain_tag_ok
+                = cudnn_supported_tag_plain(tag) || extra_supported_plain_tags(tag);
+
+        // dst tag is allowed to be undef
+        if (i && tag == dnnl_format_tag_undef) plain_tag_ok = true;
+
+        // If using unconventional formats then tag must be undef
+        if (!IMPLICATION((dt == dnnl_s32 || dt == dnnl_u8),
+                    tag == dnnl_format_tag_undef))
+            return true;
+
+        // Check for supported blocking tags
+        auto block_tag_ok = cudnn_supported_tag_blocking(tag) || extra_supported_blocking_tags(tag);
+        if (!(plain_tag_ok || block_tag_ok)) return true;
+
+        // If blocking check that data type is s8
+        auto s8_tag_ok = IMPLICATION(block_tag_ok, dt == dnnl_s8);
+        if (!s8_tag_ok) return true;
+
+        // If using blocking check that channel dimension is divisible by 4
+        auto channel_div_ok
+                = IMPLICATION(block_tag_ok, this->reorder.dims[1] % 4 == 0);
+        if (!channel_div_ok) return true;
+    }
+    return false;
+}
+
 } // namespace reorder

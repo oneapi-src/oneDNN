@@ -52,5 +52,39 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     return s;
 }
+bool prb_t::maybe_skip_nvidia() const {
+    for (auto i = -1; i < this->n_inputs(); i++) {
+        // Check data type
+        auto dt = i == -1 ? ddt : sdt[i];
+        bool dt_ok = dt == dnnl_s8 || dt == dnnl_f16 || dt == dnnl_f32;
+        // if (i == -1 && (dt == dnnl_s32 || dt == dnnl_u8)) dt_ok = true;
+        if (!dt_ok) return true;
+
+        // Check for supported plain tags
+        auto tag = convert_tag(i == -1 ? dtag : this->stag[i], this->ndims);
+        auto plain_tag_ok = cudnn_supported_tag_plain(tag);
+
+        // dst tag is allowed to be undef
+        if (i == -1 && tag == dnnl_format_tag_undef) plain_tag_ok = true;
+
+        // If using unconventional formats then tag must be undef
+        if (!IMPLICATION((dt == dnnl_s32 || dt == dnnl_u8),
+                    tag == dnnl_format_tag_undef))
+            return true;
+
+        // Check for supported blocking tags
+        auto block_tag_ok = cudnn_supported_tag_blocking(tag);
+        if (!(plain_tag_ok || block_tag_ok)) return true;
+
+        // If blocking check that data type is s8
+        auto s8_tag_ok = IMPLICATION(block_tag_ok, dt == dnnl_s8);
+        if (!s8_tag_ok) return true;
+
+        // If using blocking check that channel dimension is divisible by 4
+        auto channel_div_ok = IMPLICATION(block_tag_ok, this->dims[1] % 4 == 0);
+        if (!channel_div_ok) return true;
+    }
+    return false;
+}
 
 } // namespace sum

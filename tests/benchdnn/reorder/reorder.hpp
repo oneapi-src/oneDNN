@@ -121,6 +121,7 @@ struct prb_t {
         for (int d = 0; d < ndims; ++d)
             ops *= reorder.dims[d];
     };
+    bool maybe_skip_nvidia() const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

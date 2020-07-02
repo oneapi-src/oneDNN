@@ -80,6 +80,7 @@ struct prb_t {
     int ndims;
 
     int n_inputs() const { return (int)sdt.size(); }
+    bool maybe_skip_nvidia() const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

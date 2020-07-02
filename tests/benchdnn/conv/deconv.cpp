@@ -213,6 +213,12 @@ int doit(const prb_t *p, res_t *r) {
 
     dnnl_primitive_t d {};
     SAFE(init_prim(&d, init_pd, engine_tgt, p, r), WARN);
+    if (p->maybe_skip_nvidia() && is_nvidia_gpu(engine_tgt)) {
+        DNN_SAFE_V(dnnl_primitive_destroy(d));
+        r->state = SKIPPED;
+        r->reason = CASE_NOT_SUPPORTED;
+        return OK;
+    }
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;

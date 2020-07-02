@@ -155,4 +155,20 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
+bool prb_t::maybe_skip_nvidia() const {
+    if (alg != linear) { return true; }
+
+    if (!(dt == dnnl_f32 || dt == dnnl_f16)) { return true; }
+
+    if (!(ndims == 3 || ndims == 4)) { return true; }
+
+    auto symbolic_tag = convert_tag(tag, ndims);
+    if (!(symbolic_tag == dnnl_abc || symbolic_tag == dnnl_abcd
+                || symbolic_tag == dnnl_acb || symbolic_tag == dnnl_acdb)) {
+        return true;
+    }
+
+    return false;
+}
+
 } // namespace resampling

@@ -226,6 +226,13 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     if (engine_tgt_kind == dnnl_gpu) {
         if (kind == MEAN) eps = 1e-7;
         if (kind == VAR) eps = 4e-7;
+        if (kind == DATA && (p->dir & FLAG_BWD)) eps = 4e-7;
+        if (kind == DATA && (p->dir & FWD_D)) {
+            if (p->dt == dnnl_f16)
+                eps = 5e-4;
+            else
+                eps = 1e-5;
+        }
     }
 #endif
 
@@ -391,6 +398,10 @@ int init_pd(const engine_t &engine_tgt, const prb_t *p,
         const_dnnl_primitive_desc_t hint) {
     dnnl_batch_normalization_desc_t bd;
     dnnl_memory_desc_t data_d;
+
+    if (p->maybe_skip_nvidia() && is_nvidia_gpu(engine_tgt)) {
+        return r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED, OK;
+    }
 
     dnnl_dims_t data_dims_0d = {p->mb, p->ic};
     dnnl_dims_t data_dims_1d = {p->mb, p->ic, p->iw};

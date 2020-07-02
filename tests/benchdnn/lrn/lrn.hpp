@@ -87,6 +87,7 @@ struct prb_t : public desc_t {
     alg_t alg;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
+    bool maybe_skip_nvidia() const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

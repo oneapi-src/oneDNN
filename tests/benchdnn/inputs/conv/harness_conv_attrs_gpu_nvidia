@@ -1,6 +1,5 @@
 # i8
 --reset
---allow-unimpl=true # only symmetric padding is supported so far
 --mb=2
 
 --cfg=s8s8s8,s8s8f32
@@ -22,7 +21,6 @@
 
 # f32
 --reset --cfg=f32,f16
---allow-unimpl=true # only symmetric padding is supported so far
 --mb=2,16
 
 --dir=FWD_B

@@ -49,11 +49,11 @@ struct cudnn_softmax_fwd_t : public primitive_t {
                             prop_kind::forward_training)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::f16)
-                    // Blocking is supported only for s8 and softmax does not support it.
+                    // Blocking is supported only for s8 and softmax does not
+                    // support it.
                     && src_md()->format_desc.blocking.inner_nblks == 0
                     && dst_md()->format_desc.blocking.inner_nblks == 0
-                    // cuDNN supports softmax only on channel dimension
-                    && axis() == 1 && attr()->has_default_values();
+                    && attr()->has_default_values();
 
             if (!ok) return status::unimplemented;
 
@@ -89,8 +89,7 @@ struct cudnn_softmax_bwd_t : public primitive_t {
                     // Blocking is not supported
                     && dst_md()->format_desc.blocking.inner_nblks == 0
                     && diff_dst_md()->format_desc.blocking.inner_nblks == 0
-                    // CUDNN supports softmax only on channel dimension
-                    && axis() == 1 && attr()->has_default_values();
+                    && attr()->has_default_values();
 
             if (!ok) return status::unimplemented;
 

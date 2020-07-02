@@ -56,4 +56,10 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     return s;
 }
 
+bool prb_t::maybe_skip_nvidia() const {
+    auto tag_ok = cudnn_supported_tag_plain(convert_tag(tag, ndims));
+    auto axis_ok = axis == 1; // Make sure axis is channel dim
+    return !tag_ok || !axis_ok;
+}
+
 } // namespace softmax

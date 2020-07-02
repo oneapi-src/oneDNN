@@ -88,6 +88,8 @@ struct prb_t {
                 || alg == alg_t::ELU_DST || alg == alg_t::SQRT_DST
                 || alg == alg_t::LOGISTIC_DST || alg == alg_t::EXP_DST;
     }
+
+    bool maybe_skip_nvidia() const;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
