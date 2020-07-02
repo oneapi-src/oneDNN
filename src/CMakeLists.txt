@@ -159,6 +159,8 @@ if (WIN32)
         ${CMAKE_COMMAND} -E copy
         $<TARGET_FILE_DIR:${LIB_NAME}>/${prefix}dnnl.${ext}
         $<TARGET_FILE_DIR:${LIB_NAME}>/${prefix}mkldnn.${ext}
+        # Workaround for MSB8065 warning.
+        COMMAND ${CMAKE_COMMAND} -E touch "CMakeFiles/compat_libs"
         DEPENDS ${LIB_NAME})
     install(FILES $<TARGET_FILE_DIR:${LIB_NAME}>/${prefix}mkldnn.${ext}
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
