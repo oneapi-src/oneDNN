@@ -61,6 +61,10 @@ if(WIN32 AND DNNL_SYCL_DPCPP)
     append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
     # XXX: ignore 'XXX is deprecated' coming from Intel TBB headers
     append(CMAKE_CCXX_FLAGS "-Wno-deprecated-declarations")
+    # Ignore warning LNK4078: multiple '__CLANG_OFFLOAD_BUNDLE__sycl-spi'
+    # sections found with different attributes
+    append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /IGNORE:4078")
+    append(CMAKE_SHARED_LINKER_FLAGS "-Xlinker /IGNORE:4078")
 endif()
 
 if(MSVC)
