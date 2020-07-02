@@ -36,14 +36,6 @@
 #pragma warning disable : 177
 #endif
 
-#if __INTEL_COMPILER && __INTEL_COMPILER < 1900
-// Intel Compilers 17.x and 18.x do not like that diff_src_ptr() is only used
-// in a single descendant class and marks it as unused. This breaks builds
-// with DNNL_WERROR=on. Disabling the warning for this file seems to be less
-// ugly than all the fixes that I came up with.
-#pragma warning disable : 177
-#endif
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
