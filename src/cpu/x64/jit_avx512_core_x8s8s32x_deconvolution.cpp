@@ -371,7 +371,8 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::compute_ker(int ur_w,
         int _start = (jcp.signed_input) ? 0 : jj_start;
         int _end = (jcp.signed_input) ? ur_w : jj_end;
 
-        int tail_size = jcp.ic_without_padding % 4;
+        int tail_size = jcp.is_depthwise ? jcp.ngroups % jcp.ch_block
+                                         : jcp.ic_without_padding % 4;
         int n_ic_blocks = jcp.is_depthwise
                 ? 1
                 : (last_ic_block_flag & ~no_last_block ? div_up(
@@ -393,7 +394,12 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::compute_ker(int ur_w,
                     if (jj >= jj_start && jj < jj_end
                             && ((jj + jcp.l_pad - ki) % jcp.stride_w == 0)) {
                         if (jcp.is_depthwise) {
-                            vpmovzxbd(zmm_inp(jj, jcp.nb_oc_blocking),
+                            auto zmm_src = zmm_inp(jj, jcp.nb_oc_blocking);
+                            if (tail_size != 0) {
+                                assert(jcp.nb_oc_blocking == 1);
+                                zmm_src = zmm_src | ktail_mask | T_z;
+                            }
+                            vpmovzxbd(zmm_src,
                                     EVEX_compress_addr(
                                             aux_reg_src, aux_src_off));
                         } else if ((last_ic_block_flag & last_sp_block)
@@ -875,8 +881,15 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::generate() {
                 : jcp.oc_without_padding % jcp.oc_block;
         int mask = (1 << tail_size) - 1;
         Reg32 regw_tmp = reg_nur_w.cvt32();
+        Label skip_tail_mask;
+        if (jcp.is_depthwise) {
+            kxnorw(ktail_mask, ktail_mask, ktail_mask);
+            cmp(dword[param1 + GET_OFF(oc_blocks)], jcp.nb_ch - 1);
+            jne(skip_tail_mask, T_NEAR);
+        }
         mov(regw_tmp, mask);
         kmovw(ktail_mask, regw_tmp);
+        L(skip_tail_mask);
     }
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
