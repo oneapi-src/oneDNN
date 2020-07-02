@@ -112,13 +112,35 @@ template <typename Vmm>
 void _jit_avx512_common_conv_fwd_kernel<Vmm>::store_output(int ur_w) {
     Label no_update_label, store_label, eltwise_label;
 
-    mov(reg_channel, ptr[param1 + GET_OFF(flags)]);
+    // Note 1: the following code has conditions that fix a regression
+    // in Densenet
+
+    assert(IMPLICATION(
+            mayiuse(avx512_mic), !is_src_layout_nxc() && !is_dst_layout_nxc()));
+
+    auto _test = [&](const int cond) {
+        // *Note 1
+        return mayiuse(avx512_mic) ? cmp(reg_channel, cond)
+                                   : test(reg_channel, cond);
+    };
+
+    // *Note 1
+    mov(reg_channel,
+            ptr[param1
+                    + (mayiuse(avx512_mic) ? GET_OFF(channel)
+                                           : GET_OFF(flags))]);
+
     if (jcp.with_bias) { mov(reg_bias, ptr[param1 + GET_OFF(bias)]); }
     const int oc_tail = jcp.oc_tail;
 
     if (!jcp.with_sum) {
-        test(reg_channel, FLAG_IC_FIRST);
-        jnz(no_update_label, T_NEAR);
+        auto _jmp = [&](const Label &l) {
+            return mayiuse(avx512_mic) ? je(l, T_NEAR) : jnz(l, T_NEAR);
+        };
+
+        // *Note 1
+        _test(mayiuse(avx512_mic) ? 0 : FLAG_IC_FIRST);
+        _jmp(no_update_label);
     }
 
     for (int k = 0; k < jcp.nb_oc_blocking; k++)
@@ -136,8 +158,13 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::store_output(int ur_w) {
     if (!jcp.with_sum) {
         jmp(eltwise_label, T_NEAR);
     } else {
-        test(reg_channel, FLAG_IC_FIRST);
-        jz(eltwise_label, T_NEAR);
+        auto _jmp = [&](const Label &l) {
+            return mayiuse(avx512_mic) ? jne(l, T_NEAR) : jz(l, T_NEAR);
+        };
+
+        // *Note 1
+        _test(mayiuse(avx512_mic) ? 0 : FLAG_IC_FIRST);
+        _jmp(eltwise_label);
     }
 
     L(no_update_label);
@@ -157,8 +184,13 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::store_output(int ur_w) {
 
     L(eltwise_label);
     if (jcp.with_eltwise) {
-        test(reg_channel, FLAG_IC_LAST);
-        jz(store_label, T_NEAR);
+        auto _jmp = [&](const Label &l) {
+            return mayiuse(avx512_mic) ? jl(l, T_NEAR) : jz(l, T_NEAR);
+        };
+
+        // *Note 1
+        _test(mayiuse(avx512_mic) ? jcp.nb_ic - 1 : FLAG_IC_LAST);
+        _jmp(store_label);
 
         if (ur_w == jcp.ur_w) {
             eltwise_injector_->compute_vector_range(
