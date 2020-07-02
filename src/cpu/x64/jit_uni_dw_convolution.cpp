@@ -509,17 +509,16 @@ void jit_uni_dw_convolution_bwd_weights_t<sse41,
                                     + bias_offset];
                 }
             }
-            for (int kh = 0; kh < jcp.kh; ++kh)
-                for (int kw = 0; kw < jcp.kw; ++kw) {
-                    size_t wei_offset = (g * jcp.kh + kh) * jcp.kw + kw;
-                    PRAGMA_OMP_SIMD()
-                    for (int g_block = 0; g_block < ch_block; ++g_block) {
-                        const size_t off = wei_offset * ch_block + g_block;
-                        diff_weights[off]
-                                += diff_wei_reduction_buf[mb_accum_offset
-                                        + off];
-                    }
+            for_(int kh = 0; kh < jcp.kh; ++kh)
+            for (int kw = 0; kw < jcp.kw; ++kw) {
+                size_t wei_offset = (g * jcp.kh + kh) * jcp.kw + kw;
+                PRAGMA_OMP_SIMD()
+                for (int g_block = 0; g_block < ch_block; ++g_block) {
+                    const size_t off = wei_offset * ch_block + g_block;
+                    diff_weights[off]
+                            += diff_wei_reduction_buf[mb_accum_offset + off];
                 }
+            }
         }
     }
 }
