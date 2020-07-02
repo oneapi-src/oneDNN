@@ -7,3 +7,7 @@
 
 # Dilated deconvolution with signed input
 --cfg=s8s8s32 mb1_ic16oc16_kh2kw1_ih1iw1_oh2ow1_sh1sw1_ph1pw0_dh1dw0n"signed_dilation_with_top_overflow"
+
+# depthwise deconv channel tails
+--reset
+--cfg=u8s8s32 g19ic19iw5oc19ow5kw3pw1n"depthwise_deconv_channel_tails"
