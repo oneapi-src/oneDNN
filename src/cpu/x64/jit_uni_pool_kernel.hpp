@@ -153,6 +153,16 @@ private:
     int prev_kw;
     void (*jit_ker)(jit_pool_call_s *);
 
+    void prepare_tail_mask();
+    void put_one_in_vmm();
+    void uni_broadcast_reg_val(const int reg_idx, const int vmm_idx);
+    void push_vmm_val(const int idx);
+    void pop_vmm_val(const int idx);
+    void load(const int idx, const reg64_t &reg_ptr, const int offset,
+            const bool is_c_tail_proccessing);
+    void store(const int idx, const reg64_t &reg_ptr, const int offset,
+            const bool is_c_tail_proccessing);
+
     void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r,
             bool with_c_tail_proccessing);
     void avg_step(int ur_w, int ur_bc, int pad_l, int pad_r,
@@ -163,102 +173,6 @@ private:
             bool with_c_tail_proccessing);
 
     void zero_diff_src(int ur_bc, bool with_c_tail_proccessing);
-
-    void prepare_tail_mask() {
-        if (isa >= avx512_common) {
-            size_t c_tail_mask = (1ULL << jpp.c_tail) - 1ULL;
-            mov(tmp_gpr.cvt32(), c_tail_mask);
-            kmovw(k_c_tail_mask, tmp_gpr.cvt32());
-        } else if (isa == avx) {
-            static const uint32_t mask[16] = {0xffffffff, 0xffffffff,
-                    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-                    0xffffffff, 0, 0, 0, 0, 0, 0, 0, 0};
-            mov(tmp_gpr, reinterpret_cast<size_t>(&mask[8 - jpp.c_tail]));
-            vmovups(vmm_c_tail_mask, ptr[tmp_gpr]);
-        }
-    }
-
-    void put_one_in_vmm() {
-        mov(tmp_gpr, 1);
-        uni_broadcast_reg_val(tmp_gpr.getIdx(), vmm_one.getIdx());
-    }
-
-    void uni_broadcast_reg_val(int reg_idx, int vmm_idx) {
-        movq(Xmm(vmm_idx), reg64_t(reg_idx));
-        uni_vpbroadcastd(Vmm(vmm_idx), Xmm(vmm_idx));
-    }
-
-    void push_vmm_val(int idx) {
-        Vmm val_to_store(idx);
-        sub(rsp, val_to_store.getBit());
-        uni_vmovups(ptr[rsp], val_to_store);
-    }
-
-    void pop_vmm_val(int idx) {
-        Vmm val_to_load(idx);
-        uni_vmovups(val_to_load, ptr[rsp]);
-        add(rsp, val_to_load.getBit());
-    }
-
-    void load(
-            int idx, reg64_t reg_ptr, int offset, bool is_c_tail_proccessing) {
-        if (jpp.is_bf16) {
-            /*TODO: maybe use vpmovzxwd + vpslld,
-             * in order to free up vmm_idx() register */
-            if (is_c_tail_proccessing && !jpp.is_c_padded) {
-                Vmm vmm_to_load = is_c_tail_proccessing
-                        ? Vmm(idx) | k_c_tail_mask | T_z
-                        : Vmm(idx);
-                vpmovzxwd(vmm_to_load, ptr[reg_ptr + offset]);
-                vpslld(vmm_to_load, vmm_to_load, 16);
-            } else {
-                vmovups(Ymm(idx), ptr[reg_ptr + offset]);
-                vpermw(Vmm(idx) | k_mask_cvt | T_z, vmm_idx(), Vmm(idx));
-            }
-        } else {
-            if (is_c_tail_proccessing && !jpp.is_c_padded) {
-                if (isa == sse41) {
-                    for (int i = 0; i < jpp.c_tail % 4; i++) {
-                        pinsrd(Xmm(idx), ptr[reg_ptr + offset + i * 4], i);
-                    }
-                } else if (isa == avx) {
-                    vmaskmovps(
-                            Vmm(idx), vmm_c_tail_mask, ptr[reg_ptr + offset]);
-                } else {
-                    vmovups(Zmm(idx) | k_c_tail_mask | T_z,
-                            ptr[reg_ptr + offset]);
-                }
-            } else {
-                uni_vmovups(Vmm(idx), ptr[reg_ptr + offset]);
-            }
-        }
-    };
-
-    void store(
-            int idx, reg64_t reg_ptr, int offset, bool is_c_tail_proccessing) {
-        if (jpp.is_bf16) {
-            if (is_c_tail_proccessing && !jpp.is_c_padded) {
-                vmovdqu16(ptr[reg_ptr + offset] | k_c_tail_mask, Ymm(idx));
-            } else {
-                vmovups(yword[reg_ptr + offset], Ymm(idx));
-            }
-        } else {
-            if (is_c_tail_proccessing && !jpp.is_c_padded) {
-                if (isa == sse41) {
-                    for (int i = 0; i < jpp.c_tail % 4; i++) {
-                        pextrd(ptr[reg_ptr + offset + i * 4], Xmm(idx), i);
-                    }
-                } else if (isa == avx) {
-                    vmaskmovps(
-                            ptr[reg_ptr + offset], vmm_c_tail_mask, Vmm(idx));
-                } else {
-                    vmovups(ptr[reg_ptr + offset] | k_c_tail_mask, Zmm(idx));
-                }
-            } else {
-                uni_vmovups(vmmword[reg_ptr + offset], Vmm(idx));
-            }
-        }
-    }
 
     void step(int ur_w, int ur_bc, int pad_l, int pad_r,
             bool with_c_tail_proccessing) {
