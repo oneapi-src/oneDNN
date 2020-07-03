@@ -69,6 +69,19 @@ public:
             const stream_attr_t *attr) override;
     status_t create_stream(stream_t **stream, cl::sycl::queue &queue);
 
+    virtual status_t create_kernel(gpu::compute::kernel_t *kernel,
+            const char *kernel_name,
+            const std::vector<unsigned char> &binary) const override {
+        if (kind() != engine_kind::gpu) {
+            assert("not expected");
+            return status::invalid_arguments;
+        }
+
+        *kernel = gpu::compute::kernel_t(
+                new gpu::ocl::ocl_gpu_kernel_t(binary, kernel_name));
+        return status::success;
+    }
+
     virtual status_t create_kernels(
             std::vector<gpu::compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,

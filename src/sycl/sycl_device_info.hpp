@@ -33,7 +33,7 @@ public:
     sycl_device_info_t(const cl::sycl::device &device)
         : device_(device), ext_(0), eu_count_(0), hw_threads_(0) {}
 
-    virtual status_t init() override {
+    status_t init() override {
         // Extensions
         for (uint64_t i_ext = 1;
                 i_ext < (uint64_t)gpu::compute::device_ext_t::last;
@@ -56,6 +56,8 @@ public:
         int threads_per_eu = (device_.is_gpu() ? 7 : 1);
         hw_threads_ = eu_count_ * threads_per_eu;
 
+        CHECK(init_arch());
+
         // Integrated GPUs share LLC with CPU which is L3 cache on CPU.
         size_t cache_size = cpu::platform::get_per_core_cache_size(3)
                 * cpu::platform::get_num_cores();
@@ -76,18 +78,31 @@ public:
         return status::success;
     }
 
-    virtual bool has(gpu::compute::device_ext_t ext) const override {
+    bool has(gpu::compute::device_ext_t ext) const override {
         return ext_ & (uint64_t)ext;
     }
 
-    virtual int eu_count() const override { return eu_count_; }
-    virtual int hw_threads() const override { return hw_threads_; }
-    virtual size_t llc_cache_size() const override { return llc_cache_size_; }
+    gpu::compute::gpu_arch_t gpu_arch() const override { return gpu_arch_; }
+    int eu_count() const override { return eu_count_; }
+    int hw_threads() const override { return hw_threads_; }
+    size_t llc_cache_size() const override { return llc_cache_size_; }
 
 private:
+    status_t init_arch() {
+        if (name().find("Gen9") != std::string::npos)
+            gpu_arch_ = gpu::compute::gpu_arch_t::gen9;
+        else if (name().find("Gen12LP") != std::string::npos)
+            gpu_arch_ = gpu::compute::gpu_arch_t::gen12lp;
+        else
+            gpu_arch_ = gpu::compute::gpu_arch_t::unknown;
+
+        return status::success;
+    }
+
     cl::sycl::device device_;
     uint64_t ext_;
     int32_t eu_count_, hw_threads_;
+    gpu::compute::gpu_arch_t gpu_arch_ = gpu::compute::gpu_arch_t::unknown;
     size_t llc_cache_size_ = 0;
 };
 
