@@ -35,7 +35,9 @@ status_t memory_storage_t::init(unsigned flags, size_t size, void *handle) {
     return set_data_handle(handle);
 }
 
-status_t memory_storage_t::map_data(void **mapped_ptr, stream_t *stream) const {
+status_t memory_storage_t::map_data(
+        void **mapped_ptr, stream_t *stream, size_t size) const {
+    UNUSED(size);
     if (stream != nullptr && stream->engine() != engine_)
         return status::invalid_arguments;
     return get_data_handle(mapped_ptr);

@@ -769,7 +769,8 @@ status_t _ref_rnn_common_t<aprop>::init_res_storage(
         // copy bias to memory storage
         std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
         void *scales_ptr = nullptr;
-        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr));
+        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr,
+                sizeof(float) * pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc));
         utils::array_copy((float *)scales_ptr,
                 pd()->attr()->rnn_weights_qparams_.scales_,
                 pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc);
@@ -789,7 +790,8 @@ status_t _ref_rnn_common_t<aprop>::init_res_storage(
 
         std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
         void *tm_scales_ptr = nullptr;
-        CHECK(tmp_mem_storage->map_data(&tm_scales_ptr, nullptr));
+        CHECK(tmp_mem_storage->map_data(&tm_scales_ptr, nullptr,
+                sizeof(float) * pd()->attr()->rnn_tparams_.ngates_));
         utils::array_copy((float *)tm_scales_ptr,
                 pd()->attr()->rnn_tparams_.scales_,
                 pd()->attr()->rnn_tparams_.ngates_);

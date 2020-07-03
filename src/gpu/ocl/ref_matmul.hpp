@@ -199,7 +199,9 @@ struct ref_matmul_t : public gpu_primitive_t {
             return status;
         }
         mem_storage.reset(mem_s_ptr);
-        status = mem_storage->map_data(&p, nullptr);
+        assert(sizeof(float) == sizeof(int));
+        status = mem_storage->map_data(
+                &p, nullptr, sizeof(float) * mdw.nelems());
         if (status != status::success) return status;
         if (!pd()->is_defined_[idx]) {
             if (idx == SCALES_) {

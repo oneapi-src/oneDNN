@@ -114,7 +114,7 @@ void *exec_ctx_t::host_ptr(const memory_storage_t *mem_storage) const {
 }
 
 void *exec_ctx_t::map_memory_storage(
-        const memory_storage_t *storage, stream_t *stream) const {
+        const memory_storage_t *storage, stream_t *stream, size_t size) const {
     if (!storage || storage->is_null()) return nullptr;
 
     if (memory_mapping_.count(storage->data_handle()) > 0) {
@@ -122,7 +122,7 @@ void *exec_ctx_t::map_memory_storage(
     }
 
     void *mapped_ptr;
-    status_t status = storage->map_data(&mapped_ptr, stream);
+    status_t status = storage->map_data(&mapped_ptr, stream, size);
     assert(status == status::success);
     MAYBE_UNUSED(status);
     return mapped_ptr;

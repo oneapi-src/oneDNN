@@ -74,8 +74,8 @@ struct exec_ctx_t {
     void *host_ptr(int arg) const;
     void *host_ptr(const memory_storage_t *mem_storage) const;
 
-    void *map_memory_storage(
-            const memory_storage_t *storage, stream_t *stream) const;
+    void *map_memory_storage(const memory_storage_t *storage, stream_t *stream,
+            size_t size) const;
     void unmap_memory_storage(const memory_storage_t *storage, void *mapped_ptr,
             stream_t *stream) const;
 

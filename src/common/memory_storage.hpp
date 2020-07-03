@@ -61,7 +61,8 @@ struct memory_storage_t : public c_compatible {
 
     virtual size_t base_offset() const { return 0; }
 
-    virtual status_t map_data(void **mapped_ptr, stream_t *stream) const;
+    virtual status_t map_data(
+            void **mapped_ptr, stream_t *stream, size_t size) const;
 
     virtual status_t unmap_data(void *mapped_ptr, stream_t *stream) const;
 

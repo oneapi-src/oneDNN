@@ -445,6 +445,11 @@ status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
 
     auto temp_buf = ctx.get_scratchpad_grantor().get_memory_storage(
             memory_tracking::names::key_gemm_tmp_buffer);
+    auto temp_buf_size
+            = ctx.get_scratchpad_grantor()
+                      .get_registry()
+                      .get(memory_tracking::names::key_gemm_tmp_buffer)
+                      .size;
 
     int unroll_m[2], unroll_n;
     gen9_gemm_nocopy_superkernel_t::get_unrolls(
@@ -507,7 +512,7 @@ status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
     }
 
     void *plan_void = nullptr;
-    temp_buf->map_data(&plan_void, nullptr);
+    temp_buf->map_data(&plan_void, nullptr, temp_buf_size);
 
     if (!plan_void) return status::runtime_error;
 

@@ -195,7 +195,11 @@ status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
 
     if (mdw.nelems(false) == mdw.nelems(true)) return success;
 
-    void *mapped_ptr = ctx.map_memory_storage(memory_storage, ctx.stream());
+    const size_t map_size = mdw.size();
+    assert(map_size != DNNL_RUNTIME_SIZE_VAL);
+
+    void *mapped_ptr
+            = ctx.map_memory_storage(memory_storage, ctx.stream(), map_size);
 
     auto *data = static_cast<typename prec_traits<dt>::type *>(mapped_ptr);
     auto blk = mdw.blocking_desc();

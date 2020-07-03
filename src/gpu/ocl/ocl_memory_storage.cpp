@@ -50,7 +50,7 @@ cl_command_queue get_map_queue(engine_t *engine, stream_t *stream) {
 } // namespace
 
 status_t ocl_memory_storage_t::map_data(
-        void **mapped_ptr, stream_t *stream) const {
+        void **mapped_ptr, stream_t *stream, size_t) const {
     if (!mem_object()) {
         *mapped_ptr = nullptr;
         return status::success;

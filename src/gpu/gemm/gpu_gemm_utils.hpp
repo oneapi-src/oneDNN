@@ -45,7 +45,8 @@ inline status_t prepare_scales(const primitive_attr_t *attr, engine_t *engine,
     mem_storage.reset(mem_storage_ptr);
 
     float *mapped_mem_storage = nullptr;
-    s = mem_storage->map_data((void **)&mapped_mem_storage, nullptr);
+    s = mem_storage->map_data(
+            (void **)&mapped_mem_storage, nullptr, sizeof(*s_data) * count);
     if (s != status::success) return s;
     utils::array_copy(mapped_mem_storage, s_data, count);
     s = mem_storage->unmap_data((void *)mapped_mem_storage, nullptr);
@@ -75,7 +76,8 @@ inline status_t prepare_zero_points(const primitive_attr_t *attr,
     mem_storage.reset(mem_storage_ptr);
 
     int *mapped_mem_storage = nullptr;
-    s = mem_storage->map_data((void **)&mapped_mem_storage, nullptr);
+    s = mem_storage->map_data(
+            (void **)&mapped_mem_storage, nullptr, sizeof(*zp_data) * count);
     if (s != status::success) return s;
     utils::array_copy(mapped_mem_storage, zp_data, count);
     s = mem_storage->unmap_data((void *)mapped_mem_storage, nullptr);

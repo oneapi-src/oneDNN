@@ -107,8 +107,8 @@ status_t ocl_stream_t::copy(
         void *src_mapped_ptr;
         void *dst_mapped_ptr;
 
-        CHECK(src.map_data(&src_mapped_ptr, this));
-        CHECK(dst.map_data(&dst_mapped_ptr, this));
+        CHECK(src.map_data(&src_mapped_ptr, this, size));
+        CHECK(dst.map_data(&dst_mapped_ptr, this, size));
 
         utils::array_copy(static_cast<uint8_t *>(dst_mapped_ptr),
                 static_cast<const uint8_t *>(src_mapped_ptr), size);

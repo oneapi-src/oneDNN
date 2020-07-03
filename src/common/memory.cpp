@@ -68,6 +68,29 @@ bool memory_desc_sanity_check(const memory_desc_t *md) {
     return memory_desc_sanity_check(
             md->ndims, md->dims, md->data_type, format_kind::undef);
 }
+
+// Returns the size required for memory descriptor mapping.
+// Caveats:
+// 1. If memory descriptor with run-time parameters, the mapping cannot be done;
+//    hence return DNNL_RUNTIME_SIZE_VAL
+// 2. Otherwise, the size returned includes `offset0` and holes (for the case
+//    of non-trivial strides). Strictly speaking, the mapping should happen only
+//    for elements accessible with `md.off_l(0 .. md.nelems())`. However, for
+//    the sake of simple implementation let's have such limitation hoping that
+//    no one will do concurrent mapping for overlapping memory objects.
+//
+// XXX: remove limitation mentioned in 2nd bullet.
+size_t memory_desc_map_size(const memory_desc_t *md) {
+    auto mdw = memory_desc_wrapper(md);
+
+    if (mdw.has_runtime_dims_or_strides()) return DNNL_RUNTIME_SIZE_VAL;
+    if (mdw.offset0() == 0) return mdw.size();
+
+    memory_desc_t md_no_offset0 = *md;
+    md_no_offset0.offset0 = 0;
+    return memory_desc_wrapper(md_no_offset0).size()
+            + md->offset0 * mdw.data_type_size();
+}
 } // namespace
 
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
@@ -556,7 +579,18 @@ status_t dnnl_memory_map_data(const memory_t *memory, void **mapped_ptr) {
     bool args_ok = !any_null(memory, mapped_ptr);
     if (!args_ok) return invalid_arguments;
 
-    return memory->memory_storage()->map_data(mapped_ptr, nullptr);
+    const memory_desc_t *md = memory->md();
+    // See caveats in the comment to `memory_desc_map_size()` function.
+    const size_t map_size = memory_desc_map_size(md);
+
+    if (map_size == 0) {
+        *mapped_ptr = nullptr;
+        return success;
+    } else if (map_size == DNNL_RUNTIME_SIZE_VAL) {
+        return invalid_arguments;
+    }
+
+    return memory->memory_storage()->map_data(mapped_ptr, nullptr, map_size);
 }
 
 status_t dnnl_memory_unmap_data(const memory_t *memory, void *mapped_ptr) {

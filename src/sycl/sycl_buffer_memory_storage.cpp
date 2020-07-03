@@ -37,7 +37,7 @@ sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(
     : sycl_memory_storage_base_t(engine, parent_storage) {}
 
 status_t sycl_buffer_memory_storage_t::map_data(
-        void **mapped_ptr, stream_t *stream) const {
+        void **mapped_ptr, stream_t *stream, size_t) const {
     if (!buffer_) {
         *mapped_ptr = nullptr;
         return status::success;
