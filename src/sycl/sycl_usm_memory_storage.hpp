@@ -50,11 +50,24 @@ public:
     }
 
     virtual status_t set_data_handle(void *handle) override {
+        auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
+        auto &sycl_ctx = sycl_engine->context();
+
         usm_ptr_ = decltype(usm_ptr_)(handle, [](void *) {});
+        usm_kind_ = cl::sycl::get_pointer_type(handle, sycl_ctx);
+
         return status::success;
     }
 
-    virtual bool is_host_accessible() const override { return true; }
+    virtual status_t map_data(
+            void **mapped_ptr, stream_t *stream, size_t size) const override;
+    virtual status_t unmap_data(
+            void *mapped_ptr, stream_t *stream) const override;
+
+    virtual bool is_host_accessible() const override {
+        return utils::one_of(usm_kind_, cl::sycl::usm::alloc::host,
+                cl::sycl::usm::alloc::shared);
+    }
 
     virtual std::unique_ptr<memory_storage_t> get_sub_storage(
             size_t offset, size_t size) const override {
@@ -76,6 +89,8 @@ public:
         if (status != status::success) return nullptr;
 
         storage->usm_ptr_ = decltype(usm_ptr_)(usm_ptr_.get(), [](void *) {});
+        storage->usm_kind_ = usm_kind_;
+
         return storage;
     }
 
@@ -85,6 +100,7 @@ protected:
         auto &sycl_dev = sycl_engine->device();
         auto &sycl_ctx = sycl_engine->context();
 
+        usm_kind_ = cl::sycl::usm::alloc::shared;
         void *usm_ptr_alloc = cl::sycl::malloc_shared(size, sycl_dev, sycl_ctx);
         if (!usm_ptr_alloc) return status::out_of_memory;
 
@@ -95,6 +111,7 @@ protected:
 
 private:
     std::unique_ptr<void, std::function<void(void *)>> usm_ptr_;
+    cl::sycl::usm::alloc usm_kind_ = cl::sycl::usm::alloc::unknown;
 };
 
 } // namespace sycl

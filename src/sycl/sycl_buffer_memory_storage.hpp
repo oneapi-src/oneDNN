@@ -58,7 +58,7 @@ public:
     virtual size_t base_offset() const override { return base_offset_; }
 
     virtual status_t map_data(
-            void **mapped_ptr, stream_t *steream, size_t) const override;
+            void **mapped_ptr, stream_t *stream, size_t) const override;
     virtual status_t unmap_data(
             void *mapped_ptr, stream_t *stream) const override;
 

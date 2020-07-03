@@ -27,7 +27,7 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-struct map_tag;
+struct map_buffer_tag;
 
 sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(engine_t *engine)
     : sycl_memory_storage_base_t(engine) {}
@@ -43,7 +43,7 @@ status_t sycl_buffer_memory_storage_t::map_data(
         return status::success;
     }
 
-    auto &guard_manager = guard_manager_t<map_tag>::instance();
+    auto &guard_manager = guard_manager_t<map_buffer_tag>::instance();
 
     auto acc = buffer_->get_access<cl::sycl::access::mode::read_write>();
     auto *acc_ptr = new decltype(acc)(acc);
@@ -56,7 +56,7 @@ status_t sycl_buffer_memory_storage_t::unmap_data(
         void *mapped_ptr, stream_t *stream) const {
     if (!mapped_ptr) return status::success;
 
-    auto &guard_manager = guard_manager_t<map_tag>::instance();
+    auto &guard_manager = guard_manager_t<map_buffer_tag>::instance();
     return guard_manager.exit(this);
 }
 
