@@ -31,6 +31,7 @@ struct jit_trans_src_t {
         const void *tr_src;
         const void *src_prf;
         const void *tr_src_prf;
+        int ch_work;
 
         /* 1st conv 4fma: backward by weights */
         int nthr_oc_b; /* number of threads process given src image */
@@ -64,6 +65,7 @@ struct jit_trans_dst_t {
         const void *tr_src;
         const void *src_prf;
         const void *tr_src_prf;
+        int ch_work;
 
         /* 1st conv 4fma: backward by weights */
         int nthr_oc_b; /* number of threads process given src image */

@@ -752,7 +752,8 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
         diff_weights = CTX_OUT_MEM(void *, DNNL_ARG_DIFF_WEIGHTS);
 
         const auto &jcp = self->kernel_->jcp;
-        diff_bias = self->pd()->wants_padded_bias()
+        diff_bias = self->pd()->with_bias()
+                        && (jcp.oc_without_padding % jcp.oc_block != 0)
                         && self->pd()->jcp_.bia_dt == data_type::f32
                 ? (void *)scratchpad.template get<float>(key_conv_padded_bias)
                 : CTX_OUT_MEM(void *, DNNL_ARG_DIFF_BIAS);
@@ -777,8 +778,8 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
                 = scratchpad.template get<float>(key_conv_wei_bia_reduction);
         bia_reduction = nullptr;
         if (jcp.with_bias) {
-            const size_t wei_size
-                    = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw * jcp.kd;
+            const size_t wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block
+                    * jcp.nb_ic * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
             const int num_wei_buffers = jcp.wei_dt == data_type::bf16
                     ? jcp.nthr_mb
                     : jcp.nthr_mb - 1;
@@ -867,7 +868,8 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::trans_src(
 
 void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_src_nxc(
         src_data_t *tr_src, const src_data_t *src_base, int spatial_start,
-        dim_t spatial_start_offset, dim_t channel_shift, int row_count) const {
+        dim_t spatial_start_offset, int icb_start, dim_t chb_stride,
+        int row_count) const {
     const jit_conv_conf_t jcp = this->kernel_->jcp;
     const int src_stride = jcp.iw * jcp.ngroups * jcp.ic;
     const int tr_src_stride = jcp.tr_iw * jcp.ic_block;
@@ -877,12 +879,15 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_src_nxc(
     int sp_work = nstl::min(work_rest, max_spatial_work - spatial_start);
     const src_data_t *src = src_base + spatial_start_offset;
     int icb = 0;
+    const int ic_tail_work = jcp.ic_tail ? jcp.ic_tail : jcp.ic_block;
     while (work_rest > 0) {
         for (int iwork = 0; iwork < sp_work; iwork++) {
             auto ctx = jit_trans_src_t::ctx_t();
             ctx.src = src;
             ctx.tr_src = tr_src;
-
+            assert(icb_start + icb < jcp.nb_ic);
+            ctx.ch_work = (icb_start + icb + 1) == jcp.nb_ic ? ic_tail_work
+                                                             : jcp.ic_block;
             ctx.src_prf = nullptr;
             ctx.tr_src_prf = nullptr;
             (*trans_kernel_)(&ctx);
@@ -892,7 +897,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_src_nxc(
         work_rest -= sp_work;
         sp_work = nstl::min(work_rest, max_spatial_work);
         icb++;
-        src = src_base + icb * channel_shift;
+        src = src_base + icb * chb_stride;
     }
 }
 
@@ -929,10 +934,10 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::trans_dst(
     }
 }
 
-void jit_avx512_core_bf16_convolution_bwd_weights_t ::trans_dst_nxc(
+void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_dst_nxc(
         diff_dst_data_t *tr_diff_dst, const diff_dst_data_t *diff_dst_base,
-        int spatial_start, dim_t spatial_start_offset, dim_t channel_shift,
-        int row_count) const {
+        int spatial_start, dim_t spatial_start_offset, int ocb_start,
+        dim_t chb_stride, int row_count) const {
     const jit_conv_conf_t jcp = this->kernel_->jcp;
     const int diff_dst_stride = jcp.ow * jcp.ngroups * jcp.oc;
     const int tr_diff_dst_stride = jcp.tr_ow * jcp.oc_block;
@@ -941,11 +946,15 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::trans_dst_nxc(
     int sp_work = nstl::min(work_rest, max_spatial_work - spatial_start);
     const src_data_t *diff_dst = diff_dst_base + spatial_start_offset;
     int ocb = 0;
+    const int oc_tail_work = jcp.oc_tail ? jcp.oc_tail : jcp.oc_block;
     while (work_rest > 0) {
         for (int iwork = 0; iwork < sp_work; iwork++) {
             auto ctx = jit_trans_dst_t::ctx_t();
             ctx.src = diff_dst;
             ctx.tr_src = tr_diff_dst;
+            assert(ocb_start + ocb < jcp.nb_oc);
+            ctx.ch_work = (ocb_start + ocb + 1) == jcp.nb_oc ? oc_tail_work
+                                                             : jcp.oc_block;
             ctx.src_prf = nullptr;
             ctx.tr_src_prf = nullptr;
             (*trans_dst_kernel_)(&ctx);
@@ -955,7 +964,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::trans_dst_nxc(
         work_rest -= sp_work;
         sp_work = nstl::min(work_rest, max_spatial_work);
         ocb++;
-        diff_dst = diff_dst_base + ocb * channel_shift;
+        diff_dst = diff_dst_base + ocb * chb_stride;
     }
 }
 
@@ -967,12 +976,10 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
     const auto &jcp = kernel_->jcp;
     const bool is_src_layout_nxc = jcp.src_tag == format_tag::nhwc;
     const bool is_ddst_layout_nxc = jcp.dst_tag == format_tag::nhwc;
-    const int src_mult = is_src_layout_nxc ? jcp.ic_block : 1;
-    const int ddst_mult = is_ddst_layout_nxc ? jcp.oc_block : 1;
 
-    const int wei_size
-            = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw * jcp.kd;
-    const int bias_buf_size = jcp.ngroups * jcp.oc;
+    const int wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block * jcp.nb_ic
+            * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
+    const int bias_buf_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
 
     float *diff_wei;
     if (diff_weights_d.data_type() == data_type::bf16)
@@ -1044,14 +1051,16 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
                     int ic_b_ = ic_b + ti->ic_b_start;
                     int j_s = j + ih_s;
                     int j_e = j_s + nstl::min(tr_end - tr_start, ih_e - j_s);
-                    const int ic = g_ * jcp.nb_ic + ic_b_;
+                    const int ic_off_idx = is_src_layout_nxc
+                            ? g_ * jcp.ic + ic_b_ * jcp.ic_block
+                            : g_ * jcp.nb_ic + ic_b_;
                     const src_data_t *src
-                            = &ti->src[src_d.blk_off(img, src_mult * ic, j_s)];
+                            = &ti->src[src_d.blk_off(img, ic_off_idx, j_s)];
                     src_data_t *tr_src
                             = &ti->tr_src[tr_src_off(g_, ic_b_, j_s)];
 
                     if (is_src_layout_nxc)
-                        trans_src_nxc(tr_src, src, 0, 0, 0, j_e - j_s);
+                        trans_src_nxc(tr_src, src, 0, 0, ic_b_, 0, j_e - j_s);
                     else
                         trans_src(tr_src, src, j_e - j_s);
 
@@ -1080,16 +1089,18 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
                     int oc_b_ = oc_b + ti->oc_b_start;
                     int j_s = j + oh_s;
                     int j_e = j_s + nstl::min(tr_end - tr_start, oh_e - j_s);
-                    const int oc = g_ * jcp.nb_oc + oc_b_;
+                    const int oc_off_idx = is_ddst_layout_nxc
+                            ? g_ * jcp.oc + oc_b_ * jcp.oc_block
+                            : g_ * jcp.nb_oc + oc_b_;
                     const diff_dst_data_t *diff_dst
                             = &ti->diff_dst[diff_dst_d.blk_off(
-                                    img, ddst_mult * oc, j_s)];
+                                    img, oc_off_idx, j_s)];
                     diff_dst_data_t *tr_diff_dst
                             = &ti->tr_diff_dst[tr_diff_dst_off(g_, oc_b_, j_s)];
 
                     if (is_ddst_layout_nxc)
-                        trans_dst_nxc(
-                                tr_diff_dst, diff_dst, 0, 0, 0, j_e - j_s);
+                        trans_dst_nxc(tr_diff_dst, diff_dst, 0, 0, oc_b_, 0,
+                                j_e - j_s);
                     else
                         trans_dst(tr_diff_dst, diff_dst, j_e - j_s);
 
@@ -1105,23 +1116,29 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
         int icb_work = ti->ic_b_end - ti->ic_b_start;
         if (ic_b_step > 1 && icb_work > ic_b_step && icb_work < 2 * ic_b_step)
             ic_b_step = utils::div_up(icb_work, 2);
-
         for_(int g = ti->g_start; g < ti->g_end; ++g)
         for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
         for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
                 ic_b += ic_b_step) {
-            const int _oc = g * jcp.nb_oc + oc_b;
-            const int _ic = g * jcp.nb_ic + ic_b;
-            const int ic_blocks_to_compute
-                    = nstl::min(ic_b_step, ti->ic_b_end - ic_b);
+            const int ic_off_idx = is_src_layout_nxc
+                    ? g * jcp.ic + ic_b * jcp.ic_block
+                    : g * jcp.nb_ic + ic_b;
+            const int oc_off_idx = is_ddst_layout_nxc
+                    ? g * jcp.oc + oc_b * jcp.oc_block
+                    : g * jcp.nb_oc + oc_b;
+            const int ic_to_compute = this_block_size(
+                    ic_b * jcp.ic_block, jcp.ic, ic_b_step * jcp.ic_block);
+            const int oc_to_compute = this_block_size(
+                    oc_b * jcp.oc_block, jcp.oc, jcp.oc_block);
+
             if (jcp.transpose_src) {
                 if (!dnnl_thr_syncable()) {
                     const src_data_t *src
                             = (src_data_t *)&ti->src[src_d.blk_off(
-                                    img, src_mult * _ic, ih_s)];
+                                    img, ic_off_idx, ih_s)];
                     src_data_t *tr_src = &ti->tr_src[tr_src_off(g, ic_b, ih_s)];
                     if (is_src_layout_nxc)
-                        trans_src_nxc(tr_src, src, 0, 0, 0, ih_e - ih_s);
+                        trans_src_nxc(tr_src, src, 0, 0, ic_b, 0, ih_e - ih_s);
                     else
                         trans_src(tr_src, src, ih_e - ih_s);
                     p.src = tr_src;
@@ -1129,19 +1146,19 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
                     p.src = &ti->tr_src[tr_src_off(g, ic_b, ih_s)];
                 }
             } else {
-                p.src = &ti->src[src_d.blk_off(img, src_mult * _ic, ih_s)];
+                p.src = &ti->src[src_d.blk_off(img, ic_off_idx, ih_s)];
             }
 
             if (jcp.transpose_dst) {
                 if (!dnnl_thr_syncable()) {
                     const diff_dst_data_t *diff_dst
                             = &ti->diff_dst[diff_dst_d.blk_off(
-                                    img, ddst_mult * _oc, oh_s)];
+                                    img, oc_off_idx, oh_s)];
                     diff_dst_data_t *tr_diff_dst
                             = &ti->tr_diff_dst[tr_diff_dst_off(0, 0, 0)];
                     if (is_ddst_layout_nxc)
-                        trans_dst_nxc(
-                                tr_diff_dst, diff_dst, 0, 0, 0, oh_e - oh_s);
+                        trans_dst_nxc(tr_diff_dst, diff_dst, 0, 0, oc_b, 0,
+                                oh_e - oh_s);
                     else
                         trans_dst(tr_diff_dst, diff_dst, oh_e - oh_s);
                     p.dst = tr_diff_dst;
@@ -1150,13 +1167,15 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
                 }
             } else {
                 p.dst = &ti->diff_dst[diff_dst_d.blk_off(
-                        img, ddst_mult * _oc, oh_s)];
+                        img, oc_off_idx, oh_s)];
             }
 
             p.filt = diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
-            p.bias = diff_bias + g * jcp.oc + oc_b * jcp.oc_block;
+            p.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
+                    + oc_b * jcp.oc_block;
             p.channel = (start == ti->img_start);
-            p.ch_blocks = ic_blocks_to_compute;
+            p.reduce_work = ic_to_compute;
+            p.load_work = oc_to_compute;
             p.os_index_begin = oh_s;
             p.os_index_end = oh_e;
             p.flags = 0 | (ic_b == 0 ? FLAG_IC_FIRST : 0);
@@ -1176,11 +1195,9 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
     const auto &jcp = kernel_->jcp;
     const bool is_src_layout_nxc = jcp.src_tag == format_tag::ndhwc;
     const bool is_ddst_layout_nxc = jcp.dst_tag == format_tag::ndhwc;
-    const int src_mult = is_src_layout_nxc ? jcp.ic_block : 1;
-    const int ddst_mult = is_ddst_layout_nxc ? jcp.oc_block : 1;
-    const int wei_size
-            = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw * jcp.kd;
-    const int bias_buf_size = jcp.ngroups * jcp.oc;
+    const int wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block * jcp.nb_ic
+            * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
+    const int bias_buf_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
 
     float *diff_wei;
     if (diff_weights_d.data_type() == data_type::bf16)
@@ -1264,15 +1281,17 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
                     int d_s = d + id_s;
                     int d_e = d_s + nstl::min(tr_end - tr_start, id_e - d_s);
 
-                    const int ic = g_ * jcp.nb_ic + ic_b_;
+                    const int ic_off_idx = is_src_layout_nxc
+                            ? g_ * jcp.ic + ic_b_ * jcp.ic_block
+                            : g_ * jcp.nb_ic + ic_b_;
                     const src_data_t *src
-                            = &ti->src[src_d.blk_off(img, src_mult * ic, d_s)];
+                            = &ti->src[src_d.blk_off(img, ic_off_idx, d_s)];
                     src_data_t *tr_src
                             = &ti->tr_src[tr_src_off_3d(g_, ic_b_, d_s)];
 
                     if (is_src_layout_nxc)
-                        trans_src_nxc(
-                                tr_src, src, 0, 0, 0, (d_e - d_s) * jcp.ih);
+                        trans_src_nxc(tr_src, src, 0, 0, ic_b_, 0,
+                                (d_e - d_s) * jcp.ih);
                     else
                         trans_src(tr_src, src, (d_e - d_s) * jcp.ih);
 
@@ -1304,17 +1323,19 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
                     int oc_b_ = oc_b + ti->oc_b_start;
                     int d_s = d + od_s;
                     int d_e = d_s + nstl::min(tr_end - tr_start, od_e - d_s);
+                    const int oc_off_idx = is_ddst_layout_nxc
+                            ? g_ * jcp.oc + oc_b_ * jcp.oc_block
+                            : g_ * jcp.nb_oc + oc_b_;
 
-                    const int oc = g_ * jcp.nb_oc + oc_b_;
                     const diff_dst_data_t *diff_dst
                             = &ti->diff_dst[diff_dst_d.blk_off(
-                                    img, ddst_mult * oc, d_s)];
+                                    img, oc_off_idx, d_s)];
                     diff_dst_data_t *tr_diff_dst
                             = &ti->tr_diff_dst[tr_diff_dst_off_3d(
                                     g_, oc_b_, d_s)];
 
                     if (is_ddst_layout_nxc)
-                        trans_dst_nxc(tr_diff_dst, diff_dst, 0, 0, 0,
+                        trans_dst_nxc(tr_diff_dst, diff_dst, 0, 0, oc_b_, 0,
                                 (d_e - d_s) * jcp.oh);
                     else
                         trans_dst(tr_diff_dst, diff_dst, (d_e - d_s) * jcp.oh);
@@ -1330,18 +1351,26 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
         for_(int g = ti->g_start; g < ti->g_end; ++g)
         for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
         for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
-            const int _oc = g * jcp.nb_oc + oc_b;
-            const int _ic = g * jcp.nb_ic + ic_b;
+            const int ic_off_idx = is_src_layout_nxc
+                    ? g * jcp.ic + ic_b * jcp.ic_block
+                    : g * jcp.nb_ic + ic_b;
+            const int oc_off_idx = is_ddst_layout_nxc
+                    ? g * jcp.oc + oc_b * jcp.oc_block
+                    : g * jcp.nb_oc + oc_b;
+            const int ic_to_compute = this_block_size(
+                    ic_b * jcp.ic_block, jcp.ic, jcp.ic_block);
+            const int oc_to_compute = this_block_size(
+                    oc_b * jcp.oc_block, jcp.oc, jcp.oc_block);
             if (jcp.transpose_src) {
                 if (!dnnl_thr_syncable()) {
                     const src_data_t *src
                             = (src_data_t *)&ti->src[src_d.blk_off(
-                                    img, src_mult * _ic, id_s)];
+                                    img, ic_off_idx, id_s)];
                     src_data_t *tr_src
                             = &ti->tr_src[tr_src_off_3d(g, ic_b, id_s)];
                     if (is_src_layout_nxc)
-                        trans_src_nxc(
-                                tr_src, src, 0, 0, 0, (id_e - id_s) * jcp.ih);
+                        trans_src_nxc(tr_src, src, 0, 0, ic_b, 0,
+                                (id_e - id_s) * jcp.ih);
                     else
                         trans_src(tr_src, src, (id_e - id_s) * jcp.ih);
                     p.src = tr_src;
@@ -1349,18 +1378,18 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
                     p.src = &ti->tr_src[tr_src_off_3d(g, ic_b, id_s)];
                 }
             } else {
-                p.src = &ti->src[src_d.blk_off(img, src_mult * _ic, id_s)];
+                p.src = &ti->src[src_d.blk_off(img, ic_off_idx, id_s)];
             }
 
             if (jcp.transpose_dst) {
                 if (!dnnl_thr_syncable()) {
                     const diff_dst_data_t *diff_dst
                             = &ti->diff_dst[diff_dst_d.blk_off(
-                                    img, ddst_mult * _oc, od_s)];
+                                    img, oc_off_idx, od_s)];
                     diff_dst_data_t *tr_diff_dst
                             = &ti->tr_diff_dst[tr_diff_dst_off_3d(0, 0, 0)];
                     if (is_ddst_layout_nxc)
-                        trans_dst_nxc(tr_diff_dst, diff_dst, 0, 0, 0,
+                        trans_dst_nxc(tr_diff_dst, diff_dst, 0, 0, oc_b, 0,
                                 (od_e - od_s) * jcp.oh);
                     else
                         trans_dst(
@@ -1371,12 +1400,15 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
                 }
             } else {
                 p.dst = &ti->diff_dst[diff_dst_d.blk_off(
-                        img, ddst_mult * _oc, od_s)];
+                        img, oc_off_idx, od_s)];
             }
 
             p.filt = diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
-            p.bias = diff_bias + g * jcp.oc + oc_b * jcp.oc_block;
+            p.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
+                    + oc_b * jcp.oc_block;
             p.channel = (start == ti->img_start);
+            p.reduce_work = ic_to_compute;
+            p.load_work = oc_to_compute;
             p.os_index_begin = od_s;
             p.os_index_end = od_e;
             p.kd_padding = jcp.kd - kd_front_pad - kd_back_pad;
@@ -1400,11 +1432,9 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
             jcp.src_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
     const bool is_ddst_layout_nxc = utils::one_of(
             jcp.dst_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
-    const int src_mult = is_src_layout_nxc ? jcp.ic_block : 1;
-    const int ddst_mult = is_ddst_layout_nxc ? jcp.oc_block : 1;
-    const int wei_size
-            = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw * jcp.kd;
-    const int bias_buf_size = jcp.ngroups * jcp.oc;
+    const int wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block * jcp.nb_ic
+            * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
+    const int bias_buf_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
 
     float *diff_wei;
     if (diff_weights_d.data_type() == data_type::bf16)
@@ -1456,6 +1486,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
         int j {0}, d {0};
         int my_work = jcp.ih * jcp.id;
         int ic;
+        int icb_start = ic_b;
         if (dnnl_thr_syncable()) {
             const int work_amount
                     = ti->g_work * ti->ic_b_work * jcp.ih * jcp.id;
@@ -1472,9 +1503,12 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
                         start, g, ti->g_work, ic_b, ti->ic_b_work, j, jcp.ih);
             g += ti->g_start;
             ic_b += ti->ic_b_start;
-            ic = g * jcp.nb_ic + ic_b;
+            icb_start = ic_b;
+            ic = is_src_layout_nxc ? g * jcp.ic + ic_b * jcp.ic_block
+                                   : g * jcp.nb_ic + ic_b;
         } else {
-            ic = g * jcp.nb_ic + ic_b;
+            ic = is_src_layout_nxc ? g * jcp.ic + ic_b * jcp.ic_block
+                                   : g * jcp.nb_ic + ic_b;
             g = 0;
             ic_b = 0;
         }
@@ -1482,20 +1516,19 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
         src_data_t *tr_src = (jcp.ndims == 5)
                 ? &ti->tr_src[tr_src_off_3d(g, ic_b, d, j)]
                 : &ti->tr_src[tr_src_off(g, ic_b, j)];
-        int ic_idx = src_mult * ic;
         auto src_offset = is_src_layout_nxc
-                ? src_d.blk_off(img, ic_idx)
-                : (jcp.ndims == 5 ? src_d.blk_off(img, ic_idx, d, j)
-                                  : src_d.blk_off(img, ic_idx, j));
+                ? src_d.blk_off(img, ic)
+                : (jcp.ndims == 5 ? src_d.blk_off(img, ic, d, j)
+                                  : src_d.blk_off(img, ic, j));
         src_data_t *src = (src_data_t *)&ti->src[src_offset];
 
         if (is_src_layout_nxc) {
             dim_t sp_start_offset = (jcp.ndims == 5) ? src_d.blk_off(0, 0, d, j)
                                                      : src_d.blk_off(0, 0, j);
-            dim_t ch_shift = src_d.blk_off(0, src_mult);
+            dim_t ch_shift = src_d.blk_off(0, jcp.ic_block);
             int sp_start_idx = d * jcp.ih + j;
-            trans_src_nxc(tr_src, src, sp_start_idx, sp_start_offset, ch_shift,
-                    my_work);
+            trans_src_nxc(tr_src, src, sp_start_idx, sp_start_offset, icb_start,
+                    ch_shift, my_work);
         } else
             trans_src(tr_src, src, my_work);
     };
@@ -1504,6 +1537,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
         int j {0}, d {0};
         int my_work = jcp.oh * jcp.od;
         int oc;
+        int ocb_start = oc_b;
 
         if (dnnl_thr_syncable()) {
             const size_t work_amount
@@ -1521,9 +1555,12 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
                         start, g, ti->g_work, oc_b, ti->oc_b_work, j, jcp.oh);
             g += ti->g_start;
             oc_b += ti->oc_b_start;
-            oc = g * jcp.nb_oc + oc_b;
+            ocb_start = oc_b;
+            oc = is_ddst_layout_nxc ? g * jcp.oc + oc_b * jcp.oc_block
+                                    : g * jcp.nb_oc + oc_b;
         } else {
-            oc = g * jcp.nb_oc + oc_b;
+            oc = is_ddst_layout_nxc ? g * jcp.oc + oc_b * jcp.oc_block
+                                    : g * jcp.nb_oc + oc_b;
             g = 0;
             oc_b = 0;
         }
@@ -1531,21 +1568,20 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
         diff_dst_data_t *tr_diff_dst = (jcp.ndims == 5)
                 ? &ti->tr_diff_dst[tr_diff_dst_off_3d(g, oc_b, d, j)]
                 : &ti->tr_diff_dst[tr_diff_dst_off(g, oc_b, j)];
-        int oc_idx = ddst_mult * oc;
         auto ddst_offset = is_ddst_layout_nxc
-                ? diff_dst_d.blk_off(img, oc_idx)
-                : (jcp.ndims == 5 ? diff_dst_d.blk_off(img, oc_idx, d, j)
-                                  : diff_dst_d.blk_off(img, oc_idx, j));
+                ? diff_dst_d.blk_off(img, oc)
+                : (jcp.ndims == 5 ? diff_dst_d.blk_off(img, oc, d, j)
+                                  : diff_dst_d.blk_off(img, oc, j));
         const diff_dst_data_t *diff_dst = &ti->diff_dst[ddst_offset];
 
         if (is_ddst_layout_nxc) {
             dim_t sp_start_offset = (jcp.ndims == 5)
                     ? diff_dst_d.blk_off(0, 0, d, j)
                     : diff_dst_d.blk_off(0, 0, j);
-            dim_t ch_shift = diff_dst_d.blk_off(0, ddst_mult);
+            dim_t ch_shift = diff_dst_d.blk_off(0, jcp.oc_block);
             int sp_start_idx = d * jcp.oh + j;
             trans_dst_nxc(tr_diff_dst, diff_dst, sp_start_idx, sp_start_offset,
-                    ch_shift, my_work);
+                    ocb_start, ch_shift, my_work);
         } else
             trans_dst(tr_diff_dst, diff_dst, my_work);
     };
@@ -1576,15 +1612,20 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
         int icb_work = ti->ic_b_end - ti->ic_b_start;
         if (ic_b_step > 1 && icb_work > ic_b_step && icb_work < 2 * ic_b_step)
             ic_b_step = utils::div_up(icb_work, 2);
-
         for_(int g = ti->g_start; g < ti->g_end; ++g)
         for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
         for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
                 ic_b += ic_b_step) {
-            const int _oc = g * jcp.nb_oc + oc_b;
-            const int _ic = g * jcp.nb_ic + ic_b;
-            const int ic_blocks_to_compute
-                    = nstl::min(ic_b_step, ti->ic_b_end - ic_b);
+            const int ic_off_idx = is_src_layout_nxc
+                    ? g * jcp.ic + ic_b * jcp.ic_block
+                    : g * jcp.nb_ic + ic_b;
+            const int oc_off_idx = is_ddst_layout_nxc
+                    ? g * jcp.oc + oc_b * jcp.oc_block
+                    : g * jcp.nb_oc + oc_b;
+            const int ic_to_compute = this_block_size(
+                    ic_b * jcp.ic_block, jcp.ic, ic_b_step * jcp.ic_block);
+            const int oc_to_compute = this_block_size(
+                    oc_b * jcp.oc_block, jcp.oc, jcp.oc_block);
             if (jcp.transpose_src) {
                 if (!dnnl_thr_syncable()) {
                     uker_trans(img, g, ic_b);
@@ -1601,7 +1642,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
                     }
                 }
             } else {
-                p.src = &ti->src[src_d.blk_off(img, src_mult * _ic)];
+                p.src = &ti->src[src_d.blk_off(img, ic_off_idx)];
             }
 
             if (jcp.transpose_dst) {
@@ -1622,14 +1663,16 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
                     }
                 }
             } else {
-                p.dst = &ti->diff_dst[diff_dst_d.blk_off(img, ddst_mult * _oc)];
+                p.dst = &ti->diff_dst[diff_dst_d.blk_off(img, oc_off_idx)];
             }
 
             p.filt = diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
-            p.bias = diff_bias + g * jcp.oc + oc_b * jcp.oc_block;
+            p.bias = diff_bias + g * rnd_up(jcp.oc, jcp.oc_block)
+                    + oc_b * jcp.oc_block;
             p.channel = (img == ti->img_start);
-            p.ch_blocks = ic_blocks_to_compute;
             p.flags = 0 | (ic_b == 0 ? FLAG_IC_FIRST : 0);
+            p.reduce_work = ic_to_compute;
+            p.load_work = oc_to_compute;
             kernel_->jit_ker(&p);
         }
     }
@@ -1641,8 +1684,8 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
 
     const auto &jcp = kernel_->jcp;
-    const int wei_size = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw
-            * ((jcp.ndims == 5) ? jcp.kd : 1);
+    const int wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block * jcp.nb_ic
+            * jcp.ic_block * jcp.kh * jcp.kw * ((jcp.ndims == 5) ? jcp.kd : 1);
 
     const bool is_bf16_out = diff_weights_d.data_type() == data_type::bf16;
     const bool is_bf16_bias = jcp.with_bias && jcp.bia_dt == data_type::bf16;
@@ -1665,8 +1708,8 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::
             for (int g = ti->g_start; g < ti->g_end; g++) {
                 int result_start_idx = g * jcp.oc_without_padding
                         + ti->oc_b_start * jcp.oc_block;
-                int buffer_start_idx
-                        = g * jcp.oc + ti->oc_b_start * jcp.oc_block;
+                int buffer_start_idx = g * rnd_up(jcp.oc, jcp.oc_block)
+                        + ti->oc_b_start * jcp.oc_block;
                 const size_t acc_size = nstl::min(jcp.oc_without_padding,
                                                 ti->oc_b_end * jcp.oc_block)
                         - ti->oc_b_start * jcp.oc_block;
@@ -1737,13 +1780,14 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::
                 float *bias_reduced = is_bf16_bias ? ti->bia_reduction
                                                    : (float *)(ti->diff_bias);
                 int thr_mb_buffer_idx = is_bf16_bias ? thr_mb : thr_mb - 1;
-                int bias_buf_size = jcp.ngroups * jcp.oc;
+                int bias_buf_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
                 float *bias_to_reduce
                         = ti->bia_reduction + thr_mb_buffer_idx * bias_buf_size;
                 const size_t acc_size = nstl::min(jcp.oc_without_padding,
                                                 ti->oc_b_end * jcp.oc_block)
                         - ti->oc_b_start * jcp.oc_block;
-                int idx = g * jcp.oc + ti->oc_b_start * jcp.oc_block;
+                int idx = g * rnd_up(jcp.oc, jcp.oc_block)
+                        + ti->oc_b_start * jcp.oc_block;
                 if (is_bf16_bias && thr_mb == nthr_mb_ - 1) {
                     // the last iteration for bfloat16 requires conversion and
                     // store to diff_weights array
@@ -1847,13 +1891,18 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::execute_backward_weights(
             reduce_and_convert_diff_weights_and_bias(&thread_info);
         });
     }
-
-    if (pd()->wants_padded_bias() && pd()->jcp_.bia_dt != data_type::bf16) {
+    const auto &jcp = pd()->jcp_;
+    if (pd()->with_bias() && (jcp.oc_without_padding % jcp.oc_block != 0)
+            && jcp.bia_dt != data_type::bf16) {
         auto diff_bias = ctx.get_scratchpad_grantor().template get<const float>(
                 key_conv_padded_bias);
         auto diff_bias_in = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
-        utils::array_copy(
-                diff_bias_in, diff_bias, pd()->jcp_.oc_without_padding);
+        const int padded_stride = rnd_up(jcp.oc, jcp.oc_block);
+        const int stride = jcp.oc_without_padding;
+        for (int g = 0; g < jcp.ngroups; ++g) {
+            utils::array_copy(diff_bias_in + g * stride,
+                    diff_bias + g * padded_stride, stride);
+        }
     }
 }
 

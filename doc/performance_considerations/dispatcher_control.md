@@ -19,7 +19,9 @@ At build-time, support for this feature is controlled via cmake option
 
 When the feature is enabled at build-time, the `DNNL_MAX_CPU_ISA` environment
 variable can be used to limit processor features oneDNN is able to detect to
-certain Instruction Set Architecture (ISA) and older instruction sets.
+certain Instruction Set Architecture (ISA) and older instruction sets. It can
+also be used to enable ISAs with initial support in the library that are
+otherwise disabled by default.
 
 | Environment variable | Value            | Description
 | :---                 | :---             | :---
@@ -31,12 +33,13 @@ certain Instruction Set Architecture (ISA) and older instruction sets.
 |                      | AVX512_CORE      | Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions
 |                      | AVX512_CORE_VNNI | Intel AVX-512 with Intel Deep Learning Boost (Intel DL Boost)
 |                      | AVX512_CORE_BF16 | Intel AVX-512 with Intel DL Boost and bfloat16 support
-|                      | **ALL**          | **No restrictions on ISA (default)**
+|                      | **ALL**          | **No restrictions on the above ISAs, but excludes the below ISAs with initial support in the library (default)**
+|                      | AVX512_CORE_AMX  | Intel AVX-512 with Intel DL Boost and bfloat16 support and Intel Advanced Matrix Extensions (Intel AMX) with 8-bit integer and bfloat16 support (**initial support**)
 
 @note The ISAs are partially ordered:
 * SSE41 < AVX < AVX2,
 * AVX2 < AVX512_MIC < AVX512_MIC_4OPS,
-* AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16.
+* AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16 < AVX512_CORE_AMX.
 
 This feature can also be managed at run-time with the following functions:
 * @ref dnnl::set_max_cpu_isa function allows changing the ISA at run-time.

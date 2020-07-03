@@ -220,6 +220,8 @@ typedef enum {
     dnnl_aBc4b,
     dnnl_ABc4b16a4b,
     dnnl_ABc2b8a4b,
+    dnnl_ABc16b16a4b,
+    dnnl_ABc16b16a2b,
     dnnl_ABc4b4a,
     dnnl_ABc8a16b2a,
     dnnl_ABc8a8b,
@@ -245,12 +247,16 @@ typedef enum {
     /// 4D tensor blocked by 2nd dimension with block size 4
     dnnl_aBcd4b,
     dnnl_ABcd4b16a4b,
+    dnnl_ABcd16b16a4b,
+    dnnl_ABcd16b16a2b,
     dnnl_ABcd4b4a,
     dnnl_ABcd4a4b,
     dnnl_aBCd2c4b2c,
     dnnl_aBCd4b8c2b,
     dnnl_aBCd4c16b4c,
     dnnl_aBCd2c8b4c,
+    dnnl_aBCd16c16b4c,
+    dnnl_aBCd16c16b2c,
     dnnl_aBCd4c4b,
     dnnl_aBCd4b4c,
     dnnl_ABcd8a16b2a,
@@ -298,6 +304,8 @@ typedef enum {
     dnnl_aBCde2c4b2c,
     dnnl_aBCde4b8c2b,
     dnnl_aBCde4c16b4c,
+    dnnl_aBCde16c16b4c,
+    dnnl_aBCde16c16b2c,
     dnnl_aBCde4c4b,
     dnnl_Abcde8a,
     dnnl_ABcde8a8b,
@@ -352,10 +360,12 @@ typedef enum {
     dnnl_aBCdef8c8b,
     dnnl_aBdc16b,
     dnnl_aBdC16b2c,
+    dnnl_aBdC16b4c,
     dnnl_aBdc4b,
     dnnl_aBdc8b,
     dnnl_aBdec16b,
     dnnl_aBdeC16b2c,
+    dnnl_aBdeC16b4c,
     dnnl_aBdec32b,
     dnnl_aBdec4b,
     dnnl_aBdec8b,
@@ -368,6 +378,7 @@ typedef enum {
     dnnl_Abcdef32a,
     dnnl_Acb16a,
     dnnl_AcB16a2b,
+    dnnl_AcB16a4b,
     dnnl_Acb4a,
     dnnl_Acb8a,
     dnnl_aCBd16b16c,
@@ -376,6 +387,7 @@ typedef enum {
     dnnl_aCBde16c16b,
     dnnl_Acdb16a,
     dnnl_AcdB16a2b,
+    dnnl_AcdB16a4b,
     dnnl_Acdb32a,
     dnnl_Acdb4a,
     dnnl_Acdb8a,
@@ -563,6 +575,8 @@ typedef enum {
     dnnl_Oiw16o = dnnl_Abc16a,
     dnnl_OIw4i16o4i = dnnl_ABc4b16a4b,
     dnnl_OIw2i8o4i = dnnl_ABc2b8a4b,
+    dnnl_OIw16i16o4i = dnnl_ABc16b16a4b,
+    dnnl_OIw16i16o2i = dnnl_ABc16b16a2b,
     dnnl_OIw4i4o = dnnl_ABc4b4a,
     dnnl_OIw4o4i = dnnl_ABc4a4b,
     dnnl_Oiw4o = dnnl_Abc4a,
@@ -574,6 +588,7 @@ typedef enum {
     dnnl_OIw8o4i = dnnl_ABc8a4b,
     dnnl_Owi16o = dnnl_Acb16a,
     dnnl_OwI16o2i = dnnl_AcB16a2b,
+    dnnl_OwI16o4i = dnnl_AcB16a4b,
     dnnl_Owi4o = dnnl_Acb4a,
     dnnl_Owi8o = dnnl_Acb8a,
 
@@ -582,6 +597,7 @@ typedef enum {
     dnnl_IOhw16o16i = dnnl_BAcd16a16b,
     dnnl_Ohwi16o = dnnl_Acdb16a,
     dnnl_OhwI16o2i = dnnl_AcdB16a2b,
+    dnnl_OhwI16o4i = dnnl_AcdB16a4b,
     dnnl_Ohwi32o = dnnl_Acdb32a,
     dnnl_Ohwi4o = dnnl_Acdb4a,
     dnnl_Ohwi8o = dnnl_Acdb8a,
@@ -589,6 +605,8 @@ typedef enum {
     dnnl_OIhw16o16i = dnnl_ABcd16a16b,
     dnnl_Oihw16o = dnnl_Abcd16a,
     dnnl_OIhw4i16o4i = dnnl_ABcd4b16a4b,
+    dnnl_OIhw16i16o4i = dnnl_ABcd16b16a4b,
+    dnnl_OIhw16i16o2i = dnnl_ABcd16b16a2b,
     dnnl_OIhw4i4o = dnnl_ABcd4b4a,
     dnnl_OIhw4o4i = dnnl_ABcd4a4b,
     dnnl_Oihw4o = dnnl_Abcd4a,
@@ -633,6 +651,8 @@ typedef enum {
     dnnl_gOiw16o = dnnl_aBcd16b,
     dnnl_gOIw4i16o4i = dnnl_aBCd4c16b4c,
     dnnl_gOIw2i8o4i = dnnl_aBCd2c8b4c,
+    dnnl_gOIw16i16o4i = dnnl_aBCd16c16b4c,
+    dnnl_gOIw16i16o2i = dnnl_aBCd16c16b2c,
     dnnl_gOIw4i4o = dnnl_aBCd4c4b,
     dnnl_gOIw4o4i = dnnl_aBCd4b4c,
     dnnl_gOiw4o = dnnl_aBcd4b,
@@ -644,6 +664,7 @@ typedef enum {
     dnnl_gOIw8o4i = dnnl_aBCd8b4c,
     dnnl_gOwi16o = dnnl_aBdc16b,
     dnnl_gOwI16o2i = dnnl_aBdC16b2c,
+    dnnl_gOwI16o4i = dnnl_aBdC16b4c,
     dnnl_gOwi4o = dnnl_aBdc4b,
     dnnl_gOwi8o = dnnl_aBdc8b,
     dnnl_Goiw32g = dnnl_Abcd32a,
@@ -657,6 +678,7 @@ typedef enum {
     dnnl_gIOhw16o16i = dnnl_aCBde16b16c,
     dnnl_gOhwi16o = dnnl_aBdec16b,
     dnnl_gOhwI16o2i = dnnl_aBdeC16b2c,
+    dnnl_gOhwI16o4i = dnnl_aBdeC16b4c,
     dnnl_gOhwi32o = dnnl_aBdec32b,
     dnnl_gOhwi4o = dnnl_aBdec4b,
     dnnl_gOhwi8o = dnnl_aBdec8b,
@@ -666,6 +688,8 @@ typedef enum {
     dnnl_gOihw16o = dnnl_aBcde16b,
     dnnl_gOIhw2i8o4i = dnnl_aBCde2c8b4c,
     dnnl_gOIhw4i16o4i = dnnl_aBCde4c16b4c,
+    dnnl_gOIhw16i16o4i = dnnl_aBCde16c16b4c,
+    dnnl_gOIhw16i16o2i = dnnl_aBCde16c16b2c,
     dnnl_gOIhw4i4o = dnnl_aBCde4c4b,
     dnnl_gOIhw4o4i = dnnl_aBCde4b4c,
     dnnl_gOihw4o = dnnl_aBcde4b,
@@ -2224,7 +2248,7 @@ typedef struct {
 
 /// CPU instruction set flags
 typedef enum {
-    /// Any ISA (no restrictions)
+    /// Any ISA (excepting those listed as initial support)
     dnnl_cpu_isa_all = 0x0,
 
     /// Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)
@@ -2257,6 +2281,11 @@ typedef enum {
     /// for Intel Xeon Scalable processor family
     /// and Intel Core processor family.
     dnnl_cpu_isa_avx512_core_bf16 = 0xe7,
+
+    /// Intel AVX-512, Intel DL Boost and bfloat16 support and
+    /// Intel AMX with 8-bit integer and bfloat16 support
+    /// (initial support)
+    dnnl_cpu_isa_avx512_core_amx = 0x3e7,
 } dnnl_cpu_isa_t;
 
 /// @} dnnl_api_service

@@ -91,7 +91,6 @@ cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
         size_t size, void *host_ptr, cl_int *errcode_ret) {
     ++malloc_idx;
     if (malloc_idx > malloc_count) {
-        malloc_idx = 0;
         *errcode_ret = CL_MEM_OBJECT_ALLOCATION_FAILURE;
         return nullptr;
     }

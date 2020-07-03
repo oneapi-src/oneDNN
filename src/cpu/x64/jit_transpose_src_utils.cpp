@@ -465,11 +465,22 @@ void jit_trans_iw_ic_int16_t::transpose(
             format_tag::nhwc, format_tag::nwc);
     const int ic_block = conf_->ic_block;
     const bool is_tail_block = ic_block != 16;
-
+    const int ic_tail = conf_->ic_tail;
+    // Assertion below as we need vmovdqu16 for ic_tails.
+    // If needed, can be extended by using load_bytes() helper.
+    assert(IMPLICATION(ic_tail, mayiuse(avx512_core)));
     if (mayiuse(avx512_core)) {
         if (conf_->stride_w > 1 || nrows % 2 || is_layout_nxc)
             kmovd(kFFFF, (1 << ic_block) - 1);
         if (conf_->stride_w > 1 || is_layout_nxc) kmovd(k33, 0xffff0000);
+        if (is_layout_nxc && conf_->ic_tail) {
+            Label done;
+            cmp(dword[param1 + GET_OFF(ch_work)], ic_block);
+            je(done, T_NEAR);
+            kmovd(kFFFF, (1 << conf_->ic_tail) - 1);
+            kshiftld(k33, kFFFF, 16);
+            L(done);
+        }
 
         for (int i = 0; i < nrows / 2; i++) {
             auto zmm_src0 = src_zmm(2 * i);
@@ -479,7 +490,7 @@ void jit_trans_iw_ic_int16_t::transpose(
             } else {
                 vmovdqu16(zmm_src0 | kFFFF | T_z,
                         EVEX_compress_addr(reg_src, 2 * i * src_stride));
-                if (is_tail_block) {
+                if (is_tail_block || ic_tail) {
                     auto zmm_tmp = src_zmm(2 * i + 1);
                     vmovdqu16(zmm_tmp | kFFFF | T_z,
                             EVEX_compress_addr(
@@ -786,6 +797,7 @@ private:
 
     opmask_t kFF = k1;
     opmask_t mask_lo = k2;
+    opmask_t k_oc_tail = k3;
 
     zmm vidx1 = zmm31;
     zmm vidx2 = zmm30;
@@ -817,7 +829,17 @@ void jit_trans_ow_oc_t::transpose(
     };
 
     auto load_ymm = [=](int i) {
-        vmovups(src_ymm(i), EVEX_compress_addr(reg_src, i * src_stride));
+        auto ymm_reg = src_ymm(i);
+        auto addr = EVEX_compress_addr(reg_src, i * src_stride);
+        if (conf_->oc_tail) {
+            ymm_reg = ymm_reg | k_oc_tail | T_z;
+            // Assertion below as we need vmovdqu16 for tails.
+            // If needed, can be removed by using load_bytes() helper.
+            assert(mayiuse(avx512_core));
+            vmovdqu16(ymm_reg, addr);
+        } else {
+            vmovups(ymm_reg, addr);
+        }
     };
 
     auto store = [=](Zmm r, int i) {
@@ -852,11 +874,19 @@ void jit_trans_ow_oc_t::transpose(
             auto src1 = src_ymm(2 * i + 1);
             auto zmm_src0 = src_zmm(2 * i);
             load_ymm(2 * i);
-            vpunpcklwd(src1, src0,
-                    EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
-            vpunpckhwd(src0, src0,
-                    EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
-            vinserti64x4(zmm_src0, zmm_src0, src1, 1);
+            if (is_layout_nxc && conf_->oc_tail) {
+                load_ymm(2 * i + 1);
+                auto ymm_tmp = Ymm(30);
+                vpunpcklwd(ymm_tmp, src0, src1);
+                vpunpckhwd(src0, src0, src1);
+                vinserti64x4(zmm_src0, zmm_src0, ymm_tmp, 1);
+            } else {
+                vpunpcklwd(src1, src0,
+                        EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
+                vpunpckhwd(src0, src0,
+                        EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
+                vinserti64x4(zmm_src0, zmm_src0, src1, 1);
+            }
             vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
             store(zmm_src0, 2 * i);
         }
@@ -923,6 +953,15 @@ void jit_trans_ow_oc_t::generate() {
 
     kmovw(kFF, 0xFF);
     kmovd(mask_lo, 0x0000ffff);
+
+    if (is_layout_nxc && conf_->oc_tail) {
+        Label done;
+        kxnorw(k_oc_tail, k_oc_tail, k_oc_tail);
+        cmp(dword[param1 + GET_OFF(ch_work)], conf_->oc_block);
+        je(done, T_NEAR);
+        kmovw(k_oc_tail, (1 << conf_->oc_tail) - 1);
+        L(done);
+    }
 
     auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));

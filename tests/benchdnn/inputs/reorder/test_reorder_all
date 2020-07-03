@@ -103,3 +103,6 @@
 
 # Run-time
 --batch=test_reorder_runtime
+
+# Weights formats for AMX kernels
+--batch=harness_reorder_amx

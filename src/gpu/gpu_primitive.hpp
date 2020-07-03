@@ -56,6 +56,16 @@ struct gpu_primitive_t : public primitive_t {
         return status::success;
     }
 
+    status_t create_kernel(engine_t *engine, compute::kernel_t *kernel,
+            const char *kernel_name, const std::vector<unsigned char> &binary) {
+
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(engine);
+        CHECK(compute_engine->create_kernel(kernel, kernel_name, binary));
+        register_kernels({*kernel});
+        return status::success;
+    }
+
     status_t create_kernels(engine_t *engine,
             std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
@@ -101,6 +111,12 @@ protected:
                 kernel, arg_list);
     }
 
+    void register_kernels(const std::vector<compute::kernel_t> &kernels) {
+        for (const auto &k : kernels) {
+            registered_kernels_.push_back(k);
+        }
+    }
+
 private:
     status_t parallel_for(const resource_mapper_t *resource_mapper,
             stream_t *stream, const compute::nd_range_t &range,
@@ -114,12 +130,6 @@ private:
 
         CHECK(compute_stream->parallel_for(range, realized_kernel, arg_list));
         return status::success;
-    }
-
-    void register_kernels(const std::vector<compute::kernel_t> &kernels) {
-        for (const auto &k : kernels) {
-            registered_kernels_.push_back(k);
-        }
     }
 
     std::vector<compute::kernel_t> registered_kernels_;

@@ -156,7 +156,7 @@ struct rtus_driver_t : public jit_generator {
     int src_step_h_, src_step_icb_, ws_step_icb_, vlen_, vlen_shift_;
     bool src_to_ws_;
     size_t typesize_;
-    int ic_;
+    int ic_, ic_tail_;
     bool is_nspc_;
 
     Xbyak::Xmm reg_zero;
@@ -232,6 +232,10 @@ struct rtus_driver_t : public jit_generator {
             tvlen /= 2;
             vlen_shift_++;
         }
+
+        const int simd_w = vlen_ / sizeof(float);
+        ic_tail_ = ic_ % simd_w;
+
         generate();
     }
 
@@ -351,9 +355,11 @@ struct rtus_driver_t : public jit_generator {
         shl(reg_icb, vlen_shift_);
 
         const size_t w_step_factor = ic_ * typesize_;
-        const size_t max_load_store_bytes = 16;
+        const size_t max_load_store_bytes = 32;
         const size_t load_store_size
                 = isa == avx512_common ? vlen_ : max_load_store_bytes;
+        size_t load_store_tail_size = (typesize_ == 1 ? max_load_store_bytes
+                                                      : ic_tail_ * typesize_);
 
         Label is_loop, ic_loop, ic_loop_tail, ic_loop_finish;
         L(is_loop);
@@ -390,16 +396,18 @@ struct rtus_driver_t : public jit_generator {
                 je(ic_loop_finish);
 
                 if (src_to_ws_) {
-                    load_reg(
-                            reg_v | tail_mask, reg_cur_src, 0, load_store_size);
-                    store_reg(reg_ws, reg_v | tail_mask, 0, load_store_size);
-                } else {
-                    load_reg(reg_v | tail_mask, reg_ws, 0, load_store_size);
+                    load_reg(reg_v | tail_mask, reg_cur_src, 0,
+                            load_store_tail_size);
                     store_reg(
-                            reg_cur_src, reg_v | tail_mask, 0, load_store_size);
+                            reg_ws, reg_v | tail_mask, 0, load_store_tail_size);
+                } else {
+                    load_reg(
+                            reg_v | tail_mask, reg_ws, 0, load_store_tail_size);
+                    store_reg(reg_cur_src, reg_v | tail_mask, 0,
+                            load_store_tail_size);
                     for (int w = 1; w < stride_w_; ++w)
                         store_reg(reg_cur_src, reg_zero | tail_mask,
-                                w * w_step_factor, load_store_size);
+                                w * w_step_factor, load_store_tail_size);
                 }
             }
             L(ic_loop_finish);
@@ -444,7 +452,7 @@ struct rtus_driver_t : public jit_generator {
 
                     for (int w = 0; w < stride_w_; ++w)
                         store_reg(reg_cur_src, reg_zero | tail_mask,
-                                w * w_step_factor, load_store_size);
+                                w * w_step_factor, load_store_tail_size);
 
                     L(ic_finish_ih_loop_nhwc);
 

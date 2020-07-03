@@ -53,6 +53,10 @@ public:
         return status;
     }
 
+    virtual status_t create_kernel(compute::kernel_t *kernel,
+            const char *kernel_name,
+            const std::vector<unsigned char> &binary) const = 0;
+
     virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
             const compute::kernel_ctx_t &kernel_ctx) const = 0;

@@ -22,6 +22,8 @@
 
 #include "cpu/platform.hpp"
 
+#include "cpu/gemm/gemm_msan_unpoison.hpp"
+
 #include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/x64/gemm/gemm_info.hpp"
@@ -49,6 +51,9 @@ void gemv_kernel_driver(gemm_info_t<int8_t, b_type, int32_t> *arg) {
         arg->gemv_s8u8s32_kernel(arg->m, arg->n, 1.0f, (const int8_t *)arg->a,
                 arg->lda, (const uint8_t *)arg->b, arg->beta, arg->c);
     }
+
+    if (arg->beta == 0)
+        msan_unpoison_matrix(arg->c, arg->m, 1, arg->m, sizeof(int32_t));
 }
 
 template <typename b_type>

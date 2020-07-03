@@ -30,6 +30,12 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
+enum class gpu_arch_t {
+    unknown,
+    gen9,
+    gen12lp,
+};
+
 enum class device_ext_t : int64_t {
     intel_subgroups = 1 << 0,
     intel_subgroups_short = 1 << 1,
@@ -38,6 +44,29 @@ enum class device_ext_t : int64_t {
     intel_subgroup_local_block_io = 1 << 5,
     last
 };
+
+inline gpu_arch_t str2gpu_arch(const char *str) {
+#define CASE(_case) \
+    if (!strcmp(STRINGIFY(_case), str)) return gpu_arch_t::_case
+
+    CASE(gen9);
+    CASE(gen12lp);
+    return gpu_arch_t::unknown;
+#undef CASE
+}
+
+inline const char *gpu_arch2str(gpu_arch_t arch) {
+#define CASE(_case) \
+    case gpu_arch_t::_case: return STRINGIFY(_case)
+
+    switch (arch) {
+        CASE(gen9);
+        CASE(gen12lp);
+        CASE(unknown);
+    }
+    return "unknown";
+#undef CASE
+}
 
 static inline const char *ext2cl_str(compute::device_ext_t ext) {
 #define CASE(x) \
@@ -122,6 +151,7 @@ public:
     virtual status_t init() = 0;
     virtual bool has(device_ext_t ext) const = 0;
 
+    virtual gpu_arch_t gpu_arch() const = 0;
     virtual int eu_count() const = 0;
     virtual int hw_threads() const = 0;
     virtual size_t llc_cache_size() const = 0;

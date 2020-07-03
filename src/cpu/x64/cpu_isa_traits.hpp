@@ -54,6 +54,9 @@ enum cpu_isa_bit_t : unsigned {
     avx512_core_bit = 1u << 6,
     avx512_core_vnni_bit = 1u << 7,
     avx512_core_bf16_bit = 1u << 8,
+    amx_tile_bit = 1u << 9,
+    amx_int8_bit = 1u << 10,
+    amx_bf16_bit = 1u << 11,
 };
 
 enum cpu_isa_t : unsigned {
@@ -67,7 +70,14 @@ enum cpu_isa_t : unsigned {
     avx512_core = avx512_core_bit | avx512_common,
     avx512_core_vnni = avx512_core_vnni_bit | avx512_core,
     avx512_core_bf16 = avx512_core_bf16_bit | avx512_core_vnni,
-    isa_all = ~0u,
+    amx_tile = amx_tile_bit,
+    amx_int8 = amx_int8_bit | amx_tile,
+    amx_bf16 = amx_bf16_bit | amx_tile,
+    avx512_core_bf16_amx_int8 = avx512_core_bf16 | amx_int8,
+    avx512_core_bf16_amx_bf16 = avx512_core_bf16 | amx_bf16,
+    avx512_core_amx = avx512_core_bf16 | amx_int8 | amx_bf16,
+    // NOTE: Intel AMX is under initial support and turned off by default
+    isa_all = ~0u & ~amx_tile_bit & ~amx_int8_bit & ~amx_bf16_bit,
 };
 
 const char *get_isa_info();
@@ -78,6 +88,17 @@ dnnl_cpu_isa_t get_effective_cpu_isa();
 
 template <cpu_isa_t>
 struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
+
+// pack struct so it can fit into a single 64-byte cache line
+#pragma pack(push, 1)
+struct tileconfig_t {
+    uint8_t palette_id;
+    uint8_t startRow;
+    uint8_t reserved[14];
+    uint16_t cols[16];
+    uint8_t rows[16];
+};
+#pragma pack(pop)
 
 template <>
 struct cpu_isa_traits<isa_all> {
@@ -152,6 +173,13 @@ struct cpu_isa_traits<avx512_core_bf16> : public cpu_isa_traits<avx512_core> {
     static constexpr const char *user_option_env = "AVX512_CORE_BF16";
 };
 
+template <>
+struct cpu_isa_traits<avx512_core_amx> {
+    static constexpr dnnl_cpu_isa_t user_option_val
+            = dnnl_cpu_isa_avx512_core_amx;
+    static constexpr const char *user_option_env = "AVX512_CORE_AMX";
+};
+
 namespace {
 
 static Xbyak::util::Cpu cpu;
@@ -182,6 +210,18 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
         case avx512_core_bf16:
             return mayiuse(avx512_core_vnni, soft)
                     && cpu.has(Cpu::tAVX512_BF16);
+        case amx_tile: return cpu.has(Cpu::tAMX_TILE);
+        case amx_int8:
+            return mayiuse(amx_tile, soft) && cpu.has(Cpu::tAMX_INT8);
+        case amx_bf16:
+            return mayiuse(amx_tile, soft) && cpu.has(Cpu::tAMX_BF16);
+        case avx512_core_bf16_amx_int8:
+            return mayiuse(avx512_core_bf16, soft) && mayiuse(amx_int8, soft);
+        case avx512_core_bf16_amx_bf16:
+            return mayiuse(avx512_core_bf16, soft) && mayiuse(amx_bf16, soft);
+        case avx512_core_amx:
+            return mayiuse(avx512_core_bf16_amx_int8, soft)
+                    && mayiuse(avx512_core_bf16_amx_bf16, soft);
         case isa_any: return true;
         case isa_all: return false;
     }
@@ -208,8 +248,19 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
     ((isa) == avx512_mic ? prefix STRINGIFY(avx512_mic) : \
     ((isa) == avx512_mic_4ops ? prefix STRINGIFY(avx512_mic_4ops) : \
     ((isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \
-    prefix suffix_if_any))))))))))
+    ((isa) == avx512_core_bf16_amx_int8 ? prefix STRINGIFY(avx512_core_bf16_amx_int8) : \
+    ((isa) == avx512_core_bf16_amx_bf16 ? prefix STRINGIFY(avx512_core_bf16_amx_bf16) : \
+    prefix suffix_if_any))))))))))))
 /* clang-format on */
+
+namespace amx {
+
+int get_max_palette();
+int get_max_tiles(int palette);
+int get_max_column_bytes(int palette);
+int get_max_rows(int palette);
+
+} // namespace amx
 
 } // namespace x64
 } // namespace cpu

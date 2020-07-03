@@ -83,6 +83,9 @@ private:
     reg64_t reg_output_stride = r12;
     reg64_t reg_bias_data = r12;
     reg64_t reg_diff_bias_data = bcast_loop_iter;
+    reg64_t reg_tmp_output_stride = reg_bcast_data;
+    reg64_t reg_tmp = aux_reg_bcast_data;
+    reg64_t reg_output_stride_scale = load_loop_iter;
 
     int reg_diff_bias_data_stack_offt = 0;
     int stack_space_needed = 8;

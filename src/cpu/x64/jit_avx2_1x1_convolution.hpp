@@ -494,8 +494,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_t {
 
             if (with_bias()) {
                 reducer_bia_conf_.init(reduce_balancer_t(max_threads, oc_block,
-                        jcp_.ngroups * jcp_.oc / oc_block, jcp_.mb,
-                        max_buffer_size, true));
+                        jcp_.ngroups * nb_oc, jcp_.mb, max_buffer_size, true));
             }
 
             reducer_wei_conf_.init(

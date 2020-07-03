@@ -43,9 +43,9 @@ status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd_,
     gemm_desc.m = m;
     gemm_desc.n = n;
     gemm_desc.k = k;
-    gemm_desc.lda = stride_a;
-    gemm_desc.ldb = stride_b;
-    gemm_desc.ldc = stride_c;
+    gemm_desc.stride_a = stride_a;
+    gemm_desc.stride_b = stride_b;
+    gemm_desc.stride_c = stride_c;
     gemm_desc.lda = lda;
     gemm_desc.ldb = ldb;
     gemm_desc.ldc = ldc;

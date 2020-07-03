@@ -276,6 +276,10 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     auto ldb = pd()->desc()->ldb;
     auto ldc = pd()->desc()->ldc;
 
+    auto stride_a = pd()->desc()->stride_a;
+    auto stride_b = pd()->desc()->stride_b;
+    auto stride_c = pd()->desc()->stride_c;
+
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
 
@@ -345,7 +349,7 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
                 int64_t size_m = m - Bm;
                 if (size_m > block_m) size_m = block_m;
 
-                auto off_a_src = batch * m * k + off_a0
+                auto off_a_src = off_a0 + batch * stride_a
                         + (!transa ? (Bm + Bk * lda) : (Bk + Bm * lda));
 
                 if (!nocopy) {
@@ -359,7 +363,7 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
                     int64_t size_n = n - Bn;
                     if (size_n > block_n) size_n = block_n;
 
-                    auto off_b_src = batch * k * n + off_b0
+                    auto off_b_src = off_b0 + batch * stride_b
                             + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
 
                     if (!nocopy && ((Bn == 0) || (n > block_n))) {
@@ -369,7 +373,7 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
                         if (status) return status;
                     }
 
-                    auto off_c = batch * m * n + off_c0 + Bm + Bn * ldc;
+                    auto off_c = off_c0 + batch * stride_c + Bm + Bn * ldc;
 
                     if (nocopy) {
                         auto flag

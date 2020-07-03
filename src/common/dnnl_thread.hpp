@@ -169,10 +169,10 @@ inline void balance211(T n, U team, U tid, T &n_start, T &n_end) {
 template <typename T, typename U>
 void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end, T nx, T &nx_start,
         T &nx_end, T nx_divider) {
-    const int grp_count = nstl::min(nx_divider, nthr);
-    const int grp_size_big = nthr / grp_count + 1;
-    const int grp_size_small = nthr / grp_count;
-    const int n_grp_big = nthr % grp_count;
+    const T grp_count = nstl::min(nx_divider, static_cast<T>(nthr));
+    const int grp_size_big = nthr / static_cast<int>(grp_count) + 1;
+    const int grp_size_small = nthr / static_cast<int>(grp_count);
+    const int n_grp_big = nthr % static_cast<int>(grp_count);
     const int threads_in_big_groups = n_grp_big * grp_size_big;
 
     const int ithr_bound_distance = ithr - threads_in_big_groups;

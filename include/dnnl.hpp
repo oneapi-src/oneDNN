@@ -1518,6 +1518,8 @@ struct memory : public handle<dnnl_memory_t> {
         aBc4b = dnnl_aBc4b,
         ABc4b16a4b = dnnl_ABc4b16a4b,
         ABc2b8a4b = dnnl_ABc2b8a4b,
+        ABc16b16a4b = dnnl_ABc16b16a4b,
+        ABc16b16a2b = dnnl_ABc16b16a2b,
         ABc4b4a = dnnl_ABc4b4a,
         ABc8a16b2a = dnnl_ABc8a16b2a,
         ABc8a8b = dnnl_ABc8a8b,
@@ -1542,6 +1544,10 @@ struct memory : public handle<dnnl_memory_t> {
         ABcd4a4b = dnnl_ABcd4a4b,
         aBCd4c16b4c = dnnl_aBCd4c16b4c,
         aBCd2c8b4c = dnnl_aBCd2c8b4c,
+        ABcd16b16a4b = dnnl_ABcd16b16a4b,
+        ABcd16b16a2b = dnnl_ABcd16b16a2b,
+        aBCd16c16b4c = dnnl_aBCd16c16b4c,
+        aBCd16c16b2c = dnnl_aBCd16c16b2c,
         aBCd4c4b = dnnl_aBCd4c4b,
         aBCd4b4c = dnnl_aBCd4b4c,
         ABcd8a16b2a = dnnl_ABcd8a16b2a,
@@ -1572,6 +1578,8 @@ struct memory : public handle<dnnl_memory_t> {
         ABcde4a4b = dnnl_ABcde4a4b,
         aBCde4b4c = dnnl_aBCde4b4c,
         aBCde4c16b4c = dnnl_aBCde4c16b4c,
+        aBCde16c16b4c = dnnl_aBCde16c16b4c,
+        aBCde16c16b2c = dnnl_aBCde16c16b2c,
         aBCde4c4b = dnnl_aBCde4c4b,
         Abcde8a = dnnl_Abcde8a,
         ABcde8a8b = dnnl_ABcde8a8b,
@@ -1773,6 +1781,10 @@ struct memory : public handle<dnnl_memory_t> {
         gOIdhw4o8i8o4i = dnnl_gOIdhw4o8i8o4i,
         gOIhw4o8i8o4i = dnnl_gOIhw4o8i8o4i,
         gOIhw2o8i8o2i = dnnl_gOIhw2o8i8o2i,
+        OIhw16i16o4i = dnnl_OIhw16i16o4i,
+        OIhw16i16o2i = dnnl_OIhw16i16o2i,
+        gOIhw16i16o4i = dnnl_gOIhw16i16o4i,
+        gOIhw16i16o2i = dnnl_gOIhw16i16o2i,
         gOIhw8o8i = dnnl_gOIhw8o8i,
         gOIhw8o4i = dnnl_gOIhw8o4i,
         gIOdhw16i16o = dnnl_gIOdhw16i16o,
@@ -10083,6 +10095,8 @@ enum class cpu_isa {
     avx512_core_vnni = dnnl_cpu_isa_avx512_core_vnni,
     /// @copydoc dnnl_cpu_isa_avx512_core_bf16
     avx512_core_bf16 = dnnl_cpu_isa_avx512_core_bf16,
+    /// @copydoc dnnl_cpu_isa_avx512_core_amx
+    avx512_core_amx = dnnl_cpu_isa_avx512_core_amx,
 };
 
 /// @copydoc dnnl_set_max_cpu_isa()

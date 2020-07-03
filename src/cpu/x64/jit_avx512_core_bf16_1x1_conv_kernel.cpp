@@ -1619,24 +1619,27 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
     }
 
     // TODO: Check - do we need this buffer for ALL cases?
-    const size_t grp_count = utils::div_up(
-            jcp.nthr, utils::div_up(jcp.nthr, jcp.load_grp_count));
-    const bool is_out_layout_nxc
-            = (utils::one_of(jcp.prop_kind, prop_kind::forward_training,
-                       prop_kind::forward_inference)
-                      && utils::one_of(jcp.dst_tag, format_tag::ndhwc,
-                              format_tag::nhwc, format_tag::nwc))
-            || (jcp.prop_kind == prop_kind::backward_data
-                    && utils::one_of(jcp.src_tag, format_tag::ndhwc,
-                            format_tag::nhwc, format_tag::nwc));
-    const size_t max_load_per_thread = is_out_layout_nxc
-            ? utils::rnd_up(jcp.load_dim, jcp.load_block)
-            : rnd_up((utils::div_up(jcp.load_dim, grp_count)), jcp.load_block);
-    const size_t store_buffer_size = (size_t)jcp.nthr
-            * utils::rnd_up(jcp.bcast_dim, jcp.bcast_block)
-            * max_load_per_thread;
-    scratchpad.book(key_conv_store_wsp, store_buffer_size, jcp.typesize_acc);
-
+    if (jcp.prop_kind != backward_weights) {
+        const size_t grp_count = utils::div_up(
+                jcp.nthr, utils::div_up(jcp.nthr, jcp.load_grp_count));
+        const bool is_out_layout_nxc
+                = (utils::one_of(jcp.prop_kind, prop_kind::forward_training,
+                           prop_kind::forward_inference)
+                          && utils::one_of(jcp.dst_tag, format_tag::ndhwc,
+                                  format_tag::nhwc, format_tag::nwc))
+                || (jcp.prop_kind == prop_kind::backward_data
+                        && utils::one_of(jcp.src_tag, format_tag::ndhwc,
+                                format_tag::nhwc, format_tag::nwc));
+        const size_t max_load_per_thread = is_out_layout_nxc
+                ? utils::rnd_up(jcp.load_dim, jcp.load_block)
+                : rnd_up((utils::div_up(jcp.load_dim, grp_count)),
+                        jcp.load_block);
+        const size_t store_buffer_size = (size_t)jcp.nthr
+                * utils::rnd_up(jcp.bcast_dim, jcp.bcast_block)
+                * max_load_per_thread;
+        scratchpad.book(
+                key_conv_store_wsp, store_buffer_size, jcp.typesize_acc);
+    }
     // Heuristic threshold for requested scratchpad memory to avoid
     // possible crash on memory allocation.
     size_t scratchpad_limit_by_absolute_value = (size_t)20 * (1 << 30); // 20Gb

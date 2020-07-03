@@ -30,6 +30,10 @@ static status_t init_conf_common(eltwise_conf_t &conf, offsets_t &off,
     const memory_desc_wrapper diff_data_d(
             is_forward ? &glob_zero_md : pd->diff_src_md());
 
+    conf.data_md_info = memory_desc_info_t::create(data_d);
+    if (!is_forward)
+        conf.data_diff_md_info = memory_desc_info_t::create(diff_data_d);
+
     const int ndims = data_d.ndims();
     conf.ndims = ndims;
 
@@ -74,9 +78,13 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("ZERO_PADDING", conf.with_zero_padding);
 
-    def_offsets(off.src_off, kernel_ctx, "DATA", conf.ndims);
-    def_offsets(off.dst_off, kernel_ctx, "DIFF_DATA",
-            conf.is_forward ? 0 : conf.ndims);
+    def_memory_desc_info(kernel_ctx, conf.data_md_info, "DATA");
+
+    if (!conf.is_forward) {
+        def_memory_desc_info(kernel_ctx, conf.data_diff_md_info, "DIFF_DATA");
+    } else {
+        kernel_ctx.define_int("IS_FWD", 1);
+    }
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
