@@ -89,9 +89,9 @@ template <typename T> static inline constexpr14 int popcnt(T x)
 {
 #ifdef _MSC_VER
     if (sizeof(T) > 4)
-        return _mm_popcnt_u64(x);
+        return __popcnt64(x);
     else
-        return _mm_popcnt_u32(x);
+        return __popcnt(x);
 #else
     if (sizeof(T) > 4)
         return __builtin_popcountll(x);
