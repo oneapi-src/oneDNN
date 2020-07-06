@@ -507,11 +507,58 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
     const dim_t LDB = weights_oc_size;
     const size_t work_amount
             = (size_t)jcp.ngroups * jcp.mb * jcp.od * jcp.os_nb_block;
-
+    const bool is_problem_3d = pd()->ndims() == 5;
     std::atomic<status_t> st(status::success);
-    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
-        const bool is_problem_3d = pd()->ndims() == 5;
 
+    auto inner_ker = [&](const int ic, const int oc, const int groups,
+                             const int od, const int spatial,
+                             const src_data_t *src, const wei_data_t *weights,
+                             src_data_t *col, dst_data_t *dst,
+                             acc_data_t *acc) {
+        const dim_t os_block = nstl::min(
+                (dim_t)jcp.os_block, (dim_t)jcp.os - spatial * jcp.os_block);
+        const int ic_block = nstl::min(jcp.ic_block, jcp.ic - ic);
+        const int oc_block = nstl::min(jcp.oc_block, jcp.oc - oc);
+
+        if (jcp.im2col_sz) {
+            if (!is_problem_3d) {
+                jit_gemm_convolution_utils::im2col<src_data_t>(jcp, src, col,
+                        spatial * jcp.os_block, os_block, ic, ic_block);
+            } else {
+                assert(jcp.ic_block == jcp.ic);
+                jit_gemm_convolution_utils::im2col_3d<src_data_t>(
+                        jcp, src, col, od, spatial * jcp.os_block, os_block);
+            }
+        }
+
+        const acc_data_t one = 1.0;
+        const dim_t N = oc_block;
+        const dim_t K = ic_block * jcp.ks;
+        const dim_t m = os_block;
+        const dim_t LDA = jcp.im2col_sz ? m : M;
+        const dim_t LDC = is_bf16_dst ? m : M;
+        const float beta = (ic == 0) ? this->beta_ : one;
+        auto out_off = spatial * jcp.os_block + od * jcp.os;
+        dst_data_t *dst_local = dst + out_off;
+
+        status_t st_thr = gemm_bf16bf16f32("N", "N", &m, &N, &K, &one,
+                jcp.im2col_sz ? col : src + ic * M + out_off, &LDA, weights,
+                &LDB, &beta, acc, &LDC);
+
+        if (st_thr != status::success) {
+            st = st_thr;
+            return;
+        }
+
+        if (this->pd()->is_postprocess_required()) {
+            size_t acc_str = LDC;
+            size_t dst_str = M;
+            (*pp_ker_)(dst_local, acc, bias + groups * jcp.oc + oc, sum_scale,
+                    dst_str, acc_str, m, oc_block);
+        }
+    };
+
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         src_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
         if (is_problem_3d) {
             // jit_gemm_convolution_utils::im2col_3d() requires external
@@ -519,67 +566,6 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
             for (ptrdiff_t i = 0; i < jcp.im2col_sz; i++)
                 _col[i] = (src_data_t)0;
         }
-
-        auto inner_ker = [&](const int ic, const int oc, const int groups,
-                                 const int mb, const int od,
-                                 const int spatial) {
-            const dim_t os_block = nstl::min((dim_t)jcp.os_block,
-                    (dim_t)jcp.os - spatial * jcp.os_block);
-            const int ic_block = nstl::min(jcp.ic_block, jcp.ic - ic);
-            const int oc_block = nstl::min(jcp.oc_block, jcp.oc - oc);
-
-            const src_data_t *_src
-                    = src + (mb * jcp.ngroups + groups) * src_step;
-            const wei_data_t *_weights = weights + groups * weights_g_size
-                    + oc * weights_oc_size + ic * jcp.ks;
-            dst_data_t *_dst_im
-                    = dst + (mb * jcp.ngroups + groups) * dst_step + oc * M;
-
-            if (jcp.im2col_sz) {
-                if (!is_problem_3d) {
-                    jit_gemm_convolution_utils::im2col<src_data_t>(jcp, _src,
-                            _col, spatial * jcp.os_block, os_block, ic,
-                            ic_block);
-                } else {
-                    assert(jcp.ic_block == jcp.ic);
-                    jit_gemm_convolution_utils::im2col_3d<src_data_t>(jcp, _src,
-                            _col, od, spatial * jcp.os_block, os_block);
-                }
-            }
-
-            const acc_data_t one = 1.0;
-            auto out_off = spatial * jcp.os_block + od * jcp.os;
-            const dim_t N = oc_block;
-            const dim_t K = ic_block * jcp.ks;
-            const dim_t m = os_block;
-            const dim_t LDA = jcp.im2col_sz ? m : M;
-            const dim_t LDC = is_bf16_dst ? m : M;
-            dst_data_t *dst_local = _dst_im + out_off;
-            const float beta = (ic == 0) ? this->beta_ : one;
-
-            const int sizeof_cacheline_float = 16;
-            acc_data_t *_acc = is_bf16_dst ? acc_base
-                            + ithr
-                                    * rnd_up(jcp.oc_block * jcp.os_block,
-                                            sizeof_cacheline_float)
-                                           : (acc_data_t *)dst_local;
-            status_t st_thr = gemm_bf16bf16f32("N", "N", &m, &N, &K, &one,
-                    jcp.im2col_sz ? _col : _src + ic * M + out_off, &LDA,
-                    _weights, &LDB, &beta, _acc, &LDC);
-
-            if (st_thr != status::success) {
-                st = st_thr;
-                return;
-            }
-
-            if (this->pd()->is_postprocess_required()) {
-                size_t acc_str = LDC;
-                size_t dst_str = M;
-                (*pp_ker_)(dst_local, _acc, bias + groups * jcp.oc + oc,
-                        sum_scale, dst_str, acc_str, m, oc_block);
-            }
-        };
-
         int g {0}, n {0}, od {0}, nb_os {0};
         size_t start = 0, end = 0;
         size_t oc_start = 0, oc_end = 0;
@@ -593,7 +579,22 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
         for (size_t iwork = start; iwork < end; ++iwork) {
             for_(int oc = (int)oc_start; oc < (int)oc_end; oc += jcp.oc_block)
             for (int ic = 0; ic < jcp.ic; ic += jcp.ic_block) {
-                inner_ker(ic, oc, g, n, od, nb_os);
+                const src_data_t *_src = src + (n * jcp.ngroups + g) * src_step;
+                const wei_data_t *_weights = weights + g * weights_g_size
+                        + oc * weights_oc_size + ic * jcp.ks;
+                dst_data_t *_dst_im
+                        = dst + (n * jcp.ngroups + g) * dst_step + oc * M;
+                auto out_off = nb_os * jcp.os_block + od * jcp.os;
+                dst_data_t *dst_local = dst + out_off;
+                const int sizeof_cacheline_float = 16;
+                acc_data_t *_acc = is_bf16_dst ? acc_base
+                                + ithr
+                                        * rnd_up(jcp.oc_block * jcp.os_block,
+                                                sizeof_cacheline_float)
+                                               : (acc_data_t *)dst_local;
+
+                inner_ker(ic, oc, g, od, nb_os, _src, _weights, _col, _dst_im,
+                        _acc);
             }
             nd_iterator_step(g, jcp.ngroups, n, jcp.mb, od, jcp.od, nb_os,
                     jcp.os_nb_block);
