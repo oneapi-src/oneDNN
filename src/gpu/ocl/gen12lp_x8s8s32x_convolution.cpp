@@ -73,7 +73,8 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
     // TODO: Add DW suppport in NHWC kernel
     if (conf.is_nhwc && conf.is_depthwise) return status::unimplemented;
     // TODO: Add group convolution support in NHWC kernel.
-    if (conf.ngroups > 1 && (conf.oc % 32 != 0 || conf.ic % 32 != 0))
+    if (conf.is_nhwc && conf.ngroups > 1
+            && (conf.oc % 32 != 0 || conf.ic % 32 != 0))
         return status::unimplemented;
 
     if (!conf.is_nhwc && !conf.is_depthwise && conf.with_groups
