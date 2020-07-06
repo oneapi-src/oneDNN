@@ -49,10 +49,10 @@ protected:
         input_int8.backward_supported = false;
 
 #if DNNL_X64
-        input_f32.wino_supported
-                = impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_common);
-        input_int8.wino_supported
-                = impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_core);
+        input_f32.wino_supported = get_test_engine_kind() == engine::kind::cpu
+                && impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_common);
+        input_int8.wino_supported = get_test_engine_kind() == engine::kind::cpu
+                && impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_core);
         input_f32.backward_supported = impl::dnnl_thr_syncable();
 
 #else
