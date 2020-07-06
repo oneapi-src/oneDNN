@@ -17,6 +17,7 @@
 #ifndef CPU_X64_LRN_JIT_UNI_LRN_HPP
 #define CPU_X64_LRN_JIT_UNI_LRN_HPP
 
+#include <memory>
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
@@ -24,6 +25,7 @@
 
 #include "cpu/cpu_lrn_pd.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/lrn/jit_uni_lrn_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,11 +33,9 @@ namespace cpu {
 namespace x64 {
 
 template <cpu_isa_t isa>
-struct jit_uni_lrn_fwd_kernel_f32;
-template <cpu_isa_t isa>
 struct jit_uni_lrn_bwd_kernel_f32;
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, data_type_t d_type>
 struct jit_uni_lrn_fwd_t : public primitive_t {
     struct pd_t : public cpu_lrn_fwd_pd_t {
         using cpu_lrn_fwd_pd_t::cpu_lrn_fwd_pd_t;
@@ -51,7 +51,7 @@ struct jit_uni_lrn_fwd_t : public primitive_t {
     jit_uni_lrn_fwd_t(const pd_t *apd);
     ~jit_uni_lrn_fwd_t();
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    using data_t = typename prec_traits<d_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -62,7 +62,10 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_uni_lrn_fwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
+    std::unique_ptr<jit_uni_lrn_fwd_kernel<isa, d_type>> ker_, ker_first_,
+            ker_last_;
+    static constexpr int VECTOR_LENGTH
+            = jit_uni_lrn_fwd_kernel<isa, d_type>::VECTOR_LENGTH;
 };
 
 template <cpu_isa_t isa>
@@ -81,7 +84,7 @@ struct jit_uni_lrn_bwd_t : public primitive_t {
     jit_uni_lrn_bwd_t(const pd_t *apd);
     ~jit_uni_lrn_bwd_t();
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    using data_t = typename prec_traits<data_type::f32>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);
@@ -93,6 +96,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_uni_lrn_bwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
+    static constexpr int VECTOR_LENGTH = 8u;
 };
 
 } // namespace x64
