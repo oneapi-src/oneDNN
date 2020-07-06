@@ -24,9 +24,6 @@
 # CPU-specific optimizations
 /src/cpu/ @dnnl-team/cpu
 
-# CPU RNN
-/src/cpu/rnn/ @dnnl-team/arch
-
 # CPU BLAS
 /src/cpu/gemm/ @dnnl-team/blas @dnnl-team/arch
 
