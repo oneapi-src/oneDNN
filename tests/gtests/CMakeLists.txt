@@ -42,7 +42,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}
                     )
 if(WIN32)
     # Correct 'jnl' macro/jit issue
-    if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
+    if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel" AND ${CMAKE_CXX_COMPILER_VERSION} LESS 19.1)
         append(CMAKE_CXX_FLAGS "/Qlong-double")
     endif()
 endif()

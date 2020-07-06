@@ -65,7 +65,7 @@ if(WIN32)
     add_definitions(-D_WIN)
     add_definitions(-DNOMINMAX)
     # Correct 'jnl' macro/jit issue
-    if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
+    if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel" AND ${CMAKE_CXX_COMPILER_VERSION} LESS 19.1)
         append(CMAKE_CXX_FLAGS "/Qlong-double")
     endif()
 endif()
