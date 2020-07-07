@@ -54,11 +54,12 @@ jit_uni_lrn_fwd_t<isa, d_type>::jit_uni_lrn_fwd_t(const pd_t *apd)
                 nchw8c_across(H, W, -1), A, K, pk);
         ker_last_ = utils::make_unique<jit_uni_lrn_fwd_kernel<isa, d_type>>(
                 nchw8c_across(H, W, +1), A, K, pk);
-    } else if (one_of(dat_tag, nChw8c, nChw16c) && ak == lrn_within_channel) {
+    } else if (one_of(dat_tag, nhwc, nChw8c, nChw16c)
+            && ak == lrn_within_channel) {
         /* within channel, local_size (x) local_size */
         A /= ls; /* XXX: why? */
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel<isa, d_type>>(
-                within_config(H, W, ls), A, K, pk);
+                within_config(H, W, C, ls, dat_tag), A, K, pk);
     } else if (dat_tag == nchw && ls == 5 && ak == lrn_across_channels) {
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel<isa, d_type>>(
                 nchw_across(C, H * W, 0), A, K, pk);
@@ -109,12 +110,16 @@ void jit_uni_lrn_fwd_t<isa, d_type>::execute_forward(
             else
                 (*ker)(&args);
         });
-    } else if (one_of(dat_tag, nChw8c, nChw16c) && ak == lrn_within_channel) {
-        parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c8) {
+    } else if (one_of(dat_tag, nhwc, nChw8c, nChw16c)
+            && ak == lrn_within_channel) {
+        parallel_nd(N, C / VECTOR_LENGTH, [&](int n, int c) {
+            const std::size_t offset = dat_tag == nhwc
+                    ? n * HW * C + c * VECTOR_LENGTH
+                    : n * HW * C + c * HW * VECTOR_LENGTH;
             jit_args_fwd_t args;
-            args.src = &src[n * HW * C + c8 * HW * VECTOR_LENGTH];
-            args.dst = &dst[n * HW * C + c8 * HW * VECTOR_LENGTH];
-            args.scratch = &ws[n * HW * C + c8 * HW * VECTOR_LENGTH];
+            args.src = &src[offset];
+            args.dst = &dst[offset];
+            args.scratch = &ws[offset];
             (*ker)(&args);
         });
     } else if (dat_tag == nchw && ls == 5 && ak == lrn_across_channels) {
@@ -177,8 +182,8 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
             && data_d.dims()[2] >= desc()->local_size
             && data_d.dims()[3] >= desc()->local_size
             && IMPLICATION(d_type == data_type::bf16, mayiuse(avx512_core))
-            && (isa == avx512_common ? one_of(dat_tag_, nChw16c)
-                                     : one_of(dat_tag_, nChw8c));
+            && (isa == avx512_common ? one_of(dat_tag_, nhwc, nChw16c)
+                                     : one_of(dat_tag_, nhwc, nChw8c));
 
     return args_ok_across || args_ok_within ? success : unimplemented;
 }

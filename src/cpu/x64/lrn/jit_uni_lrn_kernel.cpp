@@ -27,6 +27,8 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+using namespace dnnl::impl::format_tag;
+
 #define IRB_LOOP(statement) \
     if (1 == reg_block) { \
         const int irb_off = 0; \
@@ -259,7 +261,13 @@ template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_kernel<isa, d_type>::jit_uni_lrn_fwd_kernel(
         const within_config &J, float A, float K, prop_kind_t pk,
         void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size), alpha_(A), k_(K) {
+    : jit_generator(code_ptr, code_size)
+    , alpha_(A)
+    , k_(K)
+    , single_pixel_offset_(J.dat_tag == nhwc
+                      ? J.C * sizeof(typename prec_traits<d_type>::type)
+                      : VECTOR_LENGTH
+                              * sizeof(typename prec_traits<d_type>::type)) {
 
     if (isa == avx512_common && d_type == dnnl::impl::data_type::bf16
             && !mayiuse(avx512_core_bf16)) {

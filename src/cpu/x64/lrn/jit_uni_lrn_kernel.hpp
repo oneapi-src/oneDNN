@@ -50,8 +50,10 @@ struct nchw8c_across {
 };
 
 struct within_config {
-    int H, W, size;
-    within_config(int h, int w, int s) : H(h), W(w), size(s) {}
+    const int H, W, C, size;
+    const format_tag_t dat_tag;
+    within_config(int h, int w, int c, int s, format_tag_t dat_tag)
+        : H(h), W(w), C(c), size(s), dat_tag(dat_tag) {}
 };
 
 struct nchw_across {
@@ -132,7 +134,7 @@ private:
     int tempIdx_ = 0;
     int reg_block_idx_ = 0;
     static constexpr int stack_space_needed_ = 11 * 4 * sizeof(float) + 16;
-    static constexpr int single_pixel_offset_
+    const int single_pixel_offset_
             = VECTOR_LENGTH * sizeof(typename prec_traits<d_type>::type);
 };
 
