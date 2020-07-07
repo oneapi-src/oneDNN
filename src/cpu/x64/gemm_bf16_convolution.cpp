@@ -585,7 +585,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
                 dst_data_t *_dst_im
                         = dst + (n * jcp.ngroups + g) * dst_step + oc * M;
                 auto out_off = nb_os * jcp.os_block + od * jcp.os;
-                dst_data_t *dst_local = dst + out_off;
+                dst_data_t *dst_local = _dst_im + out_off;
                 const int sizeof_cacheline_float = 16;
                 acc_data_t *_acc = is_bf16_dst ? acc_base
                                 + ithr
