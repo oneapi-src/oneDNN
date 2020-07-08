@@ -135,8 +135,8 @@ template <data_type_t data_type>
 statistics_kernel_t<data_type> *statistics_kernel_t<data_type>::create(
         const layer_normalization_pd_t *pd) {
 #if DNNL_X64
-    auto *res = x64::lnorm_utils::statistics_kernel_create<data_type>(pd);
-    return res;
+    if (auto *res = x64::lnorm_utils::statistics_kernel_create<data_type>(pd))
+        return res;
 #endif
     if (data_type == bf16) {
         assert(!"No default statistics_kernel_t for bf16 input!");
@@ -149,8 +149,8 @@ template <data_type_t data_type>
 data_kernel_t<data_type> *data_kernel_t<data_type>::create(
         const layer_normalization_pd_t *pd) {
 #if DNNL_X64
-    auto *res = x64::lnorm_utils::data_kernel_create<data_type>(pd);
-    return res;
+    if (auto *res = x64::lnorm_utils::data_kernel_create<data_type>(pd))
+        return res;
 #endif
     if (data_type == bf16) {
         assert(!"No default data_kernel_t for bf16 input!");
@@ -163,8 +163,8 @@ template <data_type_t data_type>
 diff_ss_kernel_t<data_type> *diff_ss_kernel_t<data_type>::create(
         const layer_normalization_pd_t *pd) {
 #if DNNL_X64
-    auto *res = x64::lnorm_utils::diff_ss_kernel_create<data_type>(pd);
-    return res;
+    if (auto *res = x64::lnorm_utils::diff_ss_kernel_create<data_type>(pd))
+        return res;
 #endif
     if (data_type == bf16) {
         assert(!"No default diff_ss_kernel_t for bf16 input!");
@@ -177,8 +177,8 @@ template <data_type_t data_type>
 diff_data_kernel_t<data_type> *diff_data_kernel_t<data_type>::create(
         const layer_normalization_pd_t *pd) {
 #if DNNL_X64
-    auto *res = x64::lnorm_utils::diff_data_kernel_create<data_type>(pd);
-    return res;
+    if (auto *res = x64::lnorm_utils::diff_data_kernel_create<data_type>(pd))
+        return res;
 #endif
     if (data_type == bf16) {
         assert(!"No default diff_data_kernel_t for bf16 input!");
