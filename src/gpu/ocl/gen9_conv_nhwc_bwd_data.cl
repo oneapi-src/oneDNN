@@ -48,15 +48,18 @@
     }
 
 inline DATA_T read_oc_block(const __global DATA_T *ptr, int off) {
+    const int local_id = get_local_id(0);
 #if OC_WO_PADDING % OC_BLOCK != 0
     int tail = OC_WO_PADDING - off;
     if (tail < OC_BLOCK) {
-        const int local_x = get_local_id(0);
-        return (local_x < tail) ? AS_DATA_T(ptr[local_x]) : AS_DATA_T(0.0f);
+        const int local_id = get_local_id(0);
+        return (local_id < tail) ? AS_DATA_T(ptr[local_id]) : DATA_ZERO;
     }
 #endif
-    return AS_DATA_T(
-            intel_sub_group_block_read((const __global BLOCK_DATA_T *)ptr));
+    if ((OC_WO_PADDING * sizeof(DATA_T)) % 4 != 0)
+        return ptr[local_id];
+    else
+        return AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)(ptr)));
 }
 
 inline void write_ic_block(__global DATA_T *ptr, int off, DATA_T value) {
@@ -68,12 +71,11 @@ inline void write_ic_block(__global DATA_T *ptr, int off, DATA_T value) {
         return;
     }
 #endif
-    if ((IC_WO_PADDING * sizeof(DATA_T)) % 16 != 0) {
+    if ((IC_WO_PADDING * sizeof(DATA_T)) % 16 != 0)
         ptr[local_id] = value;
-        return;
-    }
-    return intel_sub_group_block_write(
-            (__global BLOCK_DATA_T *)ptr, AS_BLOCK_DATA_T(value));
+    else
+        BLOCK_WRITE((__global BLOCK_DATA_T *)ptr, AS_BLOCK_DATA_T(value));
+    return;
 }
 
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
@@ -106,12 +108,11 @@ gen9_conv_nhwc_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
 
     if (WITH_BIAS) {
         const int bg_off = ic * IC_BLOCK + local_id;
-        DATA_T b = (G_WO_PADDING % IC_BLOCK == 0 || bg_off < G_WO_PADDING)
+        DATA_T b = (IC_WO_PADDING % IC_BLOCK == 0 || bg_off < IC_WO_PADDING)
                 ? bias[bg_off]
                 : DATA_ZERO;
         unroll_for(int i = 0; i < IW_BLOCK; ++i) { blockC00[i] = b; }
     }
-
     wei += gic * KD * KH * KW * OC_BLOCK * IC_BLOCK
             + g * IC * OC * KD * KH * KW;
 #if KH != 1 || KW != 1 || KD != 1
