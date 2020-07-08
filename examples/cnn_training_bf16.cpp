@@ -96,9 +96,9 @@ void simple_net(engine::kind engine_kind) {
     auto conv_src_md = memory::desc({conv_src_tz}, dt::bf16, tag::any);
     auto conv_weights_md = memory::desc({conv_weights_tz}, dt::bf16, tag::any);
     auto conv_dst_md = memory::desc({conv_dst_tz}, dt::bf16, tag::any);
-
-    // use bias provided by the user
-    auto conv_bias_md = conv_user_bias_memory.get_desc();
+    // here bias data type is set to bf16.
+    // additionally, f32 data type is supported for bf16 convolution.
+    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::bf16, tag::any);
 
     // create a convolution primitive descriptor
     auto conv_desc = convolution_forward::desc(prop_kind::forward,
@@ -140,6 +140,16 @@ void simple_net(engine::kind engine_kind) {
                 {DNNL_ARG_TO, conv_weights_memory}});
     }
 
+    // convert bias from f32 to bf16 as convolution descriptor is created with
+    // bias data type as bf16.
+    auto conv_bias_memory = conv_user_bias_memory;
+    if (conv_pd.bias_desc() != conv_user_bias_memory.get_desc()) {
+        conv_bias_memory = memory(conv_pd.bias_desc(), eng);
+        net_fwd.push_back(reorder(conv_user_bias_memory, conv_bias_memory));
+        net_fwd_args.push_back({{DNNL_ARG_FROM, conv_user_bias_memory},
+                {DNNL_ARG_TO, conv_bias_memory}});
+    }
+
     // create memory for conv dst
     auto conv_dst_memory = memory(conv_pd.dst_desc(), eng);
 
@@ -147,7 +157,7 @@ void simple_net(engine::kind engine_kind) {
     net_fwd.push_back(convolution_forward(conv_pd));
     net_fwd_args.push_back({{DNNL_ARG_SRC, conv_src_memory},
             {DNNL_ARG_WEIGHTS, conv_weights_memory},
-            {DNNL_ARG_BIAS, conv_user_bias_memory},
+            {DNNL_ARG_BIAS, conv_bias_memory},
             {DNNL_ARG_DST, conv_dst_memory}});
 
     // AlexNet: relu
