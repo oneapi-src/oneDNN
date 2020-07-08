@@ -65,11 +65,12 @@ dnnl_primitive_attr_t create_dnnl_fusion_attr(
     }
 
     if (!attr.post_ops.is_def()) {
+        const auto &po = attr.post_ops;
         dnnl_post_ops_t ops;
         DNN_SAFE_V(dnnl_post_ops_create(&ops));
-        for (int idx = 0; idx < attr.post_ops.len; ++idx) {
-            const auto &e = attr.post_ops.entry[idx];
-            if (e.kind == attr_t::post_ops_t::kind_t::SUM) {
+        for (int idx = 0; idx < po.len(); ++idx) {
+            const auto &e = po.entry[idx];
+            if (e.is_sum_kind()) {
                 DNN_SAFE_V(dnnl_post_ops_append_sum(ops, e.sum.scale));
             } else if (e.is_convolution_kind()) {
                 const auto &os = e.convolution.oscale;
@@ -108,7 +109,7 @@ dnnl_primitive_attr_t create_dnnl_fusion_attr(
 
         const_dnnl_post_ops_t c_ops;
         DNN_SAFE_V(dnnl_primitive_attr_get_post_ops(dnnl_attr, &c_ops));
-        SAFE_V(dnnl_post_ops_len(c_ops) == attr.post_ops.len ? OK : FAIL);
+        SAFE_V(dnnl_post_ops_len(c_ops) == po.len() ? OK : FAIL);
 
         DNN_SAFE_V(dnnl_post_ops_destroy(ops));
     }
@@ -255,9 +256,8 @@ std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *p) {
     attr_t attr;
     attr.oscale.scale = p->attr.oscale.scale;
     attr.oscale.policy = p->attr.oscale.policy;
-    auto &len = attr.post_ops.len;
     for (int i = 0; i < fusion_index; ++i) {
-        attr.post_ops.entry[len++] = p->attr.post_ops.entry[i];
+        attr.post_ops.entry.push_back(p->attr.post_ops.entry[i]);
     }
 
     return std::unique_ptr<prb_t>(new prb_t((desc_t)*p, p->dir, p->cfg, p->stag,
@@ -273,9 +273,8 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *p) {
     attr_t fusion_attr;
     fusion_attr.oscale.scale = fused_conv_po.oscale.scale;
     fusion_attr.oscale.policy = fused_conv_po.oscale.policy;
-    auto &len = fusion_attr.post_ops.len;
-    for (int i = fusion_index + 1; i < p->attr.post_ops.len; ++i) {
-        fusion_attr.post_ops.entry[len++] = p->attr.post_ops.entry[i];
+    for (int i = fusion_index + 1; i < po.len(); ++i) {
+        fusion_attr.post_ops.entry.push_back(p->attr.post_ops.entry[i]);
     }
 
     const auto f32 = dnnl_f32;

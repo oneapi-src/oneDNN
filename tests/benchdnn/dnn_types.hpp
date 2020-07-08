@@ -251,7 +251,21 @@ struct attr_t {
         static dnnl_alg_kind_t kind2dnnl_kind(kind_t kind);
 
         struct entry_t {
-            entry_t() {}
+            entry_t(kind_t akind) : kind(akind) {
+                if (is_sum_kind()) {
+                    sum.scale = 1.f;
+                    sum.dt = dnnl_data_type_undef;
+                } else if (is_eltwise_kind()) {
+                    eltwise.alg = kind2dnnl_kind(kind);
+                    eltwise.alpha = 0.f;
+                    eltwise.beta = 0.f;
+                    eltwise.scale = 1.f;
+                } else if (is_convolution_kind()) {
+                    convolution.stride = kind == DW_K3S1P1 ? 1 : 2;
+                    convolution.dst_dt = dnnl_f32;
+                    convolution.oscale = scale_t();
+                }
+            }
 
             kind_t kind;
             union {
@@ -261,7 +275,7 @@ struct attr_t {
                 } sum;
                 struct {
                     dnnl_alg_kind_t alg;
-                    float scale, alpha, beta;
+                    float alpha, beta, scale;
                 } eltwise;
                 struct {
                     int stride;
@@ -270,23 +284,23 @@ struct attr_t {
                 } convolution;
             };
 
-            bool is_eltwise_kind() const;
+            bool is_sum_kind() const;
             bool is_convolution_kind() const;
+            bool is_eltwise_kind() const;
         };
 
-        post_ops_t() : len(0) {}
+        post_ops_t() : entry() {}
 
         int from_str(const char *str, const char **end_s);
-        void to_str(char *buffer, char **end_b) const;
 
-        bool is_def() const { return len == 0; }
+        int len() const { return (int)entry.size(); }
+        bool is_def() const { return len() == 0; }
+
         int find(kind_t kind, int start = 0, int stop = -1) const;
         int eltwise_index() const;
         int convolution_index() const;
 
-        enum { capacity = 4 };
-        int len;
-        entry_t entry[4];
+        std::vector<entry_t> entry;
     };
 
     attr_t() = default;

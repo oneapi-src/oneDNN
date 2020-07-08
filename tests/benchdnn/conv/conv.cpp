@@ -40,7 +40,7 @@ double get_trust_nz_level(
         using pk = attr_t::post_ops_t::kind_t;
         const auto &po = p->attr.post_ops;
         int count = 0;
-        for (int i = 0; i < po.len; ++i) {
+        for (int i = 0; i < po.len(); ++i) {
             auto k = po.entry[i].kind;
             count += k == pk::RELU || k == pk::ELU || k == pk::SQRT
                     || k == pk::BRELU;
@@ -66,16 +66,15 @@ double get_trust_nz_level(
 }
 
 inline bool post_ops_require_integral_check(const prb_t *p) {
-    if (p->attr.post_ops.len == 0) return false;
+    const auto &po = p->attr.post_ops;
+    if (po.len() == 0) return false;
 
-    using pk = attr_t::post_ops_t::kind_t;
-    const auto &ops = p->attr.post_ops;
+    for (int idx = 0; idx < po.len(); ++idx) {
+        const auto &e = po.entry[idx];
+        using pk_t = attr_t::post_ops_t::kind_t;
 
-    // assumptions: at most 1 eltwise, scale = 1.
-    for (int idx = 0; idx < ops.len; ++idx) {
-        const auto &e = ops.entry[idx];
-        if (e.kind == pk::SUM || e.kind == pk::ABS) continue;
-        if (e.kind == pk::RELU && e.eltwise.alpha == 0.f) continue;
+        if (e.kind == pk_t::SUM || e.kind == pk_t::ABS) continue;
+        if (e.kind == pk_t::RELU && e.eltwise.alpha == 0.f) continue;
         return true;
     }
 

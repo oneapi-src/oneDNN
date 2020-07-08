@@ -139,31 +139,66 @@ static int check_str2attr() {
     return OK;
 }
 
+using pk_t = attr_t::post_ops_t::kind_t;
+
+void append_sum(attr_t::post_ops_t &po, float ascale = 1.f,
+        dnnl_data_type_t adt = dnnl_data_type_undef) {
+    attr_t::post_ops_t::entry_t e(pk_t::SUM);
+    e.sum.scale = ascale;
+    e.sum.dt = adt;
+    po.entry.push_back(e);
+}
+
+void append_convolution(attr_t::post_ops_t &po, pk_t akind,
+        dnnl_data_type_t adst_dt = dnnl_f32,
+        policy_t apolicy = policy_t::COMMON, float ascale = 1.f) {
+    attr_t::post_ops_t::entry_t e(akind);
+    e.convolution.stride = e.kind == pk_t::DW_K3S1P1 ? 1 : 2;
+    e.convolution.dst_dt = adst_dt;
+    e.convolution.oscale = attr_t::scale_t(apolicy, ascale);
+    po.entry.push_back(e);
+}
+
+void append_eltwise(attr_t::post_ops_t &po, pk_t akind, float aalpha = 0.f,
+        float abeta = 0.f, float ascale = 1.f) {
+    attr_t::post_ops_t::entry_t e(akind);
+    e.eltwise.alg = attr_t::post_ops_t::kind2dnnl_kind(akind);
+    e.eltwise.alpha = aalpha;
+    e.eltwise.beta = abeta;
+    e.eltwise.scale = ascale;
+    po.entry.push_back(e);
+}
+
 static int check_post_ops2str() {
-    attr_t::post_ops_t ops;
-    CHECK_EQ(ops.is_def(), true);
+    attr_t::post_ops_t po;
+    CHECK_EQ(po.is_def(), true);
+    CHECK_PRINT_EQ(po, "''");
 
-    CHECK_PRINT_EQ(ops, "''");
+    append_sum(po);
+    CHECK_EQ(po.len(), 1);
+    CHECK_PRINT_EQ(po, "'sum'");
 
-    ops.len = 4;
-    for (int i = 0; i < 2; ++i) {
-        ops.entry[2 * i + 0].kind = attr_t::post_ops_t::SUM;
-        ops.entry[2 * i + 0].sum.scale = 2. + i;
-        ops.entry[2 * i + 1].kind = attr_t::post_ops_t::RELU;
-        ops.entry[2 * i + 1].eltwise.scale = 1.;
-        ops.entry[2 * i + 1].eltwise.alpha = (i == 0 ? 0. : 5.);
-        ops.entry[2 * i + 1].eltwise.beta = 0.;
-    }
-    CHECK_PRINT_EQ(ops, "'sum:2;relu;sum:3;relu:5'");
+    append_eltwise(po, pk_t::RELU);
+    CHECK_EQ(po.len(), 2);
+    CHECK_PRINT_EQ(po, "'sum;relu'");
 
-    ops.len = 3;
-    CHECK_PRINT_EQ(ops, "'sum:2;relu;sum:3'");
+    append_sum(po, 2.f, dnnl_s8);
+    CHECK_EQ(po.len(), 3);
+    CHECK_PRINT_EQ(po, "'sum;relu;sum:2:s8'");
 
-    ops.len = 2;
-    CHECK_PRINT_EQ(ops, "'sum:2;relu'");
+    append_eltwise(po, pk_t::LINEAR, 5.f, 10.f, 2.f);
+    CHECK_EQ(po.len(), 4);
+    CHECK_PRINT_EQ(po, "'sum;relu;sum:2:s8;linear:5:10:2'");
 
-    ops.len = 1;
-    CHECK_PRINT_EQ(ops, "'sum:2'");
+    append_convolution(po, pk_t::DW_K3S1P1);
+    CHECK_EQ(po.len(), 5);
+    CHECK_PRINT_EQ(po, "'sum;relu;sum:2:s8;linear:5:10:2;dw_k3s1p1'");
+
+    append_convolution(po, pk_t::DW_K3S2P1, dnnl_s32, policy_t::PER_OC, 2.f);
+    CHECK_EQ(po.len(), 6);
+    CHECK_PRINT_EQ(po,
+            "'sum;relu;sum:2:s8;linear:5:10:2;dw_k3s1p1;dw_k3s2p1:s32:per_oc:"
+            "2'");
 
     return OK;
 }
