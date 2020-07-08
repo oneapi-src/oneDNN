@@ -371,8 +371,6 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 // This is split in 3 pieces if we skip copies.
                 // last iter in user mem, middle iters in ws, first iter in user mem
                 // Note 1: here we assume no change in datatypes for src_iter, ws_iter and dst_iter
-                // Note 2: this code works only if no recurrent projection projection
-                assert(!rnn.is_lstm_projection);
 
                 const dst_iter_t *states_iter = nullptr;
                 int states_iter_ld = 0;
