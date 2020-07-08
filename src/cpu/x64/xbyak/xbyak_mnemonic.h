@@ -43,7 +43,7 @@
 * THE POSSIBILITY OF SUCH DAMAGE.
 *******************************************************************************/
 
-const char *getVersionString() const { return "5.912"; }
+const char *getVersionString() const { return "5.92"; }
 void adc(const Operand& op, uint32 imm) { opRM_I(op, imm, 0x10, 2); }
 void adc(const Operand& op1, const Operand& op2) { opRM_RM(op1, op2, 0x10); }
 void adcx(const Reg32e& reg, const Operand& op) { opGen(reg, op, 0xF6, 0x66, isREG32_REG32orMEM, NONE, 0x38); }
@@ -1672,6 +1672,18 @@ void vcvtsd2si(const Reg64& r, const Operand& op) { opAVX_X_X_XM(Xmm(r.getIdx())
 void vcvttsd2si(const Reg64& r, const Operand& op) { opAVX_X_X_XM(Xmm(r.getIdx()), xm0, op, T_0F | T_F2 | T_W1 | T_EVEX | T_EW1 | T_N4 | T_SAE_X, 0x2C); }
 void vmovq(const Xmm& x, const Reg64& r) { opAVX_X_X_XM(x, xm0, Xmm(r.getIdx()), T_66 | T_0F | T_W1 | T_EVEX | T_EW1, 0x6E); }
 void vmovq(const Reg64& r, const Xmm& x) { opAVX_X_X_XM(x, xm0, Xmm(r.getIdx()), T_66 | T_0F | T_W1 | T_EVEX | T_EW1, 0x7E); }
+void ldtilecfg(const Address& addr) { opVex(tmm0, &tmm0, addr, T_0F38 | T_W0, 0x49); }
+void sttilecfg(const Address& addr) { opVex(tmm0, &tmm0, addr, T_66 | T_0F38 | T_W0, 0x49); }
+void tileloadd(const Tmm& tm, const Address& addr) { opAMX(tm, addr, T_F2 | T_0F38 | T_W0, 0x4b); }
+void tileloaddt1(const Tmm& tm, const Address& addr) { opAMX(tm, addr, T_66 | T_0F38 | T_W0, 0x4b); }
+void tilerelease() { db(0xc4); db(0xe2); db(0x78); db(0x49); db(0xc0); }
+void tilestored(const Address& addr, const Tmm& tm) { opVex(tm, &tmm0, addr, T_F3 | T_0F38 | T_W0, 0x4b); }
+void tilezero(const Tmm& Tmm) { opVex(Tmm, &tmm0, tmm0, T_F2 | T_0F38 | T_W0, 0x49); }
+void tdpbssd(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opVex(x1, &x3, x2, T_F2 | T_0F38 | T_W0, 0x5e); }
+void tdpbsud(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opVex(x1, &x3, x2, T_F3 | T_0F38 | T_W0, 0x5e); }
+void tdpbusd(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opVex(x1, &x3, x2, T_66 | T_0F38 | T_W0, 0x5e); }
+void tdpbuud(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opVex(x1, &x3, x2, T_0F38 | T_W0, 0x5e); }
+void tdpbf16ps(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opVex(x1, &x3, x2, T_F3 | T_0F38 | T_W0, 0x5c); }
 #else
 void jcxz(std::string label) { db(0x67); opJmp(label, T_SHORT, 0xe3, 0, 0); }
 void jcxz(const Label& label) { db(0x67); opJmp(label, T_SHORT, 0xe3, 0, 0); }
@@ -2079,17 +2091,5 @@ void vshufi64x2(const Ymm& y1, const Ymm& y2, const Operand& op, uint8 imm) { op
 void kmovq(const Opmask& k, const Reg64& r) { opVex(k, 0, r, T_L0 | T_0F | T_F2 | T_W1, 0x92); }
 void kmovq(const Reg64& r, const Opmask& k) { opVex(r, 0, k, T_L0 | T_0F | T_F2 | T_W1, 0x93); }
 void vpbroadcastq(const Xmm& x, const Reg64& r) { opVex(x, 0, r, T_66 | T_0F38 | T_EW1 | T_YMM | T_MUST_EVEX, 0x7C); }
-void ldtilecfg(const Address& addr) { opAMX(tm0, tm0, addr, T_0F38 | T_W0 | T_TMM, 0x49); }
-void sttilecfg(const Address& addr) { opAMX(tm0, tm0, addr, T_66 | T_0F38 | T_W0 | T_TMM, 0x49); }
-void tdpbf16ps(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opAMX(x1, x3, x2, T_F3 | T_0F38 | T_W0 | T_TMM, 0x5c); }
-void tdpbssd(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opAMX(x1, x3, x2, T_F2 | T_0F38 | T_W0 | T_TMM, 0x5e); }
-void tdpbsud(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opAMX(x1, x3, x2, T_F3 | T_0F38 | T_W0 | T_TMM, 0x5e); }
-void tdpbusd(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opAMX(x1, x3, x2, T_66 | T_0F38 | T_W0 | T_TMM, 0x5e); }
-void tdpbuud(const Tmm& x1, const Tmm& x2, const Tmm& x3) { opAMX(x1, x3, x2,        T_0F38 | T_W0 | T_TMM, 0x5e); }
-void tileloadd(const Tmm& tm, const Operand& op) { opAMX(tm, tm0, op, T_F2 | T_0F38 | T_W0 | T_TMM, 0x4b); }
-void tileloaddt1(const Tmm& tm, const Operand& op) { opAMX(tm, tm0, op, T_66 | T_0F38 | T_W0 | T_TMM, 0x4b); }
-void tilerelease() { db(0xc4); db(0xe2); db(0x78); db(0x49); db(0xc0); }
-void tilestored(const Operand& op, const Tmm& tm) { opAMX(tm, tm0, op, T_F3 | T_0F38 | T_W0 | T_TMM, 0x4b); }
-void tilezero(const Tmm& Tmm) { opAMX(Tmm, tm0, tm0, T_F2 | T_0F38 | T_W0 | T_TMM, 0x49); }
 #endif
 #endif
