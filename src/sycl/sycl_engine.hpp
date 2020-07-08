@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <exception>
 #include <memory>
+#include <vector>
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
@@ -37,8 +38,16 @@ namespace sycl {
 inline std::vector<cl::sycl::device> get_intel_sycl_devices(
         cl::sycl::info::device_type dev_type) {
     const int intel_vendor_id = 0x8086;
-    auto devices = cl::sycl::device::get_devices(dev_type);
     auto gpu_backend = get_sycl_gpu_backend();
+
+    std::vector<cl::sycl::device> devices;
+    auto platforms = cl::sycl::platform::get_platforms();
+
+    for (const auto &p : platforms) {
+        auto p_devices = p.get_devices(dev_type);
+        devices.insert(devices.end(), p_devices.begin(), p_devices.end());
+    }
+
     devices.erase(
             std::remove_if(devices.begin(), devices.end(),
                     [=](const cl::sycl::device &dev) {
