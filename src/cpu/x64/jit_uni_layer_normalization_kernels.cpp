@@ -207,7 +207,7 @@ template <data_type_t data_type>
 jit_statistics_kernel_t<data_type>::jit_statistics_kernel_t(
         const layer_normalization_pd_t *pd)
     : statistics_kernel_t<data_type>(pd), jit_transfer_ {*this} {
-    assert(mayiuse(avx512_core));
+    assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
     generate();
 }
 
@@ -372,7 +372,7 @@ template <data_type_t data_type>
 jit_data_kernel_t<data_type>::jit_data_kernel_t(
         const layer_normalization_pd_t *pd)
     : data_kernel_t<data_type>(pd), jit_transfer_ {*this} {
-    assert(mayiuse(avx512_core));
+    assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
     generate();
 }
 
@@ -495,7 +495,7 @@ template <data_type_t data_type>
 jit_diff_ss_kernel_t<data_type>::jit_diff_ss_kernel_t(
         const layer_normalization_pd_t *pd)
     : diff_ss_kernel_t<data_type>(pd), jit_transfer_ {*this} {
-    assert(mayiuse(avx512_core));
+    assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
     generate();
 }
 
@@ -631,7 +631,7 @@ template <data_type_t data_type>
 jit_diff_data_kernel_t<data_type>::jit_diff_data_kernel_t(
         const layer_normalization_pd_t *pd)
     : diff_data_kernel_t<data_type>(pd), jit_transfer_ {*this} {
-    assert(mayiuse(avx512_core));
+    assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
     generate();
 }
 
