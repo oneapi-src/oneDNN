@@ -196,7 +196,17 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
     int ih_block_size = jcp.ih;
     int num_ih_blocks = utils::div_up(jcp.ih, ih_block_size);
     size_t work_amount = jcp.mb * jcp.ngroups * icb_work * num_ih_blocks;
-    if (work_amount < (size_t)2 * dnnl_get_max_threads()) {
+
+    const auto data_size = sizeof(data_t);
+    const auto L2 = platform::get_per_core_cache_size(2) / data_size;
+    // input + output + weights per iteration by nb_oc_blocking
+    auto ic_chunk = jcp.nb_ic_blocking * jcp.ic_block;
+    auto oc_chunk = jcp.nb_oc_blocking * jcp.oc_block;
+    auto iter_data_amount = (size_t)jcp.id * jcp.ih * jcp.iw * ic_chunk
+            + (size_t)jcp.od * jcp.oh * jcp.ow * oc_chunk
+            + (size_t)jcp.kd * jcp.kh * jcp.kw * ic_chunk * oc_chunk;
+
+    if (work_amount < (size_t)2 * jcp.nthr || iter_data_amount > L2) {
         ih_block_size = 1;
         num_ih_blocks = utils::div_up(jcp.ih, ih_block_size);
         work_amount *= num_ih_blocks;
@@ -211,7 +221,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
     int icb_ic_scale = is_ic_physically_blocked ? 1 : jcp.ic_block;
 
     bool is_oc_physically_blocked = one_of(jcp.dst_tag, format_tag::nCw8c,
-            +format_tag::nChw8c, format_tag::nCdhw8c);
+            format_tag::nChw8c, format_tag::nCdhw8c);
     int g_oc_offset = is_oc_physically_blocked ? jcp.nb_oc : jcp.oc;
     int ocb_oc_scale = is_oc_physically_blocked ? 1 : jcp.oc_block;
 
