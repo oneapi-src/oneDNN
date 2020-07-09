@@ -25,8 +25,12 @@
 #if defined(DNNL_SYCL_DPCPP) && defined(__INTEL_CLANG_COMPILER) \
         && defined(__SYCL_COMPILER_VERSION) \
         && (__SYCL_COMPILER_VERSION > 20200511)
-#include <CL/sycl/backend/Intel_level0.hpp>
 #define USE_DIRECT_LEVEL_ZERO_SYCL_INTEROP
+#if (__SYCL_COMPILER_VERSION <= 20200630)
+#include <CL/sycl/backend/Intel_level0.hpp>
+#else
+#include <CL/sycl/backend/level_zero.hpp>
+#endif
 #endif
 
 namespace dnnl {
