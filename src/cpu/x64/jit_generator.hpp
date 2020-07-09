@@ -903,6 +903,27 @@ public:
         vpackuswb(x1, x2, op);
     }
 
+    void uni_vpinsrb(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op, const int imm) {
+        assert(x1.getIdx() == x2.getIdx());
+        pinsrb(x1, op, imm);
+    }
+
+    void uni_vpinsrb(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op, const int imm) {
+        vpinsrb(x1, x2, op, imm);
+    }
+
+    void uni_vpextrb(
+            const Xbyak::Operand &op, const Xbyak::Xmm &x, const int imm) {
+        pextrb(op, x, imm);
+    }
+
+    void uni_vpextrb(
+            const Xbyak::Operand &op, const Xbyak::Ymm &x, const int imm) {
+        vpextrb(op, x, imm);
+    }
+
     void mul_by_const(
             const Xbyak::Reg &out, const Xbyak::Reg64 &tmp, int value) {
         // Generates a shift + add sequence for multiplicating contents of the

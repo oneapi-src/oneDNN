@@ -190,19 +190,23 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
 
     void load_and_convert(const Vmm &vmm, const Operand &op, data_type_t idt) {
         switch (idt) {
-            case data_type::u8: vpmovzxbd(vmm, op); break;
-            case data_type::s8: vpmovsxbd(vmm, op); break;
+            case data_type::u8: uni_vpmovzxbd(vmm, op); break;
+            case data_type::s8: uni_vpmovsxbd(vmm, op); break;
             default: assert(!"unreachable");
         }
-        vcvtdq2ps(vmm, vmm);
+        uni_vcvtdq2ps(vmm, vmm);
     }
 
     void accumulate_tail(const Xmm &xmm, int arg_num) {
         for (size_t i = 0; i < tail_size_; i++) {
             switch (arg_num) {
-                case DNNL_ARG_SRC_0: vpinsrb(xmm, xmm, src0_ptr(i), i); break;
-                case DNNL_ARG_SRC_1: vpinsrb(xmm, xmm, src1_ptr(i), i); break;
-                case DNNL_ARG_DST: vpinsrb(xmm, xmm, dst_ptr(i), i); break;
+                case DNNL_ARG_SRC_0:
+                    uni_vpinsrb(xmm, xmm, src0_ptr(i), i);
+                    break;
+                case DNNL_ARG_SRC_1:
+                    uni_vpinsrb(xmm, xmm, src1_ptr(i), i);
+                    break;
+                case DNNL_ARG_DST: uni_vpinsrb(xmm, xmm, dst_ptr(i), i); break;
                 default: assert(!"unsupported arg_num"); break;
             }
         }
@@ -223,7 +227,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
 
     void store_tail(const Xmm &xmm) {
         for (size_t i = 0; i < tail_size_; i++)
-            vpextrb(dst_ptr(i), xmm, i);
+            uni_vpextrb(dst_ptr(i), xmm, i);
     }
 
     virtual void compute_dst(int unroll, bool tail = false) = 0;
@@ -236,9 +240,9 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
 
         // Only mask 0 is supported at this point
         if (do_scale_src0_)
-            vbroadcastss(vreg_scales_src0, dword[reg_scales_src0]);
+            uni_vbroadcastss(vreg_scales_src0, dword[reg_scales_src0]);
         if (do_scale_src1_)
-            vbroadcastss(vreg_scales_src1, dword[reg_scales_src1]);
+            uni_vbroadcastss(vreg_scales_src1, dword[reg_scales_src1]);
 
         Label unroll_loop, unroll_loop_tail, nelems_tail, end;
 
@@ -250,7 +254,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
         // bcast vreg just one time per kernel call
         if (broadcast_src1_value_) {
             uni_vpxor(xreg_bcast_src1, xreg_bcast_src1, xreg_bcast_src1);
-            vpinsrb(xreg_bcast_src1, xreg_bcast_src1, src1_ptr(0), 0);
+            uni_vpinsrb(xreg_bcast_src1, xreg_bcast_src1, src1_ptr(0), 0);
             uni_vcvtdq2ps(xreg_bcast_src1, xreg_bcast_src1);
             uni_vbroadcastss(vreg_bcast_src1, xreg_bcast_src1);
         }
@@ -445,6 +449,73 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>
 };
 
 template <data_type_t src0_type, data_type_t src1_type>
+struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>
+    : public jit_uni_i8i8_binary_kernel_t<sse41> {
+
+    void cvt2odt(const Vmm &v, data_type_t odt) {
+        // f32 -> s32
+        // properly saturate in f32
+        saturate_f32(v, vreg_zero, vreg_saturation_ubound, odt);
+        cvtps2dq(v, v);
+        // v = { 8x32 }
+        packssdw(v, vreg_zero);
+        // v = { 4x16, 0}
+
+        switch (odt) {
+            case data_type::u8: packuswb(v, vreg_zero); break;
+            case data_type::s8: packsswb(v, vreg_zero); break;
+            default: assert(!"unreachable");
+        }
+        // v = { 4x8, 0 }
+    }
+
+    void store(const Address &dst, const Vmm &src, data_type_t odt, bool tail) {
+        // f32 -> i8 and store
+        cvt2odt(src, odt);
+        if (!tail) {
+            movd(dst, Xmm(src.getIdx())); // store 32 bits
+        } else {
+            UNUSED(dst);
+            store_tail(Xmm(src.getIdx()));
+        }
+    }
+
+    void compute_dst(int unroll, bool tail = false) override {
+        for (int i = 0; i < unroll; i++) {
+            Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
+            Vmm vreg_tmp_src1 = vreg_bcast_src1;
+            Vmm vreg_tmp = Vmm(2 * i + 2);
+            int offt = simd_w_ * i;
+            load(vreg_tmp_src0, src0_ptr(offt), DNNL_ARG_SRC_0, src0_type,
+                    tail);
+            if (!broadcast_src1_value_) {
+                vreg_tmp_src1 = vreg_tmp;
+                load(vreg_tmp_src1, src1_ptr(offt), DNNL_ARG_SRC_1, src1_type,
+                        tail);
+            }
+
+            // avoid multiple multiplication on input scale for broadcasted vreg
+            movups(vreg_tmp, vreg_tmp_src1);
+            perform_op(vreg_tmp_src0, vreg_tmp, vreg_scales_src0,
+                    vreg_scales_src1);
+            if (do_sum_) {
+                load(vreg_tmp, dst_ptr(offt), DNNL_ARG_DST, src0_type, tail);
+                mulps(vreg_tmp, vreg_sum_scale);
+                addps(vreg_tmp_src0, vreg_tmp);
+            }
+            if (eltwise_injector_)
+                eltwise_injector_->compute_vector(vreg_tmp_src0.getIdx());
+            store(dst_ptr(offt), vreg_tmp_src0, src0_type, tail);
+        }
+    }
+
+    jit_i8i8_binary_subkernel_t(const binary_pd_t *pd)
+        : jit_uni_i8i8_binary_kernel_t(pd) {
+        generate();
+    }
+};
+
+template <data_type_t src0_type, data_type_t src1_type>
 std::unique_ptr<i8i8_binary_kernel_t> create_i8i8_binary_kernel(
         const binary_pd_t *pd) {
     if (mayiuse(avx512_common)) {
@@ -455,8 +526,11 @@ std::unique_ptr<i8i8_binary_kernel_t> create_i8i8_binary_kernel(
         using subkernel_t
                 = jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>;
         return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+    } else {
+        using subkernel_t
+                = jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>;
+        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
     }
-    return nullptr;
 }
 
 template <data_type_t src0_type, data_type_t src1_type>

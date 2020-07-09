@@ -47,17 +47,16 @@ struct jit_uni_binary_t : public primitive_t {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
             memory_desc_wrapper dst_md_(dst_md());
+            memory_desc_wrapper src0_md_(src_md(0));
+            memory_desc_wrapper src1_md_(src_md(1));
             const auto &po = attr()->post_ops_;
             int elt_idx = po.find(primitive_kind::eltwise);
 
-            bool ok = mayiuse(avx2)
-                    && IMPLICATION(src_type == bf16, mayiuse(avx512_core))
+            bool ok = IMPLICATION(src_type == bf16, mayiuse(avx512_core))
                     && utils::everyone_is(src_type, src_md(0)->data_type,
                             src_md(1)->data_type)
                     && set_default_params() == status::success
-                    && !has_zero_dim_memory()
-                    && memory_desc_wrapper(src_md(0))
-                            == memory_desc_wrapper(dst_md(0))
+                    && !has_zero_dim_memory() && src0_md_ == dst_md_
                     && is_applicable()
                     && attr()->has_default_values(sm::post_ops)
                     && attr_post_ops_ok()
@@ -66,7 +65,10 @@ struct jit_uni_binary_t : public primitive_t {
                                     cpu_eltwise_fwd_pd_t::
                                             eltwise_preserves_zero(
                                                     po.entry_[elt_idx]
-                                                            .eltwise)));
+                                                            .eltwise)))
+                    && IMPLICATION(!mayiuse(avx2),
+                            src0_md_.consistent_with(src1_md_)
+                                    || src0_md_.is_plain());
             if (!ok) return status::unimplemented;
 
             return status::success;

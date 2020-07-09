@@ -73,10 +73,12 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_binary_kernel_t)
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword = (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword
+            = (isa == sse41) ? xword : ((isa == avx2) ? yword : zword);
 
     const binary_pd_t *pd_;
     bool is_bf16_;
+    bool is_avx512 = utils::one_of(isa, avx512_core, avx512_core_bf16);
 
     Reg64 reg_param = abi_param1;
 
@@ -91,10 +93,10 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
     Reg64 reg_elt_inj_table = r15;
 
     Xmm xsum_scale = Xmm(15);
-    Vmm vbcast_src1 = Vmm(isa == avx2 ? 14 : 30);
-    Vmm vsum_scale = Vmm(isa == avx2 ? 15 : 31);
+    Vmm vbcast_src1 = Vmm(is_avx512 ? 30 : 14);
+    Vmm vsum_scale = Vmm(is_avx512 ? 31 : 15);
 
-    size_t unroll_regs_ = isa == avx2 ? 4 : 8;
+    size_t unroll_regs_ = is_avx512 ? 8 : 4;
     size_t simd_w_ = 0;
     size_t tail_size_ = 0;
     size_t data_type_size_ = 0;
@@ -638,6 +640,73 @@ struct jit_uni_binary_subkernel_t<avx2, src_type>
 };
 
 template <data_type_t src_type>
+struct jit_uni_binary_subkernel_t<sse41, src_type>
+    : public jit_uni_binary_kernel_t<sse41> {
+
+    void prepare_isa_subkernel() override {}
+
+    Address get_address(const int off, const int arg_num) {
+        switch (arg_num) {
+            case DNNL_ARG_SRC_0: return src0_ptr(off);
+            case DNNL_ARG_SRC_1: return src1_ptr(off);
+            case DNNL_ARG_DST: return dst_ptr(off);
+            default: assert(!"unsupported arg_num"); break;
+        }
+    }
+
+    void load(const Vmm &dst, const int off, const int arg_num, bool tail) {
+        if (!tail)
+            movups(dst, get_address(off, arg_num));
+        else
+            for (size_t i = 0; i < tail_size_; i++)
+                pinsrd(dst, get_address(i * data_type_size_ + off, arg_num), i);
+    }
+
+    void store(const Vmm &src, const int off, bool tail) {
+        if (!tail)
+            movups(get_address(off, DNNL_ARG_DST), src);
+        else
+            for (size_t i = 0; i < tail_size_; i++)
+                pextrd(get_address(i * data_type_size_ + off, DNNL_ARG_DST),
+                        src, i);
+    }
+
+    void compute_bcast(bool tail = false) override {
+        if (broadcast_src1_value_)
+            uni_vbroadcastss(vbcast_src1, src1_ptr());
+        else if (offt_src1_ == 0)
+            load(vbcast_src1, 0, DNNL_ARG_SRC_1, tail);
+    }
+
+    void compute_dst(int unroll, bool tail = false) override {
+        for (int i = 0; i < unroll; i++) {
+            Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
+            Vmm vreg_tmp_src1 = vbcast_src1;
+            Vmm vreg_tmp = Vmm(2 * i + 2);
+            load(vreg_tmp_src0, i * offt_src0_, DNNL_ARG_SRC_0, tail);
+            if (offt_src1_) {
+                vreg_tmp_src1 = vreg_tmp;
+                load(vreg_tmp_src1, i * offt_src1_, DNNL_ARG_SRC_1, tail);
+            }
+            perform_op(vreg_tmp_src0, vreg_tmp_src1);
+            if (do_sum_) {
+                load(vreg_tmp, i * offt_src0_, DNNL_ARG_DST, tail);
+                mulps(vreg_tmp, vsum_scale);
+                addps(vreg_tmp_src0, vreg_tmp);
+            }
+            if (eltwise_injector_)
+                eltwise_injector_->compute_vector(vreg_tmp_src0.getIdx());
+            store(vreg_tmp_src0, i * offt_src0_, tail);
+        }
+    }
+
+    jit_uni_binary_subkernel_t(const binary_pd_t *pd)
+        : jit_uni_binary_kernel_t(pd) {
+        get_code();
+    }
+};
+
+template <data_type_t src_type>
 std::unique_ptr<binary_kernel_t> create_binary_kernel(const binary_pd_t *pd) {
     if (mayiuse(avx512_core_bf16)) {
         using subkernel_t
@@ -649,8 +718,10 @@ std::unique_ptr<binary_kernel_t> create_binary_kernel(const binary_pd_t *pd) {
     } else if (mayiuse(avx2)) {
         using subkernel_t = jit_uni_binary_subkernel_t<avx2, src_type>;
         return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+    } else {
+        using subkernel_t = jit_uni_binary_subkernel_t<sse41, src_type>;
+        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
     }
-    return nullptr;
 }
 
 template <data_type_t src_type>

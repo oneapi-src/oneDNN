@@ -46,7 +46,7 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
-            bool ok = mayiuse(avx2) && src_md(0)->data_type == src0_type
+            bool ok = src_md(0)->data_type == src0_type
                     && src_md(1)->data_type == src1_type
                     && dst_md(0)->data_type == src0_type
                     && set_default_params()
