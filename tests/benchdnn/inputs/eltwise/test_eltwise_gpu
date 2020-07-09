@@ -6,20 +6,11 @@
 --tag=abx,aBx16b,ABx16a16b
 --batch=option_set_all_algs
 
-# int8
+# uint8, int8, int32
 --reset
 --inplace=true,false
 --dir=FWD_I
---dt=s32,s8
---tag=axb
---alg=relu --alpha=0 --beta=0
---batch=shapes_eltwise
-
-# u8
---reset
---inplace=true,false
---dir=FWD_I
---dt=u8
+--dt=u8,s8,s32
 --tag=axb
 --alg=relu,linear
 --batch=shapes_eltwise
