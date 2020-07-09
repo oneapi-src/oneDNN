@@ -74,11 +74,13 @@ private:
     reg64_t kj = r10;
     reg64_t oi_iter = r11;
     reg64_t ki_iter = r12;
+    reg64_t reg_channel = ki_iter;
     reg64_t reg_kh = abi_not_param1;
     reg64_t reg_oc_blocks = r14;
     reg64_t imm_addr64 = r15;
     reg64_t reg_long_offt = r15;
     Xbyak::Reg32 reg_ci_flag = r13d;
+    Xbyak::Reg32 reg_oc_flag = r14d;
 
     Xbyak::Ymm ytmp = Xbyak::Ymm(14);
 
@@ -135,6 +137,11 @@ private:
         return sizeof(float) * offset;
     }
 
+    inline bool is_src_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+
     void generate();
 };
 
@@ -178,6 +185,8 @@ private:
     reg64_t reg_channel = r13; // used in ndims < 5 case only
     reg64_t reg_channel_work = r9; // used in ndims < 5 case only
     reg64_t reg_long_offt = r15;
+    reg64_t reg_reduce_work = reg_long_offt;
+    Xbyak::Reg32 reg_ci_flag = r13d; // used for nxc tails
 
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
 
@@ -280,6 +289,8 @@ private:
     reg64_t aux_reg_kernel = r13;
     reg64_t ki = r14;
     reg64_t reg_long_offt = r11;
+    reg64_t reg_channel = reg_ih_count; // used for nxc tails
+    Xbyak::Reg32 reg_ci_flag = r9d; // used for nxc tails
 
     inline void od_step_comeback_pointers();
     inline void oh_step_comeback_pointers();

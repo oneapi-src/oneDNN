@@ -427,6 +427,7 @@ struct jit_conv_call_s {
     size_t is_osb;
     int flags;
     int flags_prf;
+    int oc_flag;
 };
 
 struct jit_deconv_call_s {
