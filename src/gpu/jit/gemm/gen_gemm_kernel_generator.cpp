@@ -5854,6 +5854,9 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
 
     enum class KLoopType { Main, Cooldown, Remainder };
 
+    // Lambda used in k loop body (workaround for GCC nested lambda bug)
+    auto movLambda = [&](int esize, GRF ab1, GRF ab0) { mov(esize, ab1, ab0); };
+
     // k loop.
     auto kLoopBody = [&](const vector<RegisterBlock> &A_layout,
                              const vector<RegisterBlock> &B_layout,
@@ -6020,16 +6023,12 @@ bool gemm_kernel_generator_t<hw>::gemmKLoop(int ka_repack_in, int kb_repack_in,
             }
 
             // When starting on fresh round of A data, duplicate if needed.
-            if (newA && strategy.duplicateA) {
-                map<uint32_t>(state.A1_regs, A_regs, strategy,
-                        [&](int esize, GRF a1, GRF a0) { mov(esize, a1, a0); });
-            }
+            if (newA && strategy.duplicateA)
+                map<uint32_t>(state.A1_regs, A_regs, strategy, movLambda);
 
             // Similarly for B.
-            if (newB && strategy.duplicateB) {
-                map<uint32_t>(state.B1_regs, B_regs, strategy,
-                        [&](int esize, GRF b1, GRF b0) { mov(esize, b1, b0); });
-            }
+            if (newB && strategy.duplicateB)
+                map<uint32_t>(state.B1_regs, B_regs, strategy, movLambda);
 
             // Do one outer product. For backward GEMMs, reverse ha and hb now.
             int ha_eff = problem.backward ? (ka_load - 1 - ha) : ha;
@@ -9457,6 +9456,19 @@ bool gemm_kernel_generator_t<hw>::copyBodyInternal(
         }
     };
 
+    // Lambdas for use in zLoopBody (to avoid nested lambda bug in GCC)
+    auto mulAlphaVariable = [&](int esize, RegData r) {
+        mul(esize, r, r, problem.alpha_real.getRegAvoiding(hw, r));
+    };
+
+    auto mulAlphaFixed = [&](int esize, RegData r) {
+        mul(esize, r, r, cast(Ts.real(), problem.alpha_real));
+    };
+
+    auto signChange = [&](int esize, RegData r) {
+        xor_<uint32_t>(esize, r, r, state.signChange[0](0, 8, 1));
+    };
+
     // z loop: returns true on success.
     int S_copy = 0, D_copy = 0;
     auto zLoopBody = [&](const vector<RegisterBlock> &S_layout,
@@ -9505,25 +9517,14 @@ bool gemm_kernel_generator_t<hw>::copyBodyInternal(
                 } else {
                     if (!problem.alpha_real.fixed())
                         map(Ts.real(), state.S_regs, S_layout, strategy,
-                                [&](int esize, RegData r) {
-                                    mul(esize, r, r,
-                                            problem.alpha_real.getRegAvoiding(
-                                                    hw, r));
-                                });
+                                mulAlphaVariable);
                     else if ((problem.alpha_real != 1)
                             && (problem.alpha_real != -1))
                         map(Ts.real(), state.S_regs, S_layout, strategy,
-                                [&](int esize, RegData r) {
-                                    mul(esize, r, r,
-                                            cast(Ts.real(),
-                                                    problem.alpha_real));
-                                });
+                                mulAlphaFixed);
                     if (problem.conjugate || (problem.alpha_real == -1))
-                        map<uint32_t>(state.S_regs, S_layout, strategy,
-                                [&](int esize, RegData r) {
-                                    xor_<uint32_t>(esize, r, r,
-                                            state.signChange[0](0, 8, 1));
-                                });
+                        map<uint32_t>(
+                                state.S_regs, S_layout, strategy, signChange);
                 }
 
                 // Advance S copy counter.
