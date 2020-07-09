@@ -20,6 +20,7 @@
 #include "dnnl.hpp"
 
 #include <cstdint>
+#include <vector>
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
@@ -28,7 +29,27 @@ namespace dnnl {
 
 #ifdef DNNL_SYCL_DPCPP
 
-class sycl_memory_usm_test : public ::testing::TestWithParam<engine::kind> {};
+class fill_kernel;
+
+class sycl_memory_usm_test : public ::testing::TestWithParam<engine::kind> {
+protected:
+    static void fill_data(void *usm_ptr, memory::dim n, const engine &eng) {
+        auto alloc_kind
+                = cl::sycl::get_pointer_type(usm_ptr, eng.get_sycl_context());
+        if (alloc_kind == cl::sycl::usm::alloc::host
+                && alloc_kind == cl::sycl::usm::alloc::shared) {
+            for (int i = 0; i < n; i++)
+                ((float *)usm_ptr)[i] = float(i);
+        } else {
+            std::vector<float> host_ptr(n);
+            for (int i = 0; i < n; i++)
+                host_ptr[i] = float(i);
+
+            auto q = stream(eng).get_sycl_queue();
+            q.memcpy(usm_ptr, host_ptr.data(), n * sizeof(float)).wait();
+        }
+    }
+};
 
 TEST_P(sycl_memory_usm_test, Constructor) {
     engine::kind eng_kind = GetParam();
@@ -83,10 +104,7 @@ TEST_P(sycl_memory_usm_test, ConstructorAllocate) {
     memory mem(mem_d, eng, DNNL_MEMORY_ALLOCATE);
 
     void *ptr = mem.get_data_handle();
-
-    for (int i = 0; i < n; i++) {
-        ((float *)ptr)[i] = float(i);
-    }
+    fill_data(ptr, n, eng);
 
     float *mapped_ptr = mem.map_data<float>();
     for (int i = 0; i < n; i++) {
@@ -106,10 +124,7 @@ TEST_P(sycl_memory_usm_test, DefaultConstructor) {
     memory mem(mem_d, eng);
 
     void *ptr = mem.get_data_handle();
-
-    for (int i = 0; i < n; i++) {
-        ((float *)ptr)[i] = float(i);
-    }
+    fill_data(ptr, n, eng);
 
     float *mapped_ptr = mem.map_data<float>();
     for (int i = 0; i < n; i++) {

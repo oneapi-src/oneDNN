@@ -173,13 +173,20 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
         auto buffer = mem.get_sycl_buffer<uint8_t>();
         auto src = buffer.get_access<cl::sycl::access::mode::read>();
         uint8_t *src_ptr = src.get_pointer();
+        for (size_t i = 0; i < size; ++i)
+            ((uint8_t *)handle)[i] = src_ptr[i];
 #elif defined(DNNL_USE_DPCPP_USM)
         uint8_t *src_ptr = (uint8_t *)mem.get_data_handle();
+        if (is_cpu_sycl) {
+            for (size_t i = 0; i < size; ++i)
+                ((uint8_t *)handle)[i] = src_ptr[i];
+        } else {
+            auto sycl_queue = dnnl::stream(eng).get_sycl_queue();
+            sycl_queue.memcpy(src_ptr, handle, size).wait();
+        }
 #else
 #error "Not expected"
 #endif
-        for (size_t i = 0; i < size; ++i)
-            ((uint8_t *)handle)[i] = src_ptr[i];
         return;
     }
 #endif
@@ -222,13 +229,20 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
         auto buffer = mem.get_sycl_buffer<uint8_t>();
         auto dst = buffer.get_access<cl::sycl::access::mode::write>();
         uint8_t *dst_ptr = dst.get_pointer();
+        for (size_t i = 0; i < size; ++i)
+            dst_ptr[i] = ((uint8_t *)handle)[i];
 #elif defined(DNNL_USE_DPCPP_USM)
         uint8_t *dst_ptr = (uint8_t *)mem.get_data_handle();
+        if (is_cpu_sycl) {
+            for (size_t i = 0; i < size; ++i)
+                dst_ptr[i] = ((uint8_t *)handle)[i];
+        } else {
+            auto sycl_queue = dnnl::stream(eng).get_sycl_queue();
+            sycl_queue.memcpy(handle, dst_ptr, size).wait();
+        }
 #else
 #error "Not expected"
 #endif
-        for (size_t i = 0; i < size; ++i)
-            dst_ptr[i] = ((uint8_t *)handle)[i];
         return;
     }
 #endif
