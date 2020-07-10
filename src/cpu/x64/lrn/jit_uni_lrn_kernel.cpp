@@ -87,7 +87,6 @@ void jit_uni_lrn_fwd_kernel<isa, d_type>::within_body(int hoff, int Hoff,
     static const bool emulateBfloat
             = (isa == avx512_common && d_type == dnnl::impl::data_type::bf16
                     && !mayiuse(avx512_core_bf16));
-
     static const std::array<Vmm, 3> vsum {{Vmm(2), Vmm(11), Vmm(20)}};
     static const std::array<Vmm, 3> vsum2 {{Vmm(3), Vmm(12), Vmm(21)}};
     static const std::array<Vmm, 3> vdst {{Vmm(4), Vmm(13), Vmm(22)}};
@@ -96,6 +95,8 @@ void jit_uni_lrn_fwd_kernel<isa, d_type>::within_body(int hoff, int Hoff,
                     {{Vmm(18), Vmm(15), Vmm(16), Vmm(17), Vmm(29), Vmm(30)}},
                     {{Vmm(23), Vmm(24), Vmm(25), Vmm(26), Vmm(28), Vmm(31)}}}};
     static const std::array<Vmm, 3> vscratch = {{Vmm(10), Vmm(19), Vmm(27)}};
+    MAYBE_UNUSED(
+            emulateBfloat); // workaround for gcc8.1 compiler unused variable
     static const std::size_t used_tmp_regs
             = emulateBfloat ? vtmp[0].size() - 2 : vtmp[0].size();
 
