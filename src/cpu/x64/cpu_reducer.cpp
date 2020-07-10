@@ -355,7 +355,7 @@ void cpu_reducer_t<data_type>::reduce_nolock(int ithr, data_t *dst,
 
     const int njobs_in_grp = balancer().ithr_njobs(ithr);
     data_t *d = get_local_ptr(ithr, dst, scratchpad);
-    for (int id_in_grp = 1; id_in_grp < balancer_.nthr_per_group_;
+    for (int id_in_grp = 1; id_in_grp < balancer().nthr_per_group_;
             ++id_in_grp) {
         const data_t *space = get_local_ptr(ithr + id_in_grp, dst, scratchpad);
         for (size_t i = 0; i < (size_t)njobs_in_grp * balancer().job_size_; ++i)
