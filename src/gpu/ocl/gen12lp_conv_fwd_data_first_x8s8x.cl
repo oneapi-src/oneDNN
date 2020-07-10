@@ -107,8 +107,13 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
     dst += OC_BLOCK * (group_mb % MB_BLOCK);
     dst += OC_BLOCK * MB_BLOCK * (OW * OH * od + OW * oh + ow);
 
+#if NCHW == 1
+    src += IC * ID * IH * IW * G * group_mb;
+    src += (IW * IH * id + IW * ih + iw + PW);
+#else
     src += IC_BLOCK * ID * IH * IW * G * group_mb;
     src += IC_BLOCK * (IW * IH * id + IW * ih + iw + PW);
+#endif
 
     wei += 4 * KDHW_SIZE * OC_BLOCK * (group_oc + oc);
 
@@ -120,7 +125,6 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
     const bool right_nozero_tail
             = sp == (LWS_1 - 1) && (iw + PW + SLM_TAIL < IW);
 
-    barrier(CLK_LOCAL_MEM_FENCE);
     /* KD */
 #if KD > 1
     for (int kd = 0; kd < KD; kd++) {
@@ -143,8 +147,8 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
             /* left tail */
 #if PW > 0 || OW != OWX
             if (left_tail) {
-                for (int i = -PW; i < 0; i++) {
-                    S_part[i] = 0;
+                for (int i = -PW; i < 0; i += 8) {
+                    if (i + sub_local_id < 0) S_part[i + sub_local_id] = 0;
                 }
             }
 #endif
@@ -172,13 +176,16 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
                 if (ow < OW) {
 #if PW > 0
                     if (left_nozero_tail) {
-                        for (int i = -PW; i < 0; i++) {
+                        for (int i = -PW; i < 0; i += 8) {
+                            if (i + sub_local_id < 0) {
 #if NCHW == 1
-                            GET_INT_BLOCK(S_part, i, src, i);
-
+                                GET_INT_BLOCK(S_part, i + sub_local_id, src,
+                                        i + sub_local_id);
 #else
-                            S_part[i] = ((__global uint *)src)[i];
+                                S_part[i + sub_local_id] = ((
+                                        __global uint *)src)[i + sub_local_id];
 #endif
+                            }
                         }
                     }
 #endif
@@ -186,12 +193,19 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
                     if (right_nozero_tail) {
                         for (int i = SW * OW_BLOCK;
                                 i < SW * OW_BLOCK + (KW - 1) * (1 + DW) - PW;
-                                i++) {
+                                i += 8) {
+                            if (i + sub_local_id < SW * OW_BLOCK
+                                            + (KW - 1) * (1 + DW) - PW) {
+
 #if NCHW == 1
-                            GET_INT_BLOCK(S_part, i, src, i);
+                                GET_INT_BLOCK(S_part, i + sub_local_id, src,
+                                        i + sub_local_id);
 #else
-                            S_part[i] = ((__global uint *)src)[i];
+
+                                S_part[i + sub_local_id] = ((
+                                        __global uint *)src)[i + sub_local_id];
 #endif
+                            }
                         }
                     }
 #endif
@@ -200,13 +214,19 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
                     /* Copy last block to SLM */
                     if (right_tail) {
                         __attribute__((opencl_unroll_hint)) for (int i = 0;
-                                                                 i < SLM_TAIL;
-                                                                 i++) {
+                                                                 i < SLM_TAIL; i
+                                                                 < OW_SLM_TAIL;
+                                                                 i += 8) {
+                            if (i + sub_local_id < SLM_TAIL) {
+
 #if NCHW == 1
-                            GET_INT_BLOCK(S_part, i, src, i);
+                                GET_INT_BLOCK(S_part, i + sub_local_id, src,
+                                        i + sub_local_id);
 #else
-                            S_part[i] = ((__global uint *)src)[i];
+                                S_part[i + sub_local_id] = ((
+                                        __global uint *)src)[i + sub_local_id];
 #endif
+                            }
                         }
                     } else {
 #endif
@@ -254,6 +274,26 @@ conv_fwd_first_x8s8x(const __global uchar *src, const __global char *wei,
 #if SLM_NCHUNK < OW_NCHUNK || OW != OWX
             }
 #endif
+            /* right tail */
+#if ZERO_TAIL > 0
+            if (right_tail) {
+                for (int i = OW_SLM_TAIL;
+                        i < SW * OW_BLOCK + (KW - 1) * (1 + DW); i += 8) {
+                    if (i + sub_local_id < SW * OW_BLOCK + (KW - 1) * (1 + DW))
+                        S_part[i + sub_local_id] = 0;
+                }
+            }
+#if SLM_WORKING_GROUPS < OW_NCHUNK || OW != OWX
+            if (empty) {
+                for (int i = 0; i < SW * OW_BLOCK + (KW - 1) * (1 + DW);
+                        i += 8) {
+                    if (i + sub_local_id < SW * OW_BLOCK + (KW - 1) * (1 + DW))
+                        S_part[i + sub_local_id] = 0;
+                }
+            }
+#endif
+#endif
+
 #if KH > 1
             S_part += SRC_SLM_SIZE;
             src += IC_BLOCK * IW * (1 + DH);
