@@ -667,7 +667,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                 store_to = &diff_weights[off];
                 store_to_ld = rnd_up(jcp.ic, jcp.ic_block) * jcp.oc_block;
             } else {
-                const size_t off = iwork * rw->balancer().job_size_;
+                const size_t off = (size_t)iwork * rw->balancer().job_size_;
                 store_to
                         = rw->get_local_ptr(ithr, reducer_wei_scratchpad) + off;
                 store_to_ld = nb_ic_blocking * jcp.ic_block * jcp.oc_block;
