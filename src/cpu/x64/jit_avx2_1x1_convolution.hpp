@@ -490,7 +490,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_t {
             const int njobs_y = jcp_.ngroups * load_work;
 
             const int max_threads = dnnl_get_max_threads();
-            const size_t max_buffer_size = max_threads * job_size * 8;
+            const size_t max_buffer_size = (size_t)max_threads * job_size * 8;
 
             if (with_bias()) {
                 reducer_bia_conf_.init(reduce_balancer_t(max_threads, oc_block,
