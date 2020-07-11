@@ -1204,7 +1204,7 @@ private:
 
     void postamble() {
         if (is_windows) {
-            for (size_t i = 0; i < xmm_save_for_windows; ++i)
+            for (int i = 0; i < xmm_save_for_windows; ++i)
                 movdqu(Xbyak::Xmm(xmm_save_start_from + i),
                         ptr[rsp + i * xmm_width]);
             add(rsp, xmm_save_for_windows * xmm_width);
