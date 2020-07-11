@@ -251,42 +251,47 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         const float fp = kind == DATA
                 ? round_to_nearest_representable(prb->dt, fp0)
                 : fp0;
-        diff_norm.update(fp, dt);
+        float diff = 0.f, rel_diff = 0.f;
+        bool ok = true;
 
-        if (rely_on_norm) continue;
+        if (rely_on_norm) {
+            diff_norm.update(fp, dt);
+        } else {
+            diff = fabsf(fp - dt);
+            rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+            ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
 
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= eps;
-
-        /* When the error is larger than eps, It could be
-         * due to catastrophic cancellation in final result
-         * which is computed as `Y = a * X + b`.
-         * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
-         * Then large error in `a * X` could result in a final
-         * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
-         * which has no meaningful digits left in mantissa.*/
-        if (!ok && (prb->dir & FLAG_FWD) && kind == DATA && ss) {
-            const float beta = ((float *)*ss)[prb->ic + c];
-            /* Using an empirically derived threshold,
-             * check if cancellation error
-             * in `|Y| = |a*X - (-b)|` is huge.*/
-            bool maybe_cancellation_error
-                    = (fabsf(fp - beta) / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1))
-                    > 1.0f;
-            if (maybe_cancellation_error) {
-                /* Check for error in `a * X` */
-                float diff_aX = fabsf((fp - beta) - (dt - beta));
-                float rel_diff_aX = diff_aX
-                        / (fabsf(fp - beta) > FLT_MIN ? fabsf(fp - beta) : 1);
-                ok = rel_diff_aX <= eps;
+            /* When the error is larger than eps, It could be
+             * due to catastrophic cancellation in final result
+             * which is computed as `Y = a * X + b`.
+             * When `a * X`  is close to `b` and `sign(a * X) = - sign(b)`.
+             * Then large error in `a * X` could result in a final
+             * result (which has a cancellation i.e. `|Y| = |a*X - (-b)|`)
+             * which has no meaningful digits left in mantissa.*/
+            if (!ok && (prb->dir & FLAG_FWD) && kind == DATA && ss) {
+                const float beta = ((float *)*ss)[prb->ic + c];
+                /* Using an empirically derived threshold,
+                 * check if cancellation error
+                 * in `|Y| = |a*X - (-b)|` is huge.*/
+                bool maybe_cancellation_error
+                        = (fabsf(fp - beta)
+                                  / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1))
+                        > 1.0f;
+                if (maybe_cancellation_error) {
+                    /* Check for error in `a * X` */
+                    float diff_aX = fabsf((fp - beta) - (dt - beta));
+                    float rel_diff_aX = diff_aX
+                            / (fabsf(fp - beta) > FLT_MIN ? fabsf(fp - beta)
+                                                          : 1);
+                    ok = rel_diff_aX <= eps;
+                }
             }
+
+            res->errors += !ok;
         }
 
-        res->errors += !ok;
-
-        bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
+        bool dump = (!ok && (res->errors < 10 || verbose >= 10))
+                || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
             if (kind == DATA) {
@@ -307,30 +312,29 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
         }
     }
 
-    diff_norm.done();
-
     if (rely_on_norm) {
+        diff_norm.done();
         const bool ok = diff_norm.rel_diff(norm_t::L1) <= eps
                 && diff_norm.rel_diff(norm_t::L2) <= eps
                 && diff_norm.rel_diff(norm_t::L8) <= eps;
         res->errors += !ok;
-    }
 
-    if (res->errors || verbose >= 5) {
-        const int vl = res->errors ? 0 : 2;
-        BENCHDNN_PRINT(vl,
-                "@@@ [%s%s] diff: l0(``%g``) "
-                "l1:(%g,%g,%g,``%g``) "
-                "l2:(%g,%g,%g,``%g``) "
-                "l8:(%g,%g,%g,``%g``)\n",
-                prb->dir & FLAG_BWD ? "D_" : "", skind,
-                diff_norm.rel_diff(norm_t::L0), diff_norm.a_[norm_t::L1],
-                diff_norm.b_[norm_t::L1], diff_norm.diff_[norm_t::L1],
-                diff_norm.rel_diff(norm_t::L1), diff_norm.a_[norm_t::L2],
-                diff_norm.b_[norm_t::L2], diff_norm.diff_[norm_t::L2],
-                diff_norm.rel_diff(norm_t::L2), diff_norm.a_[norm_t::L8],
-                diff_norm.b_[norm_t::L8], diff_norm.diff_[norm_t::L8],
-                diff_norm.rel_diff(norm_t::L8));
+        if (res->errors || verbose >= 5) {
+            const int vl = res->errors ? 0 : 2;
+            BENCHDNN_PRINT(vl,
+                    "@@@ [%s%s] diff: l0(``%g``) "
+                    "l1:(%g,%g,%g,``%g``) "
+                    "l2:(%g,%g,%g,``%g``) "
+                    "l8:(%g,%g,%g,``%g``)\n",
+                    prb->dir & FLAG_BWD ? "D_" : "", skind,
+                    diff_norm.rel_diff(norm_t::L0), diff_norm.a_[norm_t::L1],
+                    diff_norm.b_[norm_t::L1], diff_norm.diff_[norm_t::L1],
+                    diff_norm.rel_diff(norm_t::L1), diff_norm.a_[norm_t::L2],
+                    diff_norm.b_[norm_t::L2], diff_norm.diff_[norm_t::L2],
+                    diff_norm.rel_diff(norm_t::L2), diff_norm.a_[norm_t::L8],
+                    diff_norm.b_[norm_t::L8], diff_norm.diff_[norm_t::L8],
+                    diff_norm.rel_diff(norm_t::L8));
+        }
     }
 
     if (res->errors) res->state = FAILED;
