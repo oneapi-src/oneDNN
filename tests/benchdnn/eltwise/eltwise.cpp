@@ -168,6 +168,11 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
         const dnn_mem_t &mem_fp, const dnn_mem_t &mem_dt, res_t *r) {
     const bool is_fwd = p->dir & FLAG_FWD;
 
+    const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return r->state = PASSED, OK;
+
+    r->total = nelems;
+
     // Tolerate only rounding error (1 ulp) for other than fp32 precisions.
     float trh = epsilon_dt(p->dt);
     if (p->dt == dnnl_f32) {
@@ -181,10 +186,6 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
         else
             trh = 4e-6;
     }
-
-    const auto nelems = mem_dt.nelems();
-    r->errors = 0;
-    r->total = nelems;
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = mem_dt.get_elem(i);

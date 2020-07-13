@@ -34,8 +34,8 @@ namespace pool {
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
     const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return r->state = PASSED, OK;
 
-    r->errors = 0;
     r->total = nelems;
 
     for (int64_t i = 0; i < nelems; ++i) {

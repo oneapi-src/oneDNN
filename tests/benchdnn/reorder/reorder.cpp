@@ -119,6 +119,8 @@ int compare_bootstrap(dnn_mem_t &mem_ref, dnn_mem_t &mem_got, res_t *r) {
     bool ok = false;
     // demand bit-wise identical results
     const auto size_ref = mem_ref.size();
+    if (size_ref == 0) return r->state = PASSED, OK;
+
     if (size_ref == mem_got.size())
         ok = !memcmp((void *)mem_ref, (void *)mem_got, size_ref);
 
@@ -132,8 +134,10 @@ int compare_bootstrap(dnn_mem_t &mem_ref, dnn_mem_t &mem_got, res_t *r) {
 static int compare(const prb_t *p, const dnn_mem_t &mem_ref,
         const dnn_mem_t &mem_got, const attr_bundle_t &attr_bundle, res_t *r) {
     const auto nelems = mem_got.nelems();
-    r->errors = 0;
+    if (nelems == 0) return r->state = PASSED, OK;
+
     r->total = nelems;
+
     int64_t inf_p = 0, inf_n = 0, zeros = 0, reg = 0;
 
     const auto dt_out = mem_ref.dt();

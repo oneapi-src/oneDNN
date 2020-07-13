@@ -87,8 +87,10 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r) {
     const auto nelems = dt_mem.nelems();
-    r->errors = 0;
+    if (nelems == 0) return r->state = PASSED, OK;
+
     r->total = nelems;
+
     const float trh = epsilon_dt(p->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32)
             * p->n_inputs();
     const int eltwise_idx = p->attr.post_ops.eltwise_index();

@@ -118,10 +118,13 @@ inline void get_result(const prb_t *p, const data_kind_t kind, res_t *r,
 
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
+
     const bool dont_complain
             = false || (p->alg & WINO) || post_ops_require_integral_check(p);
 
     const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return r->state = PASSED, OK;
+    r->total = nelems;
 
     const char *skind = data_kind2str(kind);
 
@@ -143,9 +146,6 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     float f_max = diff_sum_dt ? max_dt(f_dt) : p->cfg[kind].max;
 
     diff_norm_t diff_norm;
-
-    r->errors = 0;
-    r->total = nelems;
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);

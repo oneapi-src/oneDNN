@@ -225,7 +225,10 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     const int64_t N = kind == DATA ? p->mb : 1;
     const int64_t C = kind == DATA ? p->ic : p->ic * (kind == SS ? 2 : 1);
     const int64_t SP = kind == DATA ? p->id * p->ih * p->iw : 1;
+
     const auto nelems = N * C * SP;
+    if (nelems == 0) return r->state = PASSED, OK;
+
     r->total += rely_on_norm ? 1 : nelems;
 
     diff_norm_t diff_norm;

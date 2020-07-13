@@ -34,9 +34,10 @@ namespace lrn {
 
 int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return r->state = PASSED, OK;
 
-    r->errors = 0;
     r->total = nelems;
+
     const int summands = compute_n_summands(p);
     float trh = 1e-6 * summands;
     if (p->dt == dnnl_f16) trh = 1e-3 * summands;
