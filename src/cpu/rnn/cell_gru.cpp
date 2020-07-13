@@ -37,7 +37,7 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
 rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::cell_execution_gru)) {
     ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
-    ws_gates_aoc<scratch_t> scratch_gates(rnn, scratch_gates_);
+    scratch_gates_aoc<scratch_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_[0]);
 
     auto src_layer_ld = rnn.src_layer_ld(cell_position);
@@ -101,7 +101,7 @@ dnnl_status_t gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
         acc_data_t *diff_dst_layer_, acc_data_t *diff_bias_,
         scratch_data_t *scratch_cell_, src_data_t *dst_iter_) {
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
-    ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
+    scratch_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
 
     auto src_layer_ld = rnn.src_layer_ld(cell_position);
     auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
