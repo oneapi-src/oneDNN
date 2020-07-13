@@ -919,6 +919,7 @@ static void init_info_matmul(const engine_t *e, pd_t *s, char *buffer) {
     DPRINT_RT("m", s->M());
     DPRINT_RT("n", s->N());
     DPRINT_RT("k", s->K());
+#undef DPRINT_RT
 
     verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
             attr_str, aux_str, prb_str);
