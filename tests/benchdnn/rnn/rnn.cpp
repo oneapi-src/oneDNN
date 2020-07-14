@@ -608,6 +608,14 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p_ptr,
 
 void check_known_skipped_case(const prb_t &p, res_t *r) {
     check_known_skipped_case_common({p.cfg[SRC_LAYER].dt}, r);
+
+    bool nvidia_gpu = engine_tgt_kind == dnnl_gpu
+            && is_nvidia_gpu(engine_t(engine_tgt_kind));
+    if (nvidia_gpu) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     if (r->state == SKIPPED) return;
 
     if (p.maybe_skip()) {
