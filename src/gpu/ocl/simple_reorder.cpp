@@ -39,11 +39,10 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     status_t status = status::success;
 
     const auto &padded_dims = dst_mdw.padded_dims();
+    conf.with_sum_ab = (alpha() != 1.f || beta() != 0.f);
     conf.scale_quant = attr()->output_scales_.mask_ != 0;
     conf.scale_mask = conf.scale_quant ? attr()->output_scales_.mask_ : 0;
     conf.scales_num = conf.scale_quant ? attr()->output_scales_.count_ : 0;
-    conf.with_sum_ab
-            = conf.scale_quant ? false : (alpha() != 1.f || beta() != 0.f);
     conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
     conf.do_reorder
             = conf.scale_quant || conf.with_sum_ab ? true : src_mdw != dst_mdw;
@@ -154,13 +153,16 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     if (conf.nelems == 0) return status::success;
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
-    if (conf.scale_quant) {
-        kernel_ctx.define_int("SCALE_QUANT", 1);
-        kernel_ctx.define_int("SCALE_MASK", conf.scale_mask);
-    } else if (conf.with_sum_a)
+
+    if (conf.with_sum_a)
         kernel_ctx.define_int("WITH_SUM_A", 1);
     else if (conf.with_sum_ab)
         kernel_ctx.define_int("WITH_SUM_AB", 1);
+
+    if (conf.scale_quant) {
+        kernel_ctx.define_int("SCALE_QUANT", 1);
+        kernel_ctx.define_int("SCALE_MASK", conf.scale_mask);
+    }
     kernel_ctx.define_int("WITH_GROUP", conf.with_group);
 
     def_dispatch(kernel_ctx, conf.dispatch);
