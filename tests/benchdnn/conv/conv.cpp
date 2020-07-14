@@ -425,12 +425,6 @@ inline int init_pd_custom(const engine_t &engine_tgt, const prb_t *p,
         dnnl_format_tag_t bia_tag = dnnl_format_tag_undef,
         dnnl_format_tag_t dst_tag = dnnl_format_tag_undef) {
 
-    if (p->maybe_skip_nvidia() && is_nvidia_gpu(engine_tgt)) {
-        r->state = SKIPPED;
-        r->reason = CASE_NOT_SUPPORTED;
-        return OK;
-    }
-
     dnnl_convolution_desc_t cd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
@@ -568,10 +562,18 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
             {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, r);
     if (r->state == SKIPPED) return;
 
-//Prevent from skipping working nvidia winograd tests
-#ifndef DNNL_SYCL_CUDA
+    bool nvidia_gpu = engine_tgt_kind == dnnl_gpu
+            && is_nvidia_gpu(engine_t(engine_tgt_kind));
+
+    if (nvidia_gpu) {
+        if (p->maybe_skip_nvidia()) {
+            r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+
     // Winograd implementation limitations.
-    if (p->alg == WINO) {
+    if (p->alg == WINO && !nvidia_gpu) {
         static auto isa = dnnl_get_effective_cpu_isa();
         static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic;
         static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core;
@@ -601,7 +603,6 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
             return;
         }
     }
-#endif
 }
 
 int doit(const prb_t *p, res_t *r) {
