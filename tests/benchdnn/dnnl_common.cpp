@@ -204,19 +204,25 @@ bool check_md_consistency_with_tag(
 
 void check_known_skipped_case_common(
         const std::vector<dnnl_data_type_t> &v_dt, res_t *r) {
-    static auto isa = dnnl_get_effective_cpu_isa();
+    bool has_bf16_support = false;
+    if (engine_tgt_kind == dnnl_cpu) {
+        static auto isa = dnnl_get_effective_cpu_isa();
+        has_bf16_support = isa >= dnnl_cpu_isa_avx512_core;
+    } else {
+        has_bf16_support = !is_nvidia_gpu(engine_t(engine_tgt_kind));
+    }
+
     // rely on dnnl_cpu_isa_t enum order where AVX512_MIC < AVX512_CORE
     for (const auto &i_dt : v_dt) {
-        // bf16 is supported on AVX512-CORE+ only
-        if (isa < dnnl_cpu_isa_avx512_core && i_dt == dnnl_bf16) {
+        // bf16 is supported on AVX512-CORE+
+        if (!has_bf16_support && i_dt == dnnl_bf16) {
             r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
             break;
         }
         // f16 is supported on GPU only
-        if (engine_tgt_kind != dnnl_gpu && i_dt == dnnl_f16) {
+        if (i_dt == dnnl_f16 && engine_tgt_kind != dnnl_gpu) {
             r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
             break;
         }
     }
-    if (r->state == SKIPPED) return;
 }
