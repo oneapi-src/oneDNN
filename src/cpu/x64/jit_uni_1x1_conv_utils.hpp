@@ -355,7 +355,7 @@ struct rtus_driver_t : public jit_generator {
         shl(reg_icb, vlen_shift_);
 
         const size_t w_step_factor = ic_ * typesize_;
-        const size_t max_load_store_bytes = 32;
+        const size_t max_load_store_bytes = typesize_ == 4 ? 32 : 16;
         const size_t load_store_size
                 = isa == avx512_common ? vlen_ : max_load_store_bytes;
         size_t load_store_tail_size = (typesize_ == 1 ? max_load_store_bytes
