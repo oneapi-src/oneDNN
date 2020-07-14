@@ -14,6 +14,11 @@
 # limitations under the License.
 #===============================================================================
 
+# Nvidia backend doesn't support USM yet
+if(DNNL_SYCL_CUDA)
+    return()
+endif()
+
 set(TEST_EXE test_api_sycl_usm)
 
 file(GLOB TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
