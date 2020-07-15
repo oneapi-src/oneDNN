@@ -282,18 +282,40 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::generate() {
 }
 
 // Tile register decomposition
+// { C_BASE = 0, I_BASE = 4, W_BASE = 6, }
 int jit_avx512_core_amx_fwd_kernel_t::get_out_tensor(
-        int h, int i, int rem) const {
-    return (jcp.nb_oh_blocking > 1)
-            ? C_BASE + h * jcp.nb_oh_blocking + i
-            : (!rem) ? C_BASE + i : C_BASE + jcp.nb_oc_blocking + i;
+        int h, int i, bool is_h_tail) const {
+    const int C_BASE = 0;
+    const int C_LAST = 4;
+    assert(0 <= C_BASE && C_BASE < C_LAST && C_LAST <= last_tile_);
+    MAYBE_UNUSED(C_LAST);
+    const int tile = C_BASE
+            + (jcp.nb_oh_blocking > 1
+                            ? h * jcp.nb_oh_blocking + i
+                            : (int)is_h_tail * jcp.nb_oc_blocking + i);
+    assert(C_BASE <= tile && tile < C_LAST);
+    return tile;
 }
-int jit_avx512_core_amx_fwd_kernel_t::get_inp_tensor(int h, int rem) const {
-    return (jcp.nb_oh_blocking > 1) ? I_BASE + h : (!rem) ? I_BASE : I_BASE + 1;
+int jit_avx512_core_amx_fwd_kernel_t::get_inp_tensor(
+        int h, bool is_h_tail) const {
+    const int I_BASE = 4;
+    const int I_LAST = 6;
+    assert(0 <= I_BASE && I_BASE < I_LAST && I_LAST <= last_tile_);
+    MAYBE_UNUSED(I_LAST);
+    const int tile = I_BASE + (jcp.nb_oh_blocking > 1 ? h : (int)is_h_tail);
+    assert(I_BASE <= tile && tile < I_LAST);
+    return tile;
 }
 int jit_avx512_core_amx_fwd_kernel_t::get_wei_tensor(int i) const {
-    return W_BASE + i;
+    const int W_BASE = 6;
+    const int W_LAST = last_tile_;
+    assert(0 <= W_BASE && W_BASE < W_LAST && W_LAST <= last_tile_);
+    MAYBE_UNUSED(W_LAST);
+    const int tile = W_BASE + i;
+    assert(W_BASE <= tile && tile < W_LAST);
+    return tile;
 }
+
 // Shifts and offsets
 size_t jit_avx512_core_amx_fwd_kernel_t::get_inp_icb_step() const {
     return (size_t)jcp.typesize_in * jcp.ihp * jcp.iwp * jcp.ic_block_int_np;

@@ -79,6 +79,7 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);
         full_tile_width_ = amx::get_max_rows(amx::get_max_palette());
+        last_tile_ = amx::get_max_tiles(amx::get_max_palette());
         copy_to_pbuffer_ = new jit_avx512_core_amx_copy_to_pbuffer_t(jcp);
         tilecfg_ = new jit_avx512_core_amx_tilecfg_t(jcp);
 
@@ -103,9 +104,6 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
-    // Tile-registers decomposition and tile parameters
-    enum { C_BASE = 0, W_BASE = 6, I_BASE = 4 };
-
     void tile_configure(char *tcfg_buff);
 
     jit_conv_conf_t jcp;
@@ -125,6 +123,7 @@ private:
     bool is_buffer_empty_;
 
     int full_tile_width_;
+    int last_tile_;
 
     /* data regs */
     const Xbyak::Reg64 inp_ptr = r15;
@@ -172,8 +171,8 @@ private:
     size_t get_inp_shift() const;
     size_t get_inp_offset(int ohb, int kw) const;
 
-    int get_out_tensor(int h, int i, int rem = false) const;
-    int get_inp_tensor(int h, int rem = false) const;
+    int get_out_tensor(int h, int i, bool is_h_tail = false) const;
+    int get_inp_tensor(int h, bool is_h_tail = false) const;
     int get_wei_tensor(int i) const;
 
     void prepare_output(int tail);
