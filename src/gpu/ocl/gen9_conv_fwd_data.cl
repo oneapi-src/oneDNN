@@ -59,6 +59,8 @@
 #define OW_OUTER ((OW_BLOCK + OW_INNER - 1) / OW_INNER)
 #define IW_OUTER ((IW_BLOCK + IW_INNER - 1) / IW_INNER)
 
+#define C_SIZE (MB_BLOCK * OC_OUTER * OW_BLOCK)
+
 #if OW_BLOCK >= 32
 #error "Block is too big for unrolled_read and unrolled_write."
 #endif
@@ -651,7 +653,16 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     int iw = ow * SW - PW;
     int id = od * SD - PD;
 
-    DATA_T C[MB_BLOCK * OC_OUTER * OW_BLOCK] = {0};
+    // Vector type variables have less chance of being spilled for half data
+    // type.
+#if DT_F16 && C_SIZE == 8
+    DATA8_T C = 0;
+#elif DT_F16 && C_SIZE == 16
+    DATA16_T C = 0;
+#else
+    DATA_T C[C_SIZE] = {0};
+#endif
+
     if (WITH_BIAS) {
         for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) {
             for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) {
@@ -684,5 +695,5 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
     APPLY_POST_OPS(C, DATA_T, S, DATA_T);
 
-    write_dst_block(C, dst, ow);
+    write_dst_block((DATA_T *)(&C), dst, ow);
 }

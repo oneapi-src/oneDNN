@@ -37,6 +37,7 @@
 #define DATA2_T float2
 #define DATA4_T float4
 #define DATA8_T float8
+#define DATA16_T float16
 #define DATA_MAX FLT_MAX
 #define DATA_MIN -DATA_MAX
 #define DATA_ZERO 0.0f
@@ -92,6 +93,7 @@
 #define DATA2_T half2
 #define DATA4_T half4
 #define DATA8_T half8
+#define DATA16_T half16
 #define DATA_MAX HALF_MAX
 #define DATA_MIN -DATA_MAX
 #define DATA_ZERO 0.0h
@@ -146,6 +148,7 @@
 #define DATA2_T ushort2
 #define DATA4_T ushort4
 #define DATA8_T ushort8
+#define DATA16_T ushort16
 #define DATA_MAX as_float(0x7f7f0000)
 #define DATA_MIN (-DATA_MAX)
 #define DATA_ZERO 0.0f
