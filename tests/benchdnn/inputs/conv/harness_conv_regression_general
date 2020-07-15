@@ -222,3 +222,9 @@ mb1_ic16oc1_ih2oh1kh2sh1dh0ph0_iw1000kw6sw1dw30pw127n"1d_conv_large_dilated_padd
 --skip-impl='ref:gemm'
 --dir=BWD_WB --stag=axb --dtag=axb
 mb2g1ic33iw84350oc33ow84349kw2pw0n"channel_tail_for_specialized_axb_bwd_w_kernel"
+
+# small spatial convolution in amx kernel
+--reset
+--skip-impl='ref:gemm'
+--cfg=bf16bf16bf16,u8s8u8
+ic64ih20iw14oc16oh20ow7kh1kw1sh1sw2ph0pw0n"small_ow_large_oh"
