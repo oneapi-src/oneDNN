@@ -158,7 +158,7 @@ struct benchdnn_timer_t {
 
     double sec(mode_t mode = min) const { return ms(mode) / 1e3; }
 
-    long long ticks(mode_t mode = min) const {
+    unsigned long long ticks(mode_t mode = min) const {
         if (!times()) return 0; // nothing to report
         return ticks_[mode] / (mode == avg ? times() : 1);
     }
@@ -166,7 +166,7 @@ struct benchdnn_timer_t {
     benchdnn_timer_t &operator=(const benchdnn_timer_t &rhs);
 
     int times_;
-    long long ticks_[n_modes], ticks_start_;
+    unsigned long long ticks_[n_modes], ticks_start_;
     double ms_[n_modes], ms_start_;
 };
 
