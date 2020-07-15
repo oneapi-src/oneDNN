@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -971,40 +971,33 @@ template <prop_kind_t aprop>
 grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
     const conf_t &rnn = pd()->rnn_conf;
     data_type_t src_t = pd()->src_type;
-
-    int fwd_merge_iter = 1;
-    int bwd_merge_iter = 0;
     int n_layer = rnn.n_layer;
     int n_dir = rnn.n_dir;
     int n_iter = rnn.n_iter;
-
-    AOC<size_t, 3> off_weights_lay(
-            wei_layer_offset_ptr, n_layer, n_dir, rnn.n_parts_weights_layer);
-    AOC<size_t, 3> off_weights_iter(
-            wei_iter_offset_ptr, n_layer, n_dir, rnn.n_parts_weights_iter);
 
     // Grid Computation for RNN with a cell execution call
     for (int dir = 0; dir < n_dir; dir++) {
         for (int j = 0; j < n_layer; j++) {
             int lay = (aprop == prop_kind::forward) ? j : n_layer - j - 1;
 
-            auto wei_layer_offset = off_weights_lay(lay, dir, 0);
-            auto wei_iter_offset = off_weights_iter(lay, dir, 0);
-
             // offsets for fwd rnn gemm grid computation
-            cl_ulong offset_ws_iter, offset_ws_layer;
+            cl_ulong offset_ws_iter, offset_ws_layer, offset_wei_layer;
             // offsets for bwd rnn gemm grid computation
             cl_ulong offset_diff_wei_iter, offset_diff_wei_lay,
                     offset_diff_ws_lay;
 
-            set_offsets_fwd_rnn_gemm(rnn, fwd_merge_iter, dir, lay, src_t,
-                    ws_states_offset_, offset_ws_iter, offset_ws_layer);
-            set_offsets_bwd_rnn_gemm(rnn, bwd_merge_iter, dir, lay,
-                    ws_diff_states_offset_, offset_diff_wei_iter,
-                    offset_diff_wei_lay, offset_diff_ws_lay);
+            set_offsets_fwd_gemm(rnn, dir, lay, src_t, wei_layer_offset_ptr,
+                    ws_states_offset_, offset_ws_iter, offset_ws_layer,
+                    offset_wei_layer);
+            if (aprop == prop_kind::backward) {
+                int start_diff_src_iter_idx = 0;
+                set_offsets_bwd_gemm(rnn, start_diff_src_iter_idx, dir, lay,
+                        ws_diff_states_offset_, offset_diff_wei_iter,
+                        offset_diff_wei_lay, offset_diff_ws_lay);
+            }
 
             if (aprop == prop_kind::forward && rnn.merge_gemm_layer) {
-                gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
+                gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
                         workspace, offset_ws_layer, scratch_gates, 0,
                         gemm_layer_fwd);
             }
@@ -1012,14 +1005,14 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             for (int i = 0; i < n_iter; i++) {
                 int iter = (aprop == prop_kind::forward) ? i : n_iter - i - 1;
                 (this->*cell_func)(engine, ctx, dir, lay, iter,
-                        &wei_layer_offset, &wei_iter_offset, bias, workspace,
+                        &offset_wei_layer, wei_iter_offset_ptr, bias, workspace,
                         scratch_gates, scratch_cell, wei_layer, wei_iter,
                         diff_weights_layer, diff_weights_iter, diff_bias,
                         scales, tm_scales);
             }
 
             if (aprop == prop_kind::backward && rnn.merge_gemm_layer) {
-                gemm_primitive(engine, ctx, wei_layer, wei_layer_offset,
+                gemm_primitive(engine, ctx, wei_layer, offset_wei_layer,
                         scratch_gates, 0, workspace, offset_diff_ws_lay,
                         gemm_layer_bwd);
                 gemm_primitive(engine, ctx, scratch_gates, 0, workspace,

@@ -23,6 +23,7 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+#define AOC array_offset_calculator
 
 using namespace dnnl::impl::utils;
 using namespace prop_kind;
@@ -360,21 +361,51 @@ void rnn_utils::get_scratchpad_and_workspace_sizes(
             workspace_size);
 }
 
-void rnn_utils::set_offsets_fwd_rnn_gemm(const conf_t &rnn, int iter, int dir,
-        int lay, data_type_t src_t, const size_t &ws_states_offset_,
-        size_t &cell_ws_iter_offset, size_t &cell_ws_lay_offset,
-        size_t *cell_scratch_offset) {
+void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int dir, int lay,
+        data_type_t src_t, size_t *wei_layer_off_ptr,
+        const size_t &ws_states_offset_, size_t &grid_ws_iter_offset,
+        size_t &grid_ws_lay_offset, size_t &grid_wei_layer_offset) {
+    // Function overloaded. This function is called by grid execution and it
+    // then calls set_offsets_fwd_gemm which is otherwise called in cell exec
+    cl_ulong dummy_var;
+
+    int n_layer = rnn.n_layer;
+    int n_dir = rnn.n_dir;
+    int start_dst_iter_idx = 1;
+
+    AOC<size_t, 3> off_weights_lay(
+            wei_layer_off_ptr, n_layer, n_dir, rnn.n_parts_weights_layer);
+
+    grid_wei_layer_offset = off_weights_lay(lay, dir, 0);
+
+    set_offsets_fwd_gemm(rnn, start_dst_iter_idx, dir, lay, src_t, NULL,
+            ws_states_offset_, grid_ws_iter_offset, grid_ws_lay_offset,
+            dummy_var, dummy_var);
+    UNUSED(n_layer);
+}
+
+void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int iter, int dir,
+        int lay, data_type_t src_t, size_t *wei_iter_off_ptr,
+        const size_t &ws_states_offset_, size_t &cell_ws_iter_offset,
+        size_t &cell_ws_lay_offset, size_t &cell_scratch_offset,
+        size_t &cell_wei_iter_offset) {
     int n_layers = rnn.n_layer;
     int batch = rnn.mb;
     int n_iter = rnn.n_iter;
     int n_dir = rnn.n_dir;
-    int ws_iter = (cell_scratch_offset) ? iter : 0;
-    if (cell_scratch_offset)
-        *cell_scratch_offset = (rnn.merge_gemm_iter || rnn.merge_gemm_layer)
-                ? (cl_ulong)(OFF2(iter, n_iter, 0,
-                                     rnn.gates_nld * rnn.scratch_gates_ld)
-                        * rnn.scratch_gates_elsz)
-                : (size_t)0;
+    int ws_iter = (wei_iter_off_ptr) ? iter : 0;
+
+    if (wei_iter_off_ptr) {
+        AOC<size_t, 3> off_weights_iter(wei_iter_off_ptr, rnn.n_layer,
+                rnn.n_dir, rnn.n_parts_weights_iter);
+        cell_wei_iter_offset = off_weights_iter(lay, dir, 0);
+    }
+
+    cell_scratch_offset = (rnn.merge_gemm_iter || rnn.merge_gemm_layer)
+            ? (cl_ulong)(
+                    OFF2(iter, n_iter, 0, rnn.gates_nld * rnn.scratch_gates_ld)
+                    * rnn.scratch_gates_elsz)
+            : (size_t)0;
     cell_ws_iter_offset = (cl_ulong)(ws_states_offset_
             + OFF4(lay + 1, n_layers + 1, dir, n_dir, ws_iter, n_iter + 1, 0,
                       batch * rnn.states_ws_ld)
@@ -386,21 +417,47 @@ void rnn_utils::set_offsets_fwd_rnn_gemm(const conf_t &rnn, int iter, int dir,
     UNUSED(n_layers);
 }
 
-void rnn_utils::set_offsets_bwd_rnn_gemm(const conf_t &rnn, int iter, int dir,
+void rnn_utils::update_gru_offsets(const conf_t &rnn, int iter, int dir,
+        int lay, data_type_t src_t, size_t *wei_iter_off_ptr,
+        const size_t &ws_states_offset_, size_t &cell_wei_iter_offset,
+        size_t &cell_scratch_offset, size_t &cell_ws_iter_offset) {
+
+    AOC<size_t, 3> off_weights_iter(
+            wei_iter_off_ptr, rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_iter);
+    cell_wei_iter_offset = off_weights_iter(lay, dir, 1);
+    cell_scratch_offset += 2 * rnn.dhc * rnn.scratch_gates_elsz;
+    cell_ws_iter_offset = (cl_ulong)(ws_states_offset_
+            + OFF4(lay + 1, rnn.n_layers + 1, dir, rnn.n_dir, iter + 1,
+                      rnn.n_iter + 1, 0, rnn.mb * rnn.states_ws_ld)
+                    * types::data_type_size(src_t));
+}
+
+void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,
         int lay, const size_t &ws_diff_states_off_,
         size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
-        size_t &cell_diff_ws_lay_off, size_t *cell_diff_ws_iter_off) {
+        size_t &cell_diff_ws_lay_off) {
+    // Function overloaded. This function is called by grid execution and it
+    // then calls set_offsets_bwd_gemm which is otherwise called in cell exec
+    cl_ulong dummy_var;
+    set_offsets_bwd_gemm(rnn, iter, dir, lay, ws_diff_states_off_,
+            cell_diff_wei_iter_off, cell_diff_wei_lay_off, cell_diff_ws_lay_off,
+            dummy_var);
+}
+
+void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,
+        int lay, const size_t &ws_diff_states_off_,
+        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
+        size_t &cell_diff_ws_lay_off, size_t &cell_diff_ws_iter_off) {
     int n_layers = rnn.n_layer;
     int batch = rnn.mb;
     int n_iter = rnn.n_iter;
     int n_dir = rnn.n_dir;
     int n_states = rnn.n_states;
 
-    if (cell_diff_ws_iter_off)
-        *cell_diff_ws_iter_off = ws_diff_states_off_
-                + OFF5(lay, n_layers + 1, dir, n_dir, 0, n_states + 1, iter,
-                          n_iter + 1, 0, rnn.states_nld * rnn.diff_states_ws_ld)
-                        * sizeof(float);
+    cell_diff_ws_iter_off = ws_diff_states_off_
+            + OFF5(lay, n_layers + 1, dir, n_dir, 0, n_states + 1, iter,
+                      n_iter + 1, 0, rnn.states_nld * rnn.diff_states_ws_ld)
+                    * sizeof(float);
     cell_diff_ws_lay_off = ws_diff_states_off_
             + OFF5(lay, n_layers + 1, dir, n_dir, n_states, n_states + 1, iter,
                       n_iter + 1, 0, rnn.states_nld * rnn.diff_states_ws_ld)

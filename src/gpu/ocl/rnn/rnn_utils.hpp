@@ -183,14 +183,26 @@ void set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &scratch_cell_offset, size_t &ws_bias_offset,
         size_t &scratch_gates_offset, size_t &scratchpad_size,
         size_t &workspace_size);
-void set_offsets_fwd_rnn_gemm(const conf_t &rnn, int iter, int dir, int lay,
-        data_type_t src_t, const size_t &ws_states_offset_,
-        size_t &cell_ws_iter_offset, size_t &cell_ws_lay_offset,
-        size_t *cell_scratch_offset = NULL);
-void set_offsets_bwd_rnn_gemm(const conf_t &rnn, int iter, int dir, int lay,
+void update_gru_offsets(const conf_t &rnn, int iter, int dir, int lay,
+        data_type_t src_t, size_t *wei_iter_off_ptr,
+        const size_t &ws_states_offset_, size_t &cell_wei_iter_offset,
+        size_t &cell_scratch_offset, size_t &cell_ws_iter_offset);
+void set_offsets_fwd_gemm(const conf_t &rnn, int dir, int lay,
+        data_type_t src_t, size_t *wei_layer_off_ptr,
+        const size_t &ws_states_offset_, size_t &grid_ws_iter_offset,
+        size_t &grid_ws_lay_offset, size_t &grid_wei_layer_offset);
+void set_offsets_fwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
+        data_type_t src_t, size_t *wei_iter_off_ptr,
+        const size_t &ws_states_offset_, size_t &cell_ws_iter_offset,
+        size_t &cell_ws_lay_offset, size_t &cell_scratch_offset,
+        size_t &cell_wei_iter_offset);
+void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
         const size_t &ws_diff_states_off_, size_t &cell_diff_wei_iter_off,
         size_t &cell_diff_wei_lay_off, size_t &cell_diff_ws_lay_off,
-        size_t *cell_diff_ws_iter_off = NULL);
+        size_t &cell_diff_ws_iter_off);
+void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
+        const size_t &ws_diff_states_off_, size_t &cell_diff_wei_iter_off,
+        size_t &cell_diff_wei_lay_off, size_t &cell_diff_ws_lay_off);
 void get_scratchpad_and_workspace_sizes(
         const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size);
 status_t set_expected_desc(
