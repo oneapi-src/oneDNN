@@ -27,8 +27,6 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
-#include "gpu/ocl/ocl_gpu_engine.hpp"
-#include "gpu/ocl/ocl_gpu_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -136,9 +134,6 @@ struct gen_gemm_t : public gpu_gemm_t {
         auto b_type = pd()->desc()->b_type;
         auto c_type = pd()->desc()->c_type;
 
-        auto *gpu_engine = utils::downcast<ocl::ocl_gpu_engine_t *>(engine);
-        if (!gpu_engine) return status::out_of_memory;
-
         kernel_t::choose_unrolls(pd()->arch_, pd()->hw_threads_, transa, transb,
                 a_type, b_type, c_type, pd()->desc()->m, pd()->desc()->n,
                 pd()->desc()->k, batch, unroll_m, unroll_n);
@@ -149,8 +144,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                 b_type, c_type, unroll_m, unroll_n);
         if (status != status::success) return status;
 
-        create_kernel(engine, &nocopy_kernel_, kernel.name(),
-                kernel.generate(gpu_engine->context(), gpu_engine->device()));
+        create_kernel(engine, &nocopy_kernel_, kernel);
 
         nocopy_info_ = kernel.driver_info();
 

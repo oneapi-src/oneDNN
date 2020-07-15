@@ -22,6 +22,7 @@
 #include "gen_gemm_kernel_generator.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/compute/device_info.hpp"
+#include "gpu/jit/jit_generator_base.hpp"
 #include "gpu/jit/ngen_type_bridge.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -30,7 +31,7 @@ namespace impl {
 namespace gpu {
 namespace jit {
 
-struct gen_gemm_kernel_t {
+struct gen_gemm_kernel_t : public jit_generator_base {
 
     status_t init_gemm(compute::gpu_arch_t arch) {
         hw_ = convert_dnnl_arch_to_hw(arch);
@@ -42,8 +43,9 @@ struct gen_gemm_kernel_t {
         return init_interface();
     }
 
-    const char *name() const { return "gemm_kernel"; }
-    std::vector<unsigned char> generate(cl_context ctx, cl_device_id dev);
+    const char *kernel_name() const override { return "gemm_kernel"; }
+    std::vector<unsigned char> get_binary(
+            cl_context ctx, cl_device_id dev) override;
 
     CommonDriverInfo driver_info() const;
 

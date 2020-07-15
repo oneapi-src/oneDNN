@@ -308,12 +308,12 @@ status_t gen_gemm_kernel_t::init_interface() {
         interface_.newArgument("stride_C", DataType::d);
     }
 
-    interface_.externalName(name());
+    interface_.externalName(kernel_name());
 
     return status::success;
 }
 
-std::vector<unsigned char> gen_gemm_kernel_t::generate(
+std::vector<unsigned char> gen_gemm_kernel_t::get_binary(
         cl_context ctx, cl_device_id dev) {
     using ngen::HW;
 
