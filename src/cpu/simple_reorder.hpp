@@ -1343,7 +1343,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     const auto &i = input[input_d.off_l(e)];
                     auto &o = output[output_d.off_l(e)];
 
-                    float f = scale * (i - i0) + o0;
+                    float f = scale * ((float)i - i0) + o0;
                     o = _qz<data_type::f32, type_o>()(f, o, 1.f, beta);
                 });
 
