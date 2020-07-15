@@ -2290,12 +2290,11 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// the computations would be `dst[:] := scale * dst[:] + op(...)`
     /// instead of `dst[:] := op(...)`.
     ///
-    /// If @p data_type is specified, original dst tensor will be
-    /// reinterpreted as a tensor with provided data type. Since it is
-    /// reinterpretation, data_type and dst data type should have same size.
+    /// If @p data_type is specified, the original dst tensor will be
+    /// reinterpreted as a tensor with the provided data type. Because it is a
+    /// reinterpretation, data_type and dst data type should have the same size.
     /// As a result, computations would be `dst[:] <- scale *
-    /// as_data_type(dst[:]) + op(...)` instead of instead of `dst[:] <-
-    /// op(...)`.
+    /// as_data_type(dst[:]) + op(...)` instead of `dst[:] <- op(...)`.
     ///
     /// @note
     ///     This post-op executes in-place and does not change the
