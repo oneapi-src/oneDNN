@@ -365,12 +365,12 @@ struct primitive : public handle<dnnl_primitive_t> {
 #ifdef DNNL_SYCL_DPCPP
     /// Executes computations specified by the primitive in a specified stream.
     ///
-    /// Arguments are passed via an arguments map containing <index,
-    /// memory object> pairs. The index must be one of the `DNNL_ARG_*` values
-    /// such as `DNNL_ARG_SRC`, and the memory must have a memory descriptor
+    /// Arguments are passed via an arguments map containing <index, memory
+    /// object> pairs. The index must be one of the `DNNL_ARG_*` values such
+    /// as `DNNL_ARG_SRC`, and the memory must have a memory descriptor
     /// matching the one returned by
-    /// primitive_desc::query_md(#query::exec_arg_md, index) unless using
-    /// dynamic shapes (see DNNL_RUNTIME_DIM_VAL).
+    /// #dnnl::primitive_desc::query_md(#query::exec_arg_md, index) unless
+    /// using dynamic shapes (see #DNNL_RUNTIME_DIM_VAL).
     ///
     /// @param astream Stream object. The stream must belong to the same engine
     ///     as the primitive.
@@ -1201,7 +1201,7 @@ DNNL_DEFINE_BITMASK_OPS(stream::flags)
 ///     format to a primitive's format.
 ///
 /// 2. **Memory object** -- an engine-specific object that handles the data
-///     and its description (a memory descriptor). For the CPU aengine or with
+///     and its description (a memory descriptor). For the CPU engine or with
 ///     USM, the data handle is simply a pointer to @c void. The data handle
 ///     can be queried using #dnnl::memory::get_data_handle() and set using
 ///     #dnnl::memory::set_data_handle(). The underlying SYCL buffer, when
@@ -1298,7 +1298,7 @@ struct memory : public handle<dnnl_memory_t> {
     ///
     ///  - Domain-agnostic names, i.e. names that do not depend on the tensor
     ///    usage in the specific primitive. These names use letters from `a`
-    ///    to `l` to denote logical dimensions and form the order in which the
+    ///    to `f` to denote logical dimensions and form the order in which the
     ///    dimensions are laid in memory. For example,
     ///    #dnnl::memory::format_tag::ab is used to denote a 2D tensor where the
     ///    second logical dimension (denoted as `b`) is the innermost, i.e.
@@ -2185,9 +2185,10 @@ struct memory : public handle<dnnl_memory_t> {
     ///     zeroes to the padding area if it exists. Hence, the @p handle
     ///     parameter cannot and does not have a const qualifier.
     ///
-    /// @param handle Memory buffer to use as the underlying storage. On the
-    ///     CPU aengine or when USM is used, the data handle is a pointer to
-    ///     the actual data. For OpenCL it is a cl_mem.
+    /// @param handle Memory buffer to use. On the CPU engine or when USM is
+    ///     used, the data handle is a pointer to the actual data. For OpenCL
+    ///     it is a cl_mem. It must have at least
+    ///     #dnnl::memory::desc::get_size() bytes allocated.
     /// @param astream Stream to use to execute padding in.
     void set_data_handle(void *handle, const stream &astream) const {
         error::wrap_c_api(dnnl_memory_set_data_handle_v2(
@@ -2201,9 +2202,10 @@ struct memory : public handle<dnnl_memory_t> {
     /// #dnnl::memory::set_data_handle(void *, const stream &) const
     /// for more information.
     ///
-    /// @param handle Memory buffer to use as the underlying storage. For the
-    ///     CPU aengine, the data handle is a pointer to the actual data. For
-    ///     OpenCL it is a cl_mem.
+    /// @param handle Memory buffer to use. For the CPU engine, the data
+    ///     handle is a pointer to the actual data. For OpenCL it is a cl_mem.
+    ///     It must have at least #dnnl::memory::desc::get_size() bytes
+    ///     allocated.
     void set_data_handle(void *handle) const {
         error::wrap_c_api(
                 dnnl_memory_set_data_handle_v2(get(), handle, nullptr),
@@ -2217,11 +2219,12 @@ struct memory : public handle<dnnl_memory_t> {
     /// engines that do not support direct memory access.
     ///
     /// Mapping is an exclusive operation - a memory object cannot be used in
-    /// other operations until it is unmapped via memory::unmap_data() call.
+    /// other operations until it is unmapped via #dnnl::memory::unmap_data()
+    /// call.
     ///
     /// @note
     ///     Any primitives working with the memory should be completed before
-    ///     the memory is mapped. Use stream::wait() to synchronize the
+    ///     the memory is mapped. Use #dnnl::stream::wait() to synchronize the
     ///     corresponding execution stream.
     ///
     /// @note
@@ -2239,14 +2242,15 @@ struct memory : public handle<dnnl_memory_t> {
     }
 
     /// Unmaps a memory object and writes back any changes made to the
-    /// previously mapped memory buffer. The pointer to the mapped buffer
-    /// must be obtained via the dnnl::memory::map_data() call.
+    /// previously mapped memory buffer.
     ///
     /// @note
     ///     The map_data and unmap_data functions are provided mainly for
-    ///     debug and testing purposes and their performance may be suboptimal.
+    ///     debug and testing purposes and their performance may be
+    ///     suboptimal.
     ///
-    /// @param mapped_ptr A pointer previously returned by map_data().
+    /// @param mapped_ptr A pointer previously returned by
+    ///     #dnnl::memory::map_data().
     void unmap_data(void *mapped_ptr) const {
         error::wrap_c_api(dnnl_memory_unmap_data(get(), mapped_ptr),
                 "could not unmap memory object data");
@@ -2423,13 +2427,12 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// the computations would be `dst[:] := scale * dst[:] + op(...)`
     /// instead of `dst[:] := op(...)`.
     ///
-    /// If @p data_type is specified, original dst tensor will be reinterpreted
-    /// as a tensor with provided data type. Since it is reinterpretation,
-    /// data_type and dst data type should have same size.
-    /// As a result, computations would be:
-    ///
-    ///     dst[:] <- scale * as_data_type(dst[:]) + op(...)
-    ///                                        // instead of dst[:] <- op(...)
+    /// If @p data_type is specified, original dst tensor will be
+    /// reinterpreted as a tensor with provided data type. Since it is
+    /// reinterpretation, data_type and dst data type should have same size.
+    /// As a result, computations would be `dst[:] <- scale *
+    /// as_data_type(dst[:]) + op(...)` instead of instead of `dst[:] <-
+    /// op(...)`.
     ///
     /// @note
     ///     This post-op executes in-place and does not change the
