@@ -195,7 +195,8 @@ struct jit_conv_conf_t {
 
     // Needed for Intel(R) Advanced Matrix Extensions (Intel(R) AMX) kernels
     bool is_nspc; // activations in nwc, nhwc, or ndhwc layout
-    bool is_small_ic; // probably the same as is_1stconv, but maybe not
+    bool is_relo; // reduced lowering optimization
+    int nreduce; // used with is_relo
     bool is_pbuffer_strided; // does pbuffer have strided sectors?
     int n_stride_sets; // number of stride sectors (or sets) in pbuffer
     int kw_step; // usually stride_w, unless !is_pbuffer_strided
@@ -214,6 +215,7 @@ struct jit_conv_conf_t {
     int per_one_pstore;
 
     int inp_buffer_size;
+    int wei_buffer_size;
     int wsp_buffer_size;
 
     int nb_os;

@@ -34,6 +34,64 @@ using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
+void jit_avx512_core_amx_copy_to_wbuffer_t::generate() {
+
+    // required for use of VPERMB instruction
+    assert(cpu.has(Xbyak::util::Cpu::tAVX512_VBMI));
+
+    preamble();
+
+    mov(reg_src, ptr[param1 + GET_OFF(src)]);
+    mov(reg_dst, ptr[param1 + GET_OFF(dst)]);
+
+    // load permute indices from data section
+    Label permute_index_table;
+    mov(reg_tmp, permute_index_table);
+    vmovdqu8(zmm_idx, ptr[reg_tmp]);
+
+    const int r = jcp.kh * jcp.kw * jcp.ic_without_padding * jcp.oc_block;
+    const int nb_r = div_up(r, 64);
+    const int rtail = r % 64;
+    if (rtail > 0) {
+        uint64_t mask = (UINT64_C(1) << rtail) - 1;
+        mov(reg_tmp, mask);
+        kmovq(kmask_load, reg_tmp);
+    }
+    const int nb_z = rnd_up(nb_r, 16);
+    if (nb_r < nb_z) vpxord(zmm_zero, zmm_zero, zmm_zero);
+
+    for (int g = 0; g < jcp.ngroups; g++) {
+        for (int ob = 0; ob < jcp.nb_oc; ob++) {
+            int offset = 0;
+            int rb = 0;
+            for (; rb < nb_r; offset += 64, rb++) {
+                auto zmm_src_tmp = (rtail > 0 && rb == nb_r - 1)
+                        ? zmm_src | kmask_load | T_z
+                        : zmm_src;
+                vmovdqu8(zmm_src_tmp, ptr[reg_src + offset]);
+                vpermb(zmm_dst, zmm_idx, zmm_src);
+                vmovdqu8(ptr[reg_dst + offset], zmm_dst);
+            }
+            for (; rb < nb_z; offset += 64, rb++) {
+                vmovdqu8(ptr[reg_dst + offset], zmm_zero);
+            }
+            add(reg_src, r);
+            add(reg_dst, rnd_up(r, 1024));
+        }
+    }
+
+    postamble();
+
+    align(64);
+    L(permute_index_table);
+    for (uint8_t i = 0; i < 16; ++i) {
+        for (uint8_t j = 0; j < 4; j++) {
+            const uint8_t index = i + j * UINT8_C(16);
+            db(index);
+        }
+    }
+}
+
 void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_body(
         int lpad, int iw_len, int icb) {
 
@@ -175,7 +233,208 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row(int icb) {
     }
 }
 
+void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
+    assert(jcp.nb_ic_int == 1);
+    assert(jcp.ic_block_int == 64);
+    assert(jcp.is_nspc);
+
+    auto load_mask = [=](int tail, Opmask kmask) {
+        uint64_t mask = (UINT64_C(1) << tail) - 1;
+        mov(reg_tmp, mask);
+        kmovq(kmask, reg_tmp);
+    };
+
+    const int bytes_per_kh = jcp.ic_block_int_np * jcp.typesize_in;
+    const int inp_w_step
+            = jcp.ngroups * jcp.ic_without_padding * jcp.typesize_in;
+    const int inp_h_step = jcp.iw * inp_w_step;
+    const int out_h_step = bytes_per_kh;
+    const int out_w_step = jcp.kh * out_h_step;
+    const int tail_size = bytes_per_kh % jcp.ic_block_int;
+    if (tail_size > 0) load_mask(tail_size, ktail_mask);
+
+    auto zero_it = [=](reg64_t tmp_out_ptr) {
+        for (int bo = 0; bo < bytes_per_kh; bo += 64) {
+            Zmm zmm = bo + 64 <= bytes_per_kh ? zmm_zero
+                                              : zmm_zero | ktail_mask;
+            vmovdqu8(ptr[tmp_out_ptr + bo], zmm);
+        }
+    };
+
+    // pointer to 1st needed element in src buffer
+    mov(inp_ptr, ptr[param1 + GET_OFF(src)]);
+    // pointer to 1st needed element in dst buffer
+    mov(out_ptr, ptr[param1 + GET_OFF(dst)]);
+
+    // total number of rows to copy
+    mov(reg_kht, ptr[param1 + GET_OFF(kh_offset)]);
+
+    // number of rows of src buffer to copy
+    mov(reg_khp, ptr[param1 + GET_OFF(kh_padding)]);
+    // number of zero-padded rows above src buffer to copy
+    mov(reg_tov, ptr[param1 + GET_OFF(t_overflow)]);
+    // number of zero-padded rows below src buffer to copy
+    mov(reg_bov, ptr[param1 + GET_OFF(b_overflow)]);
+
+    // number of columns of src buffer to copy
+    mov(reg_kwp, ptr[param1 + GET_OFF(kw_padding)]);
+    // number of zero-padded columns before src buffer to copy
+    mov(reg_lov, ptr[param1 + GET_OFF(f_overflow)]);
+    // number of zero-padded columns before src buffer to copy
+    mov(reg_rov, ptr[param1 + GET_OFF(back_overflow)]);
+
+    vpxord(zmm_zero, zmm_zero, zmm_zero);
+
+    { // Handle Left Overflow
+        Label label_lov, label_lov_skip;
+        test(reg_lov, reg_lov);
+        jz(label_lov_skip, T_NEAR);
+        L(label_lov); // handle left or right overflow
+        {
+            Label label_lov_inner;
+            mov(aux_out_ptr, out_ptr);
+            mov(reg_cnt, reg_kht);
+            L(label_lov_inner);
+            {
+                zero_it(aux_out_ptr);
+                add(aux_out_ptr, out_h_step);
+                dec(reg_cnt);
+                jnz(label_lov_inner, T_NEAR);
+            }
+            add(out_ptr, out_w_step);
+            dec(reg_lov);
+            jnz(label_lov, T_NEAR);
+        }
+        L(label_lov_skip);
+    }
+
+    // save output pointer for later use
+    mov(save_out_ptr, out_ptr);
+
+    // just in case there is no meat...
+    Label label_kwp_end;
+    test(reg_kwp, reg_kwp);
+    jz(label_kwp_end, T_NEAR);
+
+    // Unroll over W-dimension in powers of 2
+    Label label_tov;
+    Label label_khp, label_no_khp;
+    Label label_bov;
+    test(reg_tov, reg_tov);
+    jnz(label_tov, T_NEAR);
+    test(reg_khp, reg_khp);
+    jnz(label_khp, T_NEAR);
+    test(reg_bov, reg_bov);
+    jnz(label_bov, T_NEAR);
+    jmp(label_kwp_end, T_NEAR); // safe exit in case of bad parameters
+
+    L(label_tov); // handle top overflow
+    {
+        Label label_tov_inner;
+        mov(aux_out_ptr, out_ptr);
+        mov(reg_cnt, reg_kwp);
+        L(label_tov_inner);
+        {
+            zero_it(aux_out_ptr);
+            add(aux_out_ptr, out_w_step);
+            dec(reg_cnt);
+            jnz(label_tov_inner, T_NEAR);
+        }
+        add(out_ptr, out_h_step);
+        dec(reg_tov);
+        jnz(label_tov, T_NEAR);
+    }
+    test(reg_khp, reg_khp);
+    jz(label_no_khp, T_NEAR);
+    L(label_khp); // handle kh padding (not fully unrolled)
+    {
+        Label label_khp_inner;
+        mov(aux_inp_ptr, inp_ptr);
+        mov(aux_out_ptr, out_ptr);
+        mov(reg_cnt, reg_kwp);
+        L(label_khp_inner);
+        {
+            for (int bo = 0; bo < bytes_per_kh; bo += 64) {
+                const bool masked = bo + 64 > bytes_per_kh;
+                // zero masking is needed to avoid dependency on destination
+                Zmm zmm_load = masked ? zmm_tmp | ktail_mask | T_z : zmm_tmp;
+                Zmm zmm_store = masked ? zmm_tmp | ktail_mask : zmm_tmp;
+                vmovdqu8(zmm_load, ptr[aux_inp_ptr + bo]);
+                vmovdqu8(ptr[aux_out_ptr + bo], zmm_store);
+            }
+            add(aux_inp_ptr, inp_w_step);
+            add(aux_out_ptr, out_w_step);
+            dec(reg_cnt);
+            jnz(label_khp_inner, T_NEAR);
+        }
+        add(inp_ptr, inp_h_step);
+        add(out_ptr, out_h_step);
+        dec(reg_khp);
+        jnz(label_khp, T_NEAR);
+    }
+    L(label_no_khp);
+    test(reg_bov, reg_bov);
+    jz(label_kwp_end, T_NEAR);
+    L(label_bov); // handle bottom overflow
+    {
+        Label label_bov_inner;
+        mov(aux_out_ptr, out_ptr);
+        mov(reg_cnt, reg_kwp);
+        L(label_bov_inner);
+        {
+            zero_it(aux_out_ptr);
+            add(aux_out_ptr, out_w_step);
+            dec(reg_cnt);
+            jnz(label_bov_inner, T_NEAR);
+        }
+        add(out_ptr, out_h_step);
+        dec(reg_bov);
+        jnz(label_bov, T_NEAR);
+    }
+    L(label_kwp_end);
+
+    { // Handle Right Overflow
+        Label label_rov, label_rov_skip;
+        test(reg_rov, reg_rov);
+        jz(label_rov_skip, T_NEAR);
+        // retrieve output pointer
+        mov(out_ptr, save_out_ptr);
+        // calculate the shift
+        imul(reg_tmp, reg_kwp, out_w_step);
+        // shift past the body
+        add(out_ptr, reg_tmp);
+
+        L(label_rov); // handle left or right overflow
+        {
+            Label label_rov_inner;
+            mov(aux_out_ptr, out_ptr);
+            mov(reg_cnt, reg_kht);
+            L(label_rov_inner);
+            {
+                zero_it(aux_out_ptr);
+                add(aux_out_ptr, out_h_step);
+                dec(reg_cnt);
+                jnz(label_rov_inner, T_NEAR);
+            }
+            add(out_ptr, out_w_step);
+            dec(reg_rov);
+            jnz(label_rov, T_NEAR);
+        }
+        L(label_rov_skip);
+    }
+}
+
 void jit_avx512_core_amx_copy_to_pbuffer_t::generate() {
+
+    // Special copy kernel for reduced lowering
+    if (jcp.is_relo) {
+        assert(jcp.nb_ic_int == 1);
+        preamble();
+        copy_row_reduced_lowering();
+        postamble();
+        return;
+    }
+
     preamble();
 
     mov(inp_ptr, ptr[param1 + GET_OFF(src)]);
@@ -372,16 +631,22 @@ size_t jit_avx512_core_amx_fwd_kernel_t::get_wsp_shift() const {
 }
 size_t jit_avx512_core_amx_fwd_kernel_t::get_wei_offset(int ocb, int kw) const {
     size_t el_offset = (size_t)kw * jcp.ic_block_int_np * jcp.oc_block;
-    el_offset += (size_t)ocb * jcp.nb_ic_int * jcp.kh * jcp.kw
-            * jcp.ic_block_int_np * jcp.oc_block;
+    size_t raw_oc_subblock_step
+            = jcp.kh * jcp.kw * jcp.ic_block_int_np * jcp.oc_block;
+    size_t oc_subblock_step = jcp.is_relo ? rnd_up(raw_oc_subblock_step, 1024)
+                                          : raw_oc_subblock_step;
+    el_offset += (size_t)ocb * jcp.nb_ic_int * oc_subblock_step;
     return jcp.typesize_in * el_offset;
 }
 size_t jit_avx512_core_amx_fwd_kernel_t::get_inp_shift() const {
-    size_t w_factor = jcp.is_pbuffer_strided ? 1 : jcp.stride_w;
-    return (size_t)jcp.typesize_in * w_factor * jcp.tile_width
+    size_t w_step = (jcp.is_relo ? jcp.stride_w * jcp.kh
+                                 : jcp.is_pbuffer_strided ? 1 : jcp.stride_w)
             * jcp.ic_block_int_np;
+    return (size_t)jcp.typesize_in * jcp.tile_width * w_step;
 }
 size_t jit_avx512_core_amx_fwd_kernel_t::get_inp_offset(int ohb, int kw) const {
+    if (jcp.is_relo)
+        return ohb * jcp.iwp * jcp.kh * jcp.ic_block_int_np * jcp.typesize_in;
     // calculate offset by height dimension
     const int gen_stride_h = nstl::min(jcp.stride_h, jcp.kh);
     size_t el_offset = (size_t)ohb * jcp.oh_per_tile * gen_stride_h * jcp.iwp
@@ -698,6 +963,41 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
 
     prepare_output(tail);
 
+    // reduced lowering path
+    if (jcp.is_relo) {
+        const int nreduce = jcp.nreduce;
+        const int stride = jcp.ic_block_int; // ie 64
+        mov(aux_inp_ptr, inp_ptr);
+        mov(aux_wei_ptr, wei_ptr);
+        for (int ireduce = 0; ireduce < nreduce; ireduce += stride) {
+            for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
+                tileloadd(Tmm(get_inp_tensor(ohb, tail)),
+                        ptr[aux_inp_ptr + get_inp_offset(ohb, 0)
+                                + reg_inp_stride]);
+            }
+            for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
+                tileloadd(Tmm(get_wei_tensor(ocb)),
+                        ptr[aux_wei_ptr + get_wei_offset(ocb, 0)
+                                + reg_wei_stride]);
+                for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
+                    tdpbxxd(Tmm(get_out_tensor(ohb, ocb, tail)),
+                            Tmm(get_inp_tensor(ohb, tail)),
+                            Tmm(get_wei_tensor(ocb)));
+                    interleave_store(width);
+                }
+            }
+            if (ireduce + stride < nreduce) {
+                add(aux_inp_ptr, stride);
+                add(aux_wei_ptr, stride * jcp.oc_block);
+            }
+        }
+        store_output(width, tail, do_store);
+
+        add(inp_ptr, get_inp_shift());
+        return;
+    }
+
+    // normal and k-remainders path
     for (int icb = 0; icb < jcp.nb_ic_int; icb++) {
         mov(aux_inp_ptr, inp_ptr);
         mov(aux_wei_ptr, wei_ptr);
@@ -787,9 +1087,10 @@ void jit_avx512_core_amx_fwd_kernel_t::generate() {
 
     mov(reg_last_h, ptr[param1 + GET_OFF(last_h)]);
 
-    const int inp_stride = jcp.typesize_in * jcp.ic_block_int_np
-            * (jcp.is_pbuffer_strided ? 1 : jcp.stride_w); // <= 64
-    const int wei_stride = jcp.typesize_acc * jcp.oc_block; // <= 64
+    const int fac = jcp.is_relo ? jcp.stride_w * jcp.kh
+                                : jcp.is_pbuffer_strided ? 1 : jcp.stride_w;
+    const int inp_stride = fac * jcp.ic_block_int_np * jcp.typesize_in;
+    const int wei_stride = jcp.oc_block * jcp.typesize_acc;
     mov(reg_inp_stride, inp_stride);
     mov(reg_wei_stride, wei_stride);
 
@@ -852,11 +1153,11 @@ bool jit_avx512_core_amx_fwd_kernel_t::post_ops_ok(
 void jit_avx512_core_amx_fwd_kernel_t::tile_configure(char *tcfg_buff) {
     const int vnni_width = jcp.src_dt == data_type::bf16 ? 2 : 4;
     // Input tile dimensions
-    const int a_col = jcp.ic_block_int_np * jcp.kw_per_tile;
+    const int a_col = jcp.is_relo ? jcp.ic_block_int
+                                  : jcp.ic_block_int_np * jcp.kw_per_tile;
     // Weights tile dimensions
     const int b_col = jcp.oc_block * vnni_width;
     const int b_row = a_col / vnni_width;
-    assert(jcp.ic_block_int_np % vnni_width == 0);
     // Accumulator tile dimensions
     const int c_col = 16;
 
@@ -992,12 +1293,32 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     const int vnni_width = is_bf16_convolution ? 2 : 4;
     jcp.ic_block_int = jcp.ic_block * vnni_width; // 32 for bf16, 64 for int8
+
+    // small-ic parameters
     jcp.ic_block_int_np = is_bf16_convolution
             ? jcp.ic_block_int
-            : nstl::min(jcp.ic_block_int,
-                    rnd_up(jcp.ic_without_padding, vnni_width));
-    jcp.is_small_ic = jcp.ic_block_int_np < jcp.ic_block_int;
-    jcp.kw_per_tile = jcp.is_small_ic && jcp.dilate_w == 0
+            : nstl::min(jcp.ic_block_int, jcp.ic_without_padding);
+    bool is_small_ic = jcp.ic_block_int_np < jcp.ic_block_int;
+
+    // reduced lowering
+    jcp.is_relo = is_small_ic
+            // no trivial cases
+            && 1 < jcp.kh * jcp.kw
+            // required for use of VPERMB instruction in weights copy kernel
+            && cpu.has(Xbyak::util::Cpu::tAVX512_VBMI)
+            // no dilation or excessive stride along w-direction
+            && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
+            // no dilation or excessive stride along h-direction
+            && jcp.stride_h <= jcp.kh && jcp.stride_w <= jcp.kw;
+    jcp.nreduce = jcp.kh * jcp.kw * jcp.ic_block_int_np;
+
+    if (!jcp.is_relo) {
+        jcp.ic_block_int_np = rnd_up(jcp.ic_block_int_np, vnni_width);
+        is_small_ic = jcp.ic_block_int_np < jcp.ic_block_int;
+    }
+
+    // k-remainders
+    jcp.kw_per_tile = is_small_ic && !jcp.is_relo && jcp.dilate_w == 0
                     && jcp.stride_w <= jcp.kw // TODO: relax this restriction
                     && jcp.kw * jcp.ic_block_int_np <= jcp.ic_block_int
             ? jcp.kw
@@ -1020,11 +1341,14 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         wei_tag = is_bf16_convolution
                 ? pick(with_groups + 2 * (ndims - 3), OIw16i16o2i, gOIw16i16o2i,
                         OIhw16i16o2i, gOIhw16i16o2i)
-                : jcp.is_small_ic
-                        ? pick(with_groups + 2 * (ndims - 3), OwI16o4i,
-                                gOwI16o4i, OhwI16o4i, gOhwI16o4i)
-                        : pick(with_groups + 2 * (ndims - 3), OIw16i16o4i,
-                                gOIw16i16o4i, OIhw16i16o4i, gOIhw16i16o4i);
+                : jcp.is_relo ? pick(with_groups + 2 * (ndims - 3), Owi16o,
+                          gOwi16o, Owhi16o, gOwhi16o)
+                              : is_small_ic
+                                ? pick(with_groups + 2 * (ndims - 3), OwI16o4i,
+                                        gOwI16o4i, OhwI16o4i, gOhwI16o4i)
+                                : pick(with_groups + 2 * (ndims - 3),
+                                        OIw16i16o4i, gOIw16i16o4i, OIhw16i16o4i,
+                                        gOIhw16i16o4i);
 
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);
@@ -1096,8 +1420,9 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         assert(n > 0);
         return jcp.ow + (gen_kw + jcp.ow - 1) * (n - 1);
     };
-    const bool ok_to_pack_tile = utils::everyone_is(1, jcp.kh, jcp.kw)
-            || utils::everyone_is(1, jcp.stride_h, jcp.stride_w);
+    const bool ok_to_pack_tile = !jcp.is_relo
+            && (utils::everyone_is(1, jcp.kh, jcp.kw)
+                    || utils::everyone_is(1, jcp.stride_h, jcp.stride_w));
     const int max_oh_per_tile
             = 1 + (jcp.full_tile_width - jcp.ow) / (jcp.ow + gen_kw - 1);
     jcp.oh_per_tile = ok_to_pack_tile
@@ -1119,11 +1444,15 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             = utils::everyone_is(true, jcp.tile_tail == 0,
                       // requirement for interleave stores
                       IMPLICATION(jcp.ow_blocks > 1, jcp.oh % 2 == 0),
-                      utils::div_up(jcp.oh, jcp.oh_per_tile) > 1)
+                      // requirement for small spatial
+                      utils::div_up(jcp.oh, jcp.oh_per_tile) > 1,
+                      // choose maximal pbuffer overlap for reduced lowering
+                      !jcp.is_relo)
             ? 2
             : 1;
 
-    const int oh_blk_size_param = 10; // TODO: tune oh blocking
+    // TODO: tune oh blocking
+    const int oh_blk_size_param = jcp.is_relo ? 1 : 10;
     const int oh_step_size = jcp.nb_oh_blocking * jcp.oh_per_tile;
     const int oh_blk_size = rnd_up(oh_blk_size_param, oh_step_size);
     jcp.oh_blk_size = rnd_up(nstl::min(jcp.oh, oh_blk_size), jcp.oh_per_tile);
@@ -1131,9 +1460,12 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     // of input rows required for computation of jcp.oh_blk_size output rows;
     // if input row doesn't participate in computation of output any row it
     // isn't copied to buffer at all (jcp.stride_h > jcp.kh case)
-    jcp.ihp = (jcp.oh_blk_size - 1) * nstl::min(jcp.stride_h, gen_kh) + gen_kh;
+    jcp.ihp = jcp.is_relo
+            ? jcp.oh_blk_size
+            : (jcp.oh_blk_size - 1) * nstl::min(jcp.stride_h, gen_kh) + gen_kh;
 
-    const int ow_blocks_per_call = 2;
+    // TODO: tune ow blocking
+    const int ow_blocks_per_call = jcp.is_relo ? 10 : 2;
     jcp.ow_block = nstl::min(jcp.ow, jcp.tile_width * ow_blocks_per_call);
     jcp.nb_ow = utils::div_up(jcp.ow, jcp.ow_block);
     // iwp includes all width elements that are really used in calculation
@@ -1147,14 +1479,22 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     // Number of ops per tile store
     int ops_tile_store = jcp.tile_width;
     // Number of ops per accumulation tile
-    int avaliable_ops = jcp.nb_ic_int * jcp.kh * (jcp.kw / jcp.kw_per_tile);
+    int avaliable_ops = jcp.is_relo
+            ? utils::div_up(jcp.nreduce, jcp.ic_block_int)
+            : jcp.nb_ic_int * jcp.kh * (jcp.kw / jcp.kw_per_tile);
     // Number of vectors to store per tile operation
     // NOTE: set to zero to turn off interleave store (mostly for debugging)
     jcp.per_one_pstore = utils::div_up(ops_tile_store, avaliable_ops);
 
+    const int kh_fac = jcp.is_relo ? jcp.kh : 1;
     jcp.inp_buffer_size
-            = jcp.nb_ic_int * jcp.ihp * jcp.iwp * jcp.ic_block_int_np
-            + jcp.ic_block_int; // extra $line due to pbuffer writing full Zmm
+            = jcp.nb_ic_int * jcp.ihp * jcp.iwp * kh_fac * jcp.ic_block_int_np
+            // pbuffer pointer shifts each oh step for reduced-lowering
+            + jcp.is_relo * (jcp.oh - 1) * jcp.stride_h * jcp.ic_block_int_np
+            // extra $line due to pbuffer writing full Zmm
+            + jcp.ic_block_int;
+    jcp.wei_buffer_size = jcp.ngroups * jcp.nb_oc
+            * rnd_up(jcp.kh * jcp.kw * jcp.ic * jcp.oc_block, 1024);
     jcp.wsp_buffer_size = jcp.nb_oh_blocking * jcp.nb_oc_blocking
             * jcp.full_tile_width * jcp.oc_block;
 
@@ -1170,6 +1510,10 @@ void jit_avx512_core_amx_fwd_kernel_t::init_scratchpad(
 
     size_t inp_buffer_size = jcp.nthr * jcp.inp_buffer_size;
     scratchpad.book(key_conv_amx_inp_buffer, inp_buffer_size, jcp.typesize_in);
+    if (jcp.is_relo) {
+        scratchpad.book(
+                key_conv_amx_wei_buffer, jcp.wei_buffer_size, jcp.typesize_in);
+    }
 
     size_t wsp_size = jcp.nthr * jcp.wsp_buffer_size;
     scratchpad.book(key_conv_amx_wsp_buffer, wsp_size, jcp.typesize_acc);

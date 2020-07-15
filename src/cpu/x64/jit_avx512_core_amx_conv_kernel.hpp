@@ -30,6 +30,32 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+struct jit_avx512_core_amx_copy_to_wbuffer_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_copy_to_wbuffer_t)
+
+    using reg64_t = const Xbyak::Reg64;
+
+    jit_avx512_core_amx_copy_to_wbuffer_t(jit_conv_conf_t ajcp) : jcp(ajcp) {
+        generate();
+    }
+
+private:
+    jit_conv_conf_t jcp;
+
+    const reg64_t reg_src = rax;
+    const reg64_t reg_dst = rbx;
+    const reg64_t reg_tmp = rdx;
+
+    const Xbyak::Opmask kmask_load = Xbyak::Opmask(2);
+
+    const Xbyak::Zmm zmm_src = Xbyak::Zmm(0);
+    const Xbyak::Zmm zmm_dst = Xbyak::Zmm(1);
+    const Xbyak::Zmm zmm_idx = Xbyak::Zmm(2);
+    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(3);
+
+    void generate();
+};
+
 struct jit_avx512_core_amx_copy_to_pbuffer_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_copy_to_pbuffer_t)
 
@@ -45,20 +71,39 @@ private:
     const reg64_t inp_ptr = r15;
     const reg64_t out_ptr = r14;
 
-    const reg64_t khp = r13;
-    const reg64_t khc = r12;
+    const reg64_t aux_inp_ptr = r13;
+    const reg64_t aux_out_ptr = r12;
 
-    const reg64_t aux_inp_ptr = r11;
-    const reg64_t aux_out_ptr = r10;
+    /* relow stuff */
+    const reg64_t reg_kht = r11;
+    const reg64_t reg_khp = r10;
+    const reg64_t reg_tov = r9;
+    const reg64_t reg_bov = r8;
+    const reg64_t reg_kwp = rax;
+    const reg64_t reg_lov = aux_inp_ptr;
+    const reg64_t reg_rov = rbx;
+    const reg64_t save_out_ptr = rdx;
+    const reg64_t reg_cnt = rbp;
+    /* relow stuff */
+
+    /* non-relow stuff */
+    const reg64_t khp = r11;
+    const reg64_t khc = r10;
+
     const reg64_t reg_icb = r9;
 
     const reg64_t kh_over = r8;
     const reg64_t tover = rax;
     const reg64_t bover = rbx;
 
-    const reg64_t reg_tmp = rdx;
-    const reg64_t reg_owb = rsi;
+    const reg64_t reg_owb = rdx;
+    /* non-relow stuff */
+
+    const reg64_t reg_tmp = rsi;
+
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
+    const Xbyak::Opmask ktail_load = Xbyak::Opmask(3);
+    const Xbyak::Opmask ktail_stor = Xbyak::Opmask(4);
 
     const Xbyak::Ymm ymm_tmp = Xbyak::Ymm(0);
     const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(0);
@@ -67,6 +112,7 @@ private:
     void generate();
     void copy_row(int icb);
     void copy_row_body(int lpad, int iw_len, int icb);
+    void copy_row_reduced_lowering();
 };
 
 struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
@@ -79,17 +125,24 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);
         copy_to_pbuffer_ = new jit_avx512_core_amx_copy_to_pbuffer_t(jcp);
+        if (jcp.is_relo)
+            copy_to_wbuffer_ = new jit_avx512_core_amx_copy_to_wbuffer_t(jcp);
         tilecfg_ = new jit_avx512_core_amx_tilecfg_t(jcp);
 
         generate();
 
         jit_ker = (void (*)(jit_conv_call_s *))getCode();
-        jit_copy_ker = (void (*)(jit_conv_call_s *))copy_to_pbuffer_->getCode();
+        jit_copy_to_pbuffer_ker
+                = (void (*)(jit_conv_call_s *))copy_to_pbuffer_->getCode();
+        if (jcp.is_relo)
+            jit_copy_to_wbuffer_ker
+                    = (void (*)(jit_conv_call_s *))copy_to_wbuffer_->getCode();
         jit_tilecfg = (void (*)(void *))tilecfg_->getCode();
     }
     ~jit_avx512_core_amx_fwd_kernel_t() {
         delete eltwise_injector_;
         delete copy_to_pbuffer_;
+        delete copy_to_wbuffer_;
         delete tilecfg_;
     }
 
@@ -107,12 +160,14 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_conv_call_s *);
-    void (*jit_copy_ker)(jit_conv_call_s *);
+    void (*jit_copy_to_pbuffer_ker)(jit_conv_call_s *);
+    void (*jit_copy_to_wbuffer_ker)(jit_conv_call_s *);
     void (*jit_tilecfg)(void *);
 
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
     jit_avx512_core_amx_copy_to_pbuffer_t *copy_to_pbuffer_;
+    jit_avx512_core_amx_copy_to_wbuffer_t *copy_to_wbuffer_;
     jit_avx512_core_amx_tilecfg_t *tilecfg_;
 
     int prv_width_;
