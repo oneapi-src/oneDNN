@@ -958,12 +958,22 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     jcp.nthr = nthreads;
 
-    const int vnni_width = is_bf16_convolution ? 2 : 4;
     jcp.ic_block = 16;
+    jcp.oc_block = 16;
+
+    if (jcp.ngroups == 1) {
+        jcp.oc = rnd_up(jcp.oc, jcp.oc_block);
+        jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
+    }
+    bool args_ok = jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0;
+    if (!args_ok) return status::unimplemented;
+
+    const int vnni_width = is_bf16_convolution ? 2 : 4;
     jcp.ic_block_int = jcp.ic_block * vnni_width; // 32 for bf16, 64 for int8
     jcp.ic_block_int_np = is_bf16_convolution
             ? jcp.ic_block_int
-            : nstl::min(jcp.ic_block_int, rnd_up(jcp.ic, vnni_width));
+            : nstl::min(jcp.ic_block_int,
+                    rnd_up(jcp.ic_without_padding, vnni_width));
     jcp.is_small_ic = jcp.ic_block_int_np < jcp.ic_block_int;
     jcp.kw_per_tile = jcp.is_small_ic && jcp.dilate_w == 0
                     && jcp.stride_w <= jcp.kw // TODO: relax this restriction
@@ -974,14 +984,6 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.n_stride_sets
             = jcp.is_pbuffer_strided ? nstl::min(jcp.stride_w, jcp.kw) : 1;
     jcp.kw_step = jcp.is_pbuffer_strided ? jcp.stride_w : jcp.kw_per_tile;
-    jcp.oc_block = 16;
-
-    if (jcp.ngroups == 1) {
-        jcp.oc = rnd_up(jcp.oc, jcp.oc_block);
-        jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
-    }
-    bool args_ok = jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0;
-    if (!args_ok) return status::unimplemented;
 
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
