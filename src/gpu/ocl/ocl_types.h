@@ -58,7 +58,6 @@
 #define CONVERT_FLOAT2_T convert_float2
 #define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
-#define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read
 #define BLOCK_WRITE intel_sub_group_block_write
@@ -114,7 +113,6 @@
 #define CONVERT_FLOAT2_T convert_float2
 #define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
-#define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read_us
 #define BLOCK_WRITE intel_sub_group_block_write_us
@@ -168,7 +166,6 @@
 #define CONVERT_FLOAT2_T cvt_bf16_to_f32
 #define CONVERT_FLOAT4_T cvt_bf16_to_f32
 #define CONVERT_FLOAT8_T cvt_bf16_to_f32
-#define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read_us
 #define BLOCK_WRITE intel_sub_group_block_write_us
@@ -223,7 +220,6 @@
 #define CONVERT_FLOAT2_T convert_float2
 #define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
-#define ROUND rint
 
 #define BLOCK_READ intel_sub_group_block_read_uc
 #define BLOCK_WRITE intel_sub_group_block_write_uc
@@ -280,7 +276,6 @@
 #define CONVERT_FLOAT2_T convert_float2
 #define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
-#define ROUND rint
 
 #define BLOCK_READ intel_sub_group_block_read_uc
 #define BLOCK_WRITE intel_sub_group_block_write_uc
