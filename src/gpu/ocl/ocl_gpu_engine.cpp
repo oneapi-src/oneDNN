@@ -89,9 +89,11 @@ cl_uint count_lines(const char **code) {
     return i;
 }
 
-status_t ocl_gpu_engine_t::create_kernel(compute::kernel_t *kernel,
-        const char *kernel_name,
-        const std::vector<unsigned char> &binary) const {
+status_t ocl_gpu_engine_t::create_kernel(
+        compute::kernel_t *kernel, jit::jit_generator_base &jitter) const {
+
+    auto binary = jitter.get_binary(context(), device());
+    auto kernel_name = jitter.kernel_name();
 
     *kernel = compute::kernel_t(new ocl_gpu_kernel_t(binary, kernel_name));
     return status::success;

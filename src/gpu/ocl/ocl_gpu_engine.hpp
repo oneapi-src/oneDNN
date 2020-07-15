@@ -65,8 +65,8 @@ public:
             const stream_attr_t *attr) override;
     status_t create_stream(stream_t **stream, cl_command_queue queue);
 
-    status_t create_kernel(compute::kernel_t *kernel, const char *kernel_name,
-            const std::vector<unsigned char> &binary) const override;
+    status_t create_kernel(compute::kernel_t *kernel,
+            jit::jit_generator_base &jitter) const override;
 
     status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,

@@ -47,7 +47,7 @@ public:
     inline int getArgumentSurface(const std::string &name) const;
     inline GRF getLocalID(int dim) const;
 
-    const std::string &getExternalName()                { return kernelName; }
+    const std::string &getExternalName() const          { return kernelName; }
 
 protected:
     struct Assignment {

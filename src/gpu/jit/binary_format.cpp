@@ -15,12 +15,10 @@
 *******************************************************************************/
 
 #include "gpu/jit/binary_format.hpp"
-
 #include "common/utils.hpp"
-#include "gpu/ocl/ocl_gpu_engine.hpp"
-#include "gpu/ocl/ocl_stream.hpp"
-
-#include "gpu/jit/ngen/ngen_opencl.hpp"
+#include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/compute_stream.hpp"
+#include "gpu/jit/jit_generator.hpp"
 
 #define MAGIC0 0xBEEFCAFEu
 #define MAGIC1 0x3141592653589793ull
@@ -41,11 +39,11 @@ namespace jit {
 using namespace ngen;
 
 template <HW hw>
-class binary_format_kernel_t : public ngen::OpenCLCodeGenerator<hw> {
+class binary_format_kernel_t : public jit_generator<hw> {
     NGEN_FORWARD_OPENCL(hw);
 
 public:
-    binary_format_kernel_t() : ngen::OpenCLCodeGenerator<hw>() {
+    binary_format_kernel_t() {
 
         auto low_half = [](uint64_t q) -> uint32_t { return q & 0xFFFFFFFF; };
         auto high_half = [](uint64_t q) -> uint32_t { return q >> 32; };
@@ -133,32 +131,23 @@ public:
         threadend(SWSB(sb2, 1), r127);
     }
 
-    static compute::kernel_t make_kernel(
-            cl_context context, cl_device_id device) {
+    static compute::kernel_t make_kernel(compute::compute_engine_t *engine) {
         compute::kernel_t kernel;
 
         if (hw != HW::Unknown) {
             binary_format_kernel_t<hw> binary_format_kernel;
-            auto binary = binary_format_kernel.getBinary(context, device);
-            const char *binary_name
-                    = binary_format_kernel.getExternalName().c_str();
-            kernel = compute::kernel_t(
-                    new ocl::ocl_gpu_kernel_t(binary, binary_name));
+
+            auto status = engine->create_kernel(&kernel, binary_format_kernel);
+            if (status != status::success) return nullptr;
         } else {
-            auto hw_detect = OpenCLCodeGenerator<HW::Unknown>::detectHW(
-                    context, device);
-            switch (hw_detect) {
-                case HW::Gen9:
+            switch (engine->device_info()->gpu_arch()) {
+                case compute::gpu_arch_t::gen9:
                     kernel = binary_format_kernel_t<HW::Gen9>::make_kernel(
-                            context, device);
+                            engine);
                     break;
-                case HW::Gen11:
-                    kernel = binary_format_kernel_t<HW::Gen11>::make_kernel(
-                            context, device);
-                    break;
-                case HW::Gen12LP:
+                case compute::gpu_arch_t::gen12lp:
                     kernel = binary_format_kernel_t<HW::Gen12LP>::make_kernel(
-                            context, device);
+                            engine);
                     break;
                 default: break;
             }
@@ -170,11 +159,12 @@ public:
 status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     *ok = false;
 
-    auto *gpu_engine = utils::downcast<ocl::ocl_gpu_engine_t *>(engine);
-    if (!gpu_engine) return status::runtime_error;
+    auto gpu_engine = utils::downcast<compute::compute_engine_t *>(engine);
+    auto stream = utils::downcast<compute::compute_stream_t *>(
+            engine->service_stream());
+    if (!gpu_engine || !stream) return status::invalid_arguments;
 
-    auto kernel = binary_format_kernel_t<HW::Unknown>::make_kernel(
-            gpu_engine->context(), gpu_engine->device());
+    auto kernel = binary_format_kernel_t<HW::Unknown>::make_kernel(gpu_engine);
     if (!kernel) return status::success;
 
     compute::kernel_t realized_kernel;
@@ -205,16 +195,21 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     if (status != status::success) return status::runtime_error;
     result_buf.reset(storage);
 
-    auto stream = utils::downcast<ocl::ocl_stream_t *>(
-            gpu_engine->service_stream());
-    auto queue = stream->queue();
+    void *magic_host = nullptr;
+    magic_buf->map_data(&magic_host, nullptr);
+    if (!magic_host) return status::runtime_error;
 
-    OCL_CHECK(clEnqueueWriteBuffer(queue, (cl_mem)magic_buf->data_handle(),
-            CL_TRUE, 0, sizeof(magic_ptr), &magic_ptr, 0, nullptr, nullptr));
+    *reinterpret_cast<uint32_t *>(magic_host) = magic_ptr;
 
-    int32_t result = 0;
-    OCL_CHECK(clEnqueueWriteBuffer(queue, (cl_mem)result_buf->data_handle(),
-            CL_TRUE, 0, sizeof(int32_t), &result, 0, nullptr, nullptr));
+    magic_buf->unmap_data(magic_host, nullptr);
+
+    void *result_host = nullptr;
+    result_buf->map_data(&result_host, nullptr);
+    if (!result_host) return status::runtime_error;
+
+    *reinterpret_cast<uint32_t *>(result_host) = 0;
+
+    result_buf->unmap_data(result_host, nullptr);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, magic0);
@@ -233,10 +228,15 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     status = stream->wait();
     if (status != status::success) return status::runtime_error;
 
-    OCL_CHECK(clEnqueueReadBuffer(queue, (cl_mem)result_buf->data_handle(),
-            CL_TRUE, 0, sizeof(int32_t), &result, 0, nullptr, nullptr));
-    *ok = (result != 0);
+    result_host = nullptr;
+    result_buf->map_data(&result_host, nullptr);
+    if (!result_host) return status::runtime_error;
 
+    auto result = *reinterpret_cast<uint32_t *>(result_host);
+
+    result_buf->unmap_data(result_host, nullptr);
+
+    *ok = (result != 0);
     return status::success;
 }
 

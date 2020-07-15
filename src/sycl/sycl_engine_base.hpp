@@ -24,6 +24,7 @@
 #include "common/memory_storage.hpp"
 #include "common/stream.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/jit/binary_format.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -44,7 +45,8 @@ public:
         : gpu::compute::compute_engine_t(
                 kind, runtime_kind::sycl, new sycl_device_info_t(dev))
         , device_(dev)
-        , context_(ctx) {}
+        , context_(ctx)
+        , enable_ngen_kernels_(false) {}
 
     status_t init() {
         CHECK(gpu::compute::compute_engine_t::init());
@@ -59,6 +61,15 @@ public:
                 &service_stream_ptr, stream_flags::default_flags, nullptr);
         if (status != status::success) return status;
         service_stream_.reset(service_stream_ptr);
+
+        status = gpu::jit::gpu_supports_binary_format(
+                &enable_ngen_kernels_, this);
+        if (status != status::success) return status;
+
+        if (get_verbose())
+            printf("dnnl_verbose,info,gpu,binary_kernels:%s\n",
+                    enable_ngen_kernels_ ? "enabled" : "disabled");
+
         return status::success;
     }
 
@@ -70,15 +81,22 @@ public:
     status_t create_stream(stream_t **stream, cl::sycl::queue &queue);
 
     virtual status_t create_kernel(gpu::compute::kernel_t *kernel,
-            const char *kernel_name,
-            const std::vector<unsigned char> &binary) const override {
+            gpu::jit::jit_generator_base &jitter) const override {
         if (kind() != engine_kind::gpu) {
             assert("not expected");
             return status::invalid_arguments;
         }
 
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> ocl_engine;
+        auto status = create_ocl_engine(&ocl_engine);
+        if (status != status::success) return status;
+
+        auto binary = jitter.get_binary(
+                ocl_engine->context(), ocl_engine->device());
+        auto kernel_name = jitter.kernel_name();
+
         *kernel = gpu::compute::kernel_t(
-                new gpu::ocl::ocl_gpu_kernel_t(binary, kernel_name));
+                new sycl_ocl_gpu_kernel_t(binary, kernel_name));
         return status::success;
     }
 
@@ -90,29 +108,10 @@ public:
             assert("not expected");
             return status::invalid_arguments;
         }
-        gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
-        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> ocl_engine;
 
-        if (backend_ == backend_t::opencl) {
-            engine_t *ocl_engine_ptr;
-            CHECK(f.engine_create(
-                    &ocl_engine_ptr, ocl_device(), ocl_context()));
-            ocl_engine.reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
-                    ocl_engine_ptr));
-        } else if (backend_ == backend_t::level0) {
-            engine_t *ocl_engine_ptr;
-            // FIXME: This does not work for multi-GPU systems. OpenCL engine
-            // should be created based on the Level0 device to ensure that a
-            // program is compiled for the same physical device. However,
-            // OpenCL does not provide any API to match its devices with
-            // Level0.
-            CHECK(f.engine_create(&ocl_engine_ptr, 0));
-            ocl_engine.reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
-                    ocl_engine_ptr));
-        } else {
-            assert(!"not expected");
-            return status::invalid_arguments;
-        }
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> ocl_engine;
+        auto status = create_ocl_engine(&ocl_engine);
+        if (status != status::success) return status;
 
         std::vector<gpu::compute::kernel_t> ocl_kernels;
         CHECK(ocl_engine->create_kernels(
@@ -148,13 +147,46 @@ public:
         return sycl_device_id(device_);
     }
 
+    virtual bool mayiuse_ngen_kernels() override {
+        return enable_ngen_kernels_;
+    }
+
 private:
     cl::sycl::device device_;
     cl::sycl::context context_;
+    bool enable_ngen_kernels_;
 
     backend_t backend_;
 
     std::unique_ptr<stream_t> service_stream_;
+
+    status_t create_ocl_engine(
+            std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> *ocl_engine) const {
+        gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
+
+        if (backend_ == backend_t::opencl) {
+            engine_t *ocl_engine_ptr;
+            CHECK(f.engine_create(
+                    &ocl_engine_ptr, ocl_device(), ocl_context()));
+            ocl_engine->reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
+                    ocl_engine_ptr));
+        } else if (backend_ == backend_t::level0) {
+            engine_t *ocl_engine_ptr;
+            // FIXME: This does not work for multi-GPU systems. OpenCL engine
+            // should be created based on the Level0 device to ensure that a
+            // program is compiled for the same physical device. However,
+            // OpenCL does not provide any API to match its devices with
+            // Level0.
+            CHECK(f.engine_create(&ocl_engine_ptr, 0));
+            ocl_engine->reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
+                    ocl_engine_ptr));
+        } else {
+            assert(!"not expected");
+            return status::invalid_arguments;
+        }
+
+        return status::success;
+    }
 };
 
 } // namespace sycl

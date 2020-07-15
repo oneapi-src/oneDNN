@@ -28,6 +28,7 @@
 #include "gpu/compute/dispatch.hpp"
 #include "gpu/compute/kernel.hpp"
 #include "gpu/compute/kernel_ctx.hpp"
+#include "gpu/jit/jit_generator_base.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -54,8 +55,7 @@ public:
     }
 
     virtual status_t create_kernel(compute::kernel_t *kernel,
-            const char *kernel_name,
-            const std::vector<unsigned char> &binary) const = 0;
+            jit::jit_generator_base &jitter) const = 0;
 
     virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
