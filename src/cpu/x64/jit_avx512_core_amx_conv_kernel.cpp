@@ -287,7 +287,7 @@ int jit_avx512_core_amx_fwd_kernel_t::get_out_tensor(
         int h, int i, bool is_h_tail) const {
     const int C_BASE = 0;
     const int C_LAST = 4;
-    assert(0 <= C_BASE && C_BASE < C_LAST && C_LAST <= last_tile_);
+    assert(0 <= C_BASE && C_BASE < C_LAST && C_LAST <= jcp.max_tiles);
     MAYBE_UNUSED(C_LAST);
     const int tile = C_BASE
             + (jcp.nb_oh_blocking > 1
@@ -300,7 +300,7 @@ int jit_avx512_core_amx_fwd_kernel_t::get_inp_tensor(
         int h, bool is_h_tail) const {
     const int I_BASE = 4;
     const int I_LAST = 6;
-    assert(0 <= I_BASE && I_BASE < I_LAST && I_LAST <= last_tile_);
+    assert(0 <= I_BASE && I_BASE < I_LAST && I_LAST <= jcp.max_tiles);
     MAYBE_UNUSED(I_LAST);
     const int tile = I_BASE + (jcp.nb_oh_blocking > 1 ? h : (int)is_h_tail);
     assert(I_BASE <= tile && tile < I_LAST);
@@ -308,8 +308,8 @@ int jit_avx512_core_amx_fwd_kernel_t::get_inp_tensor(
 }
 int jit_avx512_core_amx_fwd_kernel_t::get_wei_tensor(int i) const {
     const int W_BASE = 6;
-    const int W_LAST = last_tile_;
-    assert(0 <= W_BASE && W_BASE < W_LAST && W_LAST <= last_tile_);
+    const int W_LAST = 8;
+    assert(0 <= W_BASE && W_BASE < W_LAST && W_LAST <= jcp.max_tiles);
     MAYBE_UNUSED(W_LAST);
     const int tile = W_BASE + i;
     assert(W_BASE <= tile && tile < W_LAST);
@@ -357,7 +357,7 @@ size_t jit_avx512_core_amx_fwd_kernel_t::get_out_shift(int width) const {
 size_t jit_avx512_core_amx_fwd_kernel_t::get_wsp_ocb_offset(
         int ohb, int ocb) const {
     size_t el_offset = (size_t)ocb * prv_width_ * jcp.oc_block
-            + (size_t)ohb * jcp.nb_oc_blocking * full_tile_width_
+            + (size_t)ohb * jcp.nb_oc_blocking * jcp.full_tile_width
                     * jcp.oc_block;
     return jcp.typesize_acc * el_offset;
 }
@@ -367,7 +367,7 @@ size_t jit_avx512_core_amx_fwd_kernel_t::get_wsp_row_offset(
             + (size_t)jcp.typesize_acc * j * jcp.oc_block;
 }
 size_t jit_avx512_core_amx_fwd_kernel_t::get_wsp_shift() const {
-    return (size_t)jcp.typesize_acc * jcp.nb_oh_blocking * full_tile_width_
+    return (size_t)jcp.typesize_acc * jcp.nb_oh_blocking * jcp.full_tile_width
             * jcp.oc_block * jcp.nb_oc_blocking;
 }
 size_t jit_avx512_core_amx_fwd_kernel_t::get_wei_offset(int ocb, int kw) const {
@@ -1084,9 +1084,14 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     jcp.nb_oc_blocking_thr_chunk = 1;
 
-    int full_tile_width = amx::get_max_rows(amx::get_max_palette());
+    const int max_palette = amx::get_max_palette();
+    jcp.max_tiles = amx::get_max_tiles(max_palette);
+    jcp.full_tile_width = amx::get_max_rows(max_palette);
+    if (jcp.max_tiles != 8 || jcp.full_tile_width != 16)
+        return status::unimplemented;
+
     // Pack n rows per tile, such that:
-    // ow + (ow + gen_kw - 1) * (n - 1) <= full_tile_width
+    // ow + (ow + gen_kw - 1) * (n - 1) <= jcp.full_tile_width
     auto calculate_tile_width = [&](int n) {
         assert(n > 0);
         return jcp.ow + (gen_kw + jcp.ow - 1) * (n - 1);
@@ -1094,12 +1099,12 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const bool ok_to_pack_tile = utils::everyone_is(1, jcp.kh, jcp.kw)
             || utils::everyone_is(1, jcp.stride_h, jcp.stride_w);
     const int max_oh_per_tile
-            = 1 + (full_tile_width - jcp.ow) / (jcp.ow + gen_kw - 1);
+            = 1 + (jcp.full_tile_width - jcp.ow) / (jcp.ow + gen_kw - 1);
     jcp.oh_per_tile = ok_to_pack_tile
             ? nstl::min(jcp.oh, nstl::max(1, max_oh_per_tile))
             : 1;
     jcp.tile_width = nstl::min<int>(
-            full_tile_width, calculate_tile_width(jcp.oh_per_tile));
+            jcp.full_tile_width, calculate_tile_width(jcp.oh_per_tile));
     jcp.ow_blocks = utils::div_up(jcp.ow, jcp.tile_width);
 
     // Prefer to use a single tile width when possible
@@ -1151,7 +1156,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             = jcp.nb_ic_int * jcp.ihp * jcp.iwp * jcp.ic_block_int_np
             + jcp.ic_block_int; // extra $line due to pbuffer writing full Zmm
     jcp.wsp_buffer_size = jcp.nb_oh_blocking * jcp.nb_oc_blocking
-            * full_tile_width * jcp.oc_block;
+            * jcp.full_tile_width * jcp.oc_block;
 
     const auto &oscales = attr.output_scales_;
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;

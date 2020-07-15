@@ -204,6 +204,8 @@ struct jit_conv_conf_t {
     int nb_ic_int;
     int nb_oh_blocking;
 
+    int full_tile_width;
+    int max_tiles;
     int tile_width;
     int tile_tail;
     int oh_per_tile;

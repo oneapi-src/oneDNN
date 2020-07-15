@@ -78,8 +78,6 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);
-        full_tile_width_ = amx::get_max_rows(amx::get_max_palette());
-        last_tile_ = amx::get_max_tiles(amx::get_max_palette());
         copy_to_pbuffer_ = new jit_avx512_core_amx_copy_to_pbuffer_t(jcp);
         tilecfg_ = new jit_avx512_core_amx_tilecfg_t(jcp);
 
@@ -121,9 +119,6 @@ private:
     int row_count_;
     bool is_store_done_;
     bool is_buffer_empty_;
-
-    int full_tile_width_;
-    int last_tile_;
 
     /* data regs */
     const Xbyak::Reg64 inp_ptr = r15;
