@@ -76,11 +76,7 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     if (conf.is_tensor_op && conf.is_dense && conf.is_same_md) {
         conf.dispatch.define_dim("IDX", 0, dst_d.nelems());
     } else {
-        // Setting the MB as the innermost dim for optimized performance
-        // Hence starting i = 1, ignoring MB
-        conf.dispatch.define_dim_with_nesting_level(
-                "D0", ndims, dst_d.dims()[0], 1);
-        for (int i = 1; i < MAX_NDIMS; ++i) {
+        for (int i = 0; i < MAX_NDIMS; ++i) {
             if (i == 1 && (conf.use_unroll_16b || conf.src0_unroll_16b)) {
                 // changing value for broadcasting offsets
                 // division by IC for enabling blocking within kernel
