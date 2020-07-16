@@ -57,7 +57,7 @@ struct ref_binary_t : public gpu_primitive_t {
                                             attr()->output_scales_.mask_, 0,
                                             1 << 1))
                     && attr()->has_default_values(attr_skip_mask)
-                    && attr_post_ops_ok();
+                    && post_ops_with_binary_ok(attr());
 
             if (!ok) return status::unimplemented;
 

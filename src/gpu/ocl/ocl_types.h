@@ -598,8 +598,8 @@
 #endif
 #if DST_DT_BF16
 #define TO_DST(x) cvt_f32_to_bf16(x)
-#define TO_DST2(x) cvt_f32_to_bf16(convert_float8(x))
-#define TO_DST4(x) cvt_f32_to_bf16(convert_float8(x))
+#define TO_DST2(x) cvt_f32_to_bf16(convert_float2(x))
+#define TO_DST4(x) cvt_f32_to_bf16(convert_float4(x))
 #define TO_DST8(x) cvt_f32_to_bf16(convert_float8(x))
 #elif DST_DT_F16
 #define TO_DST(x) convert_half(x)

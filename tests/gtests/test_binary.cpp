@@ -61,9 +61,7 @@ protected:
         allows_attr_t aa {false};
         aa.po_sum = true;
         aa.po_eltwise = true;
-        if (get_test_engine_kind() == engine::kind::cpu) {
-            aa.po_binary = true;
-        }
+        aa.po_binary = true;
         aa.scales = true;
 
         auto eng = get_test_engine();

@@ -195,12 +195,6 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common(p->sdt, FWD_D, r);
     if (r->state == SKIPPED) return;
-
-    // TODO: temporary disable binary post-op on GPU
-    if (engine_tgt_kind == dnnl_gpu && p->attr.post_ops.binary_index() != -1) {
-        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
 }
 
 int doit(const prb_t *p, res_t *r) {

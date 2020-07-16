@@ -490,6 +490,7 @@ struct binary_conf_t {
     bool is_dense;
     bool is_same_md;
     bool same_src_dt;
+    bool with_binary_post_op;
 
     memory_desc_info_t src0_md_info;
     memory_desc_info_t src1_md_info;
