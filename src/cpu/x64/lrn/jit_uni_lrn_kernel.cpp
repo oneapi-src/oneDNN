@@ -143,14 +143,14 @@ void jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::within_body(
         int hoff, int Hoff, int woff, int Woff, int stride, prop_kind_t pk,
         int reg_block, int pixel_offset) {
 
-    static const Xbyak::Xmm xtmp_lo = xmm12;
-    static const Xbyak::Xmm xtmp_hi = xmm13;
-    static const Xbyak::Xmm xsum_lo = xmm8;
-    static const Xbyak::Xmm xsum_hi = xmm9;
-    static const Xbyak::Xmm xdst_lo = xmm10;
-    static const Xbyak::Xmm xdst_hi = xmm11;
-    static const Xbyak::Xmm xsum2_lo = xmm14;
-    static const Xbyak::Xmm xsum2_hi = xmm15;
+    static const Xbyak::Xmm xtmp_lo = Xmm(2);
+    static const Xbyak::Xmm xtmp_hi = Xmm(3);
+    static const Xbyak::Xmm xsum_lo = Xmm(4);
+    static const Xbyak::Xmm xsum_hi = Xmm(5);
+    static const Xbyak::Xmm xdst_lo = Xmm(6);
+    static const Xbyak::Xmm xdst_hi = Xmm(7);
+    static const Xbyak::Xmm xsum2_lo = Xmm(8);
+    static const Xbyak::Xmm xsum2_hi = Xmm(9);
 
     xorps(xsum_lo, xsum_lo);
     xorps(xsum_hi, xsum_hi);
