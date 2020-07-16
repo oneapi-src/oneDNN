@@ -6,6 +6,7 @@
 
 --inplace=false
 --tag=abx,axb,aBx16b
+--dir=FWD_D,BWD_D  --flags=        --attr-post-ops=       --batch=shapes_2d
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=set_topologies
 --tag=abx,aBx16b
 --dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=shapes_topologies_small

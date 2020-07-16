@@ -176,7 +176,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                             = sum;
                 }
 
-                if (SP_N_nthr > 1) dnnl_thr_barrier();
+                if (dnnl_thr_syncable()) dnnl_thr_barrier();
 
                 for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                     mean_blk[c] = 0.;
@@ -186,7 +186,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                     mean_blk[c] /= (N * SP);
                 }
 
-                if (SP_N_nthr > 1) dnnl_thr_barrier();
+                if (dnnl_thr_syncable()) dnnl_thr_barrier();
 
                 for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                     size_t off = c + C_off;
@@ -219,7 +219,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                             = sum;
                 }
 
-                if (SP_N_nthr > 1) dnnl_thr_barrier();
+                if (dnnl_thr_syncable()) dnnl_thr_barrier();
 
                 for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                     variance_blk[c] = 0.;
@@ -229,7 +229,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                     variance_blk[c] /= (N * SP);
                 }
 
-                if (SP_N_nthr > 1) dnnl_thr_barrier();
+                if (dnnl_thr_syncable()) dnnl_thr_barrier();
             }
 
             for (dim_t c = C_blk_s; c < C_blk_e; c++) {
@@ -432,7 +432,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                         = diff_beta;
             }
 
-            if (SP_N_nthr > 1) dnnl_thr_barrier();
+            if (dnnl_thr_syncable()) dnnl_thr_barrier();
 
             for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                 acc_data_t sqrt_variance = static_cast<acc_data_t>(
@@ -449,7 +449,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                 diff_gamma_blk[c] *= sqrt_variance;
             }
 
-            if (SP_N_nthr > 1) dnnl_thr_barrier();
+            if (dnnl_thr_syncable()) dnnl_thr_barrier();
 
             for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                 size_t off = c + C_off;
