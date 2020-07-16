@@ -189,8 +189,8 @@ void update_gru_offsets(const conf_t &rnn, int iter, int dir, int lay,
         size_t &cell_scratch_offset, size_t &cell_ws_iter_offset);
 void set_offsets_fwd_gemm(const conf_t &rnn, int dir, int lay,
         data_type_t src_t, size_t *wei_layer_off_ptr,
-        const size_t &ws_states_offset_, size_t &grid_ws_iter_offset,
-        size_t &grid_ws_lay_offset, size_t &grid_wei_layer_offset);
+        const size_t &ws_states_offset_, size_t &grid_ws_lay_offset,
+        size_t &grid_wei_lay_offset, size_t &grid_ws_iter_offset);
 void set_offsets_fwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
         data_type_t src_t, size_t *wei_iter_off_ptr,
         const size_t &ws_states_offset_, size_t &cell_ws_iter_offset,

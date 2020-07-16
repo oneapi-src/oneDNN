@@ -639,9 +639,10 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                             create_gemm_pd(gemm_layer_fwd_pd_, n_gates * dhc,
                                     layer_merged_size, slc,
                                     rnn_conf.weights_layer_ld,
-                                    rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
-                                    weights_type, src_type,
-                                    rnn_conf.acc_data_type, false, 0.0),
+                                    rnn_conf.states_ws_ld,
+                                    rnn_conf.scratch_gates_ld, weights_type,
+                                    src_type, rnn_conf.acc_data_type, false,
+                                    0.0),
                             rnn_conf.is_vanilla_gru
                             ? create_gemm_pd(gemm_iter_fwd_pd_,
                                     (n_gates - 1) * dhc, batch, sic,
@@ -1006,14 +1007,14 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             int lay = (aprop == prop_kind::forward) ? j : n_layer - j - 1;
 
             // offsets for fwd rnn gemm grid computation
-            cl_ulong offset_ws_iter, offset_ws_layer, offset_wei_layer;
+            cl_ulong offset_ws_layer, offset_wei_layer, offset_ws_iter;
             // offsets for bwd rnn gemm grid computation
             cl_ulong offset_diff_wei_iter, offset_diff_wei_lay,
                     offset_diff_ws_lay;
 
             set_offsets_fwd_gemm(rnn, dir, lay, src_t, wei_layer_offset_ptr,
-                    ws_states_offset_, offset_ws_iter, offset_ws_layer,
-                    offset_wei_layer);
+                    ws_states_offset_, offset_ws_layer, offset_wei_layer,
+                    offset_ws_iter);
             if (aprop == prop_kind::backward) {
                 int start_diff_src_iter_idx = 0;
                 set_offsets_bwd_gemm(rnn, start_diff_src_iter_idx, dir, lay,

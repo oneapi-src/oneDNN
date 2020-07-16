@@ -3,6 +3,7 @@
 --reset
 
 --cfg=f32,bf16
+--trivial-strides=true,false
 --direction=left2right,right2left,concat,sum
 --prop=FWD_D,BWD_DW --batch=shapes_small
 
