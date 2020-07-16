@@ -17,6 +17,7 @@
 #include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
+#include "gpu/ocl/ocl_zero_points.h"
 
 #if IC % IC_BLOCK != 0
 #define IC_NBLOCKS_TAIL ((IC - (IC & ~(IC_BLOCK - 1)) + 3) / 4)
@@ -79,7 +80,9 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
         const __global char *wei, const __global float *bias,
         __global DATA_T *dst POST_OP_ARGS, float scale,
-        const __global float *scales_per_oc) {
+        const __global float *scales_per_oc,
+        const __global int *src_compensation, const __global int *src_zpoints,
+        const __global int *dst_compensation) {
     const int group_oc = get_group_id(0) * OC_GROUP;
     const int group_mb = get_group_id(2) * MB_GROUP;
     const int group_sp = get_group_id(1) * SP_GROUP;
@@ -150,19 +153,16 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
 
     ACC_DATA_BLOCK C00 = 0, C01 = 0, C02 = 0, C03 = 0;
 
-    __attribute__((opencl_unroll_hint(1))) for (int ic_chunk = 0;
-                                                ic_chunk < IC_NCHUNK;
-                                                ic_chunk++) {
+    for (int ic_chunk = 0; ic_chunk < IC_NCHUNK; ic_chunk++) {
         SRC_DATA_BLOCK_T S0;
 
-        __attribute__((opencl_unroll_hint(1))) for (int kd = 0; kd < KD; kd++) {
+        for (int kd = 0; kd < KD; kd++) {
             if (kd * (1 + DD) + id < 0 || kd * (1 + DD) + id >= ID) {
                 src += IC_BLOCK * MB_BLOCK * IH * IW * (1 + DD);
                 wei += IC_BLOCK * OC_BLOCK * KH * KW;
                 continue;
             }
-            __attribute__((opencl_unroll_hint(1))) for (int kh = 0; kh < KH;
-                                                        kh++) {
+            for (int kh = 0; kh < KH; kh++) {
                 if (kh * (1 + DH) + ih < 0 || kh * (1 + DH) + ih >= IH) {
                     src += IC_BLOCK * MB_BLOCK * IW * (1 + DH);
                     wei += IC_BLOCK * OC_BLOCK * KW;
@@ -236,10 +236,8 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
 #endif
                 barrier(CLK_LOCAL_MEM_FENCE);
 
-                __attribute__((opencl_unroll_hint)) for (int kw = 0; kw < KW;
-                                                         kw++) {
-                    __attribute__((opencl_unroll_hint(
-                            OW_BLOCK))) for (int i = 0; i < OW_BLOCK; i++) {
+                unroll_for(int kw = 0; kw < KW; kw++) {
+                    unroll_for(int i = 0; i < OW_BLOCK; i++) {
                         S0[i] = block_read(
                                 S_work + (kw * (1 + DW) + SW * i) * 8);
                     }
@@ -289,6 +287,77 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
         src += IC_BLOCK * MB_BLOCK * (ID - KD * (1 + DD)) * IH * IW;
     }
 
+#if WITH_SRC_ZPOINTS
+    const int has_pad_d = id < 0 || id + KD * (1 + DD) >= ID;
+    const int has_pad_h = ih < 0 || ih + KH * (1 + DH) >= IH;
+    const int has_pad_w = iw < 0 || iw + KW * (1 + DW) + OW_BLOCK * SW >= IW;
+
+    if (has_pad_d || has_pad_h || has_pad_w) {
+        wei -= IC_NCHUNK * KD * KH * KW * IC_BLOCK * OC_BLOCK;
+
+        for (int ic_chunk = 0; ic_chunk < IC_NCHUNK; ic_chunk++) {
+#if WITH_SRC_ZPOINTS_PER_IC
+            const int4 z = read_src_zero_points_32c(
+                    src_zpoints, (group_ic + ic_chunk) * IC_BLOCK);
+#else
+            const int z = read_src_zero_point(src_zpoints);
+#endif // WITH_SRC_ZPOINTS_PER_IC
+            for (int kd = 0; kd < KD; kd++) {
+                for (int kh = 0; kh < KH; kh++) {
+                    for (int kw = 0; kw < KW; kw++) {
+                        int8 w0, w1, w2, w3;
+                        BLOCK_READ_WHT_8x32(w0, 0);
+                        BLOCK_READ_WHT_8x32(w1, 8 * IC_BLOCK);
+                        BLOCK_READ_WHT_8x32(w2, 16 * IC_BLOCK);
+                        BLOCK_READ_WHT_8x32(w3, 24 * IC_BLOCK);
+
+                        int4 acc = 0;
+#if WITH_SRC_ZPOINTS_PER_IC
+                        acc.s0 += calc_src_compensation_x32(z, w0);
+                        acc.s1 += calc_src_compensation_x32(z, w1);
+                        acc.s2 += calc_src_compensation_x32(z, w2);
+                        acc.s3 += calc_src_compensation_x32(z, w3);
+#else
+                        unroll_for(uint j = 0; j < 8; ++j) {
+                            acc.s0 = idot4(0x01010101, w0[j], acc.s0);
+                            acc.s1 = idot4(0x01010101, w1[j], acc.s1);
+                            acc.s2 = idot4(0x01010101, w2[j], acc.s2);
+                            acc.s3 = idot4(0x01010101, w3[j], acc.s3);
+                        }
+                        acc = z * acc;
+#endif // WITH_SRC_ZPOINTS_PER_IC
+
+                        for (int i = 0; i < OW_BLOCK; ++i) {
+                            const int id0 = kd * (1 + DD) + id;
+                            const int ih0 = kh * (1 + DH) + ih;
+                            const int iw0 = kw * (1 + DW) + iw + i * SW;
+                            const int is_pad_d = id0 < 0 || id0 >= ID;
+                            const int is_pad_h = ih0 < 0 || ih0 >= IH;
+                            const int is_pad_w = iw0 < 0 || iw0 >= IW;
+                            if (is_pad_d || is_pad_h || is_pad_w) {
+                                C00[i] += acc.s0;
+                                C01[i] += acc.s1;
+                                C02[i] += acc.s2;
+                                C03[i] += acc.s3;
+                            }
+                        }
+
+                        wei += IC_BLOCK * OC_BLOCK;
+                    } // loop kw
+                } // loop kh
+            } // loop kd
+        } // loop ic
+    } // has_pad_d || has_pad_h || has_pad_w
+
+    int4 src_comp = as_int4(intel_sub_group_block_read4(
+            (__global uint *)(&src_compensation[(group_oc + oc) * OC_BLOCK])));
+
+    C00 -= src_comp.s0;
+    C01 -= src_comp.s1;
+    C02 -= src_comp.s2;
+    C03 -= src_comp.s3;
+#endif // WITH_SRC_ZPOINTS
+
     if (ow < OW) {
         float4 tmp;
 
@@ -319,6 +388,20 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
 #endif
 #endif // with_sum
 
+#if WITH_DST_ZPOINTS
+        int4 dst_zp = read_dst_zero_points_32c(
+                dst_compensation, (group_oc + oc) * OC_BLOCK);
+#define ADD_DST_COMPENSATION() tmp += convert_float4(dst_zp);
+#else
+#define ADD_DST_COMPENSATION()
+#endif // WITH_DST_ZPOINTS
+
+#if WITH_SRC_ZPOINTS
+#define ZERO_PAD_DST() tmp = zero_pad_dst_32c(tmp, (group_oc + oc) * OC_BLOCK);
+#else
+#define ZERO_PAD_DST()
+#endif // WITH_SRC_ZPOINTS
+
 #define PACK(C0, C1, C2, C3, idx) \
     do { \
         tmp[0] = C0[idx]; \
@@ -339,6 +422,8 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
             QUANTIZE_ADD_BIAS(); \
             float4 df = convert_float4(AS_SUM_DATA4_T(D[n_i])); \
             APPLY_POST_OPS(tmp, float, df, float); \
+            ADD_DST_COMPENSATION(); \
+            ZERO_PAD_DST(); \
             CONVERT_PACK(n_i); \
         } \
     } while (0)

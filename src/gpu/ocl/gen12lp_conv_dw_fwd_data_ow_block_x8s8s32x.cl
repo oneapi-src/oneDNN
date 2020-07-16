@@ -42,7 +42,9 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
         const __global char *wei, const __global float *bias,
         __global DST_DATA_T *dst POST_OP_ARGS, float scale,
-        const __global float *scales_per_oc) {
+        const __global float *scales_per_oc,
+        const __global int *src_compensation, const __global int *src_zpoints,
+        const __global int *dst_compensation) {
     const int osp = get_global_id(1);
     const int od = osp / (OWB * OH);
     const int ohw = osp % (OWB * OH);

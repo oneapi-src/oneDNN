@@ -17,6 +17,7 @@
 #include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
+#include "gpu/ocl/ocl_zero_points.h"
 
 #if IC % IC_BLOCK != 0
 #define IC_NBLOCKS_TAIL ((IC % IC_BLOCK + 3) / 4)
@@ -172,7 +173,9 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 gen12lp_nhwc_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
         const __global char *wei, const __global float *bias,
         __global DST_DATA_T *dst POST_OP_ARGS, float scale,
-        const __global float *scales_per_oc) {
+        const __global float *scales_per_oc,
+        const __global int *src_compensation,
+        const __global int *dst_compensation) {
 
     // Groups:
     const uint oc_group_id = get_group_id(0);
@@ -292,7 +295,7 @@ gen12lp_nhwc_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
                 if (OC > 8) C11 = MMAD_TAIL1(S1, W1, C11);
                 if (OC > 16) C12 = MMAD_TAIL1(S1, W2, C12);
                 if (OC > 24) C13 = MMAD_TAIL1(S1, W3, C13);
-#endif
+#endif // SP_BLOCK > 8
             } else
 #endif // IC % IC_BLOCK != 0
             {
@@ -316,6 +319,22 @@ gen12lp_nhwc_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
         src += SRC_ICB_STRIDE;
         wei += WEI_BLOCK_STRIDE;
     }
+
+#if WITH_SRC_ZPOINTS
+    int4 src_comp = as_int4(intel_sub_group_block_read4(
+            (__global uint *)(&src_compensation[oc_group_id * OC_BLOCK])));
+
+    C00 -= src_comp.s0;
+    C01 -= src_comp.s1;
+    C02 -= src_comp.s2;
+    C03 -= src_comp.s3;
+#if SP_BLOCK > 8
+    C10 -= src_comp.s0;
+    C11 -= src_comp.s1;
+    C12 -= src_comp.s2;
+    C13 -= src_comp.s3;
+#endif // SP_BLOCK > 8
+#endif // WITH_SRC_ZPOINTS
 
     float4 tmp;
     DST_DATA4_T dst_pack[8];
@@ -352,6 +371,14 @@ gen12lp_nhwc_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
     }
 #endif // with_sum
 
+#if WITH_DST_ZPOINTS
+    int4 dst_comp = read_dst_zero_points_32c(
+            dst_compensation, oc_group_id * OC_BLOCK);
+#define ADD_DST_COMPENSATION() tmp += convert_float4(dst_comp);
+#else
+#define ADD_DST_COMPENSATION()
+#endif // WITH_DST_ZPOINTS
+
 #define PACK(C0, C1, C2, C3, idx) \
     do { \
         tmp[0] = C0[idx]; \
@@ -372,6 +399,7 @@ gen12lp_nhwc_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
             QUANTIZE_ADD_BIAS(); \
             float4 df = convert_float4(AS_SUM_DATA4_T(D[n_i])); \
             APPLY_POST_OPS(tmp, float, df, float); \
+            ADD_DST_COMPENSATION(); \
             CONVERT_PACK(n_i); \
         } \
         block_write_dst(n, dst_pack, dst_ptr, oc_tail); \

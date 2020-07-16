@@ -121,7 +121,9 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
         const __global char *wei, const __global float *bias,
         __global DST_DATA_T *dst POST_OP_ARGS, float scale,
-        const __global float *scales_per_oc) {
+        const __global float *scales_per_oc,
+        const __global int *src_compensation, const __global int *src_zpoints,
+        const __global int *dst_compensation) {
 
     const int group_oc = get_group_id(0) * OC_GROUP;
     const int group_mb = get_group_id(2) * MB_GROUP;
