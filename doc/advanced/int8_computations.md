@@ -1,5 +1,5 @@
-Int8 Computation Aspects {#dev_guide_int8_computations}
-=======================================================
+Nuances of int8 Computations {#dev_guide_int8_computations}
+===========================================================
 
 > This document uses **int8** to denote 8-bit integer no matter whether it is
 > signed or unsigned. To emphasize the signedness of the data type
