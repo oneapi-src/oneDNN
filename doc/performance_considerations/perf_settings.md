@@ -1,5 +1,5 @@
-Performance Settings for Benchmarking {#dev_guide_performance_settings}
-=======================================================================
+Configuring oneDNN for Benchmarking {#dev_guide_performance_settings}
+=====================================================================
 
 The following settings are recommended for measuring oneDNN performance using
 benchdnn. When measuring performance using any deep learning framework, refer

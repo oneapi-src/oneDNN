@@ -1,9 +1,13 @@
-Intel MKL-DNN to DNNL Transition Guide {#dev_guide_transition_to_dnnl}
-=============================================================================
+Transition from Intel MKL-DNN to oneDNN {#dev_guide_transition_to_dnnl}
+=======================================================================
 
 To simplify library naming and differentiate it from Intel MKL, starting with
 version 1.1 the library name is changed to
 **Deep Neural Network Library (DNNL)**.
+
+@note Subsequent library name change to
+oneAPI Deep Neural Network Library (oneDNN) does not impact API, environment
+variables, or build options.
 
 The library will maintain backward compatibility with respect to API,
 environment variables and build options until the next major release.

@@ -1,4 +1,4 @@
-Version 1.0 Transition Guide {#dev_guide_transition_to_v1}
+Transition from v0.x to v1.x {#dev_guide_transition_to_v1}
 ==========================================================
 
 > **NOTE**
