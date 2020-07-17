@@ -254,7 +254,8 @@ __kernel void ref_rnn_copy_res_layer(
     __global DST_DATA_T *dst = (__global DST_DATA_T *)(dst_base);
     int dir = 0;
     if (lr) {
-        dst[DST_L_OFF(it, b, dir * DHC + s)] = dequantize
+        bool dequantize_at_copy = dequantize && DIRECTION_KIND != SUM;
+        dst[DST_L_OFF(it, b, dir * DHC + s)] = dequantize_at_copy
                 ? TO_DST(((float)src[OFF_WS_STATE(N_LAYER, dir, it + 1, b, s)]
                                  - shift)
                         / scale)

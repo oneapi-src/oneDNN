@@ -75,7 +75,8 @@
 #define weights_assign_sig(f) \
     void f(const rnn_utils::conf_t &rnn, const memory_desc_t *md, \
             size_t *weights_, int n_parts, const int *gates_per_part, \
-            const memory_storage_t &w_, int ld, int nld, size_t sz) const
+            const memory_storage_t &w_, int ld, int nld, data_type_t wei_t) \
+            const
 
 namespace dnnl {
 namespace impl {

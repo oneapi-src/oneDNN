@@ -1235,7 +1235,7 @@ weights_assign_sig((_ref_rnn_common_t<aprop>::assign_weights)) {
             for (int p = 0; p < n_parts; p++) {
                 weights(i, d, p) = OFF3(i, rnn.n_layer, d, rnn.n_dir,
                                            offset_weights, ld * nld)
-                        * sz;
+                        * types::data_type_size(wei_t);
                 offset_weights += gates_per_part[p] * blk.strides[3];
             }
         }
@@ -1398,11 +1398,11 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     (this->*weights_iter_assign_func)(rnn, rnn_pd->weights_md(1),
             wei_iter_offset_ptr, n_parts_weights_iter, rnn.parts_weights_iter,
             wei_iter_native_, rnn.weights_iter_ld, rnn.weights_iter_nld,
-            rnn.ws_states_elsz);
+            pd()->weights_type);
     (this->*weights_layer_assign_func)(rnn, rnn_pd->weights_md(0),
             wei_layer_offset_ptr, n_parts_weights_layer,
             rnn.parts_weights_layer, wei_layer_native_, rnn.weights_layer_ld,
-            rnn.weights_layer_nld, rnn.ws_states_elsz);
+            rnn.weights_layer_nld, pd()->weights_type);
 
     const memory_storage_t *scales_buf = nullptr;
     if (pd()->rnn_conf.is_int8 && pd()->rnn_conf.copy_bias) {
