@@ -38,7 +38,7 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
                     backward_data)
             && IMPLICATION(
                     prop_kind == backward_data, diff_data_desc != nullptr)
-            && IMPLICATION(alg_kind == eltwise_round,
+            && IMPLICATION(one_of(alg_kind, eltwise_round, eltwise_mish, eltwise_hswish), 
                     one_of(prop_kind, forward_training, forward_inference))
             && math::is_eltwise_ok(data_desc->data_type, alg_kind, alpha, beta);
     if (!args_ok) return invalid_arguments;

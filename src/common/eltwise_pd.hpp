@@ -136,7 +136,7 @@ struct eltwise_fwd_pd_t : public eltwise_pd_t {
         return one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
                        eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_swish,
                        eltwise_bounded_relu, eltwise_gelu_tanh,
-                       eltwise_gelu_erf, eltwise_round)
+                       eltwise_gelu_erf, eltwise_round, eltwise_mish, eltwise_hswish)
                 || one_of(alg, eltwise_relu_use_dst_for_bwd,
                         eltwise_tanh_use_dst_for_bwd,
                         eltwise_elu_use_dst_for_bwd,

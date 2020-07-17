@@ -342,6 +342,22 @@ inline U gelu_erf_bwd(T dd, T s) {
             * (1.f + ::erff(v) + v * two_over_sqrt_pi * ::expf(-v * v)));
 }
 
+template <typename T,
+        typename U = typename utils::remove_reference<T>::type>
+inline U hswish_fwd(T s) {
+    float v = s + 3.0f;
+    v = v > 0.0f ? v : 0.0f;
+    v = v < 6.0f ? v : 6.0f;
+    return (U)(v / 6.0f * s);
+}
+
+template <typename T,
+        typename U = typename utils::remove_reference<T>::type>
+inline U mish_fwd(T s) {
+    float v = ::log1pf(::expf((float)s));
+    return (U)(s * ::tanhf(v));
+}
+
 inline bool is_eltwise_ok(
         data_type_t dt, alg_kind_t alg, float alpha, float beta) {
     using namespace alg_kind;
@@ -353,7 +369,7 @@ inline bool is_eltwise_ok(
                       eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
                       eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
                       eltwise_log, eltwise_clip, eltwise_pow, eltwise_gelu_erf,
-                      eltwise_round)
+                      eltwise_round, eltwise_mish, eltwise_hswish)
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(alg == eltwise_clip, beta >= alpha)
             && IMPLICATION(alg == eltwise_round, dt == dnnl_f32)

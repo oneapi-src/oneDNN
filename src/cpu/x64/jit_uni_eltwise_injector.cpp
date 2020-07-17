@@ -1225,6 +1225,130 @@ void jit_uni_eltwise_injector_f32<isa>::round_compute_vector_fwd(
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::mish_compute_vector_fwd(
+        const Vmm &vmm_src) {
+    // Save src data on stack for later usage
+    h->sub(h->rsp, vlen);
+    h->uni_vmovups(h->ptr[h->rsp], vmm_src);
+
+    // soft_relu - ln(1+exp(x))
+    // duplicate src
+    h->uni_vmovups(vmm_aux2, vmm_src);
+
+    h->uni_vminps(vmm_src, vmm_src, table_val(mish, 25));
+    h->uni_vmaxps(vmm_src, vmm_src, table_val(mish, 26));
+    h->uni_vmovups(vmm_aux1, vmm_src);
+    // calculate exp(x)
+    // fx = x * log2ef + 0.5
+    h->uni_vmulps(vmm_src, vmm_src, table_val(mish, 2));
+    h->uni_vaddps(vmm_src, vmm_src, table_val(mish, 1));
+
+    // tmp = floorf(fx)
+    h->uni_vroundps(vmm_aux0, vmm_src, _op_floor);
+
+    // keep fx for further computations
+    h->uni_vmovups(vmm_src, vmm_aux0); //vmm_src = fx
+    // calculation fx * ln2
+    h->uni_vmulps(vmm_aux0, vmm_aux0, table_val(mish, 3));
+    // x = x - fx * ln2
+    h->uni_vsubps(vmm_aux1, vmm_aux1, vmm_aux0);
+    // y = p5
+    h->uni_vmovups(vmm_aux3, table_val(mish, 9));
+    // y = y * x + p4
+    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(mish, 8));
+    // y = y * x + p3
+    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(mish, 7));
+    // y = y * x + p2
+    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(mish, 6));
+    // y = y * x + p1
+    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(mish, 0));
+    // y = y * x + p0
+    h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(mish, 5));
+
+    // compute 2^(-n)
+    if (isa == avx512_common) {
+        h->vmulps(vmm_aux1, vmm_src, table_val(mish, 27));
+        h->vcvtps2dq(vmm_aux1, vmm_aux1);
+    } else {
+        h->uni_vcvtps2dq(vmm_aux1, vmm_src);
+        h->uni_vpsignd(vmm_aux1, vmm_aux1, table_val(mish, 27));
+    }
+
+    h->uni_vpaddd(vmm_aux1, vmm_aux1, table_val(mish, 4));
+    h->uni_vpslld(vmm_aux1, vmm_aux1, 23); //vmm_aux1 = 2^-fx
+    // calculate ln(1 + y)
+    h->uni_vaddps(vmm_aux3, vmm_aux3, vmm_aux1);
+    // x = y; y is free; keep x for further computations
+    h->uni_vmovups(vmm_src, vmm_aux3);
+    // frexp()
+    h->uni_vpsrld(vmm_src, vmm_src, 23);
+    h->uni_vcvtdq2ps(vmm_src, vmm_src);
+    // got n. where n is x = 2^n * y. y = 0.5 .. 1
+    h->uni_vsubps(vmm_src, vmm_src, table_val(mish, 28));
+
+    h->uni_vandps(vmm_aux3, vmm_aux3, table_val(mish, 29));
+    // got y. (mantisa)  0.5 < y < 1
+    h->uni_vorps(vmm_aux3, vmm_aux3, table_val(mish, 30));
+    // y  = y - 1
+    h->uni_vsubps(vmm_aux3, vmm_aux3, table_val(mish, 0));
+    // y = p8
+    h->uni_vmovups(vmm_aux1, table_val(mish, 39));
+    // y = y * x + p7
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(mish, 38));
+    // y = y * x + p6
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(mish, 37));
+    // y = y * x + p5
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(mish, 36));
+    // y = y * x + p4
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(mish, 35));
+    // y = y * x + p3
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(mish, 34));
+    // y = y * x + p2
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(mish, 33));
+    // y = y * x + p1
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(mish, 32));
+    // y = y * x + p0 ; p0 = 0
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(mish, 31));
+    //calculate ln(2) * n
+    h->uni_vmulps(vmm_src, vmm_src, table_val(mish, 3));
+    h->uni_vaddps(vmm_aux1, vmm_aux1, vmm_src);
+    h->uni_vaddps(vmm_aux1, vmm_aux1, vmm_aux0);
+
+    // get vmm_mask = src > max logf
+    h->uni_vmovups(vmm_mask, vmm_aux2);
+    // y = (x < max log f) ? soft_relu(x) : x
+    compute_cmp_mask(vmm_mask, table_val(mish, 25), _cmp_gt_os);
+    blend_with_mask(vmm_aux1, vmm_aux2);
+    h->uni_vmovups(vmm_src, vmm_aux1);
+
+    // tanh(ln(1+exp(x)))
+    tanh_compute_vector_fwd(vmm_src);
+    // x*tanh(ln(1+exp(x)))
+    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
+    h->add(h->rsp, vlen);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::hswish_compute_vector_fwd(
+        const Vmm &vmm_src) {
+    // Save src data on stack for later usage
+    h->sub(h->rsp, vlen);
+    h->uni_vmovups(h->ptr[h->rsp], vmm_src);
+    // x + 3
+    h->uni_vaddps(vmm_src, vmm_src, table_val(hswish, 0));
+    // relu6(x + 3)
+    h->uni_vmaxps(vmm_src, vmm_src, table_val(zero));
+    h->uni_vminps(vmm_src, vmm_src, table_val(hswish, 1));
+    // relu6(x + 3) / 6
+    h->uni_vmulps(vmm_src, vmm_src, table_val(hswish, 2));
+    // x * relu6(x + 3) / 6
+    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
+    h->add(h->rsp, vlen);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+}
+
+template <cpu_isa_t isa>
 size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
     using namespace alg_kind;
     if (is_fwd_) {
@@ -1253,6 +1377,8 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_pow: return 2;
             case eltwise_gelu_erf: return 5;
             case eltwise_round: return 0;
+            case eltwise_hswish: return 1;
+            case eltwise_mish: return 5;
             default: assert(!"unsupported eltwise algorithm");
         }
     } else {
@@ -1333,6 +1459,8 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                     gelu_erf_compute_vector_fwd(Vmm(idx));
                     break;
                 case eltwise_round: round_compute_vector_fwd(Vmm(idx)); break;
+                case eltwise_mish: mish_compute_vector_fwd(Vmm(idx)); break;
+                case eltwise_hswish: hswish_compute_vector_fwd(Vmm(idx)); break;
                 default: assert(!"unsupported eltwise algorithm");
             }
         } else {
@@ -1865,6 +1993,68 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
                     {0xc2b00f34, true}}, // 63: -88.029693603515625
     };
 
+    // mish(x) polynomial approximation
+    static const table_t mish_values {
+            {mish, {0x3f800000, true}}, // [0] 1.0f
+            {mish, {0x3f000000, true}}, // [1] 0.5f
+            {mish, {0x3fb8aa3b, true}}, // [2] log2ef = 1.44269502f
+            {mish, {0x3f317218, true}}, // [3] ln2f =   0.69314718f
+            {mish, {0x0000007f, true}}, // [4] 0x7f
+            // exp(x) polynom
+            {mish, {0x3f800001, true}}, // [5] p0 = 1.0000001f
+            {mish, {0x3efffe85, true}}, // [6] p2 = 0.4999887f
+            {mish, {0x3e2aaa3e, true}}, // [7] p3 = 0.16666505f
+            {mish, {0x3d2bb1b1, true}}, // [8] p4 = 0.041917507f
+            {mish, {0x3c091ec1, true}}, // [9] p5 = 0.008369149f
+            {mish, {0x42b17218, true}}, //[10] logf(FLT_MAX)
+            {mish, {0xc2aeac50, true}}, //[11] logf(FLT_MIN)
+            // tanh(x) constants,
+            {mish, {0x80000000, true}}, //[12] mask to extract sign
+            {mish, {0x39ddb3d7, true}}, //[13] arg below which tanh(x) = x
+            {mish, {0x3f0c9f54, true}}, //[14] arg below which pol approx is valid
+            {mish, {0x41102cb4, true}}, //[15] arg after which tanh(x) = 1
+            {mish, {0xc0000000, true}}, //[16] -2.0f
+            {mish, {0x7fffffff, true}}, //[17] mask to make positive
+            // tanh pol approx
+            {mish, {0x3f7fffff, true}}, //[18] p0
+            {mish, {0xbeaaa9cf, true}}, //[19] p1
+            {mish, {0x3e085f1f, true}}, //[20] p2
+            {mish, {0xbd572bda, true}}, //[21] p3
+            {mish, {0x3c84fd08, true}}, //[22] p4
+            // gelu approx constants
+            {mish, {0x3d372713, true}}, //[23] 0.044715
+            {mish, {0x3f4c4229, true}}, //[24] sqrt(2/pi)
+            // TODO: update values [24] and [25] from comments as they are more precise
+            {mish, {0x42b0c0a5, true}}, //[25] max logf = 88.3762589f //0x42b17218, //[24] logf(FLT_MAX)
+            {mish, {0xc1766666, true}}, //[26] min logf = -14.5f      //0xc2aeac50, //[25] logf(FLT_MIN)
+            //
+            {mish, {0xbf800000, true}}, //[27] is required for sign changing
+            {mish, {0x42fc0000, true}}, //[28] 126
+            {mish, {0x807fffff, true}}, //[29] and with (to get 0.5 * mantissa)
+            {mish, {0x3f000000, true}}, //[30] or with (to get 0.5 * mantissa)
+            // ln(1 + x) polynomial
+            {mish, {0xb2b4637d, true}}, //[31]  p0 = 0.0000000244f
+            {mish, {0x3f7fff8e, true}}, //[32]  p1 = 0.9999976971f
+            {mish, {0xbf001759, true}}, //[33]  p2 = -0.5002478215f
+            {mish, {0x3ea70608, true}}, //[34]  p3 = 0.3272714505f
+            {mish, {0xbea3d7bf, true}}, //[35]  p4 = -0.3153830071f
+            {mish, {0xbe361d04, true}}, //[36]  p5 = -0.1701777461f
+            {mish, {0xbfa8f1e6, true}}, //[37]  p6 = -1.3254635147f
+            {mish, {0xbfe1e812, true}}, //[38]  p7 = -1.7971917960f
+            {mish, {0xbfc4d30e, true}}, //[39]  p8 = -1.5652673123f
+
+            {mish, {0x40400000, true}}, // 3
+            {mish, {0x40C00000, true}}, // 6
+            {mish, {0x3e2aaaaa, true}}, // 1 / 6
+    };
+
+    // hswish(x) polynomial approximation
+    static const table_t hswish_values {
+            {hswish, {0x40400000, true}}, // 3
+            {hswish, {0x40C00000, true}}, // 6
+            {hswish, {0x3e2aaaaa, true}}, // 1 / 6
+    };
+
     // This object takes care about which constants and polynomials to include.
     struct need_t {
         need_t(alg_kind_t alg) {
@@ -1883,6 +2073,8 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
                 case eltwise_soft_relu: soft_relu_ = true; break;
                 case eltwise_tanh_use_dst_for_bwd:
                 case eltwise_tanh: tanh_ = true; break;
+                case eltwise_mish: mish_ = true; break;
+                case eltwise_hswish: hswish_ = true; break;
                 default: break;
             }
         }
@@ -1893,13 +2085,17 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
         bool gelu_tanh_ = false;
         bool gelu_erf_ = false;
         bool log_ = false;
+        bool mish_ = false;
+        bool hswish_ = false;
 
         bool exp() const { return exp_ || soft_relu_ || gelu_erf_; }
-        bool tanh() const { return tanh_ || gelu_tanh_; }
+        bool tanh() const { return tanh_ || gelu_tanh_ || mish_; }
         bool soft_relu() const { return soft_relu_; }
         bool gelu_tanh() const { return gelu_tanh_; }
         bool gelu_erf() const { return gelu_erf_; }
         bool log() const { return log_; }
+        bool mish() const { return mish_; }
+        bool hswish() const { return hswish_; }
     };
 
     need_t need(alg_);
@@ -1934,6 +2130,8 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     if (need.log()) push_entries_of(log_consts);
     if (need.log()) push_entries_of(log_polynomial);
     if (need.log()) push_entries_of(log_predefined_values);
+    if (need.mish()) push_entries_of(mish_values);
+    if (need.hswish()) push_entries_of(hswish_values);
 
     // Now that we registered the entries, we set the offsets.  No
     // entries should be registered after this point.  This allows to

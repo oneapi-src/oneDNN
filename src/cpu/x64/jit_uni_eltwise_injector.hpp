@@ -69,6 +69,7 @@ struct jit_uni_eltwise_injector_f32 {
                 eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
                 eltwise_exp, eltwise_gelu_tanh, eltwise_swish, eltwise_log,
                 eltwise_clip, eltwise_pow, eltwise_gelu_erf, eltwise_round,
+                eltwise_mish, eltwise_hswish,
                 eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
                 eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
                 eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd));
@@ -167,6 +168,8 @@ private:
     void pow_compute_vector_fwd(const Vmm &vmm_src);
     void gelu_erf_compute_vector_fwd(const Vmm &vmm_src);
     void round_compute_vector_fwd(const Vmm &vmm_src);
+    void mish_compute_vector_fwd(const Vmm &vmm_src);
+    void hswish_compute_vector_fwd(const Vmm &vmm_src);
 
     void exp_compute_vector_bwd(const Vmm &vmm_src);
     void relu_compute_vector_bwd(const Vmm &vmm_src);
@@ -227,6 +230,8 @@ private:
         log_five_bit_offset, // 5 bits off (31 = 2^5 - 1)
         log_pol, // see correspondent table for float values
         log_predefined_vals, // see correspondent table for float values
+        mish, // mish
+        hswish, // hswish
         undef_key,
     };
 
