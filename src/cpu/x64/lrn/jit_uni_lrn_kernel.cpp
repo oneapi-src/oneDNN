@@ -143,22 +143,22 @@ void jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::within_body(
         int hoff, int Hoff, int woff, int Woff, int stride, prop_kind_t pk,
         int reg_block, int pixel_offset) {
 
-    static const Xbyak::Xmm xtmp_lo = Xmm(2);
-    static const Xbyak::Xmm xtmp_hi = Xmm(3);
-    static const Xbyak::Xmm xsum_lo = Xmm(4);
-    static const Xbyak::Xmm xsum_hi = Xmm(5);
-    static const Xbyak::Xmm xdst_lo = Xmm(6);
-    static const Xbyak::Xmm xdst_hi = Xmm(7);
-    static const Xbyak::Xmm xsum2_lo = Xmm(8);
-    static const Xbyak::Xmm xsum2_hi = Xmm(9);
+    const Xbyak::Xmm &xtmp_lo = this->xmm2;
+    const Xbyak::Xmm &xtmp_hi = this->xmm3;
+    const Xbyak::Xmm &xsum_lo = this->xmm4;
+    const Xbyak::Xmm &xsum_hi = this->xmm5;
+    const Xbyak::Xmm &xdst_lo = this->xmm6;
+    const Xbyak::Xmm &xdst_hi = this->xmm7;
+    const Xbyak::Xmm &xsum2_lo = this->xmm8;
+    const Xbyak::Xmm &xsum2_hi = this->xmm9;
 
     xorps(xsum_lo, xsum_lo);
     xorps(xsum_hi, xsum_hi);
     for (int i = hoff; i <= Hoff; ++i) {
         for (int j = woff; j <= Woff; ++j) {
             if (i == 0 && j == 0) {
-                movups(xdst_lo, ptr[src_]);
-                movups(xdst_hi, ptr[src_ + 4 * sizeof(float)]);
+                movups(xdst_lo, ptr[src_ + pixel_offset]);
+                movups(xdst_hi, ptr[src_ + pixel_offset + 4 * sizeof(float)]);
                 mulps(xdst_lo, xdst_lo);
                 mulps(xdst_hi, xdst_hi);
                 addps(xsum_lo, xdst_lo);
@@ -166,10 +166,10 @@ void jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::within_body(
             } else {
                 movups(xtmp_lo,
                         ptr[src_ + pixel_offset
-                                + (i * stride + j) * VECTOR_LENGTH * 4]);
+                                + (i * stride + j) * single_pixel_offset_]);
                 movups(xtmp_hi,
                         ptr[src_ + pixel_offset
-                                + (i * stride + j) * VECTOR_LENGTH * 4
+                                + (i * stride + j) * single_pixel_offset_
                                 + 4 * sizeof(float)]);
                 mulps(xtmp_lo, xtmp_lo);
                 mulps(xtmp_hi, xtmp_hi);
