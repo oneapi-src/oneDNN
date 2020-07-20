@@ -1279,6 +1279,40 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     if (jcp.is_depthwise)
         return status::unimplemented; // TODO: add support of DW convolution
 
+    format_tag_t dat_tag_ncsp
+            = utils::pick(ndims - 3, format_tag::nCw16c, format_tag::nChw16c);
+    format_tag_t dat_tag_nspc
+            = utils::pick(ndims - 3, format_tag::nwc, format_tag::nhwc);
+    // To toggle the default data layout for BF16 between nChw16c and nhwc,
+    // swap the following two variable definitions. Current choice: nhwc.
+    format_tag_t dat_tag_opt
+            = is_bf16_convolution ? dat_tag_nspc : dat_tag_nspc;
+    format_tag_t dat_tag_alt
+            = is_bf16_convolution ? dat_tag_ncsp : dat_tag_nspc;
+
+    if (src_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(src_md, dat_tag_opt));
+        jcp.src_tag = dat_tag_opt;
+    } else
+        jcp.src_tag = src_d.matches_one_of_tag(dat_tag_alt, dat_tag_opt);
+
+    if (!one_of(jcp.src_tag, dat_tag_alt, dat_tag_opt))
+        return status::unimplemented;
+
+    jcp.is_nspc = jcp.src_tag == dat_tag_nspc;
+    assert(IMPLICATION(is_int8_convolution, jcp.is_nspc));
+
+    if (dst_d.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(dst_md, jcp.src_tag));
+        jcp.dst_tag = jcp.src_tag;
+    } else
+        jcp.dst_tag = dst_d.matches_one_of_tag(jcp.src_tag);
+
+    if (jcp.dst_tag != jcp.src_tag) return status::unimplemented;
+
+    if (jcp.with_bias && bias_d.format_kind() == format_kind::any)
+        CHECK(memory_desc_init_by_tag(bias_md, format_tag::x));
+
     jcp.nthr = nthreads;
 
     jcp.ic_block = 16;
@@ -1361,40 +1395,6 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     };
 
     if (!set_or_check_wei_format()) return status::unimplemented;
-
-    format_tag_t dat_tag_ncsp
-            = utils::pick(ndims - 3, format_tag::nCw16c, format_tag::nChw16c);
-    format_tag_t dat_tag_nspc
-            = utils::pick(ndims - 3, format_tag::nwc, format_tag::nhwc);
-    // To toggle the default data layout for BF16 between nChw16c and nhwc,
-    // swap the following two variable definitions. Current choice: nhwc.
-    format_tag_t dat_tag_opt
-            = is_bf16_convolution ? dat_tag_nspc : dat_tag_nspc;
-    format_tag_t dat_tag_alt
-            = is_bf16_convolution ? dat_tag_ncsp : dat_tag_nspc;
-
-    if (src_d.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(src_md, dat_tag_opt));
-        jcp.src_tag = dat_tag_opt;
-    } else
-        jcp.src_tag = src_d.matches_one_of_tag(dat_tag_alt, dat_tag_opt);
-
-    if (!one_of(jcp.src_tag, dat_tag_alt, dat_tag_opt))
-        return status::unimplemented;
-
-    jcp.is_nspc = jcp.src_tag == dat_tag_nspc;
-    assert(IMPLICATION(is_int8_convolution, jcp.is_nspc));
-
-    if (dst_d.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(dst_md, jcp.src_tag));
-        jcp.dst_tag = jcp.src_tag;
-    } else
-        jcp.dst_tag = dst_d.matches_one_of_tag(jcp.src_tag);
-
-    if (jcp.dst_tag != jcp.src_tag) return status::unimplemented;
-
-    if (jcp.with_bias && bias_d.format_kind() == format_kind::any)
-        CHECK(memory_desc_init_by_tag(bias_md, format_tag::x));
 
     jcp.typesize_in = types::data_type_size(src_d.data_type());
     jcp.typesize_out = types::data_type_size(dst_d.data_type());
