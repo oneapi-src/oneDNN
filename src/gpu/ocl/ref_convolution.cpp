@@ -186,6 +186,10 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
     auto &oscales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &src_zpoints
+            = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
+    auto &dst_zpoints
+            = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
 
     auto &conf = pd()->conf;
     auto common_oscales = conf.attr_info.common_oscales;
@@ -208,6 +212,16 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     } else {
         arg_list.set(++arg_idx, memory_storage_t::empty_storage());
     }
+
+    if (conf.attr_info.with_src_zpoints)
+        arg_list.set(++arg_idx, src_zpoints);
+    else
+        arg_list.set(++arg_idx, memory_storage_t::empty_storage());
+
+    if (conf.attr_info.with_dst_zpoints)
+        arg_list.set(++arg_idx, dst_zpoints);
+    else
+        arg_list.set(++arg_idx, memory_storage_t::empty_storage());
 
     auto nd_range = pd()->conf.dispatch.nd_range();
 

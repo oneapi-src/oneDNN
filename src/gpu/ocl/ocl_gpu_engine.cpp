@@ -48,11 +48,6 @@ status_t ocl_gpu_engine_t::init() {
     status_t status = check_device(engine_kind::gpu, device_, context_);
     if (status != status::success) return status;
 
-    stream_t *service_stream_ptr;
-    status = create_stream(
-            &service_stream_ptr, stream_flags::default_flags, nullptr);
-    if (status != status::success) return status;
-    service_stream_.reset(service_stream_ptr);
     return status::success;
 }
 
@@ -149,8 +144,10 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
 
     cl_device_id dev = device();
     err = clBuildProgram(program, 1, &dev, options.c_str(), nullptr, nullptr);
-#ifndef NDEBUG
     if (err != CL_SUCCESS) {
+        // Return error if verbose is not enabled.
+        if (get_verbose() == 0) OCL_CHECK(err);
+
         size_t log_length = 0;
         err = clGetProgramBuildInfo(
                 program, dev, CL_PROGRAM_BUILD_LOG, 0, nullptr, &log_length);
@@ -165,7 +162,6 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
                 log_buf.data());
         OCL_CHECK(err);
     }
-#endif
 
     std::vector<unsigned char> binary;
     CHECK(get_program_binaries(program, &binary));

@@ -224,12 +224,13 @@ struct settings_t {
     float alpha = 0.9f, beta = 0.0f;
 
     const char *perf_template_csv
-            = "perf,%engine%,%name%,%prop%,%cfg%,%alg%,%activation%,%direction%"
+            = "perf,%engine%,%impl%,%name%,%prop%,%cfg%,%alg%,%activation%,%"
+              "direction%"
               ","
               "%DESC%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
     const char *perf_template_def
-            = "perf,%engine%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,"
-              "%0time%,%0Gflops%";
+            = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-"
+              "Gflops%,%0time%,%0Gflops%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
@@ -293,18 +294,6 @@ struct prb_t : public desc_t {
 
     float get_wei_scale(int idx) const {
         return wei_scales[MIN2(idx, wei_nscales - 1)];
-    }
-
-    bool maybe_skip() const {
-        bool skip = false;
-        // TODO: remove early exit when int8 weights reorder supports non
-        // trivial strides
-        skip = skip || (is_int8() && !trivial_strides);
-
-        // TODO: remove early exit when other cells will support int8
-        skip = skip || (is_int8() && alg != VANILLA_LSTM);
-
-        return skip;
     }
 
     void count_ops() {

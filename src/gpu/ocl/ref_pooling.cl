@@ -16,6 +16,12 @@
 
 #include "gpu/ocl/ocl_types.h"
 
+#if DT_S8 || DT_U8
+#define RINT rint
+#else
+#define RINT
+#endif
+
 #if IS_FWD
 KERNEL_ATTR
 __kernel void ref_pooling_fwd(
@@ -91,7 +97,7 @@ __kernel void ref_pooling_fwd(
                             d += DATA_TO_REF(src[src_off]);
                         }
                     }
-                dst[dst_off] = CONVERT_DATA_T(ROUND(d / num_summands));
+                dst[dst_off] = CONVERT_DATA_T(RINT(d / num_summands));
 #endif
             }
 }

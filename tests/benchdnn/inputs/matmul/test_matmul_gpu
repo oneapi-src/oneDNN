@@ -28,14 +28,14 @@
 --bia_dt=undef,f32,u8
 --stag=ab,ba --wtag=ab --dtag=ab
 
---attr-oscale=common:2.25* --attr-zero-points=src:1*_wei:-1*_dst:2* --attr-post-ops='sum;relu'  m100n10k10
+--attr-oscale=common:2.25* --attr-zero-points=src:common:1*_wei:common:-1*_dst:common:2* --attr-post-ops='sum;relu'  m100n10k10
 
 --cfg=s8s8s8,s8s8s32,s8s8u8
 --runtime_m=0 --runtime_n=0,1 --runtime_k=1
 --bia_dt=undef,u8
 --stag=ba --wtag=ab,ba --dtag=ab
 
---attr-oscale=common:1.15 --attr-zero-points=src:1_wei:-2_dst:3* --attr-post-ops='sum;relu'     m10n10k100
+--attr-oscale=common:1.15 --attr-zero-points=src:common:1_wei:common:-2_dst:common:3* --attr-post-ops='sum;relu'     m10n10k100
 
 # 3d
 --reset

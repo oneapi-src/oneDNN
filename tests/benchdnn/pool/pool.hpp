@@ -43,9 +43,24 @@ struct desc_t {
     int64_t kd, kh, kw;
     int64_t sd, sh, sw;
     int64_t pd, ph, pw;
+    int64_t pd_r, ph_r, pw_r; // End side padding for each dimension
 
     const char *name;
     int ndims;
+
+    // Initialize dependent opposite-side paddings values from the shape
+    // parameters
+    void init_pad_r() {
+        pw_r = opp_pad(iw, ow, kw, sw, pw, 0);
+        ph_r = opp_pad(ih, oh, kh, sh, ph, 0);
+        pd_r = opp_pad(id, od, kd, sd, pd, 0);
+    }
+
+private:
+    int64_t opp_pad(
+            int64_t i, int64_t o, int64_t k, int64_t s, int64_t p, int64_t d) {
+        return (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - p;
+    }
 };
 
 int str2desc(desc_t *desc, const char *str);
@@ -94,10 +109,10 @@ struct settings_t {
     std::vector<int64_t> mb {0};
 
     const char *perf_template_csv
-            = "perf,%engine%,%name%,%dir%,%cfg%,%tag%,%alg%,%DESC%,%-time%,%"
-              "0time%";
+            = "perf,%engine%,%impl%,%name%,%dir%,%cfg%,%tag%,%alg%,%DESC%,%-"
+              "time%,%0time%";
     const char *perf_template_def
-            = "perf,%engine%,%name%,%prb%,%-time%,%0time%";
+            = "perf,%engine%,%impl%,%name%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
@@ -125,6 +140,7 @@ struct perf_report_t : public base_perf_report_t {
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
+        tag_ = fmt_tag2str(convert_tag(p_->tag, p_->ndims));
         base_report(r, prb_str);
     }
 
@@ -152,10 +168,11 @@ struct perf_report_t : public base_perf_report_t {
 
     const char *name() const override { return p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
-    const std::string *tag() const override { return &p_->tag; }
+    const std::string *tag() const override { return &tag_; }
 
 private:
     const prb_t *p_ = NULL;
+    std::string tag_;
 };
 
 inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t id,

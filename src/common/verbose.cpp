@@ -251,7 +251,7 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
     const post_ops_t &po = attr->post_ops_;
     if (!po.has_default_values()) {
         DPRINT(str, len, written, "post_ops:'");
-        for (int i = 0; i < po.len_; ++i) {
+        for (int i = 0; i < po.len(); ++i) {
             const post_ops_t::entry_t &e = po.entry_[i];
             if (e.is_sum()) {
                 DPRINT(str, len, written, "sum;");
@@ -892,10 +892,18 @@ static void init_info_matmul(const engine_t *e, pd_t *s, char *buffer) {
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
     { // bia
-        auto md = s->weights_md(1);
-        if (md->ndims != 0) {
+        if (s->with_bias()) {
+            auto md = s->weights_md(1);
             DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " bia_");
             MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+
+            auto bia_ndims = s->weights_md(1)->ndims;
+            auto bia_dims = s->weights_md(1)->dims;
+            int mask = 0;
+            for (int d = bia_ndims - 1; d >= 0; --d) {
+                mask += bia_dims[d] != 1 ? 1 << d : 0;
+            }
+            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "_mask%d", mask);
         }
     }
     { // dst
@@ -906,11 +914,18 @@ static void init_info_matmul(const engine_t *e, pd_t *s, char *buffer) {
 
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
 
-    if (s->batched())
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, "b" DFMT,
-                s->batch());
-    DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-            "m" DFMT "n" DFMT "k" DFMT, s->M(), s->N(), s->K());
+#define DPRINT_RT(str, val) \
+    do { \
+        if (is_runtime_value(val)) \
+            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, str "*"); \
+        else \
+            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, str DFMT, val); \
+    } while (0)
+
+    if (s->batched()) DPRINT_RT("b", s->batch());
+    DPRINT_RT("m", s->M());
+    DPRINT_RT("n", s->N());
+    DPRINT_RT("k", s->K());
 
     verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
             attr_str, aux_str, prb_str);

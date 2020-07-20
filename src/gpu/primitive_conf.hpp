@@ -141,6 +141,25 @@ struct attr_info_t {
         attr_info.src1_scale = *src1_scales.scales_;
         assert(src1_scales.mask_ == 0);
 
+        // zero points
+        const auto &zp = attr->zero_points_;
+        attr_info.with_src_zpoints = !zp.has_default_values(DNNL_ARG_SRC);
+        attr_info.with_dst_zpoints = !zp.has_default_values(DNNL_ARG_DST);
+
+        attr_info.with_per_ic_src_zpoints = attr_info.with_src_zpoints
+                && !zp.defined(DNNL_ARG_SRC) && !zp.common(DNNL_ARG_SRC);
+        attr_info.common_src_zpoint
+                = attr_info.with_src_zpoints && zp.defined(DNNL_ARG_SRC)
+                ? *zp.get(DNNL_ARG_SRC)
+                : 0;
+
+        attr_info.with_per_oc_dst_zpoints = attr_info.with_dst_zpoints
+                && !zp.defined(DNNL_ARG_DST) && !zp.common(DNNL_ARG_DST);
+        attr_info.common_dst_zpoint
+                = attr_info.with_dst_zpoints && zp.defined(DNNL_ARG_DST)
+                ? *zp.get(DNNL_ARG_DST)
+                : 0;
+
         attr_info.initialized = true;
         return attr_info;
     }
@@ -172,6 +191,13 @@ struct attr_info_t {
 
     bool with_src1_scale;
     float src1_scale;
+
+    bool with_src_zpoints;
+    bool with_dst_zpoints;
+    bool with_per_ic_src_zpoints;
+    bool with_per_oc_dst_zpoints;
+    int common_src_zpoint;
+    int common_dst_zpoint;
 };
 
 struct offsets_t {
@@ -310,6 +336,7 @@ struct rnn_conf_t {
     bool with_dst_iter;
     bool with_dst_iter_c;
     bool is_lbr;
+    bool is_vanilla_gru;
     bool is_fwd;
     bool copy_bias;
     bool is_int8;
@@ -726,13 +753,13 @@ inline void def_post_ops_cfg(
     int nof_supported_post_ops = 0;
 
     for (int idx = 0; idx < 2; ++idx, ++nof_supported_post_ops) {
-        if (all_post_ops.len_ > idx && all_post_ops.entry_[idx].is_eltwise()) {
+        if (all_post_ops.len() > idx && all_post_ops.entry_[idx].is_eltwise()) {
             auto &eltwise = all_post_ops.entry_[idx].eltwise;
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_eltwise_id);
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_ALG", eltwise.alg);
-        } else if (all_post_ops.len_ > idx
+        } else if (all_post_ops.len() > idx
                 && all_post_ops.entry_[idx].is_sum(false)) {
             kernel_ctx.define_int(
                     "PO_" + std::to_string(idx) + "_KIND", po_sum_id);
@@ -763,21 +790,22 @@ inline void def_post_ops_cfg(
 inline int append_post_ops_to_arg_list(compute::kernel_arg_list_t &arg_list,
         int post_op_idx, const post_ops_t &all_post_ops) {
     for (int idx = 0; idx < 2; ++idx) {
+        post_ops_t::entry_t e = all_post_ops.len() >= idx + 1
+                ? all_post_ops.entry_[idx]
+                : post_ops_t::entry_t();
 
-        if (all_post_ops.entry_[idx].is_eltwise()) {
-            auto &eltwise = all_post_ops.entry_[idx].eltwise;
-            arg_list.set(post_op_idx++, eltwise.alpha);
-            arg_list.set(post_op_idx++, eltwise.beta);
-            arg_list.set(post_op_idx++, eltwise.scale);
+        if (e.is_eltwise()) {
+            arg_list.set(post_op_idx++, e.eltwise.alpha);
+            arg_list.set(post_op_idx++, e.eltwise.beta);
+            arg_list.set(post_op_idx++, e.eltwise.scale);
         } else {
             arg_list.set(post_op_idx++, 1.0f); // _eltwise_alpha
             arg_list.set(post_op_idx++, 0.0f); // _eltwise_beta
             arg_list.set(post_op_idx++, 1.0f); // _eltwise_scale
         }
 
-        if (all_post_ops.entry_[idx].is_sum(false)) {
-            auto &sum = all_post_ops.entry_[idx].sum;
-            arg_list.set(post_op_idx++, sum.scale);
+        if (e.is_sum(false)) {
+            arg_list.set(post_op_idx++, e.sum.scale);
         } else {
             arg_list.set(post_op_idx++, 1.0f);
         }
@@ -789,7 +817,7 @@ inline void def_attr_info(
         compute::kernel_ctx_t &kernel_ctx, const attr_info_t &attr_info) {
     assert(attr_info.initialized);
 
-    kernel_ctx.define_int("WITH_POST_OP", attr_info.all_post_ops.len_ > 0);
+    kernel_ctx.define_int("WITH_POST_OP", attr_info.all_post_ops.len() > 0);
 
     kernel_ctx.define_int("WITH_ELTWISE", attr_info.with_eltwise);
     kernel_ctx.define_int("ELTWISE_IDX", attr_info.eltwise_idx);
@@ -809,6 +837,15 @@ inline void def_attr_info(
     kernel_ctx.define_int("SCALES_COMMON", attr_info.with_common_oscales);
 
     def_binary_alg_kinds(kernel_ctx);
+    kernel_ctx.define_int("WITH_SRC_ZPOINTS", attr_info.with_src_zpoints);
+    kernel_ctx.define_int("WITH_DST_ZPOINTS", attr_info.with_dst_zpoints);
+    kernel_ctx.define_int("SRC_ZPOINT_COMMON", attr_info.common_src_zpoint);
+    kernel_ctx.define_int("DST_ZPOINT_COMMON", attr_info.common_dst_zpoint);
+    kernel_ctx.define_int(
+            "WITH_SRC_ZPOINTS_PER_IC", attr_info.with_per_ic_src_zpoints);
+    kernel_ctx.define_int(
+            "WITH_DST_ZPOINTS_PER_OC", attr_info.with_per_oc_dst_zpoints);
+
     def_eltwise_alg_kinds(kernel_ctx);
 
     def_post_ops_cfg(kernel_ctx, attr_info.all_post_ops);

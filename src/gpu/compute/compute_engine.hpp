@@ -93,9 +93,27 @@ public:
 
     virtual bool mayiuse_ngen_kernels() { return false; }
 
+    status_t get_service_stream(stream_t *&stream) override {
+        status_t status = status::success;
+        if (service_stream_ == nullptr) {
+            const std::lock_guard<std::mutex> lock(service_stream_mutex_);
+            if (service_stream_ == nullptr) {
+                stream_t *service_stream_ptr;
+                status = create_stream(&service_stream_ptr,
+                        stream_flags::default_flags, nullptr);
+                if (status == status::success)
+                    service_stream_.reset(service_stream_ptr);
+            }
+        }
+        stream = service_stream_.get();
+        return status;
+    }
+
 private:
     std::unique_ptr<device_info_t> device_info_;
     std::shared_ptr<primitive_t> zero_pad_primitive_;
+    std::unique_ptr<stream_t> service_stream_;
+    std::mutex service_stream_mutex_;
 };
 
 } // namespace compute

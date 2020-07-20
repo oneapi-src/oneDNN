@@ -42,7 +42,7 @@ protected:
         bool is_int8 = utils::one_of(
                 invariant_src_md()->data_type, data_type::s8, data_type::u8);
 
-        for (int i = 0; i < p.len_; ++i) {
+        for (int i = 0; i < p.len(); ++i) {
             if (is_sum(i)) {
                 if (p.entry_[i].sum.dt != dnnl_data_type_undef
                         && types::data_type_size(p.entry_[i].sum.dt)
@@ -51,7 +51,7 @@ protected:
             }
         }
 
-        switch (p.len_) {
+        switch (p.len()) {
             case 0: return true; // no post_ops
             case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
             case 2:
@@ -62,6 +62,20 @@ protected:
         }
 
         return false;
+    }
+
+    bool zero_points_ok(const primitive_attr_t *attr) const {
+        using namespace data_type;
+        const auto src_type = invariant_src_md()->data_type;
+        int mask_src = 0, mask_dst = 0;
+        attr->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+        attr->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+
+        return IMPLICATION(!utils::one_of(src_type, s8, u8),
+                       attr->zero_points_.has_default_values())
+                && attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                && (mask_src == 0 || mask_src == 1 << 1)
+                && (mask_dst == 0 || mask_dst == 1 << 1);
     }
 };
 

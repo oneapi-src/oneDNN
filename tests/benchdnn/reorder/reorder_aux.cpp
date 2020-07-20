@@ -36,7 +36,9 @@ const char *alg2str(alg_t alg) {
 }
 
 flag_t str2flag(const char *str) {
-    if (!strcasecmp("conv_s8s8", str))
+    if (!strcasecmp("none", str))
+        return FLAG_NONE;
+    else if (!strcasecmp("conv_s8s8", str))
         return FLAG_CONV_S8S8;
     else if (!strcasecmp("gconv_s8s8", str))
         return FLAG_GCONV_S8S8;
@@ -46,10 +48,10 @@ flag_t str2flag(const char *str) {
 
 const char *flag2str(flag_t flag) {
     switch (flag) {
-        case FLAG_NONE: return "";
+        case FLAG_NONE: return "none";
         case FLAG_CONV_S8S8: return "conv_s8s8";
         case FLAG_GCONV_S8S8: return "gconv_s8s8";
-        default: assert(!"Invalid flag"); return "";
+        default: assert(!"Invalid flag"); return "none";
     }
 }
 

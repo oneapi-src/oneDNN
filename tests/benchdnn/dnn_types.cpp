@@ -206,6 +206,23 @@ int attr_t::zero_points_t::from_str(const char *str, const char **end_s) {
             const size_t arg_name_len = strlen(arg.second);
             if (!strncasecmp(arg.second, s, arg_name_len)) {
                 s += arg_name_len;
+
+                policy_t policy;
+                for (policy_t p = policy_t::COMMON; true;
+                        p = (policy_t)((int)p + 1)) {
+                    if (p == policy_t::POLICY_TOTAL) return FAIL;
+
+                    const char *ps = zero_points_t::policy2str(p);
+                    if (!strncasecmp(ps, s, strlen(ps))) {
+                        policy = p;
+                        s += strlen(ps);
+                        break;
+                    }
+                }
+
+                if (*s != ':') return FAIL;
+                s++;
+
                 char *end = NULL;
                 int zero_point = (int)strtol(s, &end, 10);
                 bool runtime = false;
@@ -215,7 +232,7 @@ int attr_t::zero_points_t::from_str(const char *str, const char **end_s) {
                     runtime = true;
                     ++s;
                 }
-                set(arg.first, {zero_point, runtime});
+                set(arg.first, policy, zero_point, runtime);
             }
         }
 
@@ -228,6 +245,28 @@ int attr_t::zero_points_t::from_str(const char *str, const char **end_s) {
     assert(*s == '\0' || *s == ';');
 
     return OK;
+}
+
+const char *attr_t::zero_points_t::policy2str(policy_t policy) {
+    if (policy == COMMON) return "common";
+    if (policy == PER_DIM_0) return "per_dim_0";
+    if (policy == PER_DIM_1) return "per_dim_1";
+    if (policy == PER_DIM_01) return "per_dim_01";
+    assert(!"unknown attr::zero_points::policy");
+    return "unknown attr::zero_points::policy";
+}
+
+attr_t::zero_points_t::policy_t attr_t::zero_points_t::str2policy(
+        const char *str) {
+#define CASE(_plc) \
+    if (!strcasecmp(STRINGIFY(_plc), str)) return _plc
+    CASE(COMMON);
+    CASE(PER_DIM_0);
+    CASE(PER_DIM_1);
+    CASE(PER_DIM_01);
+#undef CASE
+    assert(!"unknown attr::scale::policy");
+    return COMMON;
 }
 
 int attr_t::arg_scales_t::from_str(const char *str, const char **end_s) {
@@ -355,7 +394,6 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
             ++s;
             return OK;
         }
-        if (len == capacity) return FAIL;
 
         for (const auto &table_entry : kind_table) {
             const auto k = table_entry.kind;
@@ -368,15 +406,11 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
             // Parse until first of valid delimiters is met.
             std::string input_kind(input, 0, input.find_first_of(":;\'"));
             const char *ks = table_entry.kind_name;
-
             if (input_kind.compare(ks) == 0) {
-                auto &e = entry[len];
-
-                e.kind = k;
                 s += strlen(ks);
-                if (k == SUM) {
-                    e.sum.scale = 1.f;
-                    e.sum.dt = dnnl_data_type_undef;
+
+                entry_t e(k);
+                if (e.is_sum_kind()) {
                     if (*s == ':') {
                         char *end;
                         const char *end_dt;
@@ -393,10 +427,6 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
                         }
                     }
                 } else if (e.is_convolution_kind()) {
-                    e.convolution.dst_dt = dnnl_f32;
-                    e.convolution.stride = k == DW_K3S1P1 ? 1 : 2;
-                    e.convolution.oscale = attr_t::scale_t();
-
                     if (*s == ':') ++s;
                     auto *end = s;
                     while (*s && isalnum(*s))
@@ -406,17 +436,11 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
                                 = str2dt(std::string(end, s - end).c_str());
                         if (*s == ':') {
                             ++s;
-                            attr_t::scale_t oscale;
-                            auto rc = oscale.from_str(s, &s);
+                            auto rc = e.convolution.oscale.from_str(s, &s);
                             if (rc != OK) return rc;
-                            e.convolution.oscale = oscale;
                         }
                     }
                 } else if (e.is_eltwise_kind()) {
-                    e.eltwise.alg = kind2dnnl_kind(k);
-                    e.eltwise.scale = 1.f;
-                    e.eltwise.alpha = e.eltwise.beta = 0.f;
-
                     for (int i = 0; i < 3; ++i) {
                         // :alpha:beta:scale
                         float &val = i == 0
@@ -430,15 +454,14 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
                         } else {
                             break;
                         }
+                        if (e.eltwise.scale <= 0) return FAIL;
                     }
-
-                    if (e.eltwise.scale <= 0) return FAIL;
                 }
 
+                entry.push_back(e);
                 break;
             }
         }
-        ++len;
 
         if (*s == ';') ++s;
     }
@@ -452,31 +475,33 @@ bool attr_t::is_def() const {
 }
 
 int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
-    if (stop == -1) stop = len;
-    stop = MIN2(stop, len);
+    if (stop == -1) stop = len();
+    stop = MIN2(stop, len());
     for (int idx = start; idx < stop; ++idx)
         if (entry[idx].kind == kind) return idx;
     return -1;
 }
 
+bool attr_t::post_ops_t::entry_t::is_sum_kind() const {
+    return kind == SUM;
+}
+bool attr_t::post_ops_t::entry_t::is_convolution_kind() const {
+    return kind == DW_K3S1P1 || kind == DW_K3S2P1;
+}
 bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
-    return kind > pk_t::ELTWISE_START && kind < pk_t::ELTWISE_END;
+    return kind > ELTWISE_START && kind < ELTWISE_END;
 }
 
 int attr_t::post_ops_t::eltwise_index() const {
-    for (int i = 0; i < len; ++i) {
-        if (attr_t::post_ops_t::entry[i].is_eltwise_kind()) return i;
+    for (int i = 0; i < len(); ++i) {
+        if (entry[i].is_eltwise_kind()) return i;
     }
     return -1;
 }
 
-bool attr_t::post_ops_t::entry_t::is_convolution_kind() const {
-    return kind == pk_t::DW_K3S1P1 || kind == pk_t::DW_K3S2P1;
-}
-
 int attr_t::post_ops_t::convolution_index() const {
-    for (int i = 0; i < len; ++i) {
-        if (attr_t::post_ops_t::entry[i].is_convolution_kind()) return i;
+    for (int i = 0; i < len(); ++i) {
+        if (entry[i].is_convolution_kind()) return i;
     }
     return -1;
 }
@@ -544,6 +569,12 @@ std::ostream &operator<<(std::ostream &s, const policy_t &policy) {
     return s;
 }
 
+std::ostream &operator<<(
+        std::ostream &s, const attr_t::zero_points_t::policy_t &policy) {
+    s << attr_t::zero_points_t::policy2str(policy);
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale) {
     s << scale.policy << ":" << scale.scale;
     if (scale.runtime) s << '*';
@@ -557,7 +588,8 @@ std::ostream &operator<<(
         if (!first) s << '_';
         first = false;
 
-        s << arg2str.at(point.first) << point.second.value;
+        s << arg2str.at(point.first) << point.second.policy << ":"
+          << point.second.value;
         if (point.second.runtime) s << '*';
     }
 
@@ -584,13 +616,13 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k) {
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
     s << "'";
 
-    for (int idx = 0; idx < post_ops.len; ++idx) {
+    for (int idx = 0; idx < post_ops.len(); ++idx) {
         if (idx > 0) s << ";";
 
         const auto &e = post_ops.entry[idx];
         s << e.kind;
 
-        if (e.kind == pk_t::SUM) {
+        if (e.is_sum_kind()) {
             if (e.sum.scale != 1.0f || e.sum.dt != dnnl_data_type_undef)
                 s << ":" << e.sum.scale;
             if (e.sum.dt != dnnl_data_type_undef) s << ":" << e.sum.dt;
@@ -631,13 +663,19 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
 }
 
 std::ostream &dump_global_params(std::ostream &s) {
+    s << "--" << driver_name << " ";
+    if (canonical) s << "--canonical=" << bool2str(canonical) << " ";
     if (canonical || engine_tgt_kind != dnnl_cpu)
         s << "--engine=" << engine_kind2str(engine_tgt_kind) << " ";
     if (canonical || scratchpad_mode != dnnl_scratchpad_mode_library)
         s << "--attr-scratchpad=" << scratchpad_mode2str(scratchpad_mode)
           << " ";
+    if (canonical || fast_ref_gpu != true)
+        s << "--fast-ref-gpu=" << bool2str(fast_ref_gpu) << " ";
+    if (!skip_impl.empty()) s << "--skip-impl=" << skip_impl << " ";
+    if (canonical || mem_check != true)
+        s << "--mem-check=" << bool2str(mem_check) << " ";
 
-    s << "--" << driver_name << " ";
     return s;
 }
 
@@ -723,20 +761,27 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
 
     if (!attr.zero_points.is_def()) {
         for (const auto &zero_points : attr.zero_points) {
+            const bool runtime = zero_points.second.runtime;
+            const auto mask = zero_points.second.policy
+                            == attr_t::zero_points_t::policy_t::PER_DIM_1
+                    ? 1 << 1
+                    : 0;
+            SAFE_V((runtime == true || mask == 0) ? OK : FAIL);
+
             DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(dnnl_attr,
-                    zero_points.first,
-                    /* count */ 1, /* mask */ 0,
-                    zero_points.second.runtime ? &DNNL_RUNTIME_S32_VAL
-                                               : &zero_points.second.value));
+                    zero_points.first, /* count */ 1, mask,
+                    runtime ? &DNNL_RUNTIME_S32_VAL
+                            : &zero_points.second.value));
         }
     }
 
     if (!attr.post_ops.is_def()) {
+        const auto &po = attr.post_ops;
         dnnl_post_ops_t ops;
         DNN_SAFE_V(dnnl_post_ops_create(&ops));
-        for (int idx = 0; idx < attr.post_ops.len; ++idx) {
-            const auto &e = attr.post_ops.entry[idx];
-            if (e.kind == pk_t::SUM) {
+        for (int idx = 0; idx < po.len(); ++idx) {
+            const auto &e = po.entry[idx];
+            if (e.is_sum_kind()) {
                 DNN_SAFE_V(dnnl_post_ops_append_sum_v2(
                         ops, e.sum.scale, e.sum.dt));
             } else if (e.is_eltwise_kind()) {
@@ -750,7 +795,7 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
 
         const_dnnl_post_ops_t c_ops;
         DNN_SAFE_V(dnnl_primitive_attr_get_post_ops(dnnl_attr, &c_ops));
-        SAFE_V(dnnl_post_ops_len(c_ops) == attr.post_ops.len ? OK : FAIL);
+        SAFE_V(dnnl_post_ops_len(c_ops) == po.len() ? OK : FAIL);
 
         DNN_SAFE_V(dnnl_post_ops_destroy(ops));
     }
@@ -865,6 +910,18 @@ void maybe_oscale(const attr_t &attr, float &d, float *scales, int64_t oc) {
     }
 }
 
+void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
+        int64_t c, int arg, bool opposite_zero_point) {
+    const auto &e = attr.zero_points.get(arg);
+
+    if (!attr.zero_points.is_def(arg)) {
+        const int zp_mult_idx
+                = e.policy == attr_t::zero_points_t::policy_t::COMMON ? 0 : 1;
+        const int zp_sign = opposite_zero_point ? -1 : 1;
+        d -= zp_sign * zero_points[c * zp_mult_idx];
+    }
+}
+
 float compute_eltwise_fwd(
         pk_t kind, float src, float scale, float alpha, float beta) {
     using namespace dnnl::impl::math;
@@ -954,11 +1011,11 @@ float compute_binary(pk_t kind, float src0, float src1) {
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val) {
     using namespace dnnl::impl::math;
 
-    const auto &ops = attr.post_ops;
-    for (int idx = 0; idx < ops.len; ++idx) {
-        const auto &e = ops.entry[idx];
+    const auto &po = attr.post_ops;
+    for (int idx = 0; idx < po.len(); ++idx) {
+        const auto &e = po.entry[idx];
 
-        if (e.kind == pk_t::SUM) {
+        if (e.is_sum_kind()) {
             val += e.sum.scale * sum_val;
         } else if (e.is_convolution_kind()) {
             continue;

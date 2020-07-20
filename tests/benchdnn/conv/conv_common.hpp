@@ -116,16 +116,17 @@ struct settings_t {
     std::vector<int64_t> mb {0};
     std::vector<alg_t> alg {DIRECT};
     std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
+    std::vector<attr_t::zero_points_t> zero_points {attr_t::zero_points_t()};
     std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     attr_t attr = {};
     const char *pattern = NULL;
 
     const char *perf_template_csv
-            = "perf,%engine%,%name%,%dir%,%cfg%,%alg%,%attr%,%DESC%,"
+            = "perf,%engine%,%impl%,%name%,%dir%,%cfg%,%alg%,%attr%,%DESC%,"
               "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
     const char *perf_template_def
-            = "perf,%engine%,%name%,%prb%,"
-              "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+            = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-"
+              "Gflops%,%0time%,%0Gflops%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
@@ -133,6 +134,8 @@ struct settings_t {
 
 // moved out of prb_t to support fusion
 float *generate_oscales(const attr_t::scale_t &oscale, int N);
+int32_t *generate_zero_points(
+        int arg, const attr_t::zero_points_t &zero_points, int N);
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
@@ -149,13 +152,19 @@ struct prb_t : public desc_t {
         , attr(attr)
         , ops(0)
         , scales(NULL)
+        , src_zp(NULL)
+        , dst_zp(NULL)
         , is_deconv(is_deconv) {
         if (mb) this->mb = mb;
         count_ops();
         scales = generate_oscales(attr.oscale, oc);
+        src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, ic);
+        dst_zp = generate_zero_points(DNNL_ARG_DST, attr.zero_points, oc);
     }
     ~prb_t() {
         if (scales) zfree(scales);
+        if (src_zp) zfree(src_zp);
+        if (dst_zp) zfree(dst_zp);
     }
 
     dir_t dir;
@@ -166,6 +175,8 @@ struct prb_t : public desc_t {
 
     double ops;
     float *scales;
+    int32_t *src_zp;
+    int32_t *dst_zp;
     bool is_deconv;
 
     void count_ops();
@@ -179,6 +190,9 @@ struct perf_report_t : public base_perf_report_t {
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
+        stag_ = {fmt_tag2str(convert_tag(p_->stag, p_->ndims))};
+        wtag_ = fmt_tag2str(convert_tag(p_->wtag, p_->ndims));
+        dtag_ = fmt_tag2str(convert_tag(p_->dtag, p_->ndims));
         base_report(r, prb_str);
     }
 
@@ -210,9 +224,14 @@ struct perf_report_t : public base_perf_report_t {
     const attr_t *attr() const override { return &p_->attr; }
     const char *name() const override { return p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
+    const std::vector<std::string> *stag() const override { return &stag_; }
+    const std::string *wtag() const override { return &wtag_; }
+    const std::string *dtag() const override { return &dtag_; }
 
 private:
     const prb_t *p_ = NULL;
+    std::vector<std::string> stag_;
+    std::string wtag_, dtag_;
 };
 
 inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t g, int64_t ic,

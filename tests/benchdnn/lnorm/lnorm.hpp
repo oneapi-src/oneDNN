@@ -62,10 +62,10 @@ struct settings_t {
     const char *pattern = NULL;
 
     const char *perf_template_csv
-            = "perf,%engine%,%dir%,%dt%,%tag%,%stat_tag%,%flags%,%DESC%,"
+            = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%stat_tag%,%flags%,%DESC%,"
               "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
     const char *perf_template_def
-            = "perf,%engine%,%prb%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+            = "perf,%engine%,%impl%,%prb%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
@@ -126,6 +126,8 @@ struct perf_report_t : public base_perf_report_t {
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
+        tag_ = fmt_tag2str(convert_tag(p_->tag, p_->ndims));
+        stat_tag_ = fmt_tag2str(convert_tag(p_->stat_tag, p_->ndims - 1));
         base_report(r, prb_str);
     }
 
@@ -140,11 +142,12 @@ struct perf_report_t : public base_perf_report_t {
     double ops() const override { return p_->ops; }
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    const std::string *tag() const override { return &p_->tag; }
-    const std::string *stat_tag() const override { return &p_->stat_tag; }
+    const std::string *tag() const override { return &tag_; }
+    const std::string *stat_tag() const override { return &stat_tag_; }
 
 private:
     const prb_t *p_ = NULL;
+    std::string tag_, stat_tag_;
 };
 
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,

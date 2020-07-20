@@ -666,6 +666,11 @@ inline bool is_runtime_value(int val) {
     return val == DNNL_RUNTIME_S32_VAL;
 }
 
+/** returns true if dim_t value denotes DNNL_RUNTIME_DIM_VAL */
+inline bool is_runtime_value(dim_t val) {
+    return val == DNNL_RUNTIME_DIM_VAL;
+}
+
 } // namespace impl
 } // namespace dnnl
 

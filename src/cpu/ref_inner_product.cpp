@@ -52,7 +52,7 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type,
     const int ndims = src_d.ndims() - 2;
 
     const auto &post_ops = pd()->attr()->post_ops_;
-    const bool do_relu = post_ops.len_ == 1;
+    const bool do_relu = post_ops.len() == 1;
     const float nslope = do_relu ? post_ops.entry_[0].eltwise.alpha : 0.f;
 
     auto ker_has_spatial = [=](int mb, int oc) {

@@ -66,13 +66,13 @@ private:
 
     using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx, Ymm,
             Zmm>::type;
-    Xmm xreg(int idx) {
-        return Xmm((utils::one_of(isa, avx512_common, avx512_core) ? 31 : 15)
-                - idx);
+    int reg_idx(int idx) {
+        return (utils::one_of(isa, avx512_common, avx512_core) ? 31 : 15) - idx;
     }
-    Ymm yreg(int idx) { return Ymm(xreg(idx).getIdx()); }
-    Zmm zreg(int idx) { return Zmm(xreg(idx).getIdx()); }
-    Vmm vreg(int idx) { return Vmm(xreg(idx).getIdx()); }
+    Xmm xreg(int idx) { return Xmm(reg_idx(idx)); }
+    Ymm yreg(int idx) { return Ymm(reg_idx(idx)); }
+    Zmm zreg(int idx) { return Zmm(reg_idx(idx)); }
+    Vmm vreg(int idx) { return Vmm(reg_idx(idx)); }
 
     const Xbyak::AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx) ? yword : zword;
@@ -81,8 +81,8 @@ private:
     Ymm ymm_tmp_1 = Ymm(0);
     Vmm vmm_tmp_1 = Vmm(0);
 
-    Xmm x_padd_mask = Xmm(1);
-    Xmm x_padd_mask_avx_high = Xmm(4);
+    // Used only for avx and if c tail is present
+    Vmm vmm_c_tail_mask = Vmm(2);
 
     Xmm xmm_ker_area_h = Xmm(2);
     Xmm xmm_one = Xmm(2);
@@ -95,6 +95,7 @@ private:
 
     Vmm vmm_k_offset = Vmm(1);
 
+    // Used only for avx512 when bf16 is present
     inline Vmm vmm_idx() {
         if (!jpp.is_backward) {
             return (jpp.is_training) ? Vmm(4) : Vmm(1);
@@ -108,10 +109,9 @@ private:
     Reg64 bf16_emu_reserv_4 = r11;
     Zmm bf16_emu_reserv_5 = Zmm(8);
 
-    Opmask k_index_mask = Opmask(6);
-    Opmask k_store_mask = Opmask(7);
+    Opmask k_c_tail_mask = Opmask(4);
     Opmask k_mask_cvt = Opmask(5);
-    Opmask k_padd_mask = Opmask(4);
+    Opmask k_store_mask = Opmask(6);
 
     // Here be some (tame) dragons. This kernel does not follow the regular
     // OS-agnostic ABI pattern because when isa is sse41 it uses maskmovdqu
@@ -154,42 +154,48 @@ private:
     void (*jit_ker)(jit_pool_call_s *);
 
     void prepare_tail_mask();
-    void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r);
-    void avg_step(int ur_w, int ur_bc, int pad_l, int pad_r);
-    void max_step_fwd(int ur_w, int ur_bc, int pad_l, int pad_r);
-    void max_step_bwd(int ur_w, int ur_bc, int pad_l, int pad_r);
+    void put_one_in_vmm();
+    void uni_broadcast_reg_val(const int reg_idx, const int vmm_idx);
+    void push_vmm_val(const int idx);
+    void pop_vmm_val(const int idx);
+    void load(const int idx, const reg64_t &reg_ptr, const int offset,
+            const bool is_c_tail_proccessing);
+    void store(const int idx, const reg64_t &reg_ptr, const int offset,
+            const bool is_c_tail_proccessing);
 
-    void zero_diff_src(int ur_bc);
+    void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r,
+            bool with_c_tail_proccessing);
+    void avg_step(int ur_w, int ur_bc, int pad_l, int pad_r,
+            bool with_c_tail_proccessing);
+    void max_step_fwd(int ur_w, int ur_bc, int pad_l, int pad_r,
+            bool with_c_tail_proccessing);
+    void max_step_bwd(int ur_w, int ur_bc, int pad_l, int pad_r,
+            bool with_c_tail_proccessing);
 
-    void load(int idx, reg64_t reg_ptr, int offset) {
-        if (jpp.is_bf16) {
-            /*TODO: maybe use vpmovzxwd + vpslld,
-             * in order to free up vmm_idx() register */
-            vmovups(yreg(idx), ptr[reg_ptr + offset]);
-            vpermw(vreg(idx) | k_mask_cvt | T_z, vmm_idx(), vreg(idx));
-        } else {
-            uni_vmovups(vreg(idx), ptr[reg_ptr + offset]);
-        }
-    };
+    void zero_diff_src(int ur_bc, bool with_c_tail_proccessing);
 
-    void step(int ur_w, int ur_bc, int pad_l, int pad_r) {
+    void step(int ur_w, int ur_bc, int pad_l, int pad_r,
+            bool with_c_tail_proccessing) {
         if (jpp.alg == alg_kind::pooling_max) {
             if (jpp.is_backward)
-                max_step_bwd(ur_w, ur_bc, pad_l, pad_r);
+                max_step_bwd(
+                        ur_w, ur_bc, pad_l, pad_r, with_c_tail_proccessing);
             else
-                max_step_fwd(ur_w, ur_bc, pad_l, pad_r);
+                max_step_fwd(
+                        ur_w, ur_bc, pad_l, pad_r, with_c_tail_proccessing);
         } else
-            avg_step(ur_w, ur_bc, pad_l, pad_r);
+            avg_step(ur_w, ur_bc, pad_l, pad_r, with_c_tail_proccessing);
     }
 
-    void step_high_half(int ur_w, int ur_bc, int pad_l, int pad_r) {
+    void step_high_half(int ur_w, int ur_bc, int pad_l, int pad_r,
+            bool with_c_tail_processing) {
         add(reg_input, sizeof(float) * 4);
         add(reg_output, sizeof(float) * 4);
         if (jpp.alg == alg_kind::pooling_max
                 && (jpp.is_training || jpp.is_backward))
             add(reg_index, types::data_type_size(jpp.ind_dt) * 4);
 
-        step(ur_w, ur_bc, pad_l, pad_r);
+        step(ur_w, ur_bc, pad_l, pad_r, with_c_tail_processing);
     }
 
     void generate();

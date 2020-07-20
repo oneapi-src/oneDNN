@@ -33,6 +33,8 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_stag_ : s.stag)
     for_(const auto &i_dtag : s.dtag)
     for (const auto &i_axis : s.axis) {
+        // if dst is omitted by dtag = tag::undef, omit ddt as well
+        auto ddt = i_dtag == tag::undef ? dnnl_data_type_undef : i_ddt;
 
         // broadcast tag if needed
         auto i_stag = i_stag_;
@@ -41,7 +43,7 @@ void check_correctness(const settings_t &s) {
         if (s.sdims.size() != i_stag.size()) // want 1:1 match of sdims and tag
             SAFE_V(FAIL);
 
-        const prb_t p(s.sdims, i_sdt, i_ddt, i_stag, i_dtag, i_axis);
+        const prb_t p(s.sdims, i_sdt, ddt, i_stag, i_dtag, i_axis);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();

@@ -66,7 +66,7 @@ int fill_memory(const prb_t *p, data_kind_t kind, dnn_mem_t &mem,
         };
 
         const int rng = kind == SRC ? (idx % 7) : ((idx * 8 / 7) % 7);
-        mem.set_elem(idx, maybe_saturate(dt, gen[rng]));
+        mem.set_elem(idx, round_to_nearest_representable(dt, gen[rng]));
     }
 
     return OK;
@@ -75,8 +75,7 @@ int fill_memory(const prb_t *p, data_kind_t kind, dnn_mem_t &mem,
 int fill_memory_extra(const prb_t *p, dnnl_memory_extra_desc_t &extra) {
     extra.flags = dnnl_memory_extra_flag_none;
 
-    if (p->alg == ALG_BOOT
-            && (p->oflag == FLAG_CONV_S8S8 || p->oflag == FLAG_GCONV_S8S8)) {
+    if (p->is_reorder_with_compensation()) {
         int with_groups = p->oflag == FLAG_GCONV_S8S8 ? 1 : 0;
         extra.flags = dnnl_memory_extra_flag_compensation_conv_s8s8;
         extra.compensation_mask = (1 << 0) + with_groups * (1 << 1);
@@ -108,9 +107,9 @@ int ref_reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 
         const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
         const float alpha = attr_bundle.oscale[scale_idx];
+        const float value = alpha * s + beta * d + dst_zero_point;
 
-        dst.set_elem(idx,
-                maybe_saturate(dst_dt, alpha * s + beta * d + dst_zero_point));
+        dst.set_elem(idx, round_to_nearest_representable(dst_dt, value));
     }
 
     return OK;
@@ -120,6 +119,8 @@ int compare_bootstrap(dnn_mem_t &mem_ref, dnn_mem_t &mem_got, res_t *r) {
     bool ok = false;
     // demand bit-wise identical results
     const auto size_ref = mem_ref.size();
+    if (size_ref == 0) return r->state = PASSED, OK;
+
     if (size_ref == mem_got.size())
         ok = !memcmp((void *)mem_ref, (void *)mem_got, size_ref);
 
@@ -133,8 +134,10 @@ int compare_bootstrap(dnn_mem_t &mem_ref, dnn_mem_t &mem_got, res_t *r) {
 static int compare(const prb_t *p, const dnn_mem_t &mem_ref,
         const dnn_mem_t &mem_got, const attr_bundle_t &attr_bundle, res_t *r) {
     const auto nelems = mem_got.nelems();
-    r->errors = 0;
+    if (nelems == 0) return r->state = PASSED, OK;
+
     r->total = nelems;
+
     int64_t inf_p = 0, inf_n = 0, zeros = 0, reg = 0;
 
     const auto dt_out = mem_ref.dt();
@@ -256,7 +259,45 @@ static int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common({p->conf_in->dt, p->conf_out->dt}, r);
+    const auto sdt = p->conf_in->dt;
+    const auto ddt = p->conf_out->dt;
+    check_known_skipped_case_common({sdt, ddt}, FWD_D, r);
+    if (r->state == SKIPPED) return;
+
+    // zero points for dst do not support sum by design
+    if (!p->attr.zero_points.is_def(DNNL_ARG_DST)
+            && p->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
+    if (p->is_reorder_with_compensation()) {
+        // compensation is supported for dst_dt = s8 so far
+        // compensation does not support any attributes or runtime dims
+        if (ddt != dnnl_s8 || !p->attr.is_def() || p->runtime_dim_mask != 0) {
+            r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
+
+    // bf16 reorder on cpu supports only bf16/f32 src_dt/dst_dt
+    if (engine_tgt_kind == dnnl_cpu
+            && (!IMPLICATION(
+                        sdt == dnnl_bf16, ddt == dnnl_f32 || ddt == dnnl_bf16)
+                    || !IMPLICATION(ddt == dnnl_bf16,
+                            sdt == dnnl_f32 || sdt == dnnl_bf16))) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
+    if (engine_tgt_kind == dnnl_gpu) {
+        // GPU does not support run-time dims and zero-points
+        if (p->runtime_dim_mask != 0 || !p->attr.zero_points.is_def()
+                || p->attr.oscale.runtime) {
+            r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 int doit(const prb_t *p, res_t *r) {
@@ -381,7 +422,7 @@ int doit(const prb_t *p, res_t *r) {
 
     /* Step 6: check correctness */
     if (bench_mode & CORR) {
-        if (p->alg == ALG_BOOT) {
+        if (p->is_reorder_with_compensation()) {
             /* "bootstrap" algorithm: compare to another oneDNN reorder. use
              * this when benchdnn does not know about all details of the data
              * layout, as is the case for compensated weights formats. */

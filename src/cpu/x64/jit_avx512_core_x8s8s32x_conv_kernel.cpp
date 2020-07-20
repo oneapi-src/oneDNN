@@ -942,7 +942,7 @@ bool jit_avx512_core_x8s8s32x_fwd_kernel::post_ops_ok(
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
 
-    switch (p.len_) {
+    switch (p.len()) {
         case 0: return true;
         case 1: return is_eltwise(0) || p.contain(sum, 0);
         case 2:

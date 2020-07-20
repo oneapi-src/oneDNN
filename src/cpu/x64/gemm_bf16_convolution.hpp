@@ -68,10 +68,10 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
         bool is_postprocess_required() const {
             bool post_ops_sum_only_for_dst_f32 = true
                     && dst_data_type == data_type::f32
-                    && attr()->post_ops_.len_ == 1
+                    && attr()->post_ops_.len() == 1
                     && attr()->post_ops_.contain(primitive_kind::sum, 0);
             bool is_pp_for_post_ops_required = true
-                    && attr()->post_ops_.len_ > 0
+                    && attr()->post_ops_.len() > 0
                     && !post_ops_sum_only_for_dst_f32;
             return dst_data_type == data_type::bf16 || with_bias()
                     || is_pp_for_post_ops_required;
@@ -86,7 +86,7 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
                     = [&](int idx) { return po.entry_[idx].is_eltwise(); };
             auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
 
-            switch (po.len_) {
+            switch (po.len()) {
                 case 0: return true; // no post_ops
                 case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
                 case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise

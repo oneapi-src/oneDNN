@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+#define AOC array_offset_calculator
 
 using namespace dnnl::impl::utils;
 using namespace prop_kind;
@@ -61,6 +62,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.is_training = utils::one_of(
             rd.prop_kind, prop_kind::forward_training, prop_kind::backward);
     rnn.is_lbr = rd.cell_kind == dnnl_lbr_gru;
+    rnn.is_vanilla_gru = rd.cell_kind == dnnl_vanilla_gru;
 
     switch (rd.direction) {
         case dnnl_unidirectional_left2right: rnn.exec_dir = l2r; break;
@@ -113,14 +115,14 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.states_nld = rnn.mb;
 
     // Set the correct number of weights parts
-    bool is_orig_gru = rd.cell_kind == alg_kind::vanilla_gru;
     rnn.n_parts_weights_layer = 1;
     rnn.parts_weights_layer[0] = rnn.n_gates;
     rnn.parts_weights_layer[1] = 0;
 
-    rnn.n_parts_weights_iter = is_orig_gru ? 2 : 1;
-    rnn.parts_weights_iter[0] = is_orig_gru ? 2 : rnn.n_gates;
-    rnn.parts_weights_iter[1] = is_orig_gru ? 1 : 0;
+    //there are two parts for VANILLA GRU weights iteration
+    rnn.n_parts_weights_iter = rnn.is_vanilla_gru ? 2 : 1;
+    rnn.parts_weights_iter[0] = rnn.is_vanilla_gru ? 2 : rnn.n_gates;
+    rnn.parts_weights_iter[1] = rnn.is_vanilla_gru ? 1 : 0;
 
     rnn.n_parts_bias = 1;
     rnn.parts_bias[0] = rnn.n_bias;
@@ -129,7 +131,7 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     bool is_gru = utils::one_of(
             rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
 
-    // Decide if to merge gemm across iterations
+    // Decide if to merge gemm across iterations or layers
     auto src_layer_ld = src_layer_d.blocking_desc().strides[1];
     auto dst_layer_ld = dst_layer_d.blocking_desc().strides[1];
     auto src_layer_is_trivial_stride
@@ -229,7 +231,8 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             ? sizeof(cl_float)
             : rnn.dt_conf == all_f16 || rnn.dt_conf == all_bf16
                     ? sizeof(cl_half)
-                    : sizeof(int32_t);
+                    : rnn.dt_conf == u8u8u8u8 ? sizeof(int8_t)
+                                              : sizeof(int32_t);
 
     rnn.ws_c_states_elsz = (rnn.dt_conf == all_f32 || rnn.dt_conf == all_bf16)
             ? sizeof(float)
@@ -282,7 +285,6 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.ws_grid_comp_size = (size_t)rnn.is_lbr * rnn.is_training * rnn.n_layer
             * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell * aux_elsz;
 }
-
 int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
     // we want matrices leading dimentions to be 64-byte aligned,
     // and not divisible by 256 to avoid 4K aliasing effects
@@ -296,11 +298,14 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &scratch_cell_offset, size_t &ws_bias_offset,
         size_t &scratch_gates_offset, size_t &scratchpad_size,
         size_t &workspace_size) {
-    const size_t page_size = 4096; // 2097152;
+
+    const size_t page_size = 4096;
     size_t current_offset;
+
     // Mandatory workspaces: go to workspace if use_workspace, scratchpad
-    // otherwise
-    current_offset = 0; // assumes the workspace base pointer is page aligned
+    // otherwise assumes the workspace base pointer is page aligned
+
+    current_offset = 0;
     ws_gates_offset = current_offset;
     current_offset += rnn.ws_gates_size;
 
@@ -355,6 +360,118 @@ void rnn_utils::get_scratchpad_and_workspace_sizes(
             workspace_size);
 }
 
+void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int dir, int lay,
+        data_type_t src_t, size_t *wei_layer_off_ptr,
+        const size_t &ws_states_offset_, size_t &grid_ws_lay_offset,
+        size_t &grid_wei_lay_offset, size_t &grid_ws_iter_offset) {
+    // Function overloaded. This function is called by grid execution
+    int n_layer = rnn.n_layer;
+    int n_dir = rnn.n_dir;
+
+    AOC<size_t, 3> off_weights_lay(
+            wei_layer_off_ptr, n_layer, n_dir, rnn.n_parts_weights_layer);
+
+    grid_wei_lay_offset = off_weights_lay(lay, dir, 0);
+    grid_ws_lay_offset = (cl_ulong)(ws_states_offset_
+            + OFF4(lay, n_layer + 1, dir, n_dir, 1, rnn.n_iter + 1, 0,
+                      rnn.mb * rnn.states_ws_ld)
+                    * types::data_type_size(src_t));
+    grid_ws_iter_offset = (cl_ulong)(ws_states_offset_
+            + OFF4(lay + 1, rnn.n_layers + 1, dir, rnn.n_dir, 0, rnn.n_iter + 1,
+                      0, rnn.mb * rnn.states_ws_ld)
+                    * types::data_type_size(src_t));
+    UNUSED(n_layer);
+}
+
+void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int iter, int dir,
+        int lay, data_type_t src_t, size_t *wei_iter_off_ptr,
+        const size_t &ws_states_offset_, size_t &cell_ws_iter_offset,
+        size_t &cell_ws_lay_offset, size_t &cell_scratch_offset,
+        size_t &cell_wei_iter_offset) {
+    int n_layers = rnn.n_layer;
+    int batch = rnn.mb;
+    int n_iter = rnn.n_iter;
+    int n_dir = rnn.n_dir;
+
+    if (wei_iter_off_ptr) {
+        AOC<size_t, 3> off_weights_iter(wei_iter_off_ptr, rnn.n_layer,
+                rnn.n_dir, rnn.n_parts_weights_iter);
+        cell_wei_iter_offset = off_weights_iter(lay, dir, 0);
+    }
+
+    cell_scratch_offset = (rnn.merge_gemm_iter || rnn.merge_gemm_layer)
+            ? (cl_ulong)(
+                    OFF2(iter, n_iter, 0, rnn.gates_nld * rnn.scratch_gates_ld)
+                    * rnn.scratch_gates_elsz)
+            : (size_t)0;
+    cell_ws_iter_offset = (cl_ulong)(ws_states_offset_
+            + OFF4(lay + 1, n_layers + 1, dir, n_dir, iter, n_iter + 1, 0,
+                      batch * rnn.states_ws_ld)
+                    * types::data_type_size(src_t));
+    cell_ws_lay_offset = (cl_ulong)(ws_states_offset_
+            + OFF4(lay, n_layers + 1, dir, n_dir, iter + 1, n_iter + 1, 0,
+                      batch * rnn.states_ws_ld)
+                    * types::data_type_size(src_t));
+    UNUSED(n_layers);
+}
+
+void rnn_utils::update_gru_offsets(const conf_t &rnn, int iter, int dir,
+        int lay, data_type_t src_t, size_t *wei_iter_off_ptr,
+        const size_t &ws_states_offset_, size_t &cell_wei_iter_offset,
+        size_t &cell_scratch_offset, size_t &cell_ws_iter_offset) {
+
+    AOC<size_t, 3> off_weights_iter(
+            wei_iter_off_ptr, rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_iter);
+    cell_wei_iter_offset = off_weights_iter(lay, dir, 1);
+    cell_scratch_offset += 2 * rnn.dhc * rnn.scratch_gates_elsz;
+    cell_ws_iter_offset = (cl_ulong)(ws_states_offset_
+            + OFF4(lay + 1, rnn.n_layers + 1, dir, rnn.n_dir, iter + 1,
+                      rnn.n_iter + 1, 0, rnn.mb * rnn.states_ws_ld)
+                    * types::data_type_size(src_t));
+}
+
+void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,
+        int lay, const size_t &ws_diff_states_off_,
+        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
+        size_t &cell_diff_ws_lay_off) {
+    // Function overloaded. This function is called by grid execution and it
+    // then calls set_offsets_bwd_gemm which is otherwise called in cell exec
+    cl_ulong dummy_var;
+    set_offsets_bwd_gemm(rnn, iter, dir, lay, ws_diff_states_off_,
+            cell_diff_wei_iter_off, cell_diff_wei_lay_off, cell_diff_ws_lay_off,
+            dummy_var);
+}
+
+void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,
+        int lay, const size_t &ws_diff_states_off_,
+        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
+        size_t &cell_diff_ws_lay_off, size_t &cell_diff_ws_iter_off) {
+    int n_layers = rnn.n_layer;
+    int batch = rnn.mb;
+    int n_iter = rnn.n_iter;
+    int n_dir = rnn.n_dir;
+    int n_states = rnn.n_states;
+
+    cell_diff_ws_iter_off = ws_diff_states_off_
+            + OFF5(lay, n_layers + 1, dir, n_dir, 0, n_states + 1, iter,
+                      n_iter + 1, 0, rnn.states_nld * rnn.diff_states_ws_ld)
+                    * sizeof(float);
+    cell_diff_ws_lay_off = ws_diff_states_off_
+            + OFF5(lay, n_layers + 1, dir, n_dir, n_states, n_states + 1, iter,
+                      n_iter + 1, 0, rnn.states_nld * rnn.diff_states_ws_ld)
+                    * sizeof(float);
+    cell_diff_wei_lay_off
+            = OFF3(lay, n_layers, dir, n_dir, 0,
+                      rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ld)
+            * sizeof(float);
+    cell_diff_wei_iter_off
+            = OFF3(lay, n_layers, dir, n_dir, 0,
+                      rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld)
+            * sizeof(float);
+    UNUSED(n_layers);
+    UNUSED(batch);
+}
+
 status_t rnn_utils::set_good_strides(
         memory_desc_t &weights_md, format_tag_t tag) {
     auto &strides = weights_md.format_desc.blocking.strides;
@@ -381,19 +498,15 @@ status_t rnn_utils::set_good_strides(
 status_t rnn_utils::set_expected_desc(
         conf_t &rnn, memory_desc_t &weights_md, bool is_iter) {
     using namespace format_tag;
-    bool use_packed_gemm = false;
-    if (use_packed_gemm) {
-        // TBD
-    } else {
-        CHECK(memory_desc_init_by_tag(weights_md, rnn.is_fwd ? ldigo : ldgoi));
-        // Adjust strides for good leading dimension in GEMM
-        CHECK(set_good_strides(weights_md, rnn.is_fwd ? ldigo : ldgoi));
-        // set we need extra memory
-        if (rnn.is_fwd && !one_of(rnn.dt_conf, all_f32, all_f16, all_bf16)) {
-            weights_md.extra.flags
-                    = memory_extra_flags::gpu_rnn_u8s8_compensation;
-            weights_md.extra.compensation_mask = 27; // ldigo 11011;
-        }
+    CHECK(memory_desc_init_by_tag(weights_md, rnn.is_fwd ? ldigo : ldgoi));
+
+    // Adjust strides for good leading dimension in GEMM
+    CHECK(set_good_strides(weights_md, rnn.is_fwd ? ldigo : ldgoi));
+
+    // set we need extra memory
+    if (rnn.is_fwd && !one_of(rnn.dt_conf, all_f32, all_f16, all_bf16)) {
+        weights_md.extra.flags = memory_extra_flags::gpu_rnn_u8s8_compensation;
+        weights_md.extra.compensation_mask = 27; // ldigo 11011;
     }
     return status::success;
 }

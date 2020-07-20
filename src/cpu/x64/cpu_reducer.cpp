@@ -68,7 +68,7 @@ void reduce_balancer_t::balance() {
             continue;
 
         int c_thread_reduction_ub = div_up(reduction_size_, c_nthr_per_group);
-        size_t c_group_size_ub = job_size_ * c_njobs_per_group_ub;
+        size_t c_group_size_ub = (size_t)job_size_ * c_njobs_per_group_ub;
         size_t c_thread_complexity_ub = c_group_size_ub
                 * (job_complexity * c_thread_reduction_ub
                         + (c_nthr_per_group != 1));
@@ -152,6 +152,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
 
     Xbyak::Reg64 reg_x = rax;
     Xbyak::Reg64 reg_src_id = r10;
+    Xbyak::Reg64 reg_long_offt = r11;
 
     reducer_2d_driver_f_s_32_t(int n_src, size_t src_ld, size_t src_step,
             size_t dst_step, bool nullify_dst)
@@ -233,10 +234,13 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
                 dec(reg_src_id);
                 jnz(loop_srcs, T_NEAR);
 
-                sub(reg_src, this->n_src_ * this->src_ld_ * typesize);
+                size_t base_off
+                        = (size_t)this->n_src_ * this->src_ld_ * typesize;
+                safe_sub(reg_src, base_off, reg_long_offt);
             } else {
                 for (int src_id = 0; src_id < this->n_src_; ++src_id) {
-                    const size_t base_off = src_id * this->src_ld_ * typesize;
+                    const size_t base_off
+                            = (size_t)src_id * this->src_ld_ * typesize;
                     accumulate(nloads[id], load_len[id], base_off);
                 }
             }
@@ -355,7 +359,7 @@ void cpu_reducer_t<data_type>::reduce_nolock(int ithr, data_t *dst,
 
     const int njobs_in_grp = balancer().ithr_njobs(ithr);
     data_t *d = get_local_ptr(ithr, dst, scratchpad);
-    for (int id_in_grp = 1; id_in_grp < balancer_.nthr_per_group_;
+    for (int id_in_grp = 1; id_in_grp < balancer().nthr_per_group_;
             ++id_in_grp) {
         const data_t *space = get_local_ptr(ithr + id_in_grp, dst, scratchpad);
         for (size_t i = 0; i < (size_t)njobs_in_grp * balancer().job_size_; ++i)
@@ -454,8 +458,8 @@ void cpu_reducer_2d_t<data_type>::reduce_block(const data_t *space_base,
         data_t *dst, int job, int start_y, int start_x, int ny_start,
         int nx_start, int ny_step, int nx_step) const {
     data_t *d = dst + (start_y + ny_start) * conf_.dst_x_ + start_x + nx_start;
-    const data_t *space = space_base + job * balancer().job_size_
-            + ny_start * conf_.job_size_x_ + nx_start;
+    const data_t *space = space_base + (size_t)job * balancer().job_size_
+            + (size_t)ny_start * conf_.job_size_x_ + nx_start;
 #ifdef SIMPLE_IMPL
     for (int idg = 0; idg < balancer().nthr_per_group_; ++idg) {
         const data_t *w = &space[idg * space_per_thread(balancer())];

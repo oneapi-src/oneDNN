@@ -1,0 +1,11 @@
+--reset
+
+--activation=TANH --prop=FWD_D,BWD_DW
+# RNN
+--alg=VANILLA_RNN
+--direction=left2right,concat,sum --batch=shapes_training
+
+# LSTM, GRU
+--direction=left2right
+--alg=VANILLA_LSTM,LBR_GRU --batch=shapes_training
+--alg=VANILLA_GRU          --batch=shapes_gru

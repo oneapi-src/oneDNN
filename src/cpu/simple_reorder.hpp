@@ -101,7 +101,8 @@ bool simple_fmt_check(bool order_keep, impl::format_tag_t tag_i,
 }
 bool simple_po_check(const primitive_attr_t *attr) {
     const auto &po = attr->post_ops_;
-    return po.len_ == 0 || (po.len_ == 1 && po.contain(primitive_kind::sum, 0));
+    return po.len() == 0
+            || (po.len() == 1 && po.contain(primitive_kind::sum, 0));
 }
 bool simple_attr_check(const primitive_attr_t *attr, bool many_scales_support,
         bool sum_support) {
@@ -1343,7 +1344,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     const auto &i = input[input_d.off_l(e)];
                     auto &o = output[output_d.off_l(e)];
 
-                    float f = scale * (i - i0) + o0;
+                    float f = scale * ((float)i - i0) + o0;
                     o = _qz<data_type::f32, type_o>()(f, o, 1.f, beta);
                 });
 

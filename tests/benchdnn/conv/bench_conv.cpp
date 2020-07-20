@@ -37,9 +37,10 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_alg : s.alg)
     for_(const auto &i_oscale : s.oscale)
+    for_(const auto &i_zero_points : s.zero_points)
     for_(const auto &i_post_ops : s.post_ops)
     for (const auto &i_mb : s.mb) {
-        attr_t attr(i_oscale, i_post_ops);
+        attr_t attr(i_oscale, i_zero_points, i_post_ops);
         handle_legacy_attr(attr, s.attr);
         const prb_t p(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg, attr,
                 i_mb);
@@ -87,6 +88,7 @@ int bench(int argc, char **argv) {
                 || parse_mb(s.mb, def.mb, argv[0])
                 || parse_attr(s.attr, argv[0])
                 || parse_attr_oscale(s.oscale, argv[0])
+                || parse_attr_zero_points(s.zero_points, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,

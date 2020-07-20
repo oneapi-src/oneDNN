@@ -87,7 +87,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
         };
 
         const auto &p = attr()->post_ops_;
-        switch (p.len_) {
+        switch (p.len()) {
             case 0: return true;
             case 1: return check_sum(p, 0) || p.contain(eltwise, 0);
             case 2: return check_sum(p, 0) && p.contain(eltwise, 1);
@@ -109,14 +109,13 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
     if (check_attr_post_ops()) {
         auto &po = params_.pp_attr_.post_ops_;
         const int sum_idx = 0;
-        bool with_sum = po.len_ > 0 && po.contain(primitive_kind::sum, sum_idx);
+        bool with_sum
+                = po.len() > 0 && po.contain(primitive_kind::sum, sum_idx);
         if (with_sum && params_.dst_is_acc_) {
             // set state
             params_.gemm_beta_ = po.entry_[sum_idx].sum.scale;
             // drop sum from pp_attributes, as it will be applied by gemm
-            for (int i = 0; i < po.len_ - 1; ++i)
-                CHECK(po.entry_[i].copy_from(po.entry_[i + 1]));
-            po.len_ -= 1;
+            po.entry_.erase(po.entry_.begin());
         }
     } else {
         return status::unimplemented;

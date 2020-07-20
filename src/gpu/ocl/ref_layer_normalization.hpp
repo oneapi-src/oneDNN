@@ -49,7 +49,6 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
                     && (utils::everyone_is(f16, src_data_t, dst_data_t)
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(f32, src_data_t, dst_data_t))
-                    && IMPLICATION(src_data_t == f16, !is_training())
                     && stat_md()->data_type == f32
                     && check_scale_shift_data_type()
                     && attr()->has_default_values()

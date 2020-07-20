@@ -22,7 +22,8 @@ KERNEL_ATTR
 __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
         const __global WEI_DATA_T *wei, const __global BIA_DATA_T *bias,
         __global DST_DATA_T *dst POST_OP_ARGS, float scales,
-        const __global float *scales_per_oc) {
+        const __global float *scales_per_oc, const __global int *src_zpoints,
+        const __global int *dst_zpoints) {
 
     const int n = GWS_GET_MB();
     const int oc = GWS_GET_OC();
@@ -47,6 +48,13 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
                     const uint src_off = SRC_OFF(n, g * IC + ic, id, ih, iw);
                     const uint wei_off = WEI_OFF(g, oc, ic, kd, kh, kw);
                     d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wei[wei_off]);
+#if WITH_SRC_ZPOINTS
+                    const int src_zp = SRC_ZPOINT_COMMON != 0
+                            ? SRC_ZPOINT_COMMON
+                            : src_zpoints[WITH_SRC_ZPOINTS_PER_IC ? g * IC + ic
+                                                                  : 0];
+                    d -= src_zp * WEI_TO_REF(wei[wei_off]);
+#endif // WITH_SRC_ZPOINTS
                 }
     POST_OP_DATA_T tmp = d;
 
@@ -69,6 +77,13 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
 #endif
 
     APPLY_POST_OPS(tmp, POST_OP_DATA_T, sum_src, POST_OP_DATA_T);
+
+#if WITH_DST_ZPOINTS
+    const int dst_zp = DST_ZPOINT_COMMON != 0
+            ? DST_ZPOINT_COMMON
+            : dst_zpoints[WITH_DST_ZPOINTS_PER_OC ? g * OC + oc : 0];
+    tmp += dst_zp;
+#endif // WITH_DST_ZPOINTS
 
     dst[DST_OFF(n, g * OC + oc, od, oh, ow)] = TO_DST(tmp);
 }

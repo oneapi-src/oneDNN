@@ -117,7 +117,7 @@ void benchdnn_timer_t::start() {
 void benchdnn_timer_t::stop(int add_times) {
     if (add_times == 0) return;
 
-    long long d_ticks = ticks_now() - ticks_start_; /* FIXME: overflow? */
+    unsigned long long d_ticks = ticks_now() - ticks_start_;
     double d_ms = ms_now() - ms_start_;
 
     ticks_start_ += d_ticks;

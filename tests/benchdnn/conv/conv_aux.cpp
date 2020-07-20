@@ -290,6 +290,19 @@ float *generate_oscales(const attr_t::scale_t &oscale, int N) {
     return scales;
 }
 
+int32_t *generate_zero_points(
+        int arg, const attr_t::zero_points_t &zero_points, int N) {
+    const auto &e = zero_points.get(arg);
+    if (zero_points.is_def(arg)) return NULL;
+
+    int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t) * N, 64);
+    SAFE_V(zp != NULL ? OK : FAIL);
+
+    for (int i = 0; i < N; ++i)
+        zp[i] = e.value + i % 3;
+    return zp;
+}
+
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
     settings_t def;

@@ -104,11 +104,11 @@ struct gen9_gemm_t : public gpu_gemm_t {
                                                     intel_subgroups_short))
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->output_scales_.mask_ == 0
-                    && attr()->post_ops_.len_ <= 2
-                    && IMPLICATION(attr()->post_ops_.len_ == 1,
+                    && attr()->post_ops_.len() <= 2
+                    && IMPLICATION(attr()->post_ops_.len() == 1,
                             attr()->post_ops_.find(eltwise) != -1
                                     || attr()->post_ops_.find(sum) != -1)
-                    && IMPLICATION(attr()->post_ops_.len_ == 2,
+                    && IMPLICATION(attr()->post_ops_.len() == 2,
                             attr()->post_ops_.find(sum) == 0
                                     && attr()->post_ops_.find(eltwise) == 1);
             if (!ok) return status::unimplemented;

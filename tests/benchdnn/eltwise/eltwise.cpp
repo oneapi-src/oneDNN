@@ -168,6 +168,11 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
         const dnn_mem_t &mem_fp, const dnn_mem_t &mem_dt, res_t *r) {
     const bool is_fwd = p->dir & FLAG_FWD;
 
+    const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return r->state = PASSED, OK;
+
+    r->total = nelems;
+
     // Tolerate only rounding error (1 ulp) for other than fp32 precisions.
     float trh = epsilon_dt(p->dt);
     if (p->dt == dnnl_f32) {
@@ -181,10 +186,6 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
         else
             trh = 4e-6;
     }
-
-    const auto nelems = mem_dt.nelems();
-    r->errors = 0;
-    r->total = nelems;
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = mem_dt.get_elem(i);
@@ -273,7 +274,7 @@ int fill_data(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
             // passes through simple reorder which converts -0 into +0.
             if (value == -0.f) value = 0.f;
 
-            mem_fp.set_elem(idx, maybe_saturate(p->dt, value));
+            mem_fp.set_elem(idx, value);
         }
     });
 
@@ -283,7 +284,7 @@ int fill_data(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common({p->dt}, r);
+    check_known_skipped_case_common({p->dt}, p->dir, r);
     if (r->state == SKIPPED) return;
 
     bool is_invalid = false;

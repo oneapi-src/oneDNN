@@ -61,7 +61,11 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
             unsigned flags, const dnnl::impl::stream_attr_t *attr)
             = 0;
 
-    virtual dnnl::impl::stream_t *service_stream() const { return nullptr; }
+    virtual dnnl::impl::status_t get_service_stream(
+            dnnl::impl::stream_t *&stream) {
+        stream = nullptr;
+        return dnnl::impl::status::success;
+    }
     /** implementation section (typedefs) */
 
     // TODO: remove engine?

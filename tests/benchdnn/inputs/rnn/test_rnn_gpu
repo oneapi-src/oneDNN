@@ -3,81 +3,59 @@
 --reset
 
 --cfg=f32,bf16
---prop=FWD_D,BWD_DW
+--trivial-strides=true,false
 --direction=left2right,right2left,concat,sum
+--prop=FWD_D,BWD_DW --batch=shapes_small
 
-# ALL ALGS
---alg=VANILLA_RNN --activation=RELU,TANH,LOGISTIC --batch=rnn_small
---alg=VANILLA_LSTM --batch=rnn_small
---alg=LBR_GRU   --batch=rnn_small
+# RNN, LSTM
+--alg=VANILLA_RNN --activation=RELU,TANH,LOGISTIC --batch=shapes_small
+--alg=VANILLA_LSTM --activation=UNDEF --batch=shapes_small
+
+# GRU
+--alg=LBR_GRU --batch=shapes_gru_small
+--alg=VANILLA_GRU --prop=FWD_D  --batch=shapes_gru_small
 
 --reset
 
 # f16
 --cfg=f16
 --prop=FWD_D
---direction=left2right
+--direction=left2right,right2left,concat,sum
 
-# ALL ALGS
---alg=VANILLA_RNN  --activation=TANH,LOGISTIC --batch=rnn_small
---alg=VANILLA_LSTM --batch=rnn_small
---alg=LBR_GRU --batch=rnn_small
+# RNN, LSTM
+--alg=VANILLA_RNN  --activation=RELU,TANH,LOGISTIC        --batch=shapes_small
+--alg=VANILLA_LSTM,LBR_GRU,VANILLA_GRU --activation=UNDEF --batch=shapes_small
 
 --reset
 
 # LSTM int8
 --alg=VANILLA_LSTM
---direction=left2right
+--direction=left2right,right2left,concat,sum
 --prop=FWD_D
 --trivial-strides=true
 
---cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=rnn_small
---cfg=f32u8f32f32,f32u8f32u8 --scaling=per_oc --batch=rnn_small
+--cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=shapes_small
+--cfg=f32u8f32f32,f32u8f32u8 --scaling=per_oc --batch=shapes_small
 
 # Large tests
 --reset
 
-# f32, bf16 tests
---alg=VANILLA_LSTM,LBR_GRU
+# LSTM, GRU
+# f32, bf16
 --cfg=f32,bf16
---prop=FWD_D,BWD_DW
+--direction=right2left,concat,sum
 --mb=50
---batch=test_rnn_large
---batch=test_lstm_large
 
---prop=FWD_D
---mb=1
---batch=test_rnn_large
---batch=test_lstm_large
+--alg=VANILLA_LSTM,LBR_GRU --prop=FWD_D,BWD_DW --batch=shapes_large
+--alg=VANILLA_GRU --prop=FWD_D --batch=shapes_gru
 
-# f16 tests
+# RNN
+# f16
 --reset
 
 --cfg=f16
 --prop=FWD_D
---skip-nonlinear=true
 --mb=50
-
---alg=VANILLA_RNN
---activation=RELU
---batch=rnn_ds2
 --direction=right2left,concat,sum
---batch=rnn_large
---batch=rnn_large_nonuniform
 
---alg=VANILLA_LSTM,LBR_GRU
---batch=rnn_gnmt_encoder
---batch=rnn_gnmt_decoder
-
-# int8 (only LSTM)
---reset
---cfg=u8u8u8u8
---scaling=common,per_oc
---prop=FWD_D
---alg=VANILLA_LSTM
---trivial-strides=true
-
---mb=50
---batch=test_lstm_large
---mb=1
---batch=test_lstm_large
+--alg=VANILLA_RNN --activation=RELU --batch=shapes_large_nonuniform

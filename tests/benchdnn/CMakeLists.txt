@@ -162,7 +162,7 @@ register_benchdnn_test(test_benchdnn_matmul
 register_benchdnn_test(test_benchdnn_resampling
     cpu "--resampling --batch=inputs/resampling/test_resampling_all")
 register_benchdnn_test(test_benchdnn_rnn
-    cpu "--rnn --batch=inputs/rnn/test_rnn_small")
+    cpu "--rnn --batch=inputs/rnn/test_rnn_all")
 register_benchdnn_test(test_benchdnn_reorder
     cpu "--reorder --batch=inputs/reorder/test_reorder_all")
 register_benchdnn_test(test_benchdnn_reorder_bf16
@@ -233,7 +233,7 @@ if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_ip
         gpu "--ip --batch=inputs/ip/test_ip_gpu")
     register_benchdnn_test(test_benchdnn_rnn
-        gpu "--rnn --batch=inputs/rnn/test_rnn_small_gpu")
+        gpu "--rnn --batch=inputs/rnn/test_rnn_gpu")
     register_benchdnn_test(test_benchdnn_reorder
         gpu "--reorder --batch=inputs/reorder/test_reorder_gpu")
     register_benchdnn_test(test_benchdnn_pool

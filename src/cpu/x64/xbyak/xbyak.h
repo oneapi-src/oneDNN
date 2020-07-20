@@ -165,7 +165,7 @@ namespace Xbyak {
 
 enum {
 	DEFAULT_MAX_CODE_SIZE = 4096,
-	VERSION = 0x5912 /* 0xABCD = A.BC(D) */
+	VERSION = 0x5920 /* 0xABCD = A.BC(D) */
 };
 
 #ifndef MIE_INTEGER_TYPE_DEFINED
@@ -239,6 +239,7 @@ enum {
 	ERR_INVALID_RIP_IN_AUTO_GROW,
 	ERR_INVALID_MIB_ADDRESS,
 	ERR_X2APIC_IS_NOT_SUPPORTED,
+	ERR_NOT_SUPPORTED,
 	ERR_INTERNAL // Put it at last.
 };
 
@@ -300,6 +301,7 @@ public:
 			"invalid rip in AutoGrow",
 			"invalid mib address",
 			"x2APIC is not supported",
+			"not supported",
 			"internal error"
 		};
 		assert(err_ <= ERR_INTERNAL);
@@ -443,7 +445,7 @@ class Operand {
 	static const uint8 EXT8BIT = 0x20;
 	unsigned int idx_:6; // 0..31 + EXT8BIT = 1 if spl/bpl/sil/dil
 	unsigned int kind_:10;
-	unsigned int bit_:10;
+	unsigned int bit_:14;
 protected:
 	unsigned int zero_:1;
 	unsigned int mask_:3;
@@ -727,9 +729,11 @@ struct Zmm : public Ymm {
 	Zmm operator|(const EvexModifierRounding& emr) const { Zmm r(*this); r.setRounding(emr.rounding); return r; }
 };
 
+#ifdef XBYAK64
 struct Tmm : public Reg {
 	explicit Tmm(int idx = 0, Kind kind = Operand::TMM, int bit = 8192) : Reg(idx, kind, bit) { }
 };
+#endif
 
 struct Opmask : public Reg {
 	explicit Opmask(int idx = 0) : Reg(idx, Operand::OPMASK, 64) {}
@@ -1542,7 +1546,7 @@ private:
 	CodeGenerator operator=(const CodeGenerator&); // don't call
 #ifdef XBYAK64
 	enum { i32e = 32 | 64, BIT = 64 };
-	static const size_t dummyAddr = (size_t(0x11223344) << 32) | 55667788;
+	static const uint64 dummyAddr = uint64(0x1122334455667788ull);
 	typedef Reg64 NativeReg;
 #else
 	enum { i32e = 32, BIT = 32 };
@@ -1640,7 +1644,6 @@ private:
 		T_M_K = 1 << 28, // mem{k}
 		T_VSIB = 1 << 29,
 		T_MEM_EVEX = 1 << 30, // use evex if mem
-		T_TMM = 1 << 31,
 		T_XXX
 	};
 	void vex(const Reg& reg, const Reg& base, const Operand *v, int type, int code, bool x = false)
@@ -1738,9 +1741,9 @@ private:
 	}
 	void setSIB(const RegExp& e, int reg, int disp8N = 0)
 	{
-		size_t disp64 = e.getDisp();
+		uint64 disp64 = e.getDisp();
 #ifdef XBYAK64
-		size_t high = disp64 >> 32;
+		uint64 high = disp64 >> 32;
 		if (high != 0 && high != 0xFFFFFFFF) throw Error(ERR_OFFSET_IS_TOO_BIG);
 #endif
 		uint32 disp = static_cast<uint32>(disp64);
@@ -2043,12 +2046,12 @@ private:
 	/*
 		mov(r, imm) = db(imm, mov_imm(r, imm))
 	*/
-	int mov_imm(const Reg& reg, size_t imm)
+	int mov_imm(const Reg& reg, uint64 imm)
 	{
 		int bit = reg.getBit();
 		const int idx = reg.getIdx();
 		int code = 0xB0 | ((bit == 8 ? 0 : 1) << 3);
-		if (bit == 64 && (imm & ~size_t(0xffffffffu)) == 0) {
+		if (bit == 64 && (imm & ~uint64(0xffffffffu)) == 0) {
 			rex(Reg32(idx));
 			bit = 32;
 		} else {
@@ -2308,19 +2311,15 @@ private:
 		}
 		throw Error(ERR_BAD_COMBINATION);
 	}
-	void opAMX(const Tmm& t1, const Operand& op1, const Operand& op2, int type, int code0, int imm8 = NONE)
+#ifdef XBYAK64
+	void opAMX(const Tmm& t1, const Address& addr, int type, int code0)
 	{
-		const Reg *t2 = static_cast<const Reg*>(&op1);
-		const Operand *op = &op2;
-		if (op2.isNone()) { // <i>(t1, op1) -> <i>(t1, t1, op1)
-			t2 = &t1;
-			op = &op1;
-		}
-		// <i>(t1, t2, op)
-		if (!((type & T_TMM) && (t1.isTMM() && t2->isTMM()))) throw Error(ERR_BAD_COMBINATION);
-
-		opVex(t1, t2, *op, type, code0, imm8);
+		// require both base and index
+		const RegExp exp = addr.getRegExp(false);
+		if (exp.getBase().getBit() == 0 || exp.getIndex().getBit() == 0) throw Error(ERR_NOT_SUPPORTED);
+		opVex(t1, &tmm0, addr, type, code0);
 	}
+#endif
 public:
 	unsigned int getVersion() const { return VERSION; }
 	using CodeArray::db;
@@ -2366,7 +2365,6 @@ public:
 	const Zmm &zm8, &zm9, &zm10, &zm11, &zm12, &zm13, &zm14, &zm15;
 	const Zmm &zm16, &zm17, &zm18, &zm19, &zm20, &zm21, &zm22, &zm23;
 	const Zmm &zm24, &zm25, &zm26, &zm27, &zm28, &zm29, &zm30, &zm31;
-	const Tmm &tm0, &tm1, &tm2, &tm3, &tm4, &tm5, &tm6, &tm7;
 	const RegRip rip;
 #endif
 #ifndef XBYAK_DISABLE_SEGMENT
@@ -2498,7 +2496,7 @@ public:
 			opRM_RM(reg1, reg2, 0x88);
 		}
 	}
-	void mov(const Operand& op, size_t imm)
+	void mov(const Operand& op, uint64 imm)
 	{
 		if (op.isREG()) {
 			const int size = mov_imm(op.getReg(), imm);
@@ -2650,7 +2648,6 @@ public:
 		, zm8(zmm8), zm9(zmm9), zm10(zmm10), zm11(zmm11), zm12(zmm12), zm13(zmm13), zm14(zmm14), zm15(zmm15)
 		, zm16(zmm16), zm17(zmm17), zm18(zmm18), zm19(zmm19), zm20(zmm20), zm21(zmm21), zm22(zmm22), zm23(zmm23)
 		, zm24(zmm24), zm25(zmm25), zm26(zmm26), zm27(zmm27), zm28(zmm28), zm29(zmm29), zm30(zmm30), zm31(zmm31)
-		, tm0(tmm0), tm1(tmm1), tm2(tmm2), tm3(tmm3), tm4(tmm4), tm5(tmm5), tm6(tmm6), tm7(tmm7)
 		, rip()
 #endif
 #ifndef XBYAK_DISABLE_SEGMENT

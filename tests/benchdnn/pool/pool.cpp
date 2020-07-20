@@ -34,14 +34,14 @@ namespace pool {
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
     const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return r->state = PASSED, OK;
 
-    r->errors = 0;
     r->total = nelems;
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
         const float fp0 = mem_fp.get_elem(i);
-        const float fp = maybe_saturate(p->cfg[kind].dt, fp0);
+        const float fp = round_to_nearest_representable(p->cfg[kind].dt, fp0);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
@@ -53,8 +53,9 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
         r->errors += !ok;
 
-        if ((!ok && (r->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30)) {
+        bool dump = (!ok && (r->errors < 10 || verbose >= 10))
+                || (verbose >= 50 && i < 30) || (verbose >= 99);
+        if (dump) {
             int64_t mb = 0, ic = 0, d = 0, h = 0, w = 0;
             switch (kind) {
                 case SRC: inv_src_off_f(p, i, mb, ic, d, h, w); break;
@@ -169,13 +170,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     dnnl_dim_t kernel_nd[] = {p->kd, p->kh, p->kw};
     dnnl_dim_t padding_l_nd[] = {p->pd, p->ph, p->pw};
-
-    auto bph = [](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph) {
-        return (oh - 1) * sh - ih + kh - ph;
-    };
-    dnnl_dim_t padding_r_nd[] = {bph(p->id, p->od, p->kd, p->sd, p->pd),
-            bph(p->ih, p->oh, p->kh, p->sh, p->ph),
-            bph(p->iw, p->ow, p->kw, p->sw, p->pw)};
+    dnnl_dim_t padding_r_nd[] = {p->pd_r, p->ph_r, p->pw_r};
 
     dnnl_dim_t *strides = strides_nd + (5 - p->ndims);
     dnnl_dim_t *kernel = kernel_nd + (5 - p->ndims);
@@ -226,7 +221,21 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common({p->cfg[SRC].dt, p->cfg[DST].dt}, r);
+    check_known_skipped_case_common(
+            {p->cfg[SRC].dt, p->cfg[DST].dt}, p->dir, r);
+    if (r->state == SKIPPED) return;
+
+    if (p->alg == AVG_NP) {
+        bool ker_in_pad_d = p->pd >= p->kd || p->pd_r >= p->kd;
+        bool ker_in_pad_h = p->ph >= p->kh || p->ph_r >= p->kh;
+        bool ker_in_pad_w = p->pw >= p->kw || p->pw_r >= p->kw;
+        bool ker_in_pad = ker_in_pad_d || ker_in_pad_h || ker_in_pad_w;
+
+        if (ker_in_pad) {
+            r->state = SKIPPED, r->reason = INVALID_CASE;
+            return;
+        }
+    }
 }
 
 int doit(const prb_t *p, res_t *r) {

@@ -24,11 +24,14 @@ namespace impl {
 namespace cpu {
 namespace lnorm_utils {
 
+template <data_type_t data_type>
 struct statistics_kernel_t {
-    static statistics_kernel_t *create(const layer_normalization_pd_t *pd);
+    using data_t = typename prec_traits<data_type>::type;
+    static statistics_kernel_t<data_type> *create(
+            const layer_normalization_pd_t *pd);
     virtual ~statistics_kernel_t() = default;
 
-    virtual void operator()(const float *src, float *mean, float *var) const;
+    virtual void operator()(const data_t *src, float *mean, float *var) const;
 
 protected:
     statistics_kernel_t(const layer_normalization_pd_t *pd)
@@ -37,11 +40,13 @@ protected:
     int C_;
 };
 
+template <data_type_t data_type>
 struct data_kernel_t {
-    static data_kernel_t *create(const layer_normalization_pd_t *pd);
+    using data_t = typename prec_traits<data_type>::type;
+    static data_kernel_t<data_type> *create(const layer_normalization_pd_t *pd);
     virtual ~data_kernel_t() = default;
 
-    virtual void operator()(const float *src, float *dst, const float *ss,
+    virtual void operator()(const data_t *src, data_t *dst, const float *ss,
             const float *mean, const float *var) const;
 
 protected:
@@ -55,11 +60,14 @@ protected:
     const float eps_;
 };
 
+template <data_type_t data_type>
 struct diff_ss_kernel_t {
-    static diff_ss_kernel_t *create(const layer_normalization_pd_t *pd);
+    using data_t = typename prec_traits<data_type>::type;
+    static diff_ss_kernel_t<data_type> *create(
+            const layer_normalization_pd_t *pd);
     virtual ~diff_ss_kernel_t() = default;
 
-    virtual void operator()(const float *src, const float *diff_dst,
+    virtual void operator()(const data_t *src, const data_t *diff_dst,
             float *diff_gamma, float *diff_beta, const float *mean,
             const float *var) const;
 
@@ -71,12 +79,15 @@ protected:
     const float eps_;
 };
 
+template <data_type_t data_type>
 struct diff_data_kernel_t {
-    static diff_data_kernel_t *create(const layer_normalization_pd_t *pd);
+    using data_t = typename prec_traits<data_type>::type;
+    static diff_data_kernel_t<data_type> *create(
+            const layer_normalization_pd_t *pd);
     virtual ~diff_data_kernel_t() = default;
 
-    virtual void operator()(const float *src, const float *diff_dst,
-            float *diff_src, const float *ss, const float *mean,
+    virtual void operator()(const data_t *src, const data_t *diff_dst,
+            data_t *diff_src, const float *ss, const float *mean,
             const float *var) const;
 
 protected:

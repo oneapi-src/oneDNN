@@ -35,7 +35,7 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
     const int ndims = src_dw_d.ndims();
     if (ndims != 4) return status::unimplemented;
 
-    if (dw_po_index == -1 || dw_po_index >= attr_1x1.post_ops_.len_
+    if (dw_po_index == -1 || dw_po_index >= attr_1x1.post_ops_.len()
             || !attr_1x1.post_ops_.entry_[dw_po_index].is_convolution())
         return status::invalid_arguments;
 
@@ -49,10 +49,11 @@ inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
                 dw_po.count, dw_po.mask, dw_po.scales));
     }
 
-    auto &len = attr_dw.post_ops_.len_;
-    for (int i = dw_po_index + 1; i < attr_1x1.post_ops_.len_; ++i) {
-        CHECK(attr_dw.post_ops_.entry_[len++].copy_from(
-                attr_1x1.post_ops_.entry_[i]));
+    auto dw_po_len = attr_1x1.post_ops_.len() - (dw_po_index + 1);
+    attr_dw.post_ops_.entry_.resize(dw_po_len);
+    for (int i = 0; i < dw_po_len; ++i) {
+        CHECK(attr_dw.post_ops_.entry_[i].copy_from(
+                attr_1x1.post_ops_.entry_[i + dw_po_index + 1]));
     }
 
     attr_dw.scratchpad_mode_ = attr_1x1.scratchpad_mode_;

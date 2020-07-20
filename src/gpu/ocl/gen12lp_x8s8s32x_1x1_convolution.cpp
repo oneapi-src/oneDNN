@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,6 +37,11 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
     set_default_conf(conf, cd, *src_md(), *weights_md(), *dst_md(),
             *weights_md(1), *attr());
 
+    conf.is_nhwc
+            = src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef
+            || dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
+                    != format_tag::undef;
+
     if (conf.is_depthwise || conf.kw != 1 || conf.kh != 1 || conf.kd != 1
             || (conf.with_groups && conf.ngroups > 1
                     && (conf.oc % 32 != 0 || conf.ic % 32 != 0)))
@@ -60,7 +65,7 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
         conf.oh = conf.od = 1;
     }
 
-    if (conf.mb == 8 || conf.mb % 16 == 0) {
+    if ((conf.mb == 8 || conf.mb % 16 == 0) && !conf.is_nhwc) {
         conf.mb_block = 32;
         conf.sp_block = 1;
     } else {
@@ -105,12 +110,17 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
 
     format_tag_t src_tag, dst_tag, wei_tag;
 
-    if (conf.mb_block == 32) {
-        src_tag = utils::pick(conf.ndims - 3, NCw32n32c, NChw32n32c);
-        dst_tag = utils::pick(conf.ndims - 3, NCw32n32c, NChw32n32c);
+    if (conf.is_nhwc) {
+        src_tag = utils::pick(conf.ndims - 3, nwc, nhwc);
+        dst_tag = utils::pick(conf.ndims - 3, nwc, nhwc);
     } else {
-        src_tag = utils::pick(conf.ndims - 3, nCw32c, nChw32c);
-        dst_tag = utils::pick(conf.ndims - 3, nCw32c, nChw32c);
+        if (conf.mb_block == 32) {
+            src_tag = utils::pick(conf.ndims - 3, NCw32n32c, NChw32n32c);
+            dst_tag = utils::pick(conf.ndims - 3, NCw32n32c, NChw32n32c);
+        } else {
+            src_tag = utils::pick(conf.ndims - 3, nCw32c, nChw32c);
+            dst_tag = utils::pick(conf.ndims - 3, nCw32c, nChw32c);
+        }
     }
 
     wei_tag = conf.with_groups

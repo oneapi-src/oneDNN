@@ -87,8 +87,10 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r) {
     const auto nelems = dt_mem.nelems();
-    r->errors = 0;
+    if (nelems == 0) return r->state = PASSED, OK;
+
     r->total = nelems;
+
     const float trh = epsilon_dt(p->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32)
             * p->n_inputs();
     const int eltwise_idx = p->attr.post_ops.eltwise_index();
@@ -98,7 +100,7 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
         const float fp0 = fp_mem.get_elem(i);
-        const float fp = maybe_saturate(p->ddt, fp0);
+        const float fp = round_to_nearest_representable(p->ddt, fp0);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
@@ -150,7 +152,7 @@ int fill_src(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common(p->sdt, r);
+    check_known_skipped_case_common(p->sdt, FWD_D, r);
 }
 
 int doit(const prb_t *p, res_t *r) {

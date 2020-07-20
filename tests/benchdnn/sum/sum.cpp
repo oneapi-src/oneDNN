@@ -72,7 +72,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 static int compare(const prb_t *p, const dnnl_data_type_t dst_data_type,
         const dnn_mem_t &fp_mem, const dnn_mem_t &dt_mem, res_t *r) {
     const auto nelems = dt_mem.nelems();
-    r->errors = 0;
+    if (nelems == 0) return r->state = PASSED, OK;
+
     r->total = nelems;
 
     float trh = epsilon_dt(dst_data_type) * p->n_inputs();
@@ -80,7 +81,7 @@ static int compare(const prb_t *p, const dnnl_data_type_t dst_data_type,
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
         const float fp0 = fp_mem.get_elem(i);
-        const float fp = maybe_saturate(dst_data_type, fp0);
+        const float fp = round_to_nearest_representable(dst_data_type, fp0);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
@@ -122,7 +123,7 @@ int fill_src(
         const float value = (dt == dnnl_bf16 || dt == dnnl_f16)
                 ? (f_min + gen) / range
                 : (f_min + gen) * (1.0f + 4.0f / range);
-        mem_fp.set_elem(i, maybe_saturate(dt, value));
+        mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
@@ -133,7 +134,7 @@ int fill_src(
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     std::vector<dnnl_data_type_t> dts = p->sdt;
     dts.push_back(p->ddt);
-    check_known_skipped_case_common(dts, r);
+    check_known_skipped_case_common(dts, FWD_D, r);
 }
 
 int doit(const prb_t *p, res_t *r) {

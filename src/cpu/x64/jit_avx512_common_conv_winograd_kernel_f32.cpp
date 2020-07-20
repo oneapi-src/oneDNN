@@ -532,7 +532,7 @@ bool jit_avx512_common_conv_winograd_fwd_kernel_f32::post_ops_ok(
     auto is_relu = [&](int idx) { return p.entry_[idx].is_relu(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
 
-    switch (p.len_) {
+    switch (p.len()) {
         case 0: return true; // no post_ops
         case 1: return is_relu(0) || is_sum(0); // relu or sum
         case 2:

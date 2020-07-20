@@ -61,7 +61,7 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
                             !is_training() && stats_is_src())
                     && attr()->has_default_values(attr_skip_mask)
                     && IMPLICATION(!attr()->has_default_values(),
-                            attr()->post_ops_.len_ == 1 && with_relu_post_op())
+                            attr()->post_ops_.len() == 1 && with_relu_post_op())
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups);
             if (!ok) return status::unimplemented;

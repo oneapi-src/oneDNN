@@ -2185,10 +2185,10 @@ struct memory : public handle<dnnl_memory_t> {
     ///     zeroes to the padding area if it exists. Hence, the @p handle
     ///     parameter cannot and does not have a const qualifier.
     ///
-    /// @param handle Memory buffer to use. On the CPU engine or when USM is
-    ///     used, the data handle is a pointer to the actual data. For OpenCL
-    ///     it is a cl_mem. It must have at least
-    ///     #dnnl::memory::desc::get_size() bytes allocated.
+    /// @param handle Data handle. On the CPU engine or when USM is used, the
+    ///     data handle is a pointer to the actual data. For OpenCL it is a
+    ///     cl_mem. It must have at least #dnnl::memory::desc::get_size() bytes
+    ///     allocated.
     /// @param astream Stream to use to execute padding in.
     void set_data_handle(void *handle, const stream &astream) const {
         error::wrap_c_api(dnnl_memory_set_data_handle_v2(
@@ -2202,10 +2202,9 @@ struct memory : public handle<dnnl_memory_t> {
     /// #dnnl::memory::set_data_handle(void *, const stream &) const
     /// for more information.
     ///
-    /// @param handle Memory buffer to use. For the CPU engine, the data
-    ///     handle is a pointer to the actual data. For OpenCL it is a cl_mem.
-    ///     It must have at least #dnnl::memory::desc::get_size() bytes
-    ///     allocated.
+    /// @param handle Data handle. For the CPU engine, the data handle is a
+    ///     pointer to the actual data. For OpenCL it is a cl_mem. It must have
+    ///     at least #dnnl::memory::desc::get_size() bytes allocated.
     void set_data_handle(void *handle) const {
         error::wrap_c_api(
                 dnnl_memory_set_data_handle_v2(get(), handle, nullptr),

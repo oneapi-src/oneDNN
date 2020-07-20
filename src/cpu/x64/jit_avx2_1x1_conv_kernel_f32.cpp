@@ -549,7 +549,7 @@ bool jit_avx2_1x1_conv_kernel_f32::post_ops_ok(
             = [&](int idx) { return p.entry_[idx].is_convolution(); };
 
     int dw_idx = p.find(primitive_kind::convolution);
-    int len = dw_idx != -1 ? dw_idx + 1 : p.len_;
+    int len = dw_idx != -1 ? dw_idx + 1 : p.len();
 
     switch (len) {
         case 0: return true; // no post_ops

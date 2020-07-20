@@ -34,9 +34,10 @@ namespace lrn {
 
 int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return r->state = PASSED, OK;
 
-    r->errors = 0;
     r->total = nelems;
+
     const int summands = compute_n_summands(p);
     float trh = 1e-6 * summands;
     if (p->dt == dnnl_f16) trh = 1e-3 * summands;
@@ -45,7 +46,7 @@ int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
         const float fp0 = mem_fp.get_elem(i);
-        const float fp = maybe_saturate(p->dt, fp0);
+        const float fp = round_to_nearest_representable(p->dt, fp0);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
@@ -165,7 +166,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common({p->dt}, r);
+    check_known_skipped_case_common({p->dt}, p->dir, r);
 }
 
 int doit(const prb_t *p, res_t *r) {

@@ -1,3 +1,5 @@
+--reset
+
 --skip-impl=ref
 
---tag=axb,abx,aBx16b --dir=FWD_D,BWD_DW --flags=SR --batch=bnorm_large
+--tag=axb,abx,aBx16b --dir=FWD_D,BWD_DW --flags=SR --batch=shapes_large

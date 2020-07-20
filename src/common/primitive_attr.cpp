@@ -90,7 +90,7 @@ status_t zero_points_t::set(
             = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);
     const bool ok = count == 1
             && IMPLICATION(mask != 0,
-                    arg == DNNL_ARG_DST
+                    utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_DST)
                             && zero_points[0] == DNNL_RUNTIME_S32_VAL)
             && IMPLICATION(!supported_arg, *zero_points == 0);
     if (!ok) return status::unimplemented;
@@ -158,14 +158,11 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
 }
 
 status_t post_ops_t::append_sum(float scale, data_type_t dt) {
-    if (len_ == capacity) return out_of_memory;
-
-    entry_[len_].kind = primitive_kind::sum;
-    entry_[len_].sum.scale = scale;
-    entry_[len_].sum.dt = dt;
-
-    len_++;
-
+    entry_.emplace_back();
+    auto &e = entry_.back();
+    e.kind = primitive_kind::sum;
+    e.sum.scale = scale;
+    e.sum.dt = dt;
     return success;
 }
 
@@ -174,16 +171,13 @@ status_t post_ops_t::append_eltwise(
     if (!math::is_eltwise_ok(data_type::f32, alg, alpha, beta))
         return invalid_arguments;
 
-    if (len_ == capacity) return out_of_memory;
-
-    entry_[len_].kind = primitive_kind::eltwise;
-    entry_[len_].eltwise.scale = scale;
-    entry_[len_].eltwise.alg = alg;
-    entry_[len_].eltwise.alpha = alpha;
-    entry_[len_].eltwise.beta = beta;
-
-    len_++;
-
+    entry_.emplace_back();
+    auto &e = entry_.back();
+    e.kind = primitive_kind::eltwise;
+    e.eltwise.scale = scale;
+    e.eltwise.alg = alg;
+    e.eltwise.alpha = alpha;
+    e.eltwise.beta = beta;
     return success;
 }
 
@@ -215,14 +209,14 @@ dnnl::impl::status_t post_ops_t::entry_t::set_depthwise_scales(
 
 status_t post_ops_t::append_dw_k3s1p1(data_type_t wei_dt, data_type_t bias_dt,
         data_type_t dst_dt, dim_t count, int mask, const float *scales) {
-    if (len_ == capacity) return out_of_memory;
-    bool ok = true && (wei_dt != data_type::undef)
-            && (dst_dt != data_type::undef) && (IMPLICATION(count > 0, scales))
-            && mask >= 0;
+    bool ok = wei_dt != data_type::undef && dst_dt != data_type::undef
+            && IMPLICATION(count > 0, scales) && mask >= 0;
     if (!ok) return invalid_arguments;
 
-    entry_[len_].kind = primitive_kind::convolution;
-    auto &d = entry_[len_].depthwise_conv;
+    entry_.emplace_back();
+    auto &e = entry_.back();
+    e.kind = primitive_kind::convolution;
+    auto &d = e.depthwise_conv;
     d.stride = 1;
     d.wei_dt = wei_dt;
     d.bias_dt = bias_dt;
@@ -231,12 +225,7 @@ status_t post_ops_t::append_dw_k3s1p1(data_type_t wei_dt, data_type_t bias_dt,
     d.mask = mask;
     d.scales = nullptr;
 
-    auto status = entry_[len_].set_depthwise_scales(scales);
-    if (status != status::success) return status;
-
-    len_++;
-
-    return success;
+    return e.set_depthwise_scales(scales);
 }
 
 status_t post_ops_t::append_dw_k3s2p1(data_type_t wei_dt, data_type_t bias_dt,
@@ -245,13 +234,13 @@ status_t post_ops_t::append_dw_k3s2p1(data_type_t wei_dt, data_type_t bias_dt,
     auto status
             = append_dw_k3s1p1(wei_dt, bias_dt, dst_dt, count, mask, scales);
     if (status != success) return status;
-    entry_[len_ - 1].depthwise_conv.stride = 2;
+    entry_.back().depthwise_conv.stride = 2;
 
     return success;
 }
 
 bool post_ops_t::defined() const {
-    for (int idx = 0; idx < len_; ++idx) {
+    for (int idx = 0; idx < len(); ++idx) {
         auto kind = entry_[idx].kind;
         if (kind == primitive_kind::sum) {
             if (is_runtime_value(entry_[idx].sum.scale)) return false;
@@ -406,13 +395,13 @@ status_t dnnl_post_ops_destroy(post_ops_t *post_ops) {
 }
 
 int dnnl_post_ops_len(const post_ops_t *post_ops) {
-    if (post_ops) return post_ops->len_;
+    if (post_ops) return post_ops->len();
 
     return 0;
 }
 
 primitive_kind_t dnnl_post_ops_get_kind(const post_ops_t *post_ops, int index) {
-    bool ok = post_ops && 0 <= index && index < post_ops->len_;
+    bool ok = post_ops && 0 <= index && index < post_ops->len();
     if (!ok) return primitive_kind::undefined;
 
     return post_ops->entry_[index].kind;
@@ -435,7 +424,7 @@ namespace {
 bool simple_get_params_check(
         const post_ops_t *post_ops, int index, primitive_kind_t kind) {
     bool ok = true && post_ops != nullptr && 0 <= index
-            && index < post_ops->len_ && post_ops->entry_[index].kind == kind;
+            && index < post_ops->len() && post_ops->entry_[index].kind == kind;
     return ok;
 }
 } // namespace

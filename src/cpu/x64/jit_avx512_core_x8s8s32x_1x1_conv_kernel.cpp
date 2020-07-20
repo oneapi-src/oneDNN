@@ -529,7 +529,7 @@ bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::post_ops_ok(
             = [&](int idx) { return p.entry_[idx].is_convolution(); };
 
     int dw_idx = p.find(primitive_kind::convolution);
-    int len = dw_idx != -1 ? dw_idx + 1 : p.len_;
+    int len = dw_idx != -1 ? dw_idx + 1 : p.len();
 
     switch (len) {
         case 0: return true;

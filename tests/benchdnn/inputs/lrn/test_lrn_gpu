@@ -5,7 +5,7 @@
 --alg=ACROSS,WITHIN
 --dir=FWD_D,FWD_I,BWD_D
 --tag=abx
---batch=set_lrn_all
+--batch=set_all
 
 # f16
 --reset
@@ -14,5 +14,5 @@
 --alg=ACROSS,WITHIN
 --dir=FWD_I
 --tag=abx
---batch=set_lrn_all
+--batch=set_all
 

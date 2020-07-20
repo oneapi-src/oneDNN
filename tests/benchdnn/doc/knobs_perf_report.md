@@ -38,7 +38,7 @@ Options supported:
 | :--           | :--                                                | :--
 | %activation%  | RNN                                                | RNN activation function
 | %alg%         | Binary, Conv, Eltwise, Lrn, Pool, Reorder, RNN     | Primitive algorithm
-| %attr%        | Bnorm, Conv, IP, Matmul, Reorder                   | Primitive attributes
+| %attr%        | Binary, Bnorm, Conv, IP, Matmul, Reorder           | Primitive attributes
 | %axis%        | Concat, Shuffle, Softmax                           | Primitive axis
 | %@bw%         | Ops based                                          | Bytes per second (modifier extended)
 | %cfg%         | Conv, IP, Matmul, Pool, RNN                        | Config, describes data types and filling rules
@@ -49,7 +49,7 @@ Options supported:
 | %dir%         | All, except Concat, RNN, Reorder, Sum              | Primitive prop kind
 | %direction%   | RNN                                                | RNN direction execution
 | %dt%          | Data md based                                      | Data type (precision)
-| %dtag%        | Concat, Reorder, Sum                               | Destination format tag (physical memory layout)
+| %dtag%        | Concat, Conv, IP, Matmul, Reorder, Sum             | Destination format tag (physical memory layout)
 | %engine%      | All                                                | Engine kind
 | %flags%       | Bnorm, Lnorm, Reorder                              | Primitive flags
 | %@flops%      | Ops based                                          | Ops per second (modifier extended)
@@ -61,9 +61,10 @@ Options supported:
 | %prb%         | All                                                | Canonical problem (options and descriptor in REPRO style)
 | %prop%        | RNN                                                | RNN prop kind
 | %sdt%         | Binary, Concat, Reorder, Sum                       | Source data types (precision)
-| %stag%        | Binary, Concat, Reorder, Sum                       | Source format tag (physical memory layout)
+| %stag%        | Binary, Concat, Conv, IP, Matmul, Reorder, Sum     | Source format tag (physical memory layout)
 | %stat_tag%    | Lnorm                                              | Layer Normalization statistics (mean and variance) format tag (physical memory layout)
 | %tag%         | Data md based, Pool                                | Data format tag (physical memory layout)
+| %wtag%        | Conv, IP, Matmul                                   | Weights format tag (physical memory layout)
 | %@time%       | All                                                | Time in ms (modifier extended)
 
 Modifiers supported:

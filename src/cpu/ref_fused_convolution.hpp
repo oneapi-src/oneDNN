@@ -186,8 +186,10 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             if (po_op_iter == -1) return status::unimplemented;
 
             primitive_attr_t attr_1x1(*attr());
-            if (!attr_1x1.is_initialized()) return status::out_of_memory;
-            attr_1x1.post_ops_.len_ = po_op_iter;
+            // erase post-ops after fusion as they will be handled separately
+            auto &e = attr_1x1.post_ops_.entry_;
+            e.erase(e.begin() + po_op_iter, e.end());
+
             attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
@@ -220,7 +222,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                     += memory_desc_wrapper(root_pd->dst_md()).size();
 
             const auto &po = attr()->post_ops_;
-            const auto &end = po.len_;
+            const auto &end = po.len();
 
             unsigned int fusion_ops = 0;
             // Loop through the post-ops untill we reach the end

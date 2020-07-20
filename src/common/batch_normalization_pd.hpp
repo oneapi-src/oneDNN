@@ -78,7 +78,7 @@ struct batch_normalization_pd_t : public primitive_desc_t {
     bool fuse_norm_relu() const { return desc_.flags & dnnl_fuse_norm_relu; }
     bool with_relu_post_op() const {
         const auto &p = this->attr()->post_ops_;
-        return p.len_ == 1 && p.entry_[0].is_relu(true, true);
+        return p.len() == 1 && p.entry_[0].is_relu(true, true);
     }
 
     bool is_fwd() const {

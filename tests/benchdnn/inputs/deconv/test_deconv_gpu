@@ -1,25 +1,29 @@
 # f32
 --reset
 --mb=2
---dir=FWD_B,BWD_D,BWD_WB --batch=deconv_all
---dir=BWD_W --batch=deconv_1d
+--dir=FWD_B,BWD_D,BWD_WB --batch=set_all
+--dir=BWD_W --batch=shapes_1d
 
 # f16
 --reset
 --cfg=f16
 --mb=2
---dir=FWD_B --batch=deconv_all
+--dir=FWD_B --batch=set_all
 
 #bf16
 --reset
 --mb=2
---cfg=bf16bf16bf16 --dir=FWD_B,BWD_D,BWD_WB --batch=deconv_all
---cfg=bf16bf16f32 --dir=FWD_B --batch=deconv_all
---cfg=f32bf16bf16 --dir=BWD_D --batch=deconv_all
---cfg=bf16f32bf16 --dir=BWD_WB --batch=deconv_all
+--cfg=bf16bf16bf16 --dir=FWD_B,BWD_D,BWD_WB --batch=set_all
+--cfg=bf16bf16f32 --dir=FWD_B --batch=set_all
+--cfg=f32bf16bf16 --dir=BWD_D --batch=set_all
+--cfg=bf16f32bf16 --dir=BWD_WB --batch=set_all
 
 # int8
 --reset
 --cfg=u8s8u8,s8s8u8,s8s8s8,s8s8s32,u8s8s32
 --mb=2
---dir=FWD_B --batch=deconv_all
+--dir=FWD_B --batch=set_all
+
+# regression
+--reset
+--cfg=f32,f16 --dtag=axb --alg=auto g1ic16iw5oc16ow5kw1pw0

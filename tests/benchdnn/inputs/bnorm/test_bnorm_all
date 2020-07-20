@@ -6,16 +6,16 @@
 
 --inplace=false
 --tag=abx,axb,aBx16b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_topo
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=set_topologies
 --tag=abx,aBx16b
---dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_topo_small
---dir=FWD_I,BWD_D  --flags=        --attr-post-ops=       --batch=bnorm_topo
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=shapes_topologies_small
+--dir=FWD_I,BWD_D  --flags=        --attr-post-ops=       --batch=set_topologies
 
 --inplace=true
 --tag=axb,aBx8b
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=bnorm_3d
---dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=bnorm_3d
---dir=BWD_D        --flags=        --attr-post-ops=       --batch=bnorm_3d
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=shapes_3d
+--dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=shapes_3d
+--dir=BWD_D        --flags=        --attr-post-ops=       --batch=shapes_3d
 
 # i8
 --dt=s8
@@ -23,8 +23,8 @@
 
 --tag=axb
 --flags=G,GSR
---batch=bnorm_topo
---batch=bnorm_3d
+--batch=set_topologies
+--batch=shapes_3d
 
 # bfloat16
 --batch=test_bnorm_bfloat16

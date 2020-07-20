@@ -281,7 +281,10 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
                                  : (kind == DATA || kind == SS ? 2e-7 : 0));
     const int64_t N = kind == SS ? 1 : p->n;
     const int64_t C = kind == DATA ? p->c : (kind == SS ? 2 * p->c : 1);
+
     const auto nelems = N * C;
+    if (nelems == 0) return r->state = PASSED, OK;
+
     r->total += nelems;
 
     diff_norm_t diff_norm;
@@ -289,7 +292,10 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
         for (int64_t c = 0; c < C; c++) {
             int64_t i = n * C + c;
             const float dt = dt_mem.get_elem(i);
-            const float fp = fp_mem.get_elem(i);
+            const float fp0 = fp_mem.get_elem(i);
+            const float fp = kind == DATA
+                    ? round_to_nearest_representable(p->dt, fp0)
+                    : fp0;
             diff_norm.update(fp, dt);
 
             const float diff = fabsf(fp - dt);
@@ -464,7 +470,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 }
 
 void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common({p->dt}, r);
+    check_known_skipped_case_common({p->dt}, p->dir, r);
 }
 
 int doit(const prb_t *p, res_t *r) {

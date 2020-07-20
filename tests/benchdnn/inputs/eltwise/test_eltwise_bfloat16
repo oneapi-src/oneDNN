@@ -4,6 +4,6 @@
 
 --dir=FWD_D,BWD_D
 --dt=bf16
---tag=abx,axb,aBx16b
---batch=harness_eltwise_all_alg
+--tag=abx,axb,aBx8b,aBx16b
+--batch=option_set_all_algs
 

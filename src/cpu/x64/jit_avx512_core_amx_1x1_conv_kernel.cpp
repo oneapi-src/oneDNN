@@ -554,7 +554,7 @@ bool jit_avx512_core_amx_1x1_fwd_kernel_t::post_ops_ok(
             return p.contain(sum, idx);
     };
 
-    switch (p.len_) {
+    switch (p.len()) {
         case 0: return true;
         case 1: return is_eltwise(0) || is_sum(0);
         case 2:

@@ -52,10 +52,14 @@ namespace self {
         std::stringstream ss; \
         ss << obj; \
         std::string obj_str = ss.str(); \
-        if (strcasecmp(obj_str.c_str(), expect_str1) \
+        if (std::string(expect_str1) == std::string(expect_str2) \
+                && strcasecmp(obj_str.c_str(), expect_str1)) \
+            CHECK(false, "Expected '%s', got '%s'", expect_str1, \
+                    obj_str.c_str()); \
+        else if (strcasecmp(obj_str.c_str(), expect_str1) \
                 && strcasecmp(obj_str.c_str(), expect_str2)) \
-            CHECK(false, "'%s' one of ('%s', '%s')", obj_str.c_str(), \
-                    expect_str1, expect_str2); \
+            CHECK(false, "Expected one of ('%s', '%s'), got '%s'", \
+                    expect_str1, expect_str2, obj_str.c_str()); \
     } while (0)
 #define CHECK_PRINT_EQ(obj, expect_str) \
     CHECK_PRINT_EQ2(obj, expect_str, expect_str)

@@ -68,10 +68,13 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init(
                 || (oscale.mask_ == (1 << 1) && batched() == false);
     };
 
+    auto check_attr_zero_points
+            = [&]() -> bool { return attr()->zero_points_.common(); };
+
     auto check_attr_post_ops = [&]() -> bool {
         using namespace primitive_kind;
         const auto &p = attr()->post_ops_;
-        switch (p.len_) {
+        switch (p.len()) {
             case 0: return true;
             case 1: return p.contain(sum, 0) || p.contain(eltwise, 0);
             case 2: return p.contain(sum, 0) && p.contain(eltwise, 1);
@@ -87,7 +90,8 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init(
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::zero_points_runtime
                     | primitive_attr_t::skip_mask_t::post_ops)
-            && check_attr_oscale() && check_attr_post_ops();
+            && check_attr_oscale() && check_attr_zero_points()
+            && check_attr_post_ops();
     if (!ok) return status::unimplemented;
 
     // set states

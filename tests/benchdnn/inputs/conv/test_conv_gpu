@@ -43,6 +43,9 @@ mb2ic512ih14oc32oh14kh1ph0n
 # test scale and post-ops
 --batch=harness_conv_attrs_gpu
 
+# test zero points
+--batch=harness_conv_attrs_int8_asymmetric
+
 # test padding
 --reset --cfg=f16,f32
 --stag=any,axb
@@ -67,3 +70,11 @@ g2ic2ih1iw2oc4oh1ow2kh1kw1ph0pw0
 --skip-impl="ref"
 --stag=axb
 --cfg=f16 --mb=1,16 --batch=set_gpu
+
+# regression
+--reset
+--cfg=f32,f16
+--dir=FWD_B,BWD_D,BWD_WB
+--dtag=axb
+g1ic16iw5oc16ow5kw1pw0
+mb3g1ic33iw5oc33ow17kw1pw0

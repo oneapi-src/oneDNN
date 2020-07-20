@@ -77,10 +77,10 @@ struct settings_t {
     const char *pattern = NULL;
 
     const char *perf_template_csv
-            = "perf,%engine%,%name%,%dir%,%dt%,%tag%,%attr%,%flags%,%DESC%,"
-              "%-time%,%0time%";
+            = "perf,%engine%,%impl%,%name%,%dir%,%dt%,%tag%,%attr%,%flags%,%"
+              "DESC%,%-time%,%0time%";
     const char *perf_template_def
-            = "perf,%engine%,%name%,%prb%,%-time%,%0time%";
+            = "perf,%engine%,%impl%,%name%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
@@ -124,6 +124,7 @@ struct perf_report_t : public base_perf_report_t {
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
+        tag_ = fmt_tag2str(convert_tag(p_->tag, p_->ndims));
         base_report(r, prb_str);
     }
 
@@ -144,10 +145,11 @@ struct perf_report_t : public base_perf_report_t {
     const char *name() const override { return p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    const std::string *tag() const override { return &p_->tag; }
+    const std::string *tag() const override { return &tag_; }
 
 private:
     const prb_t *p_ = NULL;
+    std::string tag_;
 };
 
 /* some extra control parameters which shouldn't be placed in prb_t */

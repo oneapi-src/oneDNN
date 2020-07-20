@@ -65,7 +65,7 @@ argument, underscore (`_`) delimiter is used.
 `--attr-post-ops` defines post operations primitive attribute. Depending on
 post operations kind, the syntax differs, but regardless the kind, single quotes
 are used in the beginning and in the end in a string literal, even when empty
-post operations are passed. Up to four post operations are supported.
+post operations are passed.
 
 `SUM` post operation kind appends operation result to the output. It supports
 optional arguments `SCALE` parsed as a real number, which scales the operation

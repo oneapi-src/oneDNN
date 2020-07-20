@@ -1,10 +1,11 @@
+--reset
+
 --batch=test_conv_3d
 --batch=test_conv_3d_f32_nxc
 --batch=test_conv_all_topologies
 --batch=test_conv_all_topologies_f32_nxc
 --batch=test_conv_attrs
 --batch=test_conv_attrs_f32_nxc
---batch=test_conv_attrs_gpu
 --batch=test_conv_bfloat16
 --batch=test_conv_bfloat16_nxc
 --batch=test_conv_depthwise

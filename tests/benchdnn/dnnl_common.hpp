@@ -301,6 +301,8 @@ void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
 void maybe_prepare_runtime_scales(
         dnn_mem_t &scales_m, const attr_bundle_t &attr_bundle);
 
+void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
+        const attr_t &attr, int arg, int64_t count, const int32_t *zero_points);
 void maybe_prepare_runtime_zero_points(
         dnn_mem_t &zero_points_m, const attr_t &attr, int arg);
 
@@ -308,6 +310,6 @@ bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag);
 
 void check_known_skipped_case_common(
-        const std::vector<dnnl_data_type_t> &v_dt, res_t *r);
+        const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *r);
 
 #endif

@@ -16,9 +16,10 @@ oneDNN supports the following build-time options.
 | DNNL_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                         | Enables [primitive cache](@ref dev_guide_primitive_cache)
 | DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
 | DNNL_VERBOSE                | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose)
+| DNNL_BLAS_VENDOR            | **NONE**, ARMPL                     | Defines an external BLAS library to link to for GEMM-like operations
 
-All other building options that can be found in CMake files are dedicated for
-the development/debug purposes and are subject to change without any notice.
+All other building options or values that can be found in CMake files are intended for
+development/debug purposes and are subject to change without notice.
 Please avoid using them.
 
 ## Common options
@@ -115,6 +116,21 @@ TBB plus more:
   responsible for balancing the static decomposition from the previous item
   across available worker threads.
 
+#### Vendor BLAS libraries
+oneDNN can use a standard BLAS library for GEMM operations.
+The `DNNL_BLAS_VENDOR` build option controls BLAS library selection, and
+defaults to `NONE`. For AArch64 builds with GCC, use the
+[Arm Performance Libraries](https://developer.arm.com/tools-and-software/server-and-hpc/downloads/arm-performance-libraries):
+
+~~~sh
+$ cmake -DDNNL_BLAS_VENDOR=ARMPL ..
+~~~
+
+Additional options available for development/debug purposes. These options are
+subject to change without notice, see
+[`cmake/options.cmake`](https://github.com/oneapi-src/oneDNN/blob/master/cmake/options.cmake)
+for details.
+
 ## GPU Options
 Intel Processor Graphics is supported by oneDNN GPU engine. GPU engine
 is disabled in the default build configuration.
@@ -129,5 +145,5 @@ OpenCL runtime requires Intel(R) SDK for OpenCL\* applications. You can
 explicitly specify the path to the SDK using `-DOPENCLROOT` CMake option.
 
 ~~~sh
-cmake -DDNNL_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
+$ cmake -DDNNL_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
 ~~~

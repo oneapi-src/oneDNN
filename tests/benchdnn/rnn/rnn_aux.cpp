@@ -517,10 +517,12 @@ void print_value(const prb_t &p, data_kind_t kind, int64_t i, float fp,
 int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return r->state = PASSED, OK;
+
+    r->total += nelems;
 
     diff_norm_t diff_norm;
     size_t errors = 0;
-    r->total += nelems;
 
 //#define BENCHDNN_RNN_PRINT_STATISTICS
 #ifdef BENCHDNN_RNN_PRINT_STATISTICS

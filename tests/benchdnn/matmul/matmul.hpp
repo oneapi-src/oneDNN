@@ -75,11 +75,11 @@ struct settings_t {
     attr_t attr = {};
 
     const char *perf_template_csv
-            = "perf,%engine%,%name%,%cfg%,%attr%,%DESC%,"
+            = "perf,%engine%,%impl%,%name%,%cfg%,%attr%,%DESC%,"
               "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
     const char *perf_template_def
-            = "perf,%engine%,%name%,%prb%,"
-              "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+            = "perf,%engine%,%impl%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-"
+              "Gflops%,%0time%,%0Gflops%";
     const char *perf_template = perf_template_def;
 
     void reset() { *this = settings_t(perf_template); }
@@ -143,6 +143,9 @@ struct perf_report_t : public base_perf_report_t {
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
+        stag_ = {fmt_tag2str(convert_tag(p_->stag, p_->ndims))};
+        wtag_ = fmt_tag2str(convert_tag(p_->wtag, p_->ndims));
+        dtag_ = fmt_tag2str(convert_tag(p_->dtag, p_->ndims));
         base_report(r, prb_str);
     }
 
@@ -160,9 +163,14 @@ struct perf_report_t : public base_perf_report_t {
     double ops() const override { return p_->ops; }
     const attr_t *attr() const override { return &p_->attr; }
     const char *name() const override { return p_->name; }
+    const std::vector<std::string> *stag() const override { return &stag_; }
+    const std::string *wtag() const override { return &wtag_; }
+    const std::string *dtag() const override { return &dtag_; }
 
 private:
     const prb_t *p_ = NULL;
+    std::vector<std::string> stag_;
+    std::string wtag_, dtag_;
 };
 
 inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t m, int64_t k) {

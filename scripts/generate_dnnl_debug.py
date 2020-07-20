@@ -127,6 +127,9 @@ const char *status2str(dnnl_status_t status);
 /* data type */
 const char *dt2str(dnnl_data_type_t dt);
 
+/* format */
+const char *fmt_tag2str(dnnl_format_tag_t tag);
+
 /* endinge kind */
 const char *engine_kind2str(dnnl_engine_kind_t kind);
 
@@ -155,6 +158,10 @@ const char *status2str(dnnl_status_t status) {
 
 const char *dt2str(dnnl_data_type_t dt) {
     return dnnl_dt2str(dt);
+}
+
+const char *fmt_tag2str(dnnl_format_tag_t tag) {
+    return dnnl_fmt_tag2str(tag);
 }
 
 const char *engine_kind2str(dnnl_engine_kind_t kind) {

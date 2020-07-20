@@ -37,6 +37,7 @@
 #define DATA2_T float2
 #define DATA4_T float4
 #define DATA8_T float8
+#define DATA16_T float16
 #define DATA_MAX FLT_MAX
 #define DATA_MIN -DATA_MAX
 #define DATA_ZERO 0.0f
@@ -57,7 +58,6 @@
 #define CONVERT_FLOAT2_T convert_float2
 #define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
-#define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read
 #define BLOCK_WRITE intel_sub_group_block_write
@@ -92,6 +92,7 @@
 #define DATA2_T half2
 #define DATA4_T half4
 #define DATA8_T half8
+#define DATA16_T half16
 #define DATA_MAX HALF_MAX
 #define DATA_MIN -DATA_MAX
 #define DATA_ZERO 0.0h
@@ -112,7 +113,6 @@
 #define CONVERT_FLOAT2_T convert_float2
 #define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
-#define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read_us
 #define BLOCK_WRITE intel_sub_group_block_write_us
@@ -146,6 +146,7 @@
 #define DATA2_T ushort2
 #define DATA4_T ushort4
 #define DATA8_T ushort8
+#define DATA16_T ushort16
 #define DATA_MAX as_float(0x7f7f0000)
 #define DATA_MIN (-DATA_MAX)
 #define DATA_ZERO 0.0f
@@ -165,7 +166,6 @@
 #define CONVERT_FLOAT2_T cvt_bf16_to_f32
 #define CONVERT_FLOAT4_T cvt_bf16_to_f32
 #define CONVERT_FLOAT8_T cvt_bf16_to_f32
-#define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read_us
 #define BLOCK_WRITE intel_sub_group_block_write_us
@@ -220,7 +220,6 @@
 #define CONVERT_FLOAT2_T convert_float2
 #define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
-#define ROUND rint
 
 #define BLOCK_READ intel_sub_group_block_read_uc
 #define BLOCK_WRITE intel_sub_group_block_write_uc
@@ -277,7 +276,6 @@
 #define CONVERT_FLOAT2_T convert_float2
 #define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
-#define ROUND rint
 
 #define BLOCK_READ intel_sub_group_block_read_uc
 #define BLOCK_WRITE intel_sub_group_block_write_uc
