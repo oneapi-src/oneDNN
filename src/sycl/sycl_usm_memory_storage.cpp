@@ -52,9 +52,8 @@ status_t sycl_usm_memory_storage_t::map_data(
 
     auto &guard_manager = guard_manager_t<map_usm_tag>::instance();
 
-    if (!stream)
-        stream = utils::downcast<sycl_engine_base_t *>(engine())
-                         ->service_stream();
+    if (!stream) CHECK(engine()->get_service_stream(stream));
+
     cl::sycl::queue sycl_queue
             = utils::downcast<sycl_stream_t *>(stream)->queue();
     sycl_queue.wait_and_throw();

@@ -45,9 +45,7 @@ status_t sycl_stream_t::init() {
         // mapped to the same SYCL queue.
         // If service stream is NULL then the current stream will be service
         // so construct it from scratch.
-        auto *service_stream = utils::downcast<sycl_stream_t *>(
-                sycl_engine.service_stream());
-        if (!service_stream) {
+        if (!sycl_engine.is_service_stream_created()) {
 #ifdef DNNL_SYCL_DPCPP
             queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev));
 #else
@@ -72,7 +70,10 @@ status_t sycl_stream_t::init() {
         } else {
             // XXX: multiple queues support has some issues, so always re-use
             // the same queue from the service stream.
-            queue_.reset(new cl::sycl::queue(service_stream->queue()));
+            stream_t *service_stream;
+            CHECK(sycl_engine.get_service_stream(service_stream));
+            auto sycl_stream = utils::downcast<sycl_stream_t *>(service_stream);
+            queue_.reset(new cl::sycl::queue(sycl_stream->queue()));
         }
     } else {
         // TODO: Compare device and context of the engine with those of the

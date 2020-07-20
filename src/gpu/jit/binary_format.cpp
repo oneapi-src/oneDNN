@@ -160,8 +160,9 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     *ok = false;
 
     auto gpu_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    auto stream = utils::downcast<compute::compute_stream_t *>(
-            engine->service_stream());
+    stream_t *service_stream;
+    CHECK(engine->get_service_stream(service_stream));
+    auto stream = utils::downcast<compute::compute_stream_t *>(service_stream);
     if (!gpu_engine || !stream) return status::invalid_arguments;
 
     auto kernel = binary_format_kernel_t<HW::Unknown>::make_kernel(gpu_engine);

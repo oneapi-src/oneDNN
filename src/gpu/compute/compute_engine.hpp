@@ -109,6 +109,9 @@ public:
         return status;
     }
 
+    // non-blocking query to check if service stream is already created
+    bool is_service_stream_created() const { return (bool)service_stream_; }
+
 private:
     std::unique_ptr<device_info_t> device_info_;
     std::shared_ptr<primitive_t> zero_pad_primitive_;

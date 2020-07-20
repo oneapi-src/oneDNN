@@ -56,13 +56,7 @@ public:
                     backend_t::level0))
             return status::invalid_arguments;
 
-        stream_t *service_stream_ptr;
-        status_t status = create_stream(
-                &service_stream_ptr, stream_flags::default_flags, nullptr);
-        if (status != status::success) return status;
-        service_stream_.reset(service_stream_ptr);
-
-        status = gpu::jit::gpu_supports_binary_format(
+        status_t status = gpu::jit::gpu_supports_binary_format(
                 &enable_ngen_kernels_, this);
         if (status != status::success) return status;
 
@@ -132,8 +126,6 @@ public:
 
     backend_t backend() const { return backend_; }
 
-    stream_t *service_stream() const override { return service_stream_.get(); }
-
     cl_device_id ocl_device() const {
         assert(device_.is_cpu() || device_.is_gpu());
         return gpu::ocl::make_ocl_wrapper(device().get());
@@ -157,8 +149,6 @@ private:
     bool enable_ngen_kernels_;
 
     backend_t backend_;
-
-    std::unique_ptr<stream_t> service_stream_;
 
     status_t create_ocl_engine(
             std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> *ocl_engine) const {
