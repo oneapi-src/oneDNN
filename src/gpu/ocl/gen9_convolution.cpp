@@ -507,7 +507,8 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
             } else {
                 conf.icb = 64;
                 while (conf.icb > 16) {
-                    if (conf.ic % conf.icb == 0) break;
+                    if (utils::rnd_up(conf.ic, conf.ic_block) % conf.icb == 0)
+                        break;
                     conf.icb /= 2;
                 }
                 conf.lws_d[0] = 16;
@@ -516,7 +517,9 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
                 conf.gws_d[0] = conf.icb;
                 conf.gws_d[1] = conf.ih * utils::div_up(conf.iw, conf.iw_block)
                         * conf.id;
-                conf.gws_d[2] = conf.mb * (conf.ic / conf.icb) * conf.ngroups;
+                conf.gws_d[2] = conf.mb
+                        * (utils::rnd_up(conf.ic, conf.ic_block) / conf.icb)
+                        * conf.ngroups;
             }
             break;
         }
@@ -617,7 +620,8 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("DD", conf.dilate_d);
     kernel_ctx.define_int("DH", conf.dilate_h);
     kernel_ctx.define_int("DW", conf.dilate_w);
-    kernel_ctx.define_int("OC_PADDED", conf.oc);
+    kernel_ctx.define_int("OC_PADDED", utils::rnd_up(conf.oc, conf.oc_block));
+    kernel_ctx.define_int("IC_PADDED", utils::rnd_up(conf.ic, conf.ic_block));
     kernel_ctx.define_int("G_WO_PADDING", conf.ngroups_without_padding);
     kernel_ctx.define_int("OC_WO_PADDING", conf.oc_without_padding);
     kernel_ctx.define_int("IC_WO_PADDING", conf.ic_without_padding);
