@@ -328,7 +328,7 @@ div.mobile-nav a:visited {
 }
 
 #nav-btn::before {
-  content: "";
+  content: '\2630';
   font-family: FontAwesome;
   display: inline-block;
   font-style: normal;
