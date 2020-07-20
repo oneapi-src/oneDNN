@@ -36,8 +36,11 @@ using namespace Xbyak;
 
 void jit_avx512_core_amx_copy_to_wbuffer_t::generate() {
 
+    const bool is_bf16 = jcp.src_dt == data_type::bf16;
+
     // required for use of VPERMB instruction
-    assert(cpu.has(Xbyak::util::Cpu::tAVX512_VBMI));
+    assert(IMPLICATION(!is_bf16, cpu.has(Xbyak::util::Cpu::tAVX512_VBMI)));
+    assert(jcp.ic_block_int * jcp.typesize_in == 64);
 
     preamble();
 
@@ -47,36 +50,54 @@ void jit_avx512_core_amx_copy_to_wbuffer_t::generate() {
     // load permute indices from data section
     Label permute_index_table;
     mov(reg_tmp, permute_index_table);
-    vmovdqu8(zmm_idx, ptr[reg_tmp]);
+    if (is_bf16)
+        vmovdqu16(zmm_idx, ptr[reg_tmp]);
+    else
+        vmovdqu8(zmm_idx, ptr[reg_tmp]);
 
-    const int r = jcp.kh * jcp.kw * jcp.ic_without_padding * jcp.oc_block;
-    const int nb_r = div_up(r, 64);
-    const int rtail = r % 64;
+    const int vnni_width = is_bf16 ? 2 : 4;
+    const int r = jcp.kh * jcp.kw * jcp.ic_without_padding;
+    const int nb_r = div_up(r, vnni_width);
+    const int rtail = (r % vnni_width) * jcp.oc_block;
     if (rtail > 0) {
         uint64_t mask = (UINT64_C(1) << rtail) - 1;
         mov(reg_tmp, mask);
         kmovq(kmask_load, reg_tmp);
     }
-    const int nb_z = rnd_up(nb_r, 16);
+    const int nb_z = rnd_up(nb_r, jcp.ic_block);
     if (nb_r < nb_z) vpxord(zmm_zero, zmm_zero, zmm_zero);
 
+    const int tile_size = jcp.ic_block_int * jcp.oc_block * jcp.typesize_in;
+    const int ocb_src_step = r * jcp.oc_block * jcp.typesize_in;
+    const int ocb_dst_step = rnd_up(ocb_src_step, tile_size);
+
+    // reorder from ~Owhi16o -> ~OR16oVr with r := whi and V := vnni_width
     for (int g = 0; g < jcp.ngroups; g++) {
-        for (int ob = 0; ob < jcp.nb_oc; ob++) {
+        for (int ocb = 0; ocb < jcp.nb_oc; ocb++) {
             int offset = 0;
             int rb = 0;
             for (; rb < nb_r; offset += 64, rb++) {
                 auto zmm_src_tmp = (rtail > 0 && rb == nb_r - 1)
                         ? zmm_src | kmask_load | T_z
                         : zmm_src;
-                vmovdqu8(zmm_src_tmp, ptr[reg_src + offset]);
-                vpermb(zmm_dst, zmm_idx, zmm_src);
-                vmovdqu8(ptr[reg_dst + offset], zmm_dst);
+                if (is_bf16) {
+                    vmovdqu16(zmm_src_tmp, ptr[reg_src + offset]);
+                    vpermw(zmm_dst, zmm_idx, zmm_src);
+                    vmovdqu16(ptr[reg_dst + offset], zmm_dst);
+                } else {
+                    vmovdqu8(zmm_src_tmp, ptr[reg_src + offset]);
+                    vpermb(zmm_dst, zmm_idx, zmm_src);
+                    vmovdqu8(ptr[reg_dst + offset], zmm_dst);
+                }
             }
             for (; rb < nb_z; offset += 64, rb++) {
-                vmovdqu8(ptr[reg_dst + offset], zmm_zero);
+                if (is_bf16)
+                    vmovdqu16(ptr[reg_dst + offset], zmm_zero);
+                else
+                    vmovdqu8(ptr[reg_dst + offset], zmm_zero);
             }
-            add(reg_src, r);
-            add(reg_dst, rnd_up(r, 1024));
+            add(reg_src, ocb_src_step);
+            add(reg_dst, ocb_dst_step);
         }
     }
 
@@ -84,10 +105,15 @@ void jit_avx512_core_amx_copy_to_wbuffer_t::generate() {
 
     align(64);
     L(permute_index_table);
-    for (uint8_t i = 0; i < 16; ++i) {
-        for (uint8_t j = 0; j < 4; j++) {
-            const uint8_t index = i + j * UINT8_C(16);
-            db(index);
+    const uint8_t no = 16; // 16o
+    const uint8_t nr = is_bf16 ? 2 : 4; // 2r or 4r
+    for (uint8_t o = 0; o < no; ++o) {
+        for (uint8_t r = 0; r < nr; r++) {
+            const uint8_t index = o + r * UINT8_C(no);
+            if (is_bf16)
+                dw(index);
+            else
+                db(index);
         }
     }
 }
@@ -235,7 +261,7 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row(int icb) {
 
 void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
     assert(jcp.nb_ic_int == 1);
-    assert(jcp.ic_block_int == 64);
+    assert(jcp.ic_block_int * jcp.typesize_in == 64);
     assert(jcp.is_nspc);
 
     auto load_mask = [=](int tail, Opmask kmask) {
@@ -244,20 +270,24 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
         kmovq(kmask, reg_tmp);
     };
 
-    const int bytes_per_kh = jcp.ic_block_int_np * jcp.typesize_in;
+    const bool is_bf16 = jcp.src_dt == data_type::bf16;
     const int inp_w_step
             = jcp.ngroups * jcp.ic_without_padding * jcp.typesize_in;
     const int inp_h_step = jcp.iw * inp_w_step;
-    const int out_h_step = bytes_per_kh;
+    const int out_h_step = jcp.ic_without_padding * jcp.typesize_in;
     const int out_w_step = jcp.kh * out_h_step;
-    const int tail_size = bytes_per_kh % jcp.ic_block_int;
+    const int tail_size = jcp.ic_without_padding % jcp.ic_block_int;
     if (tail_size > 0) load_mask(tail_size, ktail_mask);
 
     auto zero_it = [=](reg64_t tmp_out_ptr) {
-        for (int bo = 0; bo < bytes_per_kh; bo += 64) {
-            Zmm zmm = bo + 64 <= bytes_per_kh ? zmm_zero
-                                              : zmm_zero | ktail_mask;
-            vmovdqu8(ptr[tmp_out_ptr + bo], zmm);
+        for (int ic = 0; ic < jcp.ic_without_padding; ic += jcp.ic_block_int) {
+            const int offset = ic * jcp.typesize_in;
+            const bool masked = ic + jcp.ic_block_int > jcp.ic_without_padding;
+            Zmm zmm = masked ? zmm_zero | ktail_mask : zmm_zero;
+            if (is_bf16)
+                vmovdqu16(ptr[tmp_out_ptr + offset], zmm);
+            else
+                vmovdqu8(ptr[tmp_out_ptr + offset], zmm);
         }
     };
 
@@ -354,13 +384,21 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
         mov(reg_cnt, reg_kwp);
         L(label_khp_inner);
         {
-            for (int bo = 0; bo < bytes_per_kh; bo += 64) {
-                const bool masked = bo + 64 > bytes_per_kh;
+            for (int ic = 0; ic < jcp.ic_without_padding;
+                    ic += jcp.ic_block_int) {
+                const int offset = ic * jcp.typesize_in;
+                const bool masked
+                        = ic + jcp.ic_block_int > jcp.ic_without_padding;
                 // zero masking is needed to avoid dependency on destination
                 Zmm zmm_load = masked ? zmm_tmp | ktail_mask | T_z : zmm_tmp;
                 Zmm zmm_store = masked ? zmm_tmp | ktail_mask : zmm_tmp;
-                vmovdqu8(zmm_load, ptr[aux_inp_ptr + bo]);
-                vmovdqu8(ptr[aux_out_ptr + bo], zmm_store);
+                if (is_bf16) {
+                    vmovdqu16(zmm_load, ptr[aux_inp_ptr + offset]);
+                    vmovdqu16(ptr[aux_out_ptr + offset], zmm_store);
+                } else {
+                    vmovdqu8(zmm_load, ptr[aux_inp_ptr + offset]);
+                    vmovdqu8(ptr[aux_out_ptr + offset], zmm_store);
+                }
             }
             add(aux_inp_ptr, inp_w_step);
             add(aux_out_ptr, out_w_step);
@@ -395,14 +433,15 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
 
     { // Handle Right Overflow
         Label label_rov, label_rov_skip;
-        test(reg_rov, reg_rov);
-        jz(label_rov_skip, T_NEAR);
         // retrieve output pointer
         mov(out_ptr, save_out_ptr);
         // calculate the shift
         imul(reg_tmp, reg_kwp, out_w_step);
         // shift past the body
         add(out_ptr, reg_tmp);
+        // skip if no right overflow
+        test(reg_rov, reg_rov);
+        jz(label_rov_skip, T_NEAR);
 
         L(label_rov); // handle left or right overflow
         {
@@ -421,6 +460,17 @@ void jit_avx512_core_amx_copy_to_pbuffer_t::copy_row_reduced_lowering() {
             jnz(label_rov, T_NEAR);
         }
         L(label_rov_skip);
+    }
+
+    // For bf16, zero-pad an extra cacheline to avoid NaNs
+    // For int8, it is sufficient to zero-pad the weights only
+    if (is_bf16) {
+        // shift forward to align h index to end of needed buffer
+        imul(reg_tmp, reg_kht, out_h_step);
+        add(out_ptr, reg_tmp);
+        // shift backward to align w index to end of needed buffer
+        sub(out_ptr, out_w_step);
+        vmovdqu16(ptr[out_ptr], zmm_zero);
     }
 }
 
@@ -633,8 +683,9 @@ size_t jit_avx512_core_amx_fwd_kernel_t::get_wei_offset(int ocb, int kw) const {
     size_t el_offset = (size_t)kw * jcp.ic_block_int_np * jcp.oc_block;
     size_t raw_oc_subblock_step
             = jcp.kh * jcp.kw * jcp.ic_block_int_np * jcp.oc_block;
-    size_t oc_subblock_step = jcp.is_relo ? rnd_up(raw_oc_subblock_step, 1024)
-                                          : raw_oc_subblock_step;
+    size_t oc_subblock_step = jcp.is_relo
+            ? rnd_up(raw_oc_subblock_step, jcp.ic_block_int * jcp.oc_block)
+            : raw_oc_subblock_step;
     el_offset += (size_t)ocb * jcp.nb_ic_int * oc_subblock_step;
     return jcp.typesize_in * el_offset;
 }
@@ -966,7 +1017,7 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
     // reduced lowering path
     if (jcp.is_relo) {
         const int nreduce = jcp.nreduce;
-        const int stride = jcp.ic_block_int; // ie 64
+        const int stride = jcp.ic_block_int; // ie 64 (32) for int8 (bf16)
         mov(aux_inp_ptr, inp_ptr);
         mov(aux_wei_ptr, wei_ptr);
         for (int ireduce = 0; ireduce < nreduce; ireduce += stride) {
@@ -987,8 +1038,8 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
                 }
             }
             if (ireduce + stride < nreduce) {
-                add(aux_inp_ptr, stride);
-                add(aux_wei_ptr, stride * jcp.oc_block);
+                add(aux_inp_ptr, stride * jcp.typesize_in);
+                add(aux_wei_ptr, stride * jcp.oc_block * jcp.typesize_in);
             }
         }
         store_output(width, tail, do_store);
@@ -1329,9 +1380,9 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.ic_block_int = jcp.ic_block * vnni_width; // 32 for bf16, 64 for int8
 
     // small-ic parameters
-    jcp.ic_block_int_np = is_bf16_convolution
-            ? jcp.ic_block_int
-            : nstl::min(jcp.ic_block_int, jcp.ic_without_padding);
+    jcp.ic_block_int_np = jcp.is_nspc
+            ? nstl::min(jcp.ic_block_int, jcp.ic_without_padding)
+            : jcp.ic_block_int;
     bool is_small_ic = jcp.ic_block_int_np < jcp.ic_block_int;
 
     // reduced lowering
@@ -1339,7 +1390,8 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             // no trivial cases
             && 1 < jcp.kh * jcp.kw
             // required for use of VPERMB instruction in weights copy kernel
-            && cpu.has(Xbyak::util::Cpu::tAVX512_VBMI)
+            && IMPLICATION(is_int8_convolution,
+                    cpu.has(Xbyak::util::Cpu::tAVX512_VBMI))
             // no dilation or excessive stride along w-direction
             && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
             // no dilation or excessive stride along h-direction
@@ -1347,7 +1399,9 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.nreduce = jcp.kh * jcp.kw * jcp.ic_block_int_np;
 
     if (!jcp.is_relo) {
-        jcp.ic_block_int_np = rnd_up(jcp.ic_block_int_np, vnni_width);
+        jcp.ic_block_int_np = is_bf16_convolution
+                ? jcp.ic_block_int
+                : rnd_up(jcp.ic_block_int_np, vnni_width);
         is_small_ic = jcp.ic_block_int_np < jcp.ic_block_int;
     }
 
@@ -1372,17 +1426,16 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     auto set_or_check_wei_format = [&]() {
         using namespace format_tag;
         format_tag_t wei_tag;
-        wei_tag = is_bf16_convolution
-                ? pick(with_groups + 2 * (ndims - 3), OIw16i16o2i, gOIw16i16o2i,
-                        OIhw16i16o2i, gOIhw16i16o2i)
-                : jcp.is_relo ? pick(with_groups + 2 * (ndims - 3), Owi16o,
+        wei_tag = jcp.is_relo ? pick(with_groups + 2 * (ndims - 3), Owi16o,
                           gOwi16o, Owhi16o, gOwhi16o)
-                              : is_small_ic
-                                ? pick(with_groups + 2 * (ndims - 3), OwI16o4i,
-                                        gOwI16o4i, OhwI16o4i, gOhwI16o4i)
-                                : pick(with_groups + 2 * (ndims - 3),
-                                        OIw16i16o4i, gOIw16i16o4i, OIhw16i16o4i,
-                                        gOIhw16i16o4i);
+                              : is_bf16_convolution
+                        ? pick(with_groups + 2 * (ndims - 3), OIw16i16o2i,
+                                gOIw16i16o2i, OIhw16i16o2i, gOIhw16i16o2i)
+                        : is_small_ic ? pick(with_groups + 2 * (ndims - 3),
+                                  OwI16o4i, gOwI16o4i, OhwI16o4i, gOhwI16o4i)
+                                      : pick(with_groups + 2 * (ndims - 3),
+                                              OIw16i16o4i, gOIw16i16o4i,
+                                              OIhw16i16o4i, gOIhw16i16o4i);
 
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);

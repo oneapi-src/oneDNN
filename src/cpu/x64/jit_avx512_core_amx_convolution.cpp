@@ -103,7 +103,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     size_t oc_subblock_step
             = jcp.kh * jcp.kw * jcp.ic_block_int_np * jcp.oc_block;
     size_t wei_oc_shift = (size_t)jcp.nb_oc_blocking * jcp.nb_ic_int
-            * rnd_up(oc_subblock_step, 1024);
+            * rnd_up(oc_subblock_step, jcp.ic_block_int * jcp.oc_block);
 
     kernel_->tile_configure(tcfg);
     const bool is_1d = pd()->ndims() == 3;
