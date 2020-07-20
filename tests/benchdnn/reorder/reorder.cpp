@@ -29,7 +29,7 @@ namespace reorder {
 
 // prepare the output scales and mask
 int prepare_attr_bundle(const prb_t *p, attr_bundle_t &attr_bundle) {
-    const int mask = attr_t::scale_t::get_default_mask(p->attr.oscale.policy);
+    const int mask = attr_t::get_default_mask(p->attr.oscale.policy);
 
     int64_t uniq_scales = 1;
     for (int d = 0; d < p->ndims; ++d)

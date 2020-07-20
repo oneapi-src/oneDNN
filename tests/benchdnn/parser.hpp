@@ -106,9 +106,9 @@ template <typename T>
 bool parse_subattr(
         std::vector<T> &vec, const char *str, const std::string &option_name) {
     std::vector<T> def {T()};
-    auto parse_subattr_func = [](const char *s) {
+    auto parse_subattr_func = [](const std::string &s) {
         T v;
-        SAFE_V(v.from_str(s, &s));
+        SAFE_V(v.from_str(s));
         return v;
     };
     return parse_vector_option(vec, def, parse_subattr_func, str, option_name);

@@ -59,13 +59,11 @@ static int check_attr2str() {
     attr.oscale.runtime = false;
     CHECK_PRINT_EQ(attr, "--attr-oscale=per_dim_01:3.2 ");
 
-    attr.zero_points.set(
-            DNNL_ARG_SRC, attr_t::zero_points_t::policy_t::COMMON, 1, false);
+    attr.zero_points.set(DNNL_ARG_SRC, policy_t::COMMON, 1, false);
     CHECK_PRINT_EQ(attr,
             "--attr-oscale=per_dim_01:3.2 --attr-zero-points=src:common:1 ");
 
-    attr.zero_points.set(DNNL_ARG_WEIGHTS,
-            {attr_t::zero_points_t::policy_t::PER_DIM_1, 2, true});
+    attr.zero_points.set(DNNL_ARG_WEIGHTS, {policy_t::PER_DIM_1, 2, true});
     CHECK_PRINT_EQ2(attr,
             "--attr-oscale=per_dim_01:3.2 "
             "--attr-zero-points=src:common:1_wei:per_dim_1:2* ",
@@ -222,19 +220,19 @@ static int check_str2post_ops() {
         return OK;
     };
 
-    ops.from_str("''", NULL);
+    ops.from_str("''");
     CHECK_EQ(ops.is_def(), true);
 
-    ops.from_str("'sum:2;'", NULL);
+    ops.from_str("'sum:2;'");
     CHECK_EQ(quick(1), OK);
 
-    ops.from_str("'sum:2;relu'", NULL);
+    ops.from_str("'sum:2;relu'");
     CHECK_EQ(quick(2), OK);
 
-    ops.from_str("'sum:2;relu;sum:3'", NULL);
+    ops.from_str("'sum:2;relu;sum:3'");
     CHECK_EQ(quick(3), OK);
 
-    ops.from_str("'sum:2;relu;sum:3;relu;'", NULL);
+    ops.from_str("'sum:2;relu;sum:3;relu;'");
     CHECK_EQ(quick(4), OK);
 
     return OK;

@@ -145,7 +145,7 @@ bool parse_scale_policy(std::vector<policy_t> &policy,
         const std::vector<policy_t> &def_policy, const char *str,
         const std::string &option_name /*= "scaling"*/) {
     return parse_vector_option(
-            policy, def_policy, attr_t::scale_t::str2policy, str, option_name);
+            policy, def_policy, attr_t::str2policy, str, option_name);
 }
 
 // plain types

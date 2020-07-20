@@ -181,8 +181,8 @@ void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
         int64_t scale_cnt, const float *scales) {
     if (!attr.oscale.runtime) return;
 
-    using P = attr_t::scale_t::policy_t;
-    const int64_t count = attr.oscale.policy == P::COMMON ? 1 : scale_cnt;
+    const int64_t count
+            = attr.oscale.policy == policy_t::COMMON ? 1 : scale_cnt;
 
     scales_m = dnn_mem_t(1, &count, dnnl_f32, dnnl_a, get_test_engine());
     for (int64_t c = 0; c < count; ++c)
@@ -200,9 +200,8 @@ void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         const int32_t *zero_points) {
     if (!attr.zero_points.runtime(arg)) return;
 
-    using P = attr_t::zero_points_t::policy_t;
     const auto e = attr.zero_points.get(arg);
-    const int64_t cnt = e.policy == P::COMMON ? 1 : count;
+    const int64_t cnt = e.policy == policy_t::COMMON ? 1 : count;
 
     zero_points_m = dnn_mem_t(1, &cnt, dnnl_s32, dnnl_a, get_test_engine());
     for (int64_t c = 0; c < cnt; ++c)
