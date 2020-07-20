@@ -196,7 +196,7 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     result_buf.reset(storage);
 
     void *magic_host = nullptr;
-    magic_buf->map_data(&magic_host, nullptr);
+    magic_buf->map_data(&magic_host, nullptr, sizeof(int32_t));
     if (!magic_host) return status::runtime_error;
 
     *reinterpret_cast<uint32_t *>(magic_host) = magic_ptr;
@@ -204,7 +204,7 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     magic_buf->unmap_data(magic_host, nullptr);
 
     void *result_host = nullptr;
-    result_buf->map_data(&result_host, nullptr);
+    result_buf->map_data(&result_host, nullptr, sizeof(int32_t));
     if (!result_host) return status::runtime_error;
 
     *reinterpret_cast<uint32_t *>(result_host) = 0;
@@ -229,7 +229,7 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     if (status != status::success) return status::runtime_error;
 
     result_host = nullptr;
-    result_buf->map_data(&result_host, nullptr);
+    result_buf->map_data(&result_host, nullptr, sizeof(int32_t));
     if (!result_host) return status::runtime_error;
 
     auto result = *reinterpret_cast<uint32_t *>(result_host);
