@@ -58,7 +58,9 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
                     && (utils::everyone_is(
                                 f32, src_data_t, dst_data_t, acc_data_t)
                             || utils::everyone_is(
-                                    f16, src_data_t, dst_data_t, acc_data_t))
+                                    f16, src_data_t, dst_data_t, acc_data_t)
+                            || utils::everyone_is(u8, src_data_t, dst_data_t)
+                            || utils::everyone_is(s8, src_data_t, dst_data_t))
                     && IMPLICATION(utils::one_of(src_data_t, f16, s8, u8),
                             desc()->prop_kind == forward_inference)
                     && attr()->has_default_values()
