@@ -28,6 +28,7 @@ developers interested in improving application performance
 on Intel CPUs and GPUs. Deep learning practitioners should use one of the
 applications enabled with oneDNN:
 * [Apache\* MXNet](https://mxnet.apache.org)
+* [Apache\* SINGA](https://singa.apache.org)
 * [BigDL](https://github.com/intel-analytics/BigDL)
 * [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
 * [Chainer\*](https://chainer.org)
