@@ -283,6 +283,11 @@ struct conv_conf_t {
     bool is_src_nchw, is_src_nhwc;
     bool is_dst_nhwc;
 
+    int tile_size;
+    int wino_m;
+    int wino_r;
+    size_t U_gws_d[3], U_lws_d[3];
+
     data_type_t src_data_type;
     data_type_t weights_data_type;
     data_type_t bias_data_type;

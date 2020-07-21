@@ -620,44 +620,63 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     // Winograd implementation limitations.
     if (prb->alg == WINO) {
-        static auto isa = dnnl_get_effective_cpu_isa();
-        static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic;
-        static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core;
-        bool is_int8 = prb->cfg[WEI].dt == dnnl_s8;
+        if (engine_tgt_kind == dnnl_cpu) {
+            static auto isa = dnnl_get_effective_cpu_isa();
+            static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic;
+            static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core;
+            bool is_int8 = prb->cfg[WEI].dt == dnnl_s8;
 
-        bool pad_ok_f32 = prb->pw <= 1 && prb->ph <= 1 && prb->pw_r <= 1
-                && prb->ph_r <= 1;
-        bool pad_ok_int8 = prb->pw <= 1 && prb->ph <= 1 && prb->pw == prb->pw_r
-                && prb->ph == prb->ph_r;
+            bool pad_ok_f32 = prb->pw <= 1 && prb->ph <= 1 && prb->pw_r <= 1
+                    && prb->ph_r <= 1;
+            bool pad_ok_int8 = prb->pw <= 1 && prb->ph <= 1
+                    && prb->pw == prb->pw_r && prb->ph == prb->ph_r;
 
-        bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
-                && prb->kw == 3 && prb->sh == 1 && prb->sw == 1 && prb->dh == 0
-                && prb->dw == 0 && IMPLICATION(!is_int8, pad_ok_f32)
-                && IMPLICATION(is_int8,
-                        (prb->ic % 16 == 0) && (prb->oc % 16 == 0)
-                                && pad_ok_int8);
-        bool bwd_is_syncable = IMPLICATION(
-                (prb->dir & FLAG_BWD), dnnl::impl::dnnl_thr_syncable());
+            bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
+                    && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
+                    && prb->dh == 0 && prb->dw == 0
+                    && IMPLICATION(!is_int8, pad_ok_f32)
+                    && IMPLICATION(is_int8,
+                            (prb->ic % 16 == 0) && (prb->oc % 16 == 0)
+                                    && pad_ok_int8);
+            bool bwd_is_syncable = IMPLICATION(
+                    (prb->dir & FLAG_BWD), dnnl::impl::dnnl_thr_syncable());
 
-        const auto stag = normalize_tag(prb->stag, prb->ndims);
-        const bool stag_is_abx = stag == normalize_tag(tag::abx, prb->ndims);
-        const bool stag_is_axb = stag == normalize_tag(tag::axb, prb->ndims);
-        const auto dtag = normalize_tag(prb->dtag, prb->ndims);
-        const bool dtag_is_abx = dtag == normalize_tag(tag::abx, prb->ndims);
-        const bool dtag_is_axb = dtag == normalize_tag(tag::axb, prb->ndims);
-        const bool is_plain
-                = stag_is_abx || stag_is_axb || dtag_is_abx || dtag_is_axb;
-        const bool plain_ok = is_int8 && !stag_is_abx && !dtag_is_abx
-                && (stag_is_axb || dtag_is_axb);
+            const auto stag = normalize_tag(prb->stag, prb->ndims);
+            const bool stag_is_abx
+                    = stag == normalize_tag(tag::abx, prb->ndims);
+            const bool stag_is_axb
+                    = stag == normalize_tag(tag::axb, prb->ndims);
+            const auto dtag = normalize_tag(prb->dtag, prb->ndims);
+            const bool dtag_is_abx
+                    = dtag == normalize_tag(tag::abx, prb->ndims);
+            const bool dtag_is_axb
+                    = dtag == normalize_tag(tag::axb, prb->ndims);
+            const bool is_plain
+                    = stag_is_abx || stag_is_axb || dtag_is_abx || dtag_is_axb;
+            const bool plain_ok = is_int8 && !stag_is_abx && !dtag_is_abx
+                    && (stag_is_axb || dtag_is_axb);
 
-        const auto &po = prb->attr.post_ops;
-        const auto sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
-        const bool sum_post_op_ok
-                = sum_idx == -1 || po.entry[sum_idx].sum.scale == 1.f;
+            const auto &po = prb->attr.post_ops;
+            const auto sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
+            const bool sum_post_op_ok
+                    = sum_idx == -1 || po.entry[sum_idx].sum.scale == 1.f;
 
-        if (!has_avx512_common || !shape_ok || (!has_avx512_bw && is_int8)
-                || !bwd_is_syncable || (is_plain && !plain_ok)
-                || !sum_post_op_ok) {
+            if (!has_avx512_common || !shape_ok || (!has_avx512_bw && is_int8)
+                    || !bwd_is_syncable || (is_plain && !plain_ok)
+                    || !sum_post_op_ok) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
+            }
+        } else if (engine_tgt_kind == dnnl_gpu) {
+            bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
+                    && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
+                    && prb->dh == 0 && prb->dw == 0;
+            if (!shape_ok) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            }
+            return;
+        } else {
+            assert(!"Unknown Engine");
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }

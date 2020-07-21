@@ -32,6 +32,7 @@
 #include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/gen9_pooling.hpp"
 #include "gpu/ocl/gen9_softmax.hpp"
+#include "gpu/ocl/gen9_wino_convolution.hpp"
 #include "gpu/ocl/ref_batch_normalization.hpp"
 #include "gpu/ocl/ref_binary.hpp"
 #include "gpu/ocl/ref_convolution.hpp"
@@ -71,6 +72,7 @@ const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::gen12lp_x8s8s32x_1x1_convolution_fwd_t),
         INSTANCE(ocl::gen12lp_x8s8s32x_convolution_fwd_t),
         INSTANCE(ocl::gen12lp_x8s8s32x_convolution_bwd_data_t),
+        INSTANCE(ocl::gen9_wino_convolution_fwd_t),
         INSTANCE(ocl::gen9_convolution_fwd_t),
         INSTANCE(ocl::gen9_convolution_bwd_data_t),
         INSTANCE(ocl::gen9_convolution_bwd_weights_t),
