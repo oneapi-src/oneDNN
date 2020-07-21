@@ -4094,8 +4094,9 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
                     jcp.l_pad < max_ur_w && ext_kw <= jcp.ow);
     if (!boundaries_ok) return status::unimplemented;
 
+    const int max_kw = jcp.is_1stconv ? 24 : 14;
     /* yet another common check */
-    if (jcp.kw > 14) return status::unimplemented;
+    if (jcp.kw > max_kw) return status::unimplemented;
 
     jcp.wei_dt = diff_weights_d.data_type();
 
