@@ -1,7 +1,7 @@
 --reset
 
 --inplace=true,false
---skip-impl="ref:any"
+--skip-impl="ref"
 
 # f32
 --dir=FWD_D,BWD_D

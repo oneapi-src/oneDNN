@@ -4,9 +4,10 @@
 --dir=FWD_D,BWD_D,BWD_WB --batch=shapes_mobilenet_dw
 --dir=FWD_D,BWD_D,BWD_WB --batch=shapes_regression_dw
 
-#post-ops
+# post-ops
 --dir=FWD_D
---attr-post-ops='relu','sum','sum;relu'--batch=shapes_mobilenet_dw
+--attr-post-ops='relu','sum','sum;relu'
+--batch=shapes_mobilenet_dw
 
 --reset --cfg=f32_full
 --mb=2
