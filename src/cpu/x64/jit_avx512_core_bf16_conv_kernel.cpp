@@ -4144,7 +4144,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     if (jcp.uses_permw_transposition) {
         jcp.transpose_src = false;
         jcp.transpose_dst = false;
-    } else if (jcp.is_1stconv && !is_data_layout_nxc) {
+    } else if (jcp.is_1stconv && IMPLICATION(is_data_layout_nxc, jcp.ic == 1)) {
         jcp.transpose_src = false;
         jcp.transpose_dst = true;
     } else {
