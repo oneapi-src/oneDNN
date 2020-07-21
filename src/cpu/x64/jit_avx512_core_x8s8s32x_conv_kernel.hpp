@@ -93,6 +93,7 @@ private:
     const Xbyak::Reg64 reg_ki = reg_compensation;
     const Xbyak::Reg64 reg_overflow = reg_ptr_scales;
     const Xbyak::Reg64 reg_icb = reg_bias;
+    const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
 
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask kblend_mask = Xbyak::Opmask(3);
