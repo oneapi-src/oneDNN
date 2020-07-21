@@ -1,0 +1,3 @@
+[submodule "src/cpu/aarch64/xbyak_translator_aarch64"]
+	path = src/cpu/aarch64/xbyak_translator_aarch64
+	url = ../xbyak_translator_aarch64
