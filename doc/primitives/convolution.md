@@ -193,13 +193,13 @@ the convolution primitive is optimized for.
 | :--        | :--              | :--                           | :--
 | 1D, 2D, 3D |                  | `any`                         | *optimized*
 | 1D         | f32, bf16        | NCW / OIW, GOIW               | #dnnl_ncw (#dnnl_abc) / #dnnl_oiw (#dnnl_abc), #dnnl_goiw (#dnnl_abcd)
-| 1D         | "                | "                             | #dnnl_nwc (#dnnl_acb) / #dnnl_wio (#dnnl_cba), #dnnl_wigo (#dnnl_dcab)
+| 1D         | \"               | \"                            | #dnnl_nwc (#dnnl_acb) / #dnnl_wio (#dnnl_cba), #dnnl_wigo (#dnnl_dcab)
 | 1D         | int8             | NCW / OIW                     | #dnnl_nwc (#dnnl_acb) / #dnnl_wio (#dnnl_cba)
 | 2D         | f32, bf16        | NCHW / OIHW, GOIHW            | #dnnl_nchw (#dnnl_abcd) / #dnnl_oihw (#dnnl_abcd), #dnnl_goihw (#dnnl_abcde)
-| 2D         | "                | "                             | #dnnl_nhwc (#dnnl_acdb) / #dnnl_hwio (#dnnl_cdba), #dnnl_hwigo (#dnnl_decab)
+| 2D         | \"               | \"                            | #dnnl_nhwc (#dnnl_acdb) / #dnnl_hwio (#dnnl_cdba), #dnnl_hwigo (#dnnl_decab)
 | 2D         | int8             | NCHW / OIHW, GOIHW            | #dnnl_nhwc (#dnnl_acdb) / #dnnl_hwio (#dnnl_cdba), #dnnl_hwigo (#dnnl_decab)
 | 3D         | f32, bf16        | NCDHW / OIDHW, GOIDHW         | #dnnl_ncdhw (#dnnl_abcde) / #dnnl_oidhw (#dnnl_abcde), #dnnl_goidhw (#dnnl_abcdef)
-| 3D         | "                | "                             | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba), #dnnl_dhwigo (#dnnl_defcab)
+| 3D         | \"               | \"                            | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba), #dnnl_dhwigo (#dnnl_defcab)
 | 3D         | int8             | NCDHW / OIDHW                 | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba)
 
 ### Post-ops and Attributes
