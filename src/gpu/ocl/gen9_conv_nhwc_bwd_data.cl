@@ -106,9 +106,10 @@ gen9_conv_nhwc_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
     DATA_T blockC00[IW_BLOCK] = {DATA_ZERO};
 
     if (WITH_BIAS) {
-        const int bg_off = ic * IC_BLOCK + local_id;
-        DATA_T b = (IC_WO_PADDING % IC_BLOCK == 0 || bg_off < IC_WO_PADDING)
-                ? bias[bg_off]
+        const int bg_off = g * IC;
+        const int bc_off = gic * IC_BLOCK + local_id;
+        DATA_T b = (IC_WO_PADDING % IC_BLOCK == 0 || bc_off < IC_WO_PADDING)
+                ? bias[bg_off + bc_off]
                 : DATA_ZERO;
         unroll_for(int i = 0; i < IW_BLOCK; ++i) { blockC00[i] = b; }
     }
