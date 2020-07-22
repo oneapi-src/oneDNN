@@ -30,6 +30,9 @@ where *reorder-knobs* are:
  - `--oflag={none [default], conv_s8s8, gconv_s8s8}` -- memory descriptor extra
             field specifier. Also sets compensation mask based on the flag
             value. Only applicable when `--alg=bootstrap`.
+ - `--cross-engine={none [default], cpu2gpu, gpu2cpu}` -- defines what kind of
+            cross-engine reorder will be used. If `--engine` is set to `cpu`,
+            `none` is the only supported value.
 
 and *reorder-desc* is a problem descriptor. The canonical form is:
 ```

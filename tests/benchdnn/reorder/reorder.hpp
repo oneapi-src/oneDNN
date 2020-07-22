@@ -59,6 +59,10 @@ struct q10n_conf_t {
     float scale;
 };
 
+enum cross_engine_t { NONE, CPU2GPU, GPU2CPU };
+cross_engine_t str2cross_engine(const char *str);
+const char *cross_engine2str(cross_engine_t cross_engine);
+
 struct settings_t {
     settings_t() = default;
 
@@ -75,6 +79,7 @@ struct settings_t {
     std::vector<flag_t> oflag {FLAG_NONE};
     std::vector<unsigned> runtime_dim_mask {0};
     std::vector<alg_t> alg {ALG_REF};
+    std::vector<cross_engine_t> cross_engine {NONE};
     std::vector<attr_t::scale_t> oscale {attr_t::scale_t()};
     std::vector<attr_t::zero_points_t> zero_points {attr_t::zero_points_t()};
     std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
@@ -93,13 +98,15 @@ struct settings_t {
 struct prb_t {
     prb_t(const reorder_conf_t &r, const dt_conf_t &conf_in,
             const dt_conf_t &conf_out, const attr_t &attr, alg_t alg,
-            flag_t oflag, unsigned runtime_dim_mask, float scale = 0.f)
+            flag_t oflag, cross_engine_t cross_engine,
+            unsigned runtime_dim_mask, float scale = 0.f)
         : reorder(r)
         , conf_in(conf_in)
         , conf_out(conf_out)
         , attr(attr)
         , alg(alg)
         , oflag(oflag)
+        , cross_engine(cross_engine)
         , runtime_dim_mask(runtime_dim_mask)
         , ops(0)
         , ndims((int)reorder.dims.size()) {
@@ -113,6 +120,7 @@ struct prb_t {
     attr_t attr;
     alg_t alg;
     flag_t oflag;
+    cross_engine_t cross_engine;
     unsigned runtime_dim_mask;
     double ops;
     int ndims;
@@ -148,6 +156,15 @@ struct perf_report_t : public base_perf_report_t {
 
     void dump_desc_csv(std::ostream &s) const override {
         s << p_->reorder.dims;
+    }
+
+    void dump_engine(std::ostream &s) const override {
+        if (p_->cross_engine == CPU2GPU)
+            s << "cpu2gpu";
+        else if (p_->cross_engine == GPU2CPU)
+            s << "gpu2cpu";
+        else
+            base_perf_report_t::dump_engine(s);
     }
 
     void dump_flags(std::ostream &s) const override {
