@@ -240,6 +240,11 @@ struct dnnl_primitive : public dnnl::impl::c_compatible {
     dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
             dnnl::impl::engine_t *engine);
 
+    // This is a ctor for reorder
+    dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
+            dnnl::impl::engine_t *engine, dnnl::impl::engine_t *src_engine,
+            dnnl::impl::engine_t *dst_engine);
+
     ~dnnl_primitive();
     dnnl::impl::status_t init();
     dnnl::impl::engine_t *engine() const;

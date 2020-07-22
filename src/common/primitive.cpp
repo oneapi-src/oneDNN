@@ -20,6 +20,7 @@
 #include "engine.hpp"
 #include "primitive.hpp"
 #include "primitive_desc.hpp"
+#include "reorder_pd.hpp"
 #include "scratchpad_debug.hpp"
 #include "stream.hpp"
 #include "utils.hpp"
@@ -143,6 +144,13 @@ dnnl_primitive::dnnl_primitive(
     : primitive_(primitive)
     , pd_(utils::make_unique<primitive_desc_iface_t>(
               primitive_->pd(), engine)) {}
+
+// reorder specialization
+dnnl_primitive::dnnl_primitive(const std::shared_ptr<primitive_t> &primitive,
+        engine_t *engine, engine_t *src_engine, engine_t *dst_engine)
+    : primitive_(primitive)
+    , pd_(utils::make_unique<reorder_primitive_desc_iface_t>(
+              primitive_->pd(), engine, src_engine, dst_engine)) {}
 
 dnnl_primitive::~dnnl_primitive() {
     if (scratchpad_debug::is_protect_scratchpad() && scratchpad_ != nullptr

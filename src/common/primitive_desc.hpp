@@ -269,7 +269,7 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
     virtual dnnl::impl::status_t query(
             dnnl::impl::query_t what, int idx, void *result) const;
 
-    dnnl::impl::status_t create_primitive_iface(
+    virtual dnnl::impl::status_t create_primitive_iface(
             primitive_iface_t **primitive_iface) const;
 
     const std::shared_ptr<dnnl::impl::primitive_desc_t> &impl() const;
