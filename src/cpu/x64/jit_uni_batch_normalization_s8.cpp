@@ -51,7 +51,8 @@ struct jit_bnorm_base_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_t)
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
-    const AddressFrame &vmmword = (isa == avx2) ? yword : zword;
+    const AddressFrame &vmmword
+            = (isa == sse41) ? xword : ((isa == avx2) ? yword : zword);
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     const batch_normalization_pd_t *pd_;
@@ -80,15 +81,15 @@ struct jit_bnorm_base_t : public jit_generator {
     Vmm veps = Vmm(isa == avx512_core ? 31 : 15);
 
     size_t simd_w_ = cpu_isa_traits<isa>::vlen / sizeof(float);
-    size_t c_in_xmm_ = 16;
+    size_t c_in_xmm_ = (isa == sse41) ? 8 : 16;
     size_t chan_data_offt_;
-    size_t num_c16_blocks_;
+    size_t num_c_blocks_;
     size_t c_tail_;
     bool with_relu_;
 
     void compute_predefined_variables() {
         chan_data_offt_ = pd_->C() * sizeof(float);
-        num_c16_blocks_ = pd_->C() / c_in_xmm_;
+        num_c_blocks_ = pd_->C() / c_in_xmm_;
         c_tail_ = pd_->C() % c_in_xmm_;
         with_relu_ = (pd_->with_relu_post_op() || pd_->fuse_norm_relu())
                 && pd_->is_fwd();
@@ -158,12 +159,12 @@ struct jit_bnorm_base_t : public jit_generator {
 
         if (pd_->use_scaleshift()) {
             load_scale_and_shift(vscale, vshift, offt, need_tail);
-            vdivps(vscale, vscale, vsqrtvar);
+            uni_vdivps(vscale, vscale, vsqrtvar);
             uni_vfnmadd231ps(vshift, vmean, vscale);
         } else {
-            vdivps(vscale, vone, vsqrtvar);
+            uni_vdivps(vscale, vone, vsqrtvar, vscale);
             uni_vmulps(vmean, vmean, vscale);
-            uni_vsubps(vshift, vzero, vmean);
+            uni_vsubps(vshift, vzero, vmean, vshift);
         }
     }
 
@@ -172,7 +173,7 @@ struct jit_bnorm_base_t : public jit_generator {
         xor_(reg_channel_offt_4byte, reg_channel_offt_4byte);
         mov(reg_tmp, sizeof(data_t) * c_in_xmm_);
 
-        if (num_c16_blocks_) compute_dst(false);
+        if (num_c_blocks_) compute_dst(false);
         if (c_tail_) compute_dst(true);
     }
 
@@ -385,6 +386,7 @@ struct jit_bnorm_t<avx2> : public jit_bnorm_base_t<avx2> {
                     vpmovsxbd(v0, src_ptr());
                     vpmovsxbd(v1, src_ptr(simd_w_));
                 }
+
                 vcvtdq2ps(v0, v0);
                 vcvtdq2ps(v1, v1);
 
@@ -428,6 +430,123 @@ struct jit_bnorm_t<avx2> : public jit_bnorm_base_t<avx2> {
 
     jit_bnorm_t(const batch_normalization_pd_t *pd)
         : jit_bnorm_base_t<avx2>(pd) {
+        get_code();
+    }
+};
+
+template <>
+struct jit_bnorm_t<sse41> : public jit_bnorm_base_t<sse41> {
+    void load_mean_and_var(const Vmm &vmean, const Vmm &vsqrtvar, size_t offt,
+            bool need_tail) override {
+        if (need_tail) {
+            for (size_t tl = 0; tl < c_tail_ % simd_w_; tl++) {
+                pinsrd(vmean, mean_ptr(offt + tl * sizeof(float)), tl);
+                pinsrd(vsqrtvar, var_ptr(offt + tl * sizeof(float)), tl);
+            }
+        } else {
+            movups(vmean, mean_ptr(offt));
+            movups(vsqrtvar, var_ptr(offt));
+        }
+    }
+
+    void load_scale_and_shift(const Vmm &vscale, const Vmm &vshift, size_t offt,
+            bool need_tail) override {
+        if (need_tail) {
+            for (size_t tl = 0; tl < c_tail_ % simd_w_; tl++) {
+                pinsrd(vscale, scale_ptr(offt + tl * sizeof(float)), tl);
+                pinsrd(vshift, shift_ptr(offt + tl * sizeof(float)), tl);
+            }
+        } else {
+            movups(vscale, scale_ptr(offt));
+            movups(vshift, shift_ptr(offt));
+        }
+    }
+
+    void compute_dst(bool need_tail = false) override {
+        const size_t copy_range = need_tail ? c_tail_ : c_in_xmm_;
+        Label c_loop;
+        L(c_loop);
+        {
+
+            Vmm v0 = Vmm(0);
+            Vmm v1 = Vmm(1);
+            Vmm vscale0 = Vmm(2);
+            Vmm vshift0 = Vmm(3);
+            Vmm vmean0 = Vmm(4);
+            Vmm vsqrtvar0 = Vmm(5);
+            Vmm vscale1 = Vmm(6);
+            Vmm vshift1 = Vmm(7);
+            Vmm vmean1 = Vmm(8);
+            Vmm vsqrtvar1 = Vmm(9);
+
+            // compute couple vscale and vshift vectors each of 8 channels...
+            compute_vscaleshift(vscale0, vshift0, vmean0, vsqrtvar0, 0,
+                    (c_tail_ < simd_w_ && need_tail) ? true : false);
+            if (!need_tail || c_tail_ > simd_w_) {
+                compute_vscaleshift(vscale1, vshift1, vmean1, vsqrtvar1,
+                        simd_w_ * sizeof(float), need_tail);
+            }
+
+            // ... then process all spatial loop with it and move to the
+            // next channel chunk
+            mov(reg_spat_offt, reg_channel_offt_1byte);
+            Label mb_sp_loop;
+            L(mb_sp_loop);
+            {
+                if (need_tail) {
+                    for (size_t tl = 0; tl < copy_range; tl++) {
+                        if (tl < simd_w_) {
+                            pinsrb(v0, src_ptr(tl), tl);
+                        } else {
+                            pinsrb(v1, src_ptr(tl), (tl - simd_w_));
+                        }
+                    }
+                    pmovsxbd(v0, v0);
+                    pmovsxbd(v1, v1);
+                } else {
+                    pmovsxbd(v0, src_ptr());
+                    pmovsxbd(v1, src_ptr(simd_w_));
+                }
+
+                cvtdq2ps(v0, v0);
+                cvtdq2ps(v1, v1);
+
+                uni_vfmadd213ps(v0, vscale0, vshift0);
+                uni_vfmadd213ps(v1, vscale1, vshift1);
+                if (with_relu_) {
+                    maxps(v0, vzero);
+                    maxps(v1, vzero);
+                }
+
+                cvtps2dq(v0, v0);
+                cvtps2dq(v1, v1);
+                packssdw(v0, v1);
+                movups(v1, v0);
+                packsswb(v0, v1);
+
+                // Potential perf gain is possible if combining two halves
+                // into a single vector register and use movups instead
+                // of byte stores.
+                for (size_t tl = 0; tl < copy_range; tl++) {
+                    pextrb(dst_ptr(tl), v0, tl);
+                }
+
+                add(reg_spat_offt, reg_channel_offt_count);
+                cmp(reg_spat_offt, reg_spat_offt_count);
+                jl(mb_sp_loop);
+            }
+
+            // reg_tmp checks c_in_xmm_ channels ahead for further tail process
+            add(reg_tmp, sizeof(data_t) * c_in_xmm_);
+            add(reg_channel_offt_1byte, sizeof(data_t) * c_in_xmm_);
+            add(reg_channel_offt_4byte, sizeof(float) * c_in_xmm_);
+            cmp(reg_tmp, reg_channel_offt_count);
+            jle(c_loop);
+        }
+    }
+
+    jit_bnorm_t(const batch_normalization_pd_t *pd)
+        : jit_bnorm_base_t<sse41>(pd) {
         get_code();
     }
 };
@@ -538,6 +657,7 @@ jit_uni_batch_normalization_s8_fwd_t<
 /* struct instantiation */
 template struct jit_uni_batch_normalization_s8_fwd_t<avx512_core>;
 template struct jit_uni_batch_normalization_s8_fwd_t<avx2>;
+template struct jit_uni_batch_normalization_s8_fwd_t<sse41>;
 
 } // namespace x64
 } // namespace cpu
