@@ -77,6 +77,11 @@ std::ostream &operator<<(std::ostream &s, dnnl_data_type_t dt) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, dnnl_engine_kind_t ek) {
+    s << engine_kind2str(ek);
+    return s;
+}
+
 dir_t str2dir(const char *str) {
 #define CASE(x) \
     if (!strcasecmp(STRINGIFY(x), str)) return x
@@ -595,7 +600,7 @@ std::ostream &dump_global_params(std::ostream &s) {
     s << "--" << driver_name << " ";
     if (canonical) s << "--canonical=" << bool2str(canonical) << " ";
     if (canonical || engine_tgt_kind != dnnl_cpu)
-        s << "--engine=" << engine_kind2str(engine_tgt_kind) << " ";
+        s << "--engine=" << engine_tgt_kind << " ";
     if (canonical || scratchpad_mode != dnnl_scratchpad_mode_library)
         s << "--attr-scratchpad=" << scratchpad_mode2str(scratchpad_mode)
           << " ";

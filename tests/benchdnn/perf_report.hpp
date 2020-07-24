@@ -97,7 +97,7 @@ struct base_perf_report_t {
         HANDLE("flops", s << get_flops());
         HANDLE("clocks", s << t.ticks(mode) / unit);
         HANDLE("prb", s << prb_str);
-        HANDLE("engine", s << engine_kind2str(engine_tgt_kind));
+        HANDLE("engine", s << engine_tgt_kind);
         HANDLE("freq", s << get_freq());
         HANDLE("ops", s << ops() / unit);
         HANDLE("time", s << t.ms(mode) / unit);

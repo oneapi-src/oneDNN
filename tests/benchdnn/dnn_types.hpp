@@ -62,6 +62,7 @@ dims_t off2dims_idx(const dims_t &dims, int64_t off);
 std::ostream &operator<<(std::ostream &s, const dims_t &dims);
 std::ostream &operator<<(std::ostream &s, dir_t dir);
 std::ostream &operator<<(std::ostream &s, dnnl_data_type_t dt);
+std::ostream &operator<<(std::ostream &s, dnnl_engine_kind_t ek);
 template <typename T>
 std::ostream &operator<<(std::ostream &s, const std::vector<T> &v) {
     s << v[0];
