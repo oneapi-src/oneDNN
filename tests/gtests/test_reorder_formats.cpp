@@ -40,6 +40,8 @@ protected:
 };
 
 TEST_F(reorder_formats_test, TestChecksAllFormats) {
+    SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
+            "GPU takes a lot of time to complete this test.");
     static auto isa = get_effective_cpu_isa();
     bool has_bf16 = isa >= cpu_isa::avx512_core;
 
@@ -84,9 +86,9 @@ TEST_F(reorder_formats_test, TestChecksAllFormats) {
             }
             ASSERT_TRUE(in_md);
 
-            // check only plain -> anything reorders, otherwise test takes too
-            // long, and no much sense in testing blocked -> blocked.
-            if (in_md.data.format_desc.blocking.inner_nblks != 0) continue;
+            const dnnl::impl::memory_desc_wrapper in_d(in_md.data);
+            bool abx2any = in_d.matches_one_of_tag(dnnl_a, dnnl_ab, dnnl_abc,
+                    dnnl_abcd, dnnl_abcde, dnnl_abcdef);
 
             for (unsigned o_dt = start_dt; o_dt < end_dt; o_dt++) {
                 out_dt = static_cast<dt>(o_dt);
@@ -101,6 +103,15 @@ TEST_F(reorder_formats_test, TestChecksAllFormats) {
                     }
                     ASSERT_TRUE(out_md);
                     if (in_md.data.ndims != out_md.data.ndims) continue;
+
+                    const dnnl::impl::memory_desc_wrapper out_d(out_md.data);
+                    bool any2abx = out_d.matches_one_of_tag(dnnl_a, dnnl_ab,
+                            dnnl_abc, dnnl_abcd, dnnl_abcde, dnnl_abcdef);
+
+                    // test only abx->any and any->abx reorders, otherwise it
+                    // takes too long. These combinations cover most popular
+                    // reorder use cases.
+                    if (!abx2any && !any2abx) continue;
 
                     out_md.data.extra = i_extra;
 
