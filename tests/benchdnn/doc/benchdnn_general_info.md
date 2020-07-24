@@ -38,7 +38,14 @@ tests/benchdnn/inputs/<primitive_name>/test_<test-name>.
   according to a certain strategy solely defined by the driver, executing the
   library call and a reference path available in the driver. Then it compares
   the output of both, per element or based on norm, depending on the problem
-  setup.
+  setup. In case of results mismatch, the driver will usually report a point
+  order, its position in tensor, a reference float value, a reference value
+  casted to input data type, a library value, absolute and relative errors. If
+  norm check was performed, it reports norm values of reference and library
+  results. In addition to result validation, the driver checks that padded area,
+  if present in destination memories, remained filling with zeros. In case of
+  results mismatch, the driver will report a point order, argument affected,
+  expected value (which is always zero) and value got.
 * Performance mode: In this flow the driver collects and reports the performance
   statistics of given problems. To collect performance numbers, the driver uses
   a time criterion - runs a problem several rounds accumulating the execution
