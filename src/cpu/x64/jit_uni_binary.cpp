@@ -650,8 +650,9 @@ struct jit_uni_binary_subkernel_t<sse41, src_type>
             case DNNL_ARG_SRC_0: return src0_ptr(off);
             case DNNL_ARG_SRC_1: return src1_ptr(off);
             case DNNL_ARG_DST: return dst_ptr(off);
-            default: assert(!"unsupported arg_num"); return src0_ptr(off);
+            default: assert(!"unsupported arg_num"); break;
         }
+        return Address(0);
     }
 
     void load(const Vmm &dst, const int off, const int arg_num, bool tail) {
