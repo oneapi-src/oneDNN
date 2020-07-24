@@ -195,6 +195,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (d.slc == 0) d.slc = d.sic;
     if (d.dhc == 0) d.dhc = d.sic;
     if (d.dic == 0) d.dic = d.dhc;
+    d.wc = MAX2(MAX2(d.sic, d.slc), MAX2(d.dic, d.dhc));
 
     *desc = d;
 

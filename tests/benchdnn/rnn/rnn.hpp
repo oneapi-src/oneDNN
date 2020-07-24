@@ -218,7 +218,7 @@ struct settings_t {
     std::vector<bool> trivial_strides {false};
     std::vector<bool> with_peephole {false};
     std::vector<bool> with_projection {false};
-    std::vector<int64_t> mb {0};
+    std::vector<int64_t> n_layer {0}, n_iter {0}, mb {0};
     std::vector<policy_t> scale_policy {policy_t::COMMON};
     unsigned int flags = 0x0;
     float alpha = 0.9f, beta = 0.0f;
@@ -241,7 +241,8 @@ struct prb_t : public desc_t {
             bool with_peephole, bool with_projection,
             dnnl_rnn_direction_t direction, policy_t scale_policy,
             unsigned int flags, activation_t activation, float alpha,
-            float beta, bool skip_nonlinear, bool trivial_strides, int mb = 0)
+            float beta, bool skip_nonlinear, bool trivial_strides,
+            int64_t n_layer, int64_t n_iter, int64_t mb = 0)
         : desc_t(desc)
         , cfg(cfg)
         , prop(prop2prop_kind(prop))
@@ -259,9 +260,10 @@ struct prb_t : public desc_t {
         , trivial_strides(trivial_strides)
         , linear_cscale(0.0f) {
 
+        if (n_layer) this->n_layer = n_layer;
+        if (n_iter) this->n_iter = n_iter;
         if (mb) this->mb = mb;
         count_ops();
-        wc = MAX2(MAX2(sic, slc), MAX2(dic, dhc));
 
         wei_scales = nullptr;
         linear_scales = nullptr;

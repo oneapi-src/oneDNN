@@ -29,9 +29,15 @@ where *rnn-knobs* are:
             with peephole should be run.
  - `--with-peephole={true, false [default]}` -- LSTM extension. Specify if LSTM
             with projection should be run.
- - `--mb=INT` -- override minibatch size specified in the problem description.
-            When set to `0`, use minibatch size as defined by the individual
-            problem descriptor. The default is `0`.
+ - `--l=INT` -- override `l` (number of layers) value specified in the problem
+            descriptor. When `INT` is set to `0` (the default), use `l` value
+            specified in the problem descriptor.
+ - `--t=INT` -- override `t` (number of timestamps) value specified in the
+            problem descriptor. When `INT` is set to `0` (the default), use `t`
+            value specified in the problem descriptor.
+ - `--mb=INT` -- override `mb` (minibatch) value specified in the problem
+            descriptor. When `INT` is set to `0` (the default), use `mb` value
+            specified in the problem descriptor.
 
 and *rnn-desc* is a problem descriptor. The canonical form is:
 ```
@@ -43,7 +49,7 @@ delimiter for better readability.
 
 Description of RNN descriptor symbols:
  - `l` is the number of layers. The default value is `1`.
- - `t` is the number of timesteps (so the sequence length). The default value
+ - `t` is the number of timestamps (or the sequence length). The default value
    is `1`.
  - `mb` is the minibatch. The default value is `2`.
  - `sic` is the feature size of `src_iter`. No default value.
