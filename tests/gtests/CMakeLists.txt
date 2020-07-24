@@ -172,11 +172,16 @@ function(register_gtest exe src)
     endif()
 endfunction()
 
+# These primitives can create memory_t out of sycl_buffer_memory_storage_t
+# and pass it to reorder. The reorder expects both arguments to be either
+# usm or buffer memory storages.
+# TODO: Remove this after introducing a proper API for managing the memory models
+set(skip_usm_pattern "(test_sum_.*|test_inner_product_.*|test_cross_engine_reorder)")
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component(exe ${TEST_FILE} NAME_WE)
     register_gtest(${exe} ${TEST_FILE})
     # Create additional USM targets for GEMM tests.
-    if(DNNL_SYCL_DPCPP AND ${exe} MATCHES "test_gemm_.*")
+    if(DNNL_SYCL_DPCPP AND NOT ${exe} MATCHES ${skip_usm_pattern})
         register_gtest(${exe}_usm ${TEST_FILE})
         target_compile_definitions(${exe}_usm PUBLIC -DDNNL_USE_DPCPP_USM)
     endif()
