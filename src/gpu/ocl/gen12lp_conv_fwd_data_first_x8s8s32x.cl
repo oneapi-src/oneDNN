@@ -61,6 +61,7 @@
 #define SCALE_VEC4 1
 #define SCALE 1
 #endif
+#define OC_PADD8 ((OC % 8) ? (OC / 8 + 1) * 8 : OC)
 
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
@@ -266,8 +267,8 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
     barrier(CLK_LOCAL_MEM_FENCE);
 
     MMAD_DATA8_T S;
-    int8 W0, W1, W2, W3;
-    int W00, W10, W20, W30;
+    int8 W0 = 0, W1 = 0, W2 = 0, W3 = 0;
+    int W00 = 0, W10 = 0, W20 = 0, W30 = 0;
     int8 C00 = 0;
     int8 C10 = 0;
     int8 C20 = 0;
@@ -298,9 +299,15 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
                         && filter_id * (1 + DD) + id < ID);
 
         BLOCK_READ_WHT8(W0, 0);
+#if OC_PADD8 * 4 > OC_BLOCK
         BLOCK_READ_WHT8(W1, KDHW_SIZE * OC_BLOCK);
+#endif
+#if OC_PADD8 * 4 > OC_BLOCK * 2
         BLOCK_READ_WHT8(W2, 2 * KDHW_SIZE * OC_BLOCK);
+#endif
+#if OC_PADD8 * 4 > OC_BLOCK * 3
         BLOCK_READ_WHT8(W3, 3 * KDHW_SIZE * OC_BLOCK);
+#endif
         if (filter) {
             S.s0 = S_work[SW * 0 + SRC_SLM_SIZE * KH * filter_id
                     + SRC_SLM_SIZE * filter_ih + filter_iw];
@@ -387,9 +394,15 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
                         && filter_id * (1 + DD) + id < ID);
         if (filter) {
             BLOCK_READ_WHT(W00, 0);
+#if OC_PADD8 * 4 > OC_BLOCK
             BLOCK_READ_WHT(W10, KDHW_SIZE * OC_BLOCK);
+#endif
+#if OC_PADD8 * 4 > OC_BLOCK * 2
             BLOCK_READ_WHT(W20, 2 * KDHW_SIZE * OC_BLOCK);
+#endif
+#if OC_PADD8 * 4 > OC_BLOCK * 3
             BLOCK_READ_WHT(W30, 3 * KDHW_SIZE * OC_BLOCK);
+#endif
 
             S.s0 = S_work[SW * 0 + SRC_SLM_SIZE * KH * filter_id
                     + SRC_SLM_SIZE * filter_ih + filter_iw];
