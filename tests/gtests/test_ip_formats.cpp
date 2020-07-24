@@ -44,6 +44,8 @@ protected:
 };
 
 TEST_F(ip_formats_test, TestChecksAllFormats) {
+    SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
+            "GPU takes a lot of time to complete this test.");
     static auto isa = get_effective_cpu_isa();
     bool supports_bf16 = isa >= cpu_isa::avx512_core;
 
@@ -66,15 +68,7 @@ TEST_F(ip_formats_test, TestChecksAllFormats) {
     std::vector<std::vector<dt>> cfg {
             {dt::f32, dt::f32, dt::f32},
             {dt::bf16, dt::bf16, dt::bf16},
-            {dt::f16, dt::f16, dt::f16},
-            {dt::u8, dt::s8, dt::f32},
-            {dt::u8, dt::s8, dt::s32},
-            {dt::u8, dt::s8, dt::s8},
             {dt::u8, dt::s8, dt::u8},
-            {dt::s8, dt::s8, dt::f32},
-            {dt::s8, dt::s8, dt::s32},
-            {dt::s8, dt::s8, dt::s8},
-            {dt::s8, dt::s8, dt::u8},
     };
 
     for (const auto &i_cfg : cfg) {
