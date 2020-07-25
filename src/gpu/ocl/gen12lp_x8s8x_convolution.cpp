@@ -266,7 +266,8 @@ status_t gen12lp_x8s8x_convolution_fwd_t::pd_t::init_conf() {
             // Save opportunity to use this implementation with nchw formats,
             // which will result in worse performance, but prevent us using reorder.
             // That can be efficient in some cases.
-            conf.is_nchw = src_mdw.matches_one_of_tag(ncw, nchw, ncdhw);
+            conf.is_nchw = src_mdw.matches_one_of_tag(ncw, nchw, ncdhw)
+                    || src_mdw.format_kind() == format_kind::any;
             // decrease src ic_block in case of input nchw
             if (conf.is_nchw) conf.ic_block = 1;
         }
