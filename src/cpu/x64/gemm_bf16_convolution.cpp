@@ -564,7 +564,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
             // jit_gemm_convolution_utils::im2col_3d() requires external
             // data initialization by zeroes
             for (ptrdiff_t i = 0; i < jcp.im2col_sz; i++)
-                _col[i] = (src_data_t)0;
+                _col[i] = src_data_t {};
         }
         int g {0}, n {0}, od {0}, nb_os {0};
         size_t start = 0, end = 0;
@@ -1158,7 +1158,7 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
             const bool outer_padding = jcp.os_nb_block == 1;
             if (outer_padding && is_problem_3d) {
                 for (ptrdiff_t i = 0; i < jcp.im2col_sz; i++)
-                    _col[i] = (src_data_t)0;
+                    _col[i] = src_data_t {};
             }
 
             acc_data_t *weights_reduce_base

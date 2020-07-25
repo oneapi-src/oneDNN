@@ -936,7 +936,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
             });
         }
     } else {
-        const data_t zero_val = 0;
+        const data_t zero_val {};
         if (jpp.tag_kind == jptg_nspc) {
             const size_t chunk_size = (size_t)jpp.ih * jpp.iw * jpp.c;
             parallel_nd(jpp.mb, jpp.id, [&](int n, int id) {

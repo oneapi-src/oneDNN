@@ -108,7 +108,7 @@ public:
                     a_row_sum[i + ii + ti * um] += *b;
                 }
             } else {
-                *b = 0;
+                *b = a_t {};
             }
             b++;
         }
@@ -149,7 +149,7 @@ public:
                                         a_row_sum[i + ii + ti * um] += *b;
                                     }
                                 } else {
-                                    *b = 0;
+                                    *b = a_t {};
                                 }
                                 b++;
                             }
@@ -182,7 +182,7 @@ public:
                                 b_col_sum[i + ii] += *b;
                             }
                         } else {
-                            *b = 0;
+                            *b = b_t {};
                         }
                         b++;
                     }
@@ -215,7 +215,7 @@ public:
                                 b_col_sum[i + ii] += *b;
                             }
                         } else {
-                            *b = 0;
+                            *b = b_t {};
                         }
                         b++;
                     }

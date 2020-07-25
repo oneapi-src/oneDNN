@@ -510,7 +510,7 @@ void fill_matrices(const test_params &p, const mapper_t &mapper_m,
     if (oc_mem.get_size() == 0) return;
 
     if (p.igemm_params.nonzero_oc) {
-        fill_data<c_dt>(p.size_oc(), oc_mem.get(), (c_dt)1, (c_dt)0);
+        fill_data<c_dt>(p.size_oc(), oc_mem.get(), (c_dt)1, c_dt {});
         if (p.oc_is_R()) {
             extend_matrix_cols<c_dt>(oc_mem, 0, 1, p.N, p.N, mapper_n);
         } else if (p.oc_is_C()) {
@@ -519,7 +519,7 @@ void fill_matrices(const test_params &p, const mapper_t &mapper_m,
     } else {
         auto oc = map_memory<c_dt>(oc_mem);
         for (int64_t i = 0; i < p.size_oc(); i++)
-            oc[i] = 0;
+            oc[i] = c_dt {};
     }
 }
 

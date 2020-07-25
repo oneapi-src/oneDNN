@@ -185,7 +185,7 @@ protected:
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             // Fill the softmax backward diffs
             fill_data<data_t>(diff_data_desc.get_size() / sizeof(data_t),
-                    diff_dst, data_t(0), data_t(1));
+                    diff_dst, data_t {}, data_t(1));
             check_zero_tail<data_t>(1, diff_dst);
 
             softmax.execute(strm,

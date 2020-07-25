@@ -1821,7 +1821,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::prepare_scratchpad_data(
         for (size_t ithr = 1; ithr <= jcp.tr_src_buf_count; ++ithr) {
             src_data_t *ts = &tr_src[ithr * jcp.tr_src_buf_size];
             for (int i = 0; i < jcp.tr_src_num_guard_elems; ++i)
-                ts[i] = 0;
+                ts[i] = src_data_t {};
         }
 
         if (dnnl_thr_syncable() && jcp.nthr_oc_b > 1) {

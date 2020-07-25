@@ -150,7 +150,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
         parallel_nd(MB, OC, OD, OH, OW,
                 [&](int mb, int oc, int od, int oh, int ow) {
                     data_t *d = &dst[get_offset(dst_d, mb, oc, od, oh, ow)];
-                    d[0] = 0;
+                    d[0] = data_t {};
                     ker_avg(d, mb, oc, od, oh, ow);
                 });
     }
@@ -188,7 +188,7 @@ void ref_pooling_bwd_t<data_type>::execute_backward(
         for_(int ih = 0; ih < IH; ++ih)
         for (int iw = 0; iw < IW; ++iw) {
             const auto off = get_offset(diff_src_d, mb, oc, id, ih, iw);
-            diff_src[off] = data_type_t(0);
+            diff_src[off] = data_t {};
         }
     };
 

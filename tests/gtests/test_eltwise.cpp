@@ -100,7 +100,7 @@ T linear_bwd(T dd, T s, A alpha, A beta) {
 
 template <typename T, typename A>
 T bounded_relu_fwd(T s, A alpha) {
-    s = s > 0 ? s : T(0);
+    s = s > 0 ? s : T {};
     return s > alpha ? T(alpha) : s;
 }
 
@@ -195,7 +195,7 @@ void check_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
         data_t s = src_data[i];
-        data_t ref_d = 0;
+        data_t ref_d {};
         switch (p.alg_kind) {
             case algorithm::eltwise_relu: ref_d = relu_fwd(s, p.alpha); break;
             case algorithm::eltwise_tanh: ref_d = tanh_fwd(s); break;
@@ -226,7 +226,7 @@ void compare_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
     data_t eps;
     if (data_traits<data_t>::data_type == memory::data_type::s8
             || data_traits<data_t>::data_type == memory::data_type::s32)
-        eps = 0;
+        eps = data_t {};
     else
         eps = static_cast<data_t>(
                 (data_traits<data_t>::data_type == memory::data_type::f16
@@ -272,7 +272,7 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
     for (memory::dim i = 0; i < n; ++i) {
         data_t ref_s = src_data[data_mdw.off_l(i)];
         data_t ref_dd = diff_dst_data[diff_data_mdw.off_l(i)];
-        data_t ref_ds = 0;
+        data_t ref_ds {};
         switch (p.alg_kind) {
             case algorithm::eltwise_relu:
                 ref_ds = relu_bwd(ref_dd, ref_s, p.alpha);
@@ -371,7 +371,7 @@ protected:
         memory dst(*data_desc, eng);
         memory ref_dst(*data_desc, eng);
 
-        data_t data_median = data_t(0);
+        data_t data_median {};
         data_t data_deviation = (p.alg_kind == algorithm::eltwise_elu
                                         || p.alg_kind == algorithm::eltwise_exp)
                         || (p.alg_kind == algorithm::eltwise_swish)
@@ -408,7 +408,7 @@ protected:
         memory diff_src(diff_data_desc, eng);
         memory diff_dst(diff_data_desc, eng);
 
-        data_t data_median = data_t(0);
+        data_t data_median {};
         data_t data_deviation = p.alg_kind == algorithm::eltwise_elu
                 ? data_t(1.0)
                 : p.alg_kind == algorithm::eltwise_square ? data_t(6.0)

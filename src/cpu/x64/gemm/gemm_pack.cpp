@@ -140,8 +140,8 @@ static dnnl_status_t gemm_pack_driver(const char *identifier,
         const dim_t *K, const float *alpha, const dim_t *lda, const dim_t *ldb,
         const void *src, gemm_pack_storage_t *pack_dst, bool measure_only) {
 
-    a_dt oa = 0;
-    b_dt ob = 0;
+    a_dt oa {};
+    b_dt ob {};
 
     const a_dt *a = nullptr;
     const b_dt *b = nullptr;

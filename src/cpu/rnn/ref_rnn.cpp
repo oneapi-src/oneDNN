@@ -570,7 +570,7 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
         parallel_nd(
                 rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
                     for (int j = 0; j < rnn.sic; j++)
-                        ws_states_iter(lay + 1, dir, 0, b, j) = (src_data_t)0;
+                        ws_states_iter(lay + 1, dir, 0, b, j) = src_data_t {};
                     for (int j = 0; j < rnn.dhc; j++)
                         ws_states_iter_c(lay + 1, dir, 1, b, j) = 0.0f;
                 });

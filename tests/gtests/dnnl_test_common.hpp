@@ -288,7 +288,7 @@ static inline data_t set_value(
         const bool fill = in_group == ((group % 1637) % group_size);
         return fill ? static_cast<data_t>(
                        mean + deviation * sinf(float(index % 37)))
-                    : data_t {0};
+                    : data_t {};
     } else if (data_traits<data_t>::data_type == memory::data_type::s32
             || data_traits<data_t>::data_type == memory::data_type::s8) {
         return data_t(index * 13 % 21 - 10);
