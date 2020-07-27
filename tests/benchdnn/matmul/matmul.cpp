@@ -54,15 +54,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     prep_bia_dims(p, bia_dims, dst_dims);
 
     dnnl_memory_desc_t src_d, wei_d, dst_d, bia_d {};
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_dims,
-                     p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
-            WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims, wei_dims,
-                     p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
-            WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, dst_dims,
-                     p->cfg[DST].dt, convert_tag(p->dtag, p->ndims)),
-            WARN);
+    SAFE(init_md(&src_d, p->ndims, src_dims, p->cfg[SRC].dt, p->stag), CRIT);
+    SAFE(init_md(&wei_d, p->ndims, wei_dims, p->cfg[WEI].dt, p->wtag), CRIT);
+    SAFE(init_md(&dst_d, p->ndims, dst_dims, p->cfg[DST].dt, p->dtag), CRIT);
     if (p->bia_dt != dnnl_data_type_undef)
         DNN_SAFE(dnnl_memory_desc_init_by_strides(
                          &bia_d, p->ndims, bia_dims, p->bia_dt, NULL),
@@ -223,19 +217,20 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
     // memory layout should be defined when some dimension is unknown in pd
     // creation time
     if (p->runtime_mb
-            && (p->stag == "any" || p->wtag == "any" || p->dtag == "any")) {
+            && (p->stag == tag::any || p->wtag == tag::any
+                    || p->dtag == tag::any)) {
         r->state = SKIPPED, r->reason = INVALID_CASE;
         return;
     }
-    if (p->runtime_m && (p->stag == "any" || p->dtag == "any")) {
+    if (p->runtime_m && (p->stag == tag::any || p->dtag == tag::any)) {
         r->state = SKIPPED, r->reason = INVALID_CASE;
         return;
     }
-    if (p->runtime_n && (p->wtag == "any" || p->dtag == "any")) {
+    if (p->runtime_n && (p->wtag == tag::any || p->dtag == tag::any)) {
         r->state = SKIPPED, r->reason = INVALID_CASE;
         return;
     }
-    if (p->runtime_k && (p->stag == "any" || p->wtag == "any")) {
+    if (p->runtime_k && (p->stag == tag::any || p->wtag == tag::any)) {
         r->state = SKIPPED, r->reason = INVALID_CASE;
         return;
     }
@@ -277,32 +272,29 @@ int doit(const prb_t *p, res_t *r) {
 
     // if md is same as default, it means we need to re-create it
     if (dnnl_memory_desc_equal(&src_md, &def_md)) {
-        assert(p->stag != "any");
+        assert(p->stag != tag::any);
         src_md.dims[0 + (p->ndims == 3)] = p->m;
         src_md.dims[1 + (p->ndims == 3)] = p->k;
         if (p->ndims == 3) src_md.dims[0] = p->mb;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_md, p->ndims, src_md.dims,
-                         p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
+        SAFE(init_md(&src_md, p->ndims, src_md.dims, p->cfg[SRC].dt, p->stag),
                 WARN);
     }
 
     if (dnnl_memory_desc_equal(&wei_md, &def_md)) {
-        assert(p->wtag != "any");
+        assert(p->wtag != tag::any);
         wei_md.dims[0 + (p->ndims == 3)] = p->k;
         wei_md.dims[1 + (p->ndims == 3)] = p->n;
         if (p->ndims == 3) wei_md.dims[0] = p->mb;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_md, p->ndims, wei_md.dims,
-                         p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
+        SAFE(init_md(&wei_md, p->ndims, wei_md.dims, p->cfg[WEI].dt, p->wtag),
                 WARN);
     }
 
     if (dnnl_memory_desc_equal(&dst_md, &def_md)) {
-        assert(p->dtag != "any");
+        assert(p->dtag != tag::any);
         dst_md.dims[0 + (p->ndims == 3)] = p->m;
         dst_md.dims[1 + (p->ndims == 3)] = p->n;
         if (p->ndims == 3) dst_md.dims[0] = p->mb;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_md, p->ndims, dst_md.dims,
-                         p->cfg[DST].dt, convert_tag(p->dtag, p->ndims)),
+        SAFE(init_md(&dst_md, p->ndims, dst_md.dims, p->cfg[DST].dt, p->dtag),
                 WARN);
         if (p->bia_dt != dnnl_data_type_undef) {
             prep_bia_dims(p, bia_md.dims, dst_md.dims);
@@ -361,7 +353,7 @@ int doit(const prb_t *p, res_t *r) {
 
     if (bench_mode & CORR) {
         compute_ref(test_engine, p, src_fp, wei_fp, bia_fp, dst_fp);
-        dnn_mem_t c(dst_dt, fp, get_abx_tag(p->ndims), test_engine);
+        dnn_mem_t c(dst_dt, fp, tag::abx, test_engine);
         SAFE(compare_dat(p, DST, c, dst_fp, r), WARN);
     }
 

@@ -59,18 +59,12 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
             : p->ndims == 4 ? wei_dims_2d
                             : p->ndims == 3 ? wei_dims_1d : wei_dims_0d;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_dims,
-                     p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
-            WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims, wei_dims,
-                     p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
-            WARN);
+    SAFE(init_md(&src_d, p->ndims, src_dims, p->cfg[SRC].dt, p->stag), CRIT);
+    SAFE(init_md(&wei_d, p->ndims, wei_dims, p->cfg[WEI].dt, p->wtag), CRIT);
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &bia_d, 1, bia_dims, p->cfg[BIA].dt, dnnl_format_tag_any),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, 2, dst_dims, p->cfg[DST].dt,
-                     convert_tag(p->dtag, 2)),
-            WARN);
+    SAFE(init_md(&dst_d, 2, dst_dims, p->cfg[DST].dt, p->dtag), CRIT);
 
     switch (p->dir) {
         case FWD_D:
@@ -183,7 +177,7 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem) {
-        const auto tag = get_abx_tag(mem_dt.md_.ndims);
+        const auto tag = tag::abx;
         extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, get_test_engine());
     }
     dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
@@ -215,7 +209,7 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
     dnn_mem_t extra_mem;
     if (check_reorder) {
-        const auto tag = get_abx_tag(mem_dt.md_.ndims);
+        const auto tag = tag::abx;
         extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, get_test_engine());
     }
     dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
@@ -243,7 +237,7 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem)
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, dnnl_x, get_test_engine());
+        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::x, get_test_engine());
     dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
 
     const size_t nelems = mem_00.nelems();
@@ -269,7 +263,7 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem) {
-        const auto tag = get_abx_tag(mem_dt.md_.ndims);
+        const auto tag = tag::abx;
         extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, get_test_engine());
     }
     dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
@@ -330,8 +324,8 @@ int doit(const prb_t *p, res_t *r) {
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
-    const auto src_tag = get_abx_tag(p->ndims);
-    const auto wei_tag = get_abx_tag(p->ndims);
+    const auto src_tag = tag::abx;
+    const auto wei_tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
 
@@ -343,8 +337,8 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
-    dnn_mem_t bia_fp(bia_md, fp, dnnl_x, test_engine);
-    dnn_mem_t dst_fp(dst_md, fp, dnnl_nc, test_engine);
+    dnn_mem_t bia_fp(bia_md, fp, tag::x, test_engine);
+    dnn_mem_t dst_fp(dst_md, fp, tag::abx, test_engine);
 
     SAFE(fill_src(p, src_dt, src_fp, r), WARN);
     SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
@@ -364,7 +358,7 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             compute_ref_fwd(test_engine, p, src_fp, wei_fp, bia_fp, dst_fp);
-            dnn_mem_t dst(dst_dt, fp, dnnl_nc, test_engine);
+            dnn_mem_t dst(dst_dt, fp, tag::abx, test_engine);
             SAFE(compare_dat(p, DST, dst, dst_fp, r), WARN);
         }
     } else if (p->dir == BWD_D) {
@@ -394,7 +388,7 @@ int doit(const prb_t *p, res_t *r) {
             dnn_mem_t wei(wei_dt, fp, wei_tag, test_engine);
             if (compare_dat(p, WEI, wei, wei_fp, r) != OK) return FAIL;
             if (p->dir & FLAG_BIA) {
-                dnn_mem_t bia(bia_dt, fp, dnnl_x, test_engine);
+                dnn_mem_t bia(bia_dt, fp, tag::x, test_engine);
                 SAFE(compare_dat(p, BIA, bia, bia_fp, r), WARN);
             }
         }

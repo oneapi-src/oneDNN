@@ -116,9 +116,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
             : p->ndims == 4 ? data_dims_2d
                             : p->ndims == 3 ? data_dims_1d : data_dims_0d;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&data_d, p->ndims, data_dims, p->dt,
-                     convert_tag(p->tag, p->ndims)),
-            WARN);
+    SAFE(init_md(&data_d, p->ndims, data_dims, p->dt, p->tag), CRIT);
 
     dnnl_alg_kind_t alg = alg2alg_kind(p->alg);
     if (dir & FLAG_FWD) {
@@ -197,7 +195,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &scratchpad_md = q(const_fpd, DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_abx_tag(p->ndims);
+    const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
 

@@ -395,9 +395,7 @@ int init_pd(dnnl_engine_t engine, const prb_t *p, dnnl_primitive_desc_t &bpd,
             : p->ndims == 4 ? data_dims_2d
                             : p->ndims == 3 ? data_dims_1d : data_dims_0d;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&data_d, p->ndims, data_dims, p->dt,
-                     convert_tag(p->tag, p->ndims)),
-            WARN);
+    SAFE(init_md(&data_d, p->ndims, data_dims, p->dt, p->tag), CRIT);
 
     auto flags = (dnnl_normalization_flags_t)p->flags;
     if (dir & FLAG_FWD) {
@@ -490,7 +488,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &scratchpad_md = q(const_fpd, DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_abx_tag(p->ndims);
+    const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
 
@@ -508,14 +506,14 @@ int doit(const prb_t *p, res_t *r) {
     // On inference w/o global stats the batch norm doesn't require stat
     // memories. Hence, we need to prepare the mean_fp and var_fp ourselves.
     const dnnl_dims_t dims1d = {p->ic};
-    dnn_mem_t mean_fp(1, dims1d, fp, get_abx_tag(1), test_engine);
+    dnn_mem_t mean_fp(1, dims1d, fp, tag::abx, test_engine);
     dnn_mem_t mean_dt(mean_md, test_engine);
-    dnn_mem_t var_fp(1, dims1d, fp, get_abx_tag(1), test_engine);
+    dnn_mem_t var_fp(1, dims1d, fp, tag::abx, test_engine);
     dnn_mem_t var_dt(var_md, test_engine);
 
-    dnn_mem_t ss_fp(ss_md, fp, get_abx_tag(ss_md.ndims), test_engine);
+    dnn_mem_t ss_fp(ss_md, fp, tag::abx, test_engine);
     dnn_mem_t ss_dt(ss_md, test_engine);
-    dnn_mem_t d_ss_fp(ss_md, fp, get_abx_tag(ss_md.ndims), test_engine);
+    dnn_mem_t d_ss_fp(ss_md, fp, tag::abx, test_engine);
     dnn_mem_t d_ss_dt(ss_md, test_engine);
 
     if (p->need_ws()) SAFE(ws_md.ndims != 0 ? OK : FAIL, WARN);

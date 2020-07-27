@@ -493,7 +493,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
         return dnnl_format_tag_undef;
     if (!strcmp("any", str) || !strcmp("dnnl_format_tag_any", str))
         return dnnl_format_tag_any;
-    assert(!"unknown fmt_tag");
     return dnnl_format_tag_last;
 }
 

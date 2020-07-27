@@ -50,10 +50,16 @@ bool parse_tag(std::vector<std::string> &tag,
         const std::string &option_name /* = "tag"*/) {
     auto ret_string = [](const char *str) { return std::string(str); };
     bool ok = parse_vector_option(tag, def_tag, ret_string, str, option_name);
-    static constexpr int ndims_3d = 5; // to check meta-tags in debug mode
-    for (size_t i = 0; i < tag.size(); i++)
-        ok = ok && convert_tag(tag[i], ndims_3d) != dnnl_format_tag_last;
-    return ok;
+    if (!ok) return false;
+
+    for (size_t i = 0; i < tag.size(); i++) {
+        if (check_tag(tag[i]) != OK) {
+            fprintf(stderr, "%s driver: ERROR: unknown tag: `%s`, exiting...\n",
+                    driver_name, tag[i].c_str());
+            exit(2);
+        }
+    }
+    return true;
 }
 
 bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,

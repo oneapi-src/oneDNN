@@ -96,8 +96,8 @@ struct perf_report_t : public base_perf_report_t {
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
         for (size_t d = 0; d < p_->stag.size(); d++)
-            stag_.push_back(fmt_tag2str(convert_tag(p_->stag[d], p_->ndims)));
-        dtag_ = fmt_tag2str(convert_tag(p_->dtag, p_->ndims));
+            stag_.push_back(normalize_tag(p_->stag[d], p_->ndims));
+        dtag_ = normalize_tag(p_->dtag, p_->ndims);
         base_report(r, prb_str);
     }
 

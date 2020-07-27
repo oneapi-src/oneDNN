@@ -293,8 +293,8 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem) {
-        const auto tag = get_abx_tag(mem_dt.md_.ndims);
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, get_test_engine());
+        extra_mem
+                = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_test_engine());
     }
     dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
 
@@ -332,8 +332,8 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
     dnn_mem_t extra_mem;
     if (check_reorder) {
-        const auto tag = get_abx_tag(mem_dt.md_.ndims);
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, get_test_engine());
+        extra_mem
+                = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_test_engine());
     }
     dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
 
@@ -364,7 +364,7 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem)
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, dnnl_x, get_test_engine());
+        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::x, get_test_engine());
     dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
 
     const size_t nelems = mem_00.nelems();
@@ -396,8 +396,8 @@ int fill_dst_with_params(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem) {
-        const auto tag = get_abx_tag(mem_dt.md_.ndims);
-        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, get_test_engine());
+        extra_mem
+                = dnn_mem_t(mem_dt.md_, dnnl_f32, tag::abx, get_test_engine());
     }
 
     dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
@@ -452,10 +452,8 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
         dnnl_data_type_t bia_dt = dnnl_data_type_undef,
         dnnl_data_type_t dst_dt = dnnl_data_type_undef,
         dnnl_data_type_t acc_dt = dnnl_data_type_undef,
-        dnnl_format_tag_t src_tag = dnnl_format_tag_undef,
-        dnnl_format_tag_t wei_tag = dnnl_format_tag_undef,
-        dnnl_format_tag_t bia_tag = dnnl_format_tag_undef,
-        dnnl_format_tag_t dst_tag = dnnl_format_tag_undef) {
+        std::string src_tag = tag::undef, std::string wei_tag = tag::undef,
+        std::string bia_tag = tag::undef, std::string dst_tag = tag::undef) {
     dnnl_convolution_desc_t cd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
@@ -489,28 +487,19 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
     if (bia_dt == dnnl_data_type_undef) bia_dt = p->cfg[BIA].dt;
     if (dst_dt == dnnl_data_type_undef) dst_dt = p->cfg[DST].dt;
     if (acc_dt == dnnl_data_type_undef) acc_dt = p->cfg[ACC].dt;
-    if (src_tag == dnnl_format_tag_undef)
-        src_tag = convert_tag(p->stag, p->ndims);
-    if (wei_tag == dnnl_format_tag_undef)
-        wei_tag = convert_tag(p->wtag, p->ndims);
-    if (bia_tag == dnnl_format_tag_undef) bia_tag = dnnl_format_tag_any;
-    if (dst_tag == dnnl_format_tag_undef)
-        dst_tag = convert_tag(p->dtag, p->ndims);
+    if (src_tag == tag::undef) src_tag = normalize_tag(p->stag, p->ndims);
+    if (wei_tag == tag::undef) wei_tag = normalize_tag(p->wtag, p->ndims);
+    if (bia_tag == tag::undef) bia_tag = tag::any;
+    if (dst_tag == tag::undef) dst_tag = normalize_tag(p->dtag, p->ndims);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &src_d, p->ndims, src_dims, src_dt, src_tag),
+    SAFE(init_md(&src_d, p->ndims, src_dims, src_dt, src_tag), WARN);
+
+    SAFE(init_md(&wei_d, p->ndims + p->has_groups, wei_dims, wei_dt, wei_tag),
             WARN);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims + p->has_groups,
-                     wei_dims, wei_dt, wei_tag),
-            WARN);
+    SAFE(init_md(&bia_d, 1, bia_dims, bia_dt, bia_tag), WARN);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&bia_d, 1, bia_dims, bia_dt, bia_tag),
-            WARN);
-
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &dst_d, p->ndims, dst_dims, dst_dt, dst_tag),
-            WARN);
+    SAFE(init_md(&dst_d, p->ndims, dst_dims, dst_dt, dst_tag), WARN);
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     dnnl_dim_t dilates_nd[] = {p->dd, p->dh, p->dw};
@@ -617,12 +606,12 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
         bool bwd_is_syncable = IMPLICATION(
                 (p->dir & FLAG_BWD), dnnl::impl::dnnl_thr_syncable());
 
-        const auto stag = convert_tag(p->stag, p->ndims);
-        const bool stag_is_abx = stag == get_abx_tag(p->ndims);
-        const bool stag_is_axb = stag == get_axb_tag(p->ndims);
-        const auto dtag = convert_tag(p->dtag, p->ndims);
-        const bool dtag_is_abx = dtag == get_abx_tag(p->ndims);
-        const bool dtag_is_axb = dtag == get_axb_tag(p->ndims);
+        const auto stag = normalize_tag(p->stag, p->ndims);
+        const bool stag_is_abx = stag == normalize_tag(tag::abx, p->ndims);
+        const bool stag_is_axb = stag == normalize_tag(tag::axb, p->ndims);
+        const auto dtag = normalize_tag(p->dtag, p->ndims);
+        const bool dtag_is_abx = dtag == normalize_tag(tag::abx, p->ndims);
+        const bool dtag_is_axb = dtag == normalize_tag(tag::axb, p->ndims);
         const bool is_plain
                 = stag_is_abx || stag_is_axb || dtag_is_abx || dtag_is_axb;
         const bool plain_ok = is_int8 && !stag_is_abx && !dtag_is_abx
@@ -698,8 +687,8 @@ int doit(const prb_t *p, res_t *r) {
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
-    const auto src_tag = get_abx_tag(p->ndims);
-    const auto wei_tag = get_abx_tag(p->ndims + p->has_groups);
+    const auto src_tag = tag::abx;
+    const auto wei_tag = tag::abx;
 
     // Try to use CPU primitive as the reference in GPU testing to reduce
     // testing time
@@ -708,7 +697,7 @@ int doit(const prb_t *p, res_t *r) {
     if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu) {
         dnnl_primitive_desc_t cpd_ref = nullptr;
         SAFE(init_pd_custom(get_cpu_engine(), p, cpd_ref, nullptr, fp, fp, fp,
-                     fp, fp, src_tag, wei_tag, dnnl_x, src_tag),
+                     fp, fp, src_tag, wei_tag, tag::x, src_tag),
                 WARN);
         if (cpd_ref) {
             DNN_SAFE(dnnl_primitive_create(&c_ref, cpd_ref), WARN);
@@ -737,7 +726,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
     dnn_mem_t dst_fp(dst_md, fp, src_tag, test_engine);
-    dnn_mem_t bia_fp(bia_md, fp, dnnl_x, test_engine);
+    dnn_mem_t bia_fp(bia_md, fp, tag::x, test_engine);
 
     SAFE(fill_src(p, src_dt, src_fp, r), WARN);
     SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
@@ -797,7 +786,7 @@ int doit(const prb_t *p, res_t *r) {
             dnn_mem_t wei(wei_dt, fp, wei_tag, test_engine);
             SAFE(compare_wei(p, wei, wei_fp, r, true), WARN);
             if (p->dir & FLAG_BIA) {
-                dnn_mem_t bia(bia_dt, fp, dnnl_x, test_engine);
+                dnn_mem_t bia(bia_dt, fp, tag::x, test_engine);
                 SAFE(compare_bia(p, bia, bia_fp, r, true), WARN);
             }
         }

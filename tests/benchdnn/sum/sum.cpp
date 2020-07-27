@@ -39,15 +39,12 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     dnnl_memory_desc_t dst_d;
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input)
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d[i_input], p->ndims,
-                         p->dims.data(), p->sdt[i_input],
-                         convert_tag(p->stag[i_input], p->ndims)),
-                WARN);
+        SAFE(init_md(&src_d[i_input], p->ndims, p->dims.data(), p->sdt[i_input],
+                     p->stag[i_input]),
+                CRIT);
 
     if (p->dtag != tag::undef) {
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, p->dims.data(),
-                         p->ddt, convert_tag(p->dtag, p->ndims)),
-                WARN);
+        SAFE(init_md(&dst_d, p->ndims, p->dims.data(), p->ddt, p->dtag), CRIT);
     }
 
     auto dnnl_attr = create_dnnl_attr(p->attr, attr_args_t());
@@ -161,7 +158,7 @@ int doit(const prb_t *p, res_t *r) {
     };
 
     const auto fp = dnnl_f32;
-    const auto tag = get_abx_tag(p->ndims);
+    const auto tag = tag::abx;
 
     const auto &dst_md = q(DNNL_ARG_DST);
     const auto dst_data_type = dst_md.data_type; // needed for deduced dst

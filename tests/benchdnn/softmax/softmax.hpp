@@ -98,7 +98,7 @@ struct perf_report_t : public base_perf_report_t {
 
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
-        tag_ = fmt_tag2str(convert_tag(p_->tag, p_->ndims));
+        tag_ = normalize_tag(p_->tag, p_->ndims);
         base_report(r, prb_str);
     }
 

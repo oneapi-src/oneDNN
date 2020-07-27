@@ -146,32 +146,30 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     dnnl_data_type_t bia_dt = p->cfg[BIA].dt;
     dnnl_data_type_t dst_dt = p->cfg[DST].dt;
     dnnl_data_type_t acc_dt = p->cfg[ACC].dt;
-    dnnl_format_tag_t src_tag = convert_tag(p->stag, p->ndims);
-    dnnl_format_tag_t wei_tag = convert_tag(p->wtag, p->ndims);
-    dnnl_format_tag_t bia_tag = dnnl_format_tag_any;
-    dnnl_format_tag_t dst_tag = convert_tag(p->dtag, p->ndims);
+    std::string src_tag = p->stag;
+    std::string wei_tag = p->wtag;
+    std::string bia_tag = tag::any;
+    std::string dst_tag = p->dtag;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims,
-                     p->ndims == 5 ? src_3d_dims
-                                   : p->ndims == 3 ? src_1d_dims : src_2d_dims,
-                     src_dt, src_tag),
-            WARN);
+    SAFE(init_md(&src_d, p->ndims,
+                 p->ndims == 5 ? src_3d_dims
+                               : p->ndims == 3 ? src_1d_dims : src_2d_dims,
+                 src_dt, src_tag),
+            CRIT);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims + p->has_groups,
-                     p->ndims == 5
-                             ? &wei_3d_dims[!p->has_groups]
-                             : p->ndims == 3 ? &wei_1d_dims[!p->has_groups]
-                                             : &wei_2d_dims[!p->has_groups],
-                     wei_dt, wei_tag),
-            WARN);
+    SAFE(init_md(&wei_d, p->ndims + p->has_groups,
+                 p->ndims == 5 ? &wei_3d_dims[!p->has_groups]
+                               : p->ndims == 3 ? &wei_1d_dims[!p->has_groups]
+                                               : &wei_2d_dims[!p->has_groups],
+                 wei_dt, wei_tag),
+            CRIT);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&bia_d, 1, bia_dims, bia_dt, bia_tag),
-            WARN);
+    SAFE(init_md(&bia_d, 1, bia_dims, bia_dt, bia_tag), CRIT);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims,
-                     p->ndims == 5 ? dst_3d_dims
-                                   : p->ndims == 3 ? dst_1d_dims : dst_2d_dims,
-                     dst_dt, dst_tag),
+    SAFE(init_md(&dst_d, p->ndims,
+                 p->ndims == 5 ? dst_3d_dims
+                               : p->ndims == 3 ? dst_1d_dims : dst_2d_dims,
+                 dst_dt, dst_tag),
             WARN);
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
@@ -393,15 +391,15 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     const auto fp = dnnl_f32;
-    const auto src_tag = get_abx_tag(src_md.ndims);
-    const auto wei_tag = get_abx_tag(wei_md.ndims);
-    const auto fused_wei_tag = get_abx_tag(fused_wei_md.ndims);
+    const auto src_tag = tag::abx;
+    const auto wei_tag = tag::abx;
+    const auto fused_wei_tag = tag::abx;
     dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
-    dnn_mem_t bia_fp(bia_md, fp, dnnl_x, test_engine);
+    dnn_mem_t bia_fp(bia_md, fp, tag::x, test_engine);
     dnn_mem_t dst_fp(dst_md, fp, src_tag, test_engine);
     dnn_mem_t fused_wei_fp(fused_wei_md, fp, fused_wei_tag, test_engine);
-    dnn_mem_t fused_bia_fp(fused_bia_md, fp, dnnl_x, test_engine);
+    dnn_mem_t fused_bia_fp(fused_bia_md, fp, tag::x, test_engine);
 
     // Current filling doesn't work for fused_wei due to relying on prb values,
     // which are different for fused conv. This can be fixed later by relying
@@ -440,8 +438,8 @@ int doit(const prb_t *p, res_t *r) {
                                                    : q0(DNNL_ARG_DST);
     const auto &scratchpad_md0 = q0(DNNL_ARG_SCRATCHPAD);
 
-    const auto src_tag0 = get_abx_tag(src_md0.ndims);
-    const auto wei_tag0 = get_abx_tag(wei_md0.ndims);
+    const auto src_tag0 = tag::abx;
+    const auto wei_tag0 = tag::abx;
 
     dnn_mem_t src_dt0(src_md0, test_engine);
     dnn_mem_t wei_dt0(wei_md0, test_engine);
@@ -451,7 +449,7 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t src_fp0(src_md0, fp, src_tag0, test_engine);
     dnn_mem_t wei_fp0(wei_md0, fp, wei_tag0, test_engine);
-    dnn_mem_t bia_fp0(bia_md0, fp, dnnl_x, test_engine);
+    dnn_mem_t bia_fp0(bia_md0, fp, tag::x, test_engine);
     dnn_mem_t dst_fp0(dst_md0, fp, src_tag0, test_engine);
 
     SAFE(conv::fill_src(p0.get(), src_dt0, src_fp0, r), WARN);
@@ -492,8 +490,8 @@ int doit(const prb_t *p, res_t *r) {
             = p->dir & FLAG_BWD ? q1(DNNL_ARG_DIFF_DST) : q1(DNNL_ARG_DST);
     const auto &scratchpad_md1 = q(DNNL_ARG_SCRATCHPAD);
 
-    const auto src_tag1 = get_abx_tag(src_md1.ndims);
-    const auto wei_tag1 = get_abx_tag(wei_md1.ndims);
+    const auto src_tag1 = tag::abx;
+    const auto wei_tag1 = tag::abx;
     dnn_mem_t src_dt1(src_md1, test_engine);
     dnn_mem_t wei_dt1(wei_md1, test_engine);
     dnn_mem_t bia_dt1(bia_md1, test_engine);
@@ -501,7 +499,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t scratchpad_dt1(scratchpad_md1, test_engine);
 
     dnn_mem_t wei_fp1(wei_md1, fp, wei_tag1, test_engine);
-    dnn_mem_t bia_fp1(bia_md1, fp, dnnl_x, test_engine);
+    dnn_mem_t bia_fp1(bia_md1, fp, tag::x, test_engine);
     dnn_mem_t dst_fp1(dst_md1, fp, src_tag1, test_engine);
 
     SAFE(conv::fill_wei(p1.get(), wei_dt1, wei_fp1, r), WARN);

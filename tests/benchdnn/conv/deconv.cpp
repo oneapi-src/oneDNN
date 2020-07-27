@@ -75,26 +75,25 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     dnnl_dims_t dst_2d_dims = {p->mb, p->oc, p->oh, p->ow};
     dnnl_dims_t dst_3d_dims = {p->mb, p->oc, p->od, p->oh, p->ow};
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims,
-                     p->ndims == 5 ? src_3d_dims
-                                   : p->ndims == 3 ? src_1d_dims : src_2d_dims,
-                     p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
-            WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims + p->has_groups,
-                     p->ndims == 5
-                             ? &wei_3d_dims[!p->has_groups]
-                             : p->ndims == 3 ? &wei_1d_dims[!p->has_groups]
-                                             : &wei_2d_dims[!p->has_groups],
-                     p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
-            WARN);
+    SAFE(init_md(&src_d, p->ndims,
+                 p->ndims == 5 ? src_3d_dims
+                               : p->ndims == 3 ? src_1d_dims : src_2d_dims,
+                 p->cfg[SRC].dt, p->stag),
+            CRIT);
+    SAFE(init_md(&wei_d, p->ndims + p->has_groups,
+                 p->ndims == 5 ? &wei_3d_dims[!p->has_groups]
+                               : p->ndims == 3 ? &wei_1d_dims[!p->has_groups]
+                                               : &wei_2d_dims[!p->has_groups],
+                 p->cfg[WEI].dt, p->wtag),
+            CRIT);
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &bia_d, 1, bia_dims, p->cfg[BIA].dt, dnnl_format_tag_any),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims,
-                     p->ndims == 5 ? dst_3d_dims
-                                   : p->ndims == 3 ? dst_1d_dims : dst_2d_dims,
-                     p->cfg[DST].dt, convert_tag(p->dtag, p->ndims)),
-            WARN);
+    SAFE(init_md(&dst_d, p->ndims,
+                 p->ndims == 5 ? dst_3d_dims
+                               : p->ndims == 3 ? dst_1d_dims : dst_2d_dims,
+                 p->cfg[DST].dt, p->dtag),
+            CRIT);
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     dnnl_dim_t dilates_nd[] = {p->dd, p->dh, p->dw};
@@ -236,8 +235,8 @@ int doit(const prb_t *p, res_t *r) {
     swap(wei_tr_md.dims[with_groups + 0], wei_tr_md.dims[with_groups + 1]);
 
     const auto fp = dnnl_f32;
-    const auto src_tag = get_abx_tag(src_md.ndims);
-    const auto wei_tag = get_abx_tag(wei_md.ndims);
+    const auto src_tag = tag::abx;
+    const auto wei_tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
 
@@ -251,7 +250,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
     dnn_mem_t dst_fp(dst_md, fp, src_tag, test_engine);
     dnn_mem_t wei_tr_fp(wei_tr_md, fp, wei_tag, test_engine);
-    dnn_mem_t bia_fp(bia_md, fp, dnnl_x, test_engine);
+    dnn_mem_t bia_fp(bia_md, fp, tag::x, test_engine);
 
     /* fill memory + reorders <-> */
     SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
@@ -308,7 +307,7 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare_wei(&p_tr, wei, wei_fp, r, true), WARN);
             if (p->dir & FLAG_BIA) {
                 compute_ref_bwd_bias(p, bia_fp, dst_fp);
-                dnn_mem_t bia(bia_dt, fp, dnnl_x, test_engine);
+                dnn_mem_t bia(bia_dt, fp, tag::x, test_engine);
                 SAFE(compare_bia(p, bia, bia_fp, r, true), WARN);
             }
         }
