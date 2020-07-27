@@ -596,6 +596,17 @@ void check_known_skipped_case(const prb_t &p, res_t *r) {
     check_known_skipped_case_common({p.cfg[SRC_LAYER].dt}, dir, r);
     if (r->state == SKIPPED) return;
 
+    // invalid inputs
+    bool consistent_proj = IMPLICATION(!p.with_projection, p.dhc == p.dic);
+    bool consistent_L = IMPLICATION(p.n_layer > 1, p.slc == p.dic);
+    bool consistent_T = IMPLICATION(p.n_iter > 1, p.sic == p.dic);
+    bool consistent_GRU = IMPLICATION(
+            p.alg == VANILLA_GRU || p.alg == LBR_GRU, p.sic == p.dic);
+    if (!consistent_proj || !consistent_L || !consistent_T || !consistent_GRU) {
+        r->state = SKIPPED, r->reason = INVALID_CASE;
+        return;
+    }
+
     // Only LSTM supports peephole and projection layer
     bool is_lstm_peephole = IMPLICATION(p.with_peephole, p.alg == VANILLA_LSTM);
     bool is_lstm_projection

@@ -1,7 +1,10 @@
-l3t50mb64sic500n"pytorch_testcase-training"
-l2t101mb128sic128n"paddlepaddle_testcase-training"
-l1t179mb128sic128n"paddlepaddle_testcase-training"
+# large shapes
 
-# SLC != DHC cases
-l1t10mb32sic128slc512dhc128n"nu-slc-0"
-l1t31mb32sic128slc512dhc128n"nu-slc-1a"
+l1t1mb1_sic64_n"uniform"
+l1t1mb1_sic65_n"uniform:tail"
+l1t1mb1_sic64_slc128_n"non-uniform:slc_neq_sic"
+l1t1mb1_sic65_slc130_n"non-uniform:slc_neq_sic_tail"
+l1t1mb1_sic64_dhc128_n"non-uniform:slc_neq_dhc"
+l1t1mb1_sic65_dhc130_n"non-uniform:slc_neq_dhc_tail"
+l1t1mb1_sic64_slc128_dhc256_n"non-uniform:slc_neq_sic_neq_dhc"
+l1t1mb1_sic65_slc130_dhc260_n"non-uniform:slc_neq_sic_neq_dhc_tail"

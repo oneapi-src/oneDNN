@@ -1,13 +1,7 @@
---alg=VANILLA_RNN
+# option set to run all reasonable large shapes
+
 --skip-nonlinear=true
---activation=RELU # will be ignored as we skip non linear
-
-## topology tests
---direction=left2right
---batch=shapes_deepspeech_2
-
-# Other large tests
---direction=left2right,right2left,concat,sum
+--l=1,2,3
+--t=1,2,3
+--mb=1,16,65
 --batch=shapes_large
---batch=shapes_large_nonuniform
-

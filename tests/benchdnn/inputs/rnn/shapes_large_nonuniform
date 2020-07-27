@@ -1,7 +1,0 @@
-# SIC != DHC cases (supported by RNN and LSTM only)
-
-l1t1mb32sic512slc128dhc128n"nu-sic-0"
-l10t1mb32sic512slc128dhc128n"nu-sic-1"
-
-l1t1mb32sic512slc256dhc128n"nu-slc-sic-0"
-
