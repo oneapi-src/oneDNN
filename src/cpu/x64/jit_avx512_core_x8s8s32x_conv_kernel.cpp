@@ -390,13 +390,13 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
         return jcp.typesize_in
                 * ((ki * (jcp.dilate_w + 1) + oi * stride_w - pad_l)
                                 * jcp.ic_without_padding * jcp.ngroups
-                        + 4 * ic);
+                        + ic_sub_step * ic);
     };
     auto kernel_offset = [=](int ii, int ic, int ki) {
         return jcp.typesize_in
                 * ((ii * jcp.nb_ic * jcp.kd * jcp.kh * jcp.kw + ki)
                                 * ch_block_all
-                        + 4 * ic * oc_block);
+                        + ic_sub_step * ic * oc_block);
     };
     auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
         if (jcp.ver == ver_vnni) {
@@ -411,13 +411,14 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
     for (int ki = 0; ki < kw; ki++) {
         int jj_start = get_ow_start(ki, pad_l);
         int jj_end = get_ow_end(ur_w, ki, pad_r);
-        int ic_tail_size = jcp.ic_without_padding % 4;
+        int ic_tail_size = jcp.ic_without_padding % ic_sub_step;
         int _start = (jcp.signed_input) ? 0 : jj_start;
         int _end = (jcp.signed_input) ? ur_w : jj_end;
-        /* Skip the last loads of input if (ic%16)/4 < ic_block/4 */
+        /* Skip the last loads of input
+            if (ic%16)/ic_sub_step < ic_block/ic_sub_step */
         int icb = (last_ic_block_flag != no_last_block)
-                ? div_up((jcp.ic_without_padding % ic_block), 4)
-                : ic_block / 4;
+                ? div_up((jcp.ic_without_padding % ic_block), ic_sub_step)
+                : ic_block / ic_sub_step;
         for (int ic = 0; ic < icb; ic++) {
             if (h_padded) {
                 /* fill padded area with shifted values */
@@ -763,6 +764,11 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
                       - extended_filter_size)
                     / jcp.stride_w;
     const int n_urw_per_ow_block = jcp.ow_block / jcp.ur_w;
+    const int max_safe_iw = nstl::max(
+            0, jcp.iw - div_up(ic_sub_step, jcp.ic_without_padding));
+    const int max_safe_ow = jcp.ic_without_padding % ic_sub_step == 0
+            ? jcp.ow
+            : (max_safe_iw + jcp.l_pad - extended_filter_size) / jcp.stride_w;
     Label middle_block_label, done_compute;
     std::vector<Label> ow_block_jmp_table;
 
@@ -826,11 +832,9 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
                         jcp.stride_w, extended_filter_size));
         if (cur_ow + jcp.ur_w <= jcp.ow && cur_r_pad == 0) {
             n_urw_middle_block_loop
-                    = nstl::max(0, ow_with_no_rpad - cur_ow) / jcp.ur_w;
-            if ((jcp.ic_without_padding % 4 != 0) && (jcp.ur_w_tail == 0)
-                    && (cur_ow + n_urw_middle_block_loop * jcp.ur_w >= jcp.ow))
-                n_urw_middle_block_loop
-                        = nstl::max(0, n_urw_middle_block_loop - 1);
+                    = nstl::max(0,
+                              nstl::min(ow_with_no_rpad, max_safe_ow) - cur_ow)
+                    / jcp.ur_w;
             cur_ow += n_urw_middle_block_loop * jcp.ur_w;
         }
         r_pad_fall_through_n_urw = (cur_ow / jcp.ur_w) % n_urw_per_ow_block;
@@ -930,7 +934,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
             int cur_r_pad = nstl::max(0,
                     calculate_end_padding(jcp.l_pad, cur_ow, jcp.iw,
                             jcp.stride_w, extended_filter_size));
-            icb_loop(jcp.ur_w, cur_l_pad, cur_r_pad, cur_ow == jcp.ow);
+            icb_loop(jcp.ur_w, cur_l_pad, cur_r_pad, cur_ow > max_safe_ow);
             add(reg_out, out_shift);
             dec(reg_oi);
 
@@ -954,11 +958,9 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
                         jcp.stride_w, extended_filter_size));
         if (cur_r_pad == 0 && cur_ow + jcp.ur_w <= jcp.ow) {
             int n_oi_middle_block_loop
-                    = nstl::max(0, ow_with_no_rpad - cur_ow) / jcp.ur_w;
-            if ((jcp.ic_without_padding % 4 != 0) && (jcp.ur_w_tail == 0)
-                    && (cur_ow + n_oi_middle_block_loop * jcp.ur_w >= jcp.ow))
-                n_oi_middle_block_loop
-                        = nstl::max(0, n_oi_middle_block_loop - 1);
+                    = nstl::max(0,
+                              nstl::min(ow_with_no_rpad, max_safe_ow) - cur_ow)
+                    / jcp.ur_w;
             if (jcp.nb_ow == 1 && n_oi_middle_block_loop > 1)
                 mov(reg_oi, n_oi_middle_block_loop);
             L(middle_block_label);
@@ -996,8 +998,8 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate() {
             cur_ow += jcp.ur_w;
             int cur_r_pad = calculate_end_padding(jcp.l_pad, cur_ow, jcp.iw,
                     jcp.stride_w, extended_filter_size);
-            assert(cur_r_pad > 0 || (cur_ow == jcp.ow && jcp.ur_w_tail == 0));
-            icb_loop(jcp.ur_w, 0, cur_r_pad, cur_ow == jcp.ow);
+            assert(cur_r_pad > 0 || cur_ow > max_safe_ow); // else, why be here?
+            icb_loop(jcp.ur_w, 0, cur_r_pad, cur_ow > max_safe_ow);
             add(reg_inp, inp_shift);
             add(reg_out, out_shift);
 
@@ -1330,28 +1332,6 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                 / (jcp.is_depthwise ? jcp.nb_ch_blocking
                                     : jcp.nb_oc_blocking + 1);
     if (jcp.ow < jcp.ur_w) jcp.ur_w = jcp.ow;
-    if (!jcp.is_depthwise && jcp.ur_w < jcp.ow) {
-        // tune ur_w such that penultimate ur_w block (including ur_w_tail)
-        // does not read past the end of src
-        const int broadcast_size = 4;
-        if (jcp.ic_without_padding % broadcast_size != 0) {
-            while (jcp.ur_w > 0) {
-                int last_block_size = (jcp.ow % jcp.ur_w == 0)
-                        ? jcp.ur_w
-                        : jcp.ow % jcp.ur_w;
-                int penultimate_iw_index
-                        = (jcp.ow - 1 - last_block_size) * jcp.stride_w
-                        + (jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad;
-                int penultimate_iw_leeway = (jcp.iw - 1 - penultimate_iw_index)
-                                * jcp.ic_without_padding
-                        + jcp.ic_without_padding % broadcast_size;
-                if (penultimate_iw_leeway >= broadcast_size) break;
-                --jcp.ur_w;
-            }
-            if (jcp.ur_w == 0) // no satisfactory ur_w could be found
-                return status::unimplemented;
-        }
-    }
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
     jcp.ow_block = jcp.ow;

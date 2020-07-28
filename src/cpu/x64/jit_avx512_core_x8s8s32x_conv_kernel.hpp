@@ -54,7 +54,7 @@ struct _jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
 
 private:
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
-
+    const int ic_sub_step = 4;
     enum {
         typesize = sizeof(float),
         ker_reg_base_idx = 28,
