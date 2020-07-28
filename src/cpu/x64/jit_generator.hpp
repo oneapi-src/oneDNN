@@ -60,7 +60,7 @@ static inline int float2int(float x) {
 }
 
 static inline void tc_configure_tile(
-        tileconfig_t *tc, int t, int rows, int cols) {
+        palette_config_t *tc, int t, int rows, int cols) {
     tc->rows[t] = rows;
     tc->cols[t] = cols;
 }

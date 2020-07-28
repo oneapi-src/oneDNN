@@ -25,6 +25,7 @@
 
 #include "cpu/cpu_convolution_pd.hpp"
 
+#include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/jit_avx512_core_amx_conv_kernel.hpp"
 
 namespace dnnl {

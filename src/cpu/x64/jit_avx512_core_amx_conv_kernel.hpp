@@ -20,7 +20,6 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/jit_avx512_core_amx_tilecfg.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
@@ -130,7 +129,6 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
         copy_to_pbuffer_ = new jit_avx512_core_amx_copy_to_pbuffer_t(jcp);
         if (jcp.is_relo)
             copy_to_wbuffer_ = new jit_avx512_core_amx_copy_to_wbuffer_t(jcp);
-        tilecfg_ = new jit_avx512_core_amx_tilecfg_t(jcp);
 
         generate();
 
@@ -140,13 +138,11 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
         if (jcp.is_relo)
             jit_copy_to_wbuffer_ker
                     = (void (*)(jit_conv_call_s *))copy_to_wbuffer_->getCode();
-        jit_tilecfg = (void (*)(void *))tilecfg_->getCode();
     }
     ~jit_avx512_core_amx_fwd_kernel_t() {
         delete eltwise_injector_;
         delete copy_to_pbuffer_;
         delete copy_to_wbuffer_;
-        delete tilecfg_;
     }
 
     static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
@@ -165,13 +161,11 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
     void (*jit_ker)(jit_conv_call_s *);
     void (*jit_copy_to_pbuffer_ker)(jit_conv_call_s *);
     void (*jit_copy_to_wbuffer_ker)(jit_conv_call_s *);
-    void (*jit_tilecfg)(void *);
 
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
     jit_avx512_core_amx_copy_to_pbuffer_t *copy_to_pbuffer_;
     jit_avx512_core_amx_copy_to_wbuffer_t *copy_to_wbuffer_;
-    jit_avx512_core_amx_tilecfg_t *tilecfg_;
 
     int prv_width_;
     int row_count_;

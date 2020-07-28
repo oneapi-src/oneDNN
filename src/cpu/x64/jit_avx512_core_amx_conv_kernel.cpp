@@ -1217,30 +1217,32 @@ void jit_avx512_core_amx_fwd_kernel_t::tile_configure(char *tcfg_buff) {
 
     // Weights (W_BASE) Tensor Tiles
     for (int i = 0; i < jcp.nb_oc_blocking; i++)
-        tc_configure_tile((tileconfig_t *)tcfg_buff, get_wei_tensor(i), b_row,
-                b_col * jcp.typesize_in);
+        tc_configure_tile((palette_config_t *)tcfg_buff, get_wei_tensor(i),
+                b_row, b_col * jcp.typesize_in);
 
     // Input (I_BASE) and Accumulator (C_BASE) Tensor Tiles
     for (int h = 0; h < jcp.nb_oh_blocking; h++) {
-        tc_configure_tile((tileconfig_t *)tcfg_buff, get_inp_tensor(h),
+        tc_configure_tile((palette_config_t *)tcfg_buff, get_inp_tensor(h),
                 jcp.tile_width, a_col * jcp.typesize_in);
         for (int i = 0; i < jcp.nb_oc_blocking; i++)
-            tc_configure_tile((tileconfig_t *)tcfg_buff, get_out_tensor(h, i),
-                    jcp.tile_width, c_col * jcp.typesize_acc);
+            tc_configure_tile((palette_config_t *)tcfg_buff,
+                    get_out_tensor(h, i), jcp.tile_width,
+                    c_col * jcp.typesize_acc);
     }
     if (jcp.tile_tail != 0) {
         assert(jcp.nb_oh_blocking == 1);
         assert(jcp.oh_per_tile == 1);
         assert(jcp.ow > jcp.tile_width);
-        tc_configure_tile((tileconfig_t *)tcfg_buff, get_inp_tensor(0, true),
-                jcp.tile_tail, a_col * jcp.typesize_in);
+        tc_configure_tile((palette_config_t *)tcfg_buff,
+                get_inp_tensor(0, true), jcp.tile_tail,
+                a_col * jcp.typesize_in);
         for (int i = 0; i < jcp.nb_oc_blocking; i++)
-            tc_configure_tile((tileconfig_t *)tcfg_buff,
+            tc_configure_tile((palette_config_t *)tcfg_buff,
                     get_out_tensor(0, i, true), jcp.tile_tail,
                     c_col * jcp.typesize_acc);
     }
 
-    ((tileconfig_t *)tcfg_buff)->palette_id = amx::get_max_palette();
+    ((palette_config_t *)tcfg_buff)->palette_id = amx::get_max_palette();
 }
 
 status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,

@@ -91,7 +91,7 @@ struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
 
 // pack struct so it can fit into a single 64-byte cache line
 #pragma pack(push, 1)
-struct tileconfig_t {
+struct palette_config_t {
     uint8_t palette_id;
     uint8_t startRow;
     uint8_t reserved[14];

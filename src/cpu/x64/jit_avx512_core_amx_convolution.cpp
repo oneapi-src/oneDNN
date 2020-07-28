@@ -115,7 +115,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
         balance211(work_amount, nthr, ithr, start, end);
 
         auto p = jit_conv_call_s();
-        kernel_->jit_tilecfg(tcfg);
+        amx_tile_configure(tcfg);
 
         int mb {0}, g {0}, ohc {0}, owb {0}, occ {0};
         // need "inner" oh blocks w.r.t. ow blocks to allow pbuffer reuse
@@ -281,7 +281,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
         balance211(work_amount, nthr, ithr, start, end);
 
         auto p = jit_conv_call_s();
-        kernel_->jit_tilecfg(tcfg);
+        amx_tile_configure(tcfg);
 
         int mb {0}, g {0}, ohc {0}, owb {0}, occ {0};
         nd_iterator_init(start, mb, jcp.mb, g, jcp.ngroups, ohc, oh_chunks, owb,
