@@ -13,14 +13,31 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include <algorithm>
 
-#include "gpu/ocl/simple_concat.hpp"
 #include "gpu/compute/dispatch.hpp"
+#include "gpu/ocl/simple_concat.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+/** Returns true if two sets of data have the same order of axis. */
+bool is_same_axis_order(
+        const memory_desc_wrapper &lhs, const memory_desc_wrapper &rhs) {
+    std::vector<std::pair<int, int>> strides(lhs.md_->ndims);
+    for (int d = 0; d < lhs.md_->ndims; ++d) {
+        strides[d].first = lhs.md_->format_desc.blocking.strides[d];
+        strides[d].second = rhs.md_->format_desc.blocking.strides[d];
+    }
+    std::sort(strides.begin(), strides.end());
+    for (int d = 1; d < lhs.md_->ndims; ++d) {
+        if (strides[d].second < strides[d - 1].second) { return false; }
+    }
+    return true;
+}
+
 static status_t init_conf_common(concat_conf_t &conf, const concat_pd_t *pd) {
     using namespace utils;
 
@@ -61,6 +78,10 @@ static status_t init_conf_common(concat_conf_t &conf, const concat_pd_t *pd) {
 
         if (!types::blocking_desc_is_equal(*pd->dst_md(), *pd->src_md(i), true))
             return status::unimplemented;
+
+        if (!is_same_axis_order(dst_mdw, src_mdw)) {
+            return status::unimplemented;
+        }
 
         if (!src_mdw.is_dense()) return status::unimplemented;
 
