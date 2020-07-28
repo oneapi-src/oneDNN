@@ -413,7 +413,7 @@ void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int iter, int dir,
     UNUSED(n_layers);
 }
 
-void rnn_utils::update_gru_offsets(const conf_t &rnn, int iter, int dir,
+void rnn_utils::set_gru_offsets_part2(const conf_t &rnn, int iter, int dir,
         int lay, data_type_t src_t, size_t *wei_iter_off_ptr,
         const size_t &ws_states_offset_, size_t &cell_wei_iter_offset,
         size_t &cell_scratch_offset, size_t &cell_ws_iter_offset) {

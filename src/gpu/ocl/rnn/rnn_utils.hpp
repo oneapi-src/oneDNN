@@ -183,7 +183,7 @@ void set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &scratch_cell_offset, size_t &ws_bias_offset,
         size_t &scratch_gates_offset, size_t &scratchpad_size,
         size_t &workspace_size);
-void update_gru_offsets(const conf_t &rnn, int iter, int dir, int lay,
+void set_gru_offsets_part2(const conf_t &rnn, int iter, int dir, int lay,
         data_type_t src_t, size_t *wei_iter_off_ptr,
         const size_t &ws_states_offset_, size_t &cell_wei_iter_offset,
         size_t &cell_scratch_offset, size_t &cell_ws_iter_offset);

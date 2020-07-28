@@ -32,11 +32,18 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
     data_type_t src_t = this->pd()->src_type;
 
     cl_ulong cell_scratch_offset, cell_ws_iter_offset, cell_ws_lay_offset,
-            cell_wei_iter_offset;
+            cell_wei_iter_offset, cell_ws_iter_offset2, cell_wei_iter_offset2,
+            cell_scratch_offset2;
 
     set_offsets_fwd_gemm(rnn, iter, dir, lay, src_t, wei_iter_offset_ptr,
             ws_states_offset_, cell_ws_iter_offset, cell_ws_lay_offset,
             cell_scratch_offset, cell_wei_iter_offset);
+
+    cell_scratch_offset2 = cell_scratch_offset;
+
+    set_gru_offsets_part2(rnn, iter, dir, lay, src_t, wei_iter_offset_ptr,
+            ws_states_offset_, cell_wei_iter_offset2, cell_scratch_offset2,
+            cell_ws_iter_offset2);
 
     if (aprop == prop_kind::forward) {
         // 1. gemm Wx[0-2],x
@@ -54,13 +61,9 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution_gru)) {
         (this->*elemwise_func)(ctx, dir, lay, iter, rnn.dhc, rnn.mb, workspace,
                 scratch_gates, scratch_cell, scales, bias, tm_scales, PART_ONE);
 
-        update_gru_offsets(rnn, iter, dir, lay, src_t, wei_iter_offset_ptr,
-                ws_states_offset_, cell_wei_iter_offset, cell_scratch_offset,
-                cell_ws_iter_offset);
-
         // 4. gemm Wh[2],h~t
-        gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset, workspace,
-                cell_ws_iter_offset, scratch_gates, cell_scratch_offset,
+        gemm_primitive(engine, ctx, wei_iter, cell_wei_iter_offset2, workspace,
+                cell_ws_iter_offset2, scratch_gates, cell_scratch_offset2,
                 gemm_iter_fwd_2);
 
         // 5. activation h~t + calculate ht
