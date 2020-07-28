@@ -65,7 +65,7 @@ endif()
 # For non-GCC compilers try to find version of system GCC to choose right compiler subdirectory.
 if (NOT _tbb_compiler_id STREQUAL "GNU")
     execute_process(COMMAND gcc --version OUTPUT_VARIABLE _tbb_gcc_ver_output ERROR_QUIET)
-    string(REGEX REPLACE ".*gcc.*([0-9]+\\.[0-9]+)\\.[0-9]+.*" "\\1" _tbb_compiler_ver "${_tbb_gcc_ver_output}")
+    string(REGEX REPLACE ".*gcc.* ([0-9]+\\.[0-9]+)\\.[0-9]+.*" "\\1" _tbb_compiler_ver "${_tbb_gcc_ver_output}")
     if (NOT _tbb_compiler_ver)
         message(FATAL_ERROR "This Intel TBB package is intended to be used only environment with available 'gcc'")
     endif()
