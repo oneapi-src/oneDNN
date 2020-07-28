@@ -541,8 +541,6 @@ jit_avx2_gemm_s8u8s32_kern::jit_avx2_gemm_s8u8s32_kern(
     coffset_cy_ = qword[rsp + 8];
     coffset_rx_ = qword[rsp + 16];
     coffset_ry_ = qword[rsp + 24];
-
-    generate();
 }
 
 } // namespace x64

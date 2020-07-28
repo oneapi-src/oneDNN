@@ -32,8 +32,6 @@ using namespace dnnl::impl::utils;
 
 using namespace nstl;
 
-using jit_conv_ker_t = void (*)(jit_conv_call_s *);
-
 #define wht_blk_off(d, g, ...) \
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
@@ -97,7 +95,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     auto p = jit_conv_call_s();
     p.src = weights;
     p.dst = wei_buffer;
-    kernel_->jit_copy_to_wbuffer_ker(&p);
+    kernel_->copy_to_wbuffer()(&p);
     const wei_data_t *wei = wei_buffer;
 
     size_t oc_subblock_step
@@ -194,7 +192,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                                 + doh * jcp.iwp * jcp.kh
                                         * jcp.ic_without_padding;
 
-                        kernel_->jit_copy_to_pbuffer_ker(&p);
+                        kernel_->copy_to_pbuffer()(&p);
                     }
                 }
 
@@ -211,7 +209,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                 p.owb = owb;
                 p.oc_blocks = occ * jcp.nb_oc_blocking;
 
-                kernel_->jit_ker(&p);
+                (*kernel_)(&p);
             }
             last_copied_mb = mb;
             last_copied_ohc = ohc;
@@ -360,7 +358,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                                 + (size_t)ih_buf * jcp.iwp
                                         * jcp.ic_block_int_np;
 
-                        kernel_->jit_copy_to_pbuffer_ker(&p);
+                        kernel_->copy_to_pbuffer()(&p);
                     }
                 }
 
@@ -382,7 +380,7 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                 p.owb = owb;
                 p.oc_blocks = occ * jcp.nb_oc_blocking;
 
-                kernel_->jit_ker(&p);
+                (*kernel_)(&p);
             }
             last_copied_mb = mb;
             last_copied_ohc = ohc;

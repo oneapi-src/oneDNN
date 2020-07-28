@@ -182,6 +182,8 @@ struct cpu_reducer_t {
         reduce_balancer_t balancer_;
     };
 
+    status_t create_kernel();
+
     cpu_reducer_t(const conf_t &conf);
     ~cpu_reducer_t();
 
@@ -267,6 +269,8 @@ struct cpu_reducer_2d_t {
         int job_size_x_, job_size_y_, x_block_, dst_x_, dst_y_;
     };
 
+    status_t create_kernel();
+
     cpu_reducer_2d_t(const conf_t &conf);
     ~cpu_reducer_2d_t();
 
@@ -334,6 +338,8 @@ struct cpu_accumulator_1d_t {
     cpu_accumulator_1d_t();
     ~cpu_accumulator_1d_t();
     void accumulate(data_t *dst, const data_t *src, size_t size);
+
+    status_t create_kernel();
 
     reducer_2d_driver_t<data_type> *drv_;
 

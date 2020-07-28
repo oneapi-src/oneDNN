@@ -32,8 +32,6 @@ using namespace dnnl::impl::utils;
 
 using namespace nstl;
 
-using jit_conv_ker_t = void (*)(jit_conv_call_s *);
-
 #define wht_blk_off(d, g, ...) \
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
@@ -165,7 +163,7 @@ void jit_avx2_x8s8s32x_convolution_fwd_t<src_type,
                     p.b_overflow = i_b_overflow;
                     p.owb = owb;
 
-                    kernel_->jit_ker(&p);
+                    (*kernel_)(&p);
                     src_w += src_h_stride * jcp.stride_h;
                     dst_w += dst_h_stride;
                 }
@@ -280,7 +278,7 @@ void jit_avx2_x8s8s32x_convolution_fwd_t<src_type,
             p.b_overflow = 0;
             p.owb = owb;
 
-            kernel_->jit_ker(&p);
+            (*kernel_)(&p);
 
             ++start;
             switch (jcp.loop_order) {
@@ -403,7 +401,7 @@ void jit_avx2_x8s8s32x_convolution_fwd_t<src_type,
                 p.b_overflow = i_b_overflow;
                 p.owb = owb;
 
-                kernel_->jit_ker(&p);
+                (*kernel_)(&p);
             });
 }
 
@@ -552,7 +550,7 @@ void jit_avx2_x8s8s32x_convolution_fwd_t<src_type,
                     p.back_overflow = d_back_overflow;
                     p.owb = owb;
 
-                    kernel_->jit_ker(&p);
+                    (*kernel_)(&p);
                     src_w += src_h_stride * jcp.stride_h;
                     dst_w += dst_h_stride;
                 }

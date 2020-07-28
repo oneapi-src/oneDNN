@@ -36,16 +36,9 @@ public:
             size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd_nhwc_t);
-    void (*ker)(
-            typename jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_args_fwd_t
-                    *);
-    void operator()(
-            typename jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_args_fwd_t
-                    *arg) {
-        ker(arg);
-    }
 
 private:
+    void generate() override;
     void set_up_ker_params();
     void execute_compute_loop(unsigned num_full_16c_blocks, unsigned C_tail);
     void compute_loop(across_version version, tail_mode tail_mode,
@@ -72,6 +65,7 @@ private:
     const Reg64 blockC_ = r9;
 
     const int half_ls_;
+    unsigned C;
 };
 
 } // namespace lrn

@@ -54,16 +54,13 @@ struct binary_kernel_t {
     binary_kernel_t(int vlen) : vlen_(vlen) {}
     virtual ~binary_kernel_t() = default;
 
-    void operator()(const call_params_t *p) {
-        assert(ker_);
-        ker_(p);
-    }
+    virtual void operator()(call_params_t *p) = 0;
+    virtual status_t create_kernel() = 0;
     int vlen() const { return vlen_; }
     op_t op_type() const { return op_type_; }
 
 protected:
     int vlen_ = 0;
-    void (*ker_)(const call_params_t *) = nullptr;
 
     op_t op_type_ = op_t::none;
 };
@@ -260,7 +257,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
         L(end);
     }
 
-    void get_code() {
+    void generate() override {
         preamble();
         load_kernel_params();
         prepare_isa_subkernel();
@@ -268,8 +265,12 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
         postamble();
 
         if (eltwise_injector_) eltwise_injector_->prepare_table();
+    }
 
-        ker_ = getCode<decltype(ker_)>();
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+    void operator()(binary_kernel_t::call_params_t *p) override {
+        jit_generator::operator()(p);
     }
 
     jit_uni_binary_kernel_t(const binary_pd_t *pd)
@@ -413,9 +414,7 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
     }
 
     jit_uni_binary_subkernel_t(const binary_pd_t *pd)
-        : jit_uni_binary_kernel_t(pd) {
-        get_code();
-    }
+        : jit_uni_binary_kernel_t(pd) {}
 };
 
 template <data_type_t src_type>
@@ -568,9 +567,7 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
     }
 
     jit_uni_binary_subkernel_t(const binary_pd_t *pd)
-        : jit_uni_binary_kernel_t(pd) {
-        get_code();
-    }
+        : jit_uni_binary_kernel_t(pd) {}
 };
 
 template <data_type_t src_type>
@@ -634,9 +631,7 @@ struct jit_uni_binary_subkernel_t<avx2, src_type>
     }
 
     jit_uni_binary_subkernel_t(const binary_pd_t *pd)
-        : jit_uni_binary_kernel_t(pd) {
-        get_code();
-    }
+        : jit_uni_binary_kernel_t(pd) {}
 };
 
 template <data_type_t src_type>
@@ -702,9 +697,7 @@ struct jit_uni_binary_subkernel_t<sse41, src_type>
     }
 
     jit_uni_binary_subkernel_t(const binary_pd_t *pd)
-        : jit_uni_binary_kernel_t(pd) {
-        get_code();
-    }
+        : jit_uni_binary_kernel_t(pd) {}
 };
 
 template <data_type_t src_type>
@@ -733,6 +726,11 @@ jit_uni_binary_t<src_type>::jit_uni_binary_t(const pd_t *apd)
 
 template <data_type_t src_type>
 jit_uni_binary_t<src_type>::~jit_uni_binary_t() = default;
+
+template <data_type_t src_type>
+status_t jit_uni_binary_t<src_type>::init(engine_t *engine) {
+    return kernel_->create_kernel();
+}
 
 template <data_type_t src_type>
 status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {

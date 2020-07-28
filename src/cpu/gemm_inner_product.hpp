@@ -89,6 +89,10 @@ struct gemm_inner_product_fwd_t : public primitive_t {
 
     typedef typename prec_traits<data_type>::type data_t;
 
+    status_t init(engine_t *engine) override {
+        return pp_kernel_->create_kernel();
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }

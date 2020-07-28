@@ -36,9 +36,6 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);
-
-        this->generate();
-        jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode();
     }
 
     ~jit_avx512_common_1x1_conv_kernel() { delete eltwise_injector_; }
@@ -59,7 +56,6 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
 
     jit_1x1_conv_conf_t jcp;
     const primitive_attr_t &attr_;
-    void (*jit_ker)(jit_1x1_conv_call_s *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -96,7 +92,7 @@ private:
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
-    void generate();
+    void generate() override;
     static void balance(jit_1x1_conv_conf_t &jcp);
 };
 

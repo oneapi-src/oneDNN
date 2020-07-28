@@ -63,6 +63,10 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
+    status_t init(engine_t *engine) override {
+        return (pp_kernel_) ? pp_kernel_->create_kernel() : status::success;
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_ref(ctx);
     }

@@ -5471,7 +5471,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate_microkernel() {
     ret();
 }
 
-void jit_avx512_common_conv_bwd_weights_kernel_f32::generate() {
+void jit_avx512_common_conv_bwd_weights_kernel_f32::generate_kernel() {
     preamble();
 
     mov(reg_input, ptr[param + GET_OFF(src)]);

@@ -34,7 +34,9 @@ struct jit_brgemm_kernel_t {
     jit_brgemm_kernel_t(const brgemm_conf_t abrd);
     ~jit_brgemm_kernel_t();
 
-    void (*brgemm)(brgemm_kernel_params_t *) = nullptr;
+    status_t create_kernel();
+    void operator()(brgemm_kernel_params_t *) const;
+
     jit_brgemm_kernel_base_t *brgemm_kernel_ = nullptr;
 
 private:

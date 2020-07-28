@@ -51,7 +51,7 @@ protected:
     void innerloop(int unroll_m, int unroll_n);
     void outerloop(int unroll_x, int unroll_y, Xbyak::Label *&outerloop_label);
 
-    void generate();
+    void generate() override;
 
 private:
     static const int UNROLL_M_ = 48;

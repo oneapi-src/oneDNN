@@ -143,11 +143,31 @@ public:
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
     ~jit_uni_lrn_fwd_kernel_t();
-    void operator()(jit_args_fwd_t *arg) { ker(arg); }
-    void (*ker)(jit_args_fwd_t *);
 
 private:
     using Base = jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<isa, d_type>>;
+
+    void generate() override {
+        switch (config_) {
+            case lrn_config_t::within_config:
+                generate(this->within_config_);
+                return;
+            case lrn_config_t::nchw8c_across:
+                generate(this->nchw8c_across_);
+                return;
+            case lrn_config_t::nhwc_across:
+                generate(this->nhwc_across_);
+                return;
+            case lrn_config_t::nchw_across:
+                generate(this->nchw_across_);
+                return;
+            default: assert(!"Configuration not supported"); return;
+        }
+    }
+    void generate(const within_config_t &config);
+    void generate(const nchw8c_across_t &config);
+    void generate(const nhwc_across_t &config);
+    void generate(const nchw_across_t &config);
 
 public:
     using Base::VECTOR_LENGTH;
@@ -203,11 +223,22 @@ public:
             void *code_ptr = nullptr,
             size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
-    void operator()(jit_args_bwd_t *arg) { ker(arg); }
-    void (*ker)(jit_args_bwd_t *);
-
 private:
     using Base = jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<isa, d_type>>;
+
+    void generate() override {
+        switch (config_) {
+            case lrn_config_t::nchw8c_across:
+                generate(this->nchw8c_across_);
+                return;
+            case lrn_config_t::within_config:
+                generate(this->within_config_);
+                return;
+            default: assert(!"Configuration not supported"); return;
+        }
+    }
+    void generate(const nchw8c_across_t &config);
+    void generate(const within_config_t &config);
 
 public:
     using Base::VECTOR_LENGTH;

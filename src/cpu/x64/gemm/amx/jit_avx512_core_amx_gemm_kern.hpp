@@ -31,7 +31,11 @@ public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_gemm_kern);
 
 protected:
-    void generate(int typea, int typeb, int typec, int betaZero);
+    void generate() override;
+    const int typea;
+    const int typeb;
+    const int typec;
+    const int isBetaZero;
 };
 
 } // namespace x64

@@ -1025,7 +1025,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
             p.kh_padding = jcp.kh;
             p.oc_blocks = jcp.is_depthwise ? g : ocb;
 
-            kernel_->jit_ker(&p);
+            (*kernel_)(&p);
 
             ++start;
             if (jcp.loop_order == loop_ngc)
@@ -1167,7 +1167,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
                 p.kh_padding = kh_len;
                 p.scales = scales;
                 p.oc_blocks = jcp.is_depthwise ? g : ocb;
-                kernel_->jit_ker(&p);
+                (*kernel_)(&p);
             }
             if (jcp.loop_order == loop_ngc)
                 nd_iterator_jump(start, end, n, jcp.mb, g, nb_groups, occ,
@@ -1362,7 +1362,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
                 p.kd_padding = kd_len;
                 p.scales = scales;
                 p.oc_blocks = jcp.is_depthwise ? g : ocb;
-                kernel_->jit_ker(&p);
+                (*kernel_)(&p);
             }
             if (jcp.loop_order == loop_ngc)
                 nd_iterator_jump(start, end, n, jcp.mb, g, nb_groups, occ,

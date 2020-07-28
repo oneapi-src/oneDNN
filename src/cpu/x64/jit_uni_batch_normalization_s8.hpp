@@ -56,6 +56,8 @@ struct jit_uni_batch_normalization_s8_fwd_t : public primitive_t {
     jit_uni_batch_normalization_s8_fwd_t(const pd_t *apd);
     ~jit_uni_batch_normalization_s8_fwd_t();
 
+    status_t init(engine_t *engine) override;
+
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:

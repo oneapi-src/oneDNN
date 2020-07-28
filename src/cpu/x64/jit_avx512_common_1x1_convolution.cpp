@@ -200,13 +200,13 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
                                          : jcp.is * ic_off_idx * jcp.ic_block);
             if (ocb == ocb_start) {
                 rp.src = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
-                rtus_driver_->ker_(&rp);
+                (*rtus_driver_)(&rp);
             }
             p.bcast_data = rp.ws;
         } else
             p.bcast_data = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
 
-        kernel_->jit_ker(&p);
+        (*kernel_)(&p);
     };
     auto conv_1x1 = [&](int bcast_start, int bcast_end, int ocb_start,
                             int ocb_end) {
@@ -342,7 +342,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw.nb_ch) - ch;
 
-            kernel_dw_->jit_ker(&par_conv_dw);
+            (*kernel_dw_)(&par_conv_dw);
 
             for (int i = 0; i < jcp_dw.kh; ++i)
                 addrs[i] += wch_stride;
@@ -554,9 +554,9 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
                         p.reduce_dim = this_block_size(ocb * jcp.oc_block,
                                 jcp.oc, nb_oc_blocking_step * jcp.oc_block);
 
-                        kernel_->jit_ker(&p);
+                        (*kernel_)(&p);
                     }
-                    if (pd()->rtus_.reduce_src_) rtus_driver_->ker_(&rp);
+                    if (pd()->rtus_.reduce_src_) (*rtus_driver_)(&rp);
                 }
             }
         }
@@ -582,7 +582,6 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
     kernel_ = new jit_avx512_common_1x1_conv_kernel(pd()->jcp_, *pd()->attr());
     acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
     reducer_bias_ = new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
-    init_rtus_driver<avx512_common>(this);
 
     const auto &jcp = kernel_->jcp;
 
@@ -714,7 +713,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
             par_trans.tr_src = tr_src1;
             par_trans.src_prf = src1 + 64 * 16;
             par_trans.tr_src_prf = tr_src1 + 80 * 16;
-            trans_kernel_->jit_ker(&par_trans);
+            (*trans_kernel_)(&par_trans);
 
             src1 += src_stride;
             tr_src1 += tr_src_stride;
@@ -888,7 +887,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                                 rp.src = local_src
                                         + ih * src_d.blocking_desc().strides[2]
                                         + iw * src_d.blocking_desc().strides[3];
-                            rtus_driver_->ker_(&rp);
+                            (*rtus_driver_)(&rp);
 
                             p.bcast_data = rp.ws;
                         } else {
@@ -897,7 +896,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                             p.bcast_data = local_src + sp * ic_mult;
                         }
 
-                        kernel_->jit_ker(&p);
+                        (*kernel_)(&p);
                     }
                 }
             }

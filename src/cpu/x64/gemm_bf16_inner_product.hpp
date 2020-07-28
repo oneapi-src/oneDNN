@@ -119,6 +119,10 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
+    status_t init(engine_t *engine) override {
+        return (pp_kernel_) ? pp_kernel_->create_kernel() : status::success;
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }

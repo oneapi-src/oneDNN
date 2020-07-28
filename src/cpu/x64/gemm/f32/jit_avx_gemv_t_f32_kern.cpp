@@ -356,8 +356,6 @@ jit_avx_gemv_t_f32_kern::jit_avx_gemv_t_f32_kern()
     arg_incx_ = ptr[rsp + (args_offset + 0)]; // Assumed 1 for A transpose.
     arg_y_ = ptr[rsp + (args_offset + 8)];
     arg_incy_ = ptr[rsp + (args_offset + 16)]; // Assumed 1 for A non-transpose.
-
-    generate();
 }
 
 } // namespace x64

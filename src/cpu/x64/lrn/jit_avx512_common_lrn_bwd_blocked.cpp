@@ -37,6 +37,13 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
     , buffer_nest_offset_ {xmm_size_ + zmm_size_}
     , src_prev_offset_ {static_cast<int>(this->vlen_ - 4 * sizeof(data_t))}
     , use_h_parallelism_(use_h_parallel) {
+    W_ = J.W;
+    HW_ = J.H * J.W;
+    version_ = J.version;
+}
+
+template <data_type_t d_type>
+void jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::generate() {
 
     this->preamble();
 
@@ -48,16 +55,12 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
     this->mov(this->diffsrc_, ptr[this->param_ + GET_OFF(diff_src)]);
 #undef GET_OFF
 
-    W_ = J.W;
-    HW_ = J.H * J.W;
     int LSB = this->use_h_parallelism_ ? W_ : HW_;
 
     this->sub(this->rsp, this->reg_block_ * buffer_block_);
     this->mov(this->imm_addr64_, float2int(this->nalphabeta_));
     this->vmovq(this->xnalphabeta_, this->imm_addr64_);
     this->vbroadcastss(this->znalphabeta_, this->xnalphabeta_);
-
-    version_ = J.version;
 
     if (version_ == across_version::First
             || version_ == across_version::Single) {
@@ -105,9 +108,6 @@ jit_avx512_common_lrn_kernel_bwd_blocked_t<d_type>::
 
     this->add(this->rsp, this->reg_block_ * buffer_block_);
     this->postamble();
-
-    ker = reinterpret_cast<decltype(ker)>(
-            const_cast<uint8_t *>(this->getCode()));
 }
 
 template <data_type_t d_type>

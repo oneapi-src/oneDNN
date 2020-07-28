@@ -160,7 +160,7 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                             - div_up(d_b_overflow, (jcp.dilate_d + 1));
                     par_conv.kd_padding = nstl::max(0, kd_padding);
 
-                    kernel_->jit_ker(&par_conv);
+                    (*kernel_)(&par_conv);
                 }
                 nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ocbb, ocb_work, od,
                         jcp.od, oh, jcp.oh);
@@ -330,7 +330,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
                             par_conv.flags |= FLAG_IC_LAST;
                     }
 
-                    kernel_->jit_ker(&par_conv);
+                    (*kernel_)(&par_conv);
                 }
             }
             nd_iterator_step(n, jcp.mb, g, jcp.ngroups, icbb, icb_work, ihb,
@@ -446,7 +446,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
                         par_conv.channel = this_block_size(
                                 icb * jcp.ic_block, jcp.ic, jcp.ic_block);
 
-                        kernel_->jit_ker(&par_conv);
+                        (*kernel_)(&par_conv);
                     }
                     nd_iterator_step(
                             g, jcp.ngroups, ocb, jcp.nb_oc, icb, jcp.nb_ic);

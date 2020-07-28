@@ -97,6 +97,10 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<wei_type>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         const auto &_pd = pd();
         if (_pd->ndims() > 4)

@@ -39,13 +39,12 @@ struct jit_uni_gru_cell_postgemm_part2_fwd : public jit_uni_rnn_postgemm {
 
     ~jit_uni_gru_cell_postgemm_part2_fwd() { delete tanh_injector_; }
 
-    void init(data_type_t sdt) override {
+    status_t init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
         // we use rax for both constant tables as they use the same table
         tanh_injector_ = new injector_t(
                 this, alg_kind::eltwise_tanh, 0.0f, 0.0f, 1.0f, true, rax);
-        generate();
-        kernel_ = (kernel_t)this->getCode();
+        return create_kernel();
     }
 
 protected:
@@ -62,7 +61,7 @@ protected:
     size_t bias_dt_size = sizeof(float);
     size_t qscale_dt_size = sizeof(float);
 
-    void generate() {
+    void generate() override {
         using namespace Xbyak;
         auto is_training
                 = pd_->desc()->prop_kind == prop_kind::forward_training;

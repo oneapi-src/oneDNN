@@ -38,15 +38,16 @@ using namespace Xbyak;
 
 typedef int8_t data_t;
 
+struct call_params_t {
+    // keep int sizes at 8 bytes -- jit code expects this
+    size_t channel_offt_count, spat_offt_count;
+    float eps;
+    const float *scale_shift, *mean, *var;
+    const data_t *src, *dst;
+};
+
 template <cpu_isa_t isa>
 struct jit_bnorm_base_t : public jit_generator {
-    struct call_params_t {
-        // keep int sizes at 8 bytes -- jit code expects this
-        size_t channel_offt_count, spat_offt_count;
-        float eps;
-        const float *scale_shift, *mean, *var;
-        const data_t *src, *dst;
-    };
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_t)
 
@@ -56,9 +57,6 @@ struct jit_bnorm_base_t : public jit_generator {
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     const batch_normalization_pd_t *pd_;
-
-    void (*ker)(const call_params_t *);
-    void operator()(const call_params_t *p) { (*ker)(p); }
 
     Reg64 reg_param = abi_param1;
 
@@ -180,16 +178,13 @@ struct jit_bnorm_base_t : public jit_generator {
     // either this stub or duplication at each jit_binary_t ctor due to methods
     // that are participated are not defined at the moment of base ctor
     // initialization.
-    void get_code() {
+    void generate() override {
         preamble();
         compute_predefined_variables();
         load_common_params();
         prepare_tail_mask();
         forward();
         postamble();
-
-        ker = reinterpret_cast<decltype(ker)>(
-                const_cast<uint8_t *>(this->getCode()));
     }
 
     jit_bnorm_base_t(const batch_normalization_pd_t *pd) : pd_(pd) {}
@@ -289,9 +284,7 @@ struct jit_bnorm_t<avx512_core> : public jit_bnorm_base_t<avx512_core> {
     }
 
     jit_bnorm_t(const batch_normalization_pd_t *pd)
-        : jit_bnorm_base_t<avx512_core>(pd) {
-        get_code();
-    }
+        : jit_bnorm_base_t<avx512_core>(pd) {}
 };
 
 template <>
@@ -429,9 +422,7 @@ struct jit_bnorm_t<avx2> : public jit_bnorm_base_t<avx2> {
     }
 
     jit_bnorm_t(const batch_normalization_pd_t *pd)
-        : jit_bnorm_base_t<avx2>(pd) {
-        get_code();
-    }
+        : jit_bnorm_base_t<avx2>(pd) {}
 };
 
 template <>
@@ -546,9 +537,7 @@ struct jit_bnorm_t<sse41> : public jit_bnorm_base_t<sse41> {
     }
 
     jit_bnorm_t(const batch_normalization_pd_t *pd)
-        : jit_bnorm_base_t<sse41>(pd) {
-        get_code();
-    }
+        : jit_bnorm_base_t<sse41>(pd) {}
 };
 
 } // namespace
@@ -571,7 +560,7 @@ struct driver_t : public c_compatible {
         dim_t W = pd_->W();
         dim_t SP = D * H * W;
 
-        typename jit_bnorm_t<isa>::call_params_t p;
+        call_params_t p;
 
         p.eps = pd_->desc()->batch_norm_epsilon;
 
@@ -589,6 +578,8 @@ struct driver_t : public c_compatible {
 
         if (p.spat_offt_count != 0) ker_(&p);
     }
+
+    status_t create_kernel() { return ker_.create_kernel(); }
 
 private:
     const batch_normalization_pd_t *pd_;
@@ -624,6 +615,11 @@ jit_uni_batch_normalization_s8_fwd_t<isa>::jit_uni_batch_normalization_s8_fwd_t(
         const pd_t *apd)
     : primitive_t(apd) {
     bnorm_driver_ = new bnorm_s8_impl::driver_t<isa>(pd());
+}
+
+template <cpu_isa_t isa>
+status_t jit_uni_batch_normalization_s8_fwd_t<isa>::init(engine_t *engine) {
+    return bnorm_driver_->create_kernel();
 }
 
 template <cpu_isa_t isa>

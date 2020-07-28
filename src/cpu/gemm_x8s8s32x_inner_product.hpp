@@ -116,6 +116,10 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
+    status_t init(engine_t *engine) override {
+        return pp_kernel_->create_kernel();
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }

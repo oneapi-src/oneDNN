@@ -71,6 +71,12 @@ const size_t ker_prb_size_min = 64;
 struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_reorder_kernel_f32)
 
+    void operator()(const call_param_t *c) const override {
+        jit_generator::operator()(c);
+    }
+
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
     enum {
         len_unroll_max = 256,
         ndims_jit_loop_max = 3,
@@ -842,7 +848,9 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
                     bf16_emu_reserv_4);
             bf16_emu_->init_vcvtneps2bf16();
         }
+    }
 
+    void generate() override {
         preamble();
 #define PARAM(x) ptr[abi_param1 + offsetof(call_param_t, x)]
         if (prb_.scale_type == scale_type_t::COMMON) {
@@ -874,7 +882,6 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
 
         impl();
         postamble();
-        ker_ = (void (*)(const call_param_t *))getCode();
     }
     ~jit_uni_reorder_kernel_f32() { delete bf16_emu_; }
 
@@ -958,16 +965,16 @@ struct jit_single_blk_kernel : public jit_generator {
     jit_single_blk_kernel(const tr::prb_t &prb)
         : jit_generator()
         , prb_(prb)
-        , ker_(nullptr)
         , itype_sz(data_type_size(prb_.itype))
         , otype_sz(data_type_size(prb_.otype))
-        , block_sz(prb.nodes[0].n) {
+        , block_sz(prb.nodes[0].n) {}
+
+    void generate() override {
         auto input_stride
                 = prb_.nodes[0].is != 1 ? prb_.nodes[0].is : prb_.nodes[1].is;
         auto output_stride
                 = prb_.nodes[0].os != 1 ? prb_.nodes[0].os : prb_.nodes[1].os;
 
-        auto ker_off = getSize();
         Label tail_processing;
 
         preamble();
@@ -1011,9 +1018,6 @@ struct jit_single_blk_kernel : public jit_generator {
         }
 
         postamble();
-
-        auto *ker_start = getCode();
-        this->ker_ = (decltype(ker_))(ker_start + ker_off);
     }
 
     void gen_loadu(const Ymm &ymm, const Address &addr, int size) {
@@ -1182,10 +1186,6 @@ struct jit_single_blk_kernel : public jit_generator {
         }
     }
 
-    void operator()(const void *in, void *out, bool tail) const {
-        ker_(in, out, tail);
-    }
-
 private:
     // 6 ~ 12
     constexpr static int xmm_save_for_windows = is_windows ? 7 : 0;
@@ -1214,7 +1214,6 @@ private:
     }
 
     const prb_t &prb_;
-    void (*ker_)(const void *, void *, bool tail);
 
     int itype_sz;
     int otype_sz;
@@ -1472,7 +1471,6 @@ struct jit_uni_reorder_t : public primitive_t {
 
     jit_uni_reorder_t(const pd_t *apd) : primitive_t(apd) {
         kernel_ = tr::kernel_t::create(pd()->ker_desc_);
-        assert(kernel_);
     }
     ~jit_uni_reorder_t() { delete kernel_; }
 
@@ -1591,6 +1589,10 @@ struct jit_uni_reorder_t : public primitive_t {
         }
     }
 
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         auto in = CTX_IN_MEM(const char *, DNNL_ARG_FROM);
         auto out = CTX_OUT_MEM(char *, DNNL_ARG_TO);
@@ -1688,6 +1690,10 @@ struct jit_blk_reorder_t : public primitive_t {
     ptrdiff_t os(int d) const {
         assert(d < pd()->prb_.ndims);
         return pd()->prb_.nodes[d].os;
+    }
+
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {

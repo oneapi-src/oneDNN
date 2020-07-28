@@ -44,9 +44,6 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, eltwise, true, rax, Xbyak::Opmask(1));
         }
-
-        generate();
-        jit_kernel_ = (void (*)(brgemm_kernel_params_t *))getCode();
     }
 
     ~jit_brgemm_kernel_base_t() { delete eltwise_injector_; }
@@ -54,8 +51,6 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_base_t)
 
     brgemm_conf_t brg;
-
-    void (*jit_kernel_)(brgemm_kernel_params_t *);
 
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
@@ -179,7 +174,7 @@ private:
             bool is_reg_tail, bool is_n_tail);
     void mb_loop();
 
-    void generate();
+    void generate() override;
 };
 
 const Xbyak::Zmm jit_brgemm_kernel_base_t::zmm_mask(const Xbyak::Zmm zmm_in,
@@ -863,7 +858,14 @@ void jit_brgemm_kernel_base_t::generate() {
 
 jit_brgemm_kernel_t::jit_brgemm_kernel_t(const brgemm_conf_t abrd) {
     brgemm_kernel_ = new jit_brgemm_kernel_base_t(abrd);
-    brgemm = brgemm_kernel_->jit_kernel_;
+}
+
+status_t jit_brgemm_kernel_t::create_kernel() {
+    return brgemm_kernel_->create_kernel();
+}
+
+void jit_brgemm_kernel_t::operator()(brgemm_kernel_params_t *params) const {
+    (*brgemm_kernel_)(params);
 }
 
 jit_brgemm_kernel_t::~jit_brgemm_kernel_t() {

@@ -43,9 +43,13 @@ jit_avx512_common_lrn_kernel_bwd_nhwc_t<
                 this->zdiffsrc_ + 2 + this->local_size_ / 2);
         return v;
     }()}
-    , half_ls_ {(local_size - 1) / 2} {
+    , half_ls_ {(local_size - 1) / 2}
+    , C_(C) {}
 
-    const auto res = std::div(C, 16);
+template <data_type_t d_type>
+void jit_avx512_common_lrn_kernel_bwd_nhwc_t<d_type>::generate() {
+
+    const auto res = std::div(C_, 16);
     const auto &C_tail = res.rem;
     const auto &num_full_16c_blocks = res.quot;
     static const auto stack_space = zmm_size_ * 9;
@@ -57,8 +61,6 @@ jit_avx512_common_lrn_kernel_bwd_nhwc_t<
     if (C_tail) unreserve_stack_space(stack_space);
 
     this->postamble();
-    this->ker = reinterpret_cast<decltype(this->ker)>(
-            const_cast<uint8_t *>(this->getCode()));
 }
 
 template <data_type_t d_type>

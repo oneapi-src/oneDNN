@@ -87,6 +87,8 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
         stat_kernel_.reset(
                 lnorm_utils::statistics_kernel_t<data_type>::create(pd()));
         data_kernel_.reset(lnorm_utils::data_kernel_t<data_type>::create(pd()));
+        if (stat_kernel_) CHECK(stat_kernel_->create_kernel());
+        if (data_kernel_) CHECK(data_kernel_->create_kernel());
         return status::success;
     }
 
@@ -206,6 +208,8 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
                 lnorm_utils::diff_ss_kernel_t<data_type>::create(pd()));
         diff_data_kernel_.reset(
                 lnorm_utils::diff_data_kernel_t<data_type>::create(pd()));
+        if (diff_ss_kernel_) CHECK(diff_ss_kernel_->create_kernel());
+        if (diff_data_kernel_) CHECK(diff_data_kernel_->create_kernel());
         return status::success;
     }
 

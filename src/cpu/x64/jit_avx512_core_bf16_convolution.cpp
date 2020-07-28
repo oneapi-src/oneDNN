@@ -125,7 +125,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
             par_conv.filt = wht_w;
             par_conv.bias = bias_w;
             par_conv.owb = owb;
-            kernel_->jit_ker(&par_conv);
+            (*kernel_)(&par_conv);
 
             if (jcp.loop_order == loop_cwgn) {
                 int dummy {0};
@@ -240,7 +240,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
                 par_conv.bias = bias_w;
                 par_conv.kh_padding = kh_padding;
                 par_conv.owb = owb;
-                kernel_->jit_ker(&par_conv);
+                (*kernel_)(&par_conv);
 
                 src_w += src_h_stride * jcp.stride_h;
                 dst_w += jcp.typesize_out * dst_h_stride;
@@ -370,7 +370,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
                 par_conv.kh_padding = kh_padding;
                 par_conv.kd_padding = kd_padding;
                 par_conv.owb = owb;
-                kernel_->jit_ker(&par_conv);
+                (*kernel_)(&par_conv);
 
                 src_w += src_h_stride * jcp.stride_h;
                 dst_w += jcp.typesize_out * dst_h_stride;
@@ -538,7 +538,7 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
                 par_conv.kh_padding = kh_len;
                 par_conv.kd_padding = kd_len;
 
-                kernel_->jit_ker(&par_conv);
+                (*kernel_)(&par_conv);
             }
 
             if (jcp.loop_order == loop_cgn)
@@ -675,7 +675,7 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
                 par_conv.kh_padding = k_len;
                 par_conv.iwb = iwb;
 
-                kernel_->jit_ker(&par_conv);
+                (*kernel_)(&par_conv);
             }
 
             if (jcp.loop_order == loop_cwgn)
@@ -1180,7 +1180,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
             p.os_index_end = oh_e;
             p.flags = 0 | (ic_b == 0 ? FLAG_IC_FIRST : 0);
             assert(oh_e <= jcp.oh);
-            kernel_->jit_ker(&p);
+            (*kernel_)(&p);
         }
 
         nd_iterator_jump(start, end, img, jcp.mb, oh_s, jcp.oh);
@@ -1415,7 +1415,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
             p.kd_offset = kd_pad_off;
             p.flags = 0 | (ic_b == 0 ? FLAG_IC_FIRST : 0);
             assert(od_e <= jcp.od);
-            kernel_->jit_ker(&p);
+            (*kernel_)(&p);
         }
 
         nd_iterator_jump(start, end, img, jcp.mb, od_s, jcp.od);
@@ -1673,7 +1673,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
             p.flags = 0 | (ic_b == 0 ? FLAG_IC_FIRST : 0);
             p.reduce_work = ic_to_compute;
             p.load_work = oc_to_compute;
-            kernel_->jit_ker(&p);
+            (*kernel_)(&p);
         }
     }
 }

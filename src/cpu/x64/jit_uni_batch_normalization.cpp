@@ -82,9 +82,6 @@ struct jit_bnorm_t : public jit_generator {
     bool is_nspc_;
     bool is_bf16_;
 
-    void (*ker)(const call_params_t *);
-    void operator()(const call_params_t *p) { (*ker)(p); }
-
     Reg64 reg_param = abi_param1;
 
     Reg64 reg_scale_shift = rbx;
@@ -1681,7 +1678,9 @@ struct jit_bnorm_t : public jit_generator {
 
         unroll_blocks = isa == avx512_common && !is_spatial_thr_ ? 4 : 1;
         unroll_regs = isa == avx512_common && !is_spatial_thr_ ? 4 : 1;
+    }
 
+    void generate() override {
         preamble();
 
         if (is_bf16_) {
@@ -1712,9 +1711,10 @@ struct jit_bnorm_t : public jit_generator {
         }
         add(rsp, stack_size_required);
         postamble();
+    }
 
-        ker = reinterpret_cast<decltype(ker)>(
-                const_cast<uint8_t *>(this->getCode()));
+    void operator()(const call_params_t *p) {
+        return jit_generator::operator()(p);
     }
 
     ~jit_bnorm_t() { delete bf16_emu_; }
@@ -1896,6 +1896,8 @@ struct driver_t : public c_compatible {
         }
     }
 
+    status_t create_kernel() { return ker_.create_kernel(); }
+
 private:
     enum {
         simd_w = isa == sse41 ? 8
@@ -1980,6 +1982,11 @@ jit_uni_batch_normalization_fwd_t<isa>::jit_uni_batch_normalization_fwd_t(
         const pd_t *apd)
     : primitive_t(apd) {
     bnorm_driver_ = new bnorm_impl::driver_t<isa>(pd());
+}
+
+template <cpu_isa_t isa>
+status_t jit_uni_batch_normalization_fwd_t<isa>::init(engine_t *engine) {
+    return bnorm_driver_->create_kernel();
 }
 
 template <cpu_isa_t isa>
@@ -2077,6 +2084,11 @@ jit_uni_batch_normalization_bwd_t<isa>::jit_uni_batch_normalization_bwd_t(
         const pd_t *apd)
     : primitive_t(apd) {
     bnorm_driver_ = new bnorm_impl::driver_t<isa>(pd());
+}
+
+template <cpu_isa_t isa>
+status_t jit_uni_batch_normalization_bwd_t<isa>::init(engine_t *engine) {
+    return bnorm_driver_->create_kernel();
 }
 
 template <cpu_isa_t isa>

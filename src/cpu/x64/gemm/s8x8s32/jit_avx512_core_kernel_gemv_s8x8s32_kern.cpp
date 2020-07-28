@@ -22,12 +22,12 @@
 #define is_windows 0
 #endif
 
-using namespace Xbyak;
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
+
+using namespace Xbyak;
 
 void jit_avx512_core_gemv_s8x8s32_kern::vnni(
         Zmm acc, Zmm a, Zmm b, vnni_op_t op) {
@@ -175,19 +175,12 @@ void jit_avx512_core_gemv_s8x8s32_kern::update_c(
     }
 }
 
-template <typename gemv_kernel_t>
-gemv_kernel_t jit_avx512_core_gemv_s8x8s32_kern::generate(int use_vnni) {
+void jit_avx512_core_gemv_s8x8s32_kern::generate() {
+
     const int vec_len = 64; // bytes
 
-    isa = use_vnni ? avx512_core_vnni : avx512_core;
+    isa = mayiuse(avx512_core_vnni) ? avx512_core_vnni : avx512_core;
 
-    ver = ver_t::undef;
-    if (std::is_same<gemv_kernel_t, gemv_s8s8s32_kernel_t>::value)
-        ver = ver_t::s8s8;
-    else if (std::is_same<gemv_kernel_t, gemv_s8u8s32_kernel_t>::value)
-        ver = ver_t::s8u8;
-    else if (std::is_same<gemv_kernel_t, gemv_u8s8s32_kernel_t>::value)
-        ver = ver_t::u8s8;
     assert(ver != ver_t::undef);
 
     Opmask mask_n = k1, mask_m = k2;
@@ -372,18 +365,7 @@ gemv_kernel_t jit_avx512_core_gemv_s8x8s32_kern::generate(int use_vnni) {
         dw((int16_t)0xffff);
     for (int i = 0; i < vec_len / 2; i++) // 128_u8
         dw((int16_t)0x8080);
-
-    return (gemv_kernel_t)getCode();
 }
-
-template gemv_s8s8s32_kernel_t
-jit_avx512_core_gemv_s8x8s32_kern::generate<gemv_s8s8s32_kernel_t>(int);
-
-template gemv_s8u8s32_kernel_t
-jit_avx512_core_gemv_s8x8s32_kern::generate<gemv_s8u8s32_kernel_t>(int);
-
-template gemv_u8s8s32_kernel_t
-jit_avx512_core_gemv_s8x8s32_kern::generate<gemv_u8s8s32_kernel_t>(int);
 
 } // namespace x64
 } // namespace cpu

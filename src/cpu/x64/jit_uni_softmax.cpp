@@ -63,8 +63,7 @@ struct jit_softmax_base_t : public jit_generator {
     const softmax_pd_t *pd_;
     const memory_desc_wrapper data_d_;
 
-    void (*ker)(const call_params_t *);
-    void operator()(const call_params_t *p) { (*ker)(p); }
+    virtual void operator()(const call_params_t *p) = 0;
     std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> exp_injector_;
     std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> log_injector_;
 
@@ -224,7 +223,7 @@ struct jit_softmax_base_t : public jit_generator {
     // either this stub or duplication at each jit_binary_t ctor due to methods
     // that are participated are not defined at the moment of base ctor
     // initialization.
-    void get_code() {
+    void generate() override {
         if (pd_->is_fwd() || is_logsoftmax_)
             exp_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
                     alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, true,
@@ -249,8 +248,6 @@ struct jit_softmax_base_t : public jit_generator {
         postamble();
         if (exp_injector_) exp_injector_->prepare_table();
         if (log_injector_) log_injector_->prepare_table();
-
-        ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t *>(getCode()));
     }
 
     jit_softmax_base_t(const softmax_pd_t *pd)
@@ -428,7 +425,10 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
             bf16_emu_.reset(new bf16_emulation_t(this, bf16_emu_zmm_1,
                     bf16_emu_zmm_2, bf16_emu_zmm_3, bf16_emu_gpr,
                     bf16_emu_zmm_4, bf16_emu_zmm_5));
-        get_code();
+    }
+
+    void operator()(const call_params_t *p) override {
+        return jit_generator::operator()(p);
     }
 };
 
@@ -540,9 +540,11 @@ struct jit_softmax_t<avx2> : public jit_softmax_base_t<avx2> {
         });
     }
 
-    jit_softmax_t(const softmax_pd_t *pd) : jit_softmax_base_t(pd) {
-        get_code();
+    void operator()(const call_params_t *p) override {
+        return jit_generator::operator()(p);
     }
+
+    jit_softmax_t(const softmax_pd_t *pd) : jit_softmax_base_t(pd) {}
 };
 
 template <>
@@ -668,9 +670,11 @@ struct jit_softmax_t<sse41> : public jit_softmax_base_t<sse41> {
         });
     }
 
-    jit_softmax_t(const softmax_pd_t *pd) : jit_softmax_base_t(pd) {
-        get_code();
+    void operator()(const call_params_t *p) override {
+        return jit_generator::operator()(p);
     }
+
+    jit_softmax_t(const softmax_pd_t *pd) : jit_softmax_base_t(pd) {}
 };
 
 } // namespace
@@ -683,6 +687,11 @@ jit_uni_softmax_fwd_t<isa>::jit_uni_softmax_fwd_t(const pd_t *apd)
 template <cpu_isa_t isa>
 jit_uni_softmax_fwd_t<isa>::~jit_uni_softmax_fwd_t() {
     delete softmax_driver_;
+}
+
+template <cpu_isa_t isa>
+status_t jit_uni_softmax_fwd_t<isa>::init(engine_t *engine) {
+    return softmax_driver_->create_kernel();
 }
 
 template <cpu_isa_t isa>
@@ -721,6 +730,11 @@ jit_uni_softmax_bwd_t<isa>::jit_uni_softmax_bwd_t(const pd_t *apd)
 template <cpu_isa_t isa>
 jit_uni_softmax_bwd_t<isa>::~jit_uni_softmax_bwd_t() {
     delete softmax_driver_;
+}
+
+template <cpu_isa_t isa>
+status_t jit_uni_softmax_bwd_t<isa>::init(engine_t *engine) {
+    return softmax_driver_->create_kernel();
 }
 
 template <cpu_isa_t isa>
@@ -778,6 +792,8 @@ struct driver_t : public c_compatible {
         p.diff_dst = diff_dst;
         ker_(&p);
     }
+
+    status_t create_kernel() { return ker_.create_kernel(); }
 
 private:
     const softmax_pd_t *pd_;

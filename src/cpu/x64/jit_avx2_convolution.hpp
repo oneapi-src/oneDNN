@@ -91,6 +91,10 @@ struct jit_avx2_convolution_fwd_t : public primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
@@ -153,6 +157,10 @@ struct jit_avx2_convolution_bwd_data_t : public primitive_t {
     ~jit_avx2_convolution_bwd_data_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
+
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_data(ctx);
@@ -266,6 +274,13 @@ struct jit_avx2_convolution_bwd_weights_t : public primitive_t {
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(kernel_->create_kernel());
+        CHECK(reducer_weights_->create_kernel());
+        CHECK(reducer_bias_->create_kernel());
+        return status::success;
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights(ctx);

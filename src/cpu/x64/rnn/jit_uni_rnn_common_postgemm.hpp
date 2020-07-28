@@ -36,10 +36,6 @@ namespace x64 {
 
 struct jit_uni_rnn_postgemm : public jit_generator {
 
-    typedef void (*kernel_t)(void *param1_, void *param2_, const void *param3_,
-            void *param4_, void *param5_, const void *param6_, void *param7_,
-            void *param8_, void *param9_);
-
     jit_uni_rnn_postgemm(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
         : rnn_(rnn)
         , pd_(pd)
@@ -64,7 +60,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         if (bf16_emu_) delete bf16_emu_;
     }
 
-    virtual void init(data_type_t src_data_t) {
+    virtual status_t init(data_type_t src_data_t) {
         // no need to check as bf16 is guarded for avx512 and above in rnn primtive
         using namespace Xbyak;
         if (src_data_t == data_type::bf16 && !mayiuse(avx512_core_bf16)) {
@@ -73,7 +69,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 
         } else
             bf16_emu_ = nullptr;
-    };
+        return status::success;
+    }
 
     template <typename dst_layer_t, typename dst_iter_t, typename src_iter_t,
             typename gemm_acc_t, typename gates_t, typename scratch_t>
@@ -159,8 +156,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     param8_ = nullptr;
                     break;
             }
-            kernel_(param1_, param2_, param3_, param4_, param5_, param6_,
-                    param7_, param8_, param9_);
+            this->operator()(param1_, param2_, param3_, param4_, param5_,
+                    param6_, param7_, param8_, param9_);
         });
     }
 
@@ -266,8 +263,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     param9_ = nullptr;
                     break;
             }
-            kernel_(param1_, param2_, param3_, param4_, param5_, param6_,
-                    param7_, param8_, param9_);
+            this->operator()(param1_, param2_, param3_, param4_, param5_,
+                    param6_, param7_, param8_, param9_);
         });
     }
 
@@ -526,7 +523,6 @@ protected:
         }
     }
 
-    kernel_t kernel_;
     const rnn_utils::rnn_conf_t &rnn_;
     const rnn_pd_t *pd_;
     bf16_emulation_t *bf16_emu_;

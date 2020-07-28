@@ -87,6 +87,14 @@ template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_t<isa, d_type>::~jit_uni_lrn_fwd_t() = default;
 
 template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_lrn_fwd_t<isa, d_type>::init(engine_t *engine) {
+    CHECK(ker_->create_kernel());
+    if (ker_first_) CHECK(ker_first_->create_kernel());
+    if (ker_last_) CHECK(ker_last_->create_kernel());
+    return status::success;
+}
+
+template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_lrn_fwd_t<isa, d_type>::execute_forward(
         const exec_ctx_t &ctx) const {
     using namespace alg_kind;
@@ -236,6 +244,14 @@ jit_uni_lrn_bwd_t<isa, d_type>::jit_uni_lrn_bwd_t(const pd_t *apd)
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_bwd_t<isa, d_type>::~jit_uni_lrn_bwd_t() = default;
+
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_lrn_bwd_t<isa, d_type>::init(engine_t *engine) {
+    CHECK(ker_->create_kernel());
+    if (ker_first_) CHECK(ker_first_->create_kernel());
+    if (ker_last_) CHECK(ker_last_->create_kernel());
+    return status::success;
+}
 
 template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_lrn_bwd_t<isa, d_type>::execute_backward(

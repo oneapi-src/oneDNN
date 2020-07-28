@@ -116,6 +116,10 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
+    status_t init(engine_t *engine) override {
+        return pp_ker_->create_kernel();
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         const bool is_nspc = pd()->jcp_.is_nspc;
         return is_nspc ? execute_forward_nspc(ctx) : execute_forward_ncsp(ctx);
@@ -131,7 +135,7 @@ private:
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    class pp_ker_t : jit_generator {
+    class pp_ker_t : public jit_generator {
     public:
         DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_bf16_convolution_fwd_t::pp_kernel);
         pp_ker_t(const pd_t *pd);
@@ -189,7 +193,6 @@ private:
         Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(30);
         Xbyak::Zmm bf16_emu_reserv_6 = Xbyak::Zmm(31);
 
-        void (*ker_)(const ker_args *args);
         const conv_gemm_conf_t &jcp_;
         size_t OC_;
         bool do_bias_;
@@ -202,7 +205,7 @@ private:
         bf16_emulation_t *bf16_emu_;
         jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
 
-        void generate();
+        void generate() override;
         int vreg_dst_idx(int iter) {
             int idx = data_reg_base_idx_ + iter * compute_reg_step_ + 0;
             assert(idx <= max_data_reg_idx_);
@@ -328,6 +331,10 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<diff_wei_data_type>::type diff_wei_data_t;
+
+    status_t init(engine_t *engine) override {
+        return acc_ker_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         const bool is_nspc = pd()->jcp_.is_nspc;

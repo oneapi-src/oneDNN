@@ -39,16 +39,9 @@ public:
             size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
     void compute_loop(int loop_size_param);
-    void (*ker)(
-            typename jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_args_fwd_t
-                    *);
-    void operator()(
-            typename jit_avx512_common_lrn_kernel_fwd_t<d_type>::jit_args_fwd_t
-                    *arg) {
-        ker(arg);
-    }
 
 private:
+    void generate() override;
     using data_t = typename jit_avx512_common_lrn_kernel_fwd_t<d_type>::data_t;
 
     int xmm_size_, zmm_size_, buffer_block_, buffer_nest_offset_,

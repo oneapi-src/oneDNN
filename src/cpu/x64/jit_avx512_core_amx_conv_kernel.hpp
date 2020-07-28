@@ -34,9 +34,7 @@ struct jit_avx512_core_amx_copy_to_wbuffer_t : public jit_generator {
 
     using reg64_t = const Xbyak::Reg64;
 
-    jit_avx512_core_amx_copy_to_wbuffer_t(jit_conv_conf_t ajcp) : jcp(ajcp) {
-        generate();
-    }
+    jit_avx512_core_amx_copy_to_wbuffer_t(jit_conv_conf_t ajcp) : jcp(ajcp) {}
 
 private:
     jit_conv_conf_t jcp;
@@ -52,7 +50,7 @@ private:
     const Xbyak::Zmm zmm_idx = Xbyak::Zmm(2);
     const Xbyak::Zmm zmm_zero = Xbyak::Zmm(3);
 
-    void generate();
+    void generate() override;
 };
 
 struct jit_avx512_core_amx_copy_to_pbuffer_t : public jit_generator {
@@ -60,9 +58,7 @@ struct jit_avx512_core_amx_copy_to_pbuffer_t : public jit_generator {
 
     using reg64_t = const Xbyak::Reg64;
 
-    jit_avx512_core_amx_copy_to_pbuffer_t(jit_conv_conf_t ajcp) : jcp(ajcp) {
-        generate();
-    }
+    jit_avx512_core_amx_copy_to_pbuffer_t(jit_conv_conf_t ajcp) : jcp(ajcp) {}
 
 private:
     jit_conv_conf_t jcp;
@@ -108,7 +104,7 @@ private:
     const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(0);
     const Xbyak::Zmm zmm_zero = Xbyak::Zmm(1);
 
-    void generate();
+    void generate() override;
     void copy_row(int icb);
     void copy_row_body(int lpad, int iw_len, int icb);
     void copy_row_reduced_lowering();
@@ -129,15 +125,13 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
         copy_to_pbuffer_ = new jit_avx512_core_amx_copy_to_pbuffer_t(jcp);
         if (jcp.is_relo)
             copy_to_wbuffer_ = new jit_avx512_core_amx_copy_to_wbuffer_t(jcp);
+    }
 
-        generate();
-
-        jit_ker = (void (*)(jit_conv_call_s *))getCode();
-        jit_copy_to_pbuffer_ker
-                = (void (*)(jit_conv_call_s *))copy_to_pbuffer_->getCode();
-        if (jcp.is_relo)
-            jit_copy_to_wbuffer_ker
-                    = (void (*)(jit_conv_call_s *))copy_to_wbuffer_->getCode();
+    status_t create_kernel() override {
+        CHECK(jit_generator::create_kernel());
+        CHECK(copy_to_pbuffer_->create_kernel());
+        if (jcp.is_relo) CHECK(copy_to_wbuffer_->create_kernel());
+        return status::success;
     }
     ~jit_avx512_core_amx_fwd_kernel_t() {
         delete eltwise_injector_;
@@ -158,9 +152,13 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
-    void (*jit_ker)(jit_conv_call_s *);
-    void (*jit_copy_to_pbuffer_ker)(jit_conv_call_s *);
-    void (*jit_copy_to_wbuffer_ker)(jit_conv_call_s *);
+
+    const jit_avx512_core_amx_copy_to_pbuffer_t &copy_to_pbuffer() const {
+        return *copy_to_pbuffer_;
+    }
+    const jit_avx512_core_amx_copy_to_wbuffer_t &copy_to_wbuffer() const {
+        return *copy_to_wbuffer_;
+    }
 
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
@@ -243,7 +241,7 @@ private:
     void compute_icb_loop(int width, bool do_store);
     void compute_ow_loop();
 
-    void generate();
+    void generate() override;
 };
 
 } // namespace x64

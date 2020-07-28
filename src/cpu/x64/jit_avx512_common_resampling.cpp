@@ -47,10 +47,8 @@ struct jit_avx512_common_resampling_kernel : public c_compatible {
     jit_avx512_common_resampling_kernel(const resampling_pd_t *pd) : pd_(pd) {}
     virtual ~jit_avx512_common_resampling_kernel() {}
 
-    void operator()(const jit_resampling_args_t *args) {
-        assert(ker_);
-        ker_(args);
-    }
+    virtual status_t create_kernel() = 0;
+    virtual void operator()(const jit_resampling_args_t *args) = 0;
 
 protected:
     // Convert between vector register lengths.
@@ -60,7 +58,6 @@ protected:
     }
 
     const resampling_pd_t *pd_;
-    void (*ker_)(const jit_resampling_args_t *) = nullptr;
 
     data_type_t data_type() const {
         if (pd_->is_fwd())
@@ -82,7 +79,6 @@ struct jit_avx512_common_resampling
 
     jit_avx512_common_resampling(const resampling_pd_t *pd)
         : jit_avx512_common_resampling_kernel(pd), jit_generator() {
-        preamble();
 
         if (pd_->is_fwd()) {
             const memory_desc_wrapper src_d(pd_->src_md());
@@ -103,21 +99,12 @@ struct jit_avx512_common_resampling
         tail_mask_ = (((size_t)1 << (inner_stride_ % simd_w())) - (size_t)1);
         if (tail_mask_ != 0) prepare_mask();
         stack_size_needed_ = 0;
+    }
 
-        if (is_bf16()) {
-            use_bf16_emulation_ = !mayiuse(avx512_core_bf16);
-            if (use_bf16_emulation_) {
-                bf16_emulation_.reset(new bf16_emulation_t(this,
-                        bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
-                        bf16_emu_scratch, bf16_emu_reserv_5));
-                bf16_emulation_->init_vcvtneps2bf16();
-            }
-        }
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
 
-        generate();
-
-        postamble();
-        ker_ = (decltype(ker_))this->getCode();
+    void operator()(const jit_resampling_args_t *args) override {
+        return jit_generator::operator()(args);
     }
 
 private:
@@ -196,7 +183,19 @@ private:
         kmovw(k_tail_mask, reg_tail.cvt32());
     }
 
-    void generate() {
+    void generate() override {
+        preamble();
+
+        if (is_bf16()) {
+            use_bf16_emulation_ = !mayiuse(avx512_core_bf16);
+            if (use_bf16_emulation_) {
+                bf16_emulation_.reset(new bf16_emulation_t(this,
+                        bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
+                        bf16_emu_scratch, bf16_emu_reserv_5));
+                bf16_emulation_->init_vcvtneps2bf16();
+            }
+        }
+
         mov(reg_src, ptr[abi_param1 + GET_OFF(src)]);
         mov(reg_dst, ptr[abi_param1 + GET_OFF(dst)]);
 
@@ -316,6 +315,7 @@ private:
         }
 
         if (!pd_->is_fwd()) add(rsp, stack_size_needed_);
+        postamble();
     }
 
     void count_dim_coeff(const coeff_counting_method ccm, const Xmm &xmm_coeff,
@@ -904,6 +904,11 @@ inline jit_avx512_common_resampling_fwd_t<
 }
 
 template <impl::data_type_t d_type>
+status_t jit_avx512_common_resampling_fwd_t<d_type>::init(engine_t *engine) {
+    return kernel_->create_kernel();
+}
+
+template <impl::data_type_t d_type>
 jit_avx512_common_resampling_fwd_t<
         d_type>::~jit_avx512_common_resampling_fwd_t()
         = default;
@@ -973,6 +978,11 @@ inline jit_avx512_common_resampling_bwd_t<
         d_type>::jit_avx512_common_resampling_bwd_t(const pd_t *apd)
     : primitive_t(apd) {
     kernel_.reset(new jit_avx512_common_resampling(pd()));
+}
+
+template <impl::data_type_t d_type>
+status_t jit_avx512_common_resampling_bwd_t<d_type>::init(engine_t *engine) {
+    return kernel_->create_kernel();
 }
 
 template <impl::data_type_t d_type>

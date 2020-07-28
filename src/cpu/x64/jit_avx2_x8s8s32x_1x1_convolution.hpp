@@ -326,7 +326,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     };
 
     template <cpu_isa_t isa, typename conv_t>
-    friend void init_rtus_driver(conv_t *self);
+    friend status_t init_rtus_driver(conv_t *self);
 
     template <impl::data_type_t sdt, impl::data_type_t ddt>
     using fusable_pd_type =
@@ -341,8 +341,6 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             kernel_dw_ = new dw_conv_kernel_t(
                     *(pd()->jcp_dw_), *(pd()->dw_conv_pd_->attr()));
         }
-
-        init_rtus_driver<avx2>(this);
     }
 
     ~jit_avx2_x8s8s32x_1x1_convolution_fwd_t() {
@@ -357,6 +355,13 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     // Note: In case of fused depthwise convolution, the final output datatype
     // after fusion may not be dst_data_t.
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(kernel_->create_kernel());
+        CHECK(init_rtus_driver<avx2>(this));
+        if (kernel_dw_) CHECK(kernel_dw_->create_kernel());
+        return status::success;
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);

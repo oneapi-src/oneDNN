@@ -39,7 +39,7 @@ void execute_brgemm_kernel(const brgemm_desc_t *brg, int bs,
     brgemm_p.ptr_bias = nullptr;
     brgemm_p.do_post_ops = 0;
     brgemm_p.N = bs;
-    brg->kernel_->brgemm(&brgemm_p);
+    (*brg->kernel_)(&brgemm_p);
 }
 
 void execute_brgemm_kernel(const brgemm_desc_t *brg, int bs, const void *addr_A,
@@ -57,7 +57,7 @@ void execute_brgemm_kernel(const brgemm_desc_t *brg, int bs, const void *addr_A,
     brgemm_p.ptr_bias = nullptr;
     brgemm_p.do_post_ops = 0;
     brgemm_p.N = bs;
-    brg->kernel_->brgemm(&brgemm_p);
+    (*brg->kernel_)(&brgemm_p);
 }
 
 void execute_brgemm_kernel(const brgemm_desc_t *brg, int bs, const void *addr_A,
@@ -72,7 +72,7 @@ void execute_brgemm_kernel(const brgemm_desc_t *brg, int bs, const void *addr_A,
     brgemm_p.ptr_bias = nullptr;
     brgemm_p.do_post_ops = 0;
     brgemm_p.N = bs;
-    brg->kernel_->brgemm(&brgemm_p);
+    (*brg->kernel_)(&brgemm_p);
 }
 
 void execute_brgemm_kernel_postops(const brgemm_desc_t *brg, int bs,
@@ -89,7 +89,7 @@ void execute_brgemm_kernel_postops(const brgemm_desc_t *brg, int bs,
     brgemm_p.ptr_scales = scales;
     brgemm_p.do_post_ops = 1;
     brgemm_p.N = bs;
-    brg->kernel_->brgemm(&brgemm_p);
+    (*brg->kernel_)(&brgemm_p);
 }
 
 void execute_brgemm_kernel_postops(const brgemm_desc_t *brg, int bs,
@@ -109,7 +109,7 @@ void execute_brgemm_kernel_postops(const brgemm_desc_t *brg, int bs,
     brgemm_p.ptr_scales = scales;
     brgemm_p.do_post_ops = 1;
     brgemm_p.N = bs;
-    brg->kernel_->brgemm(&brgemm_p);
+    (*brg->kernel_)(&brgemm_p);
 }
 
 void execute_brgemm_kernel_postops(const brgemm_desc_t *brg, int bs,
@@ -126,7 +126,7 @@ void execute_brgemm_kernel_postops(const brgemm_desc_t *brg, int bs,
     brgemm_p.ptr_scales = scales;
     brgemm_p.do_post_ops = 1;
     brgemm_p.N = bs;
-    brg->kernel_->brgemm(&brgemm_p);
+    (*brg->kernel_)(&brgemm_p);
 }
 
 status_t create_brgemm_descriptor(brgemm_desc_t **brg_,
@@ -380,7 +380,7 @@ status_t create_brgemm_kernel(brgemm_desc_t *brg) {
         if (brg->kernel_ == nullptr)
             return status::out_of_memory;
         else
-            return status::success;
+            return brg->kernel_->create_kernel();
     } else {
         return status::not_required;
     }

@@ -110,6 +110,8 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public primitive_t {
     jit_avx512_core_f32_wino_conv_2x3_fwd_t(const pd_t *apd);
     ~jit_avx512_core_f32_wino_conv_2x3_fwd_t();
 
+    status_t init(engine_t *engine) override;
+
     status_t execute(const exec_ctx_t &ctx) const override {
         auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
         auto wei = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);

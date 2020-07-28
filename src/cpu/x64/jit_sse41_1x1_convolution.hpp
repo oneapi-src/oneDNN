@@ -230,6 +230,11 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
+    status_t init(engine_t *engine) override {
+        CHECK(kernel_->create_kernel());
+        return (kernel_dw_) ? kernel_dw_->create_kernel() : status::success;
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;

@@ -33,6 +33,8 @@ struct statistics_kernel_t {
 
     virtual void operator()(const data_t *src, float *mean, float *var) const;
 
+    virtual status_t create_kernel() { return status::success; }
+
 protected:
     statistics_kernel_t(const layer_normalization_pd_t *pd)
         : C_(pd->norm_axis()) {}
@@ -48,6 +50,8 @@ struct data_kernel_t {
 
     virtual void operator()(const data_t *src, data_t *dst, const float *ss,
             const float *mean, const float *var) const;
+
+    virtual status_t create_kernel() { return status::success; }
 
 protected:
     data_kernel_t(const layer_normalization_pd_t *pd)
@@ -71,6 +75,8 @@ struct diff_ss_kernel_t {
             float *diff_gamma, float *diff_beta, const float *mean,
             const float *var) const;
 
+    virtual status_t create_kernel() { return status::success; }
+
 protected:
     diff_ss_kernel_t(const layer_normalization_pd_t *pd)
         : C_(pd->norm_axis()), eps_(pd->desc()->layer_norm_epsilon) {}
@@ -89,6 +95,8 @@ struct diff_data_kernel_t {
     virtual void operator()(const data_t *src, const data_t *diff_dst,
             data_t *diff_src, const float *ss, const float *mean,
             const float *var) const;
+
+    virtual status_t create_kernel() { return status::success; }
 
 protected:
     diff_data_kernel_t(const layer_normalization_pd_t *pd)

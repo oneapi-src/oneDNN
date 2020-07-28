@@ -54,9 +54,6 @@ struct jit_avx512_core_bf16_sum_kernel : public jit_generator {
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserved_1,
                     bf16_emu_reserved_2, bf16_emu_reserved_3, bf16_emu_scratch,
                     bf16_emu_reserved_4, bf16_emu_reserved_5);
-
-        this->generate();
-        jit_ker = (void (*)(jit_sum_call_s *))this->getCode();
     }
 
     ~jit_avx512_core_bf16_sum_kernel() { delete bf16_emu_; }
@@ -68,7 +65,6 @@ struct jit_avx512_core_bf16_sum_kernel : public jit_generator {
 
     static constexpr int max_num_arrs = 8;
     jit_sum_conf_t jsp;
-    void (*jit_ker)(jit_sum_call_s *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -158,7 +154,7 @@ private:
     Xbyak::Label idx_table;
     const Xbyak::Opmask k_mask = k1;
 
-    void generate();
+    void generate() override;
     void loop_iteration(int current_unroll);
     bf16_emulation_t *bf16_emu_;
 };
@@ -209,6 +205,10 @@ struct jit_bf16_sum_t : public primitive_t {
     }
 
     ~jit_bf16_sum_t() { delete kernel_; }
+
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override;
 

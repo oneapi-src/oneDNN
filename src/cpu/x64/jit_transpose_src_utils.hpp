@@ -39,16 +39,13 @@ struct jit_trans_src_t {
         simple_barrier::ctx_t *tr_src_bctx; /* transposition synchronization */
     };
 
-    jit_trans_src_t(const jit_conv_conf_t *conf) : conf_(conf), ker_(nullptr) {}
+    virtual void operator()(ctx_t *ctx) = 0;
+    virtual status_t create_kernel() = 0;
+
+    jit_trans_src_t(const jit_conv_conf_t *conf) : conf_(conf) {}
     virtual ~jit_trans_src_t() {}
 
-    void operator()(const ctx_t *ctx) {
-        assert(ker_);
-        ker_(ctx);
-    }
-
     const jit_conv_conf_t *conf_;
-    void (*ker_)(const ctx_t *);
 };
 
 struct jit_src_transpose_s {
@@ -73,16 +70,12 @@ struct jit_trans_dst_t {
         simple_barrier::ctx_t *tr_src_bctx; /* transposition synchronization */
     };
 
-    jit_trans_dst_t(const jit_conv_conf_t *conf) : conf_(conf), ker_(nullptr) {}
+    jit_trans_dst_t(const jit_conv_conf_t *conf) : conf_(conf) {}
     virtual ~jit_trans_dst_t() {}
 
-    void operator()(const ctx_t *ctx) {
-        assert(ker_);
-        ker_(ctx);
-    }
-
+    virtual void operator()(ctx_t *ctx) = 0;
+    virtual status_t create_kernel() = 0;
     const jit_conv_conf_t *conf_;
-    void (*ker_)(const ctx_t *);
 };
 
 struct jit_transpose4x16_src_t {
@@ -97,16 +90,10 @@ struct jit_transpose4x16_src : public jit_generator {
 
     jit_transpose4x16_src(const jit_1x1_conv_conf_t *aparams,
             jit_transpose4x16_src_t *tparams_)
-        : params(aparams), tparams(tparams_) {
-        this->generate();
-        jit_ker = (decltype(jit_ker))this->getCode();
-    }
+        : params(aparams), tparams(tparams_) {}
 
     const jit_1x1_conv_conf_t *params;
     const jit_transpose4x16_src_t *tparams;
-    void (*jit_ker)(jit_src_transpose_s *);
-
-    void operator()(jit_src_transpose_s *arg) { jit_ker(arg); }
 
     static const int transpose_size = 4;
 
@@ -137,7 +124,7 @@ private:
 
     void transpose_block(int ur, int nrows);
     void transpose(int nrows);
-    void generate();
+    void generate() override;
 };
 
 jit_trans_src_t *create_trans_src(const jit_conv_conf_t *conf);

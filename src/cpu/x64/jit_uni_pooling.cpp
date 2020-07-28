@@ -81,6 +81,13 @@ struct trans_wrapper_t {
                     create_ker(y_tail_, inp_str_, 1, xsize, 1, out_str_));
     }
 
+    status_t create_kernel() {
+        if (ker_) CHECK(ker_->create_kernel());
+        if (ker_x_tail_) CHECK(ker_x_tail_->create_kernel());
+        if (ker_y_tail_) CHECK(ker_y_tail_->create_kernel());
+        return status::success;
+    }
+
     void exec(const void *inp, void *out) {
         dim_t x_blocked = nb_x_ * 8;
         dim_t y_blocked = nb_y_ * 8;
@@ -132,6 +139,15 @@ struct trans_context_t {
     std::unique_ptr<trans_wrapper_t> ind_tail_trans_ = nullptr;
     std::unique_ptr<trans_wrapper_t> dst_trans_ = nullptr;
     std::unique_ptr<trans_wrapper_t> dst_tail_trans_ = nullptr;
+    status_t create_kernel() {
+        if (src_trans_) CHECK(src_trans_->create_kernel());
+        if (src_tail_trans_) CHECK(src_tail_trans_->create_kernel());
+        if (ind_trans_) CHECK(ind_trans_->create_kernel());
+        if (ind_tail_trans_) CHECK(ind_tail_trans_->create_kernel());
+        if (dst_trans_) CHECK(dst_trans_->create_kernel());
+        if (dst_tail_trans_) CHECK(dst_tail_trans_->create_kernel());
+        return status::success;
+    }
 };
 
 static void trans_exec(trans_wrapper_t *trans, trans_wrapper_t *trans_tail,
@@ -446,12 +462,16 @@ template <cpu_isa_t isa, impl::data_type_t d_type>
 jit_uni_pooling_fwd_t<isa, d_type>::jit_uni_pooling_fwd_t(const pd_t *apd)
     : primitive_t(apd)
     , kernel_(utils::make_unique<jit_uni_pool_kernel<isa>>(pd()->jpp_))
-    , trans_ctx_(nullptr) {
-    if (pd()->jpp_.tag_kind == jptg_ncsp) init_ncsp_trans_ctx();
+    , trans_ctx_(nullptr) {}
+
+template <cpu_isa_t isa, impl::data_type_t d_type>
+status_t jit_uni_pooling_fwd_t<isa, d_type>::init(engine_t *engine) {
+    if (pd()->jpp_.tag_kind == jptg_ncsp) CHECK(init_ncsp_trans_ctx());
+    return kernel_->create_kernel();
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_pooling_fwd_t<isa, d_type>::init_ncsp_trans_ctx() {
+status_t jit_uni_pooling_fwd_t<isa, d_type>::init_ncsp_trans_ctx() {
     using namespace dnnl::impl;
     using namespace jit_uni_pooling_utils;
 
@@ -487,6 +507,8 @@ void jit_uni_pooling_fwd_t<isa, d_type>::init_ncsp_trans_ctx() {
                     indices_d.data_type(), jpp.c_block, indices_d.data_type(),
                     dst_sp, dst_sp, c_tail);
     }
+
+    return trans_ctx_->create_kernel();
 }
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
@@ -669,16 +691,13 @@ template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_pooling_bwd_t<isa, d_type>::jit_uni_pooling_bwd_t(const pd_t *apd)
     : primitive_t(apd)
     , kernel_(utils::make_unique<jit_uni_pool_kernel<isa>>(pd()->jpp_))
-    , trans_ctx_(nullptr) {
-
-    if (pd()->jpp_.tag_kind == jptg_ncsp) init_ncsp_trans_ctx();
-}
+    , trans_ctx_(nullptr) {}
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_pooling_bwd_t<isa, d_type>::~jit_uni_pooling_bwd_t() = default;
 
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_pooling_bwd_t<isa, d_type>::init_ncsp_trans_ctx() {
+status_t jit_uni_pooling_bwd_t<isa, d_type>::init_ncsp_trans_ctx() {
     using namespace dnnl::impl;
     using namespace jit_uni_pooling_utils;
 
@@ -713,6 +732,14 @@ void jit_uni_pooling_bwd_t<isa, d_type>::init_ncsp_trans_ctx() {
                     indices_d.data_type(), diff_dst_sp, indices_d.data_type(),
                     jpp.c_block, c_tail, diff_dst_sp);
     }
+
+    return trans_ctx_->create_kernel();
+}
+
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_pooling_bwd_t<isa, d_type>::init(engine_t *engine) {
+    if (pd()->jpp_.tag_kind == jptg_ncsp) CHECK(init_ncsp_trans_ctx());
+    return kernel_->create_kernel();
 }
 
 template <cpu_isa_t isa, data_type_t d_type>

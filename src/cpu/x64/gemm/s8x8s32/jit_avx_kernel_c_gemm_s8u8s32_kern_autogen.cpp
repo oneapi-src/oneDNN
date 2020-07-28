@@ -24,7 +24,9 @@ namespace cpu {
 namespace x64 {
 
 jit_avx_kernel_c_gemm_s8u8s32_kern::jit_avx_kernel_c_gemm_s8u8s32_kern()
-    : jit_generator(nullptr, S8U8S32_COMPUTE_KERNEL_CODE_SIZE) {
+    : jit_generator(nullptr, S8U8S32_COMPUTE_KERNEL_CODE_SIZE) {}
+
+void jit_avx_kernel_c_gemm_s8u8s32_kern::generate() {
 
 #ifndef _WIN32
 

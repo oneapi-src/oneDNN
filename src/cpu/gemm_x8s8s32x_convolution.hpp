@@ -105,6 +105,10 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
+    status_t init(engine_t *engine) override {
+        return (pp_ker_) ? pp_ker_->create_kernel() : status::success;
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }

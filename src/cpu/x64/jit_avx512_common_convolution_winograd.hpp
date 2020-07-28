@@ -143,6 +143,10 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
         auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
@@ -211,6 +215,10 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
     ~jit_avx512_common_convolution_winograd_bwd_data_t() {};
 
     typedef typename prec_traits<data_type::f32>::type data_t;
+
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         auto diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
@@ -281,6 +289,10 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     ~jit_avx512_common_convolution_winograd_bwd_weights_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
+
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         _execute_backward_weights_S_D_G_W(ctx, ctx.get_scratchpad_grantor());

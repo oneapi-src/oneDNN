@@ -44,9 +44,6 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
                     bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
                     bf16_emu_reserv_5, bf16_emu_reserv_6);
-
-        this->generate();
-        jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode();
     }
 
     ~jit_avx512_core_bf16_1x1_conv_kernel() {
@@ -70,7 +67,6 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
 
     const jit_1x1_conv_conf_t &jcp;
     const primitive_attr_t &attr_;
-    void (*jit_ker)(jit_1x1_conv_call_s *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -143,7 +139,7 @@ private:
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
     void compute_diff_bias(int load_loop_blk);
 
-    void generate();
+    void generate() override;
     static void balance(jit_1x1_conv_conf_t &jcp, int nthreads);
     inline bool is_bcast_layout_nxc() {
         switch (jcp.prop_kind) {

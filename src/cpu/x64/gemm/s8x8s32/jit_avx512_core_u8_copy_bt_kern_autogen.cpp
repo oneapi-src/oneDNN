@@ -24,7 +24,9 @@ namespace cpu {
 namespace x64 {
 
 jit_avx512_core_u8_copy_bt_kern::jit_avx512_core_u8_copy_bt_kern(bool s8_case)
-    : jit_generator(nullptr, U8_COPY_KERNEL_CODE_SIZE) {
+    : jit_generator(nullptr, U8_COPY_KERNEL_CODE_SIZE), s8_case(s8_case) {}
+
+void jit_avx512_core_u8_copy_bt_kern::generate() {
 
 #ifndef _WIN32
 #define M rdi

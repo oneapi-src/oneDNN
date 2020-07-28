@@ -37,9 +37,6 @@ struct jit_avx2_conv_fwd_kernel_f32 : public jit_generator {
         if (jcp.with_eltwise)
             eltwise_injector_
                     = new jit_uni_eltwise_injector_f32<avx2>(this, jcp.eltwise);
-
-        this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
     ~jit_avx2_conv_fwd_kernel_f32() { delete eltwise_injector_; }
@@ -56,7 +53,6 @@ struct jit_avx2_conv_fwd_kernel_f32 : public jit_generator {
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
-    void (*jit_ker)(jit_conv_call_s *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -142,16 +138,14 @@ private:
                 format_tag::nwc);
     }
 
-    void generate();
+    void generate() override;
 };
 
 struct jit_avx2_conv_bwd_data_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_bwd_data_kernel_f32)
 
-    jit_avx2_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp) : jcp(ajcp) {
-        this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
-    }
+    jit_avx2_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp)
+        : jcp(ajcp) {}
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
@@ -161,7 +155,6 @@ struct jit_avx2_conv_bwd_data_kernel_f32 : public jit_generator {
             const jit_conv_conf_t &jcp);
 
     jit_conv_conf_t jcp;
-    void (*jit_ker)(jit_conv_call_s *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -190,7 +183,7 @@ private:
 
     inline void compute_loop(int ur_w, int l_overflow, int r_overflow);
 
-    void generate();
+    void generate() override;
 
     inline int get_iw_start(int ki, int l_overflow) {
         int res = (jcp.iw - 1 + jcp.r_pad) % jcp.stride_w
@@ -258,10 +251,7 @@ struct jit_avx2_conv_bwd_weights_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_bwd_weights_kernel_f32)
 
     jit_avx2_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp) {
-        this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
-    }
+        : jcp(ajcp) {}
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -271,7 +261,6 @@ struct jit_avx2_conv_bwd_weights_kernel_f32 : public jit_generator {
             const jit_conv_conf_t &jcp);
 
     jit_conv_conf_t jcp;
-    void (*jit_ker)(jit_conv_call_s *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -333,7 +322,7 @@ private:
         dim_t offset = ki * block_step_size + i_ic * jcp.oc_block;
         return sizeof(float) * offset;
     }
-    void generate();
+    void generate() override;
 };
 
 } // namespace x64

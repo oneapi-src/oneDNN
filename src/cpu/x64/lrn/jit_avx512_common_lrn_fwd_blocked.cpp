@@ -33,11 +33,16 @@ jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>::
     // some registers needed for conversion from bf16 to f32
     src_prev_offset_ = this->vlen_ - 4 * sizeof(data_t);
     version_ = J.version;
+    W_ = J.W;
+    HW_ = J.W * J.H;
     xmm_size_ = 4 * sizeof(acc_data_t);
     zmm_size_ = 64;
     buffer_block_ = xmm_size_ + zmm_size_ + xmm_size_;
     buffer_nest_offset_ = xmm_size_ + zmm_size_;
+}
 
+template <data_type_t d_type>
+void jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>::generate() {
     this->preamble();
 
 #define GET_OFF(field) \
@@ -52,8 +57,6 @@ jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>::
     }
 #undef GET_OFF
 
-    W_ = J.W;
-    HW_ = J.W * J.H;
     int LSB = use_h_parallelism_ ? W_ : HW_;
 
     this->sub(t_, this->reg_block_ * buffer_block_);
@@ -111,9 +114,6 @@ jit_avx512_common_lrn_kernel_fwd_blocked_t<d_type>::
 
     this->add(t_, this->reg_block_ * buffer_block_);
     this->postamble();
-
-    this->ker = reinterpret_cast<decltype(this->ker)>(
-            const_cast<uint8_t *>(this->getCode()));
 }
 
 template <data_type_t d_type>

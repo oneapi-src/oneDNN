@@ -85,6 +85,10 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->ndims() == 3)
             execute_forward_1d(ctx);
@@ -151,6 +155,10 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_t {
 
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
+
+    status_t init(engine_t *engine) override {
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->ndims() < 5)
@@ -221,6 +229,14 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t : public primitive_t {
 
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(kernel_->create_kernel());
+        if (trans_kernel_) CHECK(trans_kernel_->create_kernel());
+        if (trans_dst_kernel_) CHECK(trans_dst_kernel_->create_kernel());
+        if (acc_ker_) CHECK(acc_ker_->create_kernel());
+        return status::success;
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights(ctx);
