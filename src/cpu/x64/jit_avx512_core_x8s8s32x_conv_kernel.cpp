@@ -42,6 +42,8 @@ void pick_loop_order(jit_conv_conf_t &jcp, int nthr) {
         jcp.loop_order = loop_ngcw;
         if (jcp.mb < nthr)
             jcp.loop_order = jcp.ndims == 3 ? loop_nwcg : loop_nhwcg;
+    } else if (jcp.mb >= nthr && jcp.ic_without_padding <= 16) {
+        jcp.loop_order = loop_ngcw;
     }
 }
 } // namespace
@@ -625,38 +627,44 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::icb_loop(
     Label icb_label;
     mov(reg_icb, jcp.nb_ic);
     L(icb_label);
+    const bool do_icb_loop
+            = jcp.is_depthwise ? jcp.nb_ch > jcp.nb_ch_blocking : jcp.nb_ic > 1;
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.ic_without_padding != jcp.ic) {
         Label common_ker, end_ker;
-
-        if (jcp.is_depthwise)
-            cmp(reg_oc_blocks, jcp.nb_ch - jcp.nb_ch_blocking);
-        else
-            cmp(reg_icb, 1); // The last IC block
-        jne(common_ker, T_NEAR);
-
+        if (do_icb_loop) {
+            if (jcp.is_depthwise)
+                cmp(reg_oc_blocks, jcp.nb_ch - jcp.nb_ch_blocking);
+            else
+                cmp(reg_icb, 1); // The last IC block
+            jne(common_ker, T_NEAR);
+        }
         kh_loop(ur_w, pad_l, pad_r,
                 is_last_sp_block ? last_sp_block : last_ic_block);
-        jmp(end_ker, T_NEAR);
+        if (do_icb_loop) {
+            jmp(end_ker, T_NEAR);
 
-        L(common_ker);
-        kh_loop(ur_w, pad_l, pad_r, no_last_block);
+            L(common_ker);
+            kh_loop(ur_w, pad_l, pad_r, no_last_block);
 
-        L(end_ker);
+            L(end_ker);
+        }
     } else {
         kh_loop(ur_w, pad_l, pad_r, no_last_block);
     }
     // End of IC Loop
-    int inp_step = jcp.ic_block;
-    int ker_step = jcp.kd * jcp.kh * jcp.kw * jcp.oc_block * jcp.ic_block;
-    add(reg_inp, jcp.typesize_in * inp_step);
-    add(reg_ker, jcp.typesize_in * ker_step);
+    if (do_icb_loop) {
+        int inp_step = jcp.ic_block;
+        int ker_step = jcp.kd * jcp.kh * jcp.kw * jcp.oc_block * jcp.ic_block;
+        add(reg_inp, jcp.typesize_in * inp_step);
+        add(reg_ker, jcp.typesize_in * ker_step);
 
-    dec(reg_icb);
-    cmp(reg_icb, 0);
-    jg(icb_label, T_NEAR);
+        dec(reg_icb);
+        cmp(reg_icb, 0);
+        jg(icb_label, T_NEAR);
 
-    sub(reg_inp, jcp.typesize_in * inp_step * jcp.nb_ic);
-    sub(reg_ker, jcp.typesize_in * ker_step * jcp.nb_ic);
+        sub(reg_inp, jcp.typesize_in * inp_step * jcp.nb_ic);
+        sub(reg_ker, jcp.typesize_in * ker_step * jcp.nb_ic);
+    }
 
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.oc_without_padding != jcp.oc) {
         Label common_store, end_store;
