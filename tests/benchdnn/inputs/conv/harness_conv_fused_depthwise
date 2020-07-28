@@ -43,5 +43,3 @@
                 'relu:0.5;dw_k3s2p1:s32;relu', \
                 'relu:0.5;dw_k3s2p1:f32;relu'
 --batch=shapes_fused_mobilenet_stride_2
-
---attr-scratchpad=library # global setting, must be reset manually

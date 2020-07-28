@@ -236,6 +236,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (canonical || p.trivial_strides != def.trivial_strides[0])
         s << "--trivial-strides=" << bool2str(p.trivial_strides) << " ";
 
+    s << p.attr;
     s << static_cast<const desc_t &>(p);
 
     return s;

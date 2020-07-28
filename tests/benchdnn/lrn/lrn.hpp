@@ -62,6 +62,8 @@ struct settings_t {
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {ACROSS};
     std::vector<int64_t> mb {0};
+    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
+            dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%name%,%dir%,%dt%,%tag%,%alg%,%DESC%,%-"
@@ -75,8 +77,8 @@ struct settings_t {
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, dnnl_data_type_t dt,
-            const std::string &tag, alg_t alg)
-        : desc_t(desc), dir(dir), dt(dt), tag(tag), alg(alg) {
+            const std::string &tag, alg_t alg, const attr_t &attr)
+        : desc_t(desc), dir(dir), dt(dt), tag(tag), alg(alg), attr(attr) {
         if (mb) this->mb = mb;
     }
     ~prb_t() {}
@@ -85,6 +87,7 @@ struct prb_t : public desc_t {
     dnnl_data_type_t dt;
     std::string tag;
     alg_t alg;
+    attr_t attr;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };

@@ -143,6 +143,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (canonical || p.alg != def.alg[0])
         s << "--alg=" << alg2str(p.alg) << " ";
 
+    s << p.attr;
     s << static_cast<const desc_t &>(p);
 
     return s;

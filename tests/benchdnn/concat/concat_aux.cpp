@@ -36,6 +36,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (canonical || p.dtag != def.dtag[0]) s << "--dtag=" << p.dtag << " ";
     if (canonical || p.axis != def.axis[0]) s << "--axis=" << p.axis << " ";
 
+    s << p.attr;
     s << p.sdims;
 
     return s;

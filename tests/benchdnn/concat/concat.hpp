@@ -43,6 +43,8 @@ struct settings_t {
     std::vector<std::vector<std::string>> stag {{tag::abx}};
     std::vector<std::string> dtag {tag::undef};
     std::vector<int> axis {1};
+    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
+            dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%sdt%,%ddt%,%stag%,%dtag%,%axis%,%DESC%,%-"
@@ -57,13 +59,14 @@ struct settings_t {
 struct prb_t {
     prb_t(const std::vector<dims_t> &sdims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,
-            const std::string &dtag, int axis)
+            const std::string &dtag, int axis, const attr_t &attr)
         : sdims(sdims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
         , axis(axis)
+        , attr(attr)
         , ndims((int)sdims[0].size()) {
         generate_ddims();
     }
@@ -75,6 +78,7 @@ struct prb_t {
     std::vector<std::string> stag;
     std::string dtag;
     int axis;
+    attr_t attr;
     int ndims;
 
     int n_inputs() const { return (int)sdims.size(); }

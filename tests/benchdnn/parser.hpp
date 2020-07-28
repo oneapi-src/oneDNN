@@ -161,6 +161,11 @@ bool parse_attr_scales(std::vector<attr_t::arg_scales_t> &scales,
 bool parse_attr_zero_points(std::vector<attr_t::zero_points_t> &zp,
         const char *str, const std::string &option_name = "attr-zero-points");
 
+bool parse_attr_scratchpad_mode(
+        std::vector<dnnl_scratchpad_mode_t> &scratchpad_mode,
+        const std::vector<dnnl_scratchpad_mode_t> &def_scratchpad_mode,
+        const char *str, const std::string &option_name = "attr-scratchpad");
+
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
         const char *str, const std::string &option_name = "axis");
 

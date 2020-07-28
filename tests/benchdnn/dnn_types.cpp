@@ -407,7 +407,8 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
 bool attr_t::is_def() const {
     return oscale.is_def() && scales.is_def() && zero_points.is_def()
-            && post_ops.is_def();
+            && post_ops.is_def()
+            && scratchpad_mode == dnnl_scratchpad_mode_library;
 }
 
 int attr_t::post_ops_t::find(pk_t kind, int start, int stop) const {
@@ -584,6 +585,11 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm) {
+    s << scratchpad_mode2str(sm);
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     if (!attr.is_def()) {
         if (!attr.oscale.is_def()) s << "--attr-oscale=" << attr.oscale << " ";
@@ -592,6 +598,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
             s << "--attr-zero-points=" << attr.zero_points << " ";
         if (!attr.post_ops.is_def())
             s << "--attr-post-ops=\"" << attr.post_ops << "\" ";
+        if (attr.scratchpad_mode != dnnl_scratchpad_mode_library)
+            s << "--attr-scratchpad=" << attr.scratchpad_mode << " ";
     }
     return s;
 }
@@ -601,9 +609,6 @@ std::ostream &dump_global_params(std::ostream &s) {
     if (canonical) s << "--canonical=" << bool2str(canonical) << " ";
     if (canonical || engine_tgt_kind != dnnl_cpu)
         s << "--engine=" << engine_tgt_kind << " ";
-    if (canonical || scratchpad_mode != dnnl_scratchpad_mode_library)
-        s << "--attr-scratchpad=" << scratchpad_mode2str(scratchpad_mode)
-          << " ";
     if (canonical || fast_ref_gpu != true)
         s << "--fast-ref-gpu=" << bool2str(fast_ref_gpu) << " ";
     if (!skip_impl.empty()) s << "--skip-impl=" << skip_impl << " ";
@@ -734,7 +739,7 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
     }
 
     DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
-            dnnl_attr, scratchpad_mode));
+            dnnl_attr, attr.scratchpad_mode));
 
     return dnnl_attr;
 }

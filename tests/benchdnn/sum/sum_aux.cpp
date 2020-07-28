@@ -48,6 +48,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (canonical || p.dtag != def.dtag[0]) s << "--dtag=" << p.dtag << " ";
     s << "--scales=" << p.scales << " ";
 
+    s << p.attr;
     s << p.dims;
 
     return s;

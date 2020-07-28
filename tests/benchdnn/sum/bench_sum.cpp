@@ -28,42 +28,45 @@
 namespace sum {
 
 void check_correctness(const settings_t &s) {
-    for (const auto &i_sdt : s.sdt) {
-        for_(const auto &i_ddt : s.ddt)
-        for_(const auto &i_stag_ : s.stag)
-        for (const auto &i_dtag : s.dtag) {
-            // broadcast tag if needed
-            auto i_stag = i_stag_;
-            if (i_stag.size() == 1) i_stag.assign(i_sdt.size(), i_stag[0]);
+    for_(const auto &i_sdt : s.sdt)
+    for_(const auto &i_ddt : s.ddt)
+    for_(const auto &i_stag_ : s.stag)
+    for_(const auto &i_dtag : s.dtag)
+    for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
+        // broadcast tag if needed
+        auto i_stag = i_stag_;
+        if (i_stag.size() == 1) i_stag.assign(i_sdt.size(), i_stag[0]);
 
-            if (i_sdt.size() != i_stag.size()) // expect 1:1 match of dt and tag
+        if (i_sdt.size() != i_stag.size()) // expect 1:1 match of dt and tag
+            SAFE_V(FAIL);
+
+        attr_t attr;
+        attr.insert(i_scratchpad_mode);
+
+        for (const auto &i_scales : s.scales) {
+            // expect either single scale value, or 1:1 match of dt and scale
+            if (i_scales.size() != 1 && i_scales.size() != i_sdt.size())
                 SAFE_V(FAIL);
 
-            for (const auto &i_scales : s.scales) {
-                // expect either single scale value, or 1:1 match of dt and scale
-                if (i_scales.size() != 1 && i_scales.size() != i_sdt.size())
-                    SAFE_V(FAIL);
+            const prb_t p(s.dims, i_sdt, i_ddt, i_stag, i_dtag, i_scales, attr);
+            std::stringstream ss;
+            ss << p;
+            const std::string cpp_pstr = ss.str();
+            const char *pstr = cpp_pstr.c_str();
+            BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
-                const prb_t p(s.dims, i_sdt, i_ddt, i_stag, i_dtag, i_scales);
-                std::stringstream ss;
-                ss << p;
-                const std::string cpp_pstr = ss.str();
-                const char *pstr = cpp_pstr.c_str();
-                BENCHDNN_PRINT(1, "run: %s\n", pstr);
+            res_t res {};
+            int status = doit(&p, &res);
 
-                res_t res {};
-                int status = doit(&p, &res);
+            bool want_perf_report = false;
+            parse_result(res, want_perf_report, status, pstr);
 
-                bool want_perf_report = false;
-                parse_result(res, want_perf_report, status, pstr);
-
-                if (want_perf_report && bench_mode & PERF) {
-                    perf_report_t pr(s.perf_template);
-                    pr.report(&p, &res, pstr);
-                }
-
-                benchdnn_stat.tests++;
+            if (want_perf_report && bench_mode & PERF) {
+                perf_report_t pr(s.perf_template);
+                pr.report(&p, &res, pstr);
             }
+
+            benchdnn_stat.tests++;
         }
     }
 }
@@ -82,6 +85,8 @@ int bench(int argc, char **argv) {
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_multivector_option(
                         s.scales, def.scales, atof, argv[0], "scales")
+                || parse_attr_scratchpad_mode(
+                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

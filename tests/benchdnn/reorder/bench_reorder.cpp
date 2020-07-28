@@ -37,6 +37,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_oscale : s.oscale)
     for_(const auto &i_zero_points : s.zero_points)
     for_(const auto &i_post_ops : s.post_ops)
+    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
         reorder_conf_t reorder_conf {s.dims, i_stag, i_dtag};
         dt_conf_t iconf = dt2cfg(i_sdt);
@@ -46,6 +47,7 @@ void check_correctness(const settings_t &s) {
         attr.insert(i_oscale);
         attr.insert(i_zero_points);
         attr.insert(i_post_ops);
+        attr.insert(i_scratchpad_mode);
         handle_legacy_attr(attr, s.attr);
 
         if (attr.oscale.policy == policy_t::PER_OC) {
@@ -117,6 +119,8 @@ int bench(int argc, char **argv) {
                 || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
+                || parse_attr_scratchpad_mode(
+                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

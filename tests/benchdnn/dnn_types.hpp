@@ -276,17 +276,19 @@ struct attr_t {
         std::vector<entry_t> entry;
     };
 
-    attr_t() = default;
+    attr_t() : scratchpad_mode(dnnl_scratchpad_mode_library) {}
 
     void insert(const scale_t &s) { this->oscale = s; }
     void insert(const arg_scales_t &as) { this->scales = as; }
     void insert(const zero_points_t &zp) { this->zero_points = zp; }
     void insert(const post_ops_t &po) { this->post_ops = po; }
+    void insert(dnnl_scratchpad_mode_t sm) { this->scratchpad_mode = sm; }
 
     scale_t oscale;
     arg_scales_t scales;
     zero_points_t zero_points;
     post_ops_t post_ops;
+    dnnl_scratchpad_mode_t scratchpad_mode;
 
     bool is_def() const;
 };
@@ -302,6 +304,7 @@ std::ostream &operator<<(
 std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
+std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
 /* Container for becnhdnn description of attributes and oneDNN primitive

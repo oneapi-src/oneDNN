@@ -220,6 +220,8 @@ struct settings_t {
     std::vector<bool> with_projection {false};
     std::vector<int64_t> n_layer {0}, n_iter {0}, mb {0};
     std::vector<policy_t> scale_policy {policy_t::COMMON};
+    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
+            dnnl_scratchpad_mode_library};
     unsigned int flags = 0x0;
     float alpha = 0.9f, beta = 0.0f;
 
@@ -240,8 +242,8 @@ struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t &cfg, dir_t prop, alg_t alg,
             bool with_peephole, bool with_projection,
             dnnl_rnn_direction_t direction, policy_t scale_policy,
-            unsigned int flags, activation_t activation, float alpha,
-            float beta, bool skip_nonlinear, bool trivial_strides,
+            unsigned int flags, activation_t activation, const attr_t &attr,
+            float alpha, float beta, bool skip_nonlinear, bool trivial_strides,
             int64_t n_layer, int64_t n_iter, int64_t mb = 0)
         : desc_t(desc)
         , cfg(cfg)
@@ -250,14 +252,15 @@ struct prb_t : public desc_t {
         , with_peephole(with_peephole)
         , with_projection(with_projection)
         , direction(direction)
+        , wei_scales_policy(scale_policy)
         , flags(flags)
         , activation(activation)
+        , attr(attr)
         , alpha(alpha)
         , beta(beta)
-        , ops(0.0)
-        , wei_scales_policy(scale_policy)
         , skip_nonlinear(skip_nonlinear)
         , trivial_strides(trivial_strides)
+        , ops(0.0)
         , linear_cscale(0.0f) {
 
         if (n_layer) this->n_layer = n_layer;
@@ -341,21 +344,22 @@ struct prb_t : public desc_t {
     alg_t alg;
     bool with_peephole, with_projection;
     dnnl_rnn_direction_t direction;
+    policy_t wei_scales_policy;
     unsigned int flags;
     activation_t activation;
+    attr_t attr;
     float alpha;
     float beta;
-    double ops;
 
     float data_scale, data_shift;
 
-    policy_t wei_scales_policy;
     float *wei_scales;
     int wei_nscales;
     int wei_scales_mask;
 
     bool skip_nonlinear;
     bool trivial_strides;
+    double ops;
     float *linear_scales;
     float linear_cscale;
 

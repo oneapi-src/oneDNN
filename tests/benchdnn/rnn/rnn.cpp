@@ -60,7 +60,7 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
                 *dnnl_attr, p.data_scale, p.data_shift));
 
     DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
-            *dnnl_attr, scratchpad_mode));
+            *dnnl_attr, p.attr.scratchpad_mode));
 }
 
 int check_s8s8_reorder(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {

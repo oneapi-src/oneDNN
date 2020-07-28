@@ -31,6 +31,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (canonical || p.group != def.group[0]) s << "--group=" << p.group << " ";
     if (canonical || p.axis != def.axis[0]) s << "--axis=" << p.axis << " ";
 
+    s << p.attr;
     s << p.dims;
 
     return s;

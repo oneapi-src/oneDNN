@@ -48,6 +48,8 @@ struct settings_t {
     std::vector<float> scales {0, 0.25, -0.25}, alpha {scales}, beta {scales};
     std::vector<int64_t> mb {0};
     std::vector<bool> inplace {false};
+    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
+            dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%alg%,%DESC%,%-time%,%"
@@ -62,7 +64,7 @@ struct settings_t {
 struct prb_t {
     prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, alg_t alg, float alpha, float beta,
-            bool inplace, int64_t mb = 0)
+            bool inplace, const attr_t &attr, int64_t mb = 0)
         : dims(dims)
         , dir(dir)
         , dt(dt)
@@ -71,6 +73,7 @@ struct prb_t {
         , alpha(alpha)
         , beta(beta)
         , inplace(inplace)
+        , attr(attr)
         , ndims((int)dims.size()) {
         if (mb) this->dims[0] = mb;
     }
@@ -83,6 +86,7 @@ struct prb_t {
     alg_t alg;
     float alpha, beta;
     bool inplace;
+    attr_t attr;
     int ndims;
 
     bool use_dst() const {
