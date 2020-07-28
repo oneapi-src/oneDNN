@@ -41,7 +41,11 @@ void check_correctness(const settings_t &s) {
         reorder_conf_t reorder_conf {s.dims, i_stag, i_dtag};
         dt_conf_t iconf = dt2cfg(i_sdt);
         dt_conf_t oconf = dt2cfg(i_ddt);
-        attr_t attr(i_oscale, i_zero_points, i_post_ops);
+
+        attr_t attr;
+        attr.insert(i_oscale);
+        attr.insert(i_zero_points);
+        attr.insert(i_post_ops);
         handle_legacy_attr(attr, s.attr);
 
         if (attr.oscale.policy == policy_t::PER_OC) {

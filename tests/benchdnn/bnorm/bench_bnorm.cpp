@@ -36,8 +36,10 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_mb : s.mb)
     for_(const auto &i_post_ops : s.post_ops)
     for (auto i_inplace : s.inplace) {
-        attr_t attr(i_post_ops);
+        attr_t attr;
+        attr.insert(i_post_ops);
         handle_legacy_attr(attr, s.attr);
+
         const prb_t p(s.desc, i_mb, i_dir, i_dt, i_tag, i_flags, i_inplace,
                 attr, s.check_alg, s.debug_check_ws);
         std::stringstream ss;

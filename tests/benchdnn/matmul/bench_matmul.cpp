@@ -53,8 +53,12 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_zero_points : s.zero_points)
     for_(const auto &i_post_ops : s.post_ops)
     for (const auto &i_bia_cfg : bia_cfg) {
-        attr_t attr(i_oscale, i_zero_points, i_post_ops);
+        attr_t attr;
+        attr.insert(i_oscale);
+        attr.insert(i_zero_points);
+        attr.insert(i_post_ops);
         handle_legacy_attr(attr, s.attr);
+
         const prb_t p(s.desc, i_cfg, i_stag, i_wtag, i_dtag, i_ld_src, i_ld_wei,
                 i_ld_dst, i_runtime_mb, i_runtime_m, i_runtime_n, i_runtime_k,
                 i_bia_cfg.first, i_bia_cfg.second, attr);

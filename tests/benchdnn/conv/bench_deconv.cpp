@@ -40,8 +40,11 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_oscale : s.oscale)
     for_(const auto &i_post_ops : s.post_ops)
     for (const auto &i_mb : s.mb) {
-        attr_t attr(i_oscale, i_post_ops);
+        attr_t attr;
+        attr.insert(i_oscale);
+        attr.insert(i_post_ops);
         handle_legacy_attr(attr, s.attr);
+
         const prb_t p(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg, attr,
                 i_mb);
         std::stringstream ss;

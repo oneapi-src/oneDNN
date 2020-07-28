@@ -278,15 +278,10 @@ struct attr_t {
 
     attr_t() = default;
 
-    attr_t(const post_ops_t &po) : post_ops(po) {}
-
-    attr_t(const scale_t &s, const post_ops_t &po) : oscale(s), post_ops(po) {}
-
-    attr_t(const arg_scales_t &as, const post_ops_t &po)
-        : scales(as), post_ops(po) {}
-
-    attr_t(const scale_t &s, const zero_points_t &zp, const post_ops_t &po)
-        : oscale(s), zero_points(zp), post_ops(po) {}
+    void insert(const scale_t &s) { this->oscale = s; }
+    void insert(const arg_scales_t &as) { this->scales = as; }
+    void insert(const zero_points_t &zp) { this->zero_points = zp; }
+    void insert(const post_ops_t &po) { this->post_ops = po; }
 
     scale_t oscale;
     arg_scales_t scales;

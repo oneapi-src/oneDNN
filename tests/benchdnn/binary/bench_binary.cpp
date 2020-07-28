@@ -43,8 +43,11 @@ void check_correctness(const settings_t &s) {
         ok = i_alg > alg_t::BINARY_START && i_alg < alg_t::BINARY_END;
         if (!ok) SAFE_V(FAIL);
 
-        attr_t attr(i_scales, i_post_ops);
+        attr_t attr;
+        attr.insert(i_scales);
+        attr.insert(i_post_ops);
         handle_legacy_attr(attr, s.attr);
+
         const prb_t p(s.sdims, i_sdt, i_ddt, i_stag, i_alg, i_inplace, attr);
         std::stringstream ss;
         ss << p;
