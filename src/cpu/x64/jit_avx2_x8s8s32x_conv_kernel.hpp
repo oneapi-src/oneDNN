@@ -51,6 +51,7 @@ struct _jit_avx2_x8s8s32x_fwd_kernel : public jit_generator {
 
 private:
     jit_uni_eltwise_injector_f32<avx2> *eltwise_injector_;
+    const int ic_sub_step = 4;
 
     enum {
         typesize = sizeof(float),
@@ -87,6 +88,7 @@ private:
     const Xbyak::Reg64 reg_kj = reg_ptr_scales;
     const Xbyak::Reg64 reg_overflow = reg_ptr_scales;
     const Xbyak::Reg64 reg_icb = reg_bias;
+    const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
     // Using 3d regs as depthwise3d is not yet supported
     const Xbyak::Reg64 reg_inp_buffer_ptr = aux_reg_inp_d;
     const Xbyak::Reg64 aux_reg_inp_buffer_ptr = aux_reg_ker_d;
