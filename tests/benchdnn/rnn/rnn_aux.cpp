@@ -437,7 +437,7 @@ void inv_ldio_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &l,
             : p.dhc;
     auto IC = p.dhc; // assume weights_projection
     if (kind == WEIGHTS_PEEPHOLE || kind == DIFF_WEIGHTS_PEEPHOLE) IC = 3;
-    if (kind == BIAS || kind == DIFF_BIAS) IC = p.n_gates();
+    if (kind == BIAS || kind == DIFF_BIAS) IC = p.n_bias();
     oc = off % OC;
     off /= OC;
     ic = off % IC;
@@ -602,29 +602,23 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         }
 #endif
         diff_norm.update(fp, dt);
+        const float diff = fabsf(fp - dt);
+        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
 
         bool ok = true;
         if (check_norm0) {
-            const float diff = fabsf(fp - dt);
-            const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
             const float diff_threshold = p.cfg[kind].eps;
 
-            // very strict error bound for int8 data type
-            if (p.cfg[kind].dt == dnnl_u8)
+            ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
+            if (p.cfg[kind].dt == dnnl_u8) // expect exact value for int8
                 ok = diff == 0;
-            else
-                ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
-
-            if (!ok) {
-                errors++;
-                if (errors < 10 || verbose >= 10)
-                    print_value(
-                            p, kind, i, fp, dt, diff, rel_diff, final_compare);
-            }
+            errors += !ok;
         }
 
-        /* for debug purposes only: dump the output */
-        if (final_compare && verbose >= 50) print_value(p, kind, i, fp, dt);
+        bool dump = (check_norm0 && !ok && (errors < 10 || verbose >= 10))
+                || (final_compare && verbose >= 50);
+        if (dump)
+            print_value(p, kind, i, fp, dt, diff, rel_diff, final_compare);
     }
 
     diff_norm.done();
