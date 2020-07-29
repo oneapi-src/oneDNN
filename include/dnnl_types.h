@@ -242,6 +242,15 @@ typedef enum {
     dnnl_ABc8a16b2a,
     dnnl_ABc8a8b,
     dnnl_ABc8a4b,
+    dnnl_AB16b16a,
+    dnnl_AB16b32a,
+    dnnl_AB16b64a,
+    dnnl_AB8b16a2b,
+    dnnl_AB8b32a2b,
+    dnnl_AB8b64a2b,
+    dnnl_AB4b16a4b,
+    dnnl_AB4b32a4b,
+    dnnl_AB4b64a4b,
     /// 3D tensor blocked by 2nd dimension with block size 8
     dnnl_aBc8b,
     dnnl_ABc8b16a2b,
@@ -589,6 +598,16 @@ typedef enum {
     dnnl_NChw32n32c = dnnl_ABcd32a32b,
     dnnl_NCdhw32n32c = dnnl_ABcde32a32b,
 
+    // weights, 2D
+    dnnl_OI16i16o = dnnl_AB16b16a,
+    dnnl_OI16i32o = dnnl_AB16b32a,
+    dnnl_OI16i64o = dnnl_AB16b64a,
+    dnnl_OI8i16o2i = dnnl_AB8b16a2b,
+    dnnl_OI8i32o2i = dnnl_AB8b32a2b,
+    dnnl_OI8i64o2i = dnnl_AB8b64a2b,
+    dnnl_OI4i16o4i = dnnl_AB4b16a4b,
+    dnnl_OI4i32o4i = dnnl_AB4b32a4b,
+    dnnl_OI4i64o4i = dnnl_AB4b64a4b,
     // weights, 3D
     dnnl_IOw16o16i = dnnl_BAc16a16b,
     dnnl_IOw16i16o = dnnl_BAc16b16a,
