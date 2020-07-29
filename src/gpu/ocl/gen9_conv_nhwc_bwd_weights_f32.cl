@@ -52,8 +52,8 @@ inline float read_ic_block(const __global float *ptr, int off) {
 }
 
 inline float read_oc_block(const __global float *ptr, int off) {
-#if (IS_DW ? G : OC) % OC_BLOCK != 0
-    int tail = (IS_DW ? G : OC) - off;
+#if (IS_DW ? G : OC_WO_PADDING) % OC_BLOCK != 0
+    int tail = (IS_DW ? G : OC_WO_PADDING) - off;
     if (tail < OC_BLOCK) {
         const int local_x = get_local_id(0);
         return (local_x < tail) ? ptr[local_x] : 0.0f;
@@ -118,10 +118,10 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
     src += mb * ID * IH * IW * G * IC;
     src += g * IC + ic * IC_BLOCK;
 
-    diff_dst += g * OC + oc * OC_BLOCK;
+    diff_dst += g * OC_WO_PADDING + oc * OC_BLOCK;
 
 #if WITH_BIAS == 1
-    diff_bias += g * OC + oc * OC_BLOCK + local_x;
+    diff_bias += g * OC_WO_PADDING + oc * OC_BLOCK + local_x;
     float bias_loc = 0.0f;
 #endif
 
@@ -136,12 +136,12 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
 
     for (int omb = mb; omb < mb_end; omb++) {
         const __global float *diff_dst1_
-                = diff_dst + omb * OD * OH * OW * G * OC;
+                = diff_dst + omb * OD * OH * OW * G * OC_WO_PADDING;
 
         for (int od = od_beg; od < min(od_beg + ODB, OD); od++)
             for (int oh = oh_beg; oh < min(oh_beg + OHB, OH); oh++) {
-                const __global float *diff_dst1
-                        = diff_dst1_ + (od * OH * OW + oh * OW) * G * OC;
+                const __global float *diff_dst1 = diff_dst1_
+                        + (od * OH * OW + oh * OW) * G * OC_WO_PADDING;
                 if (oh * SH + kh * (1 + DH) < PH
                         || oh * SH + kh * (1 + DH) >= IH + PH
 #if CASE_3D
@@ -159,7 +159,8 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
                                     blockB[i] = 0.0;
                                 } else {
                                     blockB[i] = read_oc_block(
-                                            &diff_dst1[(ow + i) * G * OC],
+                                            &diff_dst1[(ow + i) * G
+                                                    * OC_WO_PADDING],
                                             oc * OC_BLOCK);
                                 }
                             }
@@ -235,7 +236,7 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
                             blockB[i] = 0.0;
                         } else {
                             blockB[i] = read_oc_block(
-                                    &diff_dst1[(ow + i) * G * OC],
+                                    &diff_dst1[(ow + i) * G * OC_WO_PADDING],
                                     oc * OC_BLOCK);
                         }
                     }
@@ -260,7 +261,7 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
     }
 
 #if WITH_BIAS == 1
-    if (do_bias && oc * OC_BLOCK + local_x < (IS_DW ? G : OC))
+    if (do_bias && oc * OC_BLOCK + local_x < (IS_DW ? G : OC_WO_PADDING))
         atomic_add_global(diff_bias, bias_loc);
 #endif
 
