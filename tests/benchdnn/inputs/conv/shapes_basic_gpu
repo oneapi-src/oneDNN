@@ -12,7 +12,7 @@ g4ic16oc16_ih5oh5kh3ph1_n"2d_conv:grouped"
 g4ic20oc20_ih5oh5kh3ph1_n"2d_tail_conv:grouped"
 
 # three dimensional shapes
-# TODO: uncomment me once fixed: g1ic3oc17_id5od5kd3pd1_n"3d_tail_conv:1st"
+g1ic3oc17_id5od5kd3pd1_n"3d_tail_conv:1st"
 g1ic16oc16_id5od5kd1pd0_n"3d_conv:1x1"
 g1ic17oc17_id5od5kd3pd1_n"3d_tail_conv:3x3"
 g16ic16oc16_id5od5kd3pd1_n"3d_conv:depthwise"
