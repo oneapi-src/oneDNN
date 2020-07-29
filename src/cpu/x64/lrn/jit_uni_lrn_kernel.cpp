@@ -65,7 +65,7 @@ jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
 template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
-        const within_config &config, void *code_ptr, size_t code_size)
+        const within_config_t &config, void *code_ptr, size_t code_size)
     : jit_uni_lrn_kernel_t(code_ptr, code_size) {
     if (config.dat_tag == nhwc)
         single_pixel_offset_
@@ -79,7 +79,7 @@ jit_uni_lrn_kernel_t<Derived<isa, d_type>>::~jit_uni_lrn_kernel_t() = default;
 template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
 void jit_uni_lrn_kernel_t<Derived<isa, d_type>>::within_loop(
-        const within_config &config, int max_reg_blocks, prop_kind_t pk) {
+        const within_config_t &config, int max_reg_blocks, prop_kind_t pk) {
     const auto derived_ptr = static_cast<Derived<isa, d_type> *>(this);
 
     const int lower_bound = (config.size - 1) / 2,
@@ -409,7 +409,7 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::move_data_pointers(
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
-        const within_config &config, float A, float K, prop_kind_t pk,
+        const within_config_t &config, float A, float K, prop_kind_t pk,
         void *code_ptr, size_t code_size)
     : Base(config, code_ptr, code_size), alpha_(A), k_(K) {
     this->preamble();
@@ -438,7 +438,7 @@ jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
-        const struct nchw8c_across &J, float A, float K, prop_kind_t pk,
+        const struct nchw8c_across_t &J, float A, float K, prop_kind_t pk,
         void *code_ptr, size_t code_size)
     : Base(code_ptr, code_size), alpha_(A), k_(K) {
     const Xbyak::Reg64 &t = this->rsp;
@@ -532,7 +532,7 @@ jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
 
 template <>
 jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::
-        jit_uni_lrn_fwd_kernel_t(const struct nchw8c_across &J, float A,
+        jit_uni_lrn_fwd_kernel_t(const struct nchw8c_across_t &J, float A,
                 float K, prop_kind_t pk, void *code_ptr, size_t code_size)
     : Base(code_ptr, code_size), alpha_(A), k_(K) {
 
@@ -666,7 +666,7 @@ jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
-        const struct nhwc_across &J, float A, float K, prop_kind_t pk,
+        const struct nhwc_across_t &J, float A, float K, prop_kind_t pk,
         void *code_ptr, size_t code_size)
     : Base(code_ptr, code_size), alpha_(A), k_(K) {
     static const uint32_t mask[] = {0, 0, 0x80000000, 0x80000000, 0x80000000,
@@ -784,8 +784,8 @@ jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
 
 template <>
 jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::
-        jit_uni_lrn_fwd_kernel_t(const struct nhwc_across &J, float A, float K,
-                prop_kind_t pk, void *code_ptr, size_t code_size)
+        jit_uni_lrn_fwd_kernel_t(const struct nhwc_across_t &J, float A,
+                float K, prop_kind_t pk, void *code_ptr, size_t code_size)
     : Base(code_ptr, code_size), alpha_(A), k_(K) {
 
     static uint32_t store[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -1185,8 +1185,8 @@ void jit_uni_lrn_fwd_kernel_t<isa, d_type>::nchw_body_sse41(int tail, int HW,
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
-        const nchw_across &J, float A, float K, prop_kind_t pk, void *code_ptr,
-        size_t code_size)
+        const nchw_across_t &J, float A, float K, prop_kind_t pk,
+        void *code_ptr, size_t code_size)
     : Base(code_ptr, code_size), alpha_(A), k_(K) {
     static const uint32_t mask[]
             = {0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000,
@@ -1272,10 +1272,9 @@ template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_kernel_t<isa, d_type>::~jit_uni_lrn_fwd_kernel_t() = default;
 
 template <>
-jit_uni_lrn_fwd_kernel_t<sse41,
-        dnnl::impl::data_type::f32>::jit_uni_lrn_fwd_kernel_t(const nchw_across
-                                                                      &J,
-        float A, float K, prop_kind_t pk, void *code_ptr, size_t code_size)
+jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::
+        jit_uni_lrn_fwd_kernel_t(const nchw_across_t &J, float A, float K,
+                prop_kind_t pk, void *code_ptr, size_t code_size)
     : Base(code_ptr, code_size), alpha_(A), k_(K) {
 
     /* Load from within the memory boundary of 'src_' and apply a zero-mask to
@@ -1447,7 +1446,7 @@ jit_uni_lrn_fwd_kernel_t<sse41,
 // backward kernel
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_bwd_kernel_t<isa, d_type>::jit_uni_lrn_bwd_kernel_t(
-        const nchw8c_across &J, float A, float B, int use_h_parallel,
+        const nchw8c_across_t &J, float A, float B, int use_h_parallel,
         void *code_ptr, size_t code_size)
     : Base(code_ptr, code_size)
     , nalphabeta_(-2 * A * B)
@@ -1582,7 +1581,7 @@ jit_uni_lrn_bwd_kernel_t<isa, d_type>::jit_uni_lrn_bwd_kernel_t(
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_bwd_kernel_t<isa, d_type>::jit_uni_lrn_bwd_kernel_t(
-        const within_config &config, float A, float B, void *code_ptr,
+        const within_config_t &config, float A, float B, void *code_ptr,
         size_t code_size)
     : Base(config, code_ptr, code_size), nalphabeta_(-2.0f * A * B) {
 

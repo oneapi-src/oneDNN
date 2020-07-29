@@ -58,28 +58,28 @@ jit_uni_lrn_fwd_t<isa, d_type>::jit_uni_lrn_fwd_t(const pd_t *apd)
 
     if (dat_tag == nChw8c && ls == 5 && ak == lrn_across_channels) {
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                nchw8c_across(H, W, 0), A, K, pk);
+                nchw8c_across_t(H, W, 0), A, K, pk);
         ker_first_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                nchw8c_across(H, W, -1), A, K, pk);
+                nchw8c_across_t(H, W, -1), A, K, pk);
         ker_last_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                nchw8c_across(H, W, +1), A, K, pk);
+                nchw8c_across_t(H, W, +1), A, K, pk);
     } else if (one_of(dat_tag, nhwc, nChw8c, nChw16c)
             && ak == lrn_within_channel) {
 
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                within_config(H, W, C, ls, dat_tag), A, K, pk);
+                within_config_t(H, W, C, ls, dat_tag), A, K, pk);
     } else if (dat_tag == nchw && ls == 5 && ak == lrn_across_channels) {
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                nchw_across(C, H * W, 0), A, K, pk);
+                nchw_across_t(C, H * W, 0), A, K, pk);
         const int remind = (H * W) % VECTOR_LENGTH;
         if (remind != 0) {
             ker_last_
                     = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                            nchw_across(C, H * W, remind), A, K, pk);
+                            nchw_across_t(C, H * W, remind), A, K, pk);
         }
     } else {
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                nhwc_across(C), A, K, pk);
+                nhwc_across_t(C), A, K, pk);
     }
 }
 
@@ -215,21 +215,21 @@ jit_uni_lrn_bwd_t<isa, d_type>::jit_uni_lrn_bwd_t(const pd_t *apd)
 
     if (one_of(dat_tag, nhwc, nChw8c, nChw16c) && ak == lrn_within_channel) {
         ker_ = utils::make_unique<jit_uni_lrn_bwd_kernel_t<isa, d_type>>(
-                within_config(H, W, C, ls, dat_tag), A, B);
+                within_config_t(H, W, C, ls, dat_tag), A, B);
     } else {
         int use_h_parallelism = 0; // XXX
         if (C / VECTOR_LENGTH == 1) {
             ker_ = utils::make_unique<jit_uni_lrn_bwd_kernel_t<isa, d_type>>(
-                    nchw8c_across(H, W, 3), A, B, use_h_parallelism);
+                    nchw8c_across_t(H, W, 3), A, B, use_h_parallelism);
         } else {
             ker_ = utils::make_unique<jit_uni_lrn_bwd_kernel_t<isa, d_type>>(
-                    nchw8c_across(H, W, 0), A, B, use_h_parallelism);
+                    nchw8c_across_t(H, W, 0), A, B, use_h_parallelism);
             ker_first_
                     = utils::make_unique<jit_uni_lrn_bwd_kernel_t<isa, d_type>>(
-                            nchw8c_across(H, W, -1), A, B, use_h_parallelism);
+                            nchw8c_across_t(H, W, -1), A, B, use_h_parallelism);
             ker_last_
                     = utils::make_unique<jit_uni_lrn_bwd_kernel_t<isa, d_type>>(
-                            nchw8c_across(H, W, +1), A, B, use_h_parallelism);
+                            nchw8c_across_t(H, W, +1), A, B, use_h_parallelism);
         }
     }
 }

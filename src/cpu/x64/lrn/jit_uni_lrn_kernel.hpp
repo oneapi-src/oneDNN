@@ -38,7 +38,7 @@ struct jit_args_bwd_t {
     void *diff_src;
 };
 
-struct nchw8c_across {
+struct nchw8c_across_t {
     /*  version:
     *  -1: channels 0..7,
     *   1: channels C-8 .. C-1,
@@ -46,24 +46,24 @@ struct nchw8c_across {
     *   3: channels only for this kernel(without prev and next)
     */
     int H, W, version;
-    nchw8c_across(int h, int w, int v) : H(h), W(w), version(v) {}
+    nchw8c_across_t(int h, int w, int v) : H(h), W(w), version(v) {}
 };
 
-struct within_config {
+struct within_config_t {
     const int H, W, C, size;
     const format_tag_t dat_tag;
-    within_config(int h, int w, int c, int s, format_tag_t dat_tag)
+    within_config_t(int h, int w, int c, int s, format_tag_t dat_tag)
         : H(h), W(w), C(c), size(s), dat_tag(dat_tag) {}
 };
 
-struct nchw_across {
+struct nchw_across_t {
     int C, HW, tail;
-    nchw_across(int c, int hw, int t) : C(c), HW(hw), tail(t) {}
+    nchw_across_t(int c, int hw, int t) : C(c), HW(hw), tail(t) {}
 };
 
-struct nhwc_across {
+struct nhwc_across_t {
     int C;
-    nhwc_across(int c) : C(c) {}
+    nhwc_across_t(int c) : C(c) {}
 };
 
 template <class Derived>
@@ -75,7 +75,7 @@ class jit_uni_lrn_kernel_t<Derived<isa, d_type>> : public jit_generator {
 public:
     jit_uni_lrn_kernel_t(
             void *code_ptr = nullptr, size_t code_size = MAX_CODE_SIZE);
-    jit_uni_lrn_kernel_t(const within_config &J, void *code_ptr = nullptr,
+    jit_uni_lrn_kernel_t(const within_config_t &J, void *code_ptr = nullptr,
             size_t code_size = MAX_CODE_SIZE);
 
     ~jit_uni_lrn_kernel_t();
@@ -92,7 +92,7 @@ protected:
     void load_data(const Vmm &reg, const Xbyak::Address &p);
     void store_data(const Xbyak::Address &p, const Vmm &reg);
     void within_loop(
-            const within_config &config, int max_reg_blocks, prop_kind_t pk);
+            const within_config_t &config, int max_reg_blocks, prop_kind_t pk);
     void within_body_reg_blocked(int loop_count, int max_reg_block, int hoff,
             int Hoff, int woff, int Woff, int stride, prop_kind_t pk);
 
@@ -118,16 +118,16 @@ class jit_uni_lrn_fwd_kernel_t
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_fwd_kernel_t)
 
-    jit_uni_lrn_fwd_kernel_t(const within_config &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const within_config_t &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_t(const nchw8c_across &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const nchw8c_across_t &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_t(const nhwc_across &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const nhwc_across_t &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_t(const nchw_across &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const nchw_across_t &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
     ~jit_uni_lrn_fwd_kernel_t();
@@ -178,10 +178,10 @@ class jit_uni_lrn_bwd_kernel_t
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_bwd_kernel_t)
 
-    jit_uni_lrn_bwd_kernel_t(const nchw8c_across &J, float A, float B,
+    jit_uni_lrn_bwd_kernel_t(const nchw8c_across_t &J, float A, float B,
             int use_h_parallel, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_bwd_kernel_t(const within_config &J, float A, float B,
+    jit_uni_lrn_bwd_kernel_t(const within_config_t &J, float A, float B,
             void *code_ptr = nullptr,
             size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
