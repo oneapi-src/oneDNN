@@ -1200,12 +1200,12 @@ DNNL_DEFINE_BITMASK_OPS(stream::flags)
 ///     checking whether it is necessary to reorder data from the user's data
 ///     format to a primitive's format.
 ///
-/// 2. **Memory object** -- an engine-specific object that handles the data
-///     and its description (a memory descriptor). For the CPU engine or with
-///     USM, the data handle is simply a pointer to @c void. The data handle
-///     can be queried using #dnnl::memory::get_data_handle() and set using
-///     #dnnl::memory::set_data_handle(). The underlying SYCL buffer, when
-///     used, can be queried using #dnnl::memory::get_sycl_buffer and set
+/// 2. **Memory object** -- an engine-specific object that handles the memory
+///     buffer and its description (a memory descriptor). For the CPU engine or
+///     with USM, the memory buffer handle is simply a pointer to @c void. The
+///     memory buffer can be queried using #dnnl::memory::get_data_handle() and
+///     set using #dnnl::memory::set_data_handle(). The underlying SYCL buffer,
+///     when used, can be queried using #dnnl::memory::get_sycl_buffer and set
 ///     using #dnnl::memory::set_sycl_buffer. A memory object can also be
 ///     queried for the underlying memory descriptor and for its engine using
 ///     #dnnl::memory::get_desc() and dnnl::memory::get_engine().
@@ -1228,14 +1228,14 @@ DNNL_DEFINE_BITMASK_OPS(stream::flags)
 ///   library because there is no clear definition of what the output values
 ///   should be.
 ///
-/// Data handle of a zero-volume memory is never accessed.
+/// Memory buffer of a zero-volume memory is never accessed.
 ///
 /// @{
 
 /// Memory object.
 ///
 /// A memory object encapsulates a handle to a memory buffer allocated on a
-/// specific aengine, tensor dimensions, data type, and memory format, which is
+/// specific engine, tensor dimensions, data type, and memory format, which is
 /// the way tensor indices map to offsets in linear memory space. Memory
 /// objects are passed to primitives during execution.
 struct memory : public handle<dnnl_memory_t> {
@@ -1261,11 +1261,12 @@ struct memory : public handle<dnnl_memory_t> {
     enum class data_type {
         /// Undefined data type (used for empty memory descriptors).
         undef = dnnl_data_type_undef,
-        /// 16-bit/half-precision floating point.
+        /// [16-bit/half-precision floating point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format).
         f16 = dnnl_f16,
-        /// non-standard 16-bit floating point with 7-bit mantissa.
+        /// non-standard
+        /// [16-bit floating point with 7-bit mantissa](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format).
         bf16 = dnnl_bf16,
-        /// 32-bit/single-precision floating point.
+        /// [32-bit/single-precision floating point](https://en.wikipedia.org/wiki/Single-precision_floating-point_format).
         f32 = dnnl_f32,
         /// 32-bit signed integer.
         s32 = dnnl_s32,
@@ -1933,7 +1934,7 @@ struct memory : public handle<dnnl_memory_t> {
         ///    dimension has no padding (i.e.
         ///    `padded_dims[dim] == dims[dim] && dims[dim] == 1`).
         /// 3. Split a dimension into multiple ones. This is possible only if
-        ///    the product of all tensor diumensions stays constant and the
+        ///    the product of all tensor dimensions stays constant and the
         ///    dimension being split does not have padding (i.e.
         ///    `padded_dims[dim] = dims[dim]`).
         /// 4. Join multiple consecutive dimensions into a single one. As in
@@ -1942,9 +1943,9 @@ struct memory : public handle<dnnl_memory_t> {
         ///    memory these dimensions are dense and have the same order as
         ///    their logical counterparts. This also assumes that these
         ///    dimensions are not blocked.
-        ///    - Here, dense means:
+        ///    - Here, 'dense' means:
         ///      `stride for dim[i] == (stride for dim[i + 1]) * dim[i + 1]`;
-        ///    - And same order means:
+        ///    - And 'same order' means:
         ///      `i < j` if and only if `stride for dim[j] <= stride for dim[i]`.
         ///
         /// @warning
@@ -1974,7 +1975,8 @@ struct memory : public handle<dnnl_memory_t> {
         ///
         /// The physical memory layout representation is adjusted accordingly
         /// to maintain the consistency between the logical and physical parts
-        /// of the memory descriptor.
+        /// of the memory descriptor. The new memory descriptor inherits the
+        /// data type.
         ///
         /// The new memory descriptor inherits the data type. This operation is
         /// valid only for memory descriptors that have format_kind set to
@@ -2085,7 +2087,7 @@ struct memory : public handle<dnnl_memory_t> {
 #else
     /// Constructs a memory object.
     ///
-    /// Unless @p handle is equal to DNNL_MEMORY_NONE, the constructed memory
+    /// Unless @p handle is equal to #DNNL_MEMORY_NONE, the constructed memory
     /// object will have the underlying buffer set. In this case, the buffer
     /// will be initialized as if #dnnl::memory::set_data_handle() had been
     /// called.
@@ -2094,14 +2096,13 @@ struct memory : public handle<dnnl_memory_t> {
     ///
     /// @param md Memory descriptor.
     /// @param aengine Engine to store the data on.
-    /// @param handle Handle of the memory buffer to use as an underlying
-    ///     storage.
+    /// @param handle Handle of the memory buffer to use.
     ///     - A pointer to the user-allocated buffer. In this case the library
     ///       doesn't own the buffer.
-    ///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+    ///     - The #DNNL_MEMORY_ALLOCATE special value. Instructs the library to
     ///       allocate the buffer for the memory object. In this case the
     ///       library owns the buffer.
-    ///     - DNNL_MEMORY_NONE to create dnnl_memory without an underlying
+    ///     - #DNNL_MEMORY_NONE to create dnnl::memory without an underlying
     ///       buffer.
     memory(const desc &md, const engine &aengine, void *handle) {
         dnnl_memory_t result;
@@ -2128,7 +2129,7 @@ struct memory : public handle<dnnl_memory_t> {
 
     /// Constructs a memory object.
     ///
-    /// The underlying storage for the memory will be allocated by the library.
+    /// The underlying buffer for the memory will be allocated by the library.
     ///
     /// @param md Memory descriptor.
     /// @param aengine Engine to store the data on.
@@ -2185,10 +2186,10 @@ struct memory : public handle<dnnl_memory_t> {
     ///     zeroes to the padding area if it exists. Hence, the @p handle
     ///     parameter cannot and does not have a const qualifier.
     ///
-    /// @param handle Data handle. On the CPU engine or when USM is used, the
-    ///     data handle is a pointer to the actual data. For OpenCL it is a
-    ///     cl_mem. It must have at least #dnnl::memory::desc::get_size() bytes
-    ///     allocated.
+    /// @param handle Memory buffer to use. On the CPU engine or when USM is
+    ///     used, the memory buffer is a pointer to the actual data. For OpenCL
+    ///     it is a cl_mem. It must have at least
+    ///     #dnnl::memory::desc::get_size() bytes allocated.
     /// @param astream Stream to use to execute padding in.
     void set_data_handle(void *handle, const stream &astream) const {
         error::wrap_c_api(dnnl_memory_set_data_handle_v2(
@@ -2202,9 +2203,10 @@ struct memory : public handle<dnnl_memory_t> {
     /// #dnnl::memory::set_data_handle(void *, const stream &) const
     /// for more information.
     ///
-    /// @param handle Data handle. For the CPU engine, the data handle is a
-    ///     pointer to the actual data. For OpenCL it is a cl_mem. It must have
-    ///     at least #dnnl::memory::desc::get_size() bytes allocated.
+    /// @param handle Memory buffer to use. For the CPU engine, the memory
+    ///     buffer is a pointer to the actual data. For OpenCL it is a cl_mem.
+    ///     It must have at least #dnnl::memory::desc::get_size() bytes
+    ///     allocated.
     void set_data_handle(void *handle) const {
         error::wrap_c_api(
                 dnnl_memory_set_data_handle_v2(get(), handle, nullptr),
@@ -2931,10 +2933,6 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///
     /// The quantization formula is `scale * (data + shift)`.
     ///
-    /// @note
-    ///     Quantization scale and shift are common for src_layer, src_iter,
-    ///     dst_iter, and dst_layer.
-    ///
     /// Example usage:
     /// @code
     ///     // RNN parameters
@@ -2951,6 +2949,10 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     vanilla_rnn_forward::desc rnn_d(/* arguments */);
     ///     vanilla_rnn_forward::primitive_desc rnn_d(rnn_d, attr, engine);
     /// @endcode
+    ///
+    /// @note
+    ///     Quantization scale and shift are common for src_layer, src_iter,
+    ///     dst_iter, and dst_layer.
     ///
     /// @param scale The value to scale the data by.
     /// @param shift The value to shift the data by.
@@ -3452,7 +3454,7 @@ struct reorder : public primitive {
     /// Executes the reorder primitive (SYCL-aware version)
     ///
     /// @param astream Stream object. The stream must belong to the same engine
-    ///               as the primitive.
+    ///     as the primitive.
     /// @param src Source memory object.
     /// @param dst Destination memory object.
     /// @param deps Vector of SYCL events that the execution should depend on.
@@ -4961,8 +4963,8 @@ struct deconvolution_backward_weights : public primitive {
                     "update primitive");
         }
 
-        /// Constructs a descriptor for a deconvolution weights gradient primitive
-        /// without bias.
+        /// Constructs a descriptor for a deconvolution weights gradient
+        /// primitive without bias.
         ///
         /// @note
         ///     All the memory descriptors may be initialized with the
