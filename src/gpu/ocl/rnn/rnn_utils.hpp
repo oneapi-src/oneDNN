@@ -102,7 +102,16 @@ enum data_type_conf_t {
     f32u8f32u8
 };
 
-enum ws_part_t { gates, states, c_states, diff_states, cell, grid, bias };
+enum ws_part_t {
+    gates,
+    states,
+    c_states,
+    diff_states,
+    dhG1_gru,
+    cell,
+    grid,
+    bias
+};
 
 struct conf_t {
     execution_direction_t exec_dir;
@@ -140,7 +149,8 @@ struct conf_t {
 
     // Size of workspace for each tensor in bytes
     size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
-            scratch_cell_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
+            scratch_cell_size, ws_dhG1_size, ws_grid_comp_size, ws_per_cell,
+            ws_bias_size;
 
     bool merge_gemm_iter, merge_gemm_layer, use_gemm, use_layer_packed_gemm,
             use_iter_packed_gemm;
@@ -180,9 +190,9 @@ void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
 void set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_h_state_offset, size_t &ws_c_state_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &scratch_cell_offset, size_t &ws_bias_offset,
-        size_t &scratch_gates_offset, size_t &scratchpad_size,
-        size_t &workspace_size);
+        size_t &scratch_cell_offset, size_t &ws_dhG1_offset,
+        size_t &ws_bias_offset, size_t &scratch_gates_offset,
+        size_t &scratchpad_size, size_t &workspace_size);
 void set_gru_offsets_part2(const conf_t &rnn, int iter, int dir, int lay,
         data_type_t src_t, size_t *wei_iter_off_ptr,
         const size_t &ws_states_offset_, size_t &cell_wei_iter_offset,
@@ -200,6 +210,10 @@ void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
         const size_t &ws_diff_states_off_, size_t &cell_diff_wei_iter_off,
         size_t &cell_diff_wei_lay_off, size_t &cell_diff_ws_lay_off,
         size_t &cell_diff_ws_iter_off);
+void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
+        const size_t &ws_diff_states_off_, size_t &cell_diff_wei_iter_off,
+        size_t &cell_diff_wei_lay_off, size_t &cell_diff_ws_lay_off,
+        size_t &cell_diff_ws_iter_off, size_t &cell_diff_wei_iter_off2);
 void set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir, int lay,
         const size_t &ws_diff_states_off_, size_t &cell_diff_wei_iter_off,
         size_t &cell_diff_wei_lay_off, size_t &cell_diff_ws_lay_off);

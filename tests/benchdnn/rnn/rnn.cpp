@@ -661,8 +661,7 @@ void check_known_skipped_case(const prb_t &p, res_t *r) {
 
     // GPU limitations for RNN
     if (engine_tgt_kind == dnnl_gpu) {
-        if (p.is_lstm_projection() || p.is_lstm_peephole()
-                || (p.alg == VANILLA_GRU && p.prop == dnnl_backward)) {
+        if (p.is_lstm_projection() || p.is_lstm_peephole()) {
             r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
             return;
         }

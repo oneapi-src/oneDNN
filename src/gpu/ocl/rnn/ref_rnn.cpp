@@ -180,7 +180,7 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     rnn_utils::set_offsets(rnn, conf.ws_gates_offset, conf.ws_states_offset,
             conf.ws_c_state_offset, conf.ws_diff_states_offset,
             conf.ws_grid_comp_offset, conf.scratch_cell_offset,
-            conf.ws_bias_offset, conf.scratch_gates_offset,
+            conf.ws_dhG1_offset, conf.ws_bias_offset, conf.scratch_gates_offset,
             conf.scratchpad_size, conf.workspace_size);
 
     conf.cell_kind = rnn_pd->cell_kind();
@@ -290,6 +290,7 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WS_C_STATE_OFFSET", conf.ws_c_state_offset);
     kernel_ctx.define_int("WS_DIFF_STATES_OFFSET", conf.ws_diff_states_offset);
     kernel_ctx.define_int("WS_GRID_COMP_OFFSET", conf.ws_grid_comp_offset);
+    kernel_ctx.define_int("SCRATCH_HDG1_OFFSET", conf.ws_dhG1_offset);
     kernel_ctx.define_int("WS_BIAS_OFFSET", conf.ws_bias_offset);
     kernel_ctx.define_int("SCRATCH_GATES_OFFSET", conf.scratch_gates_offset);
     kernel_ctx.define_int("STATES_WS_LD", conf.states_ws_ld);
@@ -667,12 +668,34 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
         case prop_kind::backward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            create_gemm_pd(gemm_iter_bwd_pd_, sic, batch,
-                                    n_gates * dhc, rnn_conf.weights_iter_ld,
-                                    rnn_conf.scratch_gates_ld,
-                                    rnn_conf.diff_states_ws_ld, weights_type,
-                                    src_type, rnn_conf.acc_data_type, false,
-                                    gemm_iter_bwd_beta),
+                            (rnn_conf.is_vanilla_gru
+                                            ? (create_gemm_pd(gemm_iter_bwd_pd_,
+                                                       sic, batch,
+                                                       (n_gates - 1) * dhc,
+                                                       rnn_conf.weights_iter_ld,
+                                                       rnn_conf.scratch_gates_ld,
+                                                       rnn_conf.diff_states_ws_ld,
+                                                       weights_type, src_type,
+                                                       rnn_conf.acc_data_type,
+                                                       false, 1.0f),
+                                                    create_gemm_pd(
+                                                            gemm_iter_bwd_2_pd_,
+                                                            sic, batch, dhc,
+                                                            rnn_conf.weights_iter_ld,
+                                                            rnn_conf.scratch_gates_ld,
+                                                            rnn_conf.diff_states_ws_ld,
+                                                            weights_type,
+                                                            src_type,
+                                                            rnn_conf.acc_data_type,
+                                                            false, 0.0f))
+                                            : create_gemm_pd(gemm_iter_bwd_pd_,
+                                                    sic, batch, n_gates * dhc,
+                                                    rnn_conf.weights_iter_ld,
+                                                    rnn_conf.scratch_gates_ld,
+                                                    rnn_conf.diff_states_ws_ld,
+                                                    weights_type, src_type,
+                                                    rnn_conf.acc_data_type,
+                                                    false, gemm_iter_bwd_beta)),
                             create_gemm_pd(gemm_layer_bwd_pd_, slc,
                                     layer_merged_size, n_gates * dhc,
                                     rnn_conf.weights_layer_ld,
@@ -687,13 +710,35 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                                     rnn_conf.diff_weights_layer_ld,
                                     weights_type, src_type,
                                     rnn_conf.acc_data_type, true, 1.0f),
-                            create_gemm_pd(gemm_diff_wei_iter_pd_,
-                                    n_gates * dhc, sic, iter_merged_size,
-                                    rnn_conf.scratch_gates_ld,
-                                    rnn_conf.states_ws_ld,
-                                    rnn_conf.diff_weights_iter_ld, weights_type,
-                                    src_type, rnn_conf.acc_data_type, true,
-                                    1.0f));
+                            (rnn_conf.is_vanilla_gru ? (
+                                     create_gemm_pd(gemm_diff_wei_iter_pd_,
+                                             (n_gates - 1) * dhc, sic,
+                                             iter_merged_size,
+                                             rnn_conf.scratch_gates_ld,
+                                             rnn_conf.states_ws_ld,
+                                             rnn_conf.diff_weights_iter_ld,
+                                             weights_type, src_type,
+                                             rnn_conf.acc_data_type, true,
+                                             1.0f),
+                                     create_gemm_pd(gemm_diff_wei_iter_2_pd_,
+                                             dhc, sic, iter_merged_size,
+                                             rnn_conf.scratch_gates_ld,
+                                             rnn_conf.states_ws_ld,
+                                             rnn_conf.diff_weights_iter_ld,
+                                             weights_type, src_type,
+                                             rnn_conf.acc_data_type, true,
+                                             1.0f))
+                                                     : create_gemm_pd(
+                                                             gemm_diff_wei_iter_pd_,
+                                                             n_gates * dhc, sic,
+                                                             iter_merged_size,
+                                                             rnn_conf.scratch_gates_ld,
+                                                             rnn_conf.states_ws_ld,
+                                                             rnn_conf.diff_weights_iter_ld,
+                                                             weights_type,
+                                                             src_type,
+                                                             rnn_conf.acc_data_type,
+                                                             true, 1.0f)));
             break;
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }
@@ -769,7 +814,18 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
                             pd()->gemm_diff_wei_layer_pd_->create_primitive(
                                     gemm_diff_wei_layer_, engine),
                             pd()->gemm_diff_wei_iter_pd_->create_primitive(
-                                    gemm_diff_wei_iter_, engine));
+                                    gemm_diff_wei_iter_, engine),
+                            pd()->conf.is_vanilla_gru
+                                    ? pd()->gemm_iter_bwd_2_pd_
+                                              ->create_primitive(
+                                                      gemm_iter_bwd_2_, engine)
+                                    : status::success,
+                            pd()->conf.is_vanilla_gru
+                                    ? pd()->gemm_diff_wei_iter_2_pd_
+                                              ->create_primitive(
+                                                      gemm_diff_wei_iter_2_,
+                                                      engine)
+                                    : status::success);
             break;
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }
@@ -778,7 +834,6 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 
     return status::success;
 }
-
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::init_res_storage(
         engine_t *engine, gpu_resource_t *r) const {
@@ -828,6 +883,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     // memory before each gemm call. Each cell type (+prop kind) might have
     // different number of GEMMs.
     bool is_lbr = this->pd()->is_lbr();
+    bool is_vanilla_gru = this->pd()->rnn_conf.is_vanilla_gru;
 
     void *scratchpad_ptr {nullptr}, *scratch_gates_ptr {nullptr},
             *scratch_cell_ptr {nullptr};
@@ -851,7 +907,8 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 
     auto scratch_cell
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
-    if (is_lbr) scratch_cell->get_data_handle(&scratch_cell_ptr);
+    if (is_lbr || (is_vanilla_gru && gemm_kind == gemm_diff_wei_iter_2))
+        scratch_cell->get_data_handle(&scratch_cell_ptr);
 
     void *weights_ptr {nullptr};
     memory_t *weights {nullptr};
@@ -884,6 +941,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             }
             break;
         case gemm_iter_bwd:
+        case gemm_iter_bwd_2:
         case gemm_layer_bwd:
             weights = (gemm_kind == gemm_layer_bwd)
                     ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
@@ -910,6 +968,14 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
                 gemm_A_->set_data_handle(scratch_gates_ptr);
             }
             gemm_B_->set_data_handle(scratchpad_ptr);
+            gemm_C_->set_data_handle(weights_ptr);
+            break;
+        case gemm_diff_wei_iter_2:
+            weights = ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER);
+            weights->memory_storage()->get_data_handle(&weights_ptr);
+
+            gemm_A_->set_data_handle(scratch_gates_ptr);
+            gemm_B_->set_data_handle(scratch_cell_ptr);
             gemm_C_->set_data_handle(weights_ptr);
             break;
         default: assert(!"unknown gemm_kind");
@@ -950,6 +1016,10 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             init_gemm_nested_scratchpad(gemm_iter_bwd_, key_gemm_iter_bwd);
             gpu_gemm(gemm_iter_bwd_)->execute(gemm_ctx);
             break;
+        case gemm_iter_bwd_2:
+            init_gemm_nested_scratchpad(gemm_iter_bwd_2_, key_gemm_iter_bwd_2);
+            gpu_gemm(gemm_iter_bwd_2_)->execute(gemm_ctx);
+            break;
         case gemm_layer_bwd:
             init_gemm_nested_scratchpad(gemm_layer_bwd_, key_gemm_layer_bwd);
             gpu_gemm(gemm_layer_bwd_)->execute(gemm_ctx);
@@ -963,6 +1033,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             init_gemm_nested_scratchpad(
                     gemm_diff_wei_layer_, key_gemm_diff_wei_layer);
             gpu_gemm(gemm_diff_wei_layer_)->execute(gemm_ctx);
+            break;
+        case gemm_diff_wei_iter_2:
+            init_gemm_nested_scratchpad(
+                    gemm_diff_wei_iter_2_, key_gemm_diff_wei_iter_2);
+            gpu_gemm(gemm_diff_wei_iter_2_)->execute(gemm_ctx);
             break;
         default: assert(!"unknown gemm_kind");
     }
@@ -1306,7 +1381,11 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     empty_memory_storage_t empty_mem;
     auto scratchpad_cell
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
-    auto &scratch_cell = this->pd()->is_lbr() ? *scratchpad_cell : empty_mem;
+
+    auto &scratch_cell
+            = this->pd()->is_lbr() || this->pd()->rnn_conf.is_vanilla_gru
+            ? *scratchpad_cell.get()
+            : empty_mem;
 
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
     auto &diff_src_iter_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER);
@@ -1383,6 +1462,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     // initialize diff_state to 0
     if (aprop == prop_kind::backward) {
+        ws_set(ctx, compute_stream, workspace_, ws_dhG1_offset_,
+                rnn_utils::dhG1_gru, 0.0f, rnn.ws_dhG1_size);
         ws_set(ctx, compute_stream, workspace_, ws_diff_states_offset_,
                 rnn_utils::diff_states, 0.0f, rnn.ws_diff_states_size);
     }
