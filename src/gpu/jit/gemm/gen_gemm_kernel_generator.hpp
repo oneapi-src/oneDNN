@@ -23,7 +23,10 @@
 #include "common/float16.hpp"
 #include "common/utils.hpp"
 
+namespace ngen {
 using half = dnnl::impl::float16_t;
+}
+
 #define NGEN_HALF_TYPE
 
 #include "../ngen/ngen_interface.hpp"
