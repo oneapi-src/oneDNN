@@ -47,6 +47,7 @@ struct nchw8c_across_t {
     */
     int H, W, version;
     nchw8c_across_t(int h, int w, int v) : H(h), W(w), version(v) {}
+    nchw8c_across_t() : nchw8c_across_t(0, 0, 0) {}
 };
 
 struct within_config_t {
@@ -54,16 +55,27 @@ struct within_config_t {
     const format_tag_t dat_tag;
     within_config_t(int h, int w, int c, int s, format_tag_t dat_tag)
         : H(h), W(w), C(c), size(s), dat_tag(dat_tag) {}
+    within_config_t() : within_config_t(0, 0, 0, 0, dnnl_format_tag_undef) {}
 };
 
 struct nchw_across_t {
     int C, HW, tail;
     nchw_across_t(int c, int hw, int t) : C(c), HW(hw), tail(t) {}
+    nchw_across_t() : nchw_across_t(0, 0, 0) {}
 };
 
 struct nhwc_across_t {
     int C;
     nhwc_across_t(int c) : C(c) {}
+    nhwc_across_t() : nhwc_across_t(0) {}
+};
+
+enum class lrn_config_t {
+    none = 0,
+    nchw8c_across,
+    within_config,
+    nchw_across,
+    nhwc_across,
 };
 
 template <class Derived>
@@ -167,8 +179,14 @@ private:
     const Vmm valpha_ = Vmm(0);
     const Vmm vk_ = Vmm(1);
 
+    lrn_config_t config_;
+    const nchw8c_across_t nchw8c_across_;
+    const within_config_t within_config_;
+    const nchw_across_t nchw_across_;
+    const nhwc_across_t nhwc_across_;
     float alpha_;
     float k_;
+    prop_kind_t pk_;
     static constexpr int stack_space_needed_ = 11 * 4 * sizeof(float) + 16;
 };
 
@@ -201,6 +219,11 @@ private:
     void within_body(int hoff, int Hoff, int woff, int Woff, int stride,
             prop_kind_t pk, int reg_block = 1, int single_pixel_offset = 0);
     void move_data_pointers(int pixel_count, prop_kind_t pk);
+
+    lrn_config_t config_;
+    const nchw8c_across_t nchw8c_across_;
+    const within_config_t within_config_;
+    prop_kind_t pk_ = prop_kind::backward;
 
     float nalphabeta_;
     int use_h_parallelizm_;
