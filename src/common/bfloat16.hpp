@@ -22,6 +22,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
+#include <type_traits>
+
+#include "common/bit_cast.hpp"
 
 #include "dnnl.h"
 
@@ -34,13 +37,38 @@ struct bfloat16_t {
     constexpr bfloat16_t(uint16_t r, bool) : raw_bits_(r) {}
     bfloat16_t(float f) { (*this) = f; }
 
+    template <typename IntegerType,
+            typename SFINAE = typename std::enable_if<
+                    std::is_integral<IntegerType>::value>::type>
+    bfloat16_t(const IntegerType i)
+        : raw_bits_ {convert_bits_of_normal_or_zero(
+                utils::bit_cast<uint32_t>(static_cast<float>(i)))} {}
+
     bfloat16_t DNNL_API &operator=(float f);
+
+    template <typename IntegerType,
+            typename SFINAE = typename std::enable_if<
+                    std::is_integral<IntegerType>::value>::type>
+    bfloat16_t &operator=(const IntegerType i) {
+        // Call the converting constructor that is optimized for integer types,
+        // followed by the fast defaulted move-assignment operator.
+        return (*this) = bfloat16_t {i};
+    }
 
     DNNL_API operator float() const;
 
     bfloat16_t &operator+=(const float a) {
         (*this) = float {*this} + a;
         return *this;
+    }
+
+private:
+    // Converts the 32 bits of a normal float or zero to the bits of a bfloat16.
+    static constexpr uint16_t convert_bits_of_normal_or_zero(
+            const uint32_t bits) {
+        return uint32_t {
+                       bits + uint32_t {0x7FFFU + (uint32_t {bits >> 16} & 1U)}}
+        >> 16;
     }
 };
 
