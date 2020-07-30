@@ -1508,7 +1508,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const int oh_blk_size_param = jcp.is_relo ? 1 : 10;
     const int oh_step_size = jcp.nb_oh_blocking * jcp.oh_per_tile;
     const int oh_blk_size = rnd_up(oh_blk_size_param, oh_step_size);
-    jcp.oh_blk_size = rnd_up(nstl::min(jcp.oh, oh_blk_size), jcp.oh_per_tile);
+    jcp.oh_blk_size = rnd_up(nstl::min(jcp.oh, oh_blk_size), oh_step_size);
     // ihp means here input buffer height including padding - the number
     // of input rows required for computation of jcp.oh_blk_size output rows;
     // if input row doesn't participate in computation of output any row it
