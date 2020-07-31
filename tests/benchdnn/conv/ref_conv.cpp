@@ -30,6 +30,8 @@ void exec_conv(get_args_func get_args, const prb_t *p, dnnl_primitive_t c_ref,
     SAFE_V(dnnl_primitive_get_primitive_desc(c_ref, &pd_ref));
     SAFE_V(dnnl_primitive_desc_query(
             pd_ref, dnnl_query_engine, 0, &engine_ref));
+    const auto &scratchpad_md = *dnnl_primitive_desc_query_md(
+            pd_ref, dnnl_query_exec_arg_md, DNNL_ARG_SCRATCHPAD);
 
     dnn_mem_t src_ref(src_m.md_, engine_ref, (void *)src_m);
     dnn_mem_t wei_ref(wei_m.md_, engine_ref, (void *)wei_m);
@@ -37,8 +39,10 @@ void exec_conv(get_args_func get_args, const prb_t *p, dnnl_primitive_t c_ref,
     if (p->dir & FLAG_BIA)
         bia_ref = dnn_mem_t(bia_m.md_, engine_ref, (void *)bia_m);
     dnn_mem_t dst_ref(dst_m.md_, engine_ref, (void *)dst_m);
+    dnn_mem_t scratchpad(scratchpad_md, engine_ref);
 
     args_t args = get_args(p, src_ref, wei_ref, bia_ref, dst_ref);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad);
     SAFE_V(execute_and_wait(c_ref, args));
 }
 
