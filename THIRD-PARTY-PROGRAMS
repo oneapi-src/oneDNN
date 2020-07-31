@@ -12,13 +12,12 @@ govern your use of the third party programs as set forth in in the
 Third party programs and their corresponding required notices and/or license
 terms are listed below.
 
-3-clause BSD License
-====================
-
-XByak (src/cpu/xbyak/)
-----------------------
+--------------------------------------------------------------------------------
+1. XByak (src/cpu/xbyak/)
 Copyright (c) 2007 MITSUNARI Shigeo
 All rights reserved.
+
+3-Clause BSD License
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -43,7 +42,8 @@ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 THE POSSIBILITY OF SUCH DAMAGE.
------------------------------------------------------------------------------
+
+
 ソースコード形式かバイナリ形式か、変更するかしないかを問わず、以下の条件を満た
 す場合に限り、再頒布および使用が許可されます。
 
@@ -64,14 +64,16 @@ THE POSSIBILITY OF SUCH DAMAGE.
 損害、間接損害、偶発的な損害、特別損害、懲罰的損害、または結果損害について、
 一切責任を負わないものとします。
 
-gtest (tests/gtests/gtest/)
----------------------------
+--------------------------------------------------------------------------------
+2. Googletest (tests/gtests/gtest/)
 Copyright 2005, Google Inc.
 Copyright 2006, Google Inc.
 Copyright 2007, Google Inc.
 Copyright 2008, Google Inc.
 Copyright 2015, Google Inc.
 All rights reserved.
+
+3-Clause BSD License
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -99,10 +101,12 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-ittnotify (src/cpu/jit_utils/jitprofiling/)
--------------------------------------------
+--------------------------------------------------------------------------------
+3. Instrumentation and Tracing Technology API (src/cpu/jit_utils/jitprofiling/)
 Copyright (c) 2011, Intel Corporation
 All rights reserved.
+
+3-Clause BSD License
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -114,7 +118,7 @@ modification, are permitted provided that the following conditions are met:
    this list of conditions and the following disclaimer in the documentation
    and/or other materials provided with the distribution.
 
-3. Neither the name of the copyright holder nor the names of its
+3. Neither the name of Intel Corporation nor the names of its
    contributors may be used to endorse or promote products derived from
    this software without specific prior written permission.
 
@@ -129,11 +133,13 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-CMake (cmake/FindOpenCL.cmake, cmake/FindBLAS.cmake)
-----------------------------------------------------
+--------------------------------------------------------------------------------
+4. CMake (cmake/FindOpenCL.cmake, cmake/FindBLAS.cmake)
 CMake - Cross Platform Makefile Generator
 Copyright 2000-2020 Kitware, Inc. and Contributors
 All rights reserved.
+
+3-Clause BSD License
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
@@ -162,46 +168,19 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Apache License, Version 2.0
-===========================
-
-Font Roboto (doc/assets/fonts/Roboto*)
---------------------------------------
+--------------------------------------------------------------------------------
+5. Font Roboto (doc/assets/fonts/Roboto*)
 Copyright 2011 The Roboto Project Authors (https://github.com/google/roboto)
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
 MathJax (doc/assets/mathjax)
-----------------------------
 Copyright (c) 2009-2018 The MathJax Consortium
 Copyright (c) 2015-2017 Martin Hensel
-Copyright (c) 2007, Apostolos Syropoulos (<asyropoulos@yahoo.com),
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Copyright (c) 2007, Apostolos Syropoulos (<asyropoulos@yahoo.com)
 
 ComputeCPP SDK (cmake/FindComputeCpp.cmake)
--------------------------------------------
 Copyright 2016-2018 Codeplay Software Ltd.
+
+Apache License, Version 2.0
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -392,14 +371,9 @@ limitations under the License.
 
    END OF TERMS AND CONDITIONS
 
-Boost Software License, Version 1.0
-===================================
-
-Boost C++ Libraries (src/common/primitive_hashing.hpp)
-------------------------------------------------------
+--------------------------------------------------------------------------------
+6. Boost C++ Libraries (src/common/primitive_hashing.hpp)
 Copyright 2005-2014 Daniel James.
-
-Distributed under the Boost Software License, Version 1.0.
 
 Boost Software License - Version 1.0 - August 17th, 2003
 
@@ -425,43 +399,16 @@ FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
 ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
-MIT License
-===========
-
-Intel(R) Graphics Compute Runtime for oneAPI Level Zero and OpenCL(TM) Driver
-(src/gpu/jit/ngen/npack/{elf_structs,hash}.hpp)
------------------------------------------------------------------------------
-
-MIT License
-
+--------------------------------------------------------------------------------
+7. Intel(R) Graphics Compute Runtime for oneAPI Level Zero and OpenCL(TM)
+Driver (src/gpu/jit/ngen/npack/{elf_structs,hash}.hpp)
 Copyright (c) 2018 Intel Corporation
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-
 Intel(R) Graphics Compiler (src/gpu/jit/ngen/npack/neo_structs.hpp)
--------------------------------------------------------------------
+Copyright (c) 2019 Intel Corporation
 
 MIT License
 
-Copyright (c) 2019 Intel Corporation
-
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -480,15 +427,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-SIL Open Font License (OFL)
-===========================
-
-Font Awesome (doc/assets/fonts/fontawesome*)
---------------------------------------------
+--------------------------------------------------------------------------------
+8. Font Awesome (doc/assets/fonts/fontawesome*)
 Copyright Dave Gandy 2016. All rights reserved. 
 
 Font Lato (doc/assets/fonts/lato*)
-----------------------------------
 Copyright (c) 2010-2014 by tyPoland Lukasz Dziedzic (team@latofonts.com)
 with Reserved Font Name "Lato"
 
@@ -496,9 +439,7 @@ This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
 http://scripts.sil.org/OFL
 
------------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
------------------------------------------------------------
 
 PREAMBLE
 The goals of the Open Font License (OFL) are to stimulate worldwide

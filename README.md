@@ -329,7 +329,7 @@ terms.
 3-clause BSD license:
 * [Xbyak](https://github.com/herumi/xbyak)
 * [gtest](https://github.com/google/googletest)
-* [ittnotify](https://github.com/intel/IntelSEAPI)
+* [Instrumentation and Tracing Technology API (ITT API)](https://github.com/intel/IntelSEAPI/tree/master/ittnotify)
 * [CMake](https://github.com/Kitware/CMake)
 
 Apache License Version 2.0:
