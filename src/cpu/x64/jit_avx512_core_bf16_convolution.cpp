@@ -133,7 +133,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
                         nb_groups, n, jcp.mb, dummy, 1);
             } else if (jcp.loop_order == loop_gncw) {
                 int dummy {0};
-                nd_iterator_jump(start, end, g, nb_groups, n, jcp.mb, occ,
+                nd_iterator_jump(start, end, gg, nb_groups, n, jcp.mb, occ,
                         oc_chunks, owb, jcp.nb_ow, dummy, 1);
             } else if (jcp.loop_order == loop_nhwcg) {
                 ++start;
