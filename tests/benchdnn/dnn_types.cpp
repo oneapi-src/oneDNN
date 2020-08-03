@@ -31,6 +31,8 @@
 #include "src/common/math_utils.hpp"
 #include "tests/test_thread.hpp"
 
+#define BENCHDNN_DNNL_ARG_UNDEF 0
+
 namespace tag {
 const char *abx {"abx"};
 const char *any {"any"};
@@ -128,18 +130,17 @@ const char *data_kind2str(data_kind_t kind) {
     return "incorrect data kind";
 }
 
-static const std::map<int, const char *> arg2str = {
+static const std::map<int, const char *> supported_args {
         {DNNL_ARG_SRC, "src"},
         {DNNL_ARG_SRC_1, "src1"},
         {DNNL_ARG_WEIGHTS, "wei"},
         {DNNL_ARG_DST, "dst"},
 };
 
-#define DNNL_ARG_UNDEF 0
 static int str2arg(const std::string &str) {
-    for (const auto &arg : arg2str)
+    for (const auto &arg : supported_args)
         if (str.compare(arg.second) == 0) return arg.first;
-    return DNNL_ARG_UNDEF;
+    return BENCHDNN_DNNL_ARG_UNDEF;
 }
 
 policy_t attr_t::str2policy(const std::string &str) {
@@ -228,7 +229,7 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
         auto arg = str2arg(get_substr(s, start_pos));
-        if (arg == DNNL_ARG_UNDEF || start_pos == std::string::npos
+        if (arg == BENCHDNN_DNNL_ARG_UNDEF || start_pos == std::string::npos
                 || start_pos >= s.size())
             return FAIL;
 
@@ -255,7 +256,7 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
         auto arg = str2arg(get_substr(s, start_pos));
-        if (arg == DNNL_ARG_UNDEF || start_pos == std::string::npos
+        if (arg == BENCHDNN_DNNL_ARG_UNDEF || start_pos == std::string::npos
                 || start_pos >= s.size())
             return FAIL;
 
@@ -331,7 +332,8 @@ pk_t attr_t::post_ops_t::str2kind(const std::string &str) {
         if (s.compare(e.kind_name) == 0) return e.kind;
     }
     assert(!"unknown attr_t::post_ops_t::kind_t kind");
-    return kind_table[KIND_TOTAL].kind;
+    const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
+    return kind_table[table_size - 1].kind;
 }
 
 const char *attr_t::post_ops_t::kind2str(pk_t kind) {
@@ -339,7 +341,8 @@ const char *attr_t::post_ops_t::kind2str(pk_t kind) {
         if (e.kind == kind) return e.kind_name;
     }
     assert(!"unknown attr::post_ops::kind");
-    return kind_table[KIND_TOTAL].kind_name;
+    const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
+    return kind_table[table_size - 1].kind_name;
 }
 
 dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(pk_t kind) {
@@ -347,7 +350,8 @@ dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(pk_t kind) {
         if (e.kind == kind) return e.dnnl_kind;
     }
     assert(!"unknown attr::post_ops::kind");
-    return kind_table[KIND_TOTAL].dnnl_kind;
+    const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
+    return kind_table[table_size - 1].dnnl_kind;
 }
 
 int attr_t::post_ops_t::from_str(const std::string &s) {
@@ -522,7 +526,7 @@ std::ostream &operator<<(
         if (!first) s << '_';
         first = false;
 
-        s << arg2str.at(point.first) << ":" << point.second.policy << ":"
+        s << supported_args.at(point.first) << ":" << point.second.policy << ":"
           << point.second.value;
         if (point.second.runtime) s << '*';
     }
@@ -537,7 +541,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales) {
             if (!first) s << '_';
             first = false;
 
-            s << arg2str.at(v.first) << ":" << v.second;
+            s << supported_args.at(v.first) << ":" << v.second;
         }
     }
     return s;
@@ -714,9 +718,10 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
     }
 
     if (!attr.post_ops.is_def()) {
-        const auto &po = attr.post_ops;
         dnnl_post_ops_t ops;
         DNN_SAFE_V(dnnl_post_ops_create(&ops));
+
+        const auto &po = attr.post_ops;
         for (int idx = 0; idx < po.len(); ++idx) {
             const auto &e = po.entry[idx];
             if (e.is_sum_kind()) {
@@ -995,4 +1000,4 @@ stream_t::~stream_t() {
     DNN_SAFE_V(dnnl_stream_destroy(stream_));
 }
 
-#undef DNNL_ARG_UNDEF
+#undef BENCHDNN_DNNL_ARG_UNDEF

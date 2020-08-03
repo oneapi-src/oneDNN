@@ -292,8 +292,17 @@ float *generate_oscales(const attr_t::scale_t &oscale, int N) {
 
 int32_t *generate_zero_points(
         int arg, const attr_t::zero_points_t &zero_points, int N) {
-    const auto &e = zero_points.get(arg);
     if (zero_points.is_def(arg)) return NULL;
+
+    const auto &e = zero_points.get(arg);
+    if (e.policy == policy_t::COMMON) {
+        int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
+        SAFE_V(zp != NULL ? OK : FAIL);
+        zp[0] = e.value;
+        return zp;
+    }
+
+    assert(e.policy == policy_t::PER_OC);
 
     int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t) * N, 64);
     SAFE_V(zp != NULL ? OK : FAIL);

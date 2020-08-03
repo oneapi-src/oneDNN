@@ -167,6 +167,7 @@ struct attr_t {
             return s == scales.end() ? scale_t() : s->second;
         }
 
+        bool is_def(int arg) const { return get(arg).is_def(); }
         bool is_def() const { return scales.empty(); }
         int from_str(const std::string &s);
 

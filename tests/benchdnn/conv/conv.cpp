@@ -461,17 +461,27 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
     dnnl_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
     dnnl_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};
+    dnnl_dim_t *src_dims = p->ndims == 5
+            ? src_3d_dims
+            : p->ndims == 4 ? src_2d_dims : src_1d_dims;
 
     dnnl_dims_t wei_1d_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kw};
     dnnl_dims_t wei_2d_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kh, p->kw};
     dnnl_dims_t wei_3d_dims
             = {p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh, p->kw};
+    dnnl_dim_t *wei_dims = p->ndims == 5
+            ? &wei_3d_dims[!p->has_groups]
+            : p->ndims == 4 ? &wei_2d_dims[!p->has_groups]
+                            : &wei_1d_dims[!p->has_groups];
 
     dnnl_dims_t bia_dims = {p->oc};
 
     dnnl_dims_t dst_1d_dims = {p->mb, p->oc, p->ow};
     dnnl_dims_t dst_2d_dims = {p->mb, p->oc, p->oh, p->ow};
     dnnl_dims_t dst_3d_dims = {p->mb, p->oc, p->od, p->oh, p->ow};
+    dnnl_dim_t *dst_dims = p->ndims == 5
+            ? dst_3d_dims
+            : p->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
     if (src_dt == dnnl_data_type_undef) src_dt = p->cfg[SRC].dt;
     if (wei_dt == dnnl_data_type_undef) wei_dt = p->cfg[WEI].dt;
@@ -486,27 +496,19 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
     if (dst_tag == dnnl_format_tag_undef)
         dst_tag = convert_tag(p->dtag, p->ndims);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims,
-                     p->ndims == 5 ? src_3d_dims
-                                   : p->ndims == 3 ? src_1d_dims : src_2d_dims,
-                     src_dt, src_tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                     &src_d, p->ndims, src_dims, src_dt, src_tag),
             WARN);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims + p->has_groups,
-                     p->ndims == 5
-                             ? &wei_3d_dims[!p->has_groups]
-                             : p->ndims == 3 ? &wei_1d_dims[!p->has_groups]
-                                             : &wei_2d_dims[!p->has_groups],
-                     wei_dt, wei_tag),
+                     wei_dims, wei_dt, wei_tag),
             WARN);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&bia_d, 1, bia_dims, bia_dt, bia_tag),
             WARN);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims,
-                     p->ndims == 5 ? dst_3d_dims
-                                   : p->ndims == 3 ? dst_1d_dims : dst_2d_dims,
-                     dst_dt, dst_tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                     &dst_d, p->ndims, dst_dims, dst_dt, dst_tag),
             WARN);
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
