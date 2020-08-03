@@ -66,7 +66,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     DNN_SAFE(dnnl_binary_desc_init(&bd, alg, &src_d[0], &src_d[1], &dst_d),
             WARN);
 
-    auto dnnl_attr = create_dnnl_attr(p->attr);
+    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args_t());
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, NULL);

@@ -186,12 +186,6 @@ void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
         ((float *)scales_m)[c] = scales[c];
 }
 
-void maybe_prepare_runtime_scales(
-        dnn_mem_t &scales_m, const attr_bundle_t &attr_bundle) {
-    maybe_prepare_runtime_scales(scales_m, attr_bundle.attr,
-            (int64_t)attr_bundle.oscale.size(), attr_bundle.oscale.data());
-}
-
 void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         const attr_t &attr, int arg, int64_t count,
         const int32_t *zero_points) {

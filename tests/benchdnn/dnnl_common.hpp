@@ -220,7 +220,6 @@ inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
 }
 
 struct dnn_mem_t;
-struct attr_bundle_t;
 
 struct args_t {
     args_t &set(int arg, const dnn_mem_t &mem);
@@ -298,8 +297,6 @@ int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
         int64_t scale_cnt, const float *scales);
-void maybe_prepare_runtime_scales(
-        dnn_mem_t &scales_m, const attr_bundle_t &attr_bundle);
 
 void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         const attr_t &attr, int arg, int64_t count, const int32_t *zero_points);

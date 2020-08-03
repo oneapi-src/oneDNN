@@ -646,74 +646,58 @@ dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str) {
     return dnnl_scratchpad_mode_library;
 }
 
-void attr_bundle_t::init_zero_points() {
-    for (const auto &arg_entry : attr.zero_points)
-        zero_points[arg_entry.first] = {arg_entry.second.value};
+void attr_args_t::prepare_output_scales(
+        const attr_t &attr, const void *vals, int64_t count, int mask) {
+    insert(DNNL_ARG_ATTR_OUTPUT_SCALES, vals, count, mask, attr.oscale.runtime);
 }
 
-int attr_bundle_t::generate(int scale_mask) {
-    dnnl_primitive_attr_t dnnl_attr = create_dnnl_attr(
-            attr, (int64_t)oscale.size(), scale_mask, oscale.data());
-    if (dnnl_attr == NULL) return FAIL;
-
-    scale_mask_ = scale_mask;
-    dnnl_attr_.reset(dnnl_attr, &dnnl_primitive_attr_destroy);
-    initialized_ = true;
-
-    return OK;
-}
-
-dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
-        int scale_mask, const float *scales) {
+dnnl_primitive_attr_t create_dnnl_attr(
+        const attr_t &attr, const attr_args_t &attr_args) {
     dnnl_primitive_attr_t dnnl_attr = NULL;
     DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
     if (!attr.oscale.is_def()) {
-        int64_t count = attr.oscale.policy == policy_t::COMMON ? 1 : scale_cnt;
-        if (scale_mask == -1)
-            scale_mask = attr.oscale.policy == policy_t::PER_OC ? 1 << 1 : 0;
+        const auto &os_args = attr_args.get(DNNL_ARG_ATTR_OUTPUT_SCALES);
+        const auto &policy = attr.oscale.policy;
 
-        const bool runtime = attr.oscale.runtime;
-        SAFE_V(scales == NULL && runtime ? FAIL : OK);
+        const auto count = os_args.get_count(policy);
+        const auto mask = os_args.get_mask(policy);
+        const auto scales = os_args.get_float_ptr();
 
-        float *gen_scs = NULL;
-        if (scales == NULL) {
-            gen_scs = (float *)zmalloc(count * sizeof(float), 64);
-            SAFE_V(gen_scs != NULL ? OK : FAIL);
-            for (int64_t i = 0; i < count; ++i)
-                gen_scs[i] = attr.oscale.scale;
-            scales = gen_scs;
-        }
-
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr,
-                runtime ? 1 : count, scale_mask,
-                runtime ? &DNNL_RUNTIME_F32_VAL : scales));
-        if (gen_scs) zfree(gen_scs);
+        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(
+                dnnl_attr, count, mask, scales));
     } else if (!attr.scales.is_def()) {
-        // Only common policy is supported at this point
-        for (const auto &s : attr.scales.scales) {
-            int64_t count = s.second.policy == policy_t::COMMON ? 1 : scale_cnt;
-            int mask = -1;
-            if (scale_mask == -1)
-                mask = s.second.policy == policy_t::PER_OC ? 1 << 1 : 0;
+        for (const auto &arg : supported_args) {
+            const auto arg_name = arg.first;
+            const auto &as = attr.scales;
+            if (as.is_def(arg_name)) continue;
+
+            const auto &e = as.get(arg_name);
+            // Only common policy is supported in the library at this point
+            int64_t count = 1;
+            int mask = attr_t::get_default_mask(e.policy);
+            const float *scales = &e.scale;
 
             DNN_SAFE_V(dnnl_primitive_attr_set_scales(
-                    dnnl_attr, s.first, count, mask, &s.second.scale));
+                    dnnl_attr, arg_name, count, mask, scales));
         }
     }
 
     if (!attr.zero_points.is_def()) {
-        for (const auto &zero_points : attr.zero_points) {
-            const bool runtime = zero_points.second.runtime;
-            const auto mask = zero_points.second.policy == policy_t::PER_DIM_1
-                    ? 1 << 1
-                    : 0;
-            SAFE_V((runtime == true || mask == 0) ? OK : FAIL);
+        for (const auto &arg : supported_args) {
+            const auto arg_name = arg.first;
+            const auto &zp = attr.zero_points;
+            if (zp.is_def(arg_name)) continue;
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(dnnl_attr,
-                    zero_points.first, /* count */ 1, mask,
-                    runtime ? &DNNL_RUNTIME_S32_VAL
-                            : &zero_points.second.value));
+            const auto &e = zp.get(arg_name);
+            // Only common policy/single RT value are supported in the library
+            // at this point
+            int64_t count = 1;
+            int mask = attr_t::get_default_mask(e.policy);
+            const auto values = e.runtime ? &DNNL_RUNTIME_S32_VAL : &e.value;
+
+            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(
+                    dnnl_attr, arg_name, count, mask, values));
         }
     }
 

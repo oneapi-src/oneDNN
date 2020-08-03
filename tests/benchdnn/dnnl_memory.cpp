@@ -23,9 +23,9 @@
 
 #include "tests/test_thread.hpp"
 
-int dnn_mem_t::reorder(const dnn_mem_t &rhs, const attr_bundle_t *attr_bundle) {
+int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
     if (this == &rhs) return OK;
-    return execute_reorder(rhs, *this, attr_bundle);
+    return execute_reorder(rhs, *this, attr);
 }
 
 #if defined(_WIN32) && !defined(__GNUC__)
