@@ -94,9 +94,9 @@ static const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::ref_lrn_bwd_t),
 
         // Inner Product
-        INSTANCE(ocl::convolution_inner_product_fwd_t),
         INSTANCE(ocl::gemm_x8s8s32x_inner_product_fwd_t),
         INSTANCE(ocl::gemm_inner_product_fwd_t),
+        INSTANCE(ocl::convolution_inner_product_fwd_t),
         INSTANCE(ocl::gemm_inner_product_bwd_data_t),
         INSTANCE(ocl::gemm_inner_product_bwd_weights_t),
         INSTANCE(ocl::ref_inner_product_fwd_t),
