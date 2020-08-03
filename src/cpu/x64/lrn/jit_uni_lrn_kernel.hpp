@@ -30,12 +30,12 @@ namespace x64 {
 struct bf16_emulation_t;
 struct jit_args_fwd_t {
     const void *src;
-    void *dst, *scratch;
+    void *dst, *scratch, *bwd_intermediate_res;
 };
 
 struct jit_args_bwd_t {
-    const float *src, *diff_dst, *scratch;
-    float *diff_src;
+    const void *src, *diff_dst, *scratch, *bwd_intermediate_res;
+    void *diff_src;
 };
 
 struct nchw8c_across {
@@ -66,37 +66,84 @@ struct nhwc_across {
     nhwc_across(int c) : C(c) {}
 };
 
-template <cpu_isa_t isa, data_type_t d_type>
-struct jit_uni_lrn_fwd_kernel : public jit_generator {
-public:
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_fwd_kernel)
+template <class Derived>
+class jit_uni_lrn_kernel_t; // primary template
 
-    jit_uni_lrn_fwd_kernel(const within_config &J, float A, float K,
+template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
+        cpu_isa_t isa, data_type_t d_type>
+class jit_uni_lrn_kernel_t<Derived<isa, d_type>> : public jit_generator {
+public:
+    jit_uni_lrn_kernel_t(
+            void *code_ptr = nullptr, size_t code_size = MAX_CODE_SIZE);
+    jit_uni_lrn_kernel_t(const within_config &J, void *code_ptr = nullptr,
+            size_t code_size = MAX_CODE_SIZE);
+
+    ~jit_uni_lrn_kernel_t();
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_kernel_t);
+    static constexpr int VECTOR_LENGTH = (isa == avx512_common ? 16 : 8);
+
+protected:
+    using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,
+            Xbyak::Zmm>::type;
+
+    void load_constant(float constant, const Vmm &v_constant,
+            const Xbyak::Xmm &x_constant);
+    void load_data(const Vmm &reg, const Xbyak::Address &p);
+    void store_data(const Xbyak::Address &p, const Vmm &reg);
+    void within_loop(
+            const within_config &config, int max_reg_blocks, prop_kind_t pk);
+    void within_body_reg_blocked(int loop_count, int max_reg_block, int hoff,
+            int Hoff, int woff, int Woff, int stride, prop_kind_t pk);
+
+    const bool emulate_bfloat_;
+    const Xbyak::Zmm bf16_emu_reserv_1_ = Xbyak::Zmm(28);
+    const Xbyak::Zmm bf16_emu_reserv_2_ = Xbyak::Zmm(29);
+    const Xbyak::Reg64 bf16_emu_scratch_ = this->rax;
+    const Xbyak::Zmm bf16_emu_reserv_3_ = Xbyak::Zmm(30);
+    const Xbyak::Zmm bf16_emu_reserv_4_ = Xbyak::Zmm(31);
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
+    const Xbyak::Reg64 h_ = this->r9;
+    const Xbyak::Reg64 w_ = this->r10;
+    const Xbyak::Reg64 imm_addr64_ = this->rbx;
+    int single_pixel_offset_
+            = VECTOR_LENGTH * sizeof(typename prec_traits<d_type>::type);
+    int tempIdx_ = 0;
+    int reg_block_idx_ = 0;
+};
+
+template <cpu_isa_t isa, data_type_t d_type>
+class jit_uni_lrn_fwd_kernel_t
+    : public jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<isa, d_type>> {
+public:
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_fwd_kernel_t)
+
+    jit_uni_lrn_fwd_kernel_t(const within_config &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel(const nchw8c_across &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const nchw8c_across &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel(const nhwc_across &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const nhwc_across &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel(const nchw_across &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const nchw_across &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    ~jit_uni_lrn_fwd_kernel();
+    ~jit_uni_lrn_fwd_kernel_t();
     void operator()(jit_args_fwd_t *arg) { ker(arg); }
     void (*ker)(jit_args_fwd_t *);
 
-    static constexpr int VECTOR_LENGTH = isa == avx512_common ? 16 : 8;
+private:
+    using Base = jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<isa, d_type>>;
+
+public:
+    using Base::VECTOR_LENGTH;
 
 private:
-    using Vmm = typename utils::conditional<isa == avx2, Xbyak::Ymm,
-            Xbyak::Zmm>::type;
-    void load_data(Vmm reg, const Xbyak::Address p);
-    void store_data(const Xbyak::Address p, Vmm reg);
-    void load_constant(float constant, Vmm v_constant, Xbyak::Xmm x_constant);
-    void within_body_reg_blocked(int loop_count, int max_reg_block, int hoff,
-            int Hoff, int woff, int Woff, int stride, prop_kind_t pk);
+    friend Base;
+    using typename Base::Vmm;
+
     void within_body(int hoff, int Hoff, int woff, int Woff, int stride,
             prop_kind_t pk, int reg_block = 1, int single_pixel_offset = 0);
     void nchw_body(int tail, int HW, prop_kind_t pk, Xbyak::Ymm ymask,
@@ -108,59 +155,62 @@ private:
             Xbyak::Xmm xtail_hi);
     void move_data_pointers(int pixel_count, prop_kind_t pk);
 
-    const Xbyak::Reg64 src_ = rax;
-    const Xbyak::Reg64 dst_ = r8;
-    const Xbyak::Reg64 scratch_ = rdx;
-    const Xbyak::Reg64 imm_addr64_ = rbx;
-    const Xbyak::Reg64 store_addr_ = rbp;
+    const Xbyak::Reg64 src_ = this->rax;
+    const Xbyak::Reg64 dst_ = this->r8;
+    const Xbyak::Reg64 scratch_ = this->r14;
+    const Xbyak::Reg64 bwd_intermediate_res_ = this->rdx;
+    const Xbyak::Reg64 store_addr_ = this->rbp;
 
-    const Xbyak::Xmm xalpha_ = xmm0;
-    const Xbyak::Xmm xk_ = xmm1;
-    const Xbyak::Ymm yk_ = ymm1;
+    const Xbyak::Xmm xalpha_ = this->xmm0;
+    const Xbyak::Xmm xk_ = this->xmm1;
+    const Xbyak::Ymm yk_ = this->ymm1;
     const Vmm valpha_ = Vmm(0);
     const Vmm vk_ = Vmm(1);
-    const Xbyak::Reg64 h_ = r9;
-    const Xbyak::Reg64 w_ = r10;
-
-    const Xbyak::Zmm bf16_emu_reserv_1_ = Xbyak::Zmm(28);
-    const Xbyak::Zmm bf16_emu_reserv_2_ = Xbyak::Zmm(29);
-    const Xbyak::Reg64 bf16_emu_scratch_ = rax;
-    const Xbyak::Zmm bf16_emu_reserv_3_ = Xbyak::Zmm(30);
-    const Xbyak::Zmm bf16_emu_reserv_4_ = Xbyak::Zmm(31);
-    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     float alpha_;
     float k_;
-    int tempIdx_ = 0;
-    int reg_block_idx_ = 0;
     static constexpr int stack_space_needed_ = 11 * 4 * sizeof(float) + 16;
-    const int single_pixel_offset_
-            = VECTOR_LENGTH * sizeof(typename prec_traits<d_type>::type);
 };
 
-template <cpu_isa_t isa>
-struct jit_uni_lrn_bwd_kernel_f32 : public jit_generator {
-    Xbyak::Reg64 src_ = rax;
-    Xbyak::Reg64 diffsrc = r8;
-    Xbyak::Reg64 diffdst = r9;
-    Xbyak::Reg64 workspace = rdx;
-    Xbyak::Reg64 imm_addr64_ = rsi;
+template <cpu_isa_t isa, data_type_t d_type>
+class jit_uni_lrn_bwd_kernel_t
+    : public jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<isa, d_type>> {
+public:
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_bwd_kernel_t)
 
-    Xbyak::Xmm xnalphabeta = xmm0;
-    Xbyak::Ymm ynalphabeta = ymm0;
-
-    float nalphabeta;
-
-    int use_h_parallelizm;
-
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_bwd_kernel_f32)
-
-    jit_uni_lrn_bwd_kernel_f32(const struct nchw8c_across &J, float A, float B,
+    jit_uni_lrn_bwd_kernel_t(const nchw8c_across &J, float A, float B,
             int use_h_parallel, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
+    jit_uni_lrn_bwd_kernel_t(const within_config &J, float A, float B,
+            void *code_ptr = nullptr,
+            size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
     void operator()(jit_args_bwd_t *arg) { ker(arg); }
     void (*ker)(jit_args_bwd_t *);
+
+private:
+    using Base = jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<isa, d_type>>;
+
+public:
+    using Base::VECTOR_LENGTH;
+
+private:
+    friend Base;
+    using typename Base::Vmm;
+
+    void within_body(int hoff, int Hoff, int woff, int Woff, int stride,
+            prop_kind_t pk, int reg_block = 1, int single_pixel_offset = 0);
+    void move_data_pointers(int pixel_count, prop_kind_t pk);
+
+    float nalphabeta_;
+    int use_h_parallelizm_;
+    const Xbyak::Reg64 src_ = this->rax;
+    const Xbyak::Reg64 diffsrc_ = this->r13;
+    const Xbyak::Reg64 diffdst_ = this->r14;
+    const Xbyak::Reg64 scratch_ = this->r15;
+    const Xbyak::Reg64 bwd_intermediate_res_ = this->rdx;
+    const Xbyak::Xmm xnalphabeta_ = this->xmm0;
+    const Vmm vnalphabeta_ = Vmm(0);
 };
 
 } // namespace x64

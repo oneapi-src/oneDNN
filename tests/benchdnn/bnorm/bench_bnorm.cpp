@@ -35,9 +35,13 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_flags : s.flags)
     for_(const auto &i_mb : s.mb)
     for_(const auto &i_post_ops : s.post_ops)
+    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for (auto i_inplace : s.inplace) {
-        attr_t attr(i_post_ops);
+        attr_t attr;
+        attr.insert(i_post_ops);
+        attr.insert(i_scratchpad_mode);
         handle_legacy_attr(attr, s.attr);
+
         const prb_t p(s.desc, i_mb, i_dir, i_dt, i_tag, i_flags, i_inplace,
                 attr, s.check_alg, s.debug_check_ws);
         std::stringstream ss;
@@ -84,6 +88,8 @@ int bench(int argc, char **argv) {
                         def.debug_check_ws, str2bool, argv[0], "debug-check-ws")
                 || parse_attr(s.attr, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
+                || parse_attr_scratchpad_mode(
+                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_test_pattern_match(s.pattern, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])

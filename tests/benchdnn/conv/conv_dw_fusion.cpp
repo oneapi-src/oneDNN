@@ -115,7 +115,7 @@ dnnl_primitive_attr_t create_dnnl_fusion_attr(
     }
 
     DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
-            dnnl_attr, scratchpad_mode));
+            dnnl_attr, attr.scratchpad_mode));
 
     return dnnl_attr;
 }

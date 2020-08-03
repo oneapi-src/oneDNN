@@ -47,3 +47,10 @@
 --bia_mask=4,6
 
 --attr-oscale=common:1.25 --attr-post-ops='sum;linear:2:-1'   mb3m30n20k1
+
+# test regressions
+--reset
+
+--cfg=f32
+--wtag=ba
+m96n512k8

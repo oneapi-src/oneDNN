@@ -23,8 +23,10 @@ namespace cpu {
 
 inline void msan_unpoison_matrix(
         void *C, dim_t M, dim_t N, dim_t LDC, size_t typesize) {
-    assert(C != nullptr && M > 0 && N > 0 && LDC >= M && typesize);
+    assert(C != nullptr && LDC >= M && typesize);
     if (msan_enabled && C != nullptr) {
+        if ((M <= 0) || (N <= 0)) return;
+
         size_t col_size = M * typesize;
         size_t col_stride = LDC * typesize;
         uint8_t *col = (uint8_t *)C;

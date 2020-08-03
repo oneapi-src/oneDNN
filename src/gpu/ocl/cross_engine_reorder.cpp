@@ -115,11 +115,16 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     status_t status = status::success;
     if (pd()->desc()->src_engine_kind == engine_kind::gpu) {
         // GPU -> CPU or GPU -> GPU
+        memory_desc_wrapper dst_mdw(pd()->dst_md());
         if (pd()->do_reorder_) {
-            status = exec_reorder(ctx.input(DNNL_ARG_FROM), wspace.get());
+            if (pd()->beta() != 0.f) {
+                status = compute_stream->copy(
+                        dst, *wspace->memory_storage(), dst_mdw.size());
+            }
+            if (status == status::success)
+                status = exec_reorder(ctx.input(DNNL_ARG_FROM), wspace.get());
         }
         if (status == status::success) {
-            memory_desc_wrapper dst_mdw(pd()->dst_md());
             status = compute_stream->copy(
                     pd()->do_reorder_ ? *wspace->memory_storage() : src, dst,
                     dst_mdw.size());

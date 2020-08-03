@@ -50,5 +50,5 @@
 --cfg=u8s8f32
 --runtime_m=0 --runtime_n=0 --runtime_k=0
 --bia_dt=undef
---attr-oscale=common:1 --attr-zero-points=src:common:-1*_wei:common:1_dst:common:2;       --batch=shapes_2d
+--attr-oscale=common:1 --attr-zero-points=src:common:-1*_wei:common:1_dst:common:2       --batch=shapes_2d
 

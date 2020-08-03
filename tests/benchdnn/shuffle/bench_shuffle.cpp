@@ -33,8 +33,12 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_dt : s.dt)
     for_(const auto &i_tag : s.tag)
     for_(const auto &i_group : s.group)
-    for (const auto &i_axis : s.axis) {
-        const prb_t p(s.dims, i_dir, i_dt, i_tag, i_axis, i_group);
+    for_(const auto &i_axis : s.axis)
+    for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
+        attr_t attr;
+        attr.insert(i_scratchpad_mode);
+
+        const prb_t p(s.dims, i_dir, i_dt, i_tag, i_axis, i_group, attr);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -70,6 +74,8 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(
                         s.group, def.group, atoi, argv[0], "group")
                 || parse_axis(s.axis, def.axis, argv[0])
+                || parse_attr_scratchpad_mode(
+                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

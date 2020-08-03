@@ -34,6 +34,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_alg : s.alg)
     for_(const auto &i_scales : s.scales)
     for_(const auto &i_post_ops : s.post_ops)
+    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for (auto i_inplace : s.inplace) {
         bool ok = s.sdims.size() == i_sdt.size()
                 && i_sdt.size() == i_stag.size()
@@ -43,8 +44,12 @@ void check_correctness(const settings_t &s) {
         ok = i_alg > alg_t::BINARY_START && i_alg < alg_t::BINARY_END;
         if (!ok) SAFE_V(FAIL);
 
-        attr_t attr(i_scales, i_post_ops);
+        attr_t attr;
+        attr.insert(i_scales);
+        attr.insert(i_post_ops);
+        attr.insert(i_scratchpad_mode);
         handle_legacy_attr(attr, s.attr);
+
         const prb_t p(s.sdims, i_sdt, i_ddt, i_stag, i_alg, i_inplace, attr);
         std::stringstream ss;
         ss << p;
@@ -84,6 +89,8 @@ int bench(int argc, char **argv) {
                 || parse_attr(s.attr, argv[0])
                 || parse_attr_scales(s.scales, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
+                || parse_attr_scratchpad_mode(
+                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

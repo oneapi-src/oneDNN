@@ -60,7 +60,7 @@ static inline int float2int(float x) {
 }
 
 static inline void tc_configure_tile(
-        tileconfig_t *tc, int t, int rows, int cols) {
+        palette_config_t *tc, int t, int rows, int cols) {
     tc->rows[t] = rows;
     tc->cols[t] = cols;
 }
@@ -901,6 +901,27 @@ public:
     void uni_vpackuswb(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
         vpackuswb(x1, x2, op);
+    }
+
+    void uni_vpinsrb(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op, const int imm) {
+        assert(x1.getIdx() == x2.getIdx());
+        pinsrb(x1, op, imm);
+    }
+
+    void uni_vpinsrb(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op, const int imm) {
+        vpinsrb(x1, x2, op, imm);
+    }
+
+    void uni_vpextrb(
+            const Xbyak::Operand &op, const Xbyak::Xmm &x, const int imm) {
+        pextrb(op, x, imm);
+    }
+
+    void uni_vpextrb(
+            const Xbyak::Operand &op, const Xbyak::Ymm &x, const int imm) {
+        vpextrb(op, x, imm);
     }
 
     void mul_by_const(

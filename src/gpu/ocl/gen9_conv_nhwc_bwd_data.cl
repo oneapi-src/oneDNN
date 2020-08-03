@@ -48,11 +48,10 @@
     }
 
 inline DATA_T read_oc_block(const __global DATA_T *ptr, int off) {
-    const int local_id = get_local_id(0);
+    const int local_id = get_sub_group_local_id();
 #if OC_WO_PADDING % OC_BLOCK != 0
     int tail = OC_WO_PADDING - off;
     if (tail < OC_BLOCK) {
-        const int local_id = get_local_id(0);
         return (local_id < tail) ? AS_DATA_T(ptr[local_id]) : DATA_ZERO;
     }
 #endif
@@ -63,7 +62,7 @@ inline DATA_T read_oc_block(const __global DATA_T *ptr, int off) {
 }
 
 inline void write_ic_block(__global DATA_T *ptr, int off, DATA_T value) {
-    const int local_id = get_local_id(0);
+    const int local_id = get_sub_group_local_id();
 #if IC_WO_PADDING % IC_BLOCK != 0
     int tail = IC_WO_PADDING - off;
     if (tail < IC_BLOCK) {
@@ -84,14 +83,14 @@ __kernel void
 gen9_conv_nhwc_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
         __global DATA_T *diff_dst, __global DATA_T *bias) {
     const int sp = get_group_id(1);
-    const int local_id = get_local_id(0);
+    const int local_id = get_sub_group_local_id();
     const int icb_mb = get_group_id(2);
-    const int mb = icb_mb / (G * IC / ICB);
-    const int icb = icb_mb % (G * IC / ICB);
+    const int mb = icb_mb / (G * IC_PADDED / ICB);
+    const int icb = icb_mb % (G * IC_PADDED / ICB);
     const int ic = (icb * ICB) / IC_BLOCK + get_group_id(0);
 
-    const int g = ic / (IC / IC_BLOCK);
-    const int gic = ic % (IC / IC_BLOCK);
+    const int g = ic / (IC_PADDED / IC_BLOCK);
+    const int gic = ic % (IC_PADDED / IC_BLOCK);
 
 #if CASE_3D
     const int id = sp / (IWB * IH);
@@ -107,14 +106,15 @@ gen9_conv_nhwc_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
     DATA_T blockC00[IW_BLOCK] = {DATA_ZERO};
 
     if (WITH_BIAS) {
-        const int bg_off = ic * IC_BLOCK + local_id;
-        DATA_T b = (IC_WO_PADDING % IC_BLOCK == 0 || bg_off < IC_WO_PADDING)
-                ? bias[bg_off]
+        const int bg_off = g * IC;
+        const int bc_off = gic * IC_BLOCK + local_id;
+        DATA_T b = (IC_WO_PADDING % IC_BLOCK == 0 || bc_off < IC_WO_PADDING)
+                ? bias[bg_off + bc_off]
                 : DATA_ZERO;
         unroll_for(int i = 0; i < IW_BLOCK; ++i) { blockC00[i] = b; }
     }
     wei += gic * KD * KH * KW * OC_BLOCK * IC_BLOCK
-            + g * IC * OC * KD * KH * KW;
+            + g * IC_PADDED * OC_PADDED * KD * KH * KW;
 #if KH != 1 || KW != 1 || KD != 1
     for (int kd = 0; kd < KD; ++kd)
         for (int kh = 0; kh < KH; ++kh)
@@ -216,7 +216,7 @@ gen9_conv_nhwc_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
                                 blockC00[i], blockA[i], blockB00, blockB01);
                     }
                     diff_dst1 += OC_BLOCK;
-                    wei1 += KD * KH * KW * OC_BLOCK * IC;
+                    wei1 += KD * KH * KW * OC_BLOCK * IC_PADDED;
                     ocb += OC_BLOCK;
                 } while (ocb < OC);
 

@@ -183,6 +183,7 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
 endforeach()
 
 add_subdirectory(api)
+add_subdirectory(internals)
 
 if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)

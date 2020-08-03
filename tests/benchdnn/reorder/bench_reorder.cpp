@@ -33,14 +33,21 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_dtag : s.dtag)
     for_(const auto &i_oflag : s.oflag)
     for_(const auto &i_alg : s.alg)
+    for_(const auto &i_cross_engine : s.cross_engine)
     for_(const auto &i_oscale : s.oscale)
     for_(const auto &i_zero_points : s.zero_points)
     for_(const auto &i_post_ops : s.post_ops)
+    for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for (auto i_runtime_dim_mask : s.runtime_dim_mask) {
         reorder_conf_t reorder_conf {s.dims, i_stag, i_dtag};
         dt_conf_t iconf = dt2cfg(i_sdt);
         dt_conf_t oconf = dt2cfg(i_ddt);
-        attr_t attr(i_oscale, i_zero_points, i_post_ops);
+
+        attr_t attr;
+        attr.insert(i_oscale);
+        attr.insert(i_zero_points);
+        attr.insert(i_post_ops);
+        attr.insert(i_scratchpad_mode);
         handle_legacy_attr(attr, s.attr);
 
         if (attr.oscale.policy == policy_t::PER_OC) {
@@ -51,13 +58,20 @@ void check_correctness(const settings_t &s) {
                     fflush(stderr);
             SAFE_V(FAIL);
         }
+        if (i_cross_engine != NONE && engine_tgt_kind == dnnl_cpu) {
+            fprintf(stderr,
+                    "ERROR: reorder driver: `cpu` engine does not support "
+                    "other values but `none`.\n"),
+                    fflush(stderr);
+            SAFE_V(FAIL);
+        }
 
         std::vector<float> attr_scale = {attr.oscale.scale};
         auto &scale = attr.oscale.scale == 0 ? s.def_scale : attr_scale;
 
         for (const auto &i_scale : scale) {
             const prb_t p(reorder_conf, iconf, oconf, attr, i_alg, i_oflag,
-                    i_runtime_dim_mask, i_scale);
+                    i_cross_engine, i_runtime_dim_mask, i_scale);
             std::stringstream ss;
             ss << p;
             const std::string cpp_pstr = ss.str();
@@ -99,10 +113,14 @@ int bench(int argc, char **argv) {
                 || parse_alg(s.alg, def.alg, str2alg, argv[0])
                 || parse_vector_option(
                         s.def_scale, def.def_scale, atof, argv[0], "def-scales")
+                || parse_vector_option(s.cross_engine, def.cross_engine,
+                        str2cross_engine, argv[0], "cross-engine")
                 || parse_attr(s.attr, argv[0])
                 || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
                 || parse_attr_post_ops(s.post_ops, argv[0])
+                || parse_attr_scratchpad_mode(
+                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

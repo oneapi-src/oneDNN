@@ -295,18 +295,28 @@ void flags2str(char *str, int len, int written, unsigned flags) {
     DPRINT(str, len, written, "flags:%s", s.c_str());
 }
 
+// needed for cross engine reorder dump
+void verbose_templ_no_engine_kind(char *buffer, dnnl_primitive_kind_t prim_kind,
+        const char *impl_str, dnnl_prop_kind_t prop_kind, const char *data_str,
+        const char *attr_str, const char *aux_str, const char *prb_str,
+        int written = 0) {
+    MAYBE_UNUSED(verbose_templ_no_engine_kind);
+    DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s,%s,%s,%s,%s,%s,%s",
+            dnnl_prim_kind2str(prim_kind), impl_str,
+            dnnl_prop_kind2str(prop_kind), data_str, attr_str, aux_str,
+            prb_str);
+}
+
 void verbose_templ(char *buffer, const engine_t *engine,
         dnnl_primitive_kind_t prim_kind, const char *impl_str,
         dnnl_prop_kind_t prop_kind, const char *data_str, const char *attr_str,
         const char *aux_str, const char *prb_str) {
     MAYBE_UNUSED(verbose_templ);
     int written = 0;
-    dnnl_engine_kind_t engine_kind;
-    engine_kind = engine->kind();
-    DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s,%s,%s,%s,%s,%s,%s,%s",
-            dnnl_engine_kind2str(engine_kind), dnnl_prim_kind2str(prim_kind),
-            impl_str, dnnl_prop_kind2str(prop_kind), data_str, attr_str,
-            aux_str, prb_str);
+    DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s,",
+            dnnl_engine_kind2str(engine->kind()));
+    verbose_templ_no_engine_kind(buffer, prim_kind, impl_str, prop_kind,
+            data_str, attr_str, aux_str, prb_str, written);
 }
 
 template <typename pd_t>
@@ -681,7 +691,39 @@ static void init_info_mem(const engine_t *e, pd_t *s, char *buffer) {
 
 template <typename pd_t>
 static void init_info_reorder(engine_t *e, pd_t *s, char *buffer) {
-    init_info_mem(e, s, buffer);
+    DECL_DAT_AUX_PRB_STRS();
+
+    { // src
+        for (int i = 0; i < s->n_inputs(); ++i) {
+            auto md = s->src_md(i);
+            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " ");
+        }
+    }
+    { // dst
+        auto md = s->dst_md();
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "dst_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+    }
+
+    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
+
+    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->dst_md());
+
+    auto src_ek = s->desc()->src_engine_kind;
+    auto dst_ek = s->desc()->dst_engine_kind;
+
+    if (src_ek != dst_ek) {
+        int written = 0;
+        DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s2%s,",
+                dnnl_engine_kind2str(src_ek), dnnl_engine_kind2str(dst_ek));
+        verbose_templ_no_engine_kind(buffer, s->kind(), s->name(),
+                prop_kind::undef, dat_str, attr_str, aux_str, prb_str, written);
+    } else {
+        verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef,
+                dat_str, attr_str, aux_str, prb_str);
+    }
 }
 
 template <typename pd_t>
@@ -926,6 +968,7 @@ static void init_info_matmul(const engine_t *e, pd_t *s, char *buffer) {
     DPRINT_RT("m", s->M());
     DPRINT_RT("n", s->N());
     DPRINT_RT("k", s->K());
+#undef DPRINT_RT
 
     verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
             attr_str, aux_str, prb_str);

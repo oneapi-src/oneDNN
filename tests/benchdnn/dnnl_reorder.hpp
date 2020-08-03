@@ -77,6 +77,13 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
                 CRIT);
     }
 
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                r_pd, dnnl_query_exec_arg_md, index);
+    };
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    dnn_mem_t scratchpad(scratchpad_md, src.engine());
+
     DNN_SAFE(dnnl_primitive_create(&r, r_pd), CRIT);
     dnnl_status_t pd_destroy_status = dnnl_primitive_desc_destroy(r_pd);
     if (pd_destroy_status != dnnl_success) {
@@ -96,6 +103,7 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     args_t args;
     args.set(DNNL_ARG_FROM, *r_src);
     args.set(DNNL_ARG_TO, *r_dst);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad);
     args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);

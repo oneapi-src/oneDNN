@@ -37,7 +37,7 @@ using namespace dnnl::impl::format_tag;
         MAYBE_UNUSED(irb_off); \
     } else { \
         for (int irb = 0; irb < reg_block; irb++) { \
-            const int irb_off = irb * single_pixel_offset_; \
+            const int irb_off = irb * this->single_pixel_offset_; \
             statement; \
             MAYBE_UNUSED(irb_off); \
         } \
@@ -45,48 +45,221 @@ using namespace dnnl::impl::format_tag;
 
 using namespace Xbyak;
 
-template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_fwd_kernel<isa, d_type>::load_data(
-        Vmm reg, const Xbyak::Address p) {
+template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
+        cpu_isa_t isa, data_type_t d_type>
+jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
+        void *code_ptr, size_t code_size)
+    : jit_generator(code_ptr, code_size)
+    , emulate_bfloat_(isa == avx512_common
+              && d_type == dnnl::impl::data_type::bf16
+              && !mayiuse(avx512_core_bf16))
+    , bf16_emu_(
+              emulate_bfloat_ ? utils::make_unique<bf16_emulation_t>(this,
+                      bf16_emu_reserv_1_, bf16_emu_reserv_2_,
+                      bf16_emu_reserv_3_, bf16_emu_scratch_, bf16_emu_reserv_4_)
+                              : nullptr) {
+
+    if (bf16_emu_) bf16_emu_->init_vcvtneps2bf16();
+}
+
+template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
+        cpu_isa_t isa, data_type_t d_type>
+jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
+        const within_config &config, void *code_ptr, size_t code_size)
+    : jit_uni_lrn_kernel_t(code_ptr, code_size) {
+    if (config.dat_tag == nhwc)
+        single_pixel_offset_
+                = config.C * sizeof(typename prec_traits<d_type>::type);
+}
+
+template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
+        cpu_isa_t isa, data_type_t d_type>
+jit_uni_lrn_kernel_t<Derived<isa, d_type>>::~jit_uni_lrn_kernel_t() = default;
+
+template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
+        cpu_isa_t isa, data_type_t d_type>
+void jit_uni_lrn_kernel_t<Derived<isa, d_type>>::within_loop(
+        const within_config &config, int max_reg_blocks, prop_kind_t pk) {
+    const auto derived_ptr = static_cast<Derived<isa, d_type> *>(this);
+
+    const int lower_bound = (config.size - 1) / 2,
+              upper_bound = config.size - lower_bound - 1;
+
+    int pixel_count = 0;
+
+    for (int i = 0; i < lower_bound; ++i) {
+        pixel_count = 0;
+        for (int j = 0; j < lower_bound; ++j)
+            derived_ptr->within_body(-i, upper_bound, -j, upper_bound, config.W,
+                    pk, 1, pixel_count++ * this->single_pixel_offset_);
+        derived_ptr->move_data_pointers(pixel_count, pk);
+
+        within_body_reg_blocked(config.W - config.size + 1, max_reg_blocks, -i,
+                upper_bound, -lower_bound, upper_bound, config.W, pk);
+
+        pixel_count = 0;
+        for (int j = config.W - upper_bound; j < config.W; ++j)
+            derived_ptr->within_body(-i, upper_bound, -lower_bound,
+                    config.W - 1 - j, config.W, pk, 1,
+                    pixel_count++ * this->single_pixel_offset_);
+        derived_ptr->move_data_pointers(pixel_count, pk);
+    }
+
+    this->mov(h_, config.H - config.size + 1);
+    Label lrn_loop_h;
+    this->L(lrn_loop_h);
+    pixel_count = 0;
+    for (int j = 0; j < lower_bound; ++j)
+        derived_ptr->within_body(-lower_bound, upper_bound, -j, upper_bound,
+                config.W, pk, 1, pixel_count++ * this->single_pixel_offset_);
+    derived_ptr->move_data_pointers(pixel_count, pk);
+
+    within_body_reg_blocked(config.W - config.size + 1, max_reg_blocks,
+            -lower_bound, upper_bound, -lower_bound, upper_bound, config.W, pk);
+
+    pixel_count = 0;
+    for (int j = config.W - upper_bound; j < config.W; ++j)
+        derived_ptr->within_body(-lower_bound, upper_bound, -lower_bound,
+                config.W - 1 - j, config.W, pk, 1,
+                pixel_count++ * this->single_pixel_offset_);
+    derived_ptr->move_data_pointers(pixel_count, pk);
+
+    this->dec(h_);
+    this->cmp(h_, 0);
+    this->jne(lrn_loop_h, this->T_NEAR);
+
+    for (int i = config.H - upper_bound; i < config.H; ++i) {
+        pixel_count = 0;
+        for (int j = 0; j < lower_bound; ++j)
+            derived_ptr->within_body(-lower_bound, config.H - 1 - i, -j,
+                    upper_bound, config.W, pk, 1,
+                    pixel_count++ * this->single_pixel_offset_);
+        derived_ptr->move_data_pointers(pixel_count, pk);
+
+        within_body_reg_blocked(config.W - config.size + 1, max_reg_blocks,
+                -lower_bound, config.H - 1 - i, -lower_bound, upper_bound,
+                config.W, pk);
+
+        pixel_count = 0;
+        for (int j = config.W - upper_bound; j < config.W; ++j)
+            derived_ptr->within_body(-lower_bound, config.H - 1 - i,
+                    -lower_bound, config.W - 1 - j, config.W, pk, 1,
+                    pixel_count++ * this->single_pixel_offset_);
+        derived_ptr->move_data_pointers(pixel_count, pk);
+    }
+}
+
+template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
+        cpu_isa_t isa, data_type_t d_type>
+void jit_uni_lrn_kernel_t<Derived<isa, d_type>>::within_body_reg_blocked(
+        int loop_count, int max_reg_blocks, int hoff, int Hoff, int woff,
+        int Woff, int stride, prop_kind_t pk) {
+
+    const auto derived_ptr = static_cast<Derived<isa, d_type> *>(this);
+    Label reg_block_compute_loop;
+
+    const auto res = std::div(loop_count, max_reg_blocks);
+    if (res.quot) {
+        this->mov(this->w_, res.quot);
+        this->L(reg_block_compute_loop);
+        derived_ptr->within_body(
+                hoff, Hoff, woff, Woff, stride, pk, max_reg_blocks, 0);
+        derived_ptr->move_data_pointers(max_reg_blocks, pk);
+        this->dec(this->w_);
+        this->cmp(this->w_, 0);
+        this->jne(reg_block_compute_loop, this->T_NEAR);
+    }
+    if (res.rem) {
+        derived_ptr->within_body(
+                hoff, Hoff, woff, Woff, stride, pk, res.rem, 0);
+        derived_ptr->move_data_pointers(res.rem, pk);
+    }
+}
+
+template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
+        cpu_isa_t isa, data_type_t d_type>
+void jit_uni_lrn_kernel_t<Derived<isa, d_type>>::load_data(
+        const Vmm &reg, const Xbyak::Address &p) {
     this->uni_vmovups(reg, p);
 }
 
-template <>
-void jit_uni_lrn_fwd_kernel<avx512_common,
-        dnnl::impl::data_type::bf16>::load_data(Vmm reg,
-        const Xbyak::Address p) {
-    this->vpmovzxwd(reg, p);
-    this->vpslld(reg, reg, 0x10);
+template <typename Gen, typename Reg, typename Addr>
+void load_bf16_data(Gen generator, const Reg &reg, const Addr &p) {
+    generator->vpmovzxwd(reg, p);
+    generator->vpslld(reg, reg, 0x10);
 }
 
-template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_fwd_kernel<isa, d_type>::store_data(
-        const Xbyak::Address addr, Vmm reg) {
+template <>
+void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<avx512_common,
+        dnnl::impl::data_type::bf16>>::load_data(const Vmm &reg,
+        const Xbyak::Address &p) {
+    load_bf16_data(this, reg, p);
+}
+
+template <>
+void jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<avx512_common,
+        dnnl::impl::data_type::bf16>>::load_data(const Vmm &reg,
+        const Xbyak::Address &p) {
+    load_bf16_data(this, reg, p);
+}
+
+template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
+        cpu_isa_t isa, data_type_t d_type>
+void jit_uni_lrn_kernel_t<Derived<isa, d_type>>::store_data(
+        const Xbyak::Address &addr, const Vmm &reg) {
     this->uni_vmovups(addr, reg);
 }
 
-template <>
-void jit_uni_lrn_fwd_kernel<avx512_common,
-        dnnl::impl::data_type::bf16>::store_data(const Xbyak::Address addr,
-        Zmm zr) {
+template <typename Gen, typename Bf16Emu>
+void store_bf16_data(
+        Gen generator, Bf16Emu emu, const Xbyak::Address &addr, const Zmm &zr) {
     const Ymm yr = Ymm(zr.getIdx());
     if (mayiuse(avx512_core_bf16))
-        vcvtneps2bf16(yr, zr);
+        generator->vcvtneps2bf16(yr, zr);
     else
-        bf16_emu_->vcvtneps2bf16(yr, zr);
-    vmovdqu16(addr, yr);
+        emu->vcvtneps2bf16(yr, zr);
+    generator->vmovdqu16(addr, yr);
+}
+
+template <>
+void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<avx512_common,
+        dnnl::impl::data_type::bf16>>::store_data(const Xbyak::Address &addr,
+        const Zmm &zr) {
+    store_bf16_data(this, bf16_emu_.get(), addr, zr);
+}
+
+template <>
+void jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<avx512_common,
+        dnnl::impl::data_type::bf16>>::store_data(const Xbyak::Address &addr,
+        const Zmm &zr) {
+    store_bf16_data(this, bf16_emu_.get(), addr, zr);
+}
+
+template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
+        cpu_isa_t isa, data_type_t d_type>
+void jit_uni_lrn_kernel_t<Derived<isa, d_type>>::load_constant(
+        float constant, const Vmm &v_constant, const Xbyak::Xmm &x_constant) {
+    this->mov(this->imm_addr64_, float2int(constant));
+    this->uni_vmovq(x_constant, this->imm_addr64_);
+    this->vbroadcastss(v_constant, x_constant);
+}
+
+template <>
+void jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<sse41,
+        dnnl::impl::data_type::f32>>::load_constant(float constant,
+        const Vmm &v_constant, const Xbyak::Xmm &x_constant) {
+    this->mov(this->imm_addr64_, float2int(constant));
+    this->uni_vmovq(x_constant, this->imm_addr64_);
+    this->shufps(x_constant, x_constant, 0);
 }
 
 //////////////////////////////////////////////////////////////////////////////
 // forward kernel
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_fwd_kernel<isa, d_type>::within_body(int hoff, int Hoff,
+void jit_uni_lrn_fwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
         int woff, int Woff, int stride, prop_kind_t pk, const int reg_block,
         int pixel_offset) {
 
-    static const bool emulateBfloat
-            = (isa == avx512_common && d_type == dnnl::impl::data_type::bf16
-                    && !mayiuse(avx512_core_bf16));
     static const std::array<Vmm, 3> vsum {{Vmm(2), Vmm(11), Vmm(20)}};
     static const std::array<Vmm, 3> vsum2 {{Vmm(3), Vmm(12), Vmm(21)}};
     static const std::array<Vmm, 3> vdst {{Vmm(4), Vmm(13), Vmm(22)}};
@@ -95,70 +268,81 @@ void jit_uni_lrn_fwd_kernel<isa, d_type>::within_body(int hoff, int Hoff,
                     {{Vmm(18), Vmm(15), Vmm(16), Vmm(17), Vmm(29), Vmm(30)}},
                     {{Vmm(23), Vmm(24), Vmm(25), Vmm(26), Vmm(28), Vmm(31)}}}};
     static const std::array<Vmm, 3> vscratch = {{Vmm(10), Vmm(19), Vmm(27)}};
-    MAYBE_UNUSED(
-            emulateBfloat); // workaround for gcc8.1 compiler unused variable
     static const std::size_t used_tmp_regs
-            = emulateBfloat ? vtmp[0].size() - 2 : vtmp[0].size();
+            = this->emulate_bfloat_ ? vtmp[0].size() - 2 : vtmp[0].size();
 
-    IRB_LOOP(uni_vxorps(vsum[irb], vsum[irb], vsum[irb]));
+    IRB_LOOP(this->uni_vxorps(vsum[irb], vsum[irb], vsum[irb]));
     for (int i = hoff; i <= Hoff; ++i) {
         for (int j = woff; j <= Woff; ++j) {
             if (i == 0 && j == 0) {
-                IRB_LOOP(load_data(
-                        vdst[irb], ptr[src_ + pixel_offset + irb_off]));
-                IRB_LOOP(vfmadd231ps(vsum[irb], vdst[irb], vdst[irb]));
+                IRB_LOOP(this->load_data(
+                        vdst[irb], this->ptr[src_ + pixel_offset + irb_off]));
+                IRB_LOOP(this->vfmadd231ps(vsum[irb], vdst[irb], vdst[irb]));
             } else {
-                const auto idx = tempIdx_ % used_tmp_regs;
-                IRB_LOOP(load_data(vtmp[irb][idx],
-                        ptr[(src_ + pixel_offset + irb_off)
-                                + (i * stride + j) * single_pixel_offset_]));
-                IRB_LOOP(
-                        vfmadd231ps(vsum[irb], vtmp[irb][idx], vtmp[irb][idx]));
-                ++tempIdx_;
+                const auto idx = this->tempIdx_ % used_tmp_regs;
+                IRB_LOOP(this->load_data(vtmp[irb][idx],
+                        this->ptr[(src_ + pixel_offset + irb_off)
+                                + (i * stride + j)
+                                        * this->single_pixel_offset_]));
+                IRB_LOOP(this->vfmadd231ps(
+                        vsum[irb], vtmp[irb][idx], vtmp[irb][idx]));
+                ++(this->tempIdx_);
             }
         }
     }
 
-    tempIdx_ = tempIdx_ % used_tmp_regs;
+    this->tempIdx_ = this->tempIdx_ % used_tmp_regs;
 
-    IRB_LOOP(vfmadd132ps(vsum[irb], vk_, valpha_)); // ysum <- ysum*valpha_+yk_
-    IRB_LOOP(vmovaps(vscratch[irb], vsum[irb]));
+    IRB_LOOP(this->vfmadd132ps(
+            vsum[irb], vk_, valpha_)); // ysum <- ysum*valpha_+yk_
+    IRB_LOOP(this->vmovaps(vscratch[irb], vsum[irb]));
+
+    IRB_LOOP(this->vmulps(vsum2[irb], vsum[irb], vsum[irb]));
+    IRB_LOOP(this->vmulps(
+            vsum[irb], vsum[irb], vsum2[irb])); // ysum = (ysum*valpha_+yk_)^3;
+    IRB_LOOP(this->vsqrtps(vsum[irb], vsum[irb]));
+    IRB_LOOP(this->vsqrtps(
+            vsum[irb], vsum[irb])); // ysum = (ysum*valpha_+yk_)^0.75
+    IRB_LOOP(this->vdivps(
+            vdst[irb], vdst[irb], vsum[irb])); // ydst <- ydst / ysum
+
     if (pk != prop_kind::forward_inference) {
-        IRB_LOOP(store_data(ptr[scratch_], vscratch[irb]));
+        IRB_LOOP(this->store_data(
+                this->ptr[scratch_ + pixel_offset + irb_off], vsum[irb]));
+        IRB_LOOP(this->vdivps(vscratch[irb], vdst[irb], vscratch[irb]));
+        IRB_LOOP(this->store_data(
+                this->ptr[bwd_intermediate_res_ + pixel_offset + irb_off],
+                vscratch[irb]));
     }
 
-    IRB_LOOP(vmulps(vsum2[irb], vsum[irb], vsum[irb]));
-    IRB_LOOP(vmulps(
-            vsum[irb], vsum[irb], vsum2[irb])); // ysum = (ysum*valpha_+yk_)^3;
-    IRB_LOOP(vsqrtps(vsum[irb], vsum[irb]));
-    IRB_LOOP(vsqrtps(vsum[irb], vsum[irb])); // ysum = (ysum*valpha_+yk_)^0.75
-    IRB_LOOP(vdivps(vdst[irb], vdst[irb], vsum[irb])); // ydst <- ydst / ysum
-    IRB_LOOP(store_data(ptr[dst_ + pixel_offset + irb_off], vdst[irb]));
+    IRB_LOOP(this->store_data(
+            this->ptr[dst_ + pixel_offset + irb_off], vdst[irb]));
+
     if (isa == avx512_common)
         this->reg_block_idx_ = (this->reg_block_idx_ % vsum.size()) + 1;
 }
 
 template <>
-void jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::within_body(
+void jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::within_body(
         int hoff, int Hoff, int woff, int Woff, int stride, prop_kind_t pk,
         int reg_block, int pixel_offset) {
 
-    static const Xbyak::Xmm xtmp_lo = xmm12;
-    static const Xbyak::Xmm xtmp_hi = xmm13;
-    static const Xbyak::Xmm xsum_lo = xmm8;
-    static const Xbyak::Xmm xsum_hi = xmm9;
-    static const Xbyak::Xmm xdst_lo = xmm10;
-    static const Xbyak::Xmm xdst_hi = xmm11;
-    static const Xbyak::Xmm xsum2_lo = xmm14;
-    static const Xbyak::Xmm xsum2_hi = xmm15;
+    const Xbyak::Xmm &xtmp_lo = this->xmm2;
+    const Xbyak::Xmm &xtmp_hi = this->xmm3;
+    const Xbyak::Xmm &xsum_lo = this->xmm4;
+    const Xbyak::Xmm &xsum_hi = this->xmm5;
+    const Xbyak::Xmm &xdst_lo = this->xmm6;
+    const Xbyak::Xmm &xdst_hi = this->xmm7;
+    const Xbyak::Xmm &xsum2_lo = this->xmm8;
+    const Xbyak::Xmm &xsum2_hi = this->xmm9;
 
     xorps(xsum_lo, xsum_lo);
     xorps(xsum_hi, xsum_hi);
     for (int i = hoff; i <= Hoff; ++i) {
         for (int j = woff; j <= Woff; ++j) {
             if (i == 0 && j == 0) {
-                movups(xdst_lo, ptr[src_]);
-                movups(xdst_hi, ptr[src_ + 4 * sizeof(float)]);
+                movups(xdst_lo, ptr[src_ + pixel_offset]);
+                movups(xdst_hi, ptr[src_ + pixel_offset + 4 * sizeof(float)]);
                 mulps(xdst_lo, xdst_lo);
                 mulps(xdst_hi, xdst_hi);
                 addps(xsum_lo, xdst_lo);
@@ -166,191 +350,85 @@ void jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::within_body(
             } else {
                 movups(xtmp_lo,
                         ptr[src_ + pixel_offset
-                                + (i * stride + j) * VECTOR_LENGTH * 4]);
+                                + (i * stride + j) * single_pixel_offset_]);
                 movups(xtmp_hi,
                         ptr[src_ + pixel_offset
-                                + (i * stride + j) * VECTOR_LENGTH * 4
+                                + (i * stride + j) * single_pixel_offset_
                                 + 4 * sizeof(float)]);
-                mulps(xtmp_lo, xtmp_lo);
-                mulps(xtmp_hi, xtmp_hi);
-                addps(xsum_lo, xtmp_lo);
-                addps(xsum_hi, xtmp_hi);
+                this->mulps(xtmp_lo, xtmp_lo);
+                this->mulps(xtmp_hi, xtmp_hi);
+                this->addps(xsum_lo, xtmp_lo);
+                this->addps(xsum_hi, xtmp_hi);
             }
         }
     }
-    mulps(xsum_lo, xalpha_);
-    mulps(xsum_hi, xalpha_);
-    addps(xsum_lo, xk_);
-    addps(xsum_hi, xk_); // xsum <- xsum*xalpha_+xk_
-    movaps(xtmp_lo, xsum_lo);
-    movaps(xtmp_hi, xsum_hi);
+    this->mulps(xsum_lo, xalpha_);
+    this->mulps(xsum_hi, xalpha_);
+    this->addps(xsum_lo, xk_);
+    this->addps(xsum_hi, xk_); // xsum <- xsum*xalpha_+xk_
+    this->movaps(xtmp_lo, xsum_lo);
+    this->movaps(xtmp_hi, xsum_hi);
     if (pk != prop_kind::forward_inference) {
-        movups(ptr[scratch_ + pixel_offset], xtmp_lo);
-        movups(ptr[scratch_ + pixel_offset + 4 * sizeof(float)], xtmp_hi);
+        this->movups(this->ptr[scratch_ + pixel_offset], xtmp_lo);
+        this->movups(this->ptr[scratch_ + pixel_offset + 4 * sizeof(float)],
+                xtmp_hi);
     }
-    movaps(xsum2_lo, xsum_lo);
-    movaps(xsum2_hi, xsum_hi);
-    mulps(xsum2_lo, xsum_lo);
-    mulps(xsum2_hi, xsum_hi);
-    mulps(xsum_lo, xsum2_lo);
-    mulps(xsum_hi, xsum2_hi); // xsum = (xsum*xalpha_+xk_)^3;
+    this->movaps(xsum2_lo, xsum_lo);
+    this->movaps(xsum2_hi, xsum_hi);
+    this->mulps(xsum2_lo, xsum_lo);
+    this->mulps(xsum2_hi, xsum_hi);
+    this->mulps(xsum_lo, xsum2_lo);
+    this->mulps(xsum_hi, xsum2_hi); // xsum = (xsum*xalpha_+xk_)^3;
 
-    sqrtps(xsum_lo, xsum_lo);
-    sqrtps(xsum_hi, xsum_hi);
-    sqrtps(xsum_lo, xsum_lo);
-    sqrtps(xsum_hi, xsum_hi); // xsum = (xsum*xalpha_+xk_)^0.75
+    this->sqrtps(xsum_lo, xsum_lo);
+    this->sqrtps(xsum_hi, xsum_hi);
+    this->sqrtps(xsum_lo, xsum_lo);
+    this->sqrtps(xsum_hi, xsum_hi); // xsum = (xsum*xalpha_+xk_)^0.75
 
-    movups(xdst_lo, ptr[src_ + pixel_offset]);
-    movups(xdst_hi, ptr[src_ + pixel_offset + 4 * sizeof(float)]);
-    divps(xdst_lo, xsum_lo);
-    divps(xdst_hi, xsum_hi); // xdst <- xdst / xsum
+    this->movups(xdst_lo, this->ptr[src_ + pixel_offset]);
+    this->movups(xdst_hi, this->ptr[src_ + pixel_offset + 4 * sizeof(float)]);
+    this->divps(xdst_lo, xsum_lo);
+    this->divps(xdst_hi, xsum_hi); // xdst <- xdst / xsum
 
-    movups(ptr[dst_ + pixel_offset], xdst_lo);
-    movups(ptr[dst_ + pixel_offset + 4 * sizeof(float)], xdst_hi);
+    this->movups(this->ptr[dst_ + pixel_offset], xdst_lo);
+    this->movups(this->ptr[dst_ + pixel_offset + 4 * sizeof(float)], xdst_hi);
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_fwd_kernel<isa, d_type>::move_data_pointers(
+void jit_uni_lrn_fwd_kernel_t<isa, d_type>::move_data_pointers(
         int pixel_count, prop_kind_t pk) {
 
-    const int pixel_offset = single_pixel_offset_ * pixel_count;
-    add(src_, pixel_offset);
-    add(dst_, pixel_offset);
-    if (pk != prop_kind::forward_inference) add(scratch_, pixel_offset);
-}
-
-template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_fwd_kernel<isa, d_type>::within_body_reg_blocked(
-        int loop_count, int max_reg_blocks, int hoff, int Hoff, int woff,
-        int Woff, int stride, prop_kind_t pk) {
-
-    Label label_t;
-
-    const auto res = std::div(loop_count, max_reg_blocks);
-    if (res.quot) {
-        mov(w_, res.quot);
-        L(label_t);
-        within_body(hoff, Hoff, woff, Woff, stride, pk, max_reg_blocks, 0);
-        move_data_pointers(max_reg_blocks, pk);
-        dec(w_);
-        cmp(w_, 0);
-        jne(label_t, T_NEAR);
-    }
-    if (res.rem) {
-        within_body(hoff, Hoff, woff, Woff, stride, pk, res.rem, 0);
-        move_data_pointers(res.rem, pk);
+    const int pixel_offset = this->single_pixel_offset_ * pixel_count;
+    this->add(src_, pixel_offset);
+    this->add(dst_, pixel_offset);
+    if (pk != prop_kind::forward_inference) {
+        this->add(scratch_, pixel_offset);
+        this->add(bwd_intermediate_res_, pixel_offset);
     }
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_fwd_kernel<isa, d_type>::load_constant(
-        float constant, Vmm v_constant, Xbyak::Xmm x_constant) {
-    mov(imm_addr64_, float2int(constant));
-    uni_vmovq(x_constant, imm_addr64_);
-    vbroadcastss(v_constant, x_constant);
-}
-
-template <>
-void jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::load_constant(
-        float constant, Vmm v_constant, Xbyak::Xmm x_constant) {
-    mov(imm_addr64_, float2int(constant));
-    uni_vmovq(x_constant, imm_addr64_);
-    shufps(x_constant, x_constant, 0);
-}
-
-template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_lrn_fwd_kernel<isa, d_type>::jit_uni_lrn_fwd_kernel(
-        const within_config &J, float A, float K, prop_kind_t pk,
+jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
+        const within_config &config, float A, float K, prop_kind_t pk,
         void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size)
-    , alpha_(A)
-    , k_(K)
-    , single_pixel_offset_(J.dat_tag == nhwc
-                      ? J.C * sizeof(typename prec_traits<d_type>::type)
-                      : VECTOR_LENGTH
-                              * sizeof(typename prec_traits<d_type>::type)) {
-
-    if (isa == avx512_common && d_type == dnnl::impl::data_type::bf16
-            && !mayiuse(avx512_core_bf16)) {
-        bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
-                bf16_emu_reserv_1_, bf16_emu_reserv_2_, bf16_emu_reserv_3_,
-                bf16_emu_scratch_, bf16_emu_reserv_4_);
-        bf16_emu_->init_vcvtneps2bf16();
-    }
-
-    static const int max_reg_blocks = isa == avx512_common ? 3 : 1;
-
+    : Base(config, code_ptr, code_size), alpha_(A), k_(K) {
     this->preamble();
 
 #define GET_OFF(field) offsetof(jit_args_fwd_t, field)
-    mov(src_, ptr[this->param1 + GET_OFF(src)]);
-    mov(dst_, ptr[this->param1 + GET_OFF(dst)]);
-    if (pk != prop_kind::forward_inference)
-        mov(scratch_, ptr[this->param1 + GET_OFF(scratch)]);
+    this->mov(src_, this->ptr[this->param1 + GET_OFF(src)]);
+    this->mov(dst_, this->ptr[this->param1 + GET_OFF(dst)]);
+    if (pk != prop_kind::forward_inference) {
+        this->mov(scratch_, this->ptr[this->param1 + GET_OFF(scratch)]);
+        this->mov(bwd_intermediate_res_,
+                this->ptr[this->param1 + GET_OFF(bwd_intermediate_res)]);
+    }
 #undef GET_OFF
 
-    load_constant(alpha_, valpha_, xalpha_);
-    load_constant(k_, vk_, xk_);
+    this->load_constant(alpha_, valpha_, xalpha_);
+    this->load_constant(k_, vk_, xk_);
 
-    const int s2 = (J.size - 1) / 2, S2 = J.size - s2 - 1;
-
-    int pixel_count = 0;
-
-    for (int i = 0; i < s2; ++i) {
-        pixel_count = 0;
-        for (int j = 0; j < s2; ++j)
-            within_body(-i, S2, -j, S2, J.W, pk, 1,
-                    pixel_count++ * single_pixel_offset_);
-        move_data_pointers(pixel_count, pk);
-
-        within_body_reg_blocked(
-                J.W - J.size + 1, max_reg_blocks, -i, S2, -s2, S2, J.W, pk);
-
-        pixel_count = 0;
-        for (int j = J.W - S2; j < J.W; ++j)
-            within_body(-i, S2, -s2, J.W - 1 - j, J.W, pk, 1,
-                    pixel_count++ * single_pixel_offset_);
-        move_data_pointers(pixel_count, pk);
-    }
-
-    mov(h_, J.H - J.size + 1);
-    Label lrn_loop_h;
-    L(lrn_loop_h);
-    pixel_count = 0;
-    for (int j = 0; j < s2; ++j)
-        within_body(-s2, S2, -j, S2, J.W, pk, 1,
-                pixel_count++ * single_pixel_offset_);
-    move_data_pointers(pixel_count, pk);
-
-    within_body_reg_blocked(
-            J.W - J.size + 1, max_reg_blocks, -s2, S2, -s2, S2, J.W, pk);
-
-    pixel_count = 0;
-    for (int j = J.W - S2; j < J.W; ++j)
-        within_body(-s2, S2, -s2, J.W - 1 - j, J.W, pk, 1,
-                pixel_count++ * single_pixel_offset_);
-    move_data_pointers(pixel_count, pk);
-
-    dec(h_);
-    cmp(h_, 0);
-    jne(lrn_loop_h, T_NEAR);
-
-    for (int i = J.H - S2; i < J.H; ++i) {
-        pixel_count = 0;
-        for (int j = 0; j < s2; ++j)
-            within_body(-s2, J.H - 1 - i, -j, S2, J.W, pk, 1,
-                    pixel_count++ * single_pixel_offset_);
-        move_data_pointers(pixel_count, pk);
-
-        within_body_reg_blocked(J.W - J.size + 1, max_reg_blocks, -s2,
-                J.H - 1 - i, -s2, S2, J.W, pk);
-
-        pixel_count = 0;
-        for (int j = J.W - S2; j < J.W; ++j)
-            within_body(-s2, J.H - 1 - i, -s2, J.W - 1 - j, J.W, pk, 1,
-                    pixel_count++ * single_pixel_offset_);
-        move_data_pointers(pixel_count, pk);
-    }
+    static const int max_reg_blocks = isa == avx512_common ? 3 : 1;
+    this->within_loop(config, max_reg_blocks, pk);
 
     this->postamble();
 
@@ -359,90 +437,93 @@ jit_uni_lrn_fwd_kernel<isa, d_type>::jit_uni_lrn_fwd_kernel(
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_lrn_fwd_kernel<isa, d_type>::jit_uni_lrn_fwd_kernel(
+jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
         const struct nchw8c_across &J, float A, float K, prop_kind_t pk,
         void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size), bf16_emu_(nullptr), alpha_(A), k_(K) {
-    Xbyak::Reg64 t = rsp;
-    Xbyak::Reg64 hw = r9;
-    Xbyak::Xmm xsrc_prev = xmm2;
-    Xbyak::Ymm ysrc = ymm3;
-    Xbyak::Ymm yc = ymm3;
-    Xbyak::Xmm xsrc_next = xmm4;
-    Xbyak::Ymm ya = ymm5;
-    Xbyak::Ymm yb = ymm6;
-    Xbyak::Ymm yd = ymm7;
-    Xbyak::Ymm ye = ymm8;
-    Xbyak::Ymm ysum = ymm9;
-    Xbyak::Ymm ysum2 = ymm10;
-    Xbyak::Ymm ydst = ymm11;
-    Xbyak::Ymm ybase = ymm12;
+    : Base(code_ptr, code_size), alpha_(A), k_(K) {
+    const Xbyak::Reg64 &t = this->rsp;
+    const Xbyak::Reg64 &hw = this->r9;
+    const Xbyak::Xmm &xsrc_prev = this->xmm2;
+    const Xbyak::Ymm &ysrc = this->ymm3;
+    const Xbyak::Ymm &yc = this->ymm3;
+    const Xbyak::Xmm &xsrc_next = this->xmm4;
+    const Xbyak::Ymm &ya = this->ymm5;
+    const Xbyak::Ymm &yb = this->ymm6;
+    const Xbyak::Ymm &yd = this->ymm7;
+    const Xbyak::Ymm &ye = this->ymm8;
+    const Xbyak::Ymm &ysum = this->ymm9;
+    const Xbyak::Ymm &ysum2 = this->ymm10;
+    const Xbyak::Ymm &ydst = this->ymm11;
+    const Xbyak::Ymm &ybase = this->ymm12;
 
     this->preamble();
 
-    mov(src_, ptr[this->param1 + 0]);
-    mov(dst_, ptr[this->param1 + 8]);
+    this->mov(src_, this->ptr[this->param1 + 0]);
+    this->mov(dst_, this->ptr[this->param1 + 8]);
     if (pk != prop_kind::forward_inference)
-        mov(scratch_, ptr[this->param1 + 16]);
-    sub(t, 64);
-    mov(imm_addr64_, float2int(this->alpha_));
-    movq(xalpha_, imm_addr64_);
-    vbroadcastss(valpha_, xalpha_);
+        this->mov(scratch_, this->ptr[this->param1 + 16]);
+    this->sub(t, 64);
+    this->mov(this->imm_addr64_, float2int(this->alpha_));
+    this->vmovq(xalpha_, this->imm_addr64_);
+    this->vbroadcastss(valpha_, xalpha_);
 
-    mov(imm_addr64_, float2int(this->k_));
-    movq(xk_, imm_addr64_);
-    vbroadcastss(yk_, xk_);
+    this->mov(this->imm_addr64_, float2int(this->k_));
+    this->vmovq(xk_, this->imm_addr64_);
+    this->vbroadcastss(yk_, xk_);
 
     if (J.version == -1) {
-        vxorps(xsrc_prev, xsrc_prev, xsrc_prev);
-        vmovups(ptr[t + 0], xsrc_prev);
+        this->vxorps(xsrc_prev, xsrc_prev, xsrc_prev);
+        this->vmovups(this->ptr[t + 0], xsrc_prev);
     }
     if (J.version == +1) {
-        vxorps(xsrc_next, xsrc_next, xsrc_next);
-        vmovups(ptr[t + 48], xsrc_next);
+        this->vxorps(xsrc_next, xsrc_next, xsrc_next);
+        this->vmovups(this->ptr[t + 48], xsrc_next);
     }
 
-    mov(hw, J.H * J.W);
+    this->mov(hw, J.H * J.W);
 
     Label lrn_loop;
-    L(lrn_loop);
+    this->L(lrn_loop);
 
-    if (J.version != -1) vmovups(xsrc_prev, ptr[src_ - J.H * J.W * 32 + 16]);
-    vmovups(ysrc, ptr[src_]);
-    if (J.version != +1) vmovups(xsrc_next, ptr[src_ + J.H * J.W * 32]);
+    if (J.version != -1)
+        this->vmovups(xsrc_prev, this->ptr[src_ - J.H * J.W * 32 + 16]);
+    this->vmovups(ysrc, this->ptr[src_]);
+    if (J.version != +1)
+        this->vmovups(xsrc_next, this->ptr[src_ + J.H * J.W * 32]);
 
-    if (J.version != -1) vmovups(ptr[t + 0], xsrc_prev);
-    vmovups(ptr[t + 16], ysrc);
-    if (J.version != +1) vmovups(ptr[t + 48], xsrc_next);
+    if (J.version != -1) this->vmovups(this->ptr[t + 0], xsrc_prev);
+    this->vmovups(this->ptr[t + 16], ysrc);
+    if (J.version != +1) this->vmovups(this->ptr[t + 48], xsrc_next);
 
-    vmovups(ya, ptr[t + 16 - 8]);
-    vmovups(yb, ptr[t + 16 - 4]);
-    vmovups(yd, ptr[t + 16 + 4]);
-    vmovups(ye, ptr[t + 16 + 8]);
-    vmulps(ysum, yc, yc);
-    vfmadd231ps(ysum, ya, ya); // ysum <- ysum + ya*ya
-    vfmadd231ps(ysum, yb, yb);
-    vfmadd231ps(ysum, yd, yd);
-    vfmadd231ps(ysum, ye, ye);
-    vfmadd132ps(ysum, yk_, valpha_); // ysum <- ysum*valpha_+yk_
+    this->vmovups(ya, this->ptr[t + 16 - 8]);
+    this->vmovups(yb, this->ptr[t + 16 - 4]);
+    this->vmovups(yd, this->ptr[t + 16 + 4]);
+    this->vmovups(ye, this->ptr[t + 16 + 8]);
+    this->vmulps(ysum, yc, yc);
+    this->vfmadd231ps(ysum, ya, ya); // ysum <- ysum + ya*ya
+    this->vfmadd231ps(ysum, yb, yb);
+    this->vfmadd231ps(ysum, yd, yd);
+    this->vfmadd231ps(ysum, ye, ye);
+    this->vfmadd132ps(ysum, yk_, valpha_); // ysum <- ysum*valpha_+yk_
 
-    vmovaps(ybase, ysum);
-    if (pk != prop_kind::forward_inference) vmovups(ptr[scratch_], ybase);
-    vmulps(ysum2, ysum, ysum);
-    vmulps(ysum, ysum, ysum2); // ysum = ybase^3;
-    vsqrtps(ysum, ysum);
-    vsqrtps(ysum, ysum); // ysum = ybase^0.75
-    vdivps(ydst, ysrc, ysum); // ydst = ysrc / ysum
-    vmovups(ptr[dst_], ydst);
+    this->vmovaps(ybase, ysum);
+    if (pk != prop_kind::forward_inference)
+        this->vmovups(this->ptr[scratch_], ybase);
+    this->vmulps(ysum2, ysum, ysum);
+    this->vmulps(ysum, ysum, ysum2); // ysum = ybase^3;
+    this->vsqrtps(ysum, ysum);
+    this->vsqrtps(ysum, ysum); // ysum = ybase^0.75
+    this->vdivps(ydst, ysrc, ysum); // ydst = ysrc / ysum
+    this->vmovups(this->ptr[dst_], ydst);
 
-    add(src_, 32);
-    add(dst_, 32);
-    if (pk != prop_kind::forward_inference) add(scratch_, 32);
-    dec(hw);
-    cmp(hw, 0);
-    jne(lrn_loop, T_NEAR);
+    this->add(src_, 32);
+    this->add(dst_, 32);
+    if (pk != prop_kind::forward_inference) this->add(scratch_, 32);
+    this->dec(hw);
+    this->cmp(hw, 0);
+    this->jne(lrn_loop, this->T_NEAR);
 
-    add(t, 64);
+    this->add(t, 64);
     this->postamble();
 
     ker = reinterpret_cast<decltype(ker)>(
@@ -450,131 +531,133 @@ jit_uni_lrn_fwd_kernel<isa, d_type>::jit_uni_lrn_fwd_kernel(
 }
 
 template <>
-jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::
-        jit_uni_lrn_fwd_kernel(const struct nchw8c_across &J, float A, float K,
-                prop_kind_t pk, void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size), bf16_emu_(nullptr), alpha_(A), k_(K) {
-    Xbyak::Reg64 t = rsp;
-    Xbyak::Reg64 hw = r9;
+jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::
+        jit_uni_lrn_fwd_kernel_t(const struct nchw8c_across &J, float A,
+                float K, prop_kind_t pk, void *code_ptr, size_t code_size)
+    : Base(code_ptr, code_size), alpha_(A), k_(K) {
 
-    Xbyak::Xmm xsrc_lo = xmm2;
-    Xbyak::Xmm xsrc_hi = xmm3;
-    Xbyak::Xmm xc_lo = xmm4;
-    Xbyak::Xmm xc_hi = xmm5;
-    Xbyak::Xmm xsum_lo = xc_lo;
-    Xbyak::Xmm xsum_hi = xc_hi;
-    Xbyak::Xmm xsrc_prev = xmm6;
-    Xbyak::Xmm xsrc_next = xmm7;
-    Xbyak::Xmm xa_lo = xmm8;
-    Xbyak::Xmm xa_hi = xmm9;
-    Xbyak::Xmm xb_lo = xmm10;
-    Xbyak::Xmm xb_hi = xmm11;
-    Xbyak::Xmm xd_lo = xmm12;
-    Xbyak::Xmm xd_hi = xmm13;
-    Xbyak::Xmm xe_lo = xmm14;
-    Xbyak::Xmm xe_hi = xmm15;
-    Xbyak::Xmm xbase_lo = xmm14;
-    Xbyak::Xmm xbase_hi = xmm15;
+    const Xbyak::Reg64 &t = this->rsp;
+    const Xbyak::Reg64 &hw = this->r9;
+    const Xbyak::Xmm &xsrc_lo = this->xmm2;
+    const Xbyak::Xmm &xsrc_hi = this->xmm3;
+    const Xbyak::Xmm &xc_lo = this->xmm4;
+    const Xbyak::Xmm &xc_hi = this->xmm5;
+    const Xbyak::Xmm &xsum_lo = xc_lo;
+    const Xbyak::Xmm &xsum_hi = xc_hi;
+    const Xbyak::Xmm &xsrc_prev = this->xmm6;
+    const Xbyak::Xmm &xsrc_next = this->xmm7;
+    const Xbyak::Xmm &xa_lo = this->xmm8;
+    const Xbyak::Xmm &xa_hi = this->xmm9;
+    const Xbyak::Xmm &xb_lo = this->xmm10;
+    const Xbyak::Xmm &xb_hi = this->xmm11;
+    const Xbyak::Xmm &xd_lo = this->xmm12;
+    const Xbyak::Xmm &xd_hi = this->xmm13;
+    const Xbyak::Xmm &xe_lo = this->xmm14;
+    const Xbyak::Xmm &xe_hi = this->xmm15;
+    const Xbyak::Xmm &xbase_lo = this->xmm14;
+    const Xbyak::Xmm &xbase_hi = this->xmm15;
 
     this->preamble();
 
-    mov(src_, ptr[this->param1 + 0]);
-    mov(dst_, ptr[this->param1 + 8]);
+    this->mov(src_, this->ptr[this->param1 + 0]);
+    this->mov(dst_, this->ptr[this->param1 + 8]);
     if (pk != prop_kind::forward_inference)
-        mov(scratch_, ptr[this->param1 + 16]);
-    sub(t, 64);
-    mov(imm_addr64_, float2int(this->alpha_));
-    movq(xalpha_, imm_addr64_);
-    shufps(xalpha_, xalpha_, 0);
+        this->mov(scratch_, this->ptr[this->param1 + 16]);
+    this->sub(t, 64);
+    this->mov(this->imm_addr64_, float2int(this->alpha_));
+    this->movq(xalpha_, this->imm_addr64_);
+    this->shufps(xalpha_, xalpha_, 0);
 
-    mov(imm_addr64_, float2int(this->k_));
-    movq(xk_, imm_addr64_);
-    shufps(xk_, xk_, 0);
+    this->mov(this->imm_addr64_, float2int(this->k_));
+    this->movq(xk_, this->imm_addr64_);
+    this->shufps(xk_, xk_, 0);
 
     if (J.version == -1) {
-        xorps(xsrc_prev, xsrc_prev);
-        movups(ptr[t + 0], xsrc_prev);
+        this->xorps(xsrc_prev, xsrc_prev);
+        this->movups(this->ptr[t + 0], xsrc_prev);
     }
     if (J.version == +1) {
-        xorps(xsrc_next, xsrc_next);
-        movups(ptr[t + 48], xsrc_next);
+        this->xorps(xsrc_next, xsrc_next);
+        this->movups(this->ptr[t + 48], xsrc_next);
     }
 
-    mov(hw, J.H * J.W);
+    this->mov(hw, J.H * J.W);
     Label lrn_loop;
     L(lrn_loop);
 
-    if (J.version != -1) movups(xsrc_prev, ptr[src_ - J.H * J.W * 32 + 16]);
-    movups(xsrc_lo, ptr[src_]);
-    movups(xsrc_hi, ptr[src_ + 4 * sizeof(float)]);
-    if (J.version != +1) movups(xsrc_next, ptr[src_ + J.H * J.W * 32]);
+    if (J.version != -1)
+        this->movups(xsrc_prev, this->ptr[src_ - J.H * J.W * 32 + 16]);
+    this->movups(xsrc_lo, this->ptr[src_]);
+    this->movups(xsrc_hi, this->ptr[src_ + 4 * sizeof(float)]);
+    if (J.version != +1)
+        this->movups(xsrc_next, this->ptr[src_ + J.H * J.W * 32]);
 
-    if (J.version != -1) movups(ptr[t + 0], xsrc_prev);
-    movups(ptr[t + 16], xsrc_lo);
-    movups(ptr[t + 16 + 4 * sizeof(float)], xsrc_hi);
-    if (J.version != +1) movups(ptr[t + 48], xsrc_next);
+    if (J.version != -1) this->movups(this->ptr[t + 0], xsrc_prev);
+    this->movups(this->ptr[t + 16], xsrc_lo);
+    this->movups(this->ptr[t + 16 + 4 * sizeof(float)], xsrc_hi);
+    if (J.version != +1) this->movups(this->ptr[t + 48], xsrc_next);
 
-    movups(xa_lo, ptr[t + 16 - 8]);
-    movups(xa_hi, ptr[t + 16 - 8 + 4 * sizeof(float)]);
-    movups(xb_lo, ptr[t + 16 - 4]);
-    movups(xb_hi, ptr[t + 16 - 4 + 4 * sizeof(float)]);
-    movups(xd_lo, ptr[t + 16 + 4]);
-    movups(xd_hi, ptr[t + 16 + 4 + 4 * sizeof(float)]);
-    movups(xe_lo, ptr[t + 16 + 8]);
-    movups(xe_hi, ptr[t + 16 + 8 + 4 * sizeof(float)]);
-    movaps(xc_lo, xsrc_lo);
-    movaps(xc_hi, xsrc_hi);
-    mulps(xsum_lo, xc_lo);
-    mulps(xsum_hi, xc_hi);
-    mulps(xa_lo, xa_lo);
-    mulps(xa_hi, xa_hi);
-    addps(xsum_lo, xa_lo);
-    addps(xsum_hi, xa_hi); // xsum <- xsum + xa*xa
-    mulps(xb_lo, xb_lo);
-    mulps(xb_hi, xb_hi);
-    addps(xsum_lo, xb_lo);
-    addps(xsum_hi, xb_hi);
-    mulps(xd_lo, xd_lo);
-    mulps(xd_hi, xd_hi);
-    addps(xsum_lo, xd_lo);
-    addps(xsum_hi, xd_hi);
-    mulps(xe_lo, xe_lo);
-    mulps(xe_hi, xe_hi);
-    addps(xsum_lo, xe_lo);
-    addps(xsum_hi, xe_hi);
+    this->movups(xa_lo, this->ptr[t + 16 - 8]);
+    this->movups(xa_hi, this->ptr[t + 16 - 8 + 4 * sizeof(float)]);
+    this->movups(xb_lo, this->ptr[t + 16 - 4]);
+    this->movups(xb_hi, this->ptr[t + 16 - 4 + 4 * sizeof(float)]);
+    this->movups(xd_lo, this->ptr[t + 16 + 4]);
+    this->movups(xd_hi, this->ptr[t + 16 + 4 + 4 * sizeof(float)]);
+    this->movups(xe_lo, this->ptr[t + 16 + 8]);
+    this->movups(xe_hi, this->ptr[t + 16 + 8 + 4 * sizeof(float)]);
+    this->movaps(xc_lo, xsrc_lo);
+    this->movaps(xc_hi, xsrc_hi);
+    this->mulps(xsum_lo, xc_lo);
+    this->mulps(xsum_hi, xc_hi);
+    this->mulps(xa_lo, xa_lo);
+    this->mulps(xa_hi, xa_hi);
+    this->addps(xsum_lo, xa_lo);
+    this->addps(xsum_hi, xa_hi); // xsum <- xsum + xa*xa
+    this->mulps(xb_lo, xb_lo);
+    this->mulps(xb_hi, xb_hi);
+    this->addps(xsum_lo, xb_lo);
+    this->addps(xsum_hi, xb_hi);
+    this->mulps(xd_lo, xd_lo);
+    this->mulps(xd_hi, xd_hi);
+    this->addps(xsum_lo, xd_lo);
+    this->addps(xsum_hi, xd_hi);
+    this->mulps(xe_lo, xe_lo);
+    this->mulps(xe_hi, xe_hi);
+    this->addps(xsum_lo, xe_lo);
+    this->addps(xsum_hi, xe_hi);
 
-    mulps(xsum_lo, xalpha_);
-    mulps(xsum_hi, xalpha_);
-    addps(xsum_lo, xk_);
-    addps(xsum_hi, xk_); // xsum <- xsum*xalpha_+xk_
+    this->mulps(xsum_lo, xalpha_);
+    this->mulps(xsum_hi, xalpha_);
+    this->addps(xsum_lo, xk_);
+    this->addps(xsum_hi, xk_); // xsum <- xsum*xalpha_+xk_
 
-    movaps(xbase_lo, xsum_lo);
-    movaps(xbase_hi, xsum_hi);
+    this->movaps(xbase_lo, xsum_lo);
+    this->movaps(xbase_hi, xsum_hi);
     if (pk != prop_kind::forward_inference) {
-        movups(ptr[scratch_], xbase_lo);
-        movups(ptr[scratch_ + 4 * sizeof(float)], xbase_hi);
+        this->movups(this->ptr[scratch_], xbase_lo);
+        this->movups(this->ptr[scratch_ + 4 * sizeof(float)], xbase_hi);
     }
-    mulps(xsum_lo, xsum_lo);
-    mulps(xsum_hi, xsum_hi);
-    mulps(xsum_lo, xbase_lo);
-    mulps(xsum_hi, xbase_hi); // xsum = xbase^3;
-    sqrtps(xsum_lo, xsum_lo);
-    sqrtps(xsum_hi, xsum_hi);
-    sqrtps(xsum_lo, xsum_lo);
-    sqrtps(xsum_hi, xsum_hi); // xsum = xbase^0.75
-    divps(xsrc_lo, xsum_lo);
-    divps(xsrc_hi, xsum_hi); // xdst = xsrc / xsum
-    movups(ptr[dst_], xsrc_lo);
-    movups(ptr[dst_ + 4 * sizeof(float)], xsrc_hi);
+    this->mulps(xsum_lo, xsum_lo);
+    this->mulps(xsum_hi, xsum_hi);
+    this->mulps(xsum_lo, xbase_lo);
+    this->mulps(xsum_hi, xbase_hi); // xsum = xbase^3;
+    this->sqrtps(xsum_lo, xsum_lo);
+    this->sqrtps(xsum_hi, xsum_hi);
+    this->sqrtps(xsum_lo, xsum_lo);
+    this->sqrtps(xsum_hi, xsum_hi); // xsum = xbase^0.75
+    this->divps(xsrc_lo, xsum_lo);
+    this->divps(xsrc_hi, xsum_hi); // xdst = xsrc / xsum
+    this->movups(this->ptr[dst_], xsrc_lo);
+    this->movups(this->ptr[dst_ + 4 * sizeof(float)], xsrc_hi);
 
-    add(src_, 32);
-    add(dst_, 32);
+    this->add(src_, 32);
+    this->add(dst_, 32);
     if (pk != prop_kind::forward_inference) add(scratch_, 32);
-    dec(hw);
-    cmp(hw, 0);
-    jne(lrn_loop, T_NEAR);
+    this->dec(hw);
+    this->cmp(hw, 0);
+    this->jne(lrn_loop, this->T_NEAR);
 
-    add(t, 64);
+    this->add(t, 64);
     this->postamble();
 
     ker = reinterpret_cast<decltype(ker)>(
@@ -582,114 +665,116 @@ jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_lrn_fwd_kernel<isa, d_type>::jit_uni_lrn_fwd_kernel(
+jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
         const struct nhwc_across &J, float A, float K, prop_kind_t pk,
         void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size), bf16_emu_(nullptr), alpha_(A), k_(K) {
+    : Base(code_ptr, code_size), alpha_(A), k_(K) {
     static const uint32_t mask[] = {0, 0, 0x80000000, 0x80000000, 0x80000000,
             0x80000000, 0x80000000, 0x80000000, 0x80000000, 0, 0};
 
-    Xbyak::Reg64 c = r9;
-    Xbyak::Ymm ya = ymm2;
-    Xbyak::Ymm yb = ymm3;
-    Xbyak::Ymm yc = ymm4;
-    Xbyak::Ymm yd = ymm5;
-    Xbyak::Ymm ye = ymm6;
-    Xbyak::Ymm ysum = ymm7;
-    Xbyak::Ymm ydst = ymm8;
-    Xbyak::Ymm ybase = ymm9;
-    Xbyak::Ymm ymask = ymm10;
+    const Xbyak::Reg64 &c = this->r9;
+    const Xbyak::Ymm &ya = this->ymm2;
+    const Xbyak::Ymm &yb = this->ymm3;
+    const Xbyak::Ymm &yc = this->ymm4;
+    const Xbyak::Ymm &yd = this->ymm5;
+    const Xbyak::Ymm &ye = this->ymm6;
+    const Xbyak::Ymm &ysum = this->ymm7;
+    const Xbyak::Ymm &ydst = this->ymm8;
+    const Xbyak::Ymm &ybase = this->ymm9;
+    const Xbyak::Ymm &ymask = this->ymm10;
 
     this->preamble();
 
-    mov(src_, ptr[this->param1 + 0]);
-    mov(dst_, ptr[this->param1 + 8]);
+    this->mov(src_, this->ptr[this->param1 + 0]);
+    this->mov(dst_, this->ptr[this->param1 + 8]);
     if (pk != prop_kind::forward_inference)
-        mov(scratch_, ptr[this->param1 + 16]);
-    mov(imm_addr64_, float2int(this->alpha_));
-    movq(xalpha_, imm_addr64_);
-    vbroadcastss(valpha_, xalpha_);
+        this->mov(scratch_, this->ptr[this->param1 + 16]);
+    this->mov(this->imm_addr64_, float2int(this->alpha_));
+    this->movq(xalpha_, this->imm_addr64_);
+    this->vbroadcastss(valpha_, xalpha_);
 
-    mov(imm_addr64_, float2int(this->k_));
-    movq(xk_, imm_addr64_);
-    vbroadcastss(yk_, xk_);
+    this->mov(this->imm_addr64_, float2int(this->k_));
+    this->movq(xk_, this->imm_addr64_);
+    this->vbroadcastss(yk_, xk_);
 
-    vxorps(ysum, ysum, ysum);
+    this->vxorps(ysum, ysum, ysum);
 
-    mov(imm_addr64_, reinterpret_cast<size_t>(&mask[0]));
-    vmovups(ymask, ptr[imm_addr64_]);
-    vmaskmovps(ya, ymask, ptr[src_ - 8]);
-    vfmadd231ps(ysum, ya, ya); // ysum <- ysum + ya^2+yb^2+yc^2+yd^2+ye^2
+    this->mov(this->imm_addr64_, reinterpret_cast<size_t>(&mask[0]));
+    this->vmovups(ymask, this->ptr[this->imm_addr64_]);
+    this->vmaskmovps(ya, ymask, this->ptr[src_ - 8]);
+    this->vfmadd231ps(ysum, ya, ya); // ysum <- ysum + ya^2+yb^2+yc^2+yd^2+ye^2
 
-    mov(imm_addr64_, reinterpret_cast<size_t>(&mask[1]));
-    vmovups(ymask, ptr[imm_addr64_]);
-    vmaskmovps(yb, ymask, ptr[src_ - 4]);
-    vfmadd231ps(ysum, yb, yb);
+    this->mov(this->imm_addr64_, reinterpret_cast<size_t>(&mask[1]));
+    this->vmovups(ymask, this->ptr[this->imm_addr64_]);
+    this->vmaskmovps(yb, ymask, this->ptr[src_ - 4]);
+    this->vfmadd231ps(ysum, yb, yb);
 
-    mov(c, J.C / 8 - 1);
+    this->mov(c, J.C / 8 - 1);
     Label lrn_loop;
-    L(lrn_loop);
+    this->L(lrn_loop);
 
-    vmovups(yc, ptr[src_]);
-    vmovups(yd, ptr[src_ + 4]);
-    vmovups(ye, ptr[src_ + 8]);
-    vfmadd231ps(ysum, yc, yc);
-    vfmadd231ps(ysum, yd, yd);
-    vfmadd231ps(ysum, ye, ye);
+    this->vmovups(yc, this->ptr[src_]);
+    this->vmovups(yd, this->ptr[src_ + 4]);
+    this->vmovups(ye, this->ptr[src_ + 8]);
+    this->vfmadd231ps(ysum, yc, yc);
+    this->vfmadd231ps(ysum, yd, yd);
+    this->vfmadd231ps(ysum, ye, ye);
 
-    vmovups(ydst, ysum);
-    vfmadd132ps(ydst, yk_, valpha_); // ydst <- ysum*valpha_+yk_
+    this->vmovups(ydst, ysum);
+    this->vfmadd132ps(ydst, yk_, valpha_); // ydst <- ysum*valpha_+yk_
 
-    vmovaps(ybase, ydst);
-    if (pk != prop_kind::forward_inference) vmovups(ptr[scratch_], ybase);
-    vmulps(ydst, ydst, ydst);
-    vmulps(ydst, ydst, ybase); // ydst = (ysum*valpha_+yk_)^3;
-    vsqrtps(ydst, ydst);
-    vsqrtps(ydst, ydst); // ydst = (ysum*valpha_+yk_)^0.75
+    this->vmovaps(ybase, ydst);
+    if (pk != prop_kind::forward_inference)
+        this->vmovups(this->ptr[scratch_], ybase);
+    this->vmulps(ydst, ydst, ydst);
+    this->vmulps(ydst, ydst, ybase); // ydst = (ysum*valpha_+yk_)^3;
+    this->vsqrtps(ydst, ydst);
+    this->vsqrtps(ydst, ydst); // ydst = (ysum*valpha_+yk_)^0.75
 
-    vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*valpha_+yk_)^0.75
-    vmovups(ptr[dst_], ydst);
+    this->vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*valpha_+yk_)^0.75
+    this->vmovups(this->ptr[dst_], ydst);
 
-    vxorps(ysum, ysum, ysum);
+    this->vxorps(ysum, ysum, ysum);
 
-    add(src_, 32);
-    add(dst_, 32);
-    if (pk != prop_kind::forward_inference) add(scratch_, 32);
+    this->add(src_, 32);
+    this->add(dst_, 32);
+    if (pk != prop_kind::forward_inference) this->add(scratch_, 32);
 
-    vmovups(ya, ptr[src_ - 8]);
-    vfmadd231ps(ysum, ya, ya);
-    vmovups(yb, ptr[src_ - 4]);
-    vfmadd231ps(ysum, yb, yb);
+    this->vmovups(ya, this->ptr[src_ - 8]);
+    this->vfmadd231ps(ysum, ya, ya);
+    this->vmovups(yb, this->ptr[src_ - 4]);
+    this->vfmadd231ps(ysum, yb, yb);
 
-    dec(c);
-    cmp(c, 0);
-    jne(lrn_loop, T_NEAR);
+    this->dec(c);
+    this->cmp(c, 0);
+    this->jne(lrn_loop, this->T_NEAR);
 
-    vmovups(yc, ptr[src_]);
-    vfmadd231ps(ysum, yc, yc);
+    this->vmovups(yc, this->ptr[src_]);
+    this->vfmadd231ps(ysum, yc, yc);
 
-    mov(imm_addr64_, reinterpret_cast<size_t>(&mask[2]));
-    vmovups(ymask, ptr[imm_addr64_]);
-    vmaskmovps(yd, ymask, ptr[src_ + 4]);
-    vfmadd231ps(ysum, yd, yd); // ysum <- ysum + ya^2+yb^2+yc^2+yd^2+ye^2
+    this->mov(this->imm_addr64_, reinterpret_cast<size_t>(&mask[2]));
+    this->vmovups(ymask, this->ptr[this->imm_addr64_]);
+    this->vmaskmovps(yd, ymask, this->ptr[src_ + 4]);
+    this->vfmadd231ps(ysum, yd, yd); // ysum <- ysum + ya^2+yb^2+yc^2+yd^2+ye^2
 
-    mov(imm_addr64_, reinterpret_cast<size_t>(&mask[3]));
-    vmovups(ymask, ptr[imm_addr64_]);
-    vmaskmovps(ye, ymask, ptr[src_ + 8]);
-    vfmadd231ps(ysum, ye, ye);
+    this->mov(this->imm_addr64_, reinterpret_cast<size_t>(&mask[3]));
+    this->vmovups(ymask, this->ptr[this->imm_addr64_]);
+    this->vmaskmovps(ye, ymask, this->ptr[src_ + 8]);
+    this->vfmadd231ps(ysum, ye, ye);
 
-    vmovups(ydst, ysum);
-    vfmadd132ps(ydst, yk_, valpha_); // ydst <- ysum*valpha_+yk_
+    this->vmovups(ydst, ysum);
+    this->vfmadd132ps(ydst, yk_, valpha_); // ydst <- ysum*valpha_+yk_
 
-    vmovaps(ybase, ydst);
-    if (pk != prop_kind::forward_inference) vmovups(ptr[scratch_], ybase);
-    vmulps(ydst, ydst, ydst);
-    vmulps(ydst, ydst, ybase); // ydst = (ysum*valpha_+yk_)^3;
-    vsqrtps(ydst, ydst);
-    vsqrtps(ydst, ydst); // ydst = (ysum*valpha_+yk_)^0.75
-    vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*valpha_+yk_)^0.75
+    this->vmovaps(ybase, ydst);
+    if (pk != prop_kind::forward_inference)
+        this->vmovups(this->ptr[scratch_], ybase);
+    this->vmulps(ydst, ydst, ydst);
+    this->vmulps(ydst, ydst, ybase); // ydst = (ysum*valpha_+yk_)^3;
+    this->vsqrtps(ydst, ydst);
+    this->vsqrtps(ydst, ydst); // ydst = (ysum*valpha_+yk_)^0.75
+    this->vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*valpha_+yk_)^0.75
 
-    vmovups(ptr[dst_], ydst);
+    this->vmovups(this->ptr[dst_], ydst);
 
     this->postamble();
 
@@ -698,53 +783,53 @@ jit_uni_lrn_fwd_kernel<isa, d_type>::jit_uni_lrn_fwd_kernel(
 }
 
 template <>
-jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::
-        jit_uni_lrn_fwd_kernel(const struct nhwc_across &J, float A, float K,
+jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::
+        jit_uni_lrn_fwd_kernel_t(const struct nhwc_across &J, float A, float K,
                 prop_kind_t pk, void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size), bf16_emu_(nullptr), alpha_(A), k_(K) {
+    : Base(code_ptr, code_size), alpha_(A), k_(K) {
 
     static uint32_t store[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    Xbyak::Reg64 c = r9;
+    const Xbyak::Reg64 c = this->r9;
 
-    Xbyak::Xmm xdst_lo = xmm0;
-    Xbyak::Xmm xdst_hi = xmm1;
-    Xbyak::Xmm xa_lo = xmm2;
-    Xbyak::Xmm xa_hi = xmm3;
-    Xbyak::Xmm xb_lo = xmm2;
-    Xbyak::Xmm xb_hi = xmm3;
-    Xbyak::Xmm xc_lo = xmm4;
-    Xbyak::Xmm xc_hi = xmm5;
-    Xbyak::Xmm xd_lo = xmm6;
-    Xbyak::Xmm xd_hi = xmm7;
-    Xbyak::Xmm xe_lo = xmm8;
-    Xbyak::Xmm xe_hi = xmm9;
-    Xbyak::Xmm xsum_lo = xmm10;
-    Xbyak::Xmm xsum_hi = xmm11;
+    const Xbyak::Xmm &xdst_lo = this->xmm0;
+    const Xbyak::Xmm &xdst_hi = this->xmm1;
+    const Xbyak::Xmm &xa_lo = this->xmm2;
+    const Xbyak::Xmm &xa_hi = this->xmm3;
+    const Xbyak::Xmm &xb_lo = this->xmm2;
+    const Xbyak::Xmm &xb_hi = this->xmm3;
+    const Xbyak::Xmm &xc_lo = this->xmm4;
+    const Xbyak::Xmm &xc_hi = this->xmm5;
+    const Xbyak::Xmm &xd_lo = this->xmm6;
+    const Xbyak::Xmm &xd_hi = this->xmm7;
+    const Xbyak::Xmm &xe_lo = this->xmm8;
+    const Xbyak::Xmm &xe_hi = this->xmm9;
+    const Xbyak::Xmm &xsum_lo = this->xmm10;
+    const Xbyak::Xmm &xsum_hi = this->xmm11;
     // unused: xmm12, xmm13;
-    Xbyak::Xmm xbase_lo = xmm14;
-    Xbyak::Xmm xbase_hi = xmm15;
+    const Xbyak::Xmm &xbase_lo = this->xmm14;
+    const Xbyak::Xmm &xbase_hi = this->xmm15;
 
     this->preamble();
 
-    mov(src_, ptr[this->param1 + 0]);
-    mov(dst_, ptr[this->param1 + 8]);
+    this->mov(src_, this->ptr[this->param1 + 0]);
+    this->mov(dst_, this->ptr[this->param1 + 8]);
     if (pk != prop_kind::forward_inference)
-        mov(scratch_, ptr[this->param1 + 16]);
-    mov(imm_addr64_, float2int(this->alpha_));
-    movq(xalpha_, imm_addr64_);
-    shufps(xalpha_, xalpha_, 0);
+        mov(scratch_, this->ptr[this->param1 + 16]);
+    this->mov(this->imm_addr64_, float2int(this->alpha_));
+    this->movq(xalpha_, this->imm_addr64_);
+    this->shufps(xalpha_, xalpha_, 0);
 
-    mov(imm_addr64_, float2int(this->k_));
-    movq(xk_, imm_addr64_);
-    shufps(xk_, xk_, 0);
+    this->mov(this->imm_addr64_, float2int(this->k_));
+    this->movq(xk_, this->imm_addr64_);
+    this->shufps(xk_, xk_, 0);
 
-    mov(store_addr_, reinterpret_cast<size_t>(&store[0]));
-    and_(store_addr_, -15);
-    movups(ptr[store_addr_], xalpha_);
-    movups(ptr[store_addr_ + 4 * sizeof(float)], xk_);
+    this->mov(store_addr_, reinterpret_cast<size_t>(&store[0]));
+    this->and_(store_addr_, -15);
+    this->movups(this->ptr[store_addr_], xalpha_);
+    this->movups(this->ptr[store_addr_ + 4 * sizeof(float)], xk_);
 
-    xorps(xsum_lo, xsum_lo);
-    xorps(xsum_hi, xsum_hi);
+    this->xorps(xsum_lo, xsum_lo);
+    this->xorps(xsum_hi, xsum_hi);
 
     /* load the 2 first blocks of channels
      * block:         | -- low -- | -- hi --  |
@@ -756,98 +841,98 @@ jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::
      *                | --  data  --     (...)
      *                ^ memory boundary
      */
-    movups(xa_lo, ptr[src_]);
-    movups(xa_hi, ptr[src_ + 2 * sizeof(float)]);
-    pslldq(xa_lo, 2 * sizeof(float));
-    mulps(xa_lo, xa_lo);
-    mulps(xa_hi, xa_hi);
-    addps(xsum_lo, xa_lo);
-    addps(xsum_hi, xa_hi); // xsum <- xsum + xa^2+xb^2+xc^2+xd^2+xe^2
+    this->movups(xa_lo, this->ptr[src_]);
+    this->movups(xa_hi, this->ptr[src_ + 2 * sizeof(float)]);
+    this->pslldq(xa_lo, 2 * sizeof(float));
+    this->mulps(xa_lo, xa_lo);
+    this->mulps(xa_hi, xa_hi);
+    this->addps(xsum_lo, xa_lo);
+    this->addps(xsum_hi, xa_hi); // xsum <- xsum + xa^2+xb^2+xc^2+xd^2+xe^2
 
-    movups(xb_lo, ptr[src_]);
-    movups(xb_hi, ptr[src_ + 3 * sizeof(float)]);
-    pslldq(xb_lo, 1 * sizeof(float));
-    mulps(xb_lo, xb_lo);
-    mulps(xb_hi, xb_hi);
-    addps(xsum_lo, xb_lo);
-    addps(xsum_hi, xb_hi);
+    this->movups(xb_lo, this->ptr[src_]);
+    this->movups(xb_hi, this->ptr[src_ + 3 * sizeof(float)]);
+    this->pslldq(xb_lo, 1 * sizeof(float));
+    this->mulps(xb_lo, xb_lo);
+    this->mulps(xb_hi, xb_hi);
+    this->addps(xsum_lo, xb_lo);
+    this->addps(xsum_hi, xb_hi);
 
-    mov(c, J.C / 8 - 1);
+    this->mov(c, J.C / 8 - 1);
     Label lrn_loop;
-    L(lrn_loop);
+    this->L(lrn_loop);
 
-    movups(xc_lo, ptr[src_]);
-    movups(xc_hi, ptr[src_ + 4 * sizeof(float)]);
-    movups(xd_lo, ptr[src_ + 4]);
-    movups(xd_hi, ptr[src_ + 4 + 4 * sizeof(float)]);
-    movups(xe_lo, ptr[src_ + 8]);
-    movups(xe_hi, ptr[src_ + 8 + 4 * sizeof(float)]);
-    mulps(xc_lo, xc_lo);
-    mulps(xc_hi, xc_hi);
-    addps(xsum_lo, xc_lo);
-    addps(xsum_hi, xc_hi);
-    mulps(xd_lo, xd_lo);
-    mulps(xd_hi, xd_hi);
-    addps(xsum_lo, xd_lo);
-    addps(xsum_hi, xd_hi);
-    mulps(xe_lo, xe_lo);
-    mulps(xe_hi, xe_hi);
-    addps(xsum_lo, xe_lo);
-    addps(xsum_hi, xe_hi);
+    this->movups(xc_lo, this->ptr[src_]);
+    this->movups(xc_hi, this->ptr[src_ + 4 * sizeof(float)]);
+    this->movups(xd_lo, this->ptr[src_ + 4]);
+    this->movups(xd_hi, this->ptr[src_ + 4 + 4 * sizeof(float)]);
+    this->movups(xe_lo, this->ptr[src_ + 8]);
+    this->movups(xe_hi, this->ptr[src_ + 8 + 4 * sizeof(float)]);
+    this->mulps(xc_lo, xc_lo);
+    this->mulps(xc_hi, xc_hi);
+    this->addps(xsum_lo, xc_lo);
+    this->addps(xsum_hi, xc_hi);
+    this->mulps(xd_lo, xd_lo);
+    this->mulps(xd_hi, xd_hi);
+    this->addps(xsum_lo, xd_lo);
+    this->addps(xsum_hi, xd_hi);
+    this->mulps(xe_lo, xe_lo);
+    this->mulps(xe_hi, xe_hi);
+    this->addps(xsum_lo, xe_lo);
+    this->addps(xsum_hi, xe_hi);
 
-    movaps(xdst_lo, xsum_lo);
-    movaps(xdst_hi, xsum_hi);
+    this->movaps(xdst_lo, xsum_lo);
+    this->movaps(xdst_hi, xsum_hi);
     // xdst <- xsum*xalpha_+xk_
-    mulps(xdst_lo, ptr[store_addr_]);
-    mulps(xdst_hi, ptr[store_addr_]);
-    addps(xdst_lo, ptr[store_addr_ + 4 * sizeof(float)]);
-    addps(xdst_hi, ptr[store_addr_ + 4 * sizeof(float)]);
+    this->mulps(xdst_lo, this->ptr[store_addr_]);
+    this->mulps(xdst_hi, this->ptr[store_addr_]);
+    this->addps(xdst_lo, this->ptr[store_addr_ + 4 * sizeof(float)]);
+    this->addps(xdst_hi, this->ptr[store_addr_ + 4 * sizeof(float)]);
 
-    movaps(xbase_lo, xdst_lo);
-    movaps(xbase_hi, xdst_hi);
+    this->movaps(xbase_lo, xdst_lo);
+    this->movaps(xbase_hi, xdst_hi);
     if (pk != prop_kind::forward_inference) {
-        movups(ptr[scratch_], xbase_lo);
-        movups(ptr[scratch_ + 4 * sizeof(float)], xbase_hi);
+        this->movups(this->ptr[scratch_], xbase_lo);
+        this->movups(this->ptr[scratch_ + 4 * sizeof(float)], xbase_hi);
     }
-    mulps(xdst_lo, xdst_lo);
-    mulps(xdst_hi, xdst_hi);
-    mulps(xdst_lo, xbase_lo);
-    mulps(xdst_hi, xbase_hi); // xdst = (xsum*xalpha_+xk_)^3;
-    sqrtps(xdst_lo, xdst_lo);
-    sqrtps(xdst_hi, xdst_hi);
-    sqrtps(xdst_lo, xdst_lo);
-    sqrtps(xdst_hi, xdst_hi); // xdst = (xsum*xalpha_+xk_)^0.75
+    this->mulps(xdst_lo, xdst_lo);
+    this->mulps(xdst_hi, xdst_hi);
+    this->mulps(xdst_lo, xbase_lo);
+    this->mulps(xdst_hi, xbase_hi); // xdst = (xsum*xalpha_+xk_)^3;
+    this->sqrtps(xdst_lo, xdst_lo);
+    this->sqrtps(xdst_hi, xdst_hi);
+    this->sqrtps(xdst_lo, xdst_lo);
+    this->sqrtps(xdst_hi, xdst_hi); // xdst = (xsum*xalpha_+xk_)^0.75
 
-    movups(xc_lo, ptr[src_]);
-    movups(xc_hi, ptr[src_ + 4 * sizeof(float)]);
-    divps(xc_lo, xdst_lo);
-    divps(xc_hi, xdst_hi); // xdst = xsrc / (xsum*xalpha_+xk_)^0.75
-    movups(ptr[dst_], xc_lo);
-    movups(ptr[dst_ + 4 * sizeof(float)], xc_hi);
+    this->movups(xc_lo, this->ptr[src_]);
+    this->movups(xc_hi, this->ptr[src_ + 4 * sizeof(float)]);
+    this->divps(xc_lo, xdst_lo);
+    this->divps(xc_hi, xdst_hi); // xdst = xsrc / (xsum*xalpha_+xk_)^0.75
+    this->movups(this->ptr[dst_], xc_lo);
+    this->movups(this->ptr[dst_ + 4 * sizeof(float)], xc_hi);
 
-    xorps(xsum_lo, xsum_lo);
-    xorps(xsum_hi, xsum_hi);
+    this->xorps(xsum_lo, xsum_lo);
+    this->xorps(xsum_hi, xsum_hi);
 
-    add(src_, 32);
-    add(dst_, 32);
-    if (pk != prop_kind::forward_inference) add(scratch_, 32);
+    this->add(src_, 32);
+    this->add(dst_, 32);
+    if (pk != prop_kind::forward_inference) this->add(scratch_, 32);
 
-    movups(xa_lo, ptr[src_ - 8]);
-    movups(xa_hi, ptr[src_ - 8 + 4 * sizeof(float)]);
-    mulps(xa_lo, xa_lo);
-    mulps(xa_hi, xa_hi);
-    addps(xsum_lo, xa_lo);
-    addps(xsum_hi, xa_hi);
-    movups(xb_lo, ptr[src_ - 4]);
-    movups(xb_hi, ptr[src_ - 4 + 4 * sizeof(float)]);
-    mulps(xb_lo, xb_lo);
-    mulps(xb_hi, xb_hi);
-    addps(xsum_lo, xb_lo);
-    addps(xsum_hi, xb_hi);
+    this->movups(xa_lo, this->ptr[src_ - 8]);
+    this->movups(xa_hi, this->ptr[src_ - 8 + 4 * sizeof(float)]);
+    this->mulps(xa_lo, xa_lo);
+    this->mulps(xa_hi, xa_hi);
+    this->addps(xsum_lo, xa_lo);
+    this->addps(xsum_hi, xa_hi);
+    this->movups(xb_lo, this->ptr[src_ - 4]);
+    this->movups(xb_hi, this->ptr[src_ - 4 + 4 * sizeof(float)]);
+    this->mulps(xb_lo, xb_lo);
+    this->mulps(xb_hi, xb_hi);
+    this->addps(xsum_lo, xb_lo);
+    this->addps(xsum_hi, xb_hi);
 
-    dec(c);
-    cmp(c, 0);
-    jne(lrn_loop, T_NEAR);
+    this->dec(c);
+    this->cmp(c, 0);
+    this->jne(lrn_loop, this->T_NEAR);
 
     /* compute last 3 blocks of channels:
      * block:       | -- low -- | -- hi --  |
@@ -860,58 +945,58 @@ jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::
      *                  (...) --  data  --  | -- illegal reading -- (...)
      *                                      ^ memory boundary
      */
-    movups(xc_lo, ptr[src_]);
-    movups(xc_hi, ptr[src_ + 4 * sizeof(float)]);
-    mulps(xc_lo, xc_lo);
-    mulps(xc_hi, xc_hi);
-    addps(xsum_lo, xc_lo);
-    addps(xsum_hi, xc_hi);
+    this->movups(xc_lo, this->ptr[src_]);
+    this->movups(xc_hi, this->ptr[src_ + 4 * sizeof(float)]);
+    this->mulps(xc_lo, xc_lo);
+    this->mulps(xc_hi, xc_hi);
+    this->addps(xsum_lo, xc_lo);
+    this->addps(xsum_hi, xc_hi);
 
-    movups(xd_lo, ptr[src_ + 1 * sizeof(float)]);
-    movups(xd_hi, ptr[src_ + 4 * sizeof(float)]);
-    psrldq(xd_hi, 1 * sizeof(float));
-    mulps(xd_lo, xd_lo);
-    mulps(xd_hi, xd_hi);
-    addps(xsum_lo, xd_lo);
-    addps(xsum_hi, xd_hi); // xsum <- xsum + xa^2+xb^2+xc^2+xd^2+xe^2
+    this->movups(xd_lo, this->ptr[src_ + 1 * sizeof(float)]);
+    this->movups(xd_hi, this->ptr[src_ + 4 * sizeof(float)]);
+    this->psrldq(xd_hi, 1 * sizeof(float));
+    this->mulps(xd_lo, xd_lo);
+    this->mulps(xd_hi, xd_hi);
+    this->addps(xsum_lo, xd_lo);
+    this->addps(xsum_hi, xd_hi); // xsum <- xsum + xa^2+xb^2+xc^2+xd^2+xe^2
 
-    movups(xe_lo, ptr[src_ + 2 * sizeof(float)]);
-    movups(xe_hi, ptr[src_ + 4 * sizeof(float)]);
-    psrldq(xe_hi, 2 * sizeof(float));
-    mulps(xe_lo, xe_lo);
-    mulps(xe_hi, xe_hi);
-    addps(xsum_lo, xe_lo);
-    addps(xsum_hi, xe_hi);
+    this->movups(xe_lo, this->ptr[src_ + 2 * sizeof(float)]);
+    this->movups(xe_hi, this->ptr[src_ + 4 * sizeof(float)]);
+    this->psrldq(xe_hi, 2 * sizeof(float));
+    this->mulps(xe_lo, xe_lo);
+    this->mulps(xe_hi, xe_hi);
+    this->addps(xsum_lo, xe_lo);
+    this->addps(xsum_hi, xe_hi);
 
-    movups(xdst_lo, xsum_lo);
-    movups(xdst_hi, xsum_hi);
+    this->movups(xdst_lo, xsum_lo);
+    this->movups(xdst_hi, xsum_hi);
     // xdst <- xsum*xalpha_+xk_
-    mulps(xdst_lo, ptr[store_addr_]);
-    mulps(xdst_hi, ptr[store_addr_]);
-    addps(xdst_lo, ptr[store_addr_ + 4 * sizeof(float)]);
-    addps(xdst_hi, ptr[store_addr_ + 4 * sizeof(float)]);
+    this->mulps(xdst_lo, this->ptr[store_addr_]);
+    this->mulps(xdst_hi, this->ptr[store_addr_]);
+    this->addps(xdst_lo, this->ptr[store_addr_ + 4 * sizeof(float)]);
+    this->addps(xdst_hi, this->ptr[store_addr_ + 4 * sizeof(float)]);
 
-    movaps(xbase_lo, xdst_lo);
-    movaps(xbase_hi, xdst_hi);
+    this->movaps(xbase_lo, xdst_lo);
+    this->movaps(xbase_hi, xdst_hi);
     if (pk != prop_kind::forward_inference) {
-        movups(ptr[scratch_], xbase_lo);
-        movups(ptr[scratch_ + 4 * sizeof(float)], xbase_hi);
+        this->movups(this->ptr[scratch_], xbase_lo);
+        this->movups(this->ptr[scratch_ + 4 * sizeof(float)], xbase_hi);
     }
-    mulps(xdst_lo, xdst_lo);
-    mulps(xdst_hi, xdst_hi);
-    mulps(xdst_lo, xbase_lo);
-    mulps(xdst_hi, xbase_hi); // xdst = (xsum*xalpha_+xk_)^3;
-    sqrtps(xdst_lo, xdst_lo);
-    sqrtps(xdst_hi, xdst_hi);
-    sqrtps(xdst_lo, xdst_lo);
-    sqrtps(xdst_hi, xdst_hi); // xdst = (xsum*xalpha_+xk_)^0.75
-    movups(xc_lo, ptr[src_]);
-    movups(xc_hi, ptr[src_ + 4 * sizeof(float)]);
-    divps(xc_lo, xdst_lo);
-    divps(xc_hi, xdst_hi); // xdst = xsrc / (xsum*xalpha_+xk_)^0.75
+    this->mulps(xdst_lo, xdst_lo);
+    this->mulps(xdst_hi, xdst_hi);
+    this->mulps(xdst_lo, xbase_lo);
+    this->mulps(xdst_hi, xbase_hi); // xdst = (xsum*xalpha_+xk_)^3;
+    this->sqrtps(xdst_lo, xdst_lo);
+    this->sqrtps(xdst_hi, xdst_hi);
+    this->sqrtps(xdst_lo, xdst_lo);
+    this->sqrtps(xdst_hi, xdst_hi); // xdst = (xsum*xalpha_+xk_)^0.75
+    this->movups(xc_lo, this->ptr[src_]);
+    this->movups(xc_hi, this->ptr[src_ + 4 * sizeof(float)]);
+    this->divps(xc_lo, xdst_lo);
+    this->divps(xc_hi, xdst_hi); // xdst = xsrc / (xsum*xalpha_+xk_)^0.75
 
-    movups(ptr[dst_], xc_lo);
-    movups(ptr[dst_ + 4 * sizeof(float)], xc_hi);
+    this->movups(this->ptr[dst_], xc_lo);
+    this->movups(this->ptr[dst_ + 4 * sizeof(float)], xc_hi);
 
     this->postamble();
 
@@ -920,258 +1005,260 @@ jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::
 }
 
 template <>
-void jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::nchw_body(
+void jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>::nchw_body(
         int tail, int HW, prop_kind_t pk, Xbyak::Ymm ymask, Xbyak::Ymm ya,
         Xbyak::Ymm yb, Xbyak::Ymm yc, Xbyak::Ymm yd, Xbyak::Ymm ye,
         Xbyak::Ymm ysum) {}
 
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_fwd_kernel<isa, d_type>::nchw_body(int tail, int HW,
+void jit_uni_lrn_fwd_kernel_t<isa, d_type>::nchw_body(int tail, int HW,
         prop_kind_t pk, Xbyak::Ymm ymask, Xbyak::Ymm ya, Xbyak::Ymm yb,
         Xbyak::Ymm yc, Xbyak::Ymm yd, Xbyak::Ymm ye, Xbyak::Ymm ysum) {
-    Xbyak::Ymm ydst = ymm14;
-    Xbyak::Ymm ybase = ymm15;
+    const Xbyak::Ymm &ydst = this->ymm14;
+    const Xbyak::Ymm &ybase = this->ymm15;
 
-    vfmadd231ps(ysum, ye, ye);
+    this->vfmadd231ps(ysum, ye, ye);
 
-    vmovups(ydst, ysum);
-    vfmadd132ps(ydst, yk_, valpha_); // ydst <- ysum*valpha_+yk_
+    this->vmovups(ydst, ysum);
+    this->vfmadd132ps(ydst, yk_, valpha_); // ydst <- ysum*valpha_+yk_
 
-    vmovaps(ybase, ydst);
+    this->vmovaps(ybase, ydst);
     if (pk != prop_kind::forward_inference) {
         if (tail != 0)
-            vmaskmovps(ptr[scratch_], ymask, ybase);
+            this->vmaskmovps(this->ptr[scratch_], ymask, ybase);
         else
-            vmovups(ptr[scratch_], ybase);
+            this->vmovups(this->ptr[scratch_], ybase);
     }
-    vmulps(ydst, ydst, ydst);
-    vmulps(ydst, ydst, ybase); // ydst = (ysum*valpha_+yk_)^3;
-    vsqrtps(ydst, ydst);
-    vsqrtps(ydst, ydst); // ydst = (ysum*valpha_+yk_)^0.75
-    vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*valpha_+yk_)^0.75
+    this->vmulps(ydst, ydst, ydst);
+    this->vmulps(ydst, ydst, ybase); // ydst = (ysum*valpha_+yk_)^3;
+    this->vsqrtps(ydst, ydst);
+    this->vsqrtps(ydst, ydst); // ydst = (ysum*valpha_+yk_)^0.75
+    this->vdivps(ydst, yc, ydst); // ydst = ysrc / (ysum*valpha_+yk_)^0.75
 
     if (tail != 0)
-        vmaskmovps(ptr[dst_], ymask, ydst);
+        this->vmaskmovps(this->ptr[dst_], ymask, ydst);
     else
-        vmovups(ptr[dst_], ydst);
+        this->vmovups(this->ptr[dst_], ydst);
 
-    vfnmadd231ps(ysum, ya, ya);
-    vmovups(ya, yb);
-    vmovups(yb, yc);
-    vmovups(yc, yd);
-    vmovups(yd, ye);
+    this->vfnmadd231ps(ysum, ya, ya);
+    this->vmovups(ya, yb);
+    this->vmovups(yb, yc);
+    this->vmovups(yc, yd);
+    this->vmovups(yd, ye);
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_fwd_kernel<isa, d_type>::nchw_tail_sse41(int tail,
+void jit_uni_lrn_fwd_kernel_t<isa, d_type>::nchw_tail_sse41(int tail,
         Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi) {}
 
 template <>
-void jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::nchw_tail_sse41(
-        int tail, Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo,
-        Xbyak::Xmm xtail_hi) {
+void jit_uni_lrn_fwd_kernel_t<sse41,
+        dnnl::impl::data_type::f32>::nchw_tail_sse41(int tail,
+        Xbyak::Reg64 reg_dst, Xbyak::Xmm xtail_lo, Xbyak::Xmm xtail_hi) {
     Xbyak::Xmm xmm_tmp = xmm10;
-    movaps(xmm_tmp, xtail_hi);
+    this->movaps(xmm_tmp, xtail_hi);
 
     if (tail > 3) {
         /* Store upper-half directly */
-        movups(ptr[reg_dst + (tail - 4) * sizeof(float)], xtail_hi);
-        movaps(xmm_tmp, xtail_lo);
+        this->movups(this->ptr[reg_dst + (tail - 4) * sizeof(float)], xtail_hi);
+        this->movaps(xmm_tmp, xtail_lo);
         tail -= 4;
     }
     if (tail > 0) {
         /* Store on a single-element basis when 'tail' overlaps
          * with 'src_' */
-        psrldq(xmm_tmp, (4 - tail) * sizeof(float));
-        movss(ptr[reg_dst], xmm_tmp);
+        this->psrldq(xmm_tmp, (4 - tail) * sizeof(float));
+        this->movss(this->ptr[reg_dst], xmm_tmp);
 
         for (int i = 1; i < tail; i++) {
-            psrldq(xmm_tmp, sizeof(float));
-            movss(ptr[reg_dst + i * sizeof(float)], xmm_tmp);
+            this->psrldq(xmm_tmp, sizeof(float));
+            this->movss(this->ptr[reg_dst + i * sizeof(float)], xmm_tmp);
         }
     }
 }
 
 template <>
-void jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>::nchw_body_sse41(
-        int tail, int HW, prop_kind_t pk, Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi,
-        Xbyak::Xmm xsum_lo, Xbyak::Xmm xsum_hi) {
-    Xbyak::Xmm xdst_lo = xmm0;
-    Xbyak::Xmm xdst_hi = xmm1;
-    Xbyak::Xmm xbase_lo = xmm6;
-    Xbyak::Xmm xbase_hi = xmm7;
-    Xbyak::Xmm xtmp_lo = xmm8;
-    Xbyak::Xmm xtmp_hi = xmm9;
-    Xbyak::Xmm xa_lo = xmm6;
-    Xbyak::Xmm xa_hi = xmm7;
-    Xbyak::Xmm xb_lo = xmm8;
-    Xbyak::Xmm xb_hi = xmm9;
-    Xbyak::Xmm xc_lo = xmm10;
-    Xbyak::Xmm xc_hi = xmm11;
-    Xbyak::Xmm xd_lo = xmm12;
-    Xbyak::Xmm xd_hi = xmm13;
+void jit_uni_lrn_fwd_kernel_t<sse41,
+        dnnl::impl::data_type::f32>::nchw_body_sse41(int tail, int HW,
+        prop_kind_t pk, Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi, Xbyak::Xmm xsum_lo,
+        Xbyak::Xmm xsum_hi) {
+    const Xbyak::Xmm &xdst_lo = this->xmm0;
+    const Xbyak::Xmm &xdst_hi = this->xmm1;
+    const Xbyak::Xmm &xbase_lo = this->xmm6;
+    const Xbyak::Xmm &xbase_hi = this->xmm7;
+    const Xbyak::Xmm &xtmp_lo = this->xmm8;
+    const Xbyak::Xmm &xtmp_hi = this->xmm9;
+    const Xbyak::Xmm &xa_lo = this->xmm6;
+    const Xbyak::Xmm &xa_hi = this->xmm7;
+    const Xbyak::Xmm &xb_lo = this->xmm8;
+    const Xbyak::Xmm &xb_hi = this->xmm9;
+    const Xbyak::Xmm &xc_lo = this->xmm10;
+    const Xbyak::Xmm &xc_hi = this->xmm11;
+    const Xbyak::Xmm &xd_lo = this->xmm12;
+    const Xbyak::Xmm &xd_hi = this->xmm13;
 
     // store xe
-    movaps(ptr[store_addr_ + 10 * 4 * sizeof(float)], xe_lo);
-    movaps(ptr[store_addr_ + 11 * 4 * sizeof(float)], xe_hi);
+    this->movaps(this->ptr[store_addr_ + 10 * 4 * sizeof(float)], xe_lo);
+    this->movaps(this->ptr[store_addr_ + 11 * 4 * sizeof(float)], xe_hi);
 
-    mulps(xe_lo, xe_lo);
-    mulps(xe_hi, xe_hi);
-    addps(xsum_lo, xe_lo);
-    addps(xsum_hi, xe_hi);
+    this->mulps(xe_lo, xe_lo);
+    this->mulps(xe_hi, xe_hi);
+    this->addps(xsum_lo, xe_lo);
+    this->addps(xsum_hi, xe_hi);
 
     // xdst <- xsum*xalpha_+xk_
-    movaps(xdst_lo, xsum_lo);
-    movaps(xdst_hi, xsum_hi);
-    mulps(xdst_lo, ptr[store_addr_ + 0 * 4 * sizeof(float)]);
-    mulps(xdst_hi, ptr[store_addr_ + 0 * 4 * sizeof(float)]);
-    addps(xdst_lo, ptr[store_addr_ + 1 * 4 * sizeof(float)]);
-    addps(xdst_hi, ptr[store_addr_ + 1 * 4 * sizeof(float)]);
+    this->movaps(xdst_lo, xsum_lo);
+    this->movaps(xdst_hi, xsum_hi);
+    this->mulps(xdst_lo, this->ptr[store_addr_ + 0 * 4 * sizeof(float)]);
+    this->mulps(xdst_hi, this->ptr[store_addr_ + 0 * 4 * sizeof(float)]);
+    this->addps(xdst_lo, this->ptr[store_addr_ + 1 * 4 * sizeof(float)]);
+    this->addps(xdst_hi, this->ptr[store_addr_ + 1 * 4 * sizeof(float)]);
 
-    movaps(xbase_lo, xdst_lo);
-    movaps(xbase_hi, xdst_hi);
+    this->movaps(xbase_lo, xdst_lo);
+    this->movaps(xbase_hi, xdst_hi);
     if (pk != prop_kind::forward_inference) {
         if (tail != 0) {
             nchw_tail_sse41(tail, scratch_, xbase_lo, xbase_hi);
         } else {
-            movups(ptr[scratch_], xbase_lo);
-            movups(ptr[scratch_ + 4 * sizeof(float)], xbase_hi);
+            this->movups(this->ptr[scratch_], xbase_lo);
+            this->movups(this->ptr[scratch_ + 4 * sizeof(float)], xbase_hi);
         }
     }
-    mulps(xdst_lo, xdst_lo);
-    mulps(xdst_hi, xdst_hi);
-    mulps(xdst_lo, xbase_lo);
-    mulps(xdst_hi, xbase_hi); // xdst = (xsum*xalpha_+xk_)^3;
-    sqrtps(xdst_lo, xdst_lo);
-    sqrtps(xdst_hi, xdst_hi);
-    sqrtps(xdst_lo, xdst_lo);
-    sqrtps(xdst_hi, xdst_hi); // xdst = (xsum*xalpha_+xk_)^0.75
-    movaps(xtmp_lo, ptr[store_addr_ + 6 * 4 * sizeof(float)]);
-    movaps(xtmp_hi, ptr[store_addr_ + 7 * 4 * sizeof(float)]);
-    divps(xtmp_lo, xdst_lo);
-    divps(xtmp_hi, xdst_hi); // xdst = xsrc / (xsum*xalpha_+xk_)^0.75
-    movaps(xdst_lo, xtmp_lo);
-    movaps(xdst_hi, xtmp_hi);
+    this->mulps(xdst_lo, xdst_lo);
+    this->mulps(xdst_hi, xdst_hi);
+    this->mulps(xdst_lo, xbase_lo);
+    this->mulps(xdst_hi, xbase_hi); // xdst = (xsum*xalpha_+xk_)^3;
+    this->sqrtps(xdst_lo, xdst_lo);
+    this->sqrtps(xdst_hi, xdst_hi);
+    this->sqrtps(xdst_lo, xdst_lo);
+    this->sqrtps(xdst_hi, xdst_hi); // xdst = (xsum*xalpha_+xk_)^0.75
+    this->movaps(xtmp_lo, this->ptr[store_addr_ + 6 * 4 * sizeof(float)]);
+    this->movaps(xtmp_hi, this->ptr[store_addr_ + 7 * 4 * sizeof(float)]);
+    this->divps(xtmp_lo, xdst_lo);
+    this->divps(xtmp_hi, xdst_hi); // xdst = xsrc / (xsum*xalpha_+xk_)^0.75
+    this->movaps(xdst_lo, xtmp_lo);
+    this->movaps(xdst_hi, xtmp_hi);
 
     if (tail != 0) {
         nchw_tail_sse41(tail, dst_, xdst_lo, xdst_hi);
     } else {
-        movups(ptr[dst_], xdst_lo);
-        movups(ptr[dst_ + 4 * sizeof(float)], xdst_hi);
+        this->movups(this->ptr[dst_], xdst_lo);
+        this->movups(this->ptr[dst_ + 4 * sizeof(float)], xdst_hi);
     }
 
-    movaps(xa_lo, ptr[store_addr_ + 2 * 4 * sizeof(float)]);
-    movaps(xa_hi, ptr[store_addr_ + 3 * 4 * sizeof(float)]);
-    mulps(xa_lo, xa_lo);
-    mulps(xa_hi, xa_hi);
-    subps(xsum_lo, xa_lo);
-    subps(xsum_hi, xa_hi);
+    this->movaps(xa_lo, this->ptr[store_addr_ + 2 * 4 * sizeof(float)]);
+    this->movaps(xa_hi, this->ptr[store_addr_ + 3 * 4 * sizeof(float)]);
+    this->mulps(xa_lo, xa_lo);
+    this->mulps(xa_hi, xa_hi);
+    this->subps(xsum_lo, xa_lo);
+    this->subps(xsum_hi, xa_hi);
 
     // xa <- xb
-    movaps(xb_lo, ptr[store_addr_ + 4 * 4 * sizeof(float)]);
-    movaps(xb_hi, ptr[store_addr_ + 5 * 4 * sizeof(float)]);
-    movaps(ptr[store_addr_ + 2 * 4 * sizeof(float)], xb_lo);
-    movaps(ptr[store_addr_ + 3 * 4 * sizeof(float)], xb_hi);
+    this->movaps(xb_lo, this->ptr[store_addr_ + 4 * 4 * sizeof(float)]);
+    this->movaps(xb_hi, this->ptr[store_addr_ + 5 * 4 * sizeof(float)]);
+    this->movaps(this->ptr[store_addr_ + 2 * 4 * sizeof(float)], xb_lo);
+    this->movaps(this->ptr[store_addr_ + 3 * 4 * sizeof(float)], xb_hi);
 
     // xb <- xc
-    movaps(xc_lo, ptr[store_addr_ + 6 * 4 * sizeof(float)]);
-    movaps(xc_hi, ptr[store_addr_ + 7 * 4 * sizeof(float)]);
-    movaps(ptr[store_addr_ + 4 * 4 * sizeof(float)], xc_lo);
-    movaps(ptr[store_addr_ + 5 * 4 * sizeof(float)], xc_hi);
+    this->movaps(xc_lo, this->ptr[store_addr_ + 6 * 4 * sizeof(float)]);
+    this->movaps(xc_hi, this->ptr[store_addr_ + 7 * 4 * sizeof(float)]);
+    this->movaps(this->ptr[store_addr_ + 4 * 4 * sizeof(float)], xc_lo);
+    this->movaps(this->ptr[store_addr_ + 5 * 4 * sizeof(float)], xc_hi);
 
     // xc <- xd
-    movaps(xd_lo, ptr[store_addr_ + 8 * 4 * sizeof(float)]);
-    movaps(xd_hi, ptr[store_addr_ + 9 * 4 * sizeof(float)]);
-    movaps(ptr[store_addr_ + 6 * 4 * sizeof(float)], xd_lo);
-    movaps(ptr[store_addr_ + 7 * 4 * sizeof(float)], xd_hi);
+    this->movaps(xd_lo, this->ptr[store_addr_ + 8 * 4 * sizeof(float)]);
+    this->movaps(xd_hi, this->ptr[store_addr_ + 9 * 4 * sizeof(float)]);
+    this->movaps(this->ptr[store_addr_ + 6 * 4 * sizeof(float)], xd_lo);
+    this->movaps(this->ptr[store_addr_ + 7 * 4 * sizeof(float)], xd_hi);
 
     // xd <- xe
-    movaps(xe_lo, ptr[store_addr_ + 10 * 4 * sizeof(float)]);
-    movaps(xe_hi, ptr[store_addr_ + 11 * 4 * sizeof(float)]);
-    movaps(ptr[store_addr_ + 8 * 4 * sizeof(float)], xe_lo);
-    movaps(ptr[store_addr_ + 9 * 4 * sizeof(float)], xe_hi);
+    this->movaps(xe_lo, this->ptr[store_addr_ + 10 * 4 * sizeof(float)]);
+    this->movaps(xe_hi, this->ptr[store_addr_ + 11 * 4 * sizeof(float)]);
+    this->movaps(this->ptr[store_addr_ + 8 * 4 * sizeof(float)], xe_lo);
+    this->movaps(this->ptr[store_addr_ + 9 * 4 * sizeof(float)], xe_hi);
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_lrn_fwd_kernel<isa, d_type>::nchw_body_sse41(int tail, int HW,
+void jit_uni_lrn_fwd_kernel_t<isa, d_type>::nchw_body_sse41(int tail, int HW,
         prop_kind_t pk, Xbyak::Xmm xe_lo, Xbyak::Xmm xe_hi, Xbyak::Xmm xsum_lo,
         Xbyak::Xmm xsum_hi) {}
 
 template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_lrn_fwd_kernel<isa, d_type>::jit_uni_lrn_fwd_kernel(
+jit_uni_lrn_fwd_kernel_t<isa, d_type>::jit_uni_lrn_fwd_kernel_t(
         const nchw_across &J, float A, float K, prop_kind_t pk, void *code_ptr,
         size_t code_size)
-    : jit_generator(code_ptr, code_size), alpha_(A), k_(K) {
+    : Base(code_ptr, code_size), alpha_(A), k_(K) {
     static const uint32_t mask[]
             = {0x80000000, 0x80000000, 0x80000000, 0x80000000, 0x80000000,
                     0x80000000, 0x80000000, 0, 0, 0, 0, 0, 0, 0};
-    Xbyak::Reg64 c = r10;
-    Xbyak::Ymm ymask = ymm2;
-    Xbyak::Ymm ye = ymm3;
-    Xbyak::Ymm ya = ymm4;
-    Xbyak::Ymm yb = ymm5;
-    Xbyak::Ymm yc = ymm6;
-    Xbyak::Ymm yd = ymm7;
-    Xbyak::Ymm ysum = ymm8;
+    const Xbyak::Reg64 &c = this->r10;
+    const Xbyak::Ymm &ymask = this->ymm2;
+    const Xbyak::Ymm &ye = this->ymm3;
+    const Xbyak::Ymm &ya = this->ymm4;
+    const Xbyak::Ymm &yb = this->ymm5;
+    const Xbyak::Ymm &yc = this->ymm6;
+    const Xbyak::Ymm &yd = this->ymm7;
+    const Xbyak::Ymm &ysum = this->ymm8;
 
     this->preamble();
 
     if (J.tail != 0) {
-        mov(imm_addr64_, reinterpret_cast<size_t>(&mask[7 - J.tail]));
-        vmovups(ymask, ptr[imm_addr64_]);
+        this->mov(
+                this->imm_addr64_, reinterpret_cast<size_t>(&mask[7 - J.tail]));
+        this->vmovups(ymask, this->ptr[this->imm_addr64_]);
     }
-    mov(imm_addr64_, float2int(this->alpha_));
-    movq(xalpha_, imm_addr64_);
-    vbroadcastss(valpha_, xalpha_);
+    this->mov(this->imm_addr64_, float2int(this->alpha_));
+    this->vmovq(xalpha_, this->imm_addr64_);
+    this->vbroadcastss(valpha_, xalpha_);
 
-    mov(imm_addr64_, float2int(this->k_));
-    movq(xk_, imm_addr64_);
-    vbroadcastss(yk_, xk_);
+    this->mov(this->imm_addr64_, float2int(this->k_));
+    this->vmovq(xk_, this->imm_addr64_);
+    this->vbroadcastss(yk_, xk_);
 
-    mov(src_, ptr[this->param1 + 0]);
-    mov(dst_, ptr[this->param1 + 8]);
+    this->mov(src_, this->ptr[this->param1 + 0]);
+    this->mov(dst_, this->ptr[this->param1 + 8]);
     if (pk != prop_kind::forward_inference)
-        mov(scratch_, ptr[this->param1 + 16]);
+        this->mov(scratch_, this->ptr[this->param1 + 16]);
 
-    vxorps(ya, ya, ya);
-    vxorps(yb, yb, yb);
+    this->vxorps(ya, ya, ya);
+    this->vxorps(yb, yb, yb);
     if (J.tail != 0)
-        vmaskmovps(yc, ymask, ptr[src_ + J.HW * 0]);
+        this->vmaskmovps(yc, ymask, this->ptr[src_ + J.HW * 0]);
     else
-        vmovups(yc, ptr[src_ + J.HW * 0]);
+        this->vmovups(yc, this->ptr[src_ + J.HW * 0]);
     if (J.tail != 0)
-        vmaskmovps(yd, ymask, ptr[src_ + J.HW * 4]);
+        this->vmaskmovps(yd, ymask, this->ptr[src_ + J.HW * 4]);
     else
-        vmovups(yd, ptr[src_ + J.HW * 4]);
+        this->vmovups(yd, this->ptr[src_ + J.HW * 4]);
 
-    vxorps(ysum, ysum, ysum);
-    vfmadd231ps(ysum, yc, yc); // ysum <- ysum + ya^2+yb^2+yc^2+yd^2+ye^2
-    vfmadd231ps(ysum, yd, yd);
+    this->vxorps(ysum, ysum, ysum);
+    this->vfmadd231ps(ysum, yc, yc); // ysum <- ysum + ya^2+yb^2+yc^2+yd^2+ye^2
+    this->vfmadd231ps(ysum, yd, yd);
 
-    mov(c, J.C - 2);
+    this->mov(c, J.C - 2);
     Label lrn_loop;
-    L(lrn_loop);
+    this->L(lrn_loop);
 
     if (J.tail != 0)
-        vmaskmovps(ye, ymask, ptr[src_ + J.HW * 8]);
+        this->vmaskmovps(ye, ymask, this->ptr[src_ + J.HW * 8]);
     else
-        vmovups(ye, ptr[src_ + J.HW * 8]);
+        this->vmovups(ye, this->ptr[src_ + J.HW * 8]);
 
     nchw_body(J.tail, J.HW, pk, ymask, ya, yb, yc, yd, ye, ysum);
 
-    add(src_, J.HW * 4);
-    add(dst_, J.HW * 4);
-    if (pk != prop_kind::forward_inference) add(scratch_, J.HW * 4);
-    dec(c);
-    cmp(c, 0);
-    jne(lrn_loop, T_NEAR);
+    this->add(src_, J.HW * 4);
+    this->add(dst_, J.HW * 4);
+    if (pk != prop_kind::forward_inference) this->add(scratch_, J.HW * 4);
+    this->dec(c);
+    this->cmp(c, 0);
+    this->jne(lrn_loop, this->T_NEAR);
 
-    vxorps(ye, ye, ye);
+    this->vxorps(ye, ye, ye);
 
     nchw_body(J.tail, J.HW, pk, ymask, ya, yb, yc, yd, ye, ysum);
-    add(src_, J.HW * 4);
-    add(dst_, J.HW * 4);
-    if (pk != prop_kind::forward_inference) add(scratch_, J.HW * 4);
+    this->add(src_, J.HW * 4);
+    this->add(dst_, J.HW * 4);
+    if (pk != prop_kind::forward_inference) this->add(scratch_, J.HW * 4);
 
     nchw_body(J.tail, J.HW, pk, ymask, ya, yb, yc, yd, ye, ysum);
 
@@ -1182,14 +1269,14 @@ jit_uni_lrn_fwd_kernel<isa, d_type>::jit_uni_lrn_fwd_kernel(
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_lrn_fwd_kernel<isa, d_type>::~jit_uni_lrn_fwd_kernel() = default;
+jit_uni_lrn_fwd_kernel_t<isa, d_type>::~jit_uni_lrn_fwd_kernel_t() = default;
 
 template <>
-jit_uni_lrn_fwd_kernel<sse41,
-        dnnl::impl::data_type::f32>::jit_uni_lrn_fwd_kernel(const nchw_across
-                                                                    &J,
+jit_uni_lrn_fwd_kernel_t<sse41,
+        dnnl::impl::data_type::f32>::jit_uni_lrn_fwd_kernel_t(const nchw_across
+                                                                      &J,
         float A, float K, prop_kind_t pk, void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size), alpha_(A), k_(K) {
+    : Base(code_ptr, code_size), alpha_(A), k_(K) {
 
     /* Load from within the memory boundary of 'src_' and apply a zero-mask to
      * the 'x_hi' register:
@@ -1218,22 +1305,22 @@ jit_uni_lrn_fwd_kernel<sse41,
             = {0, 0, 0, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
     assert(J.HW > 3);
 
-    Xbyak::Reg64 c = r10;
+    const Xbyak::Reg64 &c = r10;
 
     // unused: xmm2
-    Xbyak::Xmm xmask_hi = xmm3;
-    Xbyak::Xmm xsum_lo = xmm4;
-    Xbyak::Xmm xsum_hi = xmm5;
-    Xbyak::Xmm xa_lo = xmm6;
-    Xbyak::Xmm xa_hi = xmm7;
-    Xbyak::Xmm xb_lo = xmm8;
-    Xbyak::Xmm xb_hi = xmm9;
-    Xbyak::Xmm xc_lo = xmm10;
-    Xbyak::Xmm xc_hi = xmm11;
-    Xbyak::Xmm xd_lo = xmm12;
-    Xbyak::Xmm xd_hi = xmm13;
-    Xbyak::Xmm xe_lo = xmm14;
-    Xbyak::Xmm xe_hi = xmm15;
+    const Xbyak::Xmm &xmask_hi = this->xmm3;
+    const Xbyak::Xmm &xsum_lo = this->xmm4;
+    const Xbyak::Xmm &xsum_hi = this->xmm5;
+    const Xbyak::Xmm &xa_lo = this->xmm6;
+    const Xbyak::Xmm &xa_hi = this->xmm7;
+    const Xbyak::Xmm &xb_lo = this->xmm8;
+    const Xbyak::Xmm &xb_hi = this->xmm9;
+    const Xbyak::Xmm &xc_lo = this->xmm10;
+    const Xbyak::Xmm &xc_hi = this->xmm11;
+    const Xbyak::Xmm &xd_lo = this->xmm12;
+    const Xbyak::Xmm &xd_hi = this->xmm13;
+    const Xbyak::Xmm &xe_lo = this->xmm14;
+    const Xbyak::Xmm &xe_hi = this->xmm15;
 
     const int vlen = cpu_isa_traits<sse41>::vlen / sizeof(float);
 
@@ -1245,26 +1332,26 @@ jit_uni_lrn_fwd_kernel<sse41,
 
     this->preamble();
 
-    mov(src_, ptr[this->param1 + 0]);
-    mov(dst_, ptr[this->param1 + 8]);
+    this->mov(src_, this->ptr[this->param1 + 0]);
+    this->mov(dst_, this->ptr[this->param1 + 8]);
     if (pk != prop_kind::forward_inference)
-        mov(scratch_, ptr[this->param1 + 16]);
+        this->mov(scratch_, this->ptr[this->param1 + 16]);
 
-    sub(rsp, stack_space_needed_);
-    mov(store_addr_, rsp);
-    and_(store_addr_, -15);
+    this->sub(rsp, stack_space_needed_);
+    this->mov(store_addr_, rsp);
+    this->and_(store_addr_, -15);
 
-    mov(imm_addr64_, float2int(this->alpha_));
-    movq(xalpha_, imm_addr64_);
-    shufps(xalpha_, xalpha_, 0);
+    this->mov(this->imm_addr64_, float2int(this->alpha_));
+    this->movq(xalpha_, this->imm_addr64_);
+    this->shufps(xalpha_, xalpha_, 0);
 
-    mov(imm_addr64_, float2int(this->k_));
-    movq(xk_, imm_addr64_);
-    shufps(xk_, xk_, 0);
+    this->mov(this->imm_addr64_, float2int(this->k_));
+    this->movq(xk_, this->imm_addr64_);
+    this->shufps(xk_, xk_, 0);
 
     // put alpha_ and k_ into store (free up regs)
-    movaps(ptr[store_addr_ + 0 * 4 * sizeof(float)], xalpha_);
-    movaps(ptr[store_addr_ + 1 * 4 * sizeof(float)], xk_);
+    this->movaps(this->ptr[store_addr_ + 0 * 4 * sizeof(float)], xalpha_);
+    this->movaps(this->ptr[store_addr_ + 1 * 4 * sizeof(float)], xk_);
 
     if (compute_tail) {
         assert(J.tail > 0 && J.tail < 2 * vlen);
@@ -1273,82 +1360,82 @@ jit_uni_lrn_fwd_kernel<sse41,
 
         /* if 'tail' is between [1:3], need to zero-mask for underflow */
         size_t m_off = nstl::min(J.tail - 1, 3);
-        mov(imm_addr64_, reinterpret_cast<size_t>(&mask[m_off]));
-        movups(xmask_hi, ptr[imm_addr64_]);
+        this->mov(this->imm_addr64_, reinterpret_cast<size_t>(&mask[m_off]));
+        this->movups(xmask_hi, this->ptr[this->imm_addr64_]);
     }
     // init xa, xb
-    xorps(xa_lo, xa_lo);
-    xorps(xa_hi, xa_hi);
-    xorps(xb_lo, xb_lo);
-    xorps(xb_hi, xb_hi);
+    this->xorps(xa_lo, xa_lo);
+    this->xorps(xa_hi, xa_hi);
+    this->xorps(xb_lo, xb_lo);
+    this->xorps(xb_hi, xb_hi);
 
     // read xc, xd
-    if (load_lo) movups(xc_lo, ptr[src_ + J.HW * 0]);
-    movups(xc_hi, ptr[src_ + J.HW * 0 + h_offset * sizeof(float)]);
+    if (load_lo) this->movups(xc_lo, this->ptr[src_ + J.HW * 0]);
+    this->movups(xc_hi, this->ptr[src_ + J.HW * 0 + h_offset * sizeof(float)]);
     if (compute_tail) {
-        pslldq(xc_lo, l_shift * sizeof(float));
-        andps(xc_hi, xmask_hi);
+        this->pslldq(xc_lo, l_shift * sizeof(float));
+        this->andps(xc_hi, xmask_hi);
     }
 
-    if (load_lo) movups(xd_lo, ptr[src_ + J.HW * 4]);
-    movups(xd_hi, ptr[src_ + J.HW * 4 + h_offset * sizeof(float)]);
+    if (load_lo) this->movups(xd_lo, this->ptr[src_ + J.HW * 4]);
+    this->movups(xd_hi, this->ptr[src_ + J.HW * 4 + h_offset * sizeof(float)]);
     if (compute_tail) {
-        pslldq(xd_lo, l_shift * sizeof(float));
-        andps(xd_hi, xmask_hi);
+        this->pslldq(xd_lo, l_shift * sizeof(float));
+        this->andps(xd_hi, xmask_hi);
     }
 
     // put xa, xb, xc, xd into store to free-up regs
-    movaps(ptr[store_addr_ + 2 * 4 * sizeof(float)], xa_lo);
-    movaps(ptr[store_addr_ + 3 * 4 * sizeof(float)], xa_hi);
-    movaps(ptr[store_addr_ + 4 * 4 * sizeof(float)], xb_lo);
-    movaps(ptr[store_addr_ + 5 * 4 * sizeof(float)], xb_hi);
-    movaps(ptr[store_addr_ + 6 * 4 * sizeof(float)], xc_lo);
-    movaps(ptr[store_addr_ + 7 * 4 * sizeof(float)], xc_hi);
-    movaps(ptr[store_addr_ + 8 * 4 * sizeof(float)], xd_lo);
-    movaps(ptr[store_addr_ + 9 * 4 * sizeof(float)], xd_hi);
+    this->movaps(this->ptr[store_addr_ + 2 * 4 * sizeof(float)], xa_lo);
+    this->movaps(this->ptr[store_addr_ + 3 * 4 * sizeof(float)], xa_hi);
+    this->movaps(this->ptr[store_addr_ + 4 * 4 * sizeof(float)], xb_lo);
+    this->movaps(this->ptr[store_addr_ + 5 * 4 * sizeof(float)], xb_hi);
+    this->movaps(this->ptr[store_addr_ + 6 * 4 * sizeof(float)], xc_lo);
+    this->movaps(this->ptr[store_addr_ + 7 * 4 * sizeof(float)], xc_hi);
+    this->movaps(this->ptr[store_addr_ + 8 * 4 * sizeof(float)], xd_lo);
+    this->movaps(this->ptr[store_addr_ + 9 * 4 * sizeof(float)], xd_hi);
 
-    xorps(xsum_lo, xsum_lo);
-    xorps(xsum_hi, xsum_hi);
-    mulps(xc_lo, xc_lo);
-    mulps(xc_hi, xc_hi);
-    addps(xsum_lo, xc_lo);
-    addps(xsum_hi, xc_hi);
-    mulps(xd_lo, xd_lo);
-    mulps(xd_hi, xd_hi);
-    addps(xsum_lo, xd_lo);
-    addps(xsum_hi, xd_hi); // xsum <- xsum + xa^2+xb^2+xc^2+xd^2+xe^2
+    this->xorps(xsum_lo, xsum_lo);
+    this->xorps(xsum_hi, xsum_hi);
+    this->mulps(xc_lo, xc_lo);
+    this->mulps(xc_hi, xc_hi);
+    this->addps(xsum_lo, xc_lo);
+    this->addps(xsum_hi, xc_hi);
+    this->mulps(xd_lo, xd_lo);
+    this->mulps(xd_hi, xd_hi);
+    this->addps(xsum_lo, xd_lo);
+    this->addps(xsum_hi, xd_hi); // xsum <- xsum + xa^2+xb^2+xc^2+xd^2+xe^2
 
-    mov(c, J.C - 2);
+    this->mov(c, J.C - 2);
     Label lrn_loop;
-    L(lrn_loop);
+    this->L(lrn_loop);
 
-    if (load_lo) movups(xe_lo, ptr[src_ + J.HW * 8]);
-    movups(xe_hi, ptr[src_ + J.HW * 8 + h_offset * sizeof(float)]);
+    if (load_lo) this->movups(xe_lo, this->ptr[src_ + J.HW * 8]);
+    this->movups(xe_hi, this->ptr[src_ + J.HW * 8 + h_offset * sizeof(float)]);
     if (compute_tail) {
-        pslldq(xe_lo, l_shift * sizeof(float));
-        andps(xe_hi, xmask_hi);
+        this->pslldq(xe_lo, l_shift * sizeof(float));
+        this->andps(xe_hi, xmask_hi);
     }
 
     nchw_body_sse41(J.tail, J.HW, pk, xe_lo, xe_hi, xsum_lo, xsum_hi);
 
-    add(src_, J.HW * 4);
-    add(dst_, J.HW * 4);
+    this->add(src_, J.HW * 4);
+    this->add(dst_, J.HW * 4);
     if (pk != prop_kind::forward_inference) add(scratch_, J.HW * 4);
-    dec(c);
-    cmp(c, 0);
-    jne(lrn_loop, T_NEAR);
+    this->dec(c);
+    this->cmp(c, 0);
+    this->jne(lrn_loop, this->T_NEAR);
 
-    xorps(xe_lo, xe_lo);
-    xorps(xe_hi, xe_hi);
+    this->xorps(xe_lo, xe_lo);
+    this->xorps(xe_hi, xe_hi);
 
     nchw_body_sse41(J.tail, J.HW, pk, xe_lo, xe_hi, xsum_lo, xsum_hi);
-    add(src_, J.HW * 4);
-    add(dst_, J.HW * 4);
+    this->add(src_, J.HW * 4);
+    this->add(dst_, J.HW * 4);
     if (pk != prop_kind::forward_inference) add(scratch_, J.HW * 4);
 
     nchw_body_sse41(J.tail, J.HW, pk, xe_lo, xe_hi, xsum_lo, xsum_hi);
 
-    add(rsp, stack_space_needed_);
+    this->add(rsp, stack_space_needed_);
 
     this->postamble();
 
@@ -1358,141 +1445,281 @@ jit_uni_lrn_fwd_kernel<sse41,
 
 //////////////////////////////////////////////////////////////////////////////
 // backward kernel
-template <cpu_isa_t isa>
-jit_uni_lrn_bwd_kernel_f32<isa>::jit_uni_lrn_bwd_kernel_f32(
-        const struct nchw8c_across &J, float A, float B, int use_h_parallel,
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_lrn_bwd_kernel_t<isa, d_type>::jit_uni_lrn_bwd_kernel_t(
+        const nchw8c_across &J, float A, float B, int use_h_parallel,
         void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size)
-    , nalphabeta(-2 * A * B)
-    , use_h_parallelizm(use_h_parallel) {
-    Xbyak::Reg64 t = rsp;
-    Xbyak::Reg64 hw = r10;
+    : Base(code_ptr, code_size)
+    , nalphabeta_(-2 * A * B)
+    , use_h_parallelizm_(use_h_parallel) {
 
-    Xbyak::Xmm xsrc_prev = xmm1;
-    Xbyak::Xmm xws_prev = xmm2;
-    Xbyak::Xmm xdiffdst_prev = xmm3;
-    Xbyak::Ymm ysrc = ymm4;
-    Xbyak::Ymm yws = ymm5;
-    Xbyak::Ymm ydiffdst = ymm6;
-    Xbyak::Xmm xsrc_next = xmm7;
-    Xbyak::Xmm xws_next = xmm8;
-    Xbyak::Xmm xdiffdst_next = xmm9;
-    Xbyak::Ymm ya = ymm10;
-    Xbyak::Xmm xa = xmm10;
-    Xbyak::Ymm yb = ymm11;
-    Xbyak::Ymm yd = ymm12;
-    Xbyak::Ymm ye = ymm13;
-    Xbyak::Ymm ysum = ymm14;
-    Xbyak::Ymm ydiffsrc = ymm15;
+    const Xbyak::Reg64 &t = this->rsp;
+    const Xbyak::Reg64 &hw = this->r10;
+    const Xbyak::Xmm &xsrc_prev = this->xmm1;
+    const Xbyak::Xmm &xws_prev = this->xmm2;
+    const Xbyak::Xmm &xdiffdst_prev = this->xmm3;
+    const Xbyak::Ymm &ysrc = this->ymm4;
+    const Xbyak::Ymm &yws = this->ymm5;
+    const Xbyak::Ymm &ydiffdst = this->ymm6;
+    const Xbyak::Xmm &xsrc_next = this->xmm7;
+    const Xbyak::Xmm &xws_next = this->xmm8;
+    const Xbyak::Xmm &xdiffdst_next = this->xmm9;
+    const Xbyak::Ymm &ya = this->ymm10;
+    const Xbyak::Xmm &xa = this->xmm10;
+    const Xbyak::Ymm &yb = this->ymm11;
+    const Xbyak::Ymm &yd = this->ymm12;
+    const Xbyak::Ymm &ye = this->ymm13;
+    const Xbyak::Ymm &ysum = this->ymm14;
+    const Xbyak::Ymm &ydiffsrc = this->ymm15;
 
     this->preamble();
 
-    mov(src_, ptr[this->param1 + 0]);
-    mov(diffdst, ptr[this->param1 + 8]);
-    mov(workspace, ptr[this->param1 + 16]);
-    mov(diffsrc, ptr[this->param1 + 24]);
+#define GET_OFF(field) offsetof(jit_args_bwd_t, field)
+    this->mov(src_, this->ptr[this->param1 + GET_OFF(src)]);
+    this->mov(diffdst_, this->ptr[this->param1 + GET_OFF(diff_dst)]);
+    this->mov(scratch_, this->ptr[this->param1 + GET_OFF(scratch)]);
+    this->mov(bwd_intermediate_res_,
+            this->ptr[this->param1 + GET_OFF(bwd_intermediate_res)]);
+    this->mov(diffsrc_, this->ptr[this->param1 + GET_OFF(diff_src)]);
+#undef GET_OFF
 
-    sub(t, 64);
-    mov(imm_addr64_, float2int(this->nalphabeta));
-    movq(xnalphabeta, imm_addr64_);
-    vbroadcastss(ynalphabeta, xnalphabeta);
+    this->sub(t, 64);
+    this->mov(this->imm_addr64_, float2int(this->nalphabeta_));
+    this->vmovq(xnalphabeta_, this->imm_addr64_);
+    this->vbroadcastss(vnalphabeta_, xnalphabeta_);
 
     bool is_single = J.version == 3;
     bool is_first = J.version == -1 || J.version == -2;
     bool is_last = J.version == +1 || J.version == -2;
 
     if (is_first || is_single) {
-        vxorps(xsrc_prev, xsrc_prev, xsrc_prev);
-        vmovups(ptr[t + 0], xsrc_prev);
+        this->vxorps(xsrc_prev, xsrc_prev, xsrc_prev);
+        this->vmovups(this->ptr[t + 0], xsrc_prev);
     }
     if (is_last || is_single) {
-        vxorps(xsrc_next, xsrc_next, xsrc_next);
-        vmovups(ptr[t + 48], xsrc_next);
+        this->vxorps(xsrc_next, xsrc_next, xsrc_next);
+        this->vmovups(this->ptr[t + 48], xsrc_next);
     }
-    mov(hw, this->use_h_parallelizm ? J.W : J.H * J.W);
+    this->mov(hw, this->use_h_parallelizm_ ? J.W : J.H * J.W);
     Label lrn_loop;
-    L(lrn_loop);
+    this->L(lrn_loop);
     {
         if (!is_first && !is_single) {
-            vmovups(xws_prev, ptr[workspace - J.H * J.W * 32 + 16]);
-            vmovups(xsrc_prev, ptr[src_ - J.H * J.W * 32 + 16]);
-            vmovups(xdiffdst_prev, ptr[diffdst - J.H * J.W * 32 + 16]);
-            vmulps(xa, xws_prev, xws_prev);
-            vmulps(xa, xa, xws_prev);
-            vsqrtps(xa, xa);
-            vsqrtps(xa, xa);
-            vmulps(xa, xa, xws_prev);
-            vdivps(xsrc_prev, xsrc_prev, xa);
-            vmulps(xdiffdst_prev, xdiffdst_prev, xsrc_prev);
+            this->vmovups(xws_prev, this->ptr[scratch_ - J.H * J.W * 32 + 16]);
+            this->vmovups(xsrc_prev, this->ptr[src_ - J.H * J.W * 32 + 16]);
+            this->vmovups(
+                    xdiffdst_prev, this->ptr[diffdst_ - J.H * J.W * 32 + 16]);
+            this->vmulps(xa, xws_prev, xws_prev);
+            this->vmulps(xa, xa, xws_prev);
+            this->vsqrtps(xa, xa);
+            this->vsqrtps(xa, xa);
+            this->vmulps(xa, xa, xws_prev);
+            this->vdivps(xsrc_prev, xsrc_prev, xa);
+            this->vmulps(xdiffdst_prev, xdiffdst_prev, xsrc_prev);
         }
 
-        vmovups(ysrc, ptr[src_]);
-        vmovups(yws, ptr[workspace]);
-        vmovups(ydiffdst, ptr[diffdst]);
-        vmulps(ya, yws, yws);
-        vmulps(ya, ya, yws);
-        vsqrtps(ya, ya);
-        vsqrtps(ya, ya);
-        vdivps(ydiffsrc, ydiffdst, ya);
-        vdivps(ysum, ydiffsrc, yws);
-        vmulps(ysum, ysum, ysrc);
+        this->vmovups(ysrc, this->ptr[src_]);
+        this->vmovups(yws, this->ptr[scratch_]);
+        this->vmovups(ydiffdst, this->ptr[diffdst_]);
+        this->vmulps(ya, yws, yws);
+        this->vmulps(ya, ya, yws);
+        this->vsqrtps(ya, ya);
+        this->vsqrtps(ya, ya);
+        this->vdivps(ydiffsrc, ydiffdst, ya);
+        this->vdivps(ysum, ydiffsrc, yws);
+        this->vmulps(ysum, ysum, ysrc);
 
         if (!is_last && !is_single) {
-            vmovups(xws_next, ptr[workspace + J.H * J.W * 32]);
-            vmovups(xsrc_next, ptr[src_ + J.H * J.W * 32]);
-            vmovups(xdiffdst_next, ptr[diffdst + J.H * J.W * 32]);
-            vmulps(xa, xws_next, xws_next);
-            vmulps(xa, xa, xws_next);
-            vsqrtps(xa, xa);
-            vsqrtps(xa, xa);
-            vmulps(xa, xa, xws_next);
-            vdivps(xsrc_next, xsrc_next, xa);
-            vmulps(xdiffdst_next, xdiffdst_next, xsrc_next);
+            this->vmovups(xws_next, this->ptr[scratch_ + J.H * J.W * 32]);
+            this->vmovups(xsrc_next, this->ptr[src_ + J.H * J.W * 32]);
+            this->vmovups(xdiffdst_next, this->ptr[diffdst_ + J.H * J.W * 32]);
+            this->vmulps(xa, xws_next, xws_next);
+            this->vmulps(xa, xa, xws_next);
+            this->vsqrtps(xa, xa);
+            this->vsqrtps(xa, xa);
+            this->vmulps(xa, xa, xws_next);
+            this->vdivps(xsrc_next, xsrc_next, xa);
+            this->vmulps(xdiffdst_next, xdiffdst_next, xsrc_next);
         }
 
-        if (!is_first && !is_single) vmovups(ptr[t + 0], xdiffdst_prev);
-        vmovups(ptr[t + 16], ysum);
-        if (!is_last && !is_single) vmovups(ptr[t + 48], xdiffdst_next);
+        if (!is_first && !is_single)
+            this->vmovups(this->ptr[t + 0], xdiffdst_prev);
+        this->vmovups(this->ptr[t + 16], ysum);
+        if (!is_last && !is_single)
+            this->vmovups(this->ptr[t + 48], xdiffdst_next);
 
-        vmovups(ya, ptr[t + 16 - 8]);
-        vmovups(yb, ptr[t + 16 - 4]);
-        vaddps(ysum, ysum, ya);
-        vmulps(ysrc, ysrc, ynalphabeta);
-        vaddps(ysum, ysum, yb);
+        this->vmovups(ya, this->ptr[t + 16 - 8]);
+        this->vmovups(yb, this->ptr[t + 16 - 4]);
+        this->vaddps(ysum, ysum, ya);
+        this->vmulps(ysrc, ysrc, vnalphabeta_);
+        this->vaddps(ysum, ysum, yb);
 
-        vmovups(yd, ptr[t + 16 + 4]);
-        vmovups(ye, ptr[t + 16 + 8]);
-        vaddps(ysum, ysum, yd);
-        vaddps(ysum, ysum, ye);
+        this->vmovups(yd, this->ptr[t + 16 + 4]);
+        this->vmovups(ye, this->ptr[t + 16 + 8]);
+        this->vaddps(ysum, ysum, yd);
+        this->vaddps(ysum, ysum, ye);
 
-        vfmadd231ps(ydiffsrc, ysum, ysrc);
+        this->vfmadd231ps(ydiffsrc, ysum, ysrc);
 
-        vmovups(ptr[diffsrc], ydiffsrc);
+        this->vmovups(this->ptr[diffsrc_], ydiffsrc);
 
-        add(src_, 32);
-        add(diffsrc, 32);
-        add(diffdst, 32);
-        add(workspace, 32);
+        this->add(src_, 32);
+        this->add(diffsrc_, 32);
+        this->add(diffdst_, 32);
+        this->add(scratch_, 32);
 
-        dec(hw);
-        cmp(hw, 0);
-        jne(lrn_loop, T_NEAR);
+        this->dec(hw);
+        this->cmp(hw, 0);
+        this->jne(lrn_loop, this->T_NEAR);
     }
 
-    add(t, 64);
+    this->add(t, 64);
     this->postamble();
 
     ker = reinterpret_cast<decltype(ker)>(
             const_cast<uint8_t *>(this->getCode()));
 }
 
-template struct jit_uni_lrn_fwd_kernel<sse41, dnnl::impl::data_type::f32>;
-template struct jit_uni_lrn_fwd_kernel<avx2, dnnl::impl::data_type::f32>;
-template struct jit_uni_lrn_fwd_kernel<avx512_common,
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_lrn_bwd_kernel_t<isa, d_type>::jit_uni_lrn_bwd_kernel_t(
+        const within_config &config, float A, float B, void *code_ptr,
+        size_t code_size)
+    : Base(config, code_ptr, code_size), nalphabeta_(-2.0f * A * B) {
+
+    this->preamble();
+
+#define GET_OFF(field) offsetof(jit_args_bwd_t, field)
+    this->mov(src_, this->ptr[this->param1 + GET_OFF(src)]);
+    this->mov(diffdst_, this->ptr[this->param1 + GET_OFF(diff_dst)]);
+    this->mov(scratch_, this->ptr[this->param1 + GET_OFF(scratch)]);
+    this->mov(bwd_intermediate_res_,
+            this->ptr[this->param1 + GET_OFF(bwd_intermediate_res)]);
+    this->mov(diffsrc_, this->ptr[this->param1 + GET_OFF(diff_src)]);
+#undef GET_OFF
+    this->load_constant(nalphabeta_, vnalphabeta_, xnalphabeta_);
+
+    static const int max_reg_blocks = isa == avx512_common ? 3 : 1;
+    this->within_loop(config, max_reg_blocks, prop_kind::backward);
+
+    this->postamble();
+
+    ker = reinterpret_cast<decltype(ker)>(
+            const_cast<uint8_t *>(this->getCode()));
+}
+
+template <cpu_isa_t isa, data_type_t d_type>
+void jit_uni_lrn_bwd_kernel_t<isa, d_type>::within_body(int hoff, int Hoff,
+        int woff, int Woff, int stride, prop_kind_t pk, const int reg_block,
+        int pixel_offset) {
+
+    static const std::array<Vmm, 3> vsum {{Vmm(1), Vmm(9), Vmm(18)}};
+    static const std::array<std::array<Vmm, 3>, 3> diff_dst {{
+            {{Vmm(2), Vmm(3), Vmm(6)}},
+            {{Vmm(10), Vmm(11), Vmm(23)}},
+            {{Vmm(19), Vmm(20), Vmm(26)}},
+    }};
+    static const std::array<std::array<Vmm, 3>, 3> ws1 {{
+            {{Vmm(4), Vmm(5), Vmm(15)}},
+            {{Vmm(12), Vmm(13), Vmm(27)}},
+            {{Vmm(21), Vmm(22), Vmm(28)}},
+    }};
+    static const std::array<Vmm, 3> ws0 = !this->emulate_bfloat_
+            ? std::array<Vmm, 3> {{Vmm(29), Vmm(30), Vmm(31)}}
+            : std::array<Vmm, 3> {{Vmm(6), Vmm(15), Vmm(23)}};
+    static const std::array<Vmm, 3> src {{Vmm(7), Vmm(16), Vmm(24)}};
+    static const std::array<Vmm, 3> a {{Vmm(8), Vmm(17), Vmm(25)}};
+
+    static const std::size_t used_tmp_regs
+            = this->emulate_bfloat_ ? ws1[0].size() - 1 : ws1[0].size();
+
+    IRB_LOOP(this->uni_vxorps(vsum[irb], vsum[irb], vsum[irb]));
+    for (int i = hoff; i <= Hoff; ++i) {
+        for (int j = woff; j <= Woff; ++j) {
+            const auto idx = this->tempIdx_ % used_tmp_regs;
+            IRB_LOOP(this->load_data(diff_dst[irb][idx],
+                    this->ptr[(diffdst_ + pixel_offset + irb_off)
+                            + (i * stride + j) * this->single_pixel_offset_]));
+            IRB_LOOP(this->load_data(ws1[irb][idx],
+                    this->ptr[(bwd_intermediate_res_ + pixel_offset + irb_off)
+                            + (i * stride + j) * this->single_pixel_offset_]));
+
+            if (i == 0 && j == 0) {
+                if (d_type == dnnl::impl::data_type::bf16) {
+                    IRB_LOOP(this->load_data(ws0[irb],
+                            this->ptr[(scratch_ + pixel_offset + irb_off)]));
+                    IRB_LOOP(
+                            this->vdivps(a[irb], diff_dst[irb][idx], ws0[irb]));
+                } else {
+                    IRB_LOOP(this->vdivps(a[irb], diff_dst[irb][idx],
+                            this->ptr[(scratch_ + pixel_offset + irb_off)]));
+                }
+            }
+
+            IRB_LOOP(this->vfmadd231ps(
+                    vsum[irb], ws1[irb][idx], diff_dst[irb][idx]));
+            ++(this->tempIdx_);
+        }
+    }
+
+    this->tempIdx_ = this->tempIdx_ % used_tmp_regs;
+
+    if (d_type == dnnl::impl::data_type::bf16) {
+        IRB_LOOP(this->load_data(
+                src[irb], this->ptr[(src_ + pixel_offset + irb_off)]));
+        IRB_LOOP(this->vmulps(src[irb], this->vnalphabeta_, src[irb]));
+    } else {
+        IRB_LOOP(this->vmulps(src[irb], this->vnalphabeta_,
+                this->ptr[(src_ + pixel_offset + irb_off)]));
+    }
+
+    IRB_LOOP(this->vfmadd231ps(a[irb], src[irb], vsum[irb]));
+
+    IRB_LOOP(this->store_data(
+            this->ptr[diffsrc_ + pixel_offset + irb_off], a[irb]));
+
+    if (isa == avx512_common)
+        this->reg_block_idx_ = (this->reg_block_idx_ % vsum.size()) + 1;
+}
+
+template <cpu_isa_t isa, data_type_t d_type>
+void jit_uni_lrn_bwd_kernel_t<isa, d_type>::move_data_pointers(
+        int pixel_count, prop_kind_t pk) {
+    const int pixel_offset = this->single_pixel_offset_ * pixel_count;
+    this->add(src_, pixel_offset);
+    this->add(diffsrc_, pixel_offset);
+    this->add(diffdst_, pixel_offset);
+    this->add(scratch_, pixel_offset);
+    this->add(bwd_intermediate_res_, pixel_offset);
+}
+
+template class jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>;
+template class jit_uni_lrn_fwd_kernel_t<avx2, dnnl::impl::data_type::f32>;
+template class jit_uni_lrn_fwd_kernel_t<avx512_common,
         dnnl::impl::data_type::f32>;
-template struct jit_uni_lrn_fwd_kernel<avx512_common,
+template class jit_uni_lrn_fwd_kernel_t<avx512_common,
         dnnl::impl::data_type::bf16>;
-template struct jit_uni_lrn_bwd_kernel_f32<avx2>;
+
+template class jit_uni_lrn_kernel_t<
+        jit_uni_lrn_fwd_kernel_t<sse41, dnnl::impl::data_type::f32>>;
+template class jit_uni_lrn_kernel_t<
+        jit_uni_lrn_fwd_kernel_t<avx2, dnnl::impl::data_type::f32>>;
+template class jit_uni_lrn_kernel_t<
+        jit_uni_lrn_fwd_kernel_t<avx512_common, dnnl::impl::data_type::f32>>;
+template class jit_uni_lrn_kernel_t<
+        jit_uni_lrn_fwd_kernel_t<avx512_common, dnnl::impl::data_type::bf16>>;
+
+template class jit_uni_lrn_bwd_kernel_t<avx512_common,
+        dnnl::impl::data_type::f32>;
+template class jit_uni_lrn_bwd_kernel_t<avx512_common,
+        dnnl::impl::data_type::bf16>;
+template class jit_uni_lrn_bwd_kernel_t<avx2, dnnl::impl::data_type::f32>;
+
+template class jit_uni_lrn_kernel_t<
+        jit_uni_lrn_bwd_kernel_t<avx2, dnnl::impl::data_type::f32>>;
+template class jit_uni_lrn_kernel_t<
+        jit_uni_lrn_bwd_kernel_t<avx512_common, dnnl::impl::data_type::f32>>;
+template class jit_uni_lrn_kernel_t<
+        jit_uni_lrn_bwd_kernel_t<avx512_common, dnnl::impl::data_type::bf16>>;
 
 } // namespace x64
 } // namespace cpu

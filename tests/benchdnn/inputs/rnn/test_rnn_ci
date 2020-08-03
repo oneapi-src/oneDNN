@@ -1,0 +1,14 @@
+--reset
+
+--alg=VANILLA_RNN
+--activation=RELU,TANH,LOGISTIC
+--direction=left2right,right2left,concat,sum
+--skip-nonlinear=false
+--l=1,2
+--t=1,2
+--mb=1,2
+
+--trivial-strides=true,false
+--prop=FWD_D,BWD_DW
+--cfg=f32,bf16,f16
+--batch=shapes_small

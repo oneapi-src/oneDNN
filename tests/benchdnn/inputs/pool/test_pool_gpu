@@ -15,9 +15,9 @@
 --tag=ABx16a16b
 --batch=set_all_small
 
-# s8, f16, bf16
+# u8, s8, s32, f16, bf16
 --mb=2
---cfg=u8,s8,f16,bf16
+--cfg=u8,s8,s32,f16,bf16
 --dir=FWD_I
 --alg=MAX,AVG_NP,AVG_P
 --tag=abx,aBx16b

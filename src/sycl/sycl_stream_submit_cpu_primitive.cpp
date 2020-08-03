@@ -329,6 +329,34 @@ void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
                     sycl_mem_storages[17], sycl_mem_storages[18],
                     sycl_mem_storages[19], sycl_mem_storages[20]);
             break;
+        case 22:
+            fast_dispatch_by_size(submit_ctx, cgh, sycl_mem_storages[0],
+                    sycl_mem_storages[1], sycl_mem_storages[2],
+                    sycl_mem_storages[3], sycl_mem_storages[4],
+                    sycl_mem_storages[5], sycl_mem_storages[6],
+                    sycl_mem_storages[7], sycl_mem_storages[8],
+                    sycl_mem_storages[9], sycl_mem_storages[10],
+                    sycl_mem_storages[11], sycl_mem_storages[12],
+                    sycl_mem_storages[13], sycl_mem_storages[14],
+                    sycl_mem_storages[15], sycl_mem_storages[16],
+                    sycl_mem_storages[17], sycl_mem_storages[18],
+                    sycl_mem_storages[19], sycl_mem_storages[20],
+                    sycl_mem_storages[21]);
+            break;
+        case 23:
+            fast_dispatch_by_size(submit_ctx, cgh, sycl_mem_storages[0],
+                    sycl_mem_storages[1], sycl_mem_storages[2],
+                    sycl_mem_storages[3], sycl_mem_storages[4],
+                    sycl_mem_storages[5], sycl_mem_storages[6],
+                    sycl_mem_storages[7], sycl_mem_storages[8],
+                    sycl_mem_storages[9], sycl_mem_storages[10],
+                    sycl_mem_storages[11], sycl_mem_storages[12],
+                    sycl_mem_storages[13], sycl_mem_storages[14],
+                    sycl_mem_storages[15], sycl_mem_storages[16],
+                    sycl_mem_storages[17], sycl_mem_storages[18],
+                    sycl_mem_storages[19], sycl_mem_storages[20],
+                    sycl_mem_storages[21], sycl_mem_storages[22]);
+            break;
         default:
             delete submit_ctx;
             assert(!"Please add another case");

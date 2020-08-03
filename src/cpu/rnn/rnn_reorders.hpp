@@ -50,6 +50,7 @@ struct rnn_data_reorder_t : public primitive_t {
             const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = id.data_type() == type_i && od.data_type() == type_o
                     && utils::one_of(id.ndims(), 3, 4)
+                    && !id.has_runtime_dims_or_strides()
                     && attr->has_default_values(
                             primitive_attr_t::skip_mask_t::rnn_data_qparams
                             | primitive_attr_t::skip_mask_t::
@@ -59,8 +60,7 @@ struct rnn_data_reorder_t : public primitive_t {
                                     && od.matches_tag(format_tag::tnc))
                     && IMPLICATION(id.ndims() == 4,
                             id.matches_tag(format_tag::ldnc)
-                                    && od.matches_tag(format_tag::ldnc))
-                    && !id.has_runtime_dims_or_strides();
+                                    && od.matches_tag(format_tag::ldnc));
             if (!args_ok) return invalid_arguments;
 
             auto _pd = new pd_t(attr, src_engine->kind(), src_md,

@@ -75,7 +75,7 @@ bool thread_balance(bool do_blocking, bool spatial_thr_allowed, bool is_nspc,
         if (is_nspc) {
             if ((nthr <= C_blks && nthr == 1) || C_blks <= 8)
                 C_nthr = 1;
-            else if (C_blks <= 32)
+            else if (nthr >= 8 && C_blks <= 32)
                 C_nthr = 8;
             else {
                 C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
@@ -143,7 +143,7 @@ bool is_spatial_thr(const batch_normalization_pd_t *bdesc, bool is_nspc,
 
         if ((nthr <= C_blks && nthr == 1) || C_blks <= 8)
             C_nthr = 1;
-        else if (C_blks <= 32)
+        else if (nthr >= 8 && C_blks <= 32)
             C_nthr = 8;
         else {
             C_nthr = math::gcd((dim_t)nthr, C_blks);

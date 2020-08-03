@@ -196,7 +196,7 @@ mb1ic16ih2iw70oc1oh1ow10kh2kw3ph0pw0dh0dw29n"bwd_w_check_large-dilation"
 --reset
 --skip-impl="ref_fused_convolution"
 --cfg=f32,u8s8u8
---attr-post-ops='relu;dw_k3s1p1;sqrt';
+--attr-post-ops='relu;dw_k3s1p1;sqrt'
 ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
 
 --cfg=bf16bf16bf16
@@ -205,7 +205,7 @@ ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
 # dw fusion with reorder
 --reset
 --cfg=f32
---attr-post-ops='relu;dw_k3s1p1;sqrt';
+--attr-post-ops='relu;dw_k3s1p1;sqrt'
 ic16oc16_ih10oh6kh1ph0sh2n"dw_fusion_with_reorder"
 
 --reset
@@ -222,3 +222,9 @@ mb1_ic16oc1_ih2oh1kh2sh1dh0ph0_iw1000kw6sw1dw30pw127n"1d_conv_large_dilated_padd
 --skip-impl='ref:gemm'
 --dir=BWD_WB --stag=axb --dtag=axb
 mb2g1ic33iw84350oc33ow84349kw2pw0n"channel_tail_for_specialized_axb_bwd_w_kernel"
+
+# small spatial convolution in amx kernel
+--reset
+--skip-impl='ref:gemm'
+--cfg=bf16bf16bf16,u8s8u8
+ic64ih20iw14oc16oh20ow7kh1kw1sh1sw2ph0pw0n"small_ow_large_oh"

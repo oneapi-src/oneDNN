@@ -44,6 +44,8 @@ struct settings_t {
     std::vector<std::vector<std::string>> stag {{tag::abx}};
     std::vector<std::string> dtag {tag::undef};
     std::vector<std::vector<float>> scales {{0.25}, {1}, {4}};
+    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
+            dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
             = "perf,%engine%,%impl%,%sdt%,%ddt%,%stag%,%dtag%,%DESC%,%-time%,%"
@@ -58,13 +60,15 @@ struct settings_t {
 struct prb_t {
     prb_t(const dims_t &dims, const std::vector<dnnl_data_type_t> &sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,
-            const std::string &dtag, const std::vector<float> &scales)
+            const std::string &dtag, const std::vector<float> &scales,
+            const attr_t &attr)
         : dims(dims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
         , scales(sdt.size())
+        , attr(attr)
         , ndims((int)dims.size()) {
         // if there is a single scale then broadcast it
         for (int i_input = 0; i_input < n_inputs(); i_input++)
@@ -79,6 +83,7 @@ struct prb_t {
     std::vector<std::string> stag;
     std::string dtag;
     std::vector<float> scales;
+    attr_t attr;
     int ndims;
 
     int n_inputs() const { return (int)sdt.size(); }

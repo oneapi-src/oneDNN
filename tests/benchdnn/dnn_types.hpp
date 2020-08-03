@@ -62,6 +62,7 @@ dims_t off2dims_idx(const dims_t &dims, int64_t off);
 std::ostream &operator<<(std::ostream &s, const dims_t &dims);
 std::ostream &operator<<(std::ostream &s, dir_t dir);
 std::ostream &operator<<(std::ostream &s, dnnl_data_type_t dt);
+std::ostream &operator<<(std::ostream &s, dnnl_engine_kind_t ek);
 template <typename T>
 std::ostream &operator<<(std::ostream &s, const std::vector<T> &v) {
     s << v[0];
@@ -75,42 +76,29 @@ enum { SRC = 0, WEI, BIA, DST, ACC, DATA, MEAN, VAR, SS, GWEI, DAT_TOTAL };
 const char *data_kind2str(data_kind_t kind);
 
 struct attr_t {
-    struct scale_t {
-        enum policy_t {
-            COMMON = 0,
-            PER_OC,
-            // reorder section
-            // XXX: order is important, from longer name to a shorter one
-            // TODO: generalize, use numbers instead of predefined enum
-            PER_DIM_01,
-            PER_DIM_0,
-            PER_DIM_1,
-            // reorder section ends
-            POLICY_TOTAL
-        };
+    // policy_t defines the way entity values will be applied to a tensor
+    enum policy_t {
+        COMMON = 0, // single value for each point in a tensor
+        PER_OC, // apply a single value per each channel (dims[1]) point
+        PER_DIM_0, // apply a single value er dims[0] point
+        PER_DIM_1, // ... per dims[1] point
+        PER_DIM_01, // ... per unique combination of dims[0] and dims[1] points
+        POLICY_TOTAL // guard
+    };
 
+    static policy_t str2policy(const std::string &str);
+    static const char *policy2str(policy_t policy);
+    static int get_default_mask(policy_t policy);
+
+    struct scale_t {
         scale_t(policy_t apolicy = COMMON, float ascale = 1.,
                 bool aruntime = false)
             : policy(apolicy), scale(ascale), runtime(aruntime) {}
 
-        static policy_t str2policy(const char *str);
-        static const char *policy2str(policy_t policy);
-
-        int from_str(const char *str, const char **end_s);
+        int from_str(const std::string &s);
 
         bool is_def() const {
             return policy == COMMON && scale == 1. && runtime == false;
-        }
-
-        static int get_default_mask(policy_t policy) {
-            switch (policy) {
-                case PER_DIM_0: return (1 << 0);
-                case PER_OC:
-                case PER_DIM_1: return (1 << 1);
-                case PER_DIM_01: return (1 << 0) + (1 << 1);
-                case COMMON: return 0;
-                default: SAFE_V(FAIL); return 0;
-            }
         }
 
         policy_t policy = COMMON;
@@ -119,18 +107,6 @@ struct attr_t {
     };
 
     struct zero_points_t {
-        enum policy_t {
-            COMMON = 0,
-            // reorder section
-            // XXX: order is important, from longer name to a shorter one
-            // TODO: generalize, use numbers instead of predefined enum
-            PER_DIM_01,
-            PER_DIM_0,
-            PER_DIM_1,
-            // reorder section ends
-            POLICY_TOTAL
-        };
-
         struct entry_t {
             entry_t(policy_t apolicy = COMMON, int avalue = 0,
                     bool aruntime = false)
@@ -150,13 +126,10 @@ struct attr_t {
             bool runtime = false;
         };
 
-        int from_str(const char *str, const char **end_s);
+        int from_str(const std::string &s);
 
         int operator[](int arg) const { return get(arg).value; }
         bool runtime(int arg) const { return get(arg).runtime; }
-
-        static policy_t str2policy(const char *str);
-        static const char *policy2str(policy_t policy);
 
         bool is_def(int arg) const { return get(arg).is_def(); }
         bool is_def() const { return points.empty(); }
@@ -195,7 +168,7 @@ struct attr_t {
         }
 
         bool is_def() const { return scales.empty(); }
-        int from_str(const char *str, const char **end_s);
+        int from_str(const std::string &s);
 
         arg_scales_t() : scales() {} // needed for debug icc190 build;
 
@@ -246,7 +219,7 @@ struct attr_t {
             // guard entry
             KIND_TOTAL
         };
-        static kind_t str2kind(const char *str);
+        static kind_t str2kind(const std::string &str);
         static const char *kind2str(kind_t kind);
         static dnnl_alg_kind_t kind2dnnl_kind(kind_t kind);
 
@@ -291,7 +264,7 @@ struct attr_t {
 
         post_ops_t() : entry() {}
 
-        int from_str(const char *str, const char **end_s);
+        int from_str(const std::string &s);
 
         int len() const { return (int)entry.size(); }
         bool is_def() const { return len() == 0; }
@@ -303,26 +276,23 @@ struct attr_t {
         std::vector<entry_t> entry;
     };
 
-    attr_t() = default;
+    attr_t() : scratchpad_mode(dnnl_scratchpad_mode_library) {}
 
-    attr_t(const post_ops_t &po) : post_ops(po) {}
-
-    attr_t(const scale_t &s, const post_ops_t &po) : oscale(s), post_ops(po) {}
-
-    attr_t(const arg_scales_t &as, const post_ops_t &po)
-        : scales(as), post_ops(po) {}
-
-    attr_t(const scale_t &s, const zero_points_t &zp, const post_ops_t &po)
-        : oscale(s), zero_points(zp), post_ops(po) {}
+    void insert(const scale_t &s) { this->oscale = s; }
+    void insert(const arg_scales_t &as) { this->scales = as; }
+    void insert(const zero_points_t &zp) { this->zero_points = zp; }
+    void insert(const post_ops_t &po) { this->post_ops = po; }
+    void insert(dnnl_scratchpad_mode_t sm) { this->scratchpad_mode = sm; }
 
     scale_t oscale;
     arg_scales_t scales;
     zero_points_t zero_points;
     post_ops_t post_ops;
+    dnnl_scratchpad_mode_t scratchpad_mode;
 
     bool is_def() const;
 };
-using policy_t = attr_t::scale_t::policy_t;
+using policy_t = attr_t::policy_t;
 
 void handle_legacy_attr(attr_t &attr, const attr_t &legacy_attr);
 
@@ -334,6 +304,7 @@ std::ostream &operator<<(
 std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
+std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
 /* Container for becnhdnn description of attributes and oneDNN primitive

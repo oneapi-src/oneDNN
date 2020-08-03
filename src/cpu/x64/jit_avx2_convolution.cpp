@@ -57,7 +57,7 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     const auto &jcp = kernel_->jcp;
 
-    int ocb_work = div_up(jcp.nb_oc, jcp.nb_oc_blocking);
+    const size_t ocb_work = div_up(jcp.nb_oc, jcp.nb_oc_blocking);
     const size_t work_amount
             = jcp.mb * jcp.ngroups * ocb_work * jcp.od * jcp.oh;
 
@@ -138,12 +138,16 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                         par_conv.flags |= FLAG_IC_FIRST;
                     }
 
-                    if (jcp.with_eltwise && icb + 1 == jcp.nb_ic) {
+                    if (jcp.with_eltwise && icb + 1 == jcp.nb_ic)
                         par_conv.flags |= FLAG_IC_LAST;
-                    }
+
+                    par_conv.reduce_work = this_block_size(
+                            icb * jcp.ic_block, jcp.ic, jcp.ic_block);
 
                     par_conv.oc_blocks
                             = nstl::min(ocb + ocb_num, jcp.nb_oc) - ocb;
+
+                    if (ocbb == ocb_work - 1) par_conv.oc_flag |= FLAG_OC_LAST;
 
                     par_conv.kw_padding = 0;
                     const int kh_padding = jcp.kh
@@ -215,7 +219,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
     const int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
 
     bool is_ic_physically_blocked = one_of(jcp.src_tag, format_tag::nCw8c,
-            +format_tag::nChw8c, format_tag::nCdhw8c);
+            format_tag::nChw8c, format_tag::nCdhw8c);
     int g_ic_offset = is_ic_physically_blocked ? jcp.nb_ic : jcp.ic;
     int icb_ic_scale = is_ic_physically_blocked ? 1 : jcp.ic_block;
 
@@ -223,6 +227,10 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
             format_tag::nChw8c, format_tag::nCdhw8c);
     int g_oc_offset = is_oc_physically_blocked ? jcp.nb_oc : jcp.oc;
     int ocb_oc_scale = is_oc_physically_blocked ? 1 : jcp.oc_block;
+
+    const bool is_ddst_layout_nxc = one_of(
+            jcp.dst_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+    const int oc_step = is_ddst_layout_nxc ? jcp.nb_oc_blocking : 1;
 
     auto ker = [&](const int ithr, const int nthr) {
         size_t start {0}, end {0};
@@ -234,6 +242,8 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
         for (size_t iwork = start; iwork < end; ++iwork) {
             for_(int oc = 0; oc < jcp.nb_oc; oc += jcp.nb_oc_blocking)
             for (int id = 0; id < jcp.id; ++id) {
+                int cur_nb_oc = nstl::min(jcp.nb_oc - oc, jcp.nb_oc_blocking);
+
                 auto par_conv = jit_conv_call_s();
 
                 int d_t_overflow, d_b_overflow, od;
@@ -304,8 +314,15 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
                     par_conv.dst_prf = nullptr;
                     par_conv.filt_prf = nullptr;
                     par_conv.channel = oc;
-                    par_conv.ch_blocks
-                            = nstl::min(jcp.nb_oc - oc, jcp.nb_oc_blocking);
+                    par_conv.ch_blocks = cur_nb_oc;
+                    par_conv.load_work = this_block_size(
+                            icbb * jcp.nb_ic_blocking * jcp.ic_block,
+                            (size_t)jcp.ic, jcp.nb_ic_blocking * jcp.ic_block);
+                    par_conv.reduce_work = this_block_size(
+                            oc * jcp.oc_block, jcp.oc, oc_step * jcp.oc_block);
+
+                    if (par_conv.load_work % jcp.ic_block > 0)
+                        par_conv.flags |= FLAG_IC_LAST;
 
                     kernel_->jit_ker(&par_conv);
                 }
@@ -327,15 +344,18 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    data_t *diff_bias = pd()->wants_padded_bias()
+    const auto &jcp = kernel_->jcp;
+
+    const bool is_bias_padded
+            = pd()->with_bias() && (jcp.oc_without_padding % jcp.oc_block != 0);
+
+    data_t *diff_bias = is_bias_padded
             ? scratchpad.get<data_t>(key_conv_padded_bias)
             : diff_bias_in;
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
-
-    const auto &jcp = kernel_->jcp;
 
     auto reducer_bia_scratchpad
             = memory_tracking::grantor_t(scratchpad, prefix_reducer_bia);
@@ -414,6 +434,12 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
                                                 reducer_wei_scratchpad)
                                 + w_job_loc * rw->balancer().job_size_;
 
+                        if (ocb == jcp.nb_oc - 1)
+                            par_conv.flags |= FLAG_OC_LAST;
+
+                        par_conv.channel = this_block_size(
+                                icb * jcp.ic_block, jcp.ic, jcp.ic_block);
+
                         kernel_->jit_ker(&par_conv);
                     }
                     nd_iterator_step(
@@ -458,9 +484,12 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
                     for (int o = 0; o < jcp.oc_block; ++o)
                         d_bias[o] = 0.;
 
+                const int max_oc = this_block_size(
+                        ocb * jcp.oc_block, jcp.oc, jcp.oc_block);
+
                 for (int dhw = 0; dhw < jcp.od * jcp.oh * jcp.ow; ++dhw) {
                     PRAGMA_OMP_SIMD()
-                    for (int o = 0; o < jcp.oc_block; ++o)
+                    for (int o = 0; o < max_oc; ++o)
                         d_bias[o] += d_dst[o];
                     d_dst += is_ddst_layout_nxc ? jcp.ngroups * jcp.oc
                                                 : jcp.oc_block;
@@ -503,10 +532,12 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
     }
 
     /* TODO: put this in ker_bias */
-    if (pd()->wants_padded_bias()) {
-        assert(jcp.ngroups == 1);
-        for (int oc = 0; oc < jcp.oc_without_padding; ++oc)
-            diff_bias_in[oc] = diff_bias[oc];
+    if (pd()->with_bias() && (jcp.oc_without_padding % jcp.oc_block != 0)) {
+        const int padded_stride = rnd_up(jcp.oc, jcp.oc_block);
+        const int stride = jcp.oc_without_padding;
+        for (int g = 0; g < jcp.ngroups; ++g)
+            utils::array_copy(diff_bias_in + g * stride,
+                    diff_bias + g * padded_stride, stride);
     }
 }
 

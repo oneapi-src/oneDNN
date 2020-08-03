@@ -60,10 +60,11 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
                 *dnnl_attr, p.data_scale, p.data_shift));
 
     DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
-            *dnnl_attr, scratchpad_mode));
+            *dnnl_attr, p.attr.scratchpad_mode));
 }
 
-int check_s8s8_reorder(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+int check_s8s8_reorder(
+        const prb_t &p, const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp) {
     // TODO: enable for all cpu_kind when supported
     if (engine_tgt_kind != dnnl_cpu) return OK;
 
@@ -98,7 +99,7 @@ int check_s8s8_reorder(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     auto nelems = mem_fp.nelems();
     const int64_t n_chunks = 16;
     const int64_t chunk_size = div_up(nelems, n_chunks);
-    auto quantize = [&](const float *scales, int nscales, int idx_chunk) {
+    const auto quantize = [&](const float *scales, int nscales, int idx_chunk) {
         int64_t idx_start = idx_chunk * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
@@ -334,10 +335,10 @@ int fill_weights(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
-
     const dt_conf_t::entry_t &c = p.cfg[kind];
-    if (c.dt == dnnl_s8) return fill_memory(p, kind, mem_dt, mem_fp, attr);
 
+    const auto ndims = mem_fp.md_.ndims;
+    assert(kind == WEIGHTS_PROJECTION ? ndims == 4 : ndims == 5);
     const auto &dims = mem_fp.md_.dims;
     const int64_t L = dims[0];
     const int64_t D = dims[1];
@@ -345,21 +346,38 @@ int fill_weights(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     const int64_t G = (kind == WEIGHTS_PROJECTION) ? 1 : dims[3];
     const int64_t O = (kind == WEIGHTS_PROJECTION) ? dims[3] : dims[4];
 
-    for (int64_t i = 0; i < mem_dt.nelems(); i++)
-        mem_fp.set_elem(i, 0.0f);
-
     float gate_factor = (kind == WEIGHTS_PROJECTION) ? 1.f : 1.f / p.n_gates();
 
+    const auto tag = get_abx_tag(ndims);
+    dnn_mem_t mem_pure_fp(mem_dt.md_, dnnl_f32, tag, get_test_engine());
+
+    for (int64_t i = 0; i < mem_fp.nelems(); i++) {
+        mem_fp.set_elem(i, 0);
+        mem_pure_fp.set_elem(i, 0);
+    }
+
+    // Fill weights sparsely to avoid accumulation errors. Using two memories:
+    // one is quantized for reference, another is for a reorder.
     for_(int64_t l = 0; l < L; l++)
     for_(int64_t d = 0; d < D; d++)
     for_(int64_t g = 0; g < G; g++)
     for (int64_t o = 0; o < O; o++) {
-        float val = round_to_nearest_representable(c.dt, gate_factor);
-        int64_t i_off = ((19 * o + g * 7 + d * 11 + l * 13) % I);
-        mem_fp.set_elem((((l * D + d) * I + i_off) * G + g) * O + o, val);
+        int64_t i_off = ((19 * o + 7 * g + 11 * d + 13 * l) % I);
+        int64_t off = (((l * D + d) * I + i_off) * G + g) * O + o;
+        float val = gate_factor;
+        mem_pure_fp.set_elem(off, val);
+        if (p.is_int8()) val *= p.wei_scales[off % p.wei_nscales];
+        mem_fp.set_elem(off, round_to_nearest_representable(c.dt, val));
     }
 
-    mem_dt.reorder(mem_fp);
+    // Pass rnn attributes to f32 -> s8 reorders only
+    const_dnnl_primitive_attr_t reorder_attr = nullptr;
+    if (p.is_int8()) reorder_attr = attr;
+    mem_dt.reorder(mem_pure_fp, {reorder_attr});
+
+    // Test that s8 -> s8 reorder works correctly
+    if ((reorder_attr != nullptr) && (c.dt == dnnl_s8))
+        return check_s8s8_reorder(p, mem_dt, mem_pure_fp);
     return OK;
 }
 
@@ -601,6 +619,26 @@ void check_known_skipped_case(const prb_t &p, res_t *r) {
     dir_t dir = str2dir(prop2str(p.prop));
     check_known_skipped_case_common({p.cfg[SRC_LAYER].dt}, dir, r);
     if (r->state == SKIPPED) return;
+
+    // invalid inputs
+    bool consistent_proj = IMPLICATION(!p.with_projection, p.dhc == p.dic);
+    bool consistent_L = IMPLICATION(p.n_layer > 1, p.slc == p.dic);
+    bool consistent_T = IMPLICATION(p.n_iter > 1, p.sic == p.dic);
+    bool consistent_GRU = IMPLICATION(
+            p.alg == VANILLA_GRU || p.alg == LBR_GRU, p.sic == p.dic);
+    if (!consistent_proj || !consistent_L || !consistent_T || !consistent_GRU) {
+        r->state = SKIPPED, r->reason = INVALID_CASE;
+        return;
+    }
+
+    // Only LSTM supports peephole and projection layer
+    bool is_lstm_peephole = IMPLICATION(p.with_peephole, p.alg == VANILLA_LSTM);
+    bool is_lstm_projection
+            = IMPLICATION(p.with_projection, p.alg == VANILLA_LSTM);
+    if (!is_lstm_peephole || !is_lstm_projection) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 
     // int8 weights reorder does not support non trivial strides;
     // only LSTM cell kind supports int8 so far;

@@ -37,9 +37,6 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
 // Engine kind used to run oneDNN primitives for testing
 dnnl_engine_kind_t engine_tgt_kind = dnnl_cpu;
 
-// Scratchpad mode for oneDNN
-dnnl_scratchpad_mode_t scratchpad_mode = dnnl_scratchpad_mode_library;
-
 args_t &args_t::set(int arg, const dnn_mem_t &mem) {
     args_.push_back(std::make_pair(arg, &mem));
     return *this;
@@ -181,8 +178,8 @@ void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
         int64_t scale_cnt, const float *scales) {
     if (!attr.oscale.runtime) return;
 
-    using P = attr_t::scale_t::policy_t;
-    const int64_t count = attr.oscale.policy == P::COMMON ? 1 : scale_cnt;
+    const int64_t count
+            = attr.oscale.policy == policy_t::COMMON ? 1 : scale_cnt;
 
     scales_m = dnn_mem_t(1, &count, dnnl_f32, dnnl_a, get_test_engine());
     for (int64_t c = 0; c < count; ++c)
@@ -200,9 +197,8 @@ void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         const int32_t *zero_points) {
     if (!attr.zero_points.runtime(arg)) return;
 
-    using P = attr_t::zero_points_t::policy_t;
     const auto e = attr.zero_points.get(arg);
-    const int64_t cnt = e.policy == P::COMMON ? 1 : count;
+    const int64_t cnt = e.policy == policy_t::COMMON ? 1 : count;
 
     zero_points_m = dnn_mem_t(1, &cnt, dnnl_s32, dnnl_a, get_test_engine());
     for (int64_t c = 0; c < cnt; ++c)

@@ -168,6 +168,7 @@ enum {
     key_conv_amx_inp_buffer,
     key_conv_amx_tilecfg,
     key_conv_amx_tile_buffer,
+    key_conv_amx_wei_buffer,
     key_conv_amx_wsp_buffer,
     key_conv_bia_reduction,
     key_conv_bias_bf16_convert_wsp,

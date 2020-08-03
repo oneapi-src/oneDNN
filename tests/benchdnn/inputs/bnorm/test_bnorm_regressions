@@ -1,14 +1,18 @@
 --reset
 
---skip-impl=ref
-
+--inplace=true
 --tag=axb,abx,aBx8b,aBx16b
 
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr-post-ops=       --batch=shapes_regressions
---dir=FWD_D        --flags=GS,S    --attr-post-ops='relu' --batch=shapes_regressions
---dir=BWD_D        --flags=        --attr-post-ops=       --batch=shapes_regressions
+# training
+--dir=FWD_D,BWD_DW
+--dt=f32,bf16
+--flags=,G,S,R,GSR
+--batch=shapes_regressions
 
-# Numerical stability issues
-# catastrophic cancellation results in error > machine_epsilon
---dir=FWD_D
---flags=S mb2ic128ih2 mb2ic1024ih2
+# inference
+--dir=FWD_I
+
+--dt=f32,bf16
+--flags=,GS
+--attr-post-ops='','relu'
+--batch=shapes_regressions

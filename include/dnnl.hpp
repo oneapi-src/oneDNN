@@ -2074,14 +2074,14 @@ struct memory : public handle<dnnl_memory_t> {
     /// Constructs a memory object.
     ///
     /// @param md Memory descriptor.
-    /// @param engine Engine.
-    /// @param ahandle handle.
-    memory(const desc &md, const engine &engine, void *ahandle)
+    /// @param aengine Engine to store the data on.
+    /// @param handle Handle of the memory buffer to use.
+    memory(const desc &md, const engine &aengine, void *handle)
 #ifdef DNNL_USE_DPCPP_USM
-        : memory(with_sycl_tag {}, md, engine, ahandle, true) {
+        : memory(with_sycl_tag {}, md, aengine, handle, true) {
     }
 #else
-        : memory(with_sycl_tag {}, md, engine, ahandle, false) {
+        : memory(with_sycl_tag {}, md, aengine, handle, false) {
     }
 #endif
 #else

@@ -38,8 +38,8 @@ struct bfloat16_t {
 
     DNNL_API operator float() const;
 
-    bfloat16_t &operator+=(bfloat16_t a) {
-        (*this) = (float)(*this) + (float)a;
+    bfloat16_t &operator+=(const float a) {
+        (*this) = float {*this} + a;
         return *this;
     }
 };

@@ -106,9 +106,9 @@ template <typename T>
 bool parse_subattr(
         std::vector<T> &vec, const char *str, const std::string &option_name) {
     std::vector<T> def {T()};
-    auto parse_subattr_func = [](const char *s) {
+    auto parse_subattr_func = [](const std::string &s) {
         T v;
-        SAFE_V(v.from_str(s, &s));
+        SAFE_V(v.from_str(s));
         return v;
     };
     return parse_vector_option(vec, def, parse_subattr_func, str, option_name);
@@ -160,6 +160,11 @@ bool parse_attr_scales(std::vector<attr_t::arg_scales_t> &scales,
 
 bool parse_attr_zero_points(std::vector<attr_t::zero_points_t> &zp,
         const char *str, const std::string &option_name = "attr-zero-points");
+
+bool parse_attr_scratchpad_mode(
+        std::vector<dnnl_scratchpad_mode_t> &scratchpad_mode,
+        const std::vector<dnnl_scratchpad_mode_t> &def_scratchpad_mode,
+        const char *str, const std::string &option_name = "attr-scratchpad");
 
 bool parse_axis(std::vector<int> &axis, const std::vector<int> &def_axis,
         const char *str, const std::string &option_name = "axis");

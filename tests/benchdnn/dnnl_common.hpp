@@ -212,7 +212,6 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value);
 
 /* simplification */
 extern dnnl_engine_kind_t engine_tgt_kind;
-extern dnnl_scratchpad_mode_t scratchpad_mode;
 
 inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
     const char *str;
@@ -285,6 +284,7 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
     // the global test engine.
     status = init_pd_func(get_test_engine(), p, pd, r, dir, hint);
     if (status != OK) return status;
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
     // This primitive is expected to come from the cache.
     DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
     DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);

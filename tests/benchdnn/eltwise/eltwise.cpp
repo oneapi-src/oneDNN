@@ -59,7 +59,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                 WARN);
     }
 
-    auto dnnl_attr = create_dnnl_attr(attr_t());
+    auto dnnl_attr = create_dnnl_attr(p->attr);
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&epd, &ed, dnnl_attr, engine, NULL);
@@ -160,6 +160,12 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
             // catastrohic cancellation.
             return (p->dir & FLAG_BWD) && !std::signbit(s)
                     && (1.f / (1.f + expf(s))) <= comp_err;
+        case alg_t::SWISH:
+            // catch cancellation happening when W(s) ~~ -1 in (1 + W(s))
+            // formula part on backward.
+            return (p->dir & FLAG_BWD)
+                    && (p->alpha * s * (1.f - 1.f / (1.f + expf(-p->alpha * s)))
+                            <= comp_err);
         default: return false;
     }
 }

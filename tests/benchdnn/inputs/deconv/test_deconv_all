@@ -23,11 +23,11 @@
 --cfg=u8s8f32,u8s8s32,s8s8s8
 --batch=shapes_2d
 
---attr-oscale=per_oc:2.25;
+--attr-oscale=per_oc:2.25
 --cfg=s8s8u8,u8s8u8
 --batch=shapes_2d --batch=shapes_dilated
 
---attr-oscale=common:2.25;
+--attr-oscale=common:2.25
 --cfg=s8s8s32,u8s8s8
 --batch=shapes_2d
 

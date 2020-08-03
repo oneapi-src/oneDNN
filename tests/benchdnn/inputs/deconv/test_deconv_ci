@@ -1,0 +1,31 @@
+--reset
+
+--mb=2
+
+# Training
+## Forward
+--dir=FWD_B,FWD_D
+# TODO: post ops are not generally supported for deconv
+# --attr-post-ops='','sum:0.5','linear:0.25:0.5','sum:0.25;relu'
+### Auto
+--alg=auto
+--cfg=f32,bf16bf16bf16,f16
+--stag=any,axb
+--dtag=any,axb
+--batch=shapes_ci
+## Backward
+--dir=BWD_D,BWD_W,BWD_WB
+--batch=shapes_ci
+
+# Inference
+--dir=FWD_I
+# TODO: oscale is not generally supported for deconv
+# --attr-oscale=,common:0.25,per_oc:5
+# TODO: post ops are not generally supported for deconv
+# --attr-post-ops='','sum:0.5','linear:0.25:0.5','sum:0.25;relu:0:0:0.75'
+## Auto
+--alg=auto
+--cfg=u8s8s32
+--stag=any,axb
+--dtag=any,axb
+--batch=shapes_ci

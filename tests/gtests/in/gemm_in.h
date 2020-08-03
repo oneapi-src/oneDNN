@@ -85,6 +85,30 @@ CPU_INST_TEST_CASE(TestGEMV,
         test_params {'t', 't', 2000, 1, 1000, 1.0f, 1.0f, 2000, 1000, 1},
         test_params {'t', 't', 1, 3000, 2000, 1.0f, 1.0f, 1, 2000, 3000});
 
+/**
+ * These cases are used to test the small-N avx-512 sgemm TN kernels.
+ * Note: The kernels assume a column major layout while the external 
+ * APIs assume row major layout, so the M/N and transA/transB values 
+ * are swapped.
+ */
+CPU_INST_TEST_CASE(TestGEMM_smalln,
+        test_params {'n', 't', 5, 512, 512, 1.0f, 1.0f, 512, 512, 512},
+        test_params {'n', 't', 5, 512, 1536, 1.0f, 1.0f, 1536, 1536, 512},
+        test_params {'n', 't', 5, 512, 2048, 1.0f, 1.0f, 2048, 2048, 512},
+        test_params {'n', 't', 5, 2048, 512, 1.0f, 1.0f, 512, 512, 2048},
+        test_params {'n', 't', 7, 512, 512, 0.0f, 1.0f, 512, 512, 512},
+        test_params {'n', 't', 7, 512, 1536, 1.0f, 0.0f, 1536, 1536, 512},
+        test_params {'n', 't', 7, 512, 2048, 0.5f, 0.5f, 2048, 2048, 512},
+        test_params {'n', 't', 7, 2048, 512, 1.0f, 1.0f, 512, 512, 2048},
+        test_params {'n', 't', 4, 512, 512, 1.0f, 1.0f, 512, 512, 512},
+        test_params {'n', 't', 4, 512, 1536, 1.0f, 1.0f, 1536, 1536, 512},
+        test_params {'n', 't', 4, 512, 2048, 1.0f, 1.0f, 2048, 2048, 512},
+        test_params {'n', 't', 4, 2048, 512, 1.0f, 1.0f, 512, 512, 2048},
+        test_params {'n', 't', 8, 512, 512, 1.0f, 1.0f, 512, 512, 512},
+        test_params {'n', 't', 8, 512, 1536, 1.0f, 1.0f, 1536, 1536, 512},
+        test_params {'n', 't', 8, 512, 2048, 1.0f, 1.0f, 2048, 2048, 512},
+        test_params {'n', 't', 8, 2048, 512, 1.0f, 1.0f, 512, 512, 2048});
+
 #if defined(FP32) || defined(BF16BF16F32)
 INST_TEST_CASE(TestGEMM_packed,
         test_params {'t', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, {false, true},

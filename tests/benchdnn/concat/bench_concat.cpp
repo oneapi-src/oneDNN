@@ -32,7 +32,8 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_ddt : s.ddt)
     for_(const auto &i_stag_ : s.stag)
     for_(const auto &i_dtag : s.dtag)
-    for (const auto &i_axis : s.axis) {
+    for_(const auto &i_axis : s.axis)
+    for (const auto &i_scratchpad_mode : s.scratchpad_mode) {
         // if dst is omitted by dtag = tag::undef, omit ddt as well
         auto ddt = i_dtag == tag::undef ? dnnl_data_type_undef : i_ddt;
 
@@ -43,7 +44,10 @@ void check_correctness(const settings_t &s) {
         if (s.sdims.size() != i_stag.size()) // want 1:1 match of sdims and tag
             SAFE_V(FAIL);
 
-        const prb_t p(s.sdims, i_sdt, ddt, i_stag, i_dtag, i_axis);
+        attr_t attr;
+        attr.insert(i_scratchpad_mode);
+
+        const prb_t p(s.sdims, i_sdt, ddt, i_stag, i_dtag, i_axis, attr);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -78,6 +82,8 @@ int bench(int argc, char **argv) {
                 || parse_multi_tag(s.stag, def.stag, argv[0])
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
                 || parse_axis(s.axis, def.axis, argv[0])
+                || parse_attr_scratchpad_mode(
+                        s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,
                         s.perf_template_csv, argv[0])
                 || parse_reset(s, argv[0]);

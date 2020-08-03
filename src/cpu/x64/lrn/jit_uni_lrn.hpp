@@ -32,9 +32,6 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <cpu_isa_t isa>
-struct jit_uni_lrn_bwd_kernel_f32;
-
 template <cpu_isa_t isa, data_type_t d_type>
 struct jit_uni_lrn_fwd_t : public primitive_t {
     struct pd_t : public cpu_lrn_fwd_pd_t {
@@ -62,13 +59,13 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<jit_uni_lrn_fwd_kernel<isa, d_type>> ker_, ker_first_,
+    std::unique_ptr<jit_uni_lrn_fwd_kernel_t<isa, d_type>> ker_, ker_first_,
             ker_last_;
     static constexpr int VECTOR_LENGTH
-            = jit_uni_lrn_fwd_kernel<isa, d_type>::VECTOR_LENGTH;
+            = jit_uni_lrn_fwd_kernel_t<isa, d_type>::VECTOR_LENGTH;
 };
 
-template <cpu_isa_t isa>
+template <cpu_isa_t isa, data_type_t d_type>
 struct jit_uni_lrn_bwd_t : public primitive_t {
     struct pd_t : public cpu_lrn_bwd_pd_t {
         using cpu_lrn_bwd_pd_t::cpu_lrn_bwd_pd_t;
@@ -84,7 +81,7 @@ struct jit_uni_lrn_bwd_t : public primitive_t {
     jit_uni_lrn_bwd_t(const pd_t *apd);
     ~jit_uni_lrn_bwd_t();
 
-    using data_t = typename prec_traits<data_type::f32>::type;
+    using data_t = typename prec_traits<d_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);
@@ -95,8 +92,10 @@ private:
     void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_uni_lrn_bwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
-    static constexpr int VECTOR_LENGTH = 8u;
+    std::unique_ptr<jit_uni_lrn_bwd_kernel_t<isa, d_type>> ker_, ker_first_,
+            ker_last_;
+    static constexpr int VECTOR_LENGTH
+            = jit_uni_lrn_bwd_kernel_t<isa, d_type>::VECTOR_LENGTH;
 };
 
 } // namespace x64

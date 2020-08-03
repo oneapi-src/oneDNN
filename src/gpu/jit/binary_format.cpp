@@ -158,20 +158,23 @@ public:
 
 status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     *ok = false;
+    status_t status = status::success;
 
     auto gpu_engine = utils::downcast<compute::compute_engine_t *>(engine);
-    stream_t *service_stream;
-    CHECK(engine->get_service_stream(service_stream));
-    auto stream = utils::downcast<compute::compute_stream_t *>(service_stream);
-    if (!gpu_engine || !stream) return status::invalid_arguments;
+    if (!gpu_engine) return status::invalid_arguments;
+
+    stream_t *stream_generic;
+    status = gpu_engine->get_service_stream(stream_generic);
+    if (status != status::success) return status::runtime_error;
+
+    auto stream = utils::downcast<compute::compute_stream_t *>(stream_generic);
+    if (!stream) return status::invalid_arguments;
 
     auto kernel = binary_format_kernel_t<HW::Unknown>::make_kernel(gpu_engine);
     if (!kernel) return status::success;
 
     compute::kernel_t realized_kernel;
     CHECK(kernel.realize(&realized_kernel, engine));
-
-    status_t status = status::success;
 
     // Binary kernel check.
     uint32_t magic0 = MAGIC0;
@@ -197,6 +200,7 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     result_buf.reset(storage);
 
     void *magic_host = nullptr;
+
     magic_buf->map_data(&magic_host, nullptr, sizeof(int32_t));
     if (!magic_host) return status::runtime_error;
 

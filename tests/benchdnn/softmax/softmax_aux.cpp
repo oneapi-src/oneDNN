@@ -51,6 +51,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (canonical || p.inplace != def.inplace[0])
         s << "--inplace=" << bool2str(p.inplace) << " ";
 
+    s << p.attr;
     s << p.dims;
 
     return s;

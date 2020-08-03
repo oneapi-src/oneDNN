@@ -20,7 +20,6 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/jit_avx512_core_amx_tilecfg.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
@@ -29,6 +28,32 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
+
+struct jit_avx512_core_amx_copy_to_wbuffer_t : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_copy_to_wbuffer_t)
+
+    using reg64_t = const Xbyak::Reg64;
+
+    jit_avx512_core_amx_copy_to_wbuffer_t(jit_conv_conf_t ajcp) : jcp(ajcp) {
+        generate();
+    }
+
+private:
+    jit_conv_conf_t jcp;
+
+    const reg64_t reg_src = rax;
+    const reg64_t reg_dst = rbx;
+    const reg64_t reg_tmp = rdx;
+
+    const Xbyak::Opmask kmask_load = Xbyak::Opmask(2);
+
+    const Xbyak::Zmm zmm_src = Xbyak::Zmm(0);
+    const Xbyak::Zmm zmm_dst = Xbyak::Zmm(1);
+    const Xbyak::Zmm zmm_idx = Xbyak::Zmm(2);
+    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(3);
+
+    void generate();
+};
 
 struct jit_avx512_core_amx_copy_to_pbuffer_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_copy_to_pbuffer_t)
@@ -45,20 +70,39 @@ private:
     const reg64_t inp_ptr = r15;
     const reg64_t out_ptr = r14;
 
-    const reg64_t khp = r13;
-    const reg64_t khc = r12;
+    const reg64_t aux_inp_ptr = r13;
+    const reg64_t aux_out_ptr = r12;
 
-    const reg64_t aux_inp_ptr = r11;
-    const reg64_t aux_out_ptr = r10;
+    /* relow stuff */
+    const reg64_t reg_kht = r11;
+    const reg64_t reg_khp = r10;
+    const reg64_t reg_tov = r9;
+    const reg64_t reg_bov = r8;
+    const reg64_t reg_kwp = rax;
+    const reg64_t reg_lov = aux_inp_ptr;
+    const reg64_t reg_rov = rbx;
+    const reg64_t save_out_ptr = rdx;
+    const reg64_t reg_cnt = rbp;
+    /* relow stuff */
+
+    /* non-relow stuff */
+    const reg64_t khp = r11;
+    const reg64_t khc = r10;
+
     const reg64_t reg_icb = r9;
 
     const reg64_t kh_over = r8;
     const reg64_t tover = rax;
     const reg64_t bover = rbx;
 
-    const reg64_t reg_tmp = rdx;
-    const reg64_t reg_owb = rsi;
+    const reg64_t reg_owb = rdx;
+    /* non-relow stuff */
+
+    const reg64_t reg_tmp = rsi;
+
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
+    const Xbyak::Opmask ktail_load = Xbyak::Opmask(3);
+    const Xbyak::Opmask ktail_stor = Xbyak::Opmask(4);
 
     const Xbyak::Ymm ymm_tmp = Xbyak::Ymm(0);
     const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(0);
@@ -67,6 +111,7 @@ private:
     void generate();
     void copy_row(int icb);
     void copy_row_body(int lpad, int iw_len, int icb);
+    void copy_row_reduced_lowering();
 };
 
 struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
@@ -74,24 +119,30 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
 
     jit_avx512_core_amx_fwd_kernel_t(
             jit_conv_conf_t ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
+        : jcp(ajcp)
+        , attr_(attr)
+        , eltwise_injector_(nullptr)
+        , copy_to_wbuffer_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);
-        full_tile_width_ = amx::get_max_rows(amx::get_max_palette());
         copy_to_pbuffer_ = new jit_avx512_core_amx_copy_to_pbuffer_t(jcp);
-        tilecfg_ = new jit_avx512_core_amx_tilecfg_t(jcp);
+        if (jcp.is_relo)
+            copy_to_wbuffer_ = new jit_avx512_core_amx_copy_to_wbuffer_t(jcp);
 
         generate();
 
         jit_ker = (void (*)(jit_conv_call_s *))getCode();
-        jit_copy_ker = (void (*)(jit_conv_call_s *))copy_to_pbuffer_->getCode();
-        jit_tilecfg = (void (*)(void *))tilecfg_->getCode();
+        jit_copy_to_pbuffer_ker
+                = (void (*)(jit_conv_call_s *))copy_to_pbuffer_->getCode();
+        if (jcp.is_relo)
+            jit_copy_to_wbuffer_ker
+                    = (void (*)(jit_conv_call_s *))copy_to_wbuffer_->getCode();
     }
     ~jit_avx512_core_amx_fwd_kernel_t() {
         delete eltwise_injector_;
         delete copy_to_pbuffer_;
-        delete tilecfg_;
+        delete copy_to_wbuffer_;
     }
 
     static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
@@ -103,28 +154,23 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
-    // Tile-registers decomposition and tile parameters
-    enum { C_BASE = 0, W_BASE = 6, I_BASE = 4 };
-
     void tile_configure(char *tcfg_buff);
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_conv_call_s *);
-    void (*jit_copy_ker)(jit_conv_call_s *);
-    void (*jit_tilecfg)(void *);
+    void (*jit_copy_to_pbuffer_ker)(jit_conv_call_s *);
+    void (*jit_copy_to_wbuffer_ker)(jit_conv_call_s *);
 
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
     jit_avx512_core_amx_copy_to_pbuffer_t *copy_to_pbuffer_;
-    jit_avx512_core_amx_tilecfg_t *tilecfg_;
+    jit_avx512_core_amx_copy_to_wbuffer_t *copy_to_wbuffer_;
 
     int prv_width_;
     int row_count_;
     bool is_store_done_;
     bool is_buffer_empty_;
-
-    int full_tile_width_;
 
     /* data regs */
     const Xbyak::Reg64 inp_ptr = r15;
@@ -172,8 +218,8 @@ private:
     size_t get_inp_shift() const;
     size_t get_inp_offset(int ohb, int kw) const;
 
-    int get_out_tensor(int h, int i, int rem = false) const;
-    int get_inp_tensor(int h, int rem = false) const;
+    int get_out_tensor(int h, int i, bool is_h_tail = false) const;
+    int get_inp_tensor(int h, bool is_h_tail = false) const;
     int get_wei_tensor(int i) const;
 
     void prepare_output(int tail);

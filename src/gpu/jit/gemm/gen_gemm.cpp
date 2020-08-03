@@ -65,9 +65,12 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     gws[1] = utils::div_up(n, nocopy_info_.unroll[1]);
     gws[2] = batch;
 
-    if (nocopy_info_.loopOrder[0] == LoopN) std::swap(gws[0], gws[1]);
-
     size_t lws[3] = {size_t(nocopy_info_.wg[0]), size_t(nocopy_info_.wg[1]), 1};
+
+    if (nocopy_info_.loopOrder[0] == LoopN) {
+        std::swap(lws[0], lws[1]);
+        std::swap(gws[0], gws[1]);
+    }
 
     if (nocopy_info_.fusedEUs && (lws[0] > 1))
         gws[0] = utils::rnd_up(gws[0], 2);

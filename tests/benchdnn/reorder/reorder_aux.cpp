@@ -55,6 +55,23 @@ const char *flag2str(flag_t flag) {
     }
 }
 
+cross_engine_t str2cross_engine(const char *str) {
+    if (!strcasecmp("none", str)) return NONE;
+    if (!strcasecmp("cpu2gpu", str)) return CPU2GPU;
+    if (!strcasecmp("gpu2cpu", str)) return GPU2CPU;
+    assert(!"unknown cross engine");
+    return NONE;
+}
+
+const char *cross_engine2str(cross_engine_t cross_engine) {
+    switch (cross_engine) {
+        case NONE: return "none";
+        case CPU2GPU: return "cpu2gpu";
+        case GPU2CPU: return "gpu2cpu";
+        default: assert(!"unknown cross engine"); return "unknown cross engine";
+    }
+}
+
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
     settings_t def;
@@ -68,6 +85,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--alg=" << alg2str(p.alg) << " ";
     if (canonical || p.oflag != def.oflag[0])
         s << "--oflag=" << flag2str(p.oflag) << " ";
+    if (canonical || p.cross_engine != def.cross_engine[0])
+        s << "--cross-engine=" << cross_engine2str(p.cross_engine) << " ";
     if (canonical || p.runtime_dim_mask != def.runtime_dim_mask[0])
         s << "--runtime-dim-mask=" << p.runtime_dim_mask << " ";
 

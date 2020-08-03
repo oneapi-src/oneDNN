@@ -25,6 +25,7 @@
 
 #include "cpu/cpu_convolution_pd.hpp"
 
+#include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/jit_avx512_core_amx_conv_kernel.hpp"
 
 namespace dnnl {
@@ -103,12 +104,15 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
             return status::unimplemented;
         else if (_pd->jcp_.is_depthwise)
             return status::unimplemented;
+        else if (_pd->jcp_.is_relo)
+            execute_forward_reduced_lowering(ctx);
         else
             execute_forward(ctx);
         return status::success;
     }
 
 private:
+    void execute_forward_reduced_lowering(const exec_ctx_t &ctx) const;
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void prepare_padded_bias(const char *&bias,

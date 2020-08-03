@@ -58,6 +58,8 @@ struct settings_t {
     std::vector<std::string> tag {tag::abx}, stat_tag {tag::any};
     std::vector<flags_t> flags {NONE};
     std::vector<bool> inplace {false};
+    std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
+            dnnl_scratchpad_mode_library};
     check_alg_t check_alg = check_alg_t::ALG_AUTO;
     const char *pattern = NULL;
 
@@ -74,7 +76,8 @@ struct settings_t {
 struct prb_t {
     prb_t(const dims_t &dims, const std::string &tag,
             const std::string &stat_tag, dir_t dir, dnnl_data_type_t dt,
-            flags_t flags, bool inplace, check_alg_t check_alg)
+            flags_t flags, const attr_t &attr, bool inplace,
+            check_alg_t check_alg)
         : check_alg(check_alg)
         , dims(dims)
         , tag(tag)
@@ -83,6 +86,7 @@ struct prb_t {
         , dt(dt)
         , flags(flags)
         , inplace(inplace)
+        , attr(attr)
         , ops(0)
         , ndims((int)dims.size()) {
         n = std::accumulate(
@@ -101,6 +105,7 @@ struct prb_t {
     dnnl_data_type_t dt;
     flags_t flags;
     bool inplace;
+    attr_t attr;
     float eps;
     double ops;
     int ndims;

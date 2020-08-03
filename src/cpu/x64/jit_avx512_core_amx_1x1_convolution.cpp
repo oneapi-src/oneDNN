@@ -116,7 +116,7 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
         p.tile_cfg = tcfg;
         p.tile_cfg_tail = tcfg + 64;
 
-        kernel_->jit_tilecfg(tcfg);
+        amx_tile_configure(tcfg);
 
         int mb {0}, g {0}, _osb {0}, _ocb {0};
         nd_iterator_init(start, mb, jcp.mb, g, jcp.ngroups, _osb, os_chunks,
