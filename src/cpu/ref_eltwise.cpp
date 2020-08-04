@@ -22,6 +22,7 @@
 #include "common/type_helpers.hpp"
 
 #include "cpu/ref_eltwise.hpp"
+#include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -196,8 +197,9 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic(
     parallel_nd(
             MB, C, D, H, W, [&](dim_t n, dim_t c, dim_t d, dim_t h, dim_t w) {
                 auto data_off = DATA_OFF(data_d, n, c, d, h, w);
-                dst[data_off] = compute_eltwise_scalar_fwd(
-                        alg_kind, src[data_off], alpha, beta);
+                dst[data_off] = cpu::saturate<data_t, float>(
+                        compute_eltwise_scalar_fwd(
+                                alg_kind, src[data_off], alpha, beta));
             });
 }
 
@@ -217,7 +219,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense(
     src += data_d.offset0();
     dst += data_d.offset0();
 
-    if (alg_kind == eltwise_relu) {
+    if (alg_kind == eltwise_relu && alpha == 0) {
         // a fast path for relu as the most popular activation
         parallel_nd(
                 nelems, [&](ptrdiff_t e) { dst[e] = relu_fwd(src[e], alpha); });
@@ -227,7 +229,8 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense(
     parallel_nd(nelems, [&](ptrdiff_t e) {
         const data_t s = src[e];
         data_t &d = dst[e];
-        d = compute_eltwise_scalar_fwd(alg_kind, s, alpha, beta);
+        d = cpu::saturate<data_t, float>(
+                compute_eltwise_scalar_fwd(alg_kind, s, alpha, beta));
     });
 }
 
