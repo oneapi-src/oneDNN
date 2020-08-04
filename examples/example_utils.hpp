@@ -238,7 +238,7 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
                 dst_ptr[i] = ((uint8_t *)handle)[i];
         } else {
             auto sycl_queue = dnnl::stream(eng).get_sycl_queue();
-            sycl_queue.memcpy(handle, dst_ptr, size).wait();
+            sycl_queue.memcpy(dst_ptr, handle, size).wait();
         }
 #else
 #error "Not expected"
