@@ -29,6 +29,8 @@
 #define CPU_INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>,
 #define CPU_INSTANCE_X64(...) DNNL_X64_ONLY(CPU_INSTANCE(__VA_ARGS__))
 
+#define CPU_INSTANCE_AARCH64(...) DNNL_AARCH64_ONLY(CPU_INSTANCE(__VA_ARGS__))
+
 namespace dnnl {
 namespace impl {
 namespace cpu {

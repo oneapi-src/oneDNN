@@ -2280,6 +2280,12 @@ typedef enum {
     /// Intel AMX with 8-bit integer and bfloat16 support
     /// (initial support)
     dnnl_cpu_isa_avx512_core_amx = 0x3e7,
+
+    // AARCH64 SIMD (128-bit instructions)
+    dnnl_cpu_isa_simd = 0x400,
+
+    // AARCH64 SVE
+    dnnl_cpu_isa_sve = 0xc00,
 } dnnl_cpu_isa_t;
 
 /// @} dnnl_api_service
