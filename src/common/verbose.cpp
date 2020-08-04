@@ -295,6 +295,13 @@ void flags2str(char *str, int len, int written, unsigned flags) {
     DPRINT(str, len, written, "flags:%s", s.c_str());
 }
 
+const char *prim_kind2str(dnnl_primitive_kind_t prim_kind) {
+    switch ((int)prim_kind) {
+        case primitive_kind::zero_pad: return "zero_pad";
+        default: return dnnl_prim_kind2str(prim_kind);
+    }
+}
+
 void verbose_templ(char *buffer, const engine_t *engine,
         dnnl_primitive_kind_t prim_kind, const char *impl_str,
         dnnl_prop_kind_t prop_kind, const char *data_str, const char *attr_str,
@@ -944,6 +951,13 @@ static void init_info_resampling(const engine_t *e, pd_t *s, char *buffer) {
             dat_str, attr_str, aux_str, prb_str);
 }
 
+static void init_info_zero_pad(
+        const engine_t *e, const primitive_desc_t *s, char *buffer) {
+    DECL_DAT_AUX_PRB_STRS();
+    verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
+            attr_str, aux_str, prb_str);
+}
+
 #undef DPRINT
 } // namespace
 
@@ -959,7 +973,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
         init_info_##kind(engine, (const kind##_pd_t *)pd, &str_[0]); \
         break
 
-        switch (pd->kind()) {
+        switch ((int)pd->kind()) {
             CASE(batch_normalization);
             CASE(binary);
             CASE(concat);
@@ -979,6 +993,9 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(shuffle);
             CASE(softmax);
             CASE(sum);
+            case primitive_kind::zero_pad:
+                init_info_zero_pad(engine, pd, &str_[0]);
+                break;
             default: assert(!"unknown primitive kind");
         }
 #undef CASE
