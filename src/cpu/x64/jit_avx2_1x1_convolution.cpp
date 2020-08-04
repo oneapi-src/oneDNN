@@ -681,7 +681,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                 sp_step = nstl::min(sp_dim - sp, mb_sp_end - mb_sp);
 
                 const bool first_image = img == img_start;
-                if (first_image && rw->balancer().nthr_per_group_ > 1) {
+                if (is_ddst_layout_nxc && first_image
+                        && rw->balancer().nthr_per_group_ > 1) {
                     // Zero-pad the scratchpad when nthr > 1 (since most threads
                     // write to scratchpad) so that zero-padding is maintained
                     // for the final output after reduction
