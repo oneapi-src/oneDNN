@@ -19,14 +19,14 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/x64/jit_generator.hpp"
+#include "cpu/aarch64/jit_generator.hpp"
 
-#include "cpu/x64/jit_avx512_common_1x1_convolution.hpp"
+#include "cpu/aarch64/jit_sve_1x1_convolution.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
+namespace aarch64 {
 
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
@@ -39,7 +39,7 @@ using namespace dnnl::impl::utils;
 /* convolution forward */
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
+void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
         dst_type>::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -72,7 +72,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 }
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
+void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
         dst_type>::execute_forward_thr(const int ithr, const int nthr,
         const src_data_t *src, const wei_data_t *weights,
         const dst_data_t *bias, const wei_data_t *weights_dw,
@@ -103,7 +103,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
     auto p = jit_1x1_conv_call_s();
 
-    auto rp = rtus_driver_t<avx512_common>::call_params_t();
+    auto rp = rtus_driver_t<sve>::call_params_t();
 
     const int nb_oc = jcp.nb_load;
     const int nb_ic = jcp.nb_reduce;
@@ -412,12 +412,12 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
     }
 }
 
-template struct jit_avx512_common_1x1_convolution_fwd_t<data_type::f32>;
+template struct jit_sve_1x1_convolution_fwd_t<data_type::f32>;
 /* convolution backward wtr data */
 
 template <data_type_t diff_dst_type, data_type_t wei_type,
         data_type_t diff_src_type>
-void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
+void jit_sve_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
         diff_src_type>::execute_backward_data(const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -455,7 +455,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         auto p = jit_1x1_conv_call_s();
-        auto rp = rtus_driver_t<avx512_common>::call_params_t();
+        auto rp = rtus_driver_t<sve>::call_params_t();
 
         int bcast_start {0}, bcast_end {0}, icb_start {0}, icb_end {0};
         balance2D(nthr, ithr, work_amount, bcast_start, bcast_end, jcp.nb_load,
@@ -563,7 +563,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     });
 }
 
-template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
+template struct jit_sve_1x1_convolution_bwd_data_t<data_type::f32>;
 
 /* convolution backward wtr weights */
 
@@ -571,18 +571,18 @@ template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
 
-jit_avx512_common_1x1_convolution_bwd_weights_t ::
-        jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *apd)
+jit_sve_1x1_convolution_bwd_weights_t ::
+        jit_sve_1x1_convolution_bwd_weights_t(const pd_t *apd)
     : primitive_t(apd)
     , kernel_(nullptr)
     , acc_ker_(nullptr)
     , reducer_bias_(nullptr)
     , trans_kernel_(nullptr)
     , rtus_driver_(nullptr) {
-    kernel_ = new jit_avx512_common_1x1_conv_kernel(pd()->jcp_, *pd()->attr());
+    kernel_ = new jit_sve_1x1_conv_kernel(pd()->jcp_, *pd()->attr());
     acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
     reducer_bias_ = new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
-    init_rtus_driver<avx512_common>(this);
+    init_rtus_driver<sve>(this);
 
     const auto &jcp = kernel_->jcp;
 
@@ -596,7 +596,7 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
     }
 }
 
-void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
+void jit_sve_1x1_convolution_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
@@ -843,7 +843,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                         const data_t *local_src = diff_src;
 
                         auto p = jit_1x1_conv_call_s();
-                        auto rp = rtus_driver_t<avx512_common>::call_params_t();
+                        auto rp = rtus_driver_t<sve>::call_params_t();
 
                         p.output_stride = utils::rnd_up(jcp.ic, jcp.ic_block)
                                 * jcp.oc_block * jcp.typesize_out;

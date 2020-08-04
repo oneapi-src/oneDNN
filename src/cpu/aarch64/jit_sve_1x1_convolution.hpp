@@ -28,20 +28,20 @@
 #include "cpu/dw_convolution_utils.hpp"
 #include "cpu/platform.hpp"
 
-#include "cpu/x64/cpu_reducer.hpp"
-#include "cpu/x64/jit_avx512_common_1x1_conv_kernel.hpp"
-#include "cpu/x64/jit_transpose_src_utils.hpp"
-#include "cpu/x64/jit_uni_1x1_conv_utils.hpp"
-#include "cpu/x64/jit_uni_dw_convolution.hpp"
+#include "cpu/aarch64/cpu_reducer.hpp"
+#include "cpu/aarch64/jit_sve_1x1_conv_kernel.hpp"
+#include "cpu/aarch64/jit_transpose_src_utils.hpp"
+#include "cpu/aarch64/jit_uni_1x1_conv_utils.hpp"
+#include "cpu/aarch64/jit_uni_dw_convolution.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
+namespace aarch64 {
 
 template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
         impl::data_type_t dst_type = src_type>
-struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
+struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
@@ -53,8 +53,8 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
             if (copy(other) != status::success) is_initialized_ = false;
         }
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_common, ""),
-                jit_avx512_common_1x1_convolution_fwd_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", sve, ""),
+                jit_sve_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace utils;
@@ -71,7 +71,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, dst_md());
 
-            status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
+            status_t status = jit_sve_1x1_conv_kernel::init_conf(jcp_,
                     *conv_d, *src_d, *weights_md(), *dst_md(), *attr(),
                     dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
@@ -82,7 +82,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
             }
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_common_1x1_conv_kernel::init_scratchpad(
+            jit_sve_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_);
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
@@ -118,7 +118,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
 
         jit_1x1_conv_conf_t jcp_;
         reduce_to_unit_stride_t rtus_;
-        using dw_pd_t = jit_avx512_common_dw_convolution_fwd_t::pd_t;
+        using dw_pd_t = jit_sve_dw_convolution_fwd_t::pd_t;
         std::unique_ptr<dw_pd_t> dw_conv_pd_;
 
     protected:
@@ -225,7 +225,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
                     dw_conv_buffer_size_,
                     types::data_type_size(dw_conv_pd_->src_md()->data_type));
 
-            jit_uni_dw_conv_fwd_kernel<avx512_common,
+            jit_uni_dw_conv_fwd_kernel<sve,
                     data_type::f32>::init_scratchpad(dw_scratchpad, jcp_dw);
 
             return status::success;
@@ -235,18 +235,18 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
-    jit_avx512_common_1x1_convolution_fwd_t(const pd_t *apd)
+    jit_sve_1x1_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
-        kernel_ = new jit_avx512_common_1x1_conv_kernel(
+        kernel_ = new jit_sve_1x1_conv_kernel(
                 pd()->jcp_, *pd()->attr());
 
         if (pd()->jcp_.with_dw_conv) {
             kernel_dw_ = new dw_conv_kernel_t(pd()->dw_conv_pd_->jcp_);
         }
-        init_rtus_driver<avx512_common>(this);
+        init_rtus_driver<sve>(this);
     }
 
-    ~jit_avx512_common_1x1_convolution_fwd_t() {
+    ~jit_sve_1x1_convolution_fwd_t() {
         delete kernel_;
         if (kernel_dw_) { delete kernel_dw_; }
         delete rtus_driver_;
@@ -270,19 +270,19 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_common_1x1_conv_kernel *kernel_;
-    rtus_driver_t<avx512_common> *rtus_driver_;
-    using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<avx512_common>;
+    jit_sve_1x1_conv_kernel *kernel_;
+    rtus_driver_t<sve> *rtus_driver_;
+    using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<sve>;
     dw_conv_kernel_t *kernel_dw_ = nullptr;
 };
 
-using jit_avx512_common_1x1_convolution_fwd_f32_t
-        = jit_avx512_common_1x1_convolution_fwd_t<data_type::f32>;
+using jit_sve_1x1_convolution_fwd_f32_t
+        = jit_sve_1x1_convolution_fwd_t<data_type::f32>;
 
 template <impl::data_type_t diff_dst_type,
         impl::data_type_t wei_type = diff_dst_type,
         impl::data_type_t diff_src_type = diff_dst_type>
-struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_t {
+struct jit_sve_1x1_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
@@ -290,8 +290,8 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_t {
             , jcp_()
             , rtus_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_common, ""),
-                jit_avx512_common_1x1_convolution_bwd_data_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", sve, ""),
+                jit_sve_1x1_convolution_bwd_data_t);
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
@@ -306,13 +306,13 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_t {
             const memory_desc_t *diff_src_d = diff_src_md();
             rtus_prepare(this, conv_d, diff_src_d, diff_dst_md());
 
-            status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
+            status_t status = jit_sve_1x1_conv_kernel::init_conf(jcp_,
                     *conv_d, *diff_src_d, *weights_md(), *diff_dst_md(),
                     *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_common_1x1_conv_kernel::init_scratchpad(
+            jit_sve_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_);
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
@@ -340,14 +340,14 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
-    jit_avx512_common_1x1_convolution_bwd_data_t(const pd_t *apd)
+    jit_sve_1x1_convolution_bwd_data_t(const pd_t *apd)
         : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
-        kernel_ = new jit_avx512_common_1x1_conv_kernel(
+        kernel_ = new jit_sve_1x1_conv_kernel(
                 pd()->jcp_, *pd()->attr());
-        init_rtus_driver<avx512_common>(this);
-    }
+        init_rtus_driver<sve>(this);
+    } 
 
-    ~jit_avx512_common_1x1_convolution_bwd_data_t() {
+    ~jit_sve_1x1_convolution_bwd_data_t() {
         delete kernel_;
         delete rtus_driver_;
     }
@@ -365,14 +365,14 @@ private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_common_1x1_conv_kernel *kernel_;
-    rtus_driver_t<avx512_common> *rtus_driver_;
+    jit_sve_1x1_conv_kernel *kernel_;
+    rtus_driver_t<sve> *rtus_driver_;
 };
 
-using jit_avx512_common_1x1_convolution_bwd_data_f32_t
-        = jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
+using jit_sve_1x1_convolution_bwd_data_f32_t
+        = jit_sve_1x1_convolution_bwd_data_t<data_type::f32>;
 
-struct jit_avx512_common_1x1_convolution_bwd_weights_t : public primitive_t {
+struct jit_sve_1x1_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
@@ -380,8 +380,8 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public primitive_t {
             , jcp_()
             , rtus_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_common, ""),
-                jit_avx512_common_1x1_convolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", sve, ""),
+                jit_sve_1x1_convolution_bwd_weights_t);
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
@@ -396,7 +396,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public primitive_t {
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, diff_dst_md());
 
-            status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
+            status_t status = jit_sve_1x1_conv_kernel::init_conf(jcp_,
                     *conv_d, *src_d, *diff_weights_md(), *diff_dst_md(),
                     *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
@@ -404,7 +404,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public primitive_t {
             init_balancers();
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx512_common_1x1_conv_kernel::init_scratchpad(
+            jit_sve_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_);
 
             auto reducer_bia_scratchpad = memory_tracking::registrar_t(
@@ -447,9 +447,9 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
-    jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *apd);
+    jit_sve_1x1_convolution_bwd_weights_t(const pd_t *apd);
 
-    ~jit_avx512_common_1x1_convolution_bwd_weights_t() {
+    ~jit_sve_1x1_convolution_bwd_weights_t() {
         delete kernel_;
         delete acc_ker_;
         delete reducer_bias_;
@@ -468,11 +468,11 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_common_1x1_conv_kernel *kernel_;
+    jit_sve_1x1_conv_kernel *kernel_;
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;
     jit_transpose4x16_src *trans_kernel_;
-    rtus_driver_t<avx512_common> *rtus_driver_;
+    rtus_driver_t<sve> *rtus_driver_;
 };
 
 } // namespace x64

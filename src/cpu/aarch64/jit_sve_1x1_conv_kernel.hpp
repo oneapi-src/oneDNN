@@ -20,30 +20,30 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/jit_generator.hpp"
-#include "cpu/x64/jit_primitive_conf.hpp"
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/aarch64/jit_generator.hpp"
+#include "cpu/aarch64/jit_primitive_conf.hpp"
+#include "cpu/aarch64/jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
+namespace aarch64 {
 
-struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
-    jit_avx512_common_1x1_conv_kernel(
+struct jit_sve_1x1_conv_kernel : public jit_generator {
+    jit_sve_1x1_conv_kernel(
             const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<sve>(
                     this, jcp.eltwise);
 
         this->generate();
-        jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode();
+        jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode32();
     }
 
-    ~jit_avx512_common_1x1_conv_kernel() { delete eltwise_injector_; }
+    ~jit_sve_1x1_conv_kernel() { delete eltwise_injector_; }
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_1x1_conv_kernel)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sve_1x1_conv_kernel)
 
     static bool post_ops_ok(
             jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
@@ -88,7 +88,7 @@ private:
     Xbyak::Opmask k_load_dim_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_load_dim_tail_mask = Xbyak::Opmask(3);
 
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<sve> *eltwise_injector_;
 
     int bcast_loop_work_offt = 0;
     int stack_space_needed = 16;
