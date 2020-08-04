@@ -634,6 +634,16 @@ void check_known_skipped_case(const prb_t &p, res_t *r) {
         return;
     }
 
+#if !defined(DNNL_X64)
+    // int8 is not supported altogether since RNN relies on packed IGEMM
+    // FIXME: this will disable int8 RNN testing if the library is built with
+    //        Intel MKL that does have packed IGEMM
+    if (p.is_int8()) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+#endif
+
     // int8 weights reorder does not support non trivial strides;
     // only LSTM cell kind supports int8 so far;
     if (p.is_int8() && (!p.trivial_strides || p.alg != VANILLA_LSTM)) {
