@@ -222,3 +222,7 @@ mb1_ic16oc1_ih2oh1kh2sh1dh0ph0_iw1000kw6sw1dw30pw127n"1d_conv_large_dilated_padd
 --skip-impl='ref:gemm'
 --dir=BWD_WB --stag=axb --dtag=axb
 mb2g1ic33iw84350oc33ow84349kw2pw0n"channel_tail_for_specialized_axb_bwd_w_kernel"
+
+# large filter size with tails
+--reset
+--dir=FWD_D,BWD_D mb1g2ic16oc16iw128kw21
