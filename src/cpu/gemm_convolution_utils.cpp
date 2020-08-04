@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstring>
 #include "dnnl_types.h"
 
 #include "common/c_types_map.hpp"
@@ -444,18 +445,28 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
                             const int ow_end
                                     = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
                             data_t *__restrict col_ = col_k + oh * jcp.ow - ss;
-                            if (ih < 0 || ih >= jcp.ih)
-                                for (int ow = ow_begin; ow < ow_end; ow++)
-                                    col_[ow] = zero_val;
-                            else {
-                                for (int ow = ow_begin; ow < ow_end; ++ow) {
-                                    const int iw = ow;
-                                    if (iw < lp - kw * dw
-                                            || iw >= jcp.iw + lp - kw * dw)
-                                        col_[ow] = zero_val;
-                                    else
-                                        col_[ow] = im_[iw];
-                                }
+                            if (ih < 0 || ih >= jcp.ih) {
+                                memset(col_ + ow_begin, 0,
+                                        (ow_end - ow_begin) * sizeof(data_t));
+                            } else {
+                                auto iw_begin = ow_begin;
+                                auto iw_end = ow_end;
+                                auto left_0s
+                                        = std::max(0, lp - kw * dw - iw_begin);
+                                auto right_0s = std::max(
+                                        0, iw_end - jcp.iw - lp + kw * dw);
+                                auto len = ow_end - ow_begin;
+                                // content length
+                                auto c_len = len - left_0s - right_0s;
+
+                                memset(col_ + ow_begin, 0,
+                                        left_0s * sizeof(data_t));
+                                // confusing part: im_ was adjusted already, look upwards
+                                memcpy(col_ + left_0s + ow_begin,
+                                        im_ + left_0s + iw_begin,
+                                        c_len * sizeof(data_t));
+                                memset(col_ + ow_end - right_0s, 0,
+                                        right_0s * sizeof(data_t));
                             }
                         }
                     }
@@ -477,14 +488,14 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
                             data_t *__restrict col_oh
                                     = col_k + oh * jcp.ow - ss;
                             if (ih < 0 || ih >= jcp.ih)
-                                for (int ow = ow_begin; ow < ow_end; ow++)
-                                    col_oh[ow] = zero_val;
+                                memset(col_oh + ow_begin, 0,
+                                        (ow_end - ow_begin) * sizeof(data_t));
                             else
                                 for (int ow = ow_begin; ow < ow_end; ow++) {
                                     const int iw = ow * sw - lp + kw * dw;
                                     if (iw < 0 || iw >= jcp.iw)
                                         col_oh[ow] = zero_val;
-                                    else {
+                                    else { // TODO: optimize with simd gather
                                         const ptrdiff_t im_idx
                                                 = ih * jcp.iw + iw;
                                         col_oh[ow] = im_[im_idx];
@@ -515,16 +526,25 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
                                 = _im + (ic + cs) * im_step + ih * jcp.iw;
                         const int iw_shift = kw * dw - lp;
                         if (ih < 0 || ih >= jcp.ih)
-                            for (int ow = ow_start; ow < ow_end; ow++)
-                                col_oh[ow] = zero_val;
-                        else
-                            for (int ow = ow_start; ow < ow_end; ow++) {
-                                const int iw = ow + iw_shift;
-                                if (iw < 0 || iw >= jcp.iw)
-                                    col_oh[ow] = zero_val;
-                                else
-                                    col_oh[ow] = im_[iw];
-                            }
+                            memset(col_oh + ow_start, 0,
+                                    (ow_end - ow_start) * sizeof(data_t));
+                        else {
+                            auto iw_start = ow_start + iw_shift;
+                            auto iw_end = ow_end + iw_shift;
+                            auto left_0s = std::max(0, 0 - iw_start);
+                            auto right_0s = std::max(0, iw_end - jcp.iw);
+                            auto len = ow_end - ow_start;
+                            // content length
+                            auto c_len = len - left_0s - right_0s;
+
+                            memset(col_oh + ow_start, 0,
+                                    left_0s * sizeof(data_t));
+                            memcpy(col_oh + ow_start + left_0s,
+                                    im_ + iw_start + left_0s,
+                                    c_len * sizeof(data_t));
+                            memset(col_oh + ow_end - right_0s, 0,
+                                    right_0s * sizeof(data_t));
+                        }
                     });
         else
             parallel_nd(cb, jcp.kh, jcp.kw, oh_range,
@@ -539,14 +559,14 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
                         const data_t *__restrict im_
                                 = _im + (ic + cs) * im_step;
                         if (ih < 0 || ih >= jcp.ih)
-                            for (int ow = ow_start; ow < ow_end; ow++)
-                                col_oh[ow] = zero_val;
+                            memset(col_oh + ow_start, 0,
+                                    (ow_end - ow_start) * sizeof(data_t));
                         else
                             for (int ow = ow_start; ow < ow_end; ow++) {
                                 const int iw = ow * sw - lp + kw * dw;
                                 if (iw < 0 || iw >= jcp.iw)
                                     col_oh[ow] = zero_val;
-                                else {
+                                else { // TODO: simd gather
                                     const ptrdiff_t im_idx = ih * jcp.iw + iw;
                                     col_oh[ow] = im_[im_idx];
                                 }
