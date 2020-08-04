@@ -257,15 +257,10 @@ int check_zero_padding_impl(const dnn_mem_t &mem, int arg) {
     }
 
     if (!ok) {
-        BENCHDNN_PRINT(0,
-                "@@@ [arg:%d] check_zero_padding failed (will turn into an "
-                "error soon) err:%d\n",
-                arg, (int)errors);
+        BENCHDNN_PRINT(0, "@@@ [arg:%d] check_zero_padding failed\n", arg);
     }
 
-    // TODO: Return FAIL in case of a failure. Temporarily, return OK
-    // regardless of the check result until all failures are fixed.
-    return OK;
+    return ok ? OK : FAIL;
 }
 
 int check_zero_padding(const dnn_mem_t &mem, int arg) {
