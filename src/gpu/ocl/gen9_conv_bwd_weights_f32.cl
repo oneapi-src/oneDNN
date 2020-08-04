@@ -30,6 +30,7 @@ inline void atomic_add_global(
         volatile __global atomic_float *source, float operand) {
     float old_val = atomic_load_explicit(
             source, memory_order_relaxed, memory_scope_device);
+    if (isnan(operand)) return;
     bool success = false;
     do {
         float new_val = old_val + operand;
