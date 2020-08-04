@@ -316,14 +316,19 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
                     par_conv.filt_prf = nullptr;
                     par_conv.channel = oc;
                     par_conv.ch_blocks = cur_nb_oc;
-                    par_conv.load_work = this_block_size(
-                            icbb * jcp.nb_ic_blocking * jcp.ic_block,
-                            (size_t)jcp.ic, jcp.nb_ic_blocking * jcp.ic_block);
-                    par_conv.reduce_work = this_block_size(
-                            oc * jcp.oc_block, jcp.oc, oc_step * jcp.oc_block);
 
-                    if (par_conv.load_work % jcp.ic_block > 0)
-                        par_conv.flags |= FLAG_IC_LAST;
+                    if (is_ddst_layout_nxc) {
+                        par_conv.load_work = this_block_size(
+                                icbb * jcp.nb_ic_blocking * jcp.ic_block,
+                                (size_t)jcp.ic,
+                                jcp.nb_ic_blocking * jcp.ic_block);
+                        par_conv.reduce_work
+                                = this_block_size(oc * jcp.oc_block, jcp.oc,
+                                        oc_step * jcp.oc_block);
+
+                        if (par_conv.load_work % jcp.ic_block > 0)
+                            par_conv.flags |= FLAG_IC_LAST;
+                    }
 
                     kernel_->jit_ker(&par_conv);
                 }
