@@ -86,7 +86,7 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
         auto ws = CTX_OUT_MEM(char *, DNNL_ARG_WORKSPACE);
 
         if (pd()->ndims() == 5)
-            execute_forward_3d(src, dst, ws);
+            execute_forward_3d(src, dst, ws, ctx);
         else
             execute_forward(src, dst, ws, ctx);
 
@@ -96,8 +96,8 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
 private:
     void execute_forward(const data_t *src, data_t *dst, char *indices,
             const exec_ctx_t &ctx) const;
-    void execute_forward_3d(
-            const data_t *src, data_t *dst, char *indices) const;
+    void execute_forward_3d(const data_t *src, data_t *dst, char *indices,
+            const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t init_ncsp_trans_ctx();
 
