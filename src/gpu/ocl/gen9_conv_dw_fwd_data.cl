@@ -158,7 +158,9 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
     if (WITH_BIAS) {
         const int bg_off = g + get_sub_group_local_id();
-        DATA_T b = (G % OC_BLOCK == 0 || bg_off < G) ? bias[bg_off] : DATA_ZERO;
+        DATA_T b = (G_WO_PADDING % OC_BLOCK == 0 || bg_off < G_WO_PADDING)
+                ? bias[bg_off]
+                : DATA_ZERO;
         unroll_for(int k = 0; k < 8; k++) {
             S00[k] = b;
             S01[k] = b;
