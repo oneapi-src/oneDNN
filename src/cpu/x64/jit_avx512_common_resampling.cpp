@@ -109,7 +109,6 @@ struct jit_avx512_common_resampling
 
 private:
     enum class rounding_mode { none, floor, ceil, rounding_mode_max };
-    enum class coeff_counting_method { div, mul };
 
     struct bwd_counting_range_t {
         RegExp loop_counter;
@@ -207,23 +206,17 @@ private:
                 mov(reg_curr_d, ptr[abi_param1 + GET_OFF(d)]);
                 mov(reg_curr_h, ptr[abi_param1 + GET_OFF(h)]);
                 mov(reg_curr_w, ptr[abi_param1 + GET_OFF(w)]);
-                count_dim_coeff(coeff_counting_method::div, xmm_d_coeff,
-                        reg_curr_d, pd_->FD());
-                count_dim_coeff(coeff_counting_method::div, xmm_h_coeff,
-                        reg_curr_h, pd_->FH());
-                count_dim_coeff(coeff_counting_method::div, xmm_w_coeff,
-                        reg_curr_w, pd_->FW());
+                count_dim_coeff(xmm_d_coeff, reg_curr_d, pd_->OD(), pd_->ID());
+                count_dim_coeff(xmm_h_coeff, reg_curr_h, pd_->OH(), pd_->IH());
+                count_dim_coeff(xmm_w_coeff, reg_curr_w, pd_->OW(), pd_->IW());
             } else if (pd_->ndims() == 4) {
                 mov(reg_curr_h, ptr[abi_param1 + GET_OFF(h)]);
                 mov(reg_curr_w, ptr[abi_param1 + GET_OFF(w)]);
-                count_dim_coeff(coeff_counting_method::div, xmm_h_coeff,
-                        reg_curr_h, pd_->FH());
-                count_dim_coeff(coeff_counting_method::div, xmm_w_coeff,
-                        reg_curr_w, pd_->FW());
+                count_dim_coeff(xmm_h_coeff, reg_curr_h, pd_->OH(), pd_->IH());
+                count_dim_coeff(xmm_w_coeff, reg_curr_w, pd_->OW(), pd_->IW());
             } else {
                 mov(reg_curr_w, ptr[abi_param1 + GET_OFF(w)]);
-                count_dim_coeff(coeff_counting_method::div, xmm_w_coeff,
-                        reg_curr_w, pd_->FW());
+                count_dim_coeff(xmm_w_coeff, reg_curr_w, pd_->OW(), pd_->IW());
             }
         } else {
             if (pd_->desc()->alg_kind == alg_kind::resampling_linear) {
@@ -255,23 +248,23 @@ private:
                     mov(reg_curr_d, ptr[abi_param1 + GET_OFF(d)]);
                     mov(reg_curr_h, ptr[abi_param1 + GET_OFF(h)]);
                     mov(reg_curr_w, ptr[abi_param1 + GET_OFF(w)]);
-                    count_bwd_counting_range(rsp + 80, od, reg_curr_d,
-                            pd_->ID(), pd_->OD(), pd_->FD());
-                    count_bwd_counting_range(rsp + 40, oh, reg_curr_h,
-                            pd_->IH(), pd_->OH(), pd_->FH());
-                    count_bwd_counting_range(rsp, ow, reg_curr_w, pd_->IW(),
-                            pd_->OW(), pd_->FW());
+                    count_bwd_counting_range(
+                            rsp + 80, od, reg_curr_d, pd_->OD(), pd_->ID());
+                    count_bwd_counting_range(
+                            rsp + 40, oh, reg_curr_h, pd_->OH(), pd_->IH());
+                    count_bwd_counting_range(
+                            rsp, ow, reg_curr_w, pd_->OW(), pd_->IW());
                 } else if (pd_->ndims() == 4) {
                     mov(reg_curr_h, ptr[abi_param1 + GET_OFF(h)]);
                     mov(reg_curr_w, ptr[abi_param1 + GET_OFF(w)]);
-                    count_bwd_counting_range(rsp + 40, oh, reg_curr_h,
-                            pd_->IH(), pd_->OH(), pd_->FH());
-                    count_bwd_counting_range(rsp, ow, reg_curr_w, pd_->IW(),
-                            pd_->OW(), pd_->FW());
+                    count_bwd_counting_range(
+                            rsp + 40, oh, reg_curr_h, pd_->OH(), pd_->IH());
+                    count_bwd_counting_range(
+                            rsp, ow, reg_curr_w, pd_->OW(), pd_->IW());
                 } else {
                     mov(reg_curr_w, ptr[abi_param1 + GET_OFF(w)]);
-                    count_bwd_counting_range(rsp, ow, reg_curr_w, pd_->IW(),
-                            pd_->OW(), pd_->FW());
+                    count_bwd_counting_range(
+                            rsp, ow, reg_curr_w, pd_->OW(), pd_->IW());
                 }
             } else {
                 // Stack:
@@ -292,12 +285,12 @@ private:
                 mov(reg_curr_d, ptr[abi_param1 + GET_OFF(d)]);
                 mov(reg_curr_h, ptr[abi_param1 + GET_OFF(h)]);
                 mov(reg_curr_w, ptr[abi_param1 + GET_OFF(w)]);
-                count_bwd_counting_range(rsp + 48, od, reg_curr_d, pd_->ID(),
-                        pd_->OD(), pd_->FD());
-                count_bwd_counting_range(rsp + 24, oh, reg_curr_h, pd_->IH(),
-                        pd_->OH(), pd_->FH());
                 count_bwd_counting_range(
-                        rsp, ow, reg_curr_w, pd_->IW(), pd_->OW(), pd_->FW());
+                        rsp + 48, od, reg_curr_d, pd_->OD(), pd_->ID());
+                count_bwd_counting_range(
+                        rsp + 24, oh, reg_curr_h, pd_->OH(), pd_->IH());
+                count_bwd_counting_range(
+                        rsp, ow, reg_curr_w, pd_->OW(), pd_->IW());
             }
         }
 
@@ -318,28 +311,26 @@ private:
         postamble();
     }
 
-    void count_dim_coeff(const coeff_counting_method ccm, const Xmm &xmm_coeff,
-            const Reg64 &reg_dim, float factor) {
-        // Formula = (((float)dim + 0.5) * factor) - 0.5,
-        vcvtsi2ss(xmm_coeff, xmm_coeff, reg_dim); // (float)dim
-        vaddss(xmm_coeff, xmm_coeff, xmm_zero_point_five); // (float)dim + 0.5
+    void count_dim_coeff(const Xmm &xmm_coeff, const Reg64 &reg_dim,
+            dim_t y_max, dim_t x_max) {
+        // Formula = ((y + 0.5f) * x_max / y_max) - 0.5f
+        vcvtsi2ss(xmm_coeff, xmm_coeff, reg_dim); // y
+        vaddss(xmm_coeff, xmm_coeff, xmm_zero_point_five); // y + 0.5f
 
-        move_imm_float_to_xmm(xmm_tmp_factor, reg_tmp, factor);
-        if (ccm == coeff_counting_method::div) {
-            move_imm_float_to_xmm(cvt_reg<Xmm>(zmm_tmp), reg_tmp, 1.0f);
-            vdivss(xmm_tmp_factor, cvt_reg<Xmm>(zmm_tmp),
-                    xmm_tmp_factor); // factor = 1.f / factor
-        }
+        move_imm_float_to_xmm(xmm_tmp_factor, reg_tmp, (float)x_max);
         vmulss(xmm_coeff, xmm_coeff,
-                xmm_tmp_factor); // ((float)dim + 0.5) * factor
+                xmm_tmp_factor); // (y + 0.5f) * x_max
+        move_imm_float_to_xmm(xmm_tmp_factor, reg_tmp, (float)y_max);
+        vdivss(xmm_coeff, xmm_coeff,
+                xmm_tmp_factor); // (y + 0.5f) * x_max / y_max
 
         vsubss(xmm_coeff, xmm_coeff,
-                xmm_zero_point_five); // (((float)dim + 0.5) * factor) - 0.5
+                xmm_zero_point_five); // ((y + 0.5) * x_max / y_max) - 0.5
     }
 
     void count_bwd_counting_range(RegExp stack_position,
             bwd_counting_range_t &c_range, const Reg64 &curr_position,
-            dim_t x_max, dim_t y_max, float factor) {
+            dim_t y_max, dim_t x_max) {
         c_range.loop_counter = stack_position;
         if (pd_->desc()->alg_kind == alg_kind::resampling_linear) {
             c_range.start.linear[0] = stack_position + 8;
@@ -355,9 +346,8 @@ private:
         EvexModifierRounding rm_floor(EvexModifierRounding::T_RD_SAE);
 
         if (pd_->desc()->alg_kind == alg_kind::resampling_linear) {
-            // coeff = (pos + 0.5)*factor - 0.5
-            count_dim_coeff(coeff_counting_method::mul, xmm_coeff,
-                    curr_position, factor);
+            // coeff = (pos + 0.5) * y_max / x_max - 0.5
+            count_dim_coeff(xmm_coeff, curr_position, x_max, y_max);
 
             // l_start: x == 0 ? 0 : ceil(coeff)
             vcvtss2si(reg_tmp_idx, xmm_coeff | rm_ceil);
@@ -376,10 +366,9 @@ private:
             cmove(reg_tmp_idx, reg_tmp);
             mov(ptr[c_range.end.linear[1]], reg_tmp_idx);
 
-            // coeff = ((pos-1) + 0.5)*factor - 0.5
+            // coeff = ((pos-1) + 0.5) * y_max / x_max - 0.5
             sub(curr_position, 1);
-            count_dim_coeff(coeff_counting_method::mul, xmm_coeff,
-                    curr_position, factor);
+            count_dim_coeff(xmm_coeff, curr_position, x_max, y_max);
 
             // r_start: max(0, floor(coeff) + 1)
             vcvtss2si(reg_tmp_idx, xmm_coeff | rm_floor);
@@ -387,16 +376,17 @@ private:
             max(reg_tmp_idx, 0);
             mov(ptr[c_range.start.linear[1]], reg_tmp_idx);
 
-            // coeff = ((pos+1) + 0.5)*factor - 0.5
+            // coeff = ((pos+1) + 0.5) * y_max / x_max - 0.5
             add(curr_position, 2);
-            count_dim_coeff(coeff_counting_method::mul, xmm_coeff,
-                    curr_position, factor);
+            count_dim_coeff(xmm_coeff, curr_position, x_max, y_max);
 
             // l_end: min(ceil(coeff), y_max)
             vcvtss2si(reg_tmp_idx, xmm_coeff | rm_ceil);
             min(reg_tmp_idx, y_max);
             mov(ptr[c_range.end.linear[0]], reg_tmp_idx);
         } else {
+            float factor = (float)y_max / x_max;
+
             // start: ceil(pos * factor - 0.5f)
             vcvtsi2ss(xmm_coeff, xmm_coeff, curr_position);
             move_imm_float_to_xmm(xmm_tmp_factor, reg_tmp, factor);
@@ -572,8 +562,7 @@ private:
                     // for (dim_t ow = w.start[i]; ow < w.end[i]; ow++)
                     for_begin(label[i][0], label[i][1], ow.loop_counter,
                             ow.start.linear[i], ow.end.linear[i], reg_tmp);
-                    count_dim_coeff(coeff_counting_method::div, xmm_w_coeff,
-                            reg_tmp, pd_->FW());
+                    count_dim_coeff(xmm_w_coeff, reg_tmp, pd_->OW(), pd_->IW());
 
                     call_linear(i + 1);
 
@@ -624,14 +613,14 @@ private:
                         for_begin(label[i][j][0], label[i][j][1],
                                 ow.loop_counter, ow.start.linear[i],
                                 ow.end.linear[i], reg_tmp);
-                        count_dim_coeff(coeff_counting_method::div, xmm_w_coeff,
-                                reg_tmp, pd_->FW());
+                        count_dim_coeff(
+                                xmm_w_coeff, reg_tmp, pd_->OW(), pd_->IW());
                         // for (dim_t oh = h.start[j]; oh < h.end[j]; oh++)
                         for_begin(label[i][j][2], label[i][j][3],
                                 oh.loop_counter, oh.start.linear[j],
                                 oh.end.linear[j], reg_tmp);
-                        count_dim_coeff(coeff_counting_method::div, xmm_h_coeff,
-                                reg_tmp, pd_->FH());
+                        count_dim_coeff(
+                                xmm_h_coeff, reg_tmp, pd_->OH(), pd_->IH());
 
                         call_linear(i + 1, j + 1);
 
@@ -691,20 +680,20 @@ private:
                             for_begin(label[i][j][k][0], label[i][j][k][1],
                                     ow.loop_counter, ow.start.linear[i],
                                     ow.end.linear[i], reg_tmp);
-                            count_dim_coeff(coeff_counting_method::div,
-                                    xmm_w_coeff, reg_tmp, pd_->FW());
+                            count_dim_coeff(
+                                    xmm_w_coeff, reg_tmp, pd_->OW(), pd_->IW());
                             // for (dim_t oh = h.start[j]; oh < h.end[j]; oh++)
                             for_begin(label[i][j][k][2], label[i][j][k][3],
                                     oh.loop_counter, oh.start.linear[j],
                                     oh.end.linear[j], reg_tmp);
-                            count_dim_coeff(coeff_counting_method::div,
-                                    xmm_h_coeff, reg_tmp, pd_->FH());
+                            count_dim_coeff(
+                                    xmm_h_coeff, reg_tmp, pd_->OH(), pd_->IH());
                             // for (dim_t od = d.start[k]; od < d.end[k]; od++)
                             for_begin(label[i][j][k][4], label[i][j][k][5],
                                     od.loop_counter, od.start.linear[k],
                                     od.end.linear[k], reg_tmp);
-                            count_dim_coeff(coeff_counting_method::div,
-                                    xmm_d_coeff, reg_tmp, pd_->FD());
+                            count_dim_coeff(
+                                    xmm_d_coeff, reg_tmp, pd_->OD(), pd_->ID());
 
                             call_linear(i + 1, j + 1, k + 1);
 

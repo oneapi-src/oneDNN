@@ -65,18 +65,19 @@ void simple_resampling_fwd_t<data_type>::fill_coeffs() {
     using namespace resampling_utils;
     linear_coeffs_.reserve(pd()->OD() + pd()->OH() + pd()->OW());
     for (dim_t od = 0; od < pd()->OD(); od++)
-        linear_coeffs_.push_back(linear_coeffs_t(od, pd()->FD(), pd()->ID()));
+        linear_coeffs_.push_back(linear_coeffs_t(od, pd()->OD(), pd()->ID()));
     for (dim_t oh = 0; oh < pd()->OH(); oh++)
-        linear_coeffs_.push_back(linear_coeffs_t(oh, pd()->FH(), pd()->IH()));
+        linear_coeffs_.push_back(linear_coeffs_t(oh, pd()->OH(), pd()->IH()));
     for (dim_t ow = 0; ow < pd()->OW(); ow++)
-        linear_coeffs_.push_back(linear_coeffs_t(ow, pd()->FW(), pd()->IW()));
+        linear_coeffs_.push_back(linear_coeffs_t(ow, pd()->OW(), pd()->IW()));
 }
 
 template <impl::data_type_t data_type>
 void simple_resampling_fwd_t<data_type>::nearest(
         const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const {
-    dim_t id = nearest_idx(od, pd()->FD()), ih = nearest_idx(oh, pd()->FH()),
-          iw = nearest_idx(ow, pd()->FW());
+    dim_t id = nearest_idx(od, pd()->OD(), pd()->ID());
+    dim_t ih = nearest_idx(oh, pd()->OH(), pd()->IH());
+    dim_t iw = nearest_idx(ow, pd()->OW(), pd()->IW());
 
     PRAGMA_OMP_SIMD()
     for (dim_t innermost_el = 0; innermost_el < inner_stride_; innermost_el++)
@@ -101,8 +102,8 @@ void simple_resampling_fwd_t<data_type>::linear(
 template <impl::data_type_t data_type>
 void simple_resampling_fwd_t<data_type>::bilinear(
         const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const {
-    linear_coeffs_t ih = linear_coeffs_[pd()->OD() + oh],
-                    iw = linear_coeffs_[pd()->OD() + pd()->OH() + ow];
+    linear_coeffs_t ih = linear_coeffs_[pd()->OD() + oh];
+    linear_coeffs_t iw = linear_coeffs_[pd()->OD() + pd()->OH() + ow];
 
     PRAGMA_OMP_SIMD()
     for (dim_t innermost_el = 0; innermost_el < inner_stride_; innermost_el++) {
@@ -119,9 +120,9 @@ void simple_resampling_fwd_t<data_type>::bilinear(
 template <impl::data_type_t data_type>
 void simple_resampling_fwd_t<data_type>::trilinear(
         const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const {
-    linear_coeffs_t id = linear_coeffs_[od],
-                    ih = linear_coeffs_[pd()->OD() + oh],
-                    iw = linear_coeffs_[pd()->OD() + pd()->OH() + ow];
+    linear_coeffs_t id = linear_coeffs_[od];
+    linear_coeffs_t ih = linear_coeffs_[pd()->OD() + oh];
+    linear_coeffs_t iw = linear_coeffs_[pd()->OD() + pd()->OH() + ow];
 
     PRAGMA_OMP_SIMD()
     for (dim_t innermost_el = 0; innermost_el < inner_stride_; innermost_el++) {
@@ -197,13 +198,13 @@ void simple_resampling_bwd_t<data_type>::fill_coeffs() {
     bwd_linear_coeffs_.reserve(pd()->ID() + pd()->IH() + pd()->IW());
     for (dim_t id = 0; id < pd()->ID(); id++)
         bwd_linear_coeffs_.push_back(
-                bwd_linear_coeffs_t(id, pd()->FD(), pd()->ID(), pd()->OD()));
+                bwd_linear_coeffs_t(id, pd()->OD(), pd()->ID()));
     for (dim_t ih = 0; ih < pd()->IH(); ih++)
         bwd_linear_coeffs_.push_back(
-                bwd_linear_coeffs_t(ih, pd()->FH(), pd()->IH(), pd()->OH()));
+                bwd_linear_coeffs_t(ih, pd()->OH(), pd()->IH()));
     for (dim_t iw = 0; iw < pd()->IW(); iw++)
         bwd_linear_coeffs_.push_back(
-                bwd_linear_coeffs_t(iw, pd()->FW(), pd()->IW(), pd()->OW()));
+                bwd_linear_coeffs_t(iw, pd()->OW(), pd()->IW()));
 }
 
 template <impl::data_type_t data_type>
@@ -211,28 +212,34 @@ void simple_resampling_bwd_t<data_type>::fill_weights() {
     using namespace resampling_utils;
     bwd_linear_weights_.reserve(2 * (pd()->OD() + pd()->OH() + pd()->OW()));
     for (dim_t od = 0; od < pd()->OD(); od++) {
-        bwd_linear_weights_.push_back(linear_weight(0, od, pd()->FD()));
-        bwd_linear_weights_.push_back(linear_weight(1, od, pd()->FD()));
+        bwd_linear_weights_.push_back(
+                linear_weight(0, od, pd()->OD(), pd()->ID()));
+        bwd_linear_weights_.push_back(
+                linear_weight(1, od, pd()->OD(), pd()->ID()));
     }
     for (dim_t oh = 0; oh < pd()->OH(); oh++) {
-        bwd_linear_weights_.push_back(linear_weight(0, oh, pd()->FH()));
-        bwd_linear_weights_.push_back(linear_weight(1, oh, pd()->FH()));
+        bwd_linear_weights_.push_back(
+                linear_weight(0, oh, pd()->OH(), pd()->IH()));
+        bwd_linear_weights_.push_back(
+                linear_weight(1, oh, pd()->OH(), pd()->IH()));
     }
     for (dim_t ow = 0; ow < pd()->OW(); ow++) {
-        bwd_linear_weights_.push_back(linear_weight(0, ow, pd()->FW()));
-        bwd_linear_weights_.push_back(linear_weight(1, ow, pd()->FW()));
+        bwd_linear_weights_.push_back(
+                linear_weight(0, ow, pd()->OW(), pd()->IW()));
+        bwd_linear_weights_.push_back(
+                linear_weight(1, ow, pd()->OW(), pd()->IW()));
     }
 }
 
 template <impl::data_type_t data_type>
 void simple_resampling_bwd_t<data_type>::nearest(data_t *diff_src,
         const data_t *diff_dst, dim_t id, dim_t ih, dim_t iw) const {
-    dim_t ow_start = ceil_idx(iw * pd()->FW() - 0.5f),
-          oh_start = ceil_idx(ih * pd()->FH() - 0.5f),
-          od_start = ceil_idx(id * pd()->FD() - 0.5f);
-    dim_t ow_end = ceil_idx((iw + 1.f) * pd()->FW() - 0.5f),
-          oh_end = ceil_idx((ih + 1.f) * pd()->FH() - 0.5f),
-          od_end = ceil_idx((id + 1.f) * pd()->FD() - 0.5f);
+    dim_t ow_start = ceil_idx(((float)iw * pd()->OW() / pd()->IW()) - 0.5f);
+    dim_t oh_start = ceil_idx(((float)ih * pd()->OH() / pd()->IH()) - 0.5f);
+    dim_t od_start = ceil_idx(((float)id * pd()->OD() / pd()->ID()) - 0.5f);
+    dim_t ow_end = ceil_idx(((iw + 1.f) * pd()->OW() / pd()->IW()) - 0.5f);
+    dim_t oh_end = ceil_idx(((ih + 1.f) * pd()->OH() / pd()->IH()) - 0.5f);
+    dim_t od_end = ceil_idx(((id + 1.f) * pd()->OD() / pd()->ID()) - 0.5f);
 
     PRAGMA_OMP_SIMD()
     for (dim_t innermost_el = 0; innermost_el < inner_stride_; innermost_el++) {
@@ -291,9 +298,9 @@ void simple_resampling_bwd_t<data_type>::bilinear(data_t *diff_src,
 template <impl::data_type_t data_type>
 void simple_resampling_bwd_t<data_type>::trilinear(data_t *diff_src,
         const data_t *diff_dst, dim_t id, dim_t ih, dim_t iw) const {
-    bwd_linear_coeffs_t d = bwd_linear_coeffs_[id],
-                        h = bwd_linear_coeffs_[pd()->ID() + ih],
-                        w = bwd_linear_coeffs_[pd()->ID() + pd()->IH() + iw];
+    bwd_linear_coeffs_t d = bwd_linear_coeffs_[id];
+    bwd_linear_coeffs_t h = bwd_linear_coeffs_[pd()->ID() + ih];
+    bwd_linear_coeffs_t w = bwd_linear_coeffs_[pd()->ID() + pd()->IH() + iw];
 
     PRAGMA_OMP_SIMD()
     for (dim_t innermost_el = 0; innermost_el < inner_stride_; innermost_el++) {

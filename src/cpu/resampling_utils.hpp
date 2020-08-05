@@ -27,27 +27,25 @@ namespace cpu {
 
 namespace resampling_utils {
 
-static inline dim_t nearest_idx(dim_t y, float f) {
-    return (dim_t)((y + 0.5f) * (1.f / f));
+static inline float linear_map(dim_t y, dim_t y_max, dim_t x_max) {
+    return ((y + 0.5f) * x_max / y_max) - 0.5f;
+}
+static inline dim_t nearest_idx(dim_t y, dim_t y_max, dim_t x_max) {
+    return (dim_t)roundf(linear_map(y, y_max, x_max));
 }
 static inline dim_t ceil_idx(float x) {
     if (x < 0) return (dim_t)0;
     return (dim_t)x == x ? (dim_t)x : (dim_t)x + 1;
 }
-static inline float linear_map(dim_t y, volatile float f) {
-    // prevent Intel Compiler optimizing operation for better accuracy
-    volatile float s = (y + 0.5f) * f;
-    return s - 0.5f;
-}
-static inline float linear_weight(int i, dim_t x, float f) {
-    float s = linear_map(x, 1.f / f);
+static inline float linear_weight(int i, dim_t x, dim_t y_max, dim_t x_max) {
+    float s = linear_map(x, y_max, x_max);
     float w = nstl::abs(s - (dim_t)s);
     return i == 0 ? 1.f - w : w;
 };
 
 struct linear_coeffs_t {
-    linear_coeffs_t(dim_t y, float f, dim_t x_max) {
-        float s = linear_map(y, 1.f / f);
+    linear_coeffs_t(dim_t y, dim_t y_max, dim_t x_max) {
+        float s = linear_map(y, y_max, x_max);
         idx[0] = left(s);
         idx[1] = right(s, x_max);
         wei[1] = nstl::abs(s - saturate<float>(idx[0]));
@@ -66,29 +64,29 @@ private:
 };
 
 struct bwd_linear_coeffs_t {
-    bwd_linear_coeffs_t(dim_t x, float f, dim_t x_max, dim_t y_max) {
-        start[0] = x == 0 ? 0 : left_start(x, f);
-        start[1] = right_start(x, f);
-        end[0] = left_end(x, f, y_max);
-        end[1] = x == x_max - 1 ? y_max : right_end(x, f, y_max);
+    bwd_linear_coeffs_t(dim_t x, dim_t y_max, dim_t x_max) {
+        start[0] = x == 0 ? 0 : left_start(x, y_max, x_max);
+        start[1] = right_start(x, y_max, x_max);
+        end[0] = left_end(x, y_max, x_max);
+        end[1] = x == x_max - 1 ? y_max : right_end(x, y_max, x_max);
     }
     // index range (from start to end) of source image used as left and right
     // edge for interpolation
     dim_t start[2], end[2];
 
 private:
-    static dim_t left_start(dim_t x, float f) {
-        return ceil_idx(linear_map(x, f));
+    static dim_t left_start(dim_t x, dim_t y_max, dim_t x_max) {
+        return ceil_idx(linear_map(x, x_max, y_max));
     }
-    static dim_t left_end(dim_t x, float f, dim_t y_max) {
-        return nstl::min(ceil_idx(linear_map(x + 1, f)), y_max);
+    static dim_t left_end(dim_t x, dim_t y_max, dim_t x_max) {
+        return nstl::min(ceil_idx(linear_map(x + 1, x_max, y_max)), y_max);
     }
-    static dim_t right_start(dim_t x, float f) {
-        float s = linear_map(x - 1, f);
+    static dim_t right_start(dim_t x, dim_t y_max, dim_t x_max) {
+        float s = linear_map(x - 1, x_max, y_max);
         return s < 0 ? 0 : (dim_t)(s) + 1;
     }
-    static dim_t right_end(dim_t x, float f, dim_t y_max) {
-        float s = linear_map(x, f);
+    static dim_t right_end(dim_t x, dim_t y_max, dim_t x_max) {
+        float s = linear_map(x, x_max, y_max);
         return nstl::min(s < 0 ? 0 : (dim_t)s + 1, y_max);
     }
 };

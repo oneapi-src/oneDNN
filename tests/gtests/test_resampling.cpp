@@ -38,25 +38,21 @@ struct resampling_test_params {
     dnnl_status_t expected_status;
 };
 
-float linear_map(memory::dim y, float f) {
-    volatile float s = (y + 0.5f)
-            * (1.f / f); // prevent Intel Compiler optimizing operation for better accuracy
+float linear_map(memory::dim y, memory::dim y_max, memory::dim x_max) {
+    const float s = (y + 0.5f) * x_max / y_max;
     return s - 0.5f;
 }
 memory::dim left_edge(memory::dim y, memory::dim y_max, memory::dim x_max) {
-    return std::max(
-            (int64_t)floor(linear_map(y, (float)y_max / x_max)), (int64_t)0);
+    return std::max((int64_t)floor(linear_map(y, y_max, x_max)), (int64_t)0);
 }
 memory::dim right_edge(memory::dim y, memory::dim y_max, memory::dim x_max) {
-    return std::min(
-            (int64_t)ceil(linear_map(y, (float)y_max / x_max)), x_max - 1);
+    return std::min((int64_t)ceil(linear_map(y, y_max, x_max)), x_max - 1);
 }
 memory::dim nearest_edge(memory::dim y, memory::dim y_max, memory::dim x_max) {
-    return std::round(linear_map(y, (float)y_max / x_max));
+    return std::round(linear_map(y, y_max, x_max));
 }
 float linear_weight(memory::dim y, memory::dim y_max, memory::dim x_max) {
-    return fabs(
-            linear_map(y, (float)y_max / x_max) - left_edge(y, y_max, x_max));
+    return fabs(linear_map(y, y_max, x_max) - left_edge(y, y_max, x_max));
 }
 
 template <typename data_t>

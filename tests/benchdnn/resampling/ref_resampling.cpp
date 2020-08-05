@@ -21,23 +21,21 @@
 
 namespace resampling {
 
-float linear_map(const int64_t y, const float f) {
-    volatile float s = (y + 0.5f)
-            * (1.f / f); // prevent Intel Compiler optimizing operation for better accuracy
+float linear_map(const int64_t y, const int64_t y_max, const int64_t x_max) {
+    const float s = (y + 0.5f) * x_max / y_max;
     return s - 0.5f;
 }
 int64_t left(const int64_t y, const int64_t y_max, const int64_t x_max) {
-    return MAX2(
-            (int64_t)floorf(linear_map(y, (float)y_max / x_max)), (int64_t)0);
+    return MAX2((int64_t)floorf(linear_map(y, y_max, x_max)), (int64_t)0);
 }
 int64_t right(const int64_t y, const int64_t y_max, const int64_t x_max) {
-    return MIN2((int64_t)ceilf(linear_map(y, (float)y_max / x_max)), x_max - 1);
+    return MIN2((int64_t)ceilf(linear_map(y, y_max, x_max)), x_max - 1);
 }
 int64_t near(const int64_t y, const int64_t y_max, const int64_t x_max) {
-    return roundf(linear_map(y, (float)y_max / x_max));
+    return roundf(linear_map(y, y_max, x_max));
 }
 float weight(const int64_t y, const int64_t y_max, const int64_t x_max) {
-    return fabs(linear_map(y, (float)y_max / x_max) - left(y, y_max, x_max));
+    return fabs(linear_map(y, y_max, x_max) - left(y, y_max, x_max));
 }
 
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
