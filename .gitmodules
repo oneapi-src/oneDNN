@@ -1,0 +1,3 @@
+[submodule "third_party"]
+	path = third_party
+	url = ssh://git@gitlab.devtools.intel.com:29418/llga/llga.git

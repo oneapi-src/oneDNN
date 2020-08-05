@@ -18,10 +18,15 @@ sys.path.insert(0, os.path.abspath('conf'))
 # element_conf needs to import this conf
 sys.path.insert(0, os.path.abspath('.'))
 
-project = 'oneAPI'
+project = 'LLGA'
 
 from element_conf import *
 
 exclude_patterns = []
 
 latex_documents = []
+
+breathe_projects = {
+    "LLGA": "../doxygen/xml"
+}
+breathe_default_project = "LLGA"
