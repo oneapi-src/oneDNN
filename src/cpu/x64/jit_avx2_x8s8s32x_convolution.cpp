@@ -499,10 +499,13 @@ void jit_avx2_x8s8s32x_convolution_fwd_t<src_type,
                 int iw_s = ow_s * jcp.stride_w;
                 int id_s = -jcp.f_pad + od_s * jcp.stride_d;
                 int dilate_d = jcp.dilate_d + 1;
-                int d_f_overflow = div_up(max(0, -id_s), dilate_d);
-                int d_back_overflow = div_up(
-                        max(0, id_s - jcp.id + (jcp.kd - 1) * dilate_d + 1),
-                        dilate_d);
+                int d_f_overflow
+                        = nstl::min(jcp.kd, div_up(max(0, -id_s), dilate_d));
+                int d_back_overflow = nstl::min(jcp.kd,
+                        div_up(max(0,
+                                       id_s - jcp.id + (jcp.kd - 1) * dilate_d
+                                               + 1),
+                                dilate_d));
 
                 int kd_padding
                         = nstl::max(0, jcp.kd - d_f_overflow - d_back_overflow);
