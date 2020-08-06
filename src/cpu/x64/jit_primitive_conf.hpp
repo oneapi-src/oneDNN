@@ -118,9 +118,9 @@ struct jit_conv_conf_t {
     int nb_oc, oc_block;
     int nb_iw, iw_block;
     int nb_ow, ow_block;
-    int nb_oc_blocking; /* used in jit kernels for nb_oc work bloking taking
+    int nb_oc_blocking; /* used in jit kernels for nb_oc work blocking taking
                            into account vector registers distribution */
-    int nb_oc_blocking_thr_chunk; /* used for distibution of nb_oc work
+    int nb_oc_blocking_thr_chunk; /* used for distribution of nb_oc work
                                       within threads */
     int nb_ic_blocking, nb_ic_blocking_max; // blocking of nb_ic work
     int nb_ic_L2;
@@ -165,9 +165,6 @@ struct jit_conv_conf_t {
     data_type_t wei_dt;
     data_type_t dsrc_dt;
     data_type_t dwei_dt;
-    /* avx512: max possible value is nregs(32) - aux_regs(4) */
-    int src_offsets[28];
-    int src_count;
     bool expl_bcast;
     bool large_spatial, large_w_filter;
     int is_oc_scale;
@@ -313,8 +310,8 @@ struct jit_conv_conf_2x3_wino_t {
    t: tile_block
    e: element in tile
 
-   Note: 'i' and 'o' are omited if
-   i. not comblined with t or
+   Note: 'i' and 'o' are omitted if
+   i. not combined with t or
    ii. with discrete transforms
 
    Current policies supported:
