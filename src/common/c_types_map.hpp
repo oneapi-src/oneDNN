@@ -791,6 +791,7 @@ struct op_desc_t {
         matmul_desc_t matmul;
         resampling_desc_t resampling;
         zero_pad_desc_t zero_pad;
+        reduction_desc_t reduction;
     };
 
 #define DECL_CTOR_AND_CONVERTERS(c_type) \
@@ -821,6 +822,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(matmul_desc_t);
     DECL_CTOR_AND_CONVERTERS(resampling_desc_t);
     DECL_CTOR_AND_CONVERTERS(zero_pad_desc_t);
+    DECL_CTOR_AND_CONVERTERS(reduction_desc_t);
 
     // concat_desc_t and sum_desc_t have data members which have non-trivial
     // special member functions hence the default destructor is implicitly
@@ -879,6 +881,7 @@ struct matmul_pd_t;
 struct pooling_bwd_pd_t;
 struct pooling_fwd_pd_t;
 struct pooling_pd_t;
+struct reduction_pd_t;
 struct reorder_pd_t;
 struct resampling_pd_t;
 struct rnn_bwd_pd_t;

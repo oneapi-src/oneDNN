@@ -28,6 +28,7 @@ dnnl_status_t dnnl_reduction_desc_init(dnnl_reduction_desc_t *desc,
     using namespace dnnl::impl::alg_kind;
 
     bool args_ok = !any_null(desc, src_desc, dst_desc)
+            && src_desc->format_kind != format_kind::any
             && one_of(alg_kind, reduction_max, reduction_min, reduction_sum,
                     reduction_mul, reduction_mean, reduction_norm_lp_max,
                     reduction_norm_lp_sum, reduction_norm_lp_power_p_max,
