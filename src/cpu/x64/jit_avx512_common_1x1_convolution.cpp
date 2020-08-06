@@ -571,17 +571,14 @@ template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
 
-jit_avx512_common_1x1_convolution_bwd_weights_t ::
-        jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *apd)
-    : primitive_t(apd)
-    , kernel_(nullptr)
-    , acc_ker_(nullptr)
-    , reducer_bias_(nullptr)
-    , trans_kernel_(nullptr)
-    , rtus_driver_(nullptr) {
+status_t jit_avx512_common_1x1_convolution_bwd_weights_t ::init(
+        engine_t *engine) {
     kernel_ = new jit_avx512_common_1x1_conv_kernel(pd()->jcp_, *pd()->attr());
     acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
     reducer_bias_ = new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
+    CHECK(kernel_->create_kernel());
+    CHECK(acc_ker_->create_kernel());
+    CHECK(reducer_bias_->create_kernel());
 
     const auto &jcp = kernel_->jcp;
 
@@ -592,7 +589,11 @@ jit_avx512_common_1x1_convolution_bwd_weights_t ::
         tp.src_pf1 = true;
         tp.tr_src_pf1 = false;
         trans_kernel_ = new jit_transpose4x16_src(&jcp, &tp);
+        CHECK(trans_kernel_->create_kernel());
     }
+
+    CHECK(init_rtus_driver<avx512_common>(this));
+    return status::success;
 }
 
 void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(

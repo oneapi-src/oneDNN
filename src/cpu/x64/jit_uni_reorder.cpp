@@ -1469,9 +1469,7 @@ struct jit_uni_reorder_t : public primitive_t {
         int nthr_;
     };
 
-    jit_uni_reorder_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = tr::kernel_t::create(pd()->ker_desc_);
-    }
+    jit_uni_reorder_t(const pd_t *apd) : primitive_t(apd) {}
     ~jit_uni_reorder_t() { delete kernel_; }
 
     void omp_driver_0d(
@@ -1590,6 +1588,7 @@ struct jit_uni_reorder_t : public primitive_t {
     }
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_, tr::kernel_t::create(pd()->ker_desc_)));
         return kernel_->create_kernel();
     }
 
@@ -1675,9 +1674,7 @@ struct jit_blk_reorder_t : public primitive_t {
         }
     };
 
-    jit_blk_reorder_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = utils::make_unique<tr::jit_single_blk_kernel>(pd()->prb_);
-    }
+    jit_blk_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
     size_t n(int d) const {
         assert(d < pd()->prb_.ndims);
@@ -1693,6 +1690,7 @@ struct jit_blk_reorder_t : public primitive_t {
     }
 
     status_t init(engine_t *engine) override {
+        kernel_ = utils::make_unique<tr::jit_single_blk_kernel>(pd()->prb_);
         return kernel_->create_kernel();
     }
 

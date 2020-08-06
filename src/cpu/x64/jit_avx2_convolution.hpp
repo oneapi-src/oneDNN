@@ -84,14 +84,14 @@ struct jit_avx2_convolution_fwd_t : public primitive_t {
         }
     };
 
-    jit_avx2_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_avx2_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr());
-    }
+    jit_avx2_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     ~jit_avx2_convolution_fwd_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx2_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr())));
         return kernel_->create_kernel();
     }
 
@@ -151,14 +151,14 @@ struct jit_avx2_convolution_bwd_data_t : public primitive_t {
         }
     };
 
-    jit_avx2_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_avx2_conv_bwd_data_kernel_f32(pd()->jcp_);
-    }
+    jit_avx2_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
     ~jit_avx2_convolution_bwd_data_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(
+                kernel_, new jit_avx2_conv_bwd_data_kernel_f32(pd()->jcp_)));
         return kernel_->create_kernel();
     }
 
@@ -259,13 +259,7 @@ struct jit_avx2_convolution_bwd_weights_t : public primitive_t {
         : primitive_t(apd)
         , kernel_(nullptr)
         , reducer_weights_(nullptr)
-        , reducer_bias_(nullptr) {
-        kernel_ = new jit_avx2_conv_bwd_weights_kernel_f32(pd()->jcp_);
-        reducer_bias_
-                = new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
-        reducer_weights_
-                = new cpu_reducer_t<data_type::f32>(pd()->reducer_wei_conf_);
-    }
+        , reducer_bias_(nullptr) {}
 
     ~jit_avx2_convolution_bwd_weights_t() {
         delete kernel_;
@@ -276,6 +270,12 @@ struct jit_avx2_convolution_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(
+                kernel_, new jit_avx2_conv_bwd_weights_kernel_f32(pd()->jcp_)));
+        CHECK(safe_ptr_assign(reducer_bias_,
+                new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_)));
+        CHECK(safe_ptr_assign(reducer_weights_,
+                new cpu_reducer_t<data_type::f32>(pd()->reducer_wei_conf_)));
         CHECK(kernel_->create_kernel());
         CHECK(reducer_weights_->create_kernel());
         CHECK(reducer_bias_->create_kernel());

@@ -811,16 +811,15 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_t ::pd_t::jit_conf(
 
 jit_avx512_core_f32_wino_conv_2x3_fwd_t::
         jit_avx512_core_f32_wino_conv_2x3_fwd_t(const pd_t *apd)
-    : primitive_t(apd) {
+    : primitive_t(apd) {}
+
+status_t jit_avx512_core_f32_wino_conv_2x3_fwd_t::init(engine_t *engine) {
     kernel_ = new jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t(
             pd()->jcp_, *pd()->attr());
     src_trans_ = new jit_avx512_core_f32_wino_conv_2x3_src_trans_t(
             pd()->jcp_, *pd()->attr());
     dst_trans_ = new jit_avx512_core_f32_wino_conv_2x3_dst_trans_t(
             pd()->jcp_, *pd()->attr());
-}
-
-status_t jit_avx512_core_f32_wino_conv_2x3_fwd_t::init(engine_t *engine) {
     CHECK(kernel_->create_kernel());
     CHECK(src_trans_->create_kernel());
     CHECK(dst_trans_->create_kernel());

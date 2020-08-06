@@ -97,7 +97,14 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
         }
     };
 
-    gemm_bf16_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {
+    gemm_bf16_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+
+    typedef typename prec_traits<dst_data_type>::type dst_data_t;
+    typedef typename prec_traits<data_type::f32>::type acc_data_t;
+    typedef typename prec_traits<data_type::bf16>::type src_data_t;
+    typedef typename prec_traits<data_type::bf16>::type wei_data_t;
+
+    status_t init(engine_t *engine) override {
         bool has_bias = pd()->with_bias(),
              has_eltwise
                 = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0,
@@ -112,14 +119,7 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
         beta_ = sum_idx >= 0 && !has_sum_as_postops
                 ? pd()->attr()->post_ops_.entry_[sum_idx].sum.scale
                 : 0.0;
-    }
 
-    typedef typename prec_traits<dst_data_type>::type dst_data_t;
-    typedef typename prec_traits<data_type::f32>::type acc_data_t;
-    typedef typename prec_traits<data_type::bf16>::type src_data_t;
-    typedef typename prec_traits<data_type::bf16>::type wei_data_t;
-
-    status_t init(engine_t *engine) override {
         return (pp_kernel_) ? pp_kernel_->create_kernel() : status::success;
     }
 
@@ -274,10 +274,13 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
         }
     };
 
-    gemm_bf16_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {
+    gemm_bf16_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         if (pd()->with_bias())
             bias_reduction_.reset(new jit_avx512_core_cvt_bf16_to_ps_t(
                     true, (size_t)pd()->OC()));
+        return status::success;
     }
 
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;

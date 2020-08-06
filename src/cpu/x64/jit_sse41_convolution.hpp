@@ -78,14 +78,14 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
         }
     };
 
-    jit_sse41_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_sse41_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr());
-    }
+    jit_sse41_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     ~jit_sse41_convolution_fwd_t() { delete kernel_; };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_sse41_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr())));
         return kernel_->create_kernel();
     }
 

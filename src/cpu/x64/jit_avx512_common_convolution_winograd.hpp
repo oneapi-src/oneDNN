@@ -70,9 +70,7 @@ template <bool is_fwd>
 struct _jit_avx512_common_convolution_winograd_t {
     _jit_avx512_common_convolution_winograd_t(
             const jit_conv_winograd_conf_t &jcp)
-        : kernel_(nullptr) {
-        kernel_ = new _jit_avx512_common_conv_winograd_data_kernel_f32(jcp);
-    }
+        : kernel_(nullptr) {}
 
     ~_jit_avx512_common_convolution_winograd_t() { delete kernel_; }
 
@@ -144,6 +142,9 @@ struct jit_avx512_common_convolution_winograd_fwd_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new _jit_avx512_common_conv_winograd_data_kernel_f32(
+                        pd()->jcp_)));
         return kernel_->create_kernel();
     }
 
@@ -217,6 +218,9 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new _jit_avx512_common_conv_winograd_data_kernel_f32(
+                        pd()->jcp_)));
         return kernel_->create_kernel();
     }
 
@@ -281,16 +285,16 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     };
 
     jit_avx512_common_convolution_winograd_bwd_weights_t(const pd_t *apd)
-        : primitive_t(apd), kernel_(nullptr) {
-        kernel_ = new jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
-                pd()->jcp_);
-    }
+        : primitive_t(apd), kernel_(nullptr) {}
 
     ~jit_avx512_common_convolution_winograd_bwd_weights_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
+                        pd()->jcp_)));
         return kernel_->create_kernel();
     }
 

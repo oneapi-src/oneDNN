@@ -216,12 +216,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
         }
     };
 
-    jit_sse41_1x1_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_sse41_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
-        if (pd()->jcp_.with_dw_conv) {
-            kernel_dw_ = new dw_conv_kernel_t(pd()->dw_conv_pd_->jcp_);
-        }
-    }
+    jit_sse41_1x1_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~jit_sse41_1x1_convolution_fwd_t() {
         delete kernel_;
@@ -231,8 +226,16 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_sse41_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr())));
         CHECK(kernel_->create_kernel());
-        return (kernel_dw_) ? kernel_dw_->create_kernel() : status::success;
+        if (pd()->jcp_.with_dw_conv) {
+            CHECK(safe_ptr_assign(
+                    kernel_dw_, new dw_conv_kernel_t(pd()->dw_conv_pd_->jcp_)));
+            return kernel_dw_->create_kernel();
+        }
+
+        return status::success;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {

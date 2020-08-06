@@ -84,9 +84,7 @@ struct _jit_avx512_core_f32_wino_conv_4x3_t {
 
     _jit_avx512_core_f32_wino_conv_4x3_t(
             const jit_conv_winograd_conf_t &jcp, const primitive_attr_t *attr)
-        : kernel_(nullptr), attr_(attr) {
-        kernel_ = new _jit_avx512_core_f32_wino_conv_4x3_data_kernel(jcp);
-    }
+        : kernel_(nullptr), attr_(attr) {}
 
     ~_jit_avx512_core_f32_wino_conv_4x3_t() { delete kernel_; }
 
@@ -173,6 +171,9 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new _jit_avx512_core_f32_wino_conv_4x3_data_kernel(
+                        pd()->jcp_)));
         return kernel_->create_kernel();
     }
 
@@ -256,6 +257,9 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new _jit_avx512_core_f32_wino_conv_4x3_data_kernel(
+                        pd()->jcp_)));
         return kernel_->create_kernel();
     }
 
@@ -334,16 +338,16 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t : public primitive_t {
     };
 
     jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t(const pd_t *apd)
-        : primitive_t(apd), kernel_(nullptr) {
-        kernel_ = new jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel(
-                pd()->jcp_);
-    }
+        : primitive_t(apd), kernel_(nullptr) {}
 
     ~jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel(
+                        pd()->jcp_)));
         return kernel_->create_kernel();
     }
 

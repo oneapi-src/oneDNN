@@ -61,7 +61,8 @@ struct simple_resampling_fwd_t : public primitive_t {
         }
     };
 
-    simple_resampling_fwd_t(const pd_t *apd);
+    simple_resampling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t init(engine_t *engine) override;
     ~simple_resampling_fwd_t();
 
     typedef typename prec_traits<data_type>::type data_t;
@@ -122,7 +123,8 @@ struct simple_resampling_bwd_t : public primitive_t {
         }
     };
 
-    simple_resampling_bwd_t(const pd_t *apd);
+    simple_resampling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t init(engine_t *engine) override;
     ~simple_resampling_bwd_t();
 
     typedef typename prec_traits<data_type>::type data_t;

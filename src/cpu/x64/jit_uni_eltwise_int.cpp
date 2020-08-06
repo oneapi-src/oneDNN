@@ -423,13 +423,12 @@ status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_eltwise_int_fwd_t<isa, d_type>::jit_uni_eltwise_int_fwd_t(
         const pd_t *apd)
-    : primitive_t(apd) {
-    const auto &desc = *pd()->desc();
-    kernel_ = new jit_uni_subkernel_int<isa>(desc);
-}
+    : primitive_t(apd) {}
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::init(engine_t *engine) {
+    const auto &desc = *pd()->desc();
+    kernel_ = new jit_uni_subkernel_int<isa>(desc);
     return kernel_->create_kernel();
 }
 

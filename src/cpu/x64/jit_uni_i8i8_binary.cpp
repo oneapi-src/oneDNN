@@ -531,12 +531,11 @@ std::unique_ptr<i8i8_binary_kernel_t> create_i8i8_binary_kernel(
 template <data_type_t src0_type, data_type_t src1_type>
 jit_uni_i8i8_binary_t<src0_type, src1_type>::jit_uni_i8i8_binary_t(
         const pd_t *apd)
-    : primitive_t(apd) {
-    kernel_ = create_i8i8_binary_kernel<src0_type, src1_type>(pd());
-}
+    : primitive_t(apd) {}
 
 template <data_type_t src0_type, data_type_t src1_type>
 status_t jit_uni_i8i8_binary_t<src0_type, src1_type>::init(engine_t *engine) {
+    kernel_ = create_i8i8_binary_kernel<src0_type, src1_type>(pd());
     return kernel_->create_kernel();
 }
 

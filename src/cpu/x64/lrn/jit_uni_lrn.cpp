@@ -42,7 +42,16 @@ static dnnl_dim_t compute_n_summands(
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_t<isa, d_type>::jit_uni_lrn_fwd_t(const pd_t *apd)
-    : primitive_t(apd), ker_(nullptr), ker_first_(nullptr), ker_last_(nullptr) {
+    : primitive_t(apd)
+    , ker_(nullptr)
+    , ker_first_(nullptr)
+    , ker_last_(nullptr) {}
+
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_lrn_fwd_t<isa, d_type>::~jit_uni_lrn_fwd_t() = default;
+
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_lrn_fwd_t<isa, d_type>::init(engine_t *engine) {
     using namespace alg_kind;
 
     const int C = pd()->C();
@@ -81,13 +90,6 @@ jit_uni_lrn_fwd_t<isa, d_type>::jit_uni_lrn_fwd_t(const pd_t *apd)
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
                 nhwc_across_t(C), A, K, pk);
     }
-}
-
-template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_lrn_fwd_t<isa, d_type>::~jit_uni_lrn_fwd_t() = default;
-
-template <cpu_isa_t isa, data_type_t d_type>
-status_t jit_uni_lrn_fwd_t<isa, d_type>::init(engine_t *engine) {
     CHECK(ker_->create_kernel());
     if (ker_first_) CHECK(ker_first_->create_kernel());
     if (ker_last_) CHECK(ker_last_->create_kernel());
@@ -209,7 +211,16 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_bwd_t<isa, d_type>::jit_uni_lrn_bwd_t(const pd_t *apd)
-    : primitive_t(apd), ker_(nullptr), ker_first_(nullptr), ker_last_(nullptr) {
+    : primitive_t(apd)
+    , ker_(nullptr)
+    , ker_first_(nullptr)
+    , ker_last_(nullptr) {}
+
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_lrn_bwd_t<isa, d_type>::~jit_uni_lrn_bwd_t() = default;
+
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_lrn_bwd_t<isa, d_type>::init(engine_t *engine) {
     using namespace alg_kind;
     const int C = pd()->C();
     const int H = pd()->H();
@@ -240,13 +251,6 @@ jit_uni_lrn_bwd_t<isa, d_type>::jit_uni_lrn_bwd_t(const pd_t *apd)
                             nchw8c_across_t(H, W, +1), A, B, use_h_parallelism);
         }
     }
-}
-
-template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_lrn_bwd_t<isa, d_type>::~jit_uni_lrn_bwd_t() = default;
-
-template <cpu_isa_t isa, data_type_t d_type>
-status_t jit_uni_lrn_bwd_t<isa, d_type>::init(engine_t *engine) {
     CHECK(ker_->create_kernel());
     if (ker_first_) CHECK(ker_first_->create_kernel());
     if (ker_last_) CHECK(ker_last_->create_kernel());

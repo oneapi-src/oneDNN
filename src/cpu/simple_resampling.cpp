@@ -34,8 +34,7 @@ using namespace format_tag;
 using namespace resampling_utils;
 
 template <impl::data_type_t data_type>
-simple_resampling_fwd_t<data_type>::simple_resampling_fwd_t(const pd_t *apd)
-    : primitive_t(apd) {
+status_t simple_resampling_fwd_t<data_type>::init(engine_t *engine) {
     if (pd()->desc()->alg_kind == alg_kind::resampling_nearest)
         interpolate = &simple_resampling_fwd_t::nearest;
     else {
@@ -55,6 +54,7 @@ simple_resampling_fwd_t<data_type>::simple_resampling_fwd_t(const pd_t *apd)
     stride_d_ = pd()->IH() * pd()->IW() * inner_stride_;
     stride_h_ = pd()->IW() * inner_stride_;
     stride_w_ = inner_stride_;
+    return status::success;
 }
 
 template <impl::data_type_t data_type>
@@ -165,8 +165,7 @@ template struct simple_resampling_fwd_t<data_type::f32>;
 template struct simple_resampling_fwd_t<data_type::bf16>;
 
 template <impl::data_type_t data_type>
-simple_resampling_bwd_t<data_type>::simple_resampling_bwd_t(const pd_t *apd)
-    : primitive_t(apd) {
+status_t simple_resampling_bwd_t<data_type>::init(engine_t *engine) {
     if (pd()->desc()->alg_kind == alg_kind::resampling_nearest)
         interpolate = &simple_resampling_bwd_t::nearest;
     else {
@@ -187,6 +186,7 @@ simple_resampling_bwd_t<data_type>::simple_resampling_bwd_t(const pd_t *apd)
     stride_d_ = pd()->OH() * pd()->OW() * inner_stride_;
     stride_h_ = pd()->OW() * inner_stride_;
     stride_w_ = inner_stride_;
+    return status::success;
 }
 
 template <impl::data_type_t data_type>

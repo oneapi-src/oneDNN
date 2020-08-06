@@ -96,9 +96,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
         }
     };
 
-    _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        pp_ker_.reset(pp_ker_t::create(pd(), pd()->jcp_));
-    }
+    _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -106,6 +104,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     status_t init(engine_t *engine) override {
+        pp_ker_.reset(pp_ker_t::create(pd(), pd()->jcp_));
         return (pp_ker_) ? pp_ker_->create_kernel() : status::success;
     }
 

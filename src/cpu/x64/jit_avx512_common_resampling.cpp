@@ -888,12 +888,11 @@ status_t jit_avx512_common_resampling_fwd_t<d_type>::pd_t::init(
 template <impl::data_type_t d_type>
 inline jit_avx512_common_resampling_fwd_t<
         d_type>::jit_avx512_common_resampling_fwd_t(const pd_t *apd)
-    : primitive_t(apd) {
-    kernel_.reset(new jit_avx512_common_resampling(pd()));
-}
+    : primitive_t(apd) {}
 
 template <impl::data_type_t d_type>
 status_t jit_avx512_common_resampling_fwd_t<d_type>::init(engine_t *engine) {
+    kernel_.reset(new jit_avx512_common_resampling(pd()));
     return kernel_->create_kernel();
 }
 
@@ -965,12 +964,11 @@ status_t jit_avx512_common_resampling_bwd_t<d_type>::pd_t::init(
 template <impl::data_type_t d_type>
 inline jit_avx512_common_resampling_bwd_t<
         d_type>::jit_avx512_common_resampling_bwd_t(const pd_t *apd)
-    : primitive_t(apd) {
-    kernel_.reset(new jit_avx512_common_resampling(pd()));
-}
+    : primitive_t(apd) {}
 
 template <impl::data_type_t d_type>
 status_t jit_avx512_common_resampling_bwd_t<d_type>::init(engine_t *engine) {
+    kernel_.reset(new jit_avx512_common_resampling(pd()));
     return kernel_->create_kernel();
 }
 

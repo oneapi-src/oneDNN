@@ -97,17 +97,7 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
     };
 
     gemm_bf16_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd), pp_ker_(nullptr) {
-        const auto &post_ops = pd()->attr()->post_ops_;
-        const acc_data_t one = 1.0, zero = 0.0;
-        beta_ = dst_data_type == data_type::f32
-                        && post_ops.find(primitive_kind::sum) >= 0
-                ? one
-                : zero;
-
-        if (this->pd()->is_postprocess_required())
-            pp_ker_ = new pp_ker_t(this->pd());
-    }
+        : primitive_t(apd), pp_ker_(nullptr) {}
 
     ~gemm_bf16_convolution_fwd_t() { delete pp_ker_; }
 
@@ -117,7 +107,18 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
 
     status_t init(engine_t *engine) override {
-        return pp_ker_->create_kernel();
+        const auto &post_ops = pd()->attr()->post_ops_;
+        const acc_data_t one = 1.0, zero = 0.0;
+        beta_ = dst_data_type == data_type::f32
+                        && post_ops.find(primitive_kind::sum) >= 0
+                ? one
+                : zero;
+
+        if (this->pd()->is_postprocess_required()) {
+            CHECK(safe_ptr_assign(pp_ker_, new pp_ker_t(this->pd())));
+            return pp_ker_->create_kernel();
+        }
+        return status::success;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
@@ -321,9 +322,7 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
     };
 
     gemm_bf16_convolution_bwd_weights_t(const pd_t *apd)
-        : primitive_t(apd), acc_ker_(nullptr) {
-        acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
-    }
+        : primitive_t(apd), acc_ker_(nullptr) {}
 
     ~gemm_bf16_convolution_bwd_weights_t() { delete acc_ker_; }
 
@@ -333,6 +332,8 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
     typedef typename prec_traits<diff_wei_data_type>::type diff_wei_data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(
+                acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
         return acc_ker_->create_kernel();
     }
 

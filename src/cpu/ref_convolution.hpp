@@ -119,7 +119,9 @@ struct ref_convolution_fwd_t : public primitive_t {
         }
     };
 
-    ref_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
+    ref_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         using namespace primitive_kind;
         const auto &po = pd()->attr()->post_ops_;
         for (auto idx = 0; idx < po.len(); ++idx) {
@@ -128,6 +130,7 @@ struct ref_convolution_fwd_t : public primitive_t {
                         utils::make_unique<ref_eltwise_scalar_fwd_t>(
                                 po.entry_[idx].eltwise));
         }
+        return status::success;
     }
 
     typedef typename prec_traits<src_type>::type src_data_t;

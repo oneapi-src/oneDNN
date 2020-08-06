@@ -62,7 +62,9 @@ struct ref_softmax_fwd_t : public primitive_t {
         }
     };
 
-    ref_softmax_fwd_t(const pd_t *apd) : primitive_t(apd) {
+    ref_softmax_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         outer_size_ = pd()->outer_size();
         channels_ = pd()->axis_size();
         inner_size_ = pd()->inner_size();
@@ -79,6 +81,7 @@ struct ref_softmax_fwd_t : public primitive_t {
         use_dense_ = true && inner_size_ == 1 && data_d.is_dense(true)
                 && data_d.only_padded_dim(axis)
                 && bd.strides[axis] == axis_blk_size;
+        return status::success;
     }
 
     typedef typename prec_traits<data_type>::type data_t;
@@ -120,7 +123,9 @@ struct ref_softmax_bwd_t : public primitive_t {
         }
     };
 
-    ref_softmax_bwd_t(const pd_t *apd) : primitive_t(apd) {
+    ref_softmax_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         outer_size_ = pd()->outer_size();
         channels_ = pd()->axis_size();
         inner_size_ = pd()->inner_size();
@@ -137,6 +142,7 @@ struct ref_softmax_bwd_t : public primitive_t {
 
         use_dense_ = true && inner_size_ == 1 && diff_d == data_d
                 && diff_d.is_dense() && bd.strides[axis] == axis_blk_size;
+        return status::success;
     }
 
     typedef typename prec_traits<data_type>::type data_t;

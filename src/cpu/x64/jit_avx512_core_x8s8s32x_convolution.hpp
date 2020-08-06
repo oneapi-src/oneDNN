@@ -77,10 +77,7 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
     };
 
     jit_avx512_core_x8s8s32x_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd) {
-        kernel_ = new jit_avx512_core_x8s8s32x_fwd_kernel(
-                pd()->jcp_, *pd()->attr());
-    }
+        : primitive_t(apd) {}
 
     ~jit_avx512_core_x8s8s32x_convolution_fwd_t() { delete kernel_; }
 
@@ -89,6 +86,9 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx512_core_x8s8s32x_fwd_kernel(
+                        pd()->jcp_, *pd()->attr())));
         return kernel_->create_kernel();
     }
 

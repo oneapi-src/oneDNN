@@ -1128,14 +1128,8 @@ template struct jit_avx512_common_convolution_bwd_data_t<data_type::f32>;
 
 template <data_type_t src_type, data_type_t diff_dst_type,
         data_type_t diff_weights_type>
-jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
-        diff_weights_type>::
-        jit_avx512_common_convolution_bwd_weights_t(const pd_t *apd)
-    : primitive_t(apd)
-    , kernel_(nullptr)
-    , trans_kernel_(nullptr)
-    , acc_ker_(nullptr)
-    , reducer_bias_(nullptr) {
+status_t jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
+        diff_weights_type>::init(engine_t *engine) {
     const auto &j = pd()->jcp_;
 
     nthr_ = j.nthr;
@@ -1145,13 +1139,22 @@ jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     nthr_ic_b_ = j.nthr_ic_b;
 
     kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(j);
+    CHECK(kernel_->create_kernel());
 
-    if (j.ver == ver_4fma) trans_kernel_ = create_trans_src(&j);
+    if (j.ver == ver_4fma) {
+        trans_kernel_ = create_trans_src(&j);
+        CHECK(trans_kernel_->create_kernel());
+    }
 
-    if (nthr_mb_ > 1) acc_ker_ = new cpu_accumulator_1d_t<diff_weights_type>();
+    if (nthr_mb_ > 1) {
+        acc_ker_ = new cpu_accumulator_1d_t<diff_weights_type>();
+        CHECK(acc_ker_->create_kernel());
+    }
 
     reducer_bias_
             = new cpu_reducer_t<diff_weights_type>(pd()->reducer_bia_conf_);
+    CHECK(reducer_bias_->create_kernel());
+    return status::success;
 }
 
 template <data_type_t src_type, data_type_t diff_dst_type,

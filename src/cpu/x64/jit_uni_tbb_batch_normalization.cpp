@@ -1757,12 +1757,11 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
 template <cpu_isa_t isa>
 jit_uni_tbb_batch_normalization_fwd_t<
         isa>::jit_uni_tbb_batch_normalization_fwd_t(const pd_t *apd)
-    : primitive_t(apd) {
-    bnorm_driver_ = new bnorm_tbb_impl::driver_t<isa>(pd());
-}
+    : primitive_t(apd) {}
 
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::init(engine_t *engine) {
+    bnorm_driver_ = new bnorm_tbb_impl::driver_t<isa>(pd());
     return bnorm_driver_->create_kernel();
 }
 
@@ -1840,12 +1839,11 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
 template <cpu_isa_t isa>
 jit_uni_tbb_batch_normalization_bwd_t<
         isa>::jit_uni_tbb_batch_normalization_bwd_t(const pd_t *apd)
-    : primitive_t(apd) {
-    bnorm_driver_ = new bnorm_tbb_impl::driver_t<isa>(pd());
-}
+    : primitive_t(apd) {}
 
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::init(engine_t *engine) {
+    bnorm_driver_ = new bnorm_tbb_impl::driver_t<isa>(pd());
     return bnorm_driver_->create_kernel();
 }
 

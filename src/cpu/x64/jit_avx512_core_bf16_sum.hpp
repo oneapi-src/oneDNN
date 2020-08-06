@@ -200,13 +200,13 @@ struct jit_bf16_sum_t : public primitive_t {
         jit_sum_conf_t jsp_;
     };
 
-    jit_bf16_sum_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_avx512_core_bf16_sum_kernel(pd()->jsp_);
-    }
+    jit_bf16_sum_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~jit_bf16_sum_t() { delete kernel_; }
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(
+                kernel_, new jit_avx512_core_bf16_sum_kernel(pd()->jsp_)));
         return kernel_->create_kernel();
     }
 

@@ -694,13 +694,8 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
     });
 }
 
-jit_avx512_core_bf16_convolution_bwd_weights_t ::
-        jit_avx512_core_bf16_convolution_bwd_weights_t(const pd_t *apd)
-    : primitive_t(apd)
-    , kernel_(nullptr)
-    , acc_ker_(nullptr)
-    , trans_kernel_(nullptr)
-    , trans_dst_kernel_(nullptr) {
+status_t jit_avx512_core_bf16_convolution_bwd_weights_t ::init(
+        engine_t *engine) {
     const auto &j = pd()->jcp_;
 
     nthr_ = j.nthr;
@@ -710,11 +705,22 @@ jit_avx512_core_bf16_convolution_bwd_weights_t ::
     nthr_ic_b_ = j.nthr_ic_b;
 
     kernel_ = new jit_avx512_core_bf16_conv_bwd_weights_kernel_f32(j);
+    CHECK(kernel_->create_kernel());
 
-    if (j.transpose_src) { trans_kernel_ = create_trans_src(&j); }
-    if (j.transpose_dst) { trans_dst_kernel_ = create_trans_dst(&j); }
+    if (j.transpose_src) {
+        trans_kernel_ = create_trans_src(&j);
+        CHECK(trans_kernel_->create_kernel());
+    }
+    if (j.transpose_dst) {
+        trans_dst_kernel_ = create_trans_dst(&j);
+        CHECK(trans_dst_kernel_->create_kernel());
+    }
+    if (nthr_mb_ > 1) {
+        acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
+        CHECK(acc_ker_->create_kernel());
+    }
 
-    if (nthr_mb_ > 1) acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
+    return status::success;
 }
 
 struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {

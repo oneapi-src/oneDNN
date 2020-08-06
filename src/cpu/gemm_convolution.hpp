@@ -78,15 +78,19 @@ struct gemm_convolution_fwd_t : public primitive_t {
     };
 
     gemm_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd), eltwise_(nullptr) {
+        : primitive_t(apd), eltwise_(nullptr) {}
+
+    status_t init(engine_t *engine) override {
         const auto &post_ops = pd()->attr()->post_ops_;
         const data_t one = 1.0, zero = 0.0;
         beta_ = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
 
         const int entry_idx = post_ops.find(primitive_kind::eltwise);
         if (entry_idx != -1)
-            eltwise_ = new ref_eltwise_scalar_fwd_t(
-                    post_ops.entry_[entry_idx].eltwise);
+            CHECK(safe_ptr_assign(eltwise_,
+                    new ref_eltwise_scalar_fwd_t(
+                            post_ops.entry_[entry_idx].eltwise)));
+        return status::success;
     }
 
     ~gemm_convolution_fwd_t() { delete eltwise_; }

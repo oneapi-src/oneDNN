@@ -1007,18 +1007,17 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
 template <data_type_t dst_data_type>
 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
         jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd)
-    : primitive_t(apd) {
+    : primitive_t(apd) {}
+
+template <data_type_t dst_data_type>
+status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::init(
+        engine_t *engine) {
     kernel_ = new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
             pd()->jcp_, *pd()->attr());
     src_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
             pd()->jcp_, *pd()->attr());
     dst_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
             pd()->jcp_, *pd()->attr());
-}
-
-template <data_type_t dst_data_type>
-status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::init(
-        engine_t *engine) {
     CHECK(kernel_->create_kernel());
     CHECK(src_trans_->create_kernel());
     CHECK(dst_trans_->create_kernel());

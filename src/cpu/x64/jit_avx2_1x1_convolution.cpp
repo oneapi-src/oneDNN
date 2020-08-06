@@ -465,16 +465,21 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
 
 /* convolution backward wtr weights */
 
-jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
-        const pd_t *apd)
-    : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
+status_t jit_avx2_1x1_convolution_bwd_weights_t::init(engine_t *engine) {
     kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
+    CHECK(kernel_->create_kernel());
     reducer_weights_
             = new cpu_reducer_2d_t<data_type::f32>(pd()->reducer_wei_conf_);
+    CHECK(reducer_weights_->create_kernel());
     reducer_bias_ = new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
-    if (pd()->with_bias())
+    if (pd()->with_bias()) {
         assert(reducer_weights_->balancer().nthr_
                 == reducer_bias_->balancer().nthr_);
+        CHECK(reducer_bias_->create_kernel());
+    }
+
+    CHECK(init_rtus_driver<avx2>(this));
+    return status::success;
 }
 
 void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(

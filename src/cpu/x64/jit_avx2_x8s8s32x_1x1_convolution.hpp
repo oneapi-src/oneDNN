@@ -333,15 +333,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             typename jit_avx2_x8s8s32x_convolution_fwd_t<sdt, ddt>::pd_t;
 
     jit_avx2_x8s8s32x_1x1_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
-        kernel_ = new jit_avx2_x8s8s32x_1x1_conv_kernel(
-                pd()->jcp_, *pd()->attr());
-
-        if (pd()->jcp_.with_dw_conv) {
-            kernel_dw_ = new dw_conv_kernel_t(
-                    *(pd()->jcp_dw_), *(pd()->dw_conv_pd_->attr()));
-        }
-    }
+        : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {}
 
     ~jit_avx2_x8s8s32x_1x1_convolution_fwd_t() {
         delete kernel_;
@@ -357,9 +349,19 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
     status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx2_x8s8s32x_1x1_conv_kernel(
+                        pd()->jcp_, *pd()->attr())));
         CHECK(kernel_->create_kernel());
+
+        if (pd()->jcp_.with_dw_conv) {
+            CHECK(safe_ptr_assign(kernel_dw_,
+                    new dw_conv_kernel_t(
+                            *(pd()->jcp_dw_), *(pd()->dw_conv_pd_->attr()))));
+            CHECK(kernel_dw_->create_kernel());
+        }
+
         CHECK(init_rtus_driver<avx2>(this));
-        if (kernel_dw_) CHECK(kernel_dw_->create_kernel());
         return status::success;
     }
 
