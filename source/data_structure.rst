@@ -12,14 +12,9 @@ LLGA OP is created when the corresponding framework op is visited, once the info
 
 The integration layer manages the OP’s lifecycle, e.g., it frees LLGA OP after it is passed to backend. The LLGA backend should not assume that LLGA OP is alive after it receives a LLGA OP.
 
-.. literalinclude:: code_snippets/op.cpp
-    :language: cpp
-
-* ``Op_kind`` - The OP kind specifies which computation is represented by the OP, such as conv2d and relu.
-* ``inputs`` - Describes the list of input tensors. Its data type is logical tensor.
-* ``outputs`` - Describes the list of output tensors. Its data type is logical tensor.
-* ``id`` - Each OP has a unique id to identify itself.
-* ``attributes`` - The attributes contain constant information known to the operation at the time of operation creation. Like the K in top K operation, or stride and padding information in conv.
+.. doxygenclass:: llga::api::op
+   :project: oneDNN Graph Library
+   :members:
 
 --------------
 Logical Tensor
@@ -27,8 +22,9 @@ Logical Tensor
 
 For logical tensor, the value contains element data type, number of dimensions, size for each dimension (shape). The dimension and shape information may be unknown at the graph partitioning time. LLGA uses DNNL memory descriptor for logical_tensor type.
 
-.. literalinclude:: code_snippets/logical_tensor.cpp
-    :language: cpp
+.. doxygenclass:: llga::api::logical_tensor
+   :project: oneDNN Graph Library
+   :members:
 
 ------
 Policy
@@ -50,8 +46,9 @@ LLGA partition represents a collection of LLGA OPS identified by LLGA backend as
 
 LLGA integration layer converts the framework op and uses partition API to LLGA backend, which builds its own graph and decides the partition. The LLGA backend manages the lifecycle of LLGA partition. It creates an LLGA partition and should keep it alive before it is compiled to be  compiled_partition.
 
-.. literalinclude:: code_snippets/partition.cpp
-    :language: cpp
+.. doxygenclass:: llga::api::partition
+   :project: oneDNN Graph Library
+   :members:
 
 ------------------
 Compiled Partition
@@ -59,8 +56,9 @@ Compiled Partition
 
 LLGA compiled partition represents the compiled object that LLGA backend built for future execution. It has a similar structure as a partition . Other than a list of LLGA OPs, it contains a handle to the internal representation of compiled object.
 
-.. literalinclude:: code_snippets/compiled_partition.cpp
-    :language: cpp
+.. doxygenclass:: llga::api::compiled_partition
+   :project: oneDNN Graph Library
+   :members:
 
 ------
 Tensor
@@ -70,8 +68,9 @@ Tensor is the core data structure which represents the multidimensional data rea
 
 The opaque tensor doesn’t describe the layout, instead it contains a handle to LLGA backend’s private tensor representation. The opaque tensor allows the tensor data remains private data format between two LLGA partitions, so there is no need for the tensor data to convert back and forth.  which points to platform dependent tensor implementation and doesn't tell the specific data format and location. For the framework integration which does not accept opaque tensor design temporarily, the LLGA may accept the public format tensor and enforce the LLGA backend to accept the public format.
 
-.. literalinclude:: code_snippets/tensor.cpp
-    :language: cpp
+.. doxygenclass:: llga::api::tensor
+   :project: oneDNN Graph Library
+   :members:
 
 LLGA interface supports conversion of opaque tensor and public format tensor. **Framework integration code is responsible for managing the tensor’s lifecycle, e.g. free the resource allocated, when it is not used any more. The LLGA compiled partition execution may allocate a new tensor with various life cycle scope, which may need framework’s help to free the tensor at the end of the life cycle.**
 
@@ -96,8 +95,9 @@ LLGA engine supports two scenarios of how a device is integrated into the framew
 
 HW device vendors have the option to support the device with DPC++ device model. In this case, the flag ``is_dpcpp`` is true indicating the corresponding device handle can be casted to a pointer to sycl::device. This gives the framework a chance to better schedule tasks from LLGA backend and other sources within DPC++ runtime without the need of explicit synchronization via host processors. If the flag ``is_dpcpp`` is false, the device handle is opaque to the framework and only interpretable by the LLGA backend.
 
-.. literalinclude:: code_snippets/engine.cpp
-    :language: cpp
+.. doxygenclass:: llga::api::engine
+   :project: oneDNN Graph Library
+   :members:
 
 ------
 Stream
@@ -107,6 +107,14 @@ Stream is the logical abstraction for processing units. It is created on top of 
 
 Similar to DNNL stream, LLGA stream can attach a stream attribute so that frameworks can pass additional information like thread pool information to the LLGA backend.
 
-.. literalinclude:: code_snippets/stream.cpp
-    :language: cpp
+.. doxygenclass:: llga::api::thread_pool
+   :project: oneDNN Graph Library
+   :members:
 
+.. doxygenclass:: llga::api::stream_attr
+   :project: oneDNN Graph Library
+   :members:
+
+.. doxygenclass:: llga::api::stream
+   :project: oneDNN Graph Library
+   :members:

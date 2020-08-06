@@ -186,7 +186,7 @@ def up_to_date(target, deps):
     return True
 
 def doxygen_files(root):
-    return [join(root,'Doxyfile')] + glob.glob(join(root,'third_party','include','llga','**'), recursive=True)
+    return [join(root,'Doxyfile')] + glob.glob(join(root,'include','**'), recursive=True)
 
 def doxygen(root, target=None):
     with cd(root):

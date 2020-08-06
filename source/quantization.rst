@@ -1,6 +1,6 @@
-======================================================
-Quantization Capability API for Low-pecision Inference
-======================================================
+=======================================================
+Quantization Capability API for Low-precision Inference
+=======================================================
 
 Low-precision inference is a way of reducing computational cost and memory footprint for model inference with quantization. Quantization here means the conversion from fp32 data representation to integer math (e.g. int8 uniform affine quantization with scale and zero point) or lower-bit floating point (e.g. bfloat16, fp16) representation.
 
