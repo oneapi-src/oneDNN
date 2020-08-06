@@ -316,6 +316,8 @@ struct primitive : public handle<dnnl_primitive_t> {
         resampling = dnnl_resampling,
         /// A pooling version 2 primitive.
         pooling_v2 = dnnl_pooling_v2,
+        /// A reduction primitive.
+        reduction = dnnl_reduction,
     };
 
     using handle::handle;
@@ -572,6 +574,24 @@ enum class algorithm {
     resampling_nearest = dnnl_resampling_nearest,
     /// Linear (Bilinear, Trilinear) resampling method
     resampling_linear = dnnl_resampling_linear,
+    /// Reduction using max operation
+    reduction_max = dnnl_reduction_max,
+    /// Reduction using min operation
+    reduction_min = dnnl_reduction_min,
+    /// Reduction using sum operation
+    reduction_sum = dnnl_reduction_sum,
+    /// Reduction using mul operation
+    reduction_mul = dnnl_reduction_mul,
+    /// Reduction using mean operation
+    reduction_mean = dnnl_reduction_mean,
+    /// Reduction using norm_lp_max operation
+    reduction_norm_lp_max = dnnl_reduction_norm_lp_max,
+    /// Reduction using norm_lp_sum operation
+    reduction_norm_lp_sum = dnnl_reduction_norm_lp_sum,
+    /// Reduction using norm_lp_power_p_max operation
+    reduction_norm_lp_power_p_max = dnnl_reduction_norm_lp_power_p_max,
+    /// Reduction using norm_lp_power_p_sum operation
+    reduction_norm_lp_power_p_sum = dnnl_reduction_norm_lp_power_p_sum,
 };
 
 /// Converts algorithm kind enum value from C++ API to C API type.
@@ -786,6 +806,8 @@ enum class query {
     matmul_d = dnnl_query_matmul_d,
     /// resampling descriptor
     resampling_d = dnnl_query_resampling_d,
+    /// reduction descriptor
+    reduction_d = dnnl_query_reduction_d,
 
     /// source memory desc
     src_md = dnnl_query_src_md,
@@ -10169,6 +10191,106 @@ struct pooling_v2_backward : public primitive {
 };
 
 /// @} dnnl_api_pooling_v2
+
+/// @addtogroup dnnl_api_reduction Reduction
+///
+/// A primitive to compute reduction operation on data tensor
+/// using min, max, mul, sum, mean and norm_lp operations.
+///
+/// @sa @ref dev_guide_reduction in developer guide
+///
+/// @{
+
+/// Reduction.
+struct reduction : public primitive {
+    /// Descriptor for reduction.
+    struct desc {
+        dnnl_reduction_desc_t data;
+
+        /// Default constructor. Produces an empty object.
+        desc() = default;
+
+        /// Constructs a descriptor for a reduction primitive using algorithm
+        /// specific parameters, source and destination memory descriptors.
+        ///
+        /// @note
+        ///     Destination memory descriptor may be initialized with
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// @param aalgorithm reduction algorithm kind. Possible values:
+        ///     #dnnl_reduction_max, #dnnl_reduction_min, #dnnl_reduction_sum,
+        ///     #dnnl_reduction_mul, #dnnl_reduction_mean,
+        ///     #dnnl_reduction_norm_lp_max, #dnnl_reduction_norm_lp_sum,
+        ///     #dnnl_reduction_norm_lp_power_p_max,
+        ///     #dnnl_reduction_norm_lp_power_p_sum.
+        /// @param p algorithm specific parameter.
+        /// @param eps algorithm specific parameter.
+        /// @param src_desc Source memory descriptor.
+        /// @param dst_desc Destination memory descriptor.
+        desc(algorithm aalgorithm, const memory::desc &src_desc,
+                const memory::desc &dst_desc, float p, float eps) {
+            error::wrap_c_api(
+                    dnnl_reduction_desc_init(&data, convert_to_c(aalgorithm),
+                            &src_desc.data, &dst_desc.data, p, eps),
+                    "could not create a reduction descriptor");
+        }
+    };
+
+    /// Primitive descriptor for a reduction primitive.
+    struct primitive_desc : public dnnl::primitive_desc {
+        /// Default constructor. Produces an empty object.
+        primitive_desc() = default;
+
+        /// Constructs a primitive descriptor for a reduction primitive.
+        ///
+        /// @param adesc Descriptor for a reduction primitive.
+        /// @param aengine Engine to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const engine &aengine,
+                bool allow_empty = false)
+            : dnnl::primitive_desc(
+                    &adesc.data, nullptr, aengine, nullptr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a reduction primitive.
+        ///
+        /// @param adesc Descriptor for a reduction primitive.
+        /// @param aengine Engine to use.
+        /// @param attr Primitive attributes to use.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case an
+        ///     empty object will be produced. This flag is optional and
+        ///     defaults to false.
+        primitive_desc(const desc &adesc, const primitive_attr &attr,
+                const engine &aengine, bool allow_empty = false)
+            : dnnl::primitive_desc(
+                    &adesc.data, &attr, aengine, nullptr, allow_empty) {}
+
+        /// Constructs a primitive descriptor for a reduction primitive from a C
+        /// API primitive descriptor that must have a matching kind.
+        ///
+        /// @param pd C API primitive descriptor for a reduction primitive.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::reduction) {}
+
+        /// @copydoc dnnl::primitive_desc_base::src_desc()const
+        memory::desc src_desc() const { return base::src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc()const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
+    };
+
+    /// Default constructor. Produces an empty object.
+    reduction() = default;
+
+    /// Constructs a reduction primitive.
+    /// @param pd Primitive descriptor for a reduction primitive.
+    reduction(const primitive_desc &pd) : primitive(pd) {}
+};
+
+/// @} dnnl_api_reduction
 
 /// @} dnnl_api_primitives
 

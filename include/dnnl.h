@@ -3166,6 +3166,35 @@ dnnl_status_t DNNL_API dnnl_resampling_backward_desc_init(
 
 /// @} dnnl_api_resampling
 
+/// @addtogroup dnnl_api_reduction Reduction
+/// @{
+
+/// Initializes a descriptor for a reduction primitive.
+///
+/// @note
+///     Destination memory descriptor is allowed to be initialized with
+///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
+///
+///
+/// @param desc Output descriptor for a reduction primitive.
+/// @param alg_kind reduction algorithm kind. Possible values:
+///     #dnnl_reduction_max, #dnnl_reduction_min, #dnnl_reduction_sum,
+///     #dnnl_reduction_mul, #dnnl_reduction_mean, #dnnl_reduction_norm_lp_max,
+///     #dnnl_reduction_norm_lp_sum, #dnnl_reduction_norm_lp_power_p_max,
+///     #dnnl_reduction_norm_lp_power_p_sum.
+/// @param p Algorithm specific parameter.
+/// @param eps Algorithm specific parameter.
+/// @param src_desc Source memory descriptor.
+/// @param dst_desc Destination memory descriptor.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+///
+dnnl_status_t DNNL_API dnnl_reduction_desc_init(dnnl_reduction_desc_t *desc,
+        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src_desc,
+        const dnnl_memory_desc_t *dst_desc, float p, float eps);
+
+/// @} dnnl_api_reduction
+
 /// @} dnnl_api_primitives
 
 /// @addtogroup dnnl_api_engine

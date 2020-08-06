@@ -835,6 +835,8 @@ typedef enum {
     dnnl_resampling,
     /// A pooling version 2 primitive (pooling with dilation support).
     dnnl_pooling_v2,
+    /// A reduction primitive.
+    dnnl_reduction,
 
     /// Parameter to allow internal only primitives without undefined behavior.
     /// This parameter is chosen to be valid for so long as sizeof(int) >= 2.
@@ -945,6 +947,24 @@ typedef enum {
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method
     dnnl_resampling_linear = 0x2fff1,
+    /// Reduction using max
+    dnnl_reduction_max,
+    /// Reduction using min
+    dnnl_reduction_min,
+    /// Reduction using sum
+    dnnl_reduction_sum,
+    /// Reduction using mul
+    dnnl_reduction_mul,
+    /// Reduction using mean
+    dnnl_reduction_mean,
+    /// Reduction using lp norm
+    dnnl_reduction_norm_lp_max,
+    /// Reduction using lp norm
+    dnnl_reduction_norm_lp_sum,
+    /// Reduction using lp norm without final pth-root
+    dnnl_reduction_norm_lp_power_p_max,
+    /// Reduction using lp norm without final pth-root
+    dnnl_reduction_norm_lp_power_p_sum,
 } dnnl_alg_kind_t;
 
 /// Flags for normalization primitives.
@@ -1782,6 +1802,40 @@ typedef struct {
 
 /// @} dnnl_api_resampling
 
+/// @addtogroup dnnl_api_reduction
+/// @{
+
+/// A descriptor of reduction operation.
+typedef struct {
+    /// The kind of primitive. Used for self-identifying the primitive
+    /// descriptor. Must be #dnnl_reduction.
+    dnnl_primitive_kind_t primitive_kind;
+    /// The kind of reduction algorithm. Possible values:
+    /// #dnnl_reduction_max, #dnnl_reduction_min, #dnnl_reduction_sum,
+    /// #dnnl_reduction_mul, #dnnl_reduction_mean, #dnnl_reduction_norm_lp_max,
+    /// #dnnl_reduction_norm_lp_sum, #dnnl_reduction_norm_lp_power_p_max,
+    /// #dnnl_reduction_norm_lp_power_p_sum.
+    dnnl_alg_kind_t alg_kind;
+    /// Source memory descriptor.
+    dnnl_memory_desc_t src_desc;
+    /// Destination memory descriptor.
+    dnnl_memory_desc_t dst_desc;
+    /// Algorithm specific parameters.
+    /// Accordance table:
+    /// #dnnl_reduction_max: @p p and @p eps are ignored
+    /// #dnnl_reduction_min: @p p and @p eps are ignored
+    /// #dnnl_reduction_norm_lp_max: @p p -- power, @p eps -- epsilon
+    /// #dnnl_reduction_norm_lp_sum: @p p -- power, @p eps -- epsilon
+    /// #dnnl_reduction_norm_lp_power_p_max: @p p -- power, @p eps -- epsilon
+    /// #dnnl_reduction_norm_lp_power_p_sum: @p p -- power, @p eps -- epsilon
+    /// #dnnl_reduction_sum: @p p and @p eps are ignored
+    /// #dnnl_reduction_mul: @p p and @p eps are ignored
+    /// #dnnl_reduction_mean: @p p and @p eps are ignored
+    float p, eps;
+} dnnl_reduction_desc_t;
+
+/// @} dnnl_api_reduction
+
 /// @} dnnl_api_primitives
 
 /// @addtogroup dnnl_api_engine
@@ -2200,6 +2254,7 @@ typedef enum {
     dnnl_query_matmul_d, ///< matrix multiplication (matmul) descriptor
     dnnl_query_resampling_d, ///< resampling descriptor
     dnnl_query_pooling_v2_d, ///< pooling version 2 descriptor
+    dnnl_query_reduction_d, ///< reduction descriptor
 
     // memory descriptor section
     dnnl_query_some_md = 128, ///< stub

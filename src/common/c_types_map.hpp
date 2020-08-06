@@ -113,6 +113,17 @@ const alg_kind_t binary_max = dnnl_binary_max;
 const alg_kind_t binary_min = dnnl_binary_min;
 const alg_kind_t resampling_nearest = dnnl_resampling_nearest;
 const alg_kind_t resampling_linear = dnnl_resampling_linear;
+const alg_kind_t reduction_max = dnnl_reduction_max;
+const alg_kind_t reduction_min = dnnl_reduction_min;
+const alg_kind_t reduction_sum = dnnl_reduction_sum;
+const alg_kind_t reduction_mul = dnnl_reduction_mul;
+const alg_kind_t reduction_mean = dnnl_reduction_mean;
+const alg_kind_t reduction_norm_lp_max = dnnl_reduction_norm_lp_max;
+const alg_kind_t reduction_norm_lp_sum = dnnl_reduction_norm_lp_sum;
+const alg_kind_t reduction_norm_lp_power_p_max
+        = dnnl_reduction_norm_lp_power_p_max;
+const alg_kind_t reduction_norm_lp_power_p_sum
+        = dnnl_reduction_norm_lp_power_p_sum;
 } // namespace alg_kind
 
 using data_type_t = dnnl_data_type_t;
@@ -652,6 +663,7 @@ const primitive_kind_t binary = dnnl_binary;
 const primitive_kind_t logsoftmax = dnnl_logsoftmax;
 const primitive_kind_t matmul = dnnl_matmul;
 const primitive_kind_t resampling = dnnl_resampling;
+const primitive_kind_t reduction = dnnl_reduction;
 
 // Internal only primitive kinds.
 const primitive_kind_t internal_only_start = (primitive_kind_t)(1 << 12);
@@ -699,6 +711,7 @@ const query_t binary_d = dnnl_query_binary_d;
 const query_t logsoftmax_d = dnnl_query_logsoftmax_d;
 const query_t matmul_d = dnnl_query_matmul_d;
 const query_t resampling_d = dnnl_query_resampling_d;
+const query_t reduction_d = dnnl_query_reduction_d;
 
 const query_t some_md = dnnl_query_some_md;
 const query_t src_md = dnnl_query_src_md;
@@ -737,6 +750,7 @@ using binary_desc_t = dnnl_binary_desc_t;
 using logsoftmax_desc_t = dnnl_logsoftmax_desc_t;
 using matmul_desc_t = dnnl_matmul_desc_t;
 using resampling_desc_t = dnnl_resampling_desc_t;
+using reduction_desc_t = dnnl_reduction_desc_t;
 
 using rnn_direction_t = dnnl_rnn_direction_t;
 using rnn_desc_t = dnnl_rnn_desc_t;
