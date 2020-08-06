@@ -14,29 +14,49 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_AVX512_COMMON_1X1_CONV_KERNEL_HPP
-#define CPU_X64_JIT_AVX512_COMMON_1X1_CONV_KERNEL_HPP
+#ifndef CPU_AARCH64_JIT_SVE_1x1_CONV_KERNEL_HPP
+#define CPU_AARCH64_JIT_SVE_1X1_CONV_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
 #include "cpu/aarch64/jit_generator.hpp"
 #include "cpu/aarch64/jit_primitive_conf.hpp"
+#if 0
 #include "cpu/aarch64/jit_uni_eltwise_injector.hpp"
+#endif
+
+#define PRFMMIN  (-256)
+#define PRFWMAX    31
+#define LDRMAX    255
+#define LDRWMAX   252
+#define ADDMAX   4095
+#define PRFMMAX 32760
+#define MOVMAX  65535
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace aarch64 {
 
+#define CGA64 CodeGeneratorAArch64
+namespace xa = Xbyak::Xbyak_aarch64;
+/* Get vector offsets, ofs / VL(VL: 512bits = 64Bytes) */
+#define VL_OFS(ofs) ((ofs)>>6)
+
 struct jit_sve_1x1_conv_kernel : public jit_generator {
     jit_sve_1x1_conv_kernel(
             const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
+        
+        if (jcp.with_eltwise){
+#if 1
+            assert(NULL);
+#else
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<sve>(
                     this, jcp.eltwise);
-
+#endif
+        }
         this->generate();
         jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode32();
     }
@@ -61,43 +81,93 @@ struct jit_sve_1x1_conv_kernel : public jit_generator {
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_1x1_conv_call_s *);
 
-private:
-    using reg64_t = const Xbyak::Reg64;
-    using zmm_t = const Xbyak::Zmm;
+  private:
+    using reg64_t = const xa::XReg;
+    const xa::PReg reg_p_all_ones  = p2;
 
-    reg64_t reg_bcast_data = r8;
-    reg64_t reg_load_data = r10;
-    reg64_t reg_output_data = r9;
-    reg64_t aux_reg_bcast_data = r14;
-    reg64_t aux1_reg_bcast_data = rbx;
-    reg64_t aux_reg_load_data = r15;
-    reg64_t imm_addr64 = aux_reg_load_data;
-    reg64_t aux_reg_output_data = abi_not_param1;
-    reg64_t reg_load_loop_work = rsi;
-    reg64_t reg_reduce_loop_work = r11;
-    reg64_t reg_bcast_loop_iter = rdx;
-    reg64_t reduce_loop_iter = abi_param1;
-    reg64_t reg_reduce_pos_flag = rax;
-    reg64_t reg_output_stride = r13;
-    reg64_t reg_bias_data = r12;
-    reg64_t reg_relu_ns = r13;
-    reg64_t reg_bcast_loop_work = aux1_reg_bcast_data;
-    reg64_t reg_load_dim_tail_mask = aux_reg_load_data;
+    /* Flags and loop variables */
+    reg64_t reg_reduce_pos_flag     = x1;
+    reg64_t reduce_loop_iter        = x2;
+    reg64_t bcast_loop_iter         = x3;
+    reg64_t reg_relu_ns             = x20;  // For forward
+    reg64_t reg_output_stride       = x20;  // For backward
 
-    Xbyak::Zmm vreg_bcast = Xbyak::Zmm(31);
-    Xbyak::Opmask k_load_dim_mask = Xbyak::Opmask(2);
-    Xbyak::Opmask k_load_dim_tail_mask = Xbyak::Opmask(3);
+    /* Pointer */
+    reg64_t reg_bcast_data          = x5;  // Input
+    reg64_t reg_load_data           = x6;  // Weight
+    reg64_t reg_output_data         = x7;  // Output
+    reg64_t reg_bias_data           = x8;  // bias
+    reg64_t aux1_reg_bcast_data     = x9;
+    reg64_t aux_reg_output_data     = x10;
+    reg64_t aux_reg_bcast_data      = x11;
+    reg64_t aux_reg_load_data       = x12;
+    reg64_t reg_prev_bcast_addr     = x13; // Input: The reg keeps addr accessed by previous ldr inst
+    reg64_t reg_prev_out_addr       = x14; // Output: The reg keeps addr accessed by previous ldr or str inst
 
-    jit_uni_eltwise_injector_f32<sve> *eltwise_injector_;
+    /* Workload */
+    reg64_t reg_load_loop_work      = x15;
+    reg64_t reg_reduce_loop_work    = x16;
+    reg64_t reg_bcast_loop_work     = x17;
 
-    int bcast_loop_work_offt = 0;
+    /* Temporay registers */
+    reg64_t reg_tmp_imm             = x18; // tmp for add_imm
+    reg64_t reg_tmp_ofs             = x19; // tmp reg to calc bwd wei offset in out_load
+
+    void prefetch(const std::string prfop, int level, reg64_t in, long long int ofs) {
+        bool for_load;
+        if (prfop == "LD") {
+            for_load = true;
+        } else if (prfop == "ST") {
+            for_load = false;
+        } else {
+            assert(!"invalid prfop");
+        }
+
+        bool cacheline_alinged = ((ofs&0xFF)==0) ? true : false;
+        if (cacheline_alinged == true) {
+            xa::Prfop op;
+            switch (level) {
+            case 1: op = (for_load == true) ? xa::PLDL1KEEP : xa::PSTL1KEEP; break;
+            case 2: op = (for_load == true) ? xa::PLDL2KEEP : xa::PSTL2KEEP; break;
+            case 3: op = (for_load == true) ? xa::PLDL3KEEP : xa::PSTL3KEEP; break;
+            default: assert(!"invalid prfop"); break;
+          }
+
+          if((ofs <= PRFMMAX) && (ofs >= 0)) {
+              CGA64::prfm(op, xa::ptr(in, static_cast<int32_t>(ofs)));
+          }else{
+              CGA64::add_imm(reg_tmp_ofs, in, ofs, reg_tmp_imm);
+              CGA64::prfm(op, xa::ptr(reg_tmp_ofs));
+          }
+        } else {
+            xa::PrfopSve op_sve;
+            switch (level) {
+            case 1: op_sve = (for_load == true) ? xa::PLDL1KEEP_SVE : xa::PSTL1KEEP_SVE; break;
+            case 2: op_sve = (for_load == true) ? xa::PLDL2KEEP_SVE : xa::PSTL2KEEP_SVE; break;
+            case 3: op_sve = (for_load == true) ? xa::PLDL3KEEP_SVE : xa::PSTL3KEEP_SVE; break;
+            default: assert(!"invalid prfop"); break;
+        }
+
+        if((VL_OFS(ofs) <= PRFWMAX) &&
+           (VL_OFS(ofs) >= (-1 * PRFWMAX - 1))) {
+            CGA64::prfw(op_sve, reg_p_all_ones, xa::ptr(in, static_cast<int32_t>(VL_OFS(ofs))));
+        }else{
+            CGA64::add_imm(reg_tmp_ofs, in, ofs, reg_tmp_imm);
+            CGA64::prfw(op_sve, reg_p_all_ones, xa::ptr(reg_tmp_ofs));
+        }
+      }
+    }
+
+    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+
     int stack_space_needed = 16;
-
+    int bcast_loop_work_offt = 0;
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
     void generate();
-    static void balance(jit_1x1_conv_conf_t &jcp);
+    static void balance(jit_1x1_conv_conf_t &jcp, int nthreads);
+
 };
 
 } // namespace x64

@@ -14,6 +14,32 @@
 # limitations under the License.
 #===============================================================================
 
+# TODO: aarch64 only 
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64
+    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64/xbyak
+    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64/translator/include/xbyak_translator_for_aarch64
+    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64/translator/third_party/xbyak_aarch64/xbyak_aarch64
+    )
+if(DNNL_INDIRECT_JIT_AARCH64)
+    find_library(XED
+        NAMES "xed"
+        PATHS aarch64/build_xed_aarch64/kits/xed/lib /usr/local/lib /usr/lib /usr/local/lib64 /usr/lib64 /usr/lib/aarch64-linux-gnu
+        ENV LD_LIBRARY_PATH
+    )
+    include_directories(
+        ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/build_xed_aarch64/kits/xed/include
+    )
+
+    if(NOT XED)
+        message(FATAL_ERROR, "libxed not found!")
+    endif()
+
+    list(APPEND EXTRA_STATIC_LIBS ${XED})
+    list(APPEND EXTRA_SHARED_LIBS ${XED})
+endif()
+
+
 file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp)
 file(GLOB_RECURSE SOURCES_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.[ch]pp
@@ -65,4 +91,8 @@ set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
 
 if (DNNL_TARGET_ARCH STREQUAL "X64")
     add_subdirectory(x64)
+endif()
+
+if (DNNL_TARGET_ARCH STREQUAL "AARCH64")
+    add_subdirectory(aarch64)
 endif()

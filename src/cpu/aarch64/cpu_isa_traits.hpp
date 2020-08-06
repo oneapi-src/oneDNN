@@ -36,8 +36,10 @@
  * FIXME: replace size_t parameters with the appropriate ones */
 #pragma warning(disable : 4267)
 #endif
-#include "cpu/aarch64/xbyak/xbyak.h"
-#include "cpu/aarch64/xbyak/xbyak_util.h"
+
+#include "cpu/aarch64/xbyak_translator_aarch64/xbyak/xbyak.h"
+#include "cpu/aarch64/xbyak_translator_aarch64/xbyak/xbyak_util.h"
+
 
 namespace dnnl {
 namespace impl {
@@ -51,7 +53,7 @@ enum cpu_isa_bit_t : unsigned {
 
 enum cpu_isa_t : unsigned {
     isa_any = 0u,
-    simd    = simd_bit
+    simd    = simd_bit,
     sve     = sve_bit | simd,
     isa_all = ~0u,
 };
@@ -112,7 +114,7 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
 }
 
 inline bool isa_has_bf16(cpu_isa_t isa) {
-    return isa == avx512_core_bf16;
+    return false;
 }
 
 } // namespace

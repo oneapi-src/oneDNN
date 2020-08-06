@@ -51,7 +51,7 @@
 using namespace dnnl::impl::cpu::x64;
 
 #elif DNNL_AARCH64
-#include "cpu/aarch64/jit_sve512_1x1_convolution.hpp"
+#include "cpu/aarch64/jit_sve_1x1_convolution.hpp"
 using namespace dnnl::impl::cpu::aarch64;
 #endif
 

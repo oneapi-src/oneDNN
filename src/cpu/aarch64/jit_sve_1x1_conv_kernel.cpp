@@ -45,6 +45,7 @@ using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 void jit_sve_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
+/*
     mov(aux1_reg_bcast_data, reg_bcast_data);
     mov(aux_reg_bcast_data, reg_bcast_data);
 
@@ -145,10 +146,12 @@ void jit_sve_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
             }
         }
     }
+*/
 }
 
 void jit_sve_1x1_conv_kernel::reduce_loop(
         int load_loop_blk, int ur, int substep, bool wraparound) {
+/*
     const bool out_layout_nxc = is_out_layout_nxc(jcp);
     const bool load_layout_nxc = is_load_layout_nxc(jcp);
     const bool bcast_layout_nxc = is_bcast_layout_nxc(jcp);
@@ -502,11 +505,12 @@ void jit_sve_1x1_conv_kernel::reduce_loop(
     fma_block(true);
 
     store();
+*/
 }
 
 void jit_sve_1x1_conv_kernel::generate() {
     preamble();
-
+/*
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
     mov(reg_load_data, ptr[param1 + GET_OFF(load_data)]);
     mov(reg_output_data, ptr[param1 + GET_OFF(output_data)]);
@@ -631,14 +635,16 @@ void jit_sve_1x1_conv_kernel::generate() {
     L(load_loop_blk[num_ur_cases]);
 
     add(rsp, stack_space_needed);
-
+*/
     postamble();
-
+#if 0
     if (jcp.with_eltwise) eltwise_injector_->prepare_table();
+#endif
 }
 
 bool jit_sve_1x1_conv_kernel::post_ops_ok(
         jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
+
     const auto &p = attr.post_ops_;
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };

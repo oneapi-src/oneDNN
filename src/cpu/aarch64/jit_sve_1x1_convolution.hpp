@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_AVX512_COMMON_1X1_CONVOLUTION_HPP
-#define CPU_X64_JIT_AVX512_COMMON_1X1_CONVOLUTION_HPP
+#ifndef CPU_AARCH64_JIT_SVE_1X1_CONVOLUTION_HPP
+#define CPU_AARCH64_JIT_SVE_1X1_CONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -28,11 +28,14 @@
 #include "cpu/dw_convolution_utils.hpp"
 #include "cpu/platform.hpp"
 
-#include "cpu/aarch64/cpu_reducer.hpp"
 #include "cpu/aarch64/jit_sve_1x1_conv_kernel.hpp"
-#include "cpu/aarch64/jit_transpose_src_utils.hpp"
 #include "cpu/aarch64/jit_uni_1x1_conv_utils.hpp"
+
+#if 0
+#include "cpu/aarch64/cpu_reducer.hpp"
+#include "cpu/aarch64/jit_transpose_src_utils.hpp"
 #include "cpu/aarch64/jit_uni_dw_convolution.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -77,8 +80,12 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
             if (status != status::success) return status;
 
             if (jcp_.with_dw_conv) {
+#if 1
+                assert(NULL);
+#else
                 status = depthwise_po_init(engine);
                 if (status != status::success) return status;
+#endif
             }
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -143,6 +150,7 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
             return status::success;
         }
 
+#if 0
         status_t depthwise_po_init(engine_t *engine) {
 
             using namespace memory_tracking;
@@ -174,7 +182,6 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
                     // work if this condition fails.
                     && (jcp_1x1.load_grp_count < 2);
             if (!ok) return status::unimplemented;
-
             int dw_po_index
                     = attr_1x1.post_ops_.find(primitive_kind::convolution);
             convolution_desc_t cd_dw;
@@ -185,7 +192,6 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
             dw_conv_pd_.reset(new dw_pd_t(&cd_dw, &attr_dw, nullptr));
             CHECK(dw_conv_pd_->init(engine));
             auto &jcp_dw = dw_conv_pd_->jcp_;
-
             ok = true
                     && (dnnl_memory_desc_equal(&src_md, dw_conv_pd_->src_md(0)))
                     && (jcp_1x1.oc_without_padding % jcp_1x1.oc_block == 0)
@@ -231,6 +237,7 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
             return status::success;
         }
     };
+#endif
 
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
@@ -241,15 +248,23 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
                 pd()->jcp_, *pd()->attr());
 
         if (pd()->jcp_.with_dw_conv) {
+#if 1
+            assert(NULL);
+#else
             kernel_dw_ = new dw_conv_kernel_t(pd()->dw_conv_pd_->jcp_);
+#endif
         }
+#if 0
         init_rtus_driver<sve>(this);
+#endif
     }
 
     ~jit_sve_1x1_convolution_fwd_t() {
         delete kernel_;
+#if 0
         if (kernel_dw_) { delete kernel_dw_; }
         delete rtus_driver_;
+#endif
     }
 
     typedef typename prec_traits<src_type>::type src_data_t;
@@ -271,13 +286,18 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_sve_1x1_conv_kernel *kernel_;
+#if 0
     rtus_driver_t<sve> *rtus_driver_;
     using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<sve>;
     dw_conv_kernel_t *kernel_dw_ = nullptr;
+#endif
 };
 
 using jit_sve_1x1_convolution_fwd_f32_t
         = jit_sve_1x1_convolution_fwd_t<data_type::f32>;
+
+//TODO: BWD
+#if 0
 
 template <impl::data_type_t diff_dst_type,
         impl::data_type_t wei_type = diff_dst_type,
@@ -471,11 +491,11 @@ private:
     jit_sve_1x1_conv_kernel *kernel_;
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;
-    jit_transpose4x16_src *trans_kernel_;
     rtus_driver_t<sve> *rtus_driver_;
 };
+#endif  
 
-} // namespace x64
+} // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

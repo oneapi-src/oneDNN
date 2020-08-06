@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_UNI_1X1_CONV_UTILS_HPP
-#define CPU_X64_JIT_UNI_1X1_CONV_UTILS_HPP
+#ifndef CPU_AARCH64_JIT_UNI_1X1_CONV_UTILS_HPP
+#define CPU_AARCH64_JIT_UNI_1X1_CONV_UTILS_HPP
 
 #include "common/convolution_pd.hpp"
 #include "common/dnnl_thread.hpp"
@@ -25,12 +25,12 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/x64/jit_generator.hpp"
+#include "cpu/aarch64/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
+namespace aarch64 {
 
 struct reduce_to_unit_stride_t {
     convolution_desc_t conv_d_;
