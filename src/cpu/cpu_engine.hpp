@@ -48,6 +48,7 @@ DECLARE_IMPL_LIST(lrn);
 DECLARE_IMPL_LIST(logsoftmax);
 DECLARE_IMPL_LIST(matmul);
 DECLARE_IMPL_LIST(pooling_v2);
+DECLARE_IMPL_LIST(reduction);
 DECLARE_IMPL_LIST(resampling);
 DECLARE_IMPL_LIST(rnn);
 DECLARE_IMPL_LIST(shuffle);
@@ -95,6 +96,7 @@ public:
             CASE(matmul);
             case primitive_kind::pooling:
             CASE(pooling_v2);
+            CASE(reduction);
             CASE(resampling);
             CASE(rnn);
             CASE(shuffle);
