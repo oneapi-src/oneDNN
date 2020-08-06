@@ -52,6 +52,15 @@ cmake .. \
           <extra build options>
 ~~~
 
+- Compile with Arm Compute Library (AArch64 only)
+
+~~~sh
+export ACL_ROOT_DIR=<path/to/Compute Library>
+cmake .. \
+         -DDNNL_AARCH64_USE_ACL=ON \
+         <extra build options>
+~~~
+
 #### Build and Install the Library
 
 - Build the library:

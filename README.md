@@ -116,6 +116,14 @@ require the use of run-time controls to enable them. See
 [CPU dispatcher control](https://oneapi-src.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html)
 for more details.
 
+On a CPU based on Arm AArch64 architecture, oneDNN can be built with Arm
+Compute Library integration. Arm Compute Library is an open-source
+library for computer vision and machine learning applications and
+provides AArch64 optimized implementations of core functions.
+This functionality currently requires that Arm Compute Library is
+downloaded and built separately, see
+[Build from Source](https://oneapi-src.github.io/oneDNN/dev_guide_build.html).
+
 > **WARNING**
 >
 > On macOS, applications that use oneDNN may need to request special
@@ -137,6 +145,8 @@ oneDNN supports systems meeting the following requirements:
 * [CMake](https://cmake.org/download/) 2.8.11 or later
 * [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
   to build the documentation
+* [Arm Compute Library](https://github.com/arm-software/ComputeLibrary)
+  for builds using Compute Library on AArch64.
 
 Configurations of CPU and GPU engines may introduce additional build time
 dependencies.
