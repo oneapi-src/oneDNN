@@ -309,8 +309,8 @@ using jit_sve_1x1_convolution_fwd_f32_t
         = jit_sve_1x1_convolution_fwd_t<data_type::f32>;
 
 //TODO: BWD
-#if 0
 
+#if 0
 template <impl::data_type_t diff_dst_type,
         impl::data_type_t wei_type = diff_dst_type,
         impl::data_type_t diff_src_type = diff_dst_type>
@@ -396,7 +396,6 @@ struct jit_sve_1x1_convolution_bwd_data_t : public primitive_t {
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
     jit_sve_1x1_conv_kernel *kernel_;
     rtus_driver_t<sve> *rtus_driver_;
 };
@@ -499,14 +498,12 @@ struct jit_sve_1x1_convolution_bwd_weights_t : public primitive_t {
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
     jit_sve_1x1_conv_kernel *kernel_;
+    rtus_driver_t<sve> *rtus_driver_;
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;
-    rtus_driver_t<sve> *rtus_driver_;
 };
-#endif  
-
+#endif
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl

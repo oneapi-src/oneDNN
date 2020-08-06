@@ -176,7 +176,7 @@ struct jit_sve_1x1_conv_kernel : public jit_generator {
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
     void generate();
-    static void balance(jit_1x1_conv_conf_t &jcp, int nthreads);
+    static void balance(jit_1x1_conv_conf_t &jcp);
 
 };
 

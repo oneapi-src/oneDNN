@@ -87,10 +87,11 @@ void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
             pd()->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS));
 
     const auto &jcp = kernel_->jcp;
+#if 0
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<src_data_t>(key_conv_rtus_space)
             : NULL;
-
+#endif
     const int ndims = src_d.ndims();
     const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
@@ -103,8 +104,9 @@ void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
 
     auto p = jit_1x1_conv_call_s();
 
+#if 0
     auto rp = rtus_driver_t<sve>::call_params_t();
-
+#endif
     const int nb_oc = jcp.nb_load;
     const int nb_ic = jcp.nb_reduce;
     const int nb_ic_blocking = jcp.nb_reduce_blocking;
@@ -148,10 +150,12 @@ void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
         id = od * stride_d;
         ih = oh * stride_h;
         iw = ow * stride_w;
-        rp.iw_start = iw;
 
         p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
+#if 0
+        rp.iw_start = iw;
         rp.os = p.bcast_dim;
+#endif
     };
 
     auto init_load = [&](int ocb, int ocb_end, int &load_step) {
@@ -169,7 +173,9 @@ void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
 
         p.reduce_dim = this_block_size(
                 icb * jcp.ic_block, jcp.ic, nb_ic_blocking_step * jcp.ic_block);
+#if 0
         rp.icb = p.reduce_dim;
+#endif
     };
 
     auto ker_1x1 = [&](int ocb, int ocb_start, int icb, int n, int g, int od,
@@ -195,14 +201,22 @@ void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
                 ? g * jcp.ic + icb * jcp.ic_block
                 : g * nb_ic + icb;
         if (pd()->rtus_.reduce_src_) {
+#if 1
+            assert(NULL);
+#else
             rp.ws = rtus_space + ithr * pd()->rtus_.space_per_thread_
                     + (is_src_layout_nxc ? ic_off_idx
                                          : jcp.is * ic_off_idx * jcp.ic_block);
             if (ocb == ocb_start) {
+#if 1
+                assert(NULL);
+#else
                 rp.src = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
                 rtus_driver_->ker_(&rp);
+#endif
             }
             p.bcast_data = rp.ws;
+#endif
         } else
             p.bcast_data = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
 
@@ -296,7 +310,7 @@ void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
             assert(!"unsupported loop order");
         }
     };
-
+#if 0
     auto ker_dw = [&](int n, int ocb_start, int load_step, int &dw_oh) {
         auto &jcp_dw = pd()->dw_conv_pd_->jcp_;
         int oh_1x1 = nstl::max(dw_oh * jcp_dw.stride_h - jcp_dw.t_pad, 0);
@@ -341,14 +355,11 @@ void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
             par_conv_dw.kh_padding = (size_t)nstl::max(0, kh_padding);
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw.nb_ch) - ch;
-
             kernel_dw_->jit_ker(&par_conv_dw);
-
             for (int i = 0; i < jcp_dw.kh; ++i)
                 addrs[i] += wch_stride;
         }
     };
-
     auto conv_dw = [&]() {
         // Set variables
         auto dw_conv_buffer
@@ -398,9 +409,14 @@ void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
             ocb_start += load_step;
         }
     };
+#endif
 
     if (jcp.with_dw_conv) {
+#if 1
+        assert(NULL);
+#else
         conv_dw();
+#endif
     } else {
 
         const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
@@ -414,7 +430,7 @@ void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
 
 template struct jit_sve_1x1_convolution_fwd_t<data_type::f32>;
 /* convolution backward wtr data */
-
+#if 0
 template <data_type_t diff_dst_type, data_type_t wei_type,
         data_type_t diff_src_type>
 void jit_sve_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
@@ -1089,8 +1105,9 @@ void jit_sve_1x1_convolution_bwd_weights_t::execute_backward_weights(
         }
     }
 }
+#endif
 
-} // namespace x64
+} // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

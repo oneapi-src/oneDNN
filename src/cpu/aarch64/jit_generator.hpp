@@ -25,7 +25,6 @@
 
 #include "cpu/aarch64/cpu_isa_traits.hpp"
 
-#include "cpu/aarch64/jit_utils/jit_utils.hpp"
 
 #if defined(_WIN32) && !defined(__GNUC__)
 #define STRUCT_ALIGN(al, ...) __declspec(align(al)) __VA_ARGS__
@@ -236,14 +235,9 @@ public:
     virtual const char *name() const = 0;
     virtual const char *source_file() const = 0;
 
-    void register_jit_code(const uint32_t *code, size_t code_size) const {
-        jit_utils::register_jit_code(code, code_size, name(), source_file());
-    }
-
     const uint32_t *getCode32() {
         this->ready();
         const uint32_t *code = CodeGeneratorAArch64::getCode32();
-        register_jit_code(code, getSize());
         return code;
     }
 

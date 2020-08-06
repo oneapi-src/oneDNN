@@ -14,22 +14,13 @@
 # limitations under the License.
 #===============================================================================
 
-file(GLOB_RECURSE HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/xbyak_translator_aarch64/xbyak/*.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/xbyak_translator_aarch64/translator/third_party/xbyak_aarch64/xbyak_aarch64/*.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/xbyak_translator_aarch64/translator/include/xbyak_translator_for_aarch64/*.h
-    )
 
-file(GLOB_RECURSE SOURCES
+file(GLOB SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]
     ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
     )
 
 include_directories(
-    ${PROJECT_BINARY_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/common
-    ${CMAKE_CURRENT_SOURCE_DIR}/cpu
     ${CMAKE_CURRENT_SOURCE_DIR}/xbyak_translator_aarch64
     ${CMAKE_CURRENT_SOURCE_DIR}/xbyak_translator_aarch64/xbyak
     ${CMAKE_CURRENT_SOURCE_DIR}/xbyak_translator_aarch64/translator/include/xbyak_translator_for_aarch64
@@ -45,4 +36,11 @@ if(NOT DNNL_ENABLE_JIT_PROFILING)
         "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/linux_perf/linux_perf.cpp"
         )
 endif()
+
+
+set(OBJ_LIB ${LIB_NAME}_cpu_aarch64)
+add_library(${OBJ_LIB} OBJECT ${SOURCES})
+set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)
+
 

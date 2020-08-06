@@ -26,7 +26,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
-#include "cpu/aarch64/cpu_barrier.hpp"
+//#include "cpu/aarch64/cpu_barrier.hpp"
 
 #include "cpu/aarch64/jit_sve_1x1_conv_kernel.hpp"
 #include "cpu/aarch64/jit_uni_1x1_conv_utils.hpp"
@@ -774,29 +774,8 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
         if (jcp.wei_tag != wei_tag) return status::unimplemented;
 
-        if (!is_data_layout_nxc && jcp.prop_kind != backward_weights
-                && mayiuse(avx512_mic_4ops)
-                && ((jcp.prop_kind == backward_data) ? jcp.oc_block
-                                                     : jcp.ic_block)
-                                % 4
-                        == 0) {
-            jcp.ver = ver_4fma;
-            jcp.fma_step = 4;
-        } else if (jcp.prop_kind == backward_weights && mayiuse(avx512_mic_4ops)
-                && !is_data_layout_nxc
-                && !reduce_src
-                /* Heuristic condition for relation of src size to oc. Otherwise
-                   the src transposition overhead exceed the benefit from 4fma
-                */
-                && ((jcp.is * jcp.ic) / jcp.oc <= 2048)
-                && dnnl_thr_syncable()) {
-            jcp.transpose_src = true;
-            jcp.ver = ver_4fma;
-            jcp.fma_step = 4;
-        } else {
-            jcp.ver = (mayiuse(avx512_core)) ? ver_avx512_core : ver_fma;
-            jcp.fma_step = 1;
-        }
+        jcp.ver = ver_sve;
+        jcp.fma_step = 1;
         jcp.typesize_in = sizeof(prec_traits<data_type::f32>::type);
         jcp.typesize_out = sizeof(prec_traits<data_type::f32>::type);
     } else {
@@ -867,7 +846,7 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
                 = (one_of(jcp.prop_kind, forward_training, forward_inference))
                 ? jcp.od * jcp.oh
                 : jcp.id * jcp.ih;
-        if (jcp.ver == ver_avx512_core
+        if (jcp.ver == ver_sve
                 && ((8 * jcp.mb) / jcp.nthr >= 1
                         // NHWC perf: RN50 mb=1
                         || (is_data_layout_nxc && jcp.mb == 1))) {
@@ -883,10 +862,10 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
                 min_regs = 5;
             }
         } else {
-            max_regs = jcp.ver == ver_4fma ? 28 : 30;
+            max_regs = 30;
             min_regs = 9;
-            size_treshold = jcp.ver == ver_4fma ? 28 : 14;
-            ur_step = jcp.ver == ver_4fma ? 4 : 1;
+            size_treshold = 14;
+            ur_step = 1;
             jcp.expl_bcast = false;
             jcp.use_vmovntps = true;
         }
@@ -931,14 +910,6 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         int nb_load = div_up(jcp.load_dim, jcp.load_block);
         if (is_data_layout_nxc) {
             reduce_blocking = jcp.reduce_dim;
-        } else if (jcp.ver == ver_avx512_core && jcp.expl_bcast) {
-            if (jcp.load_dim <= BIG_LOAD_DIM && spatial > SMALL_SPATIAL
-                    && spatial < BIG_SPATIAL)
-                reduce_blocking = nstl::min(jcp.reduce_dim, 80);
-            else if (spatial > SMALL_SPATIAL)
-                reduce_blocking = nstl::min(jcp.reduce_dim, 512);
-            else
-                reduce_blocking = nstl::min(jcp.reduce_dim, 256);
         } else {
             reduce_blocking = nb_reduce;
             if (spatial <= SMALL_SPATIAL && jcp.reduce_dim >= BIG_REDUCE_DIM)
@@ -946,7 +917,8 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
             else if (spatial > SMALL_SPATIAL
                     && jcp.reduce_dim >= BIG_REDUCE_DIM)
                 reduce_blocking = 8;
-            reduce_blocking = best_divider(nb_reduce, 1, reduce_blocking, true);
+            // TODO:
+            //reduce_blocking = best_divider(nb_reduce, 1, reduce_blocking, true);
             reduce_blocking *= jcp.reduce_block;
         }
 
@@ -985,7 +957,7 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         auto bcast_size
                 = (dim_t)jcp.mb * jcp.ngroups * jcp.bcast_dim * jcp.reduce_dim;
 
-        if (jcp.ver == ver_avx512_core && jcp.nthr <= 28 && jcp.mb < jcp.nthr
+        if (jcp.ver == ver_sve && jcp.nthr <= 28 && jcp.mb < jcp.nthr
                 && nb_load * nb_bcast > jcp.nthr) {
             // Some heuristic here
             float calc_koef = 0.01, best_cost = FLT_MAX;
@@ -1032,56 +1004,12 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
                     2 * jcp.load_grp_count, false);
         }
 
-        if (jcp.ver == ver_avx512_core && jcp.expl_bcast && jcp.bcast_dim <= 64
-                && load_size >= L2_size) {
-            jcp.load_grp_count = nstl::max(jcp.load_grp_count, 4);
-        } else if (jcp.bcast_dim <= 49 && jcp.mb <= jcp.nthr
+        if (jcp.bcast_dim <= 49 && jcp.mb <= jcp.nthr
                 && jcp.load_dim > 512 && jcp.load_dim / jcp.reduce_dim >= 4) {
             jcp.load_grp_count = nstl::max(jcp.load_grp_count, 2);
             load_blocking = jcp.load_block;
         }
 
-        if (jcp.ver == ver_4fma && jcp.bcast_dim * jcp.mb < jcp.load_dim
-                && jcp.os > 64
-                && IMPLICATION(reduce_src, jcp.load_dim < 1024)) {
-            /* Looking for best loading dimension blocking
-            * to get the best thread and data read/write efficiency
-            * by finding the optimal 'load_chunk' value
-            * Example:
-            * for 72 threads and convolution with mb=1, ih=iw=7, oc = 512
-            * the 'best' load_chunk value should be 1
-            * TODO: remove heuristic constants in above condition
-            * TODO: check this blocking for other ISA
-            */
-            float best_eff = -1.f;
-            int best_lgc = 1;
-
-            for (int load_chunk = 1; load_chunk <= nb_load; load_chunk++) {
-                int lgc = div_up(nb_load, load_chunk);
-                if (lgc > jcp.nthr) continue;
-                int thr_per_grp = div_up(jcp.nthr, lgc);
-                int bcast_per_thr = div_up(jcp.mb * nb_bcast, thr_per_grp)
-                        * jcp.bcast_block;
-                int load_per_thr = load_chunk * simd_w;
-                float data_norm = (bcast_per_thr + load_per_thr) / 2.f;
-                float data_eff = (bcast_per_thr * load_per_thr)
-                        / (data_norm * data_norm);
-                float thr_eff_over_grp = (float)nstl::max(1, jcp.nthr / lgc)
-                        / div_up(jcp.nthr, lgc);
-                float thr_eff_in_grp = ((float)jcp.mb * nb_bcast)
-                        / rnd_up(jcp.mb * nb_bcast, thr_per_grp);
-                float thr_eff = thr_eff_over_grp * thr_eff_in_grp;
-                float load_eff = (float)nb_load / rnd_up(nb_load, lgc);
-                float overall_eff = data_eff + thr_eff + load_eff;
-                if (overall_eff > best_eff) {
-                    best_eff = overall_eff;
-                    best_lgc = lgc;
-                }
-            }
-            jcp.load_grp_count = best_lgc;
-            load_blocking
-                    = div_up(nb_load, jcp.load_grp_count) * jcp.load_block;
-        }
         bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
                                  div_up(jcp.nthr, jcp.load_grp_count))
                 * jcp.bcast_block;
@@ -1108,23 +1036,18 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 
     } else if (jcp.prop_kind == backward_weights) {
 
-        if (jcp.is > SMALL_SPATIAL * SMALL_SPATIAL && jcp.ver == ver_4fma)
-            jcp.use_vmovntps = true;
 
         if (jcp.transpose_src)
             jcp.reduce_dim = jcp.tr_is;
         else
             jcp.reduce_dim = jcp.is;
 
-        if (jcp.ver == ver_4fma) {
-            // reduce_block should be divided by fma_step
-            jcp.reduce_block = best_divider(jcp.reduce_dim, 4, 16, true, 4);
-        } else {
-            jcp.reduce_block = best_divider(jcp.reduce_dim, 7, 16, true);
-            if (jcp.reduce_dim % jcp.reduce_block != 0)
-                jcp.reduce_block = best_divider(jcp.iw, 4, jcp.iw, false);
-            if (jcp.reduce_block > 256) { jcp.reduce_block = 1; }
-        }
+#if 0
+        jcp.reduce_block = best_divider(jcp.reduce_dim, 7, 16, true);
+#endif
+        if (jcp.reduce_dim % jcp.reduce_block != 0)
+            jcp.reduce_block = best_divider(jcp.iw, 4, jcp.iw, false);
+        if (jcp.reduce_block > 256) { jcp.reduce_block = 1; }
 
         jcp.load_dim = jcp.oc;
         jcp.load_block = jcp.oc_block;
@@ -1132,7 +1055,7 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.bcast_dim = jcp.ic;
         jcp.bcast_block = jcp.ic_block;
 
-        if (jcp.ver == ver_avx512_core && jcp.reduce_block <= 19 &&
+        if (jcp.ver == ver_sve && jcp.reduce_block <= 19 &&
                 // maskrcnn optimization for nxc; don't reduce ur when ocb<=1
                 !(is_data_layout_nxc && jcp.load_dim <= jcp.load_block)) {
             // if reduce_block is big then generated JIT code may be big
@@ -1192,7 +1115,7 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         if (is_data_layout_nxc && jcp.reduce_dim >= BIG_SPATIAL * BIG_SPATIAL
                 && jcp.load_dim >= BIG_LOAD_DIM / 2) {
             reduce_blocking = rnd_up(nstl::min(jcp.ow, 256), jcp.reduce_block);
-        } else if (jcp.ver == ver_avx512_core) {
+        } else if (jcp.ver == ver_sve) {
             int max_reduce_blocking
                     = nstl::min(L1_capacity / jcp.ur, jcp.reduce_dim);
             int min_reduce_blocking = nstl::min(
@@ -1236,10 +1159,6 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         assert(load_blocking_max % jcp.load_block == 0);
         assert(reduce_blocking_max % jcp.reduce_block == 0);
         assert(jcp.reduce_dim % jcp.reduce_block == 0);
-        if (jcp.ver == ver_4fma) {
-            assert(jcp.reduce_loop_unroll % jcp.fma_step == 0);
-            assert(jcp.reduce_dim % jcp.reduce_loop_unroll == 0);
-        }
     }
 
     assert(jcp.bcast_block % jcp.ur == 0);
@@ -1262,6 +1181,10 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 void jit_sve_1x1_conv_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad,
         const jit_1x1_conv_conf_t &jcp) {
+
+#if 1 
+    assert(NULL);
+#else
     using namespace dnnl::impl::memory_tracking::names;
 
     // Fox nxc layout bias is padded only for bwd_wb direction, as  bias
@@ -1290,6 +1213,7 @@ void jit_sve_1x1_conv_kernel::init_scratchpad(
         scratchpad.book(key_conv_tr_src, tr_src_size, jcp.typesize_out);
         scratchpad.book<simple_barrier::ctx_t>(key_conv_tr_src_bctx, jcp.nthr);
     }
+#endif
 }
 
 void jit_sve_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp) {
