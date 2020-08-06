@@ -98,6 +98,9 @@ void key_t::init_mds(const primitive_desc_t *pd) {
             }
             break;
         }
+        case primitive_kind::reduction: {
+            break;
+        }
         case primitive_kind::reorder: {
             break;
         }
@@ -561,6 +564,21 @@ size_t get_desc_hash(const pooling_v2_desc_t &desc) {
     // Accumulator type
     seed = hash_combine(seed, static_cast<size_t>(desc.accum_data_type));
     // Combined hash for pooling desc
+    return seed;
+}
+
+size_t get_desc_hash(const reduction_desc_t &desc) {
+    size_t seed = 0;
+    // Kinds
+    seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
+    seed = hash_combine(seed, static_cast<size_t>(desc.alg_kind));
+    // Memory descriptors
+    seed = hash_combine(seed, get_md_hash(desc.src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    // P, eps
+    seed = hash_combine(seed, desc.p);
+    seed = hash_combine(seed, desc.eps);
+    // Combined hash for reduction desc
     return seed;
 }
 

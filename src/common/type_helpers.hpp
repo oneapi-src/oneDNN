@@ -466,6 +466,17 @@ inline bool operator==(const pooling_v2_desc_t &lhs, const pooling_v2_desc_t &rh
     return ret;
 }
 
+inline bool operator==(
+        const reduction_desc_t &lhs, const reduction_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(alg_kind)
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(p)
+            && COMPARE_DESC_MEMBERS(eps);
+    return ret;
+}
+
 inline bool operator==(const reorder_desc_t &lhs, const reorder_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(src_md)
