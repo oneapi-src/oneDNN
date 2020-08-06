@@ -98,11 +98,19 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
         }
 
         const memory_desc_t *dst_md(int index = 0) const override {
+#if 1
+            assert(NULL);
+            return &dst_md_;
+#else
             return jcp_.with_dw_conv ? dw_conv_pd_->dst_md(index) : &dst_md_;
+#endif
         }
 
         const memory_desc_t *arg_md(int index = 0) const override {
             if (jcp_.with_dw_conv) {
+#if 1
+                assert(NULL);
+#else
                 switch (index) {
                     case DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS:
                         return dw_conv_pd_->weights_md(0);
@@ -110,6 +118,7 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
                         return dw_conv_pd_->weights_md(1);
                     default: break;
                 }
+#endif
             }
             return convolution_fwd_pd_t::arg_md(index);
         }
@@ -125,9 +134,10 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
 
         jit_1x1_conv_conf_t jcp_;
         reduce_to_unit_stride_t rtus_;
+#if 0
         using dw_pd_t = jit_sve_dw_convolution_fwd_t::pd_t;
         std::unique_ptr<dw_pd_t> dw_conv_pd_;
-
+#endif
     protected:
         bool set_default_formats() {
             using namespace format_tag;
@@ -143,10 +153,12 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
         status_t copy(const pd_t &other) {
             jcp_ = other.jcp_;
             rtus_ = other.rtus_;
+#if 0
             if (other.dw_conv_pd_) {
                 dw_conv_pd_.reset(other.dw_conv_pd_->clone());
                 if (!dw_conv_pd_) return status::out_of_memory;
             }
+#endif
             return status::success;
         }
 
@@ -236,8 +248,8 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
 
             return status::success;
         }
-    };
 #endif
+    };
 
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
@@ -263,8 +275,8 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
         delete kernel_;
 #if 0
         if (kernel_dw_) { delete kernel_dw_; }
-        delete rtus_driver_;
 #endif
+        delete rtus_driver_;
     }
 
     typedef typename prec_traits<src_type>::type src_data_t;
@@ -286,8 +298,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_sve_1x1_conv_kernel *kernel_;
-#if 0
     rtus_driver_t<sve> *rtus_driver_;
+#if 0
     using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<sve>;
     dw_conv_kernel_t *kernel_dw_ = nullptr;
 #endif

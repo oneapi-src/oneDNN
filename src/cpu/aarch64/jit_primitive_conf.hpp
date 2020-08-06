@@ -14,26 +14,26 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_PRIMITIVE_CONF_HPP
-#define CPU_X64_JIT_PRIMITIVE_CONF_HPP
+#ifndef CPU_AARCH64_JIT_PRIMITIVE_CONF_HPP
+#define CPU_AARCH64_JIT_PRIMITIVE_CONF_HPP
 
 #include <stdint.h>
 
 #include "common/primitive_attr.hpp"
-#include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/aarch64/cpu_isa_traits.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
+namespace aarch64 {
 
 /* convolution */
 enum conv_version_t {
     ver_unused,
     ver_fma,
     ver_avx512_core,
-    ver_4fma,
-    ver_vnni
+    ver_simd,
+    ver_sve
 };
 enum conv_loop_order_t {
     loop_cgn,
@@ -602,7 +602,7 @@ struct jit_pool_call_s {
     size_t padded_mask;
 };
 
-} // namespace x64
+} // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

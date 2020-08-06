@@ -108,12 +108,20 @@ private:
     const size_t xmm_to_preserve = 0;
 #endif
 
-    const size_t num_abi_save_gpr_regs
-            = sizeof(abi_save_gpr_regs) / sizeof(abi_save_gpr_regs[0]);
+    const size_t xreg_len = 8;
+    const size_t vreg_len_preserve = 8; // Only bottom 8byte must be preserved.
+    const size_t vreg_to_preserve = 8; // VREG8 - VREG15 
 
-    const size_t size_of_abi_save_regs
-            = num_abi_save_gpr_regs * rax.getBit() / 8
+    const size_t num_abi_save_gpr_regs_aarch64
+            = sizeof(abi_save_gpr_regs_aarch64) / sizeof(abi_save_gpr_regs_aarch64[0]);
+
+    const size_t size_of_abi_save_regs_aarch64
+            = (num_abi_save_gpr_regs_aarch64 + 2)* x0.getBit() / 8
             + xmm_to_preserve * xmm_len;
+    
+    const size_t preserved_stack_size
+            = xreg_len * (2 + num_abi_save_gpr_regs_aarch64)
+            + vreg_len_preserve * vreg_to_preserve;
 
 public:
     enum {
@@ -128,10 +136,10 @@ public:
         _op_mxcsr = 4u,
     };
 
-    Xbyak::Xbyak_aarch64::XReg param1 = abi_param1;
+    Xbyak::Xbyak_aarch64::XReg param1 = abi_param1_aarch64;
     const int EVEX_max_8b_offt = 0x200;
 
-    inline size_t get_size_of_abi_save_regs() { return size_of_abi_save_regs; }
+    inline size_t get_size_of_abi_save_regs() { return size_of_abi_save_regs_aarch64; }
 
     void preamble() {
         CodeGeneratorAArch64::stp(x29, x30,
@@ -148,13 +156,15 @@ public:
             CodeGeneratorAArch64::st4((v8.d - v11.d)[0], post_ptr(x9, vreg_len_preserve*4));
             CodeGeneratorAArch64::st4((v12.d - v15.d)[0], post_ptr(x9, vreg_len_preserve*4));
         }
-        for (size_t i = 0; i < num_abi_save_gpr_regs; i += 2) {
+        for (size_t i = 0; i < num_abi_save_gpr_regs_aarch64; i += 2) {
             CodeGeneratorAArch64::stp(Xbyak::Xbyak_aarch64::XReg(abi_save_gpr_regs_aarch64[i]),
                 Xbyak::Xbyak_aarch64::XReg(abi_save_gpr_regs_aarch64[i + 1]),
                 post_ptr(x9, xreg_len*2));
         }
     }
 
+//TODO:
+#if 0
     // This function returns the address on the stack of the fist argument
     // that is not passed by register
     // By default it assumes to be called after the prologue
@@ -174,12 +184,13 @@ public:
         // before the arguments
         int first_params_and_return_addr_size = 8;
 #endif
-        return rsp + saved_regs_size + first_params_and_return_addr_size;
+        return x0 + saved_regs_size + first_params_and_return_addr_size;
     }
+#endif
 
     void uni_vzeroupper() {
         // TODO
-        if (mayiuse(avx) && !mayiuse(avx512_mic) && !mayiuse(sve)) assert(NULL);
+        assert(NULL);
     }
 
     void postamble() {
@@ -190,7 +201,7 @@ public:
             CodeGeneratorAArch64::ld4((v12.d - v15.d)[0], post_ptr(x9, vreg_len_preserve*4));
         }
 
-        for (size_t i = 0; i < num_abi_save_gpr_regs; i += 2) {
+        for (size_t i = 0; i < num_abi_save_gpr_regs_aarch64; i += 2) {
             CodeGeneratorAArch64::ldp(Xbyak::Xbyak_aarch64::XReg(abi_save_gpr_regs_aarch64[i]),
                 Xbyak::Xbyak_aarch64::XReg(abi_save_gpr_regs_aarch64[i + 1]),
                 post_ptr(x9, xreg_len*2));
@@ -225,7 +236,7 @@ public:
     virtual const char *name() const = 0;
     virtual const char *source_file() const = 0;
 
-    void register_jit_code(const Xbyak::uint8 *code, size_t code_size) const {
+    void register_jit_code(const uint32_t *code, size_t code_size) const {
         jit_utils::register_jit_code(code, code_size, name(), source_file());
     }
 

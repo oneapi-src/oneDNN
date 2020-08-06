@@ -47,6 +47,10 @@ struct reduce_to_unit_stride_t {
 template <typename conv_pd_t>
 inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
         const memory_desc_t *&src_d, const memory_desc_t *dst_d) {
+#if 1
+    assert(NULL);
+    return;
+#else
     const int ndims = src_d->ndims;
 
     bool rtus_applicable = utils::one_of(ndims, 3, 4);
@@ -97,6 +101,7 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
         memory_desc_wrapper::compute_blocking(
                 self->rtus_.conv_d_.src_desc, dat_tag);
     }
+#endif
 }
 
 template <typename conv_pd_t>
@@ -120,7 +125,8 @@ inline void rtus_prepare_space_info(conv_pd_t *self,
 
 template <cpu_isa_t isa>
 struct rtus_driver_t : public jit_generator {
-
+// TODO
+#if 0
     struct call_params_t {
         const void *ws; /* reduced image (w/ strides = 1) */
         const void *src; /* source image (w/ non-unit strides) */
@@ -524,6 +530,7 @@ struct rtus_driver_t : public jit_generator {
         this->ker_ = reinterpret_cast<decltype(ker_)>(
                 const_cast<uint8_t *>(this->getCode()));
     }
+#endif
 };
 
 template <cpu_isa_t isa, typename conv_t>
@@ -683,7 +690,7 @@ inline size_t get_load_loop_output_bwd_d_offset(
     return offset;
 }
 
-} // namespace x64
+} // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
