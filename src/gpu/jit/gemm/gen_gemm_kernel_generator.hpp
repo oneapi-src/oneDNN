@@ -396,7 +396,7 @@ protected:
 struct CommonState {
     static constexpr auto registerCount = 128;
 
-    ngen::RegisterAllocator<registerCount> ra;
+    ngen::RegisterAllocator ra;
     ngen::GRF signChange, selectImag;
     ngen::GRF vflagStorage;
     std::array<uint8_t, 8> activeVFlags;

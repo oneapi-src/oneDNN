@@ -552,7 +552,7 @@ inline void RegData::fixup(int execSize, DataType defaultType, bool isDest, int 
         width = 1;
     } else if (width == 0) {
         int maxWidth = 32 / getBytes();
-        width = (hs == 0) ? 1 : std::min<int>(maxWidth / hs, execSize);
+        width = (hs == 0) ? 1 : std::min<int>({int(maxWidth / hs), execSize, 16});
         vs = width * hs;
     }
     if (isDest && hs == 0)
@@ -1249,6 +1249,7 @@ enum class Opcode {
     dph = 0x55,
     dp3 = 0x56,
     dp2 = 0x57,
+    dp4a = 0x58,
     line = 0x59,
     pln = 0x5A,
     mad = 0x5B,
@@ -1310,7 +1311,7 @@ static const char *getMnemonic(Opcode op, HW hw)
         "add", "mul", "avg", "frc", "rndu", "rndd", "rnde", "rndz",
         "mac", "mach", "lzd", "fbh", "fbl", "cbit", "addc", "subb",
         "sad2", "sada2", "", "", "dp4", "dph", "dp3", "dp2",
-        "", "", "", "mad", "lrp", "madm", "", "",
+        "dp4a", "", "", "mad", "lrp", "madm", "", "",
         "nop", "mov", "sel", "movi", "not", "and", "or", "xor",
         "shr", "shl", "smov", "", "asr", "", "ror", "rol",
         "cmp", "cmpn", "csel", "", "", "", "", "bfrev",
@@ -2210,13 +2211,13 @@ public:
         int addrGRFCount = (1 + simd16) << int(a64);
         int dataGRFCount = count * (1 + simd16);
 
-        base.checkModel(ModelA32 | ModelA64 | ModelBTS | ModelCC);
         desc.all = 0;
         desc.parts.header = false;
         desc.parts.messageLen = addrGRFCount;
         desc.parts.responseLen = dataGRFCount;
 
         if (access == Access::AtomicInteger || access == Access::AtomicFloat) {
+            base.checkModel(ModelA32 | ModelA64 | ModelBTS | ModelSLM);
             exdesc = SharedFunction::dc1;
             if (access == Access::AtomicFloat)
                 desc.atomic.messageType = a64 ? 0x1D : 0x1B;
@@ -2230,6 +2231,7 @@ public:
             desc.a64_scattered.subtype = 0x1;
             desc.a64_scattered.messageType = (access == Access::Write) ? 0x1A : 0x10;
         } else {
+            base.checkModel(ModelA32 | ModelBTS | ModelCC);
             exdesc = (base.getModel() == ModelCC) ? SharedFunction::dcro : SharedFunction::dc0;
             desc.scattered.elements = utils::log2(count);
             desc.scattered.legacySIMD = 1;

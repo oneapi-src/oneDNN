@@ -493,6 +493,21 @@ protected:
         opX(Opcode::dp4, getDataType<DT>(), mod, dst, src0, src1);
     }
     template <typename DT = void>
+    void dp4a(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &src2) {
+        if (hw < HW::Gen12LP) unsupported();
+        opX(Opcode::dp4a, getDataType<DT>(), mod, dst, src0, src1, src2);
+    }
+    template <typename DT = void>
+    void dp4a(const InstructionModifier &mod, const RegData &dst, const Immediate &src0, const RegData &src1, const RegData &src2) {
+        if (hw < HW::Gen12LP) unsupported();
+        opX(Opcode::dp4a, getDataType<DT>(), mod, dst, src0, src1, src2);
+    }
+    template <typename DT = void>
+    void dp4a(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1, const Immediate &src2) {
+        if (hw < HW::Gen12LP) unsupported();
+        opX(Opcode::dp4a, getDataType<DT>(), mod, dst, src0, src1, src2);
+    }
+    template <typename DT = void>
     void dph(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {
         opX(Opcode::dph, getDataType<DT>(), mod, dst, src0, src1);
     }
@@ -1168,7 +1183,8 @@ NGEN_FORWARD_OP_NAMES \
 NGEN_FORWARD_MIN_MAX \
 NGEN_FORWARD_REGISTERS
 
-#define NGEN_FORWARD_EXTRA
+#define NGEN_FORWARD_EXTRA \
+template <typename DT = void, typename... Targs> void dp4a(Targs&&... args) { ngen::BinaryCodeGenerator<hw>::template dp4a<DT>(std::forward<Targs>(args)...); }
 
 #ifdef NGEN_NO_OP_NAMES
 #define NGEN_FORWARD_OP_NAMES
@@ -1191,7 +1207,7 @@ template <typename DT = void, typename... Targs> void max(Targs&&... args) { nge
 #ifdef NGEN_GLOBAL_REGS
 #define NGEN_FORWARD_REGISTERS
 #else
-#define NGEN_FORWARD_REGISTERS \
+#define NGEN_FORWARD_REGISTERS_BASE \
 using ngen::BinaryCodeGenerator<hw>::indirect; \
 using ngen::BinaryCodeGenerator<hw>::r0; using ngen::BinaryCodeGenerator<hw>::r1; using ngen::BinaryCodeGenerator<hw>::r2; using ngen::BinaryCodeGenerator<hw>::r3; \
 using ngen::BinaryCodeGenerator<hw>::r4; using ngen::BinaryCodeGenerator<hw>::r5; using ngen::BinaryCodeGenerator<hw>::r6; using ngen::BinaryCodeGenerator<hw>::r7; \
@@ -1225,38 +1241,6 @@ using ngen::BinaryCodeGenerator<hw>::r112; using ngen::BinaryCodeGenerator<hw>::
 using ngen::BinaryCodeGenerator<hw>::r116; using ngen::BinaryCodeGenerator<hw>::r117; using ngen::BinaryCodeGenerator<hw>::r118; using ngen::BinaryCodeGenerator<hw>::r119; \
 using ngen::BinaryCodeGenerator<hw>::r120; using ngen::BinaryCodeGenerator<hw>::r121; using ngen::BinaryCodeGenerator<hw>::r122; using ngen::BinaryCodeGenerator<hw>::r123; \
 using ngen::BinaryCodeGenerator<hw>::r124; using ngen::BinaryCodeGenerator<hw>::r125; using ngen::BinaryCodeGenerator<hw>::r126; using ngen::BinaryCodeGenerator<hw>::r127; \
-using ngen::BinaryCodeGenerator<hw>::r128; using ngen::BinaryCodeGenerator<hw>::r129; using ngen::BinaryCodeGenerator<hw>::r130; using ngen::BinaryCodeGenerator<hw>::r131; \
-using ngen::BinaryCodeGenerator<hw>::r132; using ngen::BinaryCodeGenerator<hw>::r133; using ngen::BinaryCodeGenerator<hw>::r134; using ngen::BinaryCodeGenerator<hw>::r135; \
-using ngen::BinaryCodeGenerator<hw>::r136; using ngen::BinaryCodeGenerator<hw>::r137; using ngen::BinaryCodeGenerator<hw>::r138; using ngen::BinaryCodeGenerator<hw>::r139; \
-using ngen::BinaryCodeGenerator<hw>::r140; using ngen::BinaryCodeGenerator<hw>::r141; using ngen::BinaryCodeGenerator<hw>::r142; using ngen::BinaryCodeGenerator<hw>::r143; \
-using ngen::BinaryCodeGenerator<hw>::r144; using ngen::BinaryCodeGenerator<hw>::r145; using ngen::BinaryCodeGenerator<hw>::r146; using ngen::BinaryCodeGenerator<hw>::r147; \
-using ngen::BinaryCodeGenerator<hw>::r148; using ngen::BinaryCodeGenerator<hw>::r149; using ngen::BinaryCodeGenerator<hw>::r150; using ngen::BinaryCodeGenerator<hw>::r151; \
-using ngen::BinaryCodeGenerator<hw>::r152; using ngen::BinaryCodeGenerator<hw>::r153; using ngen::BinaryCodeGenerator<hw>::r154; using ngen::BinaryCodeGenerator<hw>::r155; \
-using ngen::BinaryCodeGenerator<hw>::r156; using ngen::BinaryCodeGenerator<hw>::r157; using ngen::BinaryCodeGenerator<hw>::r158; using ngen::BinaryCodeGenerator<hw>::r159; \
-using ngen::BinaryCodeGenerator<hw>::r160; using ngen::BinaryCodeGenerator<hw>::r161; using ngen::BinaryCodeGenerator<hw>::r162; using ngen::BinaryCodeGenerator<hw>::r163; \
-using ngen::BinaryCodeGenerator<hw>::r164; using ngen::BinaryCodeGenerator<hw>::r165; using ngen::BinaryCodeGenerator<hw>::r166; using ngen::BinaryCodeGenerator<hw>::r167; \
-using ngen::BinaryCodeGenerator<hw>::r168; using ngen::BinaryCodeGenerator<hw>::r169; using ngen::BinaryCodeGenerator<hw>::r170; using ngen::BinaryCodeGenerator<hw>::r171; \
-using ngen::BinaryCodeGenerator<hw>::r172; using ngen::BinaryCodeGenerator<hw>::r173; using ngen::BinaryCodeGenerator<hw>::r174; using ngen::BinaryCodeGenerator<hw>::r175; \
-using ngen::BinaryCodeGenerator<hw>::r176; using ngen::BinaryCodeGenerator<hw>::r177; using ngen::BinaryCodeGenerator<hw>::r178; using ngen::BinaryCodeGenerator<hw>::r179; \
-using ngen::BinaryCodeGenerator<hw>::r180; using ngen::BinaryCodeGenerator<hw>::r181; using ngen::BinaryCodeGenerator<hw>::r182; using ngen::BinaryCodeGenerator<hw>::r183; \
-using ngen::BinaryCodeGenerator<hw>::r184; using ngen::BinaryCodeGenerator<hw>::r185; using ngen::BinaryCodeGenerator<hw>::r186; using ngen::BinaryCodeGenerator<hw>::r187; \
-using ngen::BinaryCodeGenerator<hw>::r188; using ngen::BinaryCodeGenerator<hw>::r189; using ngen::BinaryCodeGenerator<hw>::r190; using ngen::BinaryCodeGenerator<hw>::r191; \
-using ngen::BinaryCodeGenerator<hw>::r192; using ngen::BinaryCodeGenerator<hw>::r193; using ngen::BinaryCodeGenerator<hw>::r194; using ngen::BinaryCodeGenerator<hw>::r195; \
-using ngen::BinaryCodeGenerator<hw>::r196; using ngen::BinaryCodeGenerator<hw>::r197; using ngen::BinaryCodeGenerator<hw>::r198; using ngen::BinaryCodeGenerator<hw>::r199; \
-using ngen::BinaryCodeGenerator<hw>::r200; using ngen::BinaryCodeGenerator<hw>::r201; using ngen::BinaryCodeGenerator<hw>::r202; using ngen::BinaryCodeGenerator<hw>::r203; \
-using ngen::BinaryCodeGenerator<hw>::r204; using ngen::BinaryCodeGenerator<hw>::r205; using ngen::BinaryCodeGenerator<hw>::r206; using ngen::BinaryCodeGenerator<hw>::r207; \
-using ngen::BinaryCodeGenerator<hw>::r208; using ngen::BinaryCodeGenerator<hw>::r209; using ngen::BinaryCodeGenerator<hw>::r210; using ngen::BinaryCodeGenerator<hw>::r211; \
-using ngen::BinaryCodeGenerator<hw>::r212; using ngen::BinaryCodeGenerator<hw>::r213; using ngen::BinaryCodeGenerator<hw>::r214; using ngen::BinaryCodeGenerator<hw>::r215; \
-using ngen::BinaryCodeGenerator<hw>::r216; using ngen::BinaryCodeGenerator<hw>::r217; using ngen::BinaryCodeGenerator<hw>::r218; using ngen::BinaryCodeGenerator<hw>::r219; \
-using ngen::BinaryCodeGenerator<hw>::r220; using ngen::BinaryCodeGenerator<hw>::r221; using ngen::BinaryCodeGenerator<hw>::r222; using ngen::BinaryCodeGenerator<hw>::r223; \
-using ngen::BinaryCodeGenerator<hw>::r224; using ngen::BinaryCodeGenerator<hw>::r225; using ngen::BinaryCodeGenerator<hw>::r226; using ngen::BinaryCodeGenerator<hw>::r227; \
-using ngen::BinaryCodeGenerator<hw>::r228; using ngen::BinaryCodeGenerator<hw>::r229; using ngen::BinaryCodeGenerator<hw>::r230; using ngen::BinaryCodeGenerator<hw>::r231; \
-using ngen::BinaryCodeGenerator<hw>::r232; using ngen::BinaryCodeGenerator<hw>::r233; using ngen::BinaryCodeGenerator<hw>::r234; using ngen::BinaryCodeGenerator<hw>::r235; \
-using ngen::BinaryCodeGenerator<hw>::r236; using ngen::BinaryCodeGenerator<hw>::r237; using ngen::BinaryCodeGenerator<hw>::r238; using ngen::BinaryCodeGenerator<hw>::r239; \
-using ngen::BinaryCodeGenerator<hw>::r240; using ngen::BinaryCodeGenerator<hw>::r241; using ngen::BinaryCodeGenerator<hw>::r242; using ngen::BinaryCodeGenerator<hw>::r243; \
-using ngen::BinaryCodeGenerator<hw>::r244; using ngen::BinaryCodeGenerator<hw>::r245; using ngen::BinaryCodeGenerator<hw>::r246; using ngen::BinaryCodeGenerator<hw>::r247; \
-using ngen::BinaryCodeGenerator<hw>::r248; using ngen::BinaryCodeGenerator<hw>::r249; using ngen::BinaryCodeGenerator<hw>::r250; using ngen::BinaryCodeGenerator<hw>::r251; \
-using ngen::BinaryCodeGenerator<hw>::r252; using ngen::BinaryCodeGenerator<hw>::r253; using ngen::BinaryCodeGenerator<hw>::r254; using ngen::BinaryCodeGenerator<hw>::r255; \
 using ngen::BinaryCodeGenerator<hw>::null; \
 using ngen::BinaryCodeGenerator<hw>::a0; \
 using ngen::BinaryCodeGenerator<hw>::acc0; using ngen::BinaryCodeGenerator<hw>::acc1; using ngen::BinaryCodeGenerator<hw>::acc2; using ngen::BinaryCodeGenerator<hw>::acc3; \
@@ -1293,6 +1277,8 @@ template <typename... Targs> ngen::InstructionModifier ExecutionOffset(Targs&&..
 template <typename... Targs> ngen::AddressBase Surface(Targs&&... args) { return ngen::BinaryCodeGenerator<hw>::Surface(std::forward<Targs>(args)...); } \
 template <typename... Targs> ngen::AddressBase CC(Targs&&... args) { return ngen::BinaryCodeGenerator<hw>::CC(std::forward<Targs>(args)...); } \
 template <typename... Targs> ngen::AddressBase SC(Targs&&... args) { return ngen::BinaryCodeGenerator<hw>::SC(std::forward<Targs>(args)...); }
+#define NGEN_FORWARD_REGISTERS_EXTRA
+#define NGEN_FORWARD_REGISTERS NGEN_FORWARD_REGISTERS_BASE NGEN_FORWARD_REGISTERS_EXTRA
 #endif
 
 template <HW hw>
