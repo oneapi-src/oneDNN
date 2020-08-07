@@ -87,7 +87,7 @@ void jit_sve_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
                                         * jcp.bcast_loop_output_substep,
                         reg_tmp_imm);
             }
-            CGA64::sub_imm(reg_bcast_loop_iter, reg_bcast_loop_iter,
+            CGA64::subs_imm(reg_bcast_loop_iter, reg_bcast_loop_iter,
                             jcp.ur, reg_tmp_imm);
         }
         CGA64::cmp(reg_bcast_loop_iter, jcp.bcast_block);
@@ -113,55 +113,105 @@ void jit_sve_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
 
 void jit_sve_1x1_conv_kernel::reduce_loop(
         int load_loop_blk, int ur, int substep, bool wraparound) {
-/*
+
     const bool out_layout_nxc = is_out_layout_nxc(jcp);
     const bool load_layout_nxc = is_load_layout_nxc(jcp);
     const bool bcast_layout_nxc = is_bcast_layout_nxc(jcp);
     const int reduce_dim_tail = jcp.reduce_dim % jcp.reduce_block;
     const int load_dim_tail = jcp.load_dim % jcp.load_block;
 
+    auto vreg_bcast_s = [=](int idx) {
+        return xa::ZRegS(idx);
+    };
+
+    auto vreg_sum = [=]() {
+        return xa::ZReg(31);
+    };
+    auto vreg_sum_s = [=]() {
+        return xa::ZRegS(31);
+    };
+
     auto vreg_load = [=](int i_load, int i_fma) {
-        return Zmm(utils::rnd_up(ur * load_loop_blk, jcp.fma_step)
-                + jcp.fma_step * i_load + i_fma);
+        return xa::ZReg(utils::rnd_up(ur * load_loop_blk, jcp.fma_step)
+                    + jcp.fma_step * i_load + i_fma);
+    };
+    auto vreg_load_s = [=](int i_load, int i_fma) {
+        return xa::ZRegS(utils::rnd_up(ur * load_loop_blk, jcp.fma_step)
+                    + jcp.fma_step * i_load + i_fma);
     };
 
     auto vreg_accum = [=](int i_load, int i_ur) {
-        return Zmm(i_ur * load_loop_blk + i_load);
+        return xa::ZReg(i_ur * load_loop_blk + i_load);
+    };
+    auto vreg_accum_s = [=](int i_load, int i_ur) {
+        return xa::ZRegS(i_ur * load_loop_blk + i_load);
     };
 
-    auto bias_ptr = [=](int i_load) {
-        return EVEX_compress_addr(
-                reg_bias_data, jcp.typesize_out * jcp.oc_block * i_load);
+    auto bias_load = [=](int i_load, int i_ur){
+        int ofs = jcp.typesize_out * jcp.oc_block * i_load;
+        if((VL_OFS(ofs) <= LDRMAX) &&
+           (VL_OFS(ofs) >= (-1 * LDRMAX)) &&
+           ((ofs&0x3f)==0)){
+
+            CGA64::ldr(vreg_accum(i_load, i_ur),
+                       xa::ptr(reg_bias_data, static_cast<int32_t>(VL_OFS(ofs))));
+        }else{
+            CGA64::add_imm(reg_tmp_ofs, reg_bias_data, ofs, reg_tmp_imm);
+            CGA64::ldr(vreg_accum(i_load, i_ur), xa::ptr(reg_tmp_ofs));
+        }
     };
 
-    auto bcast_ptr = [=](int i_reduce, int i_ur, bool bcast) {
+    auto bcast_load = [=](int i_reduce, int i_ur,
+                              int prev_ofs, int bcast_idx) {
         assert(i_ur < jcp.ur);
         assert(i_reduce <= jcp.reduce_loop_unroll);
-        int offt;
+        int ofs;
         if (one_of(jcp.prop_kind, forward_training, forward_inference,
                     backward_data)) {
             assert(jcp.reduce_loop_unroll == jcp.reduce_block);
             const int reduce_mul = bcast_layout_nxc ? jcp.reduce_dim
                                                     : jcp.reduce_loop_unroll;
-            offt = (i_reduce == jcp.reduce_loop_unroll)
+            ofs = (i_reduce == jcp.reduce_loop_unroll)
                     ? (jcp.bcast_dim + i_ur) * reduce_mul
                     : i_ur * reduce_mul + i_reduce;
         } else {
             if (jcp.transpose_src) {
                 const int reduce_group = i_reduce / 4;
                 const int reduce_shift = i_reduce % 4;
-                offt = 4 * (reduce_group * jcp.ic_block + i_ur) + reduce_shift;
+                ofs = 4 * (reduce_group * jcp.ic_block + i_ur) + reduce_shift;
             } else {
                 int rmul = bcast_layout_nxc ? jcp.ic : jcp.ic_block;
-                offt = i_reduce * rmul + i_ur;
+                ofs = i_reduce * rmul + i_ur;
             }
         }
-        return EVEX_compress_addr(
-                aux_reg_bcast_data, jcp.typesize_in * offt, bcast);
+
+        ofs = jcp.typesize_in * ofs;
+        int tmp_ofs = ofs;
+        if( ((ofs&0x3) == 0) && (ofs <= LDRWMAX) && (ofs >= 0)){
+          CGA64::ld1rw(vreg_bcast_s(bcast_idx), reg_p_all_ones,
+                        xa::ptr(aux_reg_bcast_data, static_cast<int32_t>(ofs)));
+        }else{
+          if((prev_ofs != -1) && ((ofs - prev_ofs)>=0)
+              &&((ofs - prev_ofs) <= LDRWMAX) && (((ofs-prev_ofs)&0x3) == 0)){
+            CGA64::ld1rw(vreg_bcast_s(bcast_idx), reg_p_all_ones,
+                          xa::ptr(reg_prev_bcast_addr, static_cast<int32_t>((ofs-prev_ofs))));
+          }else{
+            if((prev_ofs != -1) && ((ofs - prev_ofs)>=0)){
+              ofs = ofs - prev_ofs;
+              CGA64::add_imm(reg_prev_bcast_addr, reg_prev_bcast_addr, ofs, reg_tmp_imm);
+            }else{
+              CGA64::add_imm(reg_prev_bcast_addr, aux_reg_bcast_data, ofs, reg_tmp_imm);
+            }
+            prev_ofs = tmp_ofs;
+
+            CGA64::ld1rw(vreg_bcast_s(bcast_idx), reg_p_all_ones, xa::ptr(reg_prev_bcast_addr));
+          }
+        }
+        return prev_ofs;
     };
 
-    auto load_ptr = [=](int i_reduce, int i_load) {
-        int offt;
+    auto load_load = [=]( int i_reduce, int i_load, int i_fma ){
+        int ofs;
         int u0 = i_reduce % jcp.reduce_loop_unroll;
         int u1 = i_reduce / jcp.reduce_loop_unroll;
         int lmul = jcp.load_block
@@ -169,12 +219,26 @@ void jit_sve_1x1_conv_kernel::reduce_loop(
                                    : utils::rnd_up(
                                            jcp.reduce_dim, jcp.reduce_block));
         int rmul = load_layout_nxc ? jcp.load_dim : jcp.load_block;
-        offt = i_load * lmul + u0 * rmul;
-        return EVEX_compress_addr(aux_reg_load_data,
-                u1 * jcp.reduce_loop_load_step + jcp.typesize_in * offt);
+        ofs = i_load * lmul + u0 * rmul;
+        ofs = u1 * jcp.reduce_loop_load_step + jcp.typesize_in * ofs;
+
+        if((VL_OFS(ofs) <= LDRMAX) && (VL_OFS(ofs) >= (-1* LDRMAX)) &&
+           ((ofs&0x3f)==0)){
+          ofs = VL_OFS(ofs);
+          CGA64::ldr(vreg_load(i_load, i_fma), 
+                    xa::ptr(aux_reg_load_data, static_cast<int32_t>(ofs)));
+        }else{
+          CGA64::add_imm(reg_tmp_ofs, aux_reg_load_data, ofs, reg_tmp_imm);
+          CGA64::ldr(vreg_load(i_load, i_fma), xa::ptr(reg_tmp_ofs));
+        }
     };
 
-    auto output_ptr = [=](int i_load, int i_ur) {
+    auto out_load = [=](int i_load, int i_ur, int prev_ofs) {
+
+        int ofs, ofs_tmp;
+        int bwd_iload = (i_load != 0) && one_of(jcp.prop_kind, backward_weights);
+        auto r = (bwd_iload) ? reg_tmp_ofs : aux_reg_output_data;
+ 
         if (one_of(jcp.prop_kind, forward_training, forward_inference,
                     backward_data)) {
             int i_load_shift = out_layout_nxc
@@ -182,110 +246,190 @@ void jit_sve_1x1_conv_kernel::reduce_loop(
                     : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
                             * jcp.load_block;
             int i_ur_shift = out_layout_nxc ? jcp.load_dim : jcp.load_block;
-            int offset = (i_load * i_load_shift + i_ur * i_ur_shift)
+            ofs = (i_load * i_load_shift + i_ur * i_ur_shift)
                     * jcp.typesize_out;
-            return EVEX_compress_addr(aux_reg_output_data, offset);
-        } else
-            return ptr[aux_reg_output_data
-                    + (i_load ? reg_output_stride * i_load
-                              : 0) // TODO: Xbyak should allow 0 scale
-                    + jcp.typesize_out * jcp.load_block * i_ur];
+        } else {
+            ofs = jcp.typesize_out * jcp.load_block * i_ur;
+        }
+
+        ofs_tmp = ofs;
+
+        if(bwd_iload) CGA64::mov(r, i_load);
+        if((VL_OFS(ofs) <= LDRMAX) &&
+           (VL_OFS(ofs) >= (-1 * LDRMAX)) &&
+           ((ofs&0x3f)==0)){
+          if(bwd_iload) CGA64::madd(r, r, reg_output_stride, aux_reg_output_data);
+          CGA64::ldr(vreg_sum(), xa::ptr(r, static_cast<int32_t>(VL_OFS(ofs))));
+        }else{
+          if((prev_ofs != -1) &&
+              ((ofs - prev_ofs)>0) &&
+              (VL_OFS(ofs - prev_ofs) <= LDRMAX)){
+            if(bwd_iload) CGA64::madd(r, r, reg_output_stride, reg_prev_out_addr);
+            else          r = reg_prev_out_addr;
+            CGA64::ldr(vreg_sum(), xa::ptr(r, static_cast<int32_t>(VL_OFS(ofs - prev_ofs))));
+          }else{
+            if((prev_ofs != -1) && ((ofs - prev_ofs)>0)){
+              ofs = ofs - prev_ofs;
+              CGA64::add_imm(reg_prev_out_addr, reg_prev_out_addr, ofs, reg_tmp_imm);
+            }else{
+              CGA64::add_imm(reg_prev_out_addr, aux_reg_output_data, ofs, reg_tmp_imm);
+            }
+            if(bwd_iload) CGA64::madd(r, r, reg_output_stride, reg_prev_out_addr);
+            else          r = reg_prev_out_addr;
+            CGA64::ldr(vreg_sum(), xa::ptr(r));
+
+            prev_ofs = ofs_tmp;
+
+          }
+        }
+        return prev_ofs;
+    };
+
+    auto out_str = [=](int i_load, int i_ur, int prev_ofs){
+        int ofs, ofs_tmp;
+        int bwd_iload = (i_load != 0) && one_of(jcp.prop_kind, backward_weights);
+        auto r = (bwd_iload) ? reg_tmp_ofs : aux_reg_output_data;
+        if (one_of(jcp.prop_kind, forward_training, forward_inference,
+                   backward_data)){
+          ofs = (i_load * jcp.bcast_dim + i_ur) * jcp.load_block * jcp.typesize_out;
+        }else{
+          ofs = jcp.typesize_out * jcp.load_block * i_ur;
+        }
+        ofs_tmp = ofs;
+
+        if(bwd_iload) CGA64::mov(r, i_load);
+        if((VL_OFS(ofs) <= LDRMAX) &&
+           (VL_OFS(ofs) >= (-1 * LDRMAX)) &&
+           ((ofs&0x3f)==0)){
+          if(bwd_iload) CGA64::madd(r, r, reg_output_stride, aux_reg_output_data);
+          CGA64::str(vreg_accum(i_load, i_ur), xa::ptr(r, static_cast<int32_t>(VL_OFS(ofs))));
+        }else{
+          if((prev_ofs != -1) &&
+             ((ofs - prev_ofs)>0) &&
+             ((VL_OFS(ofs - prev_ofs)) <= LDRMAX)){
+            if(bwd_iload)  CGA64::madd(r, r, reg_output_stride, reg_prev_out_addr);
+            else            r = reg_prev_out_addr;
+            CGA64::str(vreg_accum(i_load, i_ur), xa::ptr(r, static_cast<int32_t>(VL_OFS(ofs-prev_ofs))));
+          }else{
+            if((prev_ofs != -1) && ((ofs - prev_ofs)>0)){
+              ofs = ofs - prev_ofs;
+              CGA64::add_imm(reg_prev_out_addr, reg_prev_out_addr, ofs, reg_tmp_imm);
+            }else{
+              CGA64::add_imm(reg_prev_out_addr, aux_reg_output_data, ofs, reg_tmp_imm);
+            }
+            if(bwd_iload) CGA64::madd(r, r, reg_output_stride, reg_prev_out_addr);
+            else          r = reg_prev_out_addr;
+            CGA64::str(vreg_accum(i_load, i_ur), xa::ptr(r));
+
+            prev_ofs = ofs_tmp;
+          }
+        }
+        return prev_ofs;
+    };
+
+
+    auto prefetch_output = [=](int i_load, int i_ur) {
+      int ofs;
+      int bwd_iload = (i_load != 0) && one_of(jcp.prop_kind, backward_weights);
+      auto r = (bwd_iload) ? reg_tmp_ofs : aux_reg_output_data;
+      if (one_of(jcp.prop_kind, forward_training, forward_inference,
+                 backward_data)){
+        ofs = (i_load * jcp.bcast_dim + i_ur) * jcp.load_block * jcp.typesize_out;
+      }else{
+        ofs = jcp.typesize_out * jcp.load_block * i_ur;
+      }
+      std::string op = "LD";
+      prefetch(op, 2, r, ofs);
     };
 
     auto init = [=]() {
-        Label init_done;
-        Label init_zero;
+        xa::LabelAArch64 init_done;
+        xa::LabelAArch64 init_zero;
 
         if (jcp.with_sum) {
             for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                 for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                    mic_prefetcht1(output_ptr(i_load, i_ur));
+                    prefetch_output(i_load, i_ur);
                 }
             }
         }
 
         if (jcp.with_bias
                 && one_of(jcp.prop_kind, forward_training, forward_inference)) {
-            test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
-            jz(init_zero, T_NEAR);
+
+            CGA64::tst(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
+            CGA64::b(xa::EQ, init_zero);
 
             for (int i_load = 0; i_load < load_loop_blk; i_load++)
                 for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                    auto vreg_acc = vreg_accum(i_load, i_ur);
-                    if (i_load + 1 == load_loop_blk && load_dim_tail)
-                        vreg_acc = vreg_acc | k_load_dim_mask | T_z;
-
-                    vmovups(vreg_acc, bias_ptr(i_load));
+#if 0
+                 if (i_load + 1 == load_loop_blk && load_dim_tail)
+                    r = r | k_load_dim_mask | T_z;
+#endif
+                    bias_load(i_load, i_ur); 
                 }
-            jmp(init_done, T_NEAR);
+            CGA64::b(init_done);
         }
 
-        L(init_zero);
+        CGA64::L_aarch64(init_zero);
+        /* Zero clear */
         for (int i_load = 0; i_load < load_loop_blk; ++i_load)
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                auto r = vreg_accum(i_load, i_ur);
-                vpxord(r, r, r);
+                CGA64::fmov(vreg_accum_s(i_load, i_ur));
             }
-        L(init_done);
+        CGA64::L_aarch64(init_done);
     };
 
     auto store = [=]() {
-        Label store_noadd;
+        xa::LabelAArch64 store_noadd;
         if (!jcp.with_sum) {
-            test(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
-            jnz(store_noadd, T_NEAR);
+            CGA64::tst(reg_reduce_pos_flag, FLAG_REDUCE_FIRST);
+            CGA64::b(xa::NE, store_noadd);
         }
 
+        int prev_ofs = -1;
         for (int i_ur = 0; i_ur < ur; ++i_ur)
             for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                auto r = vreg_accum(i_load, i_ur);
+                auto r = vreg_accum_s(i_load, i_ur);
+#if 0
                 if (i_load + 1 == load_loop_blk && load_dim_tail)
                     r = r | k_load_dim_mask | T_z;
-                vaddps(r, r, output_ptr(i_load, i_ur));
+#endif
+                prev_ofs = out_load(i_load, i_ur, prev_ofs);
+                CGA64::fadd(r, r, vreg_sum_s());
             }
 
-        L(store_noadd);
+        CGA64::L_aarch64(store_noadd);
         if (jcp.with_eltwise) {
-            Label store_noeltwise;
-            test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
-            jz(store_noeltwise, T_NEAR);
-
+            assert(NULL);
+            xa::LabelAArch64 store_noeltwise;
+            CGA64::tst(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
+            CGA64::b(xa::EQ, store_noeltwise);
+#if 0
             eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
-
-            L(store_noeltwise);
+#endif
+            CGA64::L_aarch64(store_noeltwise);
         }
 
-        auto store_output = [=](bool output_is_aligned) {
-            for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                    auto vreg_acc = vreg_accum(i_load, i_ur);
-                    // for nxc_layout-bwd_w, weights are still padded and the
-                    // output_ptr here can be uninitialized scratchpad.
-                    // To ensure final output (after reduction) is zero-padded,
-                    // here we zero-pad output by omitting the mask.
-                    if (jcp.prop_kind != backward_weights
-                            && i_load + 1 == load_loop_blk && load_dim_tail) {
-                        vreg_acc = vreg_acc | k_load_dim_mask;
-                    }
-
-                    if (output_is_aligned && jcp.use_vmovntps && !load_dim_tail)
-                        vmovntps(output_ptr(i_load, i_ur), vreg_acc);
-                    else
-                        vmovups(output_ptr(i_load, i_ur), vreg_acc);
+        prev_ofs = -1;
+        for (int i_ur = 0; i_ur < ur; ++i_ur) {
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                // for nxc_layout-bwd_w, weights are still padded and the
+                // output_ptr here can be uninitialized scratchpad.
+                // To ensure final output (after reduction) is zero-padded,
+                // here we zero-pad output by omitting the mask.
+#if 0
+                if (jcp.prop_kind != backward_weights
+                        && i_load + 1 == load_loop_blk && load_dim_tail) {
+                    vreg_acc = vreg_acc | k_load_dim_mask;
                 }
+#endif
+                prev_ofs = out_str(i_load, i_ur, prev_ofs);
             }
-        };
-
-        Label unaligned_store, end_store;
-        test(aux_reg_output_data, cpu_isa_traits<sve>::vlen - 1);
-        jnz(unaligned_store, T_NEAR);
-        store_output(true);
-        jmp(end_store, T_NEAR);
-        L(unaligned_store);
-        { store_output(false); }
-        L(end_store);
+        }
     };
 
+#if 0
     auto prefetch_callback = [=](int ur, int i_reduce, int i_ur, int i_load,
                                      bool last_block, bool wraparound,
                                      int reduce_step) {
@@ -365,109 +509,107 @@ void jit_sve_1x1_conv_kernel::reduce_loop(
             }
         }
     };
+#endif
 
     auto fma_block = [=](bool last_block) {
         assert(jcp.reduce_loop_unroll % jcp.fma_step == 0);
 
         int reduce_step = jcp.fma_step;
-
+        int prev_bcast_ofs = -1;
         assert(reduce_dim_tail % reduce_step == 0);
+
         const int i_reduce_end = reduce_dim_tail && last_block
                 ? reduce_dim_tail
                 : jcp.reduce_loop_unroll;
 
+        int bcast_reg_ofs = utils::rnd_up(ur * load_loop_blk, jcp.fma_step)
+                               + jcp.fma_step * load_loop_blk;
+        int num_bcast_regs = 32 - bcast_reg_ofs;
+
         for (int i_reduce = 0; i_reduce < i_reduce_end;
-                i_reduce += reduce_step) {
-            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                i_reduce += reduce_step) { // IC
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) { // OC
                 // if transposed input data used and if spatial size is
                 // not divided by transpose step (4) then for last reduce step
                 // we should load only needed load_registers data
                 // and clear remaining
                 if (jcp.transpose_src && jcp.is % jcp.fma_step && last_block
                         && i_reduce == jcp.reduce_loop_unroll - reduce_step) {
-                    Label load_all;
-                    Label load_finish;
-                    test(reg_reduce_pos_flag, FLAG_SP_LAST);
-                    jz(load_all, T_NEAR);
+                    xa::LabelAArch64 load_all;
+                    xa::LabelAArch64 load_finish;
+                    CGA64::tst(reg_reduce_pos_flag, FLAG_SP_LAST);
+                    CGA64::b(xa::EQ, load_all);
 
                     const int n_loads = jcp.is % jcp.fma_step;
                     for (int i_fma = 0; i_fma < jcp.fma_step; i_fma++) {
                         if (i_fma < n_loads)
-                            vmovups(vreg_load(i_load, i_fma),
-                                    load_ptr(i_reduce + i_fma, i_load));
+                            load_load(i_reduce + i_fma, i_load, i_fma);
                         else
-                            vpxord(vreg_load(i_load, i_fma),
-                                    vreg_load(i_load, i_fma),
-                                    vreg_load(i_load, i_fma));
+                            CGA64::fmov(vreg_load_s(i_load, i_fma));
                     }
-                    jmp(load_finish);
+                    CGA64::b(load_finish);
 
-                    L(load_all);
+                    CGA64::L_aarch64(load_all);
                     for (int i_fma = 0; i_fma < jcp.fma_step; i_fma++) {
-                        vmovups(vreg_load(i_load, i_fma),
-                                load_ptr(i_reduce + i_fma, i_load));
+                        load_load(i_reduce + i_fma, i_load, i_fma);
                     }
-                    L(load_finish);
+                    CGA64::L_aarch64(load_finish);
                 } else {
                     for (int i_fma = 0; i_fma < jcp.fma_step; i_fma++) {
-                        auto vreg = vreg_load(i_load, i_fma);
+#if 0
                         if (i_load + 1 == load_loop_blk && load_dim_tail)
                             vreg = vreg | k_load_dim_mask | T_z;
-
-                        vmovups(vreg, load_ptr(i_reduce + i_fma, i_load));
+#endif
+                        load_load(i_reduce + i_fma, i_load, i_fma);
                     }
                 }
             }
 
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                if (jcp.ver == ver_avx512_core && jcp.expl_bcast
-                        && load_loop_blk > 1)
-                    vbroadcastss(vreg_bcast, bcast_ptr(i_reduce, i_ur, false));
+                prev_bcast_ofs = bcast_load(i_reduce, i_ur, prev_bcast_ofs, bcast_reg_ofs + (i_ur % num_bcast_regs));
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                    auto vreg_acc = vreg_accum(i_load, i_ur);
+#if 0
                     if (i_load + 1 == load_loop_blk && load_dim_tail)
                         vreg_acc = vreg_acc | k_load_dim_mask | T_z;
-                    if (jcp.ver == ver_4fma)
-                        v4fmaddps(vreg_acc, vreg_load(i_load, 0),
-                                bcast_ptr(i_reduce, i_ur, false));
-                    else if (jcp.ver == ver_avx512_core && jcp.expl_bcast
-                            && load_loop_blk > 1)
-                        vfmadd231ps(vreg_acc, vreg_load(i_load, 0), vreg_bcast);
-                    else
-                        vfmadd231ps(vreg_acc, vreg_load(i_load, 0),
-                                bcast_ptr(i_reduce, i_ur, true));
-                    prefetch_callback(ur, i_reduce, i_ur, i_load, last_block,
-                            wraparound, reduce_step);
+#endif
+                    CGA64::fmla(vreg_accum_s(i_load, i_ur), reg_p_all_ones,
+                            vreg_load_s(i_load, 0),
+                            vreg_bcast_s(bcast_reg_ofs + (i_ur % num_bcast_regs)));
+ 
                 }
             }
         }
     };
-    Label reduce_loop;
-    Label reduce_loop_tail;
+    xa::LabelAArch64 reduce_loop;
+    xa::LabelAArch64 reduce_loop_tail;
 
-    mov(aux_reg_load_data, reg_load_data);
+    CGA64::mov(aux_reg_load_data, reg_load_data);
 
-    mov(aux_reg_bcast_data, aux1_reg_bcast_data);
+    CGA64::mov(aux_reg_bcast_data, aux1_reg_bcast_data);
     init();
 
-    mov(reduce_loop_iter, reg_reduce_loop_work);
-    sub(reduce_loop_iter, jcp.reduce_loop_unroll);
-    jle(reduce_loop_tail, T_NEAR);
+    CGA64::mov(reduce_loop_iter, reg_reduce_loop_work);
+    CGA64::subs_imm(reduce_loop_iter, reduce_loop_iter, 
+                    jcp.reduce_loop_unroll, reg_tmp_imm);
+    CGA64::b(xa::LE, reduce_loop_tail);
 
-    L(reduce_loop);
+    CGA64::L_aarch64(reduce_loop);
     {
         fma_block(false);
-        add(aux_reg_bcast_data, jcp.reduce_loop_bcast_step);
-        add(aux_reg_load_data, jcp.reduce_loop_load_step);
-        sub(reduce_loop_iter, jcp.reduce_loop_unroll);
-        jg(reduce_loop, T_NEAR);
+        CGA64::add_imm(aux_reg_bcast_data, aux_reg_bcast_data,
+                        jcp.reduce_loop_bcast_step, reg_tmp_imm);
+        CGA64::add_imm(aux_reg_load_data, aux_reg_load_data,
+                        jcp.reduce_loop_load_step, reg_tmp_imm);
+        CGA64::subs_imm(reduce_loop_iter, reduce_loop_iter,
+                        jcp.reduce_loop_unroll, reg_tmp_imm);
+        CGA64::b(xa::GT, reduce_loop);
     }
 
-    L(reduce_loop_tail);
+    CGA64::L_aarch64(reduce_loop_tail);
     fma_block(true);
 
     store();
-*/
+
 }
 
 void jit_sve_1x1_conv_kernel::generate() {
@@ -515,7 +657,7 @@ void jit_sve_1x1_conv_kernel::generate() {
         if (load_dim_tail)
             kxnorw(k_load_dim_mask, k_load_dim_mask, k_load_dim_mask);
 #endif
-        CGA64::sub_imm(reg_load_loop_work, reg_load_loop_work,
+        CGA64::subs_imm(reg_load_loop_work, reg_load_loop_work,
                       load_loop_blk * jcp.load_loop_iter_step, reg_tmp_imm);
 
         if (load_dim_tail) {
