@@ -49,108 +49,66 @@ namespace xa = Xbyak::Xbyak_aarch64;
 
 
 void jit_sve_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
-/*
-    mov(aux1_reg_bcast_data, reg_bcast_data);
-    mov(aux_reg_bcast_data, reg_bcast_data);
 
-    mov(aux_reg_output_data, reg_output_data);
-    mov(reg_bcast_loop_iter, EVEX_compress_addr(rsp, bcast_loop_work_offt));
+    CGA64::mov(aux1_reg_bcast_data, reg_bcast_data);
+    CGA64::mov(aux_reg_bcast_data, reg_bcast_data);
 
-    if (jcp.ver == ver_4fma) {
-        Label bcast_loop;
-        Label bcast_loop_wraparound;
-        Label bcast_loop_out;
-        Label bcast_loop_ur_full;
+    CGA64::mov(aux_reg_output_data, reg_output_data);
+    CGA64::mov(reg_bcast_loop_iter, reg_bcast_loop_work);
 
-        cmp(reg_bcast_loop_iter, jcp.ur);
-        jle(bcast_loop_wraparound, T_NEAR);
+    xa::LabelAArch64 bcast_loop;
+    xa::LabelAArch64 bcast_loop_tail;
+    xa::LabelAArch64 large_tail;
 
-        L(bcast_loop);
-        {
-            assert(jcp.bcast_block % jcp.ur == 0);
-            int num_substeps = jcp.bcast_block / jcp.ur;
-            assert(num_substeps > 0 && num_substeps < 10);
-            for (int i = 0; i < num_substeps; i++) {
-                reduce_loop(load_loop_blk, jcp.ur, i, false);
-                if (i < num_substeps - 1) {
-                    add(aux1_reg_bcast_data, jcp.bcast_loop_bcast_substep);
-                    add(aux_reg_output_data, jcp.bcast_loop_output_substep);
-                } else {
-                    add(aux1_reg_bcast_data,
-                            jcp.bcast_loop_bcast_step
-                                    - (num_substeps - 1)
-                                            * jcp.bcast_loop_bcast_substep);
-                    add(aux_reg_output_data,
-                            jcp.bcast_loop_output_step
-                                    - (num_substeps - 1)
-                                            * jcp.bcast_loop_output_substep);
-                }
+    CGA64::cmp(reg_bcast_loop_iter, jcp.bcast_block);
+    CGA64::b(xa::LT, bcast_loop_tail);
+
+    CGA64::L_aarch64(bcast_loop); {
+        assert(jcp.bcast_block % jcp.ur == 0);
+        int num_substeps = jcp.bcast_block / jcp.ur;
+        assert(num_substeps > 0 && num_substeps < 10);
+        for (int i = 0; i < num_substeps; i++) {
+            if (i + 1 == num_substeps) L(large_tail);
+            reduce_loop(load_loop_blk, jcp.ur, i, false);
+            if (i < num_substeps - 1) {
+                CGA64::add_imm(aux1_reg_bcast_data, aux1_reg_bcast_data,
+                                jcp.bcast_loop_bcast_substep, reg_tmp_imm);
+                CGA64::add_imm(aux_reg_output_data, aux_reg_output_data,
+                                jcp.bcast_loop_output_substep, reg_tmp_imm);
+            } else {
+                CGA64::add_imm(aux1_reg_bcast_data, aux1_reg_bcast_data,
+                        jcp.bcast_loop_bcast_step
+                                - (num_substeps - 1)
+                                        * jcp.bcast_loop_bcast_substep,
+                        reg_tmp_imm);
+                CGA64::add_imm(aux_reg_output_data, aux_reg_output_data,
+                        jcp.bcast_loop_output_step
+                                - (num_substeps - 1)
+                                        * jcp.bcast_loop_output_substep,
+                        reg_tmp_imm);
             }
-            sub(reg_bcast_loop_iter, jcp.bcast_block);
-            cmp(reg_bcast_loop_iter, jcp.bcast_block);
-            jg(bcast_loop, T_NEAR);
+            CGA64::sub_imm(reg_bcast_loop_iter, reg_bcast_loop_iter,
+                            jcp.ur, reg_tmp_imm);
         }
+        CGA64::cmp(reg_bcast_loop_iter, jcp.bcast_block);
+        CGA64::b(xa::GE, bcast_loop);
+    }
 
-        L(bcast_loop_wraparound);
-        if (jcp.ur_tail) {
-            je(bcast_loop_ur_full, T_NEAR);
-            reduce_loop(load_loop_blk, jcp.ur_tail, 0, true);
-            jmp(bcast_loop_out, T_NEAR);
+    CGA64::L_aarch64(bcast_loop_tail);
+    if (jcp.ur_tail) {
+        xa::LabelAArch64 bcast_loop_tail_out;
+        if (jcp.ur_tail >= jcp.ur) {
+            CGA64::cmp(reg_bcast_loop_iter, jcp.ur);
+            CGA64::b(xa::GE, large_tail);
         }
-        L(bcast_loop_ur_full);
-        reduce_loop(load_loop_blk, jcp.ur, 0, true);
-        L(bcast_loop_out);
-    } else {
-        Label bcast_loop;
-        Label bcast_loop_tail;
-        Label large_tail;
-
-        cmp(reg_bcast_loop_iter, jcp.bcast_block);
-        jl(bcast_loop_tail, T_NEAR);
-
-        L(bcast_loop);
-        {
-            assert(jcp.bcast_block % jcp.ur == 0);
-            int num_substeps = jcp.bcast_block / jcp.ur;
-            assert(num_substeps > 0 && num_substeps < 10);
-            for (int i = 0; i < num_substeps; i++) {
-                if (i + 1 == num_substeps) L(large_tail);
-                reduce_loop(load_loop_blk, jcp.ur, i, false);
-                if (i < num_substeps - 1) {
-                    add(aux1_reg_bcast_data, jcp.bcast_loop_bcast_substep);
-                    add(aux_reg_output_data, jcp.bcast_loop_output_substep);
-                } else {
-                    add(aux1_reg_bcast_data,
-                            jcp.bcast_loop_bcast_step
-                                    - (num_substeps - 1)
-                                            * jcp.bcast_loop_bcast_substep);
-                    add(aux_reg_output_data,
-                            jcp.bcast_loop_output_step
-                                    - (num_substeps - 1)
-                                            * jcp.bcast_loop_output_substep);
-                }
-                sub(reg_bcast_loop_iter, jcp.ur);
-            }
-            cmp(reg_bcast_loop_iter, jcp.bcast_block);
-            jge(bcast_loop, T_NEAR);
-        }
-
-        L(bcast_loop_tail);
-        if (jcp.ur_tail) {
-            Label bcast_loop_tail_out;
-            if (jcp.ur_tail >= jcp.ur) {
-                cmp(reg_bcast_loop_iter, jcp.ur);
-                jge(large_tail, T_NEAR);
-            }
-            if (jcp.ur_tail % jcp.ur) {
-                cmp(reg_bcast_loop_iter, 0);
-                jle(bcast_loop_tail_out, T_NEAR);
-                reduce_loop(load_loop_blk, jcp.ur_tail % jcp.ur, 0, true);
-                L(bcast_loop_tail_out);
-            }
+        if (jcp.ur_tail % jcp.ur) {
+            CGA64::cmp(reg_bcast_loop_iter, 0);
+            CGA64::b(xa::LE, bcast_loop_tail_out);
+            reduce_loop(load_loop_blk, jcp.ur_tail % jcp.ur, 0, true);
+            CGA64::L_aarch64(bcast_loop_tail_out);
         }
     }
-*/
+
 }
 
 void jit_sve_1x1_conv_kernel::reduce_loop(
