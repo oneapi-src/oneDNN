@@ -39,11 +39,11 @@ char precision_char(Type T) {
         default: assert(!"Unknown type.");
         case Type::f16: return 'H';
         case Type::f32: return 'S';
-        case Type::u8: return 'o';
+        case Type::u8:
         case Type::s8: return 'O';
-        case Type::u16: return 'w';
+        case Type::u16:
         case Type::s16: return 'W';
-        case Type::u32: return 'i';
+        case Type::u32:
         case Type::s32: return 'I';
     }
 }
@@ -109,11 +109,16 @@ status_t gen_gemm_kernel_t::read_strategy(const char *str) {
     bool override_register_scheme = false;
     bool override_c_remainder = false;
 
+    bool dp4aIGEMM = hw_ >= HW::Gen12LP && problem_.Ta.size() == 1
+            && problem_.Tb.size() == 1 && problem_.Tc.size() == 4;
+
     strategy_.ka_load_masked = strategy_.kb_load_masked = 0;
     strategy_.unroll[LoopK] = 1;
     strategy_.fmaSIMD = 64
             / std::max<int>({problem_.Ta.size(), problem_.Tb.size(),
                     problem_.Tc.size()});
+
+    strategy_.kernelCrosspack = dp4aIGEMM ? 4 : 1;
 
     strategy_.remHandling[LoopM] = RemainderHandling::Split;
     strategy_.remHandling[LoopN] = RemainderHandling::Split;
@@ -282,7 +287,7 @@ status_t gen_gemm_kernel_t::init_interface() {
     using namespace ngen;
 
     interface_ = NEOInterfaceHandler {hw_};
-    auto c_type_ngen = problem_.Tc.ngen();
+    auto s_type_ngen = problem_.Ts.ngen();
 
     interface_.newArgument("A", ExternalArgumentType::GlobalPtr);
     interface_.newArgument("B", ExternalArgumentType::GlobalPtr);
@@ -296,9 +301,15 @@ status_t gen_gemm_kernel_t::init_interface() {
     interface_.newArgument("m", DataType::d);
     interface_.newArgument("n", DataType::d);
     interface_.newArgument("k", DataType::d);
-    interface_.newArgument("alpha_real", c_type_ngen);
-    interface_.newArgument("beta_real", c_type_ngen);
-    interface_.newArgument("last_k_block", DataType::d);
+    interface_.newArgument("alpha_real", s_type_ngen);
+    interface_.newArgument("beta_real", s_type_ngen);
+    if (problem_.abOffset != ABOffset::None)
+        interface_.newArgument("abo", DataType::ud);
+    if (problem_.cOffset) {
+        interface_.newArgument("CO", ExternalArgumentType::GlobalPtr);
+        interface_.newArgument("offset_CO", DataType::d);
+    }
+    interface_.newArgument("flags", DataType::ud);
     interface_.newArgument("eltwise_alpha", DataType::f);
     interface_.newArgument("eltwise_beta", DataType::f);
     interface_.newArgument("eltwise_scale", DataType::f);
@@ -403,6 +414,27 @@ const kernel_table_t *gen9_f16_nocopy_tables[2][2] = {
     {gen9_f16_nocopy_tn_table, gen9_f16_nocopy_tt_table}
 };
 
+const kernel_table_t gen9_x8_nocopy_nn_table[] = {
+    {{32, 16}, {-1, -1}, {0, 0}}
+};
+
+const kernel_table_t gen9_x8_nocopy_nt_table[] = {
+    {{32, 16}, {-1, -1}, {0, 0}}
+};
+
+const kernel_table_t gen9_x8_nocopy_tn_table[] = {
+    {{16, 16}, {-1, -1}, {0, 0}}
+};
+
+const kernel_table_t gen9_x8_nocopy_tt_table[] = {
+    {{16, 32}, {-1, -1}, {0, 0}}
+};
+
+const kernel_table_t *gen9_x8_nocopy_tables[2][2] = {
+    {gen9_x8_nocopy_nn_table, gen9_x8_nocopy_nt_table},
+    {gen9_x8_nocopy_tn_table, gen9_x8_nocopy_tt_table}
+};
+
 const kernel_table_t gen12lp_f32_nocopy_nn_table[] = {
     {{8,  4 }, { 0,  0}, {0, 0}},
     {{8,  8 }, { 0,  0}, {0, 0}},
@@ -453,6 +485,27 @@ const kernel_table_t *gen12lp_f16_nocopy_tables[2][2] = {
     {gen12lp_f16_nocopy_nn_table, gen12lp_f16_nocopy_nt_table},
     {gen12lp_f16_nocopy_tn_table, gen12lp_f16_nocopy_tt_table}
 };
+
+const kernel_table_t gen12lp_x8_nocopy_nn_table[] = {
+    {{32, 16}, {-1, -1}, {0, 0}}
+};
+
+const kernel_table_t gen12lp_x8_nocopy_nt_table[] = {
+    {{16, 32}, {-1, -1}, {0, 0}}
+};
+
+const kernel_table_t gen12lp_x8_nocopy_tn_table[] = {
+    {{16, 16}, {-1, -1}, {0, 0}}
+};
+
+const kernel_table_t gen12lp_x8_nocopy_tt_table[] = {
+    {{16, 32}, {-1, -1}, {0, 0}}
+};
+
+const kernel_table_t *gen12lp_x8_nocopy_tables[2][2] = {
+    {gen12lp_x8_nocopy_nn_table, gen12lp_x8_nocopy_nt_table},
+    {gen12lp_x8_nocopy_tn_table, gen12lp_x8_nocopy_tt_table}
+};
 // clang-format on
 
 } // anonymous namespace
@@ -465,12 +518,15 @@ void gen_gemm_nocopy_kernel_t::choose_unrolls(compute::gpu_arch_t arch,
     unroll_m = unroll_n = 1;
 
     using tables_t = decltype(gen9_f32_nocopy_tables);
-    const tables_t *all_tables[2][2]
+    const tables_t *all_tables[3][2]
             = {{&gen9_f32_nocopy_tables, &gen12lp_f32_nocopy_tables},
-                    {&gen9_f16_nocopy_tables, &gen12lp_f16_nocopy_tables}};
+                    {&gen9_f16_nocopy_tables, &gen12lp_f16_nocopy_tables},
+                    {&gen9_x8_nocopy_tables, &gen12lp_x8_nocopy_tables}};
 
     int arch_idx = (arch == compute::gpu_arch_t::gen12lp) ? 1 : 0;
-    int type_idx = (c_type == data_type::f16) ? 1 : 0;
+    int type_idx = (c_type == data_type::f16)
+            ? 1
+            : (c_type == data_type::s32) ? 2 : 0;
 
     const kernel_table_t *table
             = (*all_tables[type_idx][arch_idx])[trans_a][trans_b];

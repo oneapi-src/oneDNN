@@ -19,6 +19,7 @@
 #include "common/dnnl_traits.hpp"
 #include "common/float16.hpp"
 #include "common/type_helpers.hpp"
+#include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,36 +28,52 @@ namespace jit {
 
 status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
-        const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
-        int64_t offset_b, int64_t offset_c, int32_t lda, int32_t ldb,
+        const memory_storage_t &b, const memory_storage_t &c,
+        const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
+        int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
         int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha, float beta,
-        int last_k_block, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale, int32_t batch, int32_t stride_a, int32_t stride_b,
+        int16_t ao, int16_t bo, int32_t cmask, bool last_k_block,
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale,
+        int32_t batch, int32_t stride_a, int32_t stride_b,
         int32_t stride_c) const {
 
+    uint32_t flags = 0;
+
+    if (!last_k_block) flags |= FlagNonfinalKBlock;
+    if (cmask & 1) flags |= FlagCOColumn;
+    if (cmask & 2) flags |= FlagCORow;
+
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, a);
-    arg_list.set(1, b);
-    arg_list.set(2, c);
-    arg_list.set(3, offset_a);
-    arg_list.set(4, offset_b);
-    arg_list.set(5, offset_c);
-    arg_list.set(6, lda);
-    arg_list.set(7, ldb);
-    arg_list.set(8, ldc);
-    arg_list.set(9, m);
-    arg_list.set(10, n);
-    arg_list.set(11, k);
-    arg_list.set(12, alpha);
-    arg_list.set(13, beta);
-    arg_list.set(14, last_k_block);
-    arg_list.set(15, eltwise_alpha);
-    arg_list.set(16, eltwise_beta);
-    arg_list.set(17, eltwise_scale);
+    int argn = 0;
+
+    arg_list.set(argn++, a);
+    arg_list.set(argn++, b);
+    arg_list.set(argn++, c);
+    arg_list.set(argn++, offset_a);
+    arg_list.set(argn++, offset_b);
+    arg_list.set(argn++, offset_c);
+    arg_list.set(argn++, lda);
+    arg_list.set(argn++, ldb);
+    arg_list.set(argn++, ldc);
+    arg_list.set(argn++, m);
+    arg_list.set(argn++, n);
+    arg_list.set(argn++, k);
+    arg_list.set(argn++, alpha);
+    arg_list.set(argn++, beta);
+    if (pd()->desc()->c_type == data_type::s32) {
+        uint32_t abo = uint16_t(-ao) | (uint16_t(-bo) << 16);
+        arg_list.set(argn++, abo);
+        arg_list.set(argn++, co);
+        arg_list.set(argn++, offset_co);
+    }
+    arg_list.set(argn++, flags);
+    arg_list.set(argn++, eltwise_alpha);
+    arg_list.set(argn++, eltwise_beta);
+    arg_list.set(argn++, eltwise_scale);
     if (batch > 1) {
-        arg_list.set(18, stride_a);
-        arg_list.set(19, stride_b);
-        arg_list.set(20, stride_c);
+        arg_list.set(argn++, stride_a);
+        arg_list.set(argn++, stride_b);
+        arg_list.set(argn++, stride_c);
     }
 
     size_t gws[3] = {0, 0, 1};
@@ -122,6 +139,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &a = GEMM_CTX_ARG_STORAGE(a);
     auto &b = GEMM_CTX_ARG_STORAGE(b);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
+    auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
 
     size_t off_a0
             = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;
@@ -129,6 +147,22 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             = b.offset() / types::data_type_size(b_type) + pd()->dyn_offset_b;
     size_t off_c0
             = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
+    size_t off_co0
+            = co.offset() / types::data_type_size(c_type) + pd()->dyn_offset_co;
+
+    int16_t ao = 0, bo = 0;
+    int cmask = 0;
+
+    if (c_type == data_type::s32) {
+        const int *ao_i32 = nullptr;
+        const int *bo_i32 = nullptr;
+        pd()->attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
+        pd()->attr()->zero_points_.get(
+                DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
+        pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
+        ao = *ao_i32;
+        bo = *bo_i32;
+    }
 
     status_t status;
 
@@ -159,13 +193,16 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
                         + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
 
                 auto off_c = off_c0 + Bm + Bn * ldc;
+                auto off_co = int32_t(off_co0);
+                if (cmask & 1) off_co += Bn;
+                if (cmask & 2) off_co += Bm;
 
                 float eff_beta = (Bk == 0) ? beta : 1.0f;
-                status = launch_nocopy(ctx, compute_stream, a, b, c, off_a_src,
-                        off_b_src, off_c, lda, ldb, ldc, size_m, size_n, size_k,
-                        alpha, eff_beta, (int)last_k_block, eltwise_alpha,
-                        eltwise_beta, eltwise_scale, batch, stride_a, stride_b,
-                        stride_c);
+                status = launch_nocopy(ctx, compute_stream, a, b, c, co,
+                        off_a_src, off_b_src, off_c, off_co, lda, ldb, ldc,
+                        size_m, size_n, size_k, alpha, eff_beta, ao, bo, cmask,
+                        last_k_block, eltwise_alpha, eltwise_beta,
+                        eltwise_scale, batch, stride_a, stride_b, stride_c);
 
                 if (status) return status;
             }
