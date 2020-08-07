@@ -1102,6 +1102,7 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         const float scale, const bool quantize) const {
 
     if (aprop == prop_kind::forward) {
+        int max_d = std::max(dhc, sic);
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, firstit_states);
@@ -1109,7 +1110,7 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.set(3, shift);
         arg_list.set(4, scale);
         arg_list.set(5, (int)quantize);
-        parallel_for(ctx, compute::nd_range_t({sic, batch, n_layer * n_dir}),
+        parallel_for(ctx, compute::nd_range_t({max_d, batch, n_layer * n_dir}),
                 copy_init_iter_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
@@ -1170,11 +1171,12 @@ void _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         parallel_for(ctx, compute::nd_range_t({dhc, batch, n_layer * n_dir}),
                 copy_res_iter_kernel_, arg_list);
     } else {
+        int max_d = std::max(dhc, sic);
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, diff_src_iter);
         arg_list.set(2, diff_src_iter_c);
-        parallel_for(ctx, compute::nd_range_t({sic, batch, n_layer * n_dir}),
+        parallel_for(ctx, compute::nd_range_t({max_d, batch, n_layer * n_dir}),
                 copy_res_iter_kernel_, arg_list);
     }
 }
