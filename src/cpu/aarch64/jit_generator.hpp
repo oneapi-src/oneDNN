@@ -17,6 +17,8 @@
 #ifndef CPU_AARCH64_JIT_GENERATOR_HPP
 #define CPU_AARCH64_JIT_GENERATOR_HPP
 
+#define XBYAK_CODE_PTR uint32
+
 #include <limits.h>
 
 #include "common/bit_cast.hpp"
@@ -211,6 +213,52 @@ public:
         CodeGeneratorAArch64::ret();
     }
 
+    void dump_code32(const Xbyak::XBYAK_CODE_PTR *code) const {
+        if (code) {
+            static int counter = 0;
+#define MAX_FNAME_LEN 256
+            char fname[MAX_FNAME_LEN + 1];
+            snprintf(fname, MAX_FNAME_LEN, "dnnl_dump_%s.%d.bin", name(),
+                    counter);
+            counter++;
+
+            FILE *fp = fopen(fname, "w+");
+            // Failure to dump code is not fatal
+            if (fp) {
+#ifdef DNNL_INDIRECT_JIT_AARCH64
+                size_t unused = fwrite(code, getSize() * 4, 1, fp);
+#else
+                size_t unused = fwrite(code, getSize(), 1, fp);
+#endif
+                UNUSED(unused);
+                fclose(fp);
+            }
+        }
+#undef MAX_FNAME_LEN
+    }
+
+    static unsigned int get_A64FX_cache_size(int level, bool per_core = true, int nthreads = 1) {
+        unsigned int l = level - 1;
+        // Currently, if XByak is not able to fetch the cache topology
+        // we default to 64KiB of L1 per core, 8MiB of L2 per 1CMG.
+        if (cpu.getDataCacheLevels() == 0) {
+            const int L1_cache_per_core = 65536;
+            const int L2_cache_per_CMG = 8388608;
+            int num_cores = per_core ? 1 : nthreads;
+            switch (l) {
+            case (0): return L1_cache_per_core;
+            case (1): return L2_cache_per_CMG * utils::div_up(num_cores, 12);
+            default: return 0;
+            }
+        }
+        if (l < cpu.getDataCacheLevels()) {
+           return cpu.getDataCacheSize(l)
+                    / (per_core ? cpu.getCoresSharingDataCache(l) : 1);
+        } else
+        return 0;
+    }
+
+
     // Disallow char-based labels completely
     void L(const char *label) = delete;
     void L(Xbyak::Xbyak_aarch64::LabelAArch64 &label) { 
@@ -238,6 +286,9 @@ public:
     const uint32_t *getCode32() {
         this->ready();
         const uint32_t *code = CodeGeneratorAArch64::getCode32();
+      
+        if( get_jit_dump() ) dump_code32(code);
+
         return code;
     }
 

@@ -128,7 +128,7 @@ void jit_sve_1x1_convolution_fwd_t<src_type, wei_type,
     dst_data_t *pbuf;
     size_t row_offset;
     const int jcp_dw_kh = 3;
-    const int nb_buffer = jcp.nb_load_blocking;
+    //const int nb_buffer = jcp.nb_load_blocking;
     std::vector<dst_data_t *> addrs;
     // End
 

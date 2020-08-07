@@ -672,6 +672,8 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr, int nthreads, bool reduce_src) {
+
+    /* arch check */
     if (!mayiuse(sve)) return status::unimplemented;
 
     jcp.nthr = nthreads;
@@ -679,40 +681,43 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     const int simd_w = cpu_isa_traits<sve>::vlen / sizeof(float);
     const int ndims = src_d.ndims();
-
+    /* Forward_[training, inference], backward_[data, weight] */
     jcp.prop_kind = cd.prop_kind;
 
+    /* Check group option */
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
+    /* Batchsize */
     jcp.mb = src_d.dims()[0];
-
+    /* Channel */
     jcp.oc_without_padding = dst_d.dims()[1] / jcp.ngroups;
     jcp.oc = jcp.oc_without_padding;
     jcp.ic_without_padding = src_d.dims()[1] / jcp.ngroups;
     jcp.ic = jcp.ic_without_padding;
-
+    /* D, H, W*/
     jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
     jcp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims - 2];
     jcp.iw = src_d.dims()[ndims - 1];
     jcp.od = (ndims == 5) ? dst_d.dims()[2] : 1;
     jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
     jcp.ow = dst_d.dims()[ndims - 1];
-
+    /* Kernel size */
     jcp.kd = (ndims == 5) ? weights_d.dims()[with_groups + 2] : 1;
     jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + ndims - 2];
     jcp.kw = weights_d.dims()[with_groups + ndims - 1];
-
+    /* padding params */
     jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
     jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
     jcp.l_pad = cd.padding[0][ndims - 3];
-
+    /* stride params */
     jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
     jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
-
+    /* bias info */
     jcp.with_bias = pick_by_prop_kind(jcp.prop_kind, cd.bias_desc.format_kind,
                             format_kind::undef, cd.diff_bias_desc.format_kind)
             != format_kind::undef;
 
+    /* Spatials */
     jcp.os = jcp.od * jcp.oh * jcp.ow;
     jcp.is = jcp.id * jcp.ih * jcp.iw;
     jcp.tr_is = rnd_up(jcp.is, 4);
@@ -722,16 +727,26 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     const auto &p = attr.post_ops_;
     const int dw_conv_ind = p.find(primitive_kind::convolution);
     jcp.with_dw_conv = dw_conv_ind != -1;
+
+    // TODO:
+    if( jcp.with_dw_conv ) return status::unimplemented;
+
+
+    /* Post operation check */
     // Using dw_conv_ind as upper-bound below, as post-ops after it will be
     // handled in depthwise convolution.
     jcp.with_sum = p.find(primitive_kind::sum, 0, dw_conv_ind) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise, 0, dw_conv_ind);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) {
+#if 1
+        return status::unimplemented;
+#else
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
+#endif
     }
-
+    /* Data format check */
     const auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
     const auto dat_tag_nCx16c = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
     jcp.src_tag = src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx16c);
@@ -805,11 +820,13 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 
     jcp.load_grp_count = 1;
 
+    // TODO: mov check funcs into platform files
     const int L1_capacity
-            = platform::get_per_core_cache_size(1) / sizeof(float);
-    const int L2_size = platform::get_per_core_cache_size(2) / sizeof(float);
+            = get_A64FX_cache_size(1, true) / sizeof(float);
+    const int L2_size = get_A64FX_cache_size(2, false, nthreads) / sizeof(float);
     const int L2_capacity = (L2_size * 3) / 4;
 
+    /* FWD, BWD data */
     if (one_of(jcp.prop_kind, forward_training, forward_inference,
                 backward_data)) {
         if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
@@ -846,30 +863,15 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
                 = (one_of(jcp.prop_kind, forward_training, forward_inference))
                 ? jcp.od * jcp.oh
                 : jcp.id * jcp.ih;
-        if (jcp.ver == ver_sve
-                && ((8 * jcp.mb) / jcp.nthr >= 1
-                        // NHWC perf: RN50 mb=1
-                        || (is_data_layout_nxc && jcp.mb == 1))) {
-            max_regs = 9;
-            min_regs = 6;
-            size_treshold = 14;
-            ur_step = 1;
-            jcp.expl_bcast = true;
+        max_regs = 30;
+        min_regs = 9;
+        size_treshold = 14;
+        ur_step = 1;
+        jcp.expl_bcast = false;
+        jcp.use_vmovntps = true;
 
-            if (jcp.load_dim > 128 && jcp.load_dim < BIG_LOAD_DIM
-                    && spatial > SMALL_SPATIAL && spatial < BIG_SPATIAL) {
-                max_regs = 6;
-                min_regs = 5;
-            }
-        } else {
-            max_regs = 30;
-            min_regs = 9;
-            size_treshold = 14;
-            ur_step = 1;
-            jcp.expl_bcast = false;
-            jcp.use_vmovntps = true;
-        }
         jcp.ur = 1;
+
         for (int ur_w = max_regs; ur_w >= min_regs; ur_w -= ur_step) {
             if ((spatial >= size_treshold && spatial % ur_w == 0)
                     || (spatial < size_treshold && jcp.os % ur_w == 0)) {
@@ -891,9 +893,12 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         }
         jcp.bcast_block = jcp.ur;
 
+        /* Number of steps for the dst address to output, used in bcast_loop() */
         jcp.bcast_loop_output_step = jcp.ur * jcp.typesize_out
                 * (is_data_layout_nxc ? jcp.load_dim : jcp.load_block);
         jcp.bcast_loop_output_substep = -1; // unused
+
+        /* Number of steps for the src address to be broadcasted in bcast_loop() */
         jcp.bcast_loop_bcast_step = jcp.ur * jcp.typesize_in
                 * (is_data_layout_nxc ? jcp.reduce_dim : jcp.reduce_block);
         jcp.bcast_loop_bcast_substep = -1; // unused
@@ -953,11 +958,14 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         }
         load_blocking = jcp.load_dim;
 
+        /* Number of weight elements to be loaded for dest */
         int load_size = jcp.load_dim * jcp.reduce_dim;
+        /* Number of elements to be broadcasted from src */
         auto bcast_size
                 = (dim_t)jcp.mb * jcp.ngroups * jcp.bcast_dim * jcp.reduce_dim;
 
-        if (jcp.ver == ver_sve && jcp.nthr <= 28 && jcp.mb < jcp.nthr
+        /* 12 cores per CMG */
+        if (jcp.ver == ver_sve && jcp.nthr <= 12 && jcp.mb < jcp.nthr
                 && nb_load * nb_bcast > jcp.nthr) {
             // Some heuristic here
             float calc_koef = 0.01, best_cost = FLT_MAX;
@@ -1000,8 +1008,9 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         } else {
             jcp.load_grp_count
                     = div_up(jcp.nthr, jcp.mb * jcp.ngroups * nb_bcast);
-            jcp.load_grp_count = best_divider(jcp.nthr, jcp.load_grp_count,
-                    2 * jcp.load_grp_count, false);
+            // TODO:
+            //jcp.load_grp_count = best_divider(jcp.nthr, jcp.load_grp_count,
+            //        2 * jcp.load_grp_count, false);
         }
 
         if (jcp.bcast_dim <= 49 && jcp.mb <= jcp.nthr
@@ -1034,8 +1043,7 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
 
         jcp.ur_tail = (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) % jcp.ur;
 
-    } else if (jcp.prop_kind == backward_weights) {
-
+    } else if (jcp.prop_kind == backward_weights) { /* BWD weight */
 
         if (jcp.transpose_src)
             jcp.reduce_dim = jcp.tr_is;
