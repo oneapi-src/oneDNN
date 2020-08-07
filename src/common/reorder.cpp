@@ -72,10 +72,9 @@ status_t dnnl_reorder_primitive_desc_create(
         reorder_pd_t *reorder_pd = nullptr;
         if ((*r)(&reorder_pd, e, attr, src_engine, src_md, dst_engine, dst_md)
                 == success) {
-            auto status
-                    = safe_ptr_assign<primitive_desc_iface_t>(*reorder_pd_iface,
-                            new reorder_primitive_desc_iface_t(
-                                    reorder_pd, e, src_engine, dst_engine));
+            auto status = safe_ptr_assign(*reorder_pd_iface,
+                    new reorder_primitive_desc_iface_t(
+                            reorder_pd, e, src_engine, dst_engine));
             if (status != status::success) delete reorder_pd;
             return status;
         }

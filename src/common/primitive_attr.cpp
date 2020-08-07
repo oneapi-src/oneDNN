@@ -279,7 +279,7 @@ status_t primitive_attr_t::set_post_ops(const post_ops_t &post_ops) {
 status_t dnnl_primitive_attr_create(primitive_attr_t **attr) {
     if (attr == nullptr) return invalid_arguments;
 
-    return safe_ptr_assign<dnnl_primitive_attr>(*attr, new dnnl_primitive_attr);
+    return safe_ptr_assign(*attr, new dnnl_primitive_attr);
 }
 
 status_t dnnl_primitive_attr_clone(
@@ -289,7 +289,7 @@ status_t dnnl_primitive_attr_clone(
     auto new_attr = utils::make_unique<primitive_attr_t>(*existing_attr);
     if (!new_attr->is_initialized()) return out_of_memory;
 
-    return safe_ptr_assign<dnnl_primitive_attr>(*attr, new_attr.release());
+    return safe_ptr_assign(*attr, new_attr.release());
 }
 
 status_t dnnl_primitive_attr_destroy(primitive_attr_t *attr) {
@@ -385,7 +385,7 @@ status_t dnnl_primitive_attr_set_post_ops(
 status_t dnnl_post_ops_create(post_ops_t **post_ops) {
     if (post_ops == nullptr) return invalid_arguments;
 
-    return safe_ptr_assign<dnnl_post_ops>(*post_ops, new dnnl_post_ops);
+    return safe_ptr_assign(*post_ops, new dnnl_post_ops);
 }
 
 status_t dnnl_post_ops_destroy(post_ops_t *post_ops) {

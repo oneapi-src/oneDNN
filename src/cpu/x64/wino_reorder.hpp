@@ -61,7 +61,7 @@ struct wino_reorder_t : public primitive_t {
                 return status::unimplemented;
             }
             _pd->init_scratchpad_md();
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd);
         }
 
         status_t init(

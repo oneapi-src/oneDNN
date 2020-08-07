@@ -1461,7 +1461,7 @@ struct jit_uni_reorder_t : public primitive_t {
             _pd->ker_desc_ = ker_desc;
             _pd->init_scratchpad_md();
             _pd->nthr_ = nthr;
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd);
         }
 
         tr::prb_t prb_;
@@ -1660,7 +1660,7 @@ struct jit_blk_reorder_t : public primitive_t {
             }
             _pd->prb_ = prb;
             _pd->init_scratchpad_md();
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd);
         }
 
         tr::prb_t prb_;

@@ -35,8 +35,8 @@ namespace impl {
 // Global zero memory descriptor. Mostly used for queries to return
 extern memory_desc_t DNNL_API glob_zero_md;
 
-template <typename T>
-status_t safe_ptr_assign(T *&lhs, T *rhs) {
+template <typename base_type, typename derived_type>
+status_t safe_ptr_assign(base_type *&lhs, derived_type *rhs) {
     if (rhs == nullptr) return status::out_of_memory;
     lhs = rhs;
     return status::success;

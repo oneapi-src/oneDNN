@@ -129,8 +129,7 @@ status_t dnnl_primitive_get_primitive_desc(
         const primitive_desc_iface_t **primitive_desc_iface) {
     if (utils::any_null(primitive_iface, primitive_desc_iface))
         return invalid_arguments;
-    return safe_ptr_assign<const primitive_desc_iface_t>(
-            *primitive_desc_iface, primitive_iface->pd());
+    return safe_ptr_assign(*primitive_desc_iface, primitive_iface->pd());
 }
 
 status_t dnnl_primitive_destroy(primitive_iface_t *primitive_iface) {

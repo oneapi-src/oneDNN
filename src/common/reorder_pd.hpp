@@ -75,7 +75,7 @@ struct reorder_primitive_desc_iface_t : public dnnl_primitive_desc {
         if (status != status::success) return status;
         // Step 2: create primitive_iface_t, init and return it to user
         primitive_iface_t *p_iface = nullptr;
-        CHECK(safe_ptr_assign<primitive_iface_t>(p_iface,
+        CHECK(safe_ptr_assign(p_iface,
                 new primitive_iface_t(p, engine(), src_engine_, dst_engine_)));
         status = p_iface->init();
         if (status != status::success) {
