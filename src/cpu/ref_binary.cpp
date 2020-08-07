@@ -31,17 +31,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-float compute_binary_scalar(alg_kind_t alg, float x, float y) {
-    using namespace alg_kind;
-    switch (alg) {
-        case binary_add: return x + y;
-        case binary_max: return nstl::max(x, y);
-        case binary_min: return nstl::min(x, y);
-        case binary_mul: return x * y;
-        default: assert(!"not supported operation!"); return NAN;
-    }
-}
-
 template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
 status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
         const exec_ctx_t &ctx) const {
@@ -72,11 +61,6 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
     const auto nelems_A = src0_d.nelems();
     const auto ndims = pd()->ndims();
 
-    const auto &po = pd()->attr()->post_ops_;
-    const auto sum_idx = po.find(primitive_kind::sum);
-    const bool do_sum = sum_idx != -1 && po.entry_[sum_idx].sum.scale != 0.f;
-    const float sum_scale = do_sum ? po.entry_[sum_idx].sum.scale : 0.f;
-
     parallel_nd(nelems_A, [&](dim_t i) {
         dims_t l_dims; // single decomposition for all physical offsets
         utils::l_dims_by_l_offset(l_dims, i, src0_d.dims(), ndims);
@@ -96,15 +80,10 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
 
         float acc = compute_binary_scalar(alg, x_f, y_f);
 
-        for (auto idx = 0; idx < po.len(); ++idx) {
-            using namespace primitive_kind;
-            const auto &e = po.entry_[idx];
-            switch (e.kind) {
-                case sum: acc += sum_scale * dst_f; break;
-                case eltwise: acc = eltwise_ker_->compute_scalar(acc); break;
-                default: assert("unsupported post op primitive kind!"); break;
-            }
-        }
+        ref_post_ops_t::args_t args;
+        args.dst_val = dst_f;
+        ref_post_ops->execute(acc, args);
+
         dst[off_C] = qz_a1b0<float, dst_data_t>()(acc);
     });
 

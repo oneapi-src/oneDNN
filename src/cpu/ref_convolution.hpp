@@ -24,8 +24,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/primitive_attr_postops.hpp"
+
 #include "cpu/cpu_convolution_pd.hpp"
-#include "cpu/ref_eltwise.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -100,36 +101,16 @@ struct ref_convolution_fwd_t : public primitive_t {
         }
 
         bool post_ops_ok() const {
-            // to be consistent with other primitives and documentation
-            // the number and sequence of post op is limited
-            using namespace dnnl::impl::primitive_kind;
-            auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
-
-            switch (po.len()) {
-                case 0: return true;
-                case 1: return is_eltwise(0) || po.contain(sum, 0);
-                case 2:
-                    return (po.contain(sum, 0) && is_eltwise(1))
-                            || (po.contain(sum, 1) && is_eltwise(0));
-                default: return false;
-            }
-            return false;
+            return attr()->post_ops_.find(primitive_kind::convolution) == -1;
         }
     };
 
     ref_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        using namespace primitive_kind;
-        const auto &po = pd()->attr()->post_ops_;
-        for (auto idx = 0; idx < po.len(); ++idx) {
-            if (po.contain(eltwise, idx))
-                eltwise_ker_.push_back(
-                        utils::make_unique<ref_eltwise_scalar_fwd_t>(
-                                po.entry_[idx].eltwise));
-        }
+        ref_post_ops
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops) return status::out_of_memory;
         return status::success;
     }
 
@@ -145,7 +126,7 @@ struct ref_convolution_fwd_t : public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::vector<std::unique_ptr<ref_eltwise_scalar_fwd_t>> eltwise_ker_;
+    std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
 template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,

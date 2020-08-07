@@ -26,8 +26,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
-
-#include "cpu/ref_eltwise.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 #include "cpu/matmul/cpu_matmul_pd.hpp"
 

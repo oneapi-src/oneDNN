@@ -129,24 +129,6 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
     const int dst_zp_idx_mult
             = !pd()->attr()->zero_points_.common(DNNL_ARG_DST);
 
-    auto maybe_postops = [=](float &d, dst_data_t dst) {
-        auto eltwise_it = eltwise_ker_.begin();
-        const post_ops_t &po = pd()->attr()->post_ops_;
-
-        for (auto idx = 0; idx < po.len(); ++idx) {
-            using namespace primitive_kind;
-            const auto &e = po.entry_[idx];
-            switch (e.kind) {
-                case sum: d += e.sum.scale * dst; break;
-                case eltwise:
-                    d = (*eltwise_it)->compute_scalar(d);
-                    ++eltwise_it;
-                    break;
-                default: assert(!"unsupported post op primitive kind!"); break;
-            }
-        }
-    };
-
     auto ker = [=](int g, int mb, int oc, int od, int oh, int ow) {
         acc_data_t d = 0;
         for_(int ic = 0; ic < IC; ++ic)
@@ -271,7 +253,10 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
                         dst_d, ndims, mb, g * OC + oc, od, oh, ow);
 
                 maybe_oscale(a, g, oc);
-                maybe_postops(a, dst[dst_off]);
+
+                ref_post_ops_t::args_t args;
+                args.dst_val = dst[dst_off];
+                ref_post_ops->execute(a, args);
 
                 if (dst_zero_point)
                     a += static_cast<acc_data_t>(
