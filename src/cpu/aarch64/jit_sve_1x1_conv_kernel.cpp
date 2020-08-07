@@ -31,7 +31,7 @@
 #include "cpu/aarch64/jit_sve_1x1_conv_kernel.hpp"
 #include "cpu/aarch64/jit_uni_1x1_conv_utils.hpp"
 
-#define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
+#define GET_OFF(field) static_cast<int32_t>(offsetof(jit_1x1_conv_call_s, field))
 
 namespace dnnl {
 namespace impl {
@@ -43,6 +43,10 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
+
+#define CGA64 CodeGeneratorAArch64
+namespace xa = Xbyak::Xbyak_aarch64;
+
 
 void jit_sve_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
 /*
@@ -510,66 +514,88 @@ void jit_sve_1x1_conv_kernel::reduce_loop(
 
 void jit_sve_1x1_conv_kernel::generate() {
     preamble();
-/*
-    mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
-    mov(reg_load_data, ptr[param1 + GET_OFF(load_data)]);
-    mov(reg_output_data, ptr[param1 + GET_OFF(output_data)]);
 
-    sub(rsp, stack_space_needed);
+    /* All 1 predicate register */
+    CGA64::ptrue( reg_p_all_ones.b ); 
 
-    if (jcp.with_bias) mov(reg_bias_data, ptr[param1 + GET_OFF(bias_data)]);
+    /* Pointers indicate weight, input, and output data */
+    CGA64::ldr(reg_bcast_data,  xa::ptr(abi_param1_aarch64, GET_OFF(bcast_data)));  // Input 
+    CGA64::ldr(reg_load_data,   xa::ptr(abi_param1_aarch64, GET_OFF(load_data)));   // Weight
+    CGA64::ldr(reg_output_data, xa::ptr(abi_param1_aarch64, GET_OFF(output_data))); // Output
 
-    mov(reg_load_loop_work, ptr[param1 + GET_OFF(load_dim)]);
-    mov(reg_bcast_loop_work, ptr[param1 + GET_OFF(bcast_dim)]);
-    mov(EVEX_compress_addr(rsp, bcast_loop_work_offt), reg_bcast_loop_work);
-    mov(reg_reduce_loop_work, ptr[param1 + GET_OFF(reduce_dim)]);
-    mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(first_last_flag)]);
+    /* Pointer indicates bias data if the layer has bias option */
+    if (jcp.with_bias) CGA64::ldr(reg_bias_data, xa::ptr(abi_param1_aarch64, GET_OFF(bias_data)));
+
+    /* Get workloads of each loop */
+    CGA64::ldr(reg_load_loop_work,   xa::ptr(abi_param1_aarch64, GET_OFF(load_dim)));
+    CGA64::ldr(reg_bcast_loop_work,  xa::ptr(abi_param1_aarch64, GET_OFF(bcast_dim)));
+    CGA64::ldr(reg_reduce_loop_work, xa::ptr(abi_param1_aarch64, GET_OFF(reduce_dim)));
+
+    /* A flag for controlling reduce loop */
+    CGA64::ldr(reg_reduce_pos_flag, xa::ptr(abi_param1_aarch64, GET_OFF(first_last_flag)));
+
     if (one_of(jcp.prop_kind, forward_training, forward_inference))
-        mov(reg_relu_ns, reinterpret_cast<size_t>(&jcp.eltwise.alpha));
+        CGA64::mov(reg_relu_ns, reinterpret_cast<size_t>(&jcp.eltwise.alpha));
+
     if (jcp.prop_kind == backward_weights)
-        mov(reg_output_stride, ptr[param1 + GET_OFF(output_stride)]);
+        CGA64::ldr(reg_output_stride, xa::ptr(abi_param1_aarch64, GET_OFF(output_stride)));
 
     const int load_dim_tail = jcp.load_dim % jcp.load_block;
 
     if (load_dim_tail) {
+#if 1
+        assert(NULL);
+#else
         Reg32 reg_tail_32 = reg_load_dim_tail_mask.cvt32();
         mov(reg_tail_32, (1 << load_dim_tail) - 1);
         kmovw(k_load_dim_tail_mask, reg_tail_32);
+#endif
     }
 
     auto load_loop_body = [=](int load_loop_blk) {
+#if 0
         if (load_dim_tail)
             kxnorw(k_load_dim_mask, k_load_dim_mask, k_load_dim_mask);
-        sub(reg_load_loop_work, load_loop_blk * jcp.load_loop_iter_step);
+#endif
+        CGA64::sub_imm(reg_load_loop_work, reg_load_loop_work,
+                      load_loop_blk * jcp.load_loop_iter_step, reg_tmp_imm);
+
         if (load_dim_tail) {
+#if 1
+            assert(NULL);
+#else
             Label no_update_mask;
             jge(no_update_mask, T_NEAR);
             kmovw(k_load_dim_mask, k_load_dim_tail_mask);
             L(no_update_mask);
+#endif
         }
         bcast_loop(load_loop_blk);
-        add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
+        CGA64::add_imm(reg_load_data, reg_load_data, 
+                        load_loop_blk * jcp.load_loop_load_step, reg_tmp_imm);
         switch (jcp.prop_kind) {
             case forward_training:
             case forward_inference:
-                add(reg_bias_data,
-                        load_loop_blk * jcp.load_block * jcp.typesize_out);
-                add(reg_output_data,
+                CGA64::add_imm(reg_bias_data, reg_bias_data,
+                        load_loop_blk * jcp.load_block * jcp.typesize_out, reg_tmp_imm);
+                CGA64::add_imm(reg_output_data, reg_output_data, 
                         load_loop_blk * jcp.load_block * jcp.typesize_out
                                 * (is_out_layout_nxc(jcp)
                                                 ? 1
                                                 : (jcp.with_dw_conv
                                                                 ? jcp.ow
-                                                                : jcp.bcast_dim)));
+                                                                : jcp.bcast_dim)),
+                        reg_tmp_imm);
                 break;
             case backward_data:
-                add(reg_output_data,
+                CGA64::add_imm(reg_output_data, reg_output_data,
                         load_loop_blk * jcp.load_block * jcp.typesize_out
-                                * (is_out_layout_nxc(jcp) ? 1 : jcp.bcast_dim));
+                                * (is_out_layout_nxc(jcp) ? 1 : jcp.bcast_dim),
+                        reg_tmp_imm);
                 break;
             case backward_weights:
                 for (int i_load = 0; i_load < load_loop_blk; i_load++)
-                    add(reg_output_data, reg_output_stride);
+                    CGA64::add(reg_output_data, reg_output_data, reg_output_stride);
                 break;
             default: assert(!"invalid prop_kind");
         }
@@ -577,65 +603,54 @@ void jit_sve_1x1_conv_kernel::generate() {
 
     const int simd_w = 16;
 
-    Label load_loop_blk[7];
+    xa::LabelAArch64 load_loop_blk[7];
 
     // with an implicit load_loop_block          {6, 5, 4, 3, 2,  1}
-    static const int ur_cases_fma_embd_bcast[] = {2, 4, 5, 8, 14, 32};
-    static const int ur_cases_fma_expl_bcast[] = {2, 5, 6, 9, 14, 32};
-    static const int ur_cases_4fma[] = {2, 4, 6, 12, 32};
+    static const int ur_cases_bcast[] = {2, 5, 6, 9, 14, 32};
 
-    const int size_ur_cases_fma = (jcp.ver == ver_avx512_core && jcp.expl_bcast)
-            ? sizeof(ur_cases_fma_expl_bcast)
-            : sizeof(ur_cases_fma_embd_bcast);
-    const int size_ur_cases_4fma = sizeof(ur_cases_4fma);
+    const int size_ur_cases = sizeof(ur_cases_bcast);
 
-    const int *ur_cases_fma = (jcp.ver == ver_avx512_core && jcp.expl_bcast)
-            ? ur_cases_fma_expl_bcast
-            : ur_cases_fma_embd_bcast;
-    const int *ur_cases = jcp.ver == ver_4fma ? ur_cases_4fma : ur_cases_fma;
-    const int num_ur_cases
-            = (jcp.ver == ver_4fma ? size_ur_cases_4fma : size_ur_cases_fma)
-            / sizeof(*ur_cases);
+    const int *ur_cases = ur_cases_bcast;
+    const int num_ur_cases = size_ur_cases / sizeof(*ur_cases);
 
     for (int ur_idx = num_ur_cases - 1; ur_idx > 0; ur_idx--) {
         int label_idx = num_ur_cases - ur_idx - 1;
         if (jcp.nb_load > label_idx && jcp.ur <= ur_cases[ur_idx]) {
-            cmp(reg_load_loop_work, simd_w * (label_idx + 1));
-            jle(load_loop_blk[label_idx], T_NEAR);
+            CGA64::cmp(reg_load_loop_work, simd_w * (label_idx + 1));
+            //CGA64::b(xa::LE, load_loop_blk[label_idx]);
+            CGA64::b(xa::LE, load_loop_blk[num_ur_cases]);
         }
     }
 
     for (int ur_idx = 0; ur_idx < num_ur_cases; ur_idx++) {
         int label_idx = num_ur_cases - ur_idx - 1;
         if (jcp.nb_load > label_idx && jcp.ur <= ur_cases[ur_idx]) {
-            L(load_loop_blk[label_idx]);
+            CGA64::L_aarch64(load_loop_blk[label_idx]);
             {
                 if (label_idx == 0) {
-                    cmp(reg_load_loop_work, 0);
-                    jle(load_loop_blk[num_ur_cases], T_NEAR);
+                    CGA64::cmp(reg_load_loop_work, 0);
+                    //CGA64::b(xa::LE, load_loop_blk[num_ur_cases]);
                 }
                 load_loop_body(label_idx + 1);
                 if (label_idx - 1 > 0) {
-                    cmp(reg_load_loop_work, 2 * label_idx * simd_w);
-                    je(load_loop_blk[label_idx - 1], T_NEAR);
+                    CGA64::cmp(reg_load_loop_work, 2 * label_idx * simd_w);
+                    //CGA64::b(xa::EQ, load_loop_blk[label_idx - 1]);
                 }
-                cmp(reg_load_loop_work, label_idx * simd_w);
-                jg(load_loop_blk[label_idx]);
+                CGA64::cmp(reg_load_loop_work, label_idx * simd_w);
+                //CGA64::b(xa::GT, load_loop_blk[label_idx]);
             }
             for (int idx = label_idx - 1; idx > 0; --idx) {
-                cmp(reg_load_loop_work, simd_w * (idx + 1));
-                je(load_loop_blk[idx], T_NEAR);
+                CGA64::cmp(reg_load_loop_work, simd_w * (idx + 1));
+                //CGA64::b(xa::EQ, load_loop_blk[idx]);
             }
             if (ur_idx < num_ur_cases - 2) {
-                cmp(reg_load_loop_work, simd_w);
-                jle(load_loop_blk[0], T_NEAR);
+                CGA64::cmp(reg_load_loop_work, simd_w);
+                //CGA64::b(xa::LE, load_loop_blk[0]);
             }
         }
     }
-    L(load_loop_blk[num_ur_cases]);
-
-    add(rsp, stack_space_needed);
-*/
+    CGA64::L_aarch64(load_loop_blk[num_ur_cases]);
+    
     postamble();
 #if 0
     if (jcp.with_eltwise) eltwise_injector_->prepare_table();
@@ -1190,9 +1205,7 @@ void jit_sve_1x1_conv_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad,
         const jit_1x1_conv_conf_t &jcp) {
 
-#if 1 
-    assert(NULL);
-#else
+#if 0 
     using namespace dnnl::impl::memory_tracking::names;
 
     // Fox nxc layout bias is padded only for bwd_wb direction, as  bias

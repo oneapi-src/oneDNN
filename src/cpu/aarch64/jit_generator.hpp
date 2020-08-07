@@ -138,9 +138,20 @@ public:
     };
 
     Xbyak::Xbyak_aarch64::XReg param1 = abi_param1_aarch64;
+    class XRegValue : public Xbyak::Xbyak_aarch64::XReg
+    {
+        public:
+        int64_t value_;
+        explicit XRegValue(uint32_t idx, int64_t value)
+            : Xbyak::Xbyak_aarch64::XReg(idx), value_(value) {}
+        explicit XRegValue(uint32_t idx)
+            : Xbyak::Xbyak_aarch64::XReg(idx), value_(0xFFFFFFFFFFFFFFFF) {}
+    };
+
+
     const int EVEX_max_8b_offt = 0x200;
 
-    inline size_t get_size_of_abi_save_regs() { return size_of_abi_save_regs_aarch64; }
+    inline size_t get_size_of_abi_save_regs_aarch64() { return size_of_abi_save_regs_aarch64; }
 
     void preamble() {
         CodeGeneratorAArch64::stp(x29, x30,

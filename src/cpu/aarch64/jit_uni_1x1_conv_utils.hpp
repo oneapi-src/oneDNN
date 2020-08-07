@@ -48,7 +48,6 @@ template <typename conv_pd_t>
 inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
         const memory_desc_t *&src_d, const memory_desc_t *dst_d) {
 #if 1
-    assert(NULL);
     return;
 #else
     const int ndims = src_d->ndims;

@@ -99,8 +99,7 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
 
         const memory_desc_t *dst_md(int index = 0) const override {
 #if 1
-            assert(NULL);
-            return &dst_md_;
+            return  &dst_md_;
 #else
             return jcp_.with_dw_conv ? dw_conv_pd_->dst_md(index) : &dst_md_;
 #endif
