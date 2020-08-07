@@ -287,8 +287,11 @@ public:
     jit_generator(void *code_ptr = nullptr, size_t code_size = MAX_CODE_SIZE,
             bool use_autogrow = true)
         : Xbyak::Xbyak_aarch64::CodeGeneratorAArch64(code_size,
-                (code_ptr == nullptr && use_autogrow) ? Xbyak::AutoGrow
+          code_ptr) {}
+#if 0
+                (code_ptr == nullptr && use_autogrow) ? Xbyak::Xbyak_aarch64::AutoGrow
                                                       : code_ptr) {}
+#endif
     virtual ~jit_generator() {}
 
     virtual const char *name() const = 0;

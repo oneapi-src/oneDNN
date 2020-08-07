@@ -617,8 +617,7 @@ void jit_sve_1x1_conv_kernel::generate() {
         int label_idx = num_ur_cases - ur_idx - 1;
         if (jcp.nb_load > label_idx && jcp.ur <= ur_cases[ur_idx]) {
             CGA64::cmp(reg_load_loop_work, simd_w * (label_idx + 1));
-            //CGA64::b(xa::LE, load_loop_blk[label_idx]);
-            CGA64::b(xa::LE, load_loop_blk[num_ur_cases]);
+            CGA64::b(xa::LE, load_loop_blk[label_idx]);
         }
     }
 
@@ -629,23 +628,23 @@ void jit_sve_1x1_conv_kernel::generate() {
             {
                 if (label_idx == 0) {
                     CGA64::cmp(reg_load_loop_work, 0);
-                    //CGA64::b(xa::LE, load_loop_blk[num_ur_cases]);
+                    CGA64::b(xa::LE, load_loop_blk[num_ur_cases]);
                 }
                 load_loop_body(label_idx + 1);
                 if (label_idx - 1 > 0) {
                     CGA64::cmp(reg_load_loop_work, 2 * label_idx * simd_w);
-                    //CGA64::b(xa::EQ, load_loop_blk[label_idx - 1]);
+                    CGA64::b(xa::EQ, load_loop_blk[label_idx - 1]);
                 }
                 CGA64::cmp(reg_load_loop_work, label_idx * simd_w);
-                //CGA64::b(xa::GT, load_loop_blk[label_idx]);
+                CGA64::b(xa::GT, load_loop_blk[label_idx]);
             }
             for (int idx = label_idx - 1; idx > 0; --idx) {
                 CGA64::cmp(reg_load_loop_work, simd_w * (idx + 1));
-                //CGA64::b(xa::EQ, load_loop_blk[idx]);
+                CGA64::b(xa::EQ, load_loop_blk[idx]);
             }
             if (ur_idx < num_ur_cases - 2) {
                 CGA64::cmp(reg_load_loop_work, simd_w);
-                //CGA64::b(xa::LE, load_loop_blk[0]);
+                CGA64::b(xa::LE, load_loop_blk[0]);
             }
         }
     }
