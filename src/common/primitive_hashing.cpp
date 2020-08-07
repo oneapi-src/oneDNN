@@ -424,30 +424,12 @@ size_t get_desc_hash(const gemm_desc_t &desc) {
     size_t seed = 0;
     // Kinds
     seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
-    // Trans
-    seed = hash_combine(seed, static_cast<size_t>(desc.transa));
-    seed = hash_combine(seed, static_cast<size_t>(desc.transb));
-    // M, N, K
-    seed = hash_combine(seed, desc.batch);
-    seed = hash_combine(seed, desc.m);
-    seed = hash_combine(seed, desc.n);
-    seed = hash_combine(seed, desc.k);
-    // Strides
-    seed = hash_combine(seed, desc.stride_a);
-    seed = hash_combine(seed, desc.stride_b);
-    seed = hash_combine(seed, desc.stride_c);
-    // LDA, LDB, LDC
-    seed = hash_combine(seed, desc.lda);
-    seed = hash_combine(seed, desc.ldb);
-    seed = hash_combine(seed, desc.ldc);
-    // bias mask
-    seed = hash_combine(seed, static_cast<size_t>(desc.bias_mask));
-    // a_type, b_type, c_type, acc_type, bias_type
-    seed = hash_combine(seed, static_cast<size_t>(desc.a_type));
-    seed = hash_combine(seed, static_cast<size_t>(desc.b_type));
-    seed = hash_combine(seed, static_cast<size_t>(desc.c_type));
+    seed = hash_combine(seed, get_md_hash(desc.a_desc));
+    seed = hash_combine(seed, get_md_hash(desc.b_desc));
+    seed = hash_combine(seed, get_md_hash(desc.c_desc));
+    seed = hash_combine(seed, get_md_hash(desc.bias_desc));
+    // Accumulator type
     seed = hash_combine(seed, static_cast<size_t>(desc.acc_type));
-    seed = hash_combine(seed, static_cast<size_t>(desc.bias_type));
     // Combined hash for gemm desc
     return seed;
 }

@@ -31,6 +31,7 @@
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
+#include "common/gemm_utils.hpp"
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
@@ -590,22 +591,16 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                       data_type_t b_dt, data_type_t c_dt, bool is_B_trans,
                       float beta) -> status_t {
         auto gemm_desc = gemm_desc_t();
+        memory_desc_t a_md, b_md, c_md;
+        create_2d_desc(&a_md, m, k, a_dt, transpose::notrans, lda);
+        create_2d_desc(&b_md, k, n, b_dt,
+                is_B_trans ? transpose::trans : transpose::notrans, ldb);
+        create_2d_desc(&c_md, m, n, c_dt, transpose::notrans, ldc);
         gemm_desc.primitive_kind = primitive_kind::gemm;
-        gemm_desc.transa = transpose::notrans;
-        gemm_desc.transb = is_B_trans ? transpose::trans : transpose::notrans;
-        gemm_desc.batch = 1;
-        gemm_desc.m = m;
-        gemm_desc.n = n;
-        gemm_desc.k = k;
-        gemm_desc.lda = lda;
-        gemm_desc.ldb = ldb;
-        gemm_desc.ldc = ldc;
-        gemm_desc.stride_a = lda;
-        gemm_desc.stride_b = ldb;
-        gemm_desc.stride_c = ldc;
-        gemm_desc.a_type = a_dt;
-        gemm_desc.b_type = b_dt;
-        gemm_desc.c_type = c_dt;
+        gemm_desc.a_desc = a_md;
+        gemm_desc.b_desc = b_md;
+        gemm_desc.c_desc = c_md;
+        gemm_desc.bias_desc = glob_zero_md;
         gemm_desc.acc_type = c_dt;
 
         primitive_attr_t attr;

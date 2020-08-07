@@ -38,11 +38,11 @@ struct ref_gemm_t : public gpu_gemm_t {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
-            const auto a_dt = desc()->a_type;
-            const auto b_dt = desc()->b_type;
-            const auto c_dt = desc()->c_type;
+            const auto a_dt = desc()->a_type();
+            const auto b_dt = desc()->b_type();
+            const auto c_dt = desc()->c_type();
             const auto acc_dt = desc()->acc_type;
-            const auto bia_dt = desc()->bias_type;
+            const auto bia_dt = desc()->bias_type();
 
             bool ok = IMPLICATION(acc_dt == s32, attr()->zero_points_.common())
                     && IMPLICATION(acc_dt != s32,
@@ -95,7 +95,9 @@ struct ref_gemm_t : public gpu_gemm_t {
             }
         }
 
-        bool with_bias() const { return desc()->bias_type != data_type::undef; }
+        bool with_bias() const {
+            return desc()->bias_type() != data_type::undef;
+        }
 
         attr_info_t attr_info = {};
     };
@@ -110,15 +112,15 @@ struct ref_gemm_t : public gpu_gemm_t {
                 "NON_DEFAULT_ATTRS", !pd()->attr()->has_default_values());
 
         const auto d = pd()->desc();
-        kernel_ctx.set_data_type(d->c_type);
+        kernel_ctx.set_data_type(d->c_type());
         def_attr_info(kernel_ctx, pd()->attr_info);
 
-        const auto bias_type = d->bias_type != data_type::undef
-                ? d->bias_type
+        const auto bias_type = d->bias_type() != data_type::undef
+                ? d->bias_type()
                 : data_type::f32;
-        def_data_type(kernel_ctx, d->a_type, "A");
-        def_data_type(kernel_ctx, d->b_type, "B");
-        def_data_type(kernel_ctx, d->c_type, "C");
+        def_data_type(kernel_ctx, d->a_type(), "A");
+        def_data_type(kernel_ctx, d->b_type(), "B");
+        def_data_type(kernel_ctx, d->c_type(), "C");
         def_data_type(kernel_ctx, d->acc_type, "ACC");
         def_data_type(kernel_ctx, bias_type, "BIAS");
         create_kernel(engine, &kernel_, "ref_gemm", kernel_ctx);

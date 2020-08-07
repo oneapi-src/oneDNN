@@ -35,11 +35,7 @@ struct gemm_pd_t : public primitive_desc_t {
 
     gemm_pd_t(const gemm_desc_t *adesc, const primitive_attr_t *attr,
             const hint_class *hint_fwd_pd)
-        : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
-        , a_md_(create_gemm_mem_desc_helper(adesc, 0))
-        , b_md_(create_gemm_mem_desc_helper(adesc, 1))
-        , c_md_(create_gemm_mem_desc_helper(adesc, 2)) {}
+        : primitive_desc_t(attr, base_pkind), desc_(*adesc) {}
 
     const gemm_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -66,37 +62,21 @@ struct gemm_pd_t : public primitive_desc_t {
 
     const memory_desc_t *src_md(int index = 0) const override {
         switch (index) {
-            case 0: return &a_md_;
-            case 1: return &b_md_;
+            case 0: return &desc_.a_desc;
+            case 1: return &desc_.b_desc;
             default: return &glob_zero_md;
         }
     }
     const memory_desc_t *dst_md(int index = 0) const override {
-        return index == 0 ? &c_md_ : &glob_zero_md;
+        return index == 0 ? &desc_.c_desc : &glob_zero_md;
     }
 
     int n_inputs() const override { return 2; }
     int n_outputs() const override { return 1; }
 
 private:
-    static memory_desc_t create_gemm_mem_desc_helper(
-            const gemm_desc_t *adesc, int index) {
-        memory_desc_t m_desc;
-        data_type_t data_types[3]
-                = {adesc->a_type, adesc->b_type, adesc->c_type};
-
-        auto status = create_gemm_memory_desc(
-                &m_desc, adesc, index, data_types[index]);
-        assert(status == status::success);
-        MAYBE_UNUSED(status);
-
-        return m_desc;
-    }
 
     gemm_desc_t desc_;
-    memory_desc_t a_md_;
-    memory_desc_t b_md_;
-    memory_desc_t c_md_;
 };
 
 } // namespace impl

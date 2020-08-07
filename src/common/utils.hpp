@@ -237,6 +237,14 @@ inline R array_product(const T *arr, size_t size) {
     return prod;
 }
 
+template <typename T, typename R = T>
+inline R array_min(const T *arr, size_t size) {
+    R min = std::numeric_limits<R>::max();
+    for (size_t i = 0; i < size; ++i)
+        min = std::min(min, arr[i]);
+    return min;
+}
+
 /* Sorts an array of @p vals using @p comparator. Uses @p vals_2nd_level as a
  * second level comparing criteria in case comparator returns 0 (equal values)
  * for @p vals elements.

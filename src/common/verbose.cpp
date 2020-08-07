@@ -551,16 +551,16 @@ static void init_info_gemm(const engine_t *e, pd_t *s, char *buffer) {
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
 
     const char *s_transa
-            = (s->desc()->transa == transpose::notrans ? "N" : "T");
+            = (s->desc()->transa() == transpose::notrans ? "N" : "T");
     const char *s_transb
-            = (s->desc()->transb == transpose::notrans ? "N" : "T");
+            = (s->desc()->transb() == transpose::notrans ? "N" : "T");
     DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, dat_written,
             "m" DFMT "n" DFMT "k" DFMT "_lda" DFMT "ldb" DFMT "ldc" DFMT
             " trans:%s%s a_dt:%s b_dt:%s c_dt:%s acc_dt:%s",
-            s->desc()->m, s->desc()->n, s->desc()->k, s->desc()->lda,
-            s->desc()->ldb, s->desc()->ldc, s_transa, s_transb,
-            dnnl_dt2str(s->desc()->a_type), dnnl_dt2str(s->desc()->b_type),
-            dnnl_dt2str(s->desc()->c_type), dnnl_dt2str(s->desc()->acc_type));
+            s->desc()->m(), s->desc()->n(), s->desc()->k(), s->desc()->lda(),
+            s->desc()->ldb(), s->desc()->ldc(), s_transa, s_transb,
+            dnnl_dt2str(s->desc()->a_type()), dnnl_dt2str(s->desc()->b_type()),
+            dnnl_dt2str(s->desc()->c_type()), dnnl_dt2str(s->desc()->acc_type));
 
     verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
             attr_str, aux_str, prb_str);

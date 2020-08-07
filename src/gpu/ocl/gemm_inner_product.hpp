@@ -21,6 +21,7 @@
 #include <string>
 
 #include "common/c_types_map.hpp"
+#include "common/gemm_utils.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_iterator.hpp"
 #include "gpu/compute/compute.hpp"
@@ -34,51 +35,6 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
-
-namespace {
-status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd,
-        engine_t *engine, transpose_t transa, transpose_t transb, int m, int n,
-        int k, int lda, int ldb, int ldc, data_type_t a_dt, data_type_t b_dt,
-        data_type_t c_dt, const primitive_attr_t &attr, dim_t bias_mask = 0,
-        bool is_fwd = false) {
-    auto gemm_desc = gemm_desc_t();
-    gemm_desc.primitive_kind = primitive_kind::gemm;
-    gemm_desc.transa = transa;
-    gemm_desc.transb = transb;
-    gemm_desc.batch = 1;
-    gemm_desc.m = m;
-    gemm_desc.n = n;
-    gemm_desc.k = k;
-    gemm_desc.lda = lda;
-    gemm_desc.ldb = ldb;
-    gemm_desc.ldc = ldc;
-    gemm_desc.stride_a = lda;
-    gemm_desc.stride_b = ldb;
-    gemm_desc.stride_c = ldc;
-    gemm_desc.a_type = a_dt;
-    gemm_desc.b_type = b_dt;
-    gemm_desc.c_type = c_dt;
-    gemm_desc.acc_type = c_dt;
-    if (bias_mask != 0) {
-        gemm_desc.bias_mask = bias_mask;
-        gemm_desc.bias_type = c_dt;
-    }
-    primitive_attr_t gemm_attr(attr);
-    if (!gemm_attr.is_initialized()) return status::out_of_memory;
-    gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
-
-    dnnl_primitive_desc_iterator it(
-            engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
-    if (!it.is_initialized()) return status::out_of_memory;
-    ++it;
-    gemm_pd.reset(it.fetch_once());
-    if (!gemm_pd) return status::unimplemented;
-    std::string impl_name(gemm_pd.get()->name());
-    if (is_fwd && impl_name.find("ref") != std::string::npos)
-        return status::unimplemented;
-    return status::success;
-}
-} // namespace
 
 struct gemm_inner_product_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
@@ -109,26 +65,20 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                             expect_data_types(f32, f32, f32, f32, f32))
                     && attr()->post_ops_.len() <= 2
                     && IMPLICATION(attr()->post_ops_.len() == 2,
-                            attr()->post_ops_.find(primitive_kind::sum) == 0)
-                    && dense_consitency_check(src_md(), weights_md(), dst_md())
-                    && dense_gemm_consitency_check(
+                            attr()->post_ops_.find(dnnl_sum) == 0)
+
+                    && dense_consistency_check(src_md(), weights_md(), dst_md())
+                    && dense_gemm_consistency_check(
                             src_md(), weights_md(), dst_md());
             if (!ok) return status::unimplemented;
 
-            const auto &wmd = *this->weights_md();
-            bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
-
-            const int mb = this->MB();
-            const int oc = this->OC();
-            const int ic_total = this->IC_total_padded();
-            // bias mask is 2 because batch stride=0, oc stride=1, mb stride=0
+            memory_desc_t a_md, b_md, c_md;
+            init_2d_desc(&a_md, src_md());
+            init_2d_desc(&b_md, weights_md(), true);
+            init_2d_desc(&c_md, dst_md());
             bool gemm_ok = status::success
-                    == create_gemm_pd(gemm_pd_, engine,
-                            wei_tr ? transpose::trans : transpose::notrans,
-                            transpose::notrans, oc, mb, ic_total,
-                            wei_tr ? ic_total : oc, ic_total, oc,
-                            weights_md()->data_type, src_md()->data_type,
-                            dst_md()->data_type, *attr(), with_bias() ? 2 : 0,
+                    == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
+                            weights_md(1), desc()->accum_data_type, attr(),
                             true);
             if (!gemm_ok) return status::unimplemented;
             init_scratchpad();
@@ -195,26 +145,21 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
                     && !has_zero_dim_memory()
                     && expect_data_types(f32, f32, data_type::undef, f32, f32)
                     && attr()->has_default_values()
-                    && dense_consitency_check(
+                    && dense_consistency_check(
                             diff_src_md(), weights_md(), diff_dst_md())
-                    && dense_gemm_consitency_check(
+                    && dense_gemm_consistency_check(
                             diff_src_md(), weights_md(), diff_dst_md());
             if (!ok) return status::unimplemented;
 
-            const auto &wmd = *this->weights_md();
-            bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
-
-            const int mb = this->MB();
-            const int oc = this->OC();
-            const int ic_total = this->IC_total_padded();
+            memory_desc_t a_md, b_md, c_md;
+            init_2d_desc(&a_md, diff_dst_md());
+            init_2d_desc(&b_md, weights_md());
+            init_2d_desc(&c_md, diff_src_md());
 
             bool gemm_ok = status::success
-                    == create_gemm_pd(gemm_pd_, engine,
-                            wei_tr ? transpose::trans : transpose::notrans,
-                            transpose::notrans, ic_total, mb, oc,
-                            wei_tr ? oc : ic_total, oc, ic_total,
-                            weights_md()->data_type, diff_src_md()->data_type,
-                            diff_dst_md()->data_type, *attr());
+                    == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
+                            &glob_zero_md, desc()->accum_data_type, attr(),
+                            true);
             if (!gemm_ok) return status::unimplemented;
             init_scratchpad();
 
@@ -279,32 +224,28 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
                     && !has_zero_dim_memory()
                     && expect_data_types(f32, f32, f32, f32, f32)
                     && attr()->has_default_values()
-                    && dense_consitency_check(
+                    && dense_consistency_check(
                             src_md(), diff_weights_md(), diff_dst_md())
-                    && dense_gemm_consitency_check(
+                    && dense_gemm_consistency_check(
                             src_md(), diff_weights_md(), diff_dst_md());
             if (!ok) return status::unimplemented;
 
-            const int mb = this->MB();
-            const int oc = this->OC();
-            const int ic_total = this->IC_total_padded();
+            memory_desc_t a_md, b_md, c_md;
+            if (wei_tr()) {
+                init_2d_desc(&a_md, src_md(), true);
+                init_2d_desc(&b_md, diff_dst_md());
+                init_2d_desc(&c_md, diff_weights_md(), true);
+            } else {
+                init_2d_desc(&a_md, diff_dst_md(), true);
+                init_2d_desc(&b_md, src_md());
+                init_2d_desc(&c_md, diff_weights_md());
+            }
 
             bool gemm_ok = false;
-            if (wei_tr()) {
-                gemm_ok = create_gemm_pd(gemm_pd_, engine, transpose::notrans,
-                                  transpose::trans, oc, ic_total, mb, oc,
-                                  ic_total, oc, src_md()->data_type,
-                                  src_md()->data_type, src_md()->data_type,
-                                  *attr())
-                        == status::success;
-            } else {
-                gemm_ok = create_gemm_pd(gemm_pd_, engine, transpose::notrans,
-                                  transpose::trans, ic_total, oc, mb, ic_total,
-                                  oc, ic_total, src_md()->data_type,
-                                  src_md()->data_type, src_md()->data_type,
-                                  *attr())
-                        == status::success;
-            }
+            gemm_ok = status::success
+                    == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
+                            &glob_zero_md, c_md.data_type, attr());
+
             if (!gemm_ok) return status::unimplemented;
             init_scratchpad();
 

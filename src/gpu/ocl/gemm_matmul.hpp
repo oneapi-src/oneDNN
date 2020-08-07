@@ -17,6 +17,7 @@
 #ifndef GPU_OCL_GEMM_MATMUL_HPP
 #define GPU_OCL_GEMM_MATMUL_HPP
 
+#include "common/gemm_utils.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_iterator.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
@@ -27,48 +28,6 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
-
-namespace {
-status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd_,
-        engine_t *engine, transpose_t transa, transpose_t transb, dim_t batch,
-        dim_t m, dim_t n, dim_t k, dim_t stride_a, dim_t stride_b,
-        dim_t stride_c, dim_t lda, dim_t ldb, dim_t ldc, dim_t bias_mask,
-        data_type_t a_dt, data_type_t b_dt, data_type_t c_dt,
-        data_type_t acc_dt, data_type_t bias_dt, const primitive_attr_t *attr) {
-    auto gemm_desc = gemm_desc_t();
-    gemm_desc.primitive_kind = primitive_kind::gemm;
-    gemm_desc.transa = transa;
-    gemm_desc.transb = transb;
-    gemm_desc.batch = batch;
-    gemm_desc.m = m;
-    gemm_desc.n = n;
-    gemm_desc.k = k;
-    gemm_desc.stride_a = stride_a;
-    gemm_desc.stride_b = stride_b;
-    gemm_desc.stride_c = stride_c;
-    gemm_desc.lda = lda;
-    gemm_desc.ldb = ldb;
-    gemm_desc.ldc = ldc;
-    gemm_desc.a_type = a_dt;
-    gemm_desc.b_type = b_dt;
-    gemm_desc.c_type = c_dt;
-    gemm_desc.acc_type = acc_dt;
-    gemm_desc.bias_type = bias_dt;
-    gemm_desc.bias_mask = bias_mask;
-
-    primitive_attr_t gemm_attr(*attr);
-    if (!gemm_attr.is_initialized()) return status::out_of_memory;
-    gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
-
-    dnnl_primitive_desc_iterator it(
-            engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
-    if (!it.is_initialized()) return status::out_of_memory;
-    ++it;
-    gemm_pd_.reset(it.fetch_once());
-    if (!gemm_pd_) return status::unimplemented;
-    return status::success;
-}
-} // namespace
 
 struct gemm_matmul_t : public gpu_primitive_t {
     struct pd_t : public gpu_matmul_pd_t {
@@ -86,51 +45,6 @@ struct gemm_matmul_t : public gpu_primitive_t {
 
             bool ok = set_default_formats();
             if (!ok) return status::unimplemented;
-
-            const bool is_batched = batched();
-            const dim_t MB = batch();
-            const dim_t M = src_md()->dims[is_batched + 0];
-            const dim_t N = dst_md()->dims[is_batched + 1];
-            const dim_t K = src_md()->dims[is_batched + 1];
-
-            const auto &dst_bd = dst_md()->format_desc.blocking;
-            const auto &src_strides
-                    = &src_md()->format_desc.blocking.strides[0];
-            const auto &weights_strides
-                    = &weights_md()->format_desc.blocking.strides[0];
-            const auto &dst_strides
-                    = &dst_md()->format_desc.blocking.strides[0];
-
-            const auto bia_d = weights_md(1);
-            dim_t bias_mask = 0;
-            if (memory_desc_wrapper(bia_d).has_runtime_dims()) {
-                bias_mask = DNNL_RUNTIME_DIM_VAL;
-            } else {
-                if (is_batched) bias_mask |= (bia_d->dims[0] > 1) ? 1 << 0 : 0;
-                for (int d = is_batched; d < bia_d->ndims; ++d) {
-                    bias_mask |= (bia_d->dims[d] > 1) ? 1 << (bia_d->ndims - d)
-                                                      : 0;
-                }
-            }
-
-            const transpose_t transA = src_strides[is_batched + 1] == 1
-                            && src_md()->dims[is_batched + 0] > 1
-                    ? transpose::notrans
-                    : transpose::trans;
-            const transpose_t transB = weights_strides[is_batched + 1] == 1
-                            && weights_md()->dims[is_batched + 0] > 1
-                    ? transpose::notrans
-                    : transpose::trans;
-
-            const dim_t lda = src_strides[is_batched
-                    + (transA == transpose::notrans ? 0 : 1)];
-            const dim_t ldb = weights_strides[is_batched
-                    + (transB == transpose::notrans ? 0 : 1)];
-            const dim_t ldc = dst_bd.strides[is_batched + 0];
-
-            const dim_t stride_a = src_strides[0];
-            const dim_t stride_b = weights_strides[0];
-            const dim_t stride_c = dst_strides[0];
 
             auto prepare_gemm_attributes
                     = [](const primitive_attr_t &attr,
@@ -167,17 +81,11 @@ struct gemm_matmul_t : public gpu_primitive_t {
             primitive_attr_t gemm_attr;
             prepare_gemm_attributes(*attr(), gemm_attr);
 
-            const auto src_dt = desc()->src_desc.data_type;
-            const auto weights_dt = desc()->weights_desc.data_type;
-            const auto bias_dt = desc()->bias_desc.data_type;
-            const auto dst_dt = desc()->dst_desc.data_type;
             const auto acc_dt = desc()->accum_data_type;
 
             bool gemm_ok = status::success
-                    == create_gemm_pd(gemm_pd_, engine, transB, transA, MB, N,
-                            M, K, stride_b, stride_a, stride_c, ldb, lda, ldc,
-                            bias_mask, weights_dt, src_dt, dst_dt, acc_dt,
-                            bias_dt, &gemm_attr);
+                    == create_gemm_pd(gemm_pd_, engine, src_md(), weights_md(),
+                            dst_md(), weights_md(1), acc_dt, &gemm_attr);
             if (!gemm_ok) return status::unimplemented;
             init_scratchpad();
 

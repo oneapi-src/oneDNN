@@ -29,10 +29,11 @@ namespace impl {
 namespace gpu {
 
 namespace {
-inline bool dense_consitency_check(const memory_desc_wrapper &src_d,
+inline bool dense_consistency_check(const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &wei_d, const memory_desc_wrapper &dst_d) {
     using namespace format_tag;
     using namespace utils;
+    // Why is dense_gemm_consistency_check not enough (other than dst check)?
     return IMPLICATION(src_d.matches_tag(ncw), wei_d.matches_tag(oiw))
             && IMPLICATION(src_d.matches_tag(nchw), wei_d.matches_tag(oihw))
             && IMPLICATION(src_d.matches_tag(ncdhw), wei_d.matches_tag(oidhw))
@@ -42,7 +43,7 @@ inline bool dense_consitency_check(const memory_desc_wrapper &src_d,
             && wei_d.is_dense(true);
 }
 
-inline bool dense_gemm_consitency_check(const memory_desc_wrapper &src_d,
+inline bool dense_gemm_consistency_check(const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &wei_d, const memory_desc_wrapper &dst_d) {
     using namespace utils;
 

@@ -31,13 +31,17 @@ struct gpu_gemm_t : public gpu_primitive_t {
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const = 0;
     status_t execute(const exec_ctx_t &ctx) const override {
         gemm_exec_args_t gemm_args;
-        gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_A);
-        gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_B);
+        // TODO: we have to swap a and b because
+        // - gemm primitive is created with row major desc,
+        // - parameters to gemm are passed as row major
+        // - but gemm implementation assumes column major
+        gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_B);
+        gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_A);
         gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_C);
         gemm_args.a_zero_point
-                = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_A);
-        gemm_args.b_zero_point
                 = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_B);
+        gemm_args.b_zero_point
+                = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_A);
         gemm_args.c_zero_point
                 = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_C);
 

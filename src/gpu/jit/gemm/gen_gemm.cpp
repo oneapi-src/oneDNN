@@ -60,7 +60,7 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     arg_list.set(argn++, k);
     arg_list.set(argn++, alpha);
     arg_list.set(argn++, beta);
-    if (pd()->desc()->c_type == data_type::s32) {
+    if (pd()->desc()->c_type() == data_type::s32) {
         uint32_t abo = uint16_t(-ao) | (uint16_t(-bo) << 16);
         arg_list.set(argn++, abo);
         arg_list.set(argn++, co);
@@ -106,28 +106,28 @@ status_t gen_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
 }
 
 status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
-    auto a_type = pd()->desc()->a_type;
-    auto b_type = pd()->desc()->b_type;
-    auto c_type = pd()->desc()->c_type;
+    auto a_type = pd()->desc()->a_type();
+    auto b_type = pd()->desc()->b_type();
+    auto c_type = pd()->desc()->c_type();
 
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto m = pd()->desc()->m;
-    auto n = pd()->desc()->n;
-    auto k = pd()->desc()->k;
-    auto batch = pd()->desc()->batch;
+    auto m = pd()->desc()->m();
+    auto n = pd()->desc()->n();
+    auto k = pd()->desc()->k();
+    auto batch = pd()->desc()->batch();
 
-    bool transa = (pd()->desc()->transa == dnnl_trans);
-    bool transb = (pd()->desc()->transb == dnnl_trans);
+    bool transa = (pd()->desc()->transa() == dnnl_trans);
+    bool transb = (pd()->desc()->transb() == dnnl_trans);
 
-    auto lda = pd()->desc()->lda;
-    auto ldb = pd()->desc()->ldb;
-    auto ldc = pd()->desc()->ldc;
+    auto lda = pd()->desc()->lda();
+    auto ldb = pd()->desc()->ldb();
+    auto ldc = pd()->desc()->ldc();
 
-    auto stride_a = pd()->desc()->stride_a;
-    auto stride_b = pd()->desc()->stride_b;
-    auto stride_c = pd()->desc()->stride_c;
+    auto stride_a = pd()->desc()->stride_a();
+    auto stride_b = pd()->desc()->stride_b();
+    auto stride_c = pd()->desc()->stride_c();
 
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
@@ -136,8 +136,8 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto eltwise_beta = pd()->eltwise_beta();
     auto eltwise_scale = pd()->eltwise_scale();
 
-    auto &a = GEMM_CTX_ARG_STORAGE(a);
-    auto &b = GEMM_CTX_ARG_STORAGE(b);
+    auto &a = GEMM_CTX_ARG_STORAGE(b);
+    auto &b = GEMM_CTX_ARG_STORAGE(a);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
     auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
 
@@ -172,6 +172,9 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
             = utils::rnd_up(nocopy_info_.blocking[1], nocopy_info_.unroll[1]);
     auto block_k
             = utils::rnd_up(nocopy_info_.blocking[2], nocopy_info_.unroll[2]);
+
+    if (pd()->with_bias() || (pd()->desc()->acc_type != pd()->desc()->c_type()))
+        block_k = k;
 
     for (int64_t Bk = 0; Bk < k; Bk += block_k) {
         int64_t size_k = k - Bk;

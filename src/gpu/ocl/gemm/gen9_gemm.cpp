@@ -67,8 +67,8 @@ std::tuple<int, int, int> gen9_gemm_t::pd_t::get_blocking(bool nocopy) const {
         block_k = driver_params_f32_nocopy_t::block_k;
     }
 
-    if (desc()->acc_type != desc()->c_type)
-        block_k = utils::rnd_up(desc()->k, 64);
+    if (desc()->acc_type != desc()->c_type())
+        block_k = utils::rnd_up(desc()->k(), 64);
 
     return std::make_tuple(block_m, block_n, block_k);
 }
@@ -196,13 +196,13 @@ status_t gen9_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         arg_list.set(19, offset_f);
     }
 
-    bool transa = (pd()->desc()->transa == dnnl_trans);
-    bool transb = (pd()->desc()->transb == dnnl_trans);
+    bool transa = (pd()->desc()->transa() == dnnl_trans);
+    bool transb = (pd()->desc()->transb() == dnnl_trans);
 
     int unroll_m, unroll_n, unroll_k;
 
-    gen9_gemm_nocopy_kernel_t::get_unrolls(
-            transa, transb, unroll_m, unroll_n, unroll_k, pd()->desc()->c_type);
+    gen9_gemm_nocopy_kernel_t::get_unrolls(transa, transb, unroll_m, unroll_n,
+            unroll_k, pd()->desc()->c_type());
 
     size_t nthreads_x = (n + unroll_n - 1) / nstl::max(unroll_n, 1);
     size_t nthreads_y = (m + unroll_m - 1) / nstl::max(unroll_m, 1);
@@ -279,28 +279,28 @@ status_t gen9_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 }
 
 status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
-    auto a_type = pd()->desc()->a_type;
-    auto b_type = pd()->desc()->b_type;
-    auto c_type = pd()->desc()->c_type;
+    auto a_type = pd()->desc()->a_type();
+    auto b_type = pd()->desc()->b_type();
+    auto c_type = pd()->desc()->c_type();
 
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto mb = pd()->desc()->batch;
-    auto m = pd()->desc()->m;
-    auto n = pd()->desc()->n;
-    auto k = pd()->desc()->k;
+    auto mb = pd()->desc()->batch();
+    auto m = pd()->desc()->m();
+    auto n = pd()->desc()->n();
+    auto k = pd()->desc()->k();
 
-    bool transa = (pd()->desc()->transa == dnnl_trans);
-    bool transb = (pd()->desc()->transb == dnnl_trans);
+    bool transa = (pd()->desc()->transa() == dnnl_trans);
+    bool transb = (pd()->desc()->transb() == dnnl_trans);
 
-    auto lda = pd()->desc()->lda;
-    auto ldb = pd()->desc()->ldb;
-    auto ldc = pd()->desc()->ldc;
+    auto lda = pd()->desc()->lda();
+    auto ldb = pd()->desc()->ldb();
+    auto ldc = pd()->desc()->ldc();
 
-    auto stride_a = pd()->desc()->stride_a;
-    auto stride_b = pd()->desc()->stride_b;
-    auto stride_c = pd()->desc()->stride_c;
+    auto stride_a = pd()->desc()->stride_a();
+    auto stride_b = pd()->desc()->stride_b();
+    auto stride_c = pd()->desc()->stride_c();
 
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
@@ -413,23 +413,23 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
 }
 
 status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
-    auto a_type = pd()->desc()->a_type;
-    auto b_type = pd()->desc()->b_type;
-    auto c_type = pd()->desc()->c_type;
+    auto a_type = pd()->desc()->a_type();
+    auto b_type = pd()->desc()->b_type();
+    auto c_type = pd()->desc()->c_type();
 
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto m = pd()->desc()->m;
-    auto n = pd()->desc()->n;
-    auto k = pd()->desc()->k;
+    auto m = pd()->desc()->m();
+    auto n = pd()->desc()->n();
+    auto k = pd()->desc()->k();
 
-    bool transa = (pd()->desc()->transa == dnnl_trans);
-    bool transb = (pd()->desc()->transb == dnnl_trans);
+    bool transa = (pd()->desc()->transa() == dnnl_trans);
+    bool transb = (pd()->desc()->transb() == dnnl_trans);
 
-    auto lda = pd()->desc()->lda;
-    auto ldb = pd()->desc()->ldb;
-    auto ldc = pd()->desc()->ldc;
+    auto lda = pd()->desc()->lda();
+    auto ldb = pd()->desc()->ldb();
+    auto ldc = pd()->desc()->ldc();
 
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
