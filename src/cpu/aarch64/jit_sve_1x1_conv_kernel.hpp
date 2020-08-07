@@ -95,7 +95,7 @@ struct jit_sve_1x1_conv_kernel : public jit_generator {
     /* Flags and loop variables */
     reg64_t reg_reduce_pos_flag     = x1;
     reg64_t reduce_loop_iter        = x2;
-    reg64_t reg_bcast_loop_iter         = x3;
+    reg64_t reg_bcast_loop_iter     = x3;
     reg64_t reg_relu_ns             = x20;  // For forward
     reg64_t reg_output_stride       = x20;  // For backward
 
