@@ -428,7 +428,7 @@ jit_uni_eltwise_int_fwd_t<isa, d_type>::jit_uni_eltwise_int_fwd_t(
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::init(engine_t *engine) {
     const auto &desc = *pd()->desc();
-    kernel_ = new jit_uni_subkernel_int<isa>(desc);
+    CHECK(safe_ptr_assign(kernel_, new jit_uni_subkernel_int<isa>(desc)));
     return kernel_->create_kernel();
 }
 

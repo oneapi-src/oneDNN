@@ -1138,7 +1138,8 @@ status_t jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     nthr_oc_b_ = j.nthr_oc_b;
     nthr_ic_b_ = j.nthr_ic_b;
 
-    kernel_ = new jit_avx512_common_conv_bwd_weights_kernel_f32(j);
+    CHECK(safe_ptr_assign(
+            kernel_, new jit_avx512_common_conv_bwd_weights_kernel_f32(j)));
     CHECK(kernel_->create_kernel());
 
     if (j.ver == ver_4fma) {
@@ -1147,12 +1148,13 @@ status_t jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     }
 
     if (nthr_mb_ > 1) {
-        acc_ker_ = new cpu_accumulator_1d_t<diff_weights_type>();
+        CHECK(safe_ptr_assign(
+                acc_ker_, new cpu_accumulator_1d_t<diff_weights_type>()));
         CHECK(acc_ker_->create_kernel());
     }
 
-    reducer_bias_
-            = new cpu_reducer_t<diff_weights_type>(pd()->reducer_bia_conf_);
+    CHECK(safe_ptr_assign(reducer_bias_,
+            new cpu_reducer_t<diff_weights_type>(pd()->reducer_bia_conf_)));
     CHECK(reducer_bias_->create_kernel());
     return status::success;
 }

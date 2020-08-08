@@ -603,10 +603,12 @@ template <data_type_t diff_weights_type>
 status_t
 jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::init(
         engine_t *engine) {
-    kernel_ = new jit_avx512_core_bf16_1x1_conv_kernel(
-            pd()->jcp_, *pd()->attr());
+    CHECK(safe_ptr_assign(kernel_,
+            new jit_avx512_core_bf16_1x1_conv_kernel(
+                    pd()->jcp_, *pd()->attr())));
 
-    acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
+    CHECK(safe_ptr_assign(
+            acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
     CHECK(kernel_->create_kernel());
     CHECK(acc_ker_->create_kernel());
 
@@ -616,19 +618,20 @@ jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::init(
         const bool is_ddst_layout_nxc = utils::one_of(pd()->jcp_.dst_tag,
                 format_tag::ndhwc, format_tag::nhwc, format_tag::nwc);
         if (!is_src_layout_nxc || !is_ddst_layout_nxc) {
-            tr_reorder_ = new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t();
+            CHECK(safe_ptr_assign(tr_reorder_,
+                    new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t()));
             CHECK(tr_reorder_->create_kernel());
         }
         if (is_src_layout_nxc) {
             int ic = pd()->jcp_.ic * pd()->jcp_.ngroups;
-            tr_reorder_nhwc_src_
-                    = new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t(ic);
+            CHECK(safe_ptr_assign(tr_reorder_nhwc_src_,
+                    new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t(ic)));
             CHECK(tr_reorder_nhwc_src_->create_kernel());
         }
         if (is_ddst_layout_nxc) {
             int oc = pd()->jcp_.oc * pd()->jcp_.ngroups;
-            tr_reorder_nhwc_ddst_
-                    = new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t(oc);
+            CHECK(safe_ptr_assign(tr_reorder_nhwc_ddst_,
+                    new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t(oc)));
             CHECK(tr_reorder_nhwc_ddst_->create_kernel());
         }
     }

@@ -275,7 +275,8 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
         , kernel_dw_sse41(nullptr) {}
 
     status_t init(engine_t *engine) override {
-        kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr())));
         CHECK(kernel_->create_kernel());
         if (pd()->jcp_.with_dw_conv) {
             auto &isa = pd()->jcp_.isa;

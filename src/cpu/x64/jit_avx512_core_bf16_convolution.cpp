@@ -704,19 +704,21 @@ status_t jit_avx512_core_bf16_convolution_bwd_weights_t ::init(
     nthr_oc_b_ = j.nthr_oc_b;
     nthr_ic_b_ = j.nthr_ic_b;
 
-    kernel_ = new jit_avx512_core_bf16_conv_bwd_weights_kernel_f32(j);
+    CHECK(safe_ptr_assign(
+            kernel_, new jit_avx512_core_bf16_conv_bwd_weights_kernel_f32(j)));
     CHECK(kernel_->create_kernel());
 
     if (j.transpose_src) {
-        trans_kernel_ = create_trans_src(&j);
+        CHECK(safe_ptr_assign(trans_kernel_, create_trans_src(&j)));
         CHECK(trans_kernel_->create_kernel());
     }
     if (j.transpose_dst) {
-        trans_dst_kernel_ = create_trans_dst(&j);
+        CHECK(safe_ptr_assign(trans_dst_kernel_, create_trans_dst(&j)));
         CHECK(trans_dst_kernel_->create_kernel());
     }
     if (nthr_mb_ > 1) {
-        acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
+        CHECK(safe_ptr_assign(
+                acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
         CHECK(acc_ker_->create_kernel());
     }
 

@@ -1172,7 +1172,8 @@ jit_uni_i8i8_pooling_fwd_t<isa>::~jit_uni_i8i8_pooling_fwd_t() {
 
 template <cpu_isa_t isa>
 status_t jit_uni_i8i8_pooling_fwd_t<isa>::init(engine_t *engine) {
-    ker_ = new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_);
+    CHECK(safe_ptr_assign(
+            ker_, new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_)));
     return ker_->create_kernel();
 }
 

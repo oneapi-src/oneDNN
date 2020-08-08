@@ -547,8 +547,9 @@ inline status_t init_rtus_driver(conv_t *self) {
     const size_t typesize
             = types::data_type_size(self->pd()->invariant_src_md()->data_type);
 
-    self->rtus_driver_ = new rtus_driver_t<isa>(iw, stride_w, src_step_h,
-            src_step_icb, ws_step_icb, src_to_ws, typesize, ic, is_nspc);
+    CHECK(safe_ptr_assign(self->rtus_driver_,
+            new rtus_driver_t<isa>(iw, stride_w, src_step_h, src_step_icb,
+                    ws_step_icb, src_to_ws, typesize, ic, is_nspc)));
 
     return self->rtus_driver_->create_kernel();
 }

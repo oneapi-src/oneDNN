@@ -1761,7 +1761,8 @@ jit_uni_tbb_batch_normalization_fwd_t<
 
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::init(engine_t *engine) {
-    bnorm_driver_ = new bnorm_tbb_impl::driver_t<isa>(pd());
+    CHECK(safe_ptr_assign(
+            bnorm_driver_, new bnorm_tbb_impl::driver_t<isa>(pd())));
     return bnorm_driver_->create_kernel();
 }
 
