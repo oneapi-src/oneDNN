@@ -19,8 +19,11 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/x64/brgemm/jit_brgemm_kernel.hpp"
+#include "cpu/x64/brgemm/brgemm_amx.hpp"
+#include "cpu/x64/brgemm/brgemm_types.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
+#include "cpu/x64/jit_generator.hpp"
+#include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
 #define GET_OFF(field) offsetof(brgemm_kernel_params_t, field)
 
@@ -33,7 +36,7 @@ using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 struct jit_brgemm_kernel_base_t : public jit_generator {
-    jit_brgemm_kernel_base_t(const brgemm_conf_t &abrg)
+    jit_brgemm_kernel_base_t(const brgemm_t &abrg)
         : brg(abrg), eltwise_injector_(nullptr) {
         if (brg.with_eltwise) {
             const auto &p = brg.attr->post_ops_;
@@ -50,7 +53,7 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_base_t)
 
-    brgemm_conf_t brg;
+    brgemm_t brg;
 
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
@@ -84,7 +87,7 @@ private:
     const reg64_t reg_b_offset = rsi;
 
     const reg64_t reg_aux1_A = rbp;
-    const reg64_t reg_aux1_B = rdi;
+    const reg64_t reg_aux1_B = abi_param1;
 
     const reg64_t reg_offset_A = reg_aux1_A;
     const reg64_t reg_offset_B = reg_aux1_B;
@@ -856,19 +859,19 @@ void jit_brgemm_kernel_base_t::generate() {
     if (brg.with_eltwise) eltwise_injector_->prepare_table();
 }
 
-jit_brgemm_kernel_t::jit_brgemm_kernel_t(const brgemm_conf_t abrd) {
+brgemm_kernel_t::brgemm_kernel_t(const brgemm_t abrd) {
     brgemm_kernel_ = new jit_brgemm_kernel_base_t(abrd);
 }
 
-status_t jit_brgemm_kernel_t::create_kernel() {
+status_t brgemm_kernel_t::create_kernel() {
     return brgemm_kernel_->create_kernel();
 }
 
-void jit_brgemm_kernel_t::operator()(brgemm_kernel_params_t *params) const {
+void brgemm_kernel_t::operator()(brgemm_kernel_params_t *params) const {
     (*brgemm_kernel_)(params);
 }
 
-jit_brgemm_kernel_t::~jit_brgemm_kernel_t() {
+brgemm_kernel_t::~brgemm_kernel_t() {
     delete brgemm_kernel_;
 }
 
