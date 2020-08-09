@@ -1387,6 +1387,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_disp() {
         if (jcp.ic_block % ic_block_step != 0) {
             ic_block_step = jcp.ic_block < ic_block_step ? jcp.ic_block : 1;
         }
+        if (jcp.ic < ic_block_step) ic_block_step = jcp.ic;
     } else {
         ic_block_step = jcp.kw > 7 ? 1 : jcp.kw > 3 ? 2 : jcp.kw > 1 ? 4 : 8;
     }
@@ -1414,9 +1415,7 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
     const int r_pad = jcp.r_pad;
     const int ic_tail = jcp.ic_tail;
     const int ic_block = jcp.ic_block;
-    const int ic_block_step_tail = jcp.ic < 8
-            ? jcp.ic - ic_block_step
-            : nstl::abs(ic_block_step - ic_tail);
+    const int ic_block_step_tail = jcp.ic % ic_block_step;
     const size_t inp_icblk_stride = get_input_offset(ic_block_step, 0);
 
     if (ic_tail) {
@@ -1466,33 +1465,37 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_step_unroll_ow(
 
     L(kh_loop_ic_tail);
     {
-        Label ic_blk_step_tail, ic_blk_step_done;
+        Label ic_block_loop, ic_block_loop_done;
+
         cmp(reg_channel, ic_block_step);
-        jle(ic_blk_step_tail, T_NEAR);
+        jl(ic_block_loop_done, T_NEAR);
 
-        compute_ic_block_step(jcp.ow, jcp.l_pad, r_pad, ic_block_step, 0, 0, 0);
-        safe_add(reg_input, inp_icblk_stride, reg_long_offt);
-        add(reg_kernel, get_kernel_offset(0, ic_block_step));
-        compute_ic_block_step(
-                jcp.ow, jcp.l_pad, r_pad, ic_block_step_tail, 0, 0, 0);
+        mov(b_ic, ic_tail);
+        L(ic_block_loop);
+        {
+            compute_ic_block_step(
+                    jcp.ow, jcp.l_pad, r_pad, ic_block_step, 0, 0, 0);
+            safe_add(reg_input, inp_icblk_stride, reg_long_offt);
+            add(reg_kernel, get_kernel_offset(0, ic_block_step));
+            sub(b_ic, ic_block_step);
+            cmp(b_ic, ic_block_step);
+            jge(ic_block_loop, T_NEAR);
+        }
+
+        L(ic_block_loop_done);
+
+        if (ic_block_step_tail) {
+            compute_ic_block_step(
+                    jcp.ow, jcp.l_pad, r_pad, ic_block_step_tail, 0, 0, 0);
+            add(reg_input, get_input_offset(ic_block_step_tail, 0));
+            add(reg_kernel, get_kernel_offset(0, ic_block_step_tail));
+        }
+
         add(reg_input,
-                inp_icblk_stride + get_input_offset(0, jcp.iw)
-                        - get_input_offset(ic_block, 0));
+                get_input_offset(0, jcp.iw) - get_input_offset(ic_tail, 0));
         add(reg_kernel,
-                get_kernel_offset(0, ic_block_step)
+                get_kernel_offset(0, ic_block - ic_tail)
                         + get_kernel_offset((jcp.kw - 1), 0));
-        jmp(ic_blk_step_done, T_NEAR);
-
-        L(ic_blk_step_tail);
-        compute_ic_block_step(jcp.ow, jcp.l_pad, r_pad,
-                ic_tail > ic_block_step ? ic_block_step_tail : ic_tail, 0, 0,
-                0);
-        add(reg_input, get_input_offset(0, jcp.iw));
-        add(reg_kernel,
-                get_kernel_offset(0, ic_block)
-                        + get_kernel_offset((jcp.kw - 1), 0));
-
-        L(ic_blk_step_done);
         dec(kj);
         cmp(kj, 0);
         jg(kh_loop_ic_tail, T_NEAR);
