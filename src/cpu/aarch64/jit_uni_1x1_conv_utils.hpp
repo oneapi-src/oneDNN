@@ -339,7 +339,7 @@ struct rtus_driver_t : public jit_generator {
                                 const int64_t offset, const int load_size) {
             if (isa == sve) {
                 CGA64::add_imm(reg_tmp_ofs, reg, offset, reg_tmp_imm);
-                CGA64::ldr(vreg, xa::ptr(reg_tmp_ofs);
+                CGA64::ldr(vreg, xa::ptr(reg_tmp_ofs));
                 //const Address &addr = ptr[reg + offset];
                 //switch (typesize_) {
                 //    case 4: vmovups(vreg, addr); break;
@@ -357,7 +357,7 @@ struct rtus_driver_t : public jit_generator {
                                  const int64_t offset, const int store_size) {
             if (isa == sve) {
                 CGA64::add_imm(reg_tmp_ofs, reg, offset, reg_tmp_imm);
-                CGA64::str(vreg, xa::ptr(reg_tmp_ofs);
+                CGA64::str(vreg, xa::ptr(reg_tmp_ofs));
                 //const Address &addr = ptr[reg + offset];
                 //switch (typesize_) {
                 //    case 4: vmovups(addr, vreg); break;
