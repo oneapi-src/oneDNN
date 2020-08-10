@@ -20,14 +20,24 @@
 
 namespace eltwise {
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
+void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst) {
     const float *src_ptr = (const float *)src;
     float *dst_ptr = (float *)dst;
     const auto nelems = src.nelems();
+    std::vector<int> v_bin_po_mask = p->attr.post_ops.get_binary_po_masks();
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        dst_ptr[i] = compute_eltwise_fwd(
+        float res = compute_eltwise_fwd(
                 p->alg, src_ptr[i], 1.0, p->alpha, p->beta);
+        std::vector<float> v_binary_vals;
+        for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
+            auto bin_po_offset = src.get_scale_idx(i, v_bin_po_mask[d]);
+            float binary_val = binary_po[d].get_elem(bin_po_offset);
+            v_binary_vals.push_back(binary_val);
+        }
+        maybe_post_ops(p->attr, res, 0.f, v_binary_vals);
+        dst_ptr[i] = res;
     });
 }
 

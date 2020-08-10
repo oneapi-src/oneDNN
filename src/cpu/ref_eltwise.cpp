@@ -100,6 +100,14 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic(
                 auto data_p_off = DATA_OFF(data_d, n, c, d, h, w);
                 float res = compute_eltwise_scalar_fwd(
                         alg_kind, src[data_p_off], alpha, beta);
+                dim_t data_l_off = (((n * C + c) * D + d) * H + h) * W + w;
+
+                ref_post_ops_t::args_t args;
+                args.ctx = &ctx;
+                args.l_offset = data_l_off;
+                args.dst_md = pd()->dst_md();
+                ref_post_ops->execute(res, args);
+
                 dst[data_p_off] = cpu::saturate_and_round<data_t>(res);
             });
 }
