@@ -317,7 +317,7 @@ struct rtus_driver_t : public jit_generator {
         CGA64::mov(reg_cur_src, reg_src);
         CGA64::mov(reg_cur_iw, reg_iw_start);
 
-        if (isa == avx512_common) {
+        if (isa == sve) {
             //push(rcx); // preserve rcx, used for shift
             CGA64::mov(reg_icb_remainder, reg_icb);
             CGA64::and_imm(reg_icb_remainder, reg_icb_remainder,
@@ -335,33 +335,39 @@ struct rtus_driver_t : public jit_generator {
             }
         }
 
-        auto load_reg = [=](const Xmm &vreg, const Reg64 &reg,
+        auto load_reg = [=](const xa::ZReg &vreg, const xa::XReg &reg,
                                 const int64_t offset, const int load_size) {
-            if (isa == avx512_common) {
-                const Address &addr = ptr[reg + offset];
-                switch (typesize_) {
-                    case 4: vmovups(vreg, addr); break;
-                    case 2: vmovdqu16(vreg, addr); break;
-                    case 1: vmovdqu8(vreg, addr); break;
-                    default: assert(!"Unsupported typesize");
-                }
+            if (isa == sve) {
+                CGA64::add_imm(reg_tmp_ofs, reg, offset, reg_tmp_imm);
+                CGA64::ldr(vreg, xa::ptr(reg_tmp_ofs);
+                //const Address &addr = ptr[reg + offset];
+                //switch (typesize_) {
+                //    case 4: vmovups(vreg, addr); break;
+                //    case 2: vmovdqu16(vreg, addr); break;
+                //    case 1: vmovdqu8(vreg, addr); break;
+                //    default: assert(!"Unsupported typesize");
+                //}
             } else {
-                load_bytes(vreg, reg, offset, load_size);
+                assert(!"Unsupported load_bytes");
+                //load_bytes(vreg, reg, offset, load_size);
             }
         };
 
-        auto store_reg = [=](const Reg64 &reg, const Xmm &vreg,
+        auto store_reg = [=](const xa::XReg &reg, const xa::ZReg &vreg,
                                  const int64_t offset, const int store_size) {
-            if (isa == avx512_common) {
-                const Address &addr = ptr[reg + offset];
-                switch (typesize_) {
-                    case 4: vmovups(addr, vreg); break;
-                    case 2: vmovdqu16(addr, vreg); break;
-                    case 1: vmovdqu8(addr, vreg); break;
-                    default: assert(!"Unsupported typesize");
-                }
+            if (isa == sve) {
+                CGA64::add_imm(reg_tmp_ofs, reg, offset, reg_tmp_imm);
+                CGA64::str(vreg, xa::ptr(reg_tmp_ofs);
+                //const Address &addr = ptr[reg + offset];
+                //switch (typesize_) {
+                //    case 4: vmovups(addr, vreg); break;
+                //    case 2: vmovdqu16(addr, vreg); break;
+                //    case 1: vmovdqu8(addr, vreg); break;
+                //    default: assert(!"Unsupported typesize");
+                //}
             } else {
-                store_bytes(vreg, reg, offset, store_size);
+                assert(!"Unsupported store_bytes");
+                //store_bytes(vreg, reg, offset, store_size);
             }
         };
 
