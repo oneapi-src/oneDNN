@@ -4152,6 +4152,42 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         jcp.transpose_dst = true;
     }
 
+    jcp.typesize_in = sizeof(bfloat16_t);
+    jcp.typesize_out = sizeof(float);
+    const dim_t cache_l2
+            = platform::get_per_core_cache_size(2) / jcp.typesize_out;
+
+    // Observation: Given large 3D shapes with large filter size, 1st nspc
+    // bwd_w convolution benefits from non-temporal stores in diff_dst
+    // transformation but not so much from blocking w.r.t. depth dimension
+    // In particular, it's optimized for i3D 1st convolution
+    const bool nt_stores_ok = is_data_layout_nxc
+            && dim_t(jcp.oc) * jcp.od * jcp.oh * jcp.ow >= 2 * cache_l2
+            && jcp.kd >= 6 && jcp.kh >= 6 && jcp.kw >= 6;
+
+    // Performancewise transposition of diff_dst tensor is one of the major
+    // bottleneck in 1st convolution. Thus for large diff_dst size we can
+    // potentially further split up transposition in smaller chunks to achieve
+    // better cache reuse
+    const bool large_diff_dst_size
+            = dim_t(jcp.oc) * jcp.od * jcp.oh * jcp.ow >= cache_l2;
+
+    // For two dimensional diff_dst tensor blocking along height demands
+    // non-trivial work along width dimension. Similarly, for three dimensional
+    // diff_dst tensor enough work must be present in the joint width-height
+    // dimension. Finally, there is no blocking along the width dimension
+    const bool blocking_ok = large_diff_dst_size
+            && IMPLICATION(jcp.od == 1, jcp.ow >= 124)
+            && IMPLICATION(jcp.od > 1, jcp.ow * jcp.oh >= 64 * 124)
+            && (jcp.od > 1 || jcp.oh > 1);
+
+    jcp.global_transpose = dnnl_thr_syncable();
+    // TODO: Find more shapes (especially 3D with large spatials) for which
+    // local transposition will be beneficial
+    if (jcp.is_1stconv && !nt_stores_ok && blocking_ok)
+        jcp.global_transpose = false;
+    jcp.use_nt_stores_ddst = jcp.global_transpose && nt_stores_ok;
+
     const bool padding_ok = IMPLICATION(!jcp.transpose_src,
             jcp.l_pad < max_ur_w && jcp.r_pad < max_ur_w
                     && ext_kw <= jcp.iw + 1);
@@ -4174,9 +4210,6 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
 
     jcp.tr_src_num_guard_elems = tr_pad; // upper bound
     jcp.tr_ow = jcp.transpose_dst ? rnd_up(jcp.ow, 2) : jcp.ow;
-
-    jcp.typesize_in = sizeof(bfloat16_t);
-    jcp.typesize_out = sizeof(float);
 
     bool args_ok = true
             && IMPLICATION(!is_data_layout_nxc,
@@ -4228,14 +4261,14 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         // TODO: Optimize memory allocation when threaded on height and depth
         if (jcp.transpose_src) {
             jcp.tr_src_buf_size = jcp.tr_iw * jcp.ic_block * jcp.ih * jcp.id;
-            jcp.tr_src_buf_count = dnnl_thr_syncable()
+            jcp.tr_src_buf_count = jcp.global_transpose
                     ? jcp.nthr_mb * jcp.nb_ic * jcp.ngroups
                     : jcp.nthr;
         }
         if (jcp.transpose_dst) {
             jcp.tr_diff_dst_buf_size
                     = jcp.tr_ow * jcp.oc_block * jcp.oh * jcp.od;
-            jcp.tr_diff_dst_buf_count = dnnl_thr_syncable()
+            jcp.tr_diff_dst_buf_count = jcp.global_transpose
                     ? jcp.nthr_mb * jcp.nb_oc * jcp.ngroups
                     : jcp.nthr;
         }
@@ -4259,7 +4292,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
         scratchpad.book(key_conv_tr_src, tr_src_size, jcp.typesize_in);
 
         /* prepare synchronization contexts */
-        if (dnnl_thr_syncable() && jcp.nthr_oc_b > 1) {
+        if (jcp.global_transpose && jcp.nthr_oc_b > 1) {
             const int tr_src_bctx_size = jcp.nthr / jcp.nthr_oc_b;
             scratchpad.book<simple_barrier::ctx_t>(
                     key_conv_tr_src_bctx, tr_src_bctx_size);
@@ -4268,11 +4301,12 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
         const size_t tr_diff_dst_size
                 = jcp.tr_diff_dst_buf_count * jcp.tr_diff_dst_buf_size;
 
-        scratchpad.book(
-                key_conv_tr_diff_dst, tr_diff_dst_size, jcp.typesize_in);
+        const size_t min_align = jcp.use_nt_stores_ddst ? 64 : jcp.typesize_in;
+        scratchpad.book(key_conv_tr_diff_dst, tr_diff_dst_size, jcp.typesize_in,
+                min_align);
 
         /* prepare synchronization contexts */
-        if (dnnl_thr_syncable() && jcp.nthr_ic_b > 1) {
+        if (jcp.global_transpose && jcp.nthr_ic_b > 1) {
             const size_t tr_diff_dst_bctx_size = jcp.nthr / jcp.nthr_ic_b;
             scratchpad.book<simple_barrier::ctx_t>(
                     key_conv_tr_diff_dst_bctx, tr_diff_dst_bctx_size);
@@ -4300,7 +4334,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
         scratchpad.book<float>(
                 key_conv_wei_bia_reduction, wei_bia_reduction_size);
 
-        if (dnnl_thr_syncable())
+        if (jcp.global_transpose)
             scratchpad.book<simple_barrier::ctx_t>(
                     key_conv_wei_bia_reduction_bctx, 1);
     }

@@ -933,7 +933,7 @@ void jit_trans_ow_oc_t::generate() {
     src_stride = src_mult * typesize;
     tr_src_stride = oc_block * typesize;
 
-    bool nontemporal_stores = false;
+    bool nontemporal_stores = conf_->use_nt_stores_ddst;
     enable_prefetch = ow > small_spatial;
 
     const size_t src_step = src_mult * transpose_size * typesize;

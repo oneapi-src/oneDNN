@@ -189,6 +189,8 @@ struct jit_conv_conf_t {
     // bf16 bwdw conv
     int tr_ow;
     bool is_hw_transp; // spatial dim height-width transposed
+    bool global_transpose; // diff_dst & src tensors are transposed in one go
+    bool use_nt_stores_ddst; // Use non temporal stores in diff_dst transform
 
     // Needed for Intel(R) Advanced Matrix Extensions (Intel(R) AMX) kernels
     bool is_nspc; // activations in nwc, nhwc, or ndhwc layout
