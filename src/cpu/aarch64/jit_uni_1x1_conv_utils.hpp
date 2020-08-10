@@ -128,7 +128,7 @@ inline void rtus_prepare_space_info(conv_pd_t *self,
 template <cpu_isa_t isa>
 struct rtus_driver_t : public jit_generator {
 // TODO
-#if 1
+#if 0
     struct call_params_t {
         const void *ws; /* reduced image (w/ strides = 1) */
         const void *src; /* source image (w/ non-unit strides) */
@@ -153,8 +153,8 @@ struct rtus_driver_t : public jit_generator {
     reg64_t reg_cur_src        = x24; //r10;
     reg64_t reg_cur_src_fin    = reg_cur_iw; /* just reuse */
 
-    //Xbyak::Opmask tail_mask    = k2;
-    xa::PReg k2;
+    //Xbyak::Opmask tail_mask   = k2;
+    xa::PReg tail_mask          = p1;
     
     // nspc section
     reg64_t reg_cur_icb         = x22; //rax;
@@ -310,22 +310,22 @@ struct rtus_driver_t : public jit_generator {
     }
 
     void loop_is_nspc() {
-        using namespace Xbyak;
+        using namespace Xbyak::Xbyak_aarch64;
 
         assert(is_nspc_);
 
-        mov(reg_cur_src, reg_src);
-        mov(reg_cur_iw, reg_iw_start);
+        CGA64::mov(reg_cur_src, reg_src);
+        CGA64::mov(reg_cur_iw, reg_iw_start);
 
         if (isa == avx512_common) {
-            push(rcx); // preserve rcx, used for shift
-            mov(reg_icb_remainder, reg_icb);
-            and_(reg_icb_remainder,
-                    (vlen_ / typesize_) - 1); // # of elements in tail
-            mov(reg_tail_mask, 1);
-            shl(reg_tail_mask, reg_icb_remainder.cvt8());
-            dec(reg_tail_mask);
-            pop(rcx);
+            //push(rcx); // preserve rcx, used for shift
+            CGA64::mov(reg_icb_remainder, reg_icb);
+            CGA64::and_imm(reg_icb_remainder, reg_icb_remainder,
+                    (vlen_ / typesize_) - 1, reg_tmp_imm); // # of elements in tail
+            CGA64::mov(reg_tail_mask, 1);
+            CGA64::lsl(reg_tail_mask, reg_icb_remainder.cvt8());
+            CGA64::sub(reg_tail_mask, 1); //dec(reg_tail_mask);
+            //pop(rcx);
 
             switch (typesize_) {
                 case 4: kmovw(tail_mask, reg_tail_mask.cvt32()); break;
