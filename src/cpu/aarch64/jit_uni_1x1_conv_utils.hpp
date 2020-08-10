@@ -365,27 +365,27 @@ struct rtus_driver_t : public jit_generator {
             }
         };
 
-        mov(reg_ws_copy, reg_ws);
-        shl(reg_icb, vlen_shift_);
+        CGA64::mov(reg_ws_copy, reg_ws);
+        CGA64::lsl(reg_icb, vlen_shift_);
 
         const size_t w_step_factor = ic_ * typesize_;
         const size_t max_load_store_bytes = 32;
         const size_t load_store_size
-                = isa == avx512_common ? vlen_ : max_load_store_bytes;
+                = isa == sve ? vlen_ : max_load_store_bytes;
         size_t load_store_tail_size = (typesize_ == 1 ? max_load_store_bytes
                                                       : ic_tail_ * typesize_);
 
-        Label is_loop, ic_loop, ic_loop_tail, ic_loop_finish;
-        L(is_loop);
+        xa::LabelAArch64 is_loop, ic_loop, ic_loop_tail, ic_loop_finish;
+        CGA64::L_aarch64(is_loop);
         {
-            mov(reg_cur_src, reg_src);
-            mov(reg_ws, reg_ws_copy);
-            mov(reg_cur_icb, reg_icb);
+            CGA64::mov(reg_cur_src, reg_src);
+            CGA64::mov(reg_ws, reg_ws_copy);
+            CGA64::mov(reg_cur_icb, reg_icb);
 
-            L(ic_loop);
+            CGA64::L_aarch64(ic_loop);
             {
-                cmp(reg_cur_icb, load_store_size);
-                jl(ic_loop_tail);
+                CGA64::cmp(reg_cur_icb, load_store_size);
+                CGA64::b(xa::LT, ic_loop_tail); //jl(ic_loop_tail);
 
                 if (src_to_ws_) {
                     load_reg(reg_v, reg_cur_src, 0, load_store_size);
@@ -397,17 +397,17 @@ struct rtus_driver_t : public jit_generator {
                         store_reg(reg_cur_src, reg_zero, w * w_step_factor,
                                 load_store_size);
                 }
-                add(reg_ws, load_store_size);
-                add(reg_cur_src, load_store_size);
+                CGA64::add_imm(reg_ws, reg_ws, load_store_size, reg_tmp_imm);
+                CGA64::add_imm(reg_cur_src, reg_cur_src, load_store_size, reg_tmp_imm);
 
-                sub(reg_cur_icb, load_store_size);
-                jmp(ic_loop);
+                CGA64::subs_imm(reg_cur_icb, reg_cur_icb, load_store_size, reg_tmp_imm);
+                CGA64::b(ic_loop);
             }
 
-            L(ic_loop_tail);
+            CGA64::L_aarch64(ic_loop_tail);
             {
-                cmp(reg_cur_icb, 0);
-                je(ic_loop_finish);
+                CGA64::cmp(reg_cur_icb, 0);
+                CGA64::b(xa::EQ, ic_loop_finish); //je(ic_loop_finish);
 
                 if (src_to_ws_) {
                     load_reg(reg_v | tail_mask, reg_cur_src, 0,
@@ -424,73 +424,72 @@ struct rtus_driver_t : public jit_generator {
                                 w * w_step_factor, load_store_tail_size);
                 }
             }
-            L(ic_loop_finish);
+            CGA64::L_aarch64(ic_loop_finish);
 
-            add(reg_ws_copy, w_step_factor);
-            add(reg_src, stride_w_ * w_step_factor);
+            CGA64::add_imm(reg_ws_copy, reg_ws_copy, w_step_factor, reg_tmp_imm);
+            CGA64::add_imm(reg_src, reg_src, stride_w_ * w_step_factor, reg_tmp_imm);
 
             // for 1d or stride_h=1 convolutions the loop over h should be skipped
             const bool skip_oh_step = src_step_h_ == iw_;
             if (!skip_oh_step) {
-                mov(reg_cur_src, reg_src);
-                Label skip_h_step;
-                add(reg_cur_iw, stride_w_);
-                cmp(reg_cur_iw, iw_);
-                jl(skip_h_step, T_NEAR);
+                CGA64::mov(reg_cur_src, reg_src);
+                xa::LabelAArch64 skip_h_step;
+                CGA64::add_imm(reg_cur_iw, reg_cur_iw, stride_w_, reg_tmp_imm);
+                CGA64::cmp(reg_cur_iw, reg_cur_iw, iw_, reg_tmp_imm);
+                CGA64::b(xa::LT, skip_h_step); //jl(skip_h_step, T_NEAR);
 
                 if (src_to_ws_) {
-                    add(reg_src, (src_step_h_ - iw_) * w_step_factor);
+                    CGA64::add_imm(reg_src, reg_src, (src_step_h_ - iw_) * w_step_factor, reg_tmp_imm);
                 } else {
-                    mov(reg_cur_src_fin, reg_cur_src);
-                    add(reg_cur_src_fin, (src_step_h_ - iw_) * w_step_factor);
-                    Label ih_loop_nhwc, ic_ih_loop_nhwc, ic_tail_ih_loop_nhwc,
+                    CGA64::mov(reg_cur_src_fin, reg_cur_src);
+                    CGA64::add_imm(reg_cur_src_fin, reg_cur_src_fin, (src_step_h_ - iw_) * w_step_factor, reg_tmp_imm);
+                    xa::LabelAArch64 ih_loop_nhwc, ic_ih_loop_nhwc, ic_tail_ih_loop_nhwc,
                             ic_finish_ih_loop_nhwc;
-                    L(ih_loop_nhwc);
-                    mov(reg_cur_src, reg_src);
-                    mov(reg_cur_icb, reg_icb);
-                    L(ic_ih_loop_nhwc);
-                    cmp(reg_cur_icb, load_store_size);
-                    jl(ic_tail_ih_loop_nhwc);
+                    CGA64::L_aarch64(ih_loop_nhwc);
+                    CGA64::mov(reg_cur_src, reg_src);
+                    CGA64::mov(reg_cur_icb, reg_icb);
+                    CGA64::L_aarch64(ic_ih_loop_nhwc);
+                    CGA64::cmp(reg_cur_icb, load_store_size);
+                    CGA64::b(xa::LT, ic_tail_ih_loop_nhwc); //jl(ic_tail_ih_loop_nhwc);
 
                     for (int w = 0; w < stride_w_; ++w)
                         store_reg(reg_cur_src, reg_zero, w * w_step_factor,
                                 load_store_size);
 
-                    add(reg_cur_src, load_store_size);
-                    sub(reg_cur_icb, load_store_size);
-                    jnz(ic_ih_loop_nhwc);
+                    CGA64::add_imm(reg_cur_src, reg_cur_src, load_store_size, reg_tmp_imm);
+                    CGA64::subs_imm(reg_cur_icb, reg_cur_icb, load_store_size, reg_tmp_imm);
+                    CGA64::b(xa::NE, ic_ih_loop_nhwc); //jnz(ic_ih_loop_nhwc);
 
-                    L(ic_tail_ih_loop_nhwc);
-                    cmp(reg_cur_icb, 0);
-                    jle(ic_finish_ih_loop_nhwc);
+                    CGA64::L_aarch64(ic_tail_ih_loop_nhwc);
+                    CGA64::cmp(reg_cur_icb, 0);
+                    CGA64::b(xa::LE, ic_finish_ih_loop_nhwc); //jle(ic_finish_ih_loop_nhwc);
 
                     for (int w = 0; w < stride_w_; ++w)
                         store_reg(reg_cur_src, reg_zero | tail_mask,
                                 w * w_step_factor, load_store_tail_size);
 
-                    L(ic_finish_ih_loop_nhwc);
+                    CGA64::L_aarch64(ic_finish_ih_loop_nhwc);
 
-                    add(reg_src, stride_w_ * w_step_factor);
-                    cmp(reg_src, reg_cur_src_fin);
-                    jl(ih_loop_nhwc);
+                    CGA64::add_imm(reg_src, reg_src, stride_w_ * w_step_factor, reg_tmp_imm);
+                    CGA64::cmp(reg_src, reg_cur_src_fin);
+                    CGA64::b(xa::LT, ih_loop_nhwc); //jl(ih_loop_nhwc);
                 }
-                xor_(reg_cur_iw, reg_cur_iw);
-                L(skip_h_step);
+                CGA64::mov(reg_cur_iw, 0);
+                CGA64::L_aarch64(skip_h_step);
             }
 
-            sub(reg_os, 1);
-            jnz(is_loop);
+            CGA64::subs(reg_os, 1);
+            CGA64::b(xa::NE, is_loop); //jnz(is_loop);
         }
     }
 
     void generate() {
-        using namespace Xbyak;
-        assert(isa == avx2 || isa == avx512_common || isa == avx512_core
-                || isa == avx512_mic);
+        using namespace Xbyak::Xbyak_aarch64;
+        assert(isa == sve);
 
         preamble();
 #define READ_PARAM(what) \
-    mov(reg_##what, ptr[abi_param1 + offsetof(call_params_t, what)])
+    mov(reg_##what, ptr[abi_param1_aarch64 + offsetof(call_params_t, what)])
         READ_PARAM(src);
         READ_PARAM(icb);
         READ_PARAM(os);
@@ -500,15 +499,9 @@ struct rtus_driver_t : public jit_generator {
 
         if (!src_to_ws_) {
             switch (reg_zero.getBit() / 8) {
-                case 16 /*xmm*/: uni_vpxor(reg_zero, reg_zero, reg_zero); break;
-                case 32 /*ymm*/: {
-                    Xbyak::Ymm ymm_z(reg_zero.getIdx());
-                    uni_vpxor(ymm_z, ymm_z, ymm_z);
-                    break;
-                }
-                case 64 /*zmm*/: {
-                    Xbyak::Zmm zmm_z(reg_zero.getIdx());
-                    uni_vpxor(zmm_z, zmm_z, zmm_z);
+                case 64 /*sve*/: {
+                    xa::ZReg zreg(reg_zero.getIdx());
+                    CGA64::fmov(zreg); // zero clear
                     break;
                 }
                 default: assert(!"rtus kernel failure");
@@ -517,26 +510,26 @@ struct rtus_driver_t : public jit_generator {
         if (is_nspc_) {
             loop_is_nspc();
         } else {
-            shl(reg_os, vlen_shift_);
+            CGA64::lsl(reg_os, vlen_shift_);
 
-            Label icb_loop;
-            L(icb_loop);
+            xa::LabelAArch64 icb_loop;
+            CGA64::L_aarch64(icb_loop);
 
             loop_is();
 
-            add(reg_ws, ws_step_icb_ * vlen_);
-            add(reg_src, src_step_icb_ * vlen_);
+            CGA64::add_imm(reg_ws, reg_ws, ws_step_icb_ * vlen_, reg_tmp_imm);
+            CGA64::add_imm(reg_src, reg_src, src_step_icb_ * vlen_, reg_tmp_imm);
 
-            sub(reg_icb, vlen_ / typesize_);
-            jnz(icb_loop, T_NEAR);
+            CGA64::subs_imm(reg_icb, reg_icb, vlen_ / typesize_, reg_tmp_imm);
+            CGA64::b(xa::NE, icb_loop); //jnz(icb_loop, T_NEAR);
         }
 
         postamble();
 
-        uni_vzeroupper();
+        //uni_vzeroupper();
         ret();
         this->ker_ = reinterpret_cast<decltype(ker_)>(
-                const_cast<uint8_t *>(this->getCode()));
+                const_cast<uint32_t *>(this->getCode32()));
     }
 #endif
 };
