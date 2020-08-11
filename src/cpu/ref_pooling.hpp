@@ -25,6 +25,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 #include "cpu/cpu_pooling_pd.hpp"
 
@@ -40,12 +41,14 @@ struct ref_pooling_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_pooling_fwd_t);
 
         status_t init(engine_t *engine) {
+            using sm = primitive_attr_t::skip_mask_t;
+
             bool ok = platform::has_data_type_support(data_type)
                     && set_default_params() == status::success && is_fwd()
                     && utils::everyone_is(
                             data_type, src_md()->data_type, dst_md()->data_type)
                     && desc()->accum_data_type == acc_type
-                    && attr()->has_default_values();
+                    && attr()->has_default_values(sm::post_ops);
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == prop_kind::forward_training;
@@ -58,8 +61,15 @@ struct ref_pooling_fwd_t : public primitive_t {
 
     ref_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    typedef typename prec_traits<data_type>::type data_t;
-    typedef typename prec_traits<acc_type>::type acc_data_t;
+    status_t init(engine_t *engine) override {
+        ref_post_ops
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops) return status::out_of_memory;
+        return status::success;
+    }
+
+    using data_t = typename prec_traits<data_type>::type;
+    using acc_data_t = typename prec_traits<acc_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -67,8 +77,9 @@ struct ref_pooling_fwd_t : public primitive_t {
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    void execute_forward(const exec_ctx_t &ctx) const;
+    std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
 template <impl::data_type_t data_type>

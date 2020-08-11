@@ -107,6 +107,7 @@ struct settings_t {
     std::vector<std::string> tag {tag::abx};
     std::vector<alg_t> alg {MAX};
     std::vector<int64_t> mb {0};
+    std::vector<attr_t::post_ops_t> post_ops {attr_t::post_ops_t()};
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
             dnnl_scratchpad_mode_library};
 
@@ -242,8 +243,8 @@ inline int64_t get_num_summands(
             : (d_end - d_start) * (h_end - h_start) * (w_end - w_start);
 }
 
-void compute_ref_fwd(
-        const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst, dnn_mem_t &ws);
+void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst, dnn_mem_t &ws);
 void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
         const dnn_mem_t &diff_dst, const dnn_mem_t &ws);
 
