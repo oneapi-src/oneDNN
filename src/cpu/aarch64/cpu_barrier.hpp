@@ -14,18 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_CPU_BARRIER_HPP
-#define CPU_X64_CPU_BARRIER_HPP
+#ifndef CPU_AARCH64_CPU_BARRIER_HPP
+#define CPU_AARCH64_CPU_BARRIER_HPP
 
 #include <assert.h>
 
 #include "common/utils.hpp"
-#include "cpu/x64/jit_generator.hpp"
+#include "cpu/aarch64/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
+namespace aarch64 {
 
 namespace simple_barrier {
 
@@ -60,23 +60,47 @@ STRUCT_ALIGN(
             char pad2[CACHE_LINE_SIZE - 1 * sizeof(size_t)];
         });
 
+/** jit barrier generator */
+struct jit_t : public jit_generator {
+private:
+    using reg64_t = const Xbyak::Xbyak_aarch64::XReg;
+
+    reg64_t reg_tmp     = x28;
+    reg64_t reg_tmp_imm = x29;
+    reg64_t reg_tmp_ofs = x30;
+    
+    /** injects actual barrier implementation into another jitted code
+     * @params:
+     *   reg_ctx   -- read-only register with pointer to the barrier context
+     *   reg_nnthr -- read-only register with the # of synchronizing threads
+     */
+    void generate(Xbyak::Xbyak_aarch64::XReg reg_ctx, Xbyak::Xbyak_aarch64::XReg reg_nthr);
+    void barrier(ctx_t *ctx, int nthr);
+
+public:
+    void (*barr)(ctx_t *ctx, size_t nthr);
+
+    jit_t() {
+        this->generate( abi_param1_aarch64, abi_param2_aarch64);
+        ret();
+        barr = reinterpret_cast<decltype(barr)>(
+                const_cast<uint32_t *>(this->getCode32()));
+    }
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_t)
+
+
+};
+
+
 template <typename ctx_t>
 inline void ctx_init(ctx_t *ctx) {
     *ctx = utils::zero<ctx_t>();
 }
-void barrier(ctx_t *ctx, int nthr);
-
-/** injects actual barrier implementation into another jitted code
- * @params:
- *   code      -- jit_generator object where the barrier is to be injected
- *   reg_ctx   -- read-only register with pointer to the barrier context
- *   reg_nnthr -- read-only register with the # of synchronizing threads
- */
-void generate(jit_generator &code, Xbyak::Reg64 reg_ctx, Xbyak::Reg64 reg_nthr);
 
 } // namespace simple_barrier
 
-} // namespace x64
+} // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

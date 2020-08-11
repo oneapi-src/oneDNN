@@ -16,97 +16,108 @@
 
 #include <assert.h>
 
-#include "cpu/x64/cpu_barrier.hpp"
+#include "cpu/aarch64/cpu_barrier.hpp"
+
+#define CGA64 CodeGeneratorAArch64
+namespace xa = Xbyak::Xbyak_aarch64;
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
+namespace aarch64 {
 
 namespace simple_barrier {
 
-void generate(
-        jit_generator &code, Xbyak::Reg64 reg_ctx, Xbyak::Reg64 reg_nthr) {
+using namespace Xbyak::Xbyak_aarch64;
+
+#define push64(reg); \
+        CGA64::sub(sp, sp, 8); \
+        CGA64::str(reg, xa::ptr(sp));
+
+#define pop64(reg); \
+        CGA64::ldr(reg, xa::ptr(sp)); \
+        CGA64::add(sp, sp, 8);
+
+void jit_t::generate( xa::XReg reg_ctx, xa::XReg reg_nthr ) {
 #define BAR_CTR_OFF offsetof(ctx_t, ctr)
 #define BAR_SENSE_OFF offsetof(ctx_t, sense)
-    using namespace Xbyak;
 
-    Xbyak::Reg64 reg_tmp = [&]() {
-        /* returns register which is neither reg_ctx nor reg_nthr */
-        Xbyak::Reg64 regs[] = {util::rax, util::rbx, util::rcx};
-        for (size_t i = 0; i < sizeof(regs) / sizeof(regs[0]); ++i)
-            if (!utils::one_of(regs[i], reg_ctx, reg_nthr)) return regs[i];
-        return regs[0]; /* should not happen */
-    }();
+    xa::LabelAArch64 barrier_exit_label, barrier_exit_restore_label, spin_label;
 
-    Label barrier_exit_label, barrier_exit_restore_label, spin_label;
+    CGA64::cmp(reg_nthr, 1);
+    CGA64::b(xa::EQ, barrier_exit_label); //jbe(barrier_exit_label);
 
-    code.cmp(reg_nthr, 1);
-    code.jbe(barrier_exit_label);
-
-    code.push(reg_tmp);
+    push64(reg_tmp);
+    push64(reg_tmp_imm);
+    push64(reg_tmp_ofs);
 
     /* take and save current sense */
-    code.mov(reg_tmp, code.ptr[reg_ctx + BAR_SENSE_OFF]);
-    code.push(reg_tmp);
-    code.mov(reg_tmp, 1);
+    CGA64::ldr(reg_tmp, xa::ptr(reg_ctx, static_cast<int32_t>(BAR_SENSE_OFF)));
+    push64(reg_tmp);
+    CGA64::mov(reg_tmp, 1);
 
-    if (mayiuse(avx512_mic)) {
-        code.prefetchwt1(code.ptr[reg_ctx + BAR_CTR_OFF]);
-        code.prefetchwt1(code.ptr[reg_ctx + BAR_CTR_OFF]);
+
+    if(BAR_CTR_OFF == 0){
+        CGA64::ldaddal(reg_tmp, reg_tmp, xa::ptr(reg_ctx));
+    }else{
+        CGA64::add_imm(reg_tmp_ofs, reg_ctx, BAR_CTR_OFF, reg_tmp_imm);
+        CGA64::ldaddal(reg_tmp, reg_tmp, xa::ptr(reg_tmp_ofs));
     }
-
-    code.lock();
-    code.xadd(code.ptr[reg_ctx + BAR_CTR_OFF], reg_tmp);
-    code.add(reg_tmp, 1);
-    code.cmp(reg_tmp, reg_nthr);
-    code.pop(reg_tmp); /* restore previous sense */
-    code.jne(spin_label);
+    CGA64::add(reg_tmp, reg_tmp, 1);
+    CGA64::cmp(reg_tmp, reg_nthr);
+    pop64(reg_tmp); /* restore previous sense */
+    CGA64::b(xa::NE, spin_label); //jne(spin_label);
 
     /* the last thread {{{ */
-    code.mov(code.qword[reg_ctx + BAR_CTR_OFF], 0); // reset ctx
+    if(BAR_CTR_OFF == 0){
+        CGA64::mov(reg_tmp_imm, 0);
+        CGA64::str(reg_tmp_imm, xa::ptr(reg_ctx));
+    }else{
+        CGA64::add_imm(reg_tmp_ofs, reg_ctx, BAR_CTR_OFF, reg_tmp_imm);
+        CGA64::mov(reg_tmp_imm, 0);
+        CGA64::str(reg_tmp_imm, xa::ptr(reg_tmp_ofs));
+    }
 
     // notify waiting threads
-    code.not_(reg_tmp);
-    code.mov(code.ptr[reg_ctx + BAR_SENSE_OFF], reg_tmp);
-    code.jmp(barrier_exit_restore_label);
+    CGA64::mvn(reg_tmp, reg_tmp); //not_(reg_tmp);
+    if( BAR_SENSE_OFF == 0 ){
+        CGA64::str(reg_tmp, xa::ptr(reg_ctx));
+    }else{
+        CGA64::add_imm(reg_tmp_ofs, reg_ctx, BAR_SENSE_OFF, reg_tmp_imm);
+        CGA64::str(reg_tmp, xa::ptr(reg_tmp_ofs));
+    }
+    CGA64::b(barrier_exit_restore_label);
     /* }}} the last thread */
 
-    code.CodeGenerator::L(spin_label);
-    code.pause();
-    code.cmp(reg_tmp, code.ptr[reg_ctx + BAR_SENSE_OFF]);
-    code.je(spin_label);
+    CGA64::L_aarch64(spin_label);
+    CGA64::yield();
+    if( BAR_SENSE_OFF == 0 ){
+        CGA64::ldr(reg_tmp_imm, xa::ptr(reg_ctx));
+    }else{
+        CGA64::add_imm(reg_tmp_ofs, reg_ctx, BAR_SENSE_OFF, reg_tmp_imm);
+        CGA64::ldr(reg_tmp_imm, xa::ptr(reg_tmp_ofs));
+    }
+    CGA64::cmp(reg_tmp, reg_tmp_imm);
+    CGA64::b(xa::EQ, spin_label); //je(spin_label);
 
-    code.CodeGenerator::L(barrier_exit_restore_label);
-    code.pop(reg_tmp);
+    CGA64::L_aarch64(barrier_exit_restore_label);
+    pop64(reg_tmp_ofs);
+    pop64(reg_tmp_imm);
+    pop64(reg_tmp);
 
-    code.CodeGenerator::L(barrier_exit_label);
+    CGA64::L_aarch64(barrier_exit_label);
 #undef BAR_CTR_OFF
 #undef BAR_SENSE_OFF
 }
 
-/** jit barrier generator */
-struct jit_t : public jit_generator {
-    void (*barrier)(ctx_t *ctx, size_t nthr);
-
-    jit_t() {
-        generate(*this, abi_param1, abi_param2);
-        ret();
-        barrier = reinterpret_cast<decltype(barrier)>(
-                const_cast<uint8_t *>(this->getCode()));
-    }
-
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_t)
-};
-
 void barrier(ctx_t *ctx, int nthr) {
     static jit_t j; /* XXX: constructed on load ... */
-    j.barrier(ctx, nthr);
+    j.barr(ctx, nthr); // barrier
 }
 
 } // namespace simple_barrier
 
-} // namespace x64
+} // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
