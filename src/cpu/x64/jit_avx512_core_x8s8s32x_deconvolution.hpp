@@ -207,8 +207,6 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
     _jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)
         : primitive_t(apd) {}
 
-    ~_jit_avx512_core_x8s8s32x_deconvolution_fwd_t() { delete kernel_; }
-
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
@@ -238,7 +236,7 @@ private:
     void execute_forward_2d(const exec_ctx_t &ctx) const;
     void execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    jit_avx512_core_x8s8s32x_deconv_fwd_kernel *kernel_;
+    std::unique_ptr<jit_avx512_core_x8s8s32x_deconv_fwd_kernel> kernel_;
 };
 
 } // namespace x64

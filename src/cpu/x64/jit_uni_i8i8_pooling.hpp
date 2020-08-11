@@ -86,7 +86,7 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_uni_i8i8_pooling_fwd_ker_t<isa> *ker_;
+    std::unique_ptr<jit_uni_i8i8_pooling_fwd_ker_t<isa>> ker_;
 };
 
 } // namespace x64

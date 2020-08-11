@@ -237,13 +237,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
     friend status_t init_rtus_driver(conv_t *self);
 
     jit_avx512_common_1x1_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {}
-
-    ~jit_avx512_common_1x1_convolution_fwd_t() {
-        delete kernel_;
-        if (kernel_dw_) { delete kernel_dw_; }
-        delete rtus_driver_;
-    }
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -279,10 +273,10 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_common_1x1_conv_kernel *kernel_;
-    rtus_driver_t<avx512_common> *rtus_driver_;
+    std::unique_ptr<jit_avx512_common_1x1_conv_kernel> kernel_;
+    std::unique_ptr<rtus_driver_t<avx512_common>> rtus_driver_;
     using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<avx512_common>;
-    dw_conv_kernel_t *kernel_dw_ = nullptr;
+    std::unique_ptr<dw_conv_kernel_t> kernel_dw_;
 };
 
 using jit_avx512_common_1x1_convolution_fwd_f32_t
@@ -350,12 +344,7 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_t {
     friend status_t init_rtus_driver(conv_t *self);
 
     jit_avx512_common_1x1_convolution_bwd_data_t(const pd_t *apd)
-        : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {}
-
-    ~jit_avx512_common_1x1_convolution_bwd_data_t() {
-        delete kernel_;
-        delete rtus_driver_;
-    }
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -379,8 +368,8 @@ private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_common_1x1_conv_kernel *kernel_;
-    rtus_driver_t<avx512_common> *rtus_driver_;
+    std::unique_ptr<jit_avx512_common_1x1_conv_kernel> kernel_;
+    std::unique_ptr<rtus_driver_t<avx512_common>> rtus_driver_;
 };
 
 using jit_avx512_common_1x1_convolution_bwd_data_f32_t
@@ -462,20 +451,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public primitive_t {
     friend status_t init_rtus_driver(conv_t *self);
 
     jit_avx512_common_1x1_convolution_bwd_weights_t(const pd_t *apd)
-        : primitive_t(apd)
-        , kernel_(nullptr)
-        , acc_ker_(nullptr)
-        , reducer_bias_(nullptr)
-        , trans_kernel_(nullptr)
-        , rtus_driver_(nullptr) {}
-
-    ~jit_avx512_common_1x1_convolution_bwd_weights_t() {
-        delete kernel_;
-        delete acc_ker_;
-        delete reducer_bias_;
-        delete rtus_driver_;
-        delete trans_kernel_;
-    }
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -490,11 +466,11 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_common_1x1_conv_kernel *kernel_;
-    cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
-    cpu_reducer_t<data_type::f32> *reducer_bias_;
-    jit_transpose4x16_src *trans_kernel_;
-    rtus_driver_t<avx512_common> *rtus_driver_;
+    std::unique_ptr<jit_avx512_common_1x1_conv_kernel> kernel_;
+    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
+    std::unique_ptr<cpu_reducer_t<data_type::f32>> reducer_bias_;
+    std::unique_ptr<jit_transpose4x16_src> trans_kernel_;
+    std::unique_ptr<rtus_driver_t<avx512_common>> rtus_driver_;
 };
 
 } // namespace x64

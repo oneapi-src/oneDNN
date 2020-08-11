@@ -333,13 +333,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             typename jit_avx2_x8s8s32x_convolution_fwd_t<sdt, ddt>::pd_t;
 
     jit_avx2_x8s8s32x_1x1_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {}
-
-    ~jit_avx2_x8s8s32x_1x1_convolution_fwd_t() {
-        delete kernel_;
-        if (kernel_dw_) { delete kernel_dw_; }
-        delete rtus_driver_;
-    }
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -378,10 +372,10 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx2_x8s8s32x_1x1_conv_kernel *kernel_;
-    rtus_driver_t<avx2> *rtus_driver_;
+    std::unique_ptr<jit_avx2_x8s8s32x_1x1_conv_kernel> kernel_;
+    std::unique_ptr<rtus_driver_t<avx2>> rtus_driver_;
     using dw_conv_kernel_t = jit_avx2_x8s8s32x_fwd_kernel;
-    dw_conv_kernel_t *kernel_dw_ = nullptr;
+    std::unique_ptr<dw_conv_kernel_t> kernel_dw_;
 };
 
 } // namespace x64

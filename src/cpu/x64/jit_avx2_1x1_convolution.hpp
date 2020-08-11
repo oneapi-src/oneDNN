@@ -267,12 +267,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend status_t init_rtus_driver(conv_t *self);
 
-    jit_avx2_1x1_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd)
-        , kernel_(nullptr)
-        , rtus_driver_(nullptr)
-        , kernel_dw_avx2(nullptr)
-        , kernel_dw_sse41(nullptr) {}
+    jit_avx2_1x1_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
@@ -295,19 +290,6 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    ~jit_avx2_1x1_convolution_fwd_t() {
-        delete kernel_;
-        delete rtus_driver_;
-        if (kernel_dw_avx2) {
-            delete kernel_dw_avx2;
-            kernel_dw_avx2 = nullptr;
-        }
-        if (kernel_dw_sse41) {
-            delete kernel_dw_sse41;
-            kernel_dw_sse41 = nullptr;
-        }
-    }
-
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
@@ -323,14 +305,14 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx2_1x1_conv_kernel_f32 *kernel_;
-    rtus_driver_t<avx2> *rtus_driver_;
+    std::unique_ptr<jit_avx2_1x1_conv_kernel_f32> kernel_;
+    std::unique_ptr<rtus_driver_t<avx2>> rtus_driver_;
 
     template <cpu_isa_t isa>
     using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel<isa, data_type::f32>;
 
-    dw_conv_kernel_t<avx2> *kernel_dw_avx2;
-    dw_conv_kernel_t<sse41> *kernel_dw_sse41;
+    std::unique_ptr<dw_conv_kernel_t<avx2>> kernel_dw_avx2;
+    std::unique_ptr<dw_conv_kernel_t<sse41>> kernel_dw_sse41;
 };
 
 struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_t {
@@ -389,13 +371,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend status_t init_rtus_driver(conv_t *self);
 
-    jit_avx2_1x1_convolution_bwd_data_t(const pd_t *apd)
-        : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {}
-
-    ~jit_avx2_1x1_convolution_bwd_data_t() {
-        delete kernel_;
-        delete rtus_driver_;
-    }
+    jit_avx2_1x1_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -416,8 +392,8 @@ private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx2_1x1_conv_kernel_f32 *kernel_;
-    rtus_driver_t<avx2> *rtus_driver_;
+    std::unique_ptr<jit_avx2_1x1_conv_kernel_f32> kernel_;
+    std::unique_ptr<rtus_driver_t<avx2>> rtus_driver_;
 };
 
 struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_t {
@@ -521,14 +497,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_t {
     friend status_t init_rtus_driver(conv_t *self);
 
     jit_avx2_1x1_convolution_bwd_weights_t(const pd_t *apd)
-        : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {}
-
-    ~jit_avx2_1x1_convolution_bwd_weights_t() {
-        delete kernel_;
-        delete rtus_driver_;
-        delete reducer_weights_;
-        delete reducer_bias_;
-    }
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -543,10 +512,10 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx2_1x1_conv_kernel_f32 *kernel_;
-    cpu_reducer_2d_t<data_type::f32> *reducer_weights_;
-    cpu_reducer_t<data_type::f32> *reducer_bias_;
-    rtus_driver_t<avx2> *rtus_driver_;
+    std::unique_ptr<jit_avx2_1x1_conv_kernel_f32> kernel_;
+    std::unique_ptr<cpu_reducer_2d_t<data_type::f32>> reducer_weights_;
+    std::unique_ptr<cpu_reducer_t<data_type::f32>> reducer_bias_;
+    std::unique_ptr<rtus_driver_t<avx2>> rtus_driver_;
 };
 
 } // namespace x64

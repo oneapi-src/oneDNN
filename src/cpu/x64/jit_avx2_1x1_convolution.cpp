@@ -514,12 +514,12 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
     auto reducer_bia_scratchpad
             = memory_tracking::grantor_t(scratchpad, prefix_reducer_bia);
-    auto rb = this->reducer_bias_;
+    auto rb = this->reducer_bias_.get();
     rb->init(reducer_bia_scratchpad);
 
     auto reducer_wei_scratchpad
             = memory_tracking::grantor_t(scratchpad, prefix_reducer_wei);
-    auto rw = this->reducer_weights_;
+    auto rw = this->reducer_weights_.get();
     rw->init(reducer_wei_scratchpad);
 
     const int ndims = diff_dst_d.ndims();

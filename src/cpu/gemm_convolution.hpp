@@ -93,8 +93,6 @@ struct gemm_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    ~gemm_convolution_fwd_t() { delete eltwise_; }
-
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
@@ -113,7 +111,7 @@ private:
 
     data_t beta_;
 
-    ref_eltwise_scalar_fwd_t *eltwise_;
+    std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_;
 };
 
 struct gemm_convolution_bwd_data_t : public primitive_t {

@@ -829,12 +829,9 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_t::init(engine_t *engine) {
     return status::success;
 }
 
-jit_avx512_core_f32_wino_conv_2x3_fwd_t ::
-        ~jit_avx512_core_f32_wino_conv_2x3_fwd_t() {
-    delete kernel_;
-    delete src_trans_;
-    delete dst_trans_;
-}
+jit_avx512_core_f32_wino_conv_2x3_fwd_t::
+        ~jit_avx512_core_f32_wino_conv_2x3_fwd_t()
+        = default;
 
 void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
         const float *src, const float *wei, const float *bia, float *dst,

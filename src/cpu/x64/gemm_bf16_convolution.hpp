@@ -99,8 +99,6 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
     gemm_bf16_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd), pp_ker_(nullptr) {}
 
-    ~gemm_bf16_convolution_fwd_t() { delete pp_ker_; }
-
     typedef typename prec_traits<dst_data_type>::type dst_data_t;
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
@@ -236,7 +234,7 @@ private:
     };
 
     acc_data_t beta_;
-    pp_ker_t *pp_ker_;
+    std::unique_ptr<pp_ker_t> pp_ker_;
 };
 
 template <data_type_t diff_src_data_type>
@@ -324,8 +322,6 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
     gemm_bf16_convolution_bwd_weights_t(const pd_t *apd)
         : primitive_t(apd), acc_ker_(nullptr) {}
 
-    ~gemm_bf16_convolution_bwd_weights_t() { delete acc_ker_; }
-
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
@@ -356,7 +352,7 @@ private:
     status_t execute_backward_weights_nspc(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
+    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
 };
 
 } // namespace x64

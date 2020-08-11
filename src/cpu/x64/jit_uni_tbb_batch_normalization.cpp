@@ -1263,13 +1263,7 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(driver_t);
 
 public:
-    driver_t(const batch_normalization_pd_t *bdesc)
-        : bdesc_(bdesc)
-        , ker_fwd_(nullptr)
-        , ker_fwd_mean_(nullptr)
-        , ker_fwd_var_(nullptr)
-        , ker_bwd_(nullptr)
-        , ker_bwd_diff_ss_(nullptr) {
+    driver_t(const batch_normalization_pd_t *bdesc) : bdesc_(bdesc) {
         nthr_ = dnnl_get_max_threads();
         N_ = bdesc_->MB();
         S_ = bdesc_->D() * bdesc_->H() * bdesc_->W();
@@ -1287,32 +1281,27 @@ public:
         C_blk_step_ = l3_size / working_set_size;
         C_blk_step_ = nstl::max<dim_t>(C_blk_step_, 1);
         C_blk_step_ = nstl::min<dim_t>(C_blk_step_, C_blks_);
-
-        if (bdesc_->is_fwd()) {
-            ker_fwd_ = new jit_bnorm_fwd_t<isa>(bdesc_);
-            if (!bdesc_->stats_is_src()) {
-                ker_fwd_mean_ = new jit_bnorm_fwd_mean_t<isa>(bdesc_);
-                ker_fwd_var_ = new jit_bnorm_fwd_var_t<isa>(bdesc_);
-            }
-        } else {
-            ker_bwd_ = new jit_bnorm_bwd_t<isa>(bdesc_);
-            ker_bwd_diff_ss_ = new jit_bnorm_bwd_diff_ss_t<isa>(bdesc_);
-        }
-    }
-    ~driver_t() {
-        delete ker_fwd_;
-        delete ker_fwd_mean_;
-        delete ker_fwd_var_;
-        delete ker_bwd_;
-        delete ker_bwd_diff_ss_;
     }
 
     status_t create_kernel() {
-        if (ker_fwd_) CHECK(ker_fwd_->create_kernel());
-        if (ker_fwd_mean_) CHECK(ker_fwd_mean_->create_kernel());
-        if (ker_fwd_var_) CHECK(ker_fwd_var_->create_kernel());
-        if (ker_bwd_) CHECK(ker_bwd_->create_kernel());
-        if (ker_bwd_diff_ss_) CHECK(ker_bwd_diff_ss_->create_kernel());
+        if (bdesc_->is_fwd()) {
+            CHECK(safe_ptr_assign(ker_fwd_, new jit_bnorm_fwd_t<isa>(bdesc_)));
+            CHECK(ker_fwd_->create_kernel());
+            if (!bdesc_->stats_is_src()) {
+                CHECK(safe_ptr_assign(
+                        ker_fwd_mean_, new jit_bnorm_fwd_mean_t<isa>(bdesc_)));
+                CHECK(safe_ptr_assign(
+                        ker_fwd_var_, new jit_bnorm_fwd_var_t<isa>(bdesc_)));
+                CHECK(ker_fwd_mean_->create_kernel());
+                CHECK(ker_fwd_var_->create_kernel());
+            }
+        } else {
+            CHECK(safe_ptr_assign(ker_bwd_, new jit_bnorm_bwd_t<isa>(bdesc_)));
+            CHECK(safe_ptr_assign(ker_bwd_diff_ss_,
+                    new jit_bnorm_bwd_diff_ss_t<isa>(bdesc_)));
+            CHECK(ker_bwd_->create_kernel());
+            CHECK(ker_bwd_diff_ss_->create_kernel());
+        }
         return status::success;
     }
 
@@ -1792,9 +1781,8 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::execute(
 
 template <cpu_isa_t isa>
 jit_uni_tbb_batch_normalization_fwd_t<
-        isa>::~jit_uni_tbb_batch_normalization_fwd_t() {
-    delete bnorm_driver_;
-}
+        isa>::~jit_uni_tbb_batch_normalization_fwd_t()
+        = default;
 
 template struct jit_uni_tbb_batch_normalization_fwd_t<sse41>;
 template struct jit_uni_tbb_batch_normalization_fwd_t<avx2>;
@@ -1844,7 +1832,8 @@ jit_uni_tbb_batch_normalization_bwd_t<
 
 template <cpu_isa_t isa>
 status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::init(engine_t *engine) {
-    bnorm_driver_ = new bnorm_tbb_impl::driver_t<isa>(pd());
+    CHECK(safe_ptr_assign(
+            bnorm_driver_, new bnorm_tbb_impl::driver_t<isa>(pd())));
     return bnorm_driver_->create_kernel();
 }
 
@@ -1872,9 +1861,8 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::execute(
 
 template <cpu_isa_t isa>
 jit_uni_tbb_batch_normalization_bwd_t<
-        isa>::~jit_uni_tbb_batch_normalization_bwd_t() {
-    delete bnorm_driver_;
-}
+        isa>::~jit_uni_tbb_batch_normalization_bwd_t()
+        = default;
 
 template struct jit_uni_tbb_batch_normalization_bwd_t<sse41>;
 template struct jit_uni_tbb_batch_normalization_bwd_t<avx2>;

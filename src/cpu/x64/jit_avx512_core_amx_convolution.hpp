@@ -89,8 +89,6 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
 
     jit_avx512_core_amx_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    ~jit_avx512_core_amx_convolution_fwd_t() { delete kernel_; }
-
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
@@ -122,7 +120,7 @@ private:
     void prepare_padded_bias(const char *&bias,
             const memory_tracking::grantor_t &scratchpad) const;
 
-    jit_avx512_core_amx_fwd_kernel_t *kernel_;
+    std::unique_ptr<jit_avx512_core_amx_fwd_kernel_t> kernel_;
 };
 
 } // namespace x64

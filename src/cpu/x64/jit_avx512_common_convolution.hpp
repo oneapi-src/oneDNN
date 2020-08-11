@@ -72,7 +72,6 @@ struct jit_avx512_common_convolution_fwd_t : public primitive_t {
     };
 
     jit_avx512_common_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-    ~jit_avx512_common_convolution_fwd_t() { delete kernel_; }
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -109,7 +108,7 @@ private:
     void execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_common_conv_fwd_kernel *kernel_;
+    std::unique_ptr<jit_avx512_common_conv_fwd_kernel> kernel_;
 };
 
 template <impl::data_type_t diff_dst_type,
@@ -150,7 +149,6 @@ struct jit_avx512_common_convolution_bwd_data_t : public primitive_t {
 
     jit_avx512_common_convolution_bwd_data_t(const pd_t *apd)
         : primitive_t(apd) {}
-    ~jit_avx512_common_convolution_bwd_data_t() { delete kernel_; };
 
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -180,7 +178,7 @@ private:
     void execute_backward_data_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
+    std::unique_ptr<jit_avx512_common_conv_bwd_data_kernel_f32> kernel_;
 };
 
 template <impl::data_type_t src_type,
@@ -239,17 +237,7 @@ struct jit_avx512_common_convolution_bwd_weights_t : public primitive_t {
     };
 
     jit_avx512_common_convolution_bwd_weights_t(const pd_t *apd)
-        : primitive_t(apd)
-        , kernel_(nullptr)
-        , trans_kernel_(nullptr)
-        , acc_ker_(nullptr)
-        , reducer_bias_(nullptr) {}
-    ~jit_avx512_common_convolution_bwd_weights_t() {
-        delete kernel_;
-        if (trans_kernel_) delete trans_kernel_;
-        if (acc_ker_) delete acc_ker_;
-        delete reducer_bias_;
-    }
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
@@ -279,10 +267,10 @@ private:
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
 
-    jit_avx512_common_conv_bwd_weights_kernel_f32 *kernel_;
-    jit_trans_src_t *trans_kernel_;
-    cpu_accumulator_1d_t<diff_weights_type> *acc_ker_;
-    cpu_reducer_t<diff_weights_type> *reducer_bias_;
+    std::unique_ptr<jit_avx512_common_conv_bwd_weights_kernel_f32> kernel_;
+    std::unique_ptr<jit_trans_src_t> trans_kernel_;
+    std::unique_ptr<cpu_accumulator_1d_t<diff_weights_type>> acc_ker_;
+    std::unique_ptr<cpu_reducer_t<diff_weights_type>> reducer_bias_;
 };
 
 } // namespace x64

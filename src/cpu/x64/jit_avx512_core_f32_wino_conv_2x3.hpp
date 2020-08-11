@@ -137,9 +137,9 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t *kernel_;
-    jit_avx512_core_f32_wino_conv_2x3_src_trans_t *src_trans_;
-    jit_avx512_core_f32_wino_conv_2x3_dst_trans_t *dst_trans_;
+    std::unique_ptr<jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t> kernel_;
+    std::unique_ptr<jit_avx512_core_f32_wino_conv_2x3_src_trans_t> src_trans_;
+    std::unique_ptr<jit_avx512_core_f32_wino_conv_2x3_dst_trans_t> dst_trans_;
 };
 
 } // namespace x64

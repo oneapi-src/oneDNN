@@ -219,11 +219,6 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
 
     jit_sse41_1x1_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    ~jit_sse41_1x1_convolution_fwd_t() {
-        delete kernel_;
-        if (kernel_dw_) { delete kernel_dw_; }
-    };
-
     typedef typename prec_traits<data_type::f32>::type data_t;
 
     status_t init(engine_t *engine) override {
@@ -251,9 +246,9 @@ private:
             const data_t *bias_dw, data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    jit_sse41_1x1_conv_kernel_f32 *kernel_;
+    std::unique_ptr<jit_sse41_1x1_conv_kernel_f32> kernel_;
     using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<sse41>;
-    dw_conv_kernel_t *kernel_dw_ = nullptr;
+    std::unique_ptr<dw_conv_kernel_t> kernel_dw_;
 };
 
 } // namespace x64

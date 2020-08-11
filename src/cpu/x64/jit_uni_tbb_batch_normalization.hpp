@@ -68,7 +68,7 @@ struct jit_uni_tbb_batch_normalization_fwd_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    bnorm_tbb_impl::driver_t<isa> *bnorm_driver_;
+    std::unique_ptr<bnorm_tbb_impl::driver_t<isa>> bnorm_driver_;
 };
 
 template <cpu_isa_t isa>
@@ -102,7 +102,7 @@ struct jit_uni_tbb_batch_normalization_bwd_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    bnorm_tbb_impl::driver_t<isa> *bnorm_driver_;
+    std::unique_ptr<bnorm_tbb_impl::driver_t<isa>> bnorm_driver_;
 };
 
 } // namespace x64

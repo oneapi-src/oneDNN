@@ -1470,7 +1470,6 @@ struct jit_uni_reorder_t : public primitive_t {
     };
 
     jit_uni_reorder_t(const pd_t *apd) : primitive_t(apd) {}
-    ~jit_uni_reorder_t() { delete kernel_; }
 
     void omp_driver_0d(
             int off, const char *in, char *out, const float *scale) const {
@@ -1606,7 +1605,7 @@ struct jit_uni_reorder_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    tr::kernel_t *kernel_;
+    std::unique_ptr<tr::kernel_t> kernel_;
 };
 
 struct jit_blk_reorder_t : public primitive_t {

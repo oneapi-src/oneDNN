@@ -202,8 +202,6 @@ struct jit_bf16_sum_t : public primitive_t {
 
     jit_bf16_sum_t(const pd_t *apd) : primitive_t(apd) {}
 
-    ~jit_bf16_sum_t() { delete kernel_; }
-
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(
                 kernel_, new jit_avx512_core_bf16_sum_kernel(pd()->jsp_)));
@@ -218,7 +216,7 @@ struct jit_bf16_sum_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    jit_avx512_core_bf16_sum_kernel *kernel_;
+    std::unique_ptr<jit_avx512_core_bf16_sum_kernel> kernel_;
 };
 
 } // namespace x64

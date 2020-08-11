@@ -37,8 +37,6 @@ struct jit_uni_gru_cell_postgemm_part1_fwd : public jit_uni_rnn_postgemm {
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
         : jit_uni_rnn_postgemm(rnn, pd) {}
 
-    ~jit_uni_gru_cell_postgemm_part1_fwd() { delete sigmoid_injector_; }
-
     status_t init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
         // we use rax for both constant tables as they use the same table
@@ -49,7 +47,7 @@ struct jit_uni_gru_cell_postgemm_part1_fwd : public jit_uni_rnn_postgemm {
     }
 
 protected:
-    injector_t *sigmoid_injector_;
+    std::unique_ptr<injector_t> sigmoid_injector_;
 
     // register size in bytes
     using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;

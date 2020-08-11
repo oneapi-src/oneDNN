@@ -85,7 +85,6 @@ struct jit_avx2_convolution_fwd_t : public primitive_t {
     };
 
     jit_avx2_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-    ~jit_avx2_convolution_fwd_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -104,7 +103,7 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx2_conv_fwd_kernel_f32 *kernel_;
+    std::unique_ptr<jit_avx2_conv_fwd_kernel_f32> kernel_;
 };
 
 struct jit_avx2_convolution_bwd_data_t : public primitive_t {
@@ -152,7 +151,6 @@ struct jit_avx2_convolution_bwd_data_t : public primitive_t {
     };
 
     jit_avx2_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
-    ~jit_avx2_convolution_bwd_data_t() { delete kernel_; }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -171,7 +169,7 @@ private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx2_conv_bwd_data_kernel_f32 *kernel_;
+    std::unique_ptr<jit_avx2_conv_bwd_data_kernel_f32> kernel_;
 };
 
 struct jit_avx2_convolution_bwd_weights_t : public primitive_t {
@@ -255,17 +253,7 @@ struct jit_avx2_convolution_bwd_weights_t : public primitive_t {
         }
     };
 
-    jit_avx2_convolution_bwd_weights_t(const pd_t *apd)
-        : primitive_t(apd)
-        , kernel_(nullptr)
-        , reducer_weights_(nullptr)
-        , reducer_bias_(nullptr) {}
-
-    ~jit_avx2_convolution_bwd_weights_t() {
-        delete kernel_;
-        delete reducer_weights_;
-        delete reducer_bias_;
-    }
+    jit_avx2_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -291,8 +279,9 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx2_conv_bwd_weights_kernel_f32 *kernel_;
-    cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
+    std::unique_ptr<jit_avx2_conv_bwd_weights_kernel_f32> kernel_;
+    std::unique_ptr<cpu_reducer_t<data_type::f32>> reducer_weights_,
+            reducer_bias_;
 };
 
 } // namespace x64

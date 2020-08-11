@@ -1143,7 +1143,7 @@ status_t jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     CHECK(kernel_->create_kernel());
 
     if (j.ver == ver_4fma) {
-        trans_kernel_ = create_trans_src(&j);
+        CHECK(safe_ptr_assign(trans_kernel_, create_trans_src(&j)));
         CHECK(trans_kernel_->create_kernel());
     }
 
@@ -1953,7 +1953,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         diff_weights_type>::compute_diff_bias(const thread_info_t *ti) const {
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
 
-    auto rb = this->reducer_bias_;
+    auto rb = this->reducer_bias_.get();
     assert(nthr_ == rb->balancer().nthr_);
 
     const auto reducer_bia_scratchpad
@@ -2078,7 +2078,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
     const auto reducer_bia_scratchpad
             = memory_tracking::grantor_t(scratchpad, prefix_reducer_bia);
-    auto rb = this->reducer_bias_;
+    auto rb = this->reducer_bias_.get();
     rb->init(reducer_bia_scratchpad);
 }
 
@@ -2164,7 +2164,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                     break;
                 case harness_nxc:
                 case harness_mb_reduction: {
-                    auto rb = this->reducer_bias_;
+                    auto rb = this->reducer_bias_.get();
                     assert(nthr == rb->balancer().nthr_);
                     if (rb->balancer().ithr_njobs(ithr) == 0) return;
                     const auto reducer_bia_scratchpad
