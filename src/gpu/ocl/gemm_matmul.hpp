@@ -42,10 +42,6 @@ struct gemm_matmul_t : public gpu_primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-
-            bool ok = set_default_formats();
-            if (!ok) return status::unimplemented;
-
             auto prepare_gemm_attributes
                     = [](const primitive_attr_t &attr,
                               primitive_attr_t &gemm_attr) {
@@ -83,10 +79,16 @@ struct gemm_matmul_t : public gpu_primitive_t {
 
             const auto acc_dt = desc()->accum_data_type;
 
-            bool gemm_ok = status::success
+            // We create a gemm_pd and resolve 'any' desc
+            // by querying gemm_pd
+            bool ok = status::success
                     == create_gemm_pd(gemm_pd_, engine, src_md(), weights_md(),
                             dst_md(), weights_md(1), acc_dt, &gemm_attr);
-            if (!gemm_ok) return status::unimplemented;
+            if (!ok) return status::unimplemented;
+
+            ok = status::success == set_default_params();
+            if (!ok) return status::unimplemented;
+
             init_scratchpad();
 
             return status::success;
@@ -95,6 +97,14 @@ struct gemm_matmul_t : public gpu_primitive_t {
         std::unique_ptr<primitive_desc_t> gemm_pd_;
 
     private:
+        status_t set_default_params() {
+            src_md_ = *gemm_pd_->arg_md(DNNL_ARG_SRC_0);
+            weights_md_ = *gemm_pd_->arg_md(DNNL_ARG_SRC_1);
+            bias_md_ = *gemm_pd_->arg_md(DNNL_ARG_BIAS);
+            dst_md_ = *gemm_pd_->arg_md(DNNL_ARG_DST);
+            return status::success;
+        }
+
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,

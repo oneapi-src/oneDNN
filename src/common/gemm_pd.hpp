@@ -55,6 +55,7 @@ struct gemm_pd_t : public primitive_desc_t {
         switch (arg) {
             case DNNL_ARG_SRC_0: return src_md(0);
             case DNNL_ARG_SRC_1: return src_md(1);
+            case DNNL_ARG_BIAS: return src_md(2);
             case DNNL_ARG_DST: return dst_md(0);
             default: return primitive_desc_t::arg_md(arg);
         }
@@ -64,6 +65,7 @@ struct gemm_pd_t : public primitive_desc_t {
         switch (index) {
             case 0: return &desc_.a_desc;
             case 1: return &desc_.b_desc;
+            case 2: return &desc_.bias_desc;
             default: return &glob_zero_md;
         }
     }
@@ -74,9 +76,26 @@ struct gemm_pd_t : public primitive_desc_t {
     int n_inputs() const override { return 2; }
     int n_outputs() const override { return 1; }
 
-private:
-
+protected:
+    // Note: we do not copy memory desc locally to avoid
+    // overheads. This means we lose the users memory descs when we
+    // resolve the 'any' tags.
     gemm_desc_t desc_;
+
+    // By default, we just resolve 'any' with blocked layout and trivial strides
+    bool set_default_formats() {
+        for (auto md : {&desc_.a_desc, &desc_.b_desc, &desc_.bias_desc,
+                     &desc_.c_desc}) {
+            memory_desc_wrapper mdw(md);
+            if (mdw.format_any()) {
+                if (mdw.has_runtime_dims_or_strides()) return false;
+                status_t status = memory_desc_init_by_strides(*md, nullptr);
+                if (status != status::success) return false;
+            }
+        }
+
+        return true;
+    }
 };
 
 } // namespace impl

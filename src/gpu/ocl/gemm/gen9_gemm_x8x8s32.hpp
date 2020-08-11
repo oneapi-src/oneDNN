@@ -56,6 +56,9 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
             const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops
                     | smask_t::zero_points_runtime;
 
+            bool ok = set_default_formats();
+            if (!ok) return status::unimplemented;
+
             const auto d = desc();
             // LIMITATIONS:
             // - batch is not supported
@@ -68,7 +71,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                             d->k(), d->lda(), d->ldb(), d->ldc())
                     && d->bias_type() == data_type::undef;
 
-            bool ok = limits_ok
+            ok = limits_ok
                     && utils::one_of(d->a_type(), data_type::u8, data_type::s8)
                     && utils::one_of(d->b_type(), data_type::u8, data_type::s8)
                     && utils::one_of(d->c_type(), data_type::s32)
@@ -93,6 +96,10 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
             init_scratchpad();
             attr_info = attr_info_t::create(attr());
             return status::success;
+        }
+
+        bool set_default_formats() {
+            return gpu_gemm_pd_t::set_default_formats();
         }
 
         bool zero_points_ok() const {

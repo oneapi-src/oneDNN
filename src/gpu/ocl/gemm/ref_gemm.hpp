@@ -38,13 +38,16 @@ struct ref_gemm_t : public gpu_gemm_t {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
+            bool ok = set_default_formats();
+            if (!ok) return status::unimplemented;
+
             const auto a_dt = desc()->a_type();
             const auto b_dt = desc()->b_type();
             const auto c_dt = desc()->c_type();
             const auto acc_dt = desc()->acc_type;
             const auto bia_dt = desc()->bias_type();
 
-            bool ok = IMPLICATION(acc_dt == s32, attr()->zero_points_.common())
+            ok = IMPLICATION(acc_dt == s32, attr()->zero_points_.common())
                     && IMPLICATION(acc_dt != s32,
                             attr()->zero_points_.has_default_values())
                     && attr()->has_default_values(smask_t::oscale_runtime
@@ -70,6 +73,10 @@ struct ref_gemm_t : public gpu_gemm_t {
             attr_info = attr_info_t::create(attr());
 
             return status::success;
+        }
+
+        bool set_default_formats() {
+            return gpu_gemm_pd_t::set_default_formats();
         }
 
         bool attr_oscale_ok() const {

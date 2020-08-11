@@ -58,6 +58,9 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
             const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops
                     | smask_t::zero_points_runtime;
 
+            bool ok = set_default_formats();
+            if (!ok) return status::unimplemented;
+
             const auto d = desc();
             // LIMITATIONS:
             // - batch is not supported
@@ -69,7 +72,7 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
                             d->k(), d->lda(), d->ldb(), d->ldc())
                     && d->bias_type() == data_type::undef;
-            bool ok = true && limits_ok
+            ok = true && limits_ok
                     && utils::one_of(d->a_type(), data_type::u8, data_type::s8)
                     && utils::one_of(d->b_type(), data_type::u8, data_type::s8)
                     && utils::one_of(d->c_type(), data_type::s32)
@@ -90,6 +93,10 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
             init_scratchpad();
 
             return status::success;
+        }
+
+        bool set_default_formats() {
+            return gpu_gemm_pd_t::set_default_formats();
         }
 
         void init_scratchpad() {

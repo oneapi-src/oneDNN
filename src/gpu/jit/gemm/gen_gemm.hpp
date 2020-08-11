@@ -57,6 +57,9 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
 
+            ok = set_default_formats();
+            if (!ok) return status::unimplemented;
+
             const auto d = desc();
 
             if (d->c_type() == s32) {
@@ -115,6 +118,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             attr_info_ = attr_info_t::create(attr());
 
             return status::success;
+        }
+
+        bool set_default_formats() {
+            return gpu_gemm_pd_t::set_default_formats();
         }
 
         bool with_eltwise() const { return false; }

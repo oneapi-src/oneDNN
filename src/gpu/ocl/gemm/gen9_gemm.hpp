@@ -75,6 +75,9 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
             const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
 
+            bool ok = set_default_formats();
+            if (!ok) return status::unimplemented;
+
             const auto d = desc();
 
             // LIMITATIONS:
@@ -85,7 +88,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
                               d->n(), d->k(), d->lda(), d->ldb(), d->ldc())
                     && d->bias_type() == data_type::undef;
 
-            bool ok = limits_ok
+            ok = limits_ok
                     && utils::one_of(d->a_type(), data_type::f32,
                             data_type::bf16, data_type::f16)
                     && utils::one_of(d->b_type(), data_type::f32,
@@ -145,6 +148,11 @@ struct gen9_gemm_t : public gpu_gemm_t {
             return status::success;
         }
 
+        bool set_default_formats() {
+            return gpu_gemm_pd_t::set_default_formats();
+        }
+
+        // TODO: return a status in case scratchpad allocation fails
         void init_scratchpad() {
             switch (gemm_type_) {
                 case type::copy_based: init_scratchpad_copy_based(); break;
