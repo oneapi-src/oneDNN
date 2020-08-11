@@ -26,9 +26,9 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
-//#include "cpu/aarch64/cpu_barrier.hpp"
+#include "cpu/aarch64/cpu_barrier.hpp"
 
-#include "cpu/aarch64/jit_sve_1x1_conv_kernel.hpp"
+#include "cpu/aarch64/jit_aarch64_sve512_1x1_conv_kernel.hpp"
 #include "cpu/aarch64/jit_uni_1x1_conv_utils.hpp"
 
 #define GET_OFF(field) static_cast<int32_t>(offsetof(jit_1x1_conv_call_s, field))
@@ -48,7 +48,7 @@ using namespace Xbyak;
 namespace xa = Xbyak::Xbyak_aarch64;
 
 
-void jit_sve_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
+void jit_aarch64_sve512_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
 
     CGA64::mov(aux1_reg_bcast_data, reg_bcast_data);
     CGA64::mov(aux_reg_bcast_data, reg_bcast_data);
@@ -111,7 +111,7 @@ void jit_sve_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
 
 }
 
-void jit_sve_1x1_conv_kernel::reduce_loop(
+void jit_aarch64_sve512_1x1_conv_kernel::reduce_loop(
         int load_loop_blk, int ur, int substep, bool wraparound) {
 
     const bool out_layout_nxc = is_out_layout_nxc(jcp);
@@ -612,7 +612,7 @@ void jit_sve_1x1_conv_kernel::reduce_loop(
 
 }
 
-void jit_sve_1x1_conv_kernel::generate() {
+void jit_aarch64_sve512_1x1_conv_kernel::generate() {
     preamble();
 
     /* All 1 predicate register */
@@ -756,7 +756,7 @@ void jit_sve_1x1_conv_kernel::generate() {
 #endif
 }
 
-bool jit_sve_1x1_conv_kernel::post_ops_ok(
+bool jit_aarch64_sve512_1x1_conv_kernel::post_ops_ok(
         jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
 
     const auto &p = attr.post_ops_;
@@ -782,7 +782,7 @@ bool jit_sve_1x1_conv_kernel::post_ops_ok(
     return false;
 }
 
-status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
+status_t jit_aarch64_sve512_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr, int nthreads, bool reduce_src) {
@@ -1300,7 +1300,7 @@ status_t jit_sve_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     return status::success;
 }
 
-void jit_sve_1x1_conv_kernel::init_scratchpad(
+void jit_aarch64_sve512_1x1_conv_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad,
         const jit_1x1_conv_conf_t &jcp) {
 
@@ -1336,7 +1336,7 @@ void jit_sve_1x1_conv_kernel::init_scratchpad(
 #endif
 }
 
-void jit_sve_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp) {
+void jit_aarch64_sve512_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp) {
     int nthreads = jcp.nthr;
     // initialize jcp reduction threading properties
     jcp.nthr = jcp.nthr_mb = jcp.nthr_g = jcp.nthr_oc_b = jcp.nthr_ic_b = 1;
