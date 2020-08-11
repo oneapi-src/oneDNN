@@ -31,8 +31,8 @@
 #include "cpu/aarch64/jit_aarch64_sve512_1x1_conv_kernel.hpp"
 #include "cpu/aarch64/jit_uni_1x1_conv_utils.hpp"
 
-#if 0
 #include "cpu/aarch64/cpu_reducer.hpp"
+#if 0
 #include "cpu/aarch64/jit_transpose_src_utils.hpp"
 #include "cpu/aarch64/jit_uni_dw_convolution.hpp"
 #endif
@@ -265,9 +265,7 @@ struct jit_aarch64_sve512_1x1_convolution_fwd_t : public primitive_t {
             kernel_dw_ = new dw_conv_kernel_t(pd()->dw_conv_pd_->jcp_);
 #endif
         }
-#if 0
         init_rtus_driver<sve>(this);
-#endif
     }
 
     ~jit_aarch64_sve512_1x1_convolution_fwd_t() {
@@ -413,6 +411,7 @@ private:
 using jit_aarch64_sve512_1x1_convolution_bwd_data_f32_t
         = jit_aarch64_sve512_1x1_convolution_bwd_data_t<data_type::f32>;
 #if 0
+/* Backward weight */
 struct jit_aarch64_sve512_1x1_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -451,7 +450,6 @@ struct jit_aarch64_sve512_1x1_convolution_bwd_weights_t : public primitive_t {
             auto reducer_bia_scratchpad = memory_tracking::registrar_t(
                     scratchpad, memory_tracking::names::prefix_reducer_bia);
             reducer_bia_conf_.init_scratchpad(reducer_bia_scratchpad);
-
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
             return status::success;
@@ -459,9 +457,7 @@ struct jit_aarch64_sve512_1x1_convolution_bwd_weights_t : public primitive_t {
 
         // TODO (Roma): structs conf header cleanup
         jit_1x1_conv_conf_t jcp_;
-#if 0
         cpu_reducer_t<data_type::f32>::conf_t reducer_bia_conf_;
-#endif     
         reduce_to_unit_stride_t rtus_;
 
     protected:
@@ -496,8 +492,10 @@ struct jit_aarch64_sve512_1x1_convolution_bwd_weights_t : public primitive_t {
         delete kernel_;
         delete acc_ker_;
         delete reducer_bias_;
+#if 0
         delete rtus_driver_;
         delete trans_kernel_;
+#endif
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -511,7 +509,9 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_aarch64_sve512_1x1_conv_kernel *kernel_;
+#if 0
     rtus_driver_t<sve> *rtus_driver_;
+#endif
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;
 };

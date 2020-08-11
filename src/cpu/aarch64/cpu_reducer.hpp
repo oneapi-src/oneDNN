@@ -340,7 +340,7 @@ struct cpu_accumulator_1d_t {
     DNNL_DISALLOW_COPY_AND_ASSIGN(cpu_accumulator_1d_t);
 };
 
-} // namespace x64
+} // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

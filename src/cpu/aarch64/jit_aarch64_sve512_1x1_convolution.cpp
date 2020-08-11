@@ -87,11 +87,9 @@ void jit_aarch64_sve512_1x1_convolution_fwd_t<src_type, wei_type,
             pd()->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS));
 
     const auto &jcp = kernel_->jcp;
-#if 0
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<src_data_t>(key_conv_rtus_space)
             : NULL;
-#endif
     const int ndims = src_d.ndims();
     const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
@@ -104,9 +102,7 @@ void jit_aarch64_sve512_1x1_convolution_fwd_t<src_type, wei_type,
 
     auto p = jit_1x1_conv_call_s();
 
-#if 0
     auto rp = rtus_driver_t<sve>::call_params_t();
-#endif
     const int nb_oc = jcp.nb_load;
     const int nb_ic = jcp.nb_reduce;
     const int nb_ic_blocking = jcp.nb_reduce_blocking;
@@ -201,19 +197,15 @@ void jit_aarch64_sve512_1x1_convolution_fwd_t<src_type, wei_type,
                 ? g * jcp.ic + icb * jcp.ic_block
                 : g * nb_ic + icb;
         if (pd()->rtus_.reduce_src_) {
-#if 1
+#if 0
             assert(NULL);
 #else
             rp.ws = rtus_space + ithr * pd()->rtus_.space_per_thread_
                     + (is_src_layout_nxc ? ic_off_idx
                                          : jcp.is * ic_off_idx * jcp.ic_block);
             if (ocb == ocb_start) {
-#if 1
-                assert(NULL);
-#else
                 rp.src = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
                 rtus_driver_->ker_(&rp);
-#endif
             }
             p.bcast_data = rp.ws;
 #endif
@@ -429,6 +421,7 @@ void jit_aarch64_sve512_1x1_convolution_fwd_t<src_type, wei_type,
 }
 
 template struct jit_aarch64_sve512_1x1_convolution_fwd_t<data_type::f32>;
+
 /* convolution backward wtr data */
 template <data_type_t diff_dst_type, data_type_t wei_type,
         data_type_t diff_src_type>
@@ -607,33 +600,42 @@ template struct jit_aarch64_sve512_1x1_convolution_bwd_data_t<data_type::f32>;
 
 /* convolution backward wtr weights */
 
-#if 0
 #define wht_blk_off(d, g, ...) \
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
 
+#if 0
 jit_aarch64_sve512_1x1_convolution_bwd_weights_t ::
         jit_aarch64_sve512_1x1_convolution_bwd_weights_t(const pd_t *apd)
     : primitive_t(apd)
     , kernel_(nullptr)
+#if 1
+    {
+#else
     , acc_ker_(nullptr)
     , reducer_bias_(nullptr)
     , trans_kernel_(nullptr)
     , rtus_driver_(nullptr) {
+#endif
     kernel_ = new jit_aarch64_sve512_1x1_conv_kernel(pd()->jcp_, *pd()->attr());
+#if 0
     acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
     reducer_bias_ = new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
     init_rtus_driver<sve>(this);
-
+#endif
     const auto &jcp = kernel_->jcp;
 
     if (jcp.transpose_src) {
+#if 1
+        assert(!"Unsupported transpose_src");
+#else
         auto tp = jit_transpose4x16_src_t();
         tp.src_pf0_distance = 4;
         tp.tr_src_pf0_distance = 0;
         tp.src_pf1 = true;
         tp.tr_src_pf1 = false;
         trans_kernel_ = new jit_transpose4x16_src(&jcp, &tp);
+#endif
     }
 }
 
@@ -651,10 +653,11 @@ void jit_aarch64_sve512_1x1_convolution_bwd_weights_t::execute_backward_weights(
     const auto &jcp = kernel_->jcp;
 
     const auto scratchpad = ctx.get_scratchpad_grantor();
-
+#if 0
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<data_t>(key_conv_rtus_space)
             : NULL;
+#endif
     const bool is_bias_padded
             = pd()->with_bias() && jcp.oc_without_padding % jcp.oc_block != 0;
 
@@ -714,6 +717,7 @@ void jit_aarch64_sve512_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
     const bool is_src_layout_nxc = utils::one_of(
             jcp.src_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+#if 0
     auto uker_trans = [&](int ithr_mb, int img, int sp_b_start, int sp_size,
                               int g_start, int g_work, int ic_b_start,
                               int ic_b_work, int ithr, int nthr,
@@ -761,6 +765,7 @@ void jit_aarch64_sve512_1x1_convolution_bwd_weights_t::execute_backward_weights(
             tr_src1 += tr_src_stride;
         }
     };
+#endif
 
     const bool is_ddst_layout_nxc = utils::one_of(
             jcp.dst_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
@@ -841,6 +846,9 @@ void jit_aarch64_sve512_1x1_convolution_bwd_weights_t::execute_backward_weights(
                                 jcp.nb_bcast_blocking_max);
                     }
                     if (jcp.transpose_src) {
+#if 1
+                        assert(!"Unsupported transpose_src");
+#else
                         if (jcp.nthr_oc_b > 1)
                             simple_barrier::barrier(
                                     &tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
@@ -853,6 +861,7 @@ void jit_aarch64_sve512_1x1_convolution_bwd_weights_t::execute_backward_weights(
                         if (jcp.nthr_oc_b > 1)
                             simple_barrier::barrier(
                                     &tr_src_bctx[ithr_but_oc], jcp.nthr_oc_b);
+#endif
                     }
 
                     for (int oc_b = oc_b_start; oc_b < oc_b_end;
@@ -884,8 +893,9 @@ void jit_aarch64_sve512_1x1_convolution_bwd_weights_t::execute_backward_weights(
                         const data_t *local_src = diff_src;
 
                         auto p = jit_1x1_conv_call_s();
+#if 0
                         auto rp = rtus_driver_t<sve>::call_params_t();
-
+#endif
                         p.output_stride = utils::rnd_up(jcp.ic, jcp.ic_block)
                                 * jcp.oc_block * jcp.typesize_out;
 
@@ -894,12 +904,15 @@ void jit_aarch64_sve512_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
                         p.bcast_dim = this_block_size(ic_b * jcp.ic_block,
                                 jcp.ic, bcast_step * jcp.ic_block);
+#if 0
                         rp.icb = p.bcast_dim;
+#endif
                         p.output_data = store_to;
 
                         p.reduce_dim = sp_b_step * jcp.reduce_block;
+#if 0
                         rp.os = p.reduce_dim;
-
+#endif
                         p.first_last_flag = 0
                                 | (mb_sp_b == mb_sp_b_start ? FLAG_REDUCE_FIRST
                                                             : 0)
@@ -911,6 +924,9 @@ void jit_aarch64_sve512_1x1_convolution_bwd_weights_t::execute_backward_weights(
                         p.load_data = pdiff_dst + sp * oc_mult;
 
                         if (pd()->rtus_.reduce_src_) {
+#if 1
+                            assert(!"Unsupported reduce_src");
+#else
                             const int oh = sp / jcp.ow;
                             const int ow = sp % jcp.ow;
 
@@ -932,6 +948,7 @@ void jit_aarch64_sve512_1x1_convolution_bwd_weights_t::execute_backward_weights(
                             rtus_driver_->ker_(&rp);
 
                             p.bcast_data = rp.ws;
+#endif
                         } else {
                             int ic_mult
                                     = is_src_layout_nxc ? jcp.ic : jcp.ic_block;
@@ -1131,7 +1148,6 @@ void jit_aarch64_sve512_1x1_convolution_bwd_weights_t::execute_backward_weights(
     }
 }
 #endif
-
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl

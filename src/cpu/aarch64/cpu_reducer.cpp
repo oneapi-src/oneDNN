@@ -24,12 +24,12 @@
 
 #include "cpu/platform.hpp"
 
-#include "cpu/x64/cpu_reducer.hpp"
+#include "cpu/aarch64/cpu_reducer.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
+namespace aarch64 {
 
 using namespace memory_tracking::names;
 
@@ -124,6 +124,7 @@ protected:
 template <impl::data_type_t data_type, cpu_isa_t isa>
 struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
                                     public jit_generator {
+#if 0
     DECLARE_CPU_JIT_AUX_FUNCTIONS(reducer_2d_driver_f_s_32_t)
 
     /* cpu specific part */
@@ -280,17 +281,17 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
         this->ker_ = reinterpret_cast<decltype(this->ker_)>(
                 const_cast<uint8_t *>(this->getCode()));
     }
+#endif
 };
 
 template <impl::data_type_t data_type>
 inline reducer_2d_driver_t<data_type> *create_reduce_2d_drv(int n_src,
         size_t src_ld, size_t src_step, size_t dst_step, bool nullify_dst) {
-    if (mayiuse(avx512_common))
-        return new reducer_2d_driver_f_s_32_t<data_type, avx512_common>(
+#if 0
+    if (mayiuse(sve))
+        return new reducer_2d_driver_f_s_32_t<data_type, sve>(
                 n_src, src_ld, src_step, dst_step, nullify_dst);
-    else if (mayiuse(avx2))
-        return new reducer_2d_driver_f_s_32_t<data_type, avx2>(
-                n_src, src_ld, src_step, dst_step, nullify_dst);
+#endif
     assert(!"unimplemented");
     return nullptr;
 }
@@ -557,7 +558,7 @@ void cpu_accumulator_1d_t<data_type>::accumulate(
 template struct cpu_accumulator_1d_t<data_type::f32>;
 template struct cpu_accumulator_1d_t<data_type::s32>;
 
-} // namespace x64
+} // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

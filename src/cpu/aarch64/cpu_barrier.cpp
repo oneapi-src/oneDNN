@@ -112,7 +112,7 @@ void jit_t::generate( xa::XReg reg_ctx, xa::XReg reg_nthr ) {
 
 void barrier(ctx_t *ctx, int nthr) {
     static jit_t j; /* XXX: constructed on load ... */
-    j.barr(ctx, nthr); // barrier
+    j.barrier(ctx, nthr); // barrier
 }
 
 } // namespace simple_barrier

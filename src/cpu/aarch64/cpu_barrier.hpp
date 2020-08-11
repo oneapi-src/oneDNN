@@ -60,6 +60,8 @@ STRUCT_ALIGN(
             char pad2[CACHE_LINE_SIZE - 1 * sizeof(size_t)];
         });
 
+void barrier(ctx_t *ctx, int nthr);
+
 /** jit barrier generator */
 struct jit_t : public jit_generator {
 private:
@@ -75,15 +77,14 @@ private:
      *   reg_nnthr -- read-only register with the # of synchronizing threads
      */
     void generate(Xbyak::Xbyak_aarch64::XReg reg_ctx, Xbyak::Xbyak_aarch64::XReg reg_nthr);
-    void barrier(ctx_t *ctx, int nthr);
 
 public:
-    void (*barr)(ctx_t *ctx, size_t nthr);
+    void (*barrier)(ctx_t *ctx, size_t nthr);
 
     jit_t() {
         this->generate( abi_param1_aarch64, abi_param2_aarch64);
         ret();
-        barr = reinterpret_cast<decltype(barr)>(
+        barrier = reinterpret_cast<decltype(barrier)>(
                 const_cast<uint32_t *>(this->getCode32()));
     }
 
