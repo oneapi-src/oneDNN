@@ -223,7 +223,7 @@ struct rtus_driver_t : public jit_generator {
         reg_zero = VReg(0, typesize);
         reg_v = VReg(1, typesize);
 
-        vlen_ = reg_v.getBit() / 8;
+        vlen_ = 512 /*reg_v.getBit()*/ / 8;
         vlen_shift_ = 0;
 
         int tvlen = is_nspc_ ? typesize_ : vlen_;
