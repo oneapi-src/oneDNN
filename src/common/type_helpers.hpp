@@ -42,6 +42,13 @@ status_t safe_ptr_assign(base_type *&lhs, derived_type *rhs) {
     return status::success;
 }
 
+template <typename base_type, typename derived_type>
+status_t safe_ptr_assign(std::unique_ptr<base_type> &lhs, derived_type *rhs) {
+    if (rhs == nullptr) return status::out_of_memory;
+    lhs.reset(rhs);
+    return status::success;
+}
+
 template <typename T, typename U>
 struct is_subset {
     static constexpr bool value = false;

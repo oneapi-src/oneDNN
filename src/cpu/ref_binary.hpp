@@ -80,8 +80,8 @@ struct ref_binary_t : public primitive_t {
         const auto &po = pd()->attr()->post_ops_;
         int e_idx = po.find(primitive_kind::eltwise);
         if (e_idx != -1)
-            eltwise_ker_.reset(
-                    new ref_eltwise_scalar_fwd_t(po.entry_[e_idx].eltwise));
+            CHECK(safe_ptr_assign(eltwise_ker_,
+                    new ref_eltwise_scalar_fwd_t(po.entry_[e_idx].eltwise)));
         return status::success;
     }
 

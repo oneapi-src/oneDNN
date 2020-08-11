@@ -316,7 +316,7 @@ jit_uni_eltwise_fwd_t<isa, d_type>::~jit_uni_eltwise_fwd_t() = default;
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_fwd_t<isa, d_type>::init(engine_t *engine) {
-    kernel_.reset(new jit_uni_kernel<isa>(pd()));
+    CHECK(safe_ptr_assign(kernel_, new jit_uni_kernel<isa>(pd())));
     return kernel_->create_kernel();
 }
 
@@ -381,7 +381,7 @@ jit_uni_eltwise_bwd_t<isa, d_type>::~jit_uni_eltwise_bwd_t() = default;
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_bwd_t<isa, d_type>::init(engine_t *engine) {
-    kernel_.reset(new jit_uni_kernel<isa>(pd()));
+    CHECK(safe_ptr_assign(kernel_, new jit_uni_kernel<isa>(pd())));
     return kernel_->create_kernel();
 }
 

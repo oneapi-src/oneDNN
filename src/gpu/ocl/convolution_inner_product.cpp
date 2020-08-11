@@ -196,9 +196,9 @@ status_t convolution_inner_product_fwd_t::execute_forward(
         auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                 memory_tracking::names::key_iprod_dst_reorder);
         auto wspace_ptr = scratchpad->data_handle();
-        wspace_dst.reset(
+        CHECK(safe_ptr_assign(wspace_dst,
                 new memory_t(ctx.stream()->engine(), pd()->cpd_->dst_md(),
-                        memory_flags_t::use_runtime_ptr, wspace_ptr));
+                        memory_flags_t::use_runtime_ptr, wspace_ptr)));
     }
 
     if (pd()->conf.attr_info.with_sum && conf.reorder_dst) {

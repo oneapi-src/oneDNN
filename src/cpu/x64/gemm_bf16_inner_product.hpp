@@ -113,7 +113,8 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
                 || !pd()->dst_is_acc_ /* includes has_sum_as_postops */
                 || has_bias || has_eltwise;
         if (postops_in_ip_)
-            pp_kernel_.reset(pp_kernel_t::create(pd(), !has_sum_as_postops));
+            CHECK(safe_ptr_assign(pp_kernel_,
+                    pp_kernel_t::create(pd(), !has_sum_as_postops)));
 
         auto sum_idx = pd()->attr()->post_ops_.find(primitive_kind::sum);
         beta_ = sum_idx >= 0 && !has_sum_as_postops
@@ -278,8 +279,9 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         if (pd()->with_bias())
-            bias_reduction_.reset(new jit_avx512_core_cvt_bf16_to_ps_t(
-                    true, (size_t)pd()->OC()));
+            CHECK(safe_ptr_assign(bias_reduction_,
+                    new jit_avx512_core_cvt_bf16_to_ps_t(
+                            true, (size_t)pd()->OC())));
         return status::success;
     }
 

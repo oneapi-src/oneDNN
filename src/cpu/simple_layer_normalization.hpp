@@ -84,9 +84,10 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
-        stat_kernel_.reset(
-                lnorm_utils::statistics_kernel_t<data_type>::create(pd()));
-        data_kernel_.reset(lnorm_utils::data_kernel_t<data_type>::create(pd()));
+        CHECK(safe_ptr_assign(stat_kernel_,
+                lnorm_utils::statistics_kernel_t<data_type>::create(pd())));
+        CHECK(safe_ptr_assign(data_kernel_,
+                lnorm_utils::data_kernel_t<data_type>::create(pd())));
         if (stat_kernel_) CHECK(stat_kernel_->create_kernel());
         if (data_kernel_) CHECK(data_kernel_->create_kernel());
         return status::success;
@@ -204,10 +205,10 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
-        diff_ss_kernel_.reset(
-                lnorm_utils::diff_ss_kernel_t<data_type>::create(pd()));
-        diff_data_kernel_.reset(
-                lnorm_utils::diff_data_kernel_t<data_type>::create(pd()));
+        CHECK(safe_ptr_assign(diff_ss_kernel_,
+                lnorm_utils::diff_ss_kernel_t<data_type>::create(pd())));
+        CHECK(safe_ptr_assign(diff_data_kernel_,
+                lnorm_utils::diff_data_kernel_t<data_type>::create(pd())));
         if (diff_ss_kernel_) CHECK(diff_ss_kernel_->create_kernel());
         if (diff_data_kernel_) CHECK(diff_data_kernel_->create_kernel());
         return status::success;

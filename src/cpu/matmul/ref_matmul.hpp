@@ -97,8 +97,9 @@ struct ref_matmul_t : public primitive_t {
     status_t init(engine_t *engine) override {
         int e_idx = pd()->attr()->post_ops_.find(primitive_kind::eltwise);
         if (e_idx != -1)
-            eltwise_ker_.reset(new ref_eltwise_scalar_fwd_t(
-                    pd()->attr()->post_ops_.entry_[e_idx].eltwise));
+            CHECK(safe_ptr_assign(eltwise_ker_,
+                    new ref_eltwise_scalar_fwd_t(
+                            pd()->attr()->post_ops_.entry_[e_idx].eltwise)));
         return status::success;
     }
 
