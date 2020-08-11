@@ -307,9 +307,6 @@ private:
 using jit_aarch64_sve512_1x1_convolution_fwd_f32_t
         = jit_aarch64_sve512_1x1_convolution_fwd_t<data_type::f32>;
 
-//TODO: BWD
-
-#if 0
 template <impl::data_type_t diff_dst_type,
         impl::data_type_t wei_type = diff_dst_type,
         impl::data_type_t diff_src_type = diff_dst_type>
@@ -319,8 +316,11 @@ struct jit_aarch64_sve512_1x1_convolution_bwd_data_t : public primitive_t {
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_()
+#if 1
+              {}
+#else
             , rtus_() {}
-
+#endif
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", sve, ""),
                 jit_aarch64_sve512_1x1_convolution_bwd_data_t);
 
@@ -372,15 +372,24 @@ struct jit_aarch64_sve512_1x1_convolution_bwd_data_t : public primitive_t {
     friend void init_rtus_driver(conv_t *self);
 
     jit_aarch64_sve512_1x1_convolution_bwd_data_t(const pd_t *apd)
-        : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
+        : primitive_t(apd), kernel_(nullptr)
+#if 1
+        {
+#else
+        , rtus_driver_(nullptr) {
+#endif
         kernel_ = new jit_aarch64_sve512_1x1_conv_kernel(
                 pd()->jcp_, *pd()->attr());
+#if 0
         init_rtus_driver<sve>(this);
+#endif
     } 
 
     ~jit_aarch64_sve512_1x1_convolution_bwd_data_t() {
         delete kernel_;
+#if 0
         delete rtus_driver_;
+#endif
     }
 
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
@@ -396,12 +405,14 @@ private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_aarch64_sve512_1x1_conv_kernel *kernel_;
+#if 0
     rtus_driver_t<sve> *rtus_driver_;
+#endif
 };
 
 using jit_aarch64_sve512_1x1_convolution_bwd_data_f32_t
         = jit_aarch64_sve512_1x1_convolution_bwd_data_t<data_type::f32>;
-
+#if 0
 struct jit_aarch64_sve512_1x1_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -448,7 +459,9 @@ struct jit_aarch64_sve512_1x1_convolution_bwd_weights_t : public primitive_t {
 
         // TODO (Roma): structs conf header cleanup
         jit_1x1_conv_conf_t jcp_;
+#if 0
         cpu_reducer_t<data_type::f32>::conf_t reducer_bia_conf_;
+#endif     
         reduce_to_unit_stride_t rtus_;
 
     protected:
