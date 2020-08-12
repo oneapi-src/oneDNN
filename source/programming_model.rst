@@ -10,10 +10,10 @@ LLGA OP describes pure logical description of deep learning operators. It contai
 
 LLGA OP is created when the corresponding framework op is visited, once the information is extracted and converted to LLGA OP, it is then passed over to LLGA backend.
 
-The integration shall follow below rules to convert framework OP to LLGA OP
-1. Convert to LLGA OP if it’s supported in LLGA OP set. Some tweak may be necessary like a convolution with bias in framework shall be splitted to a LLGA convolution and LLGA add.
-2. For the OP that is not in LLGA OP set, if the integration wants to pass it to the backend,  a Wildcard OP can be used.
-3. There’s also special options like custom OP and contraction OP, refer to the related section.
+The integration shall follow below rules to convert framework OP to LLGA OP:
+* Convert to LLGA OP if it’s supported in LLGA OP set. Some tweak may be necessary like a convolution with bias in framework shall be splitted to a LLGA convolution and LLGA add.
+* For the OP that is not in LLGA OP set, if the integration wants to pass it to the backend,  a Wildcard OP can be used.
+* There’s also special options like custom OP and contraction OP, refer to the related section.
 
 The integration layer manages the OP’s lifecycle, e.g., it frees LLGA OP after it is passed to backend. The LLGA backend should not assume that LLGA OP is alive after it receives a LLGA OP.
   **OP Kind**
@@ -37,7 +37,9 @@ Graph
 
 Graph serves as the context for the LLGA backend to grow graphs and generate partitions. A graph is created with an engine, and select() API binds the OP to a graph. When the construction of a graph is completed, the filter_partitions() API shall be used to generate a list of partitions. If the framework processes two subgraphs simultaneously, it needs to create two separate LLGA graph so that they won’t conflict with each other.
 
-If a framework OP is not in LLGA op set, integration has 2 options. 1. Do not pass this OP to the backend; 2. Pass this OP to the backend with a Wildcard OP.
+If a framework OP is not in LLGA op set, integration has 2 options:
+* Do not pass this OP to the backend.
+* Pass this OP to the backend with a Wildcard OP.
 
 It’s not mandatory that all OPs binded by select() must be in a partition, the backend can decide an OP is not supported and doesn’t include it in any partition.
 
@@ -69,7 +71,8 @@ LLGA Tensor binds memory buffers to a logical tensor. Correspondingly, there are
 
 LLGA Tensor is used as the input and output of the compiled partition during execution. For the compiled partition outputs "ANY" data layout, the LLGA backend returns the tensor with a handle to the backend specific tensor. For the compiled partition inputs "ANY" data layout, the LLGA backend expects an opaque tensor and receives the backend specific tensor through the handle.
 
-TODO: tutaj snippet z struct tensor
+.. literalinclude:: code_snippets/tensor.cpp
+    :language: cpp
 
 .. doxygenclass:: llga::api::tensor
    :project: oneDNN Graph Library
@@ -229,7 +232,6 @@ Framework passes the parameter tensors and compiled partition to Execution API f
 If the integration places a tensor with data buffer pointer in outputs, the backend shall use this buffer allocated by integration.
 
 See Stream::submit() for details.
-TODO: dac odnosnik do powyzszego
 
 -----------------------
 Allocator call back API
