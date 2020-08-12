@@ -97,6 +97,14 @@ bool init_max_cpu_isa() {
 
         IF_HANDLE_CASE(isa_all);
         ELSEIF_HANDLE_CASE(simd);
+        ELSEIF_HANDLE_CASE(sse41);
+        ELSEIF_HANDLE_CASE(avx);
+        ELSEIF_HANDLE_CASE(avx2);
+        ELSEIF_HANDLE_CASE(avx512_mic);
+        ELSEIF_HANDLE_CASE(avx512_mic_4ops);
+        ELSEIF_HANDLE_CASE(avx512_core);
+        ELSEIF_HANDLE_CASE(avx512_core_vnni);
+        ELSEIF_HANDLE_CASE(avx512_core_bf16);
         ELSEIF_HANDLE_CASE(sve);
 
 #undef IF_HANDLE_CASE
@@ -116,6 +124,14 @@ struct isa_info_t {
     // so the internal and external enum types do not coincide.
     dnnl_cpu_isa_t convert_to_public_enum(void) const {
         switch (isa) {
+            case avx512_core_bf16: return dnnl_cpu_isa_avx512_core_bf16;
+            case avx512_core_vnni: return dnnl_cpu_isa_avx512_core_vnni;
+            case avx512_core: return dnnl_cpu_isa_avx512_core;
+            case avx512_mic_4ops: return dnnl_cpu_isa_avx512_mic_4ops;
+            case avx512_mic: return dnnl_cpu_isa_avx512_mic;
+            case avx2: return dnnl_cpu_isa_avx2;
+            case avx: return dnnl_cpu_isa_avx;
+            case sse41: return dnnl_cpu_isa_sse41;
             case sve: return dnnl_cpu_isa_sve;
             case simd: return dnnl_cpu_isa_simd;
             default: return dnnl_cpu_isa_all;
@@ -124,6 +140,22 @@ struct isa_info_t {
 
     const char *get_name() const {
         switch (isa) {
+            case avx512_core_bf16:
+                return "Intel AVX-512 with Intel DL Boost and bfloat16 support";
+            case avx512_core_vnni: return "Intel AVX-512 with Intel DL Boost";
+            case avx512_core:
+                return "Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ "
+                       "extensions";
+            case avx512_mic_4ops:
+                return "Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW "
+                       "extensions";
+            case avx512_mic:
+                return "Intel AVX-512 with AVX512CD, AVX512ER, and AVX512PF "
+                       "extensions";
+            case avx512_common: return "Intel AVX-512";
+            case avx2: return "Intel AVX2";
+            case avx: return "Intel AVX";
+            case sse41: return "Intel SSE4.1";
             case sve: return "AARCH64 SVE";
             case simd: return "AARCH64 SIMD";
             default: return "AARCH64";
@@ -137,6 +169,15 @@ static const isa_info_t get_isa_info_t(void) {
     // descending order due to mayiuse check
 #define HANDLE_CASE(cpu_isa) \
     if (mayiuse(cpu_isa)) return isa_info_t(cpu_isa);
+    HANDLE_CASE(avx512_core_bf16);
+    HANDLE_CASE(avx512_core_vnni);
+    HANDLE_CASE(avx512_core);
+    HANDLE_CASE(avx512_mic_4ops);
+    HANDLE_CASE(avx512_mic);
+    HANDLE_CASE(avx512_common);
+    HANDLE_CASE(avx2);
+    HANDLE_CASE(avx);
+    HANDLE_CASE(sse41);
     HANDLE_CASE(sve);
     HANDLE_CASE(simd);
 #undef HANDLE_CASE
@@ -168,6 +209,14 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
     case cpu_isa_traits<cpu_isa>::user_option_val: isa_to_set = cpu_isa; break;
     switch (isa) {
         HANDLE_CASE(isa_all);
+        HANDLE_CASE(sse41);
+        HANDLE_CASE(avx);
+        HANDLE_CASE(avx2);
+        HANDLE_CASE(avx512_mic);
+        HANDLE_CASE(avx512_mic_4ops);
+        HANDLE_CASE(avx512_core);
+        HANDLE_CASE(avx512_core_vnni);
+        HANDLE_CASE(avx512_core_bf16); 
         HANDLE_CASE(simd);
         HANDLE_CASE(sve);
         default: return invalid_arguments;

@@ -68,7 +68,7 @@ void jit_aarch64_sve512_1x1_conv_kernel::bcast_loop(int load_loop_blk) {
         int num_substeps = jcp.bcast_block / jcp.ur;
         assert(num_substeps > 0 && num_substeps < 10);
         for (int i = 0; i < num_substeps; i++) {
-            if (i + 1 == num_substeps) L(large_tail);
+            if (i + 1 == num_substeps) CGA64::L_aarch64(large_tail);
             reduce_loop(load_loop_blk, jcp.ur, i, false);
             if (i < num_substeps - 1) {
                 CGA64::add_imm(aux1_reg_bcast_data, aux1_reg_bcast_data,

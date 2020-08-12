@@ -31,12 +31,12 @@ namespace simple_barrier {
 using namespace Xbyak::Xbyak_aarch64;
 
 #define push64(reg); \
-        CGA64::sub(sp, sp, 8); \
-        CGA64::str(reg, xa::ptr(sp));
+        CGA64::sub(CGA64::sp, CGA64::sp, 8); \
+        CGA64::str(reg, xa::ptr(CGA64::sp));
 
 #define pop64(reg); \
-        CGA64::ldr(reg, xa::ptr(sp)); \
-        CGA64::add(sp, sp, 8);
+        CGA64::ldr(reg, xa::ptr(CGA64::sp)); \
+        CGA64::add(CGA64::sp, CGA64::sp, 8);
 
 void jit_t::generate( xa::XReg reg_ctx, xa::XReg reg_nthr ) {
 #define BAR_CTR_OFF offsetof(ctx_t, ctr)
