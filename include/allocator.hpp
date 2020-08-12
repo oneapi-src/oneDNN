@@ -27,7 +27,7 @@ public:
     /// A default destructor
     virtual ~base_allocator() = default;
 
-    /// Generate persistent buffer, destoryed by deallocate_persistent()
+    /// Generate persistent buffer, destroyed by deallocate_persistent()
     /// or Framework on its exit
     ///
     /// @param n Memory size to be allocated

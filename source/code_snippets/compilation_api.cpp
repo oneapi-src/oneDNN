@@ -5,9 +5,8 @@ Parameters
   engine - the engine where the compiled partition is associated
   c_partition - the output compiled partition
 Return whether the compilation succeeds (LLGA_RESULT_SUCCESS) or not. */
- 
 llga_result compile(Partition* partition, 
                     std::vector<logical_tensor*>* inputs,
-                    Engine* engine,
+                    std::vector<logical_tensor*>* outputs,
+                    graph& agraph,
                     CompiledPartition** c_partition);
-

@@ -6,20 +6,12 @@ Low Level Graph API
 
 .. toctree::
    :maxdepth: 4
-   :caption: LLGA
+   :caption: oneDNN Graph Library
 
    general.rst
    architecture.rst
-   data_structure.rst
-   partition_api.rst
-   query_api.rst
-   compilation_api.rst
-   execution_api.rst
-   profiling_api.rst
-   debugging_api.rst
-   fall_back_mechanism.rst
+   programming_model.rst
    quantization.rst
-   llga_op_definition.rst
    target_fusion_patterns.rst
-   extension.rst
    code.rst
+   appendix.rst

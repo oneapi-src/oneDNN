@@ -99,10 +99,7 @@ public:
     /// Set strides of this logical tensor
     ///
     /// @param strides New tensor strides
-    void set_strides(dims_t strides) {
-        check_succeed(llga_logical_tensor_set_strides(
-                raw(), strides.size(), strides.data()));
-    }
+    void set_strides(dims_t strides);
 
     /// Returns a flag indicates whether the tensor is using strided format
     ///
@@ -132,7 +129,7 @@ public:
     /// @returns Layout id
     llga_layout_id_t get_layout_id() const;
 
-    /// Set the layout to the tensor desscribed by this logical tensor
+    /// Set the layout to the tensor described by this logical tensor
     ///
     /// @param layout_id New layout id
     void set_layout_id(llga_layout_id_t layout_id);
