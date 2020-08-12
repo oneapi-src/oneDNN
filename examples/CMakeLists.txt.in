@@ -101,8 +101,13 @@ function(maybe_configure_test name kind)
             configure_file(template.vcxproj.user ${name}.vcxproj.user @ONLY)
         endif()
     elseif(APPLE)
+        # When LIBRARY_PATH is set (e.g. when using compiler env. scripts)
+        # cmake may stop passing `rpath` linker option. The hack below adds the
+        # LIBRARY_PATH to DYLD_LIBRARY_PATH to make the executable find its
+        # dependencies.
+        # TODO: the problem may be in older version of cmake (2.8.11), revisit.
         set_property(${kind} ${name} PROPERTY ENVIRONMENT
-                "DYLD_LIBRARY_PATH=${CTESTCONFIG_PATH}:$ENV{DYLD_LIBRARY_PATH}")
+                "DYLD_LIBRARY_PATH=${CTESTCONFIG_PATH}:$ENV{LIBRARY_PATH}:$ENV{DYLD_LIBRARY_PATH}")
     endif()
 endfunction()
 
