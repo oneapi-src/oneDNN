@@ -271,7 +271,12 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     float8 d = 0;
     float8 tmp_src0 = CONVERT_FLOAT8_T(SRC0_BLOCK_READ8(&src0[0]));
 #endif
+
+#if BCAST_DIM1
+    float tmp_src1 = CONVERT_FLOAT_T(src1[0]);
+#else
     float tmp_src1 = CONVERT_FLOAT_T(SRC1_BLOCK_READ(&src1[0]));
+#endif
 
 #if WITH_SRC0_SCALE
     tmp_src0 = tmp_src0 * src0_scale;
