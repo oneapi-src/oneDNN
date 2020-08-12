@@ -38,7 +38,7 @@ public:
 
     /// Constructs a graph session using device information
     ///
-    /// @param device_type The device type of this session, can be cpu, gpu
+    /// @param engine_kind The device type of this session, can be cpu, gpu
     ///     or any supported device.
     /// @param device_id The device id
     graph(engine::kind engine_kind, int32_t device_id);
