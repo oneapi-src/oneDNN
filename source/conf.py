@@ -22,6 +22,18 @@ project = 'oneDNN Graph Library'
 
 from element_conf import *
 
+html_theme_options = {
+  'includehidden': False,
+  'collapse_navigation': False
+}
+
+html_context = {
+    'display_github': True,
+    'github_user': 'oneapi-src',
+    'github_repo': 'oneapi-spec',
+    'github_version': 'master/source/'
+}
+
 exclude_patterns = []
 
 latex_documents = []

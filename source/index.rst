@@ -1,12 +1,11 @@
 .. _llga-section:
 
-===================
-Low Level Graph API
-===================
+====================
+oneDNN Graph Library
+====================
 
 .. toctree::
    :maxdepth: 4
-   :caption: oneDNN Graph Library
 
    general.rst
    architecture.rst
