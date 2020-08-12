@@ -423,7 +423,7 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
     const int first_ow = ss % jcp.ow;
     const int last_ow = (ss + sb - 1) % jcp.ow;
 
-    auto zero_val = (data_t)0;
+    const data_t zero_val = 0;
 
     if (jcp.outer_threading) {
         if (sw == 1) {
