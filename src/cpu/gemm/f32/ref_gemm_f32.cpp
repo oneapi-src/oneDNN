@@ -38,7 +38,10 @@ template <typename data_t>
 void copy_A(
         bool isTransA, dim_t K, const data_t *A, const dim_t lda, data_t *ws) {
     for (dim_t k = 0; k < K; k++) {
+#if !defined(_MSC_VER)
+        // Compilation with '#pragma omp simd' in this place on VS2019 to lead to fatal error C1001
         PRAGMA_OMP_SIMD()
+#endif
         for (dim_t i = 0; i < unroll_factor<data_t>::m; i++) {
             ws[i] = isTransA ? A[i * lda + k] : A[i + k * lda];
         }
