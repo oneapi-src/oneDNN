@@ -201,6 +201,7 @@ status_t brgemm_desc_init(brgemm_t *brg, brgemm_batch_kind_t type,
 
     brg->with_bias = false;
     brg->with_eltwise = false;
+    brg->with_sum = false;
     brg->sum_scale = 0;
     brg->with_scales = false;
 
@@ -321,10 +322,6 @@ status_t brgemm_desc_init(brgemm_t *brg, brgemm_batch_kind_t type,
         brg->stride_a = brg->stride_b = 0;
     }
 
-    // sum may be implemented by beta, so we define brg->with_sum value
-    // in convolution init_conf
-    brg->with_sum = false;
-
     return status::success;
 }
 
@@ -366,6 +363,7 @@ status_t brgemm_desc_add_postops(brgemm_t *brg, const primitive_attr_t *attr,
 
     const auto &p = brg->attr->post_ops_;
     const int sum_idx = p.find(primitive_kind::sum);
+    brg->with_sum = sum_idx != -1;
     brg->sum_scale = (sum_idx != -1) ? p.entry_[sum_idx].sum.scale : 0;
 
     const int eltwise_ind = p.find(primitive_kind::eltwise);

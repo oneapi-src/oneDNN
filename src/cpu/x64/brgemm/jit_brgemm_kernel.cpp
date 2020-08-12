@@ -334,12 +334,10 @@ void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(
         }
     }
 
-    bool with_sum = false;
     bool sum_before_eltwise = false;
-    const auto &p = brg.attr->post_ops_;
-    const int sum_idx = p.find(primitive_kind::sum);
-    if (sum_idx != -1) {
-        with_sum = true;
+    if (brg.with_sum) {
+        const auto &p = brg.attr->post_ops_;
+        const int sum_idx = p.find(primitive_kind::sum);
         sum_before_eltwise
                 = (sum_idx == 0) && p.contain(primitive_kind::eltwise, 1);
     }
@@ -347,7 +345,7 @@ void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(
     if (brg.with_eltwise && !sum_before_eltwise)
         eltwise_injector_->compute_vector_range(32 - m_block * n_block2, 32);
 
-    if (with_sum) {
+    if (brg.with_sum) {
         const float *p_sum_scale = &brg.sum_scale;
         if (*p_sum_scale != 1.f) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
 
@@ -460,7 +458,8 @@ void jit_brgemm_kernel_base_t::store_accumulators(
         if (brg.beta != 0.f && brg.alpha != 0) {
             apply_beta(m_block, n_block2, is_n_tail);
         }
-        if (brg.with_eltwise || brg.with_bias || brg.dt_d != brg.dt_c) {
+        if (one_of(true, brg.with_eltwise, brg.with_scales, brg.with_bias,
+                    brg.with_sum, brg.dt_d != brg.dt_c)) {
             Label label_done, label_store_without_post_ops;
 
             mov(reg_do_post_ops, ptr[rsp + reg_do_post_ops_offs_]);
