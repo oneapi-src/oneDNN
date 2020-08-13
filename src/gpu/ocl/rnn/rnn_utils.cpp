@@ -231,10 +231,6 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
                     ? sizeof(cl_half)
                     : sizeof(int32_t);
 
-    rnn.ws_c_states_elsz = (rnn.dt_conf == all_f32 || rnn.dt_conf == all_bf16)
-            ? sizeof(float)
-            : (rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(int32_t));
-
     // Different size required for forward and backward pass
     rnn.scratch_gates_elsz = (!rnn.is_fwd && rnn.dt_conf == all_bf16)
             ? sizeof(cl_half)
@@ -257,8 +253,10 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.ws_states_size = (size_t)(rnn.n_layer + 1) * rnn.n_dir
             * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * rnn.ws_states_elsz;
     // we do not need a good ld for iter_c as it is not involved in GEMM
+    // for now reverting it back to what it was originally
+    // TODO: seprate diff_c_offsets from diff-states & seprate h- and c- off
     rnn.ws_c_states_size = is_lstm ? (size_t)(rnn.n_layer + 1) * rnn.n_dir
-                    * (rnn.n_iter + 1) * rnn.mb * rnn.dhc * rnn.ws_c_states_elsz
+                    * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * aux_elsz
                                    : (size_t)0;
     rnn.ws_diff_states_size = rnn.is_training ? (size_t)(rnn.n_layer + 1)
                     * rnn.n_dir * (rnn.n_states + 1) * (rnn.n_iter + 1) * rnn.mb

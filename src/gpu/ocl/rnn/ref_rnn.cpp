@@ -1410,10 +1410,9 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
         ws_set(compute_stream, workspace_, ws_states_offset_, rnn_utils::states,
                 NAN, rnn.ws_states_size / rnn.ws_states_elsz);
         if (rnn_pd->with_src_iter_c()) {
-            DPRINT("rnn.ws_c_states_elsz = %d\n", rnn.ws_c_states_elsz);
             ws_set(compute_stream, workspace_, ws_c_states_offset_,
                     rnn_utils::c_states, NAN,
-                    rnn.ws_c_states_size / rnn.ws_c_states_elsz);
+                    rnn.ws_c_states_size / sizeof(float));
         }
         ws_set(compute_stream, workspace_, ws_gates_offset_, rnn_utils::gates,
                 NAN, rnn.ws_gates_size / rnn.ws_gates_elsz);

@@ -153,8 +153,7 @@ struct conf_t {
             use_iter_packed_gemm;
 
     // Element size of each workspace part in bytes
-    int ws_gates_elsz, ws_states_elsz, ws_c_states_elsz, ws_grid_comp_elsz,
-            ws_bias_elsz;
+    int ws_gates_elsz, ws_states_elsz, ws_grid_comp_elsz, ws_bias_elsz;
 
     size_t scratch_gates_size;
     int n_iter_scratch_gates;
