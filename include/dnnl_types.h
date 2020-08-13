@@ -647,6 +647,7 @@ typedef enum {
     // weights w/ groups, 3D
     dnnl_Goiw16g = dnnl_Abcd16a,
     dnnl_Goiw8g = dnnl_Abcd8a,
+    dnnl_Goiw4g = dnnl_Abcd4a,
     dnnl_gIOw16o16i = dnnl_aCBd16b16c,
     dnnl_gIOw16i16o = dnnl_aCBd16c16b,
     dnnl_gOIw16i16o = dnnl_aBCd16c16b,
@@ -697,6 +698,7 @@ typedef enum {
     dnnl_gOIhw4o4i = dnnl_aBCde4b4c,
     dnnl_gOihw4o = dnnl_aBcde4b,
     dnnl_Goihw8g = dnnl_Abcde8a,
+    dnnl_Goihw4g = dnnl_Abcde4a,
     dnnl_gOIhw8i16o2i = dnnl_aBCde8c16b2c,
     dnnl_gOIhw8i8o = dnnl_aBCde8c8b,
     dnnl_gOIhw8o16i2o = dnnl_aBCde8b16c2b,

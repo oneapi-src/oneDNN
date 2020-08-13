@@ -388,11 +388,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         || (utils::one_of(
                                     tag_i, format_tag::goiw, format_tag::wigo)
                                 && utils::one_of(tag_o, format_tag::Goiw16g,
-                                        format_tag::Goiw8g))
+                                        format_tag::Goiw8g, format_tag::Goiw4g))
                         || (utils::one_of(
                                     tag_i, format_tag::goihw, format_tag::hwigo)
                                 && utils::one_of(tag_o, format_tag::Goihw16g,
-                                        format_tag::Goihw8g)),
+                                        format_tag::Goihw8g,
+                                        format_tag::Goihw4g)),
                 spec::conv_s8s8>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -424,9 +425,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr bool is_1d
                 = utils::one_of(tag_i, format_tag::goiw, format_tag::wigo);
         constexpr int blksize
-                = utils::one_of(tag_o, format_tag::Goihw8g, format_tag::Goiw8g)
-                ? 8
-                : 16;
+                = utils::one_of(tag_o, format_tag::Goihw4g, format_tag::Goiw4g)
+                ? 4
+                : utils::one_of(tag_o, format_tag::Goihw8g, format_tag::Goiw8g)
+                        ? 8
+                        : 16;
 
         const auto &dims = input_d.dims();
         const auto &pdims = output_d.padded_dims();

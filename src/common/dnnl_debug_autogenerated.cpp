@@ -399,6 +399,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_IOdhw16o16i) return "IOdhw16o16i";
     if (v == dnnl_Goiw16g) return "Goiw16g";
     if (v == dnnl_Goiw8g) return "Goiw8g";
+    if (v == dnnl_Goiw4g) return "Goiw4g";
     if (v == dnnl_gIOw16o16i) return "gIOw16o16i";
     if (v == dnnl_gIOw16i16o) return "gIOw16i16o";
     if (v == dnnl_gOIw16i16o) return "gOIw16i16o";
@@ -447,6 +448,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_gOIhw4o4i) return "gOIhw4o4i";
     if (v == dnnl_gOihw4o) return "gOihw4o";
     if (v == dnnl_Goihw8g) return "Goihw8g";
+    if (v == dnnl_Goihw4g) return "Goihw4g";
     if (v == dnnl_gOIhw8i16o2i) return "gOIhw8i16o2i";
     if (v == dnnl_gOIhw8i8o) return "gOIhw8i8o";
     if (v == dnnl_gOIhw8o16i2o) return "gOIhw8o16i2o";
