@@ -1118,7 +1118,7 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         const float scale, const bool quantize) const {
 
     if (aprop == prop_kind::forward) {
-        int max_d = (dhc > sic) ? dhc : sic;
+        int max_d = std::max(dhc, sic);
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, firstit_states);
@@ -1187,7 +1187,7 @@ void _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         parallel_for(ctx, compute::nd_range_t({dhc, batch, n_layer * n_dir}),
                 copy_res_iter_kernel_, arg_list);
     } else {
-        int max_d = (dhc > sic) ? dhc : sic;
+        int max_d = std::max(dhc, sic);
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, diff_src_iter);
@@ -1371,10 +1371,9 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
         ws_set(compute_stream, workspace_, ws_states_offset_, rnn_utils::states,
                 NAN, rnn.ws_states_size / rnn.ws_states_elsz);
         if (rnn_pd->with_src_iter_c()) {
-            DPRINT("rnn.ws_c_states_elsz = %d\n", rnn.ws_c_states_elsz);
             ws_set(compute_stream, workspace_, ws_c_states_offset_,
                     rnn_utils::c_states, NAN,
-                    rnn.ws_c_states_size / rnn.ws_c_states_elsz);
+                    rnn.ws_c_states_size / sizeof(float));
         }
         ws_set(compute_stream, workspace_, ws_gates_offset_, rnn_utils::gates,
                 NAN, rnn.ws_gates_size / rnn.ws_gates_elsz);
