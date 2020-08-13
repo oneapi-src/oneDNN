@@ -32,9 +32,6 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-#define CGA64 CodeGeneratorAArch64
-namespace xa = Xbyak::Xbyak_aarch64;
-
 struct reduce_to_unit_stride_t {
     convolution_desc_t conv_d_;
     bool reduce_src_;
@@ -50,9 +47,6 @@ struct reduce_to_unit_stride_t {
 template <typename conv_pd_t>
 inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
         const memory_desc_t *&src_d, const memory_desc_t *dst_d) {
-#if 0
-    return;
-#else
     const int ndims = src_d->ndims;
 
     bool rtus_applicable = utils::one_of(ndims, 3, 4);
@@ -78,7 +72,7 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
 
     const bool is_nspc
             = utils::one_of(dat_tag, format_tag::nwc, format_tag::nhwc);
-    if (is_nspc && mayiuse(sve) /*!mayiuse(avx2)*/) return;
+    if (is_nspc && !mayiuse(avx2)) return;
 
     // rtus is applicable, configure it.
     self->rtus_.reduce_src_ = true;
@@ -103,7 +97,6 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
         memory_desc_wrapper::compute_blocking(
                 self->rtus_.conv_d_.src_desc, dat_tag);
     }
-#endif
 }
 
 template <typename conv_pd_t>
@@ -128,7 +121,6 @@ inline void rtus_prepare_space_info(conv_pd_t *self,
 template <cpu_isa_t isa>
 struct rtus_driver_t : public jit_generator {
 
-
     struct call_params_t {
         const void *ws; /* reduced image (w/ strides = 1) */
         const void *src; /* source image (w/ non-unit strides) */
@@ -140,30 +132,25 @@ struct rtus_driver_t : public jit_generator {
     void (*ker_)(const call_params_t *p);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(rtus_driver_t)
-    using reg64_t = const Xbyak::Xbyak_aarch64::XReg;
 
-    reg64_t reg_ws             = x16; //r12;
-    reg64_t reg_src            = x17; //r13;
-    reg64_t reg_icb            = x18; //rdx;
-    reg64_t reg_os             = x19; //r11;
-    reg64_t reg_iw_start       = x21; //r8;
+    Xbyak::Reg64 reg_ws = r12;
+    Xbyak::Reg64 reg_src = r13;
+    Xbyak::Reg64 reg_icb = rdx;
+    Xbyak::Reg64 reg_os = r11;
+    Xbyak::Reg64 reg_iw_start = r8;
 
-    reg64_t reg_cur_os         = x22; //rax;
-    reg64_t reg_cur_iw         = x23; //r9;
-    reg64_t reg_cur_src        = x24; //r10;
-    reg64_t reg_cur_src_fin    = reg_cur_iw; /* just reuse */
+    Xbyak::Reg64 reg_cur_os = rax;
+    Xbyak::Reg64 reg_cur_iw = r9;
+    Xbyak::Reg64 reg_cur_src = r10;
+    Xbyak::Reg64 reg_cur_src_fin = reg_cur_iw; /* just reuse */
 
-    //Xbyak::Opmask tail_mask   = k2;
-    xa::PReg tail_mask          = p1;
-    
+    Xbyak::Opmask tail_mask = k2;
+
     // nspc section
-    reg64_t reg_cur_icb         = x22; //rax;
-    reg64_t reg_tail_mask       = x25; //r14;
-    reg64_t reg_icb_remainder   = x26; //rcx;
-    reg64_t reg_ws_copy         = x27; //r15;
-
-    reg64_t reg_tmp_ofs         = x28;
-    reg64_t reg_tmp_imm         = x29;
+    Xbyak::Reg64 reg_cur_icb = rax;
+    Xbyak::Reg64 reg_tail_mask = r14;
+    Xbyak::Reg64 reg_icb_remainder = rcx;
+    Xbyak::Reg64 reg_ws_copy = r15;
 
     int iw_, stride_w_;
     int src_step_h_, src_step_icb_, ws_step_icb_, vlen_, vlen_shift_;
@@ -172,8 +159,8 @@ struct rtus_driver_t : public jit_generator {
     int ic_, ic_tail_;
     bool is_nspc_;
 
-    xa::ZReg reg_zero = xa::ZReg(0);  //Xbyak::Xmm reg_zero;
-    xa::ZReg reg_v    = xa::ZReg(0);     //Xbyak::Xmm reg_v;
+    Xbyak::Xmm reg_zero;
+    Xbyak::Xmm reg_v;
 
     rtus_driver_t(int iw, int stride_w, int src_step_h, int src_step_icb,
             int ws_step_icb, bool src_to_ws, size_t typesize, int ic,
@@ -187,43 +174,57 @@ struct rtus_driver_t : public jit_generator {
         , typesize_(typesize)
         , ic_(ic)
         , is_nspc_(is_nspc) {
-        using namespace Xbyak::Xbyak_aarch64;
+        using namespace Xbyak;
 
         assert(ic_ > 0);
-        assert(is_nspc == false);
+
         /*FIXME: derive Vmm type on compile time.
          * changing register type  on runtime
          * seems dangerous,and some xbyak functions might
          * fail to work on reg_v, reg_zero because of this
          * data_type change, e.g. uni_vpxor doen't
          * work on reg_zero now*/
-        auto VReg = [=](int idx, size_t typesize) {
-            ZReg res = ZReg(0);
+        auto Vmm = [=](int idx, size_t typesize) {
+            Xmm res;
             if (is_nspc_) {
                 switch (isa) {
-                    case sve: res = ZReg(idx); break;
-                    default: assert(!"Not supported isa"); res = ZReg(idx);
+                    case avx2: res = Ymm(idx); break;
+                    case avx512_common:
+                    case avx512_core:
+                    case avx512_mic: res = Zmm(idx); break;
+                    default: assert(!"Not supported isa"); res = Xmm(idx);
                 }
                 return res;
             }
             switch (isa) {
-                case sve:
+                case avx2:
                     switch (typesize) {
-                        case 4: res = ZReg(idx); break;
-                        case 2: //res = Ymm(idx); break;
-                        case 1: //res = Xmm(idx); break;
+                        case 4: res = Ymm(idx); break;
+                        case 2: res = Xmm(idx); break;
                         default:
                             assert(!"Not supported typesize");
-                            res = ZReg(idx);
+                            res = Ymm(idx);
+                    }
+                    break;
+                case avx512_common:
+                case avx512_core:
+                case avx512_mic:
+                    switch (typesize) {
+                        case 4: res = Zmm(idx); break;
+                        case 2: res = Ymm(idx); break;
+                        case 1: res = Xmm(idx); break;
+                        default:
+                            assert(!"Not supported typesize");
+                            res = Zmm(idx);
                     }
             }
             return res;
         };
 
-        reg_zero = VReg(0, typesize);
-        reg_v = VReg(1, typesize);
+        reg_zero = Vmm(0, typesize);
+        reg_v = Vmm(1, typesize);
 
-        vlen_ = 512 /*reg_v.getBit()*/ / 8;
+        vlen_ = reg_v.getBit() / 8;
         vlen_shift_ = 0;
 
         int tvlen = is_nspc_ ? typesize_ : vlen_;
@@ -239,159 +240,146 @@ struct rtus_driver_t : public jit_generator {
     }
 
     void loop_is() {
-        using namespace Xbyak::Xbyak_aarch64;
+        using namespace Xbyak;
 
-        CGA64::mov(reg_cur_src, reg_src);
-        CGA64::mov(reg_cur_iw, reg_iw_start);
-        CGA64::mov(reg_cur_os, reg_os);
+        mov(reg_cur_src, reg_src);
+        mov(reg_cur_iw, reg_iw_start);
+        mov(reg_cur_os, reg_os);
 
-        xa::LabelAArch64 is_loop;
-        CGA64::L_aarch64(is_loop);
+        Label is_loop;
+        L(is_loop);
 
         if (src_to_ws_) {
-            CGA64::ldr(reg_v, xa::ptr(reg_cur_src));
-            CGA64::str(reg_v, xa::ptr(reg_ws));
+            vmovups(reg_v, ptr[reg_cur_src]);
+            vmovups(ptr[reg_ws], reg_v);
         } else {
-            CGA64::ldr(reg_v, xa::ptr(reg_ws));
-            CGA64::str(reg_v, xa::ptr(reg_cur_src));
-            for (int w = 1; w < stride_w_; ++w){
-                // TODO
-                if((w*vlen_) == 0){
-                    CGA64::str(reg_zero, xa::ptr(reg_cur_src));
-                }else{
-                    CGA64::add_imm(reg_tmp_ofs, reg_cur_src, w*vlen_, reg_tmp_imm);
-                    CGA64::str(reg_zero, xa::ptr(reg_tmp_ofs));
-                }
-            }
+            vmovups(reg_v, ptr[reg_ws]);
+            vmovups(ptr[reg_cur_src], reg_v);
+            for (int w = 1; w < stride_w_; ++w)
+                vmovups(ptr[reg_cur_src + w * vlen_], reg_zero);
         }
 
-        CGA64::add_imm(reg_ws, reg_ws, vlen_, reg_tmp_imm);
-        CGA64::add_imm(reg_cur_src, reg_cur_src, stride_w_ * vlen_, reg_tmp_imm);
+        add(reg_ws, vlen_);
+        add(reg_cur_src, stride_w_ * vlen_);
 
         // for 1d or stride_h=1 convolutions the loop over h should be skipped
         if (!(src_step_icb_ == iw_ || src_step_h_ == iw_)) {
-            xa::LabelAArch64 skip_h_step;
-            CGA64::add_imm(reg_cur_iw, reg_cur_iw, stride_w_, reg_tmp_imm);
-            CGA64::cmp(reg_cur_iw, iw_);
-            CGA64::b(xa::LT, skip_h_step); //jl(skip_h_step);
+            Label skip_h_step;
+            add(reg_cur_iw, stride_w_);
+            cmp(reg_cur_iw, iw_);
+            jl(skip_h_step);
 
             if (src_to_ws_) {
-                CGA64::add_imm(reg_cur_src, reg_cur_src,
-                                (src_step_h_ - iw_) * vlen_, reg_tmp_imm);
+                add(reg_cur_src, (src_step_h_ - iw_) * vlen_);
             } else {
-                CGA64::mov(reg_cur_src_fin, reg_cur_src);
-                CGA64::add_imm(reg_cur_src_fin, reg_cur_src_fin,
-                                (src_step_h_ - iw_) * vlen_, reg_tmp_imm);
-                xa::LabelAArch64 ih_loop;
-                CGA64::L_aarch64(ih_loop);
+                mov(reg_cur_src_fin, reg_cur_src);
+                add(reg_cur_src_fin, (src_step_h_ - iw_) * vlen_);
+                Label ih_loop;
+                L(ih_loop);
 
-                for (int w = 0; w < stride_w_; ++w){
-                    if( (w*vlen_) == 0){
-                        CGA64::str(reg_zero, xa::ptr(reg_cur_src));
-                    }else{
-                        CGA64::add_imm(reg_tmp_ofs, reg_cur_src, w*vlen_, reg_tmp_imm);
-                        CGA64::str(reg_zero, xa::ptr(reg_tmp_ofs));
-                    }
-                }
+                for (int w = 0; w < stride_w_; ++w)
+                    vmovups(ptr[reg_cur_src + w * vlen_], reg_zero);
 
-                CGA64::add_imm(reg_cur_src, reg_cur_src, stride_w_ * vlen_, reg_tmp_imm);
-                CGA64::cmp(reg_cur_src, reg_cur_src_fin);
-                CGA64::b(xa::LT, ih_loop); //jl(ih_loop);
+                add(reg_cur_src, stride_w_ * vlen_);
+                cmp(reg_cur_src, reg_cur_src_fin);
+                jl(ih_loop);
             }
-            CGA64::mov(reg_cur_iw, 0);
-            CGA64::L_aarch64(skip_h_step);
+            xor_(reg_cur_iw, reg_cur_iw);
+            L(skip_h_step);
         }
 
-        CGA64::subs_imm(reg_cur_os, reg_cur_os, vlen_, reg_tmp_imm);
-        CGA64::b(xa::NE, is_loop); //jnz(is_loop);
+        sub(reg_cur_os, vlen_);
+        jnz(is_loop);
 
         /* restore dst */
-        CGA64::subs(reg_ws, reg_ws, reg_os);
+        sub(reg_ws, reg_os);
     }
-#if 0
+
     void loop_is_nspc() {
-        using namespace Xbyak::Xbyak_aarch64;
+        using namespace Xbyak;
 
         assert(is_nspc_);
 
-        CGA64::mov(reg_cur_src, reg_src);
-        CGA64::mov(reg_cur_iw, reg_iw_start);
+        mov(reg_cur_src, reg_src);
+        mov(reg_cur_iw, reg_iw_start);
 
-        if (isa == sve) {
-            //push(rcx); // preserve rcx, used for shift
-            CGA64::mov(reg_icb_remainder, reg_icb);
-            // TODO:
-            CGA64::and_(reg_icb_remainder, reg_icb_remainder, 
-                      (vlen_ / typesize_) - 1); // # of elements in tail
-            CGA64::mov(reg_tail_mask, 1);
-            CGA64::lsl(reg_tail_mask, reg_icb_remainder.cvt8());
-            CGA64::sub(reg_tail_mask, reg_tail_mask, 1); //dec(reg_tail_mask);
-            //pop(rcx);
+        if (isa == avx512_common) {
+            push(rcx); // preserve rcx, used for shift
+            mov(reg_icb_remainder, reg_icb);
+            and_(reg_icb_remainder,
+                    (vlen_ / typesize_) - 1); // # of elements in tail
+            mov(reg_tail_mask, 1);
+            shl(reg_tail_mask, reg_icb_remainder.cvt8());
+            dec(reg_tail_mask);
+            pop(rcx);
 
             switch (typesize_) {
-                case 4: CGA64::mov(tail_mask, reg_tail_mask); break;
-                case 2: //kmovd(tail_mask, reg_tail_mask.cvt32()); break;
-                case 1: //kmovq(tail_mask, reg_tail_mask); break;
+                case 4: kmovw(tail_mask, reg_tail_mask.cvt32()); break;
+                case 2: kmovd(tail_mask, reg_tail_mask.cvt32()); break;
+                case 1: kmovq(tail_mask, reg_tail_mask); break;
                 default: assert(!"Unsupported typesize");
             }
         }
 
-        auto load_reg = [=](const xa::ZReg &vreg, const xa::XReg &reg,
+        auto load_reg = [=](const Xmm &vreg, const Reg64 &reg,
                                 const int64_t offset, const int load_size) {
-            if (isa == sve) {
-                CGA64::add_imm(reg_tmp_ofs, reg, offset, reg_tmp_imm);
-                //const Address &addr = ptr[reg + offset];
+            if (isa == avx512_common) {
+                const Address &addr = ptr[reg + offset];
                 switch (typesize_) {
-                    case 4: CGA64::ldr(vreg, xa::ptr(reg_tmp_ofs)); break;
-                    case 2: //vmovdqu16(vreg, addr); break;
-                    case 1: //vmovdqu8(vreg, addr); break;
+                    case 4: vmovups(vreg, addr); break;
+                    case 2: vmovdqu16(vreg, addr); break;
+                    case 1: vmovdqu8(vreg, addr); break;
                     default: assert(!"Unsupported typesize");
                 }
             } else {
+#if 1
                 assert(!"Unsupported load_bytes");
-                //load_bytes(vreg, reg, offset, load_size);
+#else
+                load_bytes(vreg, reg, offset, load_size);
+#endif
             }
         };
 
-        auto store_reg = [=](const xa::XReg &reg, const xa::ZReg &vreg,
+        auto store_reg = [=](const Reg64 &reg, const Xmm &vreg,
                                  const int64_t offset, const int store_size) {
-            if (isa == sve) {
-                CGA64::add_imm(reg_tmp_ofs, reg, offset, reg_tmp_imm);
-                
-                //const Address &addr = ptr[reg + offset];
+            if (isa == avx512_common) {
+                const Address &addr = ptr[reg + offset];
                 switch (typesize_) {
-                    case 4: CGA64::str(vreg, xa::ptr(reg_tmp_ofs)); break;
-                    case 2: //vmovdqu16(addr, vreg); break;
-                    case 1: //vmovdqu8(addr, vreg); break;
+                    case 4: vmovups(addr, vreg); break;
+                    case 2: vmovdqu16(addr, vreg); break;
+                    case 1: vmovdqu8(addr, vreg); break;
                     default: assert(!"Unsupported typesize");
                 }
             } else {
+#if 1
                 assert(!"Unsupported store_bytes");
-                //store_bytes(vreg, reg, offset, store_size);
-            }
+#else
+                store_bytes(vreg, reg, offset, store_size);
+#endif 
+           }
         };
 
-        CGA64::mov(reg_ws_copy, reg_ws);
-        CGA64::lsl(reg_icb, reg_icb, vlen_shift_);
+        mov(reg_ws_copy, reg_ws);
+        shl(reg_icb, vlen_shift_);
 
         const size_t w_step_factor = ic_ * typesize_;
-        const size_t max_load_store_bytes = 32;
+        const size_t max_load_store_bytes = typesize_ == 4 ? 32 : 16;
         const size_t load_store_size
-                = isa == sve ? vlen_ : max_load_store_bytes;
+                = isa == avx512_common ? vlen_ : max_load_store_bytes;
         size_t load_store_tail_size = (typesize_ == 1 ? max_load_store_bytes
                                                       : ic_tail_ * typesize_);
 
-        xa::LabelAArch64 is_loop, ic_loop, ic_loop_tail, ic_loop_finish;
-        CGA64::L_aarch64(is_loop);
+        Label is_loop, ic_loop, ic_loop_tail, ic_loop_finish;
+        L(is_loop);
         {
-            CGA64::mov(reg_cur_src, reg_src);
-            CGA64::mov(reg_ws, reg_ws_copy);
-            CGA64::mov(reg_cur_icb, reg_icb);
+            mov(reg_cur_src, reg_src);
+            mov(reg_ws, reg_ws_copy);
+            mov(reg_cur_icb, reg_icb);
 
-            CGA64::L_aarch64(ic_loop);
+            L(ic_loop);
             {
-                CGA64::cmp(reg_cur_icb, load_store_size);
-                CGA64::b(xa::LT, ic_loop_tail); //jl(ic_loop_tail);
+                cmp(reg_cur_icb, load_store_size);
+                jl(ic_loop_tail);
 
                 if (src_to_ws_) {
                     load_reg(reg_v, reg_cur_src, 0, load_store_size);
@@ -403,17 +391,17 @@ struct rtus_driver_t : public jit_generator {
                         store_reg(reg_cur_src, reg_zero, w * w_step_factor,
                                 load_store_size);
                 }
-                CGA64::add_imm(reg_ws, reg_ws, load_store_size, reg_tmp_imm);
-                CGA64::add_imm(reg_cur_src, reg_cur_src, load_store_size, reg_tmp_imm);
+                add(reg_ws, load_store_size);
+                add(reg_cur_src, load_store_size);
 
-                CGA64::subs_imm(reg_cur_icb, reg_cur_icb, load_store_size, reg_tmp_imm);
-                CGA64::b(ic_loop);
+                sub(reg_cur_icb, load_store_size);
+                jmp(ic_loop);
             }
 
-            CGA64::L_aarch64(ic_loop_tail);
+            L(ic_loop_tail);
             {
-                CGA64::cmp(reg_cur_icb, 0);
-                CGA64::b(xa::EQ, ic_loop_finish); //je(ic_loop_finish);
+                cmp(reg_cur_icb, 0);
+                je(ic_loop_finish);
 
                 if (src_to_ws_) {
                     load_reg(reg_v | tail_mask, reg_cur_src, 0,
@@ -430,74 +418,73 @@ struct rtus_driver_t : public jit_generator {
                                 w * w_step_factor, load_store_tail_size);
                 }
             }
-            CGA64::L_aarch64(ic_loop_finish);
+            L(ic_loop_finish);
 
-            CGA64::add_imm(reg_ws_copy, reg_ws_copy, w_step_factor, reg_tmp_imm);
-            CGA64::add_imm(reg_src, reg_src, stride_w_ * w_step_factor, reg_tmp_imm);
+            add(reg_ws_copy, w_step_factor);
+            add(reg_src, stride_w_ * w_step_factor);
 
             // for 1d or stride_h=1 convolutions the loop over h should be skipped
             const bool skip_oh_step = src_step_h_ == iw_;
             if (!skip_oh_step) {
-                CGA64::mov(reg_cur_src, reg_src);
-                xa::LabelAArch64 skip_h_step;
-                CGA64::add_imm(reg_cur_iw, reg_cur_iw, stride_w_, reg_tmp_imm);
-                CGA64::cmp(reg_cur_iw, reg_cur_iw, iw_, reg_tmp_imm);
-                CGA64::b(xa::LT, skip_h_step); //jl(skip_h_step, T_NEAR);
+                mov(reg_cur_src, reg_src);
+                Label skip_h_step;
+                add(reg_cur_iw, stride_w_);
+                cmp(reg_cur_iw, iw_);
+                jl(skip_h_step, T_NEAR);
 
                 if (src_to_ws_) {
-                    CGA64::add_imm(reg_src, reg_src, (src_step_h_ - iw_) * w_step_factor, reg_tmp_imm);
+                    add(reg_src, (src_step_h_ - iw_) * w_step_factor);
                 } else {
-                    CGA64::mov(reg_cur_src_fin, reg_cur_src);
-                    CGA64::add_imm(reg_cur_src_fin, reg_cur_src_fin, (src_step_h_ - iw_) * w_step_factor, reg_tmp_imm);
-                    xa::LabelAArch64 ih_loop_nhwc, ic_ih_loop_nhwc, ic_tail_ih_loop_nhwc,
+                    mov(reg_cur_src_fin, reg_cur_src);
+                    add(reg_cur_src_fin, (src_step_h_ - iw_) * w_step_factor);
+                    Label ih_loop_nhwc, ic_ih_loop_nhwc, ic_tail_ih_loop_nhwc,
                             ic_finish_ih_loop_nhwc;
-                    CGA64::L_aarch64(ih_loop_nhwc);
-                    CGA64::mov(reg_cur_src, reg_src);
-                    CGA64::mov(reg_cur_icb, reg_icb);
-                    CGA64::L_aarch64(ic_ih_loop_nhwc);
-                    CGA64::cmp(reg_cur_icb, load_store_size);
-                    CGA64::b(xa::LT, ic_tail_ih_loop_nhwc); //jl(ic_tail_ih_loop_nhwc);
+                    L(ih_loop_nhwc);
+                    mov(reg_cur_src, reg_src);
+                    mov(reg_cur_icb, reg_icb);
+                    L(ic_ih_loop_nhwc);
+                    cmp(reg_cur_icb, load_store_size);
+                    jl(ic_tail_ih_loop_nhwc);
 
                     for (int w = 0; w < stride_w_; ++w)
                         store_reg(reg_cur_src, reg_zero, w * w_step_factor,
                                 load_store_size);
 
-                    CGA64::add_imm(reg_cur_src, reg_cur_src, load_store_size, reg_tmp_imm);
-                    CGA64::subs_imm(reg_cur_icb, reg_cur_icb, load_store_size, reg_tmp_imm);
-                    CGA64::b(xa::NE, ic_ih_loop_nhwc); //jnz(ic_ih_loop_nhwc);
+                    add(reg_cur_src, load_store_size);
+                    sub(reg_cur_icb, load_store_size);
+                    jnz(ic_ih_loop_nhwc);
 
-                    CGA64::L_aarch64(ic_tail_ih_loop_nhwc);
-                    CGA64::cmp(reg_cur_icb, 0);
-                    CGA64::b(xa::LE, ic_finish_ih_loop_nhwc); //jle(ic_finish_ih_loop_nhwc);
+                    L(ic_tail_ih_loop_nhwc);
+                    cmp(reg_cur_icb, 0);
+                    jle(ic_finish_ih_loop_nhwc);
 
                     for (int w = 0; w < stride_w_; ++w)
                         store_reg(reg_cur_src, reg_zero | tail_mask,
                                 w * w_step_factor, load_store_tail_size);
 
-                    CGA64::L_aarch64(ic_finish_ih_loop_nhwc);
+                    L(ic_finish_ih_loop_nhwc);
 
-                    CGA64::add_imm(reg_src, reg_src, stride_w_ * w_step_factor, reg_tmp_imm);
-                    CGA64::cmp(reg_src, reg_cur_src_fin);
-                    CGA64::b(xa::LT, ih_loop_nhwc); //jl(ih_loop_nhwc);
+                    add(reg_src, stride_w_ * w_step_factor);
+                    cmp(reg_src, reg_cur_src_fin);
+                    jl(ih_loop_nhwc);
                 }
-                CGA64::mov(reg_cur_iw, 0);
-                CGA64::L_aarch64(skip_h_step);
+                xor_(reg_cur_iw, reg_cur_iw);
+                L(skip_h_step);
             }
 
-            CGA64::subs(reg_os, 1);
-            CGA64::b(xa::NE, is_loop); //jnz(is_loop);
+            sub(reg_os, 1);
+            jnz(is_loop);
         }
     }
-#endif
 
     void generate() {
-        using namespace Xbyak::Xbyak_aarch64;
-        assert(isa == sve);
+        using namespace Xbyak;
+        assert(isa == avx2 || isa == avx512_common || isa == avx512_core
+                || isa == avx512_mic || isa == sve);
 
         preamble();
 #define READ_PARAM(what) \
-    CGA64::ldr(reg_##what, xa::ptr(abi_param1_aarch64, \
-                static_cast<int32_t>(offsetof(call_params_t, what))))
+    mov(reg_##what, ptr[abi_param1 + offsetof(call_params_t, what)])
         READ_PARAM(src);
         READ_PARAM(icb);
         READ_PARAM(os);
@@ -507,43 +494,42 @@ struct rtus_driver_t : public jit_generator {
 
         if (!src_to_ws_) {
             switch (reg_zero.getBit() / 8) {
-                case 64 /*sve*/: {
-                    xa::ZRegS zregs(reg_zero.getIdx());
-                    CGA64::fmov(zregs); // zero clear
+                case 16 /*xmm*/: uni_vpxor(reg_zero, reg_zero, reg_zero); break;
+                case 32 /*ymm*/: {
+                    Xbyak::Ymm ymm_z(reg_zero.getIdx());
+                    uni_vpxor(ymm_z, ymm_z, ymm_z);
+                    break;
+                }
+                case 64 /*zmm*/: {
+                    Xbyak::Zmm zmm_z(reg_zero.getIdx());
+                    uni_vpxor(zmm_z, zmm_z, zmm_z);
                     break;
                 }
                 default: assert(!"rtus kernel failure");
             }
         }
         if (is_nspc_) {
-#if 1
-            assert(!"Unsupported loop_is_nspc");
-#else
             loop_is_nspc();
-#endif
         } else {
-            CGA64::lsl(reg_os, reg_os, vlen_shift_);
+            shl(reg_os, vlen_shift_);
 
-            xa::LabelAArch64 icb_loop;
-            CGA64::L_aarch64(icb_loop);
+            Label icb_loop;
+            L(icb_loop);
 
             loop_is();
 
-            CGA64::add_imm(reg_ws, reg_ws, ws_step_icb_ * vlen_, reg_tmp_imm);
-            CGA64::add_imm(reg_src, reg_src, src_step_icb_ * vlen_, reg_tmp_imm);
+            add(reg_ws, ws_step_icb_ * vlen_);
+            add(reg_src, src_step_icb_ * vlen_);
 
-            CGA64::subs_imm(reg_icb, reg_icb, vlen_ / typesize_, reg_tmp_imm);
-            CGA64::b(xa::NE, icb_loop); //jnz(icb_loop, T_NEAR);
+            sub(reg_icb, vlen_ / typesize_);
+            jnz(icb_loop, T_NEAR);
         }
 
+        uni_vzeroupper();
         postamble();
-
-        //uni_vzeroupper();
-        ret();
         this->ker_ = reinterpret_cast<decltype(ker_)>(
-                const_cast<uint32_t *>(this->getCode32()));
+                const_cast<uint8_t *>(this->getCode()));
     }
-
 };
 
 template <cpu_isa_t isa, typename conv_t>
@@ -572,8 +558,6 @@ inline void init_rtus_driver(conv_t *self) {
     const bool src_to_ws = !is_bwd_data;
     const size_t typesize
             = types::data_type_size(self->pd()->invariant_src_md()->data_type);
-
-    if( is_nspc == true ) assert(NULL); // TODO
 
     self->rtus_driver_ = new rtus_driver_t<isa>(iw, stride_w, src_step_h,
             src_step_icb, ws_step_icb, src_to_ws, typesize, ic, is_nspc);
