@@ -159,7 +159,6 @@ following additional requirements apply:
 2017 or later.
 * DPCPP runtime requires
   * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
-  Beta
   * [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
 
 Some implementations rely on OpenMP 4.0 SIMD extensions. For the best
@@ -177,7 +176,7 @@ is enabled:
     * OpenCL driver (with kernel language support for OpenCL C 2.0 or later)
       with Intel subgroups extension support
 * DPCPP runtime requires
-    * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) Beta
+    * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
     * OpenCL runtime library (OpenCL version 1.2 or later)
     * [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
 * DPCPP runtime with NVIDIA GPU support requires
@@ -250,43 +249,39 @@ Runtime-specific dependencies:
 ### Validated Configurations
 
 CPU engine was validated on RedHat\* Enterprise Linux 7 with
-* GNU Compiler Collection 4.8, 5.4, 6.1, 7.2, and 8.1
-* Clang\* 3.8.0
+* GNU Compiler Collection 4.8, 5.4, 6.1, 7.2, 8.1, and 9.1
+* Clang\* 3.8.1, 7.1, 8.0, and 9.0
 * [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
-  17.0, 18.0, and 19.0
-* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) Beta
+  19.1
+* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2021.1
 
-
-on Windows Server\* 2012 R2 with
-* Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
+on Windows Server\* 2016 with
+* Microsoft Visual Studio 2015, 2017, and 2019
 * [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
-  17.0 and 19.0
-* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) Beta
+  19.1
+* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2021.1
 
 on macOS 10.13 (High Sierra) with
-* Apple LLVM version 9.2 (XCode 9.2)
+* Apple LLVM version 9.1
 * [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
-  18.0 and 19.0
+  19.1
 
-GPU engine was validated on Ubuntu\* 18.04 with
-* GNU Compiler Collection 6.1 and 8.1
-* Clang 3.8.1
+GPU engine was validated on Ubuntu\* 20.04 with
+* GNU Compiler Collection 7.2, 8.1, and 9.1
+* Clang 3.8.1, 7.1, 8.0, and 9.0
 * [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
-  19.0
-* [Intel SDK for OpenCL applications](https://software.intel.com/content/www/us/en/develop/tools/opencl-sdk.html)
-  2019 Update 3
-* [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases)
-  19.37.14191
-* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
-  Beta
+  19.1
+* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2021.1
+* [Intel Software for General Purpose GPU capabilities](https://dgpu-docs.intel.com/index.html)
+latest stable version available at the time of release
 
 on Windows Server 2019 with
-* Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
+* Microsoft Visual Studio 2015, 2017, and 2019
 * [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
-  19.0
-* [Intel SDK for OpenCL applications](https://software.intel.com/content/www/us/en/develop/tools/opencl-sdk.html) 2019 Update 3
-* [Intel Graphics - Windows 10 DCH Drivers](https://downloadcenter.intel.com/download/28783/Intel-Graphics-Windows-10-DCH-Drivers) 26.20.100.6709
-* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) Beta
+  19.1
+* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) 2021.1
+* [Intel Graphics - Windows 10 DCH Drivers](https://downloadcenter.intel.com/download/29808/Intel-Graphics-Windows-10-DCH-Drivers)
+latest stable version available at the time of release
 
 ## Requirements for Pre-built Binaries
 
