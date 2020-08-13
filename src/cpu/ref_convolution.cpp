@@ -32,8 +32,8 @@ namespace cpu {
 using math::get_bias;
 
 namespace {
-dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, int mb, int c,
-        int id, int ih, int iw) {
+dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb, dim_t c,
+        dim_t id, dim_t ih, dim_t iw) {
     if (ndims == 5)
         return mdw.off(mb, c, id, ih, iw);
     else if (ndims == 4)
@@ -47,7 +47,7 @@ dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, int mb, int c,
 }
 
 dim_t get_weights_off(const memory_desc_wrapper &mdw, bool with_groups,
-        int ndims, int g, int oc, int ic, int kd, int kh, int kw) {
+        int ndims, dim_t g, dim_t oc, dim_t ic, dim_t kd, dim_t kh, dim_t kw) {
     if (ndims == 5)
         return with_groups ? mdw.off(g, oc, ic, kd, kh, kw)
                            : mdw.off(oc, ic, kd, kh, kw);
@@ -83,39 +83,39 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
 
     const bool with_groups = pd()->with_groups();
 
-    const int G = pd()->G();
-    const int MB = pd()->MB();
-    const int OD = pd()->OD();
-    const int OH = pd()->OH();
-    const int OW = pd()->OW();
-    const int ID = pd()->ID();
-    const int IH = pd()->IH();
-    const int IW = pd()->IW();
+    const auto G = pd()->G();
+    const auto MB = pd()->MB();
+    const auto OD = pd()->OD();
+    const auto OH = pd()->OH();
+    const auto OW = pd()->OW();
+    const auto ID = pd()->ID();
+    const auto IH = pd()->IH();
+    const auto IW = pd()->IW();
 
-    const int OC = pd()->OC() / G;
-    const int IC = pd()->IC() / G;
-    const int KD = pd()->KD();
-    const int KH = pd()->KH();
-    const int KW = pd()->KW();
+    const auto OC = pd()->OC() / G;
+    const auto IC = pd()->IC() / G;
+    const auto KD = pd()->KD();
+    const auto KH = pd()->KH();
+    const auto KW = pd()->KW();
 
-    const int KSD = pd()->KSD();
-    const int KSH = pd()->KSH();
-    const int KSW = pd()->KSW();
+    const auto KSD = pd()->KSD();
+    const auto KSH = pd()->KSH();
+    const auto KSW = pd()->KSW();
 
-    const int KDD = pd()->KDD() + 1;
-    const int KDH = pd()->KDH() + 1;
-    const int KDW = pd()->KDW() + 1;
+    const auto KDD = pd()->KDD() + 1;
+    const auto KDH = pd()->KDH() + 1;
+    const auto KDW = pd()->KDW() + 1;
 
-    const int padFront = pd()->padFront();
-    const int padT = pd()->padT();
-    const int padL = pd()->padL();
+    const auto padFront = pd()->padFront();
+    const auto padT = pd()->padT();
+    const auto padL = pd()->padL();
 
-    const int ndims = pd()->desc()->src_desc.ndims;
+    const auto ndims = pd()->desc()->src_desc.ndims;
 
     using namespace data_type;
     bool is_int_conv = utils::one_of(src_type, s32, s8, u8);
 
-    auto maybe_oscale = [=](float &d, int g, int oc) {
+    auto maybe_oscale = [=](float &d, dim_t g, dim_t oc) {
         // scale_idx_mult = 1 for per_oc scales and 0, otherwise
         const int scale_idx_mult
                 = pd()->attr()->output_scales_.mask_ == (1 << 1);
@@ -129,15 +129,15 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
     const int dst_zp_idx_mult
             = !pd()->attr()->zero_points_.common(DNNL_ARG_DST);
 
-    auto ker = [=](int g, int mb, int oc, int od, int oh, int ow) {
+    auto ker = [=](dim_t g, dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
         acc_data_t d = 0;
-        for_(int ic = 0; ic < IC; ++ic)
-        for_(int kd = 0; kd < KD; ++kd)
-        for_(int kh = 0; kh < KH; ++kh)
-        for (int kw = 0; kw < KW; ++kw) {
-            const int id = od * KSD - padFront + kd * KDD;
-            const int ih = oh * KSH - padT + kh * KDH;
-            const int iw = ow * KSW - padL + kw * KDW;
+        for_(dim_t ic = 0; ic < IC; ++ic)
+        for_(dim_t kd = 0; kd < KD; ++kd)
+        for_(dim_t kh = 0; kh < KH; ++kh)
+        for (dim_t kw = 0; kw < KW; ++kw) {
+            const dim_t id = od * KSD - padFront + kd * KDD;
+            const dim_t ih = oh * KSH - padT + kh * KDH;
+            const dim_t iw = ow * KSW - padL + kw * KDW;
 
             if (id < 0 || id >= ID) continue;
             if (ih < 0 || ih >= IH) continue;
@@ -174,7 +174,8 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
     const dim_t weights_kw_stride
             = (ndims >= 3) ? weights_str[ndims - 1 + gr_shift] : 0;
 
-    auto ker_plain = [=](int g, int mb, int oc, int od, int oh, int ow) {
+    auto ker_plain = [=](dim_t g, dim_t mb, dim_t oc, dim_t od, dim_t oh,
+                             dim_t ow) {
         assert(3 <= ndims && ndims <= 5);
         acc_data_t d = 0;
 
@@ -197,7 +198,7 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
                         || iw >= IW)
                     continue;
 
-                for (int ic = 0; ic < IC; ++ic) {
+                for (dim_t ic = 0; ic < IC; ++ic) {
                     const dim_t src_off = ic + id * src_id_stride
                             + ih * src_ih_stride + iw * src_iw_stride;
                     const dim_t weights_off = ic * weights_ic_stride
@@ -238,7 +239,7 @@ ref_convolution_fwd_t<src_type, wei_type, dst_type, acc_type>::execute_forward(
     };
 
     parallel_nd(G, MB, OC, OD, OH, OW,
-            [&](int g, int mb, int oc, int od, int oh, int ow) {
+            [&](dim_t g, dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
                 float a = bias ? get_bias(bias, bias_d.off(g * OC + oc),
                                   pd()->desc()->bias_desc.data_type)
                                : 0;
@@ -292,39 +293,39 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
 
     const bool with_groups = pd()->with_groups();
 
-    const int G = pd()->G();
-    const int MB = pd()->MB();
-    const int OD = pd()->OD();
-    const int OH = pd()->OH();
-    const int OW = pd()->OW();
-    const int ID = pd()->ID();
-    const int IH = pd()->IH();
-    const int IW = pd()->IW();
+    const auto G = pd()->G();
+    const auto MB = pd()->MB();
+    const auto OD = pd()->OD();
+    const auto OH = pd()->OH();
+    const auto OW = pd()->OW();
+    const auto ID = pd()->ID();
+    const auto IH = pd()->IH();
+    const auto IW = pd()->IW();
 
-    const int OC = pd()->OC() / G;
-    const int IC = pd()->IC() / G;
-    const int KD = pd()->KD();
-    const int KH = pd()->KH();
-    const int KW = pd()->KW();
+    const auto OC = pd()->OC() / G;
+    const auto IC = pd()->IC() / G;
+    const auto KD = pd()->KD();
+    const auto KH = pd()->KH();
+    const auto KW = pd()->KW();
 
-    const int KSD = pd()->KSD();
-    const int KSH = pd()->KSH();
-    const int KSW = pd()->KSW();
+    const auto KSD = pd()->KSD();
+    const auto KSH = pd()->KSH();
+    const auto KSW = pd()->KSW();
 
-    const int KDD = pd()->KDD() + 1;
-    const int KDH = pd()->KDH() + 1;
-    const int KDW = pd()->KDW() + 1;
+    const auto KDD = pd()->KDD() + 1;
+    const auto KDH = pd()->KDH() + 1;
+    const auto KDW = pd()->KDW() + 1;
 
-    const int padFront = pd()->padFront();
-    const int padT = pd()->padT();
-    const int padL = pd()->padL();
+    const auto padFront = pd()->padFront();
+    const auto padT = pd()->padT();
+    const auto padL = pd()->padL();
 
-    const int ndims = pd()->desc()->diff_src_desc.ndims;
+    const auto ndims = pd()->desc()->diff_src_desc.ndims;
 
     using namespace data_type;
     bool is_int_conv = utils::one_of(diff_dst_type, s32, s8, u8);
 
-    auto maybe_oscale = [=](float &d, int g, int ic) {
+    auto maybe_oscale = [=](float &d, dim_t g, dim_t ic) {
         /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
         const int scale_idx_mult
                 = pd()->attr()->output_scales_.mask_ == (1 << 1);
@@ -332,18 +333,18 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
         d *= scales[(g * OC + ic) * scale_idx_mult];
     };
 
-    auto ker = [=](int g, int mb, int ic, int id, int ih, int iw) {
+    auto ker = [=](dim_t g, dim_t mb, dim_t ic, dim_t id, dim_t ih, dim_t iw) {
         acc_data_t d = 0;
-        for_(int oc = 0; oc < OC; ++oc)
-        for_(int kd = 0; kd < KD; ++kd)
-        for_(int kh = 0; kh < KH; ++kh)
-        for (int kw = 0; kw < KW; ++kw) {
+        for_(dim_t oc = 0; oc < OC; ++oc)
+        for_(dim_t kd = 0; kd < KD; ++kd)
+        for_(dim_t kh = 0; kh < KH; ++kh)
+        for (dim_t kw = 0; kw < KW; ++kw) {
             if (iw + padL < kw * KDW || ih + padT < kh * KDH
                     || id + padFront < kd * KDD)
                 continue;
-            int ow = iw - kw * KDW + padL;
-            int oh = ih - kh * KDH + padT;
-            int od = id - kd * KDD + padFront;
+            dim_t ow = iw - kw * KDW + padL;
+            dim_t oh = ih - kh * KDH + padT;
+            dim_t od = id - kd * KDD + padFront;
             if (ow % KSW != 0 || oh % KSH != 0 || od % KSD != 0) continue;
 
             ow /= KSW;
@@ -379,7 +380,8 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     const dim_t weights_kd_stride
             = (ndims >= 4) ? weights_str[ndims - 3 + gr_shift] : 0;
 
-    auto ker_plain = [=](int g, int mb, int ic, int id, int ih, int iw) {
+    auto ker_plain = [=](dim_t g, dim_t mb, dim_t ic, dim_t id, dim_t ih,
+                             dim_t iw) {
         assert(3 <= ndims && ndims <= 5);
         acc_data_t d = 0;
         const dim_t diff_dst_loc_off
@@ -446,7 +448,7 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     };
 
     parallel_nd(G, MB, IC, ID, IH, IW,
-            [&](int g, int mb, int ic, int id, int ih, int iw) {
+            [&](dim_t g, dim_t mb, dim_t ic, dim_t id, dim_t ih, dim_t iw) {
                 auto ds_idx = get_data_off(
                         diff_src_d, ndims, mb, g * IC + ic, id, ih, iw);
                 float a = bias ? get_bias(bias, bias_d.off(g * IC + ic),
@@ -483,44 +485,44 @@ status_t ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
 
     const bool with_groups = pd()->with_groups();
 
-    const int G = pd()->G();
-    const int MB = pd()->MB();
-    const int OD = pd()->OD();
-    const int OH = pd()->OH();
-    const int OW = pd()->OW();
-    const int ID = pd()->ID();
-    const int IH = pd()->IH();
-    const int IW = pd()->IW();
+    const auto G = pd()->G();
+    const auto MB = pd()->MB();
+    const auto OD = pd()->OD();
+    const auto OH = pd()->OH();
+    const auto OW = pd()->OW();
+    const auto ID = pd()->ID();
+    const auto IH = pd()->IH();
+    const auto IW = pd()->IW();
 
-    const int OC = pd()->OC() / G;
-    const int IC = pd()->IC() / G;
-    const int KD = pd()->KD();
-    const int KH = pd()->KH();
-    const int KW = pd()->KW();
+    const auto OC = pd()->OC() / G;
+    const auto IC = pd()->IC() / G;
+    const auto KD = pd()->KD();
+    const auto KH = pd()->KH();
+    const auto KW = pd()->KW();
 
-    const int KSD = pd()->KSD();
-    const int KSH = pd()->KSH();
-    const int KSW = pd()->KSW();
+    const auto KSD = pd()->KSD();
+    const auto KSH = pd()->KSH();
+    const auto KSW = pd()->KSW();
 
-    const int KDD = pd()->KDD() + 1;
-    const int KDH = pd()->KDH() + 1;
-    const int KDW = pd()->KDW() + 1;
+    const auto KDD = pd()->KDD() + 1;
+    const auto KDH = pd()->KDH() + 1;
+    const auto KDW = pd()->KDW() + 1;
 
-    const int padFront = pd()->padFront();
-    const int padT = pd()->padT();
-    const int padL = pd()->padL();
+    const auto padFront = pd()->padFront();
+    const auto padT = pd()->padT();
+    const auto padL = pd()->padL();
 
-    const int ndims = pd()->desc()->src_desc.ndims;
+    const auto ndims = pd()->desc()->src_desc.ndims;
 
     using namespace data_type;
     bool is_int_conv = utils::one_of(src_type, s32, s8, u8);
 
-    auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh,
-                       int kw) {
-        for_(int mb = 0; mb < MB; ++mb)
-        for_(int od = 0; od < OD; ++od)
-        for_(int oh = 0; oh < OH; ++oh)
-        for (int ow = 0; ow < OW; ++ow) {
+    auto ker = [=](acc_data_t &d, dim_t g, dim_t oc, dim_t ic, dim_t kd,
+                       dim_t kh, dim_t kw) {
+        for_(dim_t mb = 0; mb < MB; ++mb)
+        for_(dim_t od = 0; od < OD; ++od)
+        for_(dim_t oh = 0; oh < OH; ++oh)
+        for (dim_t ow = 0; ow < OW; ++ow) {
             if (ow * KSW + kw * KDW < padL || oh * KSH + kh * KDH < padT
                     || od * KSD + kd * KDD < padFront
                     || ow * KSW + kw * KDW >= IW + padL
@@ -528,9 +530,9 @@ status_t ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
                     || od * KSD + kd * KDD >= ID + padFront)
                 continue;
 
-            int id = od * KSD - padFront + kd * KDD;
-            int ih = oh * KSH - padT + kh * KDH;
-            int iw = ow * KSW - padL + kw * KDW;
+            dim_t id = od * KSD - padFront + kd * KDD;
+            dim_t ih = oh * KSH - padT + kh * KDH;
+            dim_t iw = ow * KSW - padL + kw * KDW;
 
             const auto diff_dst_off = get_data_off(
                     diff_dst_d, ndims, mb, g * OC + oc, od, oh, ow);
@@ -541,8 +543,8 @@ status_t ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
         }
     };
 
-    auto ker_plain = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh,
-                             int kw) {
+    auto ker_plain = [=](acc_data_t &d, dim_t g, dim_t oc, dim_t ic, dim_t kd,
+                             dim_t kh, dim_t kw) {
         assert(3 <= ndims && ndims <= 5);
         // help compiler optimize the code
         // constants for plain layouts kernel
@@ -586,18 +588,18 @@ status_t ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
         }
     };
 
-    auto ker_bias = [=](acc_data_t &d, int g, int oc) {
-        for_(int mb = 0; mb < MB; ++mb)
-        for_(int od = 0; od < OD; ++od)
-        for_(int oh = 0; oh < OH; ++oh)
-        for (int ow = 0; ow < OW; ++ow) {
+    auto ker_bias = [=](acc_data_t &d, dim_t g, dim_t oc) {
+        for_(dim_t mb = 0; mb < MB; ++mb)
+        for_(dim_t od = 0; od < OD; ++od)
+        for_(dim_t oh = 0; oh < OH; ++oh)
+        for (dim_t ow = 0; ow < OW; ++ow) {
             const auto diff_dst_off = get_data_off(
                     diff_dst_d, ndims, mb, g * OC + oc, od, oh, ow);
             d += (acc_data_t)diff_dst[diff_dst_off];
         }
     };
 
-    parallel_nd(G, OC, [&](int g, int oc) {
+    parallel_nd(G, OC, [&](dim_t g, dim_t oc) {
         if (diff_bias) {
             // XXX: loss of precision when bias is a float...
             acc_data_t db = 0;
@@ -610,10 +612,10 @@ status_t ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
                         = saturate<diff_wei_data_t>(db);
         }
 
-        for_(int ic = 0; ic < IC; ++ic)
-        for_(int kd = 0; kd < KD; ++kd)
-        for_(int kh = 0; kh < KH; ++kh)
-        for (int kw = 0; kw < KW; ++kw) {
+        for_(dim_t ic = 0; ic < IC; ++ic)
+        for_(dim_t kd = 0; kd < KD; ++kd)
+        for_(dim_t kh = 0; kh < KH; ++kh)
+        for (dim_t kw = 0; kw < KW; ++kw) {
             acc_data_t dw = 0;
             if (diff_dst_d.is_plain() && src_d.is_plain())
                 ker_plain(dw, g, oc, ic, kd, kh, kw);

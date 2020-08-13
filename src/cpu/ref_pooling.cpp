@@ -148,7 +148,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
                     set_ws(mb, oc, od, oh, ow, 0);
                     ker_max(res, mb, oc, od, oh, ow);
 
-                    ref_post_ops_t::ref_post_ops_args_t args;
+                    ref_post_ops_t::args_t args;
                     args.ctx = &ctx;
                     args.l_offset = data_l_off;
                     args.dst_md = pd()->dst_md();
@@ -165,7 +165,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
                     float res = 0.f;
                     ker_avg(res, mb, oc, od, oh, ow);
 
-                    ref_post_ops_t::ref_post_ops_args_t args;
+                    ref_post_ops_t::args_t args;
                     args.ctx = &ctx;
                     args.l_offset = data_l_off;
                     args.dst_md = pd()->dst_md();

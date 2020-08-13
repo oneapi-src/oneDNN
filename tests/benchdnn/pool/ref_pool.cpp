@@ -32,7 +32,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
 
         // XXX: this is a hack to let tests with padded area to pass for bf16
         // dt due to the library initialize values with -max_dt, but not -INF.
-        float max_value = -max_dt(p->cfg[DST].dt);
+        float max_value = lowest_dt(p->cfg[DST].dt);
         float avg_value = 0.;
         int ws_off = INT_MAX;
 
