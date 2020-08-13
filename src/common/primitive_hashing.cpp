@@ -294,6 +294,11 @@ size_t get_attr_hash(const primitive_attr_t &attr) {
                             entry.depthwise_conv.count);
                 }
                 break;
+            case primitive_kind::binary:
+                seed = hash_combine(
+                        seed, static_cast<size_t>(entry.binary.alg));
+                seed = hash_combine(seed, get_md_hash(entry.binary.src1_desc));
+                break;
             default: assert(!"unknown post_op");
         }
     }

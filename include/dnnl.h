@@ -685,7 +685,7 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_sum_v2(
 dnnl_status_t DNNL_API dnnl_post_ops_append_eltwise(dnnl_post_ops_t post_ops,
         float scale, dnnl_alg_kind_t alg_kind, float alpha, float beta);
 
-/// Returns the parameters of an elementwise post-up.
+/// Returns the parameters of an elementwise post-op.
 ///
 /// @param post_ops Post-ops.
 /// @param index Index of the elementwise post-op.
@@ -817,6 +817,40 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_dw_k3s2p1(
         dnnl_data_type_t *weights_data_type, dnnl_data_type_t *bias_data_type,
         dnnl_data_type_t *dst_data_type, dnnl_dim_t *count, int *mask,
         const float **scales);
+
+/// Appends a binary post-op.
+///
+/// The kind of this post operation is #dnnl_binary.
+///
+/// In the simplest case when the binary is the only post operation, the
+/// computations would be:
+///
+///     dst[:] <- binary_op (dst[:], another_input[:])
+///
+/// where binary_op is configured with the given parameters. binary_op supports
+/// broadcast semantics for a second operand.
+///
+/// @param post_ops Post-ops.
+/// @param alg_kind Binary algorithm for the post-op.
+/// @param src1_desc Memory descriptor of a second operand.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_post_ops_append_binary(dnnl_post_ops_t post_ops,
+        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src1_desc);
+
+/// Returns the parameters of a binary post-op.
+///
+/// @param post_ops Post-ops.
+/// @param index Index of the binary post-op.
+/// @param alg_kind Output binary algorithm kind.
+/// @param src1_desc Output memory descriptor of a second operand.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+/// @returns #dnnl_invalid_arguments if @p index does not refer to a binary
+///     post-op.
+dnnl_status_t DNNL_API dnnl_post_ops_get_params_binary(
+        const_dnnl_post_ops_t post_ops, int index, dnnl_alg_kind_t *alg_kind,
+        const dnnl_memory_desc_t **src1_desc);
 
 /// @} dnnl_api_attributes
 

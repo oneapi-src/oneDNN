@@ -109,7 +109,7 @@ void pd_info_t::init(
 /* init_info section */
 namespace {
 #define DNNL_VERBOSE_DAT_LEN 256
-#define DNNL_VERBOSE_ATTR_LEN 128
+#define DNNL_VERBOSE_ATTR_LEN 384
 #define DNNL_VERBOSE_AUX_LEN 384
 #define DNNL_VERBOSE_PRB_LEN 384
 
@@ -246,28 +246,38 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
         DPRINT(str, len, written, "post_ops:'");
         for (int i = 0; i < po.len(); ++i) {
             const post_ops_t::entry_t &e = po.entry_[i];
-            if (e.is_sum()) {
-                DPRINT(str, len, written, "sum;");
-            } else if (e.is_sum(false)) {
-                DPRINT(str, len, written, "sum:%g;", e.sum.scale);
-            } else if (e.is_eltwise(true)) {
-                const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
-                if (ew.beta == 0) {
-                    if (ew.alpha == 0) {
-                        DPRINT(str, len, written, "%s;",
-                                dnnl_alg_kind2str(ew.alg));
-                    } else {
-                        DPRINT(str, len, written, "%s:%g;",
-                                dnnl_alg_kind2str(ew.alg), ew.alpha);
-                    }
-                } else {
-                    DPRINT(str, len, written, "%s:%g:%g;",
-                            dnnl_alg_kind2str(ew.alg), ew.alpha, ew.beta);
-                }
-            } else if (e.is_eltwise(false)) {
-                const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
-                DPRINT(str, len, written, "%s:%g:%g:%g;",
-                        dnnl_alg_kind2str(ew.alg), ew.alpha, ew.beta, ew.scale);
+            switch (e.kind) {
+                case primitive_kind::sum: {
+                    if (e.sum.scale == 1.f)
+                        DPRINT(str, len, written, "sum;");
+                    else
+                        DPRINT(str, len, written, "sum:%g;", e.sum.scale);
+                } break;
+                case primitive_kind::eltwise: {
+                    const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
+                    const char *alg_str = dnnl_alg_kind2str(ew.alg);
+                    if (ew.scale != 1.f)
+                        DPRINT(str, len, written, "%s:%g:%g:%g;", alg_str,
+                                ew.alpha, ew.beta, ew.scale);
+                    else if (ew.beta != 0.f)
+                        DPRINT(str, len, written, "%s:%g:%g;", alg_str,
+                                ew.alpha, ew.beta);
+                    else if (ew.alpha != 0.f)
+                        DPRINT(str, len, written, "%s:%g;", alg_str, ew.alpha);
+                    else
+                        DPRINT(str, len, written, "%s;", alg_str);
+                } break;
+                case primitive_kind::binary: {
+                    const post_ops_t::entry_t::binary_t &eb = e.binary;
+                    int mask = eb.src1_desc.ndims >= 2
+                                    && eb.src1_desc.dims[1] > 1
+                            ? (1 << 1)
+                            : 0;
+                    DPRINT(str, len, written, "%s:%s:%d;",
+                            dnnl_alg_kind2str(eb.alg),
+                            dnnl_dt2str(eb.src1_desc.data_type), mask);
+                } break;
+                default: assert(!"unsupported post op primitive kind!"); break;
             }
         }
         DPRINT(str, len, written, "';");

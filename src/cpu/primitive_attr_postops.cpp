@@ -108,6 +108,19 @@ float compute_eltwise_scalar_bwd(
     return ds;
 }
 
+ref_binary_scalar_t::ref_binary_scalar_t(alg_kind_t alg) : alg_(alg) {
+    assert(utils::one_of(alg_, alg_kind::binary_add, alg_kind::binary_max,
+            alg_kind::binary_min, alg_kind::binary_mul));
+}
+
+ref_binary_scalar_t::ref_binary_scalar_t(
+        const post_ops_t::entry_t::binary_t &binary)
+    : ref_binary_scalar_t(binary.alg) {}
+
+float ref_binary_scalar_t::compute_scalar(float src0, float src1) const {
+    return compute_binary_scalar(alg_, src0, src1);
+}
+
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
         alg_kind_t alg, float alpha, float beta, float scale)
     : alg_(alg), alpha_(alpha), beta_(beta), scale_(scale) {
@@ -135,6 +148,8 @@ ref_post_ops_t::ref_post_ops_t(const post_ops_t &po) : po_(po) {
         const auto &e = po_.entry_[idx];
         if (po_.contain(primitive_kind::eltwise, idx)) {
             eltwise_po_.push_back(ref_eltwise_scalar_fwd_t(e.eltwise));
+        } else if (po_.contain(primitive_kind::binary, idx)) {
+            binary_po_.push_back(ref_binary_scalar_t(e.binary));
         }
     }
 }
@@ -143,6 +158,7 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
     if (po_.len() == 0) return status::success;
 
     auto it_eltwise_po = eltwise_po_.begin();
+    auto it_binary_po = binary_po_.begin();
     for (auto idx = 0; idx < po_.len(); ++idx) {
         const auto &e = po_.entry_[idx];
         switch (e.kind) {
@@ -151,6 +167,34 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
                 res = it_eltwise_po->compute_scalar(res);
                 it_eltwise_po++;
                 break;
+            case primitive_kind::binary: {
+                assert(args.ctx);
+                assert(args.l_offset >= 0);
+                assert(args.dst_md);
+
+                const exec_ctx_t &ctx = *args.ctx;
+                const memory_desc_wrapper dst_d(args.dst_md);
+                const auto &dst_dims = dst_d.dims();
+                const auto dst_ndims = dst_d.ndims();
+
+                const auto &b = e.binary;
+                const memory_desc_wrapper src1_binary_po_d(b.src1_desc);
+                dims_t l_dims_binary_po;
+                utils::l_dims_by_l_offset(
+                        l_dims_binary_po, args.l_offset, dst_dims, dst_ndims);
+                int mask_binary_po = utils::get_dims_mask(
+                        dst_dims, src1_binary_po_d.dims(), dst_ndims);
+                utils::apply_mask_on_dims(
+                        l_dims_binary_po, dst_ndims, mask_binary_po);
+
+                const auto off = src1_binary_po_d.off_v(l_dims_binary_po);
+                const auto src1_binary_po = CTX_IN_MEM(const void *,
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+                float val_po = types::get_float_value(
+                        src1_binary_po_d.data_type(), src1_binary_po, off);
+                res = it_binary_po->compute_scalar(res, val_po);
+                it_binary_po++;
+            } break;
             default: assert(!"unsupported post op primitive kind!");
         }
     }

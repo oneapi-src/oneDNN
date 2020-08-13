@@ -42,6 +42,14 @@ args_t &args_t::set(int arg, const dnn_mem_t &mem) {
     return *this;
 }
 
+args_t &args_t::set(
+        const std::vector<int> &args, const std::vector<dnn_mem_t> &mems) {
+    assert(args.size() == mems.size());
+    for (size_t i = 0; i < mems.size(); ++i)
+        args_.push_back(std::make_pair(args[i], &mems[i]));
+    return *this;
+}
+
 // Unmap before passing the memory to execute
 void execute_unmap_args(
         const args_t &args, std::vector<dnnl_exec_arg_t> &dnnl_args) {

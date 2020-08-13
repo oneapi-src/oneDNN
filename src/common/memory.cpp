@@ -38,36 +38,6 @@ memory_desc_t glob_zero_md = memory_desc_t();
 }
 } // namespace dnnl
 
-namespace {
-bool memory_desc_sanity_check(int ndims, const dims_t dims,
-        data_type_t data_type, format_kind_t format_kind) {
-    if (ndims == 0) return true;
-
-    bool ok = dims != nullptr && 0 < ndims && ndims <= DNNL_MAX_NDIMS
-            && one_of(data_type, f16, bf16, f32, s32, s8, u8);
-    if (!ok) return false;
-
-    bool has_runtime_dims = false;
-    for (int d = 0; d < ndims; ++d) {
-        if (dims[d] != DNNL_RUNTIME_DIM_VAL && dims[d] < 0) return false;
-        if (dims[d] == DNNL_RUNTIME_DIM_VAL) has_runtime_dims = true;
-    }
-
-    if (has_runtime_dims) {
-        // format `any` is currently not supported for run-time dims
-        if (format_kind == format_kind::any) return false;
-    }
-
-    return true;
-}
-
-bool memory_desc_sanity_check(const memory_desc_t *md) {
-    if (md == nullptr) return false;
-    return memory_desc_sanity_check(
-            md->ndims, md->dims, md->data_type, format_kind::undef);
-}
-} // namespace
-
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
         const dnnl::impl::memory_desc_t *md, unsigned flags, void *handle)
     : engine_(engine), md_(*md) {

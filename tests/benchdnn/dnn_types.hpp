@@ -238,6 +238,10 @@ struct attr_t {
                     convolution.stride = kind == DW_K3S1P1 ? 1 : 2;
                     convolution.dst_dt = dnnl_f32;
                     convolution.oscale = scale_t();
+                } else if (is_binary_kind()) {
+                    binary.alg = kind2dnnl_kind(kind);
+                    binary.src1_dt = dnnl_data_type_undef;
+                    binary.policy = policy_t::COMMON;
                 }
             }
 
@@ -256,11 +260,17 @@ struct attr_t {
                     dnnl_data_type_t dst_dt;
                     scale_t oscale;
                 } convolution;
+                struct {
+                    dnnl_alg_kind_t alg;
+                    dnnl_data_type_t src1_dt;
+                    policy_t policy;
+                } binary;
             };
 
             bool is_sum_kind() const;
             bool is_convolution_kind() const;
             bool is_eltwise_kind() const;
+            bool is_binary_kind() const;
         };
 
         post_ops_t() : entry() {}
@@ -273,6 +283,9 @@ struct attr_t {
         int find(kind_t kind, int start = 0, int stop = -1) const;
         int eltwise_index() const;
         int convolution_index() const;
+        int binary_index() const;
+
+        std::vector<int> get_binary_po_masks() const;
 
         std::vector<entry_t> entry;
     };
@@ -340,9 +353,17 @@ struct attr_args_t {
     void prepare_output_scales(
             const attr_t &attr, const void *vals, int64_t count, int mask = -1);
 
+    int prepare_binary_post_op_mds(
+            const attr_t &attr, int ndims, const dnnl_dims_t dims);
+
     entry_t get(int arg) const {
         const auto it = entries.find(arg);
         return it == entries.end() ? entry_t() : it->second;
+    }
+
+    dnnl_memory_desc_t get_md(int arg) const {
+        const auto it = mds.find(arg);
+        return it == mds.end() ? dnnl_memory_desc_t() : it->second;
     }
 
 private:
@@ -353,6 +374,7 @@ private:
     }
 
     std::map<int, entry_t> entries;
+    std::map<int, dnnl_memory_desc_t> mds;
 };
 
 struct engine_t {
@@ -395,6 +417,10 @@ float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
 float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta);
 float compute_binary(attr_t::post_ops_t::kind_t kind, float src0, float src1);
-void maybe_post_ops(const attr_t &attr, float &val, float sum_val = 0.f);
-
+void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
+        const std::vector<float> &v_binary_vals);
+inline void maybe_post_ops(
+        const attr_t &attr, float &val, float sum_val = 0.f) {
+    maybe_post_ops(attr, val, sum_val, std::vector<float>());
+}
 #endif

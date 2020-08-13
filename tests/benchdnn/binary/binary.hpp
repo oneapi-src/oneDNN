@@ -132,6 +132,9 @@ private:
     std::vector<std::string> stag_;
 };
 
+int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
+        std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp);
+
 void compute_ref(const prb_t *p, const dnn_mem_t &src0, const dnn_mem_t &src1,
         dnn_mem_t &dst);
 

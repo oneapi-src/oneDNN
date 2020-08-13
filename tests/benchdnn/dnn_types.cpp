@@ -354,6 +354,19 @@ dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(pk_t kind) {
     return kind_table[table_size - 1].dnnl_kind;
 }
 
+std::vector<int> attr_t::post_ops_t::get_binary_po_masks() const {
+    std::vector<int> v_masks;
+    for (int idx = 0; idx < len(); ++idx) {
+        const auto &e = this->entry[idx];
+        if (!e.is_binary_kind()) continue;
+
+        const auto policy = e.binary.policy;
+        const auto mask = attr_t::get_default_mask(policy);
+        v_masks.push_back(mask);
+    }
+    return v_masks;
+}
+
 int attr_t::post_ops_t::from_str(const std::string &s) {
     *this = post_ops_t();
     // "'" is mandatory as long as ";" is used as alg delimiter
@@ -404,6 +417,13 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
             e.eltwise.scale = std::stof(get_substr(subs, subs_pos));
             if (e.eltwise.scale <= 0) return FAIL;
+        } else if (e.is_binary_kind()) {
+            e.binary.src1_dt = str2dt(get_substr(subs, subs_pos).c_str());
+            if (e.binary.src1_dt == dnnl_data_type_undef) return FAIL;
+            if (subs_pos == std::string::npos) continue;
+            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
+
+            e.binary.policy = str2policy(get_substr(subs, subs_pos));
         }
     }
     return OK;
@@ -432,6 +452,16 @@ bool attr_t::post_ops_t::entry_t::is_convolution_kind() const {
 bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
     return kind > ELTWISE_START && kind < ELTWISE_END;
 }
+bool attr_t::post_ops_t::entry_t::is_binary_kind() const {
+    return kind > pk_t::BINARY_START && kind < pk_t::BINARY_END;
+}
+
+int attr_t::post_ops_t::convolution_index() const {
+    for (int i = 0; i < len(); ++i) {
+        if (entry[i].is_convolution_kind()) return i;
+    }
+    return -1;
+}
 
 int attr_t::post_ops_t::eltwise_index() const {
     for (int i = 0; i < len(); ++i) {
@@ -440,9 +470,9 @@ int attr_t::post_ops_t::eltwise_index() const {
     return -1;
 }
 
-int attr_t::post_ops_t::convolution_index() const {
+int attr_t::post_ops_t::binary_index() const {
     for (int i = 0; i < len(); ++i) {
-        if (entry[i].is_convolution_kind()) return i;
+        if (entry[i].is_binary_kind()) return i;
     }
     return -1;
 }
@@ -578,6 +608,10 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta;
             else if (e.eltwise.alpha != 0.f)
                 s << ":" << e.eltwise.alpha;
+        } else if (e.is_binary_kind()) {
+            s << ":" << e.binary.src1_dt;
+            if (e.binary.policy != policy_t::COMMON)
+                s << ":" << e.binary.policy;
         } else {
             assert(!"unknown kind");
             s << "unknown_kind";
@@ -651,6 +685,35 @@ void attr_args_t::prepare_output_scales(
     insert(DNNL_ARG_ATTR_OUTPUT_SCALES, vals, count, mask, attr.oscale.runtime);
 }
 
+int attr_args_t::prepare_binary_post_op_mds(
+        const attr_t &attr, int ndims, const dnnl_dims_t dims) {
+    const auto &po = attr.post_ops;
+    // iterate over all post ops and prepare md for each binary
+    for (int idx = 0; idx < po.len(); ++idx) {
+        const auto &e = po.entry[idx];
+        if (!e.is_binary_kind()) continue;
+
+        const auto dt = e.binary.src1_dt;
+        const auto policy = e.binary.policy;
+        const int mask = attr_t::get_default_mask(policy);
+
+        // deduce binary dims based on input policy
+        dnnl_dims_t binary_dims;
+        for (auto d = 0; d < ndims; ++d)
+            binary_dims[d] = (!(mask & (1 << d))) ? 1 : dims[d];
+
+        dnnl_memory_desc_t src1_desc;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src1_desc, ndims, binary_dims,
+                         dt, get_abx_tag(ndims)),
+                WARN);
+        mds.insert(std::make_pair(
+                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
+                src1_desc));
+    }
+
+    return OK;
+}
+
 dnnl_primitive_attr_t create_dnnl_attr(
         const attr_t &attr, const attr_args_t &attr_args) {
     dnnl_primitive_attr_t dnnl_attr = NULL;
@@ -714,6 +777,12 @@ dnnl_primitive_attr_t create_dnnl_attr(
             } else if (e.is_eltwise_kind()) {
                 DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops, e.eltwise.scale,
                         e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
+            } else if (e.is_binary_kind()) {
+                const auto &src1_md = attr_args.get_md(
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+                assert(src1_md.ndims != 0);
+                DNN_SAFE_V(dnnl_post_ops_append_binary(
+                        ops, e.binary.alg, &src1_md));
             } else {
                 assert(!"unknown attr::post_ops::kind");
             }
@@ -934,9 +1003,11 @@ float compute_binary(pk_t kind, float src0, float src1) {
     return 0;
 }
 
-void maybe_post_ops(const attr_t &attr, float &val, float sum_val) {
+void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
+        const std::vector<float> &v_binary_vals) {
     using namespace dnnl::impl::math;
 
+    auto it_bin_po = v_binary_vals.begin();
     const auto &po = attr.post_ops;
     for (int idx = 0; idx < po.len(); ++idx) {
         const auto &e = po.entry[idx];
@@ -950,6 +1021,9 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val) {
             const auto &a = e.eltwise.alpha;
             const auto &b = e.eltwise.beta;
             val = compute_eltwise_fwd(e.kind, val, s, a, b);
+        } else if (e.is_binary_kind()) {
+            val = compute_binary(e.kind, val, *it_bin_po);
+            it_bin_po++;
         }
     }
 }

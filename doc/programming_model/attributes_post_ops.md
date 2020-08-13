@@ -10,12 +10,10 @@ implemented using the @ref dev_guide_attributes mechanism. If there are
 multiple post-ops, they are executed in the order they have been appended.
 
 Currently the following post-ops are supported by the library:
-
-| Post-ops \ Primitive                                              | @ref dev_guide_convolution | @ref dev_guide_inner_product | @ref dev_guide_batch_normalization
-| :--                                                               | :--                        | :--                          | :--
-| [Eltwise](@ref dev_guide_attributes_post_ops_eltwise)             | Partial                    | Partial                      | Partial
-| [Sum](@ref dev_guide_attributes_post_ops_sum)                     | Partial                    | N/A                          | N/A
-| [Depthwise](@ref dev_guide_attributes_post_ops_depthwise)         | Partial                    | N/A                          | N/A
+* [Eltwise](@ref dev_guide_attributes_post_ops_eltwise)
+* [Sum](@ref dev_guide_attributes_post_ops_sum)
+* [Depthwise](@ref dev_guide_attributes_post_ops_depthwise)
+* [Binary](@ref dev_guide_attributes_post_ops_binary)
 
 Just like @ref dev_guide_attributes, the post-ops are represented by an opaque
 structure (@ref dnnl_post_ops_t in C API and @ref dnnl::post_ops in C++ API)
@@ -45,14 +43,17 @@ primitive::primitive_desc op_pd(params, attr); // create a pd with the attr
 @note
     Different post-ops can be chained together by appending one
     after another. Note that the appending order matters: the sequence of
-    the post-ops is executed in the order of appearance.
+    the post operations is executed in the order of appearance. The maximum
+    number of post operations supported in the library is 32.
 
 @warning
-    Different primitives may have different post-ops support.  Moreover, the
-    support might also depend on the actual implementation of a primitive. For
-    instance, the library generally does not support post-ops for reference
-    primitives (which are typically very slow, so there is no point in doing
-    the actual fusion). Robust code should handle errors accordingly. See the
+    Different primitives may have different post-ops support. Each primitive
+    documentation page contains information about what kind of post operations
+    it supports. Moreover, the support might also depend on the actual
+    implementation of a primitive. For instance, the library may not support
+    post-ops for primitive reference implementations (which are typically very
+    slow, so there is no point in doing the actual fusion). Robust code should
+    handle errors accordingly. See the
     [section on attributes error handling](@ref dev_guide_attributes_error_handling).
 
 @note
@@ -218,6 +219,53 @@ Supported data types
 
   * The `dst_1x1`, `wei_dw` and `dst_dw` are assumed to be #dnnl_format_tag_any.
 
+@anchor dev_guide_attributes_post_ops_binary
+### Binary Post-op
+
+The binary post-op enables fusing a primitive with a @ref dev_guide_binary
+primitive.
+
+The @ref dnnl::primitive::kind of this post-op is
+#dnnl::primitive::kind::binary.
+
+API:
+- C: @ref dnnl_post_ops_append_binary
+- C++: @ref dnnl::post_ops::append_binary
+
+The parameters (C++ API for simplicity):
+~~~cpp
+void dnnl::post_ops::append_binary(
+        algorithm alg, // binary algorithm to apply
+        const memory::desc &src1 // memory descriptor for a second memory operand
+        );
+~~~
+
+The `alg` and `src1` parameters are the same as in @ref dev_guide_binary.
+
+The binary post-op replaces:
+\f[
+    \dst[:] = \operatorname{Op}(...)
+\f]
+
+with
+
+\f[
+    \dst[:] = \operatorname{binary}(\operatorname{Op}(...), Source\_1[:])
+\f]
+
+The intermediate result of \f$\operatorname{Op}(...)\f$ is not preserved.
+Hence, in most cases this kind of fusion cannot be used during training.
+
+Currently the following scenarios are supported:
+* Per tensor broadcast, when \f$Source\_1\f$ is represented as a one-element
+  tensor, i.e. {1, 1, 1, 1} for 2D spatial \f$\operatorname{Op}(...)\f$.
+* Per channels (i.e. dimension 1) broadcast, when a `dim[1]` value of
+  \f$Source\_1\f$ coincides with a `dim[1]` value of
+  \f$\operatorname{Op}(...)\f$, i.e. {1, C, 1, 1} for 2D spatial
+  \f$\operatorname{Op}(...)\f$.
+
+Scenario when \f$Source\_1\f$ represents a full tensor as
+\f$\operatorname{Op}(...)\f$ is not supported yet.
 
 ## Examples of Chained Post-ops
 
@@ -260,9 +308,7 @@ This will lead to the following primitive behavior:
 This is a hypothetical example that illustrates the sequence of operations
 applied.  We also set all the scales to values other than 1.0 and use @ref
 dnnl::primitive_attr::set_output_scales which will be covered in @ref
-dev_guide_attributes_quantization. Unfortunately (or fortunately) the
-sequence is not supported by the library and is merely used to illustrate the
-semantics of post-ops.
+dev_guide_attributes_quantization.
 
 ~~~cpp
 dnnl::post_ops po;
@@ -369,3 +415,45 @@ This will lead to the following primitive behaviour:
             )
         )
 \f]
+
+@anchor dev_guide_attributes_post_ops_binary_fusion
+### Binary
+
+An example of fusing convolution with binary post-op with per channel addition.
+
+~~~cpp
+dnnl::memory::desc conv_dst_md {MB, C, H, W}; /* 2D conv destination memory desc */
+
+dnnl::post_ops po;
+
+/* Append eltwise post-op prior the binary post-op */
+po.append_eltwise(
+        /* scale     = */ 1.f,
+        /* alg kind  = */ dnnl::algorithm::eltwise_relu,
+        /* neg slope = */ 0.f,
+        /* unused for relu */ 0.f);
+
+/* Note that `C` coincides with the one from `conv_dst_md`. Also note that only
+ * supported memory format for src1 memory is `nchw` (or `abcd`) format. */
+po.append_binary(
+        /* alg kind = */ dnnl::algorithm::binary_add,
+        /* src1_md = */ dnnl::memory::desc(
+                {1, C, 1, 1},
+                dnnl::memory::data_type::f32,
+                dnnl::memory::format_tag::abcd));
+
+dnnl::primitive_attr attr;
+attr.set_post_ops(po);
+
+auto cpd = convolution_forward::primitive_desc(conv, attr, engine);
+
+/* To set memory argument for binary post-op, the following should take place: */
+std::unordered_map<int, memory> args;
+
+args.insert(DNNL_ARG_SRC, conv_src_memory);
+...
+int binary_post_op_position = 1; /* hard coded here, but may be queried */
+args.insert(
+        DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) | DNNL_ARG_SRC_1, /* note parentheses around index */
+        binary_post_op_src1_memory);
+~~~

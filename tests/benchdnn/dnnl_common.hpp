@@ -223,6 +223,8 @@ struct dnn_mem_t;
 
 struct args_t {
     args_t &set(int arg, const dnn_mem_t &mem);
+    args_t &set(
+            const std::vector<int> &args, const std::vector<dnn_mem_t> &mems);
     void clear() { args_.clear(); }
 
     int size() const { return (int)args_.size(); }
