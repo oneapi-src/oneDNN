@@ -420,7 +420,7 @@ public:
     }
 
     void uni_vpbroadcastd(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
-        movsd(x, op);
+        movss(x, op);
         pshufd(x, x, 0x0);
     }
     void uni_vpbroadcastd(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
