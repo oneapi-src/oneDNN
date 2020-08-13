@@ -74,9 +74,6 @@ LLGA Tensor binds memory buffers to a logical tensor. Correspondingly, there are
 
 LLGA Tensor is used as the input and output of the compiled partition during execution. For the compiled partition outputs "ANY" data layout, the LLGA backend returns the tensor with a handle to the backend specific tensor. For the compiled partition inputs "ANY" data layout, the LLGA backend expects an opaque tensor and receives the backend specific tensor through the handle.
 
-.. literalinclude:: code_snippets/tensor.cpp
-   :language: cpp
-
 .. doxygenclass:: llga::api::tensor
    :project: oneDNN Graph Library
    :members:
