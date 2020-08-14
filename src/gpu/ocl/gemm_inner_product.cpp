@@ -33,6 +33,21 @@ status_t gemm_inner_product_fwd_t::execute_forward(
     gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC);
     gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
+    gemm_args.bias = &CTX_IN_STORAGE(DNNL_ARG_BIAS);
+    memory_storage_t *scales = &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
+    memory_storage_t *a0
+            = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
+
+    memory_storage_t *b0
+            = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
+
+    memory_storage_t *c0
+            = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
+
+    gemm_args.a_zero_point = b0;
+    gemm_args.b_zero_point = a0;
+    gemm_args.c_zero_point = c0;
+    gemm_args.output_scales = scales;
 
     gemm_exec_ctx_t gemm_ctx(ctx, gemm_args);
 
@@ -40,22 +55,8 @@ status_t gemm_inner_product_fwd_t::execute_forward(
     gemm_ctx.set_scratchpad_grantor(ns.grantor());
 
     status_t gemm_exec_status = gpu_gemm(gemm_)->execute(gemm_ctx);
+
     if (gemm_exec_status != status::success) return gemm_exec_status;
-
-    if (pd()->with_bias()) {
-        auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
-        auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
-
-        compute::kernel_arg_list_t arg_list;
-        arg_list.set(0, bias);
-        arg_list.set(1, dst);
-
-        auto nd_range = compute::nd_range_t({pd()->MB() * pd()->OC()});
-
-        status_t bias_status
-                = parallel_for(ctx, nd_range, bias_kernel_, arg_list);
-        if (bias_status != status::success) return bias_status;
-    }
 
     return status::success;
 }

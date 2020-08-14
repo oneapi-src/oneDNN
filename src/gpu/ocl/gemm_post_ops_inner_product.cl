@@ -17,11 +17,11 @@
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
-__kernel void gemm_x8s8s32x_inner_product_post_process(__global SRC_DATA_T *src,
+__kernel void gemm_post_ops_inner_product(__global SRC_DATA_T *src,
         __global BIAS_DATA_T *bias, __global DST_DATA_T *dst POST_OP_ARGS,
-        __global int *scratchpad, global float *scales) {
-    const size_t mb = get_global_id(1);
-    const size_t oc = get_global_id(2);
+        __global SPAD_DATA_T *scratchpad, global float *scales) {
+    const size_t mb = get_global_id(0) / OC;
+    const size_t oc = get_global_id(0) % OC;
 
     const size_t data_idx = mb * OC + oc;
 #if USE_TEMP_DST == 1
@@ -48,10 +48,10 @@ __kernel void gemm_x8s8s32x_inner_product_post_process(__global SRC_DATA_T *src,
     // Apply postops
     float sum_src;
 #if WITH_SUM
-    sum_src = DST_TO_REF(dst[data_idx]);
+    sum_src = TO_ACC(dst[data_idx]);
 #endif
 
-    float accumulator = convert_float(acc);
+    float accumulator = acc;
     APPLY_POST_OPS(accumulator, float, sum_src, float, mb, 1, oc, 1, 0, 1, 0, 1,
             0, 1, 0, 1);
 

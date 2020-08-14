@@ -209,17 +209,29 @@ TEST_F(runtime_attr_test_t, TestInnerProduct) {
     CHECK_OK(inner_product_forward::primitive_desc(op_d, eng));
     CHECK_OK(inner_product_forward::primitive_desc(
             op_d, gen_attr_with_oscale(false), eng));
-    CHECK_UNIMPL(inner_product_forward::primitive_desc(
-            op_d, gen_attr_with_oscale(true), eng));
-
+    if (get_test_engine_kind() == engine::kind::gpu) {
+        CHECK_OK(inner_product_forward::primitive_desc(
+                op_d, gen_attr_with_oscale(true), eng));
+    } else {
+        CHECK_UNIMPL(inner_product_forward::primitive_desc(
+                op_d, gen_attr_with_oscale(true), eng));
+    }
     for (auto arg :
             {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_BIAS, DNNL_ARG_DST}) {
-        CHECK_UNIMPL(inner_product_forward::primitive_desc(
-                op_d, gen_attr_with_zp(false, arg), eng));
-        CHECK_UNIMPL(inner_product_forward::primitive_desc(
-                op_d, gen_attr_with_zp(true, arg), eng));
+        if (get_test_engine_kind() == engine::kind::gpu
+                && (arg != DNNL_ARG_BIAS)) {
+            CHECK_OK(inner_product_forward::primitive_desc(
+                    op_d, gen_attr_with_zp(false, arg), eng));
+            CHECK_OK(inner_product_forward::primitive_desc(
+                    op_d, gen_attr_with_zp(true, arg), eng));
+        } else {
+            CHECK_UNIMPL(inner_product_forward::primitive_desc(
+                    op_d, gen_attr_with_zp(false, arg), eng));
+            CHECK_UNIMPL(inner_product_forward::primitive_desc(
+                    op_d, gen_attr_with_zp(true, arg), eng));
+        }
     }
-}
+} // namespace dnnl
 
 TEST_F(runtime_attr_test_t, TestLNorm) {
     for (auto dt : {data_type::f32}) {

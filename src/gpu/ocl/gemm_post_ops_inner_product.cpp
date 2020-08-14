@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/gemm_x8s8s32x_inner_product.hpp"
+#include "gpu/ocl/gemm_post_ops_inner_product.hpp"
 
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -24,7 +24,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
+status_t gemm_post_ops_inner_product_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
     using namespace gemm_utils;
@@ -70,9 +70,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
         size_t mb = pd()->MB();
         size_t oc = pd()->OC();
 
-        const size_t gws[] = {1, mb, oc};
-        const size_t lws[] = {1, 1, 1};
-        auto nd_range = compute::nd_range_t(gws, lws);
+        auto nd_range = compute::nd_range_t({mb * oc});
 
         status_t status
                 = parallel_for(ctx, nd_range, post_process_kernel_, arg_list);
