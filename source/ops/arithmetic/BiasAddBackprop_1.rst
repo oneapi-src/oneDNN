@@ -4,7 +4,7 @@ BiasAddBackprop
 
 **Versioned name**: *BiasAddBackprop-1*
 
-**Category**: Arithmetic
+**Category**: *Arithmetic*
 
 **Short description**: Computes the gradients on the "bias" tensor for add bias operator.
 

@@ -1,12 +1,12 @@
----
-Add
----
+-------
+Maximum
+-------
 
-**Versioned name**: *Add-1*
+**Versioned name**: *Maximum-1*
 
 **Category**: *Arithmetic*
 
-**Short description**: *Add* performs element-wise addition operation with two given tensors applying multi-directional broadcast rules.
+**Short description**: *Maximum* performs element-wise maximum operation with two given tensors applying multi-directional broadcast rules.
 
 **Attributes**:
 
@@ -29,7 +29,7 @@ Add
 
 **Outputs**
 
-* **1**: The result of element-wise addition operation. A tensor of type T.
+* **1**: The result of element-wise maximum operation. A tensor of type T.
 
 **Types**
 
@@ -42,4 +42,4 @@ Before performing arithmetic operation, input tensors *a* and *b* are broadcaste
 After broadcasting *Add* does the following with the input tensors *a* and *b*:
 
 .. math::
-   o_{i} = a_{i} + b_{i}
+   o_{i} = max(a_{i}, b_{i})
