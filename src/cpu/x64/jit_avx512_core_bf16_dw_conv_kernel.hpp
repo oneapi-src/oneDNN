@@ -34,7 +34,7 @@ namespace x64 {
 struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_fwd_kernel_bf16)
 
-    jit_avx512_dw_conv_fwd_kernel_bf16(jit_conv_conf_t ajcp)
+    jit_avx512_dw_conv_fwd_kernel_bf16(const jit_conv_conf_t &ajcp)
         : jcp(ajcp), eltwise_injector_(nullptr), bf16_emu_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
@@ -135,7 +135,7 @@ private:
 struct jit_avx512_dw_conv_bwd_data_kernel_bf16 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_bwd_data_kernel_bf16)
 
-    jit_avx512_dw_conv_bwd_data_kernel_bf16(jit_conv_conf_t ajcp)
+    jit_avx512_dw_conv_bwd_data_kernel_bf16(const jit_conv_conf_t &ajcp)
         : jcp(ajcp), bf16_emu_(nullptr) {
 
         if (!isa_has_bf16(jcp.isa))
@@ -199,7 +199,7 @@ struct jit_avx512_dw_conv_bwd_weights_kernel_bf16 : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_bwd_weights_kernel_bf16)
 
-    jit_avx512_dw_conv_bwd_weights_kernel_bf16(jit_conv_conf_t ajcp)
+    jit_avx512_dw_conv_bwd_weights_kernel_bf16(const jit_conv_conf_t &ajcp)
         : jcp(ajcp), bf16_emu_(nullptr) {
 
         if (!isa_has_bf16(jcp.isa))

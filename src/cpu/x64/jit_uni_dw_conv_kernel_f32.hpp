@@ -33,7 +33,7 @@ template <cpu_isa_t isa>
 struct jit_uni_dw_conv_fwd_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_fwd_kernel_f32)
 
-    jit_uni_dw_conv_fwd_kernel_f32(jit_conv_conf_t ajcp)
+    jit_uni_dw_conv_fwd_kernel_f32(const jit_conv_conf_t &ajcp)
         : jcp(ajcp), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_
@@ -112,7 +112,8 @@ template <cpu_isa_t isa>
 struct jit_uni_dw_conv_bwd_data_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_bwd_data_kernel_f32)
 
-    jit_uni_dw_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp) {}
+    jit_uni_dw_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp)
+        : jcp(ajcp) {}
     jit_conv_conf_t jcp;
 
 private:
@@ -153,7 +154,8 @@ struct jit_uni_dw_conv_bwd_weights_kernel_f32 : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_bwd_weights_kernel_f32)
 
-    jit_uni_dw_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp) {}
+    jit_uni_dw_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
+        : jcp(ajcp) {}
 
     jit_conv_conf_t jcp;
 

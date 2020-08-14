@@ -39,7 +39,7 @@ namespace x64 {
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_fwd_kernel {
 
-    jit_uni_dw_conv_fwd_kernel(jit_conv_conf_t ajcp) : ker_(nullptr) {
+    jit_uni_dw_conv_fwd_kernel(const jit_conv_conf_t &ajcp) : ker_(nullptr) {
         ker_ = new jit_kernel_t(ajcp);
     }
 
@@ -273,7 +273,8 @@ template struct jit_uni_dw_conv_fwd_kernel<sse41, data_type::f32>;
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_bwd_data_kernel {
 
-    jit_uni_dw_conv_bwd_data_kernel(jit_conv_conf_t ajcp) : ker_(nullptr) {
+    jit_uni_dw_conv_bwd_data_kernel(const jit_conv_conf_t &ajcp)
+        : ker_(nullptr) {
         ker_ = new jit_kernel_t(ajcp);
     }
 
@@ -407,7 +408,8 @@ template struct jit_uni_dw_conv_bwd_data_kernel<sse41, data_type::f32>;
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_bwd_weights_kernel {
 
-    jit_uni_dw_conv_bwd_weights_kernel(jit_conv_conf_t ajcp) : ker_(nullptr) {
+    jit_uni_dw_conv_bwd_weights_kernel(const jit_conv_conf_t &ajcp)
+        : ker_(nullptr) {
         ker_ = new jit_kernel_t(ajcp);
     }
 

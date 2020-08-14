@@ -180,7 +180,7 @@ private:
 struct jit_avx512_common_conv_fwd_kernel {
 
     jit_avx512_common_conv_fwd_kernel(
-            const jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : kernel_(nullptr) {
         switch (ajcp.oc_block) {
             case 16:

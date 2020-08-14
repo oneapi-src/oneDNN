@@ -831,14 +831,14 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
 
 size_t jit_avx512_core_bf16_convolution_bwd_weights_t::tr_src_buf_number(
         const thread_info_t *ti, int g, int ic) const {
-    const jit_conv_conf_t jcp = this->kernel_->jcp;
+    const jit_conv_conf_t &jcp = this->kernel_->jcp;
     return dnnl_thr_syncable()
             ? ti->ithr_mb * jcp.nb_ic * jcp.ngroups + g * jcp.nb_ic + ic
             : ti->ithr;
 }
 size_t jit_avx512_core_bf16_convolution_bwd_weights_t::tr_diff_dst_buf_number(
         const thread_info_t *ti, int g, int oc) const {
-    const jit_conv_conf_t jcp = this->kernel_->jcp;
+    const jit_conv_conf_t &jcp = this->kernel_->jcp;
     return dnnl_thr_syncable()
             ? ti->ithr_mb * jcp.nb_oc * jcp.ngroups + g * jcp.nb_oc + oc
             : ti->ithr;
@@ -846,7 +846,7 @@ size_t jit_avx512_core_bf16_convolution_bwd_weights_t::tr_diff_dst_buf_number(
 
 void jit_avx512_core_bf16_convolution_bwd_weights_t ::trans_src(
         src_data_t *tr_src, const src_data_t *src, int row_count) const {
-    const jit_conv_conf_t jcp = this->kernel_->jcp;
+    const jit_conv_conf_t &jcp = this->kernel_->jcp;
     const int pf_depth = 2;
     struct {
         const src_data_t *src;
@@ -878,7 +878,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_src_nxc(
         src_data_t *tr_src, const src_data_t *src_base, int spatial_start,
         dim_t spatial_start_offset, int icb_start, dim_t chb_stride,
         int row_count) const {
-    const jit_conv_conf_t jcp = this->kernel_->jcp;
+    const jit_conv_conf_t &jcp = this->kernel_->jcp;
     const int src_stride = jcp.iw * jcp.ngroups * jcp.ic;
     const int tr_src_stride = jcp.tr_iw * jcp.ic_block;
 
@@ -913,7 +913,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::trans_dst(
         diff_dst_data_t *tr_diff_dst, const diff_dst_data_t *diff_dst,
         int row_count) const {
 
-    const jit_conv_conf_t jcp = this->kernel_->jcp;
+    const jit_conv_conf_t &jcp = this->kernel_->jcp;
     const int pf_depth = 2;
     struct {
         const diff_dst_data_t *diff_dst;
@@ -946,7 +946,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_dst_nxc(
         diff_dst_data_t *tr_diff_dst, const diff_dst_data_t *diff_dst_base,
         int spatial_start, dim_t spatial_start_offset, int ocb_start,
         dim_t chb_stride, int row_count) const {
-    const jit_conv_conf_t jcp = this->kernel_->jcp;
+    const jit_conv_conf_t &jcp = this->kernel_->jcp;
     const int diff_dst_stride = jcp.ow * jcp.ngroups * jcp.oc;
     const int tr_diff_dst_stride = jcp.tr_ow * jcp.oc_block;
     int work_rest = row_count;
