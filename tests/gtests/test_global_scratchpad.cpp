@@ -33,18 +33,10 @@ using tag = memory::format_tag;
 class global_scratchpad : public ::testing::Test {};
 
 struct conv_ctx_t {
-    conv_ctx_t() : eng_(engine::kind::cpu, 0), c_() {}
+    conv_ctx_t() : eng_(engine::kind::cpu, 0) {}
 
     struct conv_t {
-        conv_t()
-            : src_md()
-            , wei_md()
-            , dst_md()
-            , pd()
-            , src_mem()
-            , wei_mem()
-            , dst_mem()
-            , prim() {}
+        conv_t() {}
 
         memory::desc src_md;
         memory::desc wei_md;

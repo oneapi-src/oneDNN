@@ -78,7 +78,7 @@ struct jit_avx512_common_resampling
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_resampling)
 
     jit_avx512_common_resampling(const resampling_pd_t *pd)
-        : jit_avx512_common_resampling_kernel(pd), jit_generator() {
+        : jit_avx512_common_resampling_kernel(pd) {
 
         if (pd_->is_fwd()) {
             const memory_desc_wrapper src_d(pd_->src_md());
