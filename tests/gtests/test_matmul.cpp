@@ -88,7 +88,7 @@ using tag = memory::format_tag;
 
 class matmul_iface_test : public ::testing::TestWithParam<matmul_test_params> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         matmul_test_params p
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
 

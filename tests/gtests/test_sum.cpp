@@ -30,7 +30,7 @@ protected:
     engine eng;
     stream strm;
 
-    virtual void SetUp() {
+    void SetUp() override {
         eng = get_test_engine();
         strm = make_stream(eng);
     }
@@ -132,7 +132,7 @@ private:
     }
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         src_data_type = data_traits<src_data_t>::data_type;
         dst_data_type = data_traits<dst_data_t>::data_type;
         sum_test_params p

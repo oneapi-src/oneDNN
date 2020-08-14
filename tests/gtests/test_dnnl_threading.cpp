@@ -38,7 +38,7 @@ using np_t = nd_params_t;
 
 class test_nd : public ::testing::TestWithParam<nd_params_t> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         size = 1;
         for (auto &d : p.dims)

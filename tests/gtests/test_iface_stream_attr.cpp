@@ -39,7 +39,7 @@ protected:
     bool expect_threadpool_failure
             = get_test_engine_kind() != dnnl::engine::kind::cpu;
 #endif
-    virtual void SetUp() {}
+    void SetUp() override {}
 };
 
 TEST_F(stream_attr_test, TestConstructor) {}

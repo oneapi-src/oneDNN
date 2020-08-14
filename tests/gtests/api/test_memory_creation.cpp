@@ -171,7 +171,7 @@ INSTANTIATE_TEST_SUITE_P(TestMemoryCreationOK, memory_creation_test,
         ::testing::Combine(all_engine_kinds, cases_generic));
 
 class c_api_memory_test : public ::testing::Test {
-    virtual void SetUp() {}
+    void SetUp() override {}
 };
 
 TEST_F(c_api_memory_test, TestZeroPadBoom) {

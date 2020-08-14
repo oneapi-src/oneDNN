@@ -43,7 +43,7 @@ private:
     std::shared_ptr<softmax_forward::primitive_desc> pd_fwd_hint;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         p = ::testing::TestWithParam<softmax_test_params<data_t>>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);

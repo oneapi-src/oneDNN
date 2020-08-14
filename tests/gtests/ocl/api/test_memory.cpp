@@ -40,7 +40,7 @@ protected:
                 &memory, &memory_d, engine, DNNL_MEMORY_NONE));
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         if (memory) { DNNL_CHECK(dnnl_memory_destroy(memory)); }
         if (engine) { DNNL_CHECK(dnnl_engine_destroy(engine)); }
     }

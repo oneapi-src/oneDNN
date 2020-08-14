@@ -883,7 +883,7 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
         impl();
         postamble();
     }
-    ~jit_uni_reorder_kernel_f32() { delete bf16_emu_; }
+    ~jit_uni_reorder_kernel_f32() override { delete bf16_emu_; }
 
 private:
     int itype_sz;

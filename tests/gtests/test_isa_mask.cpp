@@ -68,7 +68,7 @@ static std::map<cpu_isa, isa_compat_info> isa_compatibility_table = {
 
 class isa_test : public ::testing::TestWithParam<cpu_isa> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         auto isa = ::testing::TestWithParam<cpu_isa>::GetParam();
 
         // soft version of mayiuse that allows resetting the max_cpu_isa

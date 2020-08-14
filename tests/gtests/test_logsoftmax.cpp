@@ -43,7 +43,7 @@ private:
     std::shared_ptr<logsoftmax_forward::primitive_desc> pd_fwd_hint;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         p = ::testing::TestWithParam<
                 logsoftmax_test_params<data_t>>::GetParam();
         catch_expected_failures(

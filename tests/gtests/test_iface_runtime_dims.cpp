@@ -28,7 +28,7 @@ using tag = memory::format_tag;
 class runtime_dim_test : public ::testing::Test {
 protected:
     engine eng = get_test_engine();
-    virtual void SetUp() {}
+    void SetUp() override {}
 
     template <typename F>
     void check_status(const F &f, dnnl_status_t status) {

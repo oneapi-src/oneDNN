@@ -337,7 +337,7 @@ private:
     memory::data_type data_type;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         data_type = data_traits<data_t>::data_type;
         SKIP_IF(unsupported_data_type(data_type),
                 "Engine does not support this data type.");

@@ -40,7 +40,7 @@ private:
     memory::data_type src0_dt, src1_dt, dst_dt;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         src0_dt = data_traits<src0_data_t>::data_type;
         src1_dt = data_traits<src1_data_t>::data_type;
         dst_dt = data_traits<dst_data_t>::data_type;

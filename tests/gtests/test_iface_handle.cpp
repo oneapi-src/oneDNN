@@ -26,7 +26,7 @@ public:
     engine e;
 
 protected:
-    virtual void SetUp() { e = get_test_engine(); }
+    void SetUp() override { e = get_test_engine(); }
 };
 
 TEST_F(handle_test, TestHandleConstructorsAndOperators) {

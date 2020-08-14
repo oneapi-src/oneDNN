@@ -41,7 +41,7 @@ template <typename data_t>
 class convolution_any_fmt_test
     : public ::testing::TestWithParam<conv_any_fmt_test_params> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
 #if DNNL_X64
         // Skip this test if the library cannot select blocked format a priori.
         // Currently blocking is supported only for sse41 and later CPUs.

@@ -132,7 +132,7 @@ private:
     };
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         auto p = ::testing::TestWithParam<test_rnn_params_t>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status, false);

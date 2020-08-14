@@ -130,7 +130,7 @@ private:
     memory::dims padR;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         auto p = ::testing::TestWithParam<
                 deconvolution_test_params>::GetParam();
         catch_expected_failures(

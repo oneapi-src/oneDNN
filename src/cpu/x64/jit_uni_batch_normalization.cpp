@@ -1717,7 +1717,7 @@ struct jit_bnorm_t : public jit_generator {
         return jit_generator::operator()(p);
     }
 
-    ~jit_bnorm_t() { delete bf16_emu_; }
+    ~jit_bnorm_t() override { delete bf16_emu_; }
 };
 } // namespace
 

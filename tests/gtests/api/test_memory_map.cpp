@@ -28,7 +28,7 @@ namespace dnnl {
 
 class memory_map_test_c : public ::testing::TestWithParam<dnnl_engine_kind_t> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         auto engine_kind = GetParam();
         if (dnnl_engine_get_count(engine_kind) == 0) return;
 
@@ -37,7 +37,7 @@ protected:
                 dnnl_stream_create(&stream, engine, dnnl_stream_default_flags));
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         if (engine) { DNNL_CHECK(dnnl_engine_destroy(engine)); }
         if (stream) { DNNL_CHECK(dnnl_stream_destroy(stream)); }
     }

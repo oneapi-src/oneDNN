@@ -25,7 +25,7 @@ using data_type = memory::data_type;
 
 class attr_test : public ::testing::Test {
 protected:
-    virtual void SetUp() {}
+    void SetUp() override {}
 };
 
 TEST_F(attr_test, TestScratchpadMode) {

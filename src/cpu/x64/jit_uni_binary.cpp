@@ -277,7 +277,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
         : binary_kernel_t(cpu_isa_traits<isa>::vlen), pd_(pd) {
         init();
     }
-    virtual ~jit_uni_binary_kernel_t() = default;
+    ~jit_uni_binary_kernel_t() override = default;
 };
 
 template <cpu_isa_t isa, data_type_t src_type>

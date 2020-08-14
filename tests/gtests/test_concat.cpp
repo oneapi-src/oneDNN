@@ -90,7 +90,7 @@ class concat_test : public ::testing::TestWithParam<concat_test_params> {
     }
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         auto data_type = data_traits<data_t>::data_type;
         SKIP_IF(unsupported_data_type(data_type),
                 "Engine does not support this data type.");

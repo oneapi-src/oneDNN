@@ -85,7 +85,7 @@ struct inprod_test_params {
 template <typename data_t>
 class inner_product_test : public ::testing::TestWithParam<inprod_test_params> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         auto p = ::testing::TestWithParam<inprod_test_params>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);

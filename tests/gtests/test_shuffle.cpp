@@ -89,7 +89,7 @@ private:
     memory::data_type data_type;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         data_type = data_traits<data_t>::data_type;
         SKIP_IF(data_type == memory::data_type::f16
                         && get_test_engine_kind() == engine::kind::cpu,

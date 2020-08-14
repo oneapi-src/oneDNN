@@ -117,7 +117,7 @@ class lrn_forward_test : public ::testing::TestWithParam<lrn_params> {
     lrn_params p;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         memory::data_type data_type = data_traits<data_t>::data_type;
         SKIP_IF(unsupported_data_type(data_type),
                 "Engine does not support this data type.");

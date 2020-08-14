@@ -49,7 +49,7 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
         }
     }
 
-    ~jit_brgemm_kernel_base_t() { delete eltwise_injector_; }
+    ~jit_brgemm_kernel_base_t() override { delete eltwise_injector_; }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_base_t)
 

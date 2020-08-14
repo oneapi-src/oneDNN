@@ -311,7 +311,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
         : i8i8_binary_kernel_t(cpu_isa_traits<isa>::vlen), pd_(pd) {
         init();
     }
-    virtual ~jit_uni_i8i8_binary_kernel_t() = default;
+    ~jit_uni_i8i8_binary_kernel_t() override = default;
 };
 
 template <cpu_isa_t isa, data_type_t src0_type, data_type_t src1_type>
