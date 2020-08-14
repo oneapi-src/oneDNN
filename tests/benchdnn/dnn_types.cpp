@@ -268,7 +268,7 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
         auto policy_str = get_substr(s, start_pos);
         auto scale_str = policy_str + ":" + get_substr(s, start_pos, '_');
         scale_t arg_scale;
-        auto status = arg_scale.from_str(scale_str.c_str());
+        auto status = arg_scale.from_str(scale_str);
         if (status != OK) return status;
         set(arg, arg_scale);
     }
@@ -409,7 +409,7 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
             auto policy_str = get_substr(subs, subs_pos);
             auto scale_str = policy_str + ":" + get_substr(subs, subs_pos);
-            auto status = e.convolution.oscale.from_str(scale_str.c_str());
+            auto status = e.convolution.oscale.from_str(scale_str);
             if (status != OK) return status;
         } else if (e.is_eltwise_kind()) {
             e.eltwise.alpha = std::stof(get_substr(subs, subs_pos));
