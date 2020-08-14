@@ -44,7 +44,7 @@ struct jit_args {
 
 struct jit_uni_eltwise_kernel : public c_compatible {
     jit_uni_eltwise_kernel(const eltwise_pd_t *pd) : pd_(pd) {}
-    virtual ~jit_uni_eltwise_kernel() {}
+    virtual ~jit_uni_eltwise_kernel() = default;
 
     virtual void operator()(jit_args *args) = 0;
     virtual status_t create_kernel() = 0;

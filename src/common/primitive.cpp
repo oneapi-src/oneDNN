@@ -64,14 +64,16 @@ nested_scratchpad_t::nested_scratchpad_t(const exec_ctx_t &master_ctx, int key,
 #endif
 }
 
-nested_scratchpad_t::~nested_scratchpad_t() {
 #ifdef DNNL_ENABLE_MEM_DEBUG
+nested_scratchpad_t::~nested_scratchpad_t() {
     if (scratchpad_debug::is_protect_scratchpad()) {
         scratchpad_debug::unprotect_scratchpad_buffer(
                 grantor_->get_base_storage(), grantor_->get_registry());
     }
-#endif
 }
+#else
+nested_scratchpad_t::~nested_scratchpad_t() = default;
+#endif
 
 } // namespace impl
 } // namespace dnnl

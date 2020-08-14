@@ -294,7 +294,7 @@ void linux_perf_jitdump_record_code_load(
 class linux_perf_jitmap_t {
 public:
     linux_perf_jitmap_t() : fp_ {nullptr}, failed_ {false} {}
-    ~linux_perf_jitmap_t() {}
+    ~linux_perf_jitmap_t() = default;
     void record_symbol(
             const void *code, size_t code_size, const char *code_name) {
         if (is_initialized()) write_symbol_info(code, code_size, code_name);

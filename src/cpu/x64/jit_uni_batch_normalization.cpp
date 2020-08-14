@@ -1743,7 +1743,7 @@ struct driver_t : public c_compatible {
                                 : (data_size >= l3_size_ / 2 && l3_size_ > 0);
     }
 
-    ~driver_t() {}
+    ~driver_t() = default;
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const batch_normalization_pd_t *bdesc) {

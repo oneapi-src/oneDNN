@@ -39,7 +39,7 @@ struct jit_args {
 
 struct jit_uni_eltwise_int_kernel : public c_compatible {
     jit_uni_eltwise_int_kernel(const eltwise_desc_t &desc) : desc_(desc) {}
-    virtual ~jit_uni_eltwise_int_kernel() {}
+    virtual ~jit_uni_eltwise_int_kernel() = default;
 
     virtual void operator()(jit_args *p) = 0;
     virtual status_t create_kernel() = 0;

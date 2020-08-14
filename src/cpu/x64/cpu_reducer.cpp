@@ -107,7 +107,7 @@ struct reducer_2d_driver_t : public c_compatible {
         , src_step_(src_step)
         , dst_step_(dst_step)
         , nullify_dst_(nullify_dst) {}
-    virtual ~reducer_2d_driver_t() {}
+    virtual ~reducer_2d_driver_t() = default;
     virtual void operator()(
             data_t *dst, const data_t *srcs, size_t ny, size_t nx)
             = 0;

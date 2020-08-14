@@ -36,7 +36,7 @@ struct conv_ctx_t {
     conv_ctx_t() : eng_(engine::kind::cpu, 0) {}
 
     struct conv_t {
-        conv_t() {}
+        conv_t() = default;
 
         memory::desc src_md;
         memory::desc wei_md;

@@ -547,7 +547,7 @@ namespace bnorm_s8_impl {
 template <cpu_isa_t isa>
 struct driver_t : public c_compatible {
     driver_t(const batch_normalization_pd_t *pd) : pd_(pd), ker_(pd_) {}
-    ~driver_t() {}
+    ~driver_t() = default;
 
     // TODO: for problems where thread pieces don't fit L2 cache, add spatial
     // re-balance using less pieces.

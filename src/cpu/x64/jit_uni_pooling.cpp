@@ -114,7 +114,7 @@ struct trans_wrapper_t {
         if (y_tail_) call_ker(*ker_y_tail_, y_blocked, 0, 0, y_blocked);
     }
 
-    ~trans_wrapper_t() {}
+    ~trans_wrapper_t() = default;
 
 private:
     std::unique_ptr<tr::kernel_t> ker_;

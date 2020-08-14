@@ -45,7 +45,7 @@ struct jit_resampling_args_t {
 
 struct jit_avx512_common_resampling_kernel : public c_compatible {
     jit_avx512_common_resampling_kernel(const resampling_pd_t *pd) : pd_(pd) {}
-    virtual ~jit_avx512_common_resampling_kernel() {}
+    virtual ~jit_avx512_common_resampling_kernel() = default;
 
     virtual status_t create_kernel() = 0;
     virtual void operator()(const jit_resampling_args_t *args) = 0;
@@ -112,19 +112,13 @@ private:
 
     struct bwd_counting_range_t {
         RegExp loop_counter;
-        union start_t {
+        struct start_t {
             RegExp linear[2];
             RegExp nearest;
-
-            start_t() {}
-            ~start_t() {}
         } start;
-        union end_t {
+        struct end_t {
             RegExp linear[2];
             RegExp nearest;
-
-            end_t() {}
-            ~end_t() {}
         } end;
     };
 
