@@ -80,7 +80,7 @@ private:
     memory::data_type dst_data_type;
 
     void check_data(const std::vector<memory> &srcs,
-            const std::vector<float> scale, const memory &dst) {
+            const std::vector<float> &scale, const memory &dst) {
         auto dst_data = map_memory<const dst_data_t>(dst);
         const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;

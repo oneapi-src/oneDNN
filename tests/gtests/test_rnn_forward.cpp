@@ -90,19 +90,19 @@ private:
                 && dst_iter_match;
     }
 
-    memory::desc querySrcIterC(typename T::primitive_desc rpd) {
+    memory::desc querySrcIterC(const typename T::primitive_desc &rpd) {
         return memory::desc();
     }
 
-    memory::desc queryWeightsPeephole(typename T::primitive_desc rpd) {
+    memory::desc queryWeightsPeephole(const typename T::primitive_desc &rpd) {
         return memory::desc();
     }
 
-    memory::desc queryWeightsProjection(typename T::primitive_desc rpd) {
+    memory::desc queryWeightsProjection(const typename T::primitive_desc &rpd) {
         return memory::desc();
     }
 
-    memory::desc queryDstIterC(typename T::primitive_desc rpd) {
+    memory::desc queryDstIterC(const typename T::primitive_desc &rpd) {
         return memory::desc();
     }
 
@@ -306,14 +306,14 @@ protected:
             reorder(b, a).execute(strm, b, a);
             strm.wait();
         };
-        auto init_zero_tensor = [&](memory a, memory::format_tag fmt) {
+        auto init_zero_tensor = [&](const memory &a, memory::format_tag fmt) {
             auto desc = a.get_desc();
             memory::desc tmp_md(desc.dims(), desc.data_type(), fmt);
             memory tmp(tmp_md, eng);
             // Zero fill the tmp tensor
             init_tensor(a, tmp, 0);
         };
-        auto init_id_wights_projection = [&](memory w) {
+        auto init_id_wights_projection = [&](const memory &w) {
             {
                 auto w_ptr = map_memory<float>(w);
                 for_(memory::dim l = 0; l < dims.l; ++l)
@@ -456,25 +456,25 @@ bool rnn_forward_test<lstm_forward, float>::skipTest(bool src_layer_match,
 
 template <>
 memory::desc rnn_forward_test<lstm_forward, float>::querySrcIterC(
-        lstm_forward::primitive_desc rpd) {
+        const lstm_forward::primitive_desc &rpd) {
     return rpd.src_iter_c_desc();
 }
 
 template <>
 memory::desc rnn_forward_test<lstm_forward, float>::queryWeightsPeephole(
-        lstm_forward::primitive_desc rpd) {
+        const lstm_forward::primitive_desc &rpd) {
     return rpd.weights_peephole_desc();
 }
 
 template <>
 memory::desc rnn_forward_test<lstm_forward, float>::queryWeightsProjection(
-        lstm_forward::primitive_desc rpd) {
+        const lstm_forward::primitive_desc &rpd) {
     return rpd.weights_projection_desc();
 }
 
 template <>
 memory::desc rnn_forward_test<lstm_forward, float>::queryDstIterC(
-        lstm_forward::primitive_desc rpd) {
+        const lstm_forward::primitive_desc &rpd) {
     return rpd.dst_iter_c_desc();
 }
 
