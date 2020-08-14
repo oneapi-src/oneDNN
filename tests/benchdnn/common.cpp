@@ -527,6 +527,7 @@ int batch(const char *fname, bench_f bench) {
     }
 
     std::vector<char *> c_opts;
+    c_opts.reserve(opts.size());
     for (const auto &opt : opts)
         c_opts.push_back(const_cast<char *>(opt.c_str()));
 

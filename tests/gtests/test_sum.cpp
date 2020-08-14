@@ -87,6 +87,7 @@ private:
         const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
         std::vector<mapped_ptr_t<const src_data_t>> mapped_srcs;
+        mapped_srcs.reserve(srcs.size());
         for (auto &src : srcs)
             mapped_srcs.emplace_back(map_memory<const src_data_t>(src));
 

@@ -238,6 +238,7 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_compute_data(
             : reg {reg}, mask {mask}, pos {pos} {}
     };
     std::vector<entry_t> prev_v;
+    prev_v.reserve(this->half_ls_);
     for (int pos = 0; pos < this->half_ls_; ++pos) {
         prev_v.emplace_back(this->z_prev_[pos], this->tmp_mask_prev_[pos],
                 this->half_ls_ - pos);
@@ -266,6 +267,7 @@ void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::load_compute_data(
     }
 
     std::vector<entry_t> next_v;
+    next_v.reserve(this->half_ls_);
     for (int pos = 0; pos < this->half_ls_; ++pos) {
         next_v.emplace_back(
                 this->z_next_[pos], this->tmp_mask_next_[pos], pos + 1);
