@@ -98,7 +98,7 @@ using namespace Xbyak;
 
 template <impl::data_type_t data_type>
 struct reducer_2d_driver_t : public c_compatible {
-    typedef typename prec_traits<data_type>::type data_t;
+    using data_t = typename prec_traits<data_type>::type;
 
     reducer_2d_driver_t(int n_src, size_t src_ld, size_t src_step,
             size_t dst_step, bool nullify_dst)
@@ -124,7 +124,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
                                     public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(reducer_2d_driver_f_s_32_t)
 
-    typedef typename prec_traits<data_type>::type data_t;
+    using data_t = typename prec_traits<data_type>::type;
 
     void operator()(
             data_t *dst, const data_t *srcs, size_t ny, size_t nx) override {

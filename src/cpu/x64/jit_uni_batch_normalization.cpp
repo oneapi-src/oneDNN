@@ -44,7 +44,7 @@ using namespace memory_tracking::names;
 using namespace Xbyak;
 namespace barrier = simple_barrier;
 
-typedef float acc_data_t;
+using acc_data_t = float;
 
 template <cpu_isa_t isa>
 struct jit_bnorm_t : public jit_generator {

@@ -277,11 +277,11 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
 
 using pk_t = attr_t::post_ops_t::kind_t;
 
-typedef struct {
+struct po_table_entry_t {
     pk_t kind;
     const char *kind_name;
     dnnl_alg_kind_t dnnl_kind;
-} po_table_entry_t;
+};
 
 static po_table_entry_t kind_table[] = {
         // sum

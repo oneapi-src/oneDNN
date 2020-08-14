@@ -25,7 +25,7 @@
 
 namespace dnnl {
 
-typedef float data_t;
+using data_t = float;
 
 struct params_t {
     memory::dims dims;

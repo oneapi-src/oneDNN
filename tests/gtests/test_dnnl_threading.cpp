@@ -29,7 +29,7 @@ TEST(test_parallel, Test) {
     });
 }
 
-typedef ptrdiff_t data_t;
+using data_t = ptrdiff_t;
 
 struct nd_params_t {
     std::vector<ptrdiff_t> dims;

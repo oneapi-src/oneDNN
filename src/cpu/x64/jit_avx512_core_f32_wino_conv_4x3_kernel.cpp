@@ -98,7 +98,7 @@ bool is_winograd_faster_than_direct(const jit_conv_winograd_conf_t &jcp) {
 /* assumes 512 bits registers */
 /* TODO: add support for strides */
 /* TODO: handle the prefetch distance automatically */
-typedef enum cache_t_ { L1, L2, L3 } cache_t;
+using cache_t = enum cache_t_ { L1, L2, L3 };
 
 template <typename data_t>
 struct prefetcher_t {

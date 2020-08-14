@@ -114,8 +114,8 @@ void ref_deconvolution_fwd_t::compute_fwd_bias_nCdhwXc(
 
 template <data_type_t dst_type, data_type_t bia_type>
 void ref_deconvolution_fwd_t::compute_bias(const exec_ctx_t &ctx) const {
-    typedef typename prec_traits<dst_type>::type dst_data_t;
-    typedef typename prec_traits<bia_type>::type bia_data_t;
+    using dst_data_t = typename prec_traits<dst_type>::type;
+    using bia_data_t = typename prec_traits<bia_type>::type;
 
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
     auto bias = CTX_IN_MEM(const bia_data_t *, DNNL_ARG_BIAS);
@@ -267,8 +267,8 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias_nCdhwXc(
 template <data_type_t dbia_type, data_type_t ddst_type>
 void ref_deconvolution_bwd_weights_t::compute_bias(
         const exec_ctx_t &ctx) const {
-    typedef typename prec_traits<dbia_type>::type dbia_data_t;
-    typedef typename prec_traits<ddst_type>::type ddst_data_t;
+    using dbia_data_t = typename prec_traits<dbia_type>::type;
+    using ddst_data_t = typename prec_traits<ddst_type>::type;
 
     auto diff_bias = CTX_OUT_MEM(dbia_data_t *, DNNL_ARG_DIFF_BIAS);
     auto diff_dst = CTX_IN_MEM(const ddst_data_t *, DNNL_ARG_DIFF_DST);

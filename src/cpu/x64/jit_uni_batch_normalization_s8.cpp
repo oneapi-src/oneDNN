@@ -36,7 +36,7 @@ namespace {
 
 using namespace Xbyak;
 
-typedef int8_t data_t;
+using data_t = int8_t;
 
 struct call_params_t {
     // keep int sizes at 8 bytes -- jit code expects this

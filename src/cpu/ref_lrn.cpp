@@ -29,7 +29,7 @@ namespace cpu {
 
 namespace {
 
-typedef float acc_data_t;
+using acc_data_t = float;
 
 inline acc_data_t fast_negative_powf(acc_data_t omega, acc_data_t beta) {
     acc_data_t Y;
