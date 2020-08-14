@@ -121,12 +121,12 @@ void compute_attention(float *context_vectors, dim_t src_seq_length_max,
             for (dim_t k = 0; k < feature_size; k++) {
                 size_t tnc_offset
                         = i * batch * feature_size + j * feature_size + k;
-                alignment_model_ptr[tnc_offset] = tanhf(
-                        (float)(weighted_src_layer.data()[j * feature_size + k]
-                                - dec_src_layer_shift * compensation[k])
-                                / (dec_src_layer_scale
-                                        * weights_src_layer_scale)
-                        + weighted_annotations[tnc_offset]);
+                alignment_model_ptr[tnc_offset]
+                        = tanhf((float)(weighted_src_layer[j * feature_size + k]
+                                        - dec_src_layer_shift * compensation[k])
+                                        / (dec_src_layer_scale
+                                                * weights_src_layer_scale)
+                                + weighted_annotations[tnc_offset]);
             }
         }
     }
