@@ -148,6 +148,32 @@ protected:
     inner_product_desc_t desc_;
     const inner_product_fwd_pd_t *hint_fwd_pd_;
 
+    bool set_default_formats_common_template(memory_desc_t &src_md,
+            format_tag_t src_tag, memory_desc_t &wei_md, format_tag_t wei_tag,
+            memory_desc_t &dst_md, format_tag_t dst_tag,
+            memory_desc_t &bia_md) {
+        using namespace format_tag;
+
+#define IS_OK(f) \
+    do { \
+        if ((f) != status::success) return false; \
+    } while (0)
+        if (src_md.format_kind == format_kind::any
+                && !utils::one_of(src_tag, any, undef))
+            IS_OK(memory_desc_init_by_tag(src_md, src_tag));
+        if (dst_md.format_kind == format_kind::any
+                && !utils::one_of(dst_tag, any, undef))
+            IS_OK(memory_desc_init_by_tag(dst_md, dst_tag));
+        if (wei_md.format_kind == format_kind::any
+                && !utils::one_of(wei_tag, any, undef))
+            IS_OK(memory_desc_init_by_tag(wei_md, wei_tag));
+        if (with_bias() && bia_md.format_kind == format_kind::any)
+            IS_OK(memory_desc_init_by_tag(bia_md, x));
+#undef IS_OK
+
+        return true;
+    }
+
     bool expect_data_types(data_type_t src_dt, data_type_t wei_dt,
             data_type_t bia_dt, data_type_t dst_dt, data_type_t acc_dt) const {
         bool ok = true
@@ -221,6 +247,12 @@ protected:
     memory_desc_t weights_md_;
     memory_desc_t bias_md_;
     memory_desc_t dst_md_;
+
+    bool set_default_formats_common(
+            format_tag_t src_tag, format_tag_t wei_tag, format_tag_t dst_tag) {
+        return set_default_formats_common_template(src_md_, src_tag,
+                weights_md_, wei_tag, dst_md_, dst_tag, bias_md_);
+    }
 };
 
 struct inner_product_bwd_data_pd_t : public inner_product_pd_t {
@@ -270,6 +302,13 @@ protected:
     memory_desc_t diff_src_md_;
     memory_desc_t weights_md_;
     memory_desc_t diff_dst_md_;
+
+    bool set_default_formats_common(format_tag_t diff_src_tag,
+            format_tag_t wei_tag, format_tag_t diff_dst_tag) {
+        memory_desc_t dummy_md;
+        return set_default_formats_common_template(diff_src_md_, diff_src_tag,
+                weights_md_, wei_tag, diff_dst_md_, diff_dst_tag, dummy_md);
+    }
 };
 
 struct inner_product_bwd_weights_pd_t : public inner_product_pd_t {
@@ -327,6 +366,13 @@ protected:
     memory_desc_t diff_weights_md_;
     memory_desc_t diff_bias_md_;
     memory_desc_t diff_dst_md_;
+
+    bool set_default_formats_common(format_tag_t src_tag,
+            format_tag_t diff_wei_tag, format_tag_t diff_dst_tag) {
+        return set_default_formats_common_template(src_md_, src_tag,
+                diff_weights_md_, diff_wei_tag, diff_dst_md_, diff_dst_tag,
+                diff_bias_md_);
+    }
 };
 
 } // namespace impl
