@@ -170,7 +170,7 @@ struct isa_info_t {
     cpu_isa_t isa;
 };
 
-static const isa_info_t get_isa_info_t(void) {
+static isa_info_t get_isa_info_t(void) {
     // descending order due to mayiuse check
 #define HANDLE_CASE(cpu_isa) \
     if (mayiuse(cpu_isa)) return isa_info_t(cpu_isa);

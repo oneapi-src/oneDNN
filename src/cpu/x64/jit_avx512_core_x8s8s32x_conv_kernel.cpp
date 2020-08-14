@@ -83,13 +83,13 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::prepare_output(int ur_w) {
 }
 
 template <typename Vmm>
-const Vmm _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::vmm_mask(
+Vmm _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::vmm_mask(
         const Vmm vmm_in, bool mask_flag, bool store) {
     return vmm_in;
 }
 
 template <>
-const Zmm _jit_avx512_core_x8s8s32x_fwd_kernel<Zmm>::vmm_mask(
+Zmm _jit_avx512_core_x8s8s32x_fwd_kernel<Zmm>::vmm_mask(
         const Zmm zmm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
                      : zmm_in;
