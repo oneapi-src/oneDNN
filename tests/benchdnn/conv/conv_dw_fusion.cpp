@@ -422,20 +422,20 @@ int doit(const prb_t *p, res_t *r) {
                 const_pd0, dnnl_query_exec_arg_md, index);
     };
 
-    alg = p0.get()->alg;
+    alg = p0->alg;
     adjust_alg(const_pd0, alg);
-    cfg = auto_cfg(alg, p0.get()->cfg);
-    p0.reset(new prb_t((desc_t)*p0.get(), p0.get()->dir, cfg, p0.get()->stag,
-            p0.get()->wtag, p0.get()->dtag, alg, p0.get()->attr, p0.get()->mb));
+    cfg = auto_cfg(alg, p0->cfg);
+    p0.reset(new prb_t((desc_t)*p0, p0->dir, cfg, p0->stag, p0->wtag, p0->dtag,
+            alg, p0->attr, p0->mb));
 
     const auto &src_md0
-            = p0.get()->dir == BWD_D ? q0(DNNL_ARG_DIFF_SRC) : q0(DNNL_ARG_SRC);
-    const auto &wei_md0 = p0.get()->dir & FLAG_WEI ? q0(DNNL_ARG_DIFF_WEIGHTS)
-                                                   : q0(DNNL_ARG_WEIGHTS);
-    const auto &bia_md0 = p0.get()->dir & FLAG_WEI ? q0(DNNL_ARG_DIFF_BIAS)
-                                                   : q0(DNNL_ARG_BIAS);
-    const auto &dst_md0 = p0.get()->dir & FLAG_BWD ? q0(DNNL_ARG_DIFF_DST)
-                                                   : q0(DNNL_ARG_DST);
+            = p0->dir == BWD_D ? q0(DNNL_ARG_DIFF_SRC) : q0(DNNL_ARG_SRC);
+    const auto &wei_md0 = p0->dir & FLAG_WEI ? q0(DNNL_ARG_DIFF_WEIGHTS)
+                                             : q0(DNNL_ARG_WEIGHTS);
+    const auto &bia_md0
+            = p0->dir & FLAG_WEI ? q0(DNNL_ARG_DIFF_BIAS) : q0(DNNL_ARG_BIAS);
+    const auto &dst_md0
+            = p0->dir & FLAG_BWD ? q0(DNNL_ARG_DIFF_DST) : q0(DNNL_ARG_DST);
     const auto &scratchpad_md0 = q0(DNNL_ARG_SCRATCHPAD);
 
     const auto src_tag0 = tag::abx;
@@ -473,11 +473,11 @@ int doit(const prb_t *p, res_t *r) {
                 const_pd1, dnnl_query_exec_arg_md, index);
     };
 
-    alg = p1.get()->alg;
+    alg = p1->alg;
     adjust_alg(const_pd1, alg);
-    cfg = auto_cfg(alg, p1.get()->cfg);
-    p1.reset(new prb_t((desc_t)*p1.get(), p1.get()->dir, cfg, p1.get()->stag,
-            p1.get()->wtag, p1.get()->dtag, alg, p1.get()->attr, p1.get()->mb));
+    cfg = auto_cfg(alg, p1->cfg);
+    p1.reset(new prb_t((desc_t)*p1, p1->dir, cfg, p1->stag, p1->wtag, p1->dtag,
+            alg, p1->attr, p1->mb));
 
     const auto &src_md1
             = p->dir == BWD_D ? q1(DNNL_ARG_DIFF_SRC) : q1(DNNL_ARG_SRC);

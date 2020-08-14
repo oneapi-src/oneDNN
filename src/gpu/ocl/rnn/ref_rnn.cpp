@@ -1297,17 +1297,16 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     auto &workspace_ = rnn.is_training ? is_fwd
                     ? CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE)
                     : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
-                                       : *scratchpad.get();
+                                       : *scratchpad;
 
     auto scratchpad_gates
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
-    auto &scratch_gates = *scratchpad_gates.get();
+    auto &scratch_gates = *scratchpad_gates;
 
     empty_memory_storage_t empty_mem;
     auto scratchpad_cell
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
-    auto &scratch_cell
-            = this->pd()->is_lbr() ? *scratchpad_cell.get() : empty_mem;
+    auto &scratch_cell = this->pd()->is_lbr() ? *scratchpad_cell : empty_mem;
 
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
     auto &diff_src_iter_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER);
