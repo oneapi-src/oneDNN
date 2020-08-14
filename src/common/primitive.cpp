@@ -79,7 +79,7 @@ nested_scratchpad_t::~nested_scratchpad_t() {
 // API
 status_t dnnl_primitive_desc_destroy(
         primitive_desc_iface_t *primitive_desc_iface) {
-    if (primitive_desc_iface) delete primitive_desc_iface;
+    delete primitive_desc_iface;
     return success;
 }
 
@@ -133,7 +133,7 @@ status_t dnnl_primitive_get_primitive_desc(
 }
 
 status_t dnnl_primitive_destroy(primitive_iface_t *primitive_iface) {
-    if (primitive_iface != nullptr) delete primitive_iface;
+    delete primitive_iface;
     return success;
 }
 

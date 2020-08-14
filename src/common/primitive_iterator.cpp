@@ -92,7 +92,7 @@ status_t dnnl_primitive_desc_clone(
 
 status_t dnnl_primitive_desc_iterator_destroy(
         primitive_desc_iterator_t *iterator) {
-    if (iterator != nullptr) delete iterator;
+    delete iterator;
     return success;
 }
 

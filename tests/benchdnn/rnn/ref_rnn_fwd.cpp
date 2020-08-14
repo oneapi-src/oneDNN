@@ -314,7 +314,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
     }
 
     delete[] cell_scratchpad_;
-    if (bias_with_compensation) delete[] bias_with_compensation;
+    delete[] bias_with_compensation;
 }
 
 void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
