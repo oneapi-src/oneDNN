@@ -206,8 +206,6 @@ static inline void gemv_kernel_driver(const int trans, const dim_t m,
             }
         }
     }
-
-    return;
 }
 #undef M_BLK
 
@@ -409,8 +407,6 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
     });
 
     free(ybuf);
-
-    return;
 }
 
 template <>

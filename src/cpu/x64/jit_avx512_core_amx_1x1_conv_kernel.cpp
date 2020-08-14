@@ -276,7 +276,6 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_bf16(
     } else {
         vmovups(addr, zmm_mask(zmm_out, mask_flag, true));
     }
-    return;
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector(
