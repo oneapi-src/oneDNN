@@ -273,6 +273,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
         CHECK(safe_ptr_assign(kernel_,
                 new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr())));
         CHECK(kernel_->create_kernel());
+        CHECK(init_rtus_driver<avx2>(this));
         if (pd()->jcp_.with_dw_conv) {
             auto &isa = pd()->jcp_.isa;
 
