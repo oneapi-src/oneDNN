@@ -29,7 +29,7 @@ using spd_create_f = engine_t::sum_primitive_desc_create_f;
 
 namespace {
 #define INSTANCE(...) __VA_ARGS__::pd_t::create
-static const spd_create_f sum_impl_list[] = {
+const spd_create_f sum_impl_list[] = {
         INSTANCE(ocl::simple_sum_t<data_type::f32>),
         INSTANCE(ocl::ref_sum_t),
         nullptr,

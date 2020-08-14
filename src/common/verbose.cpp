@@ -1011,7 +1011,7 @@ static void init_info_resampling(const engine_t *e, pd_t *s, char *buffer) {
             dat_str, attr_str, aux_str, prb_str);
 }
 
-static void init_info_zero_pad(
+void init_info_zero_pad(
         const engine_t *e, const primitive_desc_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
     verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,

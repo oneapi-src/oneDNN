@@ -35,7 +35,7 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-static const pd_create_f impl_list[] = {
+const pd_create_f impl_list[] = {
         /* f32 */
         CPU_INSTANCE(gemm_inner_product_fwd_t<f32>)
         CPU_INSTANCE(gemm_inner_product_bwd_data_t<f32>)

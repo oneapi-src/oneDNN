@@ -28,7 +28,7 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-static const pd_create_f impl_list[] = {
+const pd_create_f impl_list[] = {
         CPU_INSTANCE(ref_rnn_fwd_f32_t)
         CPU_INSTANCE(ref_rnn_fwd_bf16_t)
         CPU_INSTANCE(ref_rnn_fwd_u8s8_t)

@@ -94,7 +94,7 @@ using impl_list_map_t = std::map<reorder_impl_key_t, std::vector<rpd_create_f>>;
 
 // clang-format off
 
-static const impl_list_map_t regular_impl_list_map {
+const impl_list_map_t regular_impl_list_map {
     // f32 -> bf16
     {{f32, bf16, 0}, {
         rnn_weights_reorder_t<f32, bf16>::pd_t::create,
@@ -425,7 +425,7 @@ static const impl_list_map_t regular_impl_list_map {
 };
 
 /* conv reorders w/ compensation */
-static const impl_list_map_t comp_s8s8_impl_list_map {
+const impl_list_map_t comp_s8s8_impl_list_map {
     // f32 -> s8
     {{f32, s8, 3}, {
         REG_SR(f32, any, s8, wio, fmt_order::keep, spec::conv_s8s8),

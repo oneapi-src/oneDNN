@@ -31,7 +31,7 @@ namespace {
 
 typedef float acc_data_t;
 
-static inline acc_data_t fast_negative_powf(acc_data_t omega, acc_data_t beta) {
+inline acc_data_t fast_negative_powf(acc_data_t omega, acc_data_t beta) {
     acc_data_t Y;
     /*
          * Y = omega^(-3/4) =
