@@ -249,7 +249,7 @@ int get_max_palette() {
         unsigned int data[4] = {};
         const unsigned int &EAX = data[0];
 
-        cpu.getCpuidEx(0x1D, 0, data);
+        Xbyak::util::Cpu::getCpuidEx(0x1D, 0, data);
         return EAX;
     } else {
         return 0;
@@ -262,7 +262,7 @@ int get_max_tiles(int palette) {
 
         unsigned int data[4] = {};
         const unsigned int &EBX = data[1];
-        cpu.getCpuidEx(0x1D, palette, data);
+        Xbyak::util::Cpu::getCpuidEx(0x1D, palette, data);
 
         return EBX >> 16;
     } else {
@@ -276,7 +276,7 @@ int get_max_column_bytes(int palette) {
 
         unsigned int data[4] = {};
         const unsigned int &EBX = data[1];
-        cpu.getCpuidEx(0x1D, palette, data);
+        Xbyak::util::Cpu::getCpuidEx(0x1D, palette, data);
 
         return (EBX << 16) >> 16;
     } else {
@@ -290,7 +290,7 @@ int get_max_rows(int palette) {
 
         unsigned int data[4] = {};
         const unsigned int &ECX = data[2];
-        cpu.getCpuidEx(0x1D, palette, data);
+        Xbyak::util::Cpu::getCpuidEx(0x1D, palette, data);
 
         return (ECX << 16) >> 16;
     } else {
