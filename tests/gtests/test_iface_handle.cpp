@@ -33,7 +33,7 @@ TEST_F(handle_test_t, TestHandleConstructorsAndOperators) {
     // The initial state is 0
     convolution_forward::primitive_desc pd;
     ASSERT_TRUE((bool)pd == false);
-    ASSERT_TRUE((dnnl_primitive_desc_t)pd == 0);
+    ASSERT_TRUE((dnnl_primitive_desc_t)pd == nullptr);
 
     // Dummy descriptor just to be able to create a pd
     auto d = convolution_forward::desc(prop_kind::forward_inference,
@@ -51,7 +51,7 @@ TEST_F(handle_test_t, TestHandleConstructorsAndOperators) {
     // This should set pd's handle to 0
     pd1 = std::move(pd);
     ASSERT_TRUE(pd1 != pd);
-    ASSERT_TRUE((dnnl_primitive_desc_t)pd == 0);
+    ASSERT_TRUE((dnnl_primitive_desc_t)pd == nullptr);
 }
 
 } // namespace dnnl

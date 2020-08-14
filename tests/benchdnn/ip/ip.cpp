@@ -73,7 +73,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
             DNN_SAFE(dnnl_inner_product_forward_desc_init(&ipd,
                              p->dir == FWD_I ? dnnl_forward_inference
                                              : dnnl_forward_training,
-                             &src_d, &wei_d, p->dir == FWD_B ? &bia_d : NULL,
+                             &src_d, &wei_d, p->dir == FWD_B ? &bia_d : nullptr,
                              &dst_d),
                     WARN);
             break;
@@ -84,8 +84,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
             break;
         case BWD_W:
         case BWD_WB:
-            DNN_SAFE(dnnl_inner_product_backward_weights_desc_init(&ipd, &src_d,
-                             &wei_d, p->dir == BWD_W ? NULL : &bia_d, &dst_d),
+            DNN_SAFE(
+                    dnnl_inner_product_backward_weights_desc_init(&ipd, &src_d,
+                            &wei_d, p->dir == BWD_W ? nullptr : &bia_d, &dst_d),
                     WARN);
             break;
         default: DNN_SAFE(dnnl_invalid_arguments, CRIT);
@@ -100,8 +101,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status = dnnl_success;
-    init_status
-            = dnnl_primitive_desc_create(&ippd, &ipd, dnnl_attr, engine, NULL);
+    init_status = dnnl_primitive_desc_create(
+            &ippd, &ipd, dnnl_attr, engine, nullptr);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 

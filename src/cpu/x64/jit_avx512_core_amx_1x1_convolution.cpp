@@ -125,7 +125,7 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
             int ocb = _ocb * jcp.nb_oc_blocking;
             auto bias_w = bias
                     ? bias + (bias_d.blk_off(ocb * jcp.oc_block) * bia_dt_size)
-                    : 0;
+                    : nullptr;
 
             int oc = g * jcp.oc_without_padding + ocb * jcp.oc_block;
             int ic = g * jcp.ic_without_padding;

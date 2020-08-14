@@ -205,7 +205,7 @@ TEST_F(c_api_memory_test_t, TestZeroPadBoom) {
             dnnl_success == dnnl_memory_create(&m, &md, e, DNNL_MEMORY_NONE));
 
     void *p = malloc(dnnl_memory_desc_get_size(&md));
-    ASSERT_TRUE(p != NULL);
+    ASSERT_TRUE(p != nullptr);
     ASSERT_TRUE(dnnl_success == dnnl_memory_set_data_handle(m, p)); // Boom
 
     ASSERT_TRUE(dnnl_success == dnnl_memory_destroy(m));
@@ -224,7 +224,7 @@ TEST(memory_test_cpp, TestSetDataHandleCPU) {
     memory mem(data_md, eng, DNNL_MEMORY_NONE);
 
     float *p = (float *)malloc(mem.get_desc().get_size());
-    ASSERT_TRUE(p != NULL);
+    ASSERT_TRUE(p != nullptr);
     mem.set_data_handle(p, str);
 
     ASSERT_TRUE(N == 1);

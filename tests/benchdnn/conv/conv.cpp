@@ -523,8 +523,8 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
                              p->dir == FWD_I ? dnnl_forward_inference
                                              : dnnl_forward_training,
                              alg, &src_d, &wei_d,
-                             p->dir == FWD_B ? &bia_d : NULL, &dst_d, strides,
-                             dilates, padding, padding_r),
+                             p->dir == FWD_B ? &bia_d : nullptr, &dst_d,
+                             strides, dilates, padding, padding_r),
                     WARN);
             break;
         case BWD_D:
@@ -537,8 +537,8 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
         case BWD_WB:
             DNN_SAFE(dnnl_dilated_convolution_backward_weights_desc_init(&cd,
                              alg, &src_d, &wei_d,
-                             p->dir == BWD_W ? NULL : &bia_d, &dst_d, strides,
-                             dilates, padding, padding_r),
+                             p->dir == BWD_W ? nullptr : &bia_d, &dst_d,
+                             strides, dilates, padding, padding_r),
                     WARN);
             break;
         default: DNN_SAFE(dnnl_invalid_arguments, CRIT);
@@ -553,7 +553,7 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
     auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, NULL);
+            = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, nullptr);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
@@ -665,7 +665,7 @@ int doit(const prb_t *p, res_t *r) {
 
     alg_t alg = p->alg;
     if (alg == AUTO) {
-        dnnl_convolution_desc_t *temp_conv_desc = {0};
+        dnnl_convolution_desc_t *temp_conv_desc = {nullptr};
         DNN_SAFE(dnnl_primitive_desc_query(const_pd, dnnl_query_convolution_d,
                          0, &temp_conv_desc),
                 CRIT);

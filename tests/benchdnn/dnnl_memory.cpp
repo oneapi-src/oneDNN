@@ -146,14 +146,14 @@ static size_t get_gpu_ram_size() {
 // TODO: consider DPCPP run-time as well.
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     cl_int status = CL_SUCCESS;
-    cl_device_id ocl_device = 0;
+    cl_device_id ocl_device = nullptr;
     // Get single device attached to the engine.
     engine_t engine_tgt(engine_tgt_kind);
     dnnl_engine_get_ocl_device(engine_tgt, &ocl_device);
 
     cl_ulong ram_size = 0;
     status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_SIZE,
-            sizeof(cl_ulong), &ram_size, NULL);
+            sizeof(cl_ulong), &ram_size, nullptr);
     if (status == CL_SUCCESS) return (size_t)ram_size;
 #endif
     return 0;

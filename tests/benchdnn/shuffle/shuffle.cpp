@@ -107,11 +107,11 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                      &sd, prop_kind, &data_d, p->axis, p->group),
             WARN);
 
-    dnnl_primitive_desc_t _hint = NULL;
+    dnnl_primitive_desc_t _hint = nullptr;
     auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(_hint); };
     if (p->dir & FLAG_BWD) {
-        dnnl_status_t init_fwd_status
-                = dnnl_primitive_desc_create(&_hint, &sd, NULL, engine, NULL);
+        dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
+                &_hint, &sd, nullptr, engine, nullptr);
         if (init_fwd_status == dnnl_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
         SAFE(init_fwd_status, WARN);

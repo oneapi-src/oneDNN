@@ -597,7 +597,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
     dnnl_primitive_attr_t dnnl_attr;
     create_dnnl_rnn_attr(p, &dnnl_attr);
     dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, NULL);
+            = dnnl_primitive_desc_create(&rpd, &rd, dnnl_attr, engine, nullptr);
     dnnl_primitive_attr_destroy(dnnl_attr);
     if (init_status == dnnl_unimplemented) return r->state = UNIMPLEMENTED, OK;
     SAFE(init_status, WARN);

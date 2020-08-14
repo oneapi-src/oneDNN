@@ -169,7 +169,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                 WARN);
     }
 
-    dnnl_primitive_desc_t _hint = NULL;
+    dnnl_primitive_desc_t _hint = nullptr;
     if (p->dir & FLAG_BWD) {
         dnnl_memory_desc_t fwd_src_d, fwd_dst_d;
         SAFE(init_md(&fwd_src_d, p->ndims, src_dims, p->dt, p->tag), CRIT);
@@ -181,7 +181,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                          &fwd_dst_d),
                 WARN);
         dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
-                &_hint, &rd_fwd, NULL, engine, NULL);
+                &_hint, &rd_fwd, nullptr, engine, nullptr);
         if (init_fwd_status == dnnl_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
         SAFE(init_fwd_status, WARN);

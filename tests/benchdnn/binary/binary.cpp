@@ -67,7 +67,7 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
 
         const dnnl_memory_desc_t *po_md;
         DNN_SAFE(dnnl_post_ops_get_params_binary(
-                         const_attr_po, idx, NULL, &po_md),
+                         const_attr_po, idx, nullptr, &po_md),
                 WARN);
 
         const auto tag = tag::abx;
@@ -122,7 +122,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, NULL);
+            = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, nullptr);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 

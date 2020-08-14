@@ -95,7 +95,7 @@ struct trans_wrapper_t {
         auto call_ker = [&](tr::kernel_t &ker, dim_t inp_y, dim_t inp_x,
                                 dim_t out_y, dim_t out_x) {
             tr::call_param_t cp;
-            cp.scale = 0;
+            cp.scale = nullptr;
 
             dim_t inp_off = (inp_y * inp_str_ + inp_x) * inp_dt_size_;
             dim_t out_off = (out_y * out_str_ + out_x) * out_dt_size_;

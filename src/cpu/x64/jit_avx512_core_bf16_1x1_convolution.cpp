@@ -132,7 +132,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<src_data_t>(key_conv_rtus_space)
-            : NULL;
+            : nullptr;
     float *store_buffer = scratchpad.template get<float>(key_conv_store_wsp);
 
     const int ndims = src_d.ndims();
@@ -460,7 +460,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
 
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.template get<diff_src_data_t>(key_conv_rtus_space)
-            : NULL;
+            : nullptr;
     float *store_buffer = scratchpad.template get<float>(key_conv_store_wsp);
     const int ndims = diff_src_d.ndims();
     const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;

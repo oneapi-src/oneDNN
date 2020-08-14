@@ -95,7 +95,7 @@ double get_msec() {
     return 1e+3 * now.QuadPart / frequency.QuadPart;
 #else
     struct timeval time;
-    gettimeofday(&time, NULL);
+    gettimeofday(&time, nullptr);
     return 1e+3 * time.tv_sec + 1e-3 * time.tv_usec;
 #endif
 }

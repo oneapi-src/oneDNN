@@ -45,7 +45,8 @@ namespace dnnl {
 namespace impl {
 
 int getenv(const char *name, char *buffer, int buffer_size) {
-    if (name == NULL || buffer_size < 0 || (buffer == NULL && buffer_size > 0))
+    if (name == nullptr || buffer_size < 0
+            || (buffer == nullptr && buffer_size > 0))
         return INT_MIN;
 
     int result = 0;
@@ -56,7 +57,7 @@ int getenv(const char *name, char *buffer, int buffer_size) {
     value_length = GetEnvironmentVariable(name, buffer, buffer_size);
 #else
     const char *value = ::getenv(name);
-    value_length = value == NULL ? 0 : strlen(value);
+    value_length = value == nullptr ? 0 : strlen(value);
 #endif
 
     if (value_length > INT_MAX)
@@ -74,7 +75,7 @@ int getenv(const char *name, char *buffer, int buffer_size) {
         }
     }
 
-    if (buffer != NULL) buffer[term_zero_idx] = '\0';
+    if (buffer != nullptr) buffer[term_zero_idx] = '\0';
     return result;
 }
 
@@ -118,7 +119,7 @@ void *malloc(size_t size, int alignment) {
     int rc = ::posix_memalign(&ptr, alignment, size);
 #endif
 
-    return (rc == 0) ? ptr : 0;
+    return (rc == 0) ? ptr : nullptr;
 }
 
 void free(void *p) {

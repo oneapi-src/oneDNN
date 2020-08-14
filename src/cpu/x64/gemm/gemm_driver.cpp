@@ -355,14 +355,14 @@ static dnnl_status_t gemm_packing_driver(int ithr, dim_t m, dim_t n, dim_t k,
                 auto a_row_sum = pack_dst->row_sums<c_type>(ithr, Bmn, blk_k);
 
                 arg->copyA(&nk, &nmn, a_src, &arg->lda, &arg->alpha, a_dst,
-                        NULL, NULL, a_row_sum);
+                        nullptr, nullptr, a_row_sum);
             } else {
                 auto b_src = b + mn_stride * Bmn + k_stride * Bk;
                 auto b_dst = pack_dst->matrix<b_type>(ithr, Bk, Bmn);
                 auto b_col_sum = pack_dst->col_sums<c_type>(ithr, blk_k, Bmn);
 
                 arg->copyB(&nk, &nmn, b_src, &arg->ldb, &arg->alpha, b_dst,
-                        NULL, NULL, b_col_sum);
+                        nullptr, nullptr, b_col_sum);
             }
         }
     }
@@ -621,7 +621,7 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
         mem_size += c_buf_nelems * sizeof(*c) + PAGE_4K;
     }
 
-    char *mem = NULL;
+    char *mem = nullptr;
 
     if (mem_size > 0) {
         mem = (char *)malloc(mem_size, 128);
@@ -631,14 +631,14 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
     a_type *bufferA = (a_type *)align(mem, PAGE_4K);
     b_type *bufferB = (b_type *)align(bufferA + a_buf_nelems, PAGE_4K);
 
-    c_type *a_row_sum = NULL;
-    c_type *b_col_sum = NULL;
+    c_type *a_row_sum = nullptr;
+    c_type *b_col_sum = nullptr;
     if (is_int8) {
         a_row_sum = (c_type *)align(bufferB + b_buf_nelems, PAGE_4K);
         b_col_sum = (c_type *)align(a_row_sum + a_row_sum_nelems, PAGE_4K);
     }
 
-    c_type *bufferC = NULL;
+    c_type *bufferC = nullptr;
     if (need_c_buffer) {
         if (is_int8)
             bufferC = (c_type *)align(b_col_sum + b_col_sum_nelems, PAGE_4K);
@@ -683,7 +683,7 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                      * kernels.
                      */
                     arg->copyB(&sizeK, &sizeN, b_block, &ldb, &one, bufferB,
-                            NULL, NULL, b_col_sum);
+                            nullptr, nullptr, b_col_sum);
                 }
 
                 dim_t sizeUM = 0;
@@ -727,7 +727,8 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                             buf_shift = Um_forA * sizeK;
 
                         bufferA_eff = bufferA + buf_shift;
-                        a_row_sum_eff = a_row_sum ? a_row_sum + Um_forA : NULL;
+                        a_row_sum_eff
+                                = a_row_sum ? a_row_sum + Um_forA : nullptr;
 
                         if (!a_block_copied) {
                             const a_type *a_block
@@ -738,7 +739,8 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                              * and 16-bit copy kernels.
                              */
                             arg->copyA(&sizeK, &sizeUM, a_block, &lda, &alpha,
-                                    bufferA_eff, NULL, NULL, a_row_sum_eff);
+                                    bufferA_eff, nullptr, nullptr,
+                                    a_row_sum_eff);
                         }
                     }
 
@@ -753,7 +755,7 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                     if (need_c_buffer) {
                         gemm_kernel(sizeUM, sizeN, sizeK, 1.0f, bufferA_eff,
                                 bufferB, 0.0f, bufferC + Um, ldc_buf,
-                                a_row_sum_eff, b_col_sum, (c_type *)NULL,
+                                a_row_sum_eff, b_col_sum, (c_type *)nullptr,
                                 offset_type::none, arg);
 
                         /* Finish the block adding the necessary alpha, beta
@@ -835,7 +837,7 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
         mem_size += c_buf_nelems * sizeof(*c) + PAGE_4K;
     }
 
-    char *mem = NULL;
+    char *mem = nullptr;
 
     if (mem_size > 0) {
         mem = (char *)malloc(mem_size, 128);
@@ -844,12 +846,12 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
     b_type *bufferB = (b_type *)align(mem, PAGE_4K);
 
-    c_type *b_col_sum = NULL;
+    c_type *b_col_sum = nullptr;
     if (is_int8) {
         b_col_sum = (c_type *)align(bufferB + b_buf_nelems, PAGE_4K);
     }
 
-    c_type *bufferC = NULL;
+    c_type *bufferC = nullptr;
     if (need_c_buffer) {
         if (is_int8)
             bufferC = (c_type *)align(b_col_sum + b_col_sum_nelems, PAGE_4K);
@@ -873,8 +875,8 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
             /* Column sum argument is ignored for non-integer kernels and
              * scaling factor is ignored by 8-bit and 16-bit copy kernels.
              */
-            arg->copyB(&k, &sizeN, b_block, &ldb, &one, bufferB, NULL, NULL,
-                    b_col_sum);
+            arg->copyB(&k, &sizeN, b_block, &ldb, &one, bufferB, nullptr,
+                    nullptr, b_col_sum);
         }
 
         dim_t co_stride = 0;
@@ -889,7 +891,7 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
         c_type *c_block = c + Bn * ldc;
         if (need_c_buffer) {
             gemm_kernel(m, sizeN, k, 1.0f, bufferA, bufferB, 0.0f, bufferC,
-                    ldc_buf, a_row_sum, b_col_sum, (c_type *)NULL,
+                    ldc_buf, a_row_sum, b_col_sum, (c_type *)nullptr,
                     offset_type::none, arg);
 
             // Finish the block adding the necessary alpha, beta and offsets.
@@ -1412,9 +1414,9 @@ static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
                 * utils::rnd_up(k_padd, arg->uk);
 
     // Allocate shared memory for A and its row sum buffers in master thread.
-    char *mem = NULL;
-    a_type *bufferA = NULL;
-    c_type *a_row_sum = NULL;
+    char *mem = nullptr;
+    a_type *bufferA = nullptr;
+    c_type *a_row_sum = nullptr;
 
     if (!a_packed) {
         if (ithr == 0) { // If thread master
@@ -1489,9 +1491,10 @@ static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
                      * kernels.
                      */
                     c_type *a_row_sum_eff
-                            = a_row_sum ? a_row_sum + offset : NULL;
+                            = a_row_sum ? a_row_sum + offset : nullptr;
                     arg->copyA(&sizeK, &band, a_block, &lda, &alpha,
-                            bufferA + buf_shift, NULL, NULL, a_row_sum_eff);
+                            bufferA + buf_shift, nullptr, nullptr,
+                            a_row_sum_eff);
                 }
             }
             if (!a_packed)
@@ -1790,7 +1793,7 @@ static dnnl_status_t gemm_threading_driver(
         }
     }
 
-    char *shared_mem = NULL;
+    char *shared_mem = nullptr;
 
     // Always use the maximum number of threads to avoid OMP overhead that can
     // occur due to change thread counts.
@@ -1871,14 +1874,14 @@ static dnnl_status_t gemm_threading_driver(
                                     arg->transb == no_trans ? "N" : "T", m, n,
                                     k, &arg->alpha, (float *)a, arg->lda,
                                     (float *)b, arg->ldb, &beta_eff,
-                                    (float *)c_eff, ldc_eff, NULL, NULL);
+                                    (float *)c_eff, ldc_eff, nullptr, nullptr);
                         } else {
                             avx_gemm_f32::sgemm_nocopy_driver(
                                     arg->transa == no_trans ? "N" : "T",
                                     arg->transb == no_trans ? "N" : "T", m, n,
                                     k, &arg->alpha, (float *)a, arg->lda,
                                     (float *)b, arg->ldb, &beta_eff,
-                                    (float *)c_eff, ldc_eff, NULL, NULL);
+                                    (float *)c_eff, ldc_eff, nullptr, nullptr);
                         }
                         thread_arg[ithr].result = dnnl_success;
                         break;

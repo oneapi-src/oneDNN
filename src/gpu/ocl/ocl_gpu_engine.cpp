@@ -155,7 +155,7 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
 
         std::vector<char> log_buf(log_length);
         err = clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG,
-                log_length, log_buf.data(), 0);
+                log_length, log_buf.data(), nullptr);
         assert(err == CL_SUCCESS);
         printf("Error during the build of OpenCL program.\nBuild "
                "log:\n%s\n",

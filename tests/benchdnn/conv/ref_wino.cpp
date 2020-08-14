@@ -265,7 +265,7 @@ int init_scratchpad(const prb_t *p, scratchpad_t &sp) {
                     * p->mb * sp.h_tiles * sp.w_tiles,
             64);
 
-    if (sp._u_ptr == NULL || sp._v_ptr == NULL || sp._m_ptr == NULL)
+    if (sp._u_ptr == nullptr || sp._v_ptr == nullptr || sp._m_ptr == nullptr)
         return dnnl_out_of_memory;
 
     array_set((char *)sp._u_ptr,
@@ -281,9 +281,9 @@ int init_scratchpad(const prb_t *p, scratchpad_t &sp) {
 }
 
 void free_scratchpad(scratchpad_t *sp) {
-    if (sp->_u_ptr != NULL) zfree(sp->_u_ptr);
-    if (sp->_v_ptr != NULL) zfree(sp->_v_ptr);
-    if (sp->_m_ptr != NULL) zfree(sp->_m_ptr);
+    if (sp->_u_ptr != nullptr) zfree(sp->_u_ptr);
+    if (sp->_v_ptr != nullptr) zfree(sp->_v_ptr);
+    if (sp->_m_ptr != nullptr) zfree(sp->_m_ptr);
 }
 
 void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,

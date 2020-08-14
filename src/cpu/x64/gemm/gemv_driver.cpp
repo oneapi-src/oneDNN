@@ -290,7 +290,7 @@ static inline void decompose_vector(const dim_t m, const dim_t nthr,
     dim_t loffset = 0;
     dim_t lsize = 0;
 
-    if (addr == NULL) {
+    if (addr == nullptr) {
         dim_t xthr = m % nthr;
         dim_t width = m / nthr;
 
@@ -334,14 +334,14 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
         return;
     }
 
-    c_t *ybuf = NULL;
+    c_t *ybuf = nullptr;
     if (trans == no_trans && dnnl_thr_syncable() && !is_f32)
         ybuf = (c_t *)malloc(sizeof(*ybuf) * m * (nthr_goal - 1), PAGE_4K);
 
     parallel(nthr_goal, [&](int ithr, int nthr) {
         if (is_f32) {
             dim_t band, disp;
-            decompose_vector(n, nthr, ithr, (c_t *)NULL, &disp, &band);
+            decompose_vector(n, nthr, ithr, (c_t *)nullptr, &disp, &band);
 
             dim_t ydisp = disp * incy;
             if (incy < 0) ydisp = ydisp + (-n + band) * incy;

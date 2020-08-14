@@ -63,7 +63,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&epd, &ed, dnnl_attr, engine, NULL);
+            = dnnl_primitive_desc_create(&epd, &ed, dnnl_attr, engine, nullptr);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 

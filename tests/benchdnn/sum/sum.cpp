@@ -50,7 +50,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     auto dnnl_attr = create_dnnl_attr(p->attr, attr_args_t());
 
     dnnl_status_t init_status = dnnl_sum_primitive_desc_create(&spd,
-            p->dtag != tag::undef ? &dst_d : NULL, p->n_inputs(),
+            p->dtag != tag::undef ? &dst_d : nullptr, p->n_inputs(),
             p->scales.data(), src_d.data(), dnnl_attr, engine);
 
     dnnl_primitive_attr_destroy(dnnl_attr);

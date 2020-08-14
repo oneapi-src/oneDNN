@@ -80,7 +80,7 @@ void register_jit_code_vtune(const void *code, size_t code_size,
         auto jmethod = iJIT_Method_Load();
         jmethod.method_id = iJIT_GetNewMethodID(); // XXX: not thread-safe
         jmethod.method_name = (char *)code_name; // XXX: dropping const
-        jmethod.class_file_name = NULL;
+        jmethod.class_file_name = nullptr;
         jmethod.source_file_name
                 = (char *)source_file_name; // XXX: dropping const
         jmethod.method_load_address = (void *)code;

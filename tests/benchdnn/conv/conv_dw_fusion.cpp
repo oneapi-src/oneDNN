@@ -37,7 +37,7 @@ dnnl_primitive_attr_t create_dnnl_fusion_attr(
         const prb_t *p, int64_t scale_cnt) {
     const attr_t &attr = p->attr;
 
-    dnnl_primitive_attr_t dnnl_attr = NULL;
+    dnnl_primitive_attr_t dnnl_attr = nullptr;
     DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
     if (!attr.oscale.is_def()) {
@@ -47,12 +47,12 @@ dnnl_primitive_attr_t create_dnnl_fusion_attr(
         float *scales = p->scales;
 
         const bool runtime = attr.oscale.runtime;
-        SAFE_V(scales == NULL && runtime ? FAIL : OK);
+        SAFE_V(scales == nullptr && runtime ? FAIL : OK);
 
-        float *gen_scs = NULL;
-        if (scales == NULL) {
+        float *gen_scs = nullptr;
+        if (scales == nullptr) {
             gen_scs = (float *)zmalloc(count * sizeof(float), 64);
-            SAFE_V(gen_scs != NULL ? OK : FAIL);
+            SAFE_V(gen_scs != nullptr ? OK : FAIL);
             for (int64_t i = 0; i < count; ++i)
                 gen_scs[i] = attr.oscale.scale;
             scales = gen_scs;
@@ -76,13 +76,13 @@ dnnl_primitive_attr_t create_dnnl_fusion_attr(
                 const auto &os = e.convolution.oscale;
                 int count = 0, mask = 0;
                 const float *scales = &os.scale;
-                float *gen_scs = NULL;
+                float *gen_scs = nullptr;
                 if (!os.is_def()) {
                     count = os.policy == policy_t::COMMON ? 1 : scale_cnt;
                     mask = os.policy == policy_t::PER_OC ? 1 << 1 : 0;
                     if (mask > 0) {
                         gen_scs = conv::generate_oscales(os, count);
-                        SAFE_V(gen_scs != NULL ? OK : FAIL);
+                        SAFE_V(gen_scs != nullptr ? OK : FAIL);
                         scales = gen_scs;
                     }
                 }
@@ -194,8 +194,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                              p->dir == FWD_I ? dnnl_forward_inference
                                              : dnnl_forward_training,
                              alg, &src_d, &wei_d,
-                             p->dir == FWD_B ? &bia_d : NULL, &dst_d, strides,
-                             dilates, padding, padding_r),
+                             p->dir == FWD_B ? &bia_d : nullptr, &dst_d,
+                             strides, dilates, padding, padding_r),
                     WARN);
             break;
         case BWD_D:
@@ -208,8 +208,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
         case BWD_WB:
             DNN_SAFE(dnnl_dilated_convolution_backward_weights_desc_init(&cd,
                              alg, &src_d, &wei_d,
-                             p->dir == BWD_W ? NULL : &bia_d, &dst_d, strides,
-                             dilates, padding, padding_r),
+                             p->dir == BWD_W ? nullptr : &bia_d, &dst_d,
+                             strides, dilates, padding, padding_r),
                     WARN);
             break;
         default: DNN_SAFE(dnnl_invalid_arguments, CRIT);
@@ -221,7 +221,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     auto dnnl_attr = create_dnnl_fusion_attr(p, p->oc);
 
     dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, NULL);
+            = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, nullptr);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
@@ -349,7 +349,7 @@ int doit(const prb_t *p, res_t *r) {
 
     const auto adjust_alg = [](const_dnnl_primitive_desc_t pd, alg_t &alg) {
         if (alg == alg_t::AUTO) {
-            dnnl_convolution_desc_t *temp_conv_desc = {0};
+            dnnl_convolution_desc_t *temp_conv_desc = {nullptr};
             DNN_SAFE_V(dnnl_primitive_desc_query(
                     pd, dnnl_query_convolution_d, 0, &temp_conv_desc));
             alg = conv::alg_kind2alg(temp_conv_desc->alg_kind);

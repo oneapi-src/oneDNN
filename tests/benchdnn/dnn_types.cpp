@@ -483,7 +483,7 @@ int attr_t::post_ops_t::binary_index() const {
 }
 
 int str2attr(attr_t *attr, const char *str) {
-    if (attr == NULL || str == NULL) return FAIL;
+    if (attr == nullptr || str == nullptr) return FAIL;
 
     *attr = attr_t();
     std::string s(str), entry_name;
@@ -721,7 +721,7 @@ int attr_args_t::prepare_binary_post_op_mds(
 
 dnnl_primitive_attr_t create_dnnl_attr(
         const attr_t &attr, const attr_args_t &attr_args) {
-    dnnl_primitive_attr_t dnnl_attr = NULL;
+    dnnl_primitive_attr_t dnnl_attr = nullptr;
     DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
     if (!attr.oscale.is_def()) {

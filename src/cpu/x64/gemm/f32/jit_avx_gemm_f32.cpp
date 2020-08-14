@@ -2552,7 +2552,7 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
         float *myC = C, myBeta;
         float *ws = ws_buffers
                 ? ws_buffers + ithr * ws_size_per_thr / sizeof(float)
-                : 0;
+                : nullptr;
         dim_t ld = ldc;
 
         int sum_later = (nthr < nthr_m * nthr_n * nthr_k);

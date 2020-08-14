@@ -391,7 +391,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 
     SAFE(init_md(&data_d, p->ndims, data_dims, p->dt, p->tag), CRIT);
 
-    const dnnl_memory_desc_t *stat_d_ptr = NULL;
+    const dnnl_memory_desc_t *stat_d_ptr = nullptr;
     if (p->stat_tag != tag::undef) {
         SAFE(init_md(&stat_d, p->ndims - 1, data_dims, dnnl_f32, p->stat_tag),
                 CRIT);
@@ -416,7 +416,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                 WARN);
     }
 
-    dnnl_primitive_desc_t hint_fwd_pd = NULL;
+    dnnl_primitive_desc_t hint_fwd_pd = nullptr;
     if (p->dir & FLAG_BWD) {
         dnnl_layer_normalization_desc_t ld_fwd;
         DNN_SAFE(dnnl_layer_normalization_forward_desc_init(&ld_fwd,
@@ -424,7 +424,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                          flags),
                 WARN);
         dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
-                &hint_fwd_pd, &ld_fwd, NULL, engine, NULL);
+                &hint_fwd_pd, &ld_fwd, nullptr, engine, nullptr);
         if (init_fwd_status == dnnl_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
         else

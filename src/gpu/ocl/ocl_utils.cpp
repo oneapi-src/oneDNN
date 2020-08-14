@@ -56,7 +56,7 @@ status_t get_ocl_devices(
             for (size_t j = 0; j < plat_devices.size(); ++j) {
                 cl_uint vendor_id;
                 clGetDeviceInfo(plat_devices[j], CL_DEVICE_VENDOR_ID,
-                        sizeof(cl_uint), &vendor_id, NULL);
+                        sizeof(cl_uint), &vendor_id, nullptr);
                 if (vendor_id == 0x8086) {
                     devices->push_back(plat_devices[j]);
                 }

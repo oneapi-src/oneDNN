@@ -709,8 +709,8 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                     }
 
                     jit_conv_ker_pipeline_iw_thr(jit_ker, par_conv, diff_src_w,
-                            diff_dst_w, wht_w, 0, ocb, 1, iwb, reduce_work,
-                            load_work);
+                            diff_dst_w, wht_w, nullptr, ocb, 1, iwb,
+                            reduce_work, load_work);
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;
                 }
@@ -738,7 +738,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
         jit_conv_ker_pipeline_iw_thr(jit_ker, par_conv, diff_src, diff_dst,
-                weights, 0, 0, 0, 0, 0, 0);
+                weights, nullptr, 0, 0, 0, 0, 0);
     });
 }
 
@@ -879,8 +879,8 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                         jit_conv_ker_pipeline_iw_thr(jit_ker, par_conv,
                                 diff_src_w + ij * diff_src_h_stride,
                                 diff_dst_w + oj * diff_dst_h_stride,
-                                wht_w + k_lo * wht_h_stride, 0, ocb, k_len, iwb,
-                                reduce_work, load_work);
+                                wht_w + k_lo * wht_h_stride, nullptr, ocb,
+                                k_len, iwb, reduce_work, load_work);
                     }
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;
@@ -906,7 +906,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
         jit_conv_ker_pipeline_iw_thr(jit_ker, par_conv, diff_src, diff_dst,
-                weights, 0, 0, 0, 0, 0, 0);
+                weights, nullptr, 0, 0, 0, 0, 0);
     });
 }
 
@@ -1093,8 +1093,8 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                         jit_conv_3d_ker_pipeline(jit_ker, par_conv,
                                 diff_src_w + ij * diff_src_h_stride,
                                 diff_dst_w + oj * diff_dst_h_stride,
-                                wht_w + k_lo * wht_h_stride, 0, ocb, k_len,
-                                d_len, reduce_work, load_work);
+                                wht_w + k_lo * wht_h_stride, nullptr, ocb,
+                                k_len, d_len, reduce_work, load_work);
                     }
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;
@@ -1120,7 +1120,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
         jit_conv_3d_ker_pipeline(jit_ker, par_conv, diff_src, diff_dst, weights,
-                0, 0, 1, 1, 0, 0);
+                nullptr, 0, 1, 1, 0, 0);
     });
 }
 
@@ -1592,7 +1592,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                                 : &ti->src[src_d.blk_off(img, ic_off_idx)],
                         &ti->diff_dst[diff_dst_d.blk_off(img, oc_off_idx)],
                         diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
-                        0, (img == ti->img_start), 0, ic_to_compute,
+                        nullptr, (img == ti->img_start), 0, ic_to_compute,
                         oc_to_compute);
             }
 
@@ -1617,7 +1617,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                     diff_wei
                             + wht_blk_off(diff_weights_d, ti->g_start,
                                     ti->oc_b_start, ti->ic_b_start),
-                    0, 0, 0, 0, 0);
+                    nullptr, 0, 0, 0, 0);
         }
     }
 }

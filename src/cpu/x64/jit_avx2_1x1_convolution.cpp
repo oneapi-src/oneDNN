@@ -88,7 +88,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<data_t>(key_conv_rtus_space)
-            : NULL;
+            : nullptr;
 
     const int ndims = dst_d.ndims();
 
@@ -356,7 +356,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
             ? ctx.get_scratchpad_grantor().get<data_t>(key_conv_rtus_space)
-            : NULL;
+            : nullptr;
 
     // TODO (Roma): remove this restriction
     assert(jcp.stride_w == 1 && jcp.stride_h == 1 && jcp.stride_d == 1);
@@ -503,7 +503,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<data_t>(key_conv_rtus_space)
-            : NULL;
+            : nullptr;
 
     const bool is_bias_padded
             = pd()->with_bias() && (jcp.oc_without_padding % jcp.oc_block != 0);

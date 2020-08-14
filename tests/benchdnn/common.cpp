@@ -316,7 +316,7 @@ void *zmalloc(size_t size, size_t align) {
     if ((bench_mode & PERF) && (size < align)) size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
-    return rc == 0 ? ptr : 0;
+    return rc == 0 ? ptr : nullptr;
 }
 
 void zfree(void *ptr) {
@@ -357,7 +357,7 @@ bool match_regex(const char *str, const char *pattern) {
 
 bool match_regex(const char *str, const char *pattern) {
     static regex_t regex;
-    static const char *prev_pattern = NULL;
+    static const char *prev_pattern = nullptr;
     if (pattern != prev_pattern) {
         if (prev_pattern) regfree(&regex);
 
@@ -369,7 +369,7 @@ bool match_regex(const char *str, const char *pattern) {
         prev_pattern = pattern;
     }
 
-    return !regexec(&regex, str, 0, NULL, 0);
+    return !regexec(&regex, str, 0, nullptr, 0);
 }
 #endif /* _WIN32 */
 
