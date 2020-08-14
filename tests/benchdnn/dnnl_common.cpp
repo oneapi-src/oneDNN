@@ -38,7 +38,7 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
 dnnl_engine_kind_t engine_tgt_kind = dnnl_cpu;
 
 args_t &args_t::set(int arg, const dnn_mem_t &mem) {
-    args_.push_back(std::make_pair(arg, &mem));
+    args_.emplace_back(arg, &mem);
     return *this;
 }
 
@@ -46,7 +46,7 @@ args_t &args_t::set(
         const std::vector<int> &args, const std::vector<dnn_mem_t> &mems) {
     assert(args.size() == mems.size());
     for (size_t i = 0; i < mems.size(); ++i)
-        args_.push_back(std::make_pair(args[i], &mems[i]));
+        args_.emplace_back(args[i], &mems[i]);
     return *this;
 }
 
