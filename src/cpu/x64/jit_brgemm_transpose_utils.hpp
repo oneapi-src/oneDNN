@@ -14,37 +14,38 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_BRGEMM_PRIMITIVE_UTILS_HPP
-#define CPU_X64_BRGEMM_PRIMITIVE_UTILS_HPP
+#ifndef CPU_X64_JIT_BRGEMM_TRANSPOSE_UTILS_HPP
+#define CPU_X64_JIT_BRGEMM_TRANSPOSE_UTILS_HPP
 
-#include "common/c_types_map.hpp"
-#include "common/dnnl_thread.hpp"
-#include "common/memory_tracking.hpp"
-
-#include "cpu/cpu_convolution_pd.hpp"
-#include "cpu/cpu_engine.hpp"
-#include "cpu/platform.hpp"
 #include "cpu/x64/jit_brgemm_primitive_conf.hpp"
-
-#define BRGEMM_BWD_D_GLOBAL_B_TRANSPOSE
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
 
-namespace brgemm_primitive_utils {
+struct jit_brgemm_trans_wei_t {
+    struct ctx_t {
+        const void *src;
+        const void *tr_src;
 
-status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
-        const inner_product_desc_t &ipd, const memory_desc_wrapper &src_md,
-        const memory_desc_wrapper &weights_md,
-        const memory_desc_wrapper &dst_md, const primitive_attr_t &attr,
-        int nthreads);
+        dim_t current_gemm_batch;
+        dim_t current_N, current_K;
+    };
 
-void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-        const jit_brgemm_primitive_conf_t &jbgp);
+    virtual void operator()(ctx_t *ctx) = 0;
+    virtual status_t create_kernel() = 0;
 
-} // namespace brgemm_primitive_utils
+    jit_brgemm_trans_wei_t(const jit_brgemm_primitive_conf_t *conf)
+        : conf_(conf) {}
+    virtual ~jit_brgemm_trans_wei_t() {}
+
+    const jit_brgemm_primitive_conf_t *conf_;
+};
+
+status_t create_brgemm_trans_wei(
+        std::unique_ptr<jit_brgemm_trans_wei_t> &trans_ker,
+        const jit_brgemm_primitive_conf_t *conf);
 
 } // namespace x64
 } // namespace cpu

@@ -29,6 +29,7 @@
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/jit_brgemm_primitive_utils.hpp"
+#include "cpu/x64/jit_brgemm_transpose_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -225,6 +226,130 @@ private:
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels[max_num_brg_kernels_ip];
+};
+
+template <impl::data_type_t diff_src_type,
+        impl::data_type_t wei_type = diff_src_type,
+        impl::data_type_t diff_dst_type = diff_src_type>
+struct brgemm_inner_product_bwd_data_t : public primitive_t {
+    struct pd_t : public cpu_inner_product_bwd_data_pd_t {
+        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
+                const inner_product_fwd_pd_t *hint_fwd_pd)
+            : cpu_inner_product_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
+            , attr_(attr) {}
+
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("brgemm_ip_bwd_d:", avx512_common, ""),
+                brgemm_inner_product_bwd_data_t);
+
+        status_t init(engine_t *engine) {
+
+            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+                    && !has_zero_dim_memory() && mayiuse(avx512_core)
+                    && expect_data_types(diff_src_type, wei_type,
+                            data_type::undef, diff_dst_type, data_type::undef)
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
+                    && set_default_formats();
+            if (!ok) return status::unimplemented;
+
+            CHECK(brgemm_primitive_utils::init_ip_conf(jbgp_, *desc(),
+                    *diff_src_md(), *weights_md(), *diff_dst_md(), *attr(),
+                    dnnl_get_max_threads()));
+
+            const float alpha = 1.0;
+            const float beta = 1.0;
+            const float beta_init = 0.0;
+
+            for_(int i_init = 0; i_init < 2; i_init++)
+            for_(int i_M = 0; i_M < 2; i_M++)
+            for_(int i_N = 0; i_N < 2; i_N++)
+            for (int i_K = 0; i_K < 2; i_K++) {
+                auto vbeta = (i_init) ? beta_init : beta;
+                auto vM = (i_M) ? jbgp_.M_tail : jbgp_.M;
+                auto vN = (i_N) ? jbgp_.N_tail : jbgp_.N;
+                auto vK = (i_K) ? jbgp_.K_tail : jbgp_.K;
+
+                int idx = get_brg_kernel_idx(i_init, i_M, i_N, i_K);
+                if (idx < 0) continue;
+
+                brgemm_t &brg = brg_descs[idx];
+                CHECK(brgemm_desc_init(&brg, jbgp_.brg_type, diff_dst_type,
+                        wei_type, false, false, brgemm_row_major, alpha, vbeta,
+                        jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
+
+                auto dt_d = diff_src_type;
+                auto LDD = jbgp_.ic_without_padding;
+                CHECK(brgemm_desc_add_postops(
+                        &brg, attr(), dt_d, LDD, jbgp_.bia_dt));
+            }
+
+            auto scratchpad = scratchpad_registry().registrar();
+            brgemm_primitive_utils::init_scratchpad(scratchpad, jbgp_);
+
+            return status::success;
+        }
+
+        int get_brg_kernel_idx(bool do_initialization, bool is_M_tail,
+                bool is_N_tail, bool is_K_tail) const {
+            return get_brg_kernel_index(
+                    jbgp_, do_initialization, is_M_tail, is_N_tail, is_K_tail);
+        }
+
+        const primitive_attr_t *attr_;
+        brgemm_t brg_descs[max_num_brg_kernels_ip];
+
+        jit_brgemm_primitive_conf_t jbgp_;
+
+    protected:
+        bool set_default_formats() {
+            using namespace format_tag;
+
+            auto dat_tag = nc;
+            auto wei_tag = get_brgemm_ip_weights_tag(
+                    OC(), invariant_wei_md()->data_type);
+
+            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
+        }
+    };
+
+    brgemm_inner_product_bwd_data_t(const pd_t *apd)
+        : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
+        const auto &jbgp = pd()->jbgp_;
+        for_(int i_M = 0; i_M < 2; i_M++)
+        for_(int i_N = 0; i_N < 2; i_N++)
+        for_(int i_K = 0; i_K < 2; i_K++)
+        for (int i_init = 0; i_init < 2; i_init++) {
+            int idx = pd()->get_brg_kernel_idx(i_init, i_M, i_N, i_K);
+            if (idx < 0) continue;
+
+            brgemm_kernel_t *ker = nullptr;
+            CHECK(brgemm_kernel_create(&ker, pd()->brg_descs[idx]));
+            CHECK(safe_ptr_assign(brg_kernels[idx], ker));
+        }
+
+        if (jbgp.use_buffer_b)
+            CHECK(create_brgemm_trans_wei(trans_B_kernel_, &pd()->jbgp_));
+        return status::success;
+    }
+
+    status_t execute(const exec_ctx_t &ctx) const override {
+        execute_backward_data(ctx);
+        return status::success;
+    }
+
+private:
+    void execute_backward_data(const exec_ctx_t &ctx) const;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
+    typedef typename prec_traits<wei_type>::type wei_data_t;
+    typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
+
+    std::unique_ptr<brgemm_kernel_t> brg_kernels[max_num_brg_kernels_ip];
+    std::unique_ptr<jit_brgemm_trans_wei_t> trans_B_kernel_;
 };
 
 } // namespace x64

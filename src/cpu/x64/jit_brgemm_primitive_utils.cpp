@@ -131,6 +131,58 @@ status_t init_ip_conf_fwd(
     return status::success;
 }
 
+status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
+    jbgp.use_buffer_b = true;
+    jbgp.use_buffer = jbgp.src_dt != jbgp.acc_dt;
+
+    jbgp.ic_block = jbgp.simd_w;
+    if (jbgp.ic >= 4 * jbgp.simd_w)
+        jbgp.ic_block = 4 * jbgp.simd_w;
+    else if (jbgp.ic >= 2 * jbgp.simd_w)
+        jbgp.ic_block = 2 * jbgp.simd_w;
+    jbgp.oc_block = jbgp.simd_w;
+
+    jbgp.nb_ic = utils::div_up(jbgp.ic, jbgp.ic_block);
+    jbgp.nb_oc = utils::div_up(jbgp.oc, jbgp.oc_block);
+    jbgp.os = jbgp.mb;
+
+    // Configure matrix sizes
+    const int max_M = 64, min_M = 6;
+    jbgp.os_block = 1;
+    for (int m_ = max_M; m_ >= min_M; m_--) {
+        if (jbgp.os % m_ == 0) {
+            jbgp.os_block = m_;
+            break;
+        }
+    }
+    if (jbgp.os_block == 1) jbgp.os_block = nstl::min(jbgp.os, max_M);
+    jbgp.nb_os = utils::div_up(jbgp.os, jbgp.os_block);
+    jbgp.nb_os_blocking = 1;
+    jbgp.M = jbgp.os_block;
+    jbgp.M_tail = jbgp.os % jbgp.os_block;
+
+    jbgp.K = jbgp.oc_block;
+    jbgp.N = jbgp.ic_block;
+    jbgp.N_tail = jbgp.ic % jbgp.ic_block;
+    jbgp.K_tail = jbgp.oc % jbgp.oc_block;
+
+    jbgp.LDA = jbgp.oc_without_padding;
+    jbgp.LDB = jbgp.N;
+    jbgp.LDC = (jbgp.use_buffer) ? jbgp.N : jbgp.ic_without_padding;
+    jbgp.LDD = jbgp.ic_without_padding;
+
+    jbgp.nb_oc_blocking = 1;
+    for (int bl = 64; bl >= 1; bl--)
+        if (jbgp.nb_oc % bl == 0) {
+            jbgp.nb_oc_blocking = bl;
+            break;
+        }
+
+    jbgp.gemm_batch_size = jbgp.nb_oc_blocking;
+
+    return status::success;
+}
+
 status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
         const inner_product_desc_t &ipd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
@@ -242,7 +294,12 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
     jbgp.brg_type = brgemm_addr;
     jbgp.nthr = nthreads;
 
-    return init_ip_conf_fwd(jbgp, attr);
+    switch (jbgp.prop_kind) {
+        case forward_training:
+        case forward_inference: return init_ip_conf_fwd(jbgp, attr);
+        case backward_data: return init_ip_conf_bwd_d(jbgp);
+        default: assert(!"invalid prop_kind"); return invalid_arguments;
+    }
 }
 
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
@@ -257,6 +314,19 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_brgemm_primitive_buffer,
                 jbgp.nthr * jbgp.LDC * jbgp.M,
                 types::data_type_size(jbgp.acc_dt));
+    }
+
+    if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_data) {
+        int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
+#ifndef BRGEMM_BWD_D_GLOBAL_B_TRANSPOSE
+        scratchpad.book(key_brgemm_primitive_buffer_b,
+                (dim_t)jbgp.nthr * jbgp.gemm_batch_size * size_B,
+                types::data_type_size(jbgp.wei_dt));
+#else
+        scratchpad.book(key_brgemm_primitive_buffer_b,
+                (dim_t)jbgp.nb_oc * jbgp.nb_ic * size_B,
+                types::data_type_size(jbgp.wei_dt));
+#endif
     }
 }
 
