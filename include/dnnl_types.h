@@ -2295,13 +2295,6 @@ typedef struct dnnl_stream *dnnl_stream_t;
 /// A constant execution stream handle.
 typedef const struct dnnl_stream *const_dnnl_stream_t;
 
-/// An opaque structure to describe execution stream attrbutes.
-struct dnnl_stream_attr;
-/// An execution stream attributes handle.
-typedef struct dnnl_stream_attr *dnnl_stream_attr_t;
-/// A constant execution stream attributes handle.
-typedef const struct dnnl_stream_attr *const_dnnl_stream_attr_t;
-
 /// @} dnnl_api_stream
 
 /// @addtogroup dnnl_api_service

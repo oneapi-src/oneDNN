@@ -1049,32 +1049,7 @@ struct handle_traits<dnnl_stream_t> {
         return dnnl_stream_destroy(p);
     }
 };
-template <>
-struct handle_traits<dnnl_stream_attr_t> {
-    static dnnl_status_t destructor(dnnl_stream_attr_t p) {
-        return dnnl_stream_attr_destroy(p);
-    }
-};
 /// @endcond
-
-/// A container for stream attributes.
-struct stream_attr : public handle<dnnl_stream_attr_t> {
-    using handle::handle;
-
-    /// Constructs default (empty) stream attributes.
-    stream_attr() = default;
-
-    /// Constructs stream attributes for a stream that runs on an engine of a
-    /// particular kind.
-    ///
-    /// @param akind Target engine kind.
-    stream_attr(engine::kind akind) {
-        dnnl_stream_attr_t attr;
-        error::wrap_c_api(dnnl_stream_attr_create(&attr, convert_to_c(akind)),
-                "could not create stream attributes");
-        reset(attr);
-    }
-};
 
 /// An execution stream.
 struct stream : public handle<dnnl_stream_t> {
@@ -1102,13 +1077,10 @@ struct stream : public handle<dnnl_stream_t> {
     ///
     /// @param aengine Engine to create the stream on.
     /// @param aflags Flags controlling stream behavior.
-    /// @param attr Stream attributes.
-    stream(const engine &aengine, flags aflags = flags::default_flags,
-            const stream_attr &attr = stream_attr()) {
+    stream(const engine &aengine, flags aflags = flags::default_flags) {
         dnnl_stream_t stream;
-        error::wrap_c_api(dnnl_stream_create_v2(&stream, aengine.get(),
-                                  static_cast<dnnl_stream_flags_t>(aflags),
-                                  attr.get(true)),
+        error::wrap_c_api(dnnl_stream_create(&stream, aengine.get(),
+                                  static_cast<dnnl_stream_flags_t>(aflags)),
                 "could not create a stream");
         reset(stream);
     }

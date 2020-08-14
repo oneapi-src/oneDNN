@@ -61,8 +61,8 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     }
 
     /** create stream */
-    virtual dnnl::impl::status_t create_stream(dnnl::impl::stream_t **stream,
-            unsigned flags, const dnnl::impl::stream_attr_t *attr)
+    virtual dnnl::impl::status_t create_stream(
+            dnnl::impl::stream_t **stream, unsigned flags)
             = 0;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL

@@ -62,8 +62,7 @@ public:
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
             size_t size, void *handle) override;
 
-    status_t create_stream(stream_t **stream, unsigned flags,
-            const stream_attr_t *attr) override;
+    status_t create_stream(stream_t **stream, unsigned flags) override;
     status_t create_stream(stream_t **stream, cl_command_queue queue);
 
     status_t create_kernel(compute::kernel_t *kernel,

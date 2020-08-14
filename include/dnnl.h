@@ -3271,23 +3271,6 @@ dnnl_status_t DNNL_API dnnl_engine_destroy(dnnl_engine_t engine);
 /// @addtogroup dnnl_api_stream
 /// @{
 
-/// Creates execution stream attributes for a stream that runs on an engine of
-/// a particular kind.
-///
-/// @param attr Output execution stream attributes.
-/// @param kind Target engine kind.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_stream_attr_create(
-        dnnl_stream_attr_t *attr, dnnl_engine_kind_t kind);
-
-/// Destroys execution stream attributes.
-///
-/// @param attr Execution stream attributes to destroy.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_stream_attr_destroy(dnnl_stream_attr_t attr);
-
 /// Creates an execution stream.
 ///
 /// @param stream Output execution stream.
@@ -3297,17 +3280,6 @@ dnnl_status_t DNNL_API dnnl_stream_attr_destroy(dnnl_stream_attr_t attr);
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_stream_create(
         dnnl_stream_t *stream, dnnl_engine_t engine, unsigned flags);
-
-/// Creates an execution stream.
-///
-/// @param stream Output execution stream.
-/// @param engine Engine to create the execution stream on.
-/// @param flags Stream behavior flags (@sa dnnl_stream_flags_t).
-/// @param attr Stream attributes.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_stream_create_v2(dnnl_stream_t *stream,
-        dnnl_engine_t engine, unsigned flags, const_dnnl_stream_attr_t attr);
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 /// Creates an execution stream for a given engine associated with

@@ -40,9 +40,8 @@ status_t cpu_engine_t::create_memory_storage(
     return status::success;
 }
 
-status_t cpu_engine_t::create_stream(
-        stream_t **stream, unsigned flags, const stream_attr_t *attr) {
-    return safe_ptr_assign(*stream, new cpu_stream_t(this, flags, attr));
+status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
+    return safe_ptr_assign(*stream, new cpu_stream_t(this, flags));
 }
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL

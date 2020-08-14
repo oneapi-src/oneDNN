@@ -38,9 +38,7 @@ status_t sycl_engine_base_t::create_memory_storage(
     return status::success;
 }
 
-status_t sycl_engine_base_t::create_stream(
-        stream_t **stream, unsigned flags, const stream_attr_t *attr) {
-    UNUSED(attr);
+status_t sycl_engine_base_t::create_stream(stream_t **stream, unsigned flags) {
     return sycl_stream_t::create_stream(stream, this, flags);
 }
 status_t sycl_engine_base_t::create_stream(

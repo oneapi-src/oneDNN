@@ -849,7 +849,6 @@ const stream_flags_t out_of_order = dnnl_stream_out_of_order;
 const stream_flags_t default_flags = dnnl_stream_default_flags;
 } // namespace stream_flags
 using stream_t = dnnl_stream;
-using stream_attr_t = dnnl_stream_attr;
 
 struct memory_storage_t;
 

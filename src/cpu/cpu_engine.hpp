@@ -111,8 +111,7 @@ public:
     virtual status_t create_memory_storage(memory_storage_t **storage,
             unsigned flags, size_t size, void *handle) override;
 
-    virtual status_t create_stream(stream_t **stream, unsigned flags,
-            const stream_attr_t *attr) override;
+    virtual status_t create_stream(stream_t **stream, unsigned flags) override;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     virtual status_t create_stream(

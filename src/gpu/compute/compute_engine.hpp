@@ -99,8 +99,8 @@ public:
             const std::lock_guard<std::mutex> lock(service_stream_mutex_);
             if (service_stream_ == nullptr) {
                 stream_t *service_stream_ptr;
-                status = create_stream(&service_stream_ptr,
-                        stream_flags::default_flags, nullptr);
+                status = create_stream(
+                        &service_stream_ptr, stream_flags::default_flags);
                 if (status == status::success)
                     service_stream_.reset(service_stream_ptr);
             }

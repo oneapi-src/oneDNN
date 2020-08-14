@@ -23,15 +23,11 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
-#include "stream_attr.hpp"
 #include "utils.hpp"
 
 struct dnnl_stream : public dnnl::impl::c_compatible {
-    dnnl_stream(dnnl::impl::engine_t *engine, unsigned flags,
-            const dnnl::impl::stream_attr_t *attr)
-        : engine_(engine)
-        , flags_(flags)
-        , attr_(attr ? *attr : dnnl::impl::stream_attr_t(engine_->kind())) {}
+    dnnl_stream(dnnl::impl::engine_t *engine, unsigned flags)
+        : engine_(engine), flags_(flags) {}
     virtual ~dnnl_stream() {}
 
     /** returns stream's engine */
@@ -51,8 +47,6 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
     /** blocks until all submitted primitives to the stream are completed */
     virtual dnnl::impl::status_t wait() = 0;
 
-    const dnnl::impl::stream_attr_t *attr() const { return &attr_; }
-
     virtual void before_exec_hook() {}
     virtual void after_exec_hook() {}
 
@@ -62,7 +56,7 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     dnnl_stream(
             dnnl::impl::engine_t *engine, dnnl::threadpool_iface *threadpool)
-        : dnnl_stream(engine, dnnl::impl::stream_flags::in_order, nullptr) {
+        : dnnl_stream(engine, dnnl::impl::stream_flags::in_order) {
         assert(engine->kind() == dnnl::impl::engine_kind::cpu);
         threadpool_ = threadpool;
     }
@@ -80,7 +74,6 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
 protected:
     dnnl::impl::engine_t *engine_;
     unsigned flags_;
-    const dnnl::impl::stream_attr_t attr_;
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     dnnl::threadpool_iface *threadpool_ = nullptr;
 #endif
