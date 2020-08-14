@@ -53,7 +53,7 @@ protected:
         // softmax specific types and values
         using op_desc_t = softmax_forward::desc;
         using pd_t = softmax_forward::primitive_desc;
-        allows_attr_t aa {0}; // doesn't support anything
+        allows_attr_t aa {false}; // doesn't support anything
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
@@ -135,7 +135,7 @@ protected:
         using op_desc_t = softmax_backward::desc;
         using pd_t = softmax_backward::primitive_desc;
         using hint_pd_t = softmax_forward::primitive_desc;
-        allows_attr_t aa {0}; // doesn't support anything
+        allows_attr_t aa {false}; // doesn't support anything
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);

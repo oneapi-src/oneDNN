@@ -141,7 +141,7 @@ int32_t fetch_and_add(int32_t *dst, int32_t val) {
 #endif
 }
 
-static setting_t<bool> jit_dump {0};
+static setting_t<bool> jit_dump {false};
 bool get_jit_dump() {
     if (!jit_dump.initialized()) {
         jit_dump.set(!!getenv_int("MKLDNN_JIT_DUMP", 0));

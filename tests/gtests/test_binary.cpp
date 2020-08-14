@@ -58,11 +58,13 @@ protected:
         // binary specific types and values
         using op_desc_t = binary::desc;
         using pd_t = binary::primitive_desc;
-        allows_attr_t aa {0};
-        aa.po_sum = 1;
-        aa.po_eltwise = 1;
-        if (get_test_engine_kind() == engine::kind::cpu) { aa.po_binary = 1; }
-        aa.scales = 1;
+        allows_attr_t aa {false};
+        aa.po_sum = true;
+        aa.po_eltwise = true;
+        if (get_test_engine_kind() == engine::kind::cpu) {
+            aa.po_binary = true;
+        }
+        aa.scales = true;
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);

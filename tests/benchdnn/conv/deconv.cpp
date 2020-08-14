@@ -231,7 +231,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
     auto wei_tr_md = wei_md;
 
-    const bool with_groups = 1;
+    const bool with_groups = true;
     swap(wei_tr_md.dims[with_groups + 0], wei_tr_md.dims[with_groups + 1]);
 
     const auto fp = dnnl_f32;

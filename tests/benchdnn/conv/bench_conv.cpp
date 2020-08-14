@@ -105,7 +105,7 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            bool is_deconv = 0;
+            bool is_deconv = false;
             SAFE_V(str2desc(&s.desc, argv[0], is_deconv));
             check_correctness(s);
         }

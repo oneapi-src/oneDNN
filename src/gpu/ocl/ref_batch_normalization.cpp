@@ -67,8 +67,8 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
-    conf.use_16mb_unroll = 0;
-    conf.use_nhwc = 0;
+    conf.use_16mb_unroll = false;
+    conf.use_nhwc = false;
     conf.mb_block = 1;
     conf.ic_block = 1;
 
@@ -82,7 +82,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
                 ? 16
                 : 1;
         conf.ic_block = 16;
-        conf.use_16mb_unroll = 1;
+        conf.use_16mb_unroll = true;
 
         const int max_stat_nblocks = 256;
         int stat_mb_nblocks = conf.mb / conf.mb_block;
@@ -120,7 +120,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         conf.dispatch.generate();
     } else {
         // Reference
-        conf.use_16mb_unroll = 0;
+        conf.use_16mb_unroll = false;
         conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
         conf.dispatch.define_dim("MB", 0, conf.mb);
         conf.dispatch.define_dim("IC", 1, conf.ic);

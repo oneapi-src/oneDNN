@@ -280,7 +280,7 @@ void jit_trans_iw_ic_t::generate() {
     tr_src_stride = tr_iw * typesize;
 
     bool nontemporal_stores = false;
-    enable_prefetch = iw > small_spatial ? 1 : 0;
+    enable_prefetch = iw > small_spatial;
 
     assert(transpose_size == ic_block);
     const int src_step = ic_block * transpose_size * typesize;
@@ -725,7 +725,7 @@ void jit_trans_iw_ic_int16_t::generate() {
         tr_src_stride = tr_iw * typesize;
 
         bool nontemporal_stores = false;
-        enable_prefetch = iw > small_spatial ? 1 : 0;
+        enable_prefetch = iw > small_spatial ? true : false;
 
         const size_t src_step = src_mult * transpose_size * str_w * typesize;
         const size_t tr_src_step = transpose_size * typesize;
@@ -934,7 +934,7 @@ void jit_trans_ow_oc_t::generate() {
     tr_src_stride = oc_block * typesize;
 
     bool nontemporal_stores = false;
-    enable_prefetch = ow > small_spatial ? 1 : 0;
+    enable_prefetch = ow > small_spatial ? true : false;
 
     const size_t src_step = src_mult * transpose_size * typesize;
     const size_t tr_src_step = (size_t)oc_block * transpose_size * typesize;

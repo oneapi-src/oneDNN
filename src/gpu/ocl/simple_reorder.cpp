@@ -51,7 +51,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     conf.nelems = utils::array_product(padded_dims, conf.ndims);
 
     conf.use_ref_impl = true;
-    conf.with_group = 0;
+    conf.with_group = false;
     conf.sub_group_size = 1;
 
     if (conf.nelems == 0) return status::success;
@@ -64,7 +64,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                     gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIw4o8i8o4i,
                     gOIhw4o8i8o4i, gOIhw2o8i8o2i, gOIdhw4o8i8o4i, gIOw4i8o8i4o,
                     gIOhw4i8o8i4o, gIOdhw4i8o8i4o))
-        conf.with_group = 1;
+        conf.with_group = true;
 
     const bool has_padding_or_scale_quant
             = conf.has_padding || conf.scale_quant;
@@ -108,7 +108,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     } else if (use_unroll_16b) {
         // No blocking.
     } else if (use_unroll_16b16c) {
-        conf.with_group = 1;
+        conf.with_group = true;
         blocks[2] = 16;
     }
 
