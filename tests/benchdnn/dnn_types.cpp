@@ -26,6 +26,10 @@
 
 #include "dnnl.h"
 
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "dnnl_threadpool.h"
+#endif
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
@@ -1197,18 +1201,14 @@ stream_t::stream_t(dnnl_engine_t engine) {
     dnnl_engine_kind_t engine_kind;
     DNN_SAFE_V(dnnl_engine_get_kind(engine, &engine_kind));
 
-    dnnl_stream_attr_t stream_attr;
-    DNN_SAFE_V(dnnl_stream_attr_create(&stream_attr, engine_kind));
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
     if (engine_kind == dnnl_cpu) {
-        SAFE_V(dnnl_stream_attr_set_threadpool(
-                stream_attr, dnnl::testing::get_threadpool()));
+        SAFE_V(dnnl_threadpool_interop_stream_create(
+                &stream_, engine, dnnl::testing::get_threadpool()));
+        return;
     }
 #endif
-
-    DNN_SAFE_V(dnnl_stream_create_v2(
-            &stream_, engine, dnnl_stream_default_flags, stream_attr));
-    dnnl_stream_attr_destroy(stream_attr);
+    DNN_SAFE_V(dnnl_stream_create(&stream_, engine, dnnl_stream_default_flags));
 }
 
 stream_t::~stream_t() {

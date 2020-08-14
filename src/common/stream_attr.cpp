@@ -34,19 +34,3 @@ dnnl_status_t dnnl_stream_attr_destroy(dnnl_stream_attr_t attr) {
     delete attr;
     return status::success;
 }
-
-dnnl_status_t dnnl_stream_attr_set_threadpool(
-        dnnl_stream_attr_t attr, void *threadpool) {
-    if (utils::any_null(attr)) return status::invalid_arguments;
-    return attr->set_threadpool(
-            reinterpret_cast<dnnl::threadpool_iface *>(threadpool));
-}
-
-dnnl_status_t dnnl_stream_attr_get_threadpool(
-        dnnl_stream_attr_t attr, void **threadpool) {
-    if (utils::any_null(attr, threadpool)) return status::invalid_arguments;
-    dnnl::threadpool_iface *tp;
-    auto status = attr->get_threadpool(&tp);
-    if (status == status::success) *threadpool = static_cast<void *>(tp);
-    return status;
-}

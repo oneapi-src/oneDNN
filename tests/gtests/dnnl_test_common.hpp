@@ -36,6 +36,10 @@
 #include "dnnl_debug.h"
 #include "dnnl_test_macros.hpp"
 
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "dnnl_threadpool.hpp"
+#endif
+
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL || DNNL_WITH_SYCL
 #include "dnnl_test_common_ocl.hpp"
 #endif
@@ -906,14 +910,11 @@ void test_bwd_pd_constructors(const op_desc_t &op_desc, const pd_t &pd,
 inline dnnl::stream make_stream(dnnl::engine engine,
         dnnl::stream::flags flags = dnnl::stream::flags::default_flags) {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    if (engine.get_kind() != dnnl::engine::kind::cpu)
-        return dnnl::stream(engine, flags);
-    dnnl::stream_attr stream_attr(dnnl::engine::kind::cpu);
-    stream_attr.set_threadpool(dnnl::testing::get_threadpool());
-    return dnnl::stream(engine, flags, stream_attr);
-#else
-    return dnnl::stream(engine, flags);
+    if (engine.get_kind() == dnnl::engine::kind::cpu)
+        return dnnl::threadpool_interop::make_stream(
+                engine, dnnl::testing::get_threadpool());
 #endif
+    return dnnl::stream(engine, flags);
 }
 
 #endif

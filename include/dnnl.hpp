@@ -33,10 +33,6 @@
 
 #include "dnnl.h"
 
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool_iface.hpp"
-#endif
-
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include <CL/cl.h>
 #endif
@@ -1078,32 +1074,6 @@ struct stream_attr : public handle<dnnl_stream_attr_t> {
                 "could not create stream attributes");
         reset(attr);
     }
-
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    /// Sets the threadpool attribute. Always throws unless oneDNN is built with
-    /// threadpool runtime.
-    ///
-    /// @sa @ref dev_guide_threadpool
-    ///
-    /// @param threadpool A pointer to an instance of a class that implements
-    ///     the dnnl::threadpool_iface interface.
-    void set_threadpool(threadpool_iface *threadpool) {
-        error::wrap_c_api(dnnl_stream_attr_set_threadpool(get(), threadpool),
-                "could not set stream threadpool attribute");
-    }
-
-    /// Returns the threadpool attribute. Always throws unless oneDNN is built
-    /// with threadpool runtime.
-    ///
-    /// @sa @ref dev_guide_threadpool
-    ///
-    threadpool_iface *get_threadpool() {
-        threadpool_iface *tp;
-        error::wrap_c_api(dnnl_stream_attr_get_threadpool(get(), (void **)&tp),
-                "could not set stream threadpool attribute");
-        return tp;
-    }
-#endif
 };
 
 /// An execution stream.
@@ -10591,36 +10561,6 @@ inline status gemm_s8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
     return static_cast<status>(dnnl_gemm_s8s8s32(transa, transb, offsetc, M, N,
             K, alpha, A, lda, ao, B, ldb, bo, beta, C, ldc, co));
 }
-
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-/// @copydoc dnnl_sgemm_tp()
-inline status sgemm(char transa, char transb, dnnl_dim_t M, dnnl_dim_t N,
-        dnnl_dim_t K, float alpha, const float *A, dnnl_dim_t lda,
-        const float *B, dnnl_dim_t ldb, float beta, float *C, dnnl_dim_t ldc,
-        dnnl::threadpool_iface *tp) {
-    return static_cast<status>(dnnl_sgemm_tp(
-            transa, transb, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc, tp));
-}
-/// @copydoc dnnl_gemm_u8s8s32_tp()
-inline status gemm_u8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
-        dnnl_dim_t N, dnnl_dim_t K, float alpha, const uint8_t *A,
-        dnnl_dim_t lda, uint8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,
-        float beta, int32_t *C, dnnl_dim_t ldc, const int32_t *co,
-        dnnl::threadpool_iface *tp) {
-    return static_cast<status>(dnnl_gemm_u8s8s32_tp(transa, transb, offsetc, M,
-            N, K, alpha, A, lda, ao, B, ldb, bo, beta, C, ldc, co, tp));
-}
-
-/// @copydoc dnnl_gemm_s8s8s32_tp()
-inline status gemm_s8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
-        dnnl_dim_t N, dnnl_dim_t K, float alpha, const int8_t *A,
-        dnnl_dim_t lda, int8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,
-        float beta, int32_t *C, dnnl_dim_t ldc, const int32_t *co,
-        dnnl::threadpool_iface *tp) {
-    return static_cast<status>(dnnl_gemm_s8s8s32_tp(transa, transb, offsetc, M,
-            N, K, alpha, A, lda, ao, B, ldb, bo, beta, C, ldc, co, tp));
-}
-#endif
 
 /// @} dnnl_api_blas
 

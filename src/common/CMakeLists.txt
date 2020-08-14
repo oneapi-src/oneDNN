@@ -21,6 +21,11 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
+if(NOT DNNL_CPU_RUNTIME STREQUAL "THREADPOOL")
+    # avoid building and linking empty objects
+    list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/stream_threadpool.cpp")
+endif()
+
 set(OBJ_LIB ${LIB_NAME}_common)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS

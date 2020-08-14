@@ -3288,35 +3288,6 @@ dnnl_status_t DNNL_API dnnl_stream_attr_create(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_stream_attr_destroy(dnnl_stream_attr_t attr);
 
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-/// Sets a threadpool to be used by the execution stream. Always returns
-/// dnnl_invalid_arguments unless oneDNN is built with threadpool runtime.
-///
-/// @sa @ref dev_guide_threadpool
-///
-/// @param attr Execution stream attributes.
-/// @param threadpool Pointer to an instance of a C++ class that implements
-///     dnnl::threapdool_iface interface.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_stream_attr_set_threadpool(
-        dnnl_stream_attr_t attr, void *threadpool);
-
-/// Returns a threadpool to be used by the execution stream. Always returns
-/// dnnl_invalid_arguments unless oneDNN is built with threadpool runtime.
-///
-/// @sa @ref dev_guide_threadpool
-///
-/// @param attr Execution stream attributes.
-/// @param threadpool Output pointer to an instance of a C++ class that
-///     implements dnnl::threapdool_iface interface. Set to NULL if the
-///     threadpool attribute was never set.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_stream_attr_get_threadpool(
-        dnnl_stream_attr_t attr, void **threadpool);
-#endif
-
 /// Creates an execution stream.
 ///
 /// @param stream Output execution stream.
@@ -3729,34 +3700,6 @@ dnnl_status_t DNNL_API dnnl_gemm_s8s8s32(char transa, char transb, char offsetc,
         dnnl_dim_t M, dnnl_dim_t N, dnnl_dim_t K, float alpha, const int8_t *A,
         dnnl_dim_t lda, int8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,
         float beta, int32_t *C, dnnl_dim_t ldc, const int32_t *co);
-
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-/// @copydoc dnnl_sgemm()
-/// @param tp A pointer to a threadpool interface (only when built with the
-///     THREADPOOL CPU runtime).
-dnnl_status_t DNNL_API dnnl_sgemm_tp(char transa, char transb, dnnl_dim_t M,
-        dnnl_dim_t N, dnnl_dim_t K, float alpha, const float *A, dnnl_dim_t lda,
-        const float *B, dnnl_dim_t ldb, float beta, float *C, dnnl_dim_t ldc,
-        void *tp);
-
-/// @copydoc dnnl_gemm_u8s8s32()
-/// @param tp A pointer to a threadpool interface (only when built with the
-///     THREADPOOL CPU runtime).
-dnnl_status_t DNNL_API dnnl_gemm_u8s8s32_tp(char transa, char transb,
-        char offsetc, dnnl_dim_t M, dnnl_dim_t N, dnnl_dim_t K, float alpha,
-        const uint8_t *A, dnnl_dim_t lda, uint8_t ao, const int8_t *B,
-        dnnl_dim_t ldb, int8_t bo, float beta, int32_t *C, dnnl_dim_t ldc,
-        const int32_t *co, void *tp);
-
-/// @copydoc dnnl_gemm_s8s8s32()
-/// @param tp A pointer to a threadpool interface (only when built with the
-///     THREADPOOL CPU runtime).
-dnnl_status_t DNNL_API dnnl_gemm_s8s8s32_tp(char transa, char transb,
-        char offsetc, dnnl_dim_t M, dnnl_dim_t N, dnnl_dim_t K, float alpha,
-        const int8_t *A, dnnl_dim_t lda, int8_t ao, const int8_t *B,
-        dnnl_dim_t ldb, int8_t bo, float beta, int32_t *C, dnnl_dim_t ldc,
-        const int32_t *co, void *tp);
-#endif
 
 /// @} dnnl_api_blas
 

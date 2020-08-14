@@ -114,6 +114,11 @@ public:
     virtual status_t create_stream(stream_t **stream, unsigned flags,
             const stream_attr_t *attr) override;
 
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    virtual status_t create_stream(
+            stream_t **stream, dnnl::threadpool_iface *threadpool) override;
+#endif
+
     virtual const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override {
         return cpu_engine_impl_list_t::get_concat_implementation_list();

@@ -17,6 +17,8 @@
 #ifndef CPU_CPU_STREAM_HPP
 #define CPU_CPU_STREAM_HPP
 
+#include "dnnl_config.h"
+
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include "dnnl_threadpool_iface.hpp"
 #endif
@@ -40,9 +42,12 @@ struct cpu_stream_t : public stream_t {
     }
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    cpu_stream_t(engine_t *engine, threadpool_iface *threadpool)
+        : stream_t(engine, threadpool) {}
+
     void before_exec_hook() override {
         threadpool_iface *tp;
-        auto rc = this->attr()->get_threadpool(&tp);
+        auto rc = this->get_threadpool(&tp);
         if (rc == status::success) threadpool_utils::activate_threadpool(tp);
     }
 

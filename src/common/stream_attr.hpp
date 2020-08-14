@@ -19,7 +19,6 @@
 
 #include <cassert>
 #include "dnnl.h"
-#include "dnnl_threadpool_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
@@ -27,36 +26,10 @@
 struct dnnl_stream_attr : public dnnl::impl::c_compatible {
     dnnl_stream_attr(dnnl::impl::engine_kind_t kind) : kind_(kind) {}
 
-    dnnl::impl::status_t set_threadpool(dnnl::threadpool_iface *threadpool) {
-        using namespace dnnl::impl;
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-        if (kind_ != engine_kind::cpu) return status::invalid_arguments;
-        threadpool_ = threadpool;
-        return status::success;
-#else
-        return status::invalid_arguments;
-#endif
-    }
-
-    dnnl::impl::status_t get_threadpool(
-            dnnl::threadpool_iface **threadpool) const {
-        using namespace dnnl::impl;
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-        if (kind_ != engine_kind::cpu) return status::invalid_arguments;
-        *threadpool = threadpool_;
-        return status::success;
-#else
-        return status::invalid_arguments;
-#endif
-    }
-
     dnnl::impl::engine_kind_t get_engine_kind() { return kind_; }
 
 private:
     dnnl::impl::engine_kind_t kind_;
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    dnnl::threadpool_iface *threadpool_ = nullptr;
-#endif
 };
 
 #endif

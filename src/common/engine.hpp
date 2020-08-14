@@ -19,6 +19,10 @@
 
 #include "dnnl.h"
 
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "dnnl_threadpool_iface.hpp"
+#endif
+
 #include "c_types_map.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
@@ -60,6 +64,13 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     virtual dnnl::impl::status_t create_stream(dnnl::impl::stream_t **stream,
             unsigned flags, const dnnl::impl::stream_attr_t *attr)
             = 0;
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    virtual dnnl::impl::status_t create_stream(
+            dnnl::impl::stream_t **stream, dnnl::threadpool_iface *threadpool) {
+        return dnnl::impl::status::invalid_arguments;
+    }
+#endif
 
     virtual dnnl::impl::status_t get_service_stream(
             dnnl::impl::stream_t *&stream) {
