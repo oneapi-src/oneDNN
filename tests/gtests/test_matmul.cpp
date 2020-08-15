@@ -76,7 +76,7 @@ struct matmul_attr_t {
     std::vector<post_op_t> post_ops;
 };
 
-struct matmul_test_params {
+struct matmul_test_params_t {
     matmul_base_t base;
     matmul_attr_t attr;
 
@@ -86,10 +86,11 @@ struct matmul_test_params {
 
 using tag = memory::format_tag;
 
-class matmul_iface_test : public ::testing::TestWithParam<matmul_test_params> {
+class matmul_iface_test_t
+    : public ::testing::TestWithParam<matmul_test_params_t> {
 protected:
     void SetUp() override {
-        matmul_test_params p
+        matmul_test_params_t p
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         SKIP_IF(unsupported_data_type(p.base.src.dt),
@@ -129,7 +130,7 @@ protected:
         return memory::desc(dims, desc.dt, strides);
     }
 
-    static void create_attr(const matmul_test_params &p, primitive_attr &attr,
+    static void create_attr(const matmul_test_params_t &p, primitive_attr &attr,
             memory &scales_m, memory &zero_points_src_m,
             memory &zero_points_weights_m, memory &zero_points_dst_m,
             engine &eng) {
@@ -224,8 +225,8 @@ protected:
     }
 
     void Test() {
-        matmul_test_params p
-                = ::testing::TestWithParam<matmul_test_params>::GetParam();
+        matmul_test_params_t p
+                = ::testing::TestWithParam<matmul_test_params_t>::GetParam();
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
@@ -309,14 +310,14 @@ protected:
 
 /********************************* TEST CASES *********************************/
 
-using iface = matmul_iface_test;
+using iface = matmul_iface_test_t;
 
 using data_type = memory::data_type;
 
 TEST_P(iface, TestsMatMul) {}
 
 static auto cases_ef = []() {
-    std::vector<matmul_test_params> cases;
+    std::vector<matmul_test_params_t> cases;
 
     // inconsistent dims
     cases.push_back(
@@ -370,7 +371,7 @@ static auto cases_ef = []() {
 INSTANTIATE_TEST_SUITE_P(EF, iface, cases_ef());
 
 static auto cases_f = [](memory::data_type dt) {
-    std::vector<matmul_test_params> cases;
+    std::vector<matmul_test_params_t> cases;
 
     // simple case
     cases.push_back({{{{10, 2}, dt, tag::ab}, {{2, 20}, dt, tag::ab},
@@ -433,7 +434,7 @@ GPU_INSTANTIATE_TEST_SUITE_P(Generic_bf16, iface, cases_f(data_type::bf16));
 INSTANTIATE_TEST_SUITE_P(Generic_f32, iface, cases_f(data_type::f32));
 
 static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
-    std::vector<matmul_test_params> cases;
+    std::vector<matmul_test_params_t> cases;
 
     // simple case
     cases.push_back(

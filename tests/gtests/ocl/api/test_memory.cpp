@@ -59,7 +59,7 @@ protected:
     dnnl_memory_t memory = nullptr;
 };
 
-class ocl_memory_test_cpp : public ::testing::Test {};
+class ocl_memory_test_cpp_t : public ::testing::Test {};
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(ocl_memory_test_c, BasicInteropC) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),

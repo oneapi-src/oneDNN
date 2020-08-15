@@ -23,7 +23,7 @@
 
 namespace dnnl {
 
-struct shuffle_test_params {
+struct shuffle_test_params_t {
     prop_kind aprop_kind;
     memory::format_tag data_format;
     memory::dims dims;
@@ -34,7 +34,7 @@ struct shuffle_test_params {
 };
 
 template <typename data_t>
-void check_shuffle(const shuffle_test_params &p, const memory &input,
+void check_shuffle(const shuffle_test_params_t &p, const memory &input,
         const memory &output, memory::dim ROW) {
     auto in_ptr = map_memory<data_t>(input);
     auto out_ptr = map_memory<data_t>(output);
@@ -79,10 +79,10 @@ void check_shuffle(const shuffle_test_params &p, const memory &input,
 }
 
 template <typename data_t>
-class shuffle_test : public ::testing::TestWithParam<shuffle_test_params> {
+class shuffle_test_t : public ::testing::TestWithParam<shuffle_test_params_t> {
 private:
     shuffle_forward::primitive_desc shuffle_fwd_prim_desc;
-    shuffle_test_params p;
+    shuffle_test_params_t p;
     memory::dims padR;
     engine eng;
     stream strm;
@@ -185,192 +185,192 @@ protected:
     }
 };
 
-using shuffle_test_float = shuffle_test<float>;
-using shuffle_test_float16 = shuffle_test<float16_t>;
-using shuffle_test_s8 = shuffle_test<int8_t>;
-using shuffle_test_u8 = shuffle_test<uint8_t>;
+using shuffle_test_float = shuffle_test_t<float>;
+using shuffle_test_float16 = shuffle_test_t<float16_t>;
+using shuffle_test_s8 = shuffle_test_t<int8_t>;
+using shuffle_test_u8 = shuffle_test_t<uint8_t>;
 
 #define INST_TEST_CASE(test) \
     TEST_P(test, TestsShuffle) {} \
     INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw16c, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw16c, {2, 16, 4, 4}, 2, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw16c, {2, 64, 4, 4}, 2, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw16c, {2, 32, 4, 4}, 2, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw16c, {2, 16, 4, 4}, 1, \
                             2})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw16c_Tail, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw16c, {2, 24, 4, 4}, 2, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw16c, {2, 66, 4, 4}, 1, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw16c, {2, 34, 4, 4}, 2, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw16c, {2, 12, 10, 10}, 1, \
                             2})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffle_NCHW, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 10, 4, 4}, 2, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 10, 4, 4}, 1, 5})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffle_NCDHW, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncdhw, {2, 10, 2, 4, 4}, 2, \
                             2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncdhw, {2, 10, 2, 4, 4}, 1, \
                             2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncdhw, {2, 10, 2, 4, 4}, 1, \
                             2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncdhw, {2, 10, 2, 4, 4}, 1, \
                             2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncdhw, {2, 12, 1, 7, 7}, 1, \
                             4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncdhw, {2, 12, 2, 7, 7}, 1, \
                             4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncdhw, {2, 12, 3, 7, 7}, 1, \
                             2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncdhw, {2, 12, 1, 7, 7}, 1, \
                             4})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffleNHWC, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nhwc, {2, 10, 4, 4}, 3, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nhwc, {2, 10, 4, 4}, 2, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nhwc, {2, 10, 4, 4}, 1, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nhwc, {2, 10, 4, 4}, 1, 2})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffle_nChw8c, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw8c, {2, 16, 4, 4}, 2, 4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw8c, {2, 16, 4, 4}, 2, 4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw8c, {2, 16, 4, 4}, 1, 8}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw8c, {2, 16, 4, 4}, 1, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw8c, {1, 8, 1, 1}, 1, 4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nChw8c, {1, 8, 1, 1}, 1, 2})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffle_nCdhw16c, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {2, 16, 2, 4, 4}, 1, \
                             2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {2, 16, 2, 4, 4}, 3, \
                             4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {2, 16, 2, 4, 4}, 1, \
                             8}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {2, 16, 2, 4, 4}, 1, \
                             2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {1, 16, 2, 1, 1}, 1, \
                             4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {1, 16, 2, 1, 1}, 1, \
                             2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {1, 16, 2, 1, 1}, 1, \
                             2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {1, 16, 2, 1, 1}, 1, \
                             4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {1, 32, 1, 5, 5}, 1, \
                             4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {1, 32, 1, 5, 5}, 1, \
                             8}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {1, 32, 1, 5, 5}, 1, \
                             2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nCdhw16c, {1, 32, 1, 15, 15}, \
                             3, 5})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffle_OIHW, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::oihw, {2, 16, 4, 4}, 2, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::oihw, {2, 64, 4, 4}, 2, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::oihw, {2, 32, 4, 4}, 2, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::oihw, {2, 16, 4, 4}, 1, 2})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffle_NC, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nc, {10, 8}, 1, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nc, {10, 8}, 1, 4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nc, {2, 32}, 0, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nc, {10, 32}, 0, 5})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffle_NCW, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncw, {10, 8, 5}, 1, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncw, {10, 8, 5}, 1, 4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncw, {2, 32, 5}, 0, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::ncw, {10, 32, 5}, 0, 5})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffle_X, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::x, {10}, 0, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::x, {8}, 0, 4}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::x, {2}, 0, 2}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::x, {10}, 0, 5})); \
 \
     INSTANTIATE_TEST_SUITE_P(TestShuffleEF_NCHW, test, \
             ::testing::Values( \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 15, 4, 4}, 1, 2, \
                             true, dnnl_invalid_arguments}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 64, 7, 7}, 2, 2, \
                             true, dnnl_invalid_arguments}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 32, 11, 11}, 2, 2, \
                             true, dnnl_invalid_arguments}, \
-                    shuffle_test_params {prop_kind::forward_training, \
+                    shuffle_test_params_t {prop_kind::forward_training, \
                             memory::format_tag::nchw, {2, 16, 4, 4}, 4, 2, \
                             true, dnnl_invalid_arguments}));
 

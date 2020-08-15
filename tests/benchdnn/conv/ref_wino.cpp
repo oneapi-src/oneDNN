@@ -22,9 +22,9 @@
 namespace conv {
 
 template <typename Telem, size_t Tdims>
-struct array_offset_calculator {
+struct array_offset_calculator_t {
     template <typename... Targs>
-    array_offset_calculator(Telem *base, Targs... Fargs) : _dims {Fargs...} {
+    array_offset_calculator_t(Telem *base, Targs... Fargs) : _dims {Fargs...} {
         _base_ptr = base;
     }
     template <typename... Targs>
@@ -291,11 +291,11 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
     scratchpad_t sp {};
     SAFE_V(init_scratchpad(p, sp));
 
-    array_offset_calculator<float, 4> U(
+    array_offset_calculator_t<float, 4> U(
             sp._u_ptr, sp.alpha, sp.alpha, p->oc, p->ic);
-    array_offset_calculator<float, 6> V(sp._v_ptr, sp.alpha, sp.alpha, p->ic,
+    array_offset_calculator_t<float, 6> V(sp._v_ptr, sp.alpha, sp.alpha, p->ic,
             p->mb, sp.h_tiles, sp.w_tiles);
-    array_offset_calculator<float, 6> M(sp._m_ptr, sp.alpha, sp.alpha, p->oc,
+    array_offset_calculator_t<float, 6> M(sp._m_ptr, sp.alpha, sp.alpha, p->oc,
             p->mb, sp.h_tiles, sp.w_tiles);
 
     SAFE_V(p->kh == 3 ? OK : FAIL);
@@ -401,11 +401,11 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
     scratchpad_t sp {};
     SAFE_V(init_scratchpad(p, sp));
 
-    array_offset_calculator<float, 4> U(
+    array_offset_calculator_t<float, 4> U(
             sp._u_ptr, sp.alpha, sp.alpha, p->ic, p->oc);
-    array_offset_calculator<float, 6> V(sp._m_ptr, sp.alpha, sp.alpha, p->oc,
+    array_offset_calculator_t<float, 6> V(sp._m_ptr, sp.alpha, sp.alpha, p->oc,
             p->mb, sp.h_tiles, sp.w_tiles);
-    array_offset_calculator<float, 6> M(sp._v_ptr, sp.alpha, sp.alpha, p->ic,
+    array_offset_calculator_t<float, 6> M(sp._v_ptr, sp.alpha, sp.alpha, p->ic,
             p->mb, sp.h_tiles, sp.w_tiles);
 
     SAFE_V(p->kh == 3 ? OK : FAIL);
@@ -509,11 +509,11 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     scratchpad_t sp {};
     SAFE_V(init_scratchpad(p, sp));
 
-    array_offset_calculator<float, 4> U(
+    array_offset_calculator_t<float, 4> U(
             sp._u_ptr, sp.alpha, sp.alpha, p->oc, p->ic);
-    array_offset_calculator<float, 6> V(sp._v_ptr, sp.alpha, sp.alpha, p->mb,
+    array_offset_calculator_t<float, 6> V(sp._v_ptr, sp.alpha, sp.alpha, p->mb,
             sp.h_tiles, sp.w_tiles, p->ic);
-    array_offset_calculator<float, 6> M(sp._m_ptr, sp.alpha, sp.alpha, p->oc,
+    array_offset_calculator_t<float, 6> M(sp._m_ptr, sp.alpha, sp.alpha, p->oc,
             p->mb, sp.h_tiles, sp.w_tiles);
 
     SAFE_V(p->kh == 3 ? OK : FAIL);

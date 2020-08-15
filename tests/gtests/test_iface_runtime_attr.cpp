@@ -27,7 +27,7 @@ namespace dnnl {
 using data_type = memory::data_type;
 using tag = memory::format_tag;
 
-class runtime_attr_test : public ::testing::Test {
+class runtime_attr_test_t : public ::testing::Test {
 protected:
     engine eng = get_test_engine();
     void SetUp() override {}
@@ -61,7 +61,7 @@ protected:
 // TODO: replace primitive descriptor creation with iterator fetching
 //       to test all possible implementations
 
-TEST_F(runtime_attr_test, TestBNorm) {
+TEST_F(runtime_attr_test_t, TestBNorm) {
     for (auto dt : {data_type::f32, data_type::s8}) {
         // no s8 -> s8 batch norm on GPU yet
         if (get_test_engine_kind() == engine::kind::gpu && dt == data_type::s8)
@@ -87,7 +87,7 @@ TEST_F(runtime_attr_test, TestBNorm) {
     }
 }
 
-TEST_F(runtime_attr_test, TestBinary) {
+TEST_F(runtime_attr_test_t, TestBinary) {
     memory::desc md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     binary::desc op_d(algorithm::binary_add, md, md, md);
     CHECK_OK(binary::primitive_desc(op_d, eng));
@@ -103,7 +103,7 @@ TEST_F(runtime_attr_test, TestBinary) {
     }
 }
 
-TEST_F(runtime_attr_test, TestConcat) {
+TEST_F(runtime_attr_test_t, TestConcat) {
     memory::desc md {{1, 16, 3, 3}, data_type::s8, tag::abcd};
     CHECK_OK(concat::primitive_desc(1, {md, md}, eng));
     CHECK_UNIMPL(concat::primitive_desc(
@@ -120,7 +120,7 @@ TEST_F(runtime_attr_test, TestConcat) {
     }
 }
 
-TEST_F(runtime_attr_test, TestConv) {
+TEST_F(runtime_attr_test_t, TestConv) {
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::s8, tag::any};
     memory::desc dst_md {{1, 32, 7, 7}, data_type::s32, tag::any};
@@ -158,7 +158,7 @@ TEST_F(runtime_attr_test, TestConv) {
     }
 }
 
-TEST_F(runtime_attr_test, TestDeconv) {
+TEST_F(runtime_attr_test_t, TestDeconv) {
     memory::desc src_md {{1, 16, 7, 7}, data_type::f32, tag::any};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::f32, tag::any};
     memory::desc dst_md {{1, 32, 7, 7}, data_type::f32, tag::any};
@@ -180,7 +180,7 @@ TEST_F(runtime_attr_test, TestDeconv) {
     }
 }
 
-TEST_F(runtime_attr_test, TestEltwise) {
+TEST_F(runtime_attr_test_t, TestEltwise) {
     for (auto dt : {data_type::f32, data_type::s8}) {
         memory::desc md {{1, 16, 3, 3}, dt, tag::abcd};
         eltwise_forward::desc op_d(
@@ -200,7 +200,7 @@ TEST_F(runtime_attr_test, TestEltwise) {
     }
 }
 
-TEST_F(runtime_attr_test, TestInnerProduct) {
+TEST_F(runtime_attr_test_t, TestInnerProduct) {
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{32, 16, 7, 7}, data_type::s8, tag::any};
     memory::desc dst_md {{1, 32}, data_type::s32, tag::any};
@@ -221,7 +221,7 @@ TEST_F(runtime_attr_test, TestInnerProduct) {
     }
 }
 
-TEST_F(runtime_attr_test, TestLNorm) {
+TEST_F(runtime_attr_test_t, TestLNorm) {
     for (auto dt : {data_type::f32}) {
         memory::desc md {{1, 16, 16}, dt, tag::abc};
         memory::desc stat_md {{1, 16}, data_type::f32, tag::ab};
@@ -244,7 +244,7 @@ TEST_F(runtime_attr_test, TestLNorm) {
     }
 }
 
-TEST_F(runtime_attr_test, TestLRN) {
+TEST_F(runtime_attr_test_t, TestLRN) {
     for (auto dt : {data_type::f32}) {
         memory::desc md {{1, 16, 3, 3}, dt, tag::abcd};
         lrn_forward::desc op_d(prop_kind::forward_inference,
@@ -264,7 +264,7 @@ TEST_F(runtime_attr_test, TestLRN) {
     }
 }
 
-CPU_TEST_F(runtime_attr_test, TestMatmul) {
+CPU_TEST_F(runtime_attr_test_t, TestMatmul) {
     for (auto a_dt : {data_type::f32, data_type::u8}) {
         const data_type b_dt
                 = a_dt == data_type::f32 ? data_type::f32 : data_type::s8;
@@ -297,7 +297,7 @@ CPU_TEST_F(runtime_attr_test, TestMatmul) {
     }
 }
 
-TEST_F(runtime_attr_test, TestPool) {
+TEST_F(runtime_attr_test_t, TestPool) {
     memory::desc src_md {{1, 16, 8, 8}, data_type::s8, tag::abcd};
     memory::desc dst_md {{1, 16, 4, 4}, data_type::s8, tag::abcd};
     pooling_forward::desc op_d(prop_kind::forward_inference,
@@ -317,7 +317,7 @@ TEST_F(runtime_attr_test, TestPool) {
     }
 }
 
-CPU_TEST_F(runtime_attr_test, TestReorder) {
+CPU_TEST_F(runtime_attr_test_t, TestReorder) {
     memory::desc src_md {{1, 16, 8, 8}, data_type::s8, tag::abcd};
     memory::desc dst_md {{1, 16, 8, 8}, data_type::s8, tag::acdb};
     CHECK_OK(reorder::primitive_desc(eng, src_md, eng, dst_md));
@@ -334,7 +334,7 @@ CPU_TEST_F(runtime_attr_test, TestReorder) {
     }
 }
 
-TEST_F(runtime_attr_test, TestRNN) {
+TEST_F(runtime_attr_test_t, TestRNN) {
 #if !DNNL_X64
     return;
 #endif
@@ -380,7 +380,7 @@ TEST_F(runtime_attr_test, TestRNN) {
     }
 }
 
-TEST_F(runtime_attr_test, TestShuffle) {
+TEST_F(runtime_attr_test_t, TestShuffle) {
     memory::desc md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     shuffle_forward::desc op_d(prop_kind::forward, md, 1, 4);
     CHECK_OK(shuffle_forward::primitive_desc(op_d, eng));
@@ -397,7 +397,7 @@ TEST_F(runtime_attr_test, TestShuffle) {
     }
 }
 
-TEST_F(runtime_attr_test, TestSoftmax) {
+TEST_F(runtime_attr_test_t, TestSoftmax) {
     memory::desc md {{2, 16}, data_type::f32, tag::ab};
     softmax_forward::desc op_d(prop_kind::forward, md, 1);
     CHECK_OK(softmax_forward::primitive_desc(op_d, eng));
@@ -414,7 +414,7 @@ TEST_F(runtime_attr_test, TestSoftmax) {
     }
 }
 
-TEST_F(runtime_attr_test, TestSum) {
+TEST_F(runtime_attr_test_t, TestSum) {
     memory::desc md {{1, 16, 3, 3}, data_type::s8, tag::abcd};
     CHECK_OK(sum::primitive_desc({1.f, 1.f}, {md, md}, eng));
     CHECK_UNIMPL(sum::primitive_desc(

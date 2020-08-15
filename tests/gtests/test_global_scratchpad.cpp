@@ -30,7 +30,7 @@ using tag = memory::format_tag;
 // The cause was thread-local non-trivially-constructed object in
 // global_scratchpad_t object which got destroyed before global_scratchpad_t
 // causing a crash.
-class global_scratchpad : public ::testing::Test {};
+class global_scratchpad_t : public ::testing::Test {};
 
 struct conv_ctx_t {
     conv_ctx_t() : eng_(engine::kind::cpu, 0) {}

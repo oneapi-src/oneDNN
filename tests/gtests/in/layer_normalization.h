@@ -56,7 +56,7 @@
 
 #define CPU_INST_TEST_CASE(str, ...) \
     CPU_INSTANTIATE_TEST_SUITE_P( \
-            str, lnorm_test, ::testing::Values(__VA_ARGS__));
+            str, lnorm_test_t, ::testing::Values(__VA_ARGS__));
 
 CPU_INST_TEST_CASE(SimpleExpectedFails,
         PARAMS_EF({-1, 27, 9}, EPS, true, dnnl_invalid_arguments),

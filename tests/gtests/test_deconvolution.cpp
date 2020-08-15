@@ -21,7 +21,7 @@
 #include "dnnl_debug.h"
 namespace dnnl {
 using fmt = memory::format_tag;
-struct deconvolution_test_params {
+struct deconvolution_test_params_t {
     dnnl::algorithm aalgorithm;
     test_convolution_formats_t formats;
     test_convolution_attr_t attr;
@@ -106,8 +106,8 @@ void transpose_wei(const test_convolution_sizes_t &c,
 }
 
 template <typename data_t>
-class deconvolution_test
-    : public ::testing::TestWithParam<deconvolution_test_params> {
+class deconvolution_test_t
+    : public ::testing::TestWithParam<deconvolution_test_params_t> {
 private:
     std::shared_ptr<test_memory> src;
     std::shared_ptr<test_memory> weights;
@@ -132,14 +132,14 @@ private:
 protected:
     void SetUp() override {
         auto p = ::testing::TestWithParam<
-                deconvolution_test_params>::GetParam();
+                deconvolution_test_params_t>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
     void Test() {
         auto p = ::testing::TestWithParam<
-                deconvolution_test_params>::GetParam();
+                deconvolution_test_params_t>::GetParam();
 
         eng = get_test_engine();
         strm = make_stream(eng);
@@ -196,8 +196,8 @@ protected:
     }
     void Forward() {
         auto aprop_kind = prop_kind::forward;
-        deconvolution_test_params p = ::testing::TestWithParam<
-                deconvolution_test_params>::GetParam();
+        deconvolution_test_params_t p = ::testing::TestWithParam<
+                deconvolution_test_params_t>::GetParam();
         auto conv_src = test_memory(*con_src_desc, eng);
         auto conv_dst = src;
         test_convolution_sizes_t dd = p.sizes;
@@ -276,7 +276,7 @@ protected:
 
     void BackwardData() {
         auto p = ::testing::TestWithParam<
-                deconvolution_test_params>::GetParam();
+                deconvolution_test_params_t>::GetParam();
         auto conv_src = dst;
         auto conv_dst = test_memory(*con_dst_desc, eng);
         test_convolution_sizes_t dd = p.sizes;
@@ -344,7 +344,7 @@ protected:
 
     void BackwardWeights() {
         auto p = ::testing::TestWithParam<
-                deconvolution_test_params>::GetParam();
+                deconvolution_test_params_t>::GetParam();
         auto conv_src = dst;
         auto conv_dst = src;
         auto conv_weights = memory(*con_weights_desc, eng);
@@ -430,7 +430,7 @@ protected:
     }
 };
 
-using deconvolution_test_float = deconvolution_test<float>;
+using deconvolution_test_float = deconvolution_test_t<float>;
 
 TEST_P(deconvolution_test_float, TestDeconvolution) {}
 
@@ -443,7 +443,7 @@ TEST_P(deconvolution_test_float, TestDeconvolution) {}
 #define ALGORITHM dnnl::algorithm::deconvolution_direct
 
 #define PARAMS(src, weights, bias, dst, ...) \
-    deconvolution_test_params { \
+    deconvolution_test_params_t { \
         ALGORITHM, EXPAND_FORMATS(src, weights, bias, dst), {}, { \
             __VA_ARGS__ \
         } \

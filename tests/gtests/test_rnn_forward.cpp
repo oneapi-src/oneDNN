@@ -61,7 +61,7 @@ struct test_rnn_params_t {
 
 // We assume uniform data type accross tensors for now
 template <typename T, typename data_t>
-class rnn_forward_test : public ::testing::TestWithParam<test_rnn_params_t> {
+class rnn_forward_test_t : public ::testing::TestWithParam<test_rnn_params_t> {
 
 private:
     memory::dim getNGates();
@@ -400,13 +400,14 @@ protected:
 
 /* RNN specializations */
 template <>
-memory::dim rnn_forward_test<vanilla_rnn_forward, float>::getNGates() {
+memory::dim rnn_forward_test_t<vanilla_rnn_forward, float>::getNGates() {
     return 1;
 }
 
 template <>
-vanilla_rnn_forward::desc rnn_forward_test<vanilla_rnn_forward, float>::setDesc(
-        prop_kind aprop, algorithm activation, rnn_direction direction,
+vanilla_rnn_forward::desc
+rnn_forward_test_t<vanilla_rnn_forward, float>::setDesc(prop_kind aprop,
+        algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
         const memory::desc &src_iter_c_md, const memory::desc &weights_layer_md,
         const memory::desc &weights_iter_md, const memory::desc &,
@@ -422,12 +423,12 @@ vanilla_rnn_forward::desc rnn_forward_test<vanilla_rnn_forward, float>::setDesc(
 
 /* LSTM specializations */
 template <>
-memory::dim rnn_forward_test<lstm_forward, float>::getNGates() {
+memory::dim rnn_forward_test_t<lstm_forward, float>::getNGates() {
     return 4;
 }
 
 template <>
-lstm_forward::desc rnn_forward_test<lstm_forward, float>::setDesc(
+lstm_forward::desc rnn_forward_test_t<lstm_forward, float>::setDesc(
         prop_kind aprop, algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
         const memory::desc &src_iter_c_md, const memory::desc &weights_layer_md,
@@ -445,7 +446,7 @@ lstm_forward::desc rnn_forward_test<lstm_forward, float>::setDesc(
 }
 
 template <>
-bool rnn_forward_test<lstm_forward, float>::skipTest(bool src_layer_match,
+bool rnn_forward_test_t<lstm_forward, float>::skipTest(bool src_layer_match,
         bool src_iter_match, bool src_iter_c_match, bool weights_layer_match,
         bool weights_iter_match, bool bias_match, bool dst_layer_match,
         bool dst_iter_match, bool dst_iter_c_match) {
@@ -455,38 +456,38 @@ bool rnn_forward_test<lstm_forward, float>::skipTest(bool src_layer_match,
 }
 
 template <>
-memory::desc rnn_forward_test<lstm_forward, float>::querySrcIterC(
+memory::desc rnn_forward_test_t<lstm_forward, float>::querySrcIterC(
         const lstm_forward::primitive_desc &rpd) {
     return rpd.src_iter_c_desc();
 }
 
 template <>
-memory::desc rnn_forward_test<lstm_forward, float>::queryWeightsPeephole(
+memory::desc rnn_forward_test_t<lstm_forward, float>::queryWeightsPeephole(
         const lstm_forward::primitive_desc &rpd) {
     return rpd.weights_peephole_desc();
 }
 
 template <>
-memory::desc rnn_forward_test<lstm_forward, float>::queryWeightsProjection(
+memory::desc rnn_forward_test_t<lstm_forward, float>::queryWeightsProjection(
         const lstm_forward::primitive_desc &rpd) {
     return rpd.weights_projection_desc();
 }
 
 template <>
-memory::desc rnn_forward_test<lstm_forward, float>::queryDstIterC(
+memory::desc rnn_forward_test_t<lstm_forward, float>::queryDstIterC(
         const lstm_forward::primitive_desc &rpd) {
     return rpd.dst_iter_c_desc();
 }
 
 /* GRU specializations */
 template <>
-memory::dim rnn_forward_test<gru_forward, float>::getNGates() {
+memory::dim rnn_forward_test_t<gru_forward, float>::getNGates() {
     return 3;
 }
 
 template <>
-gru_forward::desc rnn_forward_test<gru_forward, float>::setDesc(prop_kind aprop,
-        algorithm activation, rnn_direction direction,
+gru_forward::desc rnn_forward_test_t<gru_forward, float>::setDesc(
+        prop_kind aprop, algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
         const memory::desc &src_iter_c_md, const memory::desc &weights_layer_md,
         const memory::desc &weights_iter_md, const memory::desc &,
@@ -502,12 +503,12 @@ gru_forward::desc rnn_forward_test<gru_forward, float>::setDesc(prop_kind aprop,
 
 /* LBR GRU specializations */
 template <>
-memory::dim rnn_forward_test<lbr_gru_forward, float>::getNGates() {
+memory::dim rnn_forward_test_t<lbr_gru_forward, float>::getNGates() {
     return 3;
 }
 
 template <>
-lbr_gru_forward::desc rnn_forward_test<lbr_gru_forward, float>::setDesc(
+lbr_gru_forward::desc rnn_forward_test_t<lbr_gru_forward, float>::setDesc(
         prop_kind aprop, algorithm activation, rnn_direction direction,
         const memory::desc &src_layer_md, const memory::desc &src_iter_md,
         const memory::desc &src_iter_c_md, const memory::desc &weights_layer_md,
@@ -526,10 +527,10 @@ using eng = engine::kind;
 using fmt = memory::format_tag;
 using alg = algorithm;
 using dir = rnn_direction;
-using rnn_forward_test_f32 = rnn_forward_test<vanilla_rnn_forward, float>;
-using lstm_forward_test_f32 = rnn_forward_test<lstm_forward, float>;
-using gru_forward_test_f32 = rnn_forward_test<gru_forward, float>;
-using lbr_gru_forward_test_f32 = rnn_forward_test<lbr_gru_forward, float>;
+using rnn_forward_test_f32 = rnn_forward_test_t<vanilla_rnn_forward, float>;
+using lstm_forward_test_f32 = rnn_forward_test_t<lstm_forward, float>;
+using gru_forward_test_f32 = rnn_forward_test_t<gru_forward, float>;
+using lbr_gru_forward_test_f32 = rnn_forward_test_t<lbr_gru_forward, float>;
 
 using cfg_f32 = test_rnn_params_t;
 

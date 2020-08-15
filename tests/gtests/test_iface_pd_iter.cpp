@@ -24,7 +24,7 @@ namespace dnnl {
 
 const dnnl_status_t ok = dnnl_success;
 
-class pd_iter_test : public ::testing::Test {
+class pd_iter_test_t : public ::testing::Test {
 protected:
     dnnl_engine_t engine;
     void SetUp() override {
@@ -35,7 +35,7 @@ protected:
     void TearDown() override { dnnl_engine_destroy(engine); }
 };
 
-TEST_F(pd_iter_test, TestReLUImpls) {
+TEST_F(pd_iter_test_t, TestReLUImpls) {
     dnnl_memory_desc_t dense_md;
     dnnl_dims_t dims = {4, 16, 16, 16};
     ASSERT_EQ(dnnl_memory_desc_init_by_tag(

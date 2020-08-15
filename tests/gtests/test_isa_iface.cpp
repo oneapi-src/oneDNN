@@ -21,7 +21,7 @@
 
 namespace dnnl {
 
-class isa_set_once_test : public ::testing::Test {};
+class isa_set_once_test_t : public ::testing::Test {};
 TEST(isa_set_once_test, TestISASetOnce) {
     auto st = set_max_cpu_isa(cpu_isa::sse41);
     ASSERT_TRUE(st == status::success || st == status::unimplemented);

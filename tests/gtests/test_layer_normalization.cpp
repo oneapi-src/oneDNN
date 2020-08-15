@@ -23,7 +23,7 @@
 
 #define CPU_INST_TEST_CASE(str, ...) \
     CPU_INSTANTIATE_TEST_SUITE_P( \
-            str, lnorm_test, ::testing::Values(__VA_ARGS__));
+            str, lnorm_test_t, ::testing::Values(__VA_ARGS__));
 
 namespace dnnl {
 
@@ -43,7 +43,7 @@ void fill(const memory &m) {
     fill_data<T>(numElements, m);
 }
 
-class lnorm_test : public ::testing::TestWithParam<test_lnorm_params_t> {
+class lnorm_test_t : public ::testing::TestWithParam<test_lnorm_params_t> {
 private:
     std::shared_ptr<test_memory> src, dst, diff_src, diff_dst;
     memory weights, diff_weights, mean, variance;
@@ -573,7 +573,7 @@ private:
     }
 };
 
-TEST_P(lnorm_test, TestsLnormF32) {}
+TEST_P(lnorm_test_t, TestsLnormF32) {}
 
 #include "layer_normalization.h"
 } // namespace dnnl

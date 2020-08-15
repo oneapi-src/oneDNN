@@ -21,7 +21,7 @@
 
 namespace dnnl {
 
-class handle_test : public ::testing::Test {
+class handle_test_t : public ::testing::Test {
 public:
     engine e;
 
@@ -29,7 +29,7 @@ protected:
     void SetUp() override { e = get_test_engine(); }
 };
 
-TEST_F(handle_test, TestHandleConstructorsAndOperators) {
+TEST_F(handle_test_t, TestHandleConstructorsAndOperators) {
     // The initial state is 0
     convolution_forward::primitive_desc pd;
     ASSERT_TRUE((bool)pd == false);

@@ -72,12 +72,12 @@ protected:
 // jit kernels
 namespace {
 
-struct jit_avx512_common_resampling
+struct jit_avx512_common_resampling_t
     : public jit_avx512_common_resampling_kernel,
       public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_resampling)
 
-    jit_avx512_common_resampling(const resampling_pd_t *pd)
+    jit_avx512_common_resampling_t(const resampling_pd_t *pd)
         : jit_avx512_common_resampling_kernel(pd) {
 
         if (pd_->is_fwd()) {
@@ -886,7 +886,7 @@ inline jit_avx512_common_resampling_fwd_t<
 
 template <impl::data_type_t d_type>
 status_t jit_avx512_common_resampling_fwd_t<d_type>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(kernel_, new jit_avx512_common_resampling(pd())));
+    CHECK(safe_ptr_assign(kernel_, new jit_avx512_common_resampling_t(pd())));
     return kernel_->create_kernel();
 }
 
@@ -962,7 +962,7 @@ inline jit_avx512_common_resampling_bwd_t<
 
 template <impl::data_type_t d_type>
 status_t jit_avx512_common_resampling_bwd_t<d_type>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(kernel_, new jit_avx512_common_resampling(pd())));
+    CHECK(safe_ptr_assign(kernel_, new jit_avx512_common_resampling_t(pd())));
     return kernel_->create_kernel();
 }
 

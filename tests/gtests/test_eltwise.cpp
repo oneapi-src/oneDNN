@@ -168,7 +168,7 @@ T gelu_erf_bwd(T dd, T s) {
             * (1.f + ::erff(v) + v * two_over_sqrt_pi * ::expf(-v * v)));
 }
 
-struct eltwise_test_params {
+struct eltwise_test_params_t {
     algorithm alg_kind;
     memory::format_tag data_format;
     memory::format_tag diff_format;
@@ -187,7 +187,7 @@ memory::dim n_elems(const memory::desc &md) {
 }
 
 template <typename data_t>
-void check_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
+void check_eltwise_fwd(const eltwise_test_params_t &p, const memory::desc &md,
         const memory &src, const memory &dst) {
     auto src_data = map_memory<data_t>(src);
     auto dst_data = map_memory<data_t>(dst);
@@ -221,7 +221,7 @@ void check_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
 }
 
 template <typename data_t>
-void compare_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
+void compare_eltwise_fwd(const eltwise_test_params_t &p, const memory::desc &md,
         const memory &dst, const memory &ref_dst) {
     data_t eps;
     if (data_traits<data_t>::data_type == memory::data_type::s8
@@ -244,7 +244,7 @@ void compare_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
 }
 
 template <typename data_t>
-void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
+void check_eltwise_bwd(const eltwise_test_params_t &p, const memory::desc &md,
         const memory &src, const memory &diff_dst, const memory &diff_src) {
     auto src_data = map_memory<data_t>(src);
     auto diff_dst_data = map_memory<data_t>(diff_dst);
@@ -326,12 +326,12 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
 }
 
 template <typename data_t>
-class eltwise_test : public ::testing::TestWithParam<eltwise_test_params> {
+class eltwise_test_t : public ::testing::TestWithParam<eltwise_test_params_t> {
 private:
     memory src;
     std::shared_ptr<memory::desc> data_desc;
     eltwise_forward::primitive_desc eltwise_prim_desc;
-    eltwise_test_params p;
+    eltwise_test_params_t p;
     engine eng;
     stream strm;
     memory::data_type data_type;
@@ -353,7 +353,7 @@ protected:
     }
 
     void Test() {
-        p = ::testing::TestWithParam<eltwise_test_params>::GetParam();
+        p = ::testing::TestWithParam<eltwise_test_params_t>::GetParam();
 
         eng = get_test_engine();
         strm = make_stream(eng);
@@ -442,11 +442,11 @@ protected:
     }
 };
 
-using eltwise_test_f16 = eltwise_test<float16_t>;
-using eltwise_test_bf16 = eltwise_test<bfloat16_t>;
-using eltwise_test_f32 = eltwise_test<float>;
-using eltwise_test_s32 = eltwise_test<int>;
-using eltwise_test_s8 = eltwise_test<int8_t>;
+using eltwise_test_f16 = eltwise_test_t<float16_t>;
+using eltwise_test_bf16 = eltwise_test_t<bfloat16_t>;
+using eltwise_test_f32 = eltwise_test_t<float>;
+using eltwise_test_s32 = eltwise_test_t<int>;
+using eltwise_test_s8 = eltwise_test_t<int8_t>;
 
 TEST_P(eltwise_test_f16, TestsEltwise) {}
 
@@ -465,7 +465,7 @@ TEST_P(eltwise_test_s8, TestsEltwise) {}
     { __VA_ARGS__ }
 
 #define PARAMS(alg, data, diff_data, alpha, beta, ...) \
-    eltwise_test_params { \
+    eltwise_test_params_t { \
         algorithm::alg, EXPAND_FORMATS(data), EXPAND_FORMATS(diff_data), \
                 alpha, beta, EXPAND_DIMS(__VA_ARGS__) \
     }
@@ -531,7 +531,7 @@ INST_TEST_CASE(SimpleZeroDim,
         PARAMS_ALL_ALG_SDPART(nCdhw16c, nCdhw16c, 0.1f, 0.2f, 4, 0, 2, 2, 2));
 
 #define CASE_EF(alg, d0, d1, d2, d3) \
-    eltwise_test_params { \
+    eltwise_test_params_t { \
         algorithm::eltwise_##alg, EXPAND_FORMATS(nchw), EXPAND_FORMATS(nchw), \
                 0.f, 0.f, {d0, d1, d2, d3}, true, dnnl_invalid_arguments \
     }

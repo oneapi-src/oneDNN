@@ -56,10 +56,10 @@ namespace x64 {
 namespace avx512_common_gemm_f32 {
 using namespace gemm_utils;
 
-struct xbyak_gemm : public jit_generator {
+struct xbyak_gemm_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_gemm_f32_xbyak_gemm)
 
-    xbyak_gemm(char isTransA, char isTransB, float beta, bool hasBias = false,
+    xbyak_gemm_t(char isTransA, char isTransB, float beta, bool hasBias = false,
             void *code_ptr = nullptr,
             size_t code_size = 80 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size)
@@ -1733,14 +1733,14 @@ private:
     const bool hasBias;
 };
 
-xbyak_gemm *get_xbyak_gemm(
+xbyak_gemm_t *get_xbyak_gemm(
         bool isTransA, bool isTransB, float beta, bool hasBias) {
     auto beta_idx = [](float beta) {
         return (beta == 0.0) ? 0 : (beta == 1.0 ? 1 : 2);
     };
 
     // Kernel table [isTransA][isTransB][hasBias][beta (0, 1, other)]
-    static xbyak_gemm *kernel_table[2][2][2][3];
+    static xbyak_gemm_t *kernel_table[2][2][2][3];
     static std::once_flag initialized;
     dnnl_status_t st = dnnl_success;
     std::call_once(initialized, [&] {
@@ -1753,7 +1753,7 @@ xbyak_gemm *get_xbyak_gemm(
                         auto &kern = kernel_table[isTransA][isTransB][hasBias]
                                                  [beta_idx(beta)];
 
-                        kern = new xbyak_gemm(
+                        kern = new xbyak_gemm_t(
                                 isTransA, isTransB, beta, hasBias);
                         if (kern->create_kernel() != dnnl_success) {
                             st = dnnl_runtime_error;

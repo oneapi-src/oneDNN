@@ -35,7 +35,7 @@ struct params_t {
 
 using params_w_engine_t = std::tuple<dnnl::engine::kind, params_t>;
 
-class memory_creation_test
+class memory_creation_test_t
     : public ::testing::TestWithParam<params_w_engine_t> {
 protected:
     void SetUp() override {
@@ -96,7 +96,7 @@ protected:
     params_t p;
 };
 
-TEST_P(memory_creation_test, TestsMemoryCreation) {
+TEST_P(memory_creation_test_t, TestsMemoryCreation) {
     SKIP_IF(eng.get(true) == nullptr, "Engine is not supported");
     catch_expected_failures([=]() { Test(); },
             p.expected_status != dnnl_success, p.expected_status);
@@ -161,20 +161,20 @@ auto cases_generic = ::testing::Values(params_t {{2, 15, 3, 2}, fmt::nChw16c},
         params_t {{2, 17, 9, 3, 2}, fmt::gOIhw16i16o2i});
 } // namespace
 
-INSTANTIATE_TEST_SUITE_P(TestMemoryCreationEF, memory_creation_test,
+INSTANTIATE_TEST_SUITE_P(TestMemoryCreationEF, memory_creation_test_t,
         ::testing::Combine(all_engine_kinds, cases_expect_to_fail));
 
-INSTANTIATE_TEST_SUITE_P(TestMemoryCreationZeroDim, memory_creation_test,
+INSTANTIATE_TEST_SUITE_P(TestMemoryCreationZeroDim, memory_creation_test_t,
         ::testing::Combine(all_engine_kinds, cases_zero_dim));
 
-INSTANTIATE_TEST_SUITE_P(TestMemoryCreationOK, memory_creation_test,
+INSTANTIATE_TEST_SUITE_P(TestMemoryCreationOK, memory_creation_test_t,
         ::testing::Combine(all_engine_kinds, cases_generic));
 
-class c_api_memory_test : public ::testing::Test {
+class c_api_memory_test_t : public ::testing::Test {
     void SetUp() override {}
 };
 
-TEST_F(c_api_memory_test, TestZeroPadBoom) {
+TEST_F(c_api_memory_test_t, TestZeroPadBoom) {
     dnnl_memory_desc_t md;
     memset(&md, 0xcc, sizeof(md));
 
