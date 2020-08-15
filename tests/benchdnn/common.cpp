@@ -154,7 +154,7 @@ const char *state2str(res_state_t state) {
     if (state == UNTESTED) return "UNTESTED_FAILED"; // for easier fail search
 
 #define CASE(x) \
-    if (state == x) return STRINGIFY(x)
+    if (state == (x)) return STRINGIFY(x)
     CASE(PASSED);
     CASE(SKIPPED);
     CASE(MISTRUSTED);
@@ -168,7 +168,7 @@ const char *state2str(res_state_t state) {
 
 const char *skip_reason2str(skip_reason_t skip_reason) {
 #define CASE(x) \
-    if (skip_reason == x) return STRINGIFY(x)
+    if (skip_reason == (x)) return STRINGIFY(x)
     CASE(CASE_NOT_SUPPORTED);
     CASE(DATA_TYPE_NOT_SUPPORTED);
     CASE(INVALID_CASE);

@@ -32,7 +32,7 @@
 #include "cpu/x64/jit_avx512_common_convolution_winograd.hpp"
 
 #define _64byte_align ((1 << 6) - 1)
-#define IS_ALIGNED(byte_blk, byte_align) ((byte_blk & byte_align) == 0)
+#define IS_ALIGNED(byte_blk, byte_align) (((byte_blk) & (byte_align)) == 0)
 
 #ifndef _MSC_VER
 #define pragma_unroll _Pragma("unroll")

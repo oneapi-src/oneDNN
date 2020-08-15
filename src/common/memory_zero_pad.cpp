@@ -212,7 +212,7 @@ status_t typed_zero_pad(const memory_t *memory, stream_t *stream) {
 
 #define CASE(blksize_, blk_kind) \
     do { \
-        if (blksize == blksize_) { \
+        if (blksize == (blksize_)) { \
             typed_zero_pad_blk<dt, blk_kind, blksize_>(mdw, data); \
             status = memory_storage->unmap_data(mapped_ptr, stream); \
             assert(status == status::success); \

@@ -136,10 +136,11 @@ void clear_buf(char *buf, int &written) {
 
 #define CHECK_WRITTEN(buf, buf_len, written_now, written_total) \
     do { \
-        if (written_now < 0 || written_total + written_now > buf_len) { \
+        if ((written_now) < 0 \
+                || (written_total) + (written_now) > (buf_len)) { \
             clear_buf(buf, written_total); \
         } else { \
-            written_total += written_now; \
+            (written_total) += (written_now); \
         } \
     } while (0)
 
@@ -151,13 +152,13 @@ void clear_buf(char *buf, int &written) {
 
 #define MD2STR(buf, buf_len, written, md) \
     do { \
-        int l = dnnl_md2fmt_str(buf + written, buf_len - written, md); \
+        int l = dnnl_md2fmt_str((buf) + (written), (buf_len) - (written), md); \
         CHECK_WRITTEN(buf, buf_len, l, written); \
     } while (0)
 
 #define DIM2STR(buf, buf_len, written, md) \
     do { \
-        int l = dnnl_md2dim_str(buf + written, buf_len - written, md); \
+        int l = dnnl_md2dim_str((buf) + (written), (buf_len) - (written), md); \
         CHECK_WRITTEN(buf, buf_len, l, written); \
     } while (0)
 

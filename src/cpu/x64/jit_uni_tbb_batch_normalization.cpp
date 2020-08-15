@@ -42,7 +42,7 @@ using namespace memory_tracking::names;
 using namespace Xbyak;
 using acc_data_t = float;
 
-#define PARAM_ADDR(x) reg_param + offsetof(call_params_t, x)
+#define PARAM_ADDR(x) (reg_param + offsetof(call_params_t, x))
 template <cpu_isa_t isa>
 struct jit_bnorm_process_tail_t {
     using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,

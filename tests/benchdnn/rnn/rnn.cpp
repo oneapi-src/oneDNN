@@ -35,7 +35,7 @@
     do { \
         dnn_mem_t CONCAT2(a, _dt_plain)( \
                 CONCAT2(a, _dt), fp, lay, test_engine); \
-        rc |= compare_dat( \
+        (rc) |= compare_dat( \
                 p, kind, CONCAT2(a, _dt_plain), CONCAT2(a, _fp), r, true); \
     } while (0)
 

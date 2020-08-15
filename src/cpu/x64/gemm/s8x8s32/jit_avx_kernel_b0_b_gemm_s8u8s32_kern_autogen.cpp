@@ -72,15 +72,15 @@ void jit_avx_kernel_b0_b_gemm_s8u8s32_kern::generate() {
 #define ARG_A (args_offset - 16) + rsp
 #define ARG_B (args_offset - 8) + rsp
 #endif
-#define ARG_C (args_offset + 0) + rsp
-#define ARG_LDC (args_offset + 8) + rsp
-#define ARG_COFFSET_C (args_offset + 16) + rsp
-#define ARG_COFFSET_R (args_offset + 24) + rsp
+#define ARG_C ((args_offset + 0) + rsp)
+#define ARG_LDC ((args_offset + 8) + rsp)
+#define ARG_COFFSET_C ((args_offset + 16) + rsp)
+#define ARG_COFFSET_R ((args_offset + 24) + rsp)
 
-#define COFFSET_CX 0 + rsp
-#define COFFSET_CY 8 + rsp
-#define COFFSET_RX 16 + rsp
-#define COFFSET_RY 24 + rsp
+#define COFFSET_CX (0 + rsp)
+#define COFFSET_CY (8 + rsp)
+#define COFFSET_RX (16 + rsp)
+#define COFFSET_RY (24 + rsp)
 
     inLocalLabel();
     {

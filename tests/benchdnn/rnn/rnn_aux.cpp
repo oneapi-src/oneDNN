@@ -107,7 +107,7 @@ const char *direction2str(dnnl_rnn_direction_t direction) {
 
 const char *data_kind2str(data_kind_t kind) {
 #define CASE(KIND) \
-    if (kind == KIND) return STRINGIFY(KIND)
+    if (kind == (KIND)) return STRINGIFY(KIND)
     CASE(SRC_LAYER);
     CASE(SRC_ITER);
     CASE(SRC_ITER_C);

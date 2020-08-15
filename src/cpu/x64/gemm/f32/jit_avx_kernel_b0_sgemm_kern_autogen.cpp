@@ -47,8 +47,8 @@ void jit_avx_kernel_b0_sgemm_kern::generate() {
 #define CO1 r13
 #define CO2 r14
 
-#define OLD_C 8 + stacksize + rsp
-#define OLD_LDC 16 + stacksize + rsp
+#define OLD_C (8 + stacksize + rsp)
+#define OLD_LDC (16 + stacksize + rsp)
 
 #else
 

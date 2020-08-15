@@ -66,7 +66,7 @@ std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
 
 std::ostream &operator<<(std::ostream &s, dir_t dir) {
 #define CASE(x) \
-    if (dir == x) return s << STRINGIFY(x)
+    if (dir == (x)) return s << STRINGIFY(x)
     CASE(FWD_B);
     CASE(FWD_D);
     CASE(FWD_I);

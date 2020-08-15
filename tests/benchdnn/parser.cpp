@@ -219,7 +219,7 @@ static bool parse_dims_as_desc(dims_t &dims, const char *str) {
             char *end_s; \
             int64_t c = cvfunc(str, &end_s); \
             str += (end_s - str); \
-            if (c < 0) return false; \
+            if ((c) < 0) return false; \
             dims.push_back(c); \
         } \
     } while (0)
