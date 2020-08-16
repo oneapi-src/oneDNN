@@ -104,11 +104,15 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         const char *kernel_name = nullptr;
-        // TODO: Add DW conv suppport for NHWC
         if (pd()->conf.is_nhwc) {
-            if (pd()->conf.ic <= 4) {
+            if (pd()->conf.is_depthwise) {
+                if (pd()->conf.mb_block == 32)
+                    kernel_name = "conv_nhwc_fwd_dw_mb_block_x8s8s32x";
+                else
+                    kernel_name = "conv_nhwc_fwd_dw_ow_block_x8s8s32x";
+            } else if (pd()->conf.ic <= 4) {
                 kernel_name = "conv_nhwc_fwd_first_x8s8s32x";
-            } else if (!pd()->conf.is_depthwise) {
+            } else {
                 kernel_name = "conv_nhwc_fwd_x8s8s32x";
             }
         } else if (pd()->conf.is_depthwise) {
@@ -126,6 +130,7 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
                 kernel_name = "conv_fwd_first_x8s8s32x";
             }
         }
+
         compute::kernel_ctx_t kernel_ctx;
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
