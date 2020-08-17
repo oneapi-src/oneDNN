@@ -1,3 +1,5 @@
+.. include:: replacements.inc.rst
+
 =========================
 Programming Model and API
 =========================
@@ -37,14 +39,14 @@ The integration layer manages the OP’s lifecycle, e.g., it frees LLGA OP after
 Graph
 -----
 
-Graph serves as the context for the LLGA backend to grow graphs and generate partitions. A graph is created with an engine, and select() API binds the OP to a graph. When the construction of a graph is completed, the filter_partitions() API shall be used to generate a list of partitions. If the framework processes two subgraphs simultaneously, it needs to create two separate LLGA graph so that they won’t conflict with each other.
+Graph serves as the context for the LLGA backend to grow graphs and generate partitions. A graph is created with an engine, and |graph_select| API binds the OP to a graph. When the construction of a graph is completed, the |graph_filter_partitions| API shall be used to generate a list of partitions. If the framework processes two subgraphs simultaneously, it needs to create two separate LLGA graph so that they won’t conflict with each other.
 
 If a framework OP is not in LLGA op set, integration has 2 options:
 
 1. Do not pass this OP to the backend.
 2. Pass this OP to the backend with a Wildcard OP.
 
-It’s not mandatory that all OPs binded by select() must be in a partition, the backend can decide an OP is not supported and doesn’t include it in any partition.
+It’s not mandatory that all OPs binded by |graph_select| must be in a partition, the backend can decide an OP is not supported and doesn’t include it in any partition.
 
 .. doxygenclass:: llga::api::graph
    :project: oneDNN Graph Library
@@ -56,9 +58,9 @@ Logical Tensor
 
 Logical tensor represents the input and output of DNN operations. Together with LLGA OP, LLGA logical tensors are used to support passing the framework graph information during graph partition.  During the partition compilation, logical tensor is used to specify the partition input and output. It contains element data type, number of dimensions, size and stride for each dimension (shape), the date layout, and the total size of data. The dimension and shape information may be incomplete at the graph partitioning time. Usually these information are complete at the partition compilation time. The LLGA integration layer shall set the shape information in logical_tensor if it can get shape information from the framework.
 
-There are two types of data layout: Public, or ANY. Public data layout refers to the layout used by the framework. During the graph partition stage, all the logical tensor is created with the information from the framework graph, so the layout is public data layout. For example, for 2D conv the dimension order is either “NHWC” or “NCHW”. During the partition compilation stage, the logical tensor may be assigned with ANY data layout, so that the LLGA backend has the freedom to choose whatever data layout works the best.
+There are two types of data layout: Public, or "ANY". Public data layout refers to the layout used by the framework. During the graph partition stage, all the logical tensor is created with the information from the framework graph, so the layout is public data layout. For example, for 2D conv the dimension order is either “NHWC” or “NCHW”. During the partition compilation stage, the logical tensor may be assigned with "ANY" data layout, so that the LLGA backend has the freedom to choose whatever data layout works the best.
 
-For the framework which is able to represent platform dependent tensor, there is a common optimization pass to avoid converting between the private data layout and public upon entry and exit of the compiled partition. The tensor stays in a private layout between two compiled partitions. This is enabled to set the logical tensor layout to ANY layout, so the partition compilation understands the freedom and generates optimized code version. This works for the activation tensors which are passed between compiled partitions.
+For the framework which is able to represent platform dependent tensor, there is a common optimization pass to avoid converting between the private data layout and public upon entry and exit of the compiled partition. The tensor stays in a private layout between two compiled partitions. This is enabled to set the logical tensor layout to "ANY" layout, so the partition compilation understands the freedom and generates optimized code version. This works for the activation tensors which are passed between compiled partitions.
 
 Besides the activation tensors, which have a limited life cycle within one iteration, there are persistent weight tensors. Weight tensors may not be presented as an output of OP in the Framework graph. But the integration layer typically has a way to prepack the weight tensor before the execution or at the first iteration of the execution. As long as the integration layer makes sure the input weight tensor is prepared in private layout, it can also set the weight tensor's layout as "ANY".
 
@@ -86,10 +88,11 @@ Policy
 
 The policy allows frameworks to control the size of partitioning.
 
-.. literalinclude:: code_snippets/policy.cpp
-   :language: cpp
+.. doxygenenum:: llga_partition_policy
+   :project: oneDNN Graph Library
 
-Discussions: The other potential policy is to pass the max OP number contained within a partition.
+.. note::
+  Discussion: The other potential policy is to pass the max OP number contained within a partition.
 
 ---------
 Partition
@@ -129,7 +132,12 @@ Engine
 
 Engine represents hardware resources including the processing units and memory reserved to support the computation dispatched to the Engine.  It typically contains a device id, device name, and device handle.  Since the engine serves as the context for LLGA backend to store persistent information, like the compiled partition and its associated persistent memory cache created on the device, the device id ensures that there is a unique  engine being created for each device.  From the device name, the engine knows how to generate code for the target device and what kind of device object to be expected.  The device handle passed from framework allows LLGA backend to work on the device specified by framework.
 
-LLGA engine supports two scenarios of how a device is integrated into the framework: 1) framework manages the device with its device model and owns its handle; 2) LLGA backend manages the device and owns its handle. For the former case, framework creates the device handle and passes it to the LLGA backend via LLGA engine which is actually a wrapper on the handle. The latter case is suitable for the situation in which the HW device vendor does not integrate the device into the framework device model, and the user uses LLGA directly to interact with the underlying device. In this case, the framework creates the device handle via the LLGA engine by only passing “device_id” without associating with a "device handle".
+LLGA engine supports two scenarios of how a device is integrated into the framework:
+
+1. framework manages the device with its device model and owns its handle;
+2. LLGA backend manages the device and owns its handle.
+
+For the former case, framework creates the device handle and passes it to the LLGA backend via LLGA engine which is actually a wrapper on the handle. The latter case is suitable for the situation in which the HW device vendor does not integrate the device into the framework device model, and the user uses LLGA directly to interact with the underlying device. In this case, the framework creates the device handle via the LLGA engine by only passing “device_id” without associating with a "device handle".
 
 The device name consists of two parts: device type and runtime. For example, the engine_name “LLGA_GPU_DPCPP” indicates the target device is a GPU and the device handle can be casted to a pointer to sycl::device. "LLGA_CPU" indicates the target is CPU.
 
@@ -162,18 +170,17 @@ Stream is the logical abstraction for processing units. It is created on top of 
 Partition API
 -------------
 
-The partition API is used to select subgraph candidate nodes and filter out final partitions. The select() is used to add an OP and its edges to a graph. The filter_partitions() decides how to partition the subgraph from selected OP candidates and edges. The backend shall not assume the calling sequence of select().
+The partition API is used to select subgraph candidate nodes and filter out final partitions. The |graph_select| is used to add an OP and its edges to a graph. The |graph_filter_partitions| decides how to partition the subgraph from selected OP candidates and edges. The backend shall not assume the calling sequence of |graph_select|.
 
-If a Framework OP is not in LLGA OP set, a Wildcard OP can be used by integration layer to pass the info to the backend. The integration layer can also choose not to call select() for this OP.
+If a Framework OP is not in LLGA OP set, a Wildcard OP can be used by integration layer to pass the info to the backend. The integration layer can also choose not to call |graph_select| for this OP.
 
-After partitions are generated by backend through filter_partitions(), the integration layer shall modify the framework graph based on nodes in partition, which means replacing all corresponding nodes in the framework graph to a single node.
+After partitions are generated by backend through |graph_filter_partitions|, the integration layer shall modify the framework graph based on nodes in partition, which means replacing all corresponding nodes in the framework graph to a single node.
 
 The backend shall guarantee there’s no cyclic dependency between all the nodes obtained from the integration layer and generated partitions.
 
 If the integration layer doesn’t pass all nodes to the backend, it shall guarantee there’s no cyclic dependency between partitions from the backend and these unselected nodes.
 
-.. literalinclude:: code_snippets/partition_api.cpp
-   :language: cpp
+See |graph| for details.
 
 **Framework Integration Pseudo Code**
 
@@ -202,7 +209,8 @@ If the integration layer doesn’t pass all nodes to the backend, it shall guara
    Find op from the OP pair (op, op’)
    Modify the framework graph to connect op’s input/output to the new node
 
-Discussion: The select API doesn’t construct the LLGA graph, instead it passes the LLGA op and edge to help the LLGA backend to contruct the graph. The select API fits a graph with dataflow relationship. When the graph becomes big and it may contain control flow graph, we will need to extend the select API to pass the control flow information.
+.. note::
+  Discussion: The select API doesn’t construct the LLGA graph, instead it passes the LLGA op and edge to help the LLGA backend to contruct the graph. The select API fits a graph with dataflow relationship. When the graph becomes big and it may contain control flow graph, we will need to extend the select API to pass the control flow information.
 
 ---------------
 Compilation API
@@ -220,8 +228,7 @@ The integration shall set the layout of each input/output logical_tensor.
 
 LLGA compilation API returns an indication for compilation failure.
 
-.. literalinclude:: code_snippets/compilation_api.cpp
-   :language: cpp
+See |partition_compile| for details.
 
 -------------
 Execution API
@@ -231,13 +238,17 @@ Framework passes the parameter tensors and compiled partition to Execution API f
 
 If the integration places a tensor with data buffer pointer in outputs, the backend shall use this buffer allocated by integration.
 
-See Stream::submit() for details.
+See |stream_submit| for details.
 
 -----------------------
 Allocator call back API
 -----------------------
 
-The compiled partitions may allocate memory during the execution, like scratchpad and workspace in the DNNL primitives. The allocated memory may have a different lifetime span, so some memory allocated is only used within the compiled partition execution, some may live until the end of the iteration, and some may persist across iterations. For framework which would like to manage the device memory, LLGA backend can call back the framework memory manager through allocator call back API, so that it can manage all the device memory. These three APIs are: 1) allocate_persistent() for persistent buffer which can be freed explicitly with deallocate_persistent() or framework will free all persistent buffers on its exit; 2) allocate_output() for buffer live during one iteration, typically used by allocating output tensor buffer; 3) allocate_temp() for scratch pad live only within op.
+The compiled partitions may allocate memory during the execution, like scratchpad and workspace in the DNNL primitives. The allocated memory may have a different lifetime span, so some memory allocated is only used within the compiled partition execution, some may live until the end of the iteration, and some may persist across iterations. For framework which would like to manage the device memory, LLGA backend can call back the framework memory manager through allocator call back API, so that it can manage all the device memory. These three APIs are:
+
+1. |base_allocator_allocate_persistent| for persistent buffer which can be freed explicitly with |base_allocator_deallocate_persistent| or framework will free all persistent buffers on its exit;
+2. |base_allocator_allocate_output| for buffer live during one iteration, typically used by allocating output tensor buffer;
+3. |base_allocator_allocate_temp| for scratch pad live only within op.
 
 The allocator call back is to get access to device memory. It shall be used at runtime to allocate tensor, buffer, and scratchpad. Host memory can be allocated by backend itself like graph, node, and edges.
 
