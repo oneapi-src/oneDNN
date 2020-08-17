@@ -61,6 +61,7 @@ const pd_create_f impl_list[] = {
         /* int */
         CPU_INSTANCE_X64(jit_uni_i8i8_pooling_fwd_t<avx512_core>)
         CPU_INSTANCE_X64(jit_uni_i8i8_pooling_fwd_t<avx2>)
+        CPU_INSTANCE_X64(jit_uni_i8i8_pooling_fwd_t<sse41>)
         CPU_INSTANCE(ref_pooling_fwd_t<s32>)
         CPU_INSTANCE(ref_pooling_fwd_t<s8, s32>)
         CPU_INSTANCE(ref_pooling_fwd_t<u8, s32>)
