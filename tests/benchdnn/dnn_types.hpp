@@ -38,7 +38,13 @@ extern const char *undef;
 } // namespace tag
 
 struct dims_t : public std::vector<int64_t> {
-    using vector<int64_t>::vector;
+    //  using vector<int64_t>::vector;
+    //  There is a bug in Intel compiler 19.0 on MacOS which prevents
+    //  using-declaration from being used here. The workaround is to introduce
+    //  constructors explicitly.
+    dims_t() = default;
+    dims_t(size_t size) : vector(size) {}
+    dims_t(size_t size, int64_t value) : vector(size, value) {}
 };
 
 enum dir_t {

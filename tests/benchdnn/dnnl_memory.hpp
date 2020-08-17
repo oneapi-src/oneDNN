@@ -280,4 +280,10 @@ private:
 // Check that zero padding is preserved.
 int check_zero_padding(const dnn_mem_t &mem, int arg);
 
+// Returns physical offset by logical one. Logical offset is represented by an
+// array pos. If is_pos_padded is true pos represents the position in already
+// padded area.
+dnnl_dim_t md_off_v(const dnnl_memory_desc_t &md, const dnnl_dims_t pos,
+        bool is_pos_padded = false);
+
 #endif

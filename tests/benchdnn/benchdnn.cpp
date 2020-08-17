@@ -38,6 +38,7 @@
 #include "lrn/lrn.hpp"
 #include "matmul/matmul.hpp"
 #include "pool/pool.hpp"
+#include "reduction/reduction.hpp"
 #include "reorder/reorder.hpp"
 #include "resampling/resampling.hpp"
 #include "rnn/rnn.hpp"
@@ -113,6 +114,8 @@ int main(int argc, char **argv) {
         matmul::bench(--argc, ++argv);
     } else if (!strcmp("--resampling", argv[0])) {
         resampling::bench(--argc, ++argv);
+    } else if (!strcmp("--reduction", argv[0])) {
+        reduction::bench(--argc, ++argv);
     } else {
         fprintf(stderr, "err: unknown driver\n");
     }
