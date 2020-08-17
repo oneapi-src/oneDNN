@@ -151,7 +151,7 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
         auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
         if (pd()->ndims() == 5)
-            execute_backward_3d(diff_dst, ws, diff_src);
+            execute_backward_3d(diff_dst, ws, diff_src, ctx);
         else
             execute_backward(diff_dst, ws, diff_src, ctx);
 
@@ -162,7 +162,7 @@ private:
     void execute_backward(const data_t *diff_dst, const char *indices,
             data_t *diff_src, const exec_ctx_t &ctx) const;
     void execute_backward_3d(const data_t *diff_dst, const char *indices,
-            data_t *diff_src) const;
+            data_t *diff_src, const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t init_ncsp_trans_ctx();
 
