@@ -124,10 +124,7 @@ F find_ze_symbol(const char *symbol) {
 status_t func_zeModuleCreate(ze_device_handle_t hDevice,
         const ze_module_desc_t *desc, ze_module_handle_t *phModule,
         ze_module_build_log_handle_t *phBuildLog) {
-    using func_type
-            = ze_result_t (*)(ze_device_handle_t, const ze_module_desc_t *,
-                    ze_module_handle_t *, ze_module_build_log_handle_t *);
-    static auto f = find_ze_symbol<func_type>("zeModuleCreate");
+    static auto f = find_ze_symbol<decltype(&zeModuleCreate)>("zeModuleCreate");
 
     if (!f) return status::runtime_error;
     ZE_CHECK(f(hDevice, desc, phModule, phBuildLog));
@@ -135,8 +132,8 @@ status_t func_zeModuleCreate(ze_device_handle_t hDevice,
 }
 
 status_t func_zeModuleDestroy(ze_module_handle_t hModule) {
-    using func_type = ze_result_t (*)(ze_module_handle_t);
-    static auto f = find_ze_symbol<func_type>("zeModuleDestroy");
+    static auto f
+            = find_ze_symbol<decltype(&zeModuleDestroy)>("zeModuleDestroy");
 
     if (!f) return status::runtime_error;
     ZE_CHECK(f(hModule));
@@ -145,9 +142,8 @@ status_t func_zeModuleDestroy(ze_module_handle_t hModule) {
 
 status_t func_zeDeviceGetProperties(
         ze_device_handle_t hDevice, ze_device_properties_t *pDeviceProperties) {
-    using func_type
-            = ze_result_t (*)(ze_device_handle_t, ze_device_properties_t *);
-    static auto f = find_ze_symbol<func_type>("zeDeviceGetProperties");
+    static auto f = find_ze_symbol<decltype(&zeDeviceGetProperties)>(
+            "zeDeviceGetProperties");
 
     if (!f) return status::runtime_error;
     ZE_CHECK(f(hDevice, pDeviceProperties));
