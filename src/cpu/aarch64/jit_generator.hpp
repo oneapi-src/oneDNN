@@ -463,6 +463,24 @@ public:
         vmovups(x, op);
     }
 
+    void uni_vmovups_tail(const Xbyak::Address &addr, const Xbyak::Ymm &mask,
+            const Xbyak::Ymm &x) {
+        vmaskmovps(addr, mask, x);
+    }
+    void uni_vmovups_tail(const Xbyak::Ymm &x, const Xbyak::Ymm &mask,
+            const Xbyak::Address &addr) {
+        vmaskmovps(x, mask, addr);
+    }
+
+    void uni_vmovups_tail(const Xbyak::Address &addr, const Xbyak::Opmask &mask,
+            const Xbyak::Zmm &x) {
+        vmovups(addr | mask, x);
+    }
+    void uni_vmovups_tail(const Xbyak::Zmm &x, const Xbyak::Opmask &mask,
+            const Xbyak::Address &addr) {
+        vmovups(x | mask | T_z, addr);
+    }
+
     void uni_vmovntps(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
         movntps(addr, x);
     }
@@ -841,6 +859,19 @@ public:
     }
     void uni_vmovmskps(const Xbyak::Reg &x1, const Xbyak::Ymm &x2) {
         vmovmskps(x1, x2);
+    }
+
+    void uni_vmovq(const Xbyak::Xmm &x, const Xbyak::Reg64 &r) {
+        if (mayiuse(avx))
+            vmovq(x, r);
+        else
+            movq(x, r);
+    }
+    void uni_vmovq(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
+        if (mayiuse(avx))
+            vmovq(addr, x);
+        else
+            movq(addr, x);
     }
 
     void uni_vpackssdw(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2, const Xbyak::Operand &op){
