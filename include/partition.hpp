@@ -33,6 +33,9 @@ class compiled_partition;
 
 class partition {
 public:
+    /// Constructs a partition object
+    partition(llga_partition_t *p);
+
     /// Returns the number of nodes in the partition
     ///
     /// @returns Number of nodes

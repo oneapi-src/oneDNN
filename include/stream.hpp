@@ -89,7 +89,7 @@ public:
     /// Get the thread pool
     ///
     /// @returns A pointer to the thread pool bound to this stream attribute
-    thread_pool *get_thread_pool(;
+    thread_pool *get_thread_pool();
 };
 
 class stream {

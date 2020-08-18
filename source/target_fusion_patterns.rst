@@ -6,7 +6,7 @@ In this section, we list some common fusion patterns from popular workloads as e
 
 **Pattern 1: Op XYZ + A chain of element-wise ops**
 
-Here Op XYZ could be any op like Conv, Matmul or even another element-wise op. The chain of element-wise ops is appended as post-ops to Op XYZ, i.e. we insert the chain of element-wise operations to each output element of Op XYZ before storing it to memory.
+Here Op XYZ could be any op like Conv, Matmul or even another element-wise op. The chain of element-wise ops is appended as post-ops to Op XYZ, i.e. we insert the chain of element-wise operations to each output element of Op XYZ before storing it to the memory.
 
 Examples:
 
@@ -48,3 +48,10 @@ Examples: MobileNet
 [TODO: add fusion mechanism]
 Examples: ResNet
 
+**Custom OP**
+
+LLGA extension supports custom op description and so that the bridge can fill the information of framework custom op and pass to LLGA backend.  The LLGA custom op may have a variable number of input/output tensors and attributes and a string describing the logic using language like PlaidML Tile.
+
+**Wildcard OP**
+
+Placeholder for wildcard OP.

@@ -22,6 +22,31 @@ project = 'oneDNN Graph Library'
 
 from element_conf import *
 
+html_js_files = ['custom.js']
+html_static_path = ['_static']
+templates_path = ['_templates']
+
+html_theme = 'sphinx_rtd_theme'
+html_favicon = '_static/favicons.png'
+html_logo = '_static/oneAPI-rgb-rev-100.png'
+
+htmlhelp_basename = 'oneAPI-spec'
+
+html_theme_options = {
+    'includehidden': False,
+    'collapse_navigation': False
+}
+
+html_context = {
+    'display_github': True,
+    'github_host': 'gitlab.devtools.intel.com/',
+    'github_user': 'llga',
+    'github_repo': 'llga-spec',
+    'github_version': 'master/source/'
+}
+
+pygments_style = None
+
 exclude_patterns = []
 
 latex_documents = []

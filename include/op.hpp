@@ -35,10 +35,10 @@ public:
     /// Contructs an Op object based on input/output tensors and attributes
     ///
     /// @param kind Op Kind
-    /// @param input Input logical tensor to be bound to this op
-    /// @param output Output logical tensor to be bound to this op
+    /// @param inputs Input logical tensor to be bound to this op
+    /// @param outputs Output logical tensor to be bound to this op
     /// @param attr Attributes to be bound to this op
-    /// @param debug_string  
+    /// @param debug_string
     op(llga_op_kind_t kind, std::vector<logical_tensor> &inputs,
             std::vector<logical_tensor> &outputs,
             std::map<std::string, llga_attribute_kind> &attr, const std::string &debug_string);
