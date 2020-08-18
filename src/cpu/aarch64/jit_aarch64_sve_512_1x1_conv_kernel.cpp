@@ -118,8 +118,9 @@ void jit_aarch64_sve_512_1x1_conv_kernel::reduce_loop(
     const bool load_layout_nxc = is_load_layout_nxc(jcp);
     const bool bcast_layout_nxc = is_bcast_layout_nxc(jcp);
     const int reduce_dim_tail = jcp.reduce_dim % jcp.reduce_block;
+#if 0
     const int load_dim_tail = jcp.load_dim % jcp.load_block;
-
+#endif
     auto vreg_bcast_s = [=](int idx) {
         return xa::ZRegS(idx);
     };
@@ -1304,7 +1305,6 @@ void jit_aarch64_sve_512_1x1_conv_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad,
         const jit_1x1_conv_conf_t &jcp) {
 
-#if 0 
     using namespace dnnl::impl::memory_tracking::names;
 
     // Fox nxc layout bias is padded only for bwd_wb direction, as  bias
@@ -1333,7 +1333,6 @@ void jit_aarch64_sve_512_1x1_conv_kernel::init_scratchpad(
         scratchpad.book(key_conv_tr_src, tr_src_size, jcp.typesize_out);
         scratchpad.book<simple_barrier::ctx_t>(key_conv_tr_src_bctx, jcp.nthr);
     }
-#endif
 }
 
 void jit_aarch64_sve_512_1x1_conv_kernel::balance(jit_1x1_conv_conf_t &jcp) {

@@ -56,6 +56,7 @@ void jit_aarch64_sve_512_1x1_convolution_fwd_t<src_type, wei_type,
     if (pd()->wants_padded_bias()) {
         auto padded_bias
                 = scratchpad.template get<dst_data_t>(key_conv_padded_bias);
+        assert(padded_bias != nullptr);
         utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
         utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
                 jcp.oc - jcp.oc_without_padding);
