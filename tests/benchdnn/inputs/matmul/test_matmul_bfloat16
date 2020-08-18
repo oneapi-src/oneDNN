@@ -9,7 +9,7 @@
 --batch=shapes_2d
 
 --runtime_m=1 --runtime_n=1 --runtime_k=0,1
---attr-post-ops='relu'
+--attr-post-ops='add:s32:per_oc'
 --batch=shapes_2d
 
 --attr-oscale=common:1.25
@@ -34,7 +34,7 @@
 
 --runtime_mb=0,1 --runtime_m=1 --runtime_n=1 --runtime_k=0,1
 --attr-oscale=common:2.25
---attr-post-ops='sum;relu'
+--attr-post-ops='sum;relu;add:u8'
 --batch=shapes_3d
 
 # runtime
@@ -48,6 +48,6 @@
 --bia_mask=2
 
 --attr-oscale=common:2.25*,per_oc:2.25*
---attr-post-ops='','sum:2;relu'
+--attr-post-ops='','sum:2;relu;mul:f32:per_oc'
 --batch=shapes_2d
 

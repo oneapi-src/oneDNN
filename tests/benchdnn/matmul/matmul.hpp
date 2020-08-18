@@ -208,7 +208,8 @@ inline int64_t bia_off_f(const prb_t *p, int64_t mb, int64_t m, int64_t n) {
 }
 
 void compute_ref(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &dst_m);
+        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m);
 
 int doit(const prb_t *p, res_t *res);
 

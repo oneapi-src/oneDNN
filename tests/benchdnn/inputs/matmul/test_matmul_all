@@ -14,7 +14,7 @@
 --runtime_m=1 --runtime_n=0,1 --runtime_k=1
 --bia_dt=f32 --bia_mask=1,2,3
 --attr-oscale=,common:1.25
---attr-post-ops='relu','sum;linear:2:-1'
+--attr-post-ops='add:f32','sum;mul:s32:per_oc;linear:2:-1'
 --batch=shapes_2d
 
 # test any
@@ -38,7 +38,7 @@
 
 --runtime_mb=0,1 --runtime_m=1 --runtime_n=1 --runtime_k=0,1
 --attr-oscale=common:2.25
---attr-post-ops='sum;relu'
+--attr-post-ops='sum;relu;add:u8'
 --batch=shapes_3d
 
 # Run-time

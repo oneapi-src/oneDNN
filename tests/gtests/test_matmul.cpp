@@ -356,16 +356,6 @@ static auto cases_ef = []() {
     //                           {{10, 20}, data_type::u8, tag::ab}},
     //        {}, true, dnnl_unimplemented});
 
-    // unimplemented post-ops
-    cases.push_back({{{{10, 1}, data_type::u8, tag::ab},
-                             {{1, 20}, data_type::s8, tag::ab},
-                             {{10, 20}, data_type::f32, tag::ab}},
-            {P::NONE, {},
-                    {{primitive::kind::eltwise, algorithm::eltwise_relu},
-                            {primitive::kind::eltwise,
-                                    algorithm::eltwise_tanh}}},
-            true, dnnl_unimplemented});
-
     return ::testing::ValuesIn(cases);
 };
 INSTANTIATE_TEST_SUITE_P(EF, iface, cases_ef());

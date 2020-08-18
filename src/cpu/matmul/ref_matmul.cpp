@@ -54,10 +54,6 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
 
     const bool batched = pd()->batched();
     const bool non_default_attrs = !pd()->attr()->has_default_values();
-    const bool do_sum = pd()->attr()->post_ops_.contain(primitive_kind::sum, 0)
-            && pd()->attr()->post_ops_.entry_[0].sum.scale != 0.f;
-    const float sum_scale
-            = do_sum ? pd()->attr()->post_ops_.entry_[0].sum.scale : 0.f;
 
     const dim_t MB = batched ? dst_d.dims()[0] : 1;
     const dim_t M = dst_d.dims()[batched + 0];
@@ -103,24 +99,21 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
         auto &dst_value = dst[batched ? dst_d.off(mb, m, n) : dst_d.off(m, n)];
 
         acc_data_t acc = ker(mb, m, n);
+        float res = acc;
         if (bias || non_default_attrs) {
-            float res = acc;
             if (bias) res += get_bias(mb, m, n);
             res *= scales[scale_stride * n];
-            if (do_sum) res = sum_scale * dst_value + res;
-            if (eltwise_ker_) res = eltwise_ker_->compute_scalar(res);
+
+            ref_post_ops_t::args_t args;
+            args.dst_val = dst_value;
+            args.ctx = &ctx;
+            args.l_offset = batched ? mb * M * N + m * N + n : m * N + n;
+            args.dst_md = pd()->dst_md();
+            ref_post_ops->execute(res, args);
+
             res += (float)dst_zero_point;
-            if (utils::one_of(dst_type, data_type::f32, data_type::bf16))
-                dst_value = res;
-            else
-                dst_value = cpu::saturate<dst_data_t>(
-                        cpu::out_round<int32_t>(res));
-        } else {
-            if (utils::one_of(dst_type, data_type::f32, data_type::bf16))
-                dst_value = (dst_data_t)acc;
-            else
-                dst_value = cpu::saturate<dst_data_t>(acc);
         }
+        dst_value = cpu::saturate_and_round<dst_data_t>(res);
     });
 
     return status::success;

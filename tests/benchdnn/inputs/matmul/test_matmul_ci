@@ -2,7 +2,8 @@
 
 --cfg=f32,bf16bf16bf16,u8s8s8,s8s8f32
 --bia_dt=undef,f32
---attr-post-ops='','sum','relu','sum:0.5;linear:2'
+--attr-post-ops='','sum:0.5','linear:2:1','add:f32',\
+                'mul:s8:per_oc;sum:0.25;relu:0.5'
 
 # 2D
 --stag=ab,ba --wtag=ab,ba

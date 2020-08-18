@@ -173,7 +173,7 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
                 assert(args.dst_md);
 
                 const exec_ctx_t &ctx = *args.ctx;
-                const memory_desc_wrapper dst_d(args.dst_md);
+                const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, args.dst_md);
                 const auto &dst_dims = dst_d.dims();
                 const auto dst_ndims = dst_d.ndims();
 
