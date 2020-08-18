@@ -31,7 +31,7 @@ extensions = [
 ]
 
 env = {
-    'oneapi_version': '0.7',
+    'oneapi_version': '0.9',
     'l0_version': '0.91',
 }
 

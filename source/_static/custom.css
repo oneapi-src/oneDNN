@@ -16,6 +16,31 @@
     margin-right: -0.7em;
 }
 
+/* A workaround for https://github.com/readthedocs/sphinx_rtd_theme/issues/647
+ * Override display for function signatures so that there is spacing between
+ * types and arguments */
+.rst-content dl:not(.docutils) dt {
+    display: table-cell !important;
+}
+.rst-content dl:not(.docutils) dd {
+    margin-top: 6px;
+}
+
+/* override table width restrictions
+ * https://rackerlabs.github.io/docs-rackspace/tools/rtd-tables.html */
+@media screen and (min-width: 767px) {
+
+   .wy-table-responsive table td {
+      /* !important prevents the common CSS stylesheets from overriding
+         this as on RTD they are loaded after this stylesheet */
+      white-space: normal !important;
+   }
+
+   .wy-table-responsive {
+      overflow: visible !important;
+   }
+}
+
 /* override table width restrictions
  * https://rackerlabs.github.io/docs-rackspace/tools/rtd-tables.html */
 @media screen and (min-width: 767px) {
