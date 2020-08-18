@@ -152,6 +152,8 @@
 #endif
 
 #if (__cplusplus >= 201103) || (_MSC_VER >= 1800)
+    #undef XBYAK_TLS
+    #define XBYAK_TLS thread_local
 	#define XBYAK_VARIADIC_TEMPLATE
 #endif
 
