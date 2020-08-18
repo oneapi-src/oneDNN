@@ -65,7 +65,7 @@
 // Helper macros: expand the parameters only on the corresponding architecture.
 // Equivalent to: #if DNNL_$ARCH ... #endif
 #define DNNL_X64_ONLY(...) Z_CONDITIONAL_DO(DNNL_X64, __VA_ARGS__)
-#define DNNL_AARCH64_ONLY(...) Z_CONDITIONAL_DO(DNNL_AARCH64_ONLY, __VA_ARGS__)
+#define DNNL_AARCH64_ONLY(...) Z_CONDITIONAL_DO(DNNL_AARCH64, __VA_ARGS__)
 #define DNNL_PPC64_ONLY(...) Z_CONDITIONAL_DO(DNNL_PPC64_ONLY, __VA_ARGS__)
 
 namespace dnnl {
