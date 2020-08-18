@@ -396,7 +396,7 @@ private:
 
 using jit_aarch64_sve_512_1x1_convolution_bwd_data_f32_t
         = jit_aarch64_sve_512_1x1_convolution_bwd_data_t<data_type::f32>;
-#if 0
+
 /* Backward weight */
 struct jit_aarch64_sve_512_1x1_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
@@ -478,10 +478,7 @@ struct jit_aarch64_sve_512_1x1_convolution_bwd_weights_t : public primitive_t {
         delete kernel_;
         delete acc_ker_;
         delete reducer_bias_;
-#if 0
         delete rtus_driver_;
-        delete trans_kernel_;
-#endif
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -495,13 +492,11 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_aarch64_sve_512_1x1_conv_kernel *kernel_;
-#if 0
     rtus_driver_t<sve> *rtus_driver_;
-#endif
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;
 };
-#endif
+
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl
