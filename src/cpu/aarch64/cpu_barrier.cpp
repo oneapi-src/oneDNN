@@ -38,6 +38,66 @@ using namespace Xbyak::Xbyak_aarch64;
         CGA64::ldr(reg, xa::ptr(CGA64::sp)); \
         CGA64::add(CGA64::sp, CGA64::sp, 8);
 
+void generate(
+        jit_generator &code, Xbyak::Reg64 reg_ctx, Xbyak::Reg64 reg_nthr) {
+#define BAR_CTR_OFF offsetof(ctx_t, ctr)
+#define BAR_SENSE_OFF offsetof(ctx_t, sense)
+    using namespace Xbyak;
+
+    Xbyak::Reg64 reg_tmp = [&]() {
+        /* returns register which is neither reg_ctx nor reg_nthr */
+        Xbyak::Reg64 regs[] = {util::rax, util::rbx, util::rcx};
+        for (size_t i = 0; i < sizeof(regs) / sizeof(regs[0]); ++i)
+            if (!utils::one_of(regs[i], reg_ctx, reg_nthr)) return regs[i];
+        return regs[0]; /* should not happen */
+    }();
+
+    Label barrier_exit_label, barrier_exit_restore_label, spin_label;
+
+    code.cmp(reg_nthr, 1);
+    code.jbe(barrier_exit_label);
+
+    code.push(reg_tmp);
+
+    /* take and save current sense */
+    code.mov(reg_tmp, code.ptr[reg_ctx + BAR_SENSE_OFF]);
+    code.push(reg_tmp);
+    code.mov(reg_tmp, 1);
+
+    if (mayiuse(avx512_mic)) {
+        code.prefetchwt1(code.ptr[reg_ctx + BAR_CTR_OFF]);
+        code.prefetchwt1(code.ptr[reg_ctx + BAR_CTR_OFF]);
+    }
+
+    code.lock();
+    code.xadd(code.ptr[reg_ctx + BAR_CTR_OFF], reg_tmp);
+    code.add(reg_tmp, 1);
+    code.cmp(reg_tmp, reg_nthr);
+    code.pop(reg_tmp); /* restore previous sense */
+    code.jne(spin_label);
+
+    /* the last thread {{{ */
+    code.mov(code.qword[reg_ctx + BAR_CTR_OFF], 0); // reset ctx
+
+    // notify waiting threads
+    code.not_(reg_tmp);
+    code.mov(code.ptr[reg_ctx + BAR_SENSE_OFF], reg_tmp);
+    code.jmp(barrier_exit_restore_label);
+    /* }}} the last thread */
+
+    code.CodeGenerator::L(spin_label);
+    code.pause();
+    code.cmp(reg_tmp, code.ptr[reg_ctx + BAR_SENSE_OFF]);
+    code.je(spin_label);
+
+    code.CodeGenerator::L(barrier_exit_restore_label);
+    code.pop(reg_tmp);
+
+    code.CodeGenerator::L(barrier_exit_label);
+#undef BAR_CTR_OFF
+#undef BAR_SENSE_OFF
+}
+
 void jit_t::generate( xa::XReg reg_ctx, xa::XReg reg_nthr ) {
 #define BAR_CTR_OFF offsetof(ctx_t, ctr)
 #define BAR_SENSE_OFF offsetof(ctx_t, sense)

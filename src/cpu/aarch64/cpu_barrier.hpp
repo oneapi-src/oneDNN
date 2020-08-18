@@ -98,6 +98,15 @@ template <typename ctx_t>
 inline void ctx_init(ctx_t *ctx) {
     *ctx = utils::zero<ctx_t>();
 }
+void barrier(ctx_t *ctx, int nthr);
+
+/** injects actual barrier implementation into another jitted code
+ * @params:
+ *   code      -- jit_generator object where the barrier is to be injected
+ *   reg_ctx   -- read-only register with pointer to the barrier context
+ *   reg_nnthr -- read-only register with the # of synchronizing threads
+ */
+void generate(jit_generator &code, Xbyak::Reg64 reg_ctx, Xbyak::Reg64 reg_nthr);
 
 } // namespace simple_barrier
 
