@@ -136,9 +136,10 @@ struct ref_sum_t : public gpu_primitive_t {
         if (pd()->need_output_reorder()) {
             auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                     key_sum_reduction);
-            p_temp_dst_acc.reset(new memory_t(ctx.stream()->engine(),
-                    pd()->dst_acc_md(), memory_flags_t::use_runtime_ptr,
-                    scratchpad->data_handle()));
+            CHECK(safe_ptr_assign(p_temp_dst_acc,
+                    new memory_t(ctx.stream()->engine(), pd()->dst_acc_md(),
+                            memory_flags_t::use_runtime_ptr,
+                            scratchpad->data_handle())));
         }
 
         auto dst = ctx.args().at(DNNL_ARG_DST);

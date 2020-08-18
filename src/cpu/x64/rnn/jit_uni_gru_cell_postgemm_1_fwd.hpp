@@ -37,19 +37,17 @@ struct jit_uni_gru_cell_postgemm_part1_fwd : public jit_uni_rnn_postgemm {
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
         : jit_uni_rnn_postgemm(rnn, pd) {}
 
-    ~jit_uni_gru_cell_postgemm_part1_fwd() { delete sigmoid_injector_; }
-
-    void init(data_type_t sdt) override {
+    status_t init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
         // we use rax for both constant tables as they use the same table
-        sigmoid_injector_ = new injector_t(
-                this, alg_kind::eltwise_logistic, 0.0f, 0.0f, 1.0f, true, rax);
-        generate();
-        kernel_ = (kernel_t)this->getCode();
+        CHECK(safe_ptr_assign(sigmoid_injector_,
+                new injector_t(this, alg_kind::eltwise_logistic, 0.0f, 0.0f,
+                        1.0f, true, rax)));
+        return create_kernel();
     }
 
 protected:
-    injector_t *sigmoid_injector_;
+    std::unique_ptr<injector_t> sigmoid_injector_;
 
     // register size in bytes
     using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
@@ -62,7 +60,7 @@ protected:
     size_t bias_dt_size = sizeof(float);
     size_t qscale_dt_size = sizeof(float);
 
-    void generate() {
+    void generate() override {
         using namespace Xbyak;
         auto is_training
                 = pd_->desc()->prop_kind == prop_kind::forward_training;

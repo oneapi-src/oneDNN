@@ -35,3 +35,14 @@
 --cfg=s8s8f32,u8s8f32 --batch=shapes_yolov2
 --attr-post-ops='sum:0.5'
 --cfg=s8s8f32 --batch=shapes_3d
+
+# binary post operation
+--reset --dir=FWD_B --mb=2
+--skip-impl=  # ! test everything until jit injector is available
+--cfg=s8s8s32
+--attr-post-ops='sum:0.5;add:f32:common;abs;max:u8:per_oc'
+--batch=shapes_tails
+
+--cfg=u8s8s8
+--attr-post-ops='add:s8:per_oc;add:s32;add:u8:per_oc;max:f32:per_oc'
+--batch=shapes_resnet_50

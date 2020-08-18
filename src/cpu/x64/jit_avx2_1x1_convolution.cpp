@@ -119,7 +119,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
     const int nb_buffer = jcp.nb_load_blocking;
     auto jcp_dw = pd()->jcp_dw_;
     std::vector<data_t *> addrs;
-    void (*dw_jit_ker)(jit_conv_call_s *) = nullptr;
+    jit_generator *dw_jit_ker = nullptr;
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -194,14 +194,14 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
             if (ocb == ocb_start) {
                 rp.src = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
-                rtus_driver_->ker_(&rp);
+                (*rtus_driver_)(&rp);
             }
 
             p.bcast_data = rp.ws;
         } else
             p.bcast_data = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
 
-        kernel_->jit_ker(&p);
+        (*kernel_)(&p);
     };
 
     auto conv_1x1 = [&](int bcast_start, int bcast_end, int ocb_start,
@@ -269,7 +269,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw->nb_ch) - ch;
 
-            dw_jit_ker(&par_conv_dw);
+            (*dw_jit_ker)(&par_conv_dw);
 
             for (int i = 0; i < jcp_dw->kh; ++i)
                 addrs[i] += wch_stride;
@@ -282,8 +282,8 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
                 scratchpad, memory_tracking::names::prefix_fusion);
         auto dw_conv_buffer
                 = dw_scratchpad.get<data_t>(key_fusion_inout_buffer);
-        dw_jit_ker = kernel_dw_avx2 ? kernel_dw_avx2->jit_ker
-                                    : kernel_dw_sse41->jit_ker;
+        dw_jit_ker = kernel_dw_avx2 ? kernel_dw_avx2->ker()
+                                    : kernel_dw_sse41->ker();
 
         const auto dw_conv_buffer_size_
                 = (size_t)jcp_dw->kh * jcp.ow * nb_buffer * jcp.oc_block;
@@ -451,10 +451,10 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
                     p.reduce_dim = this_block_size(ocb * jcp.oc_block, jcp.oc,
                             nb_oc_blocking * jcp.oc_block);
 
-                    kernel_->jit_ker(&p);
+                    (*kernel_)(&p);
                 }
 
-                if (pd()->rtus_.reduce_src_) rtus_driver_->ker_(&rp);
+                if (pd()->rtus_.reduce_src_) (*rtus_driver_)(&rp);
             }
         }
     };
@@ -464,17 +464,25 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
 
 /* convolution backward wtr weights */
 
-jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
-        const pd_t *apd)
-    : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
-    kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
-    reducer_weights_
-            = new cpu_reducer_2d_t<data_type::f32>(pd()->reducer_wei_conf_);
-    reducer_bias_ = new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
-    if (pd()->with_bias())
+status_t jit_avx2_1x1_convolution_bwd_weights_t::init(engine_t *engine) {
+    CHECK(safe_ptr_assign(kernel_,
+            new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr())));
+    CHECK(kernel_->create_kernel());
+
+    CHECK(safe_ptr_assign(reducer_weights_,
+            new cpu_reducer_2d_t<data_type::f32>(pd()->reducer_wei_conf_)));
+    CHECK(reducer_weights_->create_kernel());
+
+    CHECK(safe_ptr_assign(reducer_bias_,
+            new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_)));
+    if (pd()->with_bias()) {
         assert(reducer_weights_->balancer().nthr_
                 == reducer_bias_->balancer().nthr_);
-    init_rtus_driver<avx2>(this);
+        CHECK(reducer_bias_->create_kernel());
+    }
+
+    CHECK(init_rtus_driver<avx2>(this));
+    return status::success;
 }
 
 void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
@@ -505,12 +513,12 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
     auto reducer_bia_scratchpad
             = memory_tracking::grantor_t(scratchpad, prefix_reducer_bia);
-    auto rb = this->reducer_bias_;
+    auto rb = this->reducer_bias_.get();
     rb->init(reducer_bia_scratchpad);
 
     auto reducer_wei_scratchpad
             = memory_tracking::grantor_t(scratchpad, prefix_reducer_wei);
-    auto rw = this->reducer_weights_;
+    auto rw = this->reducer_weights_.get();
     rw->init(reducer_wei_scratchpad);
 
     const int ndims = diff_dst_d.ndims();
@@ -610,7 +618,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                                     * src_d.blocking_desc().strides[ndims - 3];
 
                         rp.src = src + src_offset;
-                        if (oc_b == 0) rtus_driver_->ker_(&rp);
+                        if (oc_b == 0) (*rtus_driver_)(&rp);
 
                         p.bcast_data = rp.ws;
                     } else
@@ -619,7 +627,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                                         * (is_src_layout_nxc ? jcp.ic
                                                              : jcp.ic_block);
 
-                    kernel_->jit_ker(&p);
+                    (*kernel_)(&p);
                 }
             }
         }
@@ -680,7 +688,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                 sp_step = nstl::min(sp_dim - sp, mb_sp_end - mb_sp);
 
                 const bool first_image = img == img_start;
-                if (first_image && rw->balancer().nthr_per_group_ > 1) {
+                if (is_ddst_layout_nxc && first_image
+                        && rw->balancer().nthr_per_group_ > 1) {
                     // Zero-pad the scratchpad when nthr > 1 (since most threads
                     // write to scratchpad) so that zero-padding is maintained
                     // for the final output after reduction

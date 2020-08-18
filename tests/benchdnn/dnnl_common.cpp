@@ -42,6 +42,14 @@ args_t &args_t::set(int arg, const dnn_mem_t &mem) {
     return *this;
 }
 
+args_t &args_t::set(
+        const std::vector<int> &args, const std::vector<dnn_mem_t> &mems) {
+    assert(args.size() == mems.size());
+    for (size_t i = 0; i < mems.size(); ++i)
+        args_.push_back(std::make_pair(args[i], &mems[i]));
+    return *this;
+}
+
 // Unmap before passing the memory to execute
 void execute_unmap_args(
         const args_t &args, std::vector<dnnl_exec_arg_t> &dnnl_args) {
@@ -184,12 +192,6 @@ void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
     scales_m = dnn_mem_t(1, &count, dnnl_f32, dnnl_a, get_test_engine());
     for (int64_t c = 0; c < count; ++c)
         ((float *)scales_m)[c] = scales[c];
-}
-
-void maybe_prepare_runtime_scales(
-        dnn_mem_t &scales_m, const attr_bundle_t &attr_bundle) {
-    maybe_prepare_runtime_scales(scales_m, attr_bundle.attr,
-            (int64_t)attr_bundle.oscale.size(), attr_bundle.oscale.data());
 }
 
 void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,

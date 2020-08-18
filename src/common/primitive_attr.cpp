@@ -158,6 +158,7 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
 }
 
 status_t post_ops_t::append_sum(float scale, data_type_t dt) {
+    if (len() == post_ops_limit) return out_of_memory;
     entry_.emplace_back();
     auto &e = entry_.back();
     e.kind = primitive_kind::sum;
@@ -168,6 +169,7 @@ status_t post_ops_t::append_sum(float scale, data_type_t dt) {
 
 status_t post_ops_t::append_eltwise(
         float scale, alg_kind_t alg, float alpha, float beta) {
+    if (len() == post_ops_limit) return out_of_memory;
     if (!math::is_eltwise_ok(data_type::f32, alg, alpha, beta))
         return invalid_arguments;
 
@@ -209,6 +211,7 @@ dnnl::impl::status_t post_ops_t::entry_t::set_depthwise_scales(
 
 status_t post_ops_t::append_dw_k3s1p1(data_type_t wei_dt, data_type_t bias_dt,
         data_type_t dst_dt, dim_t count, int mask, const float *scales) {
+    if (len() == post_ops_limit) return out_of_memory;
     bool ok = wei_dt != data_type::undef && dst_dt != data_type::undef
             && IMPLICATION(count > 0, scales) && mask >= 0;
     if (!ok) return invalid_arguments;
@@ -239,6 +242,22 @@ status_t post_ops_t::append_dw_k3s2p1(data_type_t wei_dt, data_type_t bias_dt,
     return success;
 }
 
+status_t post_ops_t::append_binary(
+        alg_kind_t alg, const memory_desc_t *src1_desc) {
+    if (len() == post_ops_limit) return out_of_memory;
+    using namespace alg_kind;
+    bool alg_ok = one_of(alg, binary_add, binary_mul, binary_max, binary_min);
+    if (!alg_ok) return invalid_arguments;
+    if (!memory_desc_sanity_check(src1_desc)) return invalid_arguments;
+
+    entry_.emplace_back();
+    auto &e = entry_.back();
+    e.kind = primitive_kind::binary;
+    e.binary.alg = alg;
+    e.binary.src1_desc = *src1_desc;
+    return success;
+}
+
 bool post_ops_t::defined() const {
     for (int idx = 0; idx < len(); ++idx) {
         auto kind = entry_[idx].kind;
@@ -252,6 +271,8 @@ bool post_ops_t::defined() const {
         } else if (kind == primitive_kind::convolution) {
             const auto &c = entry_[idx].depthwise_conv;
             if (c.scales && is_runtime_value(*(c.scales))) return false;
+        } else if (kind == primitive_kind::binary) {
+            // binary is always defined
         } else {
             assert(!"unreachable");
         }
@@ -279,7 +300,7 @@ status_t primitive_attr_t::set_post_ops(const post_ops_t &post_ops) {
 status_t dnnl_primitive_attr_create(primitive_attr_t **attr) {
     if (attr == nullptr) return invalid_arguments;
 
-    return safe_ptr_assign<dnnl_primitive_attr>(*attr, new dnnl_primitive_attr);
+    return safe_ptr_assign(*attr, new dnnl_primitive_attr);
 }
 
 status_t dnnl_primitive_attr_clone(
@@ -289,7 +310,7 @@ status_t dnnl_primitive_attr_clone(
     auto new_attr = utils::make_unique<primitive_attr_t>(*existing_attr);
     if (!new_attr->is_initialized()) return out_of_memory;
 
-    return safe_ptr_assign<dnnl_primitive_attr>(*attr, new_attr.release());
+    return safe_ptr_assign(*attr, new_attr.release());
 }
 
 status_t dnnl_primitive_attr_destroy(primitive_attr_t *attr) {
@@ -385,7 +406,7 @@ status_t dnnl_primitive_attr_set_post_ops(
 status_t dnnl_post_ops_create(post_ops_t **post_ops) {
     if (post_ops == nullptr) return invalid_arguments;
 
-    return safe_ptr_assign<dnnl_post_ops>(*post_ops, new dnnl_post_ops);
+    return safe_ptr_assign(*post_ops, new dnnl_post_ops);
 }
 
 status_t dnnl_post_ops_destroy(post_ops_t *post_ops) {
@@ -527,6 +548,25 @@ status_t dnnl_post_ops_get_params_dw_k3s2p1(const post_ops_t *post_ops,
     if (count) *count = d.count;
     if (mask) *mask = d.mask;
     if (scales) *scales = d.scales;
+
+    return success;
+}
+
+status_t dnnl_post_ops_append_binary(post_ops_t *post_ops, alg_kind_t alg_kind,
+        const memory_desc_t *src1_desc) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_binary(alg_kind, src1_desc);
+}
+
+status_t dnnl_post_ops_get_params_binary(const post_ops_t *post_ops, int index,
+        alg_kind_t *alg_kind, const dnnl_memory_desc_t **src1_desc) {
+    if (!simple_get_params_check(post_ops, index, primitive_kind::binary))
+        return invalid_arguments;
+
+    const auto &b = post_ops->entry_[index].binary;
+    if (alg_kind) *alg_kind = b.alg;
+    if (src1_desc) *src1_desc = &b.src1_desc;
 
     return success;
 }

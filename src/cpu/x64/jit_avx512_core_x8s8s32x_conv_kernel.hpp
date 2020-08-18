@@ -41,20 +41,16 @@ struct _jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
                     this, jcp.eltwise);
-
-        generate();
-        jit_ker_ = (void (*)(jit_conv_call_s *))getCode();
     }
 
     ~_jit_avx512_core_x8s8s32x_fwd_kernel() { delete eltwise_injector_; }
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
-    void (*jit_ker_)(jit_conv_call_s *);
 
 private:
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
-
+    const int ic_sub_step = 4;
     enum {
         typesize = sizeof(float),
         ker_reg_base_idx = 28,
@@ -93,6 +89,7 @@ private:
     const Xbyak::Reg64 reg_ki = reg_compensation;
     const Xbyak::Reg64 reg_overflow = reg_ptr_scales;
     const Xbyak::Reg64 reg_icb = reg_bias;
+    const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
 
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask kblend_mask = Xbyak::Opmask(3);
@@ -177,7 +174,7 @@ private:
     void compute_eltwise(int ur_w);
     void kh_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
-    void generate();
+    void generate() override;
     void cvt2ps(data_type_t type_in, Vmm ymm_in, const Xbyak::Operand &op,
             bool mask_flag);
     const Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store = false);
@@ -187,39 +184,28 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel {
 
     jit_avx512_core_x8s8s32x_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jit_ker(nullptr)
-        , zmm_kernel_(nullptr)
-        , ymm_kernel_(nullptr)
-        , xmm_kernel_(nullptr) {
+        : kernel_(nullptr) {
         int ch_block = ajcp.is_depthwise ? ajcp.ch_block : ajcp.ic_block;
         switch (ch_block) {
             case 16:
-                zmm_kernel_
-                        = new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Zmm>(
-                                ajcp, attr);
-                jit_ker = zmm_kernel_->jit_ker_;
+                kernel_ = new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Zmm>(
+                        ajcp, attr);
                 return;
             case 8:
-                ymm_kernel_
-                        = new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Ymm>(
-                                ajcp, attr);
-                jit_ker = ymm_kernel_->jit_ker_;
+                kernel_ = new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Ymm>(
+                        ajcp, attr);
                 return;
             case 4:
-                xmm_kernel_
-                        = new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Xmm>(
-                                ajcp, attr);
-                jit_ker = xmm_kernel_->jit_ker_;
+                kernel_ = new _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Xmm>(
+                        ajcp, attr);
                 return;
             default: assert(!"invalid channel blocking");
         }
     }
 
-    ~jit_avx512_core_x8s8s32x_fwd_kernel() {
-        delete xmm_kernel_;
-        delete ymm_kernel_;
-        delete zmm_kernel_;
-    }
+    status_t create_kernel() { return kernel_->create_kernel(); }
+
+    ~jit_avx512_core_x8s8s32x_fwd_kernel() { delete kernel_; }
 
     static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
@@ -229,11 +215,11 @@ struct jit_avx512_core_x8s8s32x_fwd_kernel {
             memory_desc_t &bias_pd, const primitive_attr_t &attr, int nthreads);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
+    void operator()(const jit_conv_call_s *p) const { (*kernel_)(p); }
+    const Xbyak::uint8 *jit_ker() const { return kernel_->jit_ker(); }
 
-    void (*jit_ker)(jit_conv_call_s *);
-    _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Zmm> *zmm_kernel_;
-    _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Ymm> *ymm_kernel_;
-    _jit_avx512_core_x8s8s32x_fwd_kernel<Xbyak::Xmm> *xmm_kernel_;
+private:
+    jit_generator *kernel_;
 };
 
 } // namespace x64

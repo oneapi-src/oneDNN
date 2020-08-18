@@ -2058,6 +2058,17 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// See @ref dev_guide_attributes_post_ops_depthwise_fusion
 #define DNNL_ARG_ATTR_POST_OP_DW 8192
 
+/// Starting point for a binary post operation.
+#define DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE 16384
+
+/// Arguments for a binary post operation. Up to 32 arguments are supported.
+/// See @ref dev_guide_attributes_post_ops_binary_fusion
+#define DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) \
+    (DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE * ((idx) + 1))
+
+// XXX: next define should have a (1 << 20) = 1048576 value to preserve 5 bits
+// for DNNL_ARG_ATTR_MULTIPLE_POST_OP argument.
+
 /// A structure that contains an index and a memory object, and is used to pass
 /// arguments to dnnl_primitive_execute().
 typedef struct {

@@ -87,21 +87,21 @@ void generate(
 
 /** jit barrier generator */
 struct jit_t : public jit_generator {
-    void (*barrier)(ctx_t *ctx, size_t nthr);
 
-    jit_t() {
-        generate(*this, abi_param1, abi_param2);
+    void generate() override {
+        simple_barrier::generate(*this, abi_param1, abi_param2);
         ret();
-        barrier = reinterpret_cast<decltype(barrier)>(
-                const_cast<uint8_t *>(this->getCode()));
     }
+
+    // TODO: Need to check status
+    jit_t() { create_kernel(); }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_t)
 };
 
 void barrier(ctx_t *ctx, int nthr) {
     static jit_t j; /* XXX: constructed on load ... */
-    j.barrier(ctx, nthr);
+    j(ctx, nthr);
 }
 
 } // namespace simple_barrier

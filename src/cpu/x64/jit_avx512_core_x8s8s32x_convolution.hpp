@@ -77,16 +77,18 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
     };
 
     jit_avx512_core_x8s8s32x_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd) {
-        kernel_ = new jit_avx512_core_x8s8s32x_fwd_kernel(
-                pd()->jcp_, *pd()->attr());
-    }
-
-    ~jit_avx512_core_x8s8s32x_convolution_fwd_t() { delete kernel_; }
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx512_core_x8s8s32x_fwd_kernel(
+                        pd()->jcp_, *pd()->attr())));
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         const auto &_pd = pd();
@@ -111,7 +113,7 @@ private:
     void execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_core_x8s8s32x_fwd_kernel *kernel_;
+    std::unique_ptr<jit_avx512_core_x8s8s32x_fwd_kernel> kernel_;
 };
 
 } // namespace x64

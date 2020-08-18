@@ -42,7 +42,16 @@ static dnnl_dim_t compute_n_summands(
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_fwd_t<isa, d_type>::jit_uni_lrn_fwd_t(const pd_t *apd)
-    : primitive_t(apd), ker_(nullptr), ker_first_(nullptr), ker_last_(nullptr) {
+    : primitive_t(apd)
+    , ker_(nullptr)
+    , ker_first_(nullptr)
+    , ker_last_(nullptr) {}
+
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_lrn_fwd_t<isa, d_type>::~jit_uni_lrn_fwd_t() = default;
+
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_lrn_fwd_t<isa, d_type>::init(engine_t *engine) {
     using namespace alg_kind;
 
     const int C = pd()->C();
@@ -58,33 +67,34 @@ jit_uni_lrn_fwd_t<isa, d_type>::jit_uni_lrn_fwd_t(const pd_t *apd)
 
     if (dat_tag == nChw8c && ls == 5 && ak == lrn_across_channels) {
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                nchw8c_across(H, W, 0), A, K, pk);
+                nchw8c_across_t(H, W, 0), A, K, pk);
         ker_first_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                nchw8c_across(H, W, -1), A, K, pk);
+                nchw8c_across_t(H, W, -1), A, K, pk);
         ker_last_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                nchw8c_across(H, W, +1), A, K, pk);
+                nchw8c_across_t(H, W, +1), A, K, pk);
     } else if (one_of(dat_tag, nhwc, nChw8c, nChw16c)
             && ak == lrn_within_channel) {
 
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                within_config(H, W, C, ls, dat_tag), A, K, pk);
+                within_config_t(H, W, C, ls, dat_tag), A, K, pk);
     } else if (dat_tag == nchw && ls == 5 && ak == lrn_across_channels) {
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                nchw_across(C, H * W, 0), A, K, pk);
+                nchw_across_t(C, H * W, 0), A, K, pk);
         const int remind = (H * W) % VECTOR_LENGTH;
         if (remind != 0) {
             ker_last_
                     = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                            nchw_across(C, H * W, remind), A, K, pk);
+                            nchw_across_t(C, H * W, remind), A, K, pk);
         }
     } else {
         ker_ = utils::make_unique<jit_uni_lrn_fwd_kernel_t<isa, d_type>>(
-                nhwc_across(C), A, K, pk);
+                nhwc_across_t(C), A, K, pk);
     }
+    CHECK(ker_->create_kernel());
+    if (ker_first_) CHECK(ker_first_->create_kernel());
+    if (ker_last_) CHECK(ker_last_->create_kernel());
+    return status::success;
 }
-
-template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_lrn_fwd_t<isa, d_type>::~jit_uni_lrn_fwd_t() = default;
 
 template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_lrn_fwd_t<isa, d_type>::execute_forward(
@@ -201,7 +211,16 @@ status_t jit_uni_lrn_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_bwd_t<isa, d_type>::jit_uni_lrn_bwd_t(const pd_t *apd)
-    : primitive_t(apd), ker_(nullptr), ker_first_(nullptr), ker_last_(nullptr) {
+    : primitive_t(apd)
+    , ker_(nullptr)
+    , ker_first_(nullptr)
+    , ker_last_(nullptr) {}
+
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_lrn_bwd_t<isa, d_type>::~jit_uni_lrn_bwd_t() = default;
+
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_lrn_bwd_t<isa, d_type>::init(engine_t *engine) {
     using namespace alg_kind;
     const int C = pd()->C();
     const int H = pd()->H();
@@ -215,27 +234,28 @@ jit_uni_lrn_bwd_t<isa, d_type>::jit_uni_lrn_bwd_t(const pd_t *apd)
 
     if (one_of(dat_tag, nhwc, nChw8c, nChw16c) && ak == lrn_within_channel) {
         ker_ = utils::make_unique<jit_uni_lrn_bwd_kernel_t<isa, d_type>>(
-                within_config(H, W, C, ls, dat_tag), A, B);
+                within_config_t(H, W, C, ls, dat_tag), A, B);
     } else {
         int use_h_parallelism = 0; // XXX
         if (C / VECTOR_LENGTH == 1) {
             ker_ = utils::make_unique<jit_uni_lrn_bwd_kernel_t<isa, d_type>>(
-                    nchw8c_across(H, W, 3), A, B, use_h_parallelism);
+                    nchw8c_across_t(H, W, 3), A, B, use_h_parallelism);
         } else {
             ker_ = utils::make_unique<jit_uni_lrn_bwd_kernel_t<isa, d_type>>(
-                    nchw8c_across(H, W, 0), A, B, use_h_parallelism);
+                    nchw8c_across_t(H, W, 0), A, B, use_h_parallelism);
             ker_first_
                     = utils::make_unique<jit_uni_lrn_bwd_kernel_t<isa, d_type>>(
-                            nchw8c_across(H, W, -1), A, B, use_h_parallelism);
+                            nchw8c_across_t(H, W, -1), A, B, use_h_parallelism);
             ker_last_
                     = utils::make_unique<jit_uni_lrn_bwd_kernel_t<isa, d_type>>(
-                            nchw8c_across(H, W, +1), A, B, use_h_parallelism);
+                            nchw8c_across_t(H, W, +1), A, B, use_h_parallelism);
         }
     }
+    CHECK(ker_->create_kernel());
+    if (ker_first_) CHECK(ker_first_->create_kernel());
+    if (ker_last_) CHECK(ker_last_->create_kernel());
+    return status::success;
 }
-
-template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_lrn_bwd_t<isa, d_type>::~jit_uni_lrn_bwd_t() = default;
 
 template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_lrn_bwd_t<isa, d_type>::execute_backward(

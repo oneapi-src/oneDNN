@@ -35,6 +35,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_alpha : s.alpha)
     for_(const auto &i_beta : s.beta)
     for_(const auto &i_mb : s.mb)
+    for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
     for (auto i_inplace : s.inplace) {
         bool ok = i_alg > alg_t::ELTWISE_START && i_alg < alg_t::ELTWISE_END;
@@ -80,6 +81,7 @@ void check_correctness(const settings_t &s) {
         };
 
         attr_t attr;
+        attr.insert(i_post_ops);
         attr.insert(i_scratchpad_mode);
 
         const prb_t p(s.dims, i_dir, i_dt, i_tag, i_alg, i_alpha, i_beta,
@@ -123,6 +125,7 @@ int bench(int argc, char **argv) {
                         s.alg, def.alg, attr_t::post_ops_t::str2kind, argv[0])
                 || parse_inplace(s.inplace, def.inplace, argv[0])
                 || parse_mb(s.mb, def.mb, argv[0])
+                || parse_attr_post_ops(s.post_ops, argv[0])
                 || parse_attr_scratchpad_mode(
                         s.scratchpad_mode, def.scratchpad_mode, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,

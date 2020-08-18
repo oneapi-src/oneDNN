@@ -1501,7 +1501,9 @@ inline void propagate(std::vector<BasicBlock> &BBs)
         }
     }
 
+#ifdef NGEN_SAFE
     if (!done) throw std::runtime_error("nGEN internal error: propagation failed.");
+#endif
 
     // Perform final half-propagation step (tail-to-head) to accumulate incoming producers
     //  for each BB.

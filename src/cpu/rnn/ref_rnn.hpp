@@ -240,7 +240,9 @@ struct _ref_rnn_common_t : public primitive_t {
     };
 
     _ref_rnn_common_t(const pd_t *apd)
-        : primitive_t(apd), rnn_postgemm_(nullptr) {
+        : primitive_t(apd), rnn_postgemm_(nullptr) {}
+
+    status_t init(engine_t *engine) override {
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dhc and sic != dhc
         /// respectively
@@ -296,6 +298,8 @@ struct _ref_rnn_common_t : public primitive_t {
                 ws_grid_comp_offset_, ws_bias_offset_, scratch_gates_offset_,
                 scratch_ht_offset_, scratch_diff_ht_offset_,
                 scratch_cell_offset_, scratchpad_size, workspace_size);
+
+        return status::success;
     }
 
     ~_ref_rnn_common_t() { delete rnn_postgemm_; }

@@ -100,6 +100,8 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
     jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd);
     ~jit_avx512_core_u8s8s32x_wino_convolution_fwd_t();
 
+    status_t init(engine_t *engine) override;
+
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;

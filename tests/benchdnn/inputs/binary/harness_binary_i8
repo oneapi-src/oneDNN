@@ -10,7 +10,10 @@
                 'sum:0.5', \
                 'logistic:0:0:0.5', \
                 'linear:2:0.125', \
-                'sum:0.25;relu:-0.01'
+                'sum:0.25;relu:-0.01', \
+                'add:f32:per_oc', \
+                'mul:s8;linear:0.5:0.25', \
+                'sum:0.5;add:f32:common;abs;min:u8:per_oc'
 --batch=option_set_all
 
 ## scales

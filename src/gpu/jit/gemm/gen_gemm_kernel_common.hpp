@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2019-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,29 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_BRGEMM_BRGEMM_DESC_HPP
-#define CPU_X64_BRGEMM_BRGEMM_DESC_HPP
+#ifndef GPU_JIT_GEMM_GEN_GEMM_KERNEL_COMMON_HPP
+#define GPU_JIT_GEMM_GEN_GEMM_KERNEL_COMMON_HPP
 
-#include "cpu/x64/brgemm/brgemm_types.hpp"
-#include "cpu/x64/brgemm/jit_brgemm_kernel.hpp"
-
-namespace dnnl {
-namespace impl {
-namespace cpu {
-namespace x64 {
-
-struct brgemm_desc_t {
-    // Configuration of jitted kernel
-    brgemm_conf_t cfg;
-    // Jitted kernel
-    jit_brgemm_kernel_t *kernel_ = nullptr;
+enum {
+    FlagCOColumn = 4,
+    FlagCORow = 8,
+    FlagNonfinalKBlock = 16,
 };
 
-} // namespace x64
-} // namespace cpu
-} // namespace impl
-} // namespace dnnl
-
-#endif
-
-//vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+#endif /* header guard */

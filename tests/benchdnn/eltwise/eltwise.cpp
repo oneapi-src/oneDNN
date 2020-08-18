@@ -26,6 +26,7 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "binary/binary.hpp"
 #include "eltwise/eltwise.hpp"
 
 namespace eltwise {
@@ -59,7 +60,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                 WARN);
     }
 
-    auto dnnl_attr = create_dnnl_attr(p->attr);
+    attr_args_t attr_args;
+    attr_args.prepare_binary_post_op_mds(p->attr, p->ndims, p->dims.data());
+    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&epd, &ed, dnnl_attr, engine, NULL);
@@ -305,6 +308,12 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
         default: break;
     };
     if (is_invalid) r->state = SKIPPED, r->reason = INVALID_CASE;
+
+    // TODO: temporary disable binary post-op on GPU
+    if (engine_tgt_kind == dnnl_gpu && p->attr.post_ops.binary_index() != -1) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 int doit(const prb_t *p, res_t *r) {
@@ -348,6 +357,11 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
+    SAFE(binary::setup_binary_po(
+                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+            WARN);
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
@@ -359,11 +373,12 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+        args.set(binary_po_args, binary_po_dt);
 
         SAFE(execute_and_wait(e, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_fwd(p, src_fp, dst_fp);
+            compute_ref_fwd(p, src_fp, binary_po_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, tag, test_engine);
             SAFE(compare(p, src_fp, dst_fp, dst, r), WARN);
         }
@@ -386,7 +401,8 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         if (p->use_dst()) {
-            if (bench_mode & CORR) compute_ref_fwd(p, src_fp, dst_fp);
+            if (bench_mode & CORR)
+                compute_ref_fwd(p, src_fp, binary_po_fp, dst_fp);
             SAFE(dst_dt.reorder(dst_fp), WARN);
             // make dst_fp of same values as for bf16, otherwise there are high
             // relative and absolute errors due to initial difference in source

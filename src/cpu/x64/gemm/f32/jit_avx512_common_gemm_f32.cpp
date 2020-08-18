@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
 #include <cmath>
 #include <mutex>
 
@@ -61,7 +62,13 @@ struct xbyak_gemm : public jit_generator {
     xbyak_gemm(char isTransA, char isTransB, float beta, bool hasBias = false,
             void *code_ptr = nullptr,
             size_t code_size = 80 * Xbyak::DEFAULT_MAX_CODE_SIZE)
-        : jit_generator(code_ptr, code_size) {
+        : jit_generator(code_ptr, code_size)
+        , isTransA(isTransA)
+        , isTransB(isTransB)
+        , beta(beta)
+        , hasBias(hasBias) {}
+
+    void generate() override {
         using namespace Xbyak;
 
         enum {
@@ -1717,27 +1724,16 @@ struct xbyak_gemm : public jit_generator {
 
         vzeroupper();
         postamble();
-
-        ker_ = this->getCode<ker_t>();
-    }
-
-    typedef void (*ker_t)(dim_t m, dim_t n, dim_t k, const float *alpha,
-            const float *a, dim_t lda, const float *b, dim_t ldb,
-            const float *beta, float *c, dim_t ldc, const float *bias,
-            float *ws);
-
-    void operator()(dim_t m, dim_t n, dim_t k, const float *alpha,
-            const float *a, dim_t lda, const float *b, dim_t ldb,
-            const float *beta, float *c, dim_t ldc, const float *bias,
-            float *ws) const {
-        ker_(m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, bias, ws);
     }
 
 private:
-    ker_t ker_;
+    const char isTransA;
+    const char isTransB;
+    const float beta;
+    const bool hasBias;
 };
 
-const xbyak_gemm *get_xbyak_gemm(
+xbyak_gemm *get_xbyak_gemm(
         bool isTransA, bool isTransB, float beta, bool hasBias) {
     auto beta_idx = [](float beta) {
         return (beta == 0.0) ? 0 : (beta == 1.0 ? 1 : 2);
@@ -1746,27 +1742,35 @@ const xbyak_gemm *get_xbyak_gemm(
     // Kernel table [isTransA][isTransB][hasBias][beta (0, 1, other)]
     static xbyak_gemm *kernel_table[2][2][2][3];
     static std::once_flag initialized;
-    std::call_once(initialized, [=] {
+    dnnl_status_t st = dnnl_success;
+    std::call_once(initialized, [&] {
         for (bool isTransA : {false, true})
             for (bool isTransB : {false, true})
                 for (bool hasBias : {false, true})
                     for (float beta : {0.0f, 1.0f, 2.0f}) {
                         // nocopy sgemm with bias for beta != 0.0 is not supported
                         if (hasBias && beta != 0.0) continue;
-                        kernel_table[isTransA][isTransB][hasBias]
-                                    [beta_idx(beta)]
-                                = new xbyak_gemm(
-                                        isTransA, isTransB, beta, hasBias);
+                        auto &kern = kernel_table[isTransA][isTransB][hasBias]
+                                                 [beta_idx(beta)];
+
+                        kern = new xbyak_gemm(
+                                isTransA, isTransB, beta, hasBias);
+                        if (kern->create_kernel() != dnnl_success) {
+                            st = dnnl_runtime_error;
+                            return;
+                        }
                     }
     });
 
-    return kernel_table[isTransA][isTransB][hasBias][beta_idx(beta)];
+    return (st == dnnl_success)
+            ? kernel_table[isTransA][isTransB][hasBias][beta_idx(beta)]
+            : nullptr;
 }
 
-void sgemm_nocopy_driver(const char *transa, const char *transb, dim_t m,
-        dim_t n, dim_t k, const float *alpha, const float *a, dim_t lda,
-        const float *b, dim_t ldb, const float *beta, float *c, dim_t ldc,
-        const float *bias, float *ws) {
+dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
+        dim_t m, dim_t n, dim_t k, const float *alpha, const float *a,
+        dim_t lda, const float *b, dim_t ldb, const float *beta, float *c,
+        dim_t ldc, const float *bias, float *ws) {
 
     bool isTransA = (*transa == 'T' || *transa == 't');
     bool isTransB = (*transb == 'T' || *transb == 't');
@@ -1775,7 +1779,7 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, dim_t m,
 
     dim_t i, j;
 
-    if ((m <= 0) || (n <= 0)) return;
+    if ((m <= 0) || (n <= 0)) return dnnl_success;
 
     if ((k <= 0) || (alpha[0] == 0.)) {
 
@@ -1789,7 +1793,7 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, dim_t m,
                     c[i + j * ldc] *= beta[0];
         }
 
-        return;
+        return dnnl_success;
     }
 
     assert(IMPLICATION(bias != nullptr, *beta == 0.0));
@@ -1799,7 +1803,7 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, dim_t m,
     auto ker_bn = get_xbyak_gemm(isTransA, isTransB, *beta, hasBias);
     auto ker_b1 = get_xbyak_gemm(isTransA, isTransB, 1.0, false);
     auto ker_b0 = get_xbyak_gemm(isTransA, isTransB, 0.0, false);
-    assert(ker_bn && ker_b1 && ker_b0);
+    if (utils::any_null(ker_bn, ker_b1, ker_b0)) return dnnl_runtime_error;
 
     dim_t BM = 4032, BN, BK;
     if (mayiuse(avx512_core)) {
@@ -1870,6 +1874,8 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, dim_t m,
         }
     }
     msan_unpoison_matrix(c, m, n, ldc, sizeof(*c));
+
+    return dnnl_success;
 }
 
 } // namespace avx512_common_gemm_f32
@@ -1951,6 +1957,8 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
         }
     }
 
+    std::atomic<dnnl_status_t> st(dnnl_success);
+
     parallel(nthr_to_use, [&](int ithr, int nthr) {
         assert(nthr == nthr_to_use);
         MAYBE_UNUSED(nthr);
@@ -2024,8 +2032,13 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
                     myBias = nullptr;
                 }
 
-                sgemm_nocopy_driver(transa, transb, myM, myN, myK, p_alpha, myA,
-                        lda, myB, ldb, &myBeta, myC, ld, myBias, ws);
+                dnnl_status_t st_thr = sgemm_nocopy_driver(transa, transb, myM,
+                        myN, myK, p_alpha, myA, lda, myB, ldb, &myBeta, myC, ld,
+                        myBias, ws);
+                if (st_thr != dnnl_success) {
+                    st = st_thr;
+                    return;
+                }
 
                 if (nthr_k > 1 && !sum_later)
                     ompstatus[(ibase + ithr_k) * CACHE_LINE_SIZE] = 1;
@@ -2064,6 +2077,8 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
             }
         }
     });
+
+    CHECK(st);
 
     // handle C summation later
     if (nthr_k > 1 && ompstatus[0] == 0) {

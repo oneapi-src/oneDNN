@@ -33,20 +33,16 @@ template <cpu_isa_t isa>
 struct jit_uni_dw_conv_fwd_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_fwd_kernel_f32)
 
-    jit_uni_dw_conv_fwd_kernel_f32(jit_conv_conf_t ajcp)
+    jit_uni_dw_conv_fwd_kernel_f32(const jit_conv_conf_t &ajcp)
         : jcp(ajcp), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_
                     = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
-
-        this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
     ~jit_uni_dw_conv_fwd_kernel_f32() { delete eltwise_injector_; }
 
     jit_conv_conf_t jcp;
-    void (*jit_ker)(jit_conv_call_s *);
 
 private:
     using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
@@ -109,19 +105,16 @@ private:
 
     jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
 
-    void generate();
+    void generate() override;
 };
 
 template <cpu_isa_t isa>
 struct jit_uni_dw_conv_bwd_data_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_bwd_data_kernel_f32)
 
-    jit_uni_dw_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp) {
-        this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
-    }
+    jit_uni_dw_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp)
+        : jcp(ajcp) {}
     jit_conv_conf_t jcp;
-    void (*jit_ker)(jit_conv_call_s *);
 
 private:
     using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
@@ -153,7 +146,7 @@ private:
     inline void apply_filter(int ur_ch_blocks, int ur_str_w);
     inline void store_dsrc(int ur_ch_blocks, int ur_str_w);
 
-    void generate();
+    void generate() override;
 };
 
 template <cpu_isa_t isa>
@@ -161,13 +154,10 @@ struct jit_uni_dw_conv_bwd_weights_kernel_f32 : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_bwd_weights_kernel_f32)
 
-    jit_uni_dw_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp) {
-        this->generate();
-        jit_ker = (void (*)(jit_dw_conv_call_s *))this->getCode();
-    }
+    jit_uni_dw_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
+        : jcp(ajcp) {}
 
     jit_conv_conf_t jcp;
-    void (*jit_ker)(jit_dw_conv_call_s *);
 
 private:
     using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
@@ -235,7 +225,7 @@ private:
     inline void store_filter();
     inline void store_bias();
 
-    void generate();
+    void generate() override;
 };
 
 } // namespace x64

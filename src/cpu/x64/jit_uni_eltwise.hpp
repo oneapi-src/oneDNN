@@ -56,6 +56,8 @@ struct jit_uni_eltwise_fwd_t : public primitive_t {
 
     typedef typename prec_traits<d_type>::type data_t;
 
+    status_t init(engine_t *engine) override;
+
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
@@ -83,6 +85,8 @@ struct jit_uni_eltwise_bwd_t : public primitive_t {
     virtual ~jit_uni_eltwise_bwd_t();
 
     typedef typename prec_traits<d_type>::type data_t;
+
+    status_t init(engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override;
 

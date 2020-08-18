@@ -19,8 +19,11 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/x64/brgemm/jit_brgemm_kernel.hpp"
+#include "cpu/x64/brgemm/brgemm_amx.hpp"
+#include "cpu/x64/brgemm/brgemm_types.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
+#include "cpu/x64/jit_generator.hpp"
+#include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
 #define GET_OFF(field) offsetof(brgemm_kernel_params_t, field)
 
@@ -33,7 +36,7 @@ using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 struct jit_brgemm_kernel_base_t : public jit_generator {
-    jit_brgemm_kernel_base_t(const brgemm_conf_t &abrg)
+    jit_brgemm_kernel_base_t(const brgemm_t &abrg)
         : brg(abrg), eltwise_injector_(nullptr) {
         if (brg.with_eltwise) {
             const auto &p = brg.attr->post_ops_;
@@ -44,18 +47,13 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, eltwise, true, rax, Xbyak::Opmask(1));
         }
-
-        generate();
-        jit_kernel_ = (void (*)(brgemm_kernel_params_t *))getCode();
     }
 
     ~jit_brgemm_kernel_base_t() { delete eltwise_injector_; }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_base_t)
 
-    brgemm_conf_t brg;
-
-    void (*jit_kernel_)(brgemm_kernel_params_t *);
+    brgemm_t brg;
 
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
@@ -89,7 +87,7 @@ private:
     const reg64_t reg_b_offset = rsi;
 
     const reg64_t reg_aux1_A = rbp;
-    const reg64_t reg_aux1_B = rdi;
+    const reg64_t reg_aux1_B = abi_param1;
 
     const reg64_t reg_offset_A = reg_aux1_A;
     const reg64_t reg_offset_B = reg_aux1_B;
@@ -179,7 +177,7 @@ private:
             bool is_reg_tail, bool is_n_tail);
     void mb_loop();
 
-    void generate();
+    void generate() override;
 };
 
 const Xbyak::Zmm jit_brgemm_kernel_base_t::zmm_mask(const Xbyak::Zmm zmm_in,
@@ -336,12 +334,10 @@ void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(
         }
     }
 
-    bool with_sum = false;
     bool sum_before_eltwise = false;
-    const auto &p = brg.attr->post_ops_;
-    const int sum_idx = p.find(primitive_kind::sum);
-    if (sum_idx != -1) {
-        with_sum = true;
+    if (brg.with_sum) {
+        const auto &p = brg.attr->post_ops_;
+        const int sum_idx = p.find(primitive_kind::sum);
         sum_before_eltwise
                 = (sum_idx == 0) && p.contain(primitive_kind::eltwise, 1);
     }
@@ -349,7 +345,7 @@ void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(
     if (brg.with_eltwise && !sum_before_eltwise)
         eltwise_injector_->compute_vector_range(32 - m_block * n_block2, 32);
 
-    if (with_sum) {
+    if (brg.with_sum) {
         const float *p_sum_scale = &brg.sum_scale;
         if (*p_sum_scale != 1.f) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
 
@@ -462,7 +458,8 @@ void jit_brgemm_kernel_base_t::store_accumulators(
         if (brg.beta != 0.f && brg.alpha != 0) {
             apply_beta(m_block, n_block2, is_n_tail);
         }
-        if (brg.with_eltwise || brg.with_bias || brg.dt_d != brg.dt_c) {
+        if (one_of(true, brg.with_eltwise, brg.with_scales, brg.with_bias,
+                    brg.with_sum, brg.dt_d != brg.dt_c)) {
             Label label_done, label_store_without_post_ops;
 
             mov(reg_do_post_ops, ptr[rsp + reg_do_post_ops_offs_]);
@@ -861,12 +858,19 @@ void jit_brgemm_kernel_base_t::generate() {
     if (brg.with_eltwise) eltwise_injector_->prepare_table();
 }
 
-jit_brgemm_kernel_t::jit_brgemm_kernel_t(const brgemm_conf_t abrd) {
+brgemm_kernel_t::brgemm_kernel_t(const brgemm_t abrd) {
     brgemm_kernel_ = new jit_brgemm_kernel_base_t(abrd);
-    brgemm = brgemm_kernel_->jit_kernel_;
 }
 
-jit_brgemm_kernel_t::~jit_brgemm_kernel_t() {
+status_t brgemm_kernel_t::create_kernel() {
+    return brgemm_kernel_->create_kernel();
+}
+
+void brgemm_kernel_t::operator()(brgemm_kernel_params_t *params) const {
+    (*brgemm_kernel_)(params);
+}
+
+brgemm_kernel_t::~brgemm_kernel_t() {
     delete brgemm_kernel_;
 }
 

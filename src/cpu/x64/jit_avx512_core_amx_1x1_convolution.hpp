@@ -86,16 +86,18 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
     };
 
     jit_avx512_core_amx_1x1_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd) {
-        kernel_ = new jit_avx512_core_amx_1x1_fwd_kernel_t(
-                pd()->jcp_, *pd()->attr());
-    }
-
-    ~jit_avx512_core_amx_1x1_convolution_fwd_t() { delete kernel_; }
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx512_core_amx_1x1_fwd_kernel_t(
+                        pd()->jcp_, *pd()->attr())));
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         const auto &_pd = pd();
@@ -114,7 +116,7 @@ private:
     void prepare_padded_bias(const char *&bias,
             const memory_tracking::grantor_t &scratchpad) const;
 
-    jit_avx512_core_amx_1x1_fwd_kernel_t *kernel_;
+    std::unique_ptr<jit_avx512_core_amx_1x1_fwd_kernel_t> kernel_;
 };
 
 } // namespace x64

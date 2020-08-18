@@ -52,6 +52,10 @@ struct jit_avx512_common_lrn_fwd_t : public primitive_t {
 
     using data_t = typename prec_traits<d_type>::type;
 
+    status_t init(engine_t *engine) override {
+        return lrn_executor_->create_kernel();
+    }
+
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return lrn_executor_->execute(ctx);
     }
@@ -82,6 +86,10 @@ struct jit_avx512_common_lrn_bwd_t : public primitive_t {
     ~jit_avx512_common_lrn_bwd_t();
 
     using data_t = typename prec_traits<d_type>::type;
+
+    status_t init(engine_t *engine) override {
+        return lrn_executor_->create_kernel();
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return lrn_executor_->execute(ctx);

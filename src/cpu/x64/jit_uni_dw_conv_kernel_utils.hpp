@@ -39,11 +39,11 @@ namespace x64 {
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_fwd_kernel {
 
-    jit_uni_dw_conv_fwd_kernel(jit_conv_conf_t ajcp)
-        : jit_ker(nullptr), ker_(nullptr) {
+    jit_uni_dw_conv_fwd_kernel(const jit_conv_conf_t &ajcp) : ker_(nullptr) {
         ker_ = new jit_kernel_t(ajcp);
-        jit_ker = ker_->jit_ker;
     }
+
+    status_t create_kernel() { return ker_->create_kernel(); }
     ~jit_uni_dw_conv_fwd_kernel() { delete ker_; }
 
     static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
@@ -56,7 +56,8 @@ struct jit_uni_dw_conv_fwd_kernel {
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 
-    void (*jit_ker)(jit_conv_call_s *);
+    jit_generator *ker() const { return ker_; }
+    void operator()(const jit_conv_call_s *p) const { (*ker_)(p); }
 
 private:
     using jit_kernel_t = typename utils::conditional<isa == avx512_core
@@ -272,11 +273,12 @@ template struct jit_uni_dw_conv_fwd_kernel<sse41, data_type::f32>;
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_bwd_data_kernel {
 
-    jit_uni_dw_conv_bwd_data_kernel(jit_conv_conf_t ajcp)
-        : jit_ker(nullptr), ker_(nullptr) {
+    jit_uni_dw_conv_bwd_data_kernel(const jit_conv_conf_t &ajcp)
+        : ker_(nullptr) {
         ker_ = new jit_kernel_t(ajcp);
-        jit_ker = ker_->jit_ker;
     }
+
+    status_t create_kernel() { return ker_->create_kernel(); }
     ~jit_uni_dw_conv_bwd_data_kernel() { delete ker_; }
 
     static status_t init_conf(jit_conv_conf_t &jcp,
@@ -287,7 +289,7 @@ struct jit_uni_dw_conv_bwd_data_kernel {
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 
-    void (*jit_ker)(jit_conv_call_s *);
+    void operator()(const jit_conv_call_s *p) const { (*ker_)(p); }
 
 private:
     using jit_kernel_t = typename utils::conditional<isa == avx512_core
@@ -406,11 +408,12 @@ template struct jit_uni_dw_conv_bwd_data_kernel<sse41, data_type::f32>;
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_bwd_weights_kernel {
 
-    jit_uni_dw_conv_bwd_weights_kernel(jit_conv_conf_t ajcp)
-        : jit_ker(nullptr), ker_(nullptr) {
+    jit_uni_dw_conv_bwd_weights_kernel(const jit_conv_conf_t &ajcp)
+        : ker_(nullptr) {
         ker_ = new jit_kernel_t(ajcp);
-        jit_ker = ker_->jit_ker;
     }
+
+    status_t create_kernel() { return ker_->create_kernel(); }
 
     ~jit_uni_dw_conv_bwd_weights_kernel() { delete ker_; }
 
@@ -424,7 +427,7 @@ struct jit_uni_dw_conv_bwd_weights_kernel {
 
     static void balance(jit_conv_conf_t &jcp, int nthreads);
 
-    void (*jit_ker)(jit_dw_conv_call_s *);
+    void operator()(const jit_dw_conv_call_s *p) const { (*ker_)(p); }
 
 private:
     using jit_kernel_t = typename utils::conditional<isa == avx512_core

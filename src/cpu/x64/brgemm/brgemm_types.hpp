@@ -47,7 +47,7 @@ struct brgemm_strides_t {
     dim_t stride_b;
 };
 
-struct brgemm_conf_t {
+struct brgemm_t {
     int M;
     int N;
     int K;
@@ -116,6 +116,21 @@ struct brgemm_kernel_params_t {
 
     size_t do_post_ops;
     size_t N;
+};
+
+struct jit_brgemm_kernel_base_t;
+
+struct brgemm_kernel_t {
+    brgemm_kernel_t(const brgemm_t abrd);
+    ~brgemm_kernel_t();
+
+    status_t create_kernel();
+    void operator()(brgemm_kernel_params_t *) const;
+
+private:
+    jit_brgemm_kernel_base_t *brgemm_kernel_ = nullptr;
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(brgemm_kernel_t);
 };
 
 } // namespace x64

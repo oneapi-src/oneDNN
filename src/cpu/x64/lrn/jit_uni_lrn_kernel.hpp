@@ -38,7 +38,7 @@ struct jit_args_bwd_t {
     void *diff_src;
 };
 
-struct nchw8c_across {
+struct nchw8c_across_t {
     /*  version:
     *  -1: channels 0..7,
     *   1: channels C-8 .. C-1,
@@ -46,24 +46,36 @@ struct nchw8c_across {
     *   3: channels only for this kernel(without prev and next)
     */
     int H, W, version;
-    nchw8c_across(int h, int w, int v) : H(h), W(w), version(v) {}
+    nchw8c_across_t(int h, int w, int v) : H(h), W(w), version(v) {}
+    nchw8c_across_t() : nchw8c_across_t(0, 0, 0) {}
 };
 
-struct within_config {
+struct within_config_t {
     const int H, W, C, size;
     const format_tag_t dat_tag;
-    within_config(int h, int w, int c, int s, format_tag_t dat_tag)
+    within_config_t(int h, int w, int c, int s, format_tag_t dat_tag)
         : H(h), W(w), C(c), size(s), dat_tag(dat_tag) {}
+    within_config_t() : within_config_t(0, 0, 0, 0, dnnl_format_tag_undef) {}
 };
 
-struct nchw_across {
+struct nchw_across_t {
     int C, HW, tail;
-    nchw_across(int c, int hw, int t) : C(c), HW(hw), tail(t) {}
+    nchw_across_t(int c, int hw, int t) : C(c), HW(hw), tail(t) {}
+    nchw_across_t() : nchw_across_t(0, 0, 0) {}
 };
 
-struct nhwc_across {
+struct nhwc_across_t {
     int C;
-    nhwc_across(int c) : C(c) {}
+    nhwc_across_t(int c) : C(c) {}
+    nhwc_across_t() : nhwc_across_t(0) {}
+};
+
+enum class lrn_config_t {
+    none = 0,
+    nchw8c_across,
+    within_config,
+    nchw_across,
+    nhwc_across,
 };
 
 template <class Derived>
@@ -75,7 +87,7 @@ class jit_uni_lrn_kernel_t<Derived<isa, d_type>> : public jit_generator {
 public:
     jit_uni_lrn_kernel_t(
             void *code_ptr = nullptr, size_t code_size = MAX_CODE_SIZE);
-    jit_uni_lrn_kernel_t(const within_config &J, void *code_ptr = nullptr,
+    jit_uni_lrn_kernel_t(const within_config_t &J, void *code_ptr = nullptr,
             size_t code_size = MAX_CODE_SIZE);
 
     ~jit_uni_lrn_kernel_t();
@@ -92,7 +104,7 @@ protected:
     void load_data(const Vmm &reg, const Xbyak::Address &p);
     void store_data(const Xbyak::Address &p, const Vmm &reg);
     void within_loop(
-            const within_config &config, int max_reg_blocks, prop_kind_t pk);
+            const within_config_t &config, int max_reg_blocks, prop_kind_t pk);
     void within_body_reg_blocked(int loop_count, int max_reg_block, int hoff,
             int Hoff, int woff, int Woff, int stride, prop_kind_t pk);
 
@@ -118,24 +130,44 @@ class jit_uni_lrn_fwd_kernel_t
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_fwd_kernel_t)
 
-    jit_uni_lrn_fwd_kernel_t(const within_config &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const within_config_t &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_t(const nchw8c_across &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const nchw8c_across_t &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_t(const nhwc_across &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const nhwc_across_t &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_fwd_kernel_t(const nchw_across &J, float A, float K,
+    jit_uni_lrn_fwd_kernel_t(const nchw_across_t &J, float A, float K,
             prop_kind_t pk, void *code_ptr = nullptr,
             size_t code_size = 2 * Xbyak::DEFAULT_MAX_CODE_SIZE);
     ~jit_uni_lrn_fwd_kernel_t();
-    void operator()(jit_args_fwd_t *arg) { ker(arg); }
-    void (*ker)(jit_args_fwd_t *);
 
 private:
     using Base = jit_uni_lrn_kernel_t<jit_uni_lrn_fwd_kernel_t<isa, d_type>>;
+
+    void generate() override {
+        switch (config_) {
+            case lrn_config_t::within_config:
+                generate(this->within_config_);
+                return;
+            case lrn_config_t::nchw8c_across:
+                generate(this->nchw8c_across_);
+                return;
+            case lrn_config_t::nhwc_across:
+                generate(this->nhwc_across_);
+                return;
+            case lrn_config_t::nchw_across:
+                generate(this->nchw_across_);
+                return;
+            default: assert(!"Configuration not supported"); return;
+        }
+    }
+    void generate(const within_config_t &config);
+    void generate(const nchw8c_across_t &config);
+    void generate(const nhwc_across_t &config);
+    void generate(const nchw_across_t &config);
 
 public:
     using Base::VECTOR_LENGTH;
@@ -167,8 +199,14 @@ private:
     const Vmm valpha_ = Vmm(0);
     const Vmm vk_ = Vmm(1);
 
+    lrn_config_t config_;
+    const nchw8c_across_t nchw8c_across_;
+    const within_config_t within_config_;
+    const nchw_across_t nchw_across_;
+    const nhwc_across_t nhwc_across_;
     float alpha_;
     float k_;
+    prop_kind_t pk_;
     static constexpr int stack_space_needed_ = 11 * 4 * sizeof(float) + 16;
 };
 
@@ -178,18 +216,29 @@ class jit_uni_lrn_bwd_kernel_t
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_lrn_bwd_kernel_t)
 
-    jit_uni_lrn_bwd_kernel_t(const nchw8c_across &J, float A, float B,
+    jit_uni_lrn_bwd_kernel_t(const nchw8c_across_t &J, float A, float B,
             int use_h_parallel, void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
-    jit_uni_lrn_bwd_kernel_t(const within_config &J, float A, float B,
+    jit_uni_lrn_bwd_kernel_t(const within_config_t &J, float A, float B,
             void *code_ptr = nullptr,
             size_t code_size = 4 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
-    void operator()(jit_args_bwd_t *arg) { ker(arg); }
-    void (*ker)(jit_args_bwd_t *);
-
 private:
     using Base = jit_uni_lrn_kernel_t<jit_uni_lrn_bwd_kernel_t<isa, d_type>>;
+
+    void generate() override {
+        switch (config_) {
+            case lrn_config_t::nchw8c_across:
+                generate(this->nchw8c_across_);
+                return;
+            case lrn_config_t::within_config:
+                generate(this->within_config_);
+                return;
+            default: assert(!"Configuration not supported"); return;
+        }
+    }
+    void generate(const nchw8c_across_t &config);
+    void generate(const within_config_t &config);
 
 public:
     using Base::VECTOR_LENGTH;
@@ -201,6 +250,11 @@ private:
     void within_body(int hoff, int Hoff, int woff, int Woff, int stride,
             prop_kind_t pk, int reg_block = 1, int single_pixel_offset = 0);
     void move_data_pointers(int pixel_count, prop_kind_t pk);
+
+    lrn_config_t config_;
+    const nchw8c_across_t nchw8c_across_;
+    const within_config_t within_config_;
+    prop_kind_t pk_ = prop_kind::backward;
 
     float nalphabeta_;
     int use_h_parallelizm_;

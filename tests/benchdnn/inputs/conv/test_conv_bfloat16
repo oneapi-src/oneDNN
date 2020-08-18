@@ -34,7 +34,8 @@
 ## Post-Ops
 --attr-post-ops='sum' --batch=shapes_resnet_50
 --attr-post-ops='relu' --batch=shapes_googlenet_v3
---attr-post-ops='sum;tanh:1:1:2.5' --batch=shapes_tails
+--attr-post-ops='add:bf16:per_oc' --batch=shapes_tails
+--attr-post-ops='mul:f32;sum;tanh:1:1:2.5' --batch=shapes_tails
 
 ## Depthwise fusion stride 1
 --attr-post-ops='dw_k3s1p1:bf16;relu'

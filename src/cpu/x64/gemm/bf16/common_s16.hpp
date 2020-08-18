@@ -28,6 +28,7 @@ namespace x64 {
 
 class jit_avx512_core_s16_copy_an_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_s16_copy_an_kern);
+    void generate() override;
 
 public:
     jit_avx512_core_s16_copy_an_kern();
@@ -35,6 +36,7 @@ public:
 
 class jit_avx512_core_s16_copy_at_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_s16_copy_at_kern);
+    void generate() override;
 
 public:
     jit_avx512_core_s16_copy_at_kern();
@@ -42,6 +44,7 @@ public:
 
 class jit_avx512_core_s16_copy_bn_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_s16_copy_bn_kern);
+    void generate() override;
 
 public:
     jit_avx512_core_s16_copy_bn_kern();
@@ -49,6 +52,7 @@ public:
 
 class jit_avx512_core_s16_copy_bt_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_s16_copy_bt_kern);
+    void generate() override;
 
 public:
     jit_avx512_core_s16_copy_bt_kern();

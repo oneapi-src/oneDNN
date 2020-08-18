@@ -106,25 +106,32 @@ struct reducer_2d_driver_t : public c_compatible {
         , src_ld_(src_ld)
         , src_step_(src_step)
         , dst_step_(dst_step)
-        , nullify_dst_(nullify_dst)
-        , ker_(nullptr) {}
+        , nullify_dst_(nullify_dst) {}
     virtual ~reducer_2d_driver_t() {}
-    void operator()(data_t *dst, const data_t *srcs, size_t ny, size_t nx) {
-        assert(ker_);
-        ker_(dst, srcs, ny, nx);
-    }
+    virtual void operator()(
+            data_t *dst, const data_t *srcs, size_t ny, size_t nx)
+            = 0;
+    virtual status_t create_kernel() = 0;
 
 protected:
     int n_src_;
     size_t src_ld_, src_step_, dst_step_;
     bool nullify_dst_;
-    void (*ker_)(data_t *dst, const data_t *srcs, size_t ny, size_t nx);
 };
 
 template <impl::data_type_t data_type, cpu_isa_t isa>
 struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
                                     public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(reducer_2d_driver_f_s_32_t)
+
+    typedef typename prec_traits<data_type>::type data_t;
+
+    void operator()(
+            data_t *dst, const data_t *srcs, size_t ny, size_t nx) override {
+        jit_generator::operator()(dst, srcs, ny, nx);
+    }
+
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
 
     /* cpu specific part */
     using Vmm = typename utils::conditional<isa == avx2, Ymm, Zmm>::type;
@@ -157,9 +164,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
     reducer_2d_driver_f_s_32_t(int n_src, size_t src_ld, size_t src_step,
             size_t dst_step, bool nullify_dst)
         : reducer_2d_driver_t<data_type>(
-                n_src, src_ld, src_step, dst_step, nullify_dst) {
-        generate();
-    }
+                n_src, src_ld, src_step, dst_step, nullify_dst) {}
 
     void nullify_dst(int nloads, int load_len) {
         UNUSED(load_len);
@@ -262,7 +267,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
         sub(reg_dst, reg_nx);
     }
 
-    void generate() {
+    void generate() override {
         assert(isa == avx2 || isa == avx512_common || isa == avx512_mic);
 
         preamble();
@@ -281,8 +286,6 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
         jnz(ny_loop, T_NEAR);
 
         postamble();
-        this->ker_ = reinterpret_cast<decltype(this->ker_)>(
-                const_cast<uint8_t *>(this->getCode()));
     }
 };
 
@@ -326,6 +329,11 @@ cpu_reducer_t<data_type>::cpu_reducer_t(const conf_t &conf)
 template <impl::data_type_t data_type>
 cpu_reducer_t<data_type>::~cpu_reducer_t() {
     delete drv_;
+}
+
+template <impl::data_type_t data_type>
+status_t cpu_reducer_t<data_type>::create_kernel() {
+    return (drv_) ? drv_->create_kernel() : status::success;
 }
 
 template <impl::data_type_t data_type>
@@ -418,6 +426,11 @@ cpu_reducer_2d_t<data_type>::cpu_reducer_2d_t(const conf_t &conf)
 template <impl::data_type_t data_type>
 cpu_reducer_2d_t<data_type>::~cpu_reducer_2d_t() {
     delete drv_;
+}
+
+template <impl::data_type_t data_type>
+status_t cpu_reducer_2d_t<data_type>::create_kernel() {
+    return (drv_) ? drv_->create_kernel() : status::success;
 }
 
 template <impl::data_type_t data_type>
@@ -550,6 +563,11 @@ cpu_accumulator_1d_t<data_type>::cpu_accumulator_1d_t() : drv_(nullptr) {
 template <impl::data_type_t data_type>
 cpu_accumulator_1d_t<data_type>::~cpu_accumulator_1d_t() {
     delete drv_;
+}
+
+template <impl::data_type_t data_type>
+status_t cpu_accumulator_1d_t<data_type>::create_kernel() {
+    return drv_->create_kernel();
 }
 
 template <impl::data_type_t data_type>

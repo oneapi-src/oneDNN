@@ -72,6 +72,35 @@ const char *cross_engine2str(cross_engine_t cross_engine) {
     }
 }
 
+float *prb_t::generate_oscales() {
+    const attr_t::scale_t &oscale = this->attr.oscale;
+    const int mask = attr_t::get_default_mask(oscale.policy);
+
+    int64_t uniq_scales = 1;
+    for (int d = 0; d < this->ndims; ++d)
+        if (mask & (1 << d)) uniq_scales *= this->reorder.dims[d];
+
+    float *scales = (float *)zmalloc(sizeof(float) * uniq_scales, 64);
+    SAFE_V(scales != NULL ? OK : FAIL);
+    for (int d = 0; d < uniq_scales; ++d)
+        scales[d] = oscale.scale;
+    if (uniq_scales > 1) scales[uniq_scales - 1] /= 2.f;
+    return scales;
+}
+
+int32_t *prb_t::generate_zero_points(int arg) {
+    const attr_t::zero_points_t &zero_points = this->attr.zero_points;
+    if (zero_points.is_def(arg)) return NULL;
+
+    const auto &e = zero_points.get(arg);
+    assert(e.policy == policy_t::COMMON);
+
+    int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
+    SAFE_V(zp != NULL ? OK : FAIL);
+    zp[0] = e.value;
+    return zp;
+}
+
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
     settings_t def;

@@ -126,7 +126,7 @@ struct eltwise_fwd_pd_t : public eltwise_pd_t {
         return index == 0 ? &data_md_ : &glob_zero_md;
     }
 
-    int n_inputs() const override { return 1; }
+    int n_inputs() const override { return 1 + n_binary_po_inputs(); }
     int n_outputs() const override { return 1; }
 
     static bool eltwise_preserves_zero(

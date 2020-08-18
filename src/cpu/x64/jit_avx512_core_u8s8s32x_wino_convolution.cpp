@@ -26,6 +26,7 @@
 
 #include "cpu/x64/jit_avx512_core_u8s8s32x_wino_convolution.hpp"
 #include "cpu/x64/jit_generator.hpp"
+#include "cpu/x64/jit_primitive_conf.hpp"
 
 #include <string.h>
 
@@ -64,16 +65,11 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t : public jit_generator {
         const void *v_y_masks;
         const void *v_x_masks;
     };
-    void (*ker_)(const call_params_t *);
 
     jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
             jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), unsign_val_in_wino_domain(5) {
-        generate();
-        ker_ = reinterpret_cast<decltype(ker_)>(
-                const_cast<uint8_t *>(getCode()));
-    }
-    void generate();
+        : jcp(ajcp), attr_(attr), unsign_val_in_wino_domain(5) {}
+    void generate() override;
 
     int reg_inp_ind(int i) {
         assert(i < jcp.alpha * jcp.alpha);
@@ -265,17 +261,12 @@ struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t : public jit_generator {
         const void *bias;
         const void *scales;
     };
-    void (*ker_)(const call_params_t *);
 
     jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
             jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr) {
-        generate();
-        ker_ = reinterpret_cast<decltype(ker_)>(
-                const_cast<uint8_t *>(getCode()));
-    }
+        : jcp(ajcp), attr_(attr) {}
 
-    void generate();
+    void generate() override;
     bool maybe_relu(int position);
 
     Zmm vreg_inp(int i) { // 16
@@ -523,19 +514,14 @@ struct jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t : public jit_generator {
         const void *wei;
         const void *dst_b;
     };
-    void (*ker_)(const call_params_t *);
 
-    void generate();
+    void generate() override;
     static bool post_ops_ok(
             jit_conv_conf_2x3_wino_t &jcp, const primitive_attr_t &attr);
 
     jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
             jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr) {
-        generate();
-        ker_ = reinterpret_cast<decltype(ker_)>(
-                const_cast<uint8_t *>(getCode()));
-    }
+        : jcp(ajcp), attr_(attr) {}
 
     static status_t init_conf(jit_conv_conf_2x3_wino_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_md,
@@ -1021,13 +1007,24 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
 template <data_type_t dst_data_type>
 jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::
         jit_avx512_core_u8s8s32x_wino_convolution_fwd_t(const pd_t *apd)
-    : primitive_t(apd) {
-    kernel_ = new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
-            pd()->jcp_, *pd()->attr());
-    src_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
-            pd()->jcp_, *pd()->attr());
-    dst_trans_ = new jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
-            pd()->jcp_, *pd()->attr());
+    : primitive_t(apd) {}
+
+template <data_type_t dst_data_type>
+status_t jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<dst_data_type>::init(
+        engine_t *engine) {
+    CHECK(safe_ptr_assign(kernel_,
+            new jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t(
+                    pd()->jcp_, *pd()->attr())));
+    CHECK(safe_ptr_assign(src_trans_,
+            new jit_avx512_core_u8s8s32x_wino_conv_src_trans_t(
+                    pd()->jcp_, *pd()->attr())));
+    CHECK(safe_ptr_assign(dst_trans_,
+            new jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t(
+                    pd()->jcp_, *pd()->attr())));
+    CHECK(kernel_->create_kernel());
+    CHECK(src_trans_->create_kernel());
+    CHECK(dst_trans_->create_kernel());
+    return status::success;
 }
 
 template <data_type_t dst_data_type>
@@ -1140,7 +1137,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                         src_trans_p.v_y_masks = v_y_masks;
                         src_trans_p.v_x_masks = v_x_masks;
 
-                        src_trans_->ker_(&src_trans_p);
+                        (*src_trans_)(&src_trans_p);
                     }
                 }
                 /* gemms */
@@ -1152,7 +1149,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                     gemm_p.wei = wei + jcp.wei_stride * offset;
                     gemm_p.dst_b = dst_bias + jcp.bia_stride * offset;
 
-                    kernel_->ker_(&gemm_p);
+                    (*kernel_)(&gemm_p);
                 }
 
                 /* transformation from winograd domain to output tensor */
@@ -1187,7 +1184,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                         dst_trans_p.scales = scales;
                         dst_trans_p.bias = bia;
 
-                        dst_trans_->ker_(&dst_trans_p);
+                        (*dst_trans_)(&dst_trans_p);
                     }
                 }
             });
@@ -1252,7 +1249,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                     src_trans_p.v_y_masks = v_y_masks;
                     src_trans_p.v_x_masks = v_x_masks;
 
-                    src_trans_->ker_(&src_trans_p);
+                    (*src_trans_)(&src_trans_p);
                 });
 
         /* gemms */
@@ -1268,7 +1265,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
             gemm_p.dst_b = dst_bias + jcp.bia_stride * tile_ij
                     + nnb * jcp.n2_block * jcp.n_block;
 
-            kernel_->ker_(&gemm_p);
+            (*kernel_)(&gemm_p);
         });
 
         /* transformation from winograd domain to output tensor */
@@ -1309,7 +1306,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                     dst_trans_p.scales = scales;
                     dst_trans_p.bias = bia;
 
-                    dst_trans_->ker_(&dst_trans_p);
+                    (*dst_trans_)(&dst_trans_p);
                 });
     }
 }

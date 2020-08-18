@@ -287,7 +287,7 @@ status_t jit_bf16_sum_t<src_data_type, dst_data_type>::execute(
             arg.dst = (const void *)local_output;
             arg.scales = (const void *)scales;
             arg.size = num_elems_in_block;
-            kernel_->jit_ker(&arg);
+            (*kernel_)(&arg);
         }
 
         if (tail != 0 && ithr == nthr - 1) {
@@ -300,7 +300,7 @@ status_t jit_bf16_sum_t<src_data_type, dst_data_type>::execute(
             arg.dst = (const void *)local_output;
             arg.scales = (const void *)scales;
             arg.size = tail;
-            kernel_->jit_ker(&arg);
+            (*kernel_)(&arg);
         }
     });
 #if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 8 \

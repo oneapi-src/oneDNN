@@ -78,12 +78,15 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
         }
     };
 
-    jit_sse41_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_sse41_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr());
-    }
-    ~jit_sse41_convolution_fwd_t() { delete kernel_; };
+    jit_sse41_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_sse41_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr())));
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -93,7 +96,7 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    jit_sse41_conv_fwd_kernel_f32 *kernel_;
+    std::unique_ptr<jit_sse41_conv_fwd_kernel_f32> kernel_;
 };
 
 } // namespace x64

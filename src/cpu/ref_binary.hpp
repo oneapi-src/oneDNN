@@ -25,7 +25,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
-#include "cpu/ref_eltwise.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 #include "cpu/cpu_binary_pd.hpp"
 
@@ -58,8 +58,7 @@ struct ref_binary_t : public primitive_t {
                             attr()->has_default_values(
                                     sm::post_ops | sm::scales))
                     && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask())
-                    && attr_post_ops_ok();
+                            check_scales_mask());
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -77,10 +76,9 @@ struct ref_binary_t : public primitive_t {
     ref_binary_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        int e_idx = pd()->attr()->post_ops_.find(primitive_kind::eltwise);
-        if (e_idx != -1)
-            eltwise_ker_.reset(new ref_eltwise_scalar_fwd_t(
-                    pd()->attr()->post_ops_.entry_[e_idx].eltwise));
+        ref_post_ops
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops) return status::out_of_memory;
         return status::success;
     }
 
@@ -95,7 +93,7 @@ struct ref_binary_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
-    std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_ker_;
+    std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
 } // namespace cpu

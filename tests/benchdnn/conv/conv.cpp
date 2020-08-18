@@ -27,6 +27,7 @@
 #include "dnnl_memory.hpp"
 #include "norm.hpp"
 
+#include "binary/binary.hpp"
 #include "conv/conv_common.hpp"
 #include "eltwise/eltwise.hpp"
 
@@ -461,17 +462,27 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
     dnnl_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
     dnnl_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};
+    dnnl_dim_t *src_dims = p->ndims == 5
+            ? src_3d_dims
+            : p->ndims == 4 ? src_2d_dims : src_1d_dims;
 
     dnnl_dims_t wei_1d_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kw};
     dnnl_dims_t wei_2d_dims = {p->g, p->oc / p->g, p->ic / p->g, p->kh, p->kw};
     dnnl_dims_t wei_3d_dims
             = {p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh, p->kw};
+    dnnl_dim_t *wei_dims = p->ndims == 5
+            ? &wei_3d_dims[!p->has_groups]
+            : p->ndims == 4 ? &wei_2d_dims[!p->has_groups]
+                            : &wei_1d_dims[!p->has_groups];
 
     dnnl_dims_t bia_dims = {p->oc};
 
     dnnl_dims_t dst_1d_dims = {p->mb, p->oc, p->ow};
     dnnl_dims_t dst_2d_dims = {p->mb, p->oc, p->oh, p->ow};
     dnnl_dims_t dst_3d_dims = {p->mb, p->oc, p->od, p->oh, p->ow};
+    dnnl_dim_t *dst_dims = p->ndims == 5
+            ? dst_3d_dims
+            : p->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
     if (src_dt == dnnl_data_type_undef) src_dt = p->cfg[SRC].dt;
     if (wei_dt == dnnl_data_type_undef) wei_dt = p->cfg[WEI].dt;
@@ -486,27 +497,19 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
     if (dst_tag == dnnl_format_tag_undef)
         dst_tag = convert_tag(p->dtag, p->ndims);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims,
-                     p->ndims == 5 ? src_3d_dims
-                                   : p->ndims == 3 ? src_1d_dims : src_2d_dims,
-                     src_dt, src_tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                     &src_d, p->ndims, src_dims, src_dt, src_tag),
             WARN);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims + p->has_groups,
-                     p->ndims == 5
-                             ? &wei_3d_dims[!p->has_groups]
-                             : p->ndims == 3 ? &wei_1d_dims[!p->has_groups]
-                                             : &wei_2d_dims[!p->has_groups],
-                     wei_dt, wei_tag),
+                     wei_dims, wei_dt, wei_tag),
             WARN);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&bia_d, 1, bia_dims, bia_dt, bia_tag),
             WARN);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims,
-                     p->ndims == 5 ? dst_3d_dims
-                                   : p->ndims == 3 ? dst_1d_dims : dst_2d_dims,
-                     dst_dt, dst_tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                     &dst_d, p->ndims, dst_dims, dst_dt, dst_tag),
             WARN);
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
@@ -555,7 +558,10 @@ inline int init_pd_custom(dnnl_engine_t engine, const prb_t *p,
     DNN_SAFE(cd.accum_data_type == acc_dt ? dnnl_success : dnnl_unimplemented,
             CRIT);
 
-    auto dnnl_attr = create_dnnl_attr(p->attr, p->oc, p->scales);
+    attr_args_t attr_args;
+    attr_args.prepare_output_scales(p->attr, p->scales, p->oc);
+    attr_args.prepare_binary_post_op_mds(p->attr, p->ndims, dst_dims);
+    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, NULL);
@@ -584,6 +590,12 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common(
             {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, p->dir, r);
     if (r->state == SKIPPED) return;
+
+    // TODO: temporary disable binary post-op on GPU
+    if (engine_tgt_kind == dnnl_gpu && p->attr.post_ops.binary_index() != -1) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 
     // Winograd implementation limitations.
     if (p->alg == WINO) {
@@ -716,6 +728,11 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t scales;
     dnn_mem_t src_zero_points_m;
     dnn_mem_t dst_zero_points_m;
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
+    SAFE(binary::setup_binary_po(
+                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+            WARN);
 
     dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
@@ -743,11 +760,13 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
         args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
+        args.set(binary_po_args, binary_po_dt);
 
         SAFE(execute_and_wait(c, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_fwd(p, c_ref, src_fp, wei_fp, bia_fp, dst_fp);
+            compute_ref_fwd(
+                    p, c_ref, src_fp, wei_fp, bia_fp, binary_po_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, src_tag, test_engine);
             SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
         }

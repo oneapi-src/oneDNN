@@ -25,17 +25,13 @@ namespace x64 {
 struct jit_amx_tilecfg_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_amx_tilecfg_t)
 
-    jit_amx_tilecfg_t() {
-        generate();
-        kernel_ = (void (*)(const char *))getCode();
-    }
+    // TODO: Need to check status
+    jit_amx_tilecfg_t() { create_kernel(); }
 
-    void tile_configure(const char *palette) const { kernel_(palette); }
+    void tile_configure(const char *palette) const { (*this)(palette); }
 
 private:
-    void (*kernel_)(const char *);
-
-    void generate() {
+    void generate() override {
         preamble();
 
         tilerelease();

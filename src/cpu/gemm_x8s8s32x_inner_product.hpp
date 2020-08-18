@@ -105,9 +105,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
         }
     };
 
-    gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        pp_kernel_.reset(pp_kernel_t::create(pd(), false));
-    }
+    gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<dst_type>::type data_t;
 
@@ -115,6 +113,11 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(pp_kernel_, pp_kernel_t::create(pd(), false)));
+        return pp_kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);

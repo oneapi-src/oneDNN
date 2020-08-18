@@ -33,14 +33,11 @@ struct jit_avx512_core_amx_1x1_fwd_kernel_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_1x1_fwd_kernel_t)
 
     jit_avx512_core_amx_1x1_fwd_kernel_t(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);
-        generate();
-
-        jit_ker = (void (*)(jit_conv_call_s *))getCode();
     }
     ~jit_avx512_core_amx_1x1_fwd_kernel_t() { delete eltwise_injector_; }
 
@@ -60,7 +57,6 @@ struct jit_avx512_core_amx_1x1_fwd_kernel_t : public jit_generator {
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
-    void (*jit_ker)(jit_conv_call_s *);
 
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
@@ -137,7 +133,7 @@ private:
     void icb_loop(bool do_store);
     void osb_loop(int nb_os = 1);
 
-    void generate();
+    void generate() override;
 };
 
 } // namespace x64

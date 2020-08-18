@@ -31,6 +31,8 @@
 #include "src/common/math_utils.hpp"
 #include "tests/test_thread.hpp"
 
+#define BENCHDNN_DNNL_ARG_UNDEF 0
+
 namespace tag {
 const char *abx {"abx"};
 const char *any {"any"};
@@ -128,18 +130,17 @@ const char *data_kind2str(data_kind_t kind) {
     return "incorrect data kind";
 }
 
-static const std::map<int, const char *> arg2str = {
+static const std::map<int, const char *> supported_args {
         {DNNL_ARG_SRC, "src"},
         {DNNL_ARG_SRC_1, "src1"},
         {DNNL_ARG_WEIGHTS, "wei"},
         {DNNL_ARG_DST, "dst"},
 };
 
-#define DNNL_ARG_UNDEF 0
 static int str2arg(const std::string &str) {
-    for (const auto &arg : arg2str)
+    for (const auto &arg : supported_args)
         if (str.compare(arg.second) == 0) return arg.first;
-    return DNNL_ARG_UNDEF;
+    return BENCHDNN_DNNL_ARG_UNDEF;
 }
 
 policy_t attr_t::str2policy(const std::string &str) {
@@ -228,7 +229,7 @@ int attr_t::zero_points_t::from_str(const std::string &s) {
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
         auto arg = str2arg(get_substr(s, start_pos));
-        if (arg == DNNL_ARG_UNDEF || start_pos == std::string::npos
+        if (arg == BENCHDNN_DNNL_ARG_UNDEF || start_pos == std::string::npos
                 || start_pos >= s.size())
             return FAIL;
 
@@ -255,7 +256,7 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
         auto arg = str2arg(get_substr(s, start_pos));
-        if (arg == DNNL_ARG_UNDEF || start_pos == std::string::npos
+        if (arg == BENCHDNN_DNNL_ARG_UNDEF || start_pos == std::string::npos
                 || start_pos >= s.size())
             return FAIL;
 
@@ -331,7 +332,8 @@ pk_t attr_t::post_ops_t::str2kind(const std::string &str) {
         if (s.compare(e.kind_name) == 0) return e.kind;
     }
     assert(!"unknown attr_t::post_ops_t::kind_t kind");
-    return kind_table[KIND_TOTAL].kind;
+    const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
+    return kind_table[table_size - 1].kind;
 }
 
 const char *attr_t::post_ops_t::kind2str(pk_t kind) {
@@ -339,7 +341,8 @@ const char *attr_t::post_ops_t::kind2str(pk_t kind) {
         if (e.kind == kind) return e.kind_name;
     }
     assert(!"unknown attr::post_ops::kind");
-    return kind_table[KIND_TOTAL].kind_name;
+    const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
+    return kind_table[table_size - 1].kind_name;
 }
 
 dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(pk_t kind) {
@@ -347,7 +350,21 @@ dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(pk_t kind) {
         if (e.kind == kind) return e.dnnl_kind;
     }
     assert(!"unknown attr::post_ops::kind");
-    return kind_table[KIND_TOTAL].dnnl_kind;
+    const auto table_size = sizeof(kind_table) / sizeof(*kind_table);
+    return kind_table[table_size - 1].dnnl_kind;
+}
+
+std::vector<int> attr_t::post_ops_t::get_binary_po_masks() const {
+    std::vector<int> v_masks;
+    for (int idx = 0; idx < len(); ++idx) {
+        const auto &e = this->entry[idx];
+        if (!e.is_binary_kind()) continue;
+
+        const auto policy = e.binary.policy;
+        const auto mask = attr_t::get_default_mask(policy);
+        v_masks.push_back(mask);
+    }
+    return v_masks;
 }
 
 int attr_t::post_ops_t::from_str(const std::string &s) {
@@ -400,6 +417,13 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
             e.eltwise.scale = std::stof(get_substr(subs, subs_pos));
             if (e.eltwise.scale <= 0) return FAIL;
+        } else if (e.is_binary_kind()) {
+            e.binary.src1_dt = str2dt(get_substr(subs, subs_pos).c_str());
+            if (e.binary.src1_dt == dnnl_data_type_undef) return FAIL;
+            if (subs_pos == std::string::npos) continue;
+            if (subs_pos >= subs.size()) return FAIL; // to catch dangling ':'
+
+            e.binary.policy = str2policy(get_substr(subs, subs_pos));
         }
     }
     return OK;
@@ -428,6 +452,16 @@ bool attr_t::post_ops_t::entry_t::is_convolution_kind() const {
 bool attr_t::post_ops_t::entry_t::is_eltwise_kind() const {
     return kind > ELTWISE_START && kind < ELTWISE_END;
 }
+bool attr_t::post_ops_t::entry_t::is_binary_kind() const {
+    return kind > pk_t::BINARY_START && kind < pk_t::BINARY_END;
+}
+
+int attr_t::post_ops_t::convolution_index() const {
+    for (int i = 0; i < len(); ++i) {
+        if (entry[i].is_convolution_kind()) return i;
+    }
+    return -1;
+}
 
 int attr_t::post_ops_t::eltwise_index() const {
     for (int i = 0; i < len(); ++i) {
@@ -436,9 +470,9 @@ int attr_t::post_ops_t::eltwise_index() const {
     return -1;
 }
 
-int attr_t::post_ops_t::convolution_index() const {
+int attr_t::post_ops_t::binary_index() const {
     for (int i = 0; i < len(); ++i) {
-        if (entry[i].is_convolution_kind()) return i;
+        if (entry[i].is_binary_kind()) return i;
     }
     return -1;
 }
@@ -522,7 +556,7 @@ std::ostream &operator<<(
         if (!first) s << '_';
         first = false;
 
-        s << arg2str.at(point.first) << ":" << point.second.policy << ":"
+        s << supported_args.at(point.first) << ":" << point.second.policy << ":"
           << point.second.value;
         if (point.second.runtime) s << '*';
     }
@@ -537,7 +571,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales) {
             if (!first) s << '_';
             first = false;
 
-            s << arg2str.at(v.first) << ":" << v.second;
+            s << supported_args.at(v.first) << ":" << v.second;
         }
     }
     return s;
@@ -574,6 +608,10 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
                 s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta;
             else if (e.eltwise.alpha != 0.f)
                 s << ":" << e.eltwise.alpha;
+        } else if (e.is_binary_kind()) {
+            s << ":" << e.binary.src1_dt;
+            if (e.binary.policy != policy_t::COMMON)
+                s << ":" << e.binary.policy;
         } else {
             assert(!"unknown kind");
             s << "unknown_kind";
@@ -642,81 +680,95 @@ dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str) {
     return dnnl_scratchpad_mode_library;
 }
 
-void attr_bundle_t::init_zero_points() {
-    for (const auto &arg_entry : attr.zero_points)
-        zero_points[arg_entry.first] = {arg_entry.second.value};
+void attr_args_t::prepare_output_scales(
+        const attr_t &attr, const void *vals, int64_t count, int mask) {
+    insert(DNNL_ARG_ATTR_OUTPUT_SCALES, vals, count, mask, attr.oscale.runtime);
 }
 
-int attr_bundle_t::generate(int scale_mask) {
-    dnnl_primitive_attr_t dnnl_attr = create_dnnl_attr(
-            attr, (int64_t)oscale.size(), scale_mask, oscale.data());
-    if (dnnl_attr == NULL) return FAIL;
+int attr_args_t::prepare_binary_post_op_mds(
+        const attr_t &attr, int ndims, const dnnl_dims_t dims) {
+    const auto &po = attr.post_ops;
+    // iterate over all post ops and prepare md for each binary
+    for (int idx = 0; idx < po.len(); ++idx) {
+        const auto &e = po.entry[idx];
+        if (!e.is_binary_kind()) continue;
 
-    scale_mask_ = scale_mask;
-    dnnl_attr_.reset(dnnl_attr, &dnnl_primitive_attr_destroy);
-    initialized_ = true;
+        const auto dt = e.binary.src1_dt;
+        const auto policy = e.binary.policy;
+        const int mask = attr_t::get_default_mask(policy);
+
+        // deduce binary dims based on input policy
+        dnnl_dims_t binary_dims;
+        for (auto d = 0; d < ndims; ++d)
+            binary_dims[d] = (!(mask & (1 << d))) ? 1 : dims[d];
+
+        dnnl_memory_desc_t src1_desc;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src1_desc, ndims, binary_dims,
+                         dt, get_abx_tag(ndims)),
+                WARN);
+        mds.insert(std::make_pair(
+                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
+                src1_desc));
+    }
 
     return OK;
 }
 
-dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
-        int scale_mask, const float *scales) {
+dnnl_primitive_attr_t create_dnnl_attr(
+        const attr_t &attr, const attr_args_t &attr_args) {
     dnnl_primitive_attr_t dnnl_attr = NULL;
     DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
     if (!attr.oscale.is_def()) {
-        int64_t count = attr.oscale.policy == policy_t::COMMON ? 1 : scale_cnt;
-        if (scale_mask == -1)
-            scale_mask = attr.oscale.policy == policy_t::PER_OC ? 1 << 1 : 0;
+        const auto &os_args = attr_args.get(DNNL_ARG_ATTR_OUTPUT_SCALES);
+        const auto &policy = attr.oscale.policy;
 
-        const bool runtime = attr.oscale.runtime;
-        SAFE_V(scales == NULL && runtime ? FAIL : OK);
+        const auto count = os_args.get_count(policy);
+        const auto mask = os_args.get_mask(policy);
+        const auto scales = os_args.get_float_ptr();
 
-        float *gen_scs = NULL;
-        if (scales == NULL) {
-            gen_scs = (float *)zmalloc(count * sizeof(float), 64);
-            SAFE_V(gen_scs != NULL ? OK : FAIL);
-            for (int64_t i = 0; i < count; ++i)
-                gen_scs[i] = attr.oscale.scale;
-            scales = gen_scs;
-        }
-
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr,
-                runtime ? 1 : count, scale_mask,
-                runtime ? &DNNL_RUNTIME_F32_VAL : scales));
-        if (gen_scs) zfree(gen_scs);
+        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(
+                dnnl_attr, count, mask, scales));
     } else if (!attr.scales.is_def()) {
-        // Only common policy is supported at this point
-        for (const auto &s : attr.scales.scales) {
-            int64_t count = s.second.policy == policy_t::COMMON ? 1 : scale_cnt;
-            int mask = -1;
-            if (scale_mask == -1)
-                mask = s.second.policy == policy_t::PER_OC ? 1 << 1 : 0;
+        for (const auto &arg : supported_args) {
+            const auto arg_name = arg.first;
+            const auto &as = attr.scales;
+            if (as.is_def(arg_name)) continue;
+
+            const auto &e = as.get(arg_name);
+            // Only common policy is supported in the library at this point
+            int64_t count = 1;
+            int mask = attr_t::get_default_mask(e.policy);
+            const float *scales = &e.scale;
 
             DNN_SAFE_V(dnnl_primitive_attr_set_scales(
-                    dnnl_attr, s.first, count, mask, &s.second.scale));
+                    dnnl_attr, arg_name, count, mask, scales));
         }
     }
 
     if (!attr.zero_points.is_def()) {
-        for (const auto &zero_points : attr.zero_points) {
-            const bool runtime = zero_points.second.runtime;
-            const auto mask = zero_points.second.policy == policy_t::PER_DIM_1
-                    ? 1 << 1
-                    : 0;
-            SAFE_V((runtime == true || mask == 0) ? OK : FAIL);
+        for (const auto &arg : supported_args) {
+            const auto arg_name = arg.first;
+            const auto &zp = attr.zero_points;
+            if (zp.is_def(arg_name)) continue;
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(dnnl_attr,
-                    zero_points.first, /* count */ 1, mask,
-                    runtime ? &DNNL_RUNTIME_S32_VAL
-                            : &zero_points.second.value));
+            const auto &e = zp.get(arg_name);
+            // Only common policy/single RT value are supported in the library
+            // at this point
+            int64_t count = 1;
+            int mask = attr_t::get_default_mask(e.policy);
+            const auto values = e.runtime ? &DNNL_RUNTIME_S32_VAL : &e.value;
+
+            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(
+                    dnnl_attr, arg_name, count, mask, values));
         }
     }
 
     if (!attr.post_ops.is_def()) {
-        const auto &po = attr.post_ops;
         dnnl_post_ops_t ops;
         DNN_SAFE_V(dnnl_post_ops_create(&ops));
+
+        const auto &po = attr.post_ops;
         for (int idx = 0; idx < po.len(); ++idx) {
             const auto &e = po.entry[idx];
             if (e.is_sum_kind()) {
@@ -725,6 +777,12 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
             } else if (e.is_eltwise_kind()) {
                 DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops, e.eltwise.scale,
                         e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
+            } else if (e.is_binary_kind()) {
+                const auto &src1_md = attr_args.get_md(
+                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+                assert(src1_md.ndims != 0);
+                DNN_SAFE_V(dnnl_post_ops_append_binary(
+                        ops, e.binary.alg, &src1_md));
             } else {
                 assert(!"unknown attr::post_ops::kind");
             }
@@ -945,9 +1003,11 @@ float compute_binary(pk_t kind, float src0, float src1) {
     return 0;
 }
 
-void maybe_post_ops(const attr_t &attr, float &val, float sum_val) {
+void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
+        const std::vector<float> &v_binary_vals) {
     using namespace dnnl::impl::math;
 
+    auto it_bin_po = v_binary_vals.begin();
     const auto &po = attr.post_ops;
     for (int idx = 0; idx < po.len(); ++idx) {
         const auto &e = po.entry[idx];
@@ -961,6 +1021,9 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val) {
             const auto &a = e.eltwise.alpha;
             const auto &b = e.eltwise.beta;
             val = compute_eltwise_fwd(e.kind, val, s, a, b);
+        } else if (e.is_binary_kind()) {
+            val = compute_binary(e.kind, val, *it_bin_po);
+            it_bin_po++;
         }
     }
 }
@@ -1012,4 +1075,4 @@ stream_t::~stream_t() {
     DNN_SAFE_V(dnnl_stream_destroy(stream_));
 }
 
-#undef DNNL_ARG_UNDEF
+#undef BENCHDNN_DNNL_ARG_UNDEF

@@ -49,11 +49,16 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
         gemm_based::params_t params_;
     };
 
-    gemm_x8s8s32x_matmul_t(const pd_t *apd) : primitive_t(apd) {
-        if (pd()->params().has_pp_kernel_)
+    gemm_x8s8s32x_matmul_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
+        if (pd()->params().has_pp_kernel_) {
             pp_kernel_.reset(pp_kernel_t::create(pd()->N(), pd()->M(),
                     &pd()->params().pp_attr_, pd()->desc()->bias_desc.data_type,
                     false));
+            return pp_kernel_->create_kernel();
+        }
+        return status::success;
     }
 
     static constexpr data_type_t acc_type = data_type::s32;

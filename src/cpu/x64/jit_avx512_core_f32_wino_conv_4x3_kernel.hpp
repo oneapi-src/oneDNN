@@ -32,7 +32,9 @@ namespace x64 {
 struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel : public jit_generator {
     _jit_avx512_core_f32_wino_conv_4x3_data_kernel(
             const jit_conv_winograd_conf_t &ajcp)
-        : jit_generator(nullptr, MAX_CODE_SIZE, false), jcp(ajcp) {
+        : jit_generator(nullptr, MAX_CODE_SIZE, false), jcp(ajcp) {}
+
+    void generate() override {
         {
             this->weights_transform_data_ker_generate();
             weights_transform_data_ker
@@ -60,6 +62,11 @@ struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel : public jit_generator {
             gemm_loop_ker = (decltype(gemm_loop_ker))addr;
             register_jit_code(addr, getCurr() - addr);
         }
+    }
+
+    status_t create_kernel() override {
+        generate();
+        return (is_initialized()) ? status::success : status::runtime_error;
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
@@ -185,7 +192,9 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel
 
     jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel(
             const jit_conv_winograd_conf_t &ajcp)
-        : jit_generator(nullptr, MAX_CODE_SIZE, false), jcp(ajcp) {
+        : jit_generator(nullptr, MAX_CODE_SIZE, false), jcp(ajcp) {}
+
+    void generate() override {
         //******************* First iter kernel ********************//
         this->gemm_loop_generate(true);
         gemm_loop_ker_first_iter
@@ -233,6 +242,11 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel
                     = (decltype(diff_weights_transform_accum))addr;
             register_jit_code(addr, getCurr() - addr);
         };
+    }
+
+    status_t create_kernel() override {
+        generate();
+        return (is_initialized()) ? status::success : status::runtime_error;
     }
 
     static status_t init_conf(jit_conv_winograd_conf_t &jcp,

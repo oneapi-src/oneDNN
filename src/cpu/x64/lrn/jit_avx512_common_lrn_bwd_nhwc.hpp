@@ -43,6 +43,7 @@ public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_bwd_nhwc_t)
 
 private:
+    void generate() override;
     void set_up_ker_params();
     void execute_compute_loop(unsigned num_full_16c_blocks, unsigned C_tail);
     void compute_loop(across_version version, tail_mode tail_proc,
@@ -71,6 +72,7 @@ private:
     const Reg64 blockC_ = r12;
 
     const int half_ls_;
+    unsigned C_;
 };
 
 } // namespace lrn

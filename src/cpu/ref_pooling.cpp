@@ -86,7 +86,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
         }
     };
 
-    auto ker_max = [=](data_t *d, int mb, int oc, int od, int oh, int ow) {
+    auto ker_max = [=](float &d, int mb, int oc, int od, int oh, int ow) {
         for (int kd = 0; kd < KD; ++kd) {
             const int id = od * SD - padF + kd;
             if (id < 0 || id >= ID) continue;
@@ -99,8 +99,8 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
 
                     const auto off = get_offset(src_d, mb, oc, id, ih, iw);
                     auto s = src[off];
-                    if (s > d[0]) {
-                        d[0] = s;
+                    if (s > d) {
+                        d = s;
                         set_ws(mb, oc, od, oh, ow, (kd * KH + kh) * KW + kw);
                     }
                 }
@@ -108,7 +108,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
         }
     };
 
-    auto ker_avg = [=](data_t *d, int mb, int oc, int od, int oh, int ow) {
+    auto ker_avg = [=](float &d, int mb, int oc, int od, int oh, int ow) {
         auto id_start = max(od * SD - padF, 0);
         auto ih_start = max(oh * SH - padT, 0);
         auto iw_start = max(ow * SW - padL, 0);
@@ -129,7 +129,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
             dst += src[off];
         }
 
-        d[0] = out_round<data_t>((float)dst / num_summands);
+        d = (float)dst / num_summands;
     };
 
     const int MB = pd()->MB();
@@ -141,17 +141,37 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
     if (alg == alg_kind::pooling_max) {
         parallel_nd(MB, OC, OD, OH, OW,
                 [&](int mb, int oc, int od, int oh, int ow) {
-                    data_t *d = &dst[get_offset(dst_d, mb, oc, od, oh, ow)];
-                    d[0] = numeric_limits<data_t>::lowest();
+                    auto data_p_off = get_offset(dst_d, mb, oc, od, oh, ow);
+                    auto data_l_off
+                            = (((mb * OC + oc) * OD + od) * OH + oh) * OW + ow;
+                    float res = numeric_limits<data_t>::lowest();
                     set_ws(mb, oc, od, oh, ow, 0);
-                    ker_max(d, mb, oc, od, oh, ow);
+                    ker_max(res, mb, oc, od, oh, ow);
+
+                    ref_post_ops_t::args_t args;
+                    args.ctx = &ctx;
+                    args.l_offset = data_l_off;
+                    args.dst_md = pd()->dst_md();
+                    ref_post_ops->execute(res, args);
+
+                    dst[data_p_off] = cpu::saturate_and_round<data_t>(res);
                 });
     } else {
         parallel_nd(MB, OC, OD, OH, OW,
                 [&](int mb, int oc, int od, int oh, int ow) {
-                    data_t *d = &dst[get_offset(dst_d, mb, oc, od, oh, ow)];
-                    d[0] = 0;
-                    ker_avg(d, mb, oc, od, oh, ow);
+                    auto data_p_off = get_offset(dst_d, mb, oc, od, oh, ow);
+                    auto data_l_off
+                            = (((mb * OC + oc) * OD + od) * OH + oh) * OW + ow;
+                    float res = 0.f;
+                    ker_avg(res, mb, oc, od, oh, ow);
+
+                    ref_post_ops_t::args_t args;
+                    args.ctx = &ctx;
+                    args.l_offset = data_l_off;
+                    args.dst_md = pd()->dst_md();
+                    ref_post_ops->execute(res, args);
+
+                    dst[data_p_off] = cpu::saturate_and_round<data_t>(res);
                 });
     }
 }

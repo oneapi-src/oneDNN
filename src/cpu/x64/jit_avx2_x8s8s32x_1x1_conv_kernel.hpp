@@ -37,9 +37,6 @@ struct jit_avx2_x8s8s32x_1x1_conv_kernel : public jit_generator {
         if (jcp.with_eltwise)
             eltwise_injector_
                     = new jit_uni_eltwise_injector_f32<avx2>(this, jcp.eltwise);
-
-        this->generate();
-        jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode();
     }
 
     ~jit_avx2_x8s8s32x_1x1_conv_kernel() { delete eltwise_injector_; }
@@ -62,7 +59,6 @@ struct jit_avx2_x8s8s32x_1x1_conv_kernel : public jit_generator {
 
     jit_1x1_conv_conf_t jcp;
     const primitive_attr_t &attr_;
-    void (*jit_ker)(jit_1x1_conv_call_s *);
 
 private:
     jit_uni_eltwise_injector_f32<avx2> *eltwise_injector_;
@@ -108,7 +104,7 @@ private:
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
-    void generate();
+    void generate() override;
     void cvt2ps(data_type_t type_in, const Xbyak::Ymm &ymm_in,
             const Xbyak::Reg64 &reg, int offset, int load_size);
 };

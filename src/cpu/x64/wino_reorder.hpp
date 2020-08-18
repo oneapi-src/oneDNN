@@ -61,7 +61,7 @@ struct wino_reorder_t : public primitive_t {
                 return status::unimplemented;
             }
             _pd->init_scratchpad_md();
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd);
         }
 
         status_t init(
@@ -95,7 +95,9 @@ struct wino_reorder_t : public primitive_t {
         }
     };
 
-    wino_reorder_t(const pd_t *apd) : primitive_t(apd) {
+    wino_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         const memory_desc_wrapper src_d(pd()->src_md());
         const memory_desc_wrapper dst_d(pd()->dst_md());
 
@@ -138,6 +140,7 @@ struct wino_reorder_t : public primitive_t {
 
         size_wino_wei_ = w_alpha_ * w_alpha_ * oc_ * ic_;
         size_wspace_ = r_ * w_alpha_ * oc_block_;
+        return status::success;
     }
 
 private:

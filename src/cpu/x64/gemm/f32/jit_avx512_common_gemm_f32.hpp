@@ -34,10 +34,10 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
 
 namespace avx512_common_gemm_f32 {
 
-void sgemm_nocopy_driver(const char *transa, const char *transb, dim_t m,
-        dim_t n, dim_t k, const float *alpha, const float *a, dim_t lda,
-        const float *b, dim_t ldb, const float *beta, float *c, dim_t ldc,
-        const float *bias, float *ws);
+dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
+        dim_t m, dim_t n, dim_t k, const float *alpha, const float *a,
+        dim_t lda, const float *b, dim_t ldb, const float *beta, float *c,
+        dim_t ldc, const float *bias, float *ws);
 }
 
 } // namespace x64

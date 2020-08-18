@@ -35,10 +35,9 @@ struct jit_uni_rnn_cell_postgemm_bwd : public jit_uni_rnn_postgemm {
 
     ~jit_uni_rnn_cell_postgemm_bwd() {}
 
-    void init(data_type_t sdt) override {
+    status_t init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
-        generate();
-        kernel_ = (kernel_t)this->getCode();
+        return create_kernel();
     }
 
 protected:
@@ -51,7 +50,7 @@ protected:
     size_t gate_dt_size = types::data_type_size(scratch_data_t);
     size_t scratch_dt_size = types::data_type_size(scratch_data_t);
 
-    void generate() {
+    void generate() override {
         using namespace Xbyak;
 
         // Labels declaration

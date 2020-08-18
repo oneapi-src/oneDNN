@@ -88,6 +88,7 @@ struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
         problem_.Ta = convert_dnnl_to_kernel_type(a_type);
         problem_.Tb = convert_dnnl_to_kernel_type(b_type);
         problem_.Tc = convert_dnnl_to_kernel_type(c_type);
+        problem_.Ts = problem_.Tc;
         problem_.A.layout = trans_a ? MatrixLayout::T : MatrixLayout::N;
         problem_.B.layout = trans_b ? MatrixLayout::T : MatrixLayout::N;
         problem_.C.layout = MatrixLayout::N;
@@ -101,6 +102,15 @@ struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
         problem_.B.base = ngen::AddressBase::createA64(true);
         problem_.C.base = ngen::AddressBase::createA64(true);
         problem_.batchedS = batch;
+        if (c_type == data_type::s32) {
+            problem_.abOffset = ABOffset::Calc;
+            problem_.cOffset = true;
+            problem_.Ts = Type::f32;
+            problem_.CO.base = ngen::AddressBase::createBTS(0);
+            problem_.CO.crosspack = 1;
+            problem_.CO.padded = false;
+            problem_.CO.alignment = problem_.C.alignment;
+        }
 
         strategy_.unroll[LoopM] = unroll_m;
         strategy_.unroll[LoopN] = unroll_n;

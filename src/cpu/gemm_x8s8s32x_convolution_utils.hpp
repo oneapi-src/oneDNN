@@ -38,6 +38,8 @@ struct pp_ker_t {
 
     size_t dst_os_stride_;
 
+    virtual status_t create_kernel() { return status::success; }
+
 protected:
     pp_ker_t(const convolution_pd_t *pd, const conv_gemm_conf_t &jcp);
 

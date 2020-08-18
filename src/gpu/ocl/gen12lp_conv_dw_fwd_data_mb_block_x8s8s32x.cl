@@ -190,8 +190,17 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     float2 B = as_float2(
             intel_sub_group_block_read2((const __global uint *)&bias[g]));
     B *= SCALE;
-    tmp00 = fma(tmp00, (float8)SCALE_VEC8, B.s01010101);
-    tmp01 = fma(tmp01, (float8)SCALE_VEC8, B.s01010101);
+    float8 B0123 = B.s01010101;
+    float8 B4567 = B.s01010101;
+    if (MB % MB_BLOCK != 0) {
+        int8 mb_vec = mb + mb_half;
+        int8 m0123 = (mb_vec + (int8)(0, 0, 1, 1, 2, 2, 3, 3)) < MB;
+        int8 m4567 = (mb_vec + (int8)(4, 4, 5, 5, 6, 6, 7, 7)) < MB;
+        B0123 = select((float8)0, B0123, m0123);
+        B4567 = select((float8)0, B4567, m4567);
+    }
+    tmp00 = fma(tmp00, (float8)SCALE_VEC8, B0123);
+    tmp01 = fma(tmp01, (float8)SCALE_VEC8, B4567);
 #else
     tmp00 *= SCALE_VEC8;
     tmp01 *= SCALE_VEC8;

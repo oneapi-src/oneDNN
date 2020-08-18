@@ -71,7 +71,7 @@ struct rnn_data_reorder_t : public primitive_t {
                 return unimplemented;
             }
             _pd->init_scratchpad_md();
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd);
         }
     };
 
@@ -203,7 +203,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
                 return unimplemented;
             }
             _pd->init_scratchpad_md();
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd);
 #undef PD_CHECK_ARG
         }
 
@@ -509,7 +509,7 @@ struct rnn_weights_reorder_t : public primitive_t {
             }
             _pd->itag_ = itag;
             _pd->init_scratchpad_md();
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd);
         }
 
         format_tag_t itag_;

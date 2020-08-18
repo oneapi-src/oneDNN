@@ -142,7 +142,7 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
                 assert(jcp.loop_order != loop_nhwcg);
             }
 
-            kernel_->jit_ker(&par_conv);
+            (*kernel_)(&par_conv);
 
             if (jcp.loop_order == loop_ngcw) {
                 ++iwork;
@@ -234,7 +234,7 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
                         = kernel_params(ur_str_w, iw, oh, ih, i_t_overflow,
                                 i_b_overflow, stride_off_h, ch, ch_num, n);
 
-                kernel_->jit_ker(&par_conv);
+                (*kernel_)(&par_conv);
             }
 
             // main loop
@@ -244,7 +244,7 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
                         = kernel_params(ur_str_w, iw, oh, ih, i_t_overflow,
                                 i_b_overflow, stride_off_h, ch, ch_num, n);
 
-                kernel_->jit_ker(&par_conv);
+                (*kernel_)(&par_conv);
 
                 iw += ur_str_w * jcp.stride_w;
             }
@@ -256,7 +256,7 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
                         = kernel_params(ur_str_w, iw, oh, ih, i_t_overflow,
                                 i_b_overflow, stride_off_h, ch, ch_num, n);
 
-                kernel_->jit_ker(&par_conv);
+                (*kernel_)(&par_conv);
             }
         }
     });
@@ -273,11 +273,7 @@ template struct jit_uni_dw_convolution_bwd_data_t<sse41, data_type::f32>;
 template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
 jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>::
         jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd)
-    : primitive_t(apd), acc_ker_(nullptr), kernel_(nullptr) {
-    kernel_ = new jit_uni_dw_conv_bwd_weights_kernel<isa, src_type>(pd()->jcp_);
-    if (pd()->jcp_.nthr_mb > 1 && isa != sse41)
-        acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
-}
+    : primitive_t(apd), acc_ker_(nullptr), kernel_(nullptr) {}
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
 void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
@@ -393,7 +389,7 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
                     set_kernel_params(&conv_params, mb, g, oh, h_work,
                             zero_filter_flag | zero_bias_flag,
                             kh_t_padding + kh_b_padding, kh_t_padding);
-                    kernel_->jit_ker(&conv_params);
+                    (*kernel_)(&conv_params);
 
                     zero_bias_flag &= ~FLAG_ZERO_BIAS;
                     zero_filter_flag &= ~FLAG_ZERO_FILTER;

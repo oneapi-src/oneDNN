@@ -166,7 +166,8 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
             CHECK(get_depthwise_conv_desc(
                     cd_dw, src_md, attr_1x1, attr_dw, dw_po_index));
 
-            dw_conv_pd_.reset(new dw_pd_t(&cd_dw, &attr_dw, nullptr));
+            CHECK(safe_ptr_assign(
+                    dw_conv_pd_, new dw_pd_t(&cd_dw, &attr_dw, nullptr)));
             CHECK(dw_conv_pd_->init(engine));
             auto &jcp_dw = dw_conv_pd_->jcp_;
 
@@ -216,19 +217,22 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
         }
     };
 
-    jit_sse41_1x1_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_sse41_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
-        if (pd()->jcp_.with_dw_conv) {
-            kernel_dw_ = new dw_conv_kernel_t(pd()->dw_conv_pd_->jcp_);
-        }
-    }
-
-    ~jit_sse41_1x1_convolution_fwd_t() {
-        delete kernel_;
-        if (kernel_dw_) { delete kernel_dw_; }
-    };
+    jit_sse41_1x1_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_sse41_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr())));
+        CHECK(kernel_->create_kernel());
+        if (pd()->jcp_.with_dw_conv) {
+            CHECK(safe_ptr_assign(
+                    kernel_dw_, new dw_conv_kernel_t(pd()->dw_conv_pd_->jcp_)));
+            return kernel_dw_->create_kernel();
+        }
+
+        return status::success;
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -242,9 +246,9 @@ private:
             const data_t *bias_dw, data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    jit_sse41_1x1_conv_kernel_f32 *kernel_;
+    std::unique_ptr<jit_sse41_1x1_conv_kernel_f32> kernel_;
     using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<sse41>;
-    dw_conv_kernel_t *kernel_dw_ = nullptr;
+    std::unique_ptr<dw_conv_kernel_t> kernel_dw_;
 };
 
 } // namespace x64

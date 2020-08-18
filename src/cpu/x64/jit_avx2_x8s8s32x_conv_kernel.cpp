@@ -41,6 +41,8 @@ void pick_loop_order(jit_conv_conf_t &jcp) {
         jcp.loop_order = loop_ngcw;
         if (jcp.mb < jcp.nthr)
             jcp.loop_order = jcp.ndims == 3 ? loop_nwcg : loop_nhwcg;
+    } else if (jcp.mb >= jcp.nthr && jcp.ic_without_padding <= 8) {
+        jcp.loop_order = loop_ngcw;
     }
 }
 } // namespace
@@ -351,13 +353,13 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
         return jcp.typesize_in
                 * ((ki * (jcp.dilate_w + 1) + oi * stride_w - pad_l)
                                 * jcp.ic_without_padding * jcp.ngroups
-                        + 4 * ic);
+                        + ic_sub_step * ic);
     };
     auto kernel_offset = [=](int ii, int ic, int ki) {
         return jcp.typesize_in
                 * ((ii * jcp.nb_ic * jcp.kd * jcp.kh * jcp.kw + ki)
                                 * ch_block_all
-                        + 4 * ic * oc_block);
+                        + ic_sub_step * ic * oc_block);
     };
     auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
         uni_vpmaddubsw(vmm_tmp, vreg_src, vreg_wei);
@@ -368,15 +370,16 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
     for (int ki = 0; ki < kw; ++ki) {
         int ow_start = get_ow_start(ki, pad_l);
         int ow_end = get_ow_end(ur_w, ki, pad_r);
-        int ic_tail_size = jcp.ic_without_padding % 4;
+        int ic_tail_size = jcp.ic_without_padding % ic_sub_step;
 
         int _start = jcp.signed_input ? 0 : ow_start;
         int _end = jcp.signed_input ? ur_w : ow_end;
 
-        /* Skip the last loads of input if (ic % 8) / 4 < ic_block / 4 */
+        /* Skip the last loads of input
+            if (ic % 8) / ic_sub_step < ic_block / ic_sub_step */
         int icb = (last_ic_block_flag != no_last_block)
-                ? div_up((jcp.ic_without_padding % ic_block), 4)
-                : ic_block / 4;
+                ? div_up((jcp.ic_without_padding % ic_block), ic_sub_step)
+                : ic_block / ic_sub_step;
 
         for (int ic = 0; ic < icb; ++ic) {
             if (h_padded) {
@@ -587,38 +590,44 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::icb_loop(
     Label icb_label;
     mov(reg_icb, jcp.nb_ic);
     L(icb_label);
+    const bool do_icb_loop
+            = jcp.is_depthwise ? jcp.nb_ch > jcp.nb_ch_blocking : jcp.nb_ic > 1;
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.ic_without_padding != jcp.ic) {
         Label common_ker, end_ker;
-
-        if (jcp.is_depthwise)
-            cmp(reg_oc_blocks, jcp.nb_ch - jcp.nb_ch_blocking);
-        else
-            cmp(reg_icb, 1); // The last IC block
-        jne(common_ker, T_NEAR);
-
+        if (do_icb_loop) {
+            if (jcp.is_depthwise)
+                cmp(reg_oc_blocks, jcp.nb_ch - jcp.nb_ch_blocking);
+            else
+                cmp(reg_icb, 1); // The last IC block
+            jne(common_ker, T_NEAR);
+        }
         kh_loop(ur_w, pad_l, pad_r,
                 is_last_sp_block ? last_sp_block : last_ic_block);
-        jmp(end_ker, T_NEAR);
+        if (do_icb_loop) {
+            jmp(end_ker, T_NEAR);
 
-        L(common_ker);
-        kh_loop(ur_w, pad_l, pad_r, no_last_block);
+            L(common_ker);
+            kh_loop(ur_w, pad_l, pad_r, no_last_block);
 
-        L(end_ker);
+            L(end_ker);
+        }
     } else {
         kh_loop(ur_w, pad_l, pad_r, no_last_block);
     }
     // End of IC Loop
-    int inp_step = jcp.ic_block;
-    int ker_step = jcp.kd * jcp.kh * jcp.kw * jcp.oc_block * jcp.ic_block;
-    add(reg_inp, jcp.typesize_in * inp_step);
-    add(reg_ker, jcp.typesize_in * ker_step);
+    if (do_icb_loop) {
+        int inp_step = jcp.ic_block;
+        int ker_step = jcp.kd * jcp.kh * jcp.kw * jcp.oc_block * jcp.ic_block;
+        add(reg_inp, jcp.typesize_in * inp_step);
+        add(reg_ker, jcp.typesize_in * ker_step);
 
-    dec(reg_icb);
-    cmp(reg_icb, 0);
-    jg(icb_label, T_NEAR);
+        dec(reg_icb);
+        cmp(reg_icb, 0);
+        jg(icb_label, T_NEAR);
 
-    sub(reg_inp, jcp.typesize_in * inp_step * jcp.nb_ic);
-    sub(reg_ker, jcp.typesize_in * ker_step * jcp.nb_ic);
+        sub(reg_inp, jcp.typesize_in * inp_step * jcp.nb_ic);
+        sub(reg_ker, jcp.typesize_in * ker_step * jcp.nb_ic);
+    }
 
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.oc_without_padding != jcp.oc) {
         Label common_store, end_store;
@@ -647,10 +656,12 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::generate() {
     Label permute_index_table;
     int in_ic_shift = jcp.is_fused_conv ? jcp.dw_conv_buffer_oc
                                         : jcp.ic_without_padding * jcp.ngroups;
-    int inp_shift_pad = jcp.typesize_in * (jcp.ur_w * jcp.stride_w - jcp.l_pad)
-            * in_ic_shift;
-    int inp_shift_pad_second_block
-            = -1 * jcp.typesize_in * jcp.l_pad * in_ic_shift;
+    const int urw_inp_stride = jcp.ur_w * jcp.stride_w;
+    const int n_urw_l_pad
+            = nstl::min(div_up(jcp.l_pad, urw_inp_stride), jcp.ow / jcp.ur_w);
+    const int inp_shift_pad = nstl::max(0,
+            jcp.typesize_in * (n_urw_l_pad * urw_inp_stride - jcp.l_pad)
+                    * in_ic_shift);
     int inp_shift = jcp.typesize_in * (jcp.ur_w * jcp.stride_w * in_ic_shift);
     int out_shift = jcp.typesize_out
             * (jcp.ur_w * jcp.oc_without_padding * jcp.ngroups);
@@ -701,173 +712,285 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::generate() {
         mov(reg_oc_blocks, ptr[param1 + GET_OFF(oc_blocks)]);
     }
 
-    int r_pad = nstl::max(0, jcp.r_pad);
-    int n_oi = jcp.ow / jcp.ur_w;
-    int r_pad1 = calculate_end_padding(jcp.l_pad, jcp.ur_w * n_oi, jcp.iw,
-            jcp.stride_w, calculate_extended_filter_size(jcp.kw, jcp.dilate_w));
+    const int extended_filter_size
+            = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    const int r_pad = nstl::max(0, jcp.r_pad);
+    const int ow_with_no_rpad = 1
+            + (jcp.iw + jcp.l_pad + nstl::min(0, jcp.r_pad)
+                      - extended_filter_size)
+                    / jcp.stride_w;
+    const int n_urw_per_ow_block = jcp.ow_block / jcp.ur_w;
+    const int max_safe_iw = nstl::max(
+            0, jcp.iw - div_up(ic_sub_step, jcp.ic_without_padding));
+    const int max_safe_ow = jcp.ic_without_padding % ic_sub_step == 0
+            ? jcp.ow
+            : (max_safe_iw + jcp.l_pad - extended_filter_size) / jcp.stride_w;
+    Label middle_block_label, done_compute;
+    std::vector<Label> ow_block_jmp_table;
 
-    if (jcp.nb_ow == 1) {
-        if (r_pad1 > 0 || jcp.ur_w_tail == 0) --n_oi;
+    // r_pad_fall_through is a special ow_block, where the block overlaps
+    // both middle_block and r_pad/ur_w_tail region when it exists.
+    // The number of ur_w's to compute in middle_block before executing
+    // r_pad region is stored in r_pad_fall_through_n_urw and the ow_block
+    // number is stored in r_pad_fall_through_ow_block.
+    int r_pad_fall_through_ow_block = 0;
+    int r_pad_fall_through_n_urw = 0;
 
-        xor_(reg_oi, reg_oi);
-        if (jcp.ow == jcp.ur_w) {
-            icb_loop(jcp.ur_w, jcp.l_pad, r_pad, true);
-        } else {
-            if (n_oi == 0) {
-                icb_loop(jcp.ur_w, jcp.l_pad, r_pad1, jcp.ur_w_tail == 0);
-                add(reg_inp, inp_shift_pad);
-                add(reg_out, out_shift);
-                if (jcp.ur_w_tail != 0) {
-                    icb_loop(jcp.ur_w_tail, 0, r_pad, true);
-                }
+    if (jcp.nb_ow > 1) {
+        // Only one ow block is processed, per jit call.
+        // Number of this ow block is passed as parameter owb,
+        // and padding processing depends on this number.
+        //
+        // The compute block to run is determined by using a jmp-table.
+        // jmp-table Layout:
+        //  idx -> addr
+        //  0   -> [...l_pad_region label[0]...]
+        //         : : : : : : : : : : : : : : :
+        //  L ->   [...l_pad_region label[L]...]
+        //  L+1 -> [...r_pad_region label[0]...]
+        //         : : : : : : : : : : : : : : :
+        //  L+R -> [...r_pad_region label[R]...]
+        //
+        // Note: Label for middle_block is not stored in the jmp-table.
+        //
+        // During jit call, the jump address is calculated as below:
+        // if (owb < n) {
+        //   jmp([jmp_table + owb*sizeof(void*)]);
+        // } else if (owb < X) {
+        //   // X is the number of ow_blocks before r_pad region (see below).
+        //   jmp(middle_block);
+        // } else {
+        //   sub(owb, X);
+        //   jmp([jmp_table + owb*sizeof(void*) + L*sizeof(void)]);
+        // }
+        //
+        // To configure the jmp-table, we need to determine some constants
+        // (namely, r_pad_fall_through_n_urw, r_pad_fall_through_ow_block,
+        // n_l_pad_labels, n_labels) ahead of writing the compute assembly. So,
+        // we simulate the filter path without writing the assembly initially.
+        // This makes the math for calculating the constants become simple and
+        // self explanatory.
+
+        // Begin simulation without writing assembly
+        int n_l_pad_labels = 0;
+        int n_labels = 0;
+        int cur_ow = 0;
+
+        // l_pad region:
+        n_l_pad_labels = div_up(n_urw_l_pad, n_urw_per_ow_block);
+        n_labels = n_l_pad_labels;
+        cur_ow += n_urw_l_pad * jcp.ur_w;
+
+        // middle_region:
+        int n_urw_middle_block_loop = 0;
+        int cur_r_pad = nstl::max(0,
+                calculate_end_padding(jcp.l_pad, cur_ow + jcp.ur_w, jcp.iw,
+                        jcp.stride_w, extended_filter_size));
+        if (cur_ow + jcp.ur_w <= jcp.ow && cur_r_pad == 0) {
+            n_urw_middle_block_loop
+                    = nstl::max(0,
+                              nstl::min(ow_with_no_rpad, max_safe_ow) - cur_ow)
+                    / jcp.ur_w;
+            cur_ow += n_urw_middle_block_loop * jcp.ur_w;
+        }
+        r_pad_fall_through_n_urw = (cur_ow / jcp.ur_w) % n_urw_per_ow_block;
+        r_pad_fall_through_ow_block = cur_ow / (n_urw_per_ow_block * jcp.ur_w);
+
+        // r_pad or last_sp_block
+        if (cur_ow + jcp.ur_w <= jcp.ow) {
+            if (r_pad_fall_through_n_urw == 0) ++n_labels;
+            const int n_urw_r_pad_region = (jcp.ow - cur_ow) / jcp.ur_w;
+            n_labels += nstl::max(0,
+                    div_up(r_pad_fall_through_n_urw + n_urw_r_pad_region,
+                            n_urw_per_ow_block)
+                            - 1);
+        }
+
+        if (jcp.ur_w_tail != 0) {
+            if (jcp.ow % jcp.ow_block == jcp.ur_w_tail) ++n_labels;
+        }
+        // End of simulation
+
+        ow_block_jmp_table.resize(n_labels);
+
+        // Begin jump-table logic
+        Label ow_block_jmp_table_label;
+        if (!ow_block_jmp_table.empty())
+            mov(reg_jmp_tbl_base, ow_block_jmp_table_label);
+        mov(reg_oi, n_urw_per_ow_block);
+        mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
+        if (jcp.l_pad > 0) {
+            Label middle_or_rpad_check;
+            cmp(reg_owb, n_l_pad_labels);
+            jge(middle_or_rpad_check, T_NEAR);
+            jmp(ptr[reg_jmp_tbl_base + reg_owb * sizeof(void *)]);
+            L(middle_or_rpad_check);
+            // harness passes shifted src pointer that does not take
+            // left-padding into account. So, we must re-shift here.
+            const int inp_shift_pad_middle_block = -1 * jcp.typesize_in
+                    * nstl::min(jcp.l_pad, n_urw_l_pad * urw_inp_stride)
+                    * in_ic_shift;
+            add(reg_inp, inp_shift_pad_middle_block);
+        }
+        if (r_pad_fall_through_n_urw != 0) {
+            mov(reg_scratch, r_pad_fall_through_n_urw);
+            cmp(reg_owb, r_pad_fall_through_ow_block);
+            cmove(reg_oi, reg_scratch);
+            if (n_urw_middle_block_loop > 0) {
+                sub(reg_owb, r_pad_fall_through_ow_block);
+                // simple middle_block
+                jle(middle_block_label, T_NEAR);
+                dec(reg_owb);
             } else {
-                if (jcp.l_pad > 0) {
-                    icb_loop(jcp.ur_w, jcp.l_pad, 0, false);
-                    add(reg_inp, inp_shift_pad);
-                    add(reg_out, out_shift);
+                sub(reg_owb, r_pad_fall_through_ow_block + 1);
+            }
+        } else {
+            sub(reg_owb, r_pad_fall_through_ow_block);
+            // simple middle_block
+            if (n_urw_middle_block_loop) jl(middle_block_label, T_NEAR);
+        }
+        // r_pad-only region
+        if (!ow_block_jmp_table.empty())
+            jmp(ptr[reg_jmp_tbl_base + reg_owb * sizeof(void *)
+                    + n_l_pad_labels * sizeof(void *)]);
 
-                    inc(reg_oi);
-                }
-                if ((jcp.l_pad <= 0 && n_oi > 0)
-                        || (jcp.l_pad > 0 && n_oi > 1)) {
-                    Label ow_loop_label;
-                    L(ow_loop_label);
-                    {
-                        icb_loop(jcp.ur_w, 0, 0, false);
-                        add(reg_inp, inp_shift);
-                        add(reg_out, out_shift);
-
-                        inc(reg_oi);
-                        cmp(reg_oi, n_oi);
-                        jl(ow_loop_label, T_NEAR);
-                    }
-                }
-                if (r_pad1 > 0 || jcp.ur_w_tail == 0) {
-                    icb_loop(jcp.ur_w, 0, r_pad1, jcp.ur_w_tail == 0);
-                    add(reg_inp, inp_shift);
-                    add(reg_out, out_shift);
-                }
-                if (jcp.ur_w_tail != 0) {
-                    icb_loop(jcp.ur_w_tail, 0, r_pad, true);
+        if (!ow_block_jmp_table.empty()) {
+            align(8);
+            L(ow_block_jmp_table_label);
+            {
+                for (size_t i = 0; i < ow_block_jmp_table.size(); ++i) {
+                    putL(ow_block_jmp_table[i]);
                 }
             }
         }
-    } else {
-        // ow block is only processed.
-        // Number of block is passed as parameter owb,
-        // and padding processing depends on this number.
-        Label end_label, last_oi_label, middle_ow_blocks_label, tail_label,
-                oi_loop_label, oi_loop_end_label;
+        // End of jump-table logic
+    }
 
-        assert(jcp.ow_block % jcp.ur_w == 0);
-        int n_oi_not_last_ow_block = jcp.ow_block / jcp.ur_w;
-        // to simplify code (and general regs usage),
-        // size of ow block must be >= 2 * ur_w
-        assert(n_oi_not_last_ow_block > 1);
-        int n_oi_next_last_ow_block = n_oi_not_last_ow_block;
-        int n_oi_first_ow_block = n_oi_not_last_ow_block;
-        int n_oi_last_ow_block
-                = (jcp.ow - jcp.ow_block * (jcp.nb_ow - 1)) / jcp.ur_w;
-        // prepare right padding
-        bool next_last_ow_block_padded = r_pad1 > 0 && n_oi_last_ow_block == 0;
-        bool first_ow_block_padded
-                = next_last_ow_block_padded && jcp.nb_ow == 2;
-        bool last_ow_block_padded
-                = (r_pad1 > 0 || jcp.ur_w_tail == 0) && n_oi_last_ow_block > 0;
+    // Begin kernel
+    int cur_ow = 0;
+    int cur_n_oi = 0; // used only for jcp.nb_ow > 1 scenario
+    int label_cntr = 0;
+    int cur_l_pad = 0;
+    if (jcp.l_pad > 0) {
+        for (cur_l_pad = jcp.l_pad;
+                cur_l_pad > 0 && cur_ow + jcp.ur_w <= jcp.ow;
+                cur_l_pad -= urw_inp_stride) {
+            if (jcp.nb_ow > 1 && cur_n_oi == 0) {
+                // cur_n_oi == 0 signifies beginning of new ow_block
+                // (or end of previous block)
+                const dim_t inp_lpad_region_shift = -label_cntr * jcp.ow_block
+                        * jcp.stride_w * in_ic_shift;
+                L(ow_block_jmp_table[label_cntr++]);
+                // harness passes shifted src pointer that does not take
+                // left-padding into account. So, we must re-shift here.
+                add(reg_inp, inp_lpad_region_shift);
+            }
 
-        if (last_ow_block_padded)
-            --n_oi_last_ow_block;
-        else if (first_ow_block_padded)
-            --n_oi_first_ow_block;
-        else if (next_last_ow_block_padded)
-            --n_oi_next_last_ow_block;
-
-        mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
-        cmp(reg_owb, 0); // is that the first ow-block ?
-        jg(middle_ow_blocks_label, T_NEAR);
-
-        // the first ow block, compute left padding
-        mov(reg_oi, n_oi_first_ow_block);
-        if (jcp.l_pad > 0) {
-            icb_loop(jcp.ur_w, jcp.l_pad, 0, false);
-            add(reg_inp, inp_shift_pad);
+            cur_ow += jcp.ur_w;
+            int cur_r_pad = nstl::max(0,
+                    calculate_end_padding(jcp.l_pad, cur_ow, jcp.iw,
+                            jcp.stride_w, extended_filter_size));
+            icb_loop(jcp.ur_w, cur_l_pad, cur_r_pad, cur_ow > max_safe_ow);
             add(reg_out, out_shift);
-
             dec(reg_oi);
+
+            if (jcp.nb_ow > 1 && ++cur_n_oi == n_urw_per_ow_block) {
+                // We compute one owb per jit call. So, insert an
+                // unconditional jmp, after computing one owb.
+                jmp(done_compute, T_NEAR);
+                cur_n_oi = 0;
+            }
         }
-        jmp(oi_loop_label, T_NEAR);
+        if (jcp.nb_ow == 1 || cur_n_oi != 0) {
+            // Let it "fall-through" middle_block_label
+            add(reg_inp, inp_shift_pad);
+        }
+    }
 
-        // middle or last ow block entry
-        L(middle_ow_blocks_label);
+    // middle_block
+    {
+        int cur_r_pad = nstl::max(0,
+                calculate_end_padding(jcp.l_pad, cur_ow + jcp.ur_w, jcp.iw,
+                        jcp.stride_w, extended_filter_size));
+        if (cur_r_pad == 0 && cur_ow + jcp.ur_w <= jcp.ow) {
+            int n_oi_middle_block_loop
+                    = nstl::max(0,
+                              nstl::min(ow_with_no_rpad, max_safe_ow) - cur_ow)
+                    / jcp.ur_w;
+            if (jcp.nb_ow == 1 && n_oi_middle_block_loop > 1)
+                mov(reg_oi, n_oi_middle_block_loop);
+            L(middle_block_label);
+            if (n_oi_middle_block_loop > 0) {
+                icb_loop(jcp.ur_w, 0, 0, false);
+                add(reg_inp, inp_shift);
+                add(reg_out, out_shift);
+                if (n_oi_middle_block_loop > 1) {
+                    dec(reg_oi);
+                    jg(middle_block_label, T_NEAR);
+                }
+            }
+            cur_ow += n_oi_middle_block_loop * jcp.ur_w;
+            cur_n_oi = (cur_n_oi + n_oi_middle_block_loop) % n_urw_per_ow_block;
+        }
+    }
 
-        if (jcp.l_pad > 0) {
-            // just to consider left padding, not compute
-            add(reg_inp, inp_shift_pad_second_block);
+    // r_pad region or last_sp_block
+    if (cur_ow + jcp.ur_w <= jcp.ow) {
+        if (jcp.nb_ow > 1) {
+            if (cur_n_oi == 0) {
+                jmp(done_compute, T_NEAR);
+            } else {
+                // r_pad fall-through
+                mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
+                cmp(reg_owb, r_pad_fall_through_ow_block);
+                jne(done_compute, T_NEAR);
+            }
         }
 
-        // set number of iteration for oi-loop
-        if (n_oi_last_ow_block != n_oi_not_last_ow_block) {
-            cmp(reg_owb, jcp.nb_ow - 1); // last ow-block ?
-            mov(reg_oi, n_oi_last_ow_block);
-            je(oi_loop_label, T_NEAR);
-        }
-
-        if (n_oi_next_last_ow_block != n_oi_not_last_ow_block) {
-            cmp(reg_owb, jcp.nb_ow - 2); // next to last ow-block ?
-
-            mov(reg_oi, n_oi_next_last_ow_block);
-            je(oi_loop_label, T_NEAR);
-        }
-        mov(reg_oi, n_oi_not_last_ow_block); // other middle ow-blocks
-
-        // oi loop w/o padding
-        L(oi_loop_label);
-        {
-            cmp(reg_oi, 0);
-            jle(oi_loop_end_label, T_NEAR);
-
-            icb_loop(jcp.ur_w, 0, 0, false);
-
+        while (cur_ow + jcp.ur_w <= jcp.ow) {
+            if (jcp.nb_ow > 1 && cur_n_oi == 0) {
+                L(ow_block_jmp_table[label_cntr++]);
+            }
+            cur_ow += jcp.ur_w;
+            int cur_r_pad = calculate_end_padding(jcp.l_pad, cur_ow, jcp.iw,
+                    jcp.stride_w, extended_filter_size);
+            assert(cur_r_pad > 0 || cur_ow > max_safe_ow); // else, why be here?
+            icb_loop(jcp.ur_w, 0, cur_r_pad, cur_ow > max_safe_ow);
             add(reg_inp, inp_shift);
             add(reg_out, out_shift);
-            dec(reg_oi);
 
-            jmp(oi_loop_label, T_NEAR);
+            if (jcp.nb_ow > 1 && ++cur_n_oi == n_urw_per_ow_block) {
+                // We compute one owb per jit call. So, insert an
+                // unconditional jmp, after computing one owb.
+                jmp(done_compute, T_NEAR);
+                cur_n_oi = 0;
+            }
         }
-        L(oi_loop_end_label);
-
-        mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
-        cmp(reg_owb, 0); // first ow-block ?
-        if (first_ow_block_padded)
-            je(last_oi_label, T_NEAR);
-        else
-            je(end_label, T_NEAR);
-
-        cmp(reg_owb, jcp.nb_ow - 2); // next to last ow-block ?
-        jl(end_label, T_NEAR);
-        if (next_last_ow_block_padded)
-            je(last_oi_label, T_NEAR);
-        else
-            je(end_label, T_NEAR);
-
-        // that is last block
-        if (!last_ow_block_padded) jmp(tail_label, T_NEAR);
-
-        // last oi block with right padding
-        L(last_oi_label);
-        icb_loop(jcp.ur_w, 0, r_pad1, jcp.ur_w_tail == 0);
-        add(reg_inp, inp_shift);
-        add(reg_out, out_shift);
-
-        mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
-        cmp(reg_owb, jcp.nb_ow - 1); // last ow_block?
-        jl(end_label, T_NEAR);
-
-        // ur_w tail
-        L(tail_label);
-        if (jcp.ur_w_tail != 0) { icb_loop(jcp.ur_w_tail, 0, r_pad, true); }
-        L(end_label);
+        // Let it fall-through ur_w_tail
     }
+
+    // ur_w_tail
+    if (jcp.ur_w_tail != 0) {
+        if (jcp.nb_ow > 1) {
+            if (cur_n_oi == 0) {
+                jmp(done_compute, T_NEAR);
+                L(ow_block_jmp_table[label_cntr++]);
+            } else {
+                // In case, when there is no r_pad region, then there exists an
+                // ambiguity btw middle_blocks and r_pad_fall_through_ow_block.
+                // If not properly distinguished, there can be a race condition
+                // as middle_blocks and r_pad_fall_through_ow_block both try to
+                // compute ur_w_tail work at the end.
+                mov(reg_owb, ptr[param1 + GET_OFF(owb)]);
+                cmp(reg_owb, jcp.nb_ow - 1); // last ow_block?
+                jne(done_compute, T_NEAR);
+            }
+        }
+        icb_loop(jcp.ur_w_tail, nstl::max(0, cur_l_pad), r_pad, true);
+    }
+    L(done_compute);
+    assert(ow_block_jmp_table.size() == static_cast<size_t>(label_cntr));
+
     postamble();
 
     if (jcp.with_eltwise) eltwise_injector_->prepare_table();
@@ -975,10 +1098,6 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
     jcp.back_pad = calculate_end_padding(
             jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, ext_kd);
-    bool kernel_outside_src = false || ext_kw <= jcp.l_pad
-            || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad || ext_kh <= jcp.b_pad
-            || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
-    if (kernel_outside_src) return status::unimplemented;
 
     jcp.signed_input = src_d.data_type() == data_type::s8;
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
@@ -1135,38 +1254,14 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                 / (jcp.is_depthwise ? jcp.nb_ch_blocking
                                     : jcp.nb_oc_blocking + 1);
     if (jcp.ow < jcp.ur_w) jcp.ur_w = jcp.ow;
-
-    // tune ur_w such that penultimate ur_w block (including ur_w_tail)
-    // does not read past the end of src
-    constexpr int broadcast_size = 4;
-    const bool leeway_check_needed = true && !jcp.is_depthwise
-            && jcp.ur_w < jcp.ow
-            && jcp.ic_without_padding % broadcast_size != 0;
-    if (leeway_check_needed) {
-        while (jcp.ur_w > 0) {
-            int last_block_size
-                    = (jcp.ow % jcp.ur_w == 0) ? jcp.ur_w : jcp.ow % jcp.ur_w;
-            int penultimate_iw_index
-                    = (jcp.ow - 1 - last_block_size) * jcp.stride_w
-                    + (jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad;
-            int penultimate_iw_leeway = (jcp.iw - 1 - penultimate_iw_index)
-                            * jcp.ic_without_padding
-                    + jcp.ic_without_padding % broadcast_size;
-            if (penultimate_iw_leeway >= broadcast_size) break;
-            --jcp.ur_w;
-        }
-
-        if (jcp.ur_w == 0) // no satisfactory ur_w could be found
-            return status::unimplemented;
-    }
-
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
+
     jcp.ow_block = jcp.ow;
     int base_work_amount = jcp.mb * jcp.nb_ch * jcp.oh
             * (jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk);
     float best_thr_eff
             = (float)base_work_amount / rnd_up(base_work_amount, jcp.nthr);
-    int max_nb_ow = div_up(jcp.ow, 2 * jcp.ur_w);
+    int max_nb_ow = div_up(jcp.ow, jcp.ur_w);
     for (int nb_ow = 1; nb_ow <= max_nb_ow; ++nb_ow) {
         int ow_block
                 = nstl::min(rnd_up(div_up(jcp.ow, nb_ow), jcp.ur_w), jcp.ow);
@@ -1176,7 +1271,7 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         if (div_up(jcp.ow, ow_block) != nb_ow) continue;
         auto work_amount = base_work_amount * nb_ow;
         float thr_eff = (float)work_amount / rnd_up(work_amount, jcp.nthr);
-        if (ow_block >= 2 * jcp.ur_w && thr_eff > 1.1f * best_thr_eff) {
+        if (ow_block >= jcp.ur_w && thr_eff > 1.1f * best_thr_eff) {
             jcp.ow_block = ow_block;
             best_thr_eff = thr_eff;
         }
@@ -1184,15 +1279,9 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     }
     jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
 
-    bool args_ok = true && jcp.oc % jcp.oc_block == 0 && jcp.l_pad <= jcp.ur_w
+    bool args_ok = true && jcp.oc % jcp.oc_block == 0
             && IMPLICATION(!jcp.is_1stconv, jcp.ic % jcp.ic_block == 0);
     if (!args_ok) return status::unimplemented;
-
-    int r_pad_no_tail = nstl::max(0,
-            calculate_end_padding(jcp.l_pad, jcp.ow - jcp.ur_w_tail, jcp.iw,
-                    jcp.stride_w, ext_kw));
-
-    if (r_pad_no_tail > jcp.ur_w) return status::unimplemented;
 
     pick_loop_order(jcp);
 

@@ -30,6 +30,57 @@
 
 namespace binary {
 
+int fill_src(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
+
+    const auto dt = mem_dt.dt();
+    const int range = 16;
+    const int f_min = dt == dnnl_u8 ? 0 : -range / 2;
+
+    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
+        const float gen = ((97 * i) - 5 * input_idx + 101) % (range + 1);
+        const float value = (dt == dnnl_bf16 || dt == dnnl_f16)
+                ? (f_min + gen) / range
+                : (f_min + gen) * (1.0f + 4.0f / range);
+        mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
+    });
+
+    SAFE(mem_dt.reorder(mem_fp), WARN);
+
+    return OK;
+}
+
+int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
+        std::vector<dnn_mem_t> &mem_dt, std::vector<dnn_mem_t> &mem_fp) {
+    const_dnnl_primitive_attr_t const_attr;
+    DNN_SAFE(dnnl_primitive_desc_get_attr(pd, &const_attr), WARN);
+
+    const_dnnl_post_ops_t const_attr_po;
+    DNN_SAFE(
+            dnnl_primitive_attr_get_post_ops(const_attr, &const_attr_po), WARN);
+
+    auto po_len = dnnl_post_ops_len(const_attr_po);
+    for (int idx = 0; idx < po_len; ++idx) {
+        auto kind = dnnl_post_ops_get_kind(const_attr_po, idx);
+        if (kind != dnnl_binary) continue;
+
+        const dnnl_memory_desc_t *po_md;
+        DNN_SAFE(dnnl_post_ops_get_params_binary(
+                         const_attr_po, idx, NULL, &po_md),
+                WARN);
+
+        const auto tag = get_abx_tag(po_md->ndims);
+        mem_fp.emplace_back(*po_md, dnnl_f32, tag, get_test_engine());
+        mem_dt.emplace_back(*po_md, get_test_engine());
+        args.push_back((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
+
+        fill_src((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
+                mem_dt.back(), mem_fp.back());
+    }
+    return OK;
+}
+
 static int init_pd(dnnl_engine_t engine, const prb_t *p,
         dnnl_primitive_desc_t &bpd, res_t *r, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
@@ -66,7 +117,10 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     DNN_SAFE(dnnl_binary_desc_init(&bd, alg, &src_d[0], &src_d[1], &dst_d),
             WARN);
 
-    auto dnnl_attr = create_dnnl_attr(p->attr);
+    attr_args_t attr_args;
+    attr_args.prepare_binary_post_op_mds(
+            p->attr, p->ndims[0], p->sdims[0].data());
+    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, NULL);
@@ -132,27 +186,15 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int fill_src(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    const auto nelems = mem_fp.nelems();
-    const auto dt = mem_dt.dt();
-    const int range = 16;
-    const int f_min = dt == dnnl_u8 ? 0 : -range / 2;
-
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const float gen = ((97 * i) - 5 * input_idx + 101) % (range + 1);
-        const float value = (dt == dnnl_bf16 || dt == dnnl_f16)
-                ? (f_min + gen) / range
-                : (f_min + gen) * (1.0f + 4.0f / range);
-        mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
-    });
-
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-
-    return OK;
-}
-
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common(p->sdt, FWD_D, r);
+    if (r->state == SKIPPED) return;
+
+    // TODO: temporary disable binary post-op on GPU
+    if (engine_tgt_kind == dnnl_gpu && p->attr.post_ops.binary_index() != -1) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 int doit(const prb_t *p, res_t *r) {
@@ -207,17 +249,22 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t &dst_dt = p->inplace ? src0_dt : placeholder_dst_dt;
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
+    SAFE(setup_binary_po(const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+            WARN);
 
     args_t args;
     args.set(DNNL_ARG_SRC_0, src0_dt);
     args.set(DNNL_ARG_SRC_1, src1_dt);
     args.set(DNNL_ARG_DST, dst_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+    args.set(binary_po_args, binary_po_dt);
 
     SAFE(execute_and_wait(b, args), WARN);
 
     if (bench_mode & CORR) {
-        compute_ref(p, src0_fp, src1_fp, dst_fp);
+        compute_ref(p, src0_fp, src1_fp, binary_po_fp, dst_fp);
         dnn_mem_t dst(dst_dt, fp, tag, test_engine);
         SAFE(compare(p, dst_fp, dst, r), WARN);
     }

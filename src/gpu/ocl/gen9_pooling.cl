@@ -16,6 +16,12 @@
 
 #include "gpu/ocl/ocl_types.h"
 
+#if DT_S8 || DT_U8
+#define RINT rint
+#else
+#define RINT
+#endif
+
 // Read functions.
 inline VECT_DATA_T read_vect_c_block(
         int idx, const __global DATA_T *ptr, int c, int stride);
@@ -52,6 +58,10 @@ __kernel void gen9_pooling_fwd(
         const int ih = oh * SH - PH;
         const int iw = ow * SW - PW;
 
+#if ALG_AVG_P || ALG_AVG_NP
+        VECT_FLOAT_T A0 = DATA_ZERO;
+        VECT_FLOAT_T A1 = DATA_ZERO;
+#endif
         VECT_DATA_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
         VECT_DATA_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
         VECT_INT_T WS0 = 0, WS1 = 0;
@@ -85,15 +95,15 @@ __kernel void gen9_pooling_fwd(
                     D1 = max(D1, S1);
 #endif // TRAINING
 #else // ALG_MAX
-                    D0 += S0;
-                    D1 += S1;
+                    A0 += CONVERT_VECT_FLOAT_T(S0);
+                    A1 += CONVERT_VECT_FLOAT_T(S1);
 #endif // ALG_MAX
                 }
             }
 
 #if ALG_AVG_P
-        D0 = D0 / (KD * KH * KW);
-        D1 = D1 / (KD * KH * KW);
+        D0 = CONVERT_VECTOR_DATA_T(RINT(A0 / (KD * KH * KW)));
+        D1 = CONVERT_VECTOR_DATA_T(RINT(A1 / (KD * KH * KW)));
 #endif // ALG_AVG_P
 
 #if ALG_AVG_NP
@@ -105,8 +115,8 @@ __kernel void gen9_pooling_fwd(
         const int iw_end = min(ow * SW - PW + KW, IW);
         const DATA_T num_summands = (ih_end - ih_start) * (iw_end - iw_start)
                 * (id_end - id_start);
-        D0 = D0 / num_summands;
-        D1 = D1 / num_summands;
+        D0 = CONVERT_VECTOR_DATA_T(RINT(A0 / num_summands));
+        D1 = CONVERT_VECTOR_DATA_T(RINT(A1 / num_summands));
 #endif // ALG_AVG_NP
 
         int dst_off = DST_OFF(mb, c, od, oh, ow);

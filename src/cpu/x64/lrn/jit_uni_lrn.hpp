@@ -50,6 +50,8 @@ struct jit_uni_lrn_fwd_t : public primitive_t {
 
     using data_t = typename prec_traits<d_type>::type;
 
+    status_t init(engine_t *engine) override;
+
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
@@ -82,6 +84,8 @@ struct jit_uni_lrn_bwd_t : public primitive_t {
     ~jit_uni_lrn_bwd_t();
 
     using data_t = typename prec_traits<d_type>::type;
+
+    status_t init(engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward(ctx);

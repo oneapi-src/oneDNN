@@ -46,20 +46,20 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::types;
 using namespace alg_kind;
 
+struct call_params_t {
+    const char *src_i8;
+    const char *dst_i8;
+    size_t kd_range;
+    size_t kh_range;
+    size_t kw_range;
+    float idivider;
+    const char *src_safe_access;
+    const char *dst_safe_access;
+};
+
 template <cpu_isa_t isa>
 struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_i8i8_pooling_fwd_ker_t)
-
-    struct call_params_t {
-        const char *src_i8;
-        const char *dst_i8;
-        size_t kd_range;
-        size_t kh_range;
-        size_t kw_range;
-        float idivider;
-        const char *src_safe_access;
-        const char *dst_safe_access;
-    };
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
     Xmm xreg(int idx) const { return Xmm(idx); }
@@ -170,7 +170,6 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
         return Mmx(mmx_msk_base_reg + ll);
     }; // ll: 0..4 [Mmx(2)...Mmx(5)]
 
-    void (*ker_)(const call_params_t *);
     jit_pool_conf_t jpp;
 
     void init_tmp_reg();
@@ -196,15 +195,11 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     void compute_step(int ur_c, int c_tail);
 
     void compute_c_block();
-    void generate();
+    void generate() override;
 
     static status_t init_conf(jit_pool_conf_t &jpp, const pooling_pd_t *ppd);
 
-    jit_uni_i8i8_pooling_fwd_ker_t(const jit_pool_conf_t &jpp_) : jpp(jpp_) {
-        generate();
-        ker_ = reinterpret_cast<decltype(ker_)>(
-                const_cast<uint8_t *>(getCode()));
-    }
+    jit_uni_i8i8_pooling_fwd_ker_t(const jit_pool_conf_t &jpp_) : jpp(jpp_) {}
 };
 
 template <>
@@ -1168,13 +1163,16 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::pd_t::jit_conf() {
 
 template <cpu_isa_t isa>
 jit_uni_i8i8_pooling_fwd_t<isa>::jit_uni_i8i8_pooling_fwd_t(const pd_t *apd)
-    : primitive_t(apd), ker_(nullptr) {
-    ker_ = new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_);
-}
+    : primitive_t(apd), ker_(nullptr) {}
 
 template <cpu_isa_t isa>
-jit_uni_i8i8_pooling_fwd_t<isa>::~jit_uni_i8i8_pooling_fwd_t() {
-    delete ker_;
+jit_uni_i8i8_pooling_fwd_t<isa>::~jit_uni_i8i8_pooling_fwd_t() = default;
+
+template <cpu_isa_t isa>
+status_t jit_uni_i8i8_pooling_fwd_t<isa>::init(engine_t *engine) {
+    CHECK(safe_ptr_assign(
+            ker_, new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_)));
+    return ker_->create_kernel();
 }
 
 template <cpu_isa_t isa>
@@ -1217,8 +1215,7 @@ void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
                 const int kw_end = nstl::min(
                         jpp.kw, jpp.iw + jpp.l_pad - ow * jpp.stride_w);
 
-                auto p = typename jit_uni_i8i8_pooling_fwd_ker_t<
-                        isa>::call_params_t();
+                auto p = call_params_t();
                 p.src_i8 = &src_i8[get_offset(src_d, n, 0, id, ih, iw)
                         * src_d.data_type_size()];
                 p.dst_i8 = &dst_i8[get_offset(dst_d, n, 0, od, oh, ow)
@@ -1233,7 +1230,7 @@ void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
                 p.src_safe_access = src_safe_access;
                 p.dst_safe_access = dst_safe_access;
 
-                ker_->ker_(&p);
+                (*ker_)(&p);
             });
 }
 

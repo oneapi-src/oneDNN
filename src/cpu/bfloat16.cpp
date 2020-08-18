@@ -39,7 +39,7 @@ bfloat16_t &bfloat16_t::operator=(float f) {
         p.out = (void *)this;
         static const cpu::x64::jit_avx512_core_cvt_ps_to_bf16_t
                 cvt_one_ps_to_bf16(1);
-        cvt_one_ps_to_bf16.jit_ker(&p);
+        cvt_one_ps_to_bf16(&p);
         return *this;
     }
 #endif
@@ -84,7 +84,7 @@ void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp, size_t nelems) {
         p_.out = (void *)out;
         p_.nelems = nelems;
         static const cpu::x64::jit_avx512_core_cvt_ps_to_bf16_t cvt_ps_to_bf16;
-        cvt_ps_to_bf16.jit_ker(&p_);
+        cvt_ps_to_bf16(&p_);
         return;
     }
 #endif
@@ -98,7 +98,7 @@ void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t nelems) {
 #if DNNL_X64
     if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
         static const cpu::x64::jit_avx512_core_cvt_bf16_to_ps_t kernel(false);
-        return kernel.jit_ker(out, inp, nelems);
+        return kernel(out, inp, nelems);
     }
 #endif
 
@@ -118,7 +118,7 @@ void add_floats_and_cvt_to_bfloat16(
         p_.nelems = nelems;
         static const cpu::x64::jit_avx512_core_add_cvt_ps_to_bf16_t
                 add_cvt_ps_to_bf16;
-        add_cvt_ps_to_bf16.jit_ker(&p_);
+        add_cvt_ps_to_bf16(&p_);
         return;
     }
 #endif

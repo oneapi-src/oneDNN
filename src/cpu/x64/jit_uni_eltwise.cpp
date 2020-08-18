@@ -46,14 +46,11 @@ struct jit_uni_eltwise_kernel : public c_compatible {
     jit_uni_eltwise_kernel(const eltwise_pd_t *pd) : pd_(pd) {}
     virtual ~jit_uni_eltwise_kernel() {}
 
-    void operator()(const jit_args *args) {
-        assert(ker_);
-        ker_(args);
-    }
+    virtual void operator()(jit_args *args) = 0;
+    virtual status_t create_kernel() = 0;
 
 protected:
     const eltwise_pd_t *pd_;
-    void (*ker_)(const jit_args *) = nullptr;
 
     data_type_t data_type() const { return pd_->src_md()->data_type; }
     bool is_bf16() const { return data_type() == data_type::bf16; }
@@ -146,7 +143,10 @@ struct jit_uni_kernel : public jit_uni_eltwise_kernel, public jit_generator {
         eltwise_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
                 desc.alg_kind, desc.alpha, desc.beta, 1.f, save_state,
                 reg_injector_table, injector_mask, is_fwd, pd_->use_dst()));
+    }
 
+    void generate() override {
+        const bool is_fwd = pd_->is_fwd();
         preamble();
 
         if (is_bf16()) {
@@ -245,9 +245,11 @@ struct jit_uni_kernel : public jit_uni_eltwise_kernel, public jit_generator {
         postamble();
 
         eltwise_injector_->prepare_table();
-
-        ker_ = (decltype(ker_))this->getCode();
     }
+
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+    void operator()(jit_args *p) override { jit_generator::operator()(p); }
 
 private:
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
@@ -307,12 +309,16 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_eltwise_fwd_t<isa, d_type>::jit_uni_eltwise_fwd_t(const pd_t *apd)
-    : primitive_t(apd) {
-    kernel_.reset(new jit_uni_kernel<isa>(pd()));
-}
+    : primitive_t(apd) {}
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_eltwise_fwd_t<isa, d_type>::~jit_uni_eltwise_fwd_t() = default;
+
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_eltwise_fwd_t<isa, d_type>::init(engine_t *engine) {
+    CHECK(safe_ptr_assign(kernel_, new jit_uni_kernel<isa>(pd())));
+    return kernel_->create_kernel();
+}
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_fwd_t<isa, d_type>::execute(
@@ -368,12 +374,16 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_eltwise_bwd_t<isa, d_type>::jit_uni_eltwise_bwd_t(const pd_t *apd)
-    : primitive_t(apd) {
-    kernel_.reset(new jit_uni_kernel<isa>(pd()));
-}
+    : primitive_t(apd) {}
 
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_eltwise_bwd_t<isa, d_type>::~jit_uni_eltwise_bwd_t() = default;
+
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_eltwise_bwd_t<isa, d_type>::init(engine_t *engine) {
+    CHECK(safe_ptr_assign(kernel_, new jit_uni_kernel<isa>(pd())));
+    return kernel_->create_kernel();
+}
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_bwd_t<isa, d_type>::execute(

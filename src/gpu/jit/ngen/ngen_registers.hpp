@@ -47,22 +47,6 @@ static constexpr_reg GRF r96{96}, r97{97}, r98{98}, r99{99}, r100{100}, r101{101
 static constexpr_reg GRF r104{104}, r105{105}, r106{106}, r107{107}, r108{108}, r109{109}, r110{110}, r111{111};
 static constexpr_reg GRF r112{112}, r113{113}, r114{114}, r115{115}, r116{116}, r117{117}, r118{118}, r119{119};
 static constexpr_reg GRF r120{120}, r121{121}, r122{122}, r123{123}, r124{124}, r125{125}, r126{126}, r127{127};
-static constexpr_reg GRF r128{128}, r129{129}, r130{130}, r131{131}, r132{132}, r133{133}, r134{134}, r135{135};
-static constexpr_reg GRF r136{136}, r137{137}, r138{138}, r139{139}, r140{140}, r141{141}, r142{142}, r143{143};
-static constexpr_reg GRF r144{144}, r145{145}, r146{146}, r147{147}, r148{148}, r149{149}, r150{150}, r151{151};
-static constexpr_reg GRF r152{152}, r153{153}, r154{154}, r155{155}, r156{156}, r157{157}, r158{158}, r159{159};
-static constexpr_reg GRF r160{160}, r161{161}, r162{162}, r163{163}, r164{164}, r165{165}, r166{166}, r167{167};
-static constexpr_reg GRF r168{168}, r169{169}, r170{170}, r171{171}, r172{172}, r173{173}, r174{174}, r175{175};
-static constexpr_reg GRF r176{176}, r177{177}, r178{178}, r179{179}, r180{180}, r181{181}, r182{182}, r183{183};
-static constexpr_reg GRF r184{184}, r185{185}, r186{186}, r187{187}, r188{188}, r189{189}, r190{190}, r191{191};
-static constexpr_reg GRF r192{192}, r193{193}, r194{194}, r195{195}, r196{196}, r197{197}, r198{198}, r199{199};
-static constexpr_reg GRF r200{200}, r201{201}, r202{202}, r203{203}, r204{204}, r205{205}, r206{206}, r207{207};
-static constexpr_reg GRF r208{208}, r209{209}, r210{210}, r211{211}, r212{212}, r213{213}, r214{214}, r215{215};
-static constexpr_reg GRF r216{216}, r217{217}, r218{218}, r219{219}, r220{220}, r221{221}, r222{222}, r223{223};
-static constexpr_reg GRF r224{224}, r225{225}, r226{226}, r227{227}, r228{228}, r229{229}, r230{230}, r231{231};
-static constexpr_reg GRF r232{232}, r233{233}, r234{234}, r235{235}, r236{236}, r237{237}, r238{238}, r239{239};
-static constexpr_reg GRF r240{240}, r241{241}, r242{242}, r243{243}, r244{244}, r245{245}, r246{246}, r247{247};
-static constexpr_reg GRF r248{248}, r249{249}, r250{250}, r251{251}, r252{252}, r253{253}, r254{254}, r255{255};
 
 static constexpr_reg NullRegister null{};
 static constexpr_reg AddressRegister a0{0};

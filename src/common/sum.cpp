@@ -71,7 +71,7 @@ status_t dnnl_sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
         sum_pd_t *sum_pd = nullptr;
         if ((*s)(&sum_pd, engine, attr, dst_md, n, scales, src_mds)
                 == success) {
-            return safe_ptr_assign<primitive_desc_iface_t>(
+            return safe_ptr_assign(
                     *sum_pd_iface, new primitive_desc_iface_t(sum_pd, engine));
         }
     }

@@ -116,7 +116,7 @@ void pd_info_t::init(
 /* init_info section */
 namespace {
 #define DNNL_VERBOSE_DAT_LEN 256
-#define DNNL_VERBOSE_ATTR_LEN 128
+#define DNNL_VERBOSE_ATTR_LEN 384
 #define DNNL_VERBOSE_AUX_LEN 384
 #define DNNL_VERBOSE_PRB_LEN 384
 
@@ -253,28 +253,38 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
         DPRINT(str, len, written, "post_ops:'");
         for (int i = 0; i < po.len(); ++i) {
             const post_ops_t::entry_t &e = po.entry_[i];
-            if (e.is_sum()) {
-                DPRINT(str, len, written, "sum;");
-            } else if (e.is_sum(false)) {
-                DPRINT(str, len, written, "sum:%g;", e.sum.scale);
-            } else if (e.is_eltwise(true)) {
-                const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
-                if (ew.beta == 0) {
-                    if (ew.alpha == 0) {
-                        DPRINT(str, len, written, "%s;",
-                                dnnl_alg_kind2str(ew.alg));
-                    } else {
-                        DPRINT(str, len, written, "%s:%g;",
-                                dnnl_alg_kind2str(ew.alg), ew.alpha);
-                    }
-                } else {
-                    DPRINT(str, len, written, "%s:%g:%g;",
-                            dnnl_alg_kind2str(ew.alg), ew.alpha, ew.beta);
-                }
-            } else if (e.is_eltwise(false)) {
-                const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
-                DPRINT(str, len, written, "%s:%g:%g:%g;",
-                        dnnl_alg_kind2str(ew.alg), ew.alpha, ew.beta, ew.scale);
+            switch (e.kind) {
+                case primitive_kind::sum: {
+                    if (e.sum.scale == 1.f)
+                        DPRINT(str, len, written, "sum;");
+                    else
+                        DPRINT(str, len, written, "sum:%g;", e.sum.scale);
+                } break;
+                case primitive_kind::eltwise: {
+                    const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
+                    const char *alg_str = dnnl_alg_kind2str(ew.alg);
+                    if (ew.scale != 1.f)
+                        DPRINT(str, len, written, "%s:%g:%g:%g;", alg_str,
+                                ew.alpha, ew.beta, ew.scale);
+                    else if (ew.beta != 0.f)
+                        DPRINT(str, len, written, "%s:%g:%g;", alg_str,
+                                ew.alpha, ew.beta);
+                    else if (ew.alpha != 0.f)
+                        DPRINT(str, len, written, "%s:%g;", alg_str, ew.alpha);
+                    else
+                        DPRINT(str, len, written, "%s;", alg_str);
+                } break;
+                case primitive_kind::binary: {
+                    const post_ops_t::entry_t::binary_t &eb = e.binary;
+                    int mask = eb.src1_desc.ndims >= 2
+                                    && eb.src1_desc.dims[1] > 1
+                            ? (1 << 1)
+                            : 0;
+                    DPRINT(str, len, written, "%s:%s:%d;",
+                            dnnl_alg_kind2str(eb.alg),
+                            dnnl_dt2str(eb.src1_desc.data_type), mask);
+                } break;
+                default: assert(!"unsupported post op primitive kind!"); break;
             }
         }
         DPRINT(str, len, written, "';");
@@ -295,6 +305,13 @@ void flags2str(char *str, int len, int written, unsigned flags) {
     DPRINT(str, len, written, "flags:%s", s.c_str());
 }
 
+const char *prim_kind2str(dnnl_primitive_kind_t prim_kind) {
+    switch ((int)prim_kind) {
+        case primitive_kind::zero_pad: return "zero_pad";
+        default: return dnnl_prim_kind2str(prim_kind);
+    }
+}
+
 // needed for cross engine reorder dump
 void verbose_templ_no_engine_kind(char *buffer, dnnl_primitive_kind_t prim_kind,
         const char *impl_str, dnnl_prop_kind_t prop_kind, const char *data_str,
@@ -302,9 +319,8 @@ void verbose_templ_no_engine_kind(char *buffer, dnnl_primitive_kind_t prim_kind,
         int written = 0) {
     MAYBE_UNUSED(verbose_templ_no_engine_kind);
     DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s,%s,%s,%s,%s,%s,%s",
-            dnnl_prim_kind2str(prim_kind), impl_str,
-            dnnl_prop_kind2str(prop_kind), data_str, attr_str, aux_str,
-            prb_str);
+            prim_kind2str(prim_kind), impl_str, dnnl_prop_kind2str(prop_kind),
+            data_str, attr_str, aux_str, prb_str);
 }
 
 void verbose_templ(char *buffer, const engine_t *engine,
@@ -1002,6 +1018,13 @@ static void init_info_resampling(const engine_t *e, pd_t *s, char *buffer) {
             dat_str, attr_str, aux_str, prb_str);
 }
 
+static void init_info_zero_pad(
+        const engine_t *e, const primitive_desc_t *s, char *buffer) {
+    DECL_DAT_AUX_PRB_STRS();
+    verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
+            attr_str, aux_str, prb_str);
+}
+
 #undef DPRINT
 } // namespace
 
@@ -1017,7 +1040,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
         init_info_##kind(engine, (const kind##_pd_t *)pd, &str_[0]); \
         break
 
-        switch (pd->kind()) {
+        switch ((int)pd->kind()) {
             CASE(batch_normalization);
             CASE(binary);
             CASE(concat);
@@ -1037,6 +1060,9 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(shuffle);
             CASE(softmax);
             CASE(sum);
+            case primitive_kind::zero_pad:
+                init_info_zero_pad(engine, pd, &str_[0]);
+                break;
             default: assert(!"unknown primitive kind");
         }
 #undef CASE

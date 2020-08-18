@@ -59,8 +59,7 @@ namespace x64 {
 #define TILED(X) dword[rsp + ((X) + 0xc0)]
 #define TILEQ(X) qword[rsp + ((X) + 0xc0)]
 
-void jit_avx512_core_amx_gemm_kern::generate(
-        int typea, int typeb, int typec, int isBetaZero) {
+void jit_avx512_core_amx_gemm_kern::generate() {
 
     int kerneltype = ((typea << 1) | typeb);
 
@@ -458,10 +457,11 @@ void jit_avx512_core_amx_gemm_kern::generate(
 
 jit_avx512_core_amx_gemm_kern::jit_avx512_core_amx_gemm_kern(
         int typea, int typeb, int typec, int betaZero)
-    : jit_generator(nullptr, 1024) {
-
-    generate(typea, typeb, typec, betaZero);
-}
+    : jit_generator(nullptr, 1024)
+    , typea(typea)
+    , typeb(typeb)
+    , typec(typec)
+    , isBetaZero(betaZero) {}
 
 } // namespace x64
 } // namespace cpu

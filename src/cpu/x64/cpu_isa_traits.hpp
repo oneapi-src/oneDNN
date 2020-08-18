@@ -29,6 +29,7 @@
 /* in order to make selinux happy memory that would be marked with X-bit should
  * be obtained with mmap */
 #define XBYAK_USE_MMAP_ALLOCATOR
+#define XBYAK_NO_EXCEPTION
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 /* turn off `size_t to other-type implicit casting` warning
  * currently we have a lot of jit-generated instructions that
@@ -243,13 +244,13 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
     ((isa) == avx ? prefix STRINGIFY(avx) : \
     ((isa) == avx2 ? prefix STRINGIFY(avx2) : \
     ((isa) == avx512_common ? prefix STRINGIFY(avx512_common) : \
-    ((isa) == avx512_core ? prefix STRINGIFY(avx512_core) : \
-    ((isa) == avx512_core_vnni ? prefix STRINGIFY(avx512_core_vnni) : \
     ((isa) == avx512_mic ? prefix STRINGIFY(avx512_mic) : \
     ((isa) == avx512_mic_4ops ? prefix STRINGIFY(avx512_mic_4ops) : \
+    ((isa) == avx512_core ? prefix STRINGIFY(avx512_core) : \
+    ((isa) == avx512_core_vnni ? prefix STRINGIFY(avx512_core_vnni) : \
     ((isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \
-    ((isa) == avx512_core_bf16_amx_int8 ? prefix STRINGIFY(avx512_core_bf16_amx_int8) : \
-    ((isa) == avx512_core_bf16_amx_bf16 ? prefix STRINGIFY(avx512_core_bf16_amx_bf16) : \
+    ((isa) == avx512_core_bf16_amx_int8 ? prefix STRINGIFY(avx512_core_amx_int8) : \
+    ((isa) == avx512_core_bf16_amx_bf16 ? prefix STRINGIFY(avx512_core_amx_bf16) : \
     prefix suffix_if_any))))))))))))
 /* clang-format on */
 

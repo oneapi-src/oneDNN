@@ -222,7 +222,7 @@ protected:
             return unimplemented; \
         } \
         _pd->init_scratchpad_md(); \
-        return safe_ptr_assign<concat_pd_t>(*concat_pd, _pd); \
+        return safe_ptr_assign(*concat_pd, _pd); \
     } \
     status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
             engine_t *engine, bool is_primitive_nested) const override { \

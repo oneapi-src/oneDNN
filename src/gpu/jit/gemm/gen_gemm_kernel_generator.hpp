@@ -14,14 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_JIT_GEMM_GEN_KERNEL_GENERATOR_HPP
-#define GPU_JIT_GEMM_GEN_KERNEL_GENERATOR_HPP
+#ifndef GPU_JIT_GEMM_GEN_GEMM_KERNEL_GENERATOR_HPP
+#define GPU_JIT_GEMM_GEN_GEMM_KERNEL_GENERATOR_HPP
 
 /* Embargo support */
 #define STANDALONE 0
 
 #include "common/float16.hpp"
 #include "common/utils.hpp"
+#include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
 
 namespace ngen {
 using half = dnnl::impl::float16_t;
@@ -397,9 +398,7 @@ protected:
 
 // State parameters shared between different kernel types.
 struct CommonState {
-    static constexpr auto registerCount = 128;
-
-    ngen::RegisterAllocator<registerCount> ra;
+    ngen::RegisterAllocator ra;
     ngen::GRF signChange, selectImag;
     ngen::GRF vflagStorage;
     std::array<uint8_t, 8> activeVFlags;
@@ -411,6 +410,7 @@ struct CommonState {
     ngen::FlagRegister flagSwizzle;
     ngen::GRFRange eatomicAddRegs[2];
     int vflagEAtomicAdd;
+    ngen::Subregister all1s;
 
     CommonState(ngen::HW hw) : ra(hw), raVFlag(hw) {}
 
@@ -443,6 +443,7 @@ struct CommonStrategy {
             = false; // Use 32-bit adds for 64-bit arithmetic, assuming no 2^32 boundaries crossed.
     bool wgInSS
             = false; // Pretend to use barriers so that each WG belongs to 1 SS/DSS.
+    int GRFs = 128; // # of GRFs to use.
 };
 
 // Problem parameters shared between kernel types.
@@ -488,19 +489,28 @@ enum class KRange {
 // Preferences for using scattered accesses.
 enum class ScatterSIMD { Default, Wide, Narrow };
 
+// A/B offset mode.
+enum class ABOffset {
+    None, // No A/B offsets.
+    Calc, // Calculate A/B row/column sums in kernel.
+    Load, // Use precalculated row/column sums.
+};
+
 // GEMM kernel problem description.
 struct GEMMProblem : public CommonProblem {
-    Type Ta, Tb, Tc;
+    Type Ta, Tb, Tc, Ts; // Types for A/B/C/scalars
 
-    Scalar<double> alpha_real, alpha_imag;
-    Scalar<double> beta_real, beta_imag;
-    MatrixAddressing A, B, C;
+    Scalar<double> alpha_real, alpha_imag; // Alpha value, if fixed.
+    Scalar<double> beta_real, beta_imag; // Beta value, if fixed.
+    MatrixAddressing A, B, C, CO; // Addressing information for matrices.
     bool kPositive = false; // Can we assume k > 0?
     bool backward = false; // If true, k loop is backwards.
     bool checkBeta0 = true; // If true, check for beta = 0 and handle specially.
     LoopType fusedLoop = LoopM; // Direction of fusing if threads fused.
     bool batchedS = false; // Strided batch kernel
     bool batchedN = false; // Non-strided batch kernel
+    bool cOffset = false; // C offset present?
+    ABOffset abOffset = ABOffset::None; // A/B offset mode.
 
     bool beta0() const {
         return (beta_real == 0) && (!Tc.isComplex() || (beta_imag == 0));
@@ -552,7 +562,7 @@ struct GEMMStrategy : public CommonStrategy {
         ACB, // A, then C, then B
         BCA, // B, then C, then A
         VNC, // A/B (broadcast matrix second), then C
-        ABInterleave // A/B interleaved, then C
+        ABInterleave, // A/B interleaved, then C
     } registerScheme
             = CSeparate; // Register layout scheme.
     bool kBlocking = false; // Are we doing k blocking?
@@ -582,7 +592,7 @@ struct GEMMStrategy : public CommonStrategy {
     CommonDriverInfo driverInfo(const GEMMProblem &problem) const;
 
     void sanityCheck(ngen::HW hw, const GEMMProblem &problem);
-    bool minimize(const GEMMProblem &problem);
+    bool minimize(ngen::HW hw, const GEMMProblem &problem);
 
     int slmABufBlockSize(Type Ta) const {
         return int(slmA) * Ta * unroll[LoopM] * unrollKSLM;
@@ -601,13 +611,18 @@ struct GEMMStrategy : public CommonStrategy {
     int kb_inc() const { return slmB ? unrollKSLM : kb_load; }
 
     bool needsBarrier() const { return (barrierFreq > 0) || (slmBuffers > 0); }
+
+    int wgM() const { return wg[loopOrder[0]]; }
+    int wgN() const { return wg[loopOrder[1]]; }
 };
 
 // State parameters for GEMM kernels.
 struct GEMMState : public CommonState {
     struct {
-        ngen::Subregister A, B, C[2], base; // q
+        ngen::Subregister A, B, C[2], CO, base; // q
+        ngen::Subregister ao, bo; // w
         ngen::Subregister offsetA, offsetB, offsetC[2]; // q
+        ngen::Subregister offsetCO; // d
         ngen::Subregister lda, ldb, ldc[2]; // d
         ngen::Subregister m, n, k, k0; // d
         ngen::Subregister alpha_real, alpha_imag; // T_real
@@ -616,15 +631,17 @@ struct GEMMState : public CommonState {
         ngen::GRF localIDM, localIDN, localIDK; // uw
         ngen::Subregister localSizeM, localSizeN, localSizeK; // ud
         ngen::Subregister mapping; // q
-        ngen::Subregister conjAB; // ud
+        ngen::Subregister flags; // ud
         ngen::Subregister diagA, diagB, diagC; // q
-        uint8_t surfaceA, surfaceB, surfaceC[2]; // BTS indices
+        uint8_t surfaceA, surfaceB; // BTS indices
+        uint8_t surfaceC[2], surfaceCO; // BTS indices
         ngen::Subregister strideA, strideB,
                 strideC; // ud, used for strided batch.
         ngen::Subregister offsetBatch; // ud, used for non-strided batch.
     } inputs;
-    ngen::Subregister effA, effB,
-            effC[2]; // Offsets to base of A/B/C chunks for loading/storing.
+    Type Tacc; // Current type in accumulator registers.
+    ngen::Subregister effA, effB, effC[2],
+            effCO; // Offsets to base of A/B/C/CO chunks for loading/storing.
     ngen::Subregister effAi, effBi;
     ngen::Subregister effAo, effBo;
     std::vector<ngen::GRFRange> A_addrs, B_addrs, C_addrs[2];
@@ -636,6 +653,7 @@ struct GEMMState : public CommonState {
     std::vector<GRFMultirange> Ai_regs,
             Bi_regs; // Incoming data to copy to SLM.
     GRFMultirange Ao_regs, Bo_regs; // Outgoing data to copy to SLM.
+    GRFMultirange As_regs, Bs_regs; // A row sums/B column sums.
     ngen::GRFRange broadcast_regs;
     std::vector<ngen::GRFRange> tempMul_regs;
     ngen::Subregister i0, j0, h0; // d
@@ -651,12 +669,14 @@ struct GEMMState : public CommonState {
     ngen::Subregister add64; // uw
     ngen::Subregister lidM, lidN, lidStorage; // uw, uw, ud
     ngen::Subregister ha0_slm, hb0_slm, hab0Storage; // uw, uw, ud
+    ngen::Subregister ia0_slm, jb0_slm; // uw
     int ma_slm, ka_slm, kb_slm, nb_slm;
     bool A_slmScatter = false, B_slmScatter = false;
     std::vector<RegisterBlock> A_layout, B_layout, C_layout;
     std::vector<RegisterBlock> Ar_layout, Br_layout;
     std::vector<RegisterBlock> Ai_layout, Bi_layout;
     std::vector<RegisterBlock> Ao_layout, Bo_layout;
+    std::vector<RegisterBlock> As_layout, Bs_layout;
     bool aioShare, bioShare;
     MatrixAddressing Ai, Bi, Ao, Bo;
     MatrixAddressingStrategy Ai_strategy, Bi_strategy;
@@ -675,10 +695,6 @@ struct GEMMState : public CommonState {
     } fused;
 
     GEMMState(ngen::HW hw) : CommonState(hw) {}
-
-#ifdef ASM_OUTPUT
-    void dump();
-#endif
 };
 
 // GEMM superkernel strategy parameters.
@@ -695,7 +711,7 @@ struct GEMMSuperkernelStrategy {
 struct GEMMSuperkernelState : public GEMMState {
     struct {
         uint8_t surfacePlan;
-        ngen::Subregister plan_count;
+        ngen::Subregister planCount;
         ngen::GRF localID;
         ngen::Subregister localSize;
     } inputsSK;
@@ -706,13 +722,14 @@ struct GEMMSuperkernelState : public GEMMState {
 
 // Copy kernel problem description: D <- alpha*S
 struct CopyProblem : public CommonProblem {
-    Type Ts, Td;
+    Type Ts, Td, Tsum;
     Scalar<double> alpha_real, alpha_imag;
     MatrixAddressing S, D;
     bool conjugate;
     bool lower;
     bool unit;
     bool trsm;
+    bool sum;
     bool reflecting() const { return false; }
 };
 
@@ -763,12 +780,14 @@ struct CopyState : public CommonState {
     std::vector<ngen::GRFRange> S_addrs, D_addrs;
     std::vector<ngen::GRFRange> S_addrSrcs[2];
     ngen::GRFRange S_regs, D_regs;
+    std::vector<ngen::GRFRange> Ds_regs;
     ngen::Subregister lds_sl; // d
     ngen::Subregister ldd_dl; // d
     ngen::Subregister Z; // d
     ngen::FlagRegister flagAP, flagTri, flagDiag;
     ngen::FlagRegister flagReflect[2];
     std::vector<RegisterBlock> S_layout, D_layout;
+    std::vector<RegisterBlock> Ds_layout;
     ngen::Subregister remainderX, remainderY; // ud
     ngen::GRF indexVec; // w
     ngen::GRF zero, one, complexOne; // T_real
@@ -790,15 +809,6 @@ struct CopyState : public CommonState {
     void dump();
 };
 
-#ifdef BINARY_OUTPUT
-template <ngen::HW hw>
-class gemm_kernel_generator_t : public ngen::BinaryCodeGenerator<hw> {
-public:
-    using super = ngen::BinaryCodeGenerator<hw>;
-    gemm_kernel_generator_t() {}
-
-    NGEN_FORWARD(hw);
-#else
 template <ngen::HW hw>
 class gemm_kernel_generator_t : public ngen::OpenCLCodeGenerator<hw> {
 public:
@@ -806,7 +816,6 @@ public:
     gemm_kernel_generator_t() {}
 
     NGEN_FORWARD_OPENCL(hw);
-#endif
 
     void gemm(GEMMProblem problem, GEMMStrategy strategy,
             const ngen::NEOInterfaceHandler &interface_);
@@ -821,13 +830,7 @@ protected:
 
     std::exception_ptr lastException;
 
-    std::ostream &getOutStream() const {
-#ifdef ASM_OUTPUT
-        return std::cout;
-#else
-        return std::cerr;
-#endif
-    }
+    std::ostream &getOutStream() const { return std::cerr; }
 
     std::ostream &noteStream() const { return getOutStream(); }
 
@@ -850,23 +853,10 @@ protected:
 
         template <typename T>
         status_stream &operator<<(const T &obj) {
-#ifdef ASM_OUTPUT
-            if (lineStart) line << "\x1B[1;3" << cc << 'm';
-            line << obj;
-            lineStart = false;
-#endif
             return *this;
         }
 
-        status_stream &operator<<(const Endl &e) {
-#ifdef ASM_OUTPUT
-            line << "\x1B[0m";
-            lineStart = true;
-            parent.comment(line.str());
-            line.str(std::string());
-#endif
-            return *this;
-        }
+        status_stream &operator<<(const Endl &e) { return *this; }
     } status {*this};
 
 #ifdef SHOW_DISCARDS
@@ -920,6 +910,7 @@ protected:
         DAddr
     };
     enum class StdCRemType { Ignore, Mask, Descriptor };
+    enum class COperation { Load, Update, UpdateStore };
 
     friend std::ostream &operator<<(std::ostream &s, StdCRemType rt) {
         const char *names[3] = {"ignore", "mask", "custom descriptor"};
@@ -1018,6 +1009,8 @@ protected:
 
     void simtDoWhileLoop(
             const ngen::InstructionModifier &mod, ngen::Label &dest);
+
+    void slmBarrier(const ngen::GRF &temp, const ngen::GRF &r0_info = r0);
 
     template <typename T>
     void duplicateScalar(Scalar<T> &val, CommonState &state);
@@ -1212,29 +1205,56 @@ protected:
             const GRFMultirange &C_load, GEMMProblem &problem,
             GEMMStrategy &strategy, GEMMState &state);
     void updateCLayout(const std::vector<RegisterBlock> &layout,
-            const ngen::GRFRange (&C_addr0)[2], bool loadOnly,
+            const ngen::GRFRange (&C_addr0)[2], COperation op,
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     bool doStdCRemainder(std::vector<RegisterBlock> &layout, bool inside,
             bool columns[2], StdCRemType remTypes[2], bool fragments[2],
             bool fragPositives[2], int fragSizes[2],
-            const ngen::GRFRange (&C_addr0)[2], bool loadOnly,
+            const ngen::GRFRange (&C_addr0)[2], COperation op,
             std::vector<MaskAssignment> &masks, GEMMProblem &problem,
             GEMMStrategy &strategy, GEMMState state);
-    void doAlternateCRemainder(bool loadOnly, GEMMProblem &problem,
+    void doAlternateCRemainder(COperation op, GEMMProblem &problem,
             GEMMStrategy &strategy, GEMMState &state);
 
-    bool gemmBody(GEMMProblem problem, GEMMStrategy strategy, GEMMState state);
-    bool gemmBodyInternal(
-            GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
+    void accumulateSum(bool column, Type Tsrc, const GRFMultirange &srcRegs,
+            const std::vector<RegisterBlock> &srcLayout, Type Tdst,
+            const GRFMultirange &dstRegs,
+            const std::vector<RegisterBlock> &dstLayout,
+            const CommonStrategy &strategy, CommonState &state);
+    void makeSumLayout(bool column, Type Tsrc,
+            const std::vector<RegisterBlock> &srcLayout, Type Tdst,
+            std::vector<RegisterBlock> &dstLayout,
+            const CommonStrategy &strategy, CommonState &state);
+    void horizontalAdd(bool column, Type T, const GRFMultirange &regs,
+            std::vector<RegisterBlock> &layout);
+    bool gemmFinalizeSums(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
 
+    void convert(const GRFMultirange &range, Type Told, Type Tnew,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
+    void gemmConvertC(Type Tnew, const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
     void gemmBetaScale(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
+    void gemmFixedOffsetC(const ngen::Subregister &offset,
+            const GEMMProblem &problem, const GEMMStrategy &strategy,
+            GEMMState &state);
+    void gemmVariableOffsetC(bool column, const GRFMultirange &offsets,
+            const ngen::Subregister &scale, const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
+    bool gemmLoadABOffset(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
+    void gemmApplyABOffset(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
+    bool gemmApplyCOffset(bool row, bool column, const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
+    bool gemmApplyCOffsetDispatch(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, GEMMState &state);
     void gemmAllocRegs(
             GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     void gemmAllocAoBoRegs(
             bool forceAlloc, const GEMMStrategy &strategy, GEMMState &state);
-    bool gemmAccumulateC(
-            GEMMProblem problem, GEMMStrategy &strategy, GEMMState &state);
     void doAIncrementInternal(const std::vector<RegisterBlock> &layout,
             const std::vector<ngen::GRFRange> &addrs, const MatrixAddressing &A,
             const MatrixAddressingStrategy &A_strategy, int ka_inc,
@@ -1293,15 +1313,22 @@ protected:
             const MatrixAddressingStrategy &B_strategy, I kb_inc,
             const GEMMProblem &problem, const GEMMStrategy &strategy,
             GEMMState &state);
-    bool gemmKLoop(int ka_repack, int kb_repack, bool lateKLoopCheck,
-            GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
-    bool gemmAccessC(bool loadOnly, GEMMProblem &problem,
-            GEMMStrategy &strategy, GEMMState &state);
-    bool gemmUpdateC(
-            GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     void gemmCalcIncrements(const GEMMProblem &problem,
             const GEMMStrategy &strategy, GEMMState &state, int ka_load = 0,
             int kb_load = 0);
+
+    bool gemmKLoop(int ka_repack, int kb_repack, bool lateKLoopCheck,
+            GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
+    bool gemmAccumulateC(
+            GEMMProblem problem, GEMMStrategy &strategy, GEMMState &state);
+    bool gemmAccessC(COperation op, GEMMProblem &problem,
+            GEMMStrategy &strategy, GEMMState &state);
+    bool gemmUpdateC(
+            GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
+
+    bool gemmBody(GEMMProblem problem, GEMMStrategy strategy, GEMMState state);
+    bool gemmBodyInternal(
+            GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
 
     bool mnRemainderHandling(LoopType loop, GEMMProblem &problem,
             GEMMStrategy &strategy, GEMMState &state,

@@ -76,14 +76,18 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    jit_avx512_core_bf16_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_avx512_core_bf16_fwd_kernel(
-                pd()->jcp_, *pd()->attr());
-    }
-    ~jit_avx512_core_bf16_convolution_fwd_t() { delete kernel_; }
+    jit_avx512_core_bf16_convolution_fwd_t(const pd_t *apd)
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx512_core_bf16_fwd_kernel(
+                        pd()->jcp_, *pd()->attr())));
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->ndims() == 3)
@@ -107,7 +111,7 @@ private:
     void execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_avx512_core_bf16_fwd_kernel *kernel_;
+    std::unique_ptr<jit_avx512_core_bf16_fwd_kernel> kernel_;
 };
 
 struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_t {
@@ -142,13 +146,16 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_t {
     };
 
     jit_avx512_core_bf16_convolution_bwd_data_t(const pd_t *apd)
-        : primitive_t(apd) {
-        kernel_ = new jit_avx512_core_bf16_bwd_data_kernel(pd()->jcp_);
-    }
-    ~jit_avx512_core_bf16_convolution_bwd_data_t() { delete kernel_; };
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::bf16>::type wei_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(
+                kernel_, new jit_avx512_core_bf16_bwd_data_kernel(pd()->jcp_)));
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         if (pd()->ndims() < 5)
@@ -165,7 +172,7 @@ private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     void execute_backward_data_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    jit_avx512_core_bf16_bwd_data_kernel *kernel_;
+    std::unique_ptr<jit_avx512_core_bf16_bwd_data_kernel> kernel_;
 };
 
 struct jit_avx512_core_bf16_convolution_bwd_weights_t : public primitive_t {
@@ -209,16 +216,13 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t : public primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    jit_avx512_core_bf16_convolution_bwd_weights_t(const pd_t *apd);
-    ~jit_avx512_core_bf16_convolution_bwd_weights_t() {
-        delete kernel_;
-        delete trans_kernel_;
-        delete trans_dst_kernel_;
-        delete acc_ker_;
-    }
+    jit_avx512_core_bf16_convolution_bwd_weights_t(const pd_t *apd)
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::bf16>::type src_data_t;
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
+
+    status_t init(engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights(ctx);
@@ -252,12 +256,12 @@ private:
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
 
-    jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 *kernel_;
+    std::unique_ptr<jit_avx512_core_bf16_conv_bwd_weights_kernel_f32> kernel_;
 
-    cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
+    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
 
-    jit_trans_src_t *trans_kernel_;
-    jit_trans_dst_t *trans_dst_kernel_;
+    std::unique_ptr<jit_trans_src_t> trans_kernel_;
+    std::unique_ptr<jit_trans_dst_t> trans_dst_kernel_;
 };
 
 } // namespace x64

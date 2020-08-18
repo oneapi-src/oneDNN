@@ -34,7 +34,7 @@ namespace x64 {
 struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_fwd_kernel_bf16)
 
-    jit_avx512_dw_conv_fwd_kernel_bf16(jit_conv_conf_t ajcp)
+    jit_avx512_dw_conv_fwd_kernel_bf16(const jit_conv_conf_t &ajcp)
         : jcp(ajcp), eltwise_injector_(nullptr), bf16_emu_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
@@ -43,9 +43,6 @@ struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
                     bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
                     bf16_emu_reserv_5, bf16_emu_reserv_6);
-
-        this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
     ~jit_avx512_dw_conv_fwd_kernel_bf16() {
@@ -54,7 +51,6 @@ struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
     }
 
     jit_conv_conf_t jcp;
-    void (*jit_ker)(jit_conv_call_s *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -133,28 +129,24 @@ private:
 
     bf16_emulation_t *bf16_emu_;
 
-    void generate();
+    void generate() override;
 };
 
 struct jit_avx512_dw_conv_bwd_data_kernel_bf16 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_bwd_data_kernel_bf16)
 
-    jit_avx512_dw_conv_bwd_data_kernel_bf16(jit_conv_conf_t ajcp)
+    jit_avx512_dw_conv_bwd_data_kernel_bf16(const jit_conv_conf_t &ajcp)
         : jcp(ajcp), bf16_emu_(nullptr) {
 
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
                     bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
                     bf16_emu_reserv_5, bf16_emu_reserv_6);
-
-        this->generate();
-        jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
 
     ~jit_avx512_dw_conv_bwd_data_kernel_bf16() { delete bf16_emu_; }
 
     jit_conv_conf_t jcp;
-    void (*jit_ker)(jit_conv_call_s *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -200,29 +192,25 @@ private:
     inline void apply_filter(int ur_ch_blocks, int ur_str_w);
     inline void store_dsrc(int ur_ch_blocks, int ur_str_w);
 
-    void generate();
+    void generate() override;
 };
 
 struct jit_avx512_dw_conv_bwd_weights_kernel_bf16 : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_bwd_weights_kernel_bf16)
 
-    jit_avx512_dw_conv_bwd_weights_kernel_bf16(jit_conv_conf_t ajcp)
+    jit_avx512_dw_conv_bwd_weights_kernel_bf16(const jit_conv_conf_t &ajcp)
         : jcp(ajcp), bf16_emu_(nullptr) {
 
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
                     bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
                     bf16_emu_reserv_5, bf16_emu_reserv_6);
-
-        this->generate();
-        jit_ker = (void (*)(jit_dw_conv_call_s *))this->getCode();
     }
 
     ~jit_avx512_dw_conv_bwd_weights_kernel_bf16() { delete bf16_emu_; }
 
     jit_conv_conf_t jcp;
-    void (*jit_ker)(jit_dw_conv_call_s *);
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -301,7 +289,7 @@ private:
     inline void store_filter();
     inline void store_bias();
 
-    void generate();
+    void generate() override;
 };
 
 } // namespace x64

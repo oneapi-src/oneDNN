@@ -74,17 +74,21 @@ struct gemm_inner_product_fwd_t : public primitive_t {
     };
 
     gemm_inner_product_fwd_t(const pd_t *apd)
-        : primitive_t(apd), postops_in_ip_(false) {
+        : primitive_t(apd), postops_in_ip_(false) {}
+
+    status_t init(engine_t *engine) override {
         bool has_bias = pd()->with_bias(),
              has_eltwise
                 = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0;
         postops_in_ip_ = has_bias || has_eltwise;
 
-        pp_kernel_.reset(pp_kernel_t::create(pd(), true));
+        CHECK(safe_ptr_assign(pp_kernel_, pp_kernel_t::create(pd(), true)));
 
         auto sum_idx = pd()->attr()->post_ops_.find(primitive_kind::sum);
         beta_ = sum_idx >= 0 ? pd()->attr()->post_ops_.entry_[sum_idx].sum.scale
                              : 0.0;
+
+        return pp_kernel_->create_kernel();
     }
 
     typedef typename prec_traits<data_type>::type data_t;

@@ -355,7 +355,7 @@ public:
     AsmCodeGenerator(HW hardware_, std::ostream &defaultOutput_) : AsmCodeGenerator(hardware_) {
         defaultOutput = &defaultOutput_;
     }
-    ~AsmCodeGenerator() {
+    ~AsmCodeGenerator() noexcept(false) {
         if (defaultOutput != nullptr)
             getCode(*defaultOutput);
         for (auto &s : streamStack)
@@ -658,6 +658,18 @@ protected:
     template <typename DT = void>
     void dp4(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const Immediate &src1) {
         opX(Opcode::dp4, getDataType<DT>(), mod, dst, src0, src1);
+    }
+    template <typename DT = void>
+    void dp4a(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1, const RegData &src2) {
+        opX(Opcode::dp4a, getDataType<DT>(), mod, dst, src0, src1, src2);
+    }
+    template <typename DT = void>
+    void dp4a(const InstructionModifier &mod, const RegData &dst, const Immediate &src0, const RegData &src1, const RegData &src2) {
+        opX(Opcode::dp4a, getDataType<DT>(), mod, dst, src0, src1, src2);
+    }
+    template <typename DT = void>
+    void dp4a(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1, const Immediate &src2) {
+        opX(Opcode::dp4a, getDataType<DT>(), mod, dst, src0, src1, src2);
     }
     template <typename DT = void>
     void dph(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1) {

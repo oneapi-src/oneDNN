@@ -17,9 +17,9 @@
 #include <memory>
 
 #include "common/math_utils.hpp"
-#include "cpu/simple_q10n.hpp"
 
-#include "cpu/ref_eltwise.hpp"
+#include "cpu/primitive_attr_postops.hpp"
+#include "cpu/simple_q10n.hpp"
 
 #if DNNL_X64
 #include "cpu/x64/jit_gemm_inner_product_utils.hpp"

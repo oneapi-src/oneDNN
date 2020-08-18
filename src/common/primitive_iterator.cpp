@@ -84,7 +84,7 @@ status_t dnnl_primitive_desc_clone(
     if (utils::any_null(primitive_desc_iface, existing_primitive_desc_iface))
         return invalid_arguments;
 
-    return safe_ptr_assign<primitive_desc_iface_t>(*primitive_desc_iface,
+    return safe_ptr_assign(*primitive_desc_iface,
             new primitive_desc_iface_t(
                     existing_primitive_desc_iface->impl()->clone(),
                     existing_primitive_desc_iface->engine()));

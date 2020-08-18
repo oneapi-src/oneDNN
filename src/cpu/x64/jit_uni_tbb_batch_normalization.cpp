@@ -319,7 +319,7 @@ private:
 };
 
 template <cpu_isa_t isa>
-struct jit_bnorm_fwd_statistics_t : jit_generator {
+struct jit_bnorm_fwd_statistics_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_statistics_t)
     using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
             Ymm, Zmm>::type;
@@ -525,11 +525,11 @@ template <cpu_isa_t isa>
 struct jit_bnorm_fwd_mean_t : jit_bnorm_fwd_statistics_t<isa> {
     typedef typename jit_bnorm_fwd_statistics_t<isa>::call_params_t
             call_params_t;
-    void (*ker_)(const call_params_t *);
-    void operator()(const call_params_t *p) { (*ker_)(p); }
 
     jit_bnorm_fwd_mean_t(const batch_normalization_pd_t *bdesc)
-        : jit_bnorm_fwd_statistics_t<isa>(bdesc) {
+        : jit_bnorm_fwd_statistics_t<isa>(bdesc) {}
+
+    void generate() override {
         this->preamble();
         this->load_common_params();
         this->mov(this->reg_ptr_stat, this->reg_ptr_mean);
@@ -538,8 +538,6 @@ struct jit_bnorm_fwd_mean_t : jit_bnorm_fwd_statistics_t<isa> {
         this->compute(true);
         this->normalize();
         this->postamble();
-
-        ker_ = jit_generator::getCode<decltype(ker_)>();
     }
 };
 
@@ -547,11 +545,11 @@ template <cpu_isa_t isa>
 struct jit_bnorm_fwd_var_t : jit_bnorm_fwd_statistics_t<isa> {
     typedef typename jit_bnorm_fwd_statistics_t<isa>::call_params_t
             call_params_t;
-    void (*ker_)(const call_params_t *);
-    void operator()(const call_params_t *p) { (*ker_)(p); }
 
     jit_bnorm_fwd_var_t(const batch_normalization_pd_t *bdesc)
-        : jit_bnorm_fwd_statistics_t<isa>(bdesc) {
+        : jit_bnorm_fwd_statistics_t<isa>(bdesc) {}
+
+    void generate() override {
         this->preamble();
         this->load_common_params();
         this->mov(this->reg_ptr_stat, this->reg_ptr_var);
@@ -560,13 +558,11 @@ struct jit_bnorm_fwd_var_t : jit_bnorm_fwd_statistics_t<isa> {
         this->compute(false);
         this->normalize();
         this->postamble();
-
-        ker_ = jit_generator::getCode<decltype(ker_)>();
     }
 };
 
 template <cpu_isa_t isa>
-struct jit_bnorm_fwd_t : jit_generator {
+struct jit_bnorm_fwd_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_fwd_t)
     using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
             Ymm, Zmm>::type;
@@ -584,9 +580,6 @@ struct jit_bnorm_fwd_t : jit_generator {
         const acc_data_t *scale_shift;
         size_t blk_has_tail;
     };
-
-    void (*ker_)(const call_params_t *);
-    void operator()(const call_params_t *p) { (*ker_)(p); }
 
     Reg64 reg_param = abi_param1;
     Reg64 reg_tmp = abi_not_param1;
@@ -759,8 +752,10 @@ struct jit_bnorm_fwd_t : jit_generator {
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
-        bool is_bf16 = bdesc->desc()->data_desc.data_type == data_type::bf16;
+    }
 
+    void generate() override {
+        bool is_bf16 = bdesc_->desc()->data_desc.data_type == data_type::bf16;
         preamble();
         load_common_params();
         jit_relu_.fwd_prepare_relu();
@@ -776,8 +771,6 @@ struct jit_bnorm_fwd_t : jit_generator {
         L(end_store);
 
         postamble();
-
-        ker_ = getCode<decltype(ker_)>();
     }
 };
 
@@ -800,9 +793,6 @@ struct jit_bnorm_bwd_t : public jit_generator {
         const acc_data_t *scale_shift, *diff_scale_shift;
         size_t blk_has_tail;
     };
-
-    void (*ker_)(const call_params_t *);
-    void operator()(const call_params_t *p) { (*ker_)(p); }
 
     Reg64 reg_param = abi_param1;
     Reg64 reg_tmp = abi_not_param1;
@@ -1002,8 +992,10 @@ struct jit_bnorm_bwd_t : public jit_generator {
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
-        bool is_bf16 = bdesc->desc()->data_desc.data_type == data_type::bf16;
+    }
 
+    void generate() override {
+        bool is_bf16 = bdesc_->desc()->data_desc.data_type == data_type::bf16;
         preamble();
         load_common_params();
         jit_relu_.bwd_prepare_relu();
@@ -1019,8 +1011,6 @@ struct jit_bnorm_bwd_t : public jit_generator {
         L(end_store);
 
         postamble();
-
-        ker_ = getCode<decltype(ker_)>();
     }
 };
 
@@ -1043,9 +1033,6 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         const acc_data_t *diff_gamma, *diff_beta;
         size_t blk_has_tail;
     };
-
-    void (*ker_)(const call_params_t *);
-    void operator()(const call_params_t *p) { (*ker_)(p); }
 
     Reg64 reg_param = abi_param1;
     Reg64 reg_tmp = abi_not_param1;
@@ -1250,7 +1237,9 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         data_type_size_
                 = types::data_type_size(bdesc->desc()->data_desc.data_type);
         acc_type_size_ = sizeof(acc_data_t);
+    }
 
+    void generate() override {
         preamble();
         load_common_params();
         jit_relu_.bwd_prepare_relu();
@@ -1258,8 +1247,6 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
         zeroise();
         compute();
         postamble();
-
-        ker_ = getCode<decltype(ker_)>();
     }
 };
 } // namespace
@@ -1276,13 +1263,7 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(driver_t);
 
 public:
-    driver_t(const batch_normalization_pd_t *bdesc)
-        : bdesc_(bdesc)
-        , ker_fwd_(nullptr)
-        , ker_fwd_mean_(nullptr)
-        , ker_fwd_var_(nullptr)
-        , ker_bwd_(nullptr)
-        , ker_bwd_diff_ss_(nullptr) {
+    driver_t(const batch_normalization_pd_t *bdesc) : bdesc_(bdesc) {
         nthr_ = dnnl_get_max_threads();
         N_ = bdesc_->MB();
         S_ = bdesc_->D() * bdesc_->H() * bdesc_->W();
@@ -1300,24 +1281,28 @@ public:
         C_blk_step_ = l3_size / working_set_size;
         C_blk_step_ = nstl::max<dim_t>(C_blk_step_, 1);
         C_blk_step_ = nstl::min<dim_t>(C_blk_step_, C_blks_);
+    }
 
+    status_t create_kernel() {
         if (bdesc_->is_fwd()) {
-            ker_fwd_ = new jit_bnorm_fwd_t<isa>(bdesc_);
+            CHECK(safe_ptr_assign(ker_fwd_, new jit_bnorm_fwd_t<isa>(bdesc_)));
+            CHECK(ker_fwd_->create_kernel());
             if (!bdesc_->stats_is_src()) {
-                ker_fwd_mean_ = new jit_bnorm_fwd_mean_t<isa>(bdesc_);
-                ker_fwd_var_ = new jit_bnorm_fwd_var_t<isa>(bdesc_);
+                CHECK(safe_ptr_assign(
+                        ker_fwd_mean_, new jit_bnorm_fwd_mean_t<isa>(bdesc_)));
+                CHECK(safe_ptr_assign(
+                        ker_fwd_var_, new jit_bnorm_fwd_var_t<isa>(bdesc_)));
+                CHECK(ker_fwd_mean_->create_kernel());
+                CHECK(ker_fwd_var_->create_kernel());
             }
         } else {
-            ker_bwd_ = new jit_bnorm_bwd_t<isa>(bdesc_);
-            ker_bwd_diff_ss_ = new jit_bnorm_bwd_diff_ss_t<isa>(bdesc_);
+            CHECK(safe_ptr_assign(ker_bwd_, new jit_bnorm_bwd_t<isa>(bdesc_)));
+            CHECK(safe_ptr_assign(ker_bwd_diff_ss_,
+                    new jit_bnorm_bwd_diff_ss_t<isa>(bdesc_)));
+            CHECK(ker_bwd_->create_kernel());
+            CHECK(ker_bwd_diff_ss_->create_kernel());
         }
-    }
-    ~driver_t() {
-        delete ker_fwd_;
-        delete ker_fwd_mean_;
-        delete ker_fwd_var_;
-        delete ker_bwd_;
-        delete ker_bwd_diff_ss_;
+        return status::success;
     }
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
@@ -1761,8 +1746,13 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
 template <cpu_isa_t isa>
 jit_uni_tbb_batch_normalization_fwd_t<
         isa>::jit_uni_tbb_batch_normalization_fwd_t(const pd_t *apd)
-    : primitive_t(apd) {
-    bnorm_driver_ = new bnorm_tbb_impl::driver_t<isa>(pd());
+    : primitive_t(apd) {}
+
+template <cpu_isa_t isa>
+status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::init(engine_t *engine) {
+    CHECK(safe_ptr_assign(
+            bnorm_driver_, new bnorm_tbb_impl::driver_t<isa>(pd())));
+    return bnorm_driver_->create_kernel();
 }
 
 template <cpu_isa_t isa>
@@ -1791,9 +1781,8 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::execute(
 
 template <cpu_isa_t isa>
 jit_uni_tbb_batch_normalization_fwd_t<
-        isa>::~jit_uni_tbb_batch_normalization_fwd_t() {
-    delete bnorm_driver_;
-}
+        isa>::~jit_uni_tbb_batch_normalization_fwd_t()
+        = default;
 
 template struct jit_uni_tbb_batch_normalization_fwd_t<sse41>;
 template struct jit_uni_tbb_batch_normalization_fwd_t<avx2>;
@@ -1839,8 +1828,13 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
 template <cpu_isa_t isa>
 jit_uni_tbb_batch_normalization_bwd_t<
         isa>::jit_uni_tbb_batch_normalization_bwd_t(const pd_t *apd)
-    : primitive_t(apd) {
-    bnorm_driver_ = new bnorm_tbb_impl::driver_t<isa>(pd());
+    : primitive_t(apd) {}
+
+template <cpu_isa_t isa>
+status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::init(engine_t *engine) {
+    CHECK(safe_ptr_assign(
+            bnorm_driver_, new bnorm_tbb_impl::driver_t<isa>(pd())));
+    return bnorm_driver_->create_kernel();
 }
 
 template <cpu_isa_t isa>
@@ -1867,9 +1861,8 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::execute(
 
 template <cpu_isa_t isa>
 jit_uni_tbb_batch_normalization_bwd_t<
-        isa>::~jit_uni_tbb_batch_normalization_bwd_t() {
-    delete bnorm_driver_;
-}
+        isa>::~jit_uni_tbb_batch_normalization_bwd_t()
+        = default;
 
 template struct jit_uni_tbb_batch_normalization_bwd_t<sse41>;
 template struct jit_uni_tbb_batch_normalization_bwd_t<avx2>;

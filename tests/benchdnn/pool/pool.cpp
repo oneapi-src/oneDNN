@@ -27,6 +27,7 @@
 #include "dnnl_memory.hpp"
 #include "norm.hpp"
 
+#include "binary/binary.hpp"
 #include "pool/pool.hpp"
 
 namespace pool {
@@ -46,7 +47,9 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         bool ok = false;
-        if (fp < p->cfg[kind].min)
+        if (std::isinf(fp))
+            ok = std::isinf(dt) && std::signbit(fp) == std::signbit(dt);
+        else if (fp < p->cfg[kind].min)
             ok = dt == p->cfg[kind].min;
         else
             ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= p->cfg[kind].eps;
@@ -192,7 +195,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                 WARN);
     }
 
-    auto dnnl_attr = create_dnnl_attr(p->attr);
+    attr_args_t attr_args;
+    attr_args.prepare_binary_post_op_mds(p->attr, p->ndims, dst_dims);
+    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&ppd, &pd, dnnl_attr, engine, hint);
@@ -235,6 +240,12 @@ void check_known_skipped_case(const prb_t *p, res_t *r) {
             r->state = SKIPPED, r->reason = INVALID_CASE;
             return;
         }
+    }
+
+    // TODO: temporary disable binary post-op on GPU
+    if (engine_tgt_kind == dnnl_gpu && p->attr.post_ops.binary_index() != -1) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
     }
 }
 
@@ -283,6 +294,11 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t ws_fp(ws_md, test_engine);
     dnn_mem_t ws_dt(ws_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
+    SAFE(binary::setup_binary_po(
+                 const_fpd, binary_po_args, binary_po_dt, binary_po_fp),
+            WARN);
 
     dnn_mem_t d_src_dt, d_dst_dt;
 
@@ -293,12 +309,13 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_DST, dst_dt);
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+    args.set(binary_po_args, binary_po_dt);
 
     SAFE(execute_and_wait(pp, args), WARN);
 
     // want this pass on backward to get ws_fp filled properly
     if (bench_mode & CORR) {
-        compute_ref_fwd(p, src_fp, dst_fp, ws_fp);
+        compute_ref_fwd(p, src_fp, binary_po_fp, dst_fp, ws_fp);
         if (p->dir & FLAG_FWD) {
             dnn_mem_t dst(dst_dt, fp, tag, test_engine);
             SAFE(compare_dst(p, dst, dst_fp, r), WARN);

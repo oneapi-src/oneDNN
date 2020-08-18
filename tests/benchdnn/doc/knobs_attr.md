@@ -9,6 +9,7 @@
                     'ELTWISE[:ALPHA[:BETA[:SCALE]]];[...;]'
                     'DW_K3S1P1[:DST_DT[:OUTPUTSCALE]];'
                     'DW_K3S2P1[:DST_DT[:OUTPUTSCALE]];'
+                    'BINARY:DT[:POLICY];'
 ```
 
 `--attr-oscale` defines output scale primitive attribute. `POLICY` specifies the
@@ -74,7 +75,7 @@ parameter. No data type limitations are applied. Only single `SUM` operation
 can be applied to the output tensor.
 
 `ELTWISE` post operation kind applies one of supported element-wise algorithms
-to the operation result and then stores it/ It supports optional arguments
+to the operation result and then stores it. It supports optional arguments
 `ALPHA` and `BETA` parsed as real numbers. To specify `BETA`, `ALPHA` must be
 specified. `SCALE` has same notation and semantics as for `SUM` kind, but
 requires both `ALPHA` and `BETA` to be specified. `SCALE` is applicable only
@@ -87,6 +88,12 @@ as of now. They support optional argument `DST_DT`, which defines destination
 tensor data type. Refer to [data types](knobs_dt.md) for details. Optional
 argument `OUTPUTSCALE` defines the semantics of output scale as for
 `--attr-oscale` with the same syntax. It requires `DST_DT` to be specified.
+
+`BINARY` post operation kind applies one of supported binary algorithms to the
+operation result and then stores it. It requires mandatory argument of `DT`
+specifying data type of second memory operand. It supports optional argument of
+`POLICY` giving a hint what are the dimensions for a second memory operand. Yet
+so far only `COMMON` and `PER_OC` policy values are supported.
 
 Operations may be called in any order, e.g. apply `SUM` at first and then apply
 `ELTWISE`, or vice versa - apply `ELTWISE` and then `SUM` it with destination.
@@ -119,6 +126,12 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `clip`
       - `linear`
       - `pow`
+
+`BINARY` supported values are:
+  - `add`
+  - `max`
+  - `min`
+  - `mul`
 
 ## Examples:
 
@@ -155,4 +168,9 @@ bf16 convolutions respectively.
   ./benchdnn --conv --cfg=u8s8u8 --attr-oscale=per_oc:0.5 \
              --attr-post-ops="'relu;dw_k3s1p1:s8:per_oc:1.5;relu'" \
              ic16oc16ih4oh4kh1ph0
+```
+
+Run a convolution problem with binary post operation:
+``` sh
+  ./benchdnn --conv --attr-post-ops="'add:s32:common'" ic16oc16ih4oh4kh1ph0
 ```

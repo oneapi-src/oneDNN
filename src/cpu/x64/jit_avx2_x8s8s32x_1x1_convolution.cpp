@@ -251,14 +251,14 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
                 rp.src = src
                         + data_blk_off(
                                 src_d, n, _icb * jcp.ic_block, id, ih, iw);
-                rtus_driver_->ker_(&rp);
+                (*rtus_driver_)(&rp);
             }
             p.bcast_data = rp.ws;
         } else
             p.bcast_data = src
                     + data_blk_off(src_d, n, _icb * jcp.ic_block, id, ih, iw);
 
-        kernel_->jit_ker(&p);
+        (*kernel_)(&p);
     };
 
     auto conv_1x1 = [&](int bcast_start, int bcast_end, int ocb_start,
@@ -381,7 +381,7 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
                     ? &dw_oscales[jcp_dw->is_oc_scale * ocb * jcp_dw->ch_block]
                     : nullptr;
 
-            kernel_dw_->jit_ker(&par_conv_dw);
+            (*kernel_dw_)(&par_conv_dw);
 
             for (int i = 0; i < jcp_dw->kh; ++i)
                 addrs[i] += src_ch_stride;

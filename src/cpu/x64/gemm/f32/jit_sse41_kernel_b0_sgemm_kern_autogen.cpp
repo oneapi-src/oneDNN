@@ -24,7 +24,9 @@ namespace cpu {
 namespace x64 {
 
 jit_sse41_kernel_b0_sgemm_kern::jit_sse41_kernel_b0_sgemm_kern()
-    : jit_generator(nullptr, F32_COMPUTE_KERNEL_CODE_SIZE) {
+    : jit_generator(nullptr, F32_COMPUTE_KERNEL_CODE_SIZE) {}
+
+void jit_sse41_kernel_b0_sgemm_kern::generate() {
 
 #ifndef _WIN32
 

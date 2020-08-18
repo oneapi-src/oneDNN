@@ -195,7 +195,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
         SAFE(init_fwd_status, WARN);
     }
 
-    auto dnnl_attr = create_dnnl_attr(p->attr);
+    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args_t());
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&rpd, &pd, dnnl_attr, engine, _hint);

@@ -50,22 +50,46 @@ struct gen_gemm_t : public gpu_gemm_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
-
-            const auto d = desc();
-
             // LIMITATIONS:
             // - runtime dims are not supported
             // - bias is not supported
-            bool limits_ok = true
+            bool ok = true;
+
+            auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
+
+            const auto d = desc();
+
+            if (d->c_type == data_type::s32) {
+                ok = ok
+                        && utils::one_of(
+                                d->a_type, data_type::u8, data_type::s8)
+                        && utils::one_of(
+                                d->b_type, data_type::u8, data_type::s8)
+                        && d->acc_type == d->c_type
+                        && attr()->zero_points_.defined(DNNL_ARG_SRC)
+                        && attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)
+                        && (attr()->zero_points_.has_default_values(
+                                    DNNL_ARG_DST)
+                                || !attr()->zero_points_.defined(DNNL_ARG_DST));
+
+                int cmask = 0;
+                attr()->zero_points_.get(
+                        DNNL_ARG_DST, nullptr, &cmask, nullptr);
+                ok &= utils::one_of(cmask, 0, 1 << 0, 1 << 1);
+
+                attr_skip_mask |= smask_t::zero_points_runtime;
+            } else {
+                ok = ok
+                        && utils::one_of(
+                                d->c_type, data_type::f32, data_type::f16)
+                        && d->a_type == d->c_type && d->b_type == d->c_type
+                        && d->acc_type == d->c_type;
+            }
+
+            ok = ok
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m, d->n, d->k,
                             d->lda, d->ldb, d->ldc, d->batch)
-                    && d->bias_type == data_type::undef;
-
-            bool ok = limits_ok
-                    && utils::one_of(d->c_type, data_type::f32, data_type::f16)
-                    && d->a_type == d->c_type && d->b_type == d->c_type
-                    && d->acc_type == d->c_type
+                    && d->bias_type == data_type::undef
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->output_scales_.mask_ == 0
@@ -111,6 +135,7 @@ struct gen_gemm_t : public gpu_gemm_t {
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;
+        size_t dyn_offset_co = 0;
         int hw_threads_ = 0;
         int eu_count_ = 0;
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
@@ -157,11 +182,13 @@ private:
     status_t launch_nocopy(const gemm_exec_ctx_t &ctx,
             compute::compute_stream_t *s, const memory_storage_t &a,
             const memory_storage_t &b, const memory_storage_t &c,
-            int64_t offset_a, int64_t offset_b, int64_t offset_c, int32_t lda,
-            int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
-            float alpha, float beta, int last_k_block, float eltwise_alpha,
-            float eltwise_beta, float eltwise_scale, int32_t batch,
-            int32_t stride_a, int32_t stride_b, int32_t stride_c) const;
+            const memory_storage_t &co, int64_t offset_a, int64_t offset_b,
+            int64_t offset_c, int32_t offset_co, int32_t lda, int32_t ldb,
+            int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha,
+            float beta, int16_t ao, int16_t bo, int32_t cmask,
+            bool last_k_block, float eltwise_alpha, float eltwise_beta,
+            float eltwise_scale, int32_t batch, int32_t stride_a,
+            int32_t stride_b, int32_t stride_c) const;
 
     compute::kernel_t nocopy_kernel_;
     CommonDriverInfo nocopy_info_;

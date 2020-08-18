@@ -39,18 +39,15 @@ struct _jit_avx2_x8s8s32x_fwd_kernel : public jit_generator {
         if (jcp.with_eltwise)
             eltwise_injector_
                     = new jit_uni_eltwise_injector_f32<avx2>(this, jcp.eltwise);
-
-        generate();
-        jit_ker_ = (void (*)(jit_conv_call_s *))getCode();
     }
     ~_jit_avx2_x8s8s32x_fwd_kernel() { delete eltwise_injector_; }
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
-    void (*jit_ker_)(jit_conv_call_s *);
 
 private:
     jit_uni_eltwise_injector_f32<avx2> *eltwise_injector_;
+    const int ic_sub_step = 4;
 
     enum {
         typesize = sizeof(float),
@@ -87,6 +84,7 @@ private:
     const Xbyak::Reg64 reg_kj = reg_ptr_scales;
     const Xbyak::Reg64 reg_overflow = reg_ptr_scales;
     const Xbyak::Reg64 reg_icb = reg_bias;
+    const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
     // Using 3d regs as depthwise3d is not yet supported
     const Xbyak::Reg64 reg_inp_buffer_ptr = aux_reg_inp_d;
     const Xbyak::Reg64 aux_reg_inp_buffer_ptr = aux_reg_ker_d;
@@ -165,7 +163,7 @@ private:
     void compute_eltwise(int ur_w);
     void kh_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
-    void generate();
+    void generate() override;
 
     void cvt2ps(data_type_t type_in, const Vmm &vmm_in, const Xbyak::Reg64 &reg,
             int offset, int load_size);
@@ -175,27 +173,26 @@ struct jit_avx2_x8s8s32x_fwd_kernel {
 
     jit_avx2_x8s8s32x_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jit_ker(nullptr), ymm_kernel_(nullptr), xmm_kernel_(nullptr) {
+        : kernel_(nullptr) {
         int ch_block = ajcp.is_depthwise ? ajcp.ch_block : ajcp.ic_block;
         switch (ch_block) {
             case 8:
-                ymm_kernel_ = new _jit_avx2_x8s8s32x_fwd_kernel<Xbyak::Ymm>(
+                kernel_ = new _jit_avx2_x8s8s32x_fwd_kernel<Xbyak::Ymm>(
                         ajcp, attr);
-                jit_ker = ymm_kernel_->jit_ker_;
                 return;
             case 4:
-                xmm_kernel_ = new _jit_avx2_x8s8s32x_fwd_kernel<Xbyak::Xmm>(
+                kernel_ = new _jit_avx2_x8s8s32x_fwd_kernel<Xbyak::Xmm>(
                         ajcp, attr);
-                jit_ker = xmm_kernel_->jit_ker_;
                 return;
             default: assert(!"invalid channel blocking");
         }
     }
 
-    ~jit_avx2_x8s8s32x_fwd_kernel() {
-        delete xmm_kernel_;
-        delete ymm_kernel_;
-    }
+    status_t create_kernel() { return kernel_->create_kernel(); }
+
+    ~jit_avx2_x8s8s32x_fwd_kernel() { delete kernel_; }
+
+    void operator()(const jit_conv_call_s *p) const { (*kernel_)(p); }
 
     static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
@@ -206,12 +203,9 @@ struct jit_avx2_x8s8s32x_fwd_kernel {
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
-    void (*jit_ker)(jit_conv_call_s *);
-    _jit_avx2_x8s8s32x_fwd_kernel<Xbyak::Ymm> *ymm_kernel_;
-    _jit_avx2_x8s8s32x_fwd_kernel<Xbyak::Xmm> *xmm_kernel_;
-
 private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx2_x8s8s32x_fwd_kernel);
+    jit_generator *kernel_;
 };
 
 } // namespace x64

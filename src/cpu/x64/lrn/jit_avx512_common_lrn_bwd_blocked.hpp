@@ -45,15 +45,13 @@ public:
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_bwd_blocked_t)
 
-    void (*ker)(jit_args_bwd_t *);
-    void operator()(jit_args_bwd_t *arg) { ker(arg); }
-
     jit_avx512_common_lrn_kernel_bwd_blocked_t(const struct nChw16c_across_t &J,
             float alpha, float beta, int local_size, int use_h_parallel,
             void *code_ptr = nullptr,
             size_t code_size = 1 * Xbyak::DEFAULT_MAX_CODE_SIZE);
 
 private:
+    void generate() override;
     void compute_loop(int loop_size_param, int prefetchL1, int prefetchL2);
 
     int xmm_size_, zmm_size_, buffer_block_, buffer_nest_offset_,

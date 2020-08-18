@@ -84,11 +84,7 @@ struct _jit_avx512_core_f32_wino_conv_4x3_t {
 
     _jit_avx512_core_f32_wino_conv_4x3_t(
             const jit_conv_winograd_conf_t &jcp, const primitive_attr_t *attr)
-        : kernel_(nullptr), attr_(attr) {
-        kernel_ = new _jit_avx512_core_f32_wino_conv_4x3_data_kernel(jcp);
-    }
-
-    ~_jit_avx512_core_f32_wino_conv_4x3_t() { delete kernel_; }
+        : attr_(attr) {}
 
 protected:
     void weight_transform_data(
@@ -109,7 +105,7 @@ protected:
     void _execute_data_W_SGD(float *inp_ptr, float *out_ptr, float *wei_ptr,
             float *bias_ptr,
             const memory_tracking::grantor_t &scratchpad) const;
-    _jit_avx512_core_f32_wino_conv_4x3_data_kernel *kernel_;
+    std::unique_ptr<_jit_avx512_core_f32_wino_conv_4x3_data_kernel> kernel_;
     const primitive_attr_t *attr_;
 
 private:
@@ -169,8 +165,16 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
     jit_avx512_core_f32_wino_conv_4x3_fwd_t(const pd_t *apd)
         : _jit_avx512_core_f32_wino_conv_4x3_t<true>(apd->jcp_, apd->attr())
         , primitive_t(apd) {}
+    ~jit_avx512_core_f32_wino_conv_4x3_fwd_t() = default;
 
     typedef typename prec_traits<data_type::f32>::type data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new _jit_avx512_core_f32_wino_conv_4x3_data_kernel(
+                        pd()->jcp_)));
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
@@ -251,6 +255,13 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new _jit_avx512_core_f32_wino_conv_4x3_data_kernel(
+                        pd()->jcp_)));
+        return kernel_->create_kernel();
+    }
+
     status_t execute(const exec_ctx_t &ctx) const override {
         auto diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
         auto weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
@@ -326,14 +337,16 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t : public primitive_t {
     };
 
     jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t(const pd_t *apd)
-        : primitive_t(apd), kernel_(nullptr) {
-        kernel_ = new jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel(
-                pd()->jcp_);
-    }
-
-    ~jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t() { delete kernel_; }
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel(
+                        pd()->jcp_)));
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         auto diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
@@ -364,7 +377,8 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel *kernel_;
+    std::unique_ptr<jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel>
+            kernel_;
 };
 
 } // namespace x64

@@ -2101,8 +2101,7 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::compute_loop_fma(
 
     const int ic_tail = jcp.ic_tail;
     const int oc_tail = jcp.oc_tail;
-    const int max_filter_size = 20;
-    Label oc_tail_jmp[max_filter_size];
+    std::vector<Label> oc_tail_jmp(kw);
     if (ic_tail || oc_tail) ker_pipeline_depth = 1;
 
     if (one_of(jcp.ndims, 3, 4)) {
@@ -5472,7 +5471,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate_microkernel() {
     ret();
 }
 
-void jit_avx512_common_conv_bwd_weights_kernel_f32::generate() {
+void jit_avx512_common_conv_bwd_weights_kernel_f32::generate_kernel() {
     preamble();
 
     mov(reg_input, ptr[param + GET_OFF(src)]);

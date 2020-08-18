@@ -160,7 +160,7 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                             - div_up(d_b_overflow, (jcp.dilate_d + 1));
                     par_conv.kd_padding = nstl::max(0, kd_padding);
 
-                    kernel_->jit_ker(&par_conv);
+                    (*kernel_)(&par_conv);
                 }
                 nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ocbb, ocb_work, od,
                         jcp.od, oh, jcp.oh);
@@ -315,16 +315,21 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
                     par_conv.filt_prf = nullptr;
                     par_conv.channel = oc;
                     par_conv.ch_blocks = cur_nb_oc;
-                    par_conv.load_work = this_block_size(
-                            icbb * jcp.nb_ic_blocking * jcp.ic_block,
-                            (size_t)jcp.ic, jcp.nb_ic_blocking * jcp.ic_block);
-                    par_conv.reduce_work = this_block_size(
-                            oc * jcp.oc_block, jcp.oc, oc_step * jcp.oc_block);
 
-                    if (par_conv.load_work % jcp.ic_block > 0)
-                        par_conv.flags |= FLAG_IC_LAST;
+                    if (is_ddst_layout_nxc) {
+                        par_conv.load_work = this_block_size(
+                                icbb * jcp.nb_ic_blocking * jcp.ic_block,
+                                (size_t)jcp.ic,
+                                jcp.nb_ic_blocking * jcp.ic_block);
+                        par_conv.reduce_work
+                                = this_block_size(oc * jcp.oc_block, jcp.oc,
+                                        oc_step * jcp.oc_block);
 
-                    kernel_->jit_ker(&par_conv);
+                        if (par_conv.load_work % jcp.ic_block > 0)
+                            par_conv.flags |= FLAG_IC_LAST;
+                    }
+
+                    (*kernel_)(&par_conv);
                 }
             }
             nd_iterator_step(n, jcp.mb, g, jcp.ngroups, icbb, icb_work, ihb,
@@ -359,12 +364,12 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
 
     auto reducer_bia_scratchpad
             = memory_tracking::grantor_t(scratchpad, prefix_reducer_bia);
-    auto rb = this->reducer_bias_;
+    auto rb = this->reducer_bias_.get();
     rb->init(reducer_bia_scratchpad);
 
     auto reducer_wei_scratchpad
             = memory_tracking::grantor_t(scratchpad, prefix_reducer_wei);
-    auto rw = this->reducer_weights_;
+    auto rw = this->reducer_weights_.get();
     rw->init(reducer_wei_scratchpad);
 
     bool is_ic_physically_blocked = one_of(jcp.src_tag, format_tag::nCw8c,
@@ -440,7 +445,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
                         par_conv.channel = this_block_size(
                                 icb * jcp.ic_block, jcp.ic, jcp.ic_block);
 
-                        kernel_->jit_ker(&par_conv);
+                        (*kernel_)(&par_conv);
                     }
                     nd_iterator_step(
                             g, jcp.ngroups, ocb, jcp.nb_oc, icb, jcp.nb_ic);

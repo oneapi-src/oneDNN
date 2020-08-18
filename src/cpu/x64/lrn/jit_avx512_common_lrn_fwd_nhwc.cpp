@@ -40,7 +40,11 @@ jit_avx512_common_lrn_kernel_fwd_nhwc_t<
         std::iota(v.begin(), v.end(), this->zc_ + 2 + this->local_size_ / 2);
         return v;
     }()}
-    , half_ls_ {(local_size - 1) / 2} {
+    , half_ls_ {(local_size - 1) / 2}
+    , C(C) {}
+
+template <data_type_t d_type>
+void jit_avx512_common_lrn_kernel_fwd_nhwc_t<d_type>::generate() {
 
     const auto res = std::div(C, 16);
     const auto &C_tail = res.rem;
@@ -53,8 +57,6 @@ jit_avx512_common_lrn_kernel_fwd_nhwc_t<
     this->execute_compute_loop(num_full_16c_blocks, C_tail);
     if (C_tail) unreserve_stack_space(stack_space);
     this->postamble();
-    this->ker = reinterpret_cast<decltype(this->ker)>(
-            const_cast<uint8_t *>(this->getCode()));
 }
 
 template <data_type_t d_type>

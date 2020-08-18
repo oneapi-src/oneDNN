@@ -78,9 +78,11 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     // Overload PER_OC mask definition for batched case
     int mask = 0;
     if (p->attr.oscale.policy == policy_t::PER_OC)
-        mask = p->ndims == 3 ? 1 << 2 : 1 << 1;
+        mask = p->ndims == 3 ? (1 << 2) : (1 << 1);
 
-    auto dnnl_attr = create_dnnl_attr(p->attr, p->n, mask, p->scales);
+    attr_args_t attr_args;
+    attr_args.prepare_output_scales(p->attr, p->scales, p->n, mask);
+    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status = dnnl_success;
     init_status

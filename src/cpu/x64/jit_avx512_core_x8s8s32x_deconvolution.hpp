@@ -50,8 +50,6 @@ struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel : public jit_generator {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
                     this, jcp.eltwise);
-        generate();
-        jit_ker = (void (*)(jit_deconv_call_s *))getCode();
     }
 
     ~jit_avx512_core_x8s8s32x_deconv_fwd_kernel() { delete eltwise_injector_; }
@@ -69,7 +67,6 @@ struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel : public jit_generator {
 
     const jit_conv_conf_t &jcp;
     const primitive_attr_t &attr_;
-    void (*jit_ker)(jit_deconv_call_s *);
 
 private:
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
@@ -158,7 +155,7 @@ private:
             ker_block_t last_ic_block_flag, bool h_padded = false);
     void kh_loop(int ur_w, int pad_l, int pad_r, ker_block_t last_ker_block);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool last_block);
-    void generate();
+    void generate() override;
     void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,
             bool mask_flag);
 };
@@ -208,16 +205,18 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
     };
 
     _jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd) {
-        kernel_ = new jit_avx512_core_x8s8s32x_deconv_fwd_kernel(
-                pd()->jcp_, *pd()->attr());
-    }
-
-    ~_jit_avx512_core_x8s8s32x_deconvolution_fwd_t() { delete kernel_; }
+        : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_avx512_core_x8s8s32x_deconv_fwd_kernel(
+                        pd()->jcp_, *pd()->attr())));
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         auto ndims = pd()->ndims();
@@ -237,7 +236,7 @@ private:
     void execute_forward_2d(const exec_ctx_t &ctx) const;
     void execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    jit_avx512_core_x8s8s32x_deconv_fwd_kernel *kernel_;
+    std::unique_ptr<jit_avx512_core_x8s8s32x_deconv_fwd_kernel> kernel_;
 };
 
 } // namespace x64

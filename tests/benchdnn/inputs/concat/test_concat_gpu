@@ -39,3 +39,8 @@
 6x8x3x4:6x2x3x4:6x3x3x4:6x0x3x4
 6x8x3x4:6x1x3x4:6x0x3x4:6x3x3x4
 6x0x3x4:6x3x3x4:6x5x3x4:6x5x3x4
+
+# stag different from dtag
+--stag=abx:abx
+--dtag=axb
+--axis=1 2x16x3x4:2x16x3x4

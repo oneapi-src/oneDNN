@@ -70,8 +70,7 @@ void cvt_acc_to_dst(const conv_gemm_conf_t &jcp, size_t g_start, size_t g_end,
 
 template <data_type_t dst_data_type>
 gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
-    : ker_(nullptr)
-    , jcp_(pd->jcp_)
+    : jcp_(pd->jcp_)
     , OC_(pd->jcp_.oc)
     , do_bias_(false)
     , do_eltwise_(false)
@@ -121,8 +120,6 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
 
     max_unroll_
             = (max_data_reg_idx_ - data_reg_base_idx_ + 1) / compute_reg_step_;
-
-    generate();
 }
 
 template <data_type_t dst_data_type>
@@ -262,8 +259,6 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
     postamble();
 
     if (do_eltwise_) eltwise_injector_->prepare_table();
-
-    ker_ = getCode<decltype(ker_)>();
 }
 
 // operator () specialized for nspc format
@@ -271,7 +266,6 @@ template <data_type_t dst_data_type>
 void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
         dst_data_t *dst, const acc_data_t *acc, const acc_data_t *bias,
         float sum_scale, size_t oc_work) {
-    assert(ker_);
 
     ker_args args;
     args.acc = acc;
@@ -282,7 +276,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
     args.acc_stride_in_bytes = sizeof(acc_data_t);
     args.spatial_length = 1;
     args.oc_work = oc_work;
-    ker_(&args);
+    jit_generator::operator()(&args);
 }
 
 // operator () specialized for ncsp format
@@ -291,7 +285,6 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
         dst_data_t *dst, const acc_data_t *acc, const acc_data_t *bias,
         float sum_scale, size_t dst_stride_in_elements,
         size_t acc_stride_in_elements, size_t sp_len, size_t oc_len) {
-    assert(ker_);
     if (sp_len == 0) return;
 
     ker_args args;
@@ -303,7 +296,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
     args.acc_stride_in_bytes = acc_stride_in_elements * sizeof(acc_data_t);
     args.spatial_length = sp_len;
     args.oc_work = oc_len;
-    ker_(&args);
+    jit_generator::operator()(&args);
 }
 
 template <data_type_t dst_data_type>

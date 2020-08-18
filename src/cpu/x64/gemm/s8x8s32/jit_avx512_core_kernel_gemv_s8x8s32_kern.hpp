@@ -31,15 +31,9 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-// m, n, alpha, a, lda, x, beta, y
-typedef void (*gemv_s8s8s32_kernel_t)(const dim_t, const dim_t, const float,
-        const int8_t *, const dim_t, const int8_t *, const float, int32_t *);
-typedef void (*gemv_s8u8s32_kernel_t)(const dim_t, const dim_t, const float,
-        const int8_t *, const dim_t, const uint8_t *, const float, int32_t *);
-typedef void (*gemv_u8s8s32_kernel_t)(const dim_t, const dim_t, const float,
-        const uint8_t *, const dim_t, const int8_t *, const float, int32_t *);
+enum class ver_t { undef, s8s8, s8u8, u8s8 };
 
-class jit_avx512_core_gemv_s8x8s32_kern : jit_generator {
+class jit_avx512_core_gemv_s8x8s32_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_gemv_s8x8s32_kern);
 
     enum class vnni_op_t { add, sub };
@@ -50,9 +44,10 @@ class jit_avx512_core_gemv_s8x8s32_kern : jit_generator {
     void shuffle_and_add(
             Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm);
     void update_c(int, Xbyak::Reg64, int, Xbyak::Opmask);
+    void generate() override;
 
     cpu_isa_t isa = isa_any;
-    enum class ver_t { undef, s8s8, s8u8, u8s8 } ver = ver_t::undef;
+    ver_t ver = ver_t::undef;
 
     // Assumes unroll_{m,n} are a power of 2.
     static constexpr unsigned int unroll_m_ = 4; // Unrolling is 2^unroll_m_.
@@ -83,10 +78,8 @@ class jit_avx512_core_gemv_s8x8s32_kern : jit_generator {
     }
 
 public:
-    jit_avx512_core_gemv_s8x8s32_kern() : jit_generator(nullptr, 32 * 1024) {}
-
-    template <typename gemv_kernel_t>
-    gemv_kernel_t generate(int use_vnni);
+    jit_avx512_core_gemv_s8x8s32_kern(ver_t ver)
+        : jit_generator(nullptr, 32 * 1024), ver(ver) {}
 };
 
 } // namespace x64

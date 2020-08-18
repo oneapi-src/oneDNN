@@ -603,8 +603,6 @@ jit_avx512_core_gemv_bf16bf16f32_kern::jit_avx512_core_gemv_bf16bf16f32_kern(
         bf16_emu_ = new bf16_emulation_t(
                 this, one_, even_, selector_, gpr_, zmm_tmp0_, zmm_tmp1_);
     }
-
-    generate();
 }
 
 jit_avx512_core_gemv_bf16bf16f32_kern::

@@ -1391,7 +1391,7 @@ struct simple_reorder_t : public primitive_t {
             scratchpad.book(memory_tracking::names::key_reorder_space,
                     scratchpad_sz_, 1, 16);
             _pd->init_scratchpad_md();
-            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+            return safe_ptr_assign(*reorder_pd, _pd);
         }
     };
 

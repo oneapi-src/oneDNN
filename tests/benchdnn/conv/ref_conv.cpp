@@ -83,7 +83,8 @@ args_t get_args_conv_bwd_w(const prb_t *p, dnn_mem_t &src_ref,
 }
 
 void compute_ref_fwd(const prb_t *p, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
+        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m) {
     if (c_ref) {
         exec_conv(get_args_conv_fwd, p, c_ref, src_m, wei_m, bia_m, dst_m);
         return;
@@ -91,7 +92,7 @@ void compute_ref_fwd(const prb_t *p, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
     if (p->alg == WINO && p->cfg[SRC].dt == dnnl_f32) {
         compute_wino_ref_fwd(p, src_m, wei_m, bia_m, dst_m);
     } else {
-        compute_ref_direct_fwd(p, src_m, wei_m, bia_m, dst_m);
+        compute_ref_direct_fwd(p, src_m, wei_m, bia_m, binary_po, dst_m);
     }
 }
 
@@ -125,7 +126,8 @@ void compute_ref_bwd_w(const prb_t *p, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
 }
 
 void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
+        dnn_mem_t &bia_m, const std::vector<dnn_mem_t> &binary_po,
+        dnn_mem_t &dst_m) {
     /* help compiler optimize the code */
     const int64_t MB = p->mb, G = p->g, OC = p->oc, IC = p->ic;
     const int64_t OCG = OC / G, ICG = IC / G;
@@ -168,6 +170,7 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
         }
     };
 
+    std::vector<int> v_bin_po_mask = p->attr.post_ops.get_binary_po_masks();
     dnnl::impl::parallel_nd(G, MB, OCG, OD, OH, OW,
             [&](int64_t g, int64_t mb, int64_t oc, int64_t od, int64_t oh,
                     int64_t ow) {
@@ -183,7 +186,15 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                 }
 
                 maybe_oscale(p->attr, conv_res, p->scales, g * OCG + oc);
-                maybe_post_ops(p->attr, conv_res, dst);
+
+                std::vector<float> v_binary_vals;
+                for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
+                    auto bin_po_offset
+                            = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
+                    float binary_val = binary_po[d].get_elem(bin_po_offset);
+                    v_binary_vals.push_back(binary_val);
+                }
+                maybe_post_ops(p->attr, conv_res, dst, v_binary_vals);
 
                 maybe_zero_point(p->attr, conv_res, p->dst_zp, g * OCG + oc,
                         DNNL_ARG_DST, true);

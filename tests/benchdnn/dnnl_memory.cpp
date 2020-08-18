@@ -29,9 +29,9 @@
 
 #include "tests/test_thread.hpp"
 
-int dnn_mem_t::reorder(const dnn_mem_t &rhs, const attr_bundle_t *attr_bundle) {
+int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
     if (this == &rhs) return OK;
-    return execute_reorder(rhs, *this, attr_bundle);
+    return execute_reorder(rhs, *this, attr);
 }
 
 dnn_mem_t dnn_mem_t::create_from_host_ptr(
@@ -294,15 +294,10 @@ int check_zero_padding_impl(const dnn_mem_t &mem, int arg) {
     }
 
     if (!ok) {
-        BENCHDNN_PRINT(0,
-                "@@@ [arg:%d] check_zero_padding failed (will turn into an "
-                "error soon) err:%d\n",
-                arg, (int)errors);
+        BENCHDNN_PRINT(0, "@@@ [arg:%d] check_zero_padding failed\n", arg);
     }
 
-    // TODO: Return FAIL in case of a failure. Temporarily, return OK
-    // regardless of the check result until all failures are fixed.
-    return OK;
+    return ok ? OK : FAIL;
 }
 
 int check_zero_padding(const dnn_mem_t &mem, int arg) {

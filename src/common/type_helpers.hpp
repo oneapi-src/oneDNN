@@ -35,10 +35,17 @@ namespace impl {
 // Global zero memory descriptor. Mostly used for queries to return
 extern memory_desc_t DNNL_API glob_zero_md;
 
-template <typename T>
-status_t safe_ptr_assign(T *&lhs, T *rhs) {
+template <typename base_type, typename derived_type>
+status_t safe_ptr_assign(base_type *&lhs, derived_type *rhs) {
     if (rhs == nullptr) return status::out_of_memory;
     lhs = rhs;
+    return status::success;
+}
+
+template <typename base_type, typename derived_type>
+status_t safe_ptr_assign(std::unique_ptr<base_type> &lhs, derived_type *rhs) {
+    if (rhs == nullptr) return status::out_of_memory;
+    lhs.reset(rhs);
     return status::success;
 }
 
@@ -103,6 +110,26 @@ inline T max_value(data_type_t data_type) {
     }
     return static_cast<T>(0); /* not supposed to be reachable */
 #undef CASE
+}
+
+inline float get_float_value(data_type_t dt, const void *ptr, dim_t idx) {
+#define CASE(dt) \
+    case dt: \
+        return static_cast<float>(((typename prec_traits<dt>::type *)ptr)[idx]);
+
+    using namespace data_type;
+    switch (dt) {
+        CASE(bf16);
+        CASE(f16);
+        CASE(f32);
+        CASE(s32);
+        CASE(s8);
+        CASE(u8);
+        default: assert(!"bad data_type");
+    }
+
+#undef CASE
+    return NAN;
 }
 
 inline format_kind_t format_tag_to_kind(format_tag_t tag) {
@@ -671,6 +698,35 @@ inline bool is_runtime_value(dim_t val) {
     return val == DNNL_RUNTIME_DIM_VAL;
 }
 
+inline bool memory_desc_sanity_check(int ndims, const dims_t dims,
+        data_type_t data_type, format_kind_t format_kind) {
+    using namespace data_type;
+
+    if (ndims == 0) return true;
+
+    bool ok = dims != nullptr && 0 < ndims && ndims <= DNNL_MAX_NDIMS
+            && utils::one_of(data_type, f16, bf16, f32, s32, s8, u8);
+    if (!ok) return false;
+
+    bool has_runtime_dims = false;
+    for (int d = 0; d < ndims; ++d) {
+        if (dims[d] != DNNL_RUNTIME_DIM_VAL && dims[d] < 0) return false;
+        if (dims[d] == DNNL_RUNTIME_DIM_VAL) has_runtime_dims = true;
+    }
+
+    if (has_runtime_dims) {
+        // format `any` is currently not supported for run-time dims
+        if (format_kind == format_kind::any) return false;
+    }
+
+    return true;
+}
+
+inline bool memory_desc_sanity_check(const memory_desc_t *md) {
+    if (md == nullptr) return false;
+    return memory_desc_sanity_check(
+            md->ndims, md->dims, md->data_type, format_kind::undef);
+}
 } // namespace impl
 } // namespace dnnl
 

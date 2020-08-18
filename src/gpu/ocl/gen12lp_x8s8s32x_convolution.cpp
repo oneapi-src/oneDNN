@@ -68,17 +68,11 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
             = src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef
             || dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
                     != format_tag::undef;
-    const bool is_1stconv = conf.ic_without_padding <= 4;
+    const bool is_1stconv = conf.ic_without_padding <= 4 && !conf.is_depthwise;
 
-    // TODO: Add DW suppport in NHWC kernel
-    if (conf.is_nhwc && conf.is_depthwise) return status::unimplemented;
     // TODO: Add group convolution support in NHWC kernel.
-    if (conf.is_nhwc && conf.ngroups > 1
+    if (!conf.is_depthwise && conf.with_groups && conf.ngroups > 1
             && (conf.oc % 32 != 0 || conf.ic % 32 != 0))
-        return status::unimplemented;
-
-    if (!conf.is_nhwc && !conf.is_depthwise && conf.with_groups
-            && conf.ngroups > 1 && (conf.oc % 32 != 0 || conf.ic % 32 != 0))
         return status::unimplemented;
 
     conf.dst_data_type = dst_mdw.data_type();
@@ -88,52 +82,88 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
 
     if (conf.is_nhwc) {
         conf.ver = ver_nhwc;
-        conf.sub_group_size = 8;
-        int ow_group = 1;
-        int ow_nchunk;
-
-        conf.mb_block = 1;
-        conf.nchunk = utils::div_up(conf.oc * conf.ngroups, conf.oc_block);
-
-        int max_oc = 4;
-        int oc_group
-                = utils::max_div(utils::div_up(conf.oc, conf.oc_block), max_oc);
-        int max_subgroups = 32;
-        int max_ow_group = max_subgroups / oc_group;
-
-        if (!is_1stconv) {
+        if (conf.is_depthwise) {
+            conf.sub_group_size = 16;
             conf.ic_block = 32;
+            if (!(conf.kw <= 4 && conf.stride_w <= 2 && conf.dilate_w == 0
+                        && conf.l_pad < 4)) {
+                conf.mb_block = 32;
+                conf.ow_block = 1;
+            } else {
+                conf.mb_block = 1;
+                conf.ow_block = 1;
 
-            conf.ow_block = (conf.mb * conf.oc * conf.oh * conf.ow < 49 * 1024)
-                    ? 4
-                    : 8;
-            ow_nchunk = utils::div_up(conf.ow, conf.ow_block);
-            ow_group = utils::max_div(ow_nchunk, max_ow_group);
-            if (ow_group == 1) utils::max_div(ow_nchunk + 1, max_ow_group);
-        } else { // 1st
-            conf.ic_block = 4;
-            conf.ow_block
-                    = (conf.kw * conf.kh <= 49 && conf.ow % 16 < 8) ? 16 : 12;
-            ow_nchunk = utils::div_up(conf.ow, conf.ow_block);
-            ow_group = utils::max_div(ow_nchunk, max_ow_group);
-            if (ow_group == 1) utils::max_div(ow_nchunk + 1, max_ow_group);
+                int off = conf.kw == 4 ? 1 : 0;
+                if (conf.ow < 15 - off) {
+                    conf.ow_block = conf.ow;
+                } else {
+                    for (int i = 0; i < 7; ++i) {
+                        conf.ow_block = utils::max_div(conf.ow + i, 14 - off);
+                        if (conf.ow_block > 4) break;
+                    }
+                }
+            }
+            conf.lws_d[0] = 16;
+            conf.lws_d[1] = 1;
+            conf.lws_d[2] = 1;
+
+            conf.gws_d[0] = utils::div_up(conf.ngroups, 32) * conf.lws_d[0];
+            conf.gws_d[1]
+                    = conf.od * conf.oh * utils::div_up(conf.ow, conf.ow_block);
+            conf.gws_d[2]
+                    = utils::div_up(conf.mb, utils::div_up(conf.mb_block, 4));
+
+        } else {
+            conf.sub_group_size = 8;
+            int ow_group = 1;
+            int ow_nchunk;
+
+            conf.mb_block = 1;
+            conf.nchunk = utils::div_up(conf.oc * conf.ngroups, conf.oc_block);
+
+            int max_oc = 4;
+            int oc_group = utils::max_div(
+                    utils::div_up(conf.oc, conf.oc_block), max_oc);
+            int max_subgroups = 32;
+            int max_ow_group = max_subgroups / oc_group;
+
+            if (!is_1stconv) {
+                conf.ic_block = 32;
+
+                conf.ow_block
+                        = (conf.mb * conf.oc * conf.oh * conf.ow < 49 * 1024)
+                        ? 4
+                        : 8;
+                ow_nchunk = utils::div_up(conf.ow, conf.ow_block);
+                ow_group = utils::max_div(ow_nchunk, max_ow_group);
+                if (ow_group == 1) utils::max_div(ow_nchunk + 1, max_ow_group);
+            } else { // 1st
+                conf.ic_block = 4;
+                conf.ow_block = (conf.kw * conf.kh <= 49 && conf.ow % 16 < 8)
+                        ? 16
+                        : 12;
+                ow_nchunk = utils::div_up(conf.ow, conf.ow_block);
+                ow_group = utils::max_div(ow_nchunk, max_ow_group);
+                if (ow_group == 1) utils::max_div(ow_nchunk + 1, max_ow_group);
+            }
+
+            conf.lws_d[0] = 8 * oc_group;
+            conf.lws_d[1] = ow_group;
+            conf.lws_d[2] = 1;
+
+            conf.src_slm_size = conf.ic_block / 4
+                    * (conf.lws_d[1] * conf.stride_w * conf.ow_block
+                            + (conf.kw - 1) * (1 + conf.dilate_w));
+
+            conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
+            conf.gws_d[1] = conf.od * conf.oh
+                    * utils::rnd_up(utils::div_up(conf.ow, conf.ow_block),
+                            conf.lws_d[1]);
+            conf.gws_d[2] = is_1stconv
+                    ? conf.mb
+                    : utils::div_up(conf.mb, utils::div_up(conf.mb_block, 2));
         }
 
-        conf.lws_d[0] = 8 * oc_group;
-        conf.lws_d[1] = ow_group;
-        conf.lws_d[2] = 1;
-
-        conf.src_slm_size = conf.ic_block / 4
-                * (conf.lws_d[1] * conf.stride_w * conf.ow_block
-                        + (conf.kw - 1) * (1 + conf.dilate_w));
-
-        conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
-        conf.gws_d[1] = conf.od * conf.oh
-                * utils::rnd_up(
-                        utils::div_up(conf.ow, conf.ow_block), conf.lws_d[1]);
-        conf.gws_d[2] = is_1stconv
-                ? conf.mb
-                : utils::div_up(conf.mb, utils::div_up(conf.mb_block, 2));
     } else if (conf.is_depthwise) {
         conf.sub_group_size = 16;
         conf.ic_block = 32;
@@ -253,6 +283,8 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
             wei_tag = conf.with_groups
                     ? utils::pick(ndims - 3, gOIw8o4i, gOIhw8o4i, gOIdhw8o4i)
                     : utils::pick(ndims - 3, OIw8o4i, OIhw8o4i, OIdhw8o4i);
+        } else if (conf.is_depthwise) {
+            wei_tag = utils::pick(ndims - 3, Goiw32g, Goihw32g, Goidhw32g);
         } else {
             wei_tag = conf.with_groups ? utils::pick(ndims - 3, gOIw4o8i8o4i,
                               gOIhw4o8i8o4i, gOIdhw4o8i8o4i)

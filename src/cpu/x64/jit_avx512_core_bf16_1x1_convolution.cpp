@@ -243,7 +243,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                                          : jcp.is * ic_off_idx * jcp.ic_block);
             if (ocb == ocb_start) {
                 rp.src = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
-                rtus_driver_->ker_(&rp);
+                (*rtus_driver_)(&rp);
             }
             p.bcast_data = rp.ws;
         } else
@@ -258,7 +258,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         p.store_buffer = store_buffer + ithr * str_size
                 + data_blk_off(dst_d, 0, 0, od, oh, ow);
 
-        kernel_->jit_ker(&p);
+        (*kernel_)(&p);
     };
 
     auto conv_1x1 = [&](int bcast_start, int bcast_end, int ocb_start,
@@ -355,7 +355,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw->nb_ch) - ch;
 
-            kernel_dw_->jit_ker(&par_conv_dw);
+            (*kernel_dw_)(&par_conv_dw);
 
             for (int i = 0; i < jcp_dw->kh; ++i)
                 addrs[i] += wch_stride;
@@ -562,8 +562,8 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         const size_t str_size = jcp.bcast_dim * max_load_per_thread;
         p.store_buffer = store_buffer + ithr * str_size
                 + data_blk_off(diff_src_d, 0, 0, id, ih, iw);
-        kernel_->jit_ker(&p);
-        if (pd()->rtus_.reduce_src_) rtus_driver_->ker_(&rp);
+        (*kernel_)(&p);
+        if (pd()->rtus_.reduce_src_) (*rtus_driver_)(&rp);
     };
 
     if (jcp.loop_order == loop_lbr) {
@@ -599,21 +599,17 @@ template struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
                          : (d).blk_off(__VA_ARGS__))
 
 template <data_type_t diff_weights_type>
-jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
-        jit_avx512_core_bf16_1x1_convolution_bwd_weights_t(const pd_t *apd)
-    : primitive_t(apd)
-    , kernel_(nullptr)
-    , acc_ker_(nullptr)
-    , rtus_driver_(nullptr)
-    , tr_reorder_(nullptr)
-    , tr_reorder_nhwc_src_(nullptr)
-    , tr_reorder_nhwc_ddst_(nullptr) {
-    kernel_ = new jit_avx512_core_bf16_1x1_conv_kernel(
-            pd()->jcp_, *pd()->attr());
+status_t
+jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::init(
+        engine_t *engine) {
+    CHECK(safe_ptr_assign(kernel_,
+            new jit_avx512_core_bf16_1x1_conv_kernel(
+                    pd()->jcp_, *pd()->attr())));
 
-    init_rtus_driver<avx512_common>(this);
-
-    acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
+    CHECK(safe_ptr_assign(
+            acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
+    CHECK(kernel_->create_kernel());
+    CHECK(acc_ker_->create_kernel());
 
     if (!pd()->jcp_.uses_permw_transposition) {
         const bool is_src_layout_nxc = utils::one_of(pd()->jcp_.src_tag,
@@ -621,19 +617,26 @@ jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
         const bool is_ddst_layout_nxc = utils::one_of(pd()->jcp_.dst_tag,
                 format_tag::ndhwc, format_tag::nhwc, format_tag::nwc);
         if (!is_src_layout_nxc || !is_ddst_layout_nxc) {
-            tr_reorder_ = new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t();
+            CHECK(safe_ptr_assign(tr_reorder_,
+                    new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t()));
+            CHECK(tr_reorder_->create_kernel());
         }
         if (is_src_layout_nxc) {
             int ic = pd()->jcp_.ic * pd()->jcp_.ngroups;
-            tr_reorder_nhwc_src_
-                    = new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t(ic);
+            CHECK(safe_ptr_assign(tr_reorder_nhwc_src_,
+                    new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t(ic)));
+            CHECK(tr_reorder_nhwc_src_->create_kernel());
         }
         if (is_ddst_layout_nxc) {
             int oc = pd()->jcp_.oc * pd()->jcp_.ngroups;
-            tr_reorder_nhwc_ddst_
-                    = new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t(oc);
+            CHECK(safe_ptr_assign(tr_reorder_nhwc_ddst_,
+                    new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t(oc)));
+            CHECK(tr_reorder_nhwc_ddst_->create_kernel());
         }
     }
+
+    CHECK(init_rtus_driver<avx512_common>(this));
+    return status::success;
 }
 
 template <data_type_t diff_weights_type>
@@ -834,7 +837,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                                 rp.src = local_src
                                         + ih * src_d.blocking_desc().strides[2]
                                         + iw * src_d.blocking_desc().strides[3];
-                            rtus_driver_->ker_(&rp);
+                            (*rtus_driver_)(&rp);
 
                             p.bcast_data = rp.ws;
                         } else {
@@ -867,9 +870,9 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                                 ptr.inp = (void *)curr_inp;
                                 ptr.out = (void *)curr_out;
                                 if (is_src_layout_nxc)
-                                    tr_reorder_nhwc_src_->jit_ker(&ptr);
+                                    (*tr_reorder_nhwc_src_)(&ptr);
                                 else
-                                    tr_reorder_->jit_ker(&ptr);
+                                    (*tr_reorder_)(&ptr);
                             }
 
                             p.bcast_data = (void *)tr_src;
@@ -894,9 +897,9 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                                 ptr.inp = (void *)curr_inp;
                                 ptr.out = (void *)curr_out;
                                 if (is_ddst_layout_nxc)
-                                    tr_reorder_nhwc_ddst_->jit_ker(&ptr);
+                                    (*tr_reorder_nhwc_ddst_)(&ptr);
                                 else
-                                    tr_reorder_->jit_ker(&ptr);
+                                    (*tr_reorder_)(&ptr);
                             }
                             p.load_data = (void *)tr_diff_dst;
                         } //if (!jcp.uses_permw_transposition)
@@ -906,7 +909,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                                         * (is_ddst_layout_nxc ? 1
                                                               : jcp.oc_block)]
                                 : nullptr;
-                        kernel_->jit_ker(&p);
+                        (*kernel_)(&p);
                     }
                 }
             }

@@ -76,6 +76,15 @@ struct primitive_desc_t : public c_compatible {
             return arg_usage_t::input;
         if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;
+        for (int idx = 0; idx < attr()->post_ops_.len(); ++idx) {
+            if (attr()->post_ops_.contain(primitive_kind::binary, idx)
+                    && arg
+                            == (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                    | DNNL_ARG_SRC_1)) {
+                return arg_usage_t::input;
+            }
+        }
+
         return arg_usage_t::unused;
     }
 
@@ -175,6 +184,14 @@ struct primitive_desc_t : public c_compatible {
 
     virtual int n_inputs() const { return 0; }
     virtual int n_outputs() const { return 0; }
+    virtual int n_binary_po_inputs() const {
+        int n_inputs = 0;
+        for (int idx = 0; idx < attr()->post_ops_.len(); ++idx) {
+            if (attr()->post_ops_.contain(primitive_kind::binary, idx))
+                n_inputs++;
+        }
+        return n_inputs;
+    }
 
     virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive,
             engine_t *engine, bool is_primitive_nested = true) const = 0;

@@ -50,7 +50,7 @@
 --sdt=u8
 --ddt=u8
 
---attr-oscale=per_dim_1:0.5
+--attr-oscale=per_dim_0:0.5
 --stag=a
 --dtag=a
 128

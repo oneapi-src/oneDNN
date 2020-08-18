@@ -228,3 +228,7 @@ mb2g1ic33iw84350oc33ow84349kw2pw0n"channel_tail_for_specialized_axb_bwd_w_kernel
 --skip-impl='ref:gemm'
 --cfg=bf16bf16bf16,u8s8u8
 ic64ih20iw14oc16oh20ow7kh1kw1sh1sw2ph0pw0n"small_ow_large_oh"
+
+# large filter size with ic tails
+--reset
+--dir=FWD_D,BWD_D mb1g2ic16oc16iw128kw21n"large_filter_with_ic_tails"

@@ -159,7 +159,7 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
                 = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
                                                : weights_d.blk_off(ocb, icb)];
 
-        kernel_->jit_ker(&par_conv);
+        (*kernel_)(&par_conv);
     };
 
     auto conv_1x1 = [&](int bcast_start, int bcast_end, int ocb_start,
@@ -228,7 +228,7 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw.nb_ch) - ch;
 
-            kernel_dw_->jit_ker(&par_conv_dw);
+            (*kernel_dw_)(&par_conv_dw);
 
             for (int i = 0; i < jcp_dw.kh; ++i)
                 addrs[i] += wch_stride;

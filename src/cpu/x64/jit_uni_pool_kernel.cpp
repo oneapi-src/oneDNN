@@ -56,12 +56,20 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
             : utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
 
     // src_d.data_type() is equal to dst_d.data_type(). This is checked in init
-    const bool forward_ncsp_allowed = !jpp.is_backward && jpp.oh == 1;
-    const auto ncsp_fmt_tag
-            = ((forward_ncsp_allowed || jpp.is_backward) && isa == avx512_core
-                      && ndims < 5 && src_d.data_type() == data_type::bf16)
-            ? utils::pick(ndims - 3, ncw, nchw)
-            : format_tag::undef;
+    auto ncsp_fmt_tag = format_tag::undef;
+    if (ndims == 5) {
+        ncsp_fmt_tag = (!jpp.is_backward && src_d.data_type() == data_type::bf16
+                               && isa == avx512_core)
+                ? format_tag::ncdhw
+                : format_tag::undef;
+    } else {
+        bool forward_ncsp_allowed = !jpp.is_backward && jpp.oh == 1;
+        ncsp_fmt_tag = ((forward_ncsp_allowed || jpp.is_backward)
+                               && isa == avx512_core && ndims < 5
+                               && src_d.data_type() == data_type::bf16)
+                ? utils::pick(ndims - 3, ncw, nchw)
+                : format_tag::undef;
+    }
 
     const auto nspc_fmt_tag = (ndims <= 5)
             ? utils::pick(ndims - 3, nwc, nhwc, ndhwc)
@@ -73,7 +81,6 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     if (!dst_d.matches_tag(fmt_tag)) return status::unimplemented;
 
     if (fmt_tag == ncsp_fmt_tag) {
-        // plain layout allowed for BWD_D only now:
         // transform input to blocked f32, call f32 jit, transform result to
         // plain output
         jpp.is_bf16 = false;

@@ -52,7 +52,7 @@ public:
     inline std::vector<uint8_t> getBinary(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0", const std::vector<uint8_t> &patches = std::vector<uint8_t>{});
     inline cl_kernel getKernel(cl_context context, cl_device_id device, const std::string &options = "-cl-std=CL2.0", const std::vector<uint8_t> &patches = std::vector<uint8_t>{});
     static inline HW detectHW(cl_context context, cl_device_id device);
-    const std::string &getExternalName() const         { return interface_.getExternalName(); }
+    const std::string &getExternalName() const { return interface_.getExternalName(); }
 
 protected:
     NEOInterfaceHandler interface_{hw};

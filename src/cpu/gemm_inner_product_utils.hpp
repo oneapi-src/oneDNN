@@ -51,6 +51,8 @@ struct pp_kernel_t {
             const char *bias, const float *scales, size_t start, size_t end,
             size_t runtime_oc, const float *dst_zero_points) const = 0;
 
+    virtual status_t create_kernel() { return status::success; }
+
 protected:
     pp_kernel_t(size_t OC, size_t MB, const primitive_attr_t *attr,
             data_type_t bias_dt, bool skip_sum);

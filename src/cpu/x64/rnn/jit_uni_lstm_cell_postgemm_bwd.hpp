@@ -39,13 +39,12 @@ struct jit_uni_lstm_cell_postgemm_bwd : public jit_uni_rnn_postgemm {
 
     ~jit_uni_lstm_cell_postgemm_bwd() { delete tanh_injector_; }
 
-    void init(data_type_t sdt) override {
+    status_t init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
         // we use rax for both constant tables as they use the same table
         tanh_injector_ = new injector_t(
                 this, alg_kind::eltwise_tanh, 0.0f, 0.0f, 1.0f, true, rax);
-        generate();
-        kernel_ = (kernel_t)this->getCode();
+        return create_kernel();
     }
 
 protected:
@@ -62,7 +61,7 @@ protected:
     size_t scratch_dt_size = types::data_type_size(scratch_data_t);
     size_t weights_peephole_dt_size = sizeof(float);
 
-    void generate() {
+    void generate() override {
         using namespace Xbyak;
 
         // Labels declaration

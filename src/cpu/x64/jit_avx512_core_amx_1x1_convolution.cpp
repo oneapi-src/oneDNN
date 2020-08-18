@@ -32,8 +32,6 @@ using namespace dnnl::impl::utils;
 
 using namespace nstl;
 
-using jit_conv_ker_t = void (*)(jit_conv_call_s *);
-
 #define wht_blk_off(d, g, ...) \
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
@@ -162,7 +160,7 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
                     p.last_h = (check_last_sp || (nb_os % 2 && l_overflow)) ? 1
                                                                             : 0;
                     p.is_osb = 0;
-                    kernel_->jit_ker(&p);
+                    (*kernel_)(&p);
                 }
             } else {
                 int oh = (osb * jcp.tile_width) / jcp.ow;
@@ -180,7 +178,7 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
                 p.last_h = 0;
                 p.is_osb = 1;
 
-                kernel_->jit_ker(&p);
+                (*kernel_)(&p);
             }
             ++start;
             nd_iterator_step(mb, jcp.mb, g, jcp.ngroups, _osb, os_chunks, _ocb,

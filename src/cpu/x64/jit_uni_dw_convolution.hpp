@@ -71,16 +71,18 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    jit_uni_dw_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_uni_dw_conv_fwd_kernel<isa, src_type>(pd()->jcp_);
-    }
-
-    ~jit_uni_dw_convolution_fwd_t() { delete kernel_; }
+    jit_uni_dw_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type f32_data_t;
     typedef typename prec_traits<data_type::bf16>::type bf16_data_t;
     typedef typename prec_traits<src_type>::type data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_uni_dw_conv_fwd_kernel<isa, src_type>(pd()->jcp_)));
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -91,7 +93,7 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_uni_dw_conv_fwd_kernel<isa, src_type> *kernel_;
+    std::unique_ptr<jit_uni_dw_conv_fwd_kernel<isa, src_type>> kernel_;
 };
 
 using jit_avx512_common_dw_convolution_fwd_t
@@ -151,15 +153,18 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
         }
     };
 
-    jit_uni_dw_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_uni_dw_conv_bwd_data_kernel<isa, diff_dst_type>(
-                pd()->jcp_);
-    }
-    ~jit_uni_dw_convolution_bwd_data_t() { delete kernel_; };
+    jit_uni_dw_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
     typedef typename prec_traits<diff_dst_type>::type wei_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_uni_dw_conv_bwd_data_kernel<isa, diff_dst_type>(
+                        pd()->jcp_)));
+        return kernel_->create_kernel();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_data(ctx);
@@ -170,7 +175,8 @@ private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    jit_uni_dw_conv_bwd_data_kernel<isa, diff_dst_type> *kernel_;
+    std::unique_ptr<jit_uni_dw_conv_bwd_data_kernel<isa, diff_dst_type>>
+            kernel_;
 };
 
 using jit_avx512_common_dw_convolution_bwd_data_t
@@ -240,16 +246,26 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
     };
 
     jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd);
-    ~jit_uni_dw_convolution_bwd_weights_t() {
-        delete acc_ker_;
-        delete kernel_;
-    };
 
     typedef typename prec_traits<data_type::f32>::type f32_data_t;
     typedef typename prec_traits<data_type::bf16>::type bf16_data_t;
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<src_type>::type diff_dst_data_t;
     typedef typename prec_traits<diff_weights_type>::type diff_weights_data_t;
+
+    status_t init(engine_t *engine) override {
+        CHECK(safe_ptr_assign(kernel_,
+                new jit_uni_dw_conv_bwd_weights_kernel<isa, src_type>(
+                        pd()->jcp_)));
+        CHECK(kernel_->create_kernel());
+
+        if (pd()->jcp_.nthr_mb > 1 && isa != sse41) {
+            CHECK(safe_ptr_assign(
+                    acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
+            CHECK(acc_ker_->create_kernel());
+        }
+        return status::success;
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_backward_weights(ctx);
@@ -262,8 +278,8 @@ private:
     void execute_reduction(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
-    jit_uni_dw_conv_bwd_weights_kernel<isa, src_type> *kernel_;
+    std::unique_ptr<cpu_accumulator_1d_t<data_type::f32>> acc_ker_;
+    std::unique_ptr<jit_uni_dw_conv_bwd_weights_kernel<isa, src_type>> kernel_;
 };
 
 using jit_avx512_common_dw_convolution_bwd_weights_t

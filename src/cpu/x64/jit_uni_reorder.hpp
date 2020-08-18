@@ -89,11 +89,9 @@ struct kernel_t {
         prb_t prb;
     };
 
-    kernel_t(const desc_t &desc) : desc_(desc), ker_(nullptr) {}
-    void operator()(const call_param_t *c) const {
-        assert(ker_);
-        ker_(c);
-    }
+    kernel_t(const desc_t &desc) : desc_(desc) {}
+    virtual void operator()(const call_param_t *c) const = 0;
+    virtual status_t create_kernel() = 0;
     virtual ~kernel_t() {}
 
     /** inits kernel descriptor:
@@ -110,7 +108,6 @@ struct kernel_t {
 protected:
     const desc_t desc_;
     const prb_t &prb_ = desc_.prb;
-    void (*ker_)(const call_param_t *);
 };
 
 /* TODO: add trans_t class */

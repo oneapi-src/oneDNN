@@ -26,8 +26,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
-
-#include "cpu/ref_eltwise.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 #include "cpu/matmul/cpu_matmul_pd.hpp"
 
@@ -92,11 +91,15 @@ struct ref_matmul_t : public primitive_t {
         }
     };
 
-    ref_matmul_t(const pd_t *apd) : primitive_t(apd) {
+    ref_matmul_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         int e_idx = pd()->attr()->post_ops_.find(primitive_kind::eltwise);
         if (e_idx != -1)
-            eltwise_ker_.reset(new ref_eltwise_scalar_fwd_t(
-                    pd()->attr()->post_ops_.entry_[e_idx].eltwise));
+            CHECK(safe_ptr_assign(eltwise_ker_,
+                    new ref_eltwise_scalar_fwd_t(
+                            pd()->attr()->post_ops_.entry_[e_idx].eltwise)));
+        return status::success;
     }
 
     typedef typename prec_traits<src_type>::type src_data_t;

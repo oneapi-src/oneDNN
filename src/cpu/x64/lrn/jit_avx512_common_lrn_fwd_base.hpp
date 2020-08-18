@@ -56,8 +56,6 @@ public:
     };
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_lrn_kernel_fwd_t);
-    void (*ker)(jit_args_fwd_t *);
-    void operator()(jit_args_fwd_t *arg) { ker(arg); }
 
 protected:
     Zmm zreg(int irb, int i) const;

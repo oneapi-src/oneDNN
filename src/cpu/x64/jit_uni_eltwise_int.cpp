@@ -41,16 +41,14 @@ struct jit_uni_eltwise_int_kernel : public c_compatible {
     jit_uni_eltwise_int_kernel(const eltwise_desc_t &desc) : desc_(desc) {}
     virtual ~jit_uni_eltwise_int_kernel() {}
 
-    void operator()(const jit_args *args) {
-        assert(ker_);
-        ker_(args);
-    }
+    virtual void operator()(jit_args *p) = 0;
+    virtual status_t create_kernel() = 0;
 
 protected:
-    void (*ker_)(const jit_args *) = nullptr;
-
     data_type_t data_type() const { return desc_.data_desc.data_type; }
     int dtype_size() const { return types::data_type_size(data_type()); }
+
+    const eltwise_desc_t &desc() const { return desc_; }
 
 private:
     const eltwise_desc_t &desc_;
@@ -74,7 +72,15 @@ struct jit_uni_subkernel_int : public jit_uni_eltwise_int_kernel,
                 alg_kind::eltwise_linear));
         assert(utils::one_of(data_type(), s32, s8, u8));
         assert(utils::one_of(isa, sse41, avx2, avx512_common));
+    }
 
+    status_t create_kernel() override { return jit_generator::create_kernel(); }
+
+    void operator()(jit_args *p) override {
+        return jit_generator::operator()(p);
+    }
+
+    void generate() override {
         Reg64 param = abi_param1;
 
         const size_t vlen = cpu_isa_traits<isa>::vlen;
@@ -92,11 +98,11 @@ struct jit_uni_subkernel_int : public jit_uni_eltwise_int_kernel,
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
 #undef GET_OFF
 
-        mov(imm_addr64, float2int(desc.alpha));
+        mov(imm_addr64, float2int(desc().alpha));
         uni_vmovq(xmm_alpha, imm_addr64);
         uni_vbroadcastss(vmm_alpha, xmm_alpha);
 
-        mov(imm_addr64, float2int(desc.beta));
+        mov(imm_addr64, float2int(desc().beta));
         uni_vmovq(xmm_beta, imm_addr64);
         uni_vbroadcastss(vmm_beta, xmm_beta);
 
@@ -114,7 +120,8 @@ struct jit_uni_subkernel_int : public jit_uni_eltwise_int_kernel,
             cmp(reg_work_amount, uf[id] * loop_dec[id] - 1);
             jle(loop_label[id + 1], T_NEAR);
 
-            compute_step(loop_vectorize[id], uf[id], shift[id], desc.alg_kind);
+            compute_step(
+                    loop_vectorize[id], uf[id], shift[id], desc().alg_kind);
 
             add(reg_from, uf[id] * shift[id]);
             add(reg_to, uf[id] * shift[id]);
@@ -125,8 +132,6 @@ struct jit_uni_subkernel_int : public jit_uni_eltwise_int_kernel,
 
         L(loop_label[2]);
         postamble();
-
-        ker_ = (decltype(ker_))this->getCode();
     }
 
 private:
@@ -418,9 +423,13 @@ status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_eltwise_int_fwd_t<isa, d_type>::jit_uni_eltwise_int_fwd_t(
         const pd_t *apd)
-    : primitive_t(apd) {
+    : primitive_t(apd) {}
+
+template <cpu_isa_t isa, data_type_t d_type>
+status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::init(engine_t *engine) {
     const auto &desc = *pd()->desc();
-    kernel_ = new jit_uni_subkernel_int<isa>(desc);
+    CHECK(safe_ptr_assign(kernel_, new jit_uni_subkernel_int<isa>(desc)));
+    return kernel_->create_kernel();
 }
 
 template <cpu_isa_t isa, data_type_t d_type>

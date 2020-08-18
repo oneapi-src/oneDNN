@@ -167,6 +167,7 @@ struct attr_t {
             return s == scales.end() ? scale_t() : s->second;
         }
 
+        bool is_def(int arg) const { return get(arg).is_def(); }
         bool is_def() const { return scales.empty(); }
         int from_str(const std::string &s);
 
@@ -237,6 +238,10 @@ struct attr_t {
                     convolution.stride = kind == DW_K3S1P1 ? 1 : 2;
                     convolution.dst_dt = dnnl_f32;
                     convolution.oscale = scale_t();
+                } else if (is_binary_kind()) {
+                    binary.alg = kind2dnnl_kind(kind);
+                    binary.src1_dt = dnnl_data_type_undef;
+                    binary.policy = policy_t::COMMON;
                 }
             }
 
@@ -255,11 +260,17 @@ struct attr_t {
                     dnnl_data_type_t dst_dt;
                     scale_t oscale;
                 } convolution;
+                struct {
+                    dnnl_alg_kind_t alg;
+                    dnnl_data_type_t src1_dt;
+                    policy_t policy;
+                } binary;
             };
 
             bool is_sum_kind() const;
             bool is_convolution_kind() const;
             bool is_eltwise_kind() const;
+            bool is_binary_kind() const;
         };
 
         post_ops_t() : entry() {}
@@ -272,6 +283,9 @@ struct attr_t {
         int find(kind_t kind, int start = 0, int stop = -1) const;
         int eltwise_index() const;
         int convolution_index() const;
+        int binary_index() const;
+
+        std::vector<int> get_binary_po_masks() const;
 
         std::vector<entry_t> entry;
     };
@@ -307,38 +321,60 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, dnnl_scratchpad_mode_t sm);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
-/* Container for becnhdnn description of attributes and oneDNN primitive
- * attributes. Also contains the generated scales and zero-points.
- *
- * Usage model:
- * 1. Create attr_bundle_t with benchdnn attr
- * 2. Borrow and fill oscale
- *    - zero_point is automatically initialized at construct time
- *      (will be changed later)
- * 3. Call generate(scale_mask) to prepare dnnl_attr
- */
-struct attr_bundle_t {
-    attr_t attr;
-    std::vector<float> oscale;
-    std::map<int, std::vector<int>> zero_points; // arg -> arg_zero_points
+// A container for additional data and info, not available from user's input at
+// parse time, but which are required to create the library attributes.
+struct attr_args_t {
+    struct entry_t {
+        entry_t(const void *vals = NULL, int64_t count = 1, int mask = -1,
+                bool runtime = false)
+            : vals(vals), count(count), mask(mask), runtime(runtime) {}
 
-    // constructor to forward already constructed oneDNN primitive attributes
-    attr_bundle_t(const_dnnl_primitive_attr_t dnnl_attr)
-        : dnnl_attr_((dnnl_primitive_attr_t)dnnl_attr,
-                [](dnnl_primitive_attr_t) {}) {}
+        int64_t get_count(policy_t policy) const {
+            return (policy == policy_t::COMMON || runtime) ? 1 : count;
+        }
 
-    attr_bundle_t(const attr_t &attr) : attr(attr) { init_zero_points(); }
-    int generate(int scale_mask);
+        int get_mask(policy_t policy) const {
+            return mask == -1 ? attr_t::get_default_mask(policy) : mask;
+        }
 
-    const_dnnl_primitive_attr_t dnnl_attr() const { return dnnl_attr_.get(); }
-    int scale_mask() const { return scale_mask_; }
+        const float *get_float_ptr() const {
+            return runtime ? &DNNL_RUNTIME_F32_VAL
+                           : static_cast<const float *>(vals);
+        }
+
+        const void *vals = NULL;
+        int64_t count = 1;
+        int mask = -1;
+        bool runtime = false;
+    };
+
+    attr_args_t() = default;
+
+    void prepare_output_scales(
+            const attr_t &attr, const void *vals, int64_t count, int mask = -1);
+
+    int prepare_binary_post_op_mds(
+            const attr_t &attr, int ndims, const dnnl_dims_t dims);
+
+    entry_t get(int arg) const {
+        const auto it = entries.find(arg);
+        return it == entries.end() ? entry_t() : it->second;
+    }
+
+    dnnl_memory_desc_t get_md(int arg) const {
+        const auto it = mds.find(arg);
+        return it == mds.end() ? dnnl_memory_desc_t() : it->second;
+    }
 
 private:
-    bool initialized_ = false;
-    int scale_mask_ = 0;
-    std::shared_ptr<dnnl_primitive_attr> dnnl_attr_ {0};
+    void insert(
+            int arg, const void *vals, int64_t count, int mask, bool runtime) {
+        entries.insert(
+                std::make_pair(arg, entry_t(vals, count, mask, runtime)));
+    }
 
-    void init_zero_points();
+    std::map<int, entry_t> entries;
+    std::map<int, dnnl_memory_desc_t> mds;
 };
 
 struct engine_t {
@@ -367,15 +403,8 @@ dnnl_format_tag_t get_abx_tag(int ndims);
 dnnl_format_tag_t get_axb_tag(int ndims);
 dnnl_format_tag_t convert_tag(const std::string &tag_str, int ndims);
 
-dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
-        int scale_mask, const float *scales);
-inline dnnl_primitive_attr_t create_dnnl_attr(
-        const attr_t &attr, int64_t scale_cnt, const float *scales) {
-    return create_dnnl_attr(attr, scale_cnt, -1, scales);
-}
-inline dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr) {
-    return create_dnnl_attr(attr, 1, -1, NULL);
-}
+dnnl_primitive_attr_t create_dnnl_attr(
+        const attr_t &attr, const attr_args_t &attr_args);
 
 dnnl_engine_kind_t str2engine_kind(const char *str);
 dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
@@ -388,6 +417,10 @@ float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
 float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta);
 float compute_binary(attr_t::post_ops_t::kind_t kind, float src0, float src1);
-void maybe_post_ops(const attr_t &attr, float &val, float sum_val = 0.f);
-
+void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
+        const std::vector<float> &v_binary_vals);
+inline void maybe_post_ops(
+        const attr_t &attr, float &val, float sum_val = 0.f) {
+    maybe_post_ops(attr, val, sum_val, std::vector<float>());
+}
 #endif
