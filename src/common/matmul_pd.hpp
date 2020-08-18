@@ -105,9 +105,9 @@ struct matmul_pd_t : public primitive_desc_t {
     bool batched() const { return ndims() == 3; }
 
     dim_t batch() const { return batched() ? dst_md_.dims[0] : 1; }
-    dim_t M() const { return dst_md_.dims[batched() + 0]; }
-    dim_t N() const { return dst_md_.dims[batched() + 1]; }
-    dim_t K() const { return src_md_.dims[batched() + 1]; }
+    dim_t M() const { return dst_md_.dims[ndims() - 2]; }
+    dim_t N() const { return dst_md_.dims[ndims() - 1]; }
+    dim_t K() const { return src_md_.dims[ndims() - 1]; }
 
     bool is_bias_1xN() const {
         if (!with_bias()) return false;

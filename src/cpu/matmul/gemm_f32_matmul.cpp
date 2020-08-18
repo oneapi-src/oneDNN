@@ -30,6 +30,7 @@
 #include "cpu/gemm/gemm.hpp"
 
 #include "cpu/matmul/gemm_f32_matmul.hpp"
+#include "cpu/matmul/matmul_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -129,46 +130,32 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto bias_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
 
+    auto helper = matmul_helper_t(src_d, weights_d, dst_d);
+
     // apply offset0, since offsets are computed directly (not via mdw.off())
     src += src_d.offset0();
     weights += weights_d.offset0();
     if (bias) bias += bias_d.offset0() * bias_d.data_type_size();
     dst += dst_d.offset0();
 
+    const dim_t M = helper.M();
+    const dim_t N = helper.N();
+    const dim_t K = helper.K();
+    const dim_t batch = helper.batch();
+    const char transA = helper.transA();
+    const char transB = helper.transB();
+    const dim_t lda = helper.lda();
+    const dim_t ldb = helper.ldb();
+    const dim_t ldc = helper.ldc();
+    const dim_t src_batch_stride = helper.src_stride_mb();
+    const dim_t weights_batch_stride = helper.weights_stride_mb();
+    const dim_t dst_batch_stride = helper.dst_stride_mb();
+
     const gemm_based::params_t &params = pd()->params();
-
-    const auto &dst_bd = dst_d.blocking_desc();
-
-    const bool batched = pd()->batched();
-
-    const dim_t M = dst_d.dims()[batched + 0];
-    const dim_t N = dst_d.dims()[batched + 1];
-    const dim_t K = src_d.dims()[batched + 1];
-
-    const auto &src_strides = &src_d.blocking_desc().strides[batched];
-    const auto &weights_strides = &weights_d.blocking_desc().strides[batched];
-
-    const char *transA
-            = src_strides[1] == 1 && src_d.dims()[batched + 0] > 1 ? "N" : "T";
-    const char *transB
-            = weights_strides[1] == 1 && weights_d.dims()[batched + 0] > 1
-            ? "N"
-            : "T";
-
-    const dim_t lda = src_strides[*transA == 'N' ? 0 : 1];
-    const dim_t ldb = weights_strides[*transB == 'N' ? 0 : 1];
-    const dim_t ldc = dst_bd.strides[batched + 0];
-
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
 
-    const dim_t batch = batched ? src_d.dims()[0] : 1;
-    const auto src_batch_stride = src_d.blocking_desc().strides[0];
-    const auto weights_batch_stride = weights_d.blocking_desc().strides[0];
-    const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
-
     std::atomic<status_t> st(status::success);
-
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {
         parallel(0, [&](int ithr, int nthr) {
@@ -180,7 +167,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                         = weights + b * weights_batch_stride;
                 dst_data_t *curr_dst = dst + b * dst_batch_stride;
 
-                status_t st_thr = extended_sgemm(transB, transA, &N, &M, &K,
+                status_t st_thr = extended_sgemm(&transB, &transA, &N, &M, &K,
                         &alpha, curr_weights, &ldb, curr_src, &lda, &beta,
                         curr_dst, &ldc, nullptr, false);
                 if (st_thr != status::success) {
@@ -197,7 +184,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             }
         });
     } else {
-        st = extended_sgemm(transB, transA, &N, &M, &K, &alpha, weights, &ldb,
+        st = extended_sgemm(&transB, &transA, &N, &M, &K, &alpha, weights, &ldb,
                 src, &lda, &beta, dst, &ldc, nullptr, false);
         if (st != status::success) return st;
 

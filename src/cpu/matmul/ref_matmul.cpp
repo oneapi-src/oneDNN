@@ -26,6 +26,7 @@
 #include "cpu/cpu_primitive.hpp"
 #include "cpu/simple_q10n.hpp"
 
+#include "cpu/matmul/matmul_utils.hpp"
 #include "cpu/matmul/ref_matmul.hpp"
 
 namespace dnnl {
@@ -52,13 +53,14 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
     const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
 
-    const bool batched = pd()->batched();
     const bool non_default_attrs = !pd()->attr()->has_default_values();
 
-    const dim_t MB = batched ? dst_d.dims()[0] : 1;
-    const dim_t M = dst_d.dims()[batched + 0];
-    const dim_t N = dst_d.dims()[batched + 1];
-    const dim_t K = src_d.dims()[batched + 1];
+    matmul_helper_t helper(src_d, weights_d, dst_d);
+    const dim_t M = helper.M();
+    const dim_t N = helper.N();
+    const dim_t K = helper.K();
+    const dim_t batch = helper.batch();
+    const bool batched = helper.batched();
 
     // mm kernel
     auto ker = [&](dim_t mb, dim_t m, dim_t n) {
@@ -95,7 +97,7 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
 
     // computations
-    parallel_nd(MB, M, N, [&](dim_t mb, dim_t m, dim_t n) {
+    parallel_nd(batch, M, N, [&](dim_t mb, dim_t m, dim_t n) {
         auto &dst_value = dst[batched ? dst_d.off(mb, m, n) : dst_d.off(m, n)];
 
         acc_data_t acc = ker(mb, m, n);

@@ -31,6 +31,7 @@
 #include "cpu/gemm/gemm.hpp"
 
 #include "cpu/matmul/gemm_x8s8s32x_matmul.hpp"
+#include "cpu/matmul/matmul_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -183,23 +184,31 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     }
     const float dst_zero_point_f32 = (float)dst_zero_point;
 
+    matmul_helper_t helper(src_d, weights_d, dst_d);
+    const dim_t M = helper.M();
+    const dim_t N = helper.N();
+    const dim_t K = helper.K();
+    const dim_t batch = helper.batch();
+    const char transA = helper.transA();
+    const char transB = helper.transB();
+    const dim_t lda = helper.lda();
+    const dim_t ldb = helper.ldb();
+    const dim_t ldc = helper.ldc();
+    const dim_t src_batch_stride = helper.src_stride_mb();
+    const dim_t weights_batch_stride = helper.weights_stride_mb();
+    const dim_t dst_batch_stride = helper.dst_stride_mb();
+    const dim_t acc_batch_stride = M * N;
+    const int ldx_dim_idx = pd()->ndims() - 2;
+    const dim_t *src_strides = &src_d.blocking_desc().strides[ldx_dim_idx];
+    const dim_t *weights_strides
+            = &weights_d.blocking_desc().strides[ldx_dim_idx];
+
     const gemm_based::params_t &params = pd()->params();
     bool dst_is_acc = params.dst_is_acc_;
-
     acc_data_t *acc = dst_is_acc
             ? (acc_data_t *)dst
             : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     memory_tracking::names::key_matmul_dst_in_acc_dt);
-
-    const auto &dst_bd = dst_d.blocking_desc();
-
-    const bool batched = pd()->batched();
-
-    const dim_t batch = batched ? dst_d.dims()[0] : 1;
-    const dim_t M = dst_d.dims()[batched + 0];
-    const dim_t N = dst_d.dims()[batched + 1];
-    const dim_t K = src_d.dims()[batched + 1];
-
     // case: dynamic sizes
     bool need_free_acc = false;
     if (acc == nullptr) {
@@ -211,27 +220,8 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         need_free_acc = true;
     }
 
-    const auto &src_strides = &src_d.blocking_desc().strides[batched];
-    const auto &weights_strides = &weights_d.blocking_desc().strides[batched];
-
-    const char *transA
-            = src_strides[1] == 1 && src_d.dims()[batched + 0] > 1 ? "N" : "T";
-    const char *transB
-            = weights_strides[1] == 1 && weights_d.dims()[batched + 0] > 1
-            ? "N"
-            : "T";
-
-    const dim_t lda = src_strides[*transA == 'N' ? 0 : 1];
-    const dim_t ldb = weights_strides[*transB == 'N' ? 0 : 1];
-    const dim_t ldc = dst_is_acc ? dst_bd.strides[batched + 0] : N;
-
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
-
-    const auto src_batch_stride = src_d.blocking_desc().strides[0];
-    const auto weights_batch_stride = weights_d.blocking_desc().strides[0];
-    const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
-    const auto acc_batch_stride = M * N;
 
     std::atomic<status_t> st(status::success);
     const bool parallel_over_batch = batch > 1;
@@ -261,9 +251,9 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
                 dst_data_t *curr_dst = dst + b * dst_batch_stride;
                 if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
 
-                status_t st_thr = gemm_s8x8s32(transB, transA, "F", &N, &M, &K,
-                        &alpha, curr_weights, &ldb, &gemm_off_b, curr_src, &lda,
-                        &gemm_off_a, &beta, curr_acc, &ldc, &gemm_off_c);
+                status_t st_thr = gemm_s8x8s32(&transB, &transA, "F", &N, &M,
+                        &K, &alpha, curr_weights, &ldb, &gemm_off_b, curr_src,
+                        &lda, &gemm_off_a, &beta, curr_acc, &ldc, &gemm_off_c);
                 if (st_thr != status::success) {
                     st = st_thr;
                     return;
@@ -293,7 +283,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         // at compilation time in lambdas
         const int32_t gemm_off_c = 0;
 
-        status_t st = gemm_s8x8s32(transB, transA, "F", &N, &M, &K, &alpha,
+        status_t st = gemm_s8x8s32(&transB, &transA, "F", &N, &M, &K, &alpha,
                 weights, &ldb, &gemm_off_b, src, &lda, &gemm_off_a, &beta, acc,
                 &ldc, &gemm_off_c);
         if (st != status::success) return st;
