@@ -276,6 +276,7 @@ _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         if (jcp.im2col_sz)
             jit_gemm_convolution_utils::col2im_dt<int32_t>(jcp, col, acc);
 
+        // TODO: the code below is not tested and broken anyway.
         parallel_nd(jcp.is * jcp.id, [&](int is) {
             diff_src_data_t *__restrict diff_src_loc
                     = diff_src + is * diff_src_os_stride;

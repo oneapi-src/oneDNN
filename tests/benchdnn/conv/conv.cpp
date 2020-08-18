@@ -768,7 +768,8 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(execute_and_wait(c, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd_d(p, c_ref, src_fp, wei_fp, bia_fp, dst_fp);
+            compute_ref_bwd_d(p, c_ref, src_fp, wei_fp, bia_fp,
+                    std::vector<dnn_mem_t>(), dst_fp);
             dnn_mem_t src(src_dt, fp, src_tag, test_engine);
             SAFE(compare_src(p, src, src_fp, r, true), WARN);
         }

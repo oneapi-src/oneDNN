@@ -325,7 +325,7 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
         const int scale_idx_mult
                 = pd()->attr()->output_scales_.mask_ == (1 << 1);
         const float *scales = pd()->attr()->output_scales_.scales_;
-        d *= scales[(g * OC + ic) * scale_idx_mult];
+        d *= scales[(g * IC + ic) * scale_idx_mult];
     };
 
     auto ker = [=](dim_t g, dim_t mb, dim_t ic, dim_t id, dim_t ih, dim_t iw) {

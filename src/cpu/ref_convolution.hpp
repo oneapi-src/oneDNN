@@ -151,7 +151,9 @@ struct ref_convolution_bwd_data_t : public primitive_t {
             return ok ? status::success : status::unimplemented;
         }
 
-        bool support_bias() const override { return true; }
+        // Bias support is disabled to enable highly optimized conv impl in
+        // reference deconv impl and apply bias there.
+        bool support_bias() const override { return false; }
 
     protected:
         bool set_default_formats() {

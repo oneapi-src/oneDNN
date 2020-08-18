@@ -184,6 +184,8 @@ enum {
     key_conv_wei_reduction,
     key_conv_wei_bia_reduction,
     key_conv_wei_bia_reduction_bctx,
+    key_deconv_bias,
+    key_deconv_sum,
     key_eltwise_diff_dst,
     key_eltwise_src,
     key_fusion_forward_scratchpad,
