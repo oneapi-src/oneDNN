@@ -191,6 +191,7 @@ struct rtus_driver_t : public jit_generator {
                     case avx2: res = Ymm(idx); break;
                     case avx512_common:
                     case avx512_core:
+                    case sve:
                     case avx512_mic: res = Zmm(idx); break;
                     default: assert(!"Not supported isa"); res = Xmm(idx);
                 }
@@ -209,6 +210,7 @@ struct rtus_driver_t : public jit_generator {
                 case avx512_common:
                 case avx512_core:
                 case avx512_mic:
+                case sve:
                     switch (typesize) {
                         case 4: res = Zmm(idx); break;
                         case 2: res = Ymm(idx); break;
