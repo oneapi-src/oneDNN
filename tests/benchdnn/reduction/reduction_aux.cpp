@@ -25,6 +25,12 @@ alg_t str2alg(const char *str) {
     CASE(MIN);
     CASE(SUM);
     CASE(MUL);
+    CASE(MEAN);
+    CASE(NORM_LP_MAX);
+    CASE(NORM_LP_SUM);
+    CASE(NORM_LP_POWER_P_MAX);
+    CASE(NORM_LP_POWER_P_SUM);
+
 #undef CASE
     assert(!"unknown algorithm");
     return UNDEF;
@@ -35,6 +41,11 @@ const char *alg2str(alg_t alg) {
     if (alg == MIN) return "MIN";
     if (alg == SUM) return "SUM";
     if (alg == MUL) return "MUL";
+    if (alg == MEAN) return "MEAN";
+    if (alg == NORM_LP_MAX) return "NORM_LP_MAX";
+    if (alg == NORM_LP_SUM) return "NORM_LP_SUM";
+    if (alg == NORM_LP_POWER_P_MAX) return "NORM_LP_POWER_P_MAX";
+    if (alg == NORM_LP_POWER_P_SUM) return "NORM_LP_POWER_P_SUM";
     assert(!"unknown algorithm");
     return "UNDEF";
 }
@@ -44,6 +55,11 @@ dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
     if (alg == MIN) return dnnl_reduction_min;
     if (alg == SUM) return dnnl_reduction_sum;
     if (alg == MUL) return dnnl_reduction_mul;
+    if (alg == MEAN) return dnnl_reduction_mean;
+    if (alg == NORM_LP_MAX) return dnnl_reduction_norm_lp_max;
+    if (alg == NORM_LP_SUM) return dnnl_reduction_norm_lp_sum;
+    if (alg == NORM_LP_POWER_P_MAX) return dnnl_reduction_norm_lp_power_p_max;
+    if (alg == NORM_LP_POWER_P_SUM) return dnnl_reduction_norm_lp_power_p_sum;
     assert(!"unknown algorithm");
     return dnnl_alg_kind_undef;
 }

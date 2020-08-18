@@ -15,8 +15,11 @@
 *******************************************************************************/
 
 #include <limits>
+#include <math.h>
 
 #include "tests/test_thread.hpp"
+
+#include "common.hpp"
 #include "dnnl_memory.hpp"
 
 #include "reduction.hpp"
@@ -29,6 +32,11 @@ void init_acc(float &acc, alg_t alg) {
         case MIN: acc = std::numeric_limits<float>::max(); break;
         case SUM: acc = 0.0f; break;
         case MUL: acc = 1.0f; break;
+        case MEAN:
+        case NORM_LP_MAX:
+        case NORM_LP_SUM:
+        case NORM_LP_POWER_P_MAX:
+        case NORM_LP_POWER_P_SUM: acc = 0.0f; break;
         default: assert(!"unknown algorithm");
     }
 }
@@ -37,13 +45,32 @@ void accumulate(float &dst, const float src, alg_t alg, float p, float eps) {
     switch (alg) {
         case MAX: dst = MAX2(dst, src); break;
         case MIN: dst = MIN2(dst, src); break;
+        case MEAN:
         case SUM: dst += src; break;
         case MUL: dst *= src; break;
+        case NORM_LP_MAX:
+        case NORM_LP_SUM:
+        case NORM_LP_POWER_P_MAX:
+        case NORM_LP_POWER_P_SUM: dst += pow(fabs(src), p); break;
         default: assert(!"unknown algorithm");
     }
 }
 
-void finalize(float &dst, alg_t alg, float p, float eps) {
+void finalize(float &dst, alg_t alg, float p, float eps, dnnl_dim_t n) {
+    switch (alg) {
+        case MEAN: dst /= n; break;
+        case NORM_LP_MAX:
+            dst = MAX2(dst, eps);
+            dst = pow(dst, 1.0f / p);
+            break;
+        case NORM_LP_SUM:
+            dst += eps;
+            dst = pow(dst, 1.0f / p);
+            break;
+        case NORM_LP_POWER_P_MAX: dst = MAX2(dst, eps); break;
+        case NORM_LP_POWER_P_SUM: dst += eps; break;
+        default: break;
+    }
 }
 
 void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
@@ -85,7 +112,7 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
             const int64_t src_off = src_idle_off + src_reduce_off;
             accumulate(acc, src_ptr[src_off], alg, p, eps);
         }
-        finalize(acc, alg, p, eps);
+        finalize(acc, alg, p, eps, reduce_size);
         dst_ptr[dst_off] = acc;
     });
 }

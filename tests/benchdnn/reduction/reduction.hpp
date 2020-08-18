@@ -25,7 +25,19 @@
 
 namespace reduction {
 
-enum alg_t { UNDEF, MIN, MAX, MUL, SUM };
+enum alg_t {
+    UNDEF,
+    MIN,
+    MAX,
+    MUL,
+    SUM,
+    MEAN,
+    NORM_LP_MAX,
+    NORM_LP_SUM,
+    NORM_LP_POWER_P_MAX,
+    NORM_LP_POWER_P_SUM
+};
+
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2alg_kind(alg_t alg);
