@@ -18,7 +18,6 @@
 
 #include "common/utils.hpp"
 #include "gpu/zero_pad_struct.h"
-#include "sycl/level_zero_sycl_interop.hpp"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_ocl_gpu_kernel.hpp"
 #include "sycl/sycl_stream.hpp"
@@ -135,25 +134,8 @@ status_t sycl_create_kernel(std::unique_ptr<cl::sycl::kernel> &sycl_kernel,
     OCL_CHECK(clGetProgramInfo(ocl_program, CL_PROGRAM_BINARIES, binary_size,
             &binary_ptr, nullptr));
 
-    ze_module_desc_t desc {ZE_MODULE_DESC_VERSION_CURRENT};
-    desc.format = ZE_MODULE_FORMAT_NATIVE;
-    desc.inputSize = binary_size;
-    desc.pInputModule = binary_ptr;
-    desc.pBuildFlags = "";
-    desc.pConstants = nullptr;
-
-    auto ze_device = (ze_device_handle_t)sycl_engine->device().get();
-
-    ze_module_handle_t ze_module;
-    CHECK(func_zeModuleCreate(ze_device, &desc, &ze_module, nullptr));
-    *handle_to_destroy = ze_module;
-
-    cl::sycl::program sycl_program
-            = make_program(sycl_engine->context(), ze_module);
-    sycl_kernel.reset(
-            new cl::sycl::kernel(sycl_program.get_kernel(kernel_name)));
-
-    return status::success;
+    return sycl_create_kernel_with_level_zero(
+            sycl_kernel, sycl_engine, binary, kernel_name, handle_to_destroy);
 #else
     return status::invalid_arguments;
 #endif
@@ -239,13 +221,9 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     });
 
 #if defined(DNNL_SYCL_DPCPP) && defined(DNNL_WITH_LEVEL_ZERO)
-    if (sycl_engine->backend() == backend_t::level0) {
-        // L0 module should be destroyed manually.
-        sycl_kernel.reset();
-        auto ze_module
-                = reinterpret_cast<ze_module_handle_t>(handle_to_destroy);
-        CHECK(func_zeModuleDestroy(ze_module));
-    }
+    if (sycl_engine->backend() == backend_t::level0)
+        CHECK(sycl_destroy_kernel_with_level_zero(
+                sycl_kernel, handle_to_destroy));
 #endif
 
     sycl_stream->set_deps({event});
