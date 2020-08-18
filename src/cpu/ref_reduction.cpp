@@ -14,7 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <math.h>
+
 #include "common/c_types_map.hpp"
+#include "common/nstl.hpp"
 
 #include "cpu/simple_q10n.hpp"
 
@@ -40,6 +43,10 @@ void ref_reduction_t<src_type, dst_type, acc_type>::init_acc(
         case reduction_mean:
         case reduction_sum: acc = acc_t(0); break;
         case reduction_mul: acc = acc_t(1); break;
+        case reduction_norm_lp_max:
+        case reduction_norm_lp_sum:
+        case reduction_norm_lp_power_p_max:
+        case reduction_norm_lp_power_p_sum: acc = acc_t(0); break;
         default: assert(!"unknown alg");
     }
 }
@@ -49,18 +56,40 @@ void ref_reduction_t<src_type, dst_type, acc_type>::accumulate(
         dst_t &dst, const src_t &src, alg_kind_t alg, float p) const {
     using namespace alg_kind;
     switch (alg) {
-        case reduction_max: dst = dst > src ? dst : src; break;
-        case reduction_min: dst = dst < src ? dst : src; break;
+        case reduction_max: dst = nstl::max(dst, src); break;
+        case reduction_min: dst = nstl::min(dst, src); break;
         case reduction_mean:
         case reduction_sum: dst += src; break;
         case reduction_mul: dst *= src; break;
+        case reduction_norm_lp_max:
+        case reduction_norm_lp_sum:
+        case reduction_norm_lp_power_p_max:
+        case reduction_norm_lp_power_p_sum:
+            dst += powf(nstl::abs(src), p);
+            break;
         default: assert(!"unknown alg");
     }
 }
 
 template <data_type_t src_type, data_type_t dst_type, data_type_t acc_type>
 void ref_reduction_t<src_type, dst_type, acc_type>::finalize(
-        dst_t &dst, alg_kind_t alg, float p, float eps) const {}
+        dst_t &dst, alg_kind_t alg, float p, float eps, dim_t n) const {
+    using namespace alg_kind;
+    switch (alg) {
+        case reduction_mean: dst /= n; break;
+        case reduction_norm_lp_max:
+            dst = nstl::max(dst, eps);
+            dst = powf(dst, 1.0f / p);
+            break;
+        case reduction_norm_lp_sum:
+            dst += eps;
+            dst = powf(dst, 1.0f / p);
+            break;
+        case reduction_norm_lp_power_p_max: dst = nstl::max(dst, eps); break;
+        case reduction_norm_lp_power_p_sum: dst += eps; break;
+        default: break;
+    }
+}
 
 template <data_type_t src_type, data_type_t dst_type, data_type_t acc_type>
 status_t ref_reduction_t<src_type, dst_type, acc_type>::execute_ref(
@@ -104,7 +133,7 @@ status_t ref_reduction_t<src_type, dst_type, acc_type>::execute_ref(
             const dim_t src_off = src_idle_off + src_reduce_off;
             accumulate(acc, src[src_off], alg, p);
         }
-        finalize(acc, alg, p, eps);
+        finalize(acc, alg, p, eps, reduce_size);
         dst[dst_off] = out_round<dst_t>(acc);
     });
 

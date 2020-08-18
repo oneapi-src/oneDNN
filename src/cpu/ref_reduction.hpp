@@ -65,7 +65,8 @@ private:
 
     void accumulate(
             dst_t &dst, const src_t &src, alg_kind_t alg_kind, float p) const;
-    void finalize(dst_t &dst, alg_kind_t alg, float p, float eps) const;
+    void finalize(
+            dst_t &dst, alg_kind_t alg, float p, float eps, dim_t n) const;
     void init_acc(acc_t &acc, alg_kind_t alg) const;
 };
 

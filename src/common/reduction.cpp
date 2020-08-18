@@ -32,7 +32,12 @@ dnnl_status_t dnnl_reduction_desc_init(dnnl_reduction_desc_t *desc,
             && one_of(alg_kind, reduction_max, reduction_min, reduction_sum,
                     reduction_mul, reduction_mean, reduction_norm_lp_max,
                     reduction_norm_lp_sum, reduction_norm_lp_power_p_max,
-                    reduction_norm_lp_power_p_sum);
+                    reduction_norm_lp_power_p_sum)
+            && IMPLICATION(one_of(alg_kind, reduction_norm_lp_max,
+                                   reduction_norm_lp_sum,
+                                   reduction_norm_lp_power_p_max,
+                                   reduction_norm_lp_power_p_sum),
+                    p >= 1.0f && src_desc->data_type == data_type::f32);
     if (!args_ok) return invalid_arguments;
 
     if (src_desc->ndims != dst_desc->ndims) return invalid_arguments;
