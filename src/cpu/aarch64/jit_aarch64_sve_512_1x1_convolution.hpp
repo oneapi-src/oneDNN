@@ -314,11 +314,7 @@ struct jit_aarch64_sve_512_1x1_convolution_bwd_data_t : public primitive_t {
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_()
-#if 1
-              {}
-#else
             , rtus_() {}
-#endif
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", sve, ""),
                 jit_aarch64_sve_512_1x1_convolution_bwd_data_t);
 
@@ -371,23 +367,15 @@ struct jit_aarch64_sve_512_1x1_convolution_bwd_data_t : public primitive_t {
 
     jit_aarch64_sve_512_1x1_convolution_bwd_data_t(const pd_t *apd)
         : primitive_t(apd), kernel_(nullptr)
-#if 1
-        {
-#else
         , rtus_driver_(nullptr) {
-#endif
         kernel_ = new jit_aarch64_sve_512_1x1_conv_kernel(
                 pd()->jcp_, *pd()->attr());
-#if 0
         init_rtus_driver<sve>(this);
-#endif
     } 
 
     ~jit_aarch64_sve_512_1x1_convolution_bwd_data_t() {
         delete kernel_;
-#if 0
         delete rtus_driver_;
-#endif
     }
 
     typedef typename prec_traits<diff_dst_type>::type diff_dst_data_t;
@@ -403,9 +391,7 @@ private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_aarch64_sve_512_1x1_conv_kernel *kernel_;
-#if 0
     rtus_driver_t<sve> *rtus_driver_;
-#endif
 };
 
 using jit_aarch64_sve_512_1x1_convolution_bwd_data_f32_t

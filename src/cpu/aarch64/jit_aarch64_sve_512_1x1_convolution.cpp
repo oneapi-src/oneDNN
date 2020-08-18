@@ -148,10 +148,8 @@ void jit_aarch64_sve_512_1x1_convolution_fwd_t<src_type, wei_type,
         iw = ow * stride_w;
 
         p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
-#if 0
         rp.iw_start = iw;
         rp.os = p.bcast_dim;
-#endif
     };
 
     auto init_load = [&](int ocb, int ocb_end, int &load_step) {
@@ -169,9 +167,7 @@ void jit_aarch64_sve_512_1x1_convolution_fwd_t<src_type, wei_type,
 
         p.reduce_dim = this_block_size(
                 icb * jcp.ic_block, jcp.ic, nb_ic_blocking_step * jcp.ic_block);
-#if 0
         rp.icb = p.reduce_dim;
-#endif
     };
 
     auto ker_1x1 = [&](int ocb, int ocb_start, int icb, int n, int g, int od,
@@ -197,9 +193,6 @@ void jit_aarch64_sve_512_1x1_convolution_fwd_t<src_type, wei_type,
                 ? g * jcp.ic + icb * jcp.ic_block
                 : g * nb_ic + icb;
         if (pd()->rtus_.reduce_src_) {
-#if 0
-            assert(NULL);
-#else
             rp.ws = rtus_space + ithr * pd()->rtus_.space_per_thread_
                     + (is_src_layout_nxc ? ic_off_idx
                                          : jcp.is * ic_off_idx * jcp.ic_block);
@@ -208,7 +201,6 @@ void jit_aarch64_sve_512_1x1_convolution_fwd_t<src_type, wei_type,
                 rtus_driver_->ker_(&rp);
             }
             p.bcast_data = rp.ws;
-#endif
         } else
             p.bcast_data = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
 
@@ -436,12 +428,10 @@ void jit_aarch64_sve_512_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
 
     const auto &jcp = kernel_->jcp;
-#if 0
     auto rtus_space = pd()->rtus_.reduce_src_
             ? ctx.get_scratchpad_grantor().template get<diff_src_data_t>(
                     key_conv_rtus_space)
             : NULL;
-#endif
     const int ndims = diff_src_d.ndims();
 
     assert(jcp.stride_w == 1 && jcp.stride_h == 1 && jcp.stride_d == 1);
@@ -464,9 +454,7 @@ void jit_aarch64_sve_512_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         auto p = jit_1x1_conv_call_s();
-#if 0
         auto rp = rtus_driver_t<sve>::call_params_t();
-#endif
 
         int bcast_start {0}, bcast_end {0}, icb_start {0}, icb_end {0};
         balance2D(nthr, ithr, work_amount, bcast_start, bcast_end, jcp.nb_load,
@@ -494,9 +482,7 @@ void jit_aarch64_sve_512_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 
                 p.load_dim = this_block_size(
                         icb * jcp.ic_block, max_ic, load_step * jcp.ic_block);
-#if 0
                 rp.icb = p.load_dim;
-#endif
                 int bcast_step;
                 for (int iwork = bcast_start; iwork < bcast_end;
                         iwork += bcast_step) {
@@ -511,9 +497,7 @@ void jit_aarch64_sve_512_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
                     const int os = osb * os_block;
                     p.bcast_dim = this_block_size(
                             os, jcp.os, bcast_step * os_block);
-#if 0
                     rp.os = p.bcast_dim;
-#endif
                     const int od = os / (jcp.oh * jcp.ow);
                     const int os_2d = os % (jcp.oh * jcp.ow);
                     const int oh = os_2d / jcp.ow;
@@ -521,36 +505,24 @@ void jit_aarch64_sve_512_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
                     const int id = od * stride_d;
                     const int ih = oh * stride_h;
                     const int iw = ow * stride_w;
-#if 0
                     rp.iw_start = iw;
-#endif
                     const bool is_dsrc_layout_nxc
                             = utils::one_of(jcp.src_tag, format_tag::nwc,
                                     format_tag::nhwc, format_tag::ndhwc);
                     const int ic_off_idx = is_dsrc_layout_nxc
                             ? g * jcp.ic + icb * jcp.ic_block
                             : g * nb_ic + icb;
-#if 0
                     rp.src = diff_src
                             + data_blk_off(
                                     diff_src_d, n, ic_off_idx, id, ih, iw);
-#endif
                     if (pd()->rtus_.reduce_src_) {
-#if 1
-                        assert(!"Unsupported rtus in bwd data");
-#else
                         rp.ws = rtus_space
                                 + ithr * pd()->rtus_.space_per_thread_;
                         p.output_data = rp.ws;
-#endif
                     } else
-#if 1
                       p.output_data = diff_src
                             + data_blk_off(
                                     diff_src_d, n, ic_off_idx, id, ih, iw);
-#else
-                        p.output_data = rp.src;
-#endif
 
                     for (int ocb_inner = 0; ocb_inner < nboc_inner;
                             ocb_inner += ocb_inner_step) {
@@ -584,11 +556,7 @@ void jit_aarch64_sve_512_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
                         kernel_->jit_ker(&p);
                     }
                     if (pd()->rtus_.reduce_src_){
-#if 1
-                        assert(!"Unsupported rtus in bwd data");
-#else
                         rtus_driver_->ker_(&rp);
-#endif
                     }
                 }
             }
