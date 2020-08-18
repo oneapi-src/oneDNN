@@ -44,8 +44,8 @@ namespace xa = Xbyak::Xbyak_aarch64;
 /* Get vector offsets, ofs / VL(VL: 512bits = 64Bytes) */
 #define VL_OFS(ofs) ((ofs)>>6)
 
-struct jit_aarch64_sve512_1x1_conv_kernel : public jit_generator {
-    jit_aarch64_sve512_1x1_conv_kernel(
+struct jit_aarch64_sve_512_1x1_conv_kernel : public jit_generator {
+    jit_aarch64_sve_512_1x1_conv_kernel(
             const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
 #if 1
         : jcp(ajcp), attr_(attr) {
@@ -64,13 +64,13 @@ struct jit_aarch64_sve512_1x1_conv_kernel : public jit_generator {
         jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode32();
     }
 
-    ~jit_aarch64_sve512_1x1_conv_kernel() { 
+    ~jit_aarch64_sve_512_1x1_conv_kernel() { 
 #if 0
         delete eltwise_injector_; 
 #endif
     }
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_aarch64_sve512_1x1_conv_kernel)
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_aarch64_sve_512_1x1_conv_kernel)
 
     static bool post_ops_ok(
             jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
