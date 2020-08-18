@@ -42,7 +42,7 @@ html_context = {
     'github_host': 'gitlab.devtools.intel.com/',
     'github_user': 'llga',
     'github_repo': 'llga-spec',
-    'github_version': 'dszwicht/spec_migration/source/'
+    'github_version': 'master/source/'
 }
 
 pygments_style = None
