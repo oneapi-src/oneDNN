@@ -339,7 +339,10 @@ typedef enum {
 
 /* Allocating 5 bits for multiple post ops support. This arg will be used as a
  * prefix to an actual argument. */
-#define DNNL_ARG_ATTR_MULTIPLE_POST_OP 2 << 13 /* 16384 */
+#define DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE 2 << 13 /* 16384 */
+
+#define DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) \
+    (DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE * ((idx) + 1))
 
 
 /* dnnl.h */
