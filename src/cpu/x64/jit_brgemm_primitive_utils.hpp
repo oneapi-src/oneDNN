@@ -27,6 +27,8 @@
 #include "cpu/x64/jit_brgemm_primitive_conf.hpp"
 
 #define BRGEMM_BWD_D_GLOBAL_B_TRANSPOSE
+#define BRGEMM_GLOBAL_A_TRANSPOSE
+#define BRGEMM_GLOBAL_B_TRANSPOSE
 
 namespace dnnl {
 namespace impl {

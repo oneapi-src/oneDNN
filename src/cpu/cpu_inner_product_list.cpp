@@ -40,6 +40,7 @@ static const pd_create_f impl_list[] = {
         /* f32 */
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<f32>)
         CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<f32>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<f32>)
         CPU_INSTANCE(gemm_inner_product_fwd_t<f32>)
         CPU_INSTANCE(gemm_inner_product_bwd_data_t<f32>)
         CPU_INSTANCE(gemm_inner_product_bwd_weights_t<f32>)
@@ -51,6 +52,8 @@ static const pd_create_f impl_list[] = {
         CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<bf16>)
         CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<f32, bf16, bf16>)
         CPU_INSTANCE_X64(brgemm_inner_product_bwd_data_t<bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<bf16, f32, bf16>)
+        CPU_INSTANCE_X64(brgemm_inner_product_bwd_weights_t<bf16>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_fwd_t<f32>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_fwd_t<bf16>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_data_t<f32>)

@@ -183,6 +183,55 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     return status::success;
 }
 
+status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
+    jbgp.use_buffer = jbgp.wei_dt != jbgp.acc_dt;
+    jbgp.use_buffer_a = true;
+    jbgp.use_buffer_b = jbgp.dst_dt == bf16;
+
+    jbgp.ic_block = jbgp.simd_w;
+    if (jbgp.oc >= 4 * jbgp.simd_w) {
+        jbgp.oc_block = 4 * jbgp.simd_w;
+    } else if (jbgp.oc >= 2 * jbgp.simd_w) {
+        jbgp.oc_block = 2 * jbgp.simd_w;
+    } else {
+        jbgp.oc_block = jbgp.simd_w;
+    }
+
+    jbgp.nb_ic = utils::div_up(jbgp.ic, jbgp.ic_block);
+    jbgp.nb_oc = utils::div_up(jbgp.oc, jbgp.oc_block);
+    jbgp.nb_oc_blocking = 1;
+    jbgp.nb_ic_blocking = jbgp.nb_ic % 2 ? 1 : 2;
+
+    jbgp.os = jbgp.mb;
+    jbgp.os_block = 16;
+    jbgp.nb_os = utils::div_up(jbgp.os, jbgp.os_block);
+
+    // Configure matrix sizes
+    jbgp.M = jbgp.ic_block;
+    jbgp.M_tail = jbgp.ic % jbgp.ic_block;
+
+    jbgp.N = jbgp.oc_block;
+    jbgp.N_tail = jbgp.oc % jbgp.oc_block;
+    jbgp.K = jbgp.os_block;
+    jbgp.K_tail = jbgp.os % jbgp.os_block;
+
+    jbgp.LDA = jbgp.K;
+    jbgp.LDB = (jbgp.use_buffer_b) ? jbgp.N : jbgp.oc_without_padding;
+    jbgp.LDC = jbgp.LDD = jbgp.N;
+
+    jbgp.nb_os_blocking = 1;
+    int os_blocking_max = 64;
+    for (int bl = os_blocking_max; bl >= 1; bl--)
+        if (jbgp.nb_os % bl == 0) {
+            jbgp.nb_os_blocking = bl;
+            break;
+        }
+
+    jbgp.gemm_batch_size = jbgp.nb_os_blocking;
+
+    return status::success;
+}
+
 status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
         const inner_product_desc_t &ipd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
@@ -298,6 +347,7 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
         case forward_training:
         case forward_inference: return init_ip_conf_fwd(jbgp, attr);
         case backward_data: return init_ip_conf_bwd_d(jbgp);
+        case backward_weights: return init_ip_conf_bwd_w(jbgp);
         default: assert(!"invalid prop_kind"); return invalid_arguments;
     }
 }
@@ -316,6 +366,35 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 types::data_type_size(jbgp.acc_dt));
     }
 
+    if (jbgp.use_buffer_a) {
+#ifndef BRGEMM_GLOBAL_A_TRANSPOSE
+        scratchpad.book(key_brgemm_primitive_buffer_a,
+                jbgp.nthr * jbgp.gemm_batch_size * jbgp.LDA * jbgp.M,
+                types::data_type_size(jbgp.src_dt));
+#else
+        scratchpad.book(key_brgemm_primitive_buffer_a,
+                (dim_t)jbgp.nb_ic * jbgp.ic_block
+                        * utils::rnd_up(jbgp.nb_os, jbgp.nb_os_blocking)
+                        * jbgp.os_block,
+                types::data_type_size(jbgp.src_dt));
+
+#endif
+    }
+
+    if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_weights) {
+#ifndef BRGEMM_GLOBAL_B_TRANSPOSE
+        scratchpad.book(key_brgemm_primitive_buffer_b,
+                jbgp.nthr * jbgp.gemm_batch_size * jbgp.LDB * rnd_up(jbgp.K, 2),
+                types::data_type_size(jbgp.dst_dt));
+#else
+        scratchpad.book(key_brgemm_primitive_buffer_b,
+                (dim_t)jbgp.nb_oc * jbgp.oc_block
+                        * utils::rnd_up(jbgp.nb_os, jbgp.nb_os_blocking)
+                        * jbgp.os_block,
+                types::data_type_size(jbgp.dst_dt));
+#endif
+    }
+
     if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_data) {
         int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
 #ifndef BRGEMM_BWD_D_GLOBAL_B_TRANSPOSE
@@ -327,6 +406,12 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 (dim_t)jbgp.nb_oc * jbgp.nb_ic * size_B,
                 types::data_type_size(jbgp.wei_dt));
 #endif
+    }
+
+    if (jbgp.prop_kind == dnnl_backward_weights && jbgp.with_bias
+            && jbgp.bia_dt == bf16) {
+        scratchpad.book(key_iprod_bias_bf16_convert_wsp, jbgp.oc,
+                types::data_type_size(jbgp.acc_dt));
     }
 }
 

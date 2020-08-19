@@ -427,6 +427,408 @@ template struct brgemm_inner_product_bwd_data_t<f32>;
 template struct brgemm_inner_product_bwd_data_t<bf16>;
 template struct brgemm_inner_product_bwd_data_t<f32, bf16, bf16>;
 
+template <data_type_t src_type, data_type_t diff_wei_type,
+        data_type_t diff_dst_type>
+void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
+        diff_dst_type>::execute_backward_weights(const exec_ctx_t &ctx) const {
+
+    auto src_ = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto diff_dst_ = CTX_IN_MEM(diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto diff_weights_ = CTX_OUT_MEM(diff_wei_data_t *, DNNL_ARG_DIFF_WEIGHTS);
+    auto diff_bias_ = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_BIAS);
+
+    auto src = const_cast<src_data_t *>(src_);
+    auto diff_dst = const_cast<diff_dst_data_t *>(diff_dst_);
+    auto diff_weights = const_cast<diff_wei_data_t *>(diff_weights_);
+
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper diff_weights_d(pd()->diff_weights_md(0));
+
+    const auto &jbgp = pd()->jbgp_;
+    const size_t bia_dt_size
+            = jbgp.with_bias ? types::data_type_size(jbgp.bia_dt) : 0;
+    const size_t acc_dt_size = types::data_type_size(jbgp.acc_dt);
+
+    memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
+    src_data_t **addr_A_global = scratchpad.template get<src_data_t *>(
+            key_brgemm_primitive_addr_a);
+    diff_dst_data_t **addr_B_global
+            = scratchpad.template get<diff_dst_data_t *>(
+                    key_brgemm_primitive_addr_b);
+    char *c_buffer_global = (jbgp.use_buffer)
+            ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
+            : nullptr;
+
+    char *bias_buffer = (jbgp.with_bias && jbgp.bia_dt == data_type::bf16)
+            ? scratchpad.template get<char>(key_iprod_bias_bf16_convert_wsp)
+            : nullptr;
+
+    src_data_t *a_buffer_global = scratchpad.template get<src_data_t>(
+            key_brgemm_primitive_buffer_a);
+    diff_dst_data_t *b_buffer_global = jbgp.use_buffer_b
+            ? scratchpad.template get<diff_dst_data_t>(
+                    key_brgemm_primitive_buffer_b)
+            : nullptr;
+
+    int oc_chunks = jbgp.nb_oc / jbgp.nb_oc_blocking;
+    int ic_chunks = jbgp.nb_ic / jbgp.nb_ic_blocking;
+    int os_chunks = utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking);
+
+    const auto ker = [&](const int ithr, int osc, int icb, int ocb) {
+        src_data_t **addr_A = addr_A_global + ithr * 16 * jbgp.gemm_batch_size;
+        diff_dst_data_t **addr_B
+                = addr_B_global + ithr * 16 * jbgp.gemm_batch_size;
+        const int size_A = jbgp.LDA * jbgp.M;
+        const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
+#ifndef BRGEMM_GLOBAL_A_TRANSPOSE
+        src_data_t *a_buffer
+                = a_buffer_global + ithr * jbgp.gemm_batch_size * size_A;
+#else
+        src_data_t *a_buffer = a_buffer_global
+                + (dim_t)icb * jbgp.gemm_batch_size * jbgp.ic_block
+                        * jbgp.os_block
+                + (dim_t)osc * jbgp.gemm_batch_size * jbgp.nb_ic * jbgp.ic_block
+                        * jbgp.os_block;
+#endif
+#ifndef BRGEMM_GLOBAL_B_TRANSPOSE
+        diff_dst_data_t *b_buffer
+                = b_buffer_global + ithr * jbgp.gemm_batch_size * size_B;
+#else
+        diff_dst_data_t *b_buffer = b_buffer_global
+                + (dim_t)ocb * jbgp.gemm_batch_size * jbgp.oc_block
+                        * jbgp.os_block
+                + (dim_t)osc * jbgp.gemm_batch_size * jbgp.nb_oc * jbgp.oc_block
+                        * jbgp.os_block;
+#endif
+
+        char *c_buffer = (jbgp.use_buffer) ? c_buffer_global
+                        + ithr * types::data_type_size(jbgp.acc_dt) * jbgp.LDC
+                                * jbgp.M
+                                           : nullptr;
+
+        int ic = icb * jbgp.ic_block;
+        int oc = ocb * jbgp.oc_block;
+        int n = osc * jbgp.nb_os_blocking * jbgp.os_block;
+
+        bool kernel_init = (n == 0);
+
+        bool is_os_tail = (jbgp.mb - n < jbgp.os_block * jbgp.nb_os_blocking);
+        bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block);
+        bool is_oc_tail = (jbgp.oc - oc < jbgp.oc_block);
+
+        bool add_post_ops = true && osc == (os_chunks - 1);
+
+        auto nb_os_b = is_os_tail ? (jbgp.mb - n) / jbgp.os_block
+                                  : jbgp.nb_os_blocking;
+
+        auto brg_kernel = brg_kernels[pd()->get_brg_kernel_idx(kernel_init,
+                                              is_ic_tail, is_oc_tail, false)]
+                                  .get();
+        if (nb_os_b > 0 && brg_kernel != nullptr) {
+#ifndef BRGEMM_GLOBAL_A_TRANSPOSE
+            if (jbgp.use_buffer_a) {
+                auto ctx = jit_brgemm_trans_src_t::ctx_t();
+                auto src_ptr = src + src_d.blk_off(n, ic);
+                auto a_ptr = a_buffer;
+                ctx.src = (void *)src_ptr;
+                ctx.tr_src = (void *)a_ptr;
+                ctx.current_gemm_batch = nb_os_b;
+                ctx.current_M
+                        = is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block;
+                ctx.current_K = jbgp.os_block;
+                (*trans_A_kernel_)(&ctx);
+            }
+#endif
+
+#ifndef BRGEMM_GLOBAL_B_TRANSPOSE
+            if (jbgp.use_buffer_b) {
+                auto ctx = jit_brgemm_trans_to_vnni_t::ctx_t();
+                auto diff_dst_ptr = diff_dst + diff_dst_d.blk_off(n, oc);
+                auto b_ptr = b_buffer;
+                ctx.src = (void *)diff_dst_ptr;
+                ctx.tr_src = (void *)b_ptr;
+                ctx.current_gemm_batch = nb_os_b;
+                ctx.current_col_size
+                        = is_oc_tail ? jbgp.oc % jbgp.oc_block : jbgp.oc_block;
+                ctx.current_row_size = jbgp.os_block;
+                (*trans_B_kernel_)(&ctx);
+            }
+#endif
+
+            for (int os_block = 0; os_block < nb_os_b; os_block++) {
+                auto a_ptr = a_buffer + os_block * size_A;
+                addr_A[os_block] = a_ptr;
+                auto diff_dst_ptr = diff_dst
+                        + diff_dst_d.blk_off(n + os_block * jbgp.os_block, oc);
+                if (jbgp.use_buffer_b) {
+                    auto b_ptr = b_buffer + os_block * size_B;
+                    addr_B[os_block] = b_ptr;
+                } else {
+                    addr_B[os_block] = diff_dst_ptr;
+                }
+                if (jbgp.with_bias && icb == 0) {
+                    brgemm_kernel_diff_bias_t p;
+                    auto bias_ptr = diff_bias_ + bia_dt_size * oc;
+                    auto bias_acc_ptr = jbgp.bia_dt == data_type::bf16
+                            ? bias_buffer + acc_dt_size * oc
+                            : bias_ptr;
+                    p.ptr_diff_dst = (void *)addr_B[os_block];
+                    p.ptr_diff_bias_acc = (void *)bias_acc_ptr;
+                    p.ptr_diff_bias = (void *)bias_ptr;
+                    bool is_first = osc == 0 && os_block == 0;
+                    bool is_last = osc == os_chunks - 1
+                            && os_block == nb_os_b - 1 && !is_os_tail;
+                    p.flags = 0 | (is_first ? FLAG_REDUCE_FIRST : 0)
+                            | (is_last ? FLAG_REDUCE_LAST : 0);
+
+                    (*kernels_db_[false][is_oc_tail])(&p);
+                }
+            }
+
+            char *ptr_C = (jbgp.use_buffer) ? c_buffer
+                                            : (char *)diff_weights
+                            + sizeof(diff_wei_data_t)
+                                    * diff_weights_d.blk_off(ocb, icb);
+            brgemm_kernel_execute(brg_kernel, nb_os_b, (void **)addr_A,
+                    (void **)addr_B, (void *)ptr_C);
+        }
+
+        if (is_os_tail) {
+            int os_block = nb_os_b;
+            auto a_ptr = &a_buffer[os_block * jbgp.ic_block * jbgp.os_block];
+            if (jbgp.use_buffer_a) {
+#ifndef BRGEMM_GLOBAL_A_TRANSPOSE
+                auto ctx = jit_brgemm_trans_src_t::ctx_t();
+                ctx.src = (void *)src_ptr;
+                ctx.tr_src = (void *)a_ptr;
+                ctx.current_gemm_batch = 1;
+                ctx.current_M
+                        = is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block;
+                ctx.current_K = n_elements;
+                (*trans_A_kernel_)(&ctx);
+#endif
+            }
+
+            addr_A[0] = a_ptr;
+            auto diff_dst_ptr = diff_dst
+                    + diff_dst_d.blk_off(n + os_block * jbgp.os_block, oc);
+            if (jbgp.use_buffer_b) {
+                auto b_ptr
+                        = &b_buffer[os_block * jbgp.oc_block * jbgp.os_block];
+#ifndef BRGEMM_GLOBAL_B_TRANSPOSE
+                {
+                    auto ctx = jit_brgemm_trans_to_vnni_t::ctx_t();
+                    ctx.src = (void *)diff_dst_ptr;
+                    ctx.tr_src = (void *)b_ptr;
+                    ctx.current_gemm_batch = 1;
+                    ctx.current_col_size = is_oc_tail ? jbgp.oc % jbgp.oc_block
+                                                      : jbgp.oc_block;
+                    ctx.current_row_size = n_elements;
+                    (*trans_B_kernel_)(&ctx);
+                }
+#endif
+                addr_B[0] = b_ptr;
+            } else {
+                addr_B[0] = diff_dst_ptr;
+            }
+            if (jbgp.with_bias && icb == 0) {
+                brgemm_kernel_diff_bias_t p;
+                auto bias_ptr = diff_bias_ + bia_dt_size * oc;
+                auto bias_acc_ptr = jbgp.bia_dt == data_type::bf16
+                        ? bias_buffer + acc_dt_size * oc
+                        : bias_ptr;
+                p.ptr_diff_dst = (void *)addr_B[0];
+                p.ptr_diff_bias_acc = (void *)bias_acc_ptr;
+                p.ptr_diff_bias = (void *)bias_ptr;
+                bool is_first = osc == 0 && os_block == 0;
+                bool is_last = osc == os_chunks - 1;
+                p.flags = 0 | (is_first ? FLAG_REDUCE_FIRST : 0)
+                        | (is_last ? FLAG_REDUCE_LAST : 0);
+
+                (*kernels_db_[true][is_oc_tail])(&p);
+            }
+
+            auto use_init_ker = (kernel_init && nb_os_b == 0);
+            auto brg_kernel_os_tail
+                    = brg_kernels[pd()->get_brg_kernel_idx(use_init_ker,
+                                          is_ic_tail, is_oc_tail, true)]
+                              .get();
+
+            char *ptr_C = (jbgp.use_buffer) ? c_buffer
+                                            : (char *)diff_weights
+                            + sizeof(diff_wei_data_t)
+                                    * diff_weights_d.blk_off(ocb, icb);
+
+            if (brg_kernel_os_tail != nullptr)
+                brgemm_kernel_execute(brg_kernel_os_tail, 1, (void **)addr_A,
+                        (void **)addr_B, (void *)ptr_C);
+        }
+
+        if (jbgp.use_buffer && add_post_ops) {
+            auto ptr_C = diff_weights + diff_weights_d.blk_off(ocb, icb);
+            auto ctx = jit_brgemm_trans_to_vnni_t::ctx_t();
+            ctx.src = (void *)c_buffer;
+            ctx.tr_src = (void *)ptr_C;
+            ctx.current_gemm_batch = 1;
+            ctx.current_col_size
+                    = is_oc_tail ? jbgp.oc % jbgp.oc_block : jbgp.oc_block;
+            ctx.current_row_size
+                    = is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block;
+            (*trans_C_kernel_)(&ctx);
+        }
+    };
+
+#if defined(BRGEMM_GLOBAL_A_TRANSPOSE)
+    if (jbgp.use_buffer_a) {
+        parallel(0, [&](const int ithr, const int nthr) {
+            int start {0}, end {0};
+            int transp_work_amount = os_chunks * jbgp.nb_ic;
+            balance211(transp_work_amount, nthr, ithr, start, end);
+            int icb, osc;
+            nd_iterator_init(start, osc, os_chunks, icb, jbgp.nb_ic);
+
+            while (start < end) {
+                int n = osc * jbgp.nb_os_blocking * jbgp.os_block;
+                int ic = icb * jbgp.ic_block;
+                bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block);
+                int batch_to_process = jbgp.mb - n;
+                bool is_os_tail = (batch_to_process
+                        < jbgp.os_block * jbgp.nb_os_blocking);
+                auto nb_os_b = is_os_tail ? batch_to_process / jbgp.os_block
+                                          : jbgp.nb_os_blocking;
+                auto os_tail
+                        = is_os_tail ? batch_to_process % jbgp.os_block : 0;
+
+                src_data_t *a_buffer = a_buffer_global
+                        + (dim_t)icb * jbgp.gemm_batch_size * jbgp.ic_block
+                                * jbgp.os_block
+                        + (dim_t)osc * jbgp.gemm_batch_size * jbgp.nb_ic
+                                * jbgp.ic_block * jbgp.os_block;
+                if (nb_os_b > 0) {
+                    auto ctx = jit_brgemm_trans_src_t::ctx_t();
+                    auto src_ptr = src + src_d.blk_off(n, ic);
+                    auto a_ptr = a_buffer;
+                    ctx.src = (void *)src_ptr;
+                    ctx.tr_src = (void *)a_ptr;
+                    ctx.current_gemm_batch = nb_os_b;
+                    ctx.current_M = is_ic_tail ? jbgp.ic % jbgp.ic_block
+                                               : jbgp.ic_block;
+                    ctx.current_K = jbgp.os_block;
+                    (*trans_A_kernel_)(&ctx);
+                }
+                if (os_tail > 0) {
+                    auto ctx = jit_brgemm_trans_src_t::ctx_t();
+                    auto src_ptr = src
+                            + src_d.blk_off(n + nb_os_b * jbgp.os_block, ic);
+                    auto a_ptr = &a_buffer[nb_os_b * jbgp.ic_block
+                            * jbgp.os_block];
+                    ctx.src = (void *)src_ptr;
+                    ctx.tr_src = (void *)a_ptr;
+                    ctx.current_gemm_batch = 1;
+                    ctx.current_M = is_ic_tail ? jbgp.ic % jbgp.ic_block
+                                               : jbgp.ic_block;
+                    ctx.current_K = os_tail;
+                    (*trans_A_kernel_)(&ctx);
+                }
+
+                ++start;
+                nd_iterator_step(osc, os_chunks, icb, jbgp.nb_ic);
+            }
+        });
+    }
+#endif
+
+#if defined(BRGEMM_GLOBAL_B_TRANSPOSE)
+    if (jbgp.use_buffer_b) {
+        parallel(0, [&](const int ithr, const int nthr) {
+            int start {0}, end {0};
+            int transp_work_amount = os_chunks * jbgp.nb_oc;
+            balance211(transp_work_amount, nthr, ithr, start, end);
+            int ocb, osc;
+            nd_iterator_init(start, osc, os_chunks, ocb, jbgp.nb_oc);
+            while (start < end) {
+                int n = osc * jbgp.nb_os_blocking * jbgp.os_block;
+                int oc = ocb * jbgp.oc_block;
+                bool is_oc_tail = (jbgp.oc - oc < jbgp.oc_block);
+                int batch_to_process = jbgp.mb - n;
+                bool is_os_tail = (batch_to_process
+                        < jbgp.os_block * jbgp.nb_os_blocking);
+                auto nb_os_b = is_os_tail ? batch_to_process / jbgp.os_block
+                                          : jbgp.nb_os_blocking;
+                auto os_tail
+                        = is_os_tail ? batch_to_process % jbgp.os_block : 0;
+
+                diff_dst_data_t *b_buffer = b_buffer_global
+                        + (dim_t)ocb * jbgp.gemm_batch_size * jbgp.oc_block
+                                * jbgp.os_block
+                        + (dim_t)osc * jbgp.gemm_batch_size * jbgp.nb_oc
+                                * jbgp.oc_block * jbgp.os_block;
+                if (nb_os_b > 0) {
+                    auto ctx = jit_brgemm_trans_to_vnni_t::ctx_t();
+                    auto diff_dst_ptr = diff_dst + diff_dst_d.blk_off(n, oc);
+                    auto b_ptr = b_buffer;
+                    ctx.src = (void *)diff_dst_ptr;
+                    ctx.tr_src = (void *)b_ptr;
+                    ctx.current_gemm_batch = nb_os_b;
+                    ctx.current_col_size = is_oc_tail ? jbgp.oc % jbgp.oc_block
+                                                      : jbgp.oc_block;
+                    ctx.current_row_size = jbgp.os_block;
+                    (*trans_B_kernel_)(&ctx);
+                }
+
+                if (os_tail > 0) {
+                    auto ctx = jit_brgemm_trans_to_vnni_t::ctx_t();
+                    auto diff_dst_ptr = diff_dst
+                            + diff_dst_d.blk_off(
+                                    n + nb_os_b * jbgp.os_block, oc);
+                    auto b_ptr = &b_buffer[nb_os_b * jbgp.oc_block
+                            * jbgp.os_block];
+
+                    ctx.src = (void *)diff_dst_ptr;
+                    ctx.tr_src = (void *)b_ptr;
+                    ctx.current_gemm_batch = 1;
+                    ctx.current_col_size = is_oc_tail ? jbgp.oc % jbgp.oc_block
+                                                      : jbgp.oc_block;
+                    ctx.current_row_size = os_tail;
+                    (*trans_B_kernel_)(&ctx);
+                }
+
+                ++start;
+                nd_iterator_step(osc, os_chunks, ocb, jbgp.nb_oc);
+            }
+        });
+    }
+#endif
+
+    int work_amount = oc_chunks * ic_chunks;
+
+    parallel(0, [&](const int ithr, const int nthr) {
+        if (ithr >= work_amount) return;
+
+        int start {0}, end {0};
+        balance211(work_amount, nthr, ithr, start, end);
+
+        int icc {0}, occ {0};
+
+        nd_iterator_init(start, occ, oc_chunks, icc, ic_chunks);
+        while (start < end) {
+            for_(int ocb = 0; ocb < jbgp.nb_oc_blocking; ocb++)
+            for_(int icb = 0; icb < jbgp.nb_ic_blocking; icb++)
+            for (int osc = 0; osc < os_chunks; osc++) {
+                ker(ithr, osc, icc * jbgp.nb_ic_blocking + icb,
+                        occ * jbgp.nb_oc_blocking + ocb);
+            }
+            ++start;
+            nd_iterator_step(occ, oc_chunks, icc, ic_chunks);
+        }
+    });
+}
+
+template struct brgemm_inner_product_bwd_weights_t<f32>;
+template struct brgemm_inner_product_bwd_weights_t<bf16>;
+template struct brgemm_inner_product_bwd_weights_t<bf16, f32, bf16>;
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl
