@@ -10,6 +10,7 @@ oneDNN Graph Library
    general.rst
    architecture.rst
    programming_model.rst
+   op_definitions.rst
    quantization.rst
    target_fusion_patterns.rst
    code.rst

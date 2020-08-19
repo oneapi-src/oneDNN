@@ -2,7 +2,7 @@
 Code
 ====
 
-`LLGA on gitlab <https://gitlab.devtools.intel.com/pytorch-ats/llga>`_
+`LLGA on gitlab <https://gitlab.devtools.intel.com/pytorch-ats/llga>`__
 
 Both the Spec and the code is still under development, so it may not reflect what we put in the spec. A few note below:
 
