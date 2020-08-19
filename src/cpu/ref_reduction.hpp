@@ -64,9 +64,9 @@ private:
     status_t execute_ref(const exec_ctx_t &ctx) const;
 
     void accumulate(
-            dst_t &dst, const src_t &src, alg_kind_t alg_kind, float p) const;
+            acc_t &acc, const src_t &src, alg_kind_t alg_kind, float p) const;
     void finalize(
-            dst_t &dst, alg_kind_t alg, float p, float eps, dim_t n) const;
+            acc_t &acc, alg_kind_t alg, float p, float eps, dim_t n) const;
     void init_acc(acc_t &acc, alg_kind_t alg) const;
 };
 

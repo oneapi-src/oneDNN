@@ -53,19 +53,22 @@ void ref_reduction_t<src_type, dst_type, acc_type>::init_acc(
 
 template <data_type_t src_type, data_type_t dst_type, data_type_t acc_type>
 void ref_reduction_t<src_type, dst_type, acc_type>::accumulate(
-        dst_t &dst, const src_t &src, alg_kind_t alg, float p) const {
+        acc_t &acc, const src_t &src, alg_kind_t alg, float p) const {
     using namespace alg_kind;
+
+    acc_t src_ = static_cast<acc_t>(src);
+
     switch (alg) {
-        case reduction_max: dst = nstl::max(dst, src); break;
-        case reduction_min: dst = nstl::min(dst, src); break;
+        case reduction_max: acc = nstl::max(acc, src_); break;
+        case reduction_min: acc = nstl::min(acc, src_); break;
         case reduction_mean:
-        case reduction_sum: dst += src; break;
-        case reduction_mul: dst *= src; break;
+        case reduction_sum: acc += src_; break;
+        case reduction_mul: acc *= src_; break;
         case reduction_norm_lp_max:
         case reduction_norm_lp_sum:
         case reduction_norm_lp_power_p_max:
         case reduction_norm_lp_power_p_sum:
-            dst += powf(nstl::abs(src), p);
+            acc += powf(nstl::abs(src_), p);
             break;
         default: assert(!"unknown alg");
     }
@@ -73,22 +76,27 @@ void ref_reduction_t<src_type, dst_type, acc_type>::accumulate(
 
 template <data_type_t src_type, data_type_t dst_type, data_type_t acc_type>
 void ref_reduction_t<src_type, dst_type, acc_type>::finalize(
-        dst_t &dst, alg_kind_t alg, float p, float eps, dim_t n) const {
+        acc_t &acc, alg_kind_t alg, float p, float eps, dim_t n) const {
     using namespace alg_kind;
+
+    float acc_f32 = static_cast<float>(acc);
     switch (alg) {
-        case reduction_mean: dst /= n; break;
+        case reduction_mean: acc_f32 /= n; break;
         case reduction_norm_lp_max:
-            dst = nstl::max(dst, eps);
-            dst = powf(dst, 1.0f / p);
+            acc_f32 = nstl::max(acc_f32, eps);
+            acc_f32 = powf(acc_f32, 1.0f / p);
             break;
         case reduction_norm_lp_sum:
-            dst += eps;
-            dst = powf(dst, 1.0f / p);
+            acc_f32 += eps;
+            acc_f32 = powf(acc_f32, 1.0f / p);
             break;
-        case reduction_norm_lp_power_p_max: dst = nstl::max(dst, eps); break;
-        case reduction_norm_lp_power_p_sum: dst += eps; break;
+        case reduction_norm_lp_power_p_max:
+            acc_f32 = nstl::max(acc_f32, eps);
+            break;
+        case reduction_norm_lp_power_p_sum: acc_f32 += eps; break;
         default: break;
     }
+    acc = static_cast<acc_t>(acc_f32);
 }
 
 template <data_type_t src_type, data_type_t dst_type, data_type_t acc_type>
@@ -134,7 +142,7 @@ status_t ref_reduction_t<src_type, dst_type, acc_type>::execute_ref(
             accumulate(acc, src[src_off], alg, p);
         }
         finalize(acc, alg, p, eps, reduce_size);
-        dst[dst_off] = out_round<dst_t>(acc);
+        dst[dst_off] = saturate_and_round<dst_t>(acc);
     });
 
     return status::success;
@@ -142,6 +150,14 @@ status_t ref_reduction_t<src_type, dst_type, acc_type>::execute_ref(
 
 using namespace data_type;
 template struct ref_reduction_t<f32, f32, f32>;
+template struct ref_reduction_t<bf16, bf16, f32>;
+template struct ref_reduction_t<bf16, f32, f32>;
+template struct ref_reduction_t<s8, s8, s32>;
+template struct ref_reduction_t<s8, s32, s32>;
+template struct ref_reduction_t<s8, f32, f32>;
+template struct ref_reduction_t<u8, u8, s32>;
+template struct ref_reduction_t<u8, s32, s32>;
+template struct ref_reduction_t<u8, f32, f32>;
 
 } // namespace cpu
 } // namespace impl
