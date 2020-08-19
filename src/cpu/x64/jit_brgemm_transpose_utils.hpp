@@ -24,6 +24,51 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+struct jit_brgemm_trans_src_t {
+    struct ctx_t {
+        const void *src;
+        const void *tr_src;
+
+        dim_t current_gemm_batch;
+        dim_t current_M, current_K;
+    };
+
+    virtual void operator()(ctx_t *ctx) = 0;
+    virtual status_t create_kernel() = 0;
+
+    jit_brgemm_trans_src_t(const jit_brgemm_primitive_conf_t *conf)
+        : conf_(conf) {}
+    virtual ~jit_brgemm_trans_src_t() {}
+
+    const jit_brgemm_primitive_conf_t *conf_;
+};
+
+struct jit_brgemm_trans_to_vnni_t {
+    struct ctx_t {
+        const void *src;
+        const void *tr_src;
+
+        dim_t current_gemm_batch;
+        dim_t current_col_size, current_row_size;
+    };
+
+    typedef enum matrix_to_transform {
+        matrix_B,
+        matrix_C
+    } matrix_to_transform_t;
+
+    virtual void operator()(ctx_t *ctx) = 0;
+    virtual status_t create_kernel() = 0;
+
+    jit_brgemm_trans_to_vnni_t(const jit_brgemm_primitive_conf_t *conf,
+            matrix_to_transform_t matrix_to_transform)
+        : conf_(conf), matrix_to_transform_(matrix_to_transform) {}
+    virtual ~jit_brgemm_trans_to_vnni_t() {}
+
+    const jit_brgemm_primitive_conf_t *conf_;
+    matrix_to_transform_t matrix_to_transform_;
+};
+
 struct jit_brgemm_trans_wei_t {
     struct ctx_t {
         const void *src;
@@ -43,6 +88,13 @@ struct jit_brgemm_trans_wei_t {
     const jit_brgemm_primitive_conf_t *conf_;
 };
 
+status_t create_brgemm_trans_src(
+        std::unique_ptr<jit_brgemm_trans_src_t> &trans_ker,
+        const jit_brgemm_primitive_conf_t *conf);
+status_t create_brgemm_trans_to_vnni(
+        std::unique_ptr<jit_brgemm_trans_to_vnni_t> &trans_ker,
+        const jit_brgemm_primitive_conf_t *conf,
+        jit_brgemm_trans_to_vnni_t::matrix_to_transform_t matrix_to_transform);
 status_t create_brgemm_trans_wei(
         std::unique_ptr<jit_brgemm_trans_wei_t> &trans_ker,
         const jit_brgemm_primitive_conf_t *conf);

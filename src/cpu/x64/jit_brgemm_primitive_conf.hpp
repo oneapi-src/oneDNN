@@ -72,7 +72,7 @@ struct jit_brgemm_primitive_conf_t {
     int gemm_batch_size;
     brgemm_batch_kind_t brg_type;
     int num_gemm_kernels;
-    int nthr;
+    int nthr, nthr_mb, nthr_oc_b, nthr_ic_b;
 };
 
 } // namespace x64

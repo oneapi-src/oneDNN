@@ -23,6 +23,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_brgemm_inner_product_utils.hpp"
 #include "cpu/x64/jit_generator.hpp"
@@ -184,6 +185,178 @@ status_t init_ip_conf_bwd_d(jit_brgemm_primitive_conf_t &jbgp) {
     return status::success;
 }
 
+void thread_balance(const jit_brgemm_primitive_conf_t &j, int &nb_os_blocking_,
+        int &nthr_, int &nthr_mb_, int &nthr_oc_b_, int &nthr_ic_b_) {
+    nthr_ = nthr_mb_ = nthr_oc_b_ = nthr_ic_b_ = 1;
+    nb_os_blocking_ = j.nb_os_blocking;
+
+    const int max_threads = j.nthr;
+    const int nthr = max_threads;
+    int ic_chunks = j.nb_ic / j.nb_ic_blocking;
+    int oc_chunks = j.nb_oc / j.nb_oc_blocking;
+    auto calc_mem_cost = [=](int nb_os_blocking, int nthr_mb, int nthr_oc,
+                                 int nthr_ic) {
+        int src_size = j.ic * j.mb;
+        int dst_size = j.oc * j.mb;
+        int wei_size = j.ic * j.oc;
+        int os_chunks = utils::div_up(j.nb_os, nb_os_blocking);
+        float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
+        float oi_channels_ratio = (float)src_size / dst_size;
+        auto get_src_coef = [=]() {
+            float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
+            src_coef *= 4 * types::data_type_size(j.src_dt);
+            if (wei_compensation_scale < 1.0f) src_coef *= 4.0f;
+
+            return src_coef;
+        };
+
+        auto get_dst_coef = [=]() {
+            return 2 * types::data_type_size(j.dst_dt)
+                    * nstl::max(oi_channels_ratio, 1.0f);
+        };
+
+        auto get_wei_coef
+                = [=]() { return nstl::max(wei_compensation_scale, 1.0f); };
+
+        float src_tr = 0.0f;
+        if (j.use_buffer_a) {
+            int src_tr_oc_par_work = utils::div_up(os_chunks, nthr_mb)
+                    * utils::div_up(ic_chunks, nthr_ic) * j.nb_ic_blocking;
+            src_tr = get_src_coef() * utils::div_up(src_tr_oc_par_work, nthr_oc)
+                    * nb_os_blocking * j.os_block * j.ic_block;
+        }
+
+        float dst_tr = 0.0f;
+        if (j.use_buffer_b) {
+            int dst_tr_ic_par_work = utils::div_up(os_chunks, nthr_mb)
+                    * utils::div_up(oc_chunks, nthr_oc) * j.nb_oc_blocking;
+            dst_tr = get_dst_coef() * utils::div_up(dst_tr_ic_par_work, nthr_ic)
+                    * nb_os_blocking * j.os_block * j.oc_block;
+        }
+
+        float src_v = get_src_coef() * utils::div_up(os_chunks, nthr_mb)
+                * utils::div_up(ic_chunks, nthr_ic) * nb_os_blocking
+                * j.os_block * j.nb_ic_blocking * j.ic_block;
+        float dst_v = get_dst_coef() * utils::div_up(os_chunks, nthr_mb)
+                * utils::div_up(oc_chunks, nthr_oc) * nb_os_blocking
+                * j.os_block * j.nb_oc_blocking * j.oc_block;
+
+        auto acc_dt_sz = types::data_type_size(j.acc_dt);
+        float wei_v = get_wei_coef() * acc_dt_sz
+                * utils::div_up(oc_chunks, nthr_oc)
+                * utils::div_up(ic_chunks, nthr_ic) * j.nb_oc_blocking
+                * j.oc_block * j.nb_ic_blocking * j.ic_block;
+
+        float wei_r = 0;
+        if (nthr_mb > 1) {
+            auto wei_dt_sz = types::data_type_size(j.wei_dt);
+            int wei_r_mb_par_work = utils::div_up(oc_chunks, nthr_oc)
+                    * utils::div_up(ic_chunks, nthr_ic) * j.nb_oc_blocking
+                    * j.nb_ic_blocking;
+            wei_r = get_wei_coef() * (wei_dt_sz + nthr_mb * acc_dt_sz)
+                    * utils::div_up(wei_r_mb_par_work, nthr_mb) * j.oc_block
+                    * j.ic_block;
+        }
+
+        return src_tr + dst_tr + src_v + dst_v + wei_v + wei_r;
+    };
+
+    float best_mem_cost
+            = calc_mem_cost(nb_os_blocking_, nthr_mb_, nthr_oc_b_, nthr_ic_b_);
+
+    /* find the best thread distribution with lowest memory cost */
+    const int nthr_mb_max = nstl::min(nthr, j.nb_os);
+    for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
+        int nb_os_blocking = j.nb_os_blocking;
+        int os_chunks = utils::div_up(j.nb_os, nb_os_blocking);
+        if (os_chunks < nthr_mb) {
+            int coef = utils::saturate(1, 4, 2 * j.mb / (j.oc + j.ic));
+            int os_blocking_max
+                    = utils::div_up(utils::div_up(j.nb_os, coef), nthr_mb);
+            for (int bl = os_blocking_max; bl >= 1; bl--)
+                if (j.nb_os % bl == 0) {
+                    nb_os_blocking = bl;
+                    break;
+                }
+        }
+
+        const int nthr_par = nthr / nthr_mb;
+        const int nthr_oc_b_max = nstl::min(nthr_par, oc_chunks);
+        for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
+            int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, ic_chunks);
+
+            float mem_cost = calc_mem_cost(
+                    nb_os_blocking, nthr_mb, nthr_oc_b, nthr_ic_b);
+            if (mem_cost <= best_mem_cost) {
+                best_mem_cost = mem_cost;
+                nb_os_blocking_ = nb_os_blocking;
+                nthr_mb_ = nthr_mb;
+                nthr_oc_b_ = nthr_oc_b;
+                nthr_ic_b_ = nthr_ic_b;
+            }
+        }
+    }
+
+    nthr_ = nthr_mb_ * nthr_oc_b_ * nthr_ic_b_;
+}
+
+status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
+    jbgp.ic_block = jbgp.simd_w;
+    if (jbgp.oc >= 4 * jbgp.simd_w) {
+        jbgp.oc_block = 4 * jbgp.simd_w;
+    } else if (jbgp.oc >= 2 * jbgp.simd_w) {
+        jbgp.oc_block = 2 * jbgp.simd_w;
+    } else {
+        jbgp.oc_block = jbgp.simd_w;
+    }
+
+    jbgp.nb_ic = utils::div_up(jbgp.ic, jbgp.ic_block);
+    jbgp.nb_oc = utils::div_up(jbgp.oc, jbgp.oc_block);
+    jbgp.nb_oc_blocking = 1;
+    jbgp.nb_ic_blocking = jbgp.nb_ic % 2 ? 1 : 2;
+
+    jbgp.os = jbgp.mb;
+    jbgp.os_block = 16;
+    jbgp.nb_os = utils::div_up(jbgp.os, jbgp.os_block);
+
+    // Configure matrix sizes
+    jbgp.M = jbgp.ic_block;
+    jbgp.M_tail = jbgp.ic % jbgp.ic_block;
+
+    jbgp.N = jbgp.oc_block;
+    jbgp.N_tail = jbgp.oc % jbgp.oc_block;
+    jbgp.K = jbgp.os_block;
+    jbgp.K_tail = jbgp.os % jbgp.os_block;
+
+    jbgp.nb_os_blocking = 1;
+    int os_blocking_max = 64;
+    for (int bl = os_blocking_max; bl >= 1; bl--)
+        if (jbgp.nb_os % bl == 0) {
+            jbgp.nb_os_blocking = bl;
+            break;
+        }
+
+    int nb_os_blocking, nthr, nthr_mb, nthr_oc, nthr_ic;
+    thread_balance(jbgp, nb_os_blocking, nthr, nthr_mb, nthr_oc, nthr_ic);
+
+    jbgp.nb_os_blocking = nb_os_blocking;
+    jbgp.nthr = nthr;
+    jbgp.nthr_mb = nthr_mb;
+    jbgp.nthr_oc_b = nthr_oc;
+    jbgp.nthr_ic_b = nthr_ic;
+
+    jbgp.gemm_batch_size = jbgp.nb_os_blocking;
+    jbgp.use_buffer = IMPLICATION(jbgp.wei_dt == jbgp.acc_dt, jbgp.nthr_mb > 1);
+    jbgp.use_buffer_a = true;
+    jbgp.use_buffer_b = jbgp.dst_dt == bf16;
+
+    jbgp.LDA = jbgp.K;
+    jbgp.LDB = (jbgp.use_buffer_b) ? jbgp.N : jbgp.oc_without_padding;
+    jbgp.LDC = jbgp.LDD = jbgp.N;
+
+    return status::success;
+}
+
 status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
         const inner_product_desc_t &ipd, const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
@@ -270,6 +443,7 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
         case forward_training:
         case forward_inference: return init_ip_conf_fwd(jbgp, attr);
         case backward_data: return init_ip_conf_bwd_d(jbgp);
+        case backward_weights: return init_ip_conf_bwd_w(jbgp);
         default: assert(!"invalid prop_kind"); return invalid_arguments;
     }
 }
@@ -283,9 +457,34 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         scratchpad.book(key_brgemm_primitive_addr_b, n_elems, sc_size, 64);
     }
     if (jbgp.use_buffer) {
-        scratchpad.book(key_brgemm_primitive_buffer,
-                jbgp.nthr * jbgp.LDC * jbgp.M,
+        size_t nelements = (size_t)jbgp.nthr * jbgp.LDC * jbgp.M;
+        if (jbgp.prop_kind == dnnl_backward_weights && jbgp.nthr_mb > 1) {
+            int n_reduction_buffers = jbgp.nthr_mb - (jbgp.wei_dt == f32);
+            nelements = (size_t)n_reduction_buffers * jbgp.nb_ic * jbgp.ic_block
+                    * jbgp.nb_oc * jbgp.oc_block;
+        }
+        scratchpad.book(key_brgemm_primitive_buffer, nelements,
                 types::data_type_size(jbgp.acc_dt));
+    }
+
+    if (jbgp.use_buffer_a) {
+        int ic_chunks = utils::div_up(
+                utils::div_up(jbgp.nb_ic, jbgp.nb_ic_blocking), jbgp.nthr_ic_b);
+        int os_chunks = utils::div_up(
+                utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
+        scratchpad.book(key_brgemm_primitive_buffer_a,
+                jbgp.nthr * ic_chunks * os_chunks * jbgp.gemm_batch_size
+                        * jbgp.os_block * jbgp.ic_block * jbgp.nb_ic_blocking,
+                types::data_type_size(jbgp.src_dt));
+    }
+
+    if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_weights) {
+        int os_chunks = utils::div_up(
+                utils::div_up(jbgp.nb_os, jbgp.nb_os_blocking), jbgp.nthr_mb);
+        scratchpad.book(key_brgemm_primitive_buffer_b,
+                jbgp.nthr * os_chunks * jbgp.gemm_batch_size * jbgp.os_block
+                        * jbgp.oc_block,
+                types::data_type_size(jbgp.dst_dt));
     }
 
     if (jbgp.use_buffer_b && jbgp.prop_kind == dnnl_backward_data) {
@@ -300,6 +499,17 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 types::data_type_size(jbgp.wei_dt));
 #endif
     }
+
+    if (jbgp.prop_kind == dnnl_backward_weights && jbgp.with_bias
+            && (jbgp.bia_dt == bf16 || jbgp.nthr_mb > 1)) {
+        int nbuffers = jbgp.nthr_mb - (jbgp.bia_dt == f32);
+        scratchpad.book(key_iprod_bias_bf16_convert_wsp, nbuffers * jbgp.oc,
+                types::data_type_size(jbgp.acc_dt));
+    }
+
+    if (dnnl_thr_syncable() && jbgp.prop_kind == dnnl_backward_weights)
+        scratchpad.book<simple_barrier::ctx_t>(
+                key_conv_wei_bia_reduction_bctx, 1);
 }
 
 } // namespace brgemm_inner_product_utils
