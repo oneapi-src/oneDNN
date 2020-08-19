@@ -18,6 +18,8 @@
 
 #if defined(DNNL_WITH_LEVEL_ZERO)
 
+#include <stdio.h>
+
 #if defined(__linux__)
 #include <dlfcn.h>
 #elif defined(_WIN32)
@@ -79,8 +81,10 @@ namespace {
     do { \
         ze_result_t res_ = (f); \
         if (res_ != ZE_RESULT_SUCCESS) { \
-            if (get_verbose()) \
+            if (get_verbose()) { \
                 printf("dnnl_verbose,gpu,ze_error,%d\n", (int)(res_)); \
+                fflush(0); \
+            } \
             return status::runtime_error; \
         } \
     } while (false)
