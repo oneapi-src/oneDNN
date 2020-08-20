@@ -6,7 +6,8 @@ LogSoftmax
 
 **Category**: *Activation*
 
-**Attributes**: 
+**Attributes**:
+
 * *axis*
 
   * **Description**: *axis* represents the axis of which the LogSoftmax is calculated. 

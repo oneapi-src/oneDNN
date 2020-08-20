@@ -8,7 +8,8 @@ ClampBackprop
 
 **Short description**: *ClampBackprop* computes gradient for Clamp
 
-**Attributes**: 
+**Attributes**:
+
 * *min*
 
   * **Description**: *min* is the lower bound of values in the output. Any value in the input that is smaller than the bound, is replaced with the min value. For example, min equal 10 means that any value in the input that is smaller than the bound, is replaced by 10.

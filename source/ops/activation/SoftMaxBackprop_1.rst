@@ -10,7 +10,8 @@ SoftMaxBackprop
 
 **Detailed description**: `Reference <https://github.com/Kulbear/deep-learning-nano-foundation/wiki/ReLU-and-Softmax-Activation-Functions#softmax>`__
 
-**Attributes**: 
+**Attributes**:
+
 * *axis*
 
   * **Description**: *axis* represents the axis of which the Softmax is calculated. 

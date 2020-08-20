@@ -8,7 +8,8 @@ SigmoidBackprop
 
 **Short description**: *SigmoidBackprop* computes gradient for Sigmoid
 
-**Attributes**: 
+**Attributes**:
+
 * *use_dst*
 
   * **Description**: If true, use dst to calculate gradient; else use src.

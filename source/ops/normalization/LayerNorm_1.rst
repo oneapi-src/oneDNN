@@ -6,11 +6,12 @@ LayerNorm
 
 **Category**: *Normalization*
 
-**Short description**: [Reference](https://caffe.berkeleyvision.org/tutorial/layers/lrn.html)
+**Short description**: `Reference <https://caffe.berkeleyvision.org/tutorial/layers/lrn.html>`__
 
 **Attributes**:
 
 * *keep_stats*
+
   * **Description**: *keep_stats* is used to indicate whether to output mean&&var. One typical usage is to pass mean&&var to backword op.
   * **Range of values**: False or True
   * **Type**: boolen
@@ -18,6 +19,7 @@ LayerNorm
   * **Required**: *no*
 
 * *begin_norm_axis*
+
   * **Description**: *begin_norm_axis* is used to indicate which axis to perform layer normalization. Negative values means indexing from right to left. 
   * **Range of values**: integer values
   * **Type**: int
@@ -25,6 +27,7 @@ LayerNorm
   * **Required**: *no*
 
 * *use_affine*
+
   * **Description**: when set to True, this module has learnable per-element affine parameters. 
   * **Range of values**: False or True
   * **Type**: boolen
@@ -32,6 +35,7 @@ LayerNorm
   * **Required**: *no*
 
 * *epsilon*
+
   * **Description**: *epsilon* is a constant to improve numerical stability
   * **Range of values**: a positive floating-point number
   * **Type**: float
@@ -47,7 +51,7 @@ LayerNorm
 
 **Outputs**
 
-* **1**: The result of normalization. A tensor of the same type and shape with 1st input tensor.**Required.**
+* **1**: The result of normalization. A tensor of the same type and shape with 1st input tensor. **Required.**
 * **2**: ``mean`` Output the mean calculated along the given axis. **Optional.**
 * **3**: ``variance`` Output the std calculated along the given axis. **Optional.**
 

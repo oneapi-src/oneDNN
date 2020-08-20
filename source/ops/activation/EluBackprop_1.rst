@@ -8,7 +8,8 @@ EluBackprop
 
 **Short description**: *EluBackprop* computes gradient for Elu
 
-**Attributes**: 
+**Attributes**:
+
 * *alpha*
 
   * **Description**: *alpha* is scale for the negative factor.

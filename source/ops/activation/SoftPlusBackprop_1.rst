@@ -1,6 +1,6 @@
----------------
+----------------
 SoftPlusBackprop
----------------
+----------------
 
 **Versioned name**: *SoftPlusBackprop-1*
 

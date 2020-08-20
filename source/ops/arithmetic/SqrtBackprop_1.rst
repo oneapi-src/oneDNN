@@ -8,7 +8,8 @@ SqrtBackprop
 
 **Short description**: *SqrtBackprop* computes gradient for Sqrt
 
-**Attributes**: 
+**Attributes**:
+
 * *use_dst*
 
   * **Description**: If true, use dst to calculate gradient; else use src.

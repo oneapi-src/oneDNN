@@ -6,7 +6,7 @@ Tanh
 
 **Category**: *Activation*
 
-**Short description**: Tanh element-wise activation function.
+**Short description**: *Tanh* element-wise activation function.
 
 **Inputs**:
 

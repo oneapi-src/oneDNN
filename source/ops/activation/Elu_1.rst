@@ -8,7 +8,8 @@ Elu
 
 **Short description**: Exponential linear unit element-wise activation function.
 
-**Attributes**: 
+**Attributes**:
+
 * *alpha*
 
   * **Description**: *alpha* is scale for the negative factor.

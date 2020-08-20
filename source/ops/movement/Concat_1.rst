@@ -8,7 +8,8 @@ Concat
 
 **Short description**: `Reference <http://caffe.berkeleyvision.org/tutorial/layers/concat.html>`__
 
-**Attributes**: 
+**Attributes**:
+
 * *axis*
 
   * **Description**: *axis* specifies dimension to concatenate along. 
@@ -19,7 +20,7 @@ Concat
 
 **Inputs**:
 
-* **1**: 1..N: Arbitrary number of input tensors of type T. Types of all tensors should match. Rank of all tensors should match. The rank is positive, so scalars as inputs are not allowed. Shapes for all inputs should match at every position except axis position. At least one input is required.**Required.**
+* **1**: 1..N: Arbitrary number of input tensors of type T. Types of all tensors should match. Rank of all tensors should match. The rank is positive, so scalars as inputs are not allowed. Shapes for all inputs should match at every position except axis position. At least one input is required. **Required.**
 
 **Outputs**
 

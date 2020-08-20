@@ -6,11 +6,12 @@ LayerNormBackprop
 
 **Category**: *Normalization*
 
-**Short description**: [Reference](https://caffe.berkeleyvision.org/tutorial/layers/lrn.html)
+**Short description**: `Reference <https://caffe.berkeleyvision.org/tutorial/layers/lrn.html>`__
 
 **Attributes**:
 
 * *begin_norm_axis*
+
   * **Description**: *begin_norm_axis* is used to indicate which axis to perform layer normalization. Negative values means indexing from right to left. 
   * **Range of values**: integer values
   * **Type**: int
@@ -18,6 +19,7 @@ LayerNormBackprop
   * **Required**: *no*
 
 * *use_affine*
+
   * **Description**: *use_affine* when set to True, this module has learnable per-element affine parameters.
   * **Range of values**: False or True
   * **Type**: boolen
@@ -25,6 +27,7 @@ LayerNormBackprop
   * **Required**: *no*
 
 * *epsilon*
+
   * **Description**: *epsilon* is a constant to improve numerical stability
   * **Range of values**: a positive floating-point number
   * **Type**: float
@@ -40,9 +43,9 @@ LayerNormBackprop
 
 **Outputs**
 
-* **1**: ``input_delta`` - the the gradient tensor w.r.t. the output of the layer normolization.**Required.**
-* **2**: ``gamma_delta`` - the the gradient tensor w.r.t. the gamma of the layer normolization.**Optional.**
-* **3**: ``beta_delta`` - the the gradient tensor w.r.t. the beta of the layer normolization.**Optional.**
+* **1**: ``input_delta`` - the the gradient tensor w.r.t. the output of the layer normolization. **Required.**
+* **2**: ``gamma_delta`` - the the gradient tensor w.r.t. the gamma of the layer normolization. **Optional.**
+* **3**: ``beta_delta`` - the the gradient tensor w.r.t. the beta of the layer normolization. **Optional.**
 
 **Types**
 

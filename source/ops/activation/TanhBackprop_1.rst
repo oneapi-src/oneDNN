@@ -8,7 +8,8 @@ TanhBackprop
 
 **Short description**: *TanhBackprop* computes gradient for Tanh
 
-**Attributes**: 
+**Attributes**:
+
 * *use_dst*
 
   * **Description**: If true, use dst to calculate gradient; else use src.
