@@ -98,6 +98,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_matmul.cpp
                               test_resampling.cpp
                               test_global_scratchpad.cpp
+                              test_reduction.cpp
                               )
 
 if(NOT DNNL_USE_CLANG_SANITIZER)
