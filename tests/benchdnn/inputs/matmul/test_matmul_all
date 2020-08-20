@@ -47,3 +47,5 @@
 # bf16
 --batch=test_matmul_bfloat16
 
+# multidim
+--batch=test_matmul_multidims

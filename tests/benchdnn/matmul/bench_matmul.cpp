@@ -53,7 +53,8 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_zero_points : s.zero_points)
     for_(const auto &i_post_ops : s.post_ops)
     for_(const auto &i_scratchpad_mode : s.scratchpad_mode)
-    for (const auto &i_bia_cfg : bia_cfg) {
+    for_(const auto &i_bia_cfg : bia_cfg)
+    for (const auto &i_rt_dims_masks : s.rt_dims_masks) {
         attr_t attr;
         attr.insert(i_oscale);
         attr.insert(i_zero_points);
@@ -61,9 +62,18 @@ void check_correctness(const settings_t &s) {
         attr.insert(i_scratchpad_mode);
         handle_legacy_attr(attr, s.attr);
 
+        if (s.desc.is_legacy_desc) {
+            for (auto &mask : i_rt_dims_masks) {
+                if (mask.any()) { SAFE_V(FAIL); }
+            }
+        } else if (i_runtime_mb || i_runtime_m || i_runtime_k || i_runtime_n) {
+            SAFE_V(FAIL);
+        }
+
         const prb_t prb(s.desc, i_cfg, i_stag, i_wtag, i_dtag, i_ld_src,
                 i_ld_wei, i_ld_dst, i_runtime_mb, i_runtime_m, i_runtime_n,
-                i_runtime_k, i_bia_cfg.first, i_bia_cfg.second, attr);
+                i_runtime_k, i_bia_cfg.first, i_bia_cfg.second, i_rt_dims_masks,
+                attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -114,6 +124,8 @@ int bench(int argc, char **argv) {
                 || parse_dt(s.bia_dt, def.bia_dt, argv[0], "bia_dt")
                 || parse_vector_option(
                         s.bia_mask, def.bia_mask, atoi, argv[0], "bia_mask")
+                || parse_multivector_option(s.rt_dims_masks, def.rt_dims_masks,
+                        atoi, argv[0], "runtime_dims_masks")
                 || parse_attr(s.attr, argv[0])
                 || parse_attr_oscale(s.oscale, argv[0])
                 || parse_attr_zero_points(s.zero_points, argv[0])
