@@ -104,7 +104,7 @@ struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
         problem_.batchedS = batch;
         if (c_type == data_type::s32) {
             problem_.abOffset = ABOffset::Calc;
-            problem_.cOffset = true;
+            problem_.cOffset = COffset::Post;
             problem_.Ts = Type::f32;
             problem_.CO.base = ngen::AddressBase::createBTS(0);
             problem_.CO.crosspack = 1;

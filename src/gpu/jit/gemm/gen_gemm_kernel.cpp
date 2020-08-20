@@ -305,7 +305,7 @@ status_t gen_gemm_kernel_t::init_interface() {
     interface_.newArgument("beta_real", s_type_ngen);
     if (problem_.abOffset != ABOffset::None)
         interface_.newArgument("abo", DataType::ud);
-    if (problem_.cOffset) {
+    if (problem_.cOffset != COffset::None) {
         interface_.newArgument("CO", ExternalArgumentType::GlobalPtr);
         interface_.newArgument("offset_CO", DataType::d);
     }
