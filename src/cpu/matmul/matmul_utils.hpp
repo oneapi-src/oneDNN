@@ -18,6 +18,7 @@
 #define CPU_MATMUL_UTILS_HPP
 
 #include "common/memory_desc_wrapper.hpp"
+#include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,7 +35,9 @@ struct matmul_helper_t {
     int ndims() const { return dst_md_.ndims(); }
     bool batched() const { return ndims() > 2; }
 
-    dim_t batch() const { return batched() ? dst_md_.dims()[0] : 1; }
+    dim_t batch() const {
+        return utils::array_product(dst_md_.dims(), ndims() - 2);
+    };
     dim_t M() const { return dst_md_.dims()[ndims() - 2]; }
     dim_t N() const { return dst_md_.dims()[ndims() - 1]; }
     dim_t K() const { return src_md_.dims()[ndims() - 1]; }
@@ -61,21 +64,6 @@ struct matmul_helper_t {
     }
 
     dim_t ldc() const { return dst_md_.blocking_desc().strides[ndims() - 2]; }
-
-    dim_t src_stride_mb() const {
-        return batched() ? src_md_.blocking_desc().strides[ndims() - 3]
-                         : M() * N();
-    }
-
-    dim_t weights_stride_mb() const {
-        return batched() ? weights_md_.blocking_desc().strides[ndims() - 3]
-                         : M() * N();
-    }
-
-    dim_t dst_stride_mb() const {
-        return batched() ? dst_md_.blocking_desc().strides[ndims() - 3]
-                         : M() * N();
-    }
 
 private:
     mdw_t src_md_;

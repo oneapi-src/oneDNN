@@ -51,18 +51,16 @@ status_t gemm_f32_matmul_t::pd_t::init(engine_t *engine) {
             && dst_md()->data_type == dst_type && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
-                    | primitive_attr_t::skip_mask_t::post_ops);
+                    | primitive_attr_t::skip_mask_t::post_ops)
+            && set_default_formats()
+            && gemm_based::check_gemm_compatible_formats(*this);
+
     if (!ok) return status::unimplemented;
 
     // set state
     params_.dst_is_acc_ = true;
 
-    status_t status = check_and_configure_attributes();
-    if (status != status::success) return status;
-
-    if (!set_default_formats()) return status::unimplemented;
-
-    return status::success;
+    return check_and_configure_attributes();
 }
 
 status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
@@ -127,17 +125,11 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
-    const auto bias_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
 
-    auto helper = matmul_helper_t(src_d, weights_d, dst_d);
-
-    // apply offset0, since offsets are computed directly (not via mdw.off())
-    src += src_d.offset0();
-    weights += weights_d.offset0();
-    if (bias) bias += bias_d.offset0() * bias_d.data_type_size();
-    dst += dst_d.offset0();
-
+    matmul_helper_t helper(src_d, weights_d, dst_d);
+    const int ndims = pd()->ndims();
+    const int batch_ndims = ndims - 2;
     const dim_t M = helper.M();
     const dim_t N = helper.N();
     const dim_t K = helper.K();
@@ -147,9 +139,6 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t lda = helper.lda();
     const dim_t ldb = helper.ldb();
     const dim_t ldc = helper.ldc();
-    const dim_t src_batch_stride = helper.src_stride_mb();
-    const dim_t weights_batch_stride = helper.weights_stride_mb();
-    const dim_t dst_batch_stride = helper.dst_stride_mb();
 
     const gemm_based::params_t &params = pd()->params();
     const float alpha = params.get_gemm_alpha(scales);
@@ -158,14 +147,28 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     std::atomic<status_t> st(status::success);
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {
+        const int src_mask
+                = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
+        const int wei_mask
+                = utils::get_dims_mask(dst_d.dims(), weights_d.dims(), ndims);
+
         parallel(0, [&](int ithr, int nthr) {
             size_t batch_start {}, batch_end {};
             balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
+            dims_t s_dims_idx, w_dims_idx, d_dims_idx;
+            // account for M, N dims for index calculations
+            utils::l_dims_by_l_offset(
+                    d_dims_idx, batch_start * M * N, dst_d.dims(), ndims);
+
             for (size_t b = batch_start; b < batch_end; ++b) {
-                const src_data_t *curr_src = src + b * src_batch_stride;
+                utils::copy_dims_with_mask(
+                        s_dims_idx, d_dims_idx, ndims, src_mask);
+                utils::copy_dims_with_mask(
+                        w_dims_idx, d_dims_idx, ndims, wei_mask);
+                const src_data_t *curr_src = src + src_d.off_v(s_dims_idx);
                 const weights_data_t *curr_weights
-                        = weights + b * weights_batch_stride;
-                dst_data_t *curr_dst = dst + b * dst_batch_stride;
+                        = weights + weights_d.off_v(w_dims_idx);
+                dst_data_t *curr_dst = dst + dst_d.off_v(d_dims_idx);
 
                 status_t st_thr = extended_sgemm(&transB, &transA, &N, &M, &K,
                         &alpha, curr_weights, &ldb, curr_src, &lda, &beta,
@@ -181,6 +184,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                     (*pp_kernel_)(curr_dst, curr_dst, bias, pp_scales, 0, M * N,
                             (size_t)N, nullptr);
                 }
+                utils::dim_iterator(dst_d.dims(), d_dims_idx, batch_ndims);
             }
         });
     } else {
