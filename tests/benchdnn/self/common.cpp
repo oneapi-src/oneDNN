@@ -113,7 +113,6 @@ static int check_str2attr() {
     CHECK_ATTR("oscale=common:2.0", COMMON, 2., false);
     CHECK_ATTR("oscale=common:2.0*", COMMON, 2., true);
     CHECK_ATTR("oscale=per_oc:.5*;", PER_OC, .5, true);
-    CHECK_ATTR("oscale=common:.5*;oscale=common:1.5", COMMON, 1.5, false);
 
     CHECK_ATTR("oscale=common:2.0*;zero_points=src:common:0_dst:common:-2*",
             COMMON, 2., true);
