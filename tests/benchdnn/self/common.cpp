@@ -19,6 +19,7 @@
 
 #include "common.hpp"
 #include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
 #include "self/self.hpp"
 
@@ -237,12 +238,41 @@ static int check_str2post_ops() {
     return OK;
 }
 
+static int check_tags() {
+    dnnl_memory_desc_t md_from_tag;
+    dnnl_memory_desc_t md_from_str;
+
+    dnnl_dims_t dims = {29, 31, 37, 41, 43, 47};
+    for (int tag_ = dnnl_format_tag_undef; tag_ != dnnl_format_tag_last;
+            tag_++) {
+        dnnl_format_tag_t format_tag = (dnnl_format_tag_t)tag_;
+        const char *str_tag = fmt_tag2str(format_tag);
+        int ndims = 1;
+        for (char c = 'f'; c >= 'a'; c--) {
+            if (strchr(str_tag, c)) {
+                ndims = c - 'a' + 1;
+                break;
+            }
+        }
+
+        SAFE(init_md(&md_from_str, ndims, dims, dnnl_f32, str_tag), CRIT);
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                         &md_from_tag, ndims, dims, dnnl_f32, format_tag),
+                CRIT);
+        int eq = dnnl_memory_desc_equal(&md_from_tag, &md_from_str);
+        CHECK_EQ(eq, 1);
+    }
+
+    return OK;
+}
+
 void common() {
     RUN(check_simple_enums());
     RUN(check_attr2str());
     RUN(check_str2attr());
     RUN(check_post_ops2str());
     RUN(check_str2post_ops());
+    RUN(check_tags());
 }
 
 } // namespace self
