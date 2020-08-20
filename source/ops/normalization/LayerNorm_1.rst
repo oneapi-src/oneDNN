@@ -54,5 +54,3 @@ LayerNorm
 **Types**
 
 * *T*: any numeric type.
-
-**Mathematical Formulation**
