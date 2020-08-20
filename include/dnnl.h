@@ -2191,7 +2191,7 @@ dnnl_status_t DNNL_API dnnl_inner_product_backward_weights_desc_init(
 /// floating-point data to unsigned integer and must be passed to the RNN
 /// primitive using attributes.
 ///
-/// The quantization formula is `scale * (data + shift)`.
+/// The quantization formula is `scale * data + shift`.
 ///
 /// @note
 ///     Quantization scale and shift are common for src_layer, src_iter,
@@ -2202,7 +2202,7 @@ dnnl_status_t DNNL_API dnnl_inner_product_backward_weights_desc_init(
 ///     // RNN parameters
 ///     int l = 2, t = 2, mb = 32, sic = 32, slc = 32, dic = 32, dlc = 32;
 ///     // Activations quantization parameters
-///     float scale = ..., shift = ..;
+///     float scale = 63.f, shift = 64.f;
 ///
 ///     dnnl_primitive_attr_t rnn_attr;
 ///     // Create default attributes

@@ -2830,14 +2830,14 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     /// floating-point data to unsigned integer and must be passed to the RNN
     /// primitive using attributes.
     ///
-    /// The quantization formula is `scale * (data + shift)`.
+    /// The quantization formula is `scale * data + shift`.
     ///
     /// Example usage:
     /// @code
     ///     // RNN parameters
     ///     int l = 2, t = 2, mb = 32, sic = 32, slc = 32, dic = 32, dlc = 32;
     ///     // Activations quantization parameters
-    ///     float scale = 2.0f, shift = 0.5f;
+    ///     float scale = 63.f, shift = 64.f;
     ///
     ///     primitive_attr attr;
     ///
