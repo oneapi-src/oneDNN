@@ -492,9 +492,9 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_aarch64_sve_512_1x1_conv_kernel *kernel_;
-    rtus_driver_t<sve> *rtus_driver_;
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;
+    rtus_driver_t<sve> *rtus_driver_;
 };
 
 } // namespace aarch64

@@ -30,6 +30,8 @@
 #if DNNL_X64
 #include "cpu/x64/jit_uni_reorder.hpp"
 #include "cpu/x64/wino_reorder.hpp"
+#elif DNNL_AARCH64
+#include "cpu/aarch64/jit_uni_reorder.hpp"
 #endif
 
 namespace dnnl {
@@ -130,6 +132,7 @@ static const impl_list_map_t regular_impl_list_map {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
+        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
 
         REG_SR(f32, any, f32, any, fmt_order::any, spec::reference),
 
@@ -139,6 +142,7 @@ static const impl_list_map_t regular_impl_list_map {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
+        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
 
         REG_SR_BIDIR(f32, any, f32, nCw16c),
         REG_SR_BIDIR(f32, any, f32, nCw8c),
@@ -166,6 +170,7 @@ static const impl_list_map_t regular_impl_list_map {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
+        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
 
         REG_SR_BIDIR(f32, any, f32, nChw16c),
         REG_SR_BIDIR(f32, any, f32, nChw8c),
@@ -211,6 +216,7 @@ static const impl_list_map_t regular_impl_list_map {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
+        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
 
         REG_SR_BIDIR(f32, any, f32, nCdhw16c),
         REG_SR_BIDIR(f32, any, f32, nCdhw8c),
@@ -256,6 +262,7 @@ static const impl_list_map_t regular_impl_list_map {
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
         DNNL_X64_ONLY(x64::jit_uni_reorder_create,)
+        DNNL_AARCH64_ONLY(aarch64::jit_uni_reorder_create,)
 
         REG_SR_BIDIR(f32, any, f32, gOIdhw4i4o),
         REG_SR_BIDIR(f32, any, f32, gOIdhw4o4i),
