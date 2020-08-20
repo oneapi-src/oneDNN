@@ -24,7 +24,7 @@ namespace self {
 int bench(int argc, char **argv) {
     (void)argv;
 
-    SAFE(argc == 0 ? OK : FAIL, CRIT);
+    SAFE(argc <= 1 ? OK : FAIL, CRIT);
     SAFE(bench_mode == CORR ? OK : FAIL, CRIT);
 
     common();
