@@ -183,8 +183,8 @@ struct cpu_isa_traits<avx512_core_amx> {
 
 namespace {
 
-Xbyak::util::Cpu &cpu() {
-    static Xbyak::util::Cpu cpu_;
+const Xbyak::util::Cpu &cpu() {
+    const static Xbyak::util::Cpu cpu_;
     return cpu_;
 }
 
