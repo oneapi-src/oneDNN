@@ -11,25 +11,32 @@ Convolution
 **Detailed description**: `Reference <http://cs231n.github.io/convolutional-networks/#conv>`__
 
 
-*   For the convolutional layer, the number of output features in each dimension is calculated using the formula: :math:`n_{out} = \left ( \frac{n_{in} + 2p - k}{s} \right ) + 1`
-*   The receptive field in each layer is calculated using the formulas:
+* For the convolutional layer, the number of output features in each dimension is calculated using the formula:
 
-    *   Jump in the output feature map:
+    .. math::
+       n_{out} = \left ( \frac{n_{in} + 2p - k}{s} \right ) + 1
 
-        .. math:: 
-           j_{out} = j_{in} * s
-    *   Size of the receptive field of output feature:
+* The receptive field in each layer is calculated using the formulas:
 
-        .. math::
-           r_{out} = r_{in} + ( k - 1 ) * j_{in}
-    *   Center position of the receptive field of the first output feature:
+  * Jump in the output feature map:
 
-        .. math::
-           start_{out} = start_{in} + ( \frac{k - 1}{2} - p ) * j_{in}
-    *   Output is calculated using the following formula:
+    .. math:: 
+       j_{out} = j_{in} * s
 
-        .. math::
-           out = \sum_{i = 0}^{n}w_{i}x_{i} + b
+  * Size of the receptive field of output feature:
+
+    .. math::
+       r_{out} = r_{in} + ( k - 1 ) * j_{in}
+
+  * Center position of the receptive field of the first output feature:
+
+    .. math::
+       start_{out} = start_{in} + ( \frac{k - 1}{2} - p ) * j_{in}
+
+  * Output is calculated using the following formula:
+
+    .. math::
+       out = \sum_{i = 0}^{n}w_{i}x_{i} + b
 
 **Attributes**
 
@@ -70,9 +77,11 @@ Convolution
 * *auto_pad*
 
   * **Description**: *auto_pad* how the padding is calculated. Possible values:
+
     * None (not specified): use explicit padding values.
     * *same_upper (same_lower)* the input is padded to match the output size. In case of odd padding value an extra padding is added at the end (at the beginning).
     * *valid* - do not use padding.
+
   * **Type**: string
   * **Default value**: None
   * **Required**: *no*
@@ -88,9 +97,9 @@ Convolution
 
 **Inputs**:
 
-*   **1**: Input tensor. The layout is determined by the value of layout in logical tensor. **Required.**
-*   **2**: Convolution kernel tensor. The layout is determined by the value of layout in logical tensor. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
+* **1**: Input tensor. The layout is determined by the value of layout in logical tensor. **Required.**
+* **2**: Convolution kernel tensor. The layout is determined by the value of layout in logical tensor. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
 
 **Outputs**:
 
-*   **1**: ``output`` -- output tensor. The dimension order is determined by the value of layout in logical tensor.
+* **1**: ``output`` -- output tensor. The dimension order is determined by the value of layout in logical tensor.

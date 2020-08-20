@@ -50,24 +50,30 @@ BatchNormForwardTraining
 
   .. math::
      \beta = \{ x_{1...m} \}
+
 * **Parameters to learn**: :math:`\gamma, \beta`
 * **Output**:
 
   .. math::
      \{ o_{i} = BN_{\gamma, \beta} ( b_{i} ) \}
+
 * **Mini-batch mean**:
 
   .. math::
      \mu_{\beta} \leftarrow \frac{1}{m}\sum_{i=1}^{m}b_{i}
+
 * **Mini-batch variance**:
 
   .. math::
      \sigma_{\beta }^{2}\leftarrow \frac{1}{m}\sum_{i=1}^{m} ( b_{i} - \mu_{\beta} )^{2}
+
 * **Normalize**:
 
   .. math::
      \hat{b_{i}} \leftarrow \frac{b_{i} - \mu_{\beta}}{\sqrt{\sigma_{\beta }^{2} + \epsilon }}
+
 * **Scale and shift**:
 
   .. math::
      o_{i} \leftarrow \gamma\hat{b_{i}} + \beta = BN_{\gamma ,\beta } ( b_{i} )
+

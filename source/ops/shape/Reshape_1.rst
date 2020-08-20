@@ -12,8 +12,8 @@ Reshape
 
 *Reshape* layer takes two input tensors: the tensor to be resized and the output tensor shape. The values in the second tensor could be -1, 0 and any positive integer number. The two special values -1 and 0:
 
-   * ``0`` means "copy the respective dimension of the input tensor" if ``special_zero`` is set to ``true``; otherwise it is a normal dimension and is applicable to empty tensors.
-   * ``-1`` means that this dimension is calculated to keep the overall elements count the same as in the input tensor. Not more than one ``-1`` can be used in a reshape operation.
+* ``0`` means "copy the respective dimension of the input tensor" if ``special_zero`` is set to ``true``; otherwise it is a normal dimension and is applicable to empty tensors.
+* ``-1`` means that this dimension is calculated to keep the overall elements count the same as in the input tensor. Not more than one ``-1`` can be used in a reshape operation.
 
 **Attributes**:
 
@@ -27,10 +27,10 @@ Reshape
 
 **Inputs**:
 
-*   **1**: ``data`` -- multidimensional input tensor. **Required.**
+* **1**: ``data`` -- multidimensional input tensor. **Required.**
 
-*   **2**: ``shape`` -- 1D tensor describing output shape. **Required.**
+* **2**: ``shape`` -- 1D tensor describing output shape. **Required.**
 
 **Outputs**:
 
-*   **1**: Output tensor with the same content as a tensor at input ``data`` but with shape defined by input ``shape``.
+* **1**: Output tensor with the same content as a tensor at input ``data`` but with shape defined by input ``shape``.

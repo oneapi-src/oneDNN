@@ -55,6 +55,7 @@ ConvolutionBackpropFilters takes the input tensor, filter shape and output gradi
     * None (not specified): use explicit padding values from ``pads_begin`` and ``pads_end``.
     * *same_upper (same_lower)* the input is padded to match the output size. In case of odd padding value an extra padding is added at the end (at the beginning).
     * *valid* - do not use padding.
+
   * **Type**: string
   * **Default value**: None
   * **Required**: *no*
@@ -70,12 +71,12 @@ ConvolutionBackpropFilters takes the input tensor, filter shape and output gradi
 
 **Inputs**:
 
-*   **1**: ``input`` - input tensor. **Required**.
+* **1**: ``input`` - input tensor. **Required**.
 
-*   **2**: ``filters_shape`` - 1D integer tensor that specifies spatial shape of the filter. **Required**.
+* **2**: ``filters_shape`` - 1D integer tensor that specifies spatial shape of the filter. **Required**.
 
-*   **3**: ``output_delta`` - gradients tensor w.r.t. the output of the convolution. **Required**.
+* **3**: ``output_delta`` - gradients tensor w.r.t. the output of the convolution. **Required**.
 
 **Outputs**:
 
-*   **1**: ``filter_delta`` - gradient tensor w.r.t. the filter of the convolution.
+* **1**: ``filter_delta`` - gradient tensor w.r.t. the filter of the convolution.
