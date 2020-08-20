@@ -134,6 +134,7 @@ extern int min_times_per_prb; /** minimal amount of runs per prb */
 extern int fix_times_per_prb; /** if non-zero run prb that many times */
 
 extern bool fast_ref_gpu;
+extern bool allow_enum_tags_only;
 
 struct benchdnn_timer_t {
     enum mode_t { min = 0, avg = 1, max = 2, n_modes };

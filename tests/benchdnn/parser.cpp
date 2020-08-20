@@ -53,9 +53,19 @@ bool parse_tag(std::vector<std::string> &tag,
     if (!ok) return false;
 
     for (size_t i = 0; i < tag.size(); i++) {
-        if (check_tag(tag[i]) != OK) {
-            fprintf(stderr, "%s driver: ERROR: unknown tag: `%s`, exiting...\n",
-                    driver_name, tag[i].c_str());
+        if (check_tag(tag[i], allow_enum_tags_only) != OK) {
+            if (allow_enum_tags_only && check_tag(tag[i]) == OK) {
+                fprintf(stderr,
+                        "%s driver: ERROR: tag `%s` is valid but not found "
+                        "in dnnl::memory::format_tag, use "
+                        "--allow-enum-tags-only=0 if you want to test this "
+                        "tag.\n",
+                        driver_name, tag[i].c_str());
+            } else {
+                fprintf(stderr,
+                        "%s driver: ERROR: unknown tag: `%s`, exiting...\n",
+                        driver_name, tag[i].c_str());
+            }
             exit(2);
         }
     }
@@ -305,6 +315,12 @@ static bool parse_skip_impl(
     return true;
 }
 
+static bool parse_allow_enum_tags_only(const char *str,
+        const std::string &option_name = "allow-enum-tags-only") {
+    return parse_single_value_option(
+            allow_enum_tags_only, true, str2bool, str, option_name);
+}
+
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
@@ -312,7 +328,7 @@ bool parse_bench_settings(const char *str) {
             || parse_fix_times_per_prb(str) || parse_verbose(str)
             || parse_engine_kind(str) || parse_fast_ref_gpu(str)
             || parse_canonical(str) || parse_mem_check(str)
-            || parse_skip_impl(str);
+            || parse_skip_impl(str) || parse_allow_enum_tags_only(str);
 }
 
 void catch_unknown_options(const char *str) {

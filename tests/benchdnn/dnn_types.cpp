@@ -657,6 +657,8 @@ std::ostream &dump_global_params(std::ostream &s) {
     if (!skip_impl.empty()) s << "--skip-impl=" << skip_impl << " ";
     if (canonical || mem_check != true)
         s << "--mem-check=" << bool2str(mem_check) << " ";
+    if (canonical || allow_enum_tags_only != true)
+        s << "--allow-enum-tags-only=" << bool2str(allow_enum_tags_only) << " ";
 
     return s;
 }
