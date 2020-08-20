@@ -39,7 +39,7 @@ void jit_avx512_core_amx_copy_to_wbuffer_t::generate() {
     const bool is_bf16 = jcp.src_dt == data_type::bf16;
 
     // required for use of VPERMB instruction
-    assert(IMPLICATION(!is_bf16, cpu.has(Xbyak::util::Cpu::tAVX512_VBMI)));
+    assert(IMPLICATION(!is_bf16, cpu().has(Xbyak::util::Cpu::tAVX512_VBMI)));
     assert(jcp.ic_block_int * jcp.typesize_in == 64);
 
     preamble();
@@ -1394,7 +1394,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             && 1 < jcp.kh * jcp.kw
             // required for use of VPERMB instruction in weights copy kernel
             && IMPLICATION(is_int8_convolution,
-                    cpu.has(Xbyak::util::Cpu::tAVX512_VBMI))
+                    cpu().has(Xbyak::util::Cpu::tAVX512_VBMI))
             // no dilation or excessive stride along w-direction
             && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
             // no dilation or excessive stride along h-direction

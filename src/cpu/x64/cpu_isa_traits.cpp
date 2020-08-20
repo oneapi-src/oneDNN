@@ -248,7 +248,6 @@ int get_max_palette() {
     if (mayiuse(amx_tile)) {
         unsigned int data[4] = {};
         const unsigned int &EAX = data[0];
-
         Xbyak::util::Cpu::getCpuidEx(0x1D, 0, data);
         return EAX;
     } else {
