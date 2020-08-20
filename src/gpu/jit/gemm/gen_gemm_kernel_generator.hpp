@@ -23,6 +23,7 @@
 #include "common/float16.hpp"
 #include "common/utils.hpp"
 #include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
+#include "gpu/jit/gemm/utils.hpp"
 
 namespace ngen {
 using half = dnnl::impl::float16_t;
@@ -58,6 +59,8 @@ public:
         s16 = 0x870201,
         u32 = 0x880402,
         s32 = 0x890402,
+        u64 = 0x8A0803,
+        s64 = 0x8B0803,
     };
 
 private:
@@ -93,8 +96,8 @@ public:
         static const DataType table[16] = {DataType::hf, DataType::f,
                 DataType::df, DataType::invalid, DataType::ub, DataType::b,
                 DataType::uw, DataType::w, DataType::ud, DataType::d,
-                DataType::invalid, DataType::invalid, DataType::invalid,
-                DataType::invalid, DataType::invalid, DataType::invalid};
+                DataType::uq, DataType::q, DataType::invalid, DataType::invalid,
+                DataType::invalid, DataType::invalid};
         return table[(uint32_t(val) >> 16) & 0xF];
     }
 };
@@ -258,6 +261,10 @@ struct MatrixAddressing {
     uint8_t packSize; // # of elements in a packed row/column for packed layouts.
     uint8_t crosspack; // Crosspack for packed layouts.
     uint8_t alignment; // Alignment for all addresses, offsets, and leading dimensions.
+
+    void setAlignment(int align) {
+        alignment = std::min(128, largest_pow2_divisor(align));
+    }
 };
 
 struct MatrixAddressingStrategy {
@@ -365,6 +372,7 @@ struct VirtualFlagAllocator {
     ngen::FlagRegister alloc();
 
     void claim(int idx) { free &= ~(1 << idx); }
+    void claim(const ngen::FlagRegister &reg) { claim(reg.index()); }
     void release(int idx) { free |= (1 << idx); }
     void release(const ngen::FlagRegister &reg) {
         release(reg.index());
@@ -496,6 +504,13 @@ enum class ABOffset {
     Load, // Use precalculated row/column sums.
 };
 
+// C offset mode.
+enum class COffset {
+    None, // No C offsets.
+    Post, // C offset after all other updates.
+    Pre, // C offset before all other updates (bias).
+};
+
 // GEMM kernel problem description.
 struct GEMMProblem : public CommonProblem {
     Type Ta, Tb, Tc, Ts; // Types for A/B/C/scalars
@@ -509,8 +524,8 @@ struct GEMMProblem : public CommonProblem {
     LoopType fusedLoop = LoopM; // Direction of fusing if threads fused.
     bool batchedS = false; // Strided batch kernel
     bool batchedN = false; // Non-strided batch kernel
-    bool cOffset = false; // C offset present?
     ABOffset abOffset = ABOffset::None; // A/B offset mode.
+    COffset cOffset = COffset::None; // C offset mode.
 
     bool beta0() const {
         return (beta_real == 0) && (!Tc.isComplex() || (beta_imag == 0));
@@ -627,7 +642,7 @@ struct GEMMState : public CommonState {
         ngen::Subregister m, n, k, k0; // d
         ngen::Subregister alpha_real, alpha_imag; // T_real
         ngen::Subregister beta_real, beta_imag; // T_real
-        ngen::Subregister globalIDM, globalIDN, globalIDK; // ud
+        ngen::Subregister groupIDM, groupIDN, groupIDK; // ud
         ngen::GRF localIDM, localIDN, localIDK; // uw
         ngen::Subregister localSizeM, localSizeN, localSizeK; // ud
         ngen::Subregister mapping; // q
@@ -729,7 +744,7 @@ struct CopyProblem : public CommonProblem {
     bool lower;
     bool unit;
     bool trsm;
-    bool sum;
+    bool sum = false;
     bool reflecting() const { return false; }
 };
 
@@ -745,6 +760,8 @@ struct CopyStrategy : public CommonStrategy {
     int unrollX, unrollY; // Unrolls for each dimension.
     bool duplicateAlpha; // True to make two copies of alpha, one for each register bank
     bool xLoop; // True to loop over x, false to loop over y within a kernel
+
+    bool zBlocking = false; // Kernel parallelized in z dimension?
 
     int barrierFreq; // If > 0, set a barrier every barrierFreq loops
     int optionalAlignS; // If > 0, generate code to check if S is aligned to this #elements and branch to specific code for that case.
@@ -766,13 +783,14 @@ struct CopyState : public CommonState {
         ngen::Subregister m, n; // d
         ngen::Subregister alpha_real; // T_real
         ngen::Subregister alpha_imag; // T_real
-        ngen::Subregister globalID; // ud
-        ngen::GRF localID; // uw
-        ngen::Subregister localSize; // ud
+        ngen::Subregister groupIDW, groupIDZ; // ud
+        ngen::GRF localIDW, localIDZ; // uw
+        ngen::Subregister localSizeW, localSizeZ; // ud
         ngen::Subregister diag; // d
+        ngen::Subregister blockZ; // ud
         uint8_t surfaceS, surfaceD; // DTS indices
     } inputs;
-    ngen::Subregister w0; // ud
+    ngen::Subregister w0, z0; // ud
     ngen::Subregister effS,
             effD; // Offsets to base of S/D chunks for loading/storing.
     ngen::Subregister offsetS1,
@@ -918,6 +936,7 @@ protected:
     }
 
     ngen::FlagRegister getPhysicalFlag(int vflag, CommonState &state);
+    void allocVFlagStorage(const CommonStrategy &strategy, CommonState &state);
 
     ngen::Bundle getHint(HintType type);
     ngen::Bundle getHint(HintType type, const CommonStrategy &strategy);
@@ -999,6 +1018,7 @@ protected:
     template <typename DT = void, typename S0, typename S2>
     void eadd3(const ngen::InstructionModifier &mod, const ngen::RegData &dst,
             const S0 &src0, const ngen::RegData &src1, const S2 &src2);
+    void cmp0(const ngen::InstructionModifier &mod, ngen::RegData src0);
 
     template <typename DT = void>
     void alignDown(const ngen::Subregister &dst, const ngen::Subregister &src,
@@ -1030,6 +1050,8 @@ protected:
             ngen::Bundle hint = ngen::Bundle(ngen::Bundle::any, 0));
     void zeroMatrix(const GRFMultirange &r, const CommonStrategy &strategy);
     void releaseFusedRemainders(GEMMState &state);
+    void saveLocalIDs(const GEMMStrategy &strategy, GEMMState &state);
+    void releaseSavedLocalIDs(GEMMState &state);
 
     bool getBlockInfo(Type T, const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy, int r, int c,
@@ -1056,6 +1078,12 @@ protected:
             const MatrixAddressing &atype,
             const MatrixAddressingStrategy &astrategy);
 
+    void adjustSubblockAddrs(const std::vector<RegisterBlock> &sublayout,
+            const std::vector<ngen::GRFRange> &subaddrs,
+            const std::vector<RegisterBlock> &layout,
+            const std::vector<ngen::GRFRange> &addrs,
+            const MatrixAddressing &atype, const CommonStrategy &strategy,
+            const CommonState &state);
     bool relevantAddrBlocks(std::vector<int> &relevant,
             const std::vector<RegisterBlock> &layout,
             const std::vector<RegisterBlock> &sublayout,

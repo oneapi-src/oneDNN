@@ -69,7 +69,7 @@ const gemm_recipe_t gemm_recipes[] = {
     {ngen::HW::Gen9, "HHH", "TNN", {}, 32, 32, "as2 as8 ab l4 ca1 wg 1x8 acb"},
     {ngen::HW::Gen9, "HHH", "TTN", {}, 32, 16, "as8 ab4 ab k8 ra8 l4 cs"},
     {ngen::HW::Gen9, "HHH", "TTN", {}, 32, 32, "as8 ab2 ab k8 ra8 l4 cs"},
-    {ngen::HW::Gen9, "OOI", "NNN", {}, 32, 16, "ab4x2 as2x2 as l4 cb1 wg 8x1 acb nmk"},
+    {ngen::HW::Gen9, "OOI", "NNN", {}, 32, 16, "ab4/2x2 as2x2 as l4 cb1 wg 8x1 acb nmk"},
     {ngen::HW::Gen9, "OOI", "NTN", {}, 32, 16, "ab2 ab1x2 as l4 ca1 wg 1x8 acb"},
     {ngen::HW::Gen9, "OOI", "TNN", {}, 16, 16, "as8 as8 as l4 cab1 k32 wg 2x4 acb"},
     {ngen::HW::Gen9, "OOI", "TTN", {}, 16, 32, "as2x2 ab8/2x2 as l4 ca1 wg 1x8 acb"},
@@ -98,10 +98,10 @@ const gemm_recipe_t gemm_recipes[] = {
     {ngen::HW::Gen12LP, "HHH", "TNN", {}, 32, 32, "as4 as8 ab k8 ra4 l4 vnc"},
     {ngen::HW::Gen12LP, "HHH", "TTN", {}, 32, 16, "as8 ab4x2 ab k16 ra8 l4 int"},
     {ngen::HW::Gen12LP, "HHH", "TTN", {}, 32, 32, "as8 ab2x2 ab k16 ra8 l4 vnc"},
-    {ngen::HW::Gen12LP, "OOI", "NNN", {}, 32, 16, "ab4 ab4 ab l4 int k16 cab1 wg 4x4"},
-    {ngen::HW::Gen12LP, "OOI", "NTN", {}, 16, 32, "ab8 ab4 ab l4 int k16 cab1 wg 4x4"},
-    {ngen::HW::Gen12LP, "OOI", "TNN", {}, 16, 16, "as8 as8 ab l4 vnc k64 cab1 wg 4x4"},
-    {ngen::HW::Gen12LP, "OOI", "TTN", {}, 16, 32, "ab4 ab4 ab l4 int k16 cab1 wg 4x4"},
+    {ngen::HW::Gen12LP, "OOI", "NNN", {}, 32, 16, "sb4 sb8 sb l4 int k32 cab1 wg 4x4"},
+    {ngen::HW::Gen12LP, "OOI", "NTN", {}, 16, 32, "sb8 sb4 sb l4 int k16 cab1 wg 4x4"},
+    {ngen::HW::Gen12LP, "OOI", "TNN", {}, 16, 16, "sb8x2 sb8x2 sb l4 vnc k32 cab1 wg 4x4"},
+    {ngen::HW::Gen12LP, "OOI", "TTN", {}, 16, 32, "sb8 sb4 sb l4 int k32 cab1 wg 4x4 fn nmk"},
 };
 // clang-format on
 
