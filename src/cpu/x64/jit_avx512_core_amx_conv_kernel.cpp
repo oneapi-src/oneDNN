@@ -1337,8 +1337,10 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             = utils::pick(ndims - 3, format_tag::nwc, format_tag::nhwc);
     // To toggle the default data layout for BF16 between nChw16c and nhwc,
     // swap the following two variable definitions. Current choice: nhwc.
-    format_tag_t dat_tag_opt
-            = is_bf16_convolution ? dat_tag_nspc : dat_tag_nspc;
+
+    // Clang-tidy change - if it was intentional please revert it and
+    // put `NOLINTNEXTLINE` to suppress the warning.
+    format_tag_t dat_tag_opt = dat_tag_nspc;
     format_tag_t dat_tag_alt
             = is_bf16_convolution ? dat_tag_ncsp : dat_tag_nspc;
 

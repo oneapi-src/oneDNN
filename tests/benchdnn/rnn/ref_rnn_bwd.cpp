@@ -247,7 +247,7 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_layer_,
                 int64_t lay = j + 1;
                 int64_t prev_lay = lay + 1;
 
-                int64_t ws_iter = (iter_dir == left2right) ? iter : iter;
+                int64_t ws_iter = iter;
                 int64_t ws_prev_iter
                         = (iter_dir == left2right) ? iter + 1 : iter - 1;
 
