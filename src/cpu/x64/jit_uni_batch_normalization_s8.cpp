@@ -229,7 +229,7 @@ struct jit_bnorm_t<avx512_core> : public jit_bnorm_base_t<avx512_core> {
         }
     }
 
-    void compute_dst(bool need_tail = false) override {
+    void compute_dst(bool need_tail) override {
         Label c_loop;
         L(c_loop);
         {
@@ -332,7 +332,7 @@ struct jit_bnorm_t<avx2> : public jit_bnorm_base_t<avx2> {
         }
     }
 
-    void compute_dst(bool need_tail = false) override {
+    void compute_dst(bool need_tail) override {
         Label c_loop;
         L(c_loop);
         {
@@ -453,7 +453,7 @@ struct jit_bnorm_t<sse41> : public jit_bnorm_base_t<sse41> {
         }
     }
 
-    void compute_dst(bool need_tail = false) override {
+    void compute_dst(bool need_tail) override {
         const size_t copy_range = need_tail ? c_tail_ : c_in_xmm_;
         Label c_loop;
         L(c_loop);

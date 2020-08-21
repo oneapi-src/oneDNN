@@ -227,7 +227,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
             uni_vpextrb(dst_ptr(i), xmm, i);
     }
 
-    virtual void compute_dst(int unroll, bool tail = false) = 0;
+    virtual void compute_dst(int unroll, bool tail) = 0;
 
     void forward() {
         auto dst_type = pd_->dst_md(0)->data_type;
@@ -262,7 +262,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
             cmp(reg_reverse_spat_offt, offt);
             jl(unroll_loop_tail, T_NEAR);
 
-            compute_dst(unroll_regs_);
+            compute_dst(unroll_regs_, false);
             sub(reg_reverse_spat_offt, offt);
             add(reg_offt_src0, offt);
             if (!broadcast_src1_value_) add(reg_offt_src1, offt);
@@ -274,7 +274,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
             cmp(reg_reverse_spat_offt, simd_w_);
             jl(nelems_tail, T_NEAR);
 
-            compute_dst(1);
+            compute_dst(1, false);
             sub(reg_reverse_spat_offt, simd_w_);
             add(reg_offt_src0, simd_w_);
             if (!broadcast_src1_value_) add(reg_offt_src1, simd_w_);
@@ -347,7 +347,7 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
         }
     }
 
-    void compute_dst(int unroll, bool tail = false) override {
+    void compute_dst(int unroll, bool tail) override {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = vreg_bcast_src1;
@@ -413,7 +413,7 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>
         }
     }
 
-    void compute_dst(int unroll, bool tail = false) override {
+    void compute_dst(int unroll, bool tail) override {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = vreg_bcast_src1;
@@ -477,7 +477,7 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>
         }
     }
 
-    void compute_dst(int unroll, bool tail = false) override {
+    void compute_dst(int unroll, bool tail) override {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = vreg_bcast_src1;
