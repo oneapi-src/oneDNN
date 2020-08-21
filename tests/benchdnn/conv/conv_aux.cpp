@@ -134,7 +134,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     auto compute_out = [](bool is_deconv, int64_t i, int64_t k, int64_t s,
                                int64_t p, int64_t d) {
         if (is_deconv)
-            return (i - 1) * s + (k - 1) * (d + 1) + 2 * p + 1;
+            return (i - 1) * s + (k - 1) * (d + 1) - 2 * p + 1;
         else
             return (i - ((k - 1) * (d + 1) + 1) + 2 * p) / s + 1;
     };
