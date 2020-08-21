@@ -51,9 +51,13 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type,
     const bool src_has_spatial = utils::one_of(src_d.ndims(), 3, 4, 5);
     const auto ndims = src_d.ndims() - 2;
 
-    const auto &post_ops = pd()->attr()->post_ops_;
-    const bool do_relu = post_ops.len() == 1;
-    const float nslope = do_relu ? post_ops.entry_[0].eltwise.alpha : 0.f;
+    auto maybe_oscale = [=](float &d, dim_t oc) {
+        // scale_idx_mult = 1 for per_oc scales and 0, otherwise
+        const int scale_idx_mult
+                = pd()->attr()->output_scales_.mask_ == (1 << 1);
+        const float *scales = pd()->attr()->output_scales_.scales_;
+        d *= scales[oc * scale_idx_mult];
+    };
 
     auto ker_has_spatial = [=](dim_t mb, dim_t oc) {
         acc_data_t d = 0;
@@ -100,8 +104,20 @@ void ref_inner_product_fwd_t<src_type, wei_type, dst_type,
             a += ker_has_spatial(mb, oc);
         else
             a += ker_no_spatial(mb, oc);
-        if (do_relu && a < (acc_data_t)0) a *= nslope;
-        dst[dst_d.off(mb, oc)] = saturate<dst_data_t>(a);
+
+        dim_t dst_off = dst_d.off(mb, oc);
+        dim_t dst_l_off = (mb * OC + oc);
+
+        maybe_oscale(a, oc);
+
+        ref_post_ops_t::args_t args;
+        args.dst_val = dst[dst_off];
+        args.ctx = &ctx;
+        args.l_offset = dst_l_off;
+        args.dst_md = pd()->dst_md();
+        ref_post_ops->execute(a, args);
+
+        dst[dst_off] = cpu::saturate_and_round<dst_data_t>(a);
     });
 }
 

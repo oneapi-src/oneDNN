@@ -211,7 +211,9 @@ struct inner_product_fwd_pd_t : public inner_product_pd_t {
         return &glob_zero_md;
     }
 
-    int n_inputs() const override { return 2 + with_bias(); }
+    int n_inputs() const override {
+        return 2 + with_bias() + n_binary_po_inputs();
+    }
     int n_outputs() const override { return 1; }
 
 protected:

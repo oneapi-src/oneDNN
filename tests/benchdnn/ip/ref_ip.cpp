@@ -22,7 +22,7 @@ namespace ip {
 
 void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *p,
         dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        dnn_mem_t &dst_m) {
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m) {
 
     int64_t M = p->mb;
     int64_t N = p->oc;
@@ -33,6 +33,7 @@ void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *p,
     gemm("C", "N", "T", M, N, K, 1.f, (float *)src_m, K, (float *)wei_m, K, 0.f,
             (float *)dst_tmp, N);
 
+    std::vector<int> v_bin_po_mask = p->attr.post_ops.get_binary_po_masks();
     dnnl::impl::parallel_nd(p->mb, p->oc, [&](int64_t mb, int64_t oc) {
         size_t dst_off = dst_off_f(p, mb, oc);
         float &dst = ((float *)dst_m)[dst_off];
@@ -43,7 +44,16 @@ void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *p,
             d += ((float *)bia_m)[bia_off];
         }
         maybe_oscale(p->attr, d, p->scales, oc);
-        maybe_post_ops(p->attr, d, dst);
+
+        std::vector<float> v_binary_vals;
+        v_binary_vals.reserve(v_bin_po_mask.size());
+        for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
+            auto bin_po_offset = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
+            float binary_val = binary_po[d].get_elem(bin_po_offset);
+            v_binary_vals.push_back(binary_val);
+        }
+        maybe_post_ops(p->attr, d, dst, v_binary_vals);
+
         dst = d;
     });
 }

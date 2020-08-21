@@ -49,16 +49,17 @@ update.
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output | Execution argument index |
-| ---                    | ---                      |
-| \src                   | DNNL_ARG_SRC             |
-| \weights               | DNNL_ARG_WEIGHTS         |
-| \bias                  | DNNL_ARG_BIAS            |
-| \dst                   | DNNL_ARG_DST             |
-| \diffsrc               | DNNL_ARG_DIFF_SRC        |
-| \diffweights           | DNNL_ARG_DIFF_WEIGHTS    |
-| \diffbias              | DNNL_ARG_DIFF_BIAS       |
-| \diffdst               | DNNL_ARG_DIFF_DST        |
+| Primitive input/output | Execution argument index                                                  |
+| ---                    | ---                                                                       |
+| \src                   | DNNL_ARG_SRC                                                              |
+| \weights               | DNNL_ARG_WEIGHTS                                                          |
+| \bias                  | DNNL_ARG_BIAS                                                             |
+| \dst                   | DNNL_ARG_DST                                                              |
+| \diffsrc               | DNNL_ARG_DIFF_SRC                                                         |
+| \diffweights           | DNNL_ARG_DIFF_WEIGHTS                                                     |
+| \diffbias              | DNNL_ARG_DIFF_BIAS                                                        |
+| \diffdst               | DNNL_ARG_DIFF_DST                                                         |
+| \f$binary post-op\f$   | DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) \| DNNL_ARG_SRC_1 |
 
 
 ## Implementation Details
@@ -123,11 +124,12 @@ Post-ops and attributes enable you to modify the behavior of the inner product
 primitive by chaining certain operations after the inner product operation.
 The following post-ops are supported by inner product primitives:
 
-| Propagation | Type      | Operation                                                    | Description                                                                   | Restrictions             |
-| :--         | :--       | :--                                                          | :--                                                                           | :--                      |
-| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of inner product by given scale factor(s)                   | int8 inner products only |
-| forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                          |
-| forward     | post-op   | [sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                          |
+| Propagation | Type      | Operation                                                    | Description                                                                   | Restrictions                        |
+| :--         | :--       | :--                                                          | :--                                                                           | :--                                 |
+| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of inner product by given scale factor(s)                   | int8 inner products only            |
+| forward     | post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                                     |
+| forward     | post-op   | [Sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                                     |
+| forward     | post-op   | [Binary](@ref dnnl::post_ops::append_binary)                 | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
 
 ## Implementation Limitations
 
