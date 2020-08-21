@@ -25,25 +25,6 @@
 
 namespace rnn {
 
-float maybe_deq(
-        const prb_t &p, const float in, float scale, float compensation) {
-    if (!p.cfg.is_int8()) return in;
-    return (in - compensation * p.data_shift) * (1.0f / (scale * p.data_scale));
-}
-
-float maybe_deq_h(const prb_t &p, const float in, int64_t oc) {
-    return maybe_deq(p, in, p.get_wei_scale(oc), 0.0f);
-}
-
-float maybe_q(const prb_t &p, float h) {
-    if (!p.cfg.is_int8()) return h;
-    float fp = p.data_scale * h + p.data_shift;
-    if (fp > p.cfg[SRC_LAYER].max) fp = p.cfg[SRC_LAYER].max;
-    if (fp < p.cfg[SRC_LAYER].min) fp = p.cfg[SRC_LAYER].min;
-    fp = mxcsr_cvt(fp);
-    return fp;
-}
-
 template <typename T1, typename T2>
 void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
         float *gates_, const float *weights_peephole_, const float *bias_,
@@ -65,14 +46,14 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
             }
 
             gates(ib, LSTM_I, ih) = func1(p.linear_scales[LSTM_I],
-                    maybe_deq_h(p, gates(ib, LSTM_I, ih), LSTM_I * p.dhc + ih)
+                    maybe_deq(p, gates(ib, LSTM_I, ih), LSTM_I * p.dhc + ih)
                             + peephole_extra_i + bias(LSTM_I, ih));
             gates(ib, LSTM_F, ih) = func1(p.linear_scales[LSTM_F],
-                    maybe_deq_h(p, gates(ib, LSTM_F, ih), LSTM_F * p.dhc + ih)
+                    maybe_deq(p, gates(ib, LSTM_F, ih), LSTM_F * p.dhc + ih)
                             + peephole_extra_f + bias(LSTM_F, ih));
 
             gates(ib, LSTM_C, ih) = func2(p.linear_scales[LSTM_C],
-                    maybe_deq_h(p, gates(ib, LSTM_C, ih), LSTM_C * p.dhc + ih)
+                    maybe_deq(p, gates(ib, LSTM_C, ih), LSTM_C * p.dhc + ih)
                             + bias(LSTM_C, ih));
 
             // compute C_t_l and H_t_l
@@ -85,7 +66,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
                 peephole_extra_o = weights_peephole(2, ih) * tmp;
 
             gates(ib, LSTM_O, ih) = func1(p.linear_scales[LSTM_O],
-                    maybe_deq_h(p, gates(ib, LSTM_O, ih), LSTM_O * p.dhc + ih)
+                    maybe_deq(p, gates(ib, LSTM_O, ih), LSTM_O * p.dhc + ih)
                             + peephole_extra_o + bias(LSTM_O, ih));
 
             dst_layer(ib, ih) = maybe_q(

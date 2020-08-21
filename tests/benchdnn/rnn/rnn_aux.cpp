@@ -358,6 +358,26 @@ void init_buffer(float *buf, int64_t size, float value) {
         buf[i] = value;
 }
 
+float maybe_deq(const prb_t &p, const float in) {
+    if (!p.cfg.is_int8()) return in;
+    return (in - p.data_shift) * (1.0f / p.data_scale);
+}
+
+float maybe_deq(const prb_t &p, const float in, int64_t oc) {
+    if (!p.cfg.is_int8()) return in;
+    float scale = p.get_wei_scale(oc);
+    return in * (1.0f / (scale * p.data_scale));
+}
+
+float maybe_q(const prb_t &p, float h) {
+    if (!p.cfg.is_int8()) return h;
+    float fp = p.data_scale * h + p.data_shift;
+    if (fp > p.cfg[SRC_LAYER].max) fp = p.cfg[SRC_LAYER].max;
+    if (fp < p.cfg[SRC_LAYER].min) fp = p.cfg[SRC_LAYER].min;
+    fp = mxcsr_cvt(fp);
+    return fp;
+}
+
 float logistic(float x) {
     if (x < 0)
         return (expf(x) / (1 + expf(x)));
