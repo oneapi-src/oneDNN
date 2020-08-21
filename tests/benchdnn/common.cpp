@@ -479,6 +479,7 @@ std::string locate_batch_file(const std::string &fname) {
                 fdir = s_fdir + std::string("/../inputs/")
                         + std::string(driver_name);
             }
+            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             const std::string fullname = fdir + "/" + fname;
             ifs.open(fullname);
             if (ifs.is_open()) {
@@ -511,6 +512,7 @@ int batch(const char *fname, bench_f bench) {
 
         // shell style line break
         if (continued_line) {
+            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             str = opts.back() + str; // update current line with previous
             opts.pop_back(); // take previous line out
         }
