@@ -92,7 +92,7 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
 
     bool is_forward = !(r.prop_kind == prop_kind::backward);
     bool is_inference = r.prop_kind == prop_kind::forward_inference;
-    bool is_lstm = r.cell_kind == dnnl_vanilla_lstm;
+    bool is_int8_ok = one_of(r.cell_kind, dnnl_vanilla_lstm, dnnl_vanilla_gru);
 
     bool cell_state_check = expect_dt(r.src_iter_c_desc, f32, f16)
             && expect_dt(r.dst_iter_c_desc, f32, f16);
@@ -119,7 +119,7 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
             && r.weights_peephole_desc.data_type == data_type::undef
             && expect_dt(r.dst_iter_desc, f16) && expect_dt(r.bias_desc, f16);
 
-    bool is_u8u8u8 = is_inference && is_lstm && src_layer_dt == u8
+    bool is_u8u8u8 = is_inference && is_int8_ok && src_layer_dt == u8
             && one_of(dst_layer_dt, u8, f32)
             && everyone_is(s8, weights_iter_dt, weights_layer_dt)
             && expect_dt(r.src_iter_desc, u8)
@@ -129,7 +129,7 @@ status_t check_data_type_consistency_fwd(const rnn_desc_t &r) {
             && expect_dt(r.dst_iter_desc, u8)
             && expect_dt(r.dst_iter_c_desc, f32) && expect_dt(r.bias_desc, f32);
 
-    bool is_f32u8f32 = is_inference && is_lstm && src_layer_dt == u8
+    bool is_f32u8f32 = is_inference && is_int8_ok && src_layer_dt == u8
             && everyone_is(s8, weights_iter_dt, weights_layer_dt)
             && r.weights_peephole_desc.data_type == data_type::undef
             && r.weights_projection_desc.data_type == data_type::undef
