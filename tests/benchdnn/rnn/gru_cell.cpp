@@ -36,10 +36,13 @@ void gru_fwd_postgemm_part1_template(T func1, const prb_t &prb, float *gates_,
     for (int64_t i = 0; i < prb.mb; i++)
         for (int64_t k = 0; k < prb.dhc; k++) {
             gates(i, GRU_U, k) = func1(prb.linear_scales[GRU_U],
-                    gates(i, GRU_U, k) + bias(GRU_U, k));
+                    maybe_deq(prb, gates(i, GRU_U, k), GRU_U * prb.dhc + k)
+                            + bias(GRU_U, k));
             gates(i, GRU_R, k) = func1(prb.linear_scales[GRU_R],
-                    gates(i, GRU_R, k) + bias(GRU_R, k));
-            dst_layer(i, k) = src_iter(i, k) * gates(i, GRU_R, k);
+                    maybe_deq(prb, gates(i, GRU_R, k), GRU_R * prb.dhc + k)
+                            + bias(GRU_R, k));
+            dst_layer(i, k) = maybe_q(
+                    prb, (maybe_deq(prb, src_iter(i, k)) * gates(i, GRU_R, k)));
         }
 }
 
@@ -66,8 +69,11 @@ void gru_fwd_postgemm_part2_template(T func1, const prb_t &prb, float *gates_,
         for (int64_t k = 0; k < prb.dhc; k++) {
             double U = gates(i, GRU_U, k);
             double O = func1(prb.linear_scales[GRU_O],
-                    gates(i, GRU_O, k) + bias(GRU_O, k));
-            dst_layer(i, k) = (float)(U * src_iter(i, k) + (1.0 - U) * O);
+                    maybe_deq(prb, gates(i, GRU_O, k), GRU_O * prb.dhc + k)
+                            + bias(GRU_O, k));
+            dst_layer(i, k) = maybe_q(prb,
+                    (float)(U * maybe_deq(prb, src_iter(i, k))
+                            + (1.0 - U) * O));
 
             gates(i, GRU_O, k) = O;
         }

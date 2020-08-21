@@ -25,26 +25,6 @@
 
 namespace rnn {
 
-float maybe_deq(
-        const prb_t &prb, const float in, float scale, float compensation) {
-    if (!prb.cfg.is_int8()) return in;
-    return (in - compensation * prb.data_shift)
-            * (1.0f / (scale * prb.data_scale));
-}
-
-float maybe_deq_h(const prb_t &prb, const float in, int64_t oc) {
-    return maybe_deq(prb, in, prb.get_wei_scale(oc), 0.0f);
-}
-
-float maybe_q(const prb_t &prb, float h) {
-    if (!prb.cfg.is_int8()) return h;
-    float fp = prb.data_scale * h + prb.data_shift;
-    if (fp > prb.cfg[SRC_LAYER].max) fp = prb.cfg[SRC_LAYER].max;
-    if (fp < prb.cfg[SRC_LAYER].min) fp = prb.cfg[SRC_LAYER].min;
-    fp = mxcsr_cvt(fp);
-    return fp;
-}
-
 template <typename T1, typename T2>
 void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &prb,
         float *gates_, const float *weights_peephole_, const float *bias_,
@@ -66,17 +46,14 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &prb,
             }
 
             gates(ib, LSTM_I, ih) = func1(prb.linear_scales[LSTM_I],
-                    maybe_deq_h(
-                            prb, gates(ib, LSTM_I, ih), LSTM_I * prb.dhc + ih)
+                    maybe_deq(prb, gates(ib, LSTM_I, ih), LSTM_I * prb.dhc + ih)
                             + peephole_extra_i + bias(LSTM_I, ih));
             gates(ib, LSTM_F, ih) = func1(prb.linear_scales[LSTM_F],
-                    maybe_deq_h(
-                            prb, gates(ib, LSTM_F, ih), LSTM_F * prb.dhc + ih)
+                    maybe_deq(prb, gates(ib, LSTM_F, ih), LSTM_F * prb.dhc + ih)
                             + peephole_extra_f + bias(LSTM_F, ih));
 
             gates(ib, LSTM_C, ih) = func2(prb.linear_scales[LSTM_C],
-                    maybe_deq_h(
-                            prb, gates(ib, LSTM_C, ih), LSTM_C * prb.dhc + ih)
+                    maybe_deq(prb, gates(ib, LSTM_C, ih), LSTM_C * prb.dhc + ih)
                             + bias(LSTM_C, ih));
 
             // compute C_t_l and H_t_l
@@ -89,8 +66,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &prb,
                 peephole_extra_o = weights_peephole(2, ih) * tmp;
 
             gates(ib, LSTM_O, ih) = func1(prb.linear_scales[LSTM_O],
-                    maybe_deq_h(
-                            prb, gates(ib, LSTM_O, ih), LSTM_O * prb.dhc + ih)
+                    maybe_deq(prb, gates(ib, LSTM_O, ih), LSTM_O * prb.dhc + ih)
                             + peephole_extra_o + bias(LSTM_O, ih));
 
             dst_layer(ib, ih) = maybe_q(

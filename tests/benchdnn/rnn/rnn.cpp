@@ -657,10 +657,16 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
 #endif
 
     // int8 weights reorder does not support non trivial strides;
-    // only LSTM cell kind supports int8 so far;
-    if (prb.is_int8() && (!prb.trivial_strides || prb.alg != VANILLA_LSTM)) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
+    // only LSTM and GRU cell kinds support int8 so far;
+    if (prb.is_int8()) {
+        if (!prb.trivial_strides) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+        if (prb.alg != VANILLA_LSTM && prb.alg != VANILLA_GRU) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
     }
 
     // LSTM w/ projection is not supported for bf16
@@ -672,6 +678,10 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
     // GPU limitations for RNN
     if (engine_tgt_kind == dnnl_gpu) {
         if (prb.is_lstm_projection() || prb.is_lstm_peephole()) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+        if (prb.is_int8() && prb.alg != VANILLA_LSTM) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
