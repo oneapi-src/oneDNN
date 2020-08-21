@@ -30,9 +30,8 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type,
-        impl::data_type_t acc_type = dst_type>
+template <data_type_t src_type, data_type_t wei_type = src_type,
+        data_type_t dst_type = src_type, data_type_t acc_type = dst_type>
 struct ref_inner_product_fwd_t : public primitive_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
         using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
@@ -42,19 +41,24 @@ struct ref_inner_product_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
 
-            bool ok = true && is_fwd() && src_md()->data_type == src_type
-                    && weights_md()->data_type == wei_type
-                    && desc()->accum_data_type == acc_type
-                    && dst_md()->data_type == dst_type
+            bool ok = is_fwd()
+                    && expect_data_types(src_type, wei_type, data_type::undef,
+                            dst_type, acc_type)
+                    && platform::has_data_type_support(src_type)
+                    && platform::has_data_type_support(wei_type)
+                    && platform::has_data_type_support(dst_type)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(
-                                    weights_md(1)->data_type, f32, s32, s8, u8))
+                            IMPLICATION(src_type == u8,
+                                    utils::one_of(bias_md_.data_type, f32, s32,
+                                            s8, u8))
+                                    && IMPLICATION(src_type == f32,
+                                            bias_md_.data_type == f32))
+                    && set_default_params() == status::success
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops)
                     && attr()->post_ops_.len() <= 1
                     && IMPLICATION(attr()->post_ops_.len() == 1,
-                            attr()->post_ops_.entry_[0].is_relu(true, false))
-                    && set_default_params() == status::success;
+                            attr()->post_ops_.entry_[0].is_relu(true, false));
             return ok ? status::success : status::unimplemented;
         }
     };
@@ -76,9 +80,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
-        impl::data_type_t diff_dst_type,
-        impl::data_type_t acc_type = diff_src_type>
+template <data_type_t diff_src_type, data_type_t wei_type,
+        data_type_t diff_dst_type, data_type_t acc_type = diff_src_type>
 struct ref_inner_product_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_inner_product_bwd_data_pd_t {
         using cpu_inner_product_bwd_data_pd_t::cpu_inner_product_bwd_data_pd_t;
@@ -114,7 +117,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-template <impl::data_type_t data_type>
+template <data_type_t data_type>
 struct ref_inner_product_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_inner_product_bwd_weights_pd_t {
         using cpu_inner_product_bwd_weights_pd_t::

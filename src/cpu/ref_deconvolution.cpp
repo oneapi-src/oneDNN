@@ -26,6 +26,19 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+namespace {
+dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb, dim_t c,
+        dim_t id, dim_t ih, dim_t iw) {
+    switch (ndims) {
+        case 5: return mdw.off(mb, c, id, ih, iw);
+        case 4: return mdw.off(mb, c, ih, iw);
+        case 3: return mdw.off(mb, c, iw);
+        default: assert(!"unsupported ndims"); return dim_t(0);
+    }
+}
+
+} // namespace
+
 void ref_deconvolution_fwd_t::compute_fwd_bias(
         float *dst, const float *bias) const {
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -41,14 +54,9 @@ void ref_deconvolution_fwd_t::compute_fwd_bias(
     parallel_nd(MB, G, OC, OD, OH, OW,
             [&](int mb, int g, int oc, int od, int oh, int ow) {
                 auto b = bias[g * OC + oc];
-                switch (ndims) {
-                    case 5:
-                        dst[dst_d.off(mb, g * OC + oc, od, oh, ow)] += b;
-                        break;
-                    case 4: dst[dst_d.off(mb, g * OC + oc, oh, ow)] += b; break;
-                    case 3: dst[dst_d.off(mb, g * OC + oc, ow)] += b; break;
-                    default: assert(!"invalid dimension size");
-                }
+                auto dst_off = get_data_off(
+                        dst_d, ndims, mb, g * OC + oc, od, oh, ow);
+                dst[dst_off] += b;
             });
 }
 
@@ -146,6 +154,55 @@ void ref_deconvolution_fwd_t::compute_bias(const exec_ctx_t &ctx) const {
     }
 }
 
+status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
+    const auto &args = ctx.args();
+    exec_args_t conv_args;
+    conv_args[DNNL_ARG_DIFF_DST] = args.at(DNNL_ARG_SRC);
+    conv_args[DNNL_ARG_WEIGHTS] = args.at(DNNL_ARG_WEIGHTS);
+    if (pd()->with_bias() && pd()->conv_supports_bias_)
+        conv_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
+    conv_args[DNNL_ARG_DIFF_SRC] = args.at(DNNL_ARG_DST);
+    exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+
+    using namespace memory_tracking::names;
+    nested_scratchpad_t ns(ctx, key_nested, conv_p_);
+    conv_ctx.set_scratchpad_grantor(ns.grantor());
+    auto status = conv_p_->execute(conv_ctx);
+    if (status != status::success) return status;
+
+    if (pd()->with_bias() && !pd()->conv_supports_bias_) {
+        using namespace data_type;
+
+        auto dst_type = pd()->dst_md()->data_type;
+        auto bia_type = pd()->weights_md(1)->data_type;
+        if (utils::everyone_is(f32, dst_type, bia_type))
+            compute_bias<f32, f32>(ctx);
+        else if (utils::everyone_is(bf16, dst_type, bia_type))
+            compute_bias<bf16, bf16>(ctx);
+        else if (dst_type == f32 && bia_type == bf16)
+            compute_bias<f32, bf16>(ctx);
+        else if (dst_type == bf16 && bia_type == f32)
+            compute_bias<bf16, f32>(ctx);
+    }
+
+    return status::success;
+}
+
+status_t ref_deconvolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
+    const auto &args = ctx.args();
+    exec_args_t conv_args;
+    conv_args[DNNL_ARG_SRC] = args.at(DNNL_ARG_DIFF_DST);
+    conv_args[DNNL_ARG_WEIGHTS] = args.at(DNNL_ARG_WEIGHTS);
+    conv_args[DNNL_ARG_DST] = args.at(DNNL_ARG_DIFF_SRC);
+    exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+
+    nested_scratchpad_t ns(ctx, key_nested, conv_p_);
+    conv_ctx.set_scratchpad_grantor(ns.grantor());
+    conv_p_->execute(conv_ctx);
+    return status::success;
+}
+
 void ref_deconvolution_bwd_weights_t::compute_bwd_bias(
         float *diff_bias, const float *diff_dst) const {
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
@@ -160,28 +217,13 @@ void ref_deconvolution_bwd_weights_t::compute_bwd_bias(
 
     parallel_nd(G, OC, [&](int g, int oc) {
         float db = 0;
-        for (int mb = 0; mb < MB; ++mb) {
-            for (int od = 0; od < OD; ++od) {
-                for (int oh = 0; oh < OH; ++oh) {
-                    for (int ow = 0; ow < OW; ++ow) {
-                        switch (ndims) {
-                            case 5:
-                                db += diff_dst[diff_dst_d.off(
-                                        mb, g * OC + oc, od, oh, ow)];
-                                break;
-                            case 4:
-                                db += diff_dst[diff_dst_d.off(
-                                        mb, g * OC + oc, oh, ow)];
-                                break;
-                            case 3:
-                                db += diff_dst[diff_dst_d.off(
-                                        mb, g * OC + oc, ow)];
-                                break;
-                            default: assert(!"invalid dimension size");
-                        }
-                    }
-                }
-            }
+        for_(int mb = 0; mb < MB; ++mb)
+        for_(int od = 0; od < OD; ++od)
+        for_(int oh = 0; oh < OH; ++oh)
+        for (int ow = 0; ow < OW; ++ow) {
+            auto d_dst_off = get_data_off(
+                    diff_dst_d, ndims, mb, g * OC + oc, od, oh, ow);
+            db += diff_dst[d_dst_off];
         }
         diff_bias[g * OC + oc] = db;
     });
@@ -303,7 +345,40 @@ void ref_deconvolution_bwd_weights_t::compute_bias(
             compute_bwd_bias((float *)diff_bias, (const float *)diff_dst);
             break;
     }
-};
+}
+
+status_t ref_deconvolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
+    const auto &args = ctx.args();
+    exec_args_t conv_args;
+    conv_args[DNNL_ARG_DIFF_DST] = args.at(DNNL_ARG_SRC);
+    conv_args[DNNL_ARG_SRC] = args.at(DNNL_ARG_DIFF_DST);
+    conv_args[DNNL_ARG_DIFF_WEIGHTS] = args.at(DNNL_ARG_DIFF_WEIGHTS);
+    exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+
+    nested_scratchpad_t ns(ctx, key_nested, conv_p_);
+    conv_ctx.set_scratchpad_grantor(ns.grantor());
+    status_t status = conv_p_->execute(conv_ctx);
+    if (status != status::success) return status;
+
+    if (pd()->with_bias()) {
+        using namespace data_type;
+
+        auto dbia_type = pd()->diff_weights_md(1)->data_type;
+        auto ddst_type = pd()->diff_dst_md()->data_type;
+        if (utils::everyone_is(f32, dbia_type, ddst_type))
+            compute_bias<f32, f32>(ctx);
+        else if (utils::everyone_is(bf16, dbia_type, ddst_type))
+            compute_bias<bf16, bf16>(ctx);
+        else if (dbia_type == f32 && ddst_type == bf16)
+            compute_bias<f32, bf16>(ctx);
+        else {
+            assert(!"unsupported data type");
+            return status::runtime_error;
+        }
+    }
+    return status::success;
+}
 
 using namespace data_type;
 

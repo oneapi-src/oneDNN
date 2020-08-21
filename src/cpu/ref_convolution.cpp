@@ -34,31 +34,26 @@ using math::get_bias;
 namespace {
 dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb, dim_t c,
         dim_t id, dim_t ih, dim_t iw) {
-    if (ndims == 5)
-        return mdw.off(mb, c, id, ih, iw);
-    else if (ndims == 4)
-        return mdw.off(mb, c, ih, iw);
-    else if (ndims == 3)
-        return mdw.off(mb, c, iw);
-    else {
-        assert(false);
-        return dim_t(0);
+    switch (ndims) {
+        case 5: return mdw.off(mb, c, id, ih, iw);
+        case 4: return mdw.off(mb, c, ih, iw);
+        case 3: return mdw.off(mb, c, iw);
+        default: assert(!"unsupported ndims"); return dim_t(0);
     }
 }
 
 dim_t get_weights_off(const memory_desc_wrapper &mdw, bool with_groups,
         int ndims, dim_t g, dim_t oc, dim_t ic, dim_t kd, dim_t kh, dim_t kw) {
-    if (ndims == 5)
-        return with_groups ? mdw.off(g, oc, ic, kd, kh, kw)
-                           : mdw.off(oc, ic, kd, kh, kw);
-    else if (ndims == 4)
-        return with_groups ? mdw.off(g, oc, ic, kh, kw)
-                           : mdw.off(oc, ic, kh, kw);
-    else if (ndims == 3)
-        return with_groups ? mdw.off(g, oc, ic, kw) : mdw.off(oc, ic, kw);
-    else {
-        assert(false);
-        return dim_t(0);
+    switch (ndims) {
+        case 5:
+            return with_groups ? mdw.off(g, oc, ic, kd, kh, kw)
+                               : mdw.off(oc, ic, kd, kh, kw);
+        case 4:
+            return with_groups ? mdw.off(g, oc, ic, kh, kw)
+                               : mdw.off(oc, ic, kh, kw);
+        case 3:
+            return with_groups ? mdw.off(g, oc, ic, kw) : mdw.off(oc, ic, kw);
+        default: assert(!"unsupported ndims"); return dim_t(0);
     }
 }
 } // namespace
