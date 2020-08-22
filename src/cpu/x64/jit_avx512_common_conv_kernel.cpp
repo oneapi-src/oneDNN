@@ -5065,7 +5065,7 @@ bool jit_avx512_common_conv_bwd_weights_kernel_f32 ::flat_4ops_compute() {
                             + (kw / j.stride_w);
                     v4fmaddps(
                             zmm_wei(kh, kw), zmm_dst(ow), addr_tr_src(kh, iw));
-                    if (true && kh == 0 && kw < 4) {
+                    if (kh == 0 && kw < 4) {
                         prefetcht1(ptr[reg_ptr_dst
                                 + (j.ow + ow + kw) * jcp.oc_block
                                         * jcp.typesize_in]);
