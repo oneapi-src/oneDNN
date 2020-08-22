@@ -135,5 +135,4 @@
 --dtag=goidhw,gOIdhw8i16o2i
 3x16x32x3x2x4 5x32x16x2x3x4 4x11x17x2x2x3
 
-# TODO: Switch on once fixed
-# --batch=harness_reorder_cross_engine_gpu
+--batch=harness_reorder_cross_engine_gpu
