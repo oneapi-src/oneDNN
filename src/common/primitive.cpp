@@ -114,7 +114,7 @@ status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
         stream->wait();
         ms = get_msec() - ms;
         printf("dnnl_verbose,exec,%s,%g\n", primitive_iface->pd()->info(), ms);
-        fflush(0);
+        fflush(stdout);
     } else {
         status = primitive_iface->execute(ctx);
     }
