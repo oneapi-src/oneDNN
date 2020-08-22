@@ -26,11 +26,12 @@
 // - DNNL_X64
 // - DNNL_AARCH64
 // - DNNL_PPC64
+// - DNNL_S390X
 // - DNNL_ARCH_GENERIC
 // Target architecture macro is set to 1, others to 0. All macros are defined.
 
 #if defined(DNNL_X64) + defined(DNNL_AARCH64) + defined(DNNL_PPC64) \
-                + defined(DNNL_ARCH_GENERIC) \
+                + defined(DNNL_S390X) + defined(DNNL_ARCH_GENERIC) \
         == 0
 #if defined(__x86_64__) || defined(_M_X64)
 #define DNNL_X64 1
@@ -38,13 +39,15 @@
 #define DNNL_AARCH64 1
 #elif defined(__powerpc64__) || defined(__PPC64__) || defined(_ARCH_PPC64)
 #define DNNL_PPC64 1
+#elif defined(__s390x__)
+#define DNNL_S390X 1
 #else
 #define DNNL_ARCH_GENERIC 1
 #endif
 #endif // defined(DNNL_X64) + ... == 0
 
 #if defined(DNNL_X64) + defined(DNNL_AARCH64) + defined(DNNL_PPC64) \
-                + defined(DNNL_ARCH_GENERIC) \
+                + defined(DNNL_S390X) + defined(DNNL_ARCH_GENERIC) \
         != 1
 #error One and only one architecture should be defined at a time
 #endif
@@ -58,6 +61,9 @@
 #if !defined(DNNL_PPC64)
 #define DNNL_PPC64 0
 #endif
+#if !defined(DNNL_S390X)
+#define DNNL_S390X 0
+#endif
 #if !defined(DNNL_ARCH_GENERIC)
 #define DNNL_ARCH_GENERIC 0
 #endif
@@ -67,6 +73,7 @@
 #define DNNL_X64_ONLY(...) Z_CONDITIONAL_DO(DNNL_X64, __VA_ARGS__)
 #define DNNL_AARCH64_ONLY(...) Z_CONDITIONAL_DO(DNNL_AARCH64_ONLY, __VA_ARGS__)
 #define DNNL_PPC64_ONLY(...) Z_CONDITIONAL_DO(DNNL_PPC64_ONLY, __VA_ARGS__)
+#define DNNL_S390X_ONLY(...) Z_CONDITIONAL_DO(DNNL_S390X_ONLY, __VA_ARGS__)
 
 namespace dnnl {
 namespace impl {
