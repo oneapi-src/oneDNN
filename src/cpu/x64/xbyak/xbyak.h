@@ -2547,15 +2547,12 @@ public:
 			XBYAK_THROW(ERR_BAD_COMBINATION)
 		}
 	}
-	void mov(const NativeReg& reg, const char *label) // can't use std::string
-	{
-		if (label == 0) {
-			mov(static_cast<const Operand&>(reg), 0); // call imm
-			return;
-		}
-		mov_imm(reg, dummyAddr);
-		putL(label);
-	}
+
+	// The template is used to avoid ambiguity when the 2nd argument is 0.
+	// When the 2nd argument is 0 the call goes to
+	// `void mov(const Operand& op, uint64 imm)`.
+	template <typename T1, typename T2>
+	void mov(const T1& reg, const T2 *label);
 	void mov(const NativeReg& reg, const Label& label)
 	{
 		mov_imm(reg, dummyAddr);
@@ -2774,6 +2771,14 @@ public:
 	}
 #endif
 };
+
+template <>
+inline void CodeGenerator::mov(const NativeReg& reg, const char *label) // can't use std::string
+{
+	assert(label);
+	mov_imm(reg, dummyAddr);
+	putL(label);
+}
 
 namespace util {
 static const Mmx mm0(0), mm1(1), mm2(2), mm3(3), mm4(4), mm5(5), mm6(6), mm7(7);
