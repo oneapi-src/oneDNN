@@ -134,7 +134,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
-4. CMake (cmake/FindOpenCL.cmake, cmake/FindBLAS.cmake)
+4. CMake (cmake/FindOpenCL.cmake, cmake/FindBLAS.cmake, cmake/FindACL.cmake)
 CMake - Cross Platform Makefile Generator
 Copyright 2000-2020 Kitware, Inc. and Contributors
 All rights reserved.
