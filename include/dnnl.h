@@ -3746,6 +3746,11 @@ dnnl_status_t DNNL_API dnnl_gemm_s8s8s32(char transa, char transb, char offsetc,
         dnnl_dim_t lda, int8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,
         float beta, int32_t *C, dnnl_dim_t ldc, const int32_t *co);
 
+dnnl_status_t DNNL_API dnnl_gemm_bf16bf16f32(char transa, char transb,
+        int M, int N, int K, float alpha,
+        const uint16_t* A, int lda, const uint16_t* B,
+        int ldb, float beta, float* C, int ldc);
+
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
 /// @copydoc dnnl_sgemm()
 /// @param tp A pointer to a threadpool interface (only when built with the
