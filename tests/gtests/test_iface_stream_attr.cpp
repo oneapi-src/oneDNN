@@ -45,17 +45,17 @@ protected:
 TEST_F(stream_attr_test_t, TestConstructor) {}
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-TEST_F(stream_attr_test, TestGetThreadPool) {
+TEST_F(stream_attr_test_t, TestGetThreadPool) {
     catch_expected_failures([&] { sa_cpu.get_threadpool(); },
             expect_threadpool_failure, dnnl_invalid_arguments);
 }
 
-TEST_F(stream_attr_test, TestSetThreadPoolNULL) {
+TEST_F(stream_attr_test_t, TestSetThreadPoolNULL) {
     catch_expected_failures([&] { sa_cpu.set_threadpool(nullptr); },
             expect_threadpool_failure, dnnl_invalid_arguments);
 };
 
-TEST_F(stream_attr_test, TestSetThreadPool) {
+TEST_F(stream_attr_test_t, TestSetThreadPool) {
     catch_expected_failures([&] { sa_cpu.set_threadpool(&tp); },
             expect_threadpool_failure, dnnl_invalid_arguments);
 };
