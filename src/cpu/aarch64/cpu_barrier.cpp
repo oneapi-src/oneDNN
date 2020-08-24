@@ -90,6 +90,10 @@ void generate(
     code.cmp(reg_tmp, code.ptr[reg_ctx + BAR_SENSE_OFF]);
     code.je(spin_label);
 
+#ifdef DNNL_INDIRECT_JIT_AARCH64
+    code.CodeGeneratorAArch64::dmb(Xbyak_aarch64::ISH);
+#endif //#ifdef DNNL_INDIRECT_JIT_AARCH64
+
     code.CodeGenerator::L(barrier_exit_restore_label);
     code.pop(reg_tmp);
 
