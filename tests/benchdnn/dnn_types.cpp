@@ -935,7 +935,7 @@ static std::string trim_letter(const std::string &tag_, char c) {
 // Removes extra dimensions from a tag according to ndims.
 static std::string trim_tag(const std::string &tag, int ndims) {
     std::string trimmed_tag = tag;
-    for (char c = 'a' + ndims; c <= 'a' + DNNL_MAX_NDIMS - 1; c++) {
+    for (char c = 'a' + ndims; c <= 'a' + (char)(DNNL_MAX_NDIMS - 1); c++) {
         trimmed_tag = trim_letter(trimmed_tag, c);
         trimmed_tag = trim_letter(trimmed_tag, std::toupper(c));
     }
