@@ -177,7 +177,6 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
             PD_CHECK_ARG(od.data_type() == data_type::s8);
             PD_CHECK_ARG(od.format_kind() == format_kind::rnn_packed);
             PD_CHECK_ARG(od.rnn_packed_desc().format == dnnl_ldigo_p);
-            PD_CHECK_ARG(od.rnn_packed_desc().n_parts == 1);
             PD_CHECK_ARG(attr->has_default_values(
                     primitive_attr_t::skip_mask_t::rnn_data_qparams
                     | primitive_attr_t::skip_mask_t::rnn_weights_qparams));

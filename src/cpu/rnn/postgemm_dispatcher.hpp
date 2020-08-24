@@ -220,6 +220,11 @@ private:
     void initialize_jit(const rnn_utils::rnn_conf_t &rnn) {
         using namespace dnnl::impl::cpu::x64;
 
+        // no JIT postgemm for INT8 GRU yet
+        if (src_type == data_type::u8
+                && pd_->cell_kind() == alg_kind::vanilla_gru)
+            return;
+
         if (pd_->attr()->rnn_tparams_.test_mode_) return;
 
         const bool jit_fwd = pd_->is_fwd()
