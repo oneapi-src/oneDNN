@@ -2552,7 +2552,7 @@ public:
 	// When the 2nd argument is 0 the call goes to
 	// `void mov(const Operand& op, uint64 imm)`.
 	template <typename T1, typename T2>
-	void mov(const T1& reg, const T2 *label);
+	void mov(const T1& reg, const T2 *label) { T1::unimplemented_function; }
 	void mov(const NativeReg& reg, const Label& label)
 	{
 		mov_imm(reg, dummyAddr);
