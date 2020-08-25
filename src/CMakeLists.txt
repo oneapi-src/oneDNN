@@ -100,21 +100,6 @@ target_include_directories(${LIB_NAME} PUBLIC
     $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>
     )
 
-if(DNNL_INDIRECT_JIT_AARCH64)
-    find_library(XED
-        NAMES "xed"
-        PATHS cpu/aarch64/build_xed_aarch64/kits/xed/lib /usr/local/lib /usr/lib /usr/local/lib64 /usr/lib64 /usr/lib/aarch64-linux-gnu
-        ENV LD_LIBRARY_PATH
-    )
-
-    if(NOT XED)
-        message(FATAL_ERROR, "libxed not found!")
-    endif()
-
-    list(APPEND EXTRA_STATIC_LIBS ${XED})
-    list(APPEND EXTRA_SHARED_LIBS ${XED})
-endif()
-
 target_link_libraries_build(${LIB_NAME}
     "${EXTRA_SHARED_LIBS};${EXTRA_STATIC_LIBS}")
 target_link_libraries_install(${LIB_NAME} "${EXTRA_SHARED_LIBS}")

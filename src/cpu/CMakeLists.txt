@@ -65,25 +65,28 @@ add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
 
-# TODO: aarch64 only 
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64
-    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64/xbyak
-    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64/translator/include/xbyak_translator_for_aarch64
-    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64/translator/third_party/xbyak_aarch64/xbyak_aarch64
-    )
-
-if(DNNL_INDIRECT_JIT_AARCH64)
-    include_directories(
-        ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/build_xed_aarch64/kits/xed/include
-    )
-endif()
-
-
 if (DNNL_TARGET_ARCH STREQUAL "X64")
     add_subdirectory(x64)
 endif()
 
 if (DNNL_TARGET_ARCH STREQUAL "AARCH64")
-    add_subdirectory(aarch64)
+
+  if(DNNL_INDIRECT_JIT_AARCH64)
+    append(CMAKE_C_FLAGS "-DDNNL_INDIRECT_JIT_AARCH64")
+    append(CMAKE_CXX_FLAGS "-DDNNL_INDIRECT_JIT_AARCH64")
+
+    append(CMAKE_C_FLAGS "-DXBYAK_TRANSLATE_AARCH64")
+    append(CMAKE_CXX_FLAGS "-DXBYAK_TRANSLATE_AARCH64")
+
+    append(CMAKE_C_FLAGS "-DXBYAK_AARCH64_FOR_DNNL")
+    append(CMAKE_CXX_FLAGS "-DXBYAK_AARCH64_FOR_DNNL")
+  endif()
+
+  include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64/xbyak
+    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64/translator/include/xbyak_translator_for_aarch64
+    ${CMAKE_CURRENT_SOURCE_DIR}/aarch64/xbyak_translator_aarch64/translator/third_party/xbyak_aarch64/xbyak_aarch64
+    )
+
+  add_subdirectory(aarch64)
 endif()

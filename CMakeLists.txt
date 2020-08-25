@@ -89,13 +89,13 @@ endif()
 
 # Set the target architecture.
 if(NOT DNNL_TARGET_ARCH)
-#    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)")
         set(DNNL_TARGET_ARCH "AARCH64")
-#    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(ppc64.*|PPC64.*)")
-#        set(DNNL_TARGET_ARCH "PPC64")
-#    else()
-#        set(DNNL_TARGET_ARCH "X64")
-#    endif()
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(ppc64.*|PPC64.*)")
+        set(DNNL_TARGET_ARCH "PPC64")
+    else()
+        set(DNNL_TARGET_ARCH "X64")
+    endif()
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -119,6 +119,7 @@ include("cmake/Threadpool.cmake")
 include("cmake/OpenCL.cmake")
 include("cmake/platform.cmake")
 include("cmake/SDL.cmake")
+include("cmake/xed.cmake")
 include("cmake/blas.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
@@ -155,26 +156,6 @@ endif()
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
-
-# TODO: aarch64 only
-if(DNNL_INDIRECT_JIT_AARCH64)
-    append(CMAKE_C_FLAGS "-DDNNL_INDIRECT_JIT_AARCH64")
-    append(CMAKE_CXX_FLAGS "-DDNNL_INDIRECT_JIT_AARCH64")
-
-    append(CMAKE_C_FLAGS "-DXBYAK_TRANSLATE_AARCH64")
-    append(CMAKE_CXX_FLAGS "-DXBYAK_TRANSLATE_AARCH64")
-endif()
-
-if(DNNL_INDIRECT_JIT_AARCH64 OR DNNL_NATIVE_JIT_AARCH64)
-    append(CMAKE_C_FLAGS "-DXBYAK_AARCH64_FOR_DNNL")
-    append(CMAKE_CXX_FLAGS "-DXBYAK_AARCH64_FOR_DNNL")
-endif()
-
-if(DNNL_NATIVE_JIT_AARCH64)
-    append(CMAKE_C_FLAGS "-DDNNL_NATIVE_JIT_AARCH64")
-    append(CMAKE_CXX_FLAGS "-DDNNL_NATIVE_JIT_AARCH64")
-endif()
-
 
 add_subdirectory(src)
 add_subdirectory(examples)
