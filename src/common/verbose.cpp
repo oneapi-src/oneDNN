@@ -311,7 +311,7 @@ void verbose_templ(char *buffer, const engine_t *engine,
     dnnl_engine_kind_t engine_kind;
     engine_kind = engine->kind();
     DPRINT(buffer, DNNL_VERBOSE_BUF_LEN, written, "%s,%s,%s,%s,%s,%s,%s,%s",
-            dnnl_engine_kind2str(engine_kind), dnnl_prim_kind2str(prim_kind),
+            dnnl_engine_kind2str(engine_kind), prim_kind2str(prim_kind),
             impl_str, dnnl_prop_kind2str(prop_kind), data_str, attr_str,
             aux_str, prb_str);
 }
