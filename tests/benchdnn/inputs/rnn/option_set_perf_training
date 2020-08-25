@@ -1,7 +1,7 @@
 --mb=128
 
 --alg=VANILLA_LSTM
---activation=TANH
+--activation=UNDEF
 --batch=option_set_gnmt_decoder
 --batch=option_set_gnmt_encoder
 
