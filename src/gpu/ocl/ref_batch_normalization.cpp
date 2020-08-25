@@ -45,9 +45,9 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     conf.mb = data_mdw.dims()[0];
 
     conf.ic = data_mdw.dims()[1];
-    conf.id = (ndims == 5) ? data_mdw.dims()[2] : 1;
-    conf.ih = (ndims == 3) ? 1 : data_mdw.dims()[ndims - 2];
-    conf.iw = data_mdw.dims()[ndims - 1];
+    conf.id = (ndims >= 5) ? data_mdw.dims()[ndims - 3] : 1;
+    conf.ih = (ndims >= 4) ? data_mdw.dims()[ndims - 2] : 1;
+    conf.iw = (ndims >= 3) ? data_mdw.dims()[ndims - 1] : 1;
 
     conf.is_forward = pd->is_fwd();
     conf.is_backward = !pd->is_fwd();
@@ -113,9 +113,9 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
         conf.dispatch.define_dim("MB", 0, conf.mb, conf.mb_block);
         conf.dispatch.define_dim("IC", 1, conf.ic);
-        conf.dispatch.define_dim("ID", nstl::max(2, ndims - 3), conf.id);
-        conf.dispatch.define_dim("IH", nstl::max(2, ndims - 2), conf.ih);
-        conf.dispatch.define_dim("IW", nstl::max(2, ndims - 1), conf.iw);
+        conf.dispatch.define_dim("ID", nstl::max(1, ndims - 3), conf.id);
+        conf.dispatch.define_dim("IH", nstl::max(1, ndims - 2), conf.ih);
+        conf.dispatch.define_dim("IW", nstl::max(1, ndims - 1), conf.iw);
         conf.dispatch.vectorize_dim("IC", 16);
         conf.dispatch.generate();
     } else {
@@ -124,9 +124,9 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
         conf.dispatch.define_dim("MB", 0, conf.mb);
         conf.dispatch.define_dim("IC", 1, conf.ic);
-        conf.dispatch.define_dim("ID", nstl::max(2, ndims - 3), conf.id);
-        conf.dispatch.define_dim("IH", nstl::max(2, ndims - 2), conf.ih);
-        conf.dispatch.define_dim("IW", nstl::max(2, ndims - 1), conf.iw);
+        conf.dispatch.define_dim("ID", nstl::max(1, ndims - 3), conf.id);
+        conf.dispatch.define_dim("IH", nstl::max(1, ndims - 2), conf.ih);
+        conf.dispatch.define_dim("IW", nstl::max(1, ndims - 1), conf.iw);
 
         conf.dispatch.generate();
         if (conf.calculate_stats || conf.is_backward) {
@@ -153,11 +153,11 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             conf.dispatch_calc_stat.define_dim("STAT_MB", 0, calc_dims[0]);
             conf.dispatch_calc_stat.define_dim("STAT_IC", 1, calc_dims[1]);
             conf.dispatch_calc_stat.define_dim(
-                    "STAT_ID", nstl::max(2, ndims - 3), calc_dims[2]);
+                    "STAT_ID", nstl::max(1, ndims - 3), calc_dims[2]);
             conf.dispatch_calc_stat.define_dim(
-                    "STAT_IH", nstl::max(2, ndims - 2), calc_dims[3]);
+                    "STAT_IH", nstl::max(1, ndims - 2), calc_dims[3]);
             conf.dispatch_calc_stat.define_dim(
-                    "STAT_IW", nstl::max(2, ndims - 1), calc_dims[4]);
+                    "STAT_IW", nstl::max(1, ndims - 1), calc_dims[4]);
 
             conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
             conf.dispatch_calc_stat.generate();
