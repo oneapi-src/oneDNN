@@ -1384,7 +1384,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     auto &scratch_cell
             = this->pd()->is_lbr() || this->pd()->rnn_conf.is_vanilla_gru
-            ? *scratchpad_cell.get()
+            ? *scratchpad_cell
             : empty_mem;
 
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
