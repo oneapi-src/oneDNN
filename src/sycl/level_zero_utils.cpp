@@ -247,11 +247,14 @@ status_t sycl_create_kernel_with_level_zero(
 status_t sycl_destroy_kernel_with_level_zero(
         std::unique_ptr<cl::sycl::kernel> &sycl_kernel,
         void *handle_to_destroy) {
-    // L0 module should be destroyed manually.
     sycl_kernel.reset();
+    auto status = status::success;
+#if !defined(USE_GOLD_LEVEL_ZERO_SYCL_INTEROP)
+    // L0 module should be destroyed manually in case of using pre Gold API
     auto ze_module = reinterpret_cast<ze_module_handle_t>(handle_to_destroy);
-
-    return func_zeModuleDestroy(ze_module);
+    status = func_zeModuleDestroy(ze_module);
+#endif
+    return status;
 }
 
 #endif // defined(LEVEL_ZERO_NOT_SUPPORTED)
