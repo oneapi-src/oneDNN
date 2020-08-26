@@ -74,6 +74,15 @@ int off_ncdhw(int n, int c, int d, int h, int w, int C, int D, int H, int W) {
     off += w;
     return off;
 }
+int off_ndhwc(int n, int c, int d, int h, int w, int C, int D, int H, int W) {
+    int off = 0;
+    off += n * D * H * W * C;
+    off += d * H * W * C;
+    off += h * W * C;
+    off += w * C;
+    off += c;
+    return off;
+}
 
 int off_nCdhw16c(
         int n, int c, int d, int h, int w, int C, int D, int H, int W) {
@@ -143,6 +152,7 @@ int off_gIOdhw16i16o(int g, int o, int i, int d, int h, int w, int O, int I,
 
 int src_off(int n, int c, int d, int h, int w) {
     if (SRC_NCHW) return off_ncdhw(n, c, d, h, w, G * IC, ID, IH, IW);
+    if (SRC_NHWC) return off_ndhwc(n, c, d, h, w, G * IC, ID, IH, IW);
     if (SRC_W16C) return off_nCdhw16c(n, c, d, h, w, G * IC, ID, IH, IW);
     if (SRC_16N16C) return off_NCdhw16n16c(n, c, d, h, w, G * IC, ID, IH, IW);
     return 0;
