@@ -107,12 +107,12 @@ cmake --build . --target INSTALL
 
 ### Building with DPCPP runtime
 
-DPCPP runtime requires Intel oneAPI DPC++ Compiler, Intel oneAPI TBB and
+DPCPP runtime requires Intel oneAPI DPC++ Compiler, Intel oneAPI TBB, and
 optionally oneAPI Level Zero.
 
-@note If you only installed Intel oneAPI DPC++ Compiler you can explicitly
-specify the path to a compatible version of Intel oneAPI TBB using `-DTBBROOT`
-CMake option.
+@note If you installed only Intel oneAPI DPC++ Compiler, you can explicitly
+specify the path to a compatible version of Intel oneAPI TBB using the
+`-DTBBROOT` CMake option.
 
 #### Linux
 
@@ -174,7 +174,7 @@ cmake -G Ninja -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP ..
 cmake --build .
 ~~~
 
-@note On Windows, oneDNN with DPCPP runtime can only be built with Ninja.
+@note On Windows, oneDNN with DPCPP runtime can be built only with Ninja.
 The CC and CXX variables must be set to clang and clang++ respectively and not
 to dpcpp.
 
