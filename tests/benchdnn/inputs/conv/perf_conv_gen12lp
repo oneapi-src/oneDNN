@@ -1,3 +1,4 @@
+--reset
 --batch=perf_conv_gen9
 
 --reset
