@@ -46,7 +46,12 @@ static void fwd_compute_block_sizes(
 
     conf.oc_block = 16;
     conf.ic_block = nstl::min(conf.ic, 16);
+    conf.wino_ic_block = 32;
+    conf.wino_oc_block = 32;
     conf.ocb = utils::div_up(conf.oc, conf.oc_block);
+
+    conf.oh_block = 8;
+    conf.ow_block = conf.wino_m;
 }
 
 status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
@@ -87,8 +92,6 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
     conf.oc_block = 1;
     conf.ic_block = 1;
     conf.od_block = 1;
-    conf.oh_block = conf.wino_m;
-    conf.ow_block = conf.wino_m;
     conf.ocb = 1;
 
     if ((is_16oc && is_16ic)) {
@@ -97,27 +100,57 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
         return status::unimplemented;
     }
 
+    fwd_compute_block_sizes(conf, this);
+
+    // Used for the internal data transform
+    conf.wino_ow = utils::div_up(conf.ow, conf.ow_block);
+    conf.wino_iw = conf.wino_ow;
+    conf.wino_oh = utils::rnd_up(conf.oh, conf.oh_block);
+    conf.wino_ih = conf.wino_oh + conf.t_pad + conf.b_pad;
+    conf.wino_ic = utils::rnd_up(conf.ic, conf.wino_ic_block);
+    conf.wino_oc = utils::rnd_up(conf.oc, conf.wino_oc_block);
+
+    size_t U_sz = conf.tile_size * conf.kh * conf.wino_ic * conf.wino_oc;
+    size_t M_sz = conf.tile_size * conf.mb * conf.wino_oc * conf.wino_oh
+            * conf.wino_ow;
+    size_t V_sz = conf.tile_size * conf.mb * conf.wino_ic * conf.wino_ih
+            * conf.wino_iw;
+
+    // Limit max problem size since this method uses more memory
+    if (U_sz + M_sz + V_sz > 300000000) return status::unimplemented;
+
+    //Using F(m, r) for r = 3 and tile_size = m + r - 1
     switch (conf.ver) {
         case ver_8ow16c:
         case ver_16mb16c: {
-            fwd_compute_block_sizes(conf, this);
             conf.mb_block = 1;
-            conf.lws_d[0] = 1;
+            conf.lws_d[0] = 8;
             conf.lws_d[1] = 1;
             conf.lws_d[2] = 1;
-            conf.gws_d[0]
-                    = (conf.mb / conf.mb_block) * (conf.oc / conf.oc_block);
-            conf.gws_d[1] = utils::div_up(conf.oh, conf.oh_block)
-                    * utils::div_up(conf.ow, conf.ow_block);
-            conf.gws_d[2] = 1;
+            conf.gws_d[0] = (conf.wino_oc / conf.wino_oc_block) * conf.lws_d[0];
+            conf.gws_d[1] = conf.wino_ow * (conf.wino_oh / conf.oh_block);
+            conf.gws_d[2] = (conf.mb / conf.mb_block) * conf.tile_size;
 
             conf.U_lws_d[0] = 1;
             conf.U_lws_d[1] = 1;
             conf.U_lws_d[2] = 1;
-            conf.U_gws_d[0]
-                    = (conf.ic / conf.ic_block) * (conf.oc / conf.oc_block);
-            conf.U_gws_d[1] = 1;
-            conf.U_gws_d[2] = 1;
+            conf.U_gws_d[0] = 1;
+            conf.U_gws_d[1] = 3; // kh or kw depending
+            conf.U_gws_d[2] = conf.wino_ic * conf.wino_oc;
+
+            conf.V_lws_d[0] = 1;
+            conf.V_lws_d[1] = 1;
+            conf.V_lws_d[2] = 1;
+            conf.V_gws_d[0] = conf.wino_ow;
+            conf.V_gws_d[1] = conf.wino_ih;
+            conf.V_gws_d[2] = conf.wino_ic / conf.ic_block * conf.mb;
+
+            conf.M_lws_d[0] = 1;
+            conf.M_lws_d[1] = 1;
+            conf.M_lws_d[2] = 1;
+            conf.M_gws_d[0] = utils::div_up(conf.ow, conf.ow_block);
+            conf.M_gws_d[1] = conf.oh;
+            conf.M_gws_d[2] = conf.oc / conf.oc_block * conf.mb;
             break;
         }
         default: return status::unimplemented;
@@ -140,9 +173,9 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
             src_tag = utils::pick(conf.ndims - 3, nCw16c, nChw16c, nCdhw16c);
             dst_tag = utils::pick(conf.ndims - 3, nCw16c, nChw16c, nCdhw16c);
             wei_tag = (conf.with_groups ? utils::pick(conf.ndims - 3,
-                               gOIw16i16o, gOIhw16i16o, gOIdhw16i16o)
-                                        : utils::pick(conf.ndims - 3, OIw16i16o,
-                                                OIhw16i16o, OIdhw16i16o));
+                               gIOw16i16o, gIOhw16i16o, gIOdhw16i16o)
+                                        : utils::pick(conf.ndims - 3, IOw16i16o,
+                                                IOhw16i16o, IOdhw16i16o));
             break;
         default: return status::unimplemented;
     }
@@ -172,9 +205,18 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
 }
 
 void gen9_wino_convolution_fwd_t::pd_t::init_scratchpad() {
-    size_t U_sz = conf.tile_size * conf.tile_size * conf.ic * conf.oc;
     auto scratchpad = scratchpad_registry().registrar();
+
+    size_t U_sz = conf.tile_size * conf.kh * conf.wino_ic * conf.wino_oc;
     scratchpad.book<float>(key_wino_U, U_sz);
+
+    size_t M_sz = conf.tile_size * conf.mb * conf.wino_oc * conf.wino_oh
+            * conf.wino_ow;
+    scratchpad.book<float>(key_wino_M, M_sz);
+
+    size_t V_sz = conf.tile_size * conf.mb * conf.wino_ic * conf.wino_ih
+            * conf.wino_iw;
+    scratchpad.book<float>(key_wino_V, V_sz);
 }
 
 status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
@@ -200,8 +242,17 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("OHB", utils::div_up(conf.oh, conf.oh_block));
     kernel_ctx.define_int("WINO_M", conf.wino_m);
     kernel_ctx.define_int("WINO_R", conf.wino_r);
+    kernel_ctx.define_int("WINO_IC_BLOCK", conf.wino_ic_block);
+    kernel_ctx.define_int("WINO_OC_BLOCK", conf.wino_oc_block);
+    kernel_ctx.define_int("WINO_IC", conf.wino_ic);
+    kernel_ctx.define_int("WINO_OC", conf.wino_oc);
+    kernel_ctx.define_int("WINO_IH", conf.wino_ih);
+    kernel_ctx.define_int("WINO_IW", conf.wino_iw);
+    kernel_ctx.define_int("WINO_OH", conf.wino_oh);
+    kernel_ctx.define_int("WINO_OW", conf.wino_ow);
     kernel_ctx.define_int("OC_BLOCK", conf.oc_block);
     kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
+    kernel_ctx.define_int("WINO_IC_BLOCK", conf.wino_ic_block);
 
     kernel_ctx.set_data_type(conf.src_data_type);
 
@@ -214,8 +265,8 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
             "SRC_W16C", utils::one_of(conf.src_tag, nCw16c, nChw16c, nCdhw16c));
 
     kernel_ctx.define_int("WEI_16I16O",
-            utils::one_of(conf.wei_tag, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o,
-                    OIw16i16o, OIhw16i16o, OIdhw16i16o));
+            utils::one_of(conf.wei_tag, gIOw16i16o, gIOhw16i16o, gIOdhw16i16o,
+                    IOw16i16o, IOhw16i16o, IOdhw16i16o));
 
     kernel_ctx.define_int("DST_16N16C",
             utils::one_of(conf.dst_tag, NCw16n16c, NChw16n16c, NCdhw16n16c));
@@ -241,24 +292,40 @@ status_t gen9_wino_convolution_fwd_t::execute_forward(
 
     std::unique_ptr<memory_storage_t> wei_trans
             = ctx.get_scratchpad_grantor().get_memory_storage(key_wino_U);
-
     compute::kernel_arg_list_t wei_transform_args;
-    wei_transform_args.set(0, weights);
-    wei_transform_args.set(1, *wei_trans);
+    wei_transform_args.set(0, *wei_trans);
+    wei_transform_args.set(1, weights);
     auto wei_trans_nd_range = compute::nd_range_t(conf.U_gws_d, conf.U_lws_d);
     status_t status = parallel_for(
             ctx, wei_trans_nd_range, wei_trans_kernel_, wei_transform_args);
 
+    std::unique_ptr<memory_storage_t> src_trans
+            = ctx.get_scratchpad_grantor().get_memory_storage(key_wino_V);
+    compute::kernel_arg_list_t src_transform_args;
+    src_transform_args.set(0, *src_trans);
+    src_transform_args.set(1, src);
+    auto src_trans_nd_range = compute::nd_range_t(conf.V_gws_d, conf.V_lws_d);
+    status = parallel_for(
+            ctx, src_trans_nd_range, src_trans_kernel_, src_transform_args);
+
+    std::unique_ptr<memory_storage_t> M_buf
+            = ctx.get_scratchpad_grantor().get_memory_storage(key_wino_M);
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, src);
-    arg_list.set(1, *wei_trans);
-    arg_list.set(2, bias);
-    arg_list.set(3, dst);
-    append_post_ops_to_arg_list(ctx, arg_list, 4, attr_info.all_post_ops);
-
+    arg_list.set(0, *M_buf);
+    arg_list.set(1, *src_trans);
+    arg_list.set(2, *wei_trans);
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
-
     status = parallel_for(ctx, nd_range, kernel_, arg_list);
+
+    compute::kernel_arg_list_t dst_transform_args;
+    dst_transform_args.set(0, dst);
+    dst_transform_args.set(1, *M_buf);
+    dst_transform_args.set(2, bias);
+    append_post_ops_to_arg_list(
+            ctx, dst_transform_args, 3, attr_info.all_post_ops);
+    auto dst_trans_nd_range = compute::nd_range_t(conf.M_gws_d, conf.M_lws_d);
+    status = parallel_for(
+            ctx, dst_trans_nd_range, dst_trans_kernel_, dst_transform_args);
 
     if (attr_info.with_eltwise
             && !gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(

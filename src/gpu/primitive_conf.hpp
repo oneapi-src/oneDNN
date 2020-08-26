@@ -286,7 +286,15 @@ struct conv_conf_t {
     int tile_size;
     int wino_m;
     int wino_r;
+    int wino_ih, wino_oh;
+    int wino_iw, wino_ow;
+    int wino_ic;
+    int wino_oc;
+    int wino_ic_block;
+    int wino_oc_block;
     size_t U_gws_d[3], U_lws_d[3];
+    size_t V_gws_d[3], V_lws_d[3];
+    size_t M_gws_d[3], M_lws_d[3];
 
     data_type_t src_data_type;
     data_type_t weights_data_type;

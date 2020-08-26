@@ -19,11 +19,24 @@
 
 #define BLOCK_SIZE OC_BLOCK
 #define BLOCKED_DATA_T CONCAT2(DATA_T, BLOCK_SIZE)
+#define BLOCKED_READ(ptr) vload16(0, ptr)
+#define BLOCKED_WRITE(data, ptr) vstore16(data, 0, ptr)
+
+#define VECT_SIZE 4
+#define VECT_DATA_T CONCAT2(DATA_T, VECT_SIZE)
 
 #define OC_OUTER_BLOCK OC_BLOCK
 #define IC_OUTER_BLOCK IC_BLOCK
 
 #define WINO_D (WINO_M + WINO_R - 1)
+
+#define VW WINO_IW
+#define VH WINO_IH
+#define VC WINO_IC
+
+#define MW WINO_OW
+#define MH WINO_OH
+#define MC WINO_OC
 
 static inline int off_nCdhw16c(
         int n, int c, int d, int h, int w, int C, int D, int H, int W) {
@@ -50,12 +63,12 @@ static inline int off_NCdhw16n16c(
     return off;
 }
 
-static inline int off_gOIdhw16i16o(int g, int o, int i, int d, int h, int w,
+static inline int off_gIOdhw16i16o(int g, int o, int i, int d, int h, int w,
         int O, int I, int D, int H, int W) {
     int off = 0;
-    off += g * (O / 16) * (I / 16) * D * H * W * 16 * 16;
-    off += (o / 16) * (I / 16) * D * H * W * 16 * 16;
-    off += (i / 16) * D * H * W * 16 * 16;
+    off += g * (I / 16) * (O / 16) * D * H * W * 16 * 16;
+    off += (i / 16) * (O / 16) * D * H * W * 16 * 16;
+    off += (o / 16) * D * H * W * 16 * 16;
     off += d * H * W * 16 * 16;
     off += h * W * 16 * 16;
     off += w * 16 * 16;
@@ -71,7 +84,39 @@ static inline int src_off(int n, int c, int d, int h, int w) {
 }
 
 static inline int wei_off(int g, int o, int i, int d, int h, int w) {
-    return off_gOIdhw16i16o(g, o, i, d, h, w, OC, IC, 1, KH, KW);
+    return off_gIOdhw16i16o(g, o, i, d, h, w, OC, IC, 1, KH, KW);
+}
+
+static inline int U_off(int o, int i, int h, int z) {
+
+    // Needs to be blocked so that ic overflows to the next row.
+    int off = z * KH * WINO_IC * WINO_OC;
+    off += h * WINO_IC * WINO_OC;
+    off += i * WINO_OC;
+    off += o;
+    return off;
+}
+
+static inline int V_off(int n, int i, int h, int w, int z) {
+
+    // Needs to be blocked so that ic overflows to the next row.
+    int off = n * WINO_D * VW * VH * VC;
+    off += z * VW * VH * VC;
+    off += w * VH * VC;
+    off += (h + PH) * VC;
+    off += i;
+    return off;
+}
+
+static inline int M_off(int n, int o, int h, int w, int z) {
+
+    // Needs to be blocked so that ic overflows to the next row.
+    int off = n * WINO_D * MW * MH * MC;
+    off += z * MW * MH * MC;
+    off += w * MH * MC;
+    off += h * MC;
+    off += o;
+    return off;
 }
 
 static inline int dst_off(int n, int c, int d, int h, int w) {
@@ -80,200 +125,232 @@ static inline int dst_off(int n, int c, int d, int h, int w) {
     return 0;
 }
 
-#define gemm_Xx1(m, n, p, block_size, result, A, B) \
-    do { \
-        for (long i = 0; i < m; i++) { \
-            for (long j = 0; j < p; j++) { \
-                for (long c = 0; c < block_size; c++) { \
-                    result[i][j][c] = 0; \
-                } \
-                for (long k = 0; k < n; k++) { \
-                    for (long c = 0; c < block_size; c++) { \
-                        result[i][j][c] += A[i][k][c] * B[k][j]; \
-                    } \
-                } \
-            } \
-        } \
-    } while (0)
-
-#define gemm_1xX(m, n, p, block_size, result, A, B) \
-    do { \
-        for (long i = 0; i < m; i++) { \
-            for (long j = 0; j < p; j++) { \
-                for (long c = 0; c < block_size; c++) { \
-                    result[i][j][c] = 0; \
-                } \
-                for (long k = 0; k < n; k++) { \
-                    for (long c = 0; c < block_size; c++) { \
-                        result[i][j][c] += A[i][k] * B[k][j][c]; \
-                    } \
-                } \
-            } \
-        } \
-    } while (0)
-
-/* wei_transform U_(ic, oc) = G * g_(ic, oc) * G_t */
-static inline void transform_wei_to_U(__global DATA_T *U_param,
-        const __global DATA_T *wei, int i_oc, int i_ic) {
-    // U needs to be 4x4xIC_BLOCKxOC_BLOCK
-    const DATA_T G_2x2[WINO_D][WINO_R]
-            = {{1, 0, 0}, {0.5, 0.5, 0.5}, {0.5, -0.5, 0.5}, {0, 0, 1}};
-    const DATA_T GT_2x2[WINO_R][WINO_D]
-            = {{1, 0.5, 0.5, 0}, {0, 0.5, -0.5, 0}, {0, 0.5, 0.5, 1}};
-    __global BLOCKED_DATA_T(*U)[WINO_D][WINO_D][IC_BLOCK]
-            = (__global BLOCKED_DATA_T(*)[WINO_D][WINO_D][IC_BLOCK])U_param;
-    BLOCKED_DATA_T g[WINO_R][WINO_R][IC_BLOCK];
-    BLOCKED_DATA_T U_tmp[WINO_D][WINO_D][IC_BLOCK];
-
-    for (long kh = 0; kh < WINO_R; kh++) {
-        for (long kw = 0; kw < WINO_R; kw++) {
-            long g_offset = (kh * WINO_R + kw) * IC_BLOCK * OC_BLOCK;
-            long wei_offset = wei_off(0, i_oc, i_ic, 0, kh, kw);
-            for (long ic = 0; ic < IC_BLOCK; ic++) {
-                for (long oc = 0; oc < IC_BLOCK; oc++) {
-                    g[kh][kw][ic][oc] = wei[wei_offset + ic * OC_BLOCK + oc];
-                }
-            }
-        }
-    }
-    long U_offset = (i_ic / IC_BLOCK) * (OC / OC_BLOCK) + (i_oc / OC_BLOCK);
-    gemm_1xX(WINO_D, WINO_R, WINO_R, IC_BLOCK, U_tmp, G_2x2, g);
-    gemm_Xx1(WINO_D, WINO_R, WINO_D, IC_BLOCK, U[U_offset], U_tmp, GT_2x2);
-}
-
-/* static inline void src_transform V_(n, ic) = B^T * d_(n, ic) * B */
-static inline void transform_src_to_V(DATA_T (*V)[WINO_D][WINO_D][IC_BLOCK],
-        const __global DATA_T *src, int i_mb, int i_icb, int ih, int iw) {
-    const DATA_T BT_2x2[WINO_D][WINO_D]
-            = {{1, 0, -1, 0}, {0, 1, 1, 0}, {0, -1, 1, 0}, {0, 1, 0, -1}};
-    const DATA_T B_2x2[WINO_D][WINO_D]
-            = {{1, 0, 0, 0}, {0, 1, -1, 1}, {-1, 1, 1, 0}, {0, 0, 0, -1}};
-
-    DATA_T d[WINO_D][WINO_D][IC_BLOCK];
-    DATA_T V_TMP[WINO_D][WINO_D][IC_BLOCK]; // B^Td
-    for (long i = 0; i < WINO_D; i++) {
-        long i_ih = ih + i;
-        for (long j = 0; j < WINO_D; j++) {
-            long i_iw = iw + j;
-            if (i_iw < 0 || i_iw >= IW || i_ih < 0 || i_ih >= IH) {
-                for (long ic = 0; ic < IC_BLOCK; ic++) {
-                    d[i][j][ic] = 0;
-                }
-                continue;
-            };
-            for (long ic = 0; ic < IC_BLOCK; ic++) {
-                long offset = src_off(i_mb, i_icb, 0, i_ih, i_iw);
-                d[i][j][ic] = src[src_off(i_mb, i_icb + ic, 0, i_ih, i_iw)];
-            }
-        }
-    }
-
-    gemm_1xX(4, 4, 4, IC_BLOCK, V_TMP, BT_2x2, d);
-    gemm_Xx1(4, 4, 4, IC_BLOCK, (*V), V_TMP, B_2x2);
-}
-
-static inline void transform_M_to_dst(__global DATA_T *dst,
-        DATA_T M[WINO_D][WINO_D][OC_BLOCK], int i_mb, int i_ocb, int i_oh,
-        int i_ow) {
-
-    const DATA_T AT_2x2[WINO_M][WINO_D] = {{1, 1, 1, 0}, {0, 1, -1, -1}};
-    const DATA_T A_2x2[WINO_D][WINO_M] = {{1, 0}, {1, 1}, {1, -1}, {0, -1}};
-
-    /* Inverse Transform Y=A^T M A (mb_block x oc_block x 4 x 2) */
-    DATA_T Y_TMP[WINO_M][WINO_D][OC_BLOCK];
-    DATA_T Y[WINO_M][WINO_M][OC_BLOCK];
-    gemm_1xX(2, 4, 4, OC_BLOCK, Y_TMP, AT_2x2, M);
-    gemm_Xx1(2, 4, 2, OC_BLOCK, Y, Y_TMP, A_2x2);
-
-    // Accumulate into dst
-    for (long i = 0; i < WINO_M; i++) {
-        for (long j = 0; j < WINO_M; j++) {
-            if (i_oh + i >= OH || i_ow + j >= OW) continue;
-            for (long oc = 0; oc < OC_BLOCK; oc++) {
-                dst[dst_off(i_mb, i_ocb + oc, 0, i_oh + i, i_ow + j)]
-                        = Y[i][j][oc];
-            }
-        }
-    }
-}
-
 __kernel void gen9_wino_wei_transform(
-        const __global DATA_T *wei, __global DATA_T *U) {
-    int gid0 = get_global_id(0);
+        __global DATA_T *U, const __global DATA_T *weights) {
+    const uint weights_tile_width = WINO_M;
+    const uint weights_tile_height = 1;
+    const uint in_kw = get_global_id(0) * weights_tile_width;
+    const uint in_kh = get_global_id(1) * weights_tile_height;
 
-    long i_oc_start = (gid0 % OCB) * OC_OUTER_BLOCK;
-    long i_oc_end = i_oc_start + OC_BLOCK;
-    long i_ic_start = (gid0 / OCB) * IC_OUTER_BLOCK;
-    long i_ic_end = i_ic_start + IC_BLOCK;
+    const uint U_tile_width = WINO_D;
+    const uint U_tile_height = 1;
 
-    /* wei_transform U = G * g * G_t */
-    for (long i_icb = i_ic_start; i_icb < i_ic_end; i_icb += IC_BLOCK) {
-        for (long i_ocb = i_oc_start; i_ocb < i_oc_end; i_ocb += OC_BLOCK) {
-            transform_wei_to_U(U, wei, i_ocb, i_icb);
-        }
+    const uint out_kw = get_global_id(0) * U_tile_width;
+    const uint out_kh = get_global_id(1) * U_tile_height;
+    const uint ic = get_global_id(2) % WINO_IC;
+    const uint oc = get_global_id(2) / WINO_IC;
+
+    uint in_idx = wei_off(0, oc, ic, 0, in_kh, in_kw);
+    bool is_valid = ic < IC || oc < OC;
+
+    VECT_DATA_T tile;
+    tile.x = is_valid ? weights[in_idx] : 0;
+    in_idx += wei_off(0, 0, 0, 0, 0, 1);
+    tile.y = is_valid ? weights[in_idx] : 0;
+    in_idx += wei_off(0, 0, 0, 0, 0, 1);
+    tile.z = is_valid ? weights[in_idx] : 0;
+
+    uint out_idx = U_off(oc, ic, out_kh, out_kw);
+
+    U[out_idx] = tile.x;
+    out_idx += U_off(0, 0, 0, 1);
+    U[out_idx] = (tile.x + tile.y + tile.z) / 2;
+    out_idx += U_off(0, 0, 0, 1);
+    U[out_idx] = (tile.x - tile.y + tile.z) / 2;
+    out_idx += U_off(0, 0, 0, 1);
+    U[out_idx] = tile.z;
+}
+
+__kernel void gen9_wino_src_transform(
+        __global DATA_T *V, const __global DATA_T *src) {
+    const uint tile_id_x = get_global_id(0);
+    const uint tile_id_y = get_global_id(1);
+    const uint stride_x = WINO_M;
+    const uint stride_y = 1;
+    const uint iw = tile_id_x * stride_x - PW;
+    const uint ih = tile_id_y * stride_y - PH;
+    const uint ic = (get_global_id(2) % (WINO_IC / IC_BLOCK)) * IC_BLOCK;
+    const uint n = get_global_id(2) / (WINO_IC / IC_BLOCK);
+
+    const bool w0 = iw < 0 || iw >= IW;
+    const bool w1 = iw + 1 < 0 || iw + 1 >= IW;
+    const bool w2 = iw + 2 < 0 || iw + 2 >= IW;
+    const bool w3 = iw + 3 < 0 || iw + 3 >= IW;
+    const bool h0 = ih < 0 || ih >= IH || ic > IC;
+
+    BLOCKED_DATA_T d0, d1, d2, d3;
+    int in_idx = src_off(n, ic, 0, ih, iw);
+    d0 = (h0 || w0) ? 0 : BLOCKED_READ(&src[in_idx]);
+    in_idx += src_off(0, 0, 0, 0, 1);
+    d1 = (h0 || w1) ? 0 : BLOCKED_READ(&src[in_idx]);
+    in_idx += src_off(0, 0, 0, 0, 1);
+    d2 = (h0 || w2) ? 0 : BLOCKED_READ(&src[in_idx]);
+    in_idx += src_off(0, 0, 0, 0, 1);
+    d3 = (h0 || w3) ? 0 : BLOCKED_READ(&src[in_idx]);
+
+    int out_idx = V_off(n, ic, ih, tile_id_x, 0);
+    BLOCKED_WRITE(d0 - d2, &V[out_idx]);
+    out_idx += V_off(0, 0, -PH, 0, 1);
+    BLOCKED_WRITE(d1 + d2, &V[out_idx]);
+    out_idx += V_off(0, 0, -PH, 0, 1);
+    BLOCKED_WRITE(-d1 + d2, &V[out_idx]);
+    out_idx += V_off(0, 0, -PH, 0, 1);
+    BLOCKED_WRITE(d1 - d3, &V[out_idx]);
+}
+
+__kernel void gen9_wino_dst_transform(__global DATA_T *dst,
+        const __global DATA_T *M, const __global DATA_T *bias POST_OP_ARGS) {
+
+    const uint tile_id_x = get_global_id(0);
+    const uint tile_id_y = get_global_id(1);
+    const uint dst_tile_width_x = WINO_M;
+    const uint dst_tile_width_y = 1;
+    const uint ow = tile_id_x * dst_tile_width_x;
+    const uint oh = tile_id_y * dst_tile_width_y;
+    const uint oc = (get_global_id(2) % (OC / OC_BLOCK)) * OC_BLOCK;
+    const uint n = get_global_id(2) / (OC / OC_BLOCK);
+
+    BLOCKED_DATA_T m0, m1, m2, m3;
+    int M_idx = M_off(n, oc, tile_id_y, tile_id_x, 0);
+
+    m0 = BLOCKED_READ(&M[M_idx]);
+    M_idx += M_off(0, 0, 0, 0, 1);
+    m1 = BLOCKED_READ(&M[M_idx]);
+    M_idx += M_off(0, 0, 0, 0, 1);
+    m2 = BLOCKED_READ(&M[M_idx]);
+    M_idx += M_off(0, 0, 0, 0, 1);
+    m3 = BLOCKED_READ(&M[M_idx]);
+
+    BLOCKED_DATA_T C1 = m0 + m1 + m2;
+    BLOCKED_DATA_T C2 = m1 - m2 - m3;
+
+    int dst_idx = dst_off(n, oc, 0, oh, ow);
+    BLOCKED_WRITE(C1, &dst[dst_idx]);
+    if (OW % WINO_M == 0 || ow < OW - 1) {
+        dst_idx += dst_off(0, 0, 0, 0, 1);
+        BLOCKED_WRITE(C2, &dst[dst_idx]);
     }
 }
 
-__kernel void gen9_wino_conv_fwd(const __global DATA_T *src,
-        const __global DATA_T *U_param, const __global DATA_T *bia,
-        __global DATA_T *dst POST_OP_ARGS) {
-    //cldnn 2x3, 6x3
-    //cpu 2x3, 4x3?
-    //Limitations of cldnn, contained in layout_optimizer.cpp
-    // 3x3 kernel, stride=1 dilate=0, max_size from memory constraints, poor performance small spatial, ofm/ifm multiple of 64 (is that batch size)?
-    int gid0 = get_global_id(0);
-    int gid1 = get_global_id(1);
-    int lid = get_local_id(0);
+__attribute__((reqd_work_group_size(8, 1, 1))) __kernel void gen9_wino_conv_fwd(
+        __global DATA_T *M, const __global DATA_T *V,
+        const __global DATA_T *U_param) {
+    const int VH_SIZE_VECT = V_off(0, 0, 1 - PH, 0, 0) / VECT_SIZE;
+    const int MH_SIZE_VECT = M_off(0, 0, 1, 0, 0) / VECT_SIZE;
+    const int U_IC_SIZE_VECT = U_off(0, 1, 0, 0) / VECT_SIZE;
 
-    const __global DATA_T(*U)[WINO_D][WINO_D][IC_BLOCK][OC_BLOCK]
-            = (const __global DATA_T(*)[WINO_D][WINO_D][IC_BLOCK][OC_BLOCK])
-                    U_param;
+    const int group_x = get_group_id(0);
+    const int group_y = get_group_id(1);
+    const int group_z = get_group_id(2);
+    const int local_x = get_local_id(0);
+    const int local_y = get_local_id(1);
+    const int local_z = get_local_id(2);
 
-    /* Trivially parallel on mb and oc, oh/WINO_M and ow/WINO_M */
-    long i_oc_start = (gid0 % OCB) * OC_OUTER_BLOCK;
-    long i_oc_end = i_oc_start + OC_BLOCK;
-    long i_mb_start = (gid0 / OCB) * MB_BLOCK;
-    long i_mb_end = i_mb_start + MB_BLOCK;
-    if (i_mb_end > MB) i_mb_end = MB;
+    const int no_of_tiles_x = MW;
+    const int no_of_tiles_y = MH;
 
-    long i_ow_start = (gid1 % OWB) * OW_BLOCK;
-    long i_ow_end = i_ow_start + OW_BLOCK;
-    if (i_ow_end > OW) i_ow_end = OW;
-    long i_oh_start = (gid1 / OWB) * OH_BLOCK;
-    long i_oh_end = i_oh_start + OH_BLOCK;
-    if (i_oh_end > OH) i_oh_end = OH;
+    const int ow = (group_y * OH_BLOCK) / no_of_tiles_y;
+    const int oh = (group_y * OH_BLOCK) % no_of_tiles_y;
+    const int oc = group_x * WINO_OC_BLOCK
+            + local_x * VECT_SIZE; // Divide oc across local work group
+    const int n = group_z / WINO_D;
+    const int tile_w_offset = group_z % WINO_D;
 
-    for_(long i_mb = i_mb_start; i_mb < i_mb_end; i_mb++)
-    for_(long i_ocb = i_oc_start; i_ocb < i_oc_end; i_ocb += OC_BLOCK)
-    for_(long i_oh = i_oh_start; i_oh < i_oh_end; i_oh += WINO_M)
-    for (long i_ow = i_ow_start; i_ow < i_ow_end; i_ow += WINO_M) {
-        DATA_T M[WINO_D][WINO_D][OC_BLOCK]; // Blocked on oc
-        for_(long i = 0; i < WINO_D; i++)
-        for (long j = 0; j < WINO_D; j++) {
-            for (long oc = 0; oc < OC_BLOCK; oc++) {
-                M[i][j][oc] = 0;
-            }
+    const int ih = oh - PH;
+    const int iw = ow;
+    const int ic = local_x * VECT_SIZE; // Divide ic across local work group
+
+    // Result tile is OH_BLOCK output height x WINO_OC_BLOCK output channels
+    // OH_BLOCK = 8, we have 1 row of work-items, so we need 8/1 = 8 results down
+    // WINO_OC_BLOCK = 32, output channels is spread across local id, so we need
+    // to compute 32/8 = 4 output channels in each thread;
+
+    // Initialize results tile
+    VECT_DATA_T M0 = (VECT_DATA_T)(0.f);
+    VECT_DATA_T M1 = (VECT_DATA_T)(0.f);
+    VECT_DATA_T M2 = (VECT_DATA_T)(0.f);
+    VECT_DATA_T M3 = (VECT_DATA_T)(0.f);
+    VECT_DATA_T M4 = (VECT_DATA_T)(0.f);
+    VECT_DATA_T M5 = (VECT_DATA_T)(0.f);
+    VECT_DATA_T M6 = (VECT_DATA_T)(0.f);
+    VECT_DATA_T M7 = (VECT_DATA_T)(0.f);
+
+    const int M_idx = M_off(n, oc, oh, ow, tile_w_offset);
+    __global VECT_DATA_T *dst = (__global VECT_DATA_T *)(M + M_idx);
+
+    const int V_idx = V_off(n, ic, ih, iw, tile_w_offset);
+    const __global VECT_DATA_T *V_tile = (__global VECT_DATA_T *)(V + V_idx);
+
+    const int U_idx = U_off(oc, 0, 0, tile_w_offset);
+    const __global VECT_DATA_T *U_tile
+            = (__global VECT_DATA_T *)(U_param + U_idx);
+
+    VECT_DATA_T a;
+
+    // Implementation relies on IC overflowing to next row in U, V and M
+    for_(int kh = 0; kh < KH; kh++)
+    for (int ic_idx = 0; ic_idx < WINO_IC; ic_idx += WINO_IC_BLOCK) {
+
+        // V_tile is OH_BLOCK input height x WINO_IC_BLOCK input channels
+        // OH_BLOCK = 8, so we need 8/1 = 8 results
+        // WINO_IC_BLOCK = 32, input channels is spread across local id, so we
+        // need to load 32/8 = 4 input channels in each thread;
+
+        // Load V tile
+        const VECT_DATA_T V0 = V_tile[0 * VH_SIZE_VECT];
+        const VECT_DATA_T V1 = V_tile[1 * VH_SIZE_VECT];
+        const VECT_DATA_T V2 = V_tile[2 * VH_SIZE_VECT];
+        const VECT_DATA_T V3 = V_tile[3 * VH_SIZE_VECT];
+        const VECT_DATA_T V4 = V_tile[4 * VH_SIZE_VECT];
+        const VECT_DATA_T V5 = V_tile[5 * VH_SIZE_VECT];
+        const VECT_DATA_T V6 = V_tile[6 * VH_SIZE_VECT];
+        const VECT_DATA_T V7 = V_tile[7 * VH_SIZE_VECT];
+
+#define DOT_PRODUCT(_i, _j) \
+    do { \
+        a = intel_sub_group_shuffle(V##_i, _j); \
+        M##_i = mad(a.x, U0, mad(a.y, U1, mad(a.z, U2, mad(a.w, U3, M##_i)))); \
+    } while (0)
+
+        // We need WINO_IC_BLOCK/VECT_SIZE iterations.
+        // WINO_IC_BLOCK = 32, VECT_SIZE = 4, so 32/4 = 8 iterations.
+        unroll_for(int j = 0; j < WINO_IC_BLOCK / VECT_SIZE; j++) {
+            const VECT_DATA_T U0 = U_tile[0];
+            U_tile += U_IC_SIZE_VECT;
+            const VECT_DATA_T U1 = U_tile[0];
+            U_tile += U_IC_SIZE_VECT;
+            const VECT_DATA_T U2 = U_tile[0];
+            U_tile += U_IC_SIZE_VECT;
+            const VECT_DATA_T U3 = U_tile[0];
+            U_tile += U_IC_SIZE_VECT;
+            DOT_PRODUCT(0, j);
+            DOT_PRODUCT(1, j);
+            DOT_PRODUCT(2, j);
+            DOT_PRODUCT(3, j);
+            DOT_PRODUCT(4, j);
+            DOT_PRODUCT(5, j);
+            DOT_PRODUCT(6, j);
+            DOT_PRODUCT(7, j);
         }
 
-        for (long i_icb = 0; i_icb < IC; i_icb += IC_BLOCK) {
-            // Src Transform to V;
-            DATA_T V[WINO_D][WINO_D][IC_BLOCK]; // B^TdB
-            transform_src_to_V(&V, src, i_mb, i_icb, i_oh - PH, i_ow - PW);
+#undef DOT_PRODUCT
 
-            long U_offset
-                    = (i_icb / IC_BLOCK) * (OC / OC_BLOCK) + (i_ocb / OC_BLOCK);
-            for (long i = 0; i < WINO_D; i++) {
-                for (long j = 0; j < WINO_D; j++) {
-                    for (long ic = 0; ic < IC_BLOCK; ic++) {
-                        for (long oc = 0; oc < OC_BLOCK; oc++) {
-                            M[i][j][oc]
-                                    += U[U_offset][i][j][ic][oc] * V[i][j][ic];
-                        }
-                    }
-                }
-            }
-        }
-
-        transform_M_to_dst(dst, M, i_mb, i_ocb, i_oh, i_ow);
+        V_tile += WINO_IC_BLOCK / VECT_SIZE;
     }
+
+    dst[0] = M0;
+    dst += MH_SIZE_VECT;
+    dst[0] = M1;
+    dst += MH_SIZE_VECT;
+    dst[0] = M2;
+    dst += MH_SIZE_VECT;
+    dst[0] = M3;
+    dst += MH_SIZE_VECT;
+    dst[0] = M4;
+    dst += MH_SIZE_VECT;
+    dst[0] = M5;
+    dst += MH_SIZE_VECT;
+    dst[0] = M6;
+    dst += MH_SIZE_VECT;
+    dst[0] = M7;
 }
