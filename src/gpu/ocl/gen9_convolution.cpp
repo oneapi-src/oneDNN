@@ -99,16 +99,17 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     set_default_conf(conf, cd, *src_md(), *weights_md(), *dst_md(),
             *weights_md(1), *attr());
 
-    const bool is_nhwc
-            = src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef
-            || dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
-                    != format_tag::undef;
+    const bool is_src_nhwc
+            = src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef;
+    const bool is_dst_nhwc
+            = dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef;
+    const bool is_nhwc = is_src_nhwc || is_dst_nhwc;
 
     const bool is_1stconv = conf.ic_without_padding == 3;
     const bool is_depthwise = conf.with_groups && (conf.ic_without_padding == 1)
             && (conf.oc_without_padding == 1);
 
-    conf.is_nhwc = is_nhwc;
+    conf.is_nhwc = is_1stconv ? is_dst_nhwc : is_nhwc;
     conf.is_depthwise = is_depthwise;
 
     if (is_1stconv || (conf.with_groups && conf.ngroups > 1)) {
@@ -136,7 +137,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     conf.omb = 1;
     conf.ocb = 1;
 
-    if (is_nhwc) {
+    if (conf.is_nhwc) {
         if (!utils::one_of(src_mdw.data_type(), f32, f16))
             return status::unimplemented;
         // TODO: Add group convolution support in NHWC kernel.
@@ -242,7 +243,10 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
             }
             break;
         case ver_1stconv:
-            src_tag = utils::pick(conf.ndims - 3, ncw, nchw, ncdhw);
+            if (is_src_nhwc)
+                src_tag = utils::pick(conf.ndims - 3, nwc, nhwc, ndhwc);
+            else
+                src_tag = utils::pick(conf.ndims - 3, ncw, nchw, ncdhw);
             dst_tag = conf.mb % 16 == 0
                     ? utils::pick(
                             conf.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c)

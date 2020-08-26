@@ -278,6 +278,7 @@ struct conv_conf_t {
     format_tag_t src_tag, dst_tag, wei_tag;
     bool is_nchw;
     bool is_src_nchw, is_src_nhwc;
+    bool is_dst_nhwc;
 
     data_type_t src_data_type;
     data_type_t weights_data_type;
