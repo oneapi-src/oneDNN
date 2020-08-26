@@ -1,0 +1,18 @@
+--reset
+
+# Direct
+## f32
+--batch=perf_conv_bdw_1sock
+
+# Wino
+## f32
+--reset
+--cfg=f32_wino
+--dir=FWD_D,BWD_D,BWD_W
+--alg=wino
+
+--mb=0,16,28,56,128
+--batch=set_perf_cpu_large_mb
+
+--mb=1,4,8
+--batch=set_perf_cpu_all_mb
