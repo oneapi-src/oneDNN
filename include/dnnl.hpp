@@ -1367,12 +1367,47 @@ struct memory : public handle<dnnl_memory_t> {
         cdeba = dnnl_cdeba,
         /// permuted 5D tensor
         decab = dnnl_decab,
+        /// permuted 5D tensor
+        abced = dnnl_abced,
+
         /// plain 6D tensor
         abcdef = dnnl_abcdef,
         /// plain 6D tensor
         acbdef = dnnl_acbdef,
         /// plain 6D tensor
         defcab = dnnl_defcab,
+        /// permuted 6D tensor
+        abcdfe = dnnl_abcdfe,
+
+        /// plain 7D tensor
+        abcdefg = dnnl_abcdefg,
+        /// permuted 7D tensor
+        abcdegf = dnnl_abcdegf,
+
+        /// plain 8D tensor
+        abcdefgh = dnnl_abcdefgh,
+        /// permuted 8D tensor
+        abcdefhg = dnnl_abcdefhg,
+
+        /// plain 9D tensor
+        abcdefghi = dnnl_abcdefghi,
+        /// permuted 9D tensor
+        abcdefgih = dnnl_abcdefgih,
+
+        /// plain 10D tensor
+        abcdefghij = dnnl_abcdefghij,
+        /// permuted 10D tensor
+        abcdefghji = dnnl_abcdefghji,
+
+        /// plain 11D tensor
+        abcdefghijk = dnnl_abcdefghijk,
+        /// permuted 11D tensor
+        abcdefghikj = dnnl_abcdefghikj,
+
+        /// plain 12D tensor
+        abcdefghijkl = dnnl_abcdefghijkl,
+        /// permuted 12D tensor
+        abcdefghijlk = dnnl_abcdefghijlk,
 
         /// 1D tensor; an alias for #dnnl::memory::format_tag::a
         x = a,

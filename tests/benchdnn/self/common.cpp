@@ -242,13 +242,13 @@ static int check_tags() {
     dnnl_memory_desc_t md_from_tag;
     dnnl_memory_desc_t md_from_str;
 
-    dnnl_dims_t dims = {29, 31, 37, 41, 43, 47};
+    dnnl_dims_t dims = {29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73};
     for (int tag_ = dnnl_format_tag_undef; tag_ != dnnl_format_tag_last;
             tag_++) {
         dnnl_format_tag_t format_tag = (dnnl_format_tag_t)tag_;
         const char *str_tag = fmt_tag2str(format_tag);
         int ndims = 1;
-        for (char c = 'f'; c >= 'a'; c--) {
+        for (char c = (char)('a' + DNNL_MAX_NDIMS - 1); c >= 'a'; c--) {
             if (strchr(str_tag, c)) {
                 ndims = c - 'a' + 1;
                 break;

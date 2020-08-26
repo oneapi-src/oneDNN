@@ -18,6 +18,7 @@
 #define MATMUL_HPP
 
 #include <iostream>
+#include <numeric>
 
 #include "dnnl.h"
 
