@@ -1,0 +1,3 @@
+--reset
+
+--batch=perf_conv_skx_1sock
