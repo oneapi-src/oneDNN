@@ -107,22 +107,37 @@ cmake --build . --target INSTALL
 
 ### Building with DPCPP runtime
 
-DPCPP runtime requires Intel oneAPI DPC++ Compiler. You can explicitly specify
-the path to Intel oneAPI DPC++ Compiler installation using 
-`-DDPCPPROOT` CMake option.
+DPCPP runtime requires Intel oneAPI DPC++ Compiler, Intel oneAPI TBB and
+optionally oneAPI Level Zero.
 
-C and C++ compilers need to be set to point to Intel oneAPI DPC++ Compilers.
+@note If you only installed Intel oneAPI DPC++ Compiler you can explicitly
+specify the path to a compatible version of Intel oneAPI TBB using `-DTBBROOT`
+CMake option.
 
 #### Linux
 
 ~~~sh
-# Set Intel oneAPI DPC++ Compiler environment
-# <..>/setvars.sh
+# Set Intel oneAPI DPC++ Compiler and Intel oneAPI TBB environment.
+source /opt/intel/oneapi/setvars.sh
+# The command above assumes that the compiler is installed to the default directory.
+# If the installation directory was customized, setvars.sh is in the customized directory.
 
 # Set C and C++ compilers
 export CC=clang
 export CXX=clang++
+~~~
 
+##### Build with Support for Level Zero and OpenCL Backends
+~~~sh
+mkdir build
+cd build
+cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP -DCMAKE_PREFIX_PATH=/path/to/level/zero ..
+cmake --build .
+~~~
+
+##### Build with Support for OpenCL Backend
+
+~~~sh
 mkdir build
 cd build
 cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP ..
@@ -132,31 +147,36 @@ cmake --build .
 #### Windows
 
 ~~~bat
-:: Set Intel oneAPI DPC++ Compiler environment
-:: <..>\setvars.bat
-~~~
+:: Set Intel oneAPI DPC++ Compiler and Intel oneAPI TBB environment.
+call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+:: The command above assumes that the compiler is installed to the default directory.
+:: If the installation directory was customized, setvars.bat is in the customized directory.
 
-##### Ninja
-
-~~~bat
 :: Set C and C++ compilers
 set CC=clang
 set CXX=clang++
+~~~
 
+##### Build with Support for Level Zero and OpenCL Backends
+
+~~~bat
+mkdir build
+cd build
+cmake -G Ninja -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP -DCMAKE_PREFIX_PATH=/path/to/level/zero ..
+cmake --build .
+~~~
+
+##### Build with Support for OpenCL Backend
+~~~bat
 mkdir build
 cd build
 cmake -G Ninja -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP ..
 cmake --build .
 ~~~
 
-##### Visual Studio
-
-~~~bat
-mkdir build
-cd build
-cmake -G "Visual Studio 16 2019" -A x64 -T "Intel(R) oneAPI DPC++ Compiler" -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP ..
-msbuild "DNNL.sln"
-~~~
+@note On Windows, oneDNN with DPCPP runtime can only be built with Ninja.
+The CC and CXX variables must be set to clang and clang++ respectively and not
+to dpcpp.
 
 ## Validate the Build
 
