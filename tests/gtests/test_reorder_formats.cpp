@@ -51,7 +51,14 @@ TEST_F(reorder_formats_test, TestChecksAllFormats) {
     memory::dims SP4D = {2, 2, 2, 2};
     memory::dims SP5D = {2, 2, 2, 2, 2};
     memory::dims SP6D = {2, 2, 2, 2, 2, 2};
-    std::vector<memory::dims> v_dims = {SP1D, SP2D, SP3D, SP4D, SP5D, SP6D};
+    memory::dims SP7D = {2, 2, 2, 2, 2, 2, 2};
+    memory::dims SP8D = {2, 2, 2, 2, 2, 2, 2, 2};
+    memory::dims SP9D = {2, 2, 2, 2, 2, 2, 2, 2, 2};
+    memory::dims SP10D = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+    memory::dims SP11D = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+    memory::dims SP12D = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+    std::vector<memory::dims> v_dims = {SP1D, SP2D, SP3D, SP4D, SP5D, SP6D,
+            SP7D, SP8D, SP9D, SP10D, SP11D, SP12D};
 
     // first one is f16 which is not supported on cpu
     unsigned start_dt = 1 + is_cpu;

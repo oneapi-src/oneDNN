@@ -180,6 +180,12 @@ typedef enum {
     dnnl_abcd, ///< plain 4D tensor
     dnnl_abcde, ///< plain 5D tensor
     dnnl_abcdef, ///< plain 6D tensor
+    dnnl_abcdefg, ///< plain 7D tensor
+    dnnl_abcdefgh, ///< plain 8D tensor
+    dnnl_abcdefghi, ///< plain 9D tensor
+    dnnl_abcdefghij, ///< plain 10D tensor
+    dnnl_abcdefghijk, ///< plain 11D tensor
+    dnnl_abcdefghijkl, ///< plain 12D tensor
 
     // Permuted plain formats
 
@@ -203,6 +209,14 @@ typedef enum {
     dnnl_cdeba, ///< permuted 5D tensor
     dnnl_decab, ///< permuted 5D tensor
     dnnl_defcab, ///< permuted 6D tensor
+    dnnl_abced, ///< permuted 5D tensor
+    dnnl_abcdfe, ///< permuted 6D tensor
+    dnnl_abcdegf, ///< permuted 7D tensor
+    dnnl_abcdefhg, ///< permuted 8D tensor
+    dnnl_abcdefgih, ///< permuted 9D tensor
+    dnnl_abcdefghji, ///< permuted 10D tensor
+    dnnl_abcdefghikj, ///< permuted 11D tensor
+    dnnl_abcdefghijlk, ///< permuted 12D tensor
 
     // Opaque blocked formats
 
