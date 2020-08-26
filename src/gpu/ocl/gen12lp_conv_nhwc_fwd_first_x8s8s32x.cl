@@ -62,6 +62,7 @@
 #define SCALE_VEC4 1
 #define SCALE 1
 #endif
+#define OC_PADD8 ((OC % 8) ? (OC / 8 + 1) * 8 : OC)
 
 #if DST_DT_S8 || DST_DT_U8
 #define OC_BLOCK_READ_BOUND 4
@@ -154,11 +155,19 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
     __local uint *S_part = S_slice + (sp * SW * OW_BLOCK + PW);
     __local MMAD_DATA_T *S_work = S_slice + (sp * SW * OW_BLOCK);
 
-    dst += group_mb * MB_BLOCK * OD * OH * OW * G * OC;
+#if DST_NHWC
+    dst += group_mb * OD * OH * OW * G * OC;
     dst += (OW * OH * od + OW * oh + ow) * G * OC;
     dst += OC_BLOCK * (group_oc + oc);
+#else
+    dst += OC_BLOCK * OD * OH * OW * MB_BLOCK * (group_oc + oc);
+    dst += OC_BLOCK * OD * OH * OW * OC_NCHUNK * G * MB_BLOCK
+            * (group_mb / MB_BLOCK);
+    dst += OC_BLOCK * (group_mb % MB_BLOCK);
+    dst += OC_BLOCK * MB_BLOCK * (OW * OH * od + OW * oh + ow);
+#endif
 
-    src += group_mb * MB_BLOCK * ID * IH * IW * G * IC;
+    src += group_mb * ID * IH * IW * G * IC;
     src += (IW * IH * id + IW * ih + iw + PW) * G * IC;
 
     wei += 4 * KDHW_SIZE * OC_BLOCK * (group_oc + oc);
@@ -332,8 +341,8 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
     barrier(CLK_LOCAL_MEM_FENCE);
 
     MMAD_DATA8_T S;
-    int8 W0, W1, W2, W3;
-    int W00, W10, W20, W30;
+    int8 W0 = 0, W1 = 0, W2 = 0, W3 = 0;
+    int W00 = 0, W10 = 0, W20 = 0, W30 = 0;
     int8 C00 = 0;
     int8 C10 = 0;
     int8 C20 = 0;
@@ -364,9 +373,15 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
                         && filter_id * (1 + DD) + id < ID);
 
         BLOCK_READ_WHT8(W0, 0);
+#if OC_PADD8 * 4 > OC_BLOCK
         BLOCK_READ_WHT8(W1, KDHW_SIZE * OC_BLOCK);
+#endif
+#if OC_PADD8 * 4 > OC_BLOCK * 2
         BLOCK_READ_WHT8(W2, 2 * KDHW_SIZE * OC_BLOCK);
+#endif
+#if OC_PADD8 * 4 > OC_BLOCK * 3
         BLOCK_READ_WHT8(W3, 3 * KDHW_SIZE * OC_BLOCK);
+#endif
         if (filter) {
             S.s0 = S_work[SW * 0 + SRC_SLM_SIZE * KH * filter_id
                     + SRC_SLM_SIZE * filter_ih + filter_iw];
@@ -453,9 +468,15 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
                         && filter_id * (1 + DD) + id < ID);
         if (filter) {
             BLOCK_READ_WHT(W00, 0);
+#if OC_PADD8 * 4 > OC_BLOCK
             BLOCK_READ_WHT(W10, KDHW_SIZE * OC_BLOCK);
+#endif
+#if OC_PADD8 * 4 > OC_BLOCK * 2
             BLOCK_READ_WHT(W20, 2 * KDHW_SIZE * OC_BLOCK);
+#endif
+#if OC_PADD8 * 4 > OC_BLOCK * 3
             BLOCK_READ_WHT(W30, 3 * KDHW_SIZE * OC_BLOCK);
+#endif
 
             S.s0 = S_work[SW * 0 + SRC_SLM_SIZE * KH * filter_id
                     + SRC_SLM_SIZE * filter_ih + filter_iw];
@@ -621,6 +642,7 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
 
 #if WITH_POST_OP
 
+#if DST_NHWC
 #define DO_POST_OP() \
     do { \
         SUM_DATA4_T d; \
@@ -629,7 +651,6 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
                     read_oc_block4(dst, (group_oc + oc) * OC_BLOCK)); \
         APPLY_POST_OPS(tmp, float, d, SUM_DATA_T); \
     } while (0)
-
 #define DO_POST_OP_4() \
     { \
         SUM_DATA16_T d; \
@@ -648,6 +669,24 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
         tmp0 = tmp_x16.s01234567; \
         tmp1 = tmp_x16.s89abcdef; \
     }
+#else
+#define DO_POST_OP() \
+    { \
+        SUM_DATA4_T d; \
+        if (WITH_SUM) d = AS_SUM_DATA4_T(BLOCK_READ_DST4(dst)); \
+        APPLY_POST_OPS(tmp, float, d, SUM_DATA_T); \
+    }
+
+#define DO_POST_OP_4() \
+    { \
+        SUM_DATA16_T d; \
+        if (WITH_SUM) d = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst)); \
+        float16 tmp_x16 = (float16)(tmp0, tmp1); \
+        APPLY_POST_OPS(tmp_x16, float, d, SUM_DATA_T); \
+        tmp0 = tmp_x16.s01234567; \
+        tmp1 = tmp_x16.s89abcdef; \
+    }
+#endif
 
 #else
 
@@ -698,6 +737,7 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
         R.s89abcdef = CONVERT_DST_DATA8_T(tmp1); \
     } while (0)
 
+#if DST_NHWC
 #define STORE_DST(C0, C1, C2, C3, i) \
     do { \
         PACK(C0, C1, C2, C3, i); \
@@ -705,9 +745,8 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
         DO_POST_OP(); \
         CONVERT_PACK(); \
         write_oc_block4(dst, (group_oc + oc) * OC_BLOCK, tmp_cvt); \
-        dst += OC * MB_BLOCK; \
+        dst += OC; \
     } while (0)
-
 #define STORE_DST_4(C0, C1, C2, C3, i) \
     do { \
         PACK_4(C0, C1, C2, C3, i); \
@@ -720,7 +759,26 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
         write_oc_block4(dst + OC * 3, (group_oc + oc) * OC_BLOCK, R.scdef); \
         dst += 4 * OC; \
     } while (0)
-
+#else
+#define STORE_DST(C0, C1, C2, C3, i) \
+    do { \
+        PACK(C0, C1, C2, C3, i); \
+        QUANTIZE_ADD_BIAS(); \
+        DO_POST_OP(); \
+        CONVERT_PACK(); \
+        BLOCK_WRITE_DST4(dst, tmp_cvt); \
+        dst += OC_BLOCK * MB_BLOCK; \
+    } while (0)
+#define STORE_DST_4(C0, C1, C2, C3, i) \
+    do { \
+        PACK_4(C0, C1, C2, C3, i); \
+        QUANTIZE_ADD_BIAS_4(); \
+        DO_POST_OP_4(); \
+        CONVERT_PACK_4(); \
+        BLOCK_WRITE_DST16(dst, R); \
+        dst += 4 * OC_BLOCK; \
+    } while (0)
+#endif
     if (ow < OW) {
         float4 tmp;
         DST_DATA4_T tmp_cvt;
@@ -730,13 +788,38 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
 #if OW_TAIL
         if (ow + OW_BLOCK < OW) {
 #endif
-            STORE_DST_4(C00, C10, C20, C30, 0);
-            STORE_DST_4(C00, C10, C20, C30, 4);
+#if !DST_NHWC && MB_BLOCK == 32
+            STORE_DST(C00, C10, C20, C30, 0);
+            STORE_DST(C00, C10, C20, C30, 1);
+            STORE_DST(C00, C10, C20, C30, 2);
+            STORE_DST(C00, C10, C20, C30, 3);
+
+            STORE_DST(C00, C10, C20, C30, 4);
+            STORE_DST(C00, C10, C20, C30, 5);
+            STORE_DST(C00, C10, C20, C30, 6);
+            STORE_DST(C00, C10, C20, C30, 7);
 #if OW_BLOCK >= 12
-            STORE_DST_4(C01, C11, C21, C31, 0);
+            STORE_DST(C01, C11, C21, C31, 0);
+            STORE_DST(C01, C11, C21, C31, 1);
+            STORE_DST(C01, C11, C21, C31, 2);
+            STORE_DST(C01, C11, C21, C31, 3);
+#endif
+#if OW_BLOCK == 16
+            STORE_DST(C01, C11, C21, C31, 4);
+            STORE_DST(C01, C11, C21, C31, 5);
+            STORE_DST(C01, C11, C21, C31, 6);
+            STORE_DST(C01, C11, C21, C31, 7);
+#endif
+
+#else
+        STORE_DST_4(C00, C10, C20, C30, 0);
+        STORE_DST_4(C00, C10, C20, C30, 4);
+#if OW_BLOCK >= 12
+        STORE_DST_4(C01, C11, C21, C31, 0);
 #endif
 #if OW_BLOCK >= 16
-            STORE_DST_4(C01, C11, C21, C31, 4);
+        STORE_DST_4(C01, C11, C21, C31, 4);
+#endif
 #endif
 #if OW_TAIL
         } else {
@@ -746,7 +829,14 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
                 STORE_DST(C00, C10, C20, C30, i);
             }
 #else
+#if !DST_NHWC && MB_BLOCK == 32
+            STORE_DST(C00, C10, C20, C30, 0);
+            STORE_DST(C00, C10, C20, C30, 1);
+            STORE_DST(C00, C10, C20, C30, 2);
+            STORE_DST(C00, C10, C20, C30, 3);
+#else
             STORE_DST_4(C00, C10, C20, C30, 0);
+#endif
 #endif
 #if OW_TAIL > 4
 #if OW_TAIL < 8
@@ -754,7 +844,14 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
                 STORE_DST(C00, C10, C20, C30, i);
             }
 #else
+#if !DST_NHWC && MB_BLOCK == 32
+            STORE_DST(C00, C10, C20, C30, 4);
+            STORE_DST(C00, C10, C20, C30, 5);
+            STORE_DST(C00, C10, C20, C30, 6);
+            STORE_DST(C00, C10, C20, C30, 7);
+#else
             STORE_DST_4(C00, C10, C20, C30, 4);
+#endif
 #endif
 #if OW_TAIL > 8
 #if OW_TAIL < 12
@@ -762,7 +859,14 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
                 STORE_DST(C01, C11, C21, C31, i);
             }
 #else
+#if !DST_NHWC && MB_BLOCK == 32
+            STORE_DST(C01, C11, C21, C31, 0);
+            STORE_DST(C01, C11, C21, C31, 1);
+            STORE_DST(C01, C11, C21, C31, 2);
+            STORE_DST(C01, C11, C21, C31, 3);
+#else
             STORE_DST_4(C01, C11, C21, C31, 0);
+#endif
 #endif
 #if OW_TAIL > 12
 #if OW_TAIL < 16
@@ -770,7 +874,14 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
                 STORE_DST(C01, C11, C21, C31, i);
             }
 #else
+#if !DST_NHWC && MB_BLOCK == 32
+            STORE_DST(C01, C11, C21, C31, 4);
+            STORE_DST(C01, C11, C21, C31, 5);
+            STORE_DST(C01, C11, C21, C31, 6);
+            STORE_DST(C01, C11, C21, C31, 7);
+#else
             STORE_DST_4(C01, C11, C21, C31, 4);
+#endif
 #endif
 #endif
 #endif

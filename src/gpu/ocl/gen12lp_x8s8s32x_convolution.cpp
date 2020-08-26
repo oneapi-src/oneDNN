@@ -64,12 +64,15 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
 
     set_default_conf(conf, cd, *src, *wei, *dst, *bia, *attr());
 
-    conf.is_nhwc
-            = src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef
-            || dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
-                    != format_tag::undef;
+    const bool is_src_nhwc
+            = src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef;
+    const bool is_dst_nhwc
+            = dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef;
+    const bool is_nhwc = is_src_nhwc || is_dst_nhwc;
     const bool is_1stconv = conf.ic_without_padding <= 4 && !conf.is_depthwise;
 
+    conf.is_nhwc = is_nhwc;
+    conf.is_dst_nhwc = is_dst_nhwc;
     // TODO: Add group convolution support in NHWC kernel.
     if (!conf.is_depthwise && conf.with_groups && conf.ngroups > 1
             && (conf.oc % 32 != 0 || conf.ic % 32 != 0))
@@ -145,6 +148,7 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
                 ow_nchunk = utils::div_up(conf.ow, conf.ow_block);
                 ow_group = utils::max_div(ow_nchunk, max_ow_group);
                 if (ow_group == 1) utils::max_div(ow_nchunk + 1, max_ow_group);
+                if (conf.mb == 8 || conf.mb % 16 == 0) { conf.mb_block = 32; }
             }
 
             conf.lws_d[0] = 8 * oc_group;
@@ -290,6 +294,14 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
             wei_tag = conf.with_groups
                     ? utils::pick(ndims - 3, gOIw8o4i, gOIhw8o4i, gOIdhw8o4i)
                     : utils::pick(ndims - 3, OIw8o4i, OIhw8o4i, OIdhw8o4i);
+            if (!conf.is_dst_nhwc) {
+                if (conf.mb_block == 32) {
+                    dst_tag = utils::pick(
+                            ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
+                } else {
+                    dst_tag = utils::pick(ndims - 3, nCw32c, nChw32c, nCdhw32c);
+                }
+            }
         } else if (conf.is_depthwise) {
             wei_tag = utils::pick(ndims - 3, Goiw32g, Goihw32g, Goidhw32g);
         } else {
@@ -353,6 +365,7 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
 status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("NCHW", conf.is_nchw);
+    kernel_ctx.define_int("DST_NHWC", conf.is_dst_nhwc);
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("IC", conf.ic);
