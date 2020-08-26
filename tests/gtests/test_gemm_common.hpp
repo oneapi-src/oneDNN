@@ -24,6 +24,7 @@
 #include "dnnl.h"
 #include "dnnl_types.h"
 
+#include <cstdint>
 #include <utility>
 #include <vector>
 #include <type_traits>
@@ -304,6 +305,13 @@ void prepare_matrix(const test_memory &M_mem, int64_t off_beg, layout_t layout,
             });
         }
     }
+
+    // To test if igemm row/col sum are correct when performing sign/zero
+    // extensions.
+    if (dt == memory::data_type::u8)
+        M[off_beg] = data_t(UINT8_MAX);
+    else if (dt == memory::data_type::s8)
+        M[off_beg] = data_t(-64);
 }
 
 /** Extends columns of the matrix M according to the mapper_c */
