@@ -12,7 +12,7 @@ in comparison to fp32.
 | Data type | Description
 | :---      | :---
 | f32       | [IEEE single precision floating point](https://en.wikipedia.org/wiki/Single-precision_floating-point_format#IEEE_754_single-precision_binary_floating-point_format:_binary32)
-| bf16      | [non-IEEE 16-bit floating point](https://software.intel.com/en-us/download/bfloat16-hardware-numerics-definition)
+| bf16      | [non-IEEE 16-bit floating point](https://software.intel.com/content/www/us/en/develop/download/bfloat16-hardware-numerics-definition.html)
 | f16       | [IEEE half precision floating point](https://en.wikipedia.org/wiki/Half-precision_floating-point_format#IEEE_754_half-precision_binary_floating-point_format:_binary16)
 | s8/u8     | signed/unsigned 8-bit integer
 

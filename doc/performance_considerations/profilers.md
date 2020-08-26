@@ -78,7 +78,7 @@ benchdnn  vmlinux           plist_check_prev_next                               
 The JIT-ed function `jit_avx2_conv_fwd_kernel_f32` is shown as belonging to
 the `[Dynamic code]` module.
 
-See more examples in the [VTune Amplifier User Guide](https://software.intel.com/en-us/vtune-amplifier-help-tutorials-and-samples)
+See more examples in the [VTune Amplifier User Guide](https://software.intel.com/content/www/us/en/develop/documentation/vtune-help/top/introduction/tutorials-and-samples.html)
 
 ## Example: Profiling with Linux perf
 

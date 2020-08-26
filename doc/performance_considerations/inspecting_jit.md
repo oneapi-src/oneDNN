@@ -36,4 +36,4 @@ Use any disassembler to view the code. For example:
 - `xed -64 -ir file.bin`
 
 [XED](https://github.com/intelxed/xed) is a decoder tool available as part as
-[Intel Software Development Emulator (Intel SDE)](https://software.intel.com/en-us/articles/intel-software-development-emulator).
+[Intel Software Development Emulator (Intel SDE)](https://software.intel.com/content/www/us/en/develop/articles/intel-software-development-emulator).

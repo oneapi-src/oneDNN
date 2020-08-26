@@ -178,7 +178,7 @@ contiguous in memory. For instance, some might need to work with a sub-tensor
 within a bigger tensor. Sometimes it might be beneficial to artificially make
 the data disjoint, as in case of GEMM with a non-trivial leading dimension to
 get better performance
-([see Tips 6](https://software.intel.com/en-us/articles/a-simple-example-to-measure-the-performance-of-an-intel-mkl-function)).
+([see Tips 6](https://software.intel.com/content/www/us/en/develop/articles/a-simple-example-to-measure-the-performance-of-an-intel-mkl-function)).
 
 The following picture shows a simplified case for a 2D matrix of size
 `rows x columns` kept in row-major format where rows have some non-trivial

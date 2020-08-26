@@ -287,16 +287,16 @@ int8 data types are not supported on GPU (see @ref dev_guide_data_types).
 
 @anchor dg_i8_ref_sdm
 [1] [Intel(R) 64 and IA-32 Architectures Software Developer's Manual Combined
-    Volumes 2A, 2B, 2C, and 2D: Instruction Set Reference, A-Z](https://software.intel.com/en-us/articles/intel-sdm).
+    Volumes 2A, 2B, 2C, and 2D: Instruction Set Reference, A-Z](https://software.intel.com/content/www/us/en/develop/articles/intel-sdm.html).
     325383-070US May 2019.
 
 @anchor dg_i8_ref_isa_ext
 [2] [Intel(R) Architecture Instruction Set Extensions and Future Features
-    Programming Reference](https://software.intel.com/en-us/download/intel-architecture-instruction-set-extensions-and-future-features-programming-reference).
+    Programming Reference](https://software.intel.com/content/www/us/en/develop/download/intel-architecture-instruction-set-extensions-and-future-features-programming-reference.html).
     319433-037 May 2019.
     *Chapter 2.1. VPDPBUSD — Multiply and Add Unsigned and Signed Bytes*.
 
 @anchor dg_i8_ref_wp
 [3] Rodriguez, Andres, et al.
-    ["Lower numerical precision deep learning inference and training."](https://software.intel.com/en-us/articles/lower-numerical-precision-deep-learning-inference-and-training)
+    ["Lower numerical precision deep learning inference and training."](https://software.intel.com/content/www/us/en/develop/articles/lower-numerical-precision-deep-learning-inference-and-training)
     Intel White Paper (2018).

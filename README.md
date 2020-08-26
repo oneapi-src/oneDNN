@@ -224,34 +224,34 @@ Runtime-specific dependencies:
 CPU engine was validated on RedHat\* Enterprise Linux 7 with
 * GNU Compiler Collection 4.8, 5.4, 6.1, 7.2, and 8.1
 * Clang\* 3.8.0
-* [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
+* [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
   17.0, 18.0, and 19.0
 
 on Windows Server\* 2012 R2 with
 * Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
-* [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
+* [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
   17.0 and 19.0
 
 on macOS 10.13 (High Sierra) with
 * Apple LLVM version 9.2 (XCode 9.2)
-* [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
+* [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
   18.0 and 19.0
 
 GPU engine was validated on Ubuntu\* 18.04 with
 * GNU Compiler Collection 6.1 and 8.1
 * Clang 3.8.1
-* [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
+* [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
   19.0
-* [Intel SDK for OpenCL applications](https://software.intel.com/en-us/intel-opencl)
+* [Intel SDK for OpenCL applications](https://software.intel.com/content/www/us/en/develop/tools/opencl-sdk.html)
   2019 Update 3
 * [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases)
   19.37.14191
 
 on Windows Server 2019 with
 * Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
-* [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
+* [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
   19.0
-* [Intel SDK for OpenCL applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3
+* [Intel SDK for OpenCL applications](https://software.intel.com/content/www/us/en/develop/tools/opencl-sdk.html) 2019 Update 3
 * [Intel Graphics - Windows 10 DCH Drivers](https://downloadcenter.intel.com/download/28783/Intel-Graphics-Windows-10-DCH-Drivers) 26.20.100.6709
 
 ## Requirements for Pre-built Binaries
