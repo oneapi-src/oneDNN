@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,10 +53,7 @@ struct ref_binary_t : public gpu_primitive_t {
                                     && utils::one_of(dst_md()->data_type, f16,
                                             f32, s8, u8)))
                     && IMPLICATION(!attr()->scales_.has_default_values(),
-                            utils::one_of(dst_md()->data_type, s8, u8)
-                                    && utils::one_of(
-                                            attr()->output_scales_.mask_, 0,
-                                            1 << 1))
+                            check_scales_mask())
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(
                             attr(), dst_md()->data_type, MAX_NDIMS);
@@ -128,6 +125,14 @@ struct ref_binary_t : public gpu_primitive_t {
         }
 
         binary_conf_t conf;
+
+    private:
+        bool check_scales_mask() const {
+            for (const auto &s : attr()->scales_.scales_) {
+                if (s.second.mask_ != 0) return false;
+            }
+            return true;
+        }
     };
 
     ref_binary_t(const pd_t *apd) : gpu_primitive_t(apd) {}

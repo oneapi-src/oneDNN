@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -799,18 +799,10 @@ void test_fwd_pd_attr_zp(
 template <typename op_desc_t, typename pd_t>
 void test_fwd_pd_attr_scales(
         const op_desc_t &op_desc, const engine &eng, bool supports_scales) {
-    using dt_t = memory::data_type;
-
     dnnl::primitive_attr attr_scales;
     attr_scales.set_scales(DNNL_ARG_SRC, 0, {2.f});
 
-    pd_t new_pd(op_desc, eng);
-    const auto dt = new_pd.dst_desc().data.data_type;
-    const bool dt_is_integral
-            = dt == dt_t::s32 || dt == dt_t::s8 || dt == dt_t::u8;
-
-    // Scales are supposed to work on int8 data type only.
-    if (supports_scales && dt_is_integral) {
+    if (supports_scales) { // Currently only used with binary ops
         EXPECT_NO_THROW(pd_t pd(op_desc, attr_scales, eng));
 
         // Check oscale and scales don't work together

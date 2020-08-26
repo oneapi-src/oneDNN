@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,11 +49,8 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
     scales_t scales[nargs];
     int args[nargs] = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
 
-    if (nstl::is_integral<dst_data_t>::value)
-        CHECK(scales[0].copy_from(pd()->attr()->scales_.get(args[0])));
-
-    if (nstl::is_integral<dst_data_t>::value)
-        CHECK(scales[1].copy_from(pd()->attr()->scales_.get(args[1])));
+    CHECK(scales[0].copy_from(pd()->attr()->scales_.get(args[0])));
+    CHECK(scales[1].copy_from(pd()->attr()->scales_.get(args[1])));
 
     bool do_scale_src0 = !scales[0].has_default_values();
     bool do_scale_src1 = !scales[1].has_default_values();

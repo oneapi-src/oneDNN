@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,11 +52,7 @@ struct ref_binary_t : public primitive_t {
                     && platform::has_data_type_support(src1_type)
                     && platform::has_data_type_support(dst_type)
                     && set_default_params() == status::success
-                    && IMPLICATION(utils::one_of(dst_type, f32, bf16),
-                            attr()->has_default_values(sm::post_ops))
-                    && IMPLICATION(utils::one_of(dst_type, s8, u8),
-                            attr()->has_default_values(
-                                    sm::post_ops | sm::scales))
+                    && attr()->has_default_values(sm::post_ops | sm::scales)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask());
             if (!ok) return status::unimplemented;

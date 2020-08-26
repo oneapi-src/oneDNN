@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ struct jit_uni_binary_t : public primitive_t {
                     && set_default_params() == status::success
                     && !has_zero_dim_memory() && src0_md_ == dst_md_
                     && is_applicable()
-                    && attr()->has_default_values(sm::post_ops)
+                    && attr()->has_default_values(sm::post_ops | sm::scales)
                     && post_ops_ok(attr(), src_md(0))
                     && (elt_idx == -1
                             || IMPLICATION(!dst_md_.is_dense(),
@@ -66,6 +66,8 @@ struct jit_uni_binary_t : public primitive_t {
                                             eltwise_preserves_zero(
                                                     po.entry_[elt_idx]
                                                             .eltwise)))
+                    && IMPLICATION((!attr()->scales_.has_default_values()),
+                            check_scales_mask())
                     && IMPLICATION(!mayiuse(avx2),
                             src0_md_.consistent_with(src1_md_)
                                     || src0_md_.is_plain());
@@ -83,6 +85,13 @@ struct jit_uni_binary_t : public primitive_t {
             using namespace alg_kind;
             return utils::one_of(desc()->alg_kind, binary_add, binary_max,
                     binary_min, binary_mul, binary_sub);
+        }
+
+        bool check_scales_mask() const {
+            for (const auto &s : attr()->scales_.scales_) {
+                if (s.second.mask_ != 0) return false;
+            }
+            return true;
         }
 
         bool is_applicable() {

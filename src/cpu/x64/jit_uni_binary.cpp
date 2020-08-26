@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -127,6 +127,7 @@ struct binary_kernel_t : public jit_generator {
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
         const void *src0, *src1, *dst;
+        const float *scales_src0, *scales_src1;
         size_t spat_offt_count;
         const void *post_ops_binary_rhs_arg_vec;
         size_t oc_l_off;
@@ -174,14 +175,20 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Reg64 &reg_tmp_ = r14;
     const Reg64 &reg_elt_inj_table_ = r15;
     const Reg64 &reg_off_rhs_postops_ = rdx;
+    const Reg64 reg_scales_src0_ = rbx;
+    const Reg64 reg_scales_src1_ = rbp;
     const Opmask tail_opmask_ = Opmask(2);
     const Xmm xsum_scale_ = Xmm(15);
     const Vmm vbcast_src1_ = Vmm(is_avx512 ? 30 : 14);
     const Vmm vsum_scale_ = Vmm(is_avx512 ? 31 : 15);
+    const Vmm vreg_scales_src0_ = Vmm(is_avx512 ? 17 : 9);
+    const Vmm vreg_scales_src1_ = Vmm(is_avx512 ? 18 : 10);
 
     size_t unroll_regs_ = is_avx512 ? 8 : 4;
     size_t tail_size_ = 0;
     size_t data_type_size_ = 0;
+    bool do_scale_src0_ = false;
+    bool do_scale_src1_ = false;
     bool do_sum_ = false;
     bool with_eltwise_ = false;
     float sum_scale_ = 0.f;
@@ -220,6 +227,14 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
                 && bcast_per_oc_ == op_t::bcast_n_spatial_c;
 
         tail_size_ = get_tail_size(src0_d, postops_per_oc_broadcast_exists);
+
+        do_scale_src0_ = !pd_->attr()
+                                  ->scales_.get(DNNL_ARG_SRC_0)
+                                  .has_default_values();
+        do_scale_src1_ = !pd_->attr()
+                                  ->scales_.get(DNNL_ARG_SRC_1)
+                                  .has_default_values();
+
         offt_src0_ = vlen_ / (is_bf16_ ? 2 : 1);
         offt_src1_ = use_stride_src1_ ? offt_src0_ : 0;
         do_sum_ = po.contain(primitive_kind::sum, 0)
@@ -299,6 +314,10 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
         mov(reg_src0_, ptr[reg_param_ + PARAM_OFF(src0)]);
         mov(reg_src1_, ptr[reg_param_ + PARAM_OFF(src1)]);
         mov(reg_dst_, ptr[reg_param_ + PARAM_OFF(dst)]);
+        if (do_scale_src0_)
+            mov(reg_scales_src0_, ptr[reg_param_ + PARAM_OFF(scales_src0)]);
+        if (do_scale_src1_)
+            mov(reg_scales_src1_, ptr[reg_param_ + PARAM_OFF(scales_src1)]);
     }
 
     Address src0_ptr(size_t offt = 0) {
@@ -313,9 +332,14 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
         return vmmword[reg_dst_ + reg_offt_src0_ + offt];
     }
 
-    void perform_op(const Vmm &v0, const Vmm &v1) {
+    void perform_op(const Vmm &v0, const Vmm &v1, const Vmm &s_src0,
+            const Vmm &s_src1) {
         using namespace alg_kind;
         const auto alg = pd_->desc()->alg_kind;
+        if (do_scale_src0_) uni_vmulps(v0, v0, s_src0);
+        if (do_scale_src1_ && offt_src1_ != 0 && !broadcast_src1_value_)
+            uni_vmulps(v1, v1, s_src1);
+
         if (alg == binary_add)
             uni_vaddps(v0, v0, v1);
         else if (alg == binary_mul)
@@ -339,6 +363,9 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     void forward() {
         Label unroll_loop, unroll_loop_tail, nelems_tail, end;
 
+        if (do_scale_src0_)
+            uni_vbroadcastss(vreg_scales_src0_, dword[reg_scales_src0_]);
+
         // reverse spat_offt to dispatch between labels
         mov(reg_reverse_spat_offt_, reg_offt_src0_count_);
         xor_(reg_offt_src0_,
@@ -353,6 +380,12 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
         // used in bcast_c_blocked strategy for last blocked if tail exists
         const bool treat_each_compute_step_as_tail
                 = is_tail_kernel_ && tail_size_;
+
+        if (do_scale_src1_) {
+            uni_vbroadcastss(vreg_scales_src1_, dword[reg_scales_src1_]);
+            if (broadcast_src1_value_ || offt_src1_ == 0)
+                uni_vmulps(vbcast_src1_, vbcast_src1_, vreg_scales_src1_);
+        }
 
         L(unroll_loop);
         {
@@ -535,8 +568,8 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
             if (offt_src1_) {
                 load(vreg_tmp_src1, src1_ptr(i * offt_src1_), src_type, tail);
             }
-            perform_op(vreg_tmp_src0, vreg_tmp_src1);
-
+            perform_op(vreg_tmp_src0, vreg_tmp_src1, vreg_scales_src0_,
+                    vreg_scales_src1_);
             if (do_sum_) {
                 load(vreg_tmp, dst_ptr(i * offt_src0_), src_type, tail);
                 uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp, vsum_scale_);
@@ -690,8 +723,8 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
             if (offt_src1_) {
                 load(vreg_tmp_src1, src1_ptr(i * offt_src1_), src_type, tail);
             }
-            perform_op(vreg_tmp_src0, vreg_tmp_src1);
-
+            perform_op(vreg_tmp_src0, vreg_tmp_src1, vreg_scales_src0_,
+                    vreg_scales_src1_);
             if (do_sum_) {
                 load(vreg_tmp, dst_ptr(i * offt_src0_), src_type, tail);
                 uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp, vsum_scale_);
@@ -757,7 +790,8 @@ struct jit_uni_binary_subkernel_t<avx2, src_type>
             load(vreg_tmp_src0, src0_ptr(i * offt_src0_), tail);
             if (offt_src1_) load(vreg_tmp_src1, src1_ptr(i * offt_src1_), tail);
 
-            perform_op(vreg_tmp_src0, vreg_tmp_src1);
+            perform_op(vreg_tmp_src0, vreg_tmp_src1, vreg_scales_src0_,
+                    vreg_scales_src1_);
 
             if (do_sum_) {
                 load(vreg_tmp, dst_ptr(i * offt_src0_), tail);
@@ -826,7 +860,8 @@ struct jit_uni_binary_subkernel_t<sse41, src_type>
             if (offt_src1_)
                 load(vreg_tmp_src1, i * offt_src1_, DNNL_ARG_SRC_1, tail);
 
-            perform_op(vreg_tmp_src0, vreg_tmp_src1);
+            perform_op(vreg_tmp_src0, vreg_tmp_src1, vreg_scales_src0_,
+                    vreg_scales_src1_);
             if (do_sum_) {
                 load(vreg_tmp, i * offt_src0_, DNNL_ARG_DST, tail);
                 mulps(vreg_tmp, vsum_scale_);
@@ -927,6 +962,8 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
             && has_oc_tail && (with_postops || point_broadcast);
     const auto kernel = kernel_.get();
     const auto kernel_tail = kernel_tail_.get();
+    const auto scales_src0 = pd()->attr()->scales_.get(DNNL_ARG_SRC_0).scales_;
+    const auto scales_src1 = pd()->attr()->scales_.get(DNNL_ARG_SRC_1).scales_;
 
     if ((no_broadcast || point_broadcast_no_oc_tail)
             && !postops_per_oc_broadcast_exists && !blocked_oc_tail) {
@@ -954,6 +991,8 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
             p.src1 = src1 + (point_broadcast ? 0 : (start * simd_w));
             p.dst = dst + start * simd_w;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            p.scales_src0 = scales_src0;
+            p.scales_src1 = scales_src1;
             (*kernel)(&p);
         });
     } else {
@@ -1000,6 +1039,8 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
                                                 + C_blk * simd_w);
                 p.src1 = src1 + src1_off;
                 p.oc_l_off = C_blk * simd_w;
+                p.scales_src0 = scales_src0;
+                p.scales_src1 = scales_src1;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
                 kernel_blocked(&p, C_blk);
@@ -1017,6 +1058,8 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
                         = no_broadcast ? off : mb * nelems_slice_src1;
                 p.src1 = src1 + src1_off;
                 p.oc_l_off = 0;
+                p.scales_src0 = scales_src0;
+                p.scales_src1 = scales_src1;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
                 (*kernel)(&p);
@@ -1037,6 +1080,8 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
                         : (no_broadcast ? off : mb * nelems_slice_src1 + c);
                 p.src1 = src1 + src1_off;
                 p.oc_l_off = c;
+                p.scales_src0 = scales_src0;
+                p.scales_src1 = scales_src1;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
                 (*kernel)(&p);

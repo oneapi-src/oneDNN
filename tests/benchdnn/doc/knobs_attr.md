@@ -40,10 +40,9 @@ passed to a primitive at run-time.
                  As of now supported only by binary post-ops.
 
 `--attr-scales` defines input scales per memory argument primitive attribute.
-This attribute is supported only for integer data types as of now. `ARG`
-specifies which memory argument will be modified with input scale. `POLICY` and
-`SCALE` have the same semantics and meaning as for `--attr-oscale`. To specify
-more than one memory argument, underscore (`_`) delimiter is used.
+`ARG` specifies which memory argument will be modified with input scale.
+`POLICY` and `SCALE` have the same semantics and meaning as for `--attr-oscale`.
+To specify more than one memory argument, underscore (`_`) delimiter is used.
 
 `ARG` supported values are:
   - `src` corresponds to `DNNL_ARG_SRC`
