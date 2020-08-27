@@ -19,7 +19,7 @@
 --reset
 --dir=FWD_D,FWD_I
 --alg=SOFTMAX,LOGSOFTMAX
---dt=bf16
+--dt=bf16,f16,f32
 --inplace=true,false
 --tag=abx
 --axis=0,1     --batch=shapes_0d
