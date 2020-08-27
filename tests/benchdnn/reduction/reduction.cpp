@@ -154,6 +154,23 @@ int compare(const prb_t *prb, const dnn_mem_t &fp_mem, const dnn_mem_t &dt_mem,
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->sdt, prb->ddt}, FWD_D, res);
+    if (res->state == SKIPPED) return;
+
+    bool is_invalid = false;
+    switch (prb->alg) {
+        case alg_t::MEAN:
+            is_invalid = prb->sdt != dnnl_f32 && prb->sdt != dnnl_bf16;
+            break;
+        case alg_t::NORM_LP_MAX:
+        case alg_t::NORM_LP_SUM:
+        case alg_t::NORM_LP_POWER_P_MAX:
+        case alg_t::NORM_LP_POWER_P_SUM:
+            is_invalid = (prb->sdt != dnnl_f32 && prb->sdt != dnnl_bf16)
+                    || prb->p < 1.f;
+            break;
+        default: break;
+    }
+    if (is_invalid) res->state = SKIPPED, res->reason = INVALID_CASE;
 }
 
 int doit(const prb_t *prb, res_t *res) {
