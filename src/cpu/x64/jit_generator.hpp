@@ -177,6 +177,7 @@ public:
         _cmp_nlt_us = 5u,
         _cmp_nle_us = 6u,
 
+        _op_near = 0u,
         _op_floor = 1u,
         _op_mxcsr = 4u,
     };

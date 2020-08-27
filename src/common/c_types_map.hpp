@@ -93,6 +93,9 @@ const alg_kind_t eltwise_gelu_tanh = dnnl_eltwise_gelu_tanh;
 const alg_kind_t eltwise_gelu_erf = dnnl_eltwise_gelu_erf;
 const alg_kind_t eltwise_hardswish = dnnl_eltwise_hardswish;
 const alg_kind_t eltwise_hardsigmoid = dnnl_eltwise_hardsigmoid;
+const alg_kind_t eltwise_hsigmoid = dnnl_eltwise_hsigmoid;
+const alg_kind_t eltwise_round_half_to_even = dnnl_eltwise_round_half_to_even;
+const alg_kind_t eltwise_round_half_away_from_zero = dnnl_eltwise_round_half_away_from_zero;
 const alg_kind_t eltwise_relu_use_dst_for_bwd
         = dnnl_eltwise_relu_use_dst_for_bwd;
 const alg_kind_t eltwise_tanh_use_dst_for_bwd
