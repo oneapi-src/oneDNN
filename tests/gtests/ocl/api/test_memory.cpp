@@ -91,7 +91,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(ocl_memory_test_c, BasicInteropC) {
     TEST_OCL_CHECK(clReleaseMemObject(interop_ocl_mem));
 }
 
-HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_test_cpp, BasicInteropCpp) {
+HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_test_cpp_t, BasicInteropCpp) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 

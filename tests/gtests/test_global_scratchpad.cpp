@@ -77,7 +77,7 @@ struct conv_ctx_t {
 conv_ctx_t global_conv_ctx1;
 conv_ctx_t global_conv_ctx2;
 
-HANDLE_EXCEPTIONS_FOR_TEST(global_scratchpad, TestGlobalScratchpad) {
+HANDLE_EXCEPTIONS_FOR_TEST(global_scratchpad_t, TestGlobalScratchpad) {
     memory::dims src1 = {1, 1, 3, 4};
     memory::dims wei1 = {1, 1, 3, 3};
     memory::dims dst1 = {1, 1, 8, 5};
