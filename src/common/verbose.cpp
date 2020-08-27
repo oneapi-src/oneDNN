@@ -102,7 +102,7 @@ double get_msec() {
     return 1e+3 * now.QuadPart / frequency.QuadPart;
 #else
     struct timeval time;
-    gettimeofday(&time, NULL);
+    gettimeofday(&time, nullptr);
     return 1e+3 * time.tv_sec + 1e-3 * time.tv_usec;
 #endif
 }
@@ -143,10 +143,11 @@ void clear_buf(char *buf, int &written) {
 
 #define CHECK_WRITTEN(buf, buf_len, written_now, written_total) \
     do { \
-        if (written_now < 0 || written_total + written_now > buf_len) { \
+        if ((written_now) < 0 \
+                || (written_total) + (written_now) > (buf_len)) { \
             clear_buf(buf, written_total); \
         } else { \
-            written_total += written_now; \
+            (written_total) += (written_now); \
         } \
     } while (0)
 
@@ -158,13 +159,13 @@ void clear_buf(char *buf, int &written) {
 
 #define MD2STR(buf, buf_len, written, md) \
     do { \
-        int l = dnnl_md2fmt_str(buf + written, buf_len - written, md); \
+        int l = dnnl_md2fmt_str((buf) + (written), (buf_len) - (written), md); \
         CHECK_WRITTEN(buf, buf_len, l, written); \
     } while (0)
 
 #define DIM2STR(buf, buf_len, written, md) \
     do { \
-        int l = dnnl_md2dim_str(buf + written, buf_len - written, md); \
+        int l = dnnl_md2dim_str((buf) + (written), (buf_len) - (written), md); \
         CHECK_WRITTEN(buf, buf_len, l, written); \
     } while (0)
 
@@ -1018,7 +1019,7 @@ static void init_info_resampling(const engine_t *e, pd_t *s, char *buffer) {
             dat_str, attr_str, aux_str, prb_str);
 }
 
-static void init_info_zero_pad(
+void init_info_zero_pad(
         const engine_t *e, const primitive_desc_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
     verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,

@@ -31,7 +31,7 @@ class fake_threadpool : public dnnl::threadpool_iface {
 };
 #endif
 
-class stream_attr_test : public ::testing::Test {
+class stream_attr_test_t : public ::testing::Test {
 protected:
     dnnl::stream_attr sa_cpu {get_test_engine_kind()};
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
@@ -39,23 +39,23 @@ protected:
     bool expect_threadpool_failure
             = get_test_engine_kind() != dnnl::engine::kind::cpu;
 #endif
-    virtual void SetUp() {}
+    void SetUp() override {}
 };
 
-TEST_F(stream_attr_test, TestConstructor) {}
+TEST_F(stream_attr_test_t, TestConstructor) {}
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-TEST_F(stream_attr_test, TestGetThreadPool) {
+TEST_F(stream_attr_test_t, TestGetThreadPool) {
     catch_expected_failures([&] { sa_cpu.get_threadpool(); },
             expect_threadpool_failure, dnnl_invalid_arguments);
 }
 
-TEST_F(stream_attr_test, TestSetThreadPoolNULL) {
+TEST_F(stream_attr_test_t, TestSetThreadPoolNULL) {
     catch_expected_failures([&] { sa_cpu.set_threadpool(nullptr); },
             expect_threadpool_failure, dnnl_invalid_arguments);
 };
 
-TEST_F(stream_attr_test, TestSetThreadPool) {
+TEST_F(stream_attr_test_t, TestSetThreadPool) {
     catch_expected_failures([&] { sa_cpu.set_threadpool(&tp); },
             expect_threadpool_failure, dnnl_invalid_arguments);
 };

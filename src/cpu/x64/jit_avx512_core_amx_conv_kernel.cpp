@@ -39,7 +39,7 @@ void jit_avx512_core_amx_copy_to_wbuffer_t::generate() {
     const bool is_bf16 = jcp.src_dt == data_type::bf16;
 
     // required for use of VPERMB instruction
-    assert(IMPLICATION(!is_bf16, cpu.has(Xbyak::util::Cpu::tAVX512_VBMI)));
+    assert(IMPLICATION(!is_bf16, cpu().has(Xbyak::util::Cpu::tAVX512_VBMI)));
     assert(jcp.ic_block_int * jcp.typesize_in == 64);
 
     preamble();
@@ -763,13 +763,13 @@ bool jit_avx512_core_amx_fwd_kernel_t::maybe_eltwise(int position) {
     return false;
 }
 
-const Ymm jit_avx512_core_amx_fwd_kernel_t::ymm_mask(
+Ymm jit_avx512_core_amx_fwd_kernel_t::ymm_mask(
         const Ymm ymm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? ymm_in | ktail_mask : ymm_in | ktail_mask | T_z)
                      : ymm_in;
 }
 
-const Zmm jit_avx512_core_amx_fwd_kernel_t::zmm_mask(
+Zmm jit_avx512_core_amx_fwd_kernel_t::zmm_mask(
         const Zmm zmm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
                      : zmm_in;
@@ -829,7 +829,6 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_bf16(
     } else {
         vmovups(addr, zmm_mask(zmm_out, mask_flag, true));
     }
-    return;
 }
 
 void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_int8(
@@ -1338,8 +1337,10 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             = utils::pick(ndims - 3, format_tag::nwc, format_tag::nhwc);
     // To toggle the default data layout for BF16 between nChw16c and nhwc,
     // swap the following two variable definitions. Current choice: nhwc.
-    format_tag_t dat_tag_opt
-            = is_bf16_convolution ? dat_tag_nspc : dat_tag_nspc;
+
+    // Clang-tidy change - if it was intentional please revert it and
+    // put `NOLINTNEXTLINE` to suppress the warning.
+    format_tag_t dat_tag_opt = dat_tag_nspc;
     format_tag_t dat_tag_alt
             = is_bf16_convolution ? dat_tag_ncsp : dat_tag_nspc;
 
@@ -1393,7 +1394,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
             && 1 < jcp.kh * jcp.kw
             // required for use of VPERMB instruction in weights copy kernel
             && IMPLICATION(is_int8_convolution,
-                    cpu.has(Xbyak::util::Cpu::tAVX512_VBMI))
+                    cpu().has(Xbyak::util::Cpu::tAVX512_VBMI))
             // no dilation or excessive stride along w-direction
             && everyone_is(0, jcp.dilate_h, jcp.dilate_w)
             // no dilation or excessive stride along h-direction

@@ -31,11 +31,11 @@ void prepare_ws_bwd(const prb_t &p, std::vector<float> &ws_bwd_buffer,
     bool is_lstm = p.alg == VANILLA_LSTM;
 
     ws_diff_src_layer = AOC<float>(
-            NULL, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
+            nullptr, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
     ws_diff_src_iter = AOC<float>(
-            NULL, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
+            nullptr, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
     ws_diff_src_iter_c = AOC<float>(
-            NULL, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
+            nullptr, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
 
     int64_t size = ws_diff_src_layer.nelems() + ws_diff_src_iter.nelems()
             + is_lstm * ws_diff_src_iter_c.nelems();
@@ -247,7 +247,7 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_layer_,
                 int64_t lay = j + 1;
                 int64_t prev_lay = lay + 1;
 
-                int64_t ws_iter = (iter_dir == left2right) ? iter : iter;
+                int64_t ws_iter = iter;
                 int64_t ws_prev_iter
                         = (iter_dir == left2right) ? iter + 1 : iter - 1;
 

@@ -51,8 +51,10 @@ enum gemm_kind_t {
     gemm_iter_fwd_2,
     gemm_layer_fwd,
     gemm_iter_bwd,
+    gemm_iter_bwd_2,
     gemm_layer_bwd,
     gemm_diff_wei_iter,
+    gemm_diff_wei_iter_2,
     gemm_diff_wei_layer
 };
 
@@ -75,9 +77,11 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         key_gemm_iter_fwd_2,
         key_gemm_layer_fwd,
         key_gemm_iter_bwd,
+        key_gemm_iter_bwd_2,
         key_gemm_layer_bwd,
         key_gemm_diff_wei_layer,
         key_gemm_diff_wei_iter,
+        key_gemm_diff_wei_iter_2,
     };
 
     struct pd_t : public base_pd_t {
@@ -103,9 +107,11 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         std::unique_ptr<primitive_desc_t> gemm_iter_fwd_2_pd_;
         std::unique_ptr<primitive_desc_t> gemm_layer_fwd_pd_;
         std::unique_ptr<primitive_desc_t> gemm_iter_bwd_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_iter_bwd_2_pd_;
         std::unique_ptr<primitive_desc_t> gemm_layer_bwd_pd_;
         std::unique_ptr<primitive_desc_t> gemm_diff_wei_layer_pd_;
         std::unique_ptr<primitive_desc_t> gemm_diff_wei_iter_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_diff_wei_iter_2_pd_;
 
     private:
         void init_scratchpad(size_t scratchpad_sz) {
@@ -137,6 +143,13 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
                             gemm_diff_wei_layer_pd_->scratchpad_registry());
                     scratchpad.book(key_gemm_diff_wei_iter,
                             gemm_diff_wei_iter_pd_->scratchpad_registry());
+                    if (conf.is_vanilla_gru) {
+                        scratchpad.book(key_gemm_iter_bwd_2,
+                                gemm_iter_bwd_2_pd_->scratchpad_registry());
+                        scratchpad.book(key_gemm_diff_wei_iter_2,
+                                gemm_diff_wei_iter_2_pd_
+                                        ->scratchpad_registry());
+                    }
                     break;
                 default: assert(!"unknown prop_kind");
             }
@@ -164,11 +177,17 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
             gemm_iter_bwd_pd_.reset(other.gemm_iter_bwd_pd_
                             ? other.gemm_iter_bwd_pd_->clone()
                             : nullptr);
+            gemm_iter_bwd_2_pd_.reset(other.gemm_iter_bwd_2_pd_
+                            ? other.gemm_iter_bwd_2_pd_->clone()
+                            : nullptr);
             gemm_diff_wei_layer_pd_.reset(other.gemm_diff_wei_layer_pd_
                             ? other.gemm_diff_wei_layer_pd_->clone()
                             : nullptr);
             gemm_diff_wei_iter_pd_.reset(other.gemm_diff_wei_iter_pd_
                             ? other.gemm_diff_wei_iter_pd_->clone()
+                            : nullptr);
+            gemm_diff_wei_iter_2_pd_.reset(other.gemm_diff_wei_iter_2_pd_
+                            ? other.gemm_diff_wei_iter_2_pd_->clone()
                             : nullptr);
         }
     }; // struct pd_t : public base_pd_t
@@ -211,9 +230,9 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         size_t scratchpad_size, workspace_size;
         rnn_utils::set_offsets(pd()->rnn_conf, ws_gates_offset_,
                 ws_states_offset_, ws_c_states_offset_, ws_diff_states_offset_,
-                ws_grid_comp_offset_, scratch_cell_offset_, ws_bias_offset_,
-                scratch_gates_offset_, scratchpad_size, workspace_size);
-
+                ws_grid_comp_offset_, scratch_cell_offset_, ws_dhG1_offset_,
+                ws_bias_offset_, scratch_gates_offset_, scratchpad_size,
+                workspace_size);
         int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
         int wei_offsets_iter_sz = pd()->L() * pd()->D() * max_nparts;
         int wei_offsets_layer_sz = pd()->L() * pd()->D();
@@ -239,8 +258,9 @@ protected:
     primitive_list_t nested_primitives() const override {
         return {gemm_layer_fwd_.get(), gemm_iter_fwd_.get(),
                 gemm_iter_fwd_2_.get(), gemm_layer_bwd_.get(),
-                gemm_iter_bwd_.get(), gemm_diff_wei_layer_.get(),
-                gemm_diff_wei_iter_.get()};
+                gemm_iter_bwd_.get(), gemm_iter_bwd_2_.get(),
+                gemm_diff_wei_layer_.get(), gemm_diff_wei_iter_.get(),
+                gemm_diff_wei_iter_2_.get()};
     }
 
     status_t init_res_storage(
@@ -331,8 +351,10 @@ private:
     std::shared_ptr<primitive_t> gemm_iter_fwd_2_;
     std::shared_ptr<primitive_t> gemm_layer_bwd_;
     std::shared_ptr<primitive_t> gemm_iter_bwd_;
+    std::shared_ptr<primitive_t> gemm_iter_bwd_2_;
     std::shared_ptr<primitive_t> gemm_diff_wei_layer_;
     std::shared_ptr<primitive_t> gemm_diff_wei_iter_;
+    std::shared_ptr<primitive_t> gemm_diff_wei_iter_2_;
 
     // offset variables set in workspace and used in offset calculations for
     // grid & cell execution and fwd & bwd kernel macros
@@ -344,6 +366,7 @@ private:
     cl_ulong scratch_cell_offset_;
     cl_ulong ws_bias_offset_;
     cl_ulong scratch_gates_offset_;
+    cl_ulong ws_dhG1_offset_;
 
     // ptrs for storing weight offsets which are pre-calculated in
     // in grid execution as weights_*_assing_func

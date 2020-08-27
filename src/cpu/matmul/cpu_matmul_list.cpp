@@ -31,7 +31,7 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
-static const pd_create_f impl_list[] = {
+const pd_create_f impl_list[] = {
         INSTANCE(matmul::gemm_f32_matmul_t),
         INSTANCE(matmul::gemm_bf16_matmul_t<f32>),
         INSTANCE(matmul::gemm_bf16_matmul_t<bf16>),

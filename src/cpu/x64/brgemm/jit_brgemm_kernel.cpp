@@ -49,7 +49,7 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
         }
     }
 
-    ~jit_brgemm_kernel_base_t() { delete eltwise_injector_; }
+    ~jit_brgemm_kernel_base_t() override { delete eltwise_injector_; }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_base_t)
 
@@ -142,10 +142,10 @@ private:
     Xbyak::Zmm zmm_tmp_2() { return Xbyak::Zmm(1); }
     Xbyak::Zmm zmm_tmp_3() { return Xbyak::Zmm(2); }
 
-    const Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag,
-            bool store, Xbyak::Opmask ktail_mask);
-    const Xbyak::Ymm ymm_mask(const Xbyak::Ymm ymm_in, bool mask_flag,
-            bool store, Xbyak::Opmask ktail_mask);
+    Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag, bool store,
+            Xbyak::Opmask ktail_mask);
+    Xbyak::Ymm ymm_mask(const Xbyak::Ymm ymm_in, bool mask_flag, bool store,
+            Xbyak::Opmask ktail_mask);
 
     void cvt2ps(data_type_t type_in, const Xbyak::Zmm zmm_in,
             const Xbyak::Operand &op, bool mask_flag, bool store,
@@ -180,13 +180,13 @@ private:
     void generate() override;
 };
 
-const Xbyak::Zmm jit_brgemm_kernel_base_t::zmm_mask(const Xbyak::Zmm zmm_in,
+Xbyak::Zmm jit_brgemm_kernel_base_t::zmm_mask(const Xbyak::Zmm zmm_in,
         bool mask_flag, bool store, Xbyak::Opmask ktail_mask) {
     return mask_flag ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
                      : zmm_in;
 }
 
-const Xbyak::Ymm jit_brgemm_kernel_base_t::ymm_mask(const Xbyak::Ymm ymm_in,
+Xbyak::Ymm jit_brgemm_kernel_base_t::ymm_mask(const Xbyak::Ymm ymm_in,
         bool mask_flag, bool store, Xbyak::Opmask ktail_mask) {
     return mask_flag ? (store ? ymm_in | ktail_mask : ymm_in | ktail_mask | T_z)
                      : ymm_in;

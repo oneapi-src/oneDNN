@@ -99,9 +99,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     dnnl_memory_desc_t data_d;
     dnnl_shuffle_desc_t sd;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&data_d, p->ndims, p->dims.data(),
-                     p->dt, convert_tag(p->tag, p->ndims)),
-            WARN);
+    SAFE(init_md(&data_d, p->ndims, p->dims.data(), p->dt, p->tag), CRIT);
 
     auto prop_kind = p->dir & FLAG_INF ? dnnl_forward_inference
                                        : dnnl_forward_training;
@@ -109,11 +107,11 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                      &sd, prop_kind, &data_d, p->axis, p->group),
             WARN);
 
-    dnnl_primitive_desc_t _hint = NULL;
+    dnnl_primitive_desc_t _hint = nullptr;
     auto cleanup_pd = [&]() { dnnl_primitive_desc_destroy(_hint); };
     if (p->dir & FLAG_BWD) {
-        dnnl_status_t init_fwd_status
-                = dnnl_primitive_desc_create(&_hint, &sd, NULL, engine, NULL);
+        dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
+                &_hint, &sd, nullptr, engine, nullptr);
         if (init_fwd_status == dnnl_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
         SAFE(init_fwd_status, WARN);
@@ -176,7 +174,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_abx_tag(p->ndims);
+    const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
 

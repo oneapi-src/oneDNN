@@ -30,7 +30,7 @@ namespace x64 {
 
 using namespace Xbyak;
 
-struct jit_args {
+struct jit_args_t {
     const void *from;
     const void *for_comparison;
     const void *to;
@@ -39,9 +39,9 @@ struct jit_args {
 
 struct jit_uni_eltwise_int_kernel : public c_compatible {
     jit_uni_eltwise_int_kernel(const eltwise_desc_t &desc) : desc_(desc) {}
-    virtual ~jit_uni_eltwise_int_kernel() {}
+    virtual ~jit_uni_eltwise_int_kernel() = default;
 
-    virtual void operator()(jit_args *p) = 0;
+    virtual void operator()(jit_args_t *p) = 0;
     virtual status_t create_kernel() = 0;
 
 protected:
@@ -59,11 +59,11 @@ namespace {
 using namespace Xbyak;
 
 template <cpu_isa_t isa>
-struct jit_uni_subkernel_int : public jit_uni_eltwise_int_kernel,
-                               public jit_generator {
+struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel,
+                                 public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_subkernel_int)
 
-    jit_uni_subkernel_int(const eltwise_desc_t &desc)
+    jit_uni_subkernel_int_t(const eltwise_desc_t &desc)
         : jit_uni_eltwise_int_kernel(desc), jit_generator() {
         using namespace data_type;
 
@@ -76,7 +76,7 @@ struct jit_uni_subkernel_int : public jit_uni_eltwise_int_kernel,
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
-    void operator()(jit_args *p) override {
+    void operator()(jit_args_t *p) override {
         return jit_generator::operator()(p);
     }
 
@@ -92,7 +92,7 @@ struct jit_uni_subkernel_int : public jit_uni_eltwise_int_kernel,
 
         preamble();
 
-#define GET_OFF(field) offsetof(jit_args, field)
+#define GET_OFF(field) offsetof(jit_args_t, field)
         mov(reg_from, ptr[param + GET_OFF(from)]);
         mov(reg_to, ptr[param + GET_OFF(to)]);
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
@@ -264,7 +264,7 @@ private:
 };
 
 template <cpu_isa_t isa>
-void jit_uni_subkernel_int<isa>::process_linear(
+void jit_uni_subkernel_int_t<isa>::process_linear(
         const Vmm &vr_to, const Vmm &vr_from) {
     uni_vcvtdq2ps(vr_to, vr_from);
     uni_vfmadd213ps(vr_to, vmm_alpha, vmm_beta);
@@ -281,13 +281,13 @@ void jit_uni_subkernel_int<isa>::process_linear(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_subkernel_int<isa>::process_relu(
+void jit_uni_subkernel_int_t<isa>::process_relu(
         const Vmm &vr_to, const Vmm &vr_from) {
     assert(!"unsupported isa");
 }
 
 template <>
-void jit_uni_subkernel_int<sse41>::process_relu(
+void jit_uni_subkernel_int_t<sse41>::process_relu(
         const Vmm &vr_to, const Vmm &vr_from) {
 
     cvtdq2ps(vr_from, vr_from);
@@ -302,7 +302,7 @@ void jit_uni_subkernel_int<sse41>::process_relu(
 }
 
 template <>
-void jit_uni_subkernel_int<avx2>::process_relu(
+void jit_uni_subkernel_int_t<avx2>::process_relu(
         const Vmm &vr_to, const Vmm &vr_from) {
 
     vcvtdq2ps(vr_from, vr_from);
@@ -313,7 +313,7 @@ void jit_uni_subkernel_int<avx2>::process_relu(
 }
 
 template <>
-void jit_uni_subkernel_int<avx512_common>::process_relu(
+void jit_uni_subkernel_int_t<avx512_common>::process_relu(
         const Vmm &vr_to, const Vmm &vr_from) {
 
     vcvtdq2ps(vr_from, vr_from);
@@ -324,13 +324,13 @@ void jit_uni_subkernel_int<avx512_common>::process_relu(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_subkernel_int<isa>::store_8bit(const bool vectorize,
+void jit_uni_subkernel_int_t<isa>::store_8bit(const bool vectorize,
         const Address &mem_to, const Vmm &vr_to, bool is_signed) {
     assert(!"unsupported isa");
 }
 
 template <>
-void jit_uni_subkernel_int<sse41>::store_8bit(const bool vectorize,
+void jit_uni_subkernel_int_t<sse41>::store_8bit(const bool vectorize,
         const Address &mem_to, const Vmm &vr_to, bool is_signed) {
     if (vectorize) {
         // store full Vmm size
@@ -357,7 +357,7 @@ void jit_uni_subkernel_int<sse41>::store_8bit(const bool vectorize,
 }
 
 template <>
-void jit_uni_subkernel_int<avx2>::store_8bit(const bool vectorize,
+void jit_uni_subkernel_int_t<avx2>::store_8bit(const bool vectorize,
         const Address &mem_to, const Vmm &vr_to, bool is_signed) {
     if (vectorize) {
         // store full Vmm size
@@ -386,7 +386,7 @@ void jit_uni_subkernel_int<avx2>::store_8bit(const bool vectorize,
 }
 
 template <>
-void jit_uni_subkernel_int<avx512_common>::store_8bit(const bool vectorize,
+void jit_uni_subkernel_int_t<avx512_common>::store_8bit(const bool vectorize,
         const Address &mem_to, const Vmm &vr_to, bool is_signed) {
     if (vectorize) {
         // store full Vmm size
@@ -428,7 +428,7 @@ jit_uni_eltwise_int_fwd_t<isa, d_type>::jit_uni_eltwise_int_fwd_t(
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::init(engine_t *engine) {
     const auto &desc = *pd()->desc();
-    CHECK(safe_ptr_assign(kernel_, new jit_uni_subkernel_int<isa>(desc)));
+    CHECK(safe_ptr_assign(kernel_, new jit_uni_subkernel_int_t<isa>(desc)));
     return kernel_->create_kernel();
 }
 
@@ -458,7 +458,7 @@ void jit_uni_eltwise_int_fwd_t<isa, d_type>::execute_forward(
         start = nstl::min(nelems, start * cache_line);
         end = nstl::min(nelems, end * cache_line);
 
-        auto arg = jit_args();
+        auto arg = jit_args_t();
         arg.from = (const void *)&src[start];
         arg.for_comparison = (const void *)&src[start];
         arg.to = (const void *)&dst[start];

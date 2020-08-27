@@ -177,7 +177,7 @@ private:
     void generate() override;
     void cvt2ps(data_type_t type_in, Vmm ymm_in, const Xbyak::Operand &op,
             bool mask_flag);
-    const Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store = false);
+    Vmm vmm_mask(const Vmm vmm_in, bool mask_flag, bool store = false);
 };
 
 struct jit_avx512_core_x8s8s32x_fwd_kernel {

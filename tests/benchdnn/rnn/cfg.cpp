@@ -24,7 +24,7 @@ namespace rnn {
 namespace {
 
 #define CASE(KIND, ENTRY) \
-    if (kind == KIND) return ENTRY
+    if (kind == (KIND)) return ENTRY
 #define DEFAULT(ENTRY) return ENTRY
 #define END_LIST \
     SAFE_V(CRIT); \
@@ -93,7 +93,7 @@ CFG(f16) {
 #define MEAN_U8 28.f
 #define STDDEV_U8 16.f
 
-#define MIN_S8 -63.f
+#define MIN_S8 (-63.f)
 #define MAX_S8 63.f
 #define MEAN_S8 0.f
 #define STDDEV_S8 32.f

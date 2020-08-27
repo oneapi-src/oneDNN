@@ -30,7 +30,7 @@ struct test_pool_desc_t {
     memory::dim strd, strh, strw;
 };
 
-struct pool_test_params {
+struct pool_test_params_t {
     prop_kind aprop_kind;
     algorithm aalgorithm;
     memory::format_tag src_format;
@@ -42,7 +42,7 @@ struct pool_test_params {
 };
 
 template <typename data_t>
-void check_pool_fwd(const pool_test_params &p, const memory &src,
+void check_pool_fwd(const pool_test_params_t &p, const memory &src,
         const memory &dst, const memory &ws) {
     auto src_data = map_memory<data_t>(src);
     auto dst_data = map_memory<data_t>(dst);
@@ -156,11 +156,11 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
 }
 
 template <typename data_t>
-class pooling_test : public ::testing::TestWithParam<pool_test_params> {
-    pool_test_params p;
+class pooling_test_t : public ::testing::TestWithParam<pool_test_params_t> {
+    pool_test_params_t p;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
@@ -241,11 +241,11 @@ protected:
     }
 };
 
-using pooling_test_float = pooling_test<float>;
-using pooling_test_s8 = pooling_test<int8_t>;
-using pooling_test_u8 = pooling_test<uint8_t>;
-using pooling_test_s32 = pooling_test<int32_t>;
-using pool_test_params_float = pool_test_params;
+using pooling_test_float = pooling_test_t<float>;
+using pooling_test_s8 = pooling_test_t<int8_t>;
+using pooling_test_u8 = pooling_test_t<uint8_t>;
+using pooling_test_s32 = pooling_test_t<int32_t>;
+using pool_test_params_float = pool_test_params_t;
 
 //#define EXPAND_NDIMS(ndims, ...) ndims, {__VA_ARGS__}
 
@@ -257,19 +257,20 @@ using pool_test_params_float = pool_test_params;
 
 #define GPU_INST_TEST_CASE(test, ...) \
     GPU_INSTANTIATE_TEST_SUITE_P(TestPoolingForwardSlipsToPadding, test, \
-            ::testing::Values(pool_test_params {prop_kind::forward_inference, \
-                                      algorithm::pooling_max, \
-                                      memory::format_tag::NChw16n16c, \
-                                      memory::format_tag::NChw16n16c, \
-                                      EXPAND_SIZES_2D(64, 64, 56, 56, 56, 56, \
-                                              3, 3, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_inference, \
+            ::testing::Values( \
+                    pool_test_params_t {prop_kind::forward_inference, \
+                            algorithm::pooling_max, \
+                            memory::format_tag::NChw16n16c, \
+                            memory::format_tag::NChw16n16c, \
+                            EXPAND_SIZES_2D(64, 64, 56, 56, 56, 56, 3, 3, 1, \
+                                    1, 1, 1)}, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_avg_exclude_padding, \
                             memory::format_tag::NChw16n16c, \
                             memory::format_tag::NChw16n16c, \
                             EXPAND_SIZES_2D(64, 64, 56, 56, 56, 56, 3, 3, 1, \
                                     1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_inference, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_avg_include_padding, \
                             memory::format_tag::NChw16n16c, \
                             memory::format_tag::NChw16n16c, \
@@ -277,54 +278,54 @@ using pool_test_params_float = pool_test_params;
                                     1, 1, 1)})); \
     GPU_INSTANTIATE_TEST_SUITE_P(TestPoolingForward_gpu_3D, test, \
             ::testing::Values( \
-                    pool_test_params {prop_kind::forward_inference, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_max, memory::format_tag::ncdhw, \
                             memory::format_tag::ncdhw, \
                             EXPAND_SIZES_3D(4, 16, 10, 10, 10, 10, 10, 10, 2, \
                                     2, 2, 1, 1, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_inference, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_avg_exclude_padding, \
                             memory::format_tag::ncdhw, \
                             memory::format_tag::ncdhw, \
                             EXPAND_SIZES_3D(4, 16, 10, 10, 10, 10, 10, 10, 2, \
                                     2, 2, 1, 1, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_inference, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_avg_include_padding, \
                             memory::format_tag::ncdhw, \
                             memory::format_tag::ncdhw, \
                             EXPAND_SIZES_3D(4, 16, 10, 10, 10, 10, 10, 10, 2, \
                                     2, 2, 1, 1, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_inference, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_max, \
                             memory::format_tag::NCdhw16n16c, \
                             memory::format_tag::NCdhw16n16c, \
                             EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, \
                                     3, 3, 1, 1, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_inference, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_avg_exclude_padding, \
                             memory::format_tag::NCdhw16n16c, \
                             memory::format_tag::NCdhw16n16c, \
                             EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, \
                                     3, 3, 1, 1, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_inference, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_avg_include_padding, \
                             memory::format_tag::NCdhw16n16c, \
                             memory::format_tag::NCdhw16n16c, \
                             EXPAND_SIZES_3D(32, 32, 14, 14, 14, 14, 14, 14, 3, \
                                     3, 3, 1, 1, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_inference, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_max, \
                             memory::format_tag::nCdhw16c, \
                             memory::format_tag::nCdhw16c, \
                             EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, \
                                     3, 3, 1, 1, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_inference, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_avg_exclude_padding, \
                             memory::format_tag::nCdhw16c, \
                             memory::format_tag::nCdhw16c, \
                             EXPAND_SIZES_3D(13, 32, 14, 14, 14, 14, 14, 14, 3, \
                                     3, 3, 1, 1, 1, 1, 1, 1)}, \
-                    pool_test_params {prop_kind::forward_inference, \
+                    pool_test_params_t {prop_kind::forward_inference, \
                             algorithm::pooling_avg_include_padding, \
                             memory::format_tag::nCdhw16c, \
                             memory::format_tag::nCdhw16c, \
@@ -335,17 +336,17 @@ TEST_P(pooling_test_s8, TestsPooling) {}
 
 INSTANTIATE_TEST_SUITE_P(TestPoolingAlexnetForwardS8, pooling_test_s8,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
                                 1, 96, 55, 55, 27, 27, 3, 3, 0, 0, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
                                 1, 256, 27, 27, 13, 13, 3, 3, 0, 0, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
@@ -353,23 +354,23 @@ INSTANTIATE_TEST_SUITE_P(TestPoolingAlexnetForwardS8, pooling_test_s8,
 
 INSTANTIATE_TEST_SUITE_P(TestPoolingForwardMaxS8, pooling_test_s8,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
@@ -377,44 +378,44 @@ INSTANTIATE_TEST_SUITE_P(TestPoolingForwardMaxS8, pooling_test_s8,
 
 INSTANTIATE_TEST_SUITE_P(TestPoolingForwardAvgS8, pooling_test_s8,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
                                 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
@@ -426,23 +427,23 @@ TEST_P(pooling_test_u8, TestsPooling) {}
 
 INSTANTIATE_TEST_SUITE_P(TestPoolingForwardMaxU8, pooling_test_u8,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
@@ -450,44 +451,44 @@ INSTANTIATE_TEST_SUITE_P(TestPoolingForwardMaxU8, pooling_test_u8,
 
 INSTANTIATE_TEST_SUITE_P(TestPoolingForwardAvgU8, pooling_test_u8,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
                                 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
@@ -499,17 +500,17 @@ TEST_P(pooling_test_s32, TestsPooling) {}
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPoolingAlexnetForwardS32, pooling_test_s32,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
                                 1, 96, 55, 55, 27, 27, 3, 3, 0, 0, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
                                 1, 256, 27, 27, 13, 13, 3, 3, 0, 0, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
@@ -517,23 +518,23 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestPoolingAlexnetForwardS32, pooling_test_s32,
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPoolingForwardMaxS32, pooling_test_s32,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nhwc,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
@@ -541,44 +542,44 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestPoolingForwardMaxS32, pooling_test_s32,
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPoolingForwardAvgS32, pooling_test_s32,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 128, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 64, 1, 1, 1, 1, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 96, 4, 4, 2, 2, 3, 3, 0, 0, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
                                 16, 64, 32, 32, 16, 16, 3, 3, 0, 0, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nhwc, memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
@@ -621,39 +622,39 @@ INSTANTIATE_TEST_SUITE_P(TestPoolingForwardEF, pooling_test_float,
 
 INSTANTIATE_TEST_SUITE_P(TestPooling_nChw16c_with_padded, pooling_test_float,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nChw16c,
                         memory::format_tag::nChw16c,
                         EXPAND_SIZES_2D(4, 17, 6, 6, 7, 7, 2, 2, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nChw16c,
                         memory::format_tag::nChw16c,
                         EXPAND_SIZES_2D(
                                 4, 23, 60, 60, 31, 31, 3, 4, 1, 1, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nChw16c,
                         memory::format_tag::nChw16c,
                         EXPAND_SIZES_2D(
                                 4, 14, 60, 60, 31, 31, 3, 2, 1, 1, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nChw16c,
                         memory::format_tag::nChw16c,
                         EXPAND_SIZES_2D(
                                 4, 17, 60, 60, 31, 31, 4, 3, 1, 1, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nChw16c,
                         memory::format_tag::nChw16c,
                         EXPAND_SIZES_2D(
                                 4, 14, 60, 60, 31, 31, 2, 3, 1, 1, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nChw16c,
                         memory::format_tag::nChw16c,
                         EXPAND_SIZES_2D(
                                 4, 25, 60, 60, 31, 31, 2, 4, 1, 1, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nChw16c,
                         memory::format_tag::nChw16c,
@@ -662,36 +663,36 @@ INSTANTIATE_TEST_SUITE_P(TestPooling_nChw16c_with_padded, pooling_test_float,
 
 INSTANTIATE_TEST_SUITE_P(TestPooling_nChw8c_with_padded, pooling_test_float,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nChw8c,
                         memory::format_tag::nChw8c,
                         EXPAND_SIZES_2D(4, 5, 6, 6, 7, 7, 2, 2, 1, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nChw8c,
                         memory::format_tag::nChw8c,
                         EXPAND_SIZES_2D(
                                 4, 9, 60, 60, 31, 31, 3, 4, 1, 1, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nChw8c, memory::format_tag::nChw8c,
                         EXPAND_SIZES_2D(
                                 4, 14, 60, 60, 31, 31, 3, 2, 1, 1, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nChw8c, memory::format_tag::nChw8c,
                         EXPAND_SIZES_2D(
                                 4, 17, 60, 60, 31, 31, 4, 3, 1, 1, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nChw8c,
                         memory::format_tag::nChw8c,
                         EXPAND_SIZES_2D(
                                 4, 14, 60, 60, 31, 31, 2, 3, 1, 1, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nChw8c, memory::format_tag::nChw8c,
                         EXPAND_SIZES_2D(
                                 4, 25, 60, 60, 31, 31, 2, 4, 1, 1, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nChw8c, memory::format_tag::nChw8c,
                         EXPAND_SIZES_2D(
@@ -700,22 +701,22 @@ INSTANTIATE_TEST_SUITE_P(TestPooling_nChw8c_with_padded, pooling_test_float,
 INSTANTIATE_TEST_SUITE_P(TestPoolingForwardMaxKernelSlipsToPadding,
         pooling_test_float,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nchw,
                         memory::format_tag::nchw,
                         EXPAND_SIZES_2D(
                                 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nchw,
                         memory::format_tag::nhwc,
                         EXPAND_SIZES_2D(
                                 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nchw,
                         memory::format_tag::nChw8c,
                         EXPAND_SIZES_2D(
                                 1, 16, 10, 10, 6, 6, 5, 5, 10, 10, 5, 5)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nchw,
                         memory::format_tag::nChw16c,
                         EXPAND_SIZES_2D(
@@ -723,35 +724,35 @@ INSTANTIATE_TEST_SUITE_P(TestPoolingForwardMaxKernelSlipsToPadding,
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3D_nCdhw16c, pooling_test_float,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nCdhw16c,
                         memory::format_tag::nCdhw16c,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 3, 4,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nCdhw16c,
                         memory::format_tag::nCdhw16c,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 3, 2,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nCdhw16c,
                         memory::format_tag::nCdhw16c,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nCdhw16c,
                         memory::format_tag::nCdhw16c,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 2, 3,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nCdhw16c,
                         memory::format_tag::nCdhw16c,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 2, 4,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nCdhw16c,
                         memory::format_tag::nCdhw16c,
@@ -760,35 +761,35 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3D_nCdhw16c, pooling_test_float,
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3D_nCdhw8c, pooling_test_float,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nCdhw8c,
                         memory::format_tag::nCdhw8c,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 3, 4,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nCdhw8c,
                         memory::format_tag::nCdhw8c,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 3, 2,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nCdhw8c,
                         memory::format_tag::nCdhw8c,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nCdhw8c,
                         memory::format_tag::nCdhw8c,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 2, 3,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::nCdhw8c,
                         memory::format_tag::nCdhw8c,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 2, 4,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::nCdhw8c,
                         memory::format_tag::nCdhw8c,
@@ -797,32 +798,32 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3D_nCdhw8c, pooling_test_float,
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3D_ndhwc, pooling_test_float,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::ndhwc,
                         memory::format_tag::ndhwc,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 3, 4,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::ndhwc, memory::format_tag::ndhwc,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 3, 2,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::ndhwc, memory::format_tag::ndhwc,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::ndhwc,
                         memory::format_tag::ndhwc,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 2, 3,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::ndhwc, memory::format_tag::ndhwc,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 2, 4,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::ndhwc, memory::format_tag::ndhwc,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2,
@@ -830,32 +831,32 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3D_ndhwc, pooling_test_float,
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3D_ncdhw, pooling_test_float,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::ncdhw,
                         memory::format_tag::ncdhw,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 3, 4,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::ncdhw, memory::format_tag::ncdhw,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 3, 2,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_training,
+                pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::ncdhw, memory::format_tag::ncdhw,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 2, 4, 3,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::ncdhw,
                         memory::format_tag::ncdhw,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 4, 2, 3,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::ncdhw, memory::format_tag::ncdhw,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 2, 4,
                                 1, 1, 1, 2, 2, 2)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_avg_include_padding,
                         memory::format_tag::ncdhw, memory::format_tag::ncdhw,
                         EXPAND_SIZES_3D(2, 32, 60, 60, 60, 31, 31, 31, 3, 4, 2,
@@ -863,17 +864,17 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3D_ncdhw, pooling_test_float,
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3Dunet_ncdhw, pooling_test_float,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::ncdhw,
                         memory::format_tag::ncdhw,
                         EXPAND_SIZES_3D(1, 64, 64, 64, 64, 64, 64, 64, 2, 2, 2,
                                 0, 0, 0, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::ncdhw,
                         memory::format_tag::ncdhw,
                         EXPAND_SIZES_3D(1, 128, 28, 28, 28, 28, 28, 28, 2, 2, 2,
                                 0, 0, 0, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::ncdhw,
                         memory::format_tag::ncdhw,
                         EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2,
@@ -881,17 +882,17 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3Dunet_ncdhw, pooling_test_float,
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3Dunet_ndhwc, pooling_test_float,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::ndhwc,
                         memory::format_tag::ndhwc,
                         EXPAND_SIZES_3D(1, 64, 64, 64, 64, 64, 64, 64, 2, 2, 2,
                                 0, 0, 0, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::ndhwc,
                         memory::format_tag::ndhwc,
                         EXPAND_SIZES_3D(1, 128, 28, 28, 28, 28, 28, 28, 2, 2, 2,
                                 0, 0, 0, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::ndhwc,
                         memory::format_tag::ndhwc,
                         EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2,
@@ -899,17 +900,17 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3Dunet_ndhwc, pooling_test_float,
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3Dunet_blocked, pooling_test_float,
         ::testing::Values(
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nCdhw16c,
                         memory::format_tag::nCdhw16c,
                         EXPAND_SIZES_3D(1, 64, 64, 64, 64, 64, 64, 64, 2, 2, 2,
                                 0, 0, 0, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nCdhw16c,
                         memory::format_tag::nCdhw16c,
                         EXPAND_SIZES_3D(1, 128, 28, 28, 28, 28, 28, 28, 2, 2, 2,
                                 0, 0, 0, 1, 1, 1)},
-                pool_test_params {prop_kind::forward_inference,
+                pool_test_params_t {prop_kind::forward_inference,
                         algorithm::pooling_max, memory::format_tag::nCdhw16c,
                         memory::format_tag::nCdhw16c,
                         EXPAND_SIZES_3D(1, 256, 12, 12, 12, 12, 12, 12, 2, 2, 2,

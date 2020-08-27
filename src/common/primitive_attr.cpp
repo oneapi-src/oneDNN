@@ -314,7 +314,7 @@ status_t dnnl_primitive_attr_clone(
 }
 
 status_t dnnl_primitive_attr_destroy(primitive_attr_t *attr) {
-    if (attr) delete attr;
+    delete attr;
 
     return success;
 }
@@ -410,7 +410,7 @@ status_t dnnl_post_ops_create(post_ops_t **post_ops) {
 }
 
 status_t dnnl_post_ops_destroy(post_ops_t *post_ops) {
-    if (post_ops) delete post_ops;
+    delete post_ops;
 
     return success;
 }

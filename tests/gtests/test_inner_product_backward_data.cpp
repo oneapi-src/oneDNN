@@ -80,7 +80,7 @@ void compute_ref_inner_product_bwd_data(int ndims,
     });
 }
 
-struct inprod_test_params {
+struct inprod_test_params_t {
     memory::format_tag diff_src_format;
     memory::format_tag weights_format;
     memory::format_tag diff_dst_format;
@@ -91,18 +91,18 @@ struct inprod_test_params {
 };
 
 template <typename data_t>
-class inner_product_test_bwd_data
-    : public ::testing::TestWithParam<inprod_test_params> {
+class inner_product_test_bwd_data_t
+    : public ::testing::TestWithParam<inprod_test_params_t> {
 protected:
-    virtual void SetUp() {
-        auto p = ::testing::TestWithParam<inprod_test_params>::GetParam();
+    void SetUp() override {
+        auto p = ::testing::TestWithParam<inprod_test_params_t>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
     void Test() {
 
-        auto p = ::testing::TestWithParam<inprod_test_params>::GetParam();
+        auto p = ::testing::TestWithParam<inprod_test_params_t>::GetParam();
         test_inner_product_descr_t ipd = p.test_ipd;
         bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
         if (p.ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
@@ -187,8 +187,8 @@ protected:
     }
 };
 
-using inner_product_test_float = inner_product_test_bwd_data<float>;
-using inprod_test_params_float = inprod_test_params;
+using inner_product_test_float = inner_product_test_bwd_data_t<float>;
+using inprod_test_params_float = inprod_test_params_t;
 
 #define EXPAND_SIZES_3D(...) \
     5, { __VA_ARGS__ }

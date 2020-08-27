@@ -25,18 +25,18 @@ using tag = memory::format_tag;
 
 /* iface tests */
 
-class iface_sum_test : public ::testing::Test {
+class iface_sum_test_t : public ::testing::Test {
 protected:
     engine eng;
     stream strm;
 
-    virtual void SetUp() {
+    void SetUp() override {
         eng = get_test_engine();
         strm = make_stream(eng);
     }
 };
 
-TEST_F(iface_sum_test, SumTestDstDataTypeCompliance) {
+TEST_F(iface_sum_test_t, SumTestDstDataTypeCompliance) {
     using dt = memory::data_type;
 
     const dt src_dt = dt::s8;
@@ -74,19 +74,20 @@ struct sum_test_params {
 };
 
 template <typename src_data_t, typename acc_t, typename dst_data_t = src_data_t>
-class sum_test : public ::testing::TestWithParam<sum_test_params> {
+class sum_test_t : public ::testing::TestWithParam<sum_test_params> {
 private:
     memory::data_type src_data_type;
     memory::data_type dst_data_type;
 
     void check_data(const std::vector<memory> &srcs,
-            const std::vector<float> scale, const memory &dst) {
+            const std::vector<float> &scale, const memory &dst) {
         auto dst_data = map_memory<const dst_data_t>(dst);
         const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;
         const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
         std::vector<mapped_ptr_t<const src_data_t>> mapped_srcs;
+        mapped_srcs.reserve(srcs.size());
         for (auto &src : srcs)
             mapped_srcs.emplace_back(map_memory<const src_data_t>(src));
 
@@ -131,7 +132,7 @@ private:
     }
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         src_data_type = data_traits<src_data_t>::data_type;
         dst_data_type = data_traits<dst_data_t>::data_type;
         sum_test_params p
@@ -343,23 +344,23 @@ static auto corner_test_cases = []() {
     CPU_INST_TEST_CASE(test, omit_output) \
     GPU_INST_TEST_CASE(test, omit_output)
 
-using sum_test_float_omit_output = sum_test<float, float>;
-using sum_test_u8_omit_output = sum_test<uint8_t, int32_t>;
-using sum_test_s8_omit_output = sum_test<int8_t, int32_t>;
-using sum_test_s32_omit_output = sum_test<int32_t, float>;
-using sum_test_f16_omit_output = sum_test<float16_t, float>;
-using sum_test_bf16bf16_omit_output = sum_test<bfloat16_t, float>;
-using sum_test_bf16f32_omit_output = sum_test<bfloat16_t, float, float>;
+using sum_test_float_omit_output = sum_test_t<float, float>;
+using sum_test_u8_omit_output = sum_test_t<uint8_t, int32_t>;
+using sum_test_s8_omit_output = sum_test_t<int8_t, int32_t>;
+using sum_test_s32_omit_output = sum_test_t<int32_t, float>;
+using sum_test_f16_omit_output = sum_test_t<float16_t, float>;
+using sum_test_bf16bf16_omit_output = sum_test_t<bfloat16_t, float>;
+using sum_test_bf16f32_omit_output = sum_test_t<bfloat16_t, float, float>;
 
-using sum_test_float = sum_test<float, float>;
-using sum_test_u8 = sum_test<uint8_t, int32_t>;
-using sum_test_s8 = sum_test<int8_t, int32_t>;
-using sum_test_s32 = sum_test<int32_t, float>;
-using sum_test_f16 = sum_test<float16_t, float>;
-using sum_test_bf16bf16 = sum_test<bfloat16_t, float>;
-using sum_test_bf16f32 = sum_test<bfloat16_t, float, float>;
+using sum_test_float = sum_test_t<float, float>;
+using sum_test_u8 = sum_test_t<uint8_t, int32_t>;
+using sum_test_s8 = sum_test_t<int8_t, int32_t>;
+using sum_test_s32 = sum_test_t<int32_t, float>;
+using sum_test_f16 = sum_test_t<float16_t, float>;
+using sum_test_bf16bf16 = sum_test_t<bfloat16_t, float>;
+using sum_test_bf16f32 = sum_test_t<bfloat16_t, float, float>;
 
-using sum_cc_f32 = sum_test<float, float>;
+using sum_cc_f32 = sum_test_t<float, float>;
 
 TEST_P(sum_cc_f32, TestSumCornerCases) {}
 INSTANTIATE_TEST_SUITE_P(TestSumCornerCases, sum_cc_f32, corner_test_cases());

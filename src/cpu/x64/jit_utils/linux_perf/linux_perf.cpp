@@ -175,8 +175,8 @@ private:
         long page_size = sysconf(_SC_PAGESIZE);
         if (page_size == -1) return false;
         marker_size_ = (size_t)page_size;
-        marker_addr_ = mmap(
-                NULL, marker_size_, PROT_READ | PROT_EXEC, MAP_PRIVATE, fd_, 0);
+        marker_addr_ = mmap(nullptr, marker_size_, PROT_READ | PROT_EXEC,
+                MAP_PRIVATE, fd_, 0);
         return marker_addr_ != MAP_FAILED;
     }
 
@@ -294,7 +294,7 @@ void linux_perf_jitdump_record_code_load(
 class linux_perf_jitmap_t {
 public:
     linux_perf_jitmap_t() : fp_ {nullptr}, failed_ {false} {}
-    ~linux_perf_jitmap_t() {}
+    ~linux_perf_jitmap_t() = default;
     void record_symbol(
             const void *code, size_t code_size, const char *code_name) {
         if (is_initialized()) write_symbol_info(code, code_size, code_name);
@@ -314,7 +314,7 @@ private:
 
         fp_ = fopen(fname, "w+");
         if (!fp_) return fail();
-        setvbuf(fp_, NULL, _IOLBF, 0); // disable line buffering
+        setvbuf(fp_, nullptr, _IOLBF, 0); // disable line buffering
 
         return true;
     }

@@ -29,16 +29,16 @@ TEST(test_parallel, Test) {
     });
 }
 
-typedef ptrdiff_t data_t;
+using data_t = ptrdiff_t;
 
 struct nd_params_t {
     std::vector<ptrdiff_t> dims;
 };
 using np_t = nd_params_t;
 
-class test_nd : public ::testing::TestWithParam<nd_params_t> {
+class test_nd_t : public ::testing::TestWithParam<nd_params_t> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         size = 1;
         for (auto &d : p.dims)
@@ -56,7 +56,7 @@ protected:
     std::vector<data_t> data;
 };
 
-class test_for_nd : public test_nd {
+class test_for_nd_t : public test_nd_t {
 protected:
     void emit_for_nd(int ithr, int nthr) {
         switch ((int)p.dims.size()) {
@@ -147,17 +147,17 @@ protected:
     }
 };
 
-TEST_P(test_for_nd, Sequential) {
+TEST_P(test_for_nd_t, Sequential) {
     emit_for_nd(0, 1);
     CheckID();
 }
 
-TEST_P(test_for_nd, Parallel) {
+TEST_P(test_for_nd_t, Parallel) {
     impl::parallel(0, [&](int ithr, int nthr) { emit_for_nd(ithr, nthr); });
     CheckID();
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(Case0, test_for_nd,
+CPU_INSTANTIATE_TEST_SUITE_P(Case0, test_for_nd_t,
         ::testing::Values(np_t {{0}}, np_t {{1}}, np_t {{100}}, np_t {{0, 0}},
                 np_t {{1, 2}}, np_t {{10, 10}}, np_t {{0, 1, 0}},
                 np_t {{1, 2, 1}}, np_t {{4, 4, 10}}, np_t {{0, 3, 0, 1}},
@@ -166,8 +166,8 @@ CPU_INSTANTIATE_TEST_SUITE_P(Case0, test_for_nd,
                 np_t {{4, 1, 4, 5, 2}}, np_t {{4, 3, 0, 3, 0, 1}},
                 np_t {{2, 1, 3, 1, 2, 1}}, np_t {{4, 1, 4, 3, 2, 2}}));
 
-class test_for_nd_with_diff_types : public test_nd {};
-TEST_P(test_for_nd_with_diff_types, Test) {
+class test_for_nd_with_diff_types_t : public test_nd_t {};
+TEST_P(test_for_nd_with_diff_types_t, Test) {
     ASSERT_EQ(p.dims.size(), 2u);
 
     const int D0 = (int)p.dims[0];
@@ -185,9 +185,9 @@ TEST_P(test_for_nd_with_diff_types, Test) {
     CheckID();
 }
 CPU_INSTANTIATE_TEST_SUITE_P(
-        Case0, test_for_nd_with_diff_types, ::testing::Values(np_t {{4, 9}}));
+        Case0, test_for_nd_with_diff_types_t, ::testing::Values(np_t {{4, 9}}));
 
-class test_parallel_nd : public test_nd {
+class test_parallel_nd_t : public test_nd_t {
 protected:
     void emit_parallel_nd() {
         switch ((int)p.dims.size()) {
@@ -277,12 +277,12 @@ protected:
     }
 };
 
-TEST_P(test_parallel_nd, Test) {
+TEST_P(test_parallel_nd_t, Test) {
     emit_parallel_nd();
     CheckID();
 }
 
-CPU_INSTANTIATE_TEST_SUITE_P(Case, test_parallel_nd,
+CPU_INSTANTIATE_TEST_SUITE_P(Case, test_parallel_nd_t,
         ::testing::Values(np_t {{0}}, np_t {{1}}, np_t {{100}}, np_t {{0, 0}},
                 np_t {{1, 2}}, np_t {{10, 10}}, np_t {{0, 1, 0}},
                 np_t {{1, 2, 1}}, np_t {{4, 4, 10}}, np_t {{0, 3, 0, 1}},

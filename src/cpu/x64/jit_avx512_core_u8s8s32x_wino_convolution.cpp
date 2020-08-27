@@ -872,10 +872,12 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
                 continue; // no gain from Winograd transformation
 
             /* outer parallelization */
-            find_m_n2_blocks(0, ix, iy, work_eff, m_b[0], n2_b[0], outer_eff);
+            find_m_n2_blocks(
+                    false, ix, iy, work_eff, m_b[0], n2_b[0], outer_eff);
 
             /* inner parallelization */
-            find_m_n2_blocks(1, ix, iy, work_eff, m_b[1], n2_b[1], inner_eff);
+            find_m_n2_blocks(
+                    true, ix, iy, work_eff, m_b[1], n2_b[1], inner_eff);
 
             small_mb = inner_eff > outer_eff;
             float eff = small_mb ? inner_eff : outer_eff;

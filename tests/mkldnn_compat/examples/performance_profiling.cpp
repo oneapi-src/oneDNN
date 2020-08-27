@@ -106,7 +106,7 @@ void init_data(memory &m, float v) {
 }
 
 // function to execute non-fused relu
-void create_and_execute_relu(memory &data, engine &eng, stream &s) {
+void create_and_execute_relu(memory &data, const engine &eng, const stream &s) {
     // relu operates on whatever data format is given to it
 
     // create a primitive
@@ -136,8 +136,8 @@ primitive_attr create_attr_with_relu_post_op() {
 
 // Implementation for naive convolution on nchw (data) and oihw (weights),
 // followed by execution of non-fused relu
-void conv_relu_naive(memory user_src, memory user_wei, memory user_dst,
-        engine &eng, stream &s) {
+void conv_relu_naive(const memory &user_src, const memory &user_wei,
+        memory &user_dst, const engine &eng, const stream &s) {
     /// @section performance_profiling_cpp_implementation1 Naive Implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh
@@ -225,8 +225,8 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst,
 
 // Implementation for convolution on blocked format for data and
 // weights, followed by execution of non-fused relu
-void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
-        engine &eng, stream &s) {
+void conv_relu_blocked(memory &user_src, memory &user_wei, memory &user_dst,
+        const engine &eng, const stream &s) {
     /// @page performance_profiling_cpp
     /// @section performance_profiling_cpp_implementation2 Blocked format implementation
     /// This implementation is launched with the following shell code:
@@ -368,8 +368,8 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
 // Implementation for convolution on blocked format for data and
 // weights and the relu operation fused via a post-op attribute added to the
 // convolution prim_descriptor
-void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
-        engine eng, stream s) {
+void conv_relu_fused(memory &user_src, memory &user_wei, memory &user_dst,
+        const engine &eng, const stream &s) {
     /// @section performance_profiling_cpp_implementation3 Fused Implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh

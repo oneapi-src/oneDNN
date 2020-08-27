@@ -50,10 +50,26 @@ bool parse_tag(std::vector<std::string> &tag,
         const std::string &option_name /* = "tag"*/) {
     auto ret_string = [](const char *str) { return std::string(str); };
     bool ok = parse_vector_option(tag, def_tag, ret_string, str, option_name);
-    static constexpr int ndims_3d = 5; // to check meta-tags in debug mode
-    for (size_t i = 0; i < tag.size(); i++)
-        ok = ok && convert_tag(tag[i], ndims_3d) != dnnl_format_tag_last;
-    return ok;
+    if (!ok) return false;
+
+    for (size_t i = 0; i < tag.size(); i++) {
+        if (check_tag(tag[i], allow_enum_tags_only) != OK) {
+            if (allow_enum_tags_only && check_tag(tag[i]) == OK) {
+                fprintf(stderr,
+                        "%s driver: ERROR: tag `%s` is valid but not found "
+                        "in dnnl::memory::format_tag, use "
+                        "--allow-enum-tags-only=0 if you want to test this "
+                        "tag.\n",
+                        driver_name, tag[i].c_str());
+            } else {
+                fprintf(stderr,
+                        "%s driver: ERROR: unknown tag: `%s`, exiting...\n",
+                        driver_name, tag[i].c_str());
+            }
+            exit(2);
+        }
+    }
+    return true;
 }
 
 bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
@@ -203,7 +219,7 @@ static bool parse_dims_as_desc(dims_t &dims, const char *str) {
             char *end_s; \
             int64_t c = cvfunc(str, &end_s); \
             str += (end_s - str); \
-            if (c < 0) return false; \
+            if ((c) < 0) return false; \
             dims.push_back(c); \
         } \
     } while (0)
@@ -299,6 +315,12 @@ static bool parse_skip_impl(
     return true;
 }
 
+static bool parse_allow_enum_tags_only(const char *str,
+        const std::string &option_name = "allow-enum-tags-only") {
+    return parse_single_value_option(
+            allow_enum_tags_only, true, str2bool, str, option_name);
+}
+
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
@@ -306,7 +328,7 @@ bool parse_bench_settings(const char *str) {
             || parse_fix_times_per_prb(str) || parse_verbose(str)
             || parse_engine_kind(str) || parse_fast_ref_gpu(str)
             || parse_canonical(str) || parse_mem_check(str)
-            || parse_skip_impl(str);
+            || parse_skip_impl(str) || parse_allow_enum_tags_only(str);
 }
 
 void catch_unknown_options(const char *str) {

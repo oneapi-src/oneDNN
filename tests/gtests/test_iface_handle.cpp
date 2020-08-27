@@ -21,19 +21,19 @@
 
 namespace dnnl {
 
-class handle_test : public ::testing::Test {
+class handle_test_t : public ::testing::Test {
 public:
     engine e;
 
 protected:
-    virtual void SetUp() { e = get_test_engine(); }
+    void SetUp() override { e = get_test_engine(); }
 };
 
-TEST_F(handle_test, TestHandleConstructorsAndOperators) {
+TEST_F(handle_test_t, TestHandleConstructorsAndOperators) {
     // The initial state is 0
     convolution_forward::primitive_desc pd;
     ASSERT_TRUE((bool)pd == false);
-    ASSERT_TRUE((dnnl_primitive_desc_t)pd == 0);
+    ASSERT_TRUE((dnnl_primitive_desc_t)pd == nullptr);
 
     // Dummy descriptor just to be able to create a pd
     auto d = convolution_forward::desc(prop_kind::forward_inference,
@@ -51,7 +51,7 @@ TEST_F(handle_test, TestHandleConstructorsAndOperators) {
     // This should set pd's handle to 0
     pd1 = std::move(pd);
     ASSERT_TRUE(pd1 != pd);
-    ASSERT_TRUE((dnnl_primitive_desc_t)pd == 0);
+    ASSERT_TRUE((dnnl_primitive_desc_t)pd == nullptr);
 }
 
 } // namespace dnnl

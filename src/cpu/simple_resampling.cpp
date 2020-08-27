@@ -58,7 +58,7 @@ status_t simple_resampling_fwd_t<data_type>::init(engine_t *engine) {
 }
 
 template <impl::data_type_t data_type>
-simple_resampling_fwd_t<data_type>::~simple_resampling_fwd_t() {}
+simple_resampling_fwd_t<data_type>::~simple_resampling_fwd_t() = default;
 
 template <impl::data_type_t data_type>
 void simple_resampling_fwd_t<data_type>::fill_coeffs() {
@@ -190,7 +190,7 @@ status_t simple_resampling_bwd_t<data_type>::init(engine_t *engine) {
 }
 
 template <impl::data_type_t data_type>
-simple_resampling_bwd_t<data_type>::~simple_resampling_bwd_t() {}
+simple_resampling_bwd_t<data_type>::~simple_resampling_bwd_t() = default;
 
 template <impl::data_type_t data_type>
 void simple_resampling_bwd_t<data_type>::fill_coeffs() {

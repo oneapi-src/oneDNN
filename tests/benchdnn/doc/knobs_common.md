@@ -3,6 +3,11 @@
 **Benchdnn** drivers support a set of options available for every driver.
 The following common options are supported:
 
+* --allow-enum-tags-only=`BOOL` -- Instructs the driver to validate format tags
+  against the documented tags from `dnnl_format_tag_t` enumeration only.  When
+  BOOL is `true` (the default), the only allowed format tags are the ones from
+  `dnnl_format_tag_t` enumeration.
+
 * --attr-scratchpad=`MODE` -- Specifies the scratchpad mode to be used for
   benchmarking. MODE values can be `library` (the default) or `user`. Refer to
   [scratchpad primitive attribute](https://oneapi-src.github.io/oneDNN/dev_guide_attributes_scratchpad.html)

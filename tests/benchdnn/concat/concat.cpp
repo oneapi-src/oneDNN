@@ -38,22 +38,19 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
         const dims_t &i_sdims = p->sdims[i_input];
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d[i_input], p->ndims,
-                         i_sdims.data(), p->sdt,
-                         convert_tag(p->stag[i_input], p->ndims)),
-                WARN);
+        SAFE(init_md(&src_d[i_input], p->ndims, i_sdims.data(), p->sdt,
+                     p->stag[i_input]),
+                CRIT);
     }
 
     if (p->dtag != tag::undef) {
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, p->ddims.data(),
-                         p->ddt, convert_tag(p->dtag, p->ndims)),
-                WARN);
+        SAFE(init_md(&dst_d, p->ndims, p->ddims.data(), p->ddt, p->dtag), CRIT);
     }
 
     auto dnnl_attr = create_dnnl_attr(p->attr, attr_args_t());
 
     dnnl_status_t init_status = dnnl_concat_primitive_desc_create(&cpd,
-            p->dtag != tag::undef ? &dst_d : NULL, p->n_inputs(), p->axis,
+            p->dtag != tag::undef ? &dst_d : nullptr, p->n_inputs(), p->axis,
             src_d.data(), dnnl_attr, engine);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
@@ -173,7 +170,7 @@ int doit(const prb_t *p, res_t *r) {
     };
 
     const auto fp = dnnl_f32;
-    const auto tag = get_abx_tag(p->ndims);
+    const auto tag = tag::abx;
 
     const auto &dst_md = q(DNNL_ARG_DST);
     const auto dst_data_type = dst_md.data_type; // needed for deduced dst

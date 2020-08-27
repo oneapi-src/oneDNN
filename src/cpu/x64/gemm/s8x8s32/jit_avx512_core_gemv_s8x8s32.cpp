@@ -65,8 +65,8 @@ int gemv_threading_driver(gemm_info_t<int8_t, b_type, int32_t> *arg) {
 
     dim_t nthr = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
 
-    b_type *new_x = NULL;
-    int32_t *tmp_y = NULL, *new_y = NULL;
+    b_type *new_x = nullptr;
+    int32_t *tmp_y = nullptr, *new_y = nullptr;
 
     dim_t m = arg->m, n = arg->n;
 
@@ -92,7 +92,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, b_type, int32_t> *arg) {
 
     if (arg->ldb != 1) {
         new_x = (decltype(new_x))malloc(n, 64);
-        if (new_x == NULL) return 0;
+        if (new_x == nullptr) return 0;
         for (i = 0; i < n; i++) {
             new_x[i] = (arg->b)[i * arg->ldb];
         }
@@ -104,7 +104,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, b_type, int32_t> *arg) {
     if (arg->ldc != 1) {
         new_y = (int32_t *)malloc(
                 nthr_m * PADD_BYTESIZE_ONPAGE(MB, sizeof(int32_t)), 64);
-        if (new_y == NULL) {
+        if (new_y == nullptr) {
             if (arg->ldb != 1) { free(new_x); }
             return 0;
         }
@@ -140,7 +140,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, b_type, int32_t> *arg) {
         tmp_y = (int32_t *)malloc(
                 (nthr_n - 1) * PADD_BYTESIZE_ONPAGE(m, sizeof(int32_t)),
                 PAGE_4K);
-        if (tmp_y == NULL) {
+        if (tmp_y == nullptr) {
             if (arg->ldb != 1) { free(new_x); }
             return 0;
         }

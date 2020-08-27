@@ -41,9 +41,12 @@ struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator {
 
     void generate() override {
         //******************* First iter kernel ********************//
-        this->gemm_loop_generate(true);
-        gemm_loop_ker_first_iter
-                = (decltype(gemm_loop_ker_first_iter))this->getCode();
+        {
+            const Xbyak::uint8 *addr = getCurr();
+            this->gemm_loop_generate(true);
+            gemm_loop_ker_first_iter = (decltype(gemm_loop_ker_first_iter))addr;
+            register_jit_code(addr, getCurr() - addr);
+        }
 
         //************** Subsequent iterations kernel **************//
         if (jcp.dimK_nb_block > 1) {
@@ -53,11 +56,6 @@ struct _jit_avx512_common_conv_winograd_data_kernel_f32 : public jit_generator {
             gemm_loop_ker = (decltype(gemm_loop_ker))addr;
             register_jit_code(addr, getCurr() - addr);
         }
-    }
-
-    status_t create_kernel() override {
-        generate();
-        return (is_initialized()) ? status::success : status::runtime_error;
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
@@ -149,11 +147,6 @@ struct jit_avx512_common_conv_winograd_bwd_weights_kernel_f32
             transpose_4fma_ker = (decltype(transpose_4fma_ker))addr;
             register_jit_code(addr, getCurr() - addr);
         }
-    }
-
-    status_t create_kernel() override {
-        generate();
-        return (is_initialized()) ? status::success : status::runtime_error;
     }
 
     static status_t init_conf(jit_conv_winograd_conf_t &jcp,

@@ -38,8 +38,8 @@ status_t rnn_weights_reorder_t::pd_t::init_conf(engine_t *engine) {
     conf.ndims = src_mdw.ndims();
     conf.nelems = utils::array_product(dims, conf.ndims);
 
-    conf.use_ref_impl = 1;
-    conf.with_group = 0;
+    conf.use_ref_impl = true;
+    conf.with_group = false;
     conf.sub_group_size = 1;
 
     // only for LDIGO

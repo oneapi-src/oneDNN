@@ -43,8 +43,8 @@ struct jit_pp_kernel_t : public pp_kernel_t<acc_type, dst_type>,
     jit_pp_kernel_t(size_t OC, size_t MB, const primitive_attr_t *attr,
             data_type_t bias_dt, bool skip_sum);
 
-    typedef typename prec_traits<acc_type>::type acc_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
+    using acc_data_t = typename prec_traits<acc_type>::type;
+    using dst_data_t = typename prec_traits<dst_type>::type;
 
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
             const float *scales, size_t start, size_t end, size_t runtime_oc,
@@ -57,7 +57,7 @@ private:
     void compute_oc_channel_blk();
     void compute_mb_blk(); // vectorize across minibatch
 
-    struct ker_args {
+    struct ker_args_t {
         dst_data_t *dst;
         const acc_data_t *acc;
         const char *bias;
@@ -597,7 +597,7 @@ template <data_type_t acc_type, data_type_t dst_type>
 void jit_pp_kernel_t<acc_type, dst_type>::generate() {
     preamble();
 
-#define PARAM_OFF(x) offsetof(ker_args, x)
+#define PARAM_OFF(x) offsetof(ker_args_t, x)
     mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
     mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
     mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
@@ -655,7 +655,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
 
     const size_t OC = this->runtime_oc() ? runtime_oc : this->OC_;
 
-    ker_args args;
+    ker_args_t args;
     size_t oc_offset = start % OC;
     args.dst = dst + start;
     args.acc = acc + start;

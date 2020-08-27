@@ -68,7 +68,7 @@
     test_fixture##_##test_name##_Derived_Test
 
 #define HANDLE_EXCEPTIONS_FOR_TEST_SETUP(...) \
-    virtual void SetUp() { \
+    void SetUp() override { \
         catch_expected_failures([=]() { Testing(); }, false, dnnl_success); \
     } \
     void Testing()
@@ -133,7 +133,7 @@
     void DERIVED_TEST_CLASS(test_fixture, test_name)::Test_failures()
 
 #else
-#define HANDLE_EXCEPTIONS_FOR_TEST_SETUP(...) virtual void SetUp()
+#define HANDLE_EXCEPTIONS_FOR_TEST_SETUP(...) void SetUp() override
 #define HANDLE_EXCEPTIONS_FOR_TEST(test_fixture, test_name) \
     TEST(test_fixture, test_name)
 #define HANDLE_EXCEPTIONS_FOR_TEST_F(test_fixture, test_name) \

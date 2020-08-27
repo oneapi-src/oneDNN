@@ -67,10 +67,10 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
 
         const dnnl_memory_desc_t *po_md;
         DNN_SAFE(dnnl_post_ops_get_params_binary(
-                         const_attr_po, idx, NULL, &po_md),
+                         const_attr_po, idx, nullptr, &po_md),
                 WARN);
 
-        const auto tag = get_abx_tag(po_md->ndims);
+        const auto tag = tag::abx;
         mem_fp.emplace_back(*po_md, dnnl_f32, tag, get_test_engine());
         mem_dt.emplace_back(*po_md, get_test_engine());
         args.push_back((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
@@ -90,10 +90,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
         const dims_t &i_sdims = p->sdims[i_input];
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d[i_input],
-                         p->ndims[i_input], i_sdims.data(), p->sdt[i_input],
-                         convert_tag(p->stag[i_input], p->ndims[i_input])),
-                WARN);
+        SAFE(init_md(&src_d[i_input], p->ndims[i_input], i_sdims.data(),
+                     p->sdt[i_input], p->stag[i_input]),
+                CRIT);
     }
 
     if (p->ndims[1] < p->ndims[0]) { // need to reshape B
@@ -123,7 +122,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, NULL);
+            = dnnl_primitive_desc_create(&bpd, &bd, dnnl_attr, engine, nullptr);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
@@ -225,7 +224,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_abx_tag(p->ndims[0]);
+    const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
 

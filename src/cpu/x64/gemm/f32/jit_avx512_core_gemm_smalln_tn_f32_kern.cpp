@@ -39,10 +39,10 @@ static inline Xbyak::Ymm make_ymm(const Xbyak::Zmm &v) {
 
 namespace avx512_core_gemm_smalln_tn_f32 {
 
-struct xbyak_gemm_smalln_tn : public jit_generator {
+struct xbyak_gemm_smalln_tn_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_gemm_smalln_tn_xbyak_gemm)
 
-    xbyak_gemm_smalln_tn(int N, float beta, float alpha,
+    xbyak_gemm_smalln_tn_t(int N, float beta, float alpha,
             void *code_ptr = nullptr,
             size_t code_size = 80 * Xbyak::DEFAULT_MAX_CODE_SIZE)
         : jit_generator(code_ptr, code_size), N(N), beta(beta), alpha(alpha) {}
@@ -662,13 +662,13 @@ private:
     static uint32_t permute_ab[], permute_ba[], permute_ab1[], permute_ba1[];
 };
 
-uint32_t xbyak_gemm_smalln_tn::permute_ab[] = {0x00, 0x01, 0x02, 0x03, 0x10,
+uint32_t xbyak_gemm_smalln_tn_t::permute_ab[] = {0x00, 0x01, 0x02, 0x03, 0x10,
         0x11, 0x12, 0x13, 0x08, 0x09, 0x0A, 0x0B, 0x18, 0x19, 0x1A, 0x1B};
-uint32_t xbyak_gemm_smalln_tn::permute_ba[] = {0x04, 0x05, 0x06, 0x07, 0x14,
+uint32_t xbyak_gemm_smalln_tn_t::permute_ba[] = {0x04, 0x05, 0x06, 0x07, 0x14,
         0x15, 0x16, 0x17, 0x0C, 0x0D, 0x0E, 0x0F, 0x1C, 0x1D, 0x1E, 0x1F};
-uint32_t xbyak_gemm_smalln_tn::permute_ab1[] = {0x00, 0x10, 0x02, 0x12, 0x04,
+uint32_t xbyak_gemm_smalln_tn_t::permute_ab1[] = {0x00, 0x10, 0x02, 0x12, 0x04,
         0x14, 0x06, 0x16, 0x08, 0x18, 0x0A, 0x1A, 0x0C, 0x1C, 0x0E, 0x1E};
-uint32_t xbyak_gemm_smalln_tn::permute_ba1[] = {0x01, 0x11, 0x03, 0x13, 0x05,
+uint32_t xbyak_gemm_smalln_tn_t::permute_ba1[] = {0x01, 0x11, 0x03, 0x13, 0x05,
         0x15, 0x07, 0x17, 0x09, 0x19, 0x0B, 0x1B, 0x0D, 0x1D, 0x0F, 0x1F};
 
 /**
@@ -723,7 +723,7 @@ dnnl_status_t sgemm_smalln_tn(const dim_t m, const dim_t n, const dim_t k,
         const dim_t ldb, const float beta, float *C, const dim_t ldc) {
     using namespace avx512_core_gemm_smalln_tn_f32;
 
-    static xbyak_gemm_smalln_tn *kernels[4][3][3];
+    static xbyak_gemm_smalln_tn_t *kernels[4][3][3];
     static std::once_flag initialized;
 
     dnnl_status_t st = dnnl_success;
@@ -732,7 +732,7 @@ dnnl_status_t sgemm_smalln_tn(const dim_t m, const dim_t n, const dim_t k,
             for (float al : {0.0f, 1.0f, 2.0f}) {
                 for (float be : {0.0f, 1.0f, 2.0f}) {
                     auto &kern = kernels[N - 1][(dim_t)al][(dim_t)be];
-                    kern = new xbyak_gemm_smalln_tn(N, be, al);
+                    kern = new xbyak_gemm_smalln_tn_t(N, be, al);
                     st = kern->create_kernel();
                     if (st != dnnl_success) return;
                 }

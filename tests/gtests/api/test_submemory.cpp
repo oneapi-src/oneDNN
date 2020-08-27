@@ -26,10 +26,10 @@
 
 namespace dnnl {
 
-class submemory_test_cpp : public ::testing::TestWithParam<dnnl_engine_kind_t> {
-};
+class submemory_test_cpp_t
+    : public ::testing::TestWithParam<dnnl_engine_kind_t> {};
 
-HANDLE_EXCEPTIONS_FOR_TEST_P(submemory_test_cpp, SubmemoryMemoryInteraction) {
+HANDLE_EXCEPTIONS_FOR_TEST_P(submemory_test_cpp_t, SubmemoryMemoryInteraction) {
     auto engine_kind = static_cast<engine::kind>(GetParam());
 
     SKIP_IF(engine::get_count(engine_kind) == 0,
@@ -76,7 +76,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(submemory_test_cpp, SubmemoryMemoryInteraction) {
 }
 
 namespace {
-struct PrintToStringParamName {
+struct print_to_string_param_name_t {
     template <class ParamType>
     std::string operator()(
             const ::testing::TestParamInfo<ParamType> &info) const {
@@ -88,7 +88,7 @@ auto all_engine_kinds = ::testing::Values(dnnl_cpu, dnnl_gpu);
 
 } // namespace
 
-INSTANTIATE_TEST_SUITE_P(AllEngineKinds, submemory_test_cpp, all_engine_kinds,
-        PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, submemory_test_cpp_t, all_engine_kinds,
+        print_to_string_param_name_t());
 
 } // namespace dnnl

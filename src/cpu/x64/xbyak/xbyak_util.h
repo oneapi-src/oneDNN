@@ -264,7 +264,7 @@ public:
 	int displayFamily; // family + extFamily
 	int displayModel; // model + extModel
 
-	unsigned int getNumCores(IntelCpuTopologyLevel level) {
+	unsigned int getNumCores(IntelCpuTopologyLevel level) const {
 		if (!x2APIC_supported_) XBYAK_THROW_RET(ERR_X2APIC_IS_NOT_SUPPORTED, 0)
 		switch (level) {
 		case SmtLevel: return numCores_[level - 1];

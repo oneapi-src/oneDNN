@@ -56,7 +56,7 @@ using pd_create_f = dnnl::impl::engine_t::primitive_desc_create_f;
 namespace {
 
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
-static const pd_create_f gpu_impl_list[] = {
+const pd_create_f gpu_impl_list[] = {
         // Elementwise
         INSTANCE(ocl::ref_eltwise_fwd_t),
         INSTANCE(ocl::ref_eltwise_bwd_t),

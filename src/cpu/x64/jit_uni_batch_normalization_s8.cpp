@@ -36,7 +36,7 @@ namespace {
 
 using namespace Xbyak;
 
-typedef int8_t data_t;
+using data_t = int8_t;
 
 struct call_params_t {
     // keep int sizes at 8 bytes -- jit code expects this
@@ -229,7 +229,7 @@ struct jit_bnorm_t<avx512_core> : public jit_bnorm_base_t<avx512_core> {
         }
     }
 
-    void compute_dst(bool need_tail = false) override {
+    void compute_dst(bool need_tail) override {
         Label c_loop;
         L(c_loop);
         {
@@ -332,7 +332,7 @@ struct jit_bnorm_t<avx2> : public jit_bnorm_base_t<avx2> {
         }
     }
 
-    void compute_dst(bool need_tail = false) override {
+    void compute_dst(bool need_tail) override {
         Label c_loop;
         L(c_loop);
         {
@@ -453,7 +453,7 @@ struct jit_bnorm_t<sse41> : public jit_bnorm_base_t<sse41> {
         }
     }
 
-    void compute_dst(bool need_tail = false) override {
+    void compute_dst(bool need_tail) override {
         const size_t copy_range = need_tail ? c_tail_ : c_in_xmm_;
         Label c_loop;
         L(c_loop);
@@ -547,7 +547,7 @@ namespace bnorm_s8_impl {
 template <cpu_isa_t isa>
 struct driver_t : public c_compatible {
     driver_t(const batch_normalization_pd_t *pd) : pd_(pd), ker_(pd_) {}
-    ~driver_t() {}
+    ~driver_t() = default;
 
     // TODO: for problems where thread pieces don't fit L2 cache, add spatial
     // re-balance using less pieces.

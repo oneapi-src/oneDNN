@@ -203,6 +203,16 @@ option(DNNL_ENABLE_MEM_DEBUG "enables memory-related debug functionality,
     library, such as failed memory allocations, using primitive-related gtests.
     This feature is experimental and is only available on Linux." OFF)
 
+set(DNNL_USE_CLANG_TIDY "NONE" CACHE STRING
+    "Instructs build system to use clang-tidy. Valid values:
+    - NONE (default)
+      Clang-tidy is disabled.
+    - CHECK
+      Enables checks from .clang-tidy.
+    - FIX
+      Enables checks from .clang-tidy and fix found issues.
+    This feature is only available on Linux.")
+
 # =============================
 # External BLAS library options
 # =============================

@@ -28,7 +28,7 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-static const pd_create_f impl_list[] = {
+const pd_create_f impl_list[] = {
         CPU_INSTANCE(ref_shuffle_t<4>) /* f32 or s32 */
         CPU_INSTANCE(ref_shuffle_t<2>) /* bf16 */
         CPU_INSTANCE(ref_shuffle_t<1>) /* s8 or u8 */

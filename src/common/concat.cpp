@@ -35,7 +35,7 @@ status_t dnnl_concat_primitive_desc_create(
     bool args_ok = !any_null(concat_pd_iface, src_mds) && n > 0;
     if (!args_ok) return invalid_arguments;
 
-    if (attr == NULL) attr = &default_attr();
+    if (attr == nullptr) attr = &default_attr();
 
     const int ndims = src_mds[0].ndims;
     const dims_t &dims = src_mds[0].dims;

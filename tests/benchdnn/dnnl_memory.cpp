@@ -14,7 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <numeric>
 
 #if DNNL_WITH_SYCL
@@ -23,11 +25,87 @@
 
 #include "dnnl.hpp"
 
+#include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "dnnl_reorder.hpp"
 
 #include "tests/test_thread.hpp"
+
+int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
+        dnnl_data_type_t data_type, const std::string &tag_) {
+    auto tag = normalize_tag(tag_, ndims);
+    if (tag == tag::undef || tag == tag::any || ndims == 0) {
+        dnnl_format_tag_t enum_tag = (tag == tag::undef || ndims == 0)
+                ? dnnl_format_tag_undef
+                : dnnl_format_tag_any;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                         md, ndims, dims, data_type, enum_tag),
+                CRIT);
+        return OK;
+    }
+
+    // Copy to temporary to handle dims == md->dims case.
+    dnnl_dims_t tmp_dims;
+    std::copy(dims, dims + ndims, tmp_dims);
+
+    *md = dnnl_memory_desc_t();
+    md->ndims = ndims;
+    std::copy(tmp_dims, tmp_dims + ndims, md->dims);
+    md->data_type = data_type;
+    md->format_kind = dnnl_blocked;
+
+    // Parse dimensions and their block sizes starting from the innermost one.
+    std::vector<std::pair<int, int>> dim_blocks;
+    int pos = (int)tag.size() - 1;
+    while (pos >= 0) {
+        int pos0 = pos;
+
+        --pos;
+        while (pos >= 0 && std::isdigit(tag[pos]))
+            pos--;
+
+        int dim_idx = std::tolower(tag[pos0]) - 'a';
+        int block_str_len = pos0 - pos - 1;
+        int block = (block_str_len == 0)
+                ? 1
+                : std::stoi(tag.substr(pos + 1, block_str_len));
+        dim_blocks.emplace_back(dim_idx, block);
+    }
+
+    auto &blk = md->format_desc.blocking;
+
+    // Compute strides and fill inner block sizes/indices.
+    dnnl_dim_t stride = 1;
+    dnnl_dims_t full_inner_blks;
+    std::fill(full_inner_blks, full_inner_blks + ndims, 1);
+    for (auto &p : dim_blocks) {
+        int dim_idx = p.first;
+        int block = p.second;
+        if (block == 1) {
+            assert(blk.strides[dim_idx] == 0);
+            blk.strides[dim_idx] = stride;
+
+            dnnl_dim_t fib = full_inner_blks[dim_idx];
+            dnnl_dim_t padded_dim = (md->dims[dim_idx] + fib - 1) / fib * fib;
+            md->padded_dims[dim_idx] = padded_dim;
+            stride *= (padded_dim / fib);
+        } else {
+            full_inner_blks[dim_idx] *= block;
+            blk.inner_blks[blk.inner_nblks] = block;
+            blk.inner_idxs[blk.inner_nblks] = dim_idx;
+            blk.inner_nblks++;
+            stride *= block;
+        }
+    }
+
+    // Inner block sizes/indices are stored from the outermost to the innermost
+    // so need to reverse them.
+    std::reverse(blk.inner_blks, blk.inner_blks + blk.inner_nblks);
+    std::reverse(blk.inner_idxs, blk.inner_idxs + blk.inner_nblks);
+
+    return OK;
+}
 
 int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
     if (this == &rhs) return OK;
@@ -108,7 +186,7 @@ static size_t get_gpu_ram_size() {
 
     cl_ulong ram_size = 0;
     status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_SIZE,
-            sizeof(cl_ulong), &ram_size, NULL);
+            sizeof(cl_ulong), &ram_size, nullptr);
     if (status == CL_SUCCESS) return (size_t)ram_size;
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
     auto sycl_dev = eng.get_sycl_device();

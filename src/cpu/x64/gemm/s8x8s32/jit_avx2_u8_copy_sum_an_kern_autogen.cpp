@@ -41,7 +41,7 @@ void jit_avx2_u8_copy_sum_an_kern::generate() {
 #define A2 r8
 #define LDA3 r11
 
-#define ARG_BIAS 24 + stacksize + rsp
+#define ARG_BIAS (24 + stacksize + rsp)
 
 #else
 

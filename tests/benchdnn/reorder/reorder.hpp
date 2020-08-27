@@ -159,8 +159,8 @@ struct perf_report_t : public base_perf_report_t {
         p_ = p;
         sdt_ = {cfg2dt(p_->conf_in)};
         ddt_ = cfg2dt(p_->conf_out);
-        stag_ = {fmt_tag2str(convert_tag(p_->reorder.tag_in, p_->ndims))};
-        dtag_ = fmt_tag2str(convert_tag(p_->reorder.tag_out, p_->ndims));
+        stag_ = {normalize_tag(p_->reorder.tag_in, p_->ndims)};
+        dtag_ = normalize_tag(p_->reorder.tag_out, p_->ndims);
         base_report(r, prb_str);
     }
 

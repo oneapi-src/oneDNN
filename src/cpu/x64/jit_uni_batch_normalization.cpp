@@ -44,7 +44,7 @@ using namespace memory_tracking::names;
 using namespace Xbyak;
 namespace barrier = simple_barrier;
 
-typedef float acc_data_t;
+using acc_data_t = float;
 
 template <cpu_isa_t isa>
 struct jit_bnorm_t : public jit_generator {
@@ -1717,7 +1717,7 @@ struct jit_bnorm_t : public jit_generator {
         return jit_generator::operator()(p);
     }
 
-    ~jit_bnorm_t() { delete bf16_emu_; }
+    ~jit_bnorm_t() override { delete bf16_emu_; }
 };
 } // namespace
 
@@ -1743,7 +1743,7 @@ struct driver_t : public c_compatible {
                                 : (data_size >= l3_size_ / 2 && l3_size_ > 0);
     }
 
-    ~driver_t() {}
+    ~driver_t() = default;
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const batch_normalization_pd_t *bdesc) {

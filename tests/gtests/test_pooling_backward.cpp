@@ -29,7 +29,7 @@ struct test_pool_bwd_desc_t {
     memory::dim strd, strh, strw;
 };
 
-struct pool_bwd_test_params {
+struct pool_bwd_test_params_t {
     algorithm aalgorithm;
     memory::format_tag diff_src_format;
     memory::format_tag diff_dst_format;
@@ -41,7 +41,7 @@ struct pool_bwd_test_params {
 
 template <typename data_t>
 void check_pool_fwd(
-        const pool_bwd_test_params &p, const memory &src, const memory &dst) {
+        const pool_bwd_test_params_t &p, const memory &src, const memory &dst) {
     auto src_data = map_memory<data_t>(src);
     auto dst_data = map_memory<data_t>(dst);
 
@@ -122,7 +122,7 @@ void check_pool_fwd(
 }
 
 template <typename data_t>
-void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
+void check_pool_bwd(const pool_bwd_test_params_t &p, const memory &diff_src,
         const memory &diff_dst, const memory &ws) {
     auto diff_src_data = map_memory<data_t>(diff_src);
     auto diff_dst_data = map_memory<data_t>(diff_dst);
@@ -227,20 +227,21 @@ void check_pool_bwd(const pool_bwd_test_params &p, const memory &diff_src,
 }
 
 template <typename data_t>
-class pooling_bwd_test : public ::testing::TestWithParam<pool_bwd_test_params> {
+class pooling_bwd_test_t
+    : public ::testing::TestWithParam<pool_bwd_test_params_t> {
 private:
     std::shared_ptr<memory::desc> src_desc;
     std::shared_ptr<memory::desc> dst_desc;
     memory workspace;
     pooling_forward::primitive_desc pool_prim_desc;
-    pool_bwd_test_params p;
+    pool_bwd_test_params_t p;
     memory::dims strides, ker, pad_l, pad_r;
     engine eng;
     stream strm;
     memory::data_type data_type;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
@@ -353,8 +354,8 @@ protected:
     }
 };
 
-using pooling_bwd_test_float = pooling_bwd_test<float>;
-using pool_bwd_test_params_float = pool_bwd_test_params;
+using pooling_bwd_test_float = pooling_bwd_test_t<float>;
+using pool_bwd_test_params_float = pool_bwd_test_params_t;
 
 #define EXPAND_SIZES_3D(...) \
     5, { __VA_ARGS__ }
@@ -1099,17 +1100,17 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestPoolingBackwardAsymmPadding,
                 ));
 
 GPU_INSTANTIATE_TEST_SUITE_P(TestPoolingSlipsToPadding, pooling_bwd_test_float,
-        ::testing::Values(pool_bwd_test_params {algorithm::pooling_max,
+        ::testing::Values(pool_bwd_test_params_t {algorithm::pooling_max,
                                   memory::format_tag::NChw16n16c,
                                   memory::format_tag::NChw16n16c,
                                   EXPAND_SIZES_2D(64, 64, 56, 56, 56, 56, 3, 3,
                                           1, 1, 1, 1)},
-                pool_bwd_test_params {algorithm::pooling_avg_exclude_padding,
+                pool_bwd_test_params_t {algorithm::pooling_avg_exclude_padding,
                         memory::format_tag::NChw16n16c,
                         memory::format_tag::NChw16n16c,
                         EXPAND_SIZES_2D(
                                 64, 64, 56, 56, 56, 56, 3, 3, 1, 1, 1, 1)},
-                pool_bwd_test_params {algorithm::pooling_avg_include_padding,
+                pool_bwd_test_params_t {algorithm::pooling_avg_include_padding,
                         memory::format_tag::NChw16n16c,
                         memory::format_tag::NChw16n16c,
                         EXPAND_SIZES_2D(

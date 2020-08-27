@@ -271,7 +271,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
                         status = launch_x8x8s32(ctx, compute_stream, a, b, *acc,
                                 off_a_src, off_b_src, off_c, lda, ldb, m,
                                 size_m, size_n, size_k, eff_beta, ao, bo, co,
-                                offset_co_src, apply_co, 0, eltwise_alpha,
+                                offset_co_src, apply_co, false, eltwise_alpha,
                                 eltwise_beta, eltwise_scale);
                         if (status) return status;
                     }
@@ -283,7 +283,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     if (do_scale) {
         status = launch_scale_x8x8s32(ctx, compute_stream, *acc, c,
                 offsetc_char, off_c0, m, n, ldc, alpha, beta, co, offset_co,
-                (int)alpha_is_zero, 1, eltwise_alpha, eltwise_beta,
+                (int)alpha_is_zero, true, eltwise_alpha, eltwise_beta,
                 eltwise_scale);
         if (status) return status;
     }

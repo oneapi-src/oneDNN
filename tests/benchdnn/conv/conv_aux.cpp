@@ -259,11 +259,11 @@ void prb_t::count_ops() {
 }
 
 float *generate_oscales(const attr_t::scale_t &oscale, int N) {
-    if (oscale.is_def()) return NULL;
+    if (oscale.is_def()) return nullptr;
 
     if (oscale.policy == policy_t::COMMON) {
         float *scales = (float *)zmalloc(sizeof(float), 4);
-        SAFE_V(scales != NULL ? OK : FAIL);
+        SAFE_V(scales != nullptr ? OK : FAIL);
         scales[0] = oscale.scale;
         return scales;
     }
@@ -271,7 +271,7 @@ float *generate_oscales(const attr_t::scale_t &oscale, int N) {
     assert(oscale.policy == policy_t::PER_OC);
 
     float *scales = (float *)zmalloc(sizeof(float) * N, 64);
-    SAFE_V(scales != NULL ? OK : FAIL);
+    SAFE_V(scales != nullptr ? OK : FAIL);
 
     const float K = 32;
     /* scale in [1/K .. K], with starting point at oscale.scale */
@@ -292,12 +292,12 @@ float *generate_oscales(const attr_t::scale_t &oscale, int N) {
 
 int32_t *generate_zero_points(
         int arg, const attr_t::zero_points_t &zero_points, int N) {
-    if (zero_points.is_def(arg)) return NULL;
+    if (zero_points.is_def(arg)) return nullptr;
 
     const auto &e = zero_points.get(arg);
     if (e.policy == policy_t::COMMON) {
         int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
-        SAFE_V(zp != NULL ? OK : FAIL);
+        SAFE_V(zp != nullptr ? OK : FAIL);
         zp[0] = e.value;
         return zp;
     }
@@ -305,7 +305,7 @@ int32_t *generate_zero_points(
     assert(e.policy == policy_t::PER_DIM_1);
 
     int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t) * N, 64);
-    SAFE_V(zp != NULL ? OK : FAIL);
+    SAFE_V(zp != nullptr ? OK : FAIL);
 
     for (int i = 0; i < N; ++i)
         zp[i] = e.value + i % 3;

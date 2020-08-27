@@ -103,7 +103,7 @@ gemm_info_t<a_t, b_t, c_t>::gemm_info_t(const char *transA, const char *transB,
 
     this->ao = 0;
     this->bo = 0;
-    this->co = NULL;
+    this->co = nullptr;
 
     this->alpha = alpha ? *alpha : 1.0f;
     this->beta = beta ? *beta : 1.0f;
@@ -139,7 +139,7 @@ gemm_info_t<a_t, b_t, c_t>::gemm_info_t(const char *transA, const char *transB,
     if (is_int8) this->ao = oa ? *oa : a_t(0);
     prepare_bo<b_t>(this->bo, ob);
 
-    if (offsetC != NULL) {
+    if (offsetC != nullptr) {
         char offsetc = *offsetC;
         if (offsetc == 'F' || offsetc == 'f') {
             this->offsetc = offset_type::fixed;
@@ -194,22 +194,22 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     const dim_t, const int8_t *, const float, int32_t *);
 
     // copyA[trans][sum]
-    static copy_a_fptr_t copyA[2][2] = {{NULL}};
+    static copy_a_fptr_t copyA[2][2] = {{nullptr}};
 
     // copyB[trans][sum]
-    static copy_b_fptr_t copyB[2][2] = {{NULL}};
+    static copy_b_fptr_t copyB[2][2] = {{nullptr}};
 
     // kern[beta0][alpha1][col_off][row_off]
-    static gemm_fptr_t kern[2][2][2][2] = {{{{NULL}}}};
+    static gemm_fptr_t kern[2][2][2][2] = {{{{nullptr}}}};
 
     // gemv_kern[trans]
-    static gemv_fptr_t gemv_kern[2] = {NULL};
+    static gemv_fptr_t gemv_kern[2] = {nullptr};
 
-    static gemv_s8s8s32_fptr_t gemv_s8s8s32_kern = {NULL};
+    static gemv_s8s8s32_fptr_t gemv_s8s8s32_kern = {nullptr};
 
-    static gemv_s8u8s32_fptr_t gemv_s8u8s32_kern = {NULL};
+    static gemv_s8u8s32_fptr_t gemv_s8u8s32_kern = {nullptr};
 
-    static gemv_u8s8s32_fptr_t gemv_u8s8s32_kern = {NULL};
+    static gemv_u8s8s32_fptr_t gemv_u8s8s32_kern = {nullptr};
 
     switch (data_traits<a_t>::data_type) {
         case data_type::s8:
@@ -357,8 +357,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
         bool is_amx = is_int8_amx || is_bf16_amx;
 
-        static jit_generator *copy_a[2][2] = {{NULL}};
-        static jit_generator *copy_b[2][2] = {{NULL}};
+        static jit_generator *copy_a[2][2] = {{nullptr}};
+        static jit_generator *copy_b[2][2] = {{nullptr}};
 
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
@@ -486,7 +486,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         constexpr bool is_b_s8 = data_traits<b_t>::data_type == data_type::s8;
         constexpr bool is_c_s32 = data_traits<c_t>::data_type == data_type::s32;
 
-        static jit_generator *kernel[2][2][2][2] = {{{{NULL}}}};
+        static jit_generator *kernel[2][2][2][2] = {{{{nullptr}}}};
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
                 if (mayiuse(avx512_core_bf16_amx_int8)) {
@@ -589,10 +589,10 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
             default: break;
         }
 
-        static jit_generator *gemv_kernel[2] = {NULL};
-        static jit_generator *gemv_s8s8s32_kernel = NULL;
-        static jit_generator *gemv_s8u8s32_kernel = NULL;
-        static jit_generator *gemv_u8s8s32_kernel = NULL;
+        static jit_generator *gemv_kernel[2] = {nullptr};
+        static jit_generator *gemv_s8s8s32_kernel = nullptr;
+        static jit_generator *gemv_s8u8s32_kernel = nullptr;
+        static jit_generator *gemv_u8s8s32_kernel = nullptr;
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
                 if (mayiuse(avx512_core)) {
@@ -627,13 +627,13 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
         for (int isTrans : {no_trans, do_trans})
             for (int isSum : {no_sum, do_sum}) {
                 auto *p_copy_a = copy_a[isTrans][isSum];
-                if (p_copy_a != NULL) {
+                if (p_copy_a != nullptr) {
                     st = p_copy_a->create_kernel();
                     if (st != dnnl_success) return;
                     copyA[isTrans][isSum] = (copy_a_fptr_t)p_copy_a->jit_ker();
                 }
                 auto *p_copy_b = copy_b[isTrans][isSum];
-                if (p_copy_b != NULL) {
+                if (p_copy_b != nullptr) {
                     st = p_copy_b->create_kernel();
                     if (st != dnnl_success) return;
                     copyB[isTrans][isSum] = (copy_b_fptr_t)p_copy_b->jit_ker();
@@ -663,7 +663,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     for (int doRowSum : {no_sum, do_sum}) {
                         auto *p_kernel
                                 = kernel[isBeta0][isAlpha1][doColSum][doRowSum];
-                        if (p_kernel != NULL) {
+                        if (p_kernel != nullptr) {
                             st = p_kernel->create_kernel();
                             if (st != dnnl_success) return;
                             kern[isBeta0][isAlpha1][doColSum][doRowSum]
@@ -688,7 +688,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                     data_type::bf16)) {
             for (int isTrans : {no_trans, do_trans}) {
                 auto *p_gemv_kernel = gemv_kernel[isTrans];
-                if (p_gemv_kernel != NULL) {
+                if (p_gemv_kernel != nullptr) {
                     st = p_gemv_kernel->create_kernel();
                     if (st != dnnl_success) return;
                     gemv_kern[isTrans] = (gemv_fptr_t)p_gemv_kernel->jit_ker();
@@ -698,21 +698,21 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
         // Set gemv integer gemm kernels
         if (data_traits<a_t>::data_type == data_type::s8) {
-            if (gemv_s8s8s32_kernel != NULL) {
+            if (gemv_s8s8s32_kernel != nullptr) {
                 auto *kern = gemv_s8s8s32_kernel;
                 st = kern->create_kernel();
                 if (st != dnnl_success) return;
                 gemv_s8s8s32_kern = (gemv_s8s8s32_fptr_t)kern->jit_ker();
             }
 
-            if (gemv_s8u8s32_kernel != NULL) {
+            if (gemv_s8u8s32_kernel != nullptr) {
                 auto *kern = gemv_s8u8s32_kernel;
                 st = kern->create_kernel();
                 if (st != dnnl_success) return;
                 gemv_s8u8s32_kern = (gemv_s8u8s32_fptr_t)kern->jit_ker();
             }
 
-            if (gemv_u8s8s32_kernel != NULL) {
+            if (gemv_u8s8s32_kernel != nullptr) {
                 auto *kern = gemv_u8s8s32_kernel;
                 st = kern->create_kernel();
                 if (st != dnnl_success) return;
@@ -745,9 +745,9 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     for (int isTrans : {no_trans, do_trans})
         this->gemv_kernel[isTrans] = gemv_kern[isTrans];
 
-    this->gemv_s8s8s32_kernel = NULL;
-    this->gemv_s8u8s32_kernel = NULL;
-    this->gemv_u8s8s32_kernel = NULL;
+    this->gemv_s8s8s32_kernel = nullptr;
+    this->gemv_s8u8s32_kernel = nullptr;
+    this->gemv_u8s8s32_kernel = nullptr;
     if (data_traits<a_t>::data_type == data_type::s8) {
         this->gemv_s8s8s32_kernel = gemv_s8s8s32_kern;
         this->gemv_s8u8s32_kernel = gemv_s8u8s32_kern;

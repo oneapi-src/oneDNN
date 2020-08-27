@@ -271,18 +271,28 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
             = (rnn.merge_gemm_layer || rnn.merge_gemm_iter) ? rnn.n_iter : 1;
     rnn.scratch_gates_size = (size_t)rnn.n_iter_scratch_gates * rnn.gates_nld
             * rnn.scratch_gates_ld * rnn.scratch_gates_elsz;
+    rnn.ws_dhG1_size
+            = (rd.cell_kind == alg_kind::vanilla_gru && rnn.is_training)
+            ? (size_t)rnn.gates_nld * rnn.diff_states_ws_ld * sizeof(float)
+            : 0;
     rnn.ws_bias_size
             = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dhc * aux_elsz;
 
     // For intermediate step in post-gemm fwd lbr gru
-    rnn.scratch_cell_size = rnn.is_lbr ? (size_t)rnn.gates_nld
-                    * rnn.scratch_gates_ld * rnn.scratch_gates_elsz
-                                       : 0;
+    rnn.scratch_cell_size = rnn.is_lbr
+            ? (size_t)rnn.gates_nld * rnn.scratch_gates_ld
+                    * rnn.scratch_gates_elsz
+            : (rd.cell_kind == alg_kind::vanilla_gru && rnn.is_training
+                            ? (size_t)rnn.states_nld * rnn.states_ws_ld
+                                    * rnn.ws_states_elsz
+                            : 0);
+
     // Used for storing the intermediate value from fwd pass in training lbr gru
     rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dhc * aux_elsz;
     rnn.ws_grid_comp_size = (size_t)rnn.is_lbr * rnn.is_training * rnn.n_layer
             * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell * aux_elsz;
 }
+
 int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
     // we want matrices leading dimentions to be 64-byte aligned,
     // and not divisible by 256 to avoid 4K aliasing effects
@@ -293,9 +303,9 @@ int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
 void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_c_states_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &scratch_cell_offset, size_t &ws_bias_offset,
-        size_t &scratch_gates_offset, size_t &scratchpad_size,
-        size_t &workspace_size) {
+        size_t &scratch_cell_offset, size_t &ws_dhG1_offset,
+        size_t &ws_bias_offset, size_t &scratch_gates_offset,
+        size_t &scratchpad_size, size_t &workspace_size) {
 
     const size_t page_size = 4096;
     size_t current_offset;
@@ -322,6 +332,10 @@ void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
     current_offset = utils::rnd_up(current_offset, page_size);
     ws_diff_states_offset = current_offset;
     current_offset += rnn.ws_diff_states_size;
+
+    current_offset = utils::rnd_up(current_offset, page_size);
+    ws_dhG1_offset = current_offset;
+    current_offset += rnn.ws_dhG1_size;
 
     workspace_size = rnn.use_workspace ? current_offset : 0;
 
@@ -351,11 +365,11 @@ void rnn_utils::get_scratchpad_and_workspace_sizes(
         const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size) {
     size_t ws_gates_offset, ws_states_offset, ws_c_states_offset,
             ws_diff_states_offset, ws_grid_comp_offset, scratch_cell_offset,
-            ws_bias_offset, sratch_gates_offset;
+            ws_dhG1_offset, ws_bias_offset, sratch_gates_offset;
     set_offsets(rnn, ws_gates_offset, ws_states_offset, ws_diff_states_offset,
             ws_c_states_offset, ws_grid_comp_offset, scratch_cell_offset,
-            ws_bias_offset, sratch_gates_offset, scratchpad_size,
-            workspace_size);
+            ws_dhG1_offset, ws_bias_offset, sratch_gates_offset,
+            scratchpad_size, workspace_size);
 }
 
 void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int dir, int lay,
@@ -413,7 +427,7 @@ void rnn_utils::set_offsets_fwd_gemm(const conf_t &rnn, int iter, int dir,
     UNUSED(n_layers);
 }
 
-void rnn_utils::update_gru_offsets(const conf_t &rnn, int iter, int dir,
+void rnn_utils::set_gru_offsets_part2(const conf_t &rnn, int iter, int dir,
         int lay, data_type_t src_t, size_t *wei_iter_off_ptr,
         const size_t &ws_states_offset_, size_t &cell_wei_iter_offset,
         size_t &cell_scratch_offset, size_t &cell_ws_iter_offset) {
@@ -438,6 +452,19 @@ void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,
     set_offsets_bwd_gemm(rnn, iter, dir, lay, ws_diff_states_off_,
             cell_diff_wei_iter_off, cell_diff_wei_lay_off, cell_diff_ws_lay_off,
             dummy_var);
+}
+
+void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,
+        int lay, const size_t &ws_diff_states_off_,
+        size_t &cell_diff_wei_iter_off, size_t &cell_diff_wei_lay_off,
+        size_t &cell_diff_ws_lay_off, size_t &cell_diff_ws_iter_off,
+        size_t &cell_diff_wei_iter_off2) {
+
+    set_offsets_bwd_gemm(rnn, iter, dir, lay, ws_diff_states_off_,
+            cell_diff_wei_iter_off, cell_diff_wei_lay_off, cell_diff_ws_lay_off,
+            cell_diff_ws_iter_off);
+    cell_diff_wei_iter_off2
+            = cell_diff_wei_iter_off + 2 * rnn.dhc * sizeof(float);
 }
 
 void rnn_utils::set_offsets_bwd_gemm(const conf_t &rnn, int iter, int dir,

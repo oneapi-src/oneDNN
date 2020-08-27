@@ -24,18 +24,18 @@ namespace dnnl {
 
 const dnnl_status_t ok = dnnl_success;
 
-class pd_iter_test : public ::testing::Test {
+class pd_iter_test_t : public ::testing::Test {
 protected:
     dnnl_engine_t engine;
-    virtual void SetUp() {
+    void SetUp() override {
         auto engine_kind
                 = static_cast<dnnl_engine_kind_t>(get_test_engine_kind());
         ASSERT_EQ(dnnl_engine_create(&engine, engine_kind, 0), ok);
     }
-    virtual void TearDown() { dnnl_engine_destroy(engine); }
+    void TearDown() override { dnnl_engine_destroy(engine); }
 };
 
-TEST_F(pd_iter_test, TestReLUImpls) {
+TEST_F(pd_iter_test_t, TestReLUImpls) {
     dnnl_memory_desc_t dense_md;
     dnnl_dims_t dims = {4, 16, 16, 16};
     ASSERT_EQ(dnnl_memory_desc_init_by_tag(

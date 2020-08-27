@@ -125,10 +125,10 @@ dnnl_status_t extended_sgemm(const char *transa, const char *transb,
 
 #if DNNL_X64
     if (mayiuse(sse41)) {
-        float *dummy_ao = NULL;
-        float *dummy_bo = NULL;
-        return gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K, alpha, A,
-                lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
+        float *dummy_ao = nullptr;
+        float *dummy_bo = nullptr;
+        return gemm_driver(transa, transb, bias ? "C" : nullptr, M, N, K, alpha,
+                A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
                 force_jit_nocopy_gemm);
     }
 #endif
@@ -238,10 +238,10 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
     if (status != dnnl_success) return status;
 
 #if DNNL_X64
-    char *dummyOffsetC = NULL;
-    bfloat16_t *dummy_ao = NULL;
-    bfloat16_t *dummy_bo = NULL;
-    float *dummy_co = NULL;
+    char *dummyOffsetC = nullptr;
+    bfloat16_t *dummy_ao = nullptr;
+    bfloat16_t *dummy_bo = nullptr;
+    float *dummy_co = nullptr;
 
     if (mayiuse(avx512_core))
         return gemm_driver(transa, transb, dummyOffsetC, M, N, K, alpha,

@@ -30,7 +30,7 @@ namespace {
 
 using namespace dnnl::impl::data_type;
 
-static const rpd_create_f reorder_impl_list[]
+const rpd_create_f reorder_impl_list[]
         = {ocl::rnn_weights_reorder_t::pd_t::create,
                 ocl::cross_engine_reorder_t::pd_t::create,
                 ocl::simple_reorder_t::pd_t::create, nullptr};

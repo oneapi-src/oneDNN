@@ -31,7 +31,7 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &src_m,
     const int wei_zero_point = p->attr.zero_points[DNNL_ARG_WEIGHTS];
     const int dst_zero_point = p->attr.zero_points[DNNL_ARG_DST];
 
-    dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, dnnl_format_tag_undef, engine_tgt);
+    dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, tag::undef, engine_tgt);
 
     dnnl::impl::parallel_nd(MB, M, N, [&](int64_t mb, int64_t m, int64_t n) {
         auto src = (const float *)src_m;

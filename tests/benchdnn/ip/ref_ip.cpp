@@ -28,7 +28,7 @@ void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *p,
     int64_t N = p->oc;
     int64_t K = p->ic * p->id * p->ih * p->iw;
 
-    dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, dnnl_nc, engine_tgt);
+    dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, tag::abx, engine_tgt);
 
     gemm("C", "N", "T", M, N, K, 1.f, (float *)src_m, K, (float *)wei_m, K, 0.f,
             (float *)dst_tmp, N);

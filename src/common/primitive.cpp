@@ -65,14 +65,16 @@ nested_scratchpad_t::nested_scratchpad_t(const exec_ctx_t &master_ctx, int key,
 #endif
 }
 
-nested_scratchpad_t::~nested_scratchpad_t() {
 #ifdef DNNL_ENABLE_MEM_DEBUG
+nested_scratchpad_t::~nested_scratchpad_t() {
     if (scratchpad_debug::is_protect_scratchpad()) {
         scratchpad_debug::unprotect_scratchpad_buffer(
                 grantor_->get_base_storage(), grantor_->get_registry());
     }
-#endif
 }
+#else
+nested_scratchpad_t::~nested_scratchpad_t() = default;
+#endif
 
 } // namespace impl
 } // namespace dnnl
@@ -80,7 +82,7 @@ nested_scratchpad_t::~nested_scratchpad_t() {
 // API
 status_t dnnl_primitive_desc_destroy(
         primitive_desc_iface_t *primitive_desc_iface) {
-    if (primitive_desc_iface) delete primitive_desc_iface;
+    delete primitive_desc_iface;
     return success;
 }
 
@@ -106,7 +108,7 @@ status_t primitive_execute(
         stream->wait();
         ms = get_msec() - ms;
         printf("dnnl_verbose,exec,%s,%g\n", primitive_iface->pd()->info(), ms);
-        fflush(0);
+        fflush(stdout);
     } else {
         status = stream->enqueue_primitive(primitive_iface, ctx);
     }

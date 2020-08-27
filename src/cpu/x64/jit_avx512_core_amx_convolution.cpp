@@ -130,7 +130,8 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                     jcp.ngroups > 1, jcp.oc == jcp.oc_without_padding));
             int oc = g * jcp.oc + occ * jcp.nb_oc_blocking * jcp.oc_block;
             int ocb = jcp.is_nspc ? oc : oc / jcp.oc_block;
-            auto bias_w = bias ? bias + (bias_d.blk_off(oc) * bia_dt_size) : 0;
+            auto bias_w = bias ? bias + (bias_d.blk_off(oc) * bia_dt_size)
+                               : nullptr;
 
             int oh_s = ohc * jcp.oh_blk_size;
             int oh_e = nstl::min(jcp.oh, oh_s + jcp.oh_blk_size);
@@ -295,7 +296,8 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                     jcp.ngroups > 1, jcp.oc == jcp.oc_without_padding));
             int oc = g * jcp.oc + occ * jcp.nb_oc_blocking * jcp.oc_block;
             int ocb = jcp.is_nspc ? oc : oc / jcp.oc_block;
-            auto bias_w = bias ? bias + (bias_d.blk_off(oc) * bia_dt_size) : 0;
+            auto bias_w = bias ? bias + (bias_d.blk_off(oc) * bia_dt_size)
+                               : nullptr;
 
             int oh_s = ohc * jcp.oh_blk_size;
             int oh_e = nstl::min(jcp.oh, oh_s + jcp.oh_blk_size);

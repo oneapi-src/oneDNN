@@ -228,9 +228,9 @@ private:
     bool maybe_eltwise(int position);
     void cvt2ps(data_type_t type_in, Xbyak::Zmm ymm_in,
             const Xbyak::Operand &op, bool mask_flag);
-    const Xbyak::Ymm ymm_mask(
+    Xbyak::Ymm ymm_mask(
             const Xbyak::Ymm zmm_in, bool mask_flag, bool store = false);
-    const Xbyak::Zmm zmm_mask(
+    Xbyak::Zmm zmm_mask(
             const Xbyak::Zmm zmm_in, bool mask_flag, bool store = false);
 
     void store_output_vector_bf16(

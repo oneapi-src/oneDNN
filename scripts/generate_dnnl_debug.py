@@ -265,7 +265,8 @@ def str_to_func(enum, values, is_dnnl=True):
         func += '''%sif (!strcmp("%s", str) || !strcmp("%s", str))
         return %s;
 ''' % (indent, v_short, v, v)
-    func += '%sassert(!"unknown %s");\n' % (indent, abbrev)
+    if enum != 'dnnl_format_tag_t':
+        func += '%sassert(!"unknown %s");\n' % (indent, abbrev)
     func += '%sreturn %s;\n}\n' % (indent,
                                    v_undef if enum != 'dnnl_format_tag_t' else
                                    'dnnl_format_tag_last')

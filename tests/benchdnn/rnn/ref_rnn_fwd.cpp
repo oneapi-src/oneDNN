@@ -30,14 +30,14 @@ void prepare_ws_fwd(const prb_t &p, std::vector<float> &ws_fwd_buffer,
     bool is_lstmp = p.is_lstm_projection();
 
     ws_src_layer = AOC<float>(
-            NULL, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
+            nullptr, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
     ws_src_iter = AOC<float>(
-            NULL, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
+            nullptr, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
     ws_src_iter_c = AOC<float>(
-            NULL, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
+            nullptr, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
     ws_gates = AOC<float>(
-            NULL, p.n_layer, p.n_dir(), p.n_iter, p.mb, p.n_gates(), p.dhc);
-    ws_ht = AOC<float>(NULL, p.n_layer, p.n_dir(), p.n_iter, p.mb, p.wc);
+            nullptr, p.n_layer, p.n_dir(), p.n_iter, p.mb, p.n_gates(), p.dhc);
+    ws_ht = AOC<float>(nullptr, p.n_layer, p.n_dir(), p.n_iter, p.mb, p.wc);
 
     int64_t size = ws_src_layer.nelems() + is_lstm * ws_src_iter_c.nelems()
             + ws_gates.nelems() + is_lstmp * ws_ht.nelems();
@@ -314,7 +314,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
     }
 
     delete[] cell_scratchpad_;
-    if (bias_with_compensation) delete[] bias_with_compensation;
+    delete[] bias_with_compensation;
 }
 
 void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,

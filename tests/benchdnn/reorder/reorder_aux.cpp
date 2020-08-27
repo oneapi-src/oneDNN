@@ -81,7 +81,7 @@ float *prb_t::generate_oscales() {
         if (mask & (1 << d)) uniq_scales *= this->reorder.dims[d];
 
     float *scales = (float *)zmalloc(sizeof(float) * uniq_scales, 64);
-    SAFE_V(scales != NULL ? OK : FAIL);
+    SAFE_V(scales != nullptr ? OK : FAIL);
     for (int d = 0; d < uniq_scales; ++d)
         scales[d] = oscale.scale;
     if (uniq_scales > 1) scales[uniq_scales - 1] /= 2.f;
@@ -90,13 +90,13 @@ float *prb_t::generate_oscales() {
 
 int32_t *prb_t::generate_zero_points(int arg) {
     const attr_t::zero_points_t &zero_points = this->attr.zero_points;
-    if (zero_points.is_def(arg)) return NULL;
+    if (zero_points.is_def(arg)) return nullptr;
 
     const auto &e = zero_points.get(arg);
     assert(e.policy == policy_t::COMMON);
 
     int32_t *zp = (int32_t *)zmalloc(sizeof(int32_t), 4);
-    SAFE_V(zp != NULL ? OK : FAIL);
+    SAFE_V(zp != nullptr ? OK : FAIL);
     zp[0] = e.value;
     return zp;
 }

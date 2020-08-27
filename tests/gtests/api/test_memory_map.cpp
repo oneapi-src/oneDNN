@@ -26,9 +26,10 @@
 
 namespace dnnl {
 
-class memory_map_test_c : public ::testing::TestWithParam<dnnl_engine_kind_t> {
+class memory_map_test_c_t
+    : public ::testing::TestWithParam<dnnl_engine_kind_t> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         auto engine_kind = GetParam();
         if (dnnl_engine_get_count(engine_kind) == 0) return;
 
@@ -37,7 +38,7 @@ protected:
                 dnnl_stream_create(&stream, engine, dnnl_stream_default_flags));
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         if (engine) { DNNL_CHECK(dnnl_engine_destroy(engine)); }
         if (stream) { DNNL_CHECK(dnnl_stream_destroy(stream)); }
     }
@@ -46,10 +47,10 @@ protected:
     dnnl_stream_t stream = nullptr;
 };
 
-class memory_map_test_cpp
+class memory_map_test_cpp_t
     : public ::testing::TestWithParam<dnnl_engine_kind_t> {};
 
-TEST_P(memory_map_test_c, MapNullMemory) {
+TEST_P(memory_map_test_c_t, MapNullMemory) {
     SKIP_IF(!engine, "Engine kind is not supported.");
 
     int ndims = 4;
@@ -69,7 +70,7 @@ TEST_P(memory_map_test_c, MapNullMemory) {
     DNNL_CHECK(dnnl_memory_destroy(mem));
 }
 
-HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c, Map) {
+HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c_t, Map) {
     SKIP_IF(!engine, "Engine kind is not supported.");
 
     const int ndims = 1;
@@ -128,7 +129,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_c, Map) {
     DNNL_CHECK(dnnl_memory_destroy(mem_ref));
 }
 
-HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_cpp, Map) {
+HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_cpp_t, Map) {
     auto engine_kind = static_cast<engine::kind>(GetParam());
 
     SKIP_IF(engine::get_count(engine_kind) == 0,
@@ -166,7 +167,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_cpp, Map) {
 }
 
 namespace {
-struct PrintToStringParamName {
+struct print_to_string_param_name_t {
     template <class ParamType>
     std::string operator()(
             const ::testing::TestParamInfo<ParamType> &info) const {
@@ -178,10 +179,10 @@ auto all_engine_kinds = ::testing::Values(dnnl_cpu, dnnl_gpu);
 
 } // namespace
 
-INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_map_test_c, all_engine_kinds,
-        PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_map_test_c_t, all_engine_kinds,
+        print_to_string_param_name_t());
 
-INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_map_test_cpp, all_engine_kinds,
-        PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, memory_map_test_cpp_t,
+        all_engine_kinds, print_to_string_param_name_t());
 
 } // namespace dnnl

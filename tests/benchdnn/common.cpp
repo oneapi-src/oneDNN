@@ -154,7 +154,7 @@ const char *state2str(res_state_t state) {
     if (state == UNTESTED) return "UNTESTED_FAILED"; // for easier fail search
 
 #define CASE(x) \
-    if (state == x) return STRINGIFY(x)
+    if (state == (x)) return STRINGIFY(x)
     CASE(PASSED);
     CASE(SKIPPED);
     CASE(MISTRUSTED);
@@ -168,7 +168,7 @@ const char *state2str(res_state_t state) {
 
 const char *skip_reason2str(skip_reason_t skip_reason) {
 #define CASE(x) \
-    if (skip_reason == x) return STRINGIFY(x)
+    if (skip_reason == (x)) return STRINGIFY(x)
     CASE(CASE_NOT_SUPPORTED);
     CASE(DATA_TYPE_NOT_SUPPORTED);
     CASE(INVALID_CASE);
@@ -316,7 +316,7 @@ void *zmalloc(size_t size, size_t align) {
     if ((bench_mode & PERF) && (size < align)) size = align;
     int rc = ::posix_memalign(&ptr, align, size);
 #endif /* _WIN32 */
-    return rc == 0 ? ptr : 0;
+    return rc == 0 ? ptr : nullptr;
 }
 
 void zfree(void *ptr) {
@@ -357,7 +357,7 @@ bool match_regex(const char *str, const char *pattern) {
 
 bool match_regex(const char *str, const char *pattern) {
     static regex_t regex;
-    static const char *prev_pattern = NULL;
+    static const char *prev_pattern = nullptr;
     if (pattern != prev_pattern) {
         if (prev_pattern) regfree(&regex);
 
@@ -369,7 +369,7 @@ bool match_regex(const char *str, const char *pattern) {
         prev_pattern = pattern;
     }
 
-    return !regexec(&regex, str, 0, NULL, 0);
+    return !regexec(&regex, str, 0, nullptr, 0);
 }
 #endif /* _WIN32 */
 
@@ -479,6 +479,7 @@ std::string locate_batch_file(const std::string &fname) {
                 fdir = s_fdir + std::string("/../inputs/")
                         + std::string(driver_name);
             }
+            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             const std::string fullname = fdir + "/" + fname;
             ifs.open(fullname);
             if (ifs.is_open()) {
@@ -511,6 +512,7 @@ int batch(const char *fname, bench_f bench) {
 
         // shell style line break
         if (continued_line) {
+            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             str = opts.back() + str; // update current line with previous
             opts.pop_back(); // take previous line out
         }
@@ -527,6 +529,7 @@ int batch(const char *fname, bench_f bench) {
     }
 
     std::vector<char *> c_opts;
+    c_opts.reserve(opts.size());
     for (const auto &opt : opts)
         c_opts.push_back(const_cast<char *>(opt.c_str()));
 

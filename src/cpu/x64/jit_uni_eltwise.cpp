@@ -26,7 +26,7 @@
 #include "cpu/x64/jit_uni_eltwise.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
-#define GET_OFF(field) offsetof(jit_args, field)
+#define GET_OFF(field) offsetof(jit_args_t, field)
 
 namespace dnnl {
 namespace impl {
@@ -35,7 +35,7 @@ namespace x64 {
 
 using namespace Xbyak;
 
-struct jit_args {
+struct jit_args_t {
     const void *src; // fwd: src;  bwd: src/dst based on alg;
     const void *dst; // fwd: dst;  bwd: diff_src;
     const void *diff_dst; // fwd: nullptr;  bwd: diff_dst;
@@ -44,9 +44,9 @@ struct jit_args {
 
 struct jit_uni_eltwise_kernel : public c_compatible {
     jit_uni_eltwise_kernel(const eltwise_pd_t *pd) : pd_(pd) {}
-    virtual ~jit_uni_eltwise_kernel() {}
+    virtual ~jit_uni_eltwise_kernel() = default;
 
-    virtual void operator()(jit_args *args) = 0;
+    virtual void operator()(jit_args_t *args) = 0;
     virtual status_t create_kernel() = 0;
 
 protected:
@@ -60,8 +60,8 @@ protected:
 // jit kernels
 namespace {
 
-struct jit_bf16_injector {
-    jit_bf16_injector(
+struct jit_bf16_injector_t {
+    jit_bf16_injector_t(
             jit_generator *host, Opmask k_tail_mask, bf16_emulation_t *emu)
         : h(host), k_tail_mask_(k_tail_mask), emu_(emu) {}
 
@@ -122,18 +122,18 @@ private:
 };
 
 template <cpu_isa_t isa>
-struct jit_uni_kernel : public jit_uni_eltwise_kernel, public jit_generator {
+struct jit_uni_kernel_t : public jit_uni_eltwise_kernel, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_kernel)
 
-    jit_uni_kernel(const eltwise_pd_t *pd)
+    jit_uni_kernel_t(const eltwise_pd_t *pd)
         : jit_uni_eltwise_kernel(pd), jit_generator() {
         if (is_bf16()) {
             if (!mayiuse(avx512_core_bf16))
                 bf16_emu_.reset(new bf16_emulation_t(this, bf16_emu_reserv_1,
                         bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
                         bf16_emu_reserv_5));
-            bf16_injector_.reset(
-                    new jit_bf16_injector(this, k_tail_mask, bf16_emu_.get()));
+            bf16_injector_.reset(new jit_bf16_injector_t(
+                    this, k_tail_mask, bf16_emu_.get()));
         }
 
         const auto &desc = *pd_->desc();
@@ -249,7 +249,7 @@ struct jit_uni_kernel : public jit_uni_eltwise_kernel, public jit_generator {
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
-    void operator()(jit_args *p) override { jit_generator::operator()(p); }
+    void operator()(jit_args_t *p) override { jit_generator::operator()(p); }
 
 private:
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
@@ -284,7 +284,7 @@ private:
 
     Opmask k_tail_mask = k6;
 
-    std::unique_ptr<jit_bf16_injector> bf16_injector_;
+    std::unique_ptr<jit_bf16_injector_t> bf16_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
 };
 
@@ -316,7 +316,7 @@ jit_uni_eltwise_fwd_t<isa, d_type>::~jit_uni_eltwise_fwd_t() = default;
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_fwd_t<isa, d_type>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(kernel_, new jit_uni_kernel<isa>(pd())));
+    CHECK(safe_ptr_assign(kernel_, new jit_uni_kernel_t<isa>(pd())));
     return kernel_->create_kernel();
 }
 
@@ -341,7 +341,7 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::execute(
         end = nstl::min(nelems, end * simd_w);
         if (start == end) return;
 
-        jit_args args;
+        jit_args_t args;
         args.src = src + start;
         args.dst = dst + start;
         args.diff_dst = nullptr;
@@ -381,7 +381,7 @@ jit_uni_eltwise_bwd_t<isa, d_type>::~jit_uni_eltwise_bwd_t() = default;
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_eltwise_bwd_t<isa, d_type>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(kernel_, new jit_uni_kernel<isa>(pd())));
+    CHECK(safe_ptr_assign(kernel_, new jit_uni_kernel_t<isa>(pd())));
     return kernel_->create_kernel();
 }
 
@@ -410,7 +410,7 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::execute(
         end = nstl::min(nelems, end * simd_w);
         if (start == end) return;
 
-        jit_args args;
+        jit_args_t args;
         args.src = src + start;
         args.dst = diff_src + start;
         args.diff_dst = diff_dst + start;

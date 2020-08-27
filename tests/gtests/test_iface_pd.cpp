@@ -22,7 +22,7 @@
 
 namespace dnnl {
 
-class pd_test : public ::testing::Test {
+class pd_test_t : public ::testing::Test {
 protected:
     engine e = get_test_engine();
     memory::desc dat_md {
@@ -31,7 +31,7 @@ protected:
             {16, 16, 1, 1}, memory::data_type::f32, memory::format_tag::oihw};
 };
 
-TEST_F(pd_test, ConvTestNotEmpty) {
+TEST_F(pd_test_t, ConvTestNotEmpty) {
     bool no_exception = true;
     bool is_empty = false;
 
@@ -47,7 +47,7 @@ TEST_F(pd_test, ConvTestNotEmpty) {
     ASSERT_TRUE(!is_empty);
 }
 
-TEST_F(pd_test, ConvTestEmpty) {
+TEST_F(pd_test_t, ConvTestEmpty) {
     auto attrs = primitive_attr {};
     attrs.set_output_scales(0, {2.0});
 

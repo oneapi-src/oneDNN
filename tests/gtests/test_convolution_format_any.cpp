@@ -29,7 +29,7 @@ using tag = memory::format_tag;
 
 enum class data_fmt_t { flat, blocked_cX };
 
-struct conv_any_fmt_test_params {
+struct conv_any_fmt_test_params_t {
     prop_kind aprop_kind;
     algorithm aalgorithm;
     data_fmt_t expected_src_fmt;
@@ -38,10 +38,10 @@ struct conv_any_fmt_test_params {
 };
 
 template <typename data_t>
-class convolution_any_fmt_test
-    : public ::testing::TestWithParam<conv_any_fmt_test_params> {
+class convolution_any_fmt_test_t
+    : public ::testing::TestWithParam<conv_any_fmt_test_params_t> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
 #if DNNL_X64
         // Skip this test if the library cannot select blocked format a priori.
         // Currently blocking is supported only for sse41 and later CPUs.
@@ -52,7 +52,8 @@ protected:
         return;
 #endif
 
-        auto p = ::testing::TestWithParam<conv_any_fmt_test_params>::GetParam();
+        auto p = ::testing::TestWithParam<
+                conv_any_fmt_test_params_t>::GetParam();
 
         ASSERT_EQ(p.aprop_kind, prop_kind::forward);
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
@@ -101,7 +102,7 @@ protected:
     }
 };
 
-using conv_any_fmt_test_float = convolution_any_fmt_test<float>;
+using conv_any_fmt_test_float = convolution_any_fmt_test_t<float>;
 
 TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt) {}
 
@@ -110,7 +111,7 @@ TEST_P(conv_any_fmt_test_float, TestsConvolutionAnyFmt) {}
 #define FLT data_fmt_t::flat
 #define BLK data_fmt_t::blocked_cX
 
-using tf32 = conv_any_fmt_test_params;
+using tf32 = conv_any_fmt_test_params_t;
 CPU_INSTANTIATE_TEST_SUITE_P(TestConvolutionAlexnetAnyFmtForwardxlocked,
         conv_any_fmt_test_float,
         ::testing::Values(

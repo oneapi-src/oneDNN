@@ -1540,25 +1540,6 @@ public:
         jit_utils::register_jit_code(code, code_size, name(), source_file());
     }
 
-    // TODO: make this function protected/private and call it using
-    // create_kernel()
-    const Xbyak::uint8 *getCode() {
-        this->ready();
-        if (!is_initialized()) return nullptr;
-        const Xbyak::uint8 *code = CodeGenerator::getCode();
-        register_jit_code(code, getSize());
-        return code;
-    }
-
-    template <typename F>
-    const F getCode() {
-        return (const F)getCode();
-    }
-
-    static inline bool is_initialized() {
-        return Xbyak::GetError() == Xbyak::ERR_NONE;
-    }
-
     const Xbyak::uint8 *jit_ker() const { return jit_ker_; }
 
     template <typename... kernel_args_t>
@@ -1570,13 +1551,26 @@ public:
 
     virtual status_t create_kernel() {
         generate();
-        jit_ker_ = getCode<Xbyak::uint8 *>();
+        jit_ker_ = getCode();
         return (jit_ker_) ? status::success : status::runtime_error;
+    }
+
+private:
+    const Xbyak::uint8 *getCode() {
+        this->ready();
+        if (!is_initialized()) return nullptr;
+        const Xbyak::uint8 *code = CodeGenerator::getCode();
+        register_jit_code(code, getSize());
+        return code;
+    }
+
+    static inline bool is_initialized() {
+        return Xbyak::GetError() == Xbyak::ERR_NONE;
     }
 
 protected:
     virtual void generate() = 0;
-    Xbyak::uint8 *jit_ker_;
+    const Xbyak::uint8 *jit_ker_;
 };
 
 } // namespace x64

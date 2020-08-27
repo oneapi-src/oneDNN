@@ -23,7 +23,7 @@ namespace dnnl {
 
 using tag = memory::format_tag;
 
-struct binary_test_params {
+struct binary_test_params_t {
     std::vector<tag> srcs_format;
     tag dst_format;
     algorithm aalgorithm;
@@ -34,18 +34,18 @@ struct binary_test_params {
 
 template <typename src0_data_t, typename src1_data_t = src0_data_t,
         typename dst_data_t = src0_data_t>
-class binary_test : public ::testing::TestWithParam<binary_test_params> {
+class binary_test_t : public ::testing::TestWithParam<binary_test_params_t> {
 private:
-    binary_test_params p;
+    binary_test_params_t p;
     memory::data_type src0_dt, src1_dt, dst_dt;
 
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         src0_dt = data_traits<src0_data_t>::data_type;
         src1_dt = data_traits<src1_data_t>::data_type;
         dst_dt = data_traits<dst_data_t>::data_type;
 
-        p = ::testing::TestWithParam<binary_test_params>::GetParam();
+        p = ::testing::TestWithParam<binary_test_params_t>::GetParam();
 
         SKIP_IF(unsupported_data_type(src0_dt),
                 "Engine does not support this data type.");
@@ -58,11 +58,13 @@ protected:
         // binary specific types and values
         using op_desc_t = binary::desc;
         using pd_t = binary::primitive_desc;
-        allows_attr_t aa {0};
-        aa.po_sum = 1;
-        aa.po_eltwise = 1;
-        if (get_test_engine_kind() == engine::kind::cpu) { aa.po_binary = 1; }
-        aa.scales = 1;
+        allows_attr_t aa {false};
+        aa.po_sum = true;
+        aa.po_eltwise = true;
+        if (get_test_engine_kind() == engine::kind::cpu) {
+            aa.po_binary = true;
+        }
+        aa.scales = true;
 
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
@@ -151,40 +153,40 @@ protected:
 static auto expected_failures = []() {
     return ::testing::Values(
             // different src0 and dst format_tags
-            binary_test_params {{tag::nchw, tag::nchw}, tag::nhwc,
+            binary_test_params_t {{tag::nchw, tag::nchw}, tag::nhwc,
                     algorithm::binary_add, {1, 8, 4, 4}, true,
                     dnnl_invalid_arguments},
             // not supported alg_kind
-            binary_test_params {{tag::nchw, tag::nchw}, tag::nchw,
+            binary_test_params_t {{tag::nchw, tag::nchw}, tag::nchw,
                     algorithm::eltwise_relu, {1, 8, 4, 4}, true,
                     dnnl_invalid_arguments},
             // negative dim
-            binary_test_params {{tag::nchw, tag::nchw}, tag::nchw,
+            binary_test_params_t {{tag::nchw, tag::nchw}, tag::nchw,
                     algorithm::binary_add, {-1, 8, 4, 4}, true,
                     dnnl_invalid_arguments});
 };
 
 static auto zero_dim = []() {
     return ::testing::Values(
-            binary_test_params {{tag::nchw, tag::nchw}, tag::nchw,
+            binary_test_params_t {{tag::nchw, tag::nchw}, tag::nchw,
                     algorithm::binary_add, {0, 7, 6, 5}},
-            binary_test_params {{tag::nChw8c, tag::nhwc}, tag::nChw8c,
+            binary_test_params_t {{tag::nChw8c, tag::nhwc}, tag::nChw8c,
                     algorithm::binary_mul, {5, 0, 7, 6}},
-            binary_test_params {{tag::nChw16c, tag::nchw}, tag::nChw16c,
+            binary_test_params_t {{tag::nChw16c, tag::nchw}, tag::nChw16c,
                     algorithm::binary_add, {8, 15, 0, 5}},
-            binary_test_params {{tag::nhwc, tag::nChw16c}, tag::nhwc,
+            binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
                     algorithm::binary_mul, {5, 16, 7, 0}});
 };
 
 static auto simple_cases = []() {
     return ::testing::Values(
-            binary_test_params {{tag::nchw, tag::nchw}, tag::nchw,
+            binary_test_params_t {{tag::nchw, tag::nchw}, tag::nchw,
                     algorithm::binary_add, {8, 7, 6, 5}},
-            binary_test_params {{tag::nhwc, tag::nhwc}, tag::nhwc,
+            binary_test_params_t {{tag::nhwc, tag::nhwc}, tag::nhwc,
                     algorithm::binary_mul, {5, 8, 7, 6}},
-            binary_test_params {{tag::nChw8c, tag::nchw}, tag::nChw8c,
+            binary_test_params_t {{tag::nChw8c, tag::nchw}, tag::nChw8c,
                     algorithm::binary_max, {8, 15, 6, 5}},
-            binary_test_params {{tag::nhwc, tag::nChw16c}, tag::any,
+            binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::any,
                     algorithm::binary_min, {5, 16, 7, 6}});
 };
 
@@ -194,13 +196,13 @@ static auto simple_cases = []() {
     INSTANTIATE_TEST_SUITE_P(TestbinaryZero, test, zero_dim()); \
     INSTANTIATE_TEST_SUITE_P(TestbinarySimple, test, simple_cases());
 
-using binary_test_f32 = binary_test<float>;
-using binary_test_bf16 = binary_test<bfloat16_t>;
-using binary_test_f16 = binary_test<float16_t>;
-using binary_test_s8 = binary_test<int8_t>;
-using binary_test_u8 = binary_test<uint8_t>;
-using binary_test_s8u8s8 = binary_test<int8_t, uint8_t, int8_t>;
-using binary_test_u8s8u8 = binary_test<uint8_t, int8_t, uint8_t>;
+using binary_test_f32 = binary_test_t<float>;
+using binary_test_bf16 = binary_test_t<bfloat16_t>;
+using binary_test_f16 = binary_test_t<float16_t>;
+using binary_test_s8 = binary_test_t<int8_t>;
+using binary_test_u8 = binary_test_t<uint8_t>;
+using binary_test_s8u8s8 = binary_test_t<int8_t, uint8_t, int8_t>;
+using binary_test_u8s8u8 = binary_test_t<uint8_t, int8_t, uint8_t>;
 
 INST_TEST_CASE(binary_test_f32)
 INST_TEST_CASE(binary_test_bf16)

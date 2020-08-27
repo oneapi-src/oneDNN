@@ -158,17 +158,12 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
             ? dst_3d_dims
             : p->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
-    const auto src_tag = (dir & FLAG_FWD) ? convert_tag(p->tag, p->ndims)
-                                          : dnnl_format_tag_any;
-    const auto dst_tag = dnnl_format_tag_any;
+    const auto src_tag = (dir & FLAG_FWD) ? p->tag : tag::any;
+    const auto dst_tag = tag::any;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &src_d, p->ndims, src_dims, p->cfg[SRC].dt, src_tag),
-            WARN);
+    SAFE(init_md(&src_d, p->ndims, src_dims, p->cfg[SRC].dt, src_tag), CRIT);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &dst_d, p->ndims, dst_dims, p->cfg[DST].dt, dst_tag),
-            WARN);
+    SAFE(init_md(&dst_d, p->ndims, dst_dims, p->cfg[DST].dt, dst_tag), CRIT);
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     dnnl_dim_t kernel_nd[] = {p->kd, p->kh, p->kw};
@@ -280,7 +275,7 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(!check_md_consistency_with_tag(dst_md, p->tag), WARN);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_abx_tag(p->ndims);
+    const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
 

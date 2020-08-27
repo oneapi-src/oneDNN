@@ -36,7 +36,7 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-static const pd_create_f impl_list[] = {
+const pd_create_f impl_list[] = {
         /* fp */
         CPU_INSTANCE_X64(jit_uni_pooling_fwd_t<avx512_core, bf16>)
         CPU_INSTANCE_X64(jit_uni_pooling_bwd_t<avx512_core, bf16>)

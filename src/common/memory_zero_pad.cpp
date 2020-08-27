@@ -215,7 +215,7 @@ status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
 
 #define CASE(blksize_, blk_kind) \
     do { \
-        if (blksize == blksize_) { \
+        if (blksize == (blksize_)) { \
             typed_zero_pad_blk<dt, blk_kind, blksize_>(mdw, data); \
             ctx.unmap_memory_storage( \
                     memory_storage, mapped_ptr, ctx.stream()); \

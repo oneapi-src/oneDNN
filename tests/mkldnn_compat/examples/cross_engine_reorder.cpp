@@ -57,7 +57,7 @@ using namespace mkldnn;
 using namespace std;
 // [Prologue]
 
-size_t product(const memory::dims adims) {
+size_t product(const memory::dims &adims) {
     size_t n_elems = 1;
     for (size_t d = 0; d < adims.size(); ++d) {
         n_elems *= (size_t)adims[d];
@@ -65,7 +65,7 @@ size_t product(const memory::dims adims) {
     return n_elems;
 }
 
-void fill(const memory &mem, const memory::dims adims) {
+void fill(const memory &mem, const memory::dims &adims) {
     float *array = mem.map_data<float>();
 
     for (size_t e = 0; e < adims.size(); ++e) {
@@ -75,7 +75,7 @@ void fill(const memory &mem, const memory::dims adims) {
     mem.unmap_data(array);
 }
 
-int find_negative(const memory &mem, const memory::dims adims) {
+int find_negative(const memory &mem, const memory::dims &adims) {
     int negs = 0;
 
     float *array = mem.map_data<float>();

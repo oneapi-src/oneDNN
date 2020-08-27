@@ -40,9 +40,9 @@ namespace {
 
 using namespace memory_tracking::names;
 using namespace Xbyak;
-typedef float acc_data_t;
+using acc_data_t = float;
 
-#define PARAM_ADDR(x) reg_param + offsetof(call_params_t, x)
+#define PARAM_ADDR(x) (reg_param + offsetof(call_params_t, x))
 template <cpu_isa_t isa>
 struct jit_bnorm_process_tail_t {
     using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx2,
@@ -523,8 +523,8 @@ struct jit_bnorm_fwd_statistics_t : public jit_generator {
 
 template <cpu_isa_t isa>
 struct jit_bnorm_fwd_mean_t : jit_bnorm_fwd_statistics_t<isa> {
-    typedef typename jit_bnorm_fwd_statistics_t<isa>::call_params_t
-            call_params_t;
+    using call_params_t =
+            typename jit_bnorm_fwd_statistics_t<isa>::call_params_t;
 
     jit_bnorm_fwd_mean_t(const batch_normalization_pd_t *bdesc)
         : jit_bnorm_fwd_statistics_t<isa>(bdesc) {}
@@ -543,8 +543,8 @@ struct jit_bnorm_fwd_mean_t : jit_bnorm_fwd_statistics_t<isa> {
 
 template <cpu_isa_t isa>
 struct jit_bnorm_fwd_var_t : jit_bnorm_fwd_statistics_t<isa> {
-    typedef typename jit_bnorm_fwd_statistics_t<isa>::call_params_t
-            call_params_t;
+    using call_params_t =
+            typename jit_bnorm_fwd_statistics_t<isa>::call_params_t;
 
     jit_bnorm_fwd_var_t(const batch_normalization_pd_t *bdesc)
         : jit_bnorm_fwd_statistics_t<isa>(bdesc) {}

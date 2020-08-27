@@ -283,7 +283,7 @@ status_t gen12lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
                         status = launch_x8x8s32(ctx, compute_stream, a, b,
                                 *temp_buf, off_a_src, off_b_src, off_c, lda,
                                 ldb, m, size_m, size_n, size_k, eff_beta, ao,
-                                bo, co, offset_co_src, apply_co, 0,
+                                bo, co, offset_co_src, apply_co, false,
                                 eltwise_alpha, eltwise_beta, eltwise_scale,
                                 aligned);
                         if (status) return status;
@@ -296,7 +296,7 @@ status_t gen12lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     if (do_scale) {
         status = launch_scale_x8x8s32(ctx, compute_stream, *temp_buf, c,
                 offsetc_char, off_c0, m, n, ldc, alpha, beta, co, offset_co,
-                (int)alpha_is_zero, 1, eltwise_alpha, eltwise_beta,
+                (int)alpha_is_zero, true, eltwise_alpha, eltwise_beta,
                 eltwise_scale);
         if (status) return status;
     }

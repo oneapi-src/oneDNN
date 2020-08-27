@@ -32,7 +32,7 @@
 #include "cpu/x64/jit_avx512_common_convolution_winograd.hpp"
 
 #define _64byte_align ((1 << 6) - 1)
-#define IS_ALIGNED(byte_blk, byte_align) ((byte_blk & byte_align) == 0)
+#define IS_ALIGNED(byte_blk, byte_align) (((byte_blk) & (byte_align)) == 0)
 
 #ifndef _MSC_VER
 #define pragma_unroll _Pragma("unroll")
@@ -1103,7 +1103,7 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
                 [&](int img, int ifm1, int ifm2) {
                     float *transb = jcp.ver == ver_4fma
                             ? &(trans_buffer(ithr, 0))
-                            : NULL;
+                            : nullptr;
                     diff_src_transform_bwd_weights_ver(img, jcp,
                             &(src(img, ifm1 * jcp.ic_block + ifm2, 0, 0, 0)),
                             &(V(ifm1, 0, 0, 0, ifm2, 0, 0, 0)), transb,
@@ -1115,7 +1115,7 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
                     float *dbias = jcp.with_bias
                             ? &(diff_bias_prv(ithr,
                                     simd_w * (ofm1 * jcp.oc_block + ofm2)))
-                            : NULL;
+                            : nullptr;
                     diff_dst_transform_bwd_weights_ver(img, jcp,
                             &(diff_dst(
                                     img, ofm1 * jcp.oc_block + ofm2, 0, 0, 0)),

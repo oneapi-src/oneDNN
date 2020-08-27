@@ -94,7 +94,7 @@ static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
         conf.dispatch.define_dim("KW", nstl::max(1, ndims - 1), conf.kw);
         conf.dispatch.generate();
     } else {
-        conf.with_bias = 0;
+        conf.with_bias = false;
         conf.bia_dt = data_type::f32;
         conf.dispatch = compute_engine->create_dispatch(src_d.md_);
         conf.dispatch.define_dim("MB_IC", 0, conf.mb * conf.ic);

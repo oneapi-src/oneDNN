@@ -80,7 +80,7 @@ private:
 };
 
 // clang-format off
-static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
+const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
     // FWD fp
     {{forward, f32, f32, f32}, {
         CPU_INSTANCE_X64(jit_avx512_common_dw_convolution_fwd_t)

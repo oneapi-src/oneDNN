@@ -30,7 +30,9 @@
 #include "dnnl_types.h"
 
 namespace tag {
+extern const char *x;
 extern const char *abx;
+extern const char *axb;
 extern const char *any;
 extern const char *undef;
 } // namespace tag
@@ -399,9 +401,14 @@ private:
 
 std::ostream &dump_global_params(std::ostream &s);
 
-dnnl_format_tag_t get_abx_tag(int ndims);
-dnnl_format_tag_t get_axb_tag(int ndims);
-dnnl_format_tag_t convert_tag(const std::string &tag_str, int ndims);
+// Validates a tag/meta-tag.
+int check_tag(const std::string &tag_, bool check_enum_tags_only = false);
+
+// Validates a tag in abc notation.
+int check_abc_tag(const std::string &tag, bool check_enum_tags_only = false);
+
+// Converts a tag/meta-tag to abc notation.
+std::string normalize_tag(const std::string &tag, int ndims = -1);
 
 dnnl_primitive_attr_t create_dnnl_attr(
         const attr_t &attr, const attr_args_t &attr_args);

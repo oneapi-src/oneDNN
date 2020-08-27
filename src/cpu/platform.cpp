@@ -81,12 +81,12 @@ unsigned get_per_core_cache_size(int level) {
     };
 
 #if DNNL_X64
-    using x64::cpu;
-    if (cpu.getDataCacheLevels() == 0) return guess(level);
+    using namespace x64;
+    if (cpu().getDataCacheLevels() == 0) return guess(level);
 
-    if (level > 0 && (unsigned)level <= cpu.getDataCacheLevels()) {
+    if (level > 0 && (unsigned)level <= cpu().getDataCacheLevels()) {
         unsigned l = level - 1;
-        return cpu.getDataCacheSize(l) / cpu.getCoresSharingDataCache(l);
+        return cpu().getDataCacheSize(l) / cpu().getCoresSharingDataCache(l);
     } else
         return 0;
 #else
@@ -96,7 +96,7 @@ unsigned get_per_core_cache_size(int level) {
 
 unsigned get_num_cores() {
 #if DNNL_X64
-    return x64::cpu.getNumCores(Xbyak::util::CoreLevel);
+    return x64::cpu().getNumCores(Xbyak::util::CoreLevel);
 #else
     return 1;
 #endif

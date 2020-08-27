@@ -150,13 +150,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     std::string src_tag = (p->dir & FLAG_FWD) ? p->tag : tag::any;
     std::string dst_tag = tag::any;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_dims, p->dt,
-                     convert_tag(src_tag, p->ndims)),
-            WARN);
+    SAFE(init_md(&src_d, p->ndims, src_dims, p->dt, src_tag), CRIT);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, dst_dims, p->dt,
-                     convert_tag(dst_tag, p->ndims)),
-            WARN);
+    SAFE(init_md(&dst_d, p->ndims, dst_dims, p->dt, dst_tag), CRIT);
 
     dnnl_alg_kind_t alg = alg2alg_kind(p->alg);
     dnnl_resampling_desc_t pd;
@@ -173,15 +169,11 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                 WARN);
     }
 
-    dnnl_primitive_desc_t _hint = NULL;
+    dnnl_primitive_desc_t _hint = nullptr;
     if (p->dir & FLAG_BWD) {
         dnnl_memory_desc_t fwd_src_d, fwd_dst_d;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&fwd_src_d, p->ndims, src_dims,
-                         p->dt, convert_tag(p->tag, p->ndims)),
-                WARN);
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&fwd_dst_d, p->ndims, dst_dims,
-                         p->dt, convert_tag(tag::any, p->ndims)),
-                WARN);
+        SAFE(init_md(&fwd_src_d, p->ndims, src_dims, p->dt, p->tag), CRIT);
+        SAFE(init_md(&fwd_dst_d, p->ndims, dst_dims, p->dt, tag::any), CRIT);
 
         dnnl_resampling_desc_t rd_fwd;
         DNN_SAFE(dnnl_resampling_forward_desc_init(&rd_fwd,
@@ -189,7 +181,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
                          &fwd_dst_d),
                 WARN);
         dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
-                &_hint, &rd_fwd, NULL, engine, NULL);
+                &_hint, &rd_fwd, nullptr, engine, nullptr);
         if (init_fwd_status == dnnl_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
         SAFE(init_fwd_status, WARN);
@@ -253,7 +245,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_abx_tag(p->ndims);
+    const auto tag = tag::abx;
 
     const auto &test_engine = get_test_engine();
 

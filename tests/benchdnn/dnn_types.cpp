@@ -15,10 +15,12 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include <cctype>
 #include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 
 #include <sstream>
 
@@ -28,13 +30,16 @@
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_debug.hpp"
+#include "dnnl_memory.hpp"
 #include "src/common/math_utils.hpp"
 #include "tests/test_thread.hpp"
 
 #define BENCHDNN_DNNL_ARG_UNDEF 0
 
 namespace tag {
+const char *x {"x"};
 const char *abx {"abx"};
+const char *axb {"axb"};
 const char *any {"any"};
 const char *undef {"undef"};
 } // namespace tag
@@ -61,7 +66,7 @@ std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
 
 std::ostream &operator<<(std::ostream &s, dir_t dir) {
 #define CASE(x) \
-    if (dir == x) return s << STRINGIFY(x)
+    if (dir == (x)) return s << STRINGIFY(x)
     CASE(FWD_B);
     CASE(FWD_D);
     CASE(FWD_I);
@@ -263,7 +268,7 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
         auto policy_str = get_substr(s, start_pos);
         auto scale_str = policy_str + ":" + get_substr(s, start_pos, '_');
         scale_t arg_scale;
-        auto status = arg_scale.from_str(scale_str.c_str());
+        auto status = arg_scale.from_str(scale_str);
         if (status != OK) return status;
         set(arg, arg_scale);
     }
@@ -272,11 +277,11 @@ int attr_t::arg_scales_t::from_str(const std::string &s) {
 
 using pk_t = attr_t::post_ops_t::kind_t;
 
-typedef struct {
+struct po_table_entry_t {
     pk_t kind;
     const char *kind_name;
     dnnl_alg_kind_t dnnl_kind;
-} po_table_entry_t;
+};
 
 static po_table_entry_t kind_table[] = {
         // sum
@@ -404,7 +409,7 @@ int attr_t::post_ops_t::from_str(const std::string &s) {
 
             auto policy_str = get_substr(subs, subs_pos);
             auto scale_str = policy_str + ":" + get_substr(subs, subs_pos);
-            auto status = e.convolution.oscale.from_str(scale_str.c_str());
+            auto status = e.convolution.oscale.from_str(scale_str);
             if (status != OK) return status;
         } else if (e.is_eltwise_kind()) {
             e.eltwise.alpha = std::stof(get_substr(subs, subs_pos));
@@ -478,7 +483,7 @@ int attr_t::post_ops_t::binary_index() const {
 }
 
 int str2attr(attr_t *attr, const char *str) {
-    if (attr == NULL || str == NULL) return FAIL;
+    if (attr == nullptr || str == nullptr) return FAIL;
 
     *attr = attr_t();
     std::string s(str), entry_name;
@@ -652,6 +657,8 @@ std::ostream &dump_global_params(std::ostream &s) {
     if (!skip_impl.empty()) s << "--skip-impl=" << skip_impl << " ";
     if (canonical || mem_check != true)
         s << "--mem-check=" << bool2str(mem_check) << " ";
+    if (canonical || allow_enum_tags_only != true)
+        s << "--allow-enum-tags-only=" << bool2str(allow_enum_tags_only) << " ";
 
     return s;
 }
@@ -703,9 +710,7 @@ int attr_args_t::prepare_binary_post_op_mds(
             binary_dims[d] = (!(mask & (1 << d))) ? 1 : dims[d];
 
         dnnl_memory_desc_t src1_desc;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src1_desc, ndims, binary_dims,
-                         dt, get_abx_tag(ndims)),
-                WARN);
+        SAFE(init_md(&src1_desc, ndims, binary_dims, dt, tag::abx), WARN);
         mds.insert(std::make_pair(
                 (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
                 src1_desc));
@@ -716,7 +721,7 @@ int attr_args_t::prepare_binary_post_op_mds(
 
 dnnl_primitive_attr_t create_dnnl_attr(
         const attr_t &attr, const attr_args_t &attr_args) {
-    dnnl_primitive_attr_t dnnl_attr = NULL;
+    dnnl_primitive_attr_t dnnl_attr = nullptr;
     DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
     if (!attr.oscale.is_def()) {
@@ -802,101 +807,236 @@ dnnl_primitive_attr_t create_dnnl_attr(
     return dnnl_attr;
 }
 
-dnnl_format_tag_t get_abx_tag(int ndims) {
-    switch (ndims) {
-        case 1: return dnnl_a;
-        case 2: return dnnl_ab;
-        case 3: return dnnl_abc;
-        case 4: return dnnl_abcd;
-        case 5: return dnnl_abcde;
-        case 6: return dnnl_abcdef;
-        default: assert(!"unsupported ndims");
+// Exception free version of std::stoi, sets idx to 0 and returns 0 in case of
+// error.
+static int stoi_safe(const std::string &s, size_t *idx) {
+    if (s.empty() || !std::isdigit(s[0])) {
+        *idx = 0;
+        return 0;
     }
-    return dnnl_format_tag_undef;
+    return std::stoi(s, idx);
 }
 
-dnnl_format_tag_t get_axb_tag(int ndims) {
-    switch (ndims) {
-        case 1: return dnnl_a;
-        case 2: return dnnl_ab;
-        case 3: return dnnl_acb;
-        case 4: return dnnl_acdb;
-        case 5: return dnnl_acdeb;
-        default: assert(!"unsupported ndims");
+static bool is_abc_tag(const std::string &tag) {
+    if (tag == tag::undef || tag == tag::any) return true;
+
+    bool mask[DNNL_MAX_NDIMS] = {};
+    for (auto &c : tag) {
+        if (!std::isalpha(c)) continue;
+        int idx = std::tolower(c) - 'a';
+        if (idx < 0 || idx >= DNNL_MAX_NDIMS) return false;
+        mask[idx] = true;
     }
-    return dnnl_format_tag_undef;
+    // Check there are no gaps, e.g. [1 1 1 1 0 0 ...].
+    for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
+        if (mask[i]) continue;
+        for (int j = i + 1; j < DNNL_MAX_NDIMS; j++)
+            if (mask[j]) return false;
+        break;
+    }
+    return true;
 }
 
-dnnl_format_tag_t get_xba_tag(int ndims) {
-    switch (ndims) {
-        case 1: return dnnl_a;
-        case 2: return dnnl_ba;
-        case 3: return dnnl_cba;
-        case 4: return dnnl_cdba;
-        case 5: return dnnl_cdeba;
-        default: assert(!"unsupported ndims");
+int check_abc_tag(const std::string &tag_, bool check_enum_tags_only) {
+    if (tag_.empty()) return FAIL;
+    if (!is_abc_tag(tag_)) return FAIL;
+    if (check_enum_tags_only) {
+        if (str2fmt_tag(tag_.c_str()) == dnnl_format_tag_last) return FAIL;
+        return OK;
     }
-    return dnnl_format_tag_undef;
+
+    enum class dim_state_t { undef = 0, upper, lower, lower_with_block };
+    dim_state_t dim_states[DNNL_MAX_NDIMS] = {};
+    bool in_inner_block = false;
+    auto tag = tag_;
+    while (!tag.empty()) {
+        // Parse block size if presented.
+        size_t idx;
+        int block = stoi_safe(tag, &idx);
+        if (block == 0 && idx != 0) return FAIL;
+        if (idx == 0) block = 0;
+        if (block > 0) in_inner_block = true;
+
+        // Move to the first position after the block.
+        tag = tag.substr(idx);
+        if (tag.empty()) return FAIL;
+
+        char c = tag[0];
+        bool is_lower = ('a' <= c && c <= 'a' + DNNL_MAX_NDIMS - 1);
+        bool is_upper = ('A' <= c && c <= 'A' + DNNL_MAX_NDIMS - 1);
+        if (!is_lower && !is_upper) return FAIL;
+
+        // Uppercase cannot be with block.
+        if (is_upper && block != 0) return FAIL;
+        // Block sizes are required within inner block.
+        if (block == 0 && in_inner_block) return FAIL;
+
+        // Check rules related to lowercase/uppercase/block order.
+        int dim_idx = std::tolower(c) - 'a';
+        dim_state_t prev_state = dim_states[dim_idx];
+        dim_state_t cur_state = is_upper
+                ? dim_state_t::upper
+                : block != 0 ? dim_state_t::lower_with_block
+                             : dim_state_t::lower;
+
+        switch (cur_state) {
+            case dim_state_t::upper:
+            case dim_state_t::lower:
+                // Letter without block must be the first.
+                if (prev_state != dim_state_t::undef) return FAIL;
+                break;
+            case dim_state_t::lower_with_block:
+                // Letter with block must be after uppercase or after a letter
+                // with block.
+                if (prev_state != dim_state_t::upper
+                        && prev_state != dim_state_t::lower_with_block)
+                    return FAIL;
+                break;
+            default: assert(!"not expected");
+        }
+
+        // Update state, move to the next position.
+        dim_states[dim_idx] = cur_state;
+        tag = tag.substr(1);
+    }
+
+    for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
+        // Uppercase letter must be followed by lowercase.
+        if (dim_states[i] == dim_state_t::upper) return FAIL;
+
+        // Ensure there are no gaps (e.g. acd).
+        if (dim_states[i] == dim_state_t::undef) {
+            for (int j = i + 1; j < DNNL_MAX_NDIMS; j++)
+                if (dim_states[j] != dim_state_t::undef) return FAIL;
+            break;
+        }
+    }
+
+    return OK;
 }
 
-dnnl_format_tag_t get_aBx4b_tag(int ndims) {
-    switch (ndims) {
-        case 3: return dnnl_aBc4b;
-        case 4: return dnnl_aBcd4b;
-        case 5: return dnnl_aBcde4b;
-        default: assert(!"unsupported ndims");
+static std::string trim_letter(const std::string &tag_, char c) {
+    auto tag = tag_;
+    auto pos = tag.find(c);
+    if (pos == std::string::npos) return tag;
+
+    tag.replace(pos, 1, "");
+    if (pos == 0) return tag;
+
+    pos--;
+    while (std::isdigit(tag[pos])) {
+        tag.replace(pos, 1, "");
+        if (pos == 0) break;
+        pos--;
     }
-    return dnnl_format_tag_undef;
+    return tag;
 }
 
-dnnl_format_tag_t get_aBx8b_tag(int ndims) {
-    switch (ndims) {
-        case 3: return dnnl_aBc8b;
-        case 4: return dnnl_aBcd8b;
-        case 5: return dnnl_aBcde8b;
-        default: assert(!"unsupported ndims");
+// Removes extra dimensions from a tag according to ndims.
+static std::string trim_tag(const std::string &tag, int ndims) {
+    std::string trimmed_tag = tag;
+    for (char c = 'a' + ndims; c <= 'a' + (char)(DNNL_MAX_NDIMS - 1); c++) {
+        trimmed_tag = trim_letter(trimmed_tag, c);
+        trimmed_tag = trim_letter(trimmed_tag, std::toupper(c));
     }
-    return dnnl_format_tag_undef;
+    return trimmed_tag;
 }
 
-dnnl_format_tag_t get_aBx16b_tag(int ndims) {
-    switch (ndims) {
-        case 3: return dnnl_aBc16b;
-        case 4: return dnnl_aBcd16b;
-        case 5: return dnnl_aBcde16b;
-        default: assert(!"unsupported ndims");
+// Tries to map a tag to an abc-tag according to a logical tag. For example:
+// nchw -> abcd.
+static std::string try_map_tag(
+        const std::string &logical_tag, const std::string &tag, int *nmatched) {
+    // Check if all the required letters are presented.
+    for (auto &c : logical_tag) {
+        if (std::toupper(c) == c
+                && tag.find(std::tolower(c)) == std::string::npos)
+            return {};
     }
-    return dnnl_format_tag_undef;
+
+    // Check that all letters are known and assign indices to letters.
+    int logical_indices[DNNL_MAX_NDIMS] = {};
+    for (auto &c : tag) {
+        if (!std::isalpha(c)) continue;
+
+        auto lower_pos = logical_tag.find(std::tolower(c));
+        auto upper_pos = logical_tag.find(std::toupper(c));
+        auto pos = (lower_pos == std::string::npos ? upper_pos : lower_pos);
+        if (pos == std::string::npos) return {};
+
+        logical_indices[pos] = 1;
+    }
+
+    for (int i = 0, idx = 0; i < (int)logical_tag.size(); i++) {
+        if (logical_indices[i] == 0) continue;
+        logical_indices[i] = idx++;
+    }
+
+    (*nmatched)++;
+    std::string mapped_tag = tag;
+    for (int i = 0; i < (int)tag.size(); i++) {
+        char c = tag[i];
+        if (!std::isalpha(tag[i])) continue;
+        auto pos = logical_tag.find(std::tolower(c));
+        if (pos == std::string::npos) pos = logical_tag.find(std::toupper(c));
+
+        mapped_tag[i]
+                = (char)(tag[i] - std::tolower(c) + 'a' + logical_indices[pos]);
+    }
+    return mapped_tag;
 }
 
-dnnl_format_tag_t get_ABx16a16b_tag(int ndims) {
-    switch (ndims) {
-        case 3: return dnnl_ABc16a16b;
-        case 4: return dnnl_ABcd16a16b;
-        case 5: return dnnl_ABcde16a16b;
-        default: assert(!"unsupported ndims");
-    }
-    return dnnl_format_tag_undef;
+// Maps a tag to an abc-tag.
+static std::string map_tag_letters(const std::string &tag) {
+    int nmatched = 0;
+
+    // Mapping rules:
+    // - Uppercase letters are mandatory
+    // - Lowercase letters are optional
+    auto tag_goidhw = try_map_tag("GOIdhw", tag, &nmatched);
+    auto tag_oidhw = try_map_tag("OIdhw", tag, &nmatched);
+    auto tag_ncdhw = try_map_tag("NCdhw", tag, &nmatched);
+    auto tag_tnc = try_map_tag("TNc", tag, &nmatched);
+    auto tag_ldnc = try_map_tag("LDNC", tag, &nmatched);
+    auto tag_ldigo = try_map_tag("LDigO", tag, &nmatched);
+
+    if (nmatched == 0) return tag;
+    if (nmatched > 1) assert(!"Not expected: ambiguous tag.");
+
+    if (!tag_goidhw.empty()) return tag_goidhw;
+    if (!tag_oidhw.empty()) return tag_oidhw;
+    if (!tag_ncdhw.empty()) return tag_ncdhw;
+    if (!tag_tnc.empty()) return tag_tnc;
+    if (!tag_ldnc.empty()) return tag_ldnc;
+    if (!tag_ldigo.empty()) return tag_ldigo;
+
+    return tag;
 }
 
-dnnl_format_tag_t convert_tag(const std::string &tag_str, int ndims) {
-    // List of supported meta-tags
-    if (tag_str.compare("abx") == 0)
-        return get_abx_tag(ndims);
-    else if (tag_str.compare("axb") == 0)
-        return get_axb_tag(ndims);
-    else if (tag_str.compare("xba") == 0)
-        return get_xba_tag(ndims);
-    else if (tag_str.compare("aBx4b") == 0)
-        return get_aBx4b_tag(ndims);
-    else if (tag_str.compare("aBx8b") == 0)
-        return get_aBx8b_tag(ndims);
-    else if (tag_str.compare("aBx16b") == 0)
-        return get_aBx16b_tag(ndims);
-    else if (tag_str.compare("ABx16a16b") == 0)
-        return get_ABx16a16b_tag(ndims);
-    // fall-back to regular tag parse function
-    return str2fmt_tag(tag_str.c_str());
+std::string normalize_tag(const std::string &tag_, int ndims) {
+    std::string tag = tag_;
+    if (tag == tag::undef || tag == tag::any || ndims == 0) return tag;
+    if (tag == tag::x) {
+        if (ndims >= 0) assert(ndims == 1);
+        return "a";
+    }
+
+    // Handle meta-tags (abx, axb, etc).
+    auto pos = tag.find("x");
+    if (pos != std::string::npos) {
+        // If ndims is unknown, arbitrarily use 3 dimensions.
+        int meta_ndims = (ndims == -1 ? 3 : ndims);
+        std::string cdef_tail;
+        for (int i = 0; i < meta_ndims - 2; i++)
+            cdef_tail += ('c' + i);
+        return trim_tag(tag.replace(pos, 1, cdef_tail), meta_ndims);
+    }
+
+    return map_tag_letters(tag);
+}
+
+int check_tag(const std::string &tag_, bool check_enum_tags_only) {
+    auto tag = normalize_tag(tag_);
+    return check_abc_tag(tag, check_enum_tags_only);
 }
 
 void maybe_oscale(const attr_t &attr, float &d, float *scales, int64_t oc) {

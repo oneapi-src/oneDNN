@@ -31,14 +31,14 @@ const std::set<cpu_isa_t> cpu_isa_all
                 avx512_core_vnni, avx512_core_bf16, avx512_core_bf16_amx_int8,
                 avx512_core_bf16_amx_bf16, avx512_core_amx, isa_all};
 
-struct isa_compat_info {
+struct isa_compat_info_t {
     cpu_isa_t this_isa;
     std::set<cpu_isa_t> cpu_isa_compatible;
 };
 
 // This mostly duplicates isa_traits, but the idea is to *not* rely on that
 // information...
-static std::map<cpu_isa, isa_compat_info> isa_compatibility_table = {
+static std::map<cpu_isa, isa_compat_info_t> isa_compatibility_table = {
         {cpu_isa::sse41, {sse41, {sse41}}},
         {cpu_isa::avx, {avx, {sse41, avx}}},
         {cpu_isa::avx2, {avx2, {sse41, avx, avx2}}},
@@ -66,9 +66,9 @@ static std::map<cpu_isa, isa_compat_info> isa_compatibility_table = {
                                 isa_all}}},
 };
 
-class isa_test : public ::testing::TestWithParam<cpu_isa> {
+class isa_test_t : public ::testing::TestWithParam<cpu_isa> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         auto isa = ::testing::TestWithParam<cpu_isa>::GetParam();
 
         // soft version of mayiuse that allows resetting the max_cpu_isa
@@ -92,8 +92,8 @@ protected:
     }
 };
 
-TEST_P(isa_test, TestISA) {}
-INSTANTIATE_TEST_SUITE_P(TestISACompatibility, isa_test,
+TEST_P(isa_test_t, TestISA) {}
+INSTANTIATE_TEST_SUITE_P(TestISACompatibility, isa_test_t,
         ::testing::Values(cpu_isa::sse41, cpu_isa::avx, cpu_isa::avx2,
                 cpu_isa::avx512_mic, cpu_isa::avx512_mic_4ops,
                 cpu_isa::avx512_core, cpu_isa::avx512_core_vnni,

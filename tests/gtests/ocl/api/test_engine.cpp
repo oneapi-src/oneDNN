@@ -39,7 +39,7 @@ struct ocl_engine_test_params {
 class ocl_engine_test
     : public ::testing::TestWithParam<ocl_engine_test_params> {
 protected:
-    virtual void SetUp() {
+    void SetUp() override {
         gpu_ocl_dev = find_ocl_device(CL_DEVICE_TYPE_GPU);
         cpu_ocl_dev = find_ocl_device(CL_DEVICE_TYPE_CPU);
 
@@ -57,7 +57,7 @@ protected:
         }
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         if (gpu_ocl_ctx) { clReleaseContext(gpu_ocl_ctx); }
         if (cpu_ocl_ctx) { clReleaseContext(cpu_ocl_ctx); }
     }

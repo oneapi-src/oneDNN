@@ -33,7 +33,7 @@ void prb_t::generate_oscales() {
 
     if (attr.oscale.policy == policy_t::COMMON) {
         scales = (float *)zmalloc(sizeof(float), 4);
-        SAFE_V(scales != NULL ? OK : FAIL);
+        SAFE_V(scales != nullptr ? OK : FAIL);
         scales[0] = attr.oscale.scale;
         return;
     }
@@ -41,7 +41,7 @@ void prb_t::generate_oscales() {
     assert(attr.oscale.policy == policy_t::PER_OC);
 
     scales = (float *)zmalloc(sizeof(float) * n, 64);
-    SAFE_V(scales != NULL ? OK : FAIL);
+    SAFE_V(scales != nullptr ? OK : FAIL);
 
     const float K = 32;
     /* scale in [1/K .. K], with starting point at oscale.scale */

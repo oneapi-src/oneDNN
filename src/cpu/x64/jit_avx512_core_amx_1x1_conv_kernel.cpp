@@ -145,13 +145,13 @@ bool jit_avx512_core_amx_1x1_fwd_kernel_t::maybe_eltwise(int position) {
     return false;
 }
 
-const Ymm jit_avx512_core_amx_1x1_fwd_kernel_t::ymm_mask(
+Ymm jit_avx512_core_amx_1x1_fwd_kernel_t::ymm_mask(
         const Ymm ymm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? ymm_in | ktail_mask : ymm_in | ktail_mask | T_z)
                      : ymm_in;
 }
 
-const Zmm jit_avx512_core_amx_1x1_fwd_kernel_t::zmm_mask(
+Zmm jit_avx512_core_amx_1x1_fwd_kernel_t::zmm_mask(
         const Zmm zmm_in, bool mask_flag, bool store) {
     return mask_flag ? (store ? zmm_in | ktail_mask : zmm_in | ktail_mask | T_z)
                      : zmm_in;
@@ -276,7 +276,6 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_bf16(
     } else {
         vmovups(addr, zmm_mask(zmm_out, mask_flag, true));
     }
-    return;
 }
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector(

@@ -25,10 +25,10 @@ namespace dnnl {
 using data_type = memory::data_type;
 using tag = memory::format_tag;
 
-class runtime_dim_test : public ::testing::Test {
+class runtime_dim_test_t : public ::testing::Test {
 protected:
     engine eng = get_test_engine();
-    virtual void SetUp() {}
+    void SetUp() override {}
 
     template <typename F>
     void check_status(const F &f, dnnl_status_t status) {
@@ -42,7 +42,7 @@ protected:
 #define CHECK_INVALID(...) CHECK_STATUS(dnnl_invalid_arguments, __VA_ARGS__)
 #define CHECK_UNIMPL(...) CHECK_STATUS(dnnl_unimplemented, __VA_ARGS__)
 
-TEST_F(runtime_dim_test, TestMemory) {
+TEST_F(runtime_dim_test_t, TestMemory) {
     memory::desc md_tag {{DNNL_RUNTIME_DIM_VAL, DNNL_RUNTIME_DIM_VAL},
             data_type::f32, tag::ab};
     ASSERT_EQ(md_tag.get_size(), DNNL_RUNTIME_SIZE_VAL);
@@ -54,7 +54,7 @@ TEST_F(runtime_dim_test, TestMemory) {
     CHECK_INVALID(memory(md_strides, eng));
 }
 
-TEST_F(runtime_dim_test, TestBNorm) {
+TEST_F(runtime_dim_test_t, TestBNorm) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
     normalization_flags flags {};
@@ -64,19 +64,19 @@ TEST_F(runtime_dim_test, TestBNorm) {
             prop_kind::backward_data, md, md, 0.1f, flags));
 }
 
-TEST_F(runtime_dim_test, TestBinary) {
+TEST_F(runtime_dim_test_t, TestBinary) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
     CHECK_UNIMPL(binary::desc(algorithm::binary_add, md, md, md));
 }
 
-TEST_F(runtime_dim_test, TestConcat) {
+TEST_F(runtime_dim_test_t, TestConcat) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
     CHECK_UNIMPL(concat::primitive_desc(1, {md, md}, eng));
 }
 
-TEST_F(runtime_dim_test, TestConv) {
+TEST_F(runtime_dim_test_t, TestConv) {
     memory::desc src_md {
             {DNNL_RUNTIME_DIM_VAL, 16, 7, 7}, data_type::f32, tag::abcd};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::f32, tag::abcd};
@@ -92,7 +92,7 @@ TEST_F(runtime_dim_test, TestConv) {
                     src_md, wei_md, dst_md, {1, 1}, {1, 1}, {1, 1}));
 }
 
-TEST_F(runtime_dim_test, TestDeconv) {
+TEST_F(runtime_dim_test_t, TestDeconv) {
     memory::desc src_md {
             {DNNL_RUNTIME_DIM_VAL, 16, 7, 7}, data_type::f32, tag::abcd};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::f32, tag::abcd};
@@ -109,7 +109,7 @@ TEST_F(runtime_dim_test, TestDeconv) {
             {1, 1}, {1, 1}));
 }
 
-TEST_F(runtime_dim_test, TestEltwise) {
+TEST_F(runtime_dim_test_t, TestEltwise) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
     CHECK_UNIMPL(eltwise_forward::desc(
@@ -118,7 +118,7 @@ TEST_F(runtime_dim_test, TestEltwise) {
             eltwise_backward::desc(algorithm::eltwise_relu, md, md, 0.1f, 0.f));
 }
 
-TEST_F(runtime_dim_test, TestInnerProduct) {
+TEST_F(runtime_dim_test_t, TestInnerProduct) {
     memory::desc src_md {
             {DNNL_RUNTIME_DIM_VAL, 16, 7, 7}, data_type::f32, tag::abcd};
     memory::desc wei_md {{32, 16, 7, 7}, data_type::f32, tag::abcd};
@@ -129,7 +129,7 @@ TEST_F(runtime_dim_test, TestInnerProduct) {
     CHECK_UNIMPL(inner_product_backward_weights::desc(src_md, wei_md, dst_md));
 }
 
-TEST_F(runtime_dim_test, TestLNorm) {
+TEST_F(runtime_dim_test_t, TestLNorm) {
     memory::desc md {{DNNL_RUNTIME_DIM_VAL, 16, 16}, data_type::f32, tag::abc};
     memory::desc stat_md {{DNNL_RUNTIME_DIM_VAL, 16}, data_type::f32, tag::ab};
     normalization_flags flags {};
@@ -139,7 +139,7 @@ TEST_F(runtime_dim_test, TestLNorm) {
             prop_kind::backward_data, md, md, stat_md, 0.1f, flags));
 }
 
-TEST_F(runtime_dim_test, TestLRN) {
+TEST_F(runtime_dim_test_t, TestLRN) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 7, 7}, data_type::f32, tag::abcd};
     CHECK_UNIMPL(lrn_forward::desc(prop_kind::forward,
@@ -148,7 +148,7 @@ TEST_F(runtime_dim_test, TestLRN) {
             algorithm::lrn_across_channels, md, md, 5, 1.f, 0.75f));
 }
 
-CPU_TEST_F(runtime_dim_test, TestMatmul) {
+CPU_TEST_F(runtime_dim_test_t, TestMatmul) {
     memory::desc a_md {{DNNL_RUNTIME_DIM_VAL, 3}, data_type::f32, tag::ab};
     memory::desc b_md {{3, DNNL_RUNTIME_DIM_VAL}, data_type::f32, tag::ba};
     memory::desc c_md {{DNNL_RUNTIME_DIM_VAL, DNNL_RUNTIME_DIM_VAL},
@@ -156,7 +156,7 @@ CPU_TEST_F(runtime_dim_test, TestMatmul) {
     CHECK_OK(matmul::desc(a_md, b_md, c_md));
 }
 
-TEST_F(runtime_dim_test, TestPool) {
+TEST_F(runtime_dim_test_t, TestPool) {
     memory::desc src_md {
             {DNNL_RUNTIME_DIM_VAL, 16, 8, 8}, data_type::f32, tag::abcd};
     memory::desc dst_md {
@@ -168,7 +168,7 @@ TEST_F(runtime_dim_test, TestPool) {
             {2, 2}, {2, 2}, {0, 0}, {0, 0}));
 }
 
-CPU_TEST_F(runtime_dim_test, TestReorder) {
+CPU_TEST_F(runtime_dim_test_t, TestReorder) {
     memory::desc src_md {
             {DNNL_RUNTIME_DIM_VAL, 16, 8, 8}, data_type::f32, tag::abcd};
     memory::desc dst_md {
@@ -176,7 +176,7 @@ CPU_TEST_F(runtime_dim_test, TestReorder) {
     CHECK_OK(reorder::primitive_desc(eng, src_md, eng, dst_md));
 }
 
-TEST_F(runtime_dim_test, TestRNN) {
+TEST_F(runtime_dim_test_t, TestRNN) {
     memory::dim l = 10, c = 8, g = 1, d = 1;
     memory::desc src_layer_md {{DNNL_RUNTIME_DIM_VAL, DNNL_RUNTIME_DIM_VAL, c},
             data_type::f32, tag::tnc};
@@ -195,20 +195,20 @@ TEST_F(runtime_dim_test, TestRNN) {
             dst_layer_md, dst_iter_md));
 }
 
-TEST_F(runtime_dim_test, TestShuffle) {
+TEST_F(runtime_dim_test_t, TestShuffle) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
     CHECK_UNIMPL(shuffle_forward::desc(prop_kind::forward, md, 1, 4));
     CHECK_UNIMPL(shuffle_backward::desc(md, 1, 4));
 }
 
-TEST_F(runtime_dim_test, TestSoftmax) {
+TEST_F(runtime_dim_test_t, TestSoftmax) {
     memory::desc md {{DNNL_RUNTIME_DIM_VAL, 16}, data_type::f32, tag::ab};
     CHECK_UNIMPL(softmax_forward::desc(prop_kind::forward, md, 1));
     CHECK_UNIMPL(softmax_backward::desc(md, md, 1));
 }
 
-TEST_F(runtime_dim_test, TestSum) {
+TEST_F(runtime_dim_test_t, TestSum) {
     memory::desc md {
             {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
     CHECK_UNIMPL(sum::primitive_desc({1.f, 1.f}, {md, md}, eng));

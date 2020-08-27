@@ -34,7 +34,7 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
-static const pd_create_f impl_list[] = {
+const pd_create_f impl_list[] = {
         CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<u8, f32>)
         CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<u8, s32>)
         CPU_INSTANCE_X64(jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t<u8, u8>)

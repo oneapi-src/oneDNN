@@ -40,7 +40,7 @@ protected:
                 &memory, &memory_d, engine, DNNL_MEMORY_NONE));
     }
 
-    virtual void TearDown() {
+    void TearDown() override {
         if (memory) { DNNL_CHECK(dnnl_memory_destroy(memory)); }
         if (engine) { DNNL_CHECK(dnnl_engine_destroy(engine)); }
     }
@@ -59,7 +59,7 @@ protected:
     dnnl_memory_t memory = nullptr;
 };
 
-class ocl_memory_test_cpp : public ::testing::Test {};
+class ocl_memory_test_cpp_t : public ::testing::Test {};
 
 HANDLE_EXCEPTIONS_FOR_TEST_F(ocl_memory_test_c, BasicInteropC) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
@@ -91,7 +91,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(ocl_memory_test_c, BasicInteropC) {
     TEST_OCL_CHECK(clReleaseMemObject(interop_ocl_mem));
 }
 
-HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_test_cpp, BasicInteropCpp) {
+HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_test_cpp_t, BasicInteropCpp) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU),
             "OpenCL GPU devices not found.");
 

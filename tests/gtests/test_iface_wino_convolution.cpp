@@ -30,10 +30,10 @@ namespace dnnl {
 using data_type = memory::data_type;
 using tag = memory::format_tag;
 
-class wino_conv_test : public ::testing::Test {
+class wino_conv_test_t : public ::testing::Test {
 protected:
     engine eng = get_test_engine();
-    struct input_data {
+    struct input_data_t {
         data_type dat_dt;
         data_type wei_dt;
         bool wino_supported;
@@ -62,7 +62,7 @@ protected:
     }
 };
 
-TEST_F(wino_conv_test, TestSmallPadding) {
+TEST_F(wino_conv_test_t, TestSmallPadding) {
     for (const auto &input : {input_f32, input_int8}) {
         memory::desc src_md {{1, 16, 7, 7}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 3, 3}, input.wei_dt, tag::any};
@@ -95,7 +95,7 @@ TEST_F(wino_conv_test, TestSmallPadding) {
     }
 }
 
-TEST_F(wino_conv_test, TestLargePadding) {
+TEST_F(wino_conv_test_t, TestLargePadding) {
     for (const auto &input : {input_f32, input_int8}) {
         memory::desc src_md {{1, 16, 7, 7}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 3, 3}, input.wei_dt, tag::any};
@@ -108,7 +108,7 @@ TEST_F(wino_conv_test, TestLargePadding) {
     }
 }
 
-TEST_F(wino_conv_test, TestUnsupportedKernel) {
+TEST_F(wino_conv_test_t, TestUnsupportedKernel) {
     for (const auto &input : {input_f32, input_int8}) {
         memory::desc src_md {{1, 16, 5, 5}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 2, 2}, input.wei_dt, tag::any};

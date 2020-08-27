@@ -140,6 +140,7 @@ elemwise_sig((_ref_rnn_common_t<aprop>::gru_elemwise)) {
     arg_list.set(7, tm_scales ? *tm_scales : memory_storage_t::empty_storage());
     arg_list.set(8, pd()->rnn_conf.tm_cscale);
     arg_list.set(9, part);
+    if (aprop != dnnl_forward) { arg_list.set(10, scratch_cell); }
     parallel_for(ctx, nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::gru_elemwise);

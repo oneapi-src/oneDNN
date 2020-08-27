@@ -88,7 +88,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<src_data_t>(key_conv_rtus_space)
-            : NULL;
+            : nullptr;
 
     const int ndims = src_d.ndims();
     const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
@@ -430,7 +430,7 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
     auto rtus_space = pd()->rtus_.reduce_src_
             ? ctx.get_scratchpad_grantor().template get<diff_src_data_t>(
                     key_conv_rtus_space)
-            : NULL;
+            : nullptr;
 
     const int ndims = diff_src_d.ndims();
 
@@ -616,7 +616,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<data_t>(key_conv_rtus_space)
-            : NULL;
+            : nullptr;
     const bool is_bias_padded
             = pd()->with_bias() && jcp.oc_without_padding % jcp.oc_block != 0;
 
