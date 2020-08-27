@@ -69,6 +69,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
         }
 
         std::vector<float> v_binary_vals;
+        v_binary_vals.reserve(v_bin_po_mask.size());
         for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
             auto bin_po_offset = dst.get_scale_idx(dst_off, v_bin_po_mask[d]);
             float binary_val = binary_po[d].get_elem(bin_po_offset);
