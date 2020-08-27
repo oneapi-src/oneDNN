@@ -41,5 +41,3 @@ Before performing arithmetic operation, input tensors *a* and *b* are broadcaste
 
 After broadcasting *Pow* does the following with the input tensors *a* and *b*:
 
-.. math::
-   o_{i} = {a_{i} ^ b}_{i}

@@ -1,6 +1,6 @@
---------------------------------
-GELU- Gaussian Error Linear Unit
---------------------------------
+----
+GELU
+----
 
 **Versioned name**: *GELU-2*
 

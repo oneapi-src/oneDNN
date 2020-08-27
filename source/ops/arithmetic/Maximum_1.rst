@@ -39,7 +39,3 @@ Maximum
 
 Before performing arithmetic operation, input tensors *a* and *b* are broadcasted if their shapes are different and ``auto_broadcast`` attributes is not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
 
-After broadcasting *Add* does the following with the input tensors *a* and *b*:
-
-.. math::
-   o_{i} = max(a_{i}, b_{i})

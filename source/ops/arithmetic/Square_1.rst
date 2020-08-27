@@ -19,8 +19,3 @@ Square
 **Types**
 
 * **T**: any numeric type. **Required.**
-
-Square does the following with the input tensor a:
-
-.. math::
-   a_{i} = sqrt(a_{i})

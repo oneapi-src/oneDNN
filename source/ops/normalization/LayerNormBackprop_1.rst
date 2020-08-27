@@ -34,12 +34,21 @@ LayerNormBackprop
   * **Default value**: 1e-5
   * **Required**: *no*
 
+* *use_stats *
+
+  * **Description**: *use_stats * is used to indicate whether to use input mean and variance.
+  * **Range of values**: False or True
+  * **Type**: ``bool``
+  * **Default value**: true
+  * **Required**: *no*
+
 **Inputs**
 
 * **1**: ``input`` - input tensor . **Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T with the same span as input's channel axis. Required by attributs ``use_affine``. **Optional.**
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor of type T with the same span as input's channel axis.Required by attributs ``use_affine``. **Optional.**
-
+* **4**: ``mean`` - mean of input. Required by attributs ``use_stats``. **Optional.**
+* **5**: ``variance`` - variance of input. Required by attributs ``use_stats``. **Optional.**
 
 **Outputs**
 
