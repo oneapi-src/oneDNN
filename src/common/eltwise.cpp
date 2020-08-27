@@ -57,7 +57,8 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
     VCHECK_ELTWISE(
             IMPLICATION(!is_fwd, !any_null(diff_src_desc, diff_dst_desc)),
             VERBOSE_NULL_ARG);
-    VCHECK_ELTWISE(IMPLICATION(alg_kind == eltwise_round, is_fwd),
+    VCHECK_ELTWISE(IMPLICATION(one_of(alg_kind, eltwise_round, eltwise_hsigmoid,
+                        eltwise_round_half_away_from_zero, eltwise_round_half_to_even), is_fwd),
             VERBOSE_BAD_PROPKIND);
     VCHECK_ELTWISE(
             IMPLICATION(is_fwd, !memory_desc_wrapper(src_desc).format_any()),
