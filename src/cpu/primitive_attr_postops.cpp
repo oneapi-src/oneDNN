@@ -57,6 +57,9 @@ float compute_eltwise_scalar_fwd(
         case eltwise_round: d = round_fwd(s); break;
         case eltwise_mish: d = mish_fwd(s); break;
         case eltwise_hswish: d = hswish_fwd(s); break;
+        case eltwise_hsigmoid: d = hsigmoid_fwd(s); break;
+        case eltwise_round_half_away_from_zero: d = round_half_away_from_zero_fwd(s); break;
+        case eltwise_round_half_to_even: d = round_half_to_even_fwd(s); break;
 
         case eltwise_relu_use_dst_for_bwd: d = relu_fwd(s, alpha); break;
         case eltwise_tanh_use_dst_for_bwd: d = tanh_fwd(s); break;
@@ -131,7 +134,8 @@ ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
             eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
             eltwise_exp, eltwise_gelu_tanh, eltwise_swish, eltwise_log,
             eltwise_clip, eltwise_pow, eltwise_gelu_erf, eltwise_round,
-            eltwise_mish, eltwise_hswish,
+            eltwise_mish, eltwise_hswish, eltwise_hsigmoid,
+            eltwise_round_half_away_from_zero, eltwise_round_half_to_even,
             eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
             eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
             eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd));

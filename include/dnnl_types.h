@@ -905,6 +905,12 @@ typedef enum {
     dnnl_eltwise_mish = 0x50,
     /// Eltwise: hswish
     dnnl_eltwise_hswish = 0x60,
+    /// Eltwise: hsigmoid
+    dnnl_eltwise_hsigmoid = 0x61,
+    /// Eltwise: round_half_to_even
+    dnnl_eltwise_round_half_to_even = 0x70,
+    /// Eltwise: round_half_away_from_zero
+    dnnl_eltwise_round_half_away_from_zero = 0x71,
     /// Eltwise: ReLU (dst for backward)
     dnnl_eltwise_relu_use_dst_for_bwd = 0x100,
     /// Eltwise: hyperbolic tangent non-linearity (tanh) (dst for backward)

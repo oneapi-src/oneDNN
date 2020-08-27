@@ -1335,6 +1335,17 @@ void jit_uni_eltwise_injector_f32<isa>::hswish_compute_vector_fwd(
     // Save src data on stack for later usage
     h->sub(h->rsp, vlen);
     h->uni_vmovups(h->ptr[h->rsp], vmm_src);
+    // relu6(x + 3) / 6
+    hsigmoid_compute_vector_fwd(vmm_src);
+    // x * relu6(x + 3) / 6
+    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
+    h->add(h->rsp, vlen);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::hsigmoid_compute_vector_fwd(
+        const Vmm &vmm_src) {
     // x + 3
     h->uni_vaddps(vmm_src, vmm_src, table_val(hswish, 0));
     // relu6(x + 3)
@@ -1342,10 +1353,37 @@ void jit_uni_eltwise_injector_f32<isa>::hswish_compute_vector_fwd(
     h->uni_vminps(vmm_src, vmm_src, table_val(hswish, 1));
     // relu6(x + 3) / 6
     h->uni_vmulps(vmm_src, vmm_src, table_val(hswish, 2));
-    // x * relu6(x + 3) / 6
-    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
-    h->add(h->rsp, vlen);
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::round_half_to_even_compute_vector_fwd(
+        const Vmm &vmm_src) {
+    h->uni_vroundps(vmm_src, vmm_src, _op_near);
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::round_half_away_from_zero_compute_vector_fwd(
+        const Vmm &vmm_src) {
+    // create a mask of negative numbers for later returning sign
+    compute_cmp_mask(vmm_src, table_val(zero), _cmp_lt_os);
+
+    // round half away from zero for positive numbers
+    h->uni_vandps(vmm_src, vmm_src, table_val(positive_mask));
+    h->uni_vaddps(vmm_src, vmm_src, table_val(half));
+    h->uni_vroundps(vmm_src, vmm_src, _op_floor);
+
+    // return a sign for negative numbers using the mask
+    if (isa == sse41) {
+        h->movups(vmm_aux1, vmm_src);
+        h->mulps(vmm_aux1, table_val(minus_one));
+        h->blendvps(vmm_src, vmm_aux1);
+    } else if (isa == avx2) {
+        h->vmulps(vmm_aux1, vmm_src, table_val(minus_one));
+        h->vblendvps(vmm_src, vmm_src, vmm_aux1, vmm_mask);
+    } else if (isa == avx512_common) {
+        h->vmulps(vmm_aux1, vmm_src, table_val(minus_one));
+        h->vblendmps(vmm_src | k_mask, vmm_src, vmm_aux1);
+    }
 }
 
 template <cpu_isa_t isa>
@@ -1379,6 +1417,9 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_round: return 0;
             case eltwise_hswish: return 1;
             case eltwise_mish: return 5;
+            case eltwise_hsigmoid: return 0;
+            case eltwise_round_half_to_even: return 0;
+            case eltwise_round_half_away_from_zero: return 2;
             default: assert(!"unsupported eltwise algorithm");
         }
     } else {
@@ -1461,6 +1502,9 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 case eltwise_round: round_compute_vector_fwd(Vmm(idx)); break;
                 case eltwise_mish: mish_compute_vector_fwd(Vmm(idx)); break;
                 case eltwise_hswish: hswish_compute_vector_fwd(Vmm(idx)); break;
+                case eltwise_hsigmoid: hsigmoid_compute_vector_fwd(Vmm(idx)); break;
+                case eltwise_round_half_to_even: round_half_to_even_compute_vector_fwd(Vmm(idx)); break;
+                case eltwise_round_half_away_from_zero: round_half_away_from_zero_compute_vector_fwd(Vmm(idx)); break;
                 default: assert(!"unsupported eltwise algorithm");
             }
         } else {
@@ -2075,6 +2119,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
                 case eltwise_tanh: tanh_ = true; break;
                 case eltwise_mish: mish_ = true; break;
                 case eltwise_hswish: hswish_ = true; break;
+                case eltwise_hsigmoid: hsigmoid_ = true; break;
                 default: break;
             }
         }
@@ -2087,6 +2132,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
         bool log_ = false;
         bool mish_ = false;
         bool hswish_ = false;
+        bool hsigmoid_ = false;
 
         bool exp() const { return exp_ || soft_relu_ || gelu_erf_; }
         bool tanh() const { return tanh_ || gelu_tanh_ || mish_; }
@@ -2096,6 +2142,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
         bool log() const { return log_; }
         bool mish() const { return mish_; }
         bool hswish() const { return hswish_; }
+        bool hsigmoid() const { return hsigmoid_; }
     };
 
     need_t need(alg_);
@@ -2131,7 +2178,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     if (need.log()) push_entries_of(log_polynomial);
     if (need.log()) push_entries_of(log_predefined_values);
     if (need.mish()) push_entries_of(mish_values);
-    if (need.hswish()) push_entries_of(hswish_values);
+    if (need.hswish() || need.hsigmoid()) push_entries_of(hswish_values);
 
     // Now that we registered the entries, we set the offsets.  No
     // entries should be registered after this point.  This allows to

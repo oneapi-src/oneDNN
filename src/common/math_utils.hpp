@@ -358,6 +358,31 @@ inline U mish_fwd(T s) {
     return (U)(s * ::tanhf(v));
 }
 
+template <typename T,
+        typename U = typename utils::remove_reference<T>::type>
+inline U hsigmoid_fwd(T s) {
+    float v = s + 3.0f;
+    v = v > 0.0f ? v : 0.0f;
+    v = v < 6.0f ? v : 6.0f;
+    return (U)(v / 6.0f);
+}
+
+template <typename T,
+        typename U = typename utils::remove_reference<T>::type>
+inline U round_half_to_even_fwd(T s) {
+    float r = ::roundf((float)s);
+    float d = (float)s - r;
+    float remainder = ::fmodf(r, 2.0f);
+    return ((d != 0.5f) && (d != -0.5f)) || (remainder == 0.0f) ? (U)r :
+           (U)((float)s + d);
+}
+
+template <typename T,
+        typename U = typename utils::remove_reference<T>::type>
+inline U round_half_away_from_zero_fwd(T s) {
+    return (U)(::roundf((float)s));
+}
+
 inline bool is_eltwise_ok(
         data_type_t dt, alg_kind_t alg, float alpha, float beta) {
     using namespace alg_kind;
@@ -369,7 +394,8 @@ inline bool is_eltwise_ok(
                       eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
                       eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
                       eltwise_log, eltwise_clip, eltwise_pow, eltwise_gelu_erf,
-                      eltwise_round, eltwise_mish, eltwise_hswish)
+                      eltwise_round, eltwise_mish, eltwise_hswish, eltwise_hsigmoid,
+                      eltwise_round_half_away_from_zero, eltwise_round_half_to_even)
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(alg == eltwise_clip, beta >= alpha)
             && IMPLICATION(alg == eltwise_round, dt == dnnl_f32)
