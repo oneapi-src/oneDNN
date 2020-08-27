@@ -11,7 +11,17 @@ SoftPlus
 **Detailed description**: For each element from the input tensor calculates corresponding element in the output tensor with the following formula:
 
 .. math::
-  SoftPlus(x) = ln(e^{x} + 1.0)
+  SoftPlus(x) = 1/beta*ln(e^{beta*x} + 1.0)
+
+**Attributes**:
+
+* *beta*
+
+  * **Description**: *beta* is value for the Softplus formulation. 
+  * **Range of values**: positive integers
+  * **Type**: int
+  * **Default value**: 1
+  * **Required**: *no*
 
 **Inputs**:
 

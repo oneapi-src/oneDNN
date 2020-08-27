@@ -8,6 +8,16 @@ SoftPlusBackprop
 
 **Short description**: *SoftPlusBackprop* computes gradient for SoftPlus
 
+**Attributes**:
+
+* *beta*
+
+  * **Description**: *beta* is value for the Softplus formulation. 
+  * **Range of values**: positive integers
+  * **Type**: int
+  * **Default value**: 1
+  * **Required**: *no*
+
 **Inputs**:
 
 * **1**: ``input_forward`` - input of forward. **Required.**
