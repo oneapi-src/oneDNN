@@ -30,6 +30,10 @@
 #include "dnnl.hpp"
 #include "dnnl_debug.h"
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "dnnl_ocl.hpp"
+#endif
+
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
 
 #ifdef _MSC_VER
@@ -193,8 +197,8 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (eng.get_kind() == dnnl::engine::kind::gpu) {
         dnnl::stream s(eng);
-        cl_command_queue q = s.get_ocl_command_queue();
-        cl_mem m = mem.get_ocl_mem_object();
+        cl_command_queue q = dnnl::ocl_interop::get_command_queue(s);
+        cl_mem m = dnnl::ocl_interop::get_mem_object(mem);
 
         cl_int ret = clEnqueueReadBuffer(
                 q, m, CL_TRUE, 0, size, handle, 0, NULL, NULL);
@@ -249,8 +253,8 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (eng.get_kind() == dnnl::engine::kind::gpu) {
         dnnl::stream s(eng);
-        cl_command_queue q = s.get_ocl_command_queue();
-        cl_mem m = mem.get_ocl_mem_object();
+        cl_command_queue q = dnnl::ocl_interop::get_command_queue(s);
+        cl_mem m = dnnl::ocl_interop::get_mem_object(mem);
 
         cl_int ret = clEnqueueWriteBuffer(
                 q, m, CL_TRUE, 0, size, handle, 0, NULL, NULL);

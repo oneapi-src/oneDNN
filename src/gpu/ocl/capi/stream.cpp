@@ -16,7 +16,7 @@
 
 #include <CL/cl.h>
 
-#include "dnnl.h"
+#include "dnnl_ocl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
@@ -28,7 +28,7 @@
 using namespace dnnl::impl;
 using namespace dnnl::impl::gpu::ocl;
 
-status_t dnnl_stream_create_ocl(
+status_t dnnl_ocl_interop_stream_create(
         stream_t **stream, engine_t *engine, cl_command_queue queue) {
     bool args_ok = !utils::any_null(stream, engine, queue)
             && engine->runtime_kind() == runtime_kind::ocl;
@@ -39,7 +39,7 @@ status_t dnnl_stream_create_ocl(
     return ocl_engine->create_stream(stream, queue);
 }
 
-status_t dnnl_stream_get_ocl_command_queue(
+status_t dnnl_ocl_interop_stream_get_command_queue(
         stream_t *stream, cl_command_queue *queue) {
     bool args_ok = !utils::any_null(queue, stream)
             && stream->engine()->runtime_kind() == runtime_kind::ocl;

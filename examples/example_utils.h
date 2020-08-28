@@ -26,6 +26,10 @@
 #include "dnnl.h"
 #include "dnnl_debug.h"
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "dnnl_ocl.h"
+#endif
+
 #define COMPLAIN_DNNL_ERROR_AND_EXIT(what, status) \
     do { \
         printf("[%s:%d] `%s` returns oneDNN error: %s.\n", __FILE__, __LINE__, \
@@ -122,9 +126,9 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
         cl_command_queue q;
         cl_mem m;
 
-        CHECK(dnnl_memory_get_ocl_mem_object(mem, &m));
+        CHECK(dnnl_ocl_interop_memory_get_mem_object(mem, &m));
         CHECK(dnnl_stream_create(&s, eng, dnnl_stream_default_flags));
-        CHECK(dnnl_stream_get_ocl_command_queue(s, &q));
+        CHECK(dnnl_ocl_interop_stream_get_command_queue(s, &q));
 
         cl_int ret = clEnqueueReadBuffer(
                 q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
@@ -185,9 +189,9 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
         cl_command_queue q;
         cl_mem m;
 
-        CHECK(dnnl_memory_get_ocl_mem_object(mem, &m));
+        CHECK(dnnl_ocl_interop_memory_get_mem_object(mem, &m));
         CHECK(dnnl_stream_create(&s, eng, dnnl_stream_default_flags));
-        CHECK(dnnl_stream_get_ocl_command_queue(s, &q));
+        CHECK(dnnl_ocl_interop_stream_get_command_queue(s, &q));
 
         cl_int ret = clEnqueueWriteBuffer(
                 q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);

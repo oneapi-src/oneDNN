@@ -24,6 +24,9 @@
 #endif
 
 #include "dnnl.hpp"
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "dnnl_ocl.hpp"
+#endif
 
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
@@ -183,7 +186,7 @@ static size_t get_gpu_ram_size() {
     cl_int status = CL_SUCCESS;
     // Get single device attached to the engine.
     engine_t engine_tgt(engine_tgt_kind);
-    cl_device_id ocl_device = eng.get_ocl_device();
+    cl_device_id ocl_device = dnnl::ocl_interop::get_device(eng);
 
     cl_ulong ram_size = 0;
     status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_SIZE,

@@ -33,10 +33,6 @@
 
 #include "dnnl.h"
 
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include <CL/cl.h>
-#endif
-
 #if DNNL_WITH_SYCL
 #include <CL/sycl.hpp>
 #endif
@@ -923,22 +919,6 @@ struct engine : public handle<dnnl_engine_t> {
         reset(engine);
     }
 
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    /// Constructs an engine from OpenCL device and context objects.
-    ///
-    /// @param akind The kind of engine to construct.
-    /// @param device The OpenCL device that this engine will encapsulate.
-    /// @param context The OpenCL context (containing the device) that this
-    ///     engine will use for all operations.
-    engine(kind akind, cl_device_id device, cl_context context) {
-        dnnl_engine_t c_engine;
-        error::wrap_c_api(dnnl_engine_create_ocl(&c_engine, convert_to_c(akind),
-                                  device, context),
-                "could not create an engine");
-        reset(c_engine);
-    }
-#endif
-
 #if DNNL_WITH_SYCL
     /// Constructs an engine from SYCL device and context objects.
     ///
@@ -970,26 +950,6 @@ struct engine : public handle<dnnl_engine_t> {
                 "could not get kind of an engine");
         return static_cast<engine::kind>(kind);
     }
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    /// Returns the OpenCL context associated with the engine.
-    /// @returns OpenCL context.
-    cl_context get_ocl_context() const {
-        cl_context context = nullptr;
-        error::wrap_c_api(dnnl_engine_get_ocl_context(get(), &context),
-                "could not get an OpenCL context from an engine");
-        return context;
-    }
-
-    /// Returns the OpenCL device associated with the engine.
-    /// @returns OpenCL device.
-    cl_device_id get_ocl_device() const {
-        cl_device_id device = nullptr;
-        error::wrap_c_api(dnnl_engine_get_ocl_device(get(), &device),
-                "could not get an OpenCL device from an engine");
-        return device;
-    }
-#endif
 
 #if DNNL_WITH_SYCL
     /// Returns the underlying SYCL context object.
@@ -1085,19 +1045,6 @@ struct stream : public handle<dnnl_stream_t> {
         reset(stream);
     }
 
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    /// Constructs a stream for the specified engine and the OpenCL queue.
-    ///
-    /// @param aengine Engine to create the stream on.
-    /// @param queue OpenCL queue to use for the stream.
-    stream(const engine &aengine, cl_command_queue queue) {
-        dnnl_stream_t stream;
-        error::wrap_c_api(dnnl_stream_create_ocl(&stream, aengine.get(), queue),
-                "could not create a stream");
-        reset(stream);
-    }
-#endif
-
     /// Returns the associated engine.
     engine get_engine() const {
         dnnl_engine_t c_engine;
@@ -1105,17 +1052,6 @@ struct stream : public handle<dnnl_stream_t> {
                 "could not get an engine from a stream object");
         return engine(c_engine, true);
     }
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    /// Returns the underlying OpenCL queue object.
-    /// @returns OpenCL queue.
-    cl_command_queue get_ocl_command_queue() const {
-        cl_command_queue queue = nullptr;
-        error::wrap_c_api(dnnl_stream_get_ocl_command_queue(get(), &queue),
-                "could not get an OpenCL command queue from a stream");
-        return queue;
-    }
-#endif
 
 #if DNNL_WITH_SYCL
     /// Constructs a stream for the specified engine and the SYCL queue.
@@ -2232,28 +2168,6 @@ struct memory : public handle<dnnl_memory_t> {
         error::wrap_c_api(dnnl_memory_unmap_data(get(), mapped_ptr),
                 "could not unmap memory object data");
     }
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    /// Returns the OpenCL memory object associated with the memory.
-    cl_mem get_ocl_mem_object() const {
-        cl_mem mem_object;
-        error::wrap_c_api(dnnl_memory_get_ocl_mem_object(get(), &mem_object),
-                "could not get OpenCL buffer object from a memory object");
-        return mem_object;
-    }
-
-    /// Sets the OpenCL memory object @p mem_object associated with the memory.
-    ///
-    /// For behavioral details see memory::set_data_handle().
-    ///
-    /// @param mem_object OpenCL cl_mem object to use as the underlying
-    ///     storage. It must have at least get_desc().get_size() bytes
-    ///     allocated.
-    void set_ocl_mem_object(cl_mem mem_object) {
-        error::wrap_c_api(dnnl_memory_set_ocl_mem_object(get(), mem_object),
-                "could not set OpenCL buffer object from a memory object");
-    }
-#endif
 
 #if DNNL_WITH_SYCL && defined(DNNL_USE_SYCL_BUFFERS)
     /// Returns the underlying SYCL buffer object.

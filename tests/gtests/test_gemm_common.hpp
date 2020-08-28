@@ -24,6 +24,10 @@
 #include "dnnl.h"
 #include "dnnl_types.h"
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "dnnl_ocl.hpp"
+#endif
+
 #if DNNL_X64
 #include "src/cpu/x64/cpu_isa_traits.hpp"
 #endif
@@ -666,11 +670,12 @@ struct dnnl_gemm<float16_t, float16_t, float16_t> {
         stream s(eng);
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
-            cl_command_queue q = s.get_ocl_command_queue();
+            cl_command_queue q = ocl_interop::get_command_queue(s);
             auto status = dnnl_ocl_hgemm(q, p.transA, p.transB, p.M, p.N, p.K,
-                    p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
-                    b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb, p.beta,
-                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
+                    p.alpha, ocl_interop::get_mem_object(a_mem.get()), p.off.a,
+                    p.lda, ocl_interop::get_mem_object(b_mem.get()), p.off.b,
+                    p.ldb, p.beta, ocl_interop::get_mem_object(c_mem.get()),
+                    p.off.c, p.ldc);
             s.wait();
             return status;
         }
@@ -786,11 +791,12 @@ struct dnnl_gemm<float, float, float> {
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
-            cl_command_queue q = s.get_ocl_command_queue();
+            cl_command_queue q = ocl_interop::get_command_queue(s);
             auto status = dnnl_ocl_sgemm(q, p.transA, p.transB, p.M, p.N, p.K,
-                    p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
-                    b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb, p.beta,
-                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
+                    p.alpha, ocl_interop::get_mem_object(a_mem.get()), p.off.a,
+                    p.lda, ocl_interop::get_mem_object(b_mem.get()), p.off.b,
+                    p.ldb, p.beta, ocl_interop::get_mem_object(c_mem.get()),
+                    p.off.c, p.ldc);
             s.wait();
             return status;
         }
@@ -923,14 +929,15 @@ struct dnnl_gemm<int8_t, int8_t, int32_t> {
         if (get_test_engine_kind() == engine::kind::gpu) {
             engine eng = get_test_engine();
             stream s(eng);
-            cl_command_queue q = s.get_ocl_command_queue();
+            cl_command_queue q = ocl_interop::get_command_queue(s);
             auto status = dnnl_ocl_gemm_s8s8s32(q, p.transA, p.transB,
                     p.igemm_params.offsetc, p.M, p.N, p.K, p.alpha,
-                    a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
-                    p.igemm_params.oa(), b_mem.get().get_ocl_mem_object(),
-                    p.off.b, p.ldb, p.igemm_params.ob(), p.beta,
-                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc,
-                    oc_mem.get().get_ocl_mem_object(), p.off.co);
+                    ocl_interop::get_mem_object(a_mem.get()), p.off.a, p.lda,
+                    p.igemm_params.oa(),
+                    ocl_interop::get_mem_object(b_mem.get()), p.off.b, p.ldb,
+                    p.igemm_params.ob(), p.beta,
+                    ocl_interop::get_mem_object(c_mem.get()), p.off.c, p.ldc,
+                    ocl_interop::get_mem_object(oc_mem.get()), p.off.co);
             s.wait();
             return status;
         }
@@ -959,14 +966,15 @@ struct dnnl_gemm<int8_t, uint8_t, int32_t> {
         if (get_test_engine_kind() == engine::kind::gpu) {
             engine eng = get_test_engine();
             stream s(eng);
-            cl_command_queue q2 = s.get_ocl_command_queue();
+            cl_command_queue q2 = ocl_interop::get_command_queue(s);
             auto status = dnnl_ocl_gemm_s8u8s32(q2, p.transA, p.transB,
                     p.igemm_params.offsetc, p.M, p.N, p.K, p.alpha,
-                    a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
-                    p.igemm_params.oa(), b_mem.get().get_ocl_mem_object(),
-                    p.off.b, p.ldb, (uint8_t)p.igemm_params.ob(), p.beta,
-                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc,
-                    oc_mem.get().get_ocl_mem_object(), p.off.co);
+                    ocl_interop::get_mem_object(a_mem.get()), p.off.a, p.lda,
+                    p.igemm_params.oa(),
+                    ocl_interop::get_mem_object(b_mem.get()), p.off.b, p.ldb,
+                    (uint8_t)p.igemm_params.ob(), p.beta,
+                    ocl_interop::get_mem_object(c_mem.get()), p.off.c, p.ldc,
+                    ocl_interop::get_mem_object(oc_mem.get()), p.off.co);
             s.wait();
             return status;
         }
@@ -985,15 +993,15 @@ struct dnnl_gemm<uint8_t, uint8_t, int32_t> {
         if (get_test_engine_kind() == engine::kind::gpu) {
             engine eng = get_test_engine();
             stream s(eng);
-            cl_command_queue q = s.get_ocl_command_queue();
+            cl_command_queue q = ocl_interop::get_command_queue(s);
             auto status = dnnl_ocl_gemm_u8u8s32(q, p.transA, p.transB,
                     p.igemm_params.offsetc, p.M, p.N, p.K, p.alpha,
-                    a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
+                    ocl_interop::get_mem_object(a_mem.get()), p.off.a, p.lda,
                     (uint8_t)p.igemm_params.oa(),
-                    b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb,
+                    ocl_interop::get_mem_object(b_mem.get()), p.off.b, p.ldb,
                     (uint8_t)p.igemm_params.ob(), p.beta,
-                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc,
-                    oc_mem.get().get_ocl_mem_object(), p.off.co);
+                    ocl_interop::get_mem_object(c_mem.get()), p.off.c, p.ldc,
+                    ocl_interop::get_mem_object(oc_mem.get()), p.off.co);
             s.wait();
             return status;
         }
@@ -1096,14 +1104,15 @@ struct dnnl_gemm<uint8_t, int8_t, int32_t> {
         if (get_test_engine_kind() == engine::kind::gpu) {
             engine eng = get_test_engine();
             stream s(eng);
-            cl_command_queue q = s.get_ocl_command_queue();
+            cl_command_queue q = ocl_interop::get_command_queue(s);
             auto status = dnnl_ocl_gemm_u8s8s32(q, p.transA, p.transB,
                     p.igemm_params.offsetc, p.M, p.N, p.K, p.alpha,
-                    a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
-                    p.igemm_params.oa(), b_mem.get().get_ocl_mem_object(),
-                    p.off.b, p.ldb, p.igemm_params.ob(), p.beta,
-                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc,
-                    oc_mem.get().get_ocl_mem_object(), p.off.co);
+                    ocl_interop::get_mem_object(a_mem.get()), p.off.a, p.lda,
+                    p.igemm_params.oa(),
+                    ocl_interop::get_mem_object(b_mem.get()), p.off.b, p.ldb,
+                    p.igemm_params.ob(), p.beta,
+                    ocl_interop::get_mem_object(c_mem.get()), p.off.c, p.ldc,
+                    ocl_interop::get_mem_object(oc_mem.get()), p.off.co);
             s.wait();
             return status;
         }
@@ -1134,12 +1143,12 @@ struct dnnl_gemm<float16_t, float16_t, float> {
         stream s(eng);
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
-            cl_command_queue q = s.get_ocl_command_queue();
+            cl_command_queue q = ocl_interop::get_command_queue(s);
             auto status = dnnl_ocl_gemm_f16f16f32(q, p.transA, p.transB, p.M,
-                    p.N, p.K, p.alpha, a_mem.get().get_ocl_mem_object(),
-                    p.off.a, p.lda, b_mem.get().get_ocl_mem_object(), p.off.b,
-                    p.ldb, p.beta, c_mem.get().get_ocl_mem_object(), p.off.c,
-                    p.ldc);
+                    p.N, p.K, p.alpha, ocl_interop::get_mem_object(a_mem.get()),
+                    p.off.a, p.lda, ocl_interop::get_mem_object(b_mem.get()),
+                    p.off.b, p.ldb, p.beta,
+                    ocl_interop::get_mem_object(c_mem.get()), p.off.c, p.ldc);
             s.wait();
             return status;
         }
@@ -1249,12 +1258,12 @@ struct dnnl_gemm<bfloat16_t, bfloat16_t, float> {
         stream s(eng);
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
-            cl_command_queue q = s.get_ocl_command_queue();
+            cl_command_queue q = ocl_interop::get_command_queue(s);
             auto status = dnnl_ocl_gemm_bf16bf16f32(q, p.transA, p.transB, p.M,
-                    p.N, p.K, p.alpha, a_mem.get().get_ocl_mem_object(),
-                    p.off.a, p.lda, b_mem.get().get_ocl_mem_object(), p.off.b,
-                    p.ldb, p.beta, c_mem.get().get_ocl_mem_object(), p.off.c,
-                    p.ldc);
+                    p.N, p.K, p.alpha, ocl_interop::get_mem_object(a_mem.get()),
+                    p.off.a, p.lda, ocl_interop::get_mem_object(b_mem.get()),
+                    p.off.b, p.ldb, p.beta,
+                    ocl_interop::get_mem_object(c_mem.get()), p.off.c, p.ldc);
             s.wait();
             return status;
         }
@@ -1301,12 +1310,12 @@ struct dnnl_gemm<bfloat16_t, bfloat16_t, bfloat16_t> {
         stream s(eng);
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
-            cl_command_queue q = s.get_ocl_command_queue();
+            cl_command_queue q = ocl_interop::get_command_queue(s);
             auto status = dnnl_ocl_gemm_bf16bf16bf16(q, p.transA, p.transB, p.M,
-                    p.N, p.K, p.alpha, a_mem.get().get_ocl_mem_object(),
-                    p.off.a, p.lda, b_mem.get().get_ocl_mem_object(), p.off.b,
-                    p.ldb, p.beta, c_mem.get().get_ocl_mem_object(), p.off.c,
-                    p.ldc);
+                    p.N, p.K, p.alpha, ocl_interop::get_mem_object(a_mem.get()),
+                    p.off.a, p.lda, ocl_interop::get_mem_object(b_mem.get()),
+                    p.off.b, p.ldb, p.beta,
+                    ocl_interop::get_mem_object(c_mem.get()), p.off.c, p.ldc);
             s.wait();
             return status;
         }

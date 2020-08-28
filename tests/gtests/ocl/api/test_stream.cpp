@@ -18,7 +18,8 @@
 #include "gtest/gtest.h"
 
 #include <memory>
-#include "dnnl.h"
+#include "dnnl_ocl.h"
+#include "dnnl_ocl.hpp"
 #include <CL/cl.h>
 
 namespace dnnl {
@@ -29,8 +30,8 @@ protected:
 
         DNNL_CHECK(dnnl_engine_create(&eng, dnnl_gpu, 0));
 
-        DNNL_CHECK(dnnl_engine_get_ocl_context(eng, &ocl_ctx));
-        DNNL_CHECK(dnnl_engine_get_ocl_device(eng, &ocl_dev));
+        DNNL_CHECK(dnnl_ocl_interop_engine_get_context(eng, &ocl_ctx));
+        DNNL_CHECK(dnnl_ocl_interop_get_device(eng, &ocl_dev));
     }
 
     void TearDown() override {
@@ -49,8 +50,8 @@ protected:
 
         eng = engine(engine::kind::gpu, 0);
 
-        ocl_ctx = eng.get_ocl_context();
-        ocl_dev = eng.get_ocl_device();
+        ocl_ctx = ocl_interop::get_context(eng);
+        ocl_dev = ocl_interop::get_device(eng);
     }
 
     engine eng;
@@ -66,7 +67,7 @@ TEST_F(ocl_stream_test_c, CreateC) {
     DNNL_CHECK(dnnl_stream_create(&stream, eng, dnnl_stream_default_flags));
 
     cl_command_queue ocl_queue;
-    DNNL_CHECK(dnnl_stream_get_ocl_command_queue(stream, &ocl_queue));
+    DNNL_CHECK(dnnl_ocl_interop_stream_get_command_queue(stream, &ocl_queue));
 
     cl_device_id ocl_queue_dev;
     cl_context ocl_queue_ctx;
@@ -86,7 +87,7 @@ TEST_F(ocl_stream_test_cpp, CreateCpp) {
             "OpenCL GPU devices not found.");
 
     stream s(eng);
-    cl_command_queue ocl_queue = s.get_ocl_command_queue();
+    cl_command_queue ocl_queue = ocl_interop::get_command_queue(s);
 
     cl_device_id ocl_queue_dev;
     cl_context ocl_queue_ctx;
@@ -114,10 +115,10 @@ TEST_F(ocl_stream_test_c, BasicInteropC) {
     TEST_OCL_CHECK(err);
 
     dnnl_stream_t stream;
-    DNNL_CHECK(dnnl_stream_create_ocl(&stream, eng, interop_ocl_queue));
+    DNNL_CHECK(dnnl_ocl_interop_stream_create(&stream, eng, interop_ocl_queue));
 
     cl_command_queue ocl_queue;
-    DNNL_CHECK(dnnl_stream_get_ocl_command_queue(stream, &ocl_queue));
+    DNNL_CHECK(dnnl_ocl_interop_stream_get_command_queue(stream, &ocl_queue));
     ASSERT_EQ(ocl_queue, interop_ocl_queue);
 
     cl_uint ref_count;
@@ -151,7 +152,7 @@ TEST_F(ocl_stream_test_cpp, BasicInteropC) {
     TEST_OCL_CHECK(err);
 
     {
-        stream s(eng, interop_ocl_queue);
+        auto s = ocl_interop::make_stream(eng, interop_ocl_queue);
 
         cl_uint ref_count;
         TEST_OCL_CHECK(clGetCommandQueueInfo(interop_ocl_queue,
@@ -160,7 +161,7 @@ TEST_F(ocl_stream_test_cpp, BasicInteropC) {
         int i_ref_count = int(ref_count);
         ASSERT_EQ(i_ref_count, 2);
 
-        cl_command_queue ocl_queue = s.get_ocl_command_queue();
+        cl_command_queue ocl_queue = ocl_interop::get_command_queue(s);
         ASSERT_EQ(ocl_queue, interop_ocl_queue);
     }
 
@@ -195,7 +196,8 @@ TEST_F(ocl_stream_test_c, InteropIncompatibleQueueC) {
     TEST_OCL_CHECK(err);
 
     dnnl_stream_t stream;
-    dnnl_status_t status = dnnl_stream_create_ocl(&stream, eng, cpu_ocl_queue);
+    dnnl_status_t status
+            = dnnl_ocl_interop_stream_create(&stream, eng, cpu_ocl_queue);
     ASSERT_EQ(status, dnnl_invalid_arguments);
 
     TEST_OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));
@@ -222,7 +224,8 @@ TEST_F(ocl_stream_test_cpp, InteropIncompatibleQueueCpp) {
 #endif
     TEST_OCL_CHECK(err);
 
-    catch_expected_failures([&] { stream s(eng, cpu_ocl_queue); }, true,
+    catch_expected_failures(
+            [&] { ocl_interop::make_stream(eng, cpu_ocl_queue); }, true,
             dnnl_invalid_arguments);
 
     TEST_OCL_CHECK(clReleaseCommandQueue(cpu_ocl_queue));

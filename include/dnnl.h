@@ -24,18 +24,6 @@
 #include "dnnl_types.h"
 #include "dnnl_version.h"
 
-/// @cond DO_NOT_DOCUMENT_THIS
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-
-// Set target version for OpenCL explicitly to suppress a compiler warning.
-#ifndef CL_TARGET_OPENCL_VERSION
-#define CL_TARGET_OPENCL_VERSION 120
-#endif
-
-#include <CL/cl.h>
-#endif
-/// @endcond
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -1164,28 +1152,6 @@ dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_set_data_handle_v2(
         dnnl_memory_t memory, void *handle, dnnl_stream_t stream);
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-/// Returns an OpenCL memory object associated with a memory object.
-///
-/// @param memory Memory object.
-/// @param mem_object Output OpenCL memory object.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_memory_get_ocl_mem_object(
-        const_dnnl_memory_t memory, cl_mem *mem_object);
-
-/// Sets OpenCL memory object associated with a memory object.
-///
-/// For behavioral details, see dnnl_memory_set_data_handle().
-///
-/// @param memory Memory object.
-/// @param mem_object OpenCL memory object.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_memory_set_ocl_mem_object(
-        dnnl_memory_t memory, cl_mem mem_object);
-#endif
 
 /// Destroys a memory object.
 ///
@@ -3217,19 +3183,6 @@ size_t DNNL_API dnnl_engine_get_count(dnnl_engine_kind_t kind);
 dnnl_status_t DNNL_API dnnl_engine_create(
         dnnl_engine_t *engine, dnnl_engine_kind_t kind, size_t index);
 
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-/// Creates an engine associated with an OpenCL device and an OpenCL context.
-///
-/// @param engine Output engine.
-/// @param kind Engine kind.
-/// @param device Underlying OpenCL device to use for the engine.
-/// @param context Underlying OpenCL context to use for the engine.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_engine_create_ocl(dnnl_engine_t *engine,
-        dnnl_engine_kind_t kind, cl_device_id device, cl_context context);
-#endif
-
 /// Returns the kind of an engine.
 ///
 /// @param engine Engine to query.
@@ -3238,26 +3191,6 @@ dnnl_status_t DNNL_API dnnl_engine_create_ocl(dnnl_engine_t *engine,
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_engine_get_kind(
         dnnl_engine_t engine, dnnl_engine_kind_t *kind);
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-/// Returns the OpenCL context associated with an engine.
-///
-/// @param engine Engine to query.
-/// @param context Output underlying OpenCL context of the engine.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_engine_get_ocl_context(
-        dnnl_engine_t engine, cl_context *context);
-
-/// Returns the OpenCL device associated with an engine.
-///
-/// @param engine Engine to query.
-/// @param device Output underlying OpenCL device of the engine.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_engine_get_ocl_device(
-        dnnl_engine_t engine, cl_device_id *device);
-#endif
 
 /// Destroys an engine.
 ///
@@ -3281,19 +3214,6 @@ dnnl_status_t DNNL_API dnnl_engine_destroy(dnnl_engine_t engine);
 dnnl_status_t DNNL_API dnnl_stream_create(
         dnnl_stream_t *stream, dnnl_engine_t engine, unsigned flags);
 
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-/// Creates an execution stream for a given engine associated with
-/// an OpenCL command queue.
-///
-/// @param stream Output execution stream.
-/// @param engine Engine to create the execution stream on.
-/// @param queue OpenCL command queue to use.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_stream_create_ocl(
-        dnnl_stream_t *stream, dnnl_engine_t engine, cl_command_queue queue);
-#endif
-
 /// Returns the engine of a stream object.
 ///
 /// @param stream Stream object.
@@ -3302,17 +3222,6 @@ dnnl_status_t DNNL_API dnnl_stream_create_ocl(
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_stream_get_engine(
         const_dnnl_stream_t stream, dnnl_engine_t *engine);
-
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-/// Returns the OpenCL command queue associated with an execution stream.
-///
-/// @param stream Execution stream to query.
-/// @param queue Output OpenCL command queue.
-/// @returns #dnnl_success on success and a status describing the error
-///     otherwise.
-dnnl_status_t DNNL_API dnnl_stream_get_ocl_command_queue(
-        dnnl_stream_t stream, cl_command_queue *queue);
-#endif
 
 /// Waits for all primitives in the execution stream to finish computations.
 ///

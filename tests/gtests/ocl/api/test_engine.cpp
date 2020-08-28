@@ -17,7 +17,8 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "dnnl.h"
+#include "dnnl_ocl.h"
+#include "dnnl_ocl.hpp"
 
 #include <string>
 #include <CL/cl.h>
@@ -89,7 +90,7 @@ TEST_P(ocl_engine_test, BasicInteropC) {
             "OpenCL CPU-only device not found.");
 
     dnnl_engine_t eng = nullptr;
-    dnnl_status_t s = dnnl_engine_create_ocl(&eng, dnnl_gpu, ocl_dev, ocl_ctx);
+    dnnl_status_t s = dnnl_ocl_interop_engine_create(&eng, ocl_dev, ocl_ctx);
 
     ASSERT_EQ(s, p.expected_status);
 
@@ -97,8 +98,8 @@ TEST_P(ocl_engine_test, BasicInteropC) {
         cl_device_id dev = nullptr;
         cl_context ctx = nullptr;
 
-        DNNL_CHECK(dnnl_engine_get_ocl_device(eng, &dev));
-        DNNL_CHECK(dnnl_engine_get_ocl_context(eng, &ctx));
+        DNNL_CHECK(dnnl_ocl_interop_get_device(eng, &dev));
+        DNNL_CHECK(dnnl_ocl_interop_engine_get_context(eng, &ctx));
 
         ASSERT_EQ(dev, ocl_dev);
         ASSERT_EQ(ctx, ocl_ctx);
@@ -140,13 +141,13 @@ TEST_P(ocl_engine_test, BasicInteropCpp) {
     catch_expected_failures(
             [&]() {
                 {
-                    engine eng(engine::kind::gpu, ocl_dev, ocl_ctx);
+                    auto eng = ocl_interop::make_engine(ocl_dev, ocl_ctx);
                     if (p.expected_status != dnnl_success) {
                         FAIL() << "Success not expected";
                     }
 
-                    cl_device_id dev = eng.get_ocl_device();
-                    cl_context ctx = eng.get_ocl_context();
+                    cl_device_id dev = ocl_interop::get_device(eng);
+                    cl_context ctx = ocl_interop::get_context(eng);
                     ASSERT_EQ(dev, ocl_dev);
                     ASSERT_EQ(ctx, ocl_ctx);
 

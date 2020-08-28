@@ -17,7 +17,8 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "dnnl.h"
+#include "dnnl_ocl.h"
+#include "dnnl_ocl.hpp"
 
 #include <algorithm>
 #include <memory>
@@ -32,7 +33,7 @@ protected:
         if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
 
         DNNL_CHECK(dnnl_engine_create(&engine, dnnl_gpu, 0));
-        DNNL_CHECK(dnnl_engine_get_ocl_context(engine, &ocl_ctx));
+        DNNL_CHECK(dnnl_ocl_interop_engine_get_context(engine, &ocl_ctx));
 
         DNNL_CHECK(dnnl_memory_desc_init_by_tag(
                 &memory_d, dim, dims, dnnl_f32, dnnl_nchw));
@@ -66,7 +67,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(ocl_memory_test_c, BasicInteropC) {
             "OpenCL GPU devices not found.");
 
     cl_mem ocl_mem;
-    DNNL_CHECK(dnnl_memory_get_ocl_mem_object(memory, &ocl_mem));
+    DNNL_CHECK(dnnl_ocl_interop_memory_get_mem_object(memory, &ocl_mem));
     ASSERT_EQ(ocl_mem, nullptr);
 
     cl_int err;
@@ -74,9 +75,9 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(ocl_memory_test_c, BasicInteropC) {
             sizeof(float) * N * C * H * W, nullptr, &err);
     TEST_OCL_CHECK(err);
 
-    DNNL_CHECK(dnnl_memory_set_ocl_mem_object(memory, interop_ocl_mem));
+    DNNL_CHECK(dnnl_ocl_interop_memory_set_mem_object(memory, interop_ocl_mem));
 
-    DNNL_CHECK(dnnl_memory_get_ocl_mem_object(memory, &ocl_mem));
+    DNNL_CHECK(dnnl_ocl_interop_memory_get_mem_object(memory, &ocl_mem));
     ASSERT_EQ(ocl_mem, interop_ocl_mem);
 
     DNNL_CHECK(dnnl_memory_destroy(memory));
@@ -98,7 +99,7 @@ HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_test_cpp_t, BasicInteropCpp) {
     engine eng(engine::kind::gpu, 0);
     memory::dims tz = {4, 4, 4, 4};
 
-    cl_context ocl_ctx = eng.get_ocl_context();
+    cl_context ocl_ctx = ocl_interop::get_context(eng);
 
     cl_int err;
     cl_mem interop_ocl_mem = clCreateBuffer(ocl_ctx, CL_MEM_READ_WRITE,
@@ -110,12 +111,12 @@ HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_test_cpp_t, BasicInteropCpp) {
                 tz, memory::data_type::f32, memory::format_tag::nchw);
         memory mem(mem_d, eng);
 
-        cl_mem ocl_mem = mem.get_ocl_mem_object();
+        cl_mem ocl_mem = ocl_interop::get_mem_object(mem);
         ASSERT_NE(ocl_mem, nullptr);
 
-        mem.set_ocl_mem_object(interop_ocl_mem);
+        ocl_interop::set_mem_object(mem, interop_ocl_mem);
 
-        ocl_mem = mem.get_ocl_mem_object();
+        ocl_mem = ocl_interop::get_mem_object(mem);
         ASSERT_EQ(ocl_mem, interop_ocl_mem);
     }
 

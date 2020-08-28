@@ -16,7 +16,7 @@
 
 #include <CL/cl.h>
 
-#include "dnnl.h"
+#include "dnnl_ocl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
@@ -25,7 +25,7 @@
 
 using namespace dnnl::impl;
 
-status_t dnnl_memory_get_ocl_mem_object(
+status_t dnnl_ocl_interop_memory_get_mem_object(
         const memory_t *memory, cl_mem *mem_object) {
     if (utils::any_null(mem_object)) return status::invalid_arguments;
 
@@ -43,7 +43,8 @@ status_t dnnl_memory_get_ocl_mem_object(
     return status;
 }
 
-status_t dnnl_memory_set_ocl_mem_object(memory_t *memory, cl_mem mem_object) {
+status_t dnnl_ocl_interop_memory_set_mem_object(
+        memory_t *memory, cl_mem mem_object) {
     bool args_ok = (memory->engine()->runtime_kind() == runtime_kind::ocl);
     if (!args_ok) return status::invalid_arguments;
 

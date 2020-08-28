@@ -49,11 +49,11 @@ responsibility to retain the returned OpenCL object if necessary.
 
 ### API to Construct oneDNN Objects
 
-| oneDNN object        | API to construct oneDNN object                                                         |
-| :------------------- | :------------------------------------------------------------------------------------- |
-| Engine               | [dnnl_engine_create_ocl(&engine, kind, ocl_dev, ocl_ctx)](@ref dnnl_engine_create_ocl) |
-| Stream               | [dnnl_stream_create_ocl(&stream, engine, ocl_queue)](@ref dnnl_stream_create_ocl)      |
-| Memory               | [dnnl_memory_create(&memory, memory_desc, engine, &ocl_mem)](@ref dnnl_memory_create)  |
+| oneDNN object        | API to construct oneDNN object                                                                 |
+| :------------------- | :--------------------------------------------------------------------------------------------- |
+| Engine               | [dnnl_engine_create_ocl(&engine, kind, ocl_dev, ocl_ctx)](@ref dnnl_ocl_interop_engine_create) |
+| Stream               | [dnnl_stream_create_ocl(&stream, engine, ocl_queue)](@ref dnnl_ocl_interop_stream_create)      |
+| Memory               | [dnnl_memory_create(&memory, memory_desc, engine, &ocl_mem)](@ref dnnl_memory_create)          |
 
 ### API to Access OpenCL Objects
 
