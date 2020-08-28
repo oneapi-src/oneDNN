@@ -122,6 +122,7 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("BCAST_DIM5", conf.bcast_dims[5]);
     kernel_ctx.define_int("USE_UNROLL_16B", conf.use_unroll_16b);
     kernel_ctx.define_int("SRC0_UNROLL_16B", conf.src0_unroll_16b);
+    kernel_ctx.define_int("SUB_GROUP_SIZE", 1);
 
     def_memory_desc_info(kernel_ctx, conf.src0_md_info, "SRC0");
     def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");

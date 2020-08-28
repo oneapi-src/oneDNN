@@ -35,6 +35,7 @@ float fwd_Xnary(
         case BINARY_MUL: return x * y; break;
         case BINARY_MIN: return x > y ? y : x; break;
         case BINARY_MAX: return x > y ? x : y; break;
+        case BINARY_DIV: return x / y; break;
 
         // unary
         default:
@@ -93,11 +94,23 @@ float fwd_Xnary(
         if (nof_elems == 1) { *acc_ptr += (*a_ptr) * b; } \
     }
 
+#define X_NELEMS(x) ({ x / SUB_GROUP_SIZE; })
+#define REPLICATE_DATA( \
+        dest_ptr, dest_size, x0_s, x1_s, x2_s, x3_s, x4_s, x5_s) \
+    { \
+        const unsigned copy_size \
+                = x0_s * X_NELEMS(x1_s) * x2_s * x3_s * x4_s * x5_s; \
+        unroll_for(unsigned fid = copy_size; fid < dest_size; ++fid) { \
+            *(dest_ptr + fid) = *(dest_ptr + (fid % copy_size)); \
+        } \
+    }
+
 #define APPLY_PO_BINARY(idx, accumulator, acc_elem_dt, x0, x0_s, x1, x1_s, x2, \
         x2_s, x3, x3_s, x4, x4_s, x5, x5_s) \
     { \
-        CONCAT3(PO_, idx, _BIN_ARG_DATA_T) \
-        bin_arg[sizeof(accumulator) / sizeof(acc_elem_dt)]; \
+        const unsigned bin_arg_size \
+                = sizeof(accumulator) / sizeof(acc_elem_dt); \
+        CONCAT3(PO_, idx, _BIN_ARG_DATA_T) bin_arg[bin_arg_size]; \
         unroll_for(unsigned x0_idx = x0, bin_arg_offset = 0; \
                    x0_idx < x0 + x0_s; ++x0_idx) { \
             unroll_for(unsigned x1_idx = x1; x1_idx < x1 + x1_s; ++x1_idx) { \
@@ -138,6 +151,9 @@ float fwd_Xnary(
                 } \
             } \
         } \
+        CONCAT3(PO_, idx, _BIN_ARG_DATA_T) *bin_arg_ptr = &bin_arg[0]; \
+        REPLICATE_DATA(bin_arg_ptr, bin_arg_size, x0_s, x1_s, x2_s, x3_s, \
+                x4_s, x5_s); \
         FWD_XNARY_GENERIC_DT(CONCAT3(PO_, idx, _ALG), accumulator, \
                 acc_elem_dt, accumulator, acc_elem_dt, bin_arg, \
                 CONCAT3(PO_, idx, _BIN_ARG_DATA_T), 0.0f, 0.0f, 0.0f); \

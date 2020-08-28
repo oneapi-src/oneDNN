@@ -490,6 +490,7 @@ struct lnorm_conf_t {
 struct binary_conf_t {
     int ndims, nvect;
     bool use_unroll_16b, src0_unroll_16b;
+    bool is_ncX_layout;
     data_type_t src0_data_type;
     data_type_t src1_data_type;
     data_type_t dst_data_type;
