@@ -46,10 +46,14 @@ struct reduce_to_unit_stride_t {
  *    and then copy the result to diff_src */
 template <typename conv_pd_t>
 inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
-        const memory_desc_t *&src_d, const memory_desc_t *dst_d) {
+        const memory_desc_t *&src_d, const memory_desc_t *dst_d,
+        const memory_desc_t *weights_d) {
     const int ndims = src_d->ndims;
 
-    bool rtus_applicable = utils::one_of(ndims, 3, 4);
+    const bool with_groups
+            = memory_desc_wrapper(weights_d).ndims() == ndims + 1;
+
+    bool rtus_applicable = utils::one_of(ndims, 3, 4) && !with_groups;
     if (ndims == 3)
         rtus_applicable = rtus_applicable && conv_d->strides[0] != 1
                 && conv_d->src_desc.data_type != data_type::s32;
