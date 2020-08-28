@@ -71,6 +71,10 @@ private:
     const Xbyak::Reg64 reg_load_loop_work = rsi;
     const Xbyak::Reg64 aux_reg_output_data = abi_not_param1;
     const Xbyak::Reg64 reduce_loop_iter = abi_param1;
+    // zero-point computation
+    const Xbyak::Reg64 reg_zp_compensation = aux_reg_load_data; // r15
+    const Xbyak::Reg64 reg_src_zero_point = aux_reg_bcast_data; // r14
+    const Xbyak::Reg64 reg_dst_zero_point = reg_src_zero_point;
 
     const Xbyak::Opmask ktail_mask = k6;
     const Xbyak::Opmask vmask = k7;
@@ -84,6 +88,9 @@ private:
     const Vmm vmm_bcast = Vmm(31);
     const Vmm vmm_bias_alpha = Vmm(31);
     const Xbyak::Xmm xmm_bias_alpha = Xbyak::Xmm(31);
+    /* zero-point */
+    const Vmm vmm_zp = Vmm(30);
+    const Vmm vmm_zp_tmp = vmm_zp;
 
     int bcast_loop_work_off = 0;
     int reg_bias_data_off = 8;
@@ -91,7 +98,10 @@ private:
     int reg_load_data_off = 24;
     int reg_ptr_sum_scale_off = 32;
     int reg_comp_data_off = 40;
-    int stack_space_needed = 48;
+    int reg_zp_compensation_off = 48;
+    int reg_src_zero_point_off = 56;
+    int reg_dst_zero_point_off = 64;
+    int stack_space_needed = 72;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);

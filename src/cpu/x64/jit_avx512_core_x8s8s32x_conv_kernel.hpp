@@ -55,6 +55,7 @@ private:
         typesize = sizeof(float),
         ker_reg_base_idx = 28,
         ker_dw_reg_base_idx = 30,
+        ker_zp_reg_base_idx = 26,
     };
     typedef enum {
         no_last_block,
@@ -74,9 +75,13 @@ private:
     const Xbyak::Reg64 reg_compensation = r14;
     const Xbyak::Reg64 aux_reg_inp_d = r13;
     const Xbyak::Reg64 aux_reg_ker_d = r15;
-    // Using 3d regs as depthwise3d is not yet supported
+    // Using 3d regs as depthwise_3d is not yet supported
     const Xbyak::Reg64 reg_inp_buffer_ptr = aux_reg_inp_d;
     const Xbyak::Reg64 aux_reg_inp_buffer_ptr = aux_reg_ker_d;
+    // zero-point computation
+    const Xbyak::Reg64 reg_zp_compensation = aux_reg_inp;
+    const Xbyak::Reg64 reg_src_zero_point = aux_reg_ker_d;
+    const Xbyak::Reg64 reg_dst_zero_point = reg_src_zero_point;
 
     /* counter regs */
     const Xbyak::Reg64 reg_bias_alpha = abi_not_param1;
@@ -110,6 +115,10 @@ private:
     const Vmm vmm_tmp = Vmm(28); // not used for depthwise
     const Vmm vmm_one
             = Vmm(29); // set at start of kernel, not used for depthwise.
+    /* zero-point */
+    const Vmm vmm_zp = Vmm(25);
+    const Vmm vmm_zp_one = Vmm(26);
+    const Vmm vmm_zp_tmp = vmm_zp;
 
     /* registers use only for depthwise
        groups are always blocked by 16(padded if needed),
@@ -124,8 +133,10 @@ private:
         int nb_x_blocking
                 = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
         int idx = i_ur * nb_x_blocking + i_oc;
-        assert(idx
-                < (jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx));
+        assert(idx < (jcp.is_depthwise
+                               ? ker_dw_reg_base_idx
+                               : jcp.src_zero_point ? ker_zp_reg_base_idx
+                                                    : ker_reg_base_idx));
         return Vmm(idx);
     }
     Xbyak::Zmm zmm_out(int i_ur, int i_oc) {
@@ -141,7 +152,11 @@ private:
     }
     Xbyak::Zmm zmm_inp(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
-        assert(idx < 31);
+        const int max_idx = jcp.src_zero_point ? ker_zp_reg_base_idx
+                                               : ker_dw_reg_base_idx;
+        assert(idx < max_idx);
+        MAYBE_UNUSED(max_idx);
+
         return Xbyak::Zmm(idx);
     }
     Vmm vmm_bias_alpha() {

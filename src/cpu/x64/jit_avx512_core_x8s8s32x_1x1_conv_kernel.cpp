@@ -207,6 +207,12 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
             vmovq(xmm_bias_alpha(), reg_scratch);
             vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
         }
+        if (jcp.src_zero_point) {
+            mov(reg_zp_compensation,
+                    EVEX_compress_addr(rsp, reg_zp_compensation_off));
+            mov(reg_src_zero_point,
+                    EVEX_compress_addr(rsp, reg_src_zero_point_off));
+        }
         for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
             const bool mask_flag = mask_flag_in && i_load == load_loop_blk - 1;
             auto vmm_bias = vmm_tmp;
@@ -223,11 +229,23 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
                 mov(reg_comp_data, EVEX_compress_addr(rsp, reg_comp_data_off));
                 cvt2ps(data_type::s32, vmm_comp, comp_ptr(i_load), mask_flag);
             }
-
+            if (jcp.src_zero_point) {
+                // zero_point: conv(src_x8, wei_s8) - src_shift_s32 * compensation_s32
+                const int zp_offset = sizeof(int32_t) * i_load * jcp.load_block;
+                vmovups(vmm_zp,
+                        EVEX_compress_addr(reg_zp_compensation, zp_offset));
+                vpmulld(vmm_zp, vmm_zp,
+                        EVEX_compress_addr(
+                                reg_src_zero_point, 0, jcp.zp_src_is_common));
+                // upscale to f32
+                const Vmm vmm_ = mask_flag ? vmm_zp | ktail_mask | T_z : vmm_zp;
+                vcvtdq2ps(vmm_, vmm_);
+            }
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 auto r = vreg_accum(i_load, i_ur);
                 vcvtdq2ps(r, r);
                 if (jcp.signed_input) vaddps(r, r, vmm_comp);
+                if (jcp.src_zero_point) vaddps(r, r, vmm_zp);
                 if (jcp.with_bias) vaddps(r, r, vmm_bias);
 
                 const Vmm mask_vmm = mask_flag ? r | ktail_mask | T_z : r;
@@ -258,6 +276,20 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
 
         if (maybe_eltwise(1))
             eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
+
+        if (jcp.dst_zero_point) {
+            mov(reg_dst_zero_point,
+                    EVEX_compress_addr(rsp, reg_dst_zero_point_off));
+            vcvtdq2ps(vmm_zp, EVEX_compress_addr(reg_dst_zero_point, 0, true));
+
+            /* Add dst zero_point to accumulator */
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                for (int i_ur = 0; i_ur < ur; ++i_ur) {
+                    const auto r = vreg_accum(i_load, i_ur);
+                    vaddps(r, r, vmm_zp);
+                }
+            }
+        }
 
         // Properly saturate the accumulators for integer datatypes
         if (one_of(jcp.dst_dt, u8, s8, s32)) {
@@ -421,6 +453,19 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
         mov(reg_comp_data, ptr[param1 + GET_OFF(compensation)]);
         mov(EVEX_compress_addr(rsp, reg_comp_data_off), reg_comp_data);
     }
+    if (jcp.src_zero_point) {
+        mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
+        mov(EVEX_compress_addr(rsp, reg_zp_compensation_off),
+                reg_zp_compensation);
+        mov(reg_src_zero_point, ptr[param1 + GET_OFF(src_zero_point)]);
+        mov(EVEX_compress_addr(rsp, reg_src_zero_point_off),
+                reg_src_zero_point);
+    }
+    if (jcp.dst_zero_point) {
+        mov(reg_dst_zero_point, ptr[param1 + GET_OFF(dst_zero_point)]);
+        mov(EVEX_compress_addr(rsp, reg_dst_zero_point_off),
+                reg_dst_zero_point);
+    }
     mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
     mov(EVEX_compress_addr(rsp, reg_ptr_sum_scale_off), reg_ptr_scales);
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
@@ -449,6 +494,14 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
             add(reg_comp_data,
                     load_loop_blk * jcp.load_block * sizeof(int32_t));
             mov(EVEX_compress_addr(rsp, reg_comp_data_off), reg_comp_data);
+        }
+        if (jcp.src_zero_point) {
+            mov(reg_zp_compensation,
+                    EVEX_compress_addr(rsp, reg_zp_compensation_off));
+            add(reg_zp_compensation,
+                    load_loop_blk * jcp.load_block * sizeof(int32_t));
+            mov(EVEX_compress_addr(rsp, reg_zp_compensation_off),
+                    reg_zp_compensation);
         }
         mov(EVEX_compress_addr(rsp, reg_bcast_data_off), reg_bcast_data);
         mov(reg_ptr_scales, EVEX_compress_addr(rsp, reg_ptr_sum_scale_off));
@@ -624,6 +677,16 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
+    const auto zp = attr.zero_points_;
+    jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);
+    jcp.src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);
+    jcp.zp_src_is_common
+            = zp.common(DNNL_ARG_SRC); // otherwise, it's per-channel
+    assert(IMPLICATION(jcp.src_zero_point, jcp.zp_src_is_common));
+
+    if ((jcp.dst_zero_point || jcp.src_zero_point) && jcp.with_dw_conv)
+        return status::unimplemented;
+
     format_tag_t dat_tag = utils::pick(
             ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
     jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
@@ -643,6 +706,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
 
     auto set_or_check_wei_format = [&]() -> bool {
         using namespace format_tag;
+        using namespace memory_extra_flags;
         const format_tag_t wei_tags[3][2][3]
                 = {{{OIw4i16o4i, OIhw4i16o4i, OIdhw4i16o4i},
                            {gOIw4i16o4i, gOIhw4i16o4i, gOIdhw4i16o4i}},
@@ -656,13 +720,16 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);
         if (jcp.signed_input) {
-            want_wei_md.extra.flags = 0
-                    | memory_extra_flags::compensation_conv_s8s8
-                    | memory_extra_flags::scale_adjust;
+            want_wei_md.extra.flags = 0 | compensation_conv_s8s8 | scale_adjust;
             want_wei_md.extra.compensation_mask
                     = (1 << 0) + (with_groups ? (1 << 1) : 0);
             want_wei_md.extra.scale_adjust
                     = mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
+        }
+        if (jcp.src_zero_point) {
+            want_wei_md.extra.flags |= compensation_conv_asymmetric_src;
+            want_wei_md.extra.asymm_compensation_mask
+                    = (1 << 0) + (with_groups ? (1 << 1) : 0);
         }
 
         if (weights_md.format_kind == format_kind::any) {

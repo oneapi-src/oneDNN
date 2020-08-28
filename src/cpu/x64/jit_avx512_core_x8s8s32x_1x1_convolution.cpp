@@ -23,6 +23,8 @@
 
 #include "cpu/x64/jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -34,7 +36,7 @@ using namespace dnnl::impl::utils;
 
 /* convolution forward */
 template <data_type_t src_type, data_type_t dst_type>
-void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
+status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
         dst_type>::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -44,6 +46,9 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
             const wei_data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
     auto bias_dw = CTX_IN_MEM(
             const char *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+
+    DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -85,8 +90,9 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
     }
     parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
-                dst, scratchpad);
+                dst, src_zero_point, dst_zero_point, scratchpad);
     });
+    return status::success;
 }
 
 template <data_type_t src_type, data_type_t dst_type>
@@ -94,6 +100,7 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
         dst_type>::execute_forward_thr(const int ithr, const int nthr,
         const src_data_t *src, const wei_data_t *weights, const char *bias,
         const wei_data_t *weights_dw, const char *bias_dw, dst_data_t *dst,
+        const int32_t *src_zero_point, const int32_t *dst_zero_point,
         const memory_tracking::grantor_t &scratchpad) const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -130,8 +137,12 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
 
     auto offset = weights_d.size() - weights_d.additional_buffer_size();
     wei_data_t *w = const_cast<wei_data_t *>(weights);
-    int32_t *compensation = (jcp.signed_input)
+    const int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(w + offset)
+            : nullptr;
+    const int32_t *zp_compensation = jcp.src_zero_point
+            ? reinterpret_cast<int32_t *>(&w[offset])
+                    + (jcp.signed_input ? jcp.ngroups * jcp.oc : 0)
             : nullptr;
 
     auto p = jit_1x1_conv_call_s();
@@ -245,6 +256,11 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
         p.bias_data = &bias[_ocb * jcp.oc_block * bia_dt_size];
         p.compensation = (jcp.signed_input) ? &compensation[_ocb * jcp.oc_block]
                                             : nullptr;
+        p.zp_compensation = jcp.src_zero_point
+                ? zp_compensation + _ocb * jcp.oc_block
+                : nullptr;
+        p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
+        p.dst_zero_point = jcp.dst_zero_point ? dst_zero_point : nullptr;
         p.scales = (jcp.signed_input && jcp.ver != ver_vnni)
                 ? &local_scales[jcp.is_oc_scale * _ocb * jcp.oc_block]
                 : &oscales[jcp.is_oc_scale * _ocb * jcp.oc_block];

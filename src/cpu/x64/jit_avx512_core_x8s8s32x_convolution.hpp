@@ -46,6 +46,7 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
                 jit_avx512_core_x8s8s32x_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
+            using smask_t = primitive_attr_t::skip_mask_t;
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, data_type::s8,
@@ -54,11 +55,11 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
                             utils::one_of(bias_md_.data_type, data_type::f32,
                                     data_type::s32, data_type::s8,
                                     data_type::u8))
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
-                                    | primitive_attr_t::skip_mask_t::post_ops,
+                    && attr()->has_default_values(smask_t::oscale
+                                    | smask_t::zero_points_runtime
+                                    | smask_t::post_ops,
                             dst_type)
-                    && !has_zero_dim_memory();
+                    && !has_zero_dim_memory() && zero_points_ok();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(
@@ -74,6 +75,19 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
         }
 
         jit_conv_conf_t jcp_;
+
+    protected:
+        bool zero_points_ok() const {
+            using namespace data_type;
+            int mask_src = 0, mask_dst = 0;
+            const int c_mask = 0x1,
+                      g_mask = 0x3; // mask for i/o-channel and ngroups
+            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                    && utils::one_of(mask_src, 0, c_mask, g_mask)
+                    && utils::one_of(mask_dst, 0, c_mask, g_mask);
+        }
     };
 
     jit_avx512_core_x8s8s32x_convolution_fwd_t(const pd_t *apd)
@@ -93,24 +107,22 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override {
         const auto &_pd = pd();
         if (_pd->ndims() == 3)
-            execute_forward_1d(ctx);
+            return execute_forward_1d(ctx);
         else if (_pd->ndims() == 4)
             if (_pd->jcp_.is_depthwise)
-                execute_forward_2d_dw(ctx);
+                return execute_forward_2d_dw(ctx);
             else
-                execute_forward_2d(ctx);
+                return execute_forward_2d(ctx);
         else if (_pd->ndims() == 5)
-            execute_forward_3d(ctx);
-        else
-            return status::unimplemented;
-        return status::success;
+            return execute_forward_3d(ctx);
+        return status::unimplemented;
     }
 
 private:
-    void execute_forward_1d(const exec_ctx_t &ctx) const;
-    void execute_forward_2d(const exec_ctx_t &ctx) const;
-    void execute_forward_2d_dw(const exec_ctx_t &ctx) const;
-    void execute_forward_3d(const exec_ctx_t &ctx) const;
+    status_t execute_forward_1d(const exec_ctx_t &ctx) const;
+    status_t execute_forward_2d(const exec_ctx_t &ctx) const;
+    status_t execute_forward_2d_dw(const exec_ctx_t &ctx) const;
+    status_t execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_avx512_core_x8s8s32x_fwd_kernel> kernel_;
