@@ -66,7 +66,11 @@ if(NOT OpenMP_CXX_FOUND AND MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND 
     # clang-cl and icx will fall under this condition
     # CAVEAT: undocumented variable, may be inappropriate
     if(CMAKE_BASE_NAME STREQUAL "icx")
-        set(OpenMP_FLAGS "/Qopenmp")
+        # XXX: Use `-Xclang --dependent-lib=libiomp5md` to workaround an issue
+        # with linking OpenMP on Windows.
+        # The ICX driver doesn't link OpenMP library even if `/Qopenmp`
+        # was specified.
+        set(OpenMP_FLAGS "/Qopenmp -Xclang --dependent-lib=libiomp5md")
     else()
         if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10.0")
             # version < 10 can't pass cl-style `/openmp` flag
