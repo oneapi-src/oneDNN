@@ -26,6 +26,8 @@
 #include "dnnl.hpp"
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "dnnl_ocl.hpp"
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+#include "dnnl_sycl.hpp"
 #endif
 
 #include "dnn_types.hpp"
@@ -193,7 +195,7 @@ static size_t get_gpu_ram_size() {
             sizeof(cl_ulong), &ram_size, nullptr);
     if (status == CL_SUCCESS) return (size_t)ram_size;
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
-    auto sycl_dev = eng.get_sycl_device();
+    auto sycl_dev = dnnl::sycl_interop::get_device(eng);
     return (size_t)sycl_dev.get_info<cl::sycl::info::device::global_mem_size>();
 #endif
     return 0;

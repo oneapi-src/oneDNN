@@ -51,6 +51,7 @@
 
 #include "dnnl.hpp"
 #include "dnnl_debug.h"
+#include "dnnl_sycl.hpp"
 #include "example_utils.hpp"
 #include <CL/sycl.hpp>
 
@@ -129,11 +130,12 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// @subsection  sycl_interop_cpp_sub3 Initialize the data executing a custom SYCL kernel
     ///
     /// The underlying SYCL buffer can be extracted from the memory object using
-    /// the interoperability interface: `dnnl::memory::get_sycl_buffer<T>()`.
+    /// the interoperability interface:
+    /// `dnnl::sycl_interop::get_buffer<T>(const dnnl::memory)`.
     ///
     /// @snippet  sycl_interop.cpp get sycl buf
     // [get sycl buf]
-    auto sycl_buf = mem.get_sycl_buffer<float>();
+    auto sycl_buf = sycl_interop::get_buffer<float>(mem);
     // [get sycl buf]
 
     /// We are going to create an SYCL kernel that should initialize our data.
@@ -142,7 +144,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// The kernel initializes the data by the `0, -1, 2, -3, ...` sequence: `data[i] = (-1)^i * i`.
     /// @snippet sycl_interop.cpp sycl kernel exec
     // [sycl kernel exec]
-    queue q = strm.get_sycl_queue();
+    queue q = sycl_interop::get_queue(strm);
     q.submit([&](handler &cgh) {
         auto a = sycl_buf.get_access<access::mode::write>(cgh);
         cgh.parallel_for<kernel_tag>(range<1>(N), [=](id<1> i) {

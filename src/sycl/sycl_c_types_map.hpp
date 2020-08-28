@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,26 +14,23 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl.hpp"
-#include <CL/sycl.hpp>
+#ifndef SYCL_SYCL_C_TYPES_MAP_HPP
+#define SYCL_SYCL_C_TYPES_MAP_HPP
 
-#include "sycl/capi.hpp"
+#include "dnnl_sycl_types.h"
 
 namespace dnnl {
+namespace impl {
+namespace sycl {
 
-stream::stream(const engine &eng, cl::sycl::queue &aqueue) {
-    dnnl_stream_t astream;
-    error::wrap_c_api(dnnl_stream_create_sycl(&astream, eng.get(), &aqueue),
-            "could not create a stream");
-    reset(astream);
-}
+using memory_kind_t = dnnl_sycl_interop_memory_kind_t;
+namespace memory_kind {
+const memory_kind_t usm = dnnl_sycl_interop_usm;
+const memory_kind_t buffer = dnnl_sycl_interop_buffer;
+} // namespace memory_kind
 
-cl::sycl::queue stream::get_sycl_queue() const {
-    void *queue_ptr;
-    error::wrap_c_api(dnnl_stream_get_sycl_queue(get(), &queue_ptr),
-            "could not get a stream handle");
-    auto queue = *static_cast<cl::sycl::queue *>(queue_ptr);
-    return queue;
-}
-
+} // namespace sycl
+} // namespace impl
 } // namespace dnnl
+
+#endif // SYCL_SYCL_C_TYPES_MAP_HPP

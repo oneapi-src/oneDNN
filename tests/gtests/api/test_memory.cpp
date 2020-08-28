@@ -24,6 +24,7 @@
 #include <new>
 
 #if DNNL_WITH_SYCL
+#include "dnnl_sycl.hpp"
 #include <CL/sycl.hpp>
 #endif
 
@@ -87,7 +88,7 @@ TEST_P(memory_test_cpp, OutOfMemory) {
     auto sz = std::numeric_limits<memory::dim>::max();
 #if DNNL_WITH_SYCL
     if (is_sycl) {
-        auto dev = eng.get_sycl_device();
+        auto dev = sycl_interop::get_device(eng);
         auto max_alloc_size
                 = dev.get_info<cl::sycl::info::device::max_mem_alloc_size>();
         sz = (max_alloc_size < sz) ? max_alloc_size + 1 : sz;

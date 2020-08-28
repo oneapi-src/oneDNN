@@ -18,6 +18,7 @@
 
 #include "dnnl.hpp"
 #include "dnnl_debug.h"
+#include "dnnl_sycl.hpp"
 #include "example_utils.hpp"
 #include <CL/sycl.hpp>
 
@@ -39,15 +40,15 @@ void sycl_usm_tutorial(engine::kind engine_kind) {
     memory::dims tz_dims = {2, 3, 4, 5};
     const size_t N = std::accumulate(tz_dims.begin(), tz_dims.end(), (size_t)1,
             std::multiplies<size_t>());
-    auto usm_buffer = (float *)malloc_shared(
-            N * sizeof(float), eng.get_sycl_device(), eng.get_sycl_context());
+    auto usm_buffer = (float *)malloc_shared(N * sizeof(float),
+            sycl_interop::get_device(eng), sycl_interop::get_context(eng));
 
     memory::desc mem_d(
             tz_dims, memory::data_type::f32, memory::format_tag::nchw);
 
     memory mem(mem_d, eng, usm_buffer);
 
-    queue q = strm.get_sycl_queue();
+    queue q = sycl_interop::get_queue(strm);
     auto fill_e = q.submit([&](handler &cgh) {
         cgh.parallel_for<kernel_tag>(range<1>(N), [=](id<1> i) {
             int idx = (int)i[0];
@@ -60,8 +61,8 @@ void sycl_usm_tutorial(engine::kind engine_kind) {
     auto relu_pd = eltwise_forward::primitive_desc(relu_d, eng);
     auto relu = eltwise_forward(relu_pd);
 
-    auto relu_e = relu.execute_sycl(
-            strm, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}}, {fill_e});
+    auto relu_e = sycl_interop::execute(
+            relu, strm, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}}, {fill_e});
     relu_e.wait();
 
     for (size_t i = 0; i < N; i++) {
@@ -72,7 +73,7 @@ void sycl_usm_tutorial(engine::kind engine_kind) {
                     "execution.");
     }
 
-    free((void *)usm_buffer, eng.get_sycl_context());
+    free((void *)usm_buffer, sycl_interop::get_context(eng));
 }
 
 int main(int argc, char **argv) {

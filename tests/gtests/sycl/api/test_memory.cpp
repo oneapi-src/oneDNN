@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 
 #include "dnnl.h"
+#include "dnnl_sycl.hpp"
 
 #include <algorithm>
 #include <memory>
@@ -45,9 +46,9 @@ TEST_P(sycl_memory_test, BasicInteropCtor) {
     buffer<float, 1> buf {range<1>(sz)};
 
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
-    memory mem(mem_d, eng, buf);
+    auto mem = sycl_interop::make_memory(mem_d, eng, buf);
 
-    auto buf_from_mem = mem.get_sycl_buffer<float>();
+    auto buf_from_mem = sycl_interop::get_buffer<float>(mem);
 
     {
         auto a = buf.get_access<access::mode::write>();
@@ -71,7 +72,7 @@ TEST_P(sycl_memory_test, ConstructorNone) {
 
     memory mem(mem_d, eng, DNNL_MEMORY_NONE);
 
-    auto buf = mem.get_sycl_buffer<float>();
+    auto buf = sycl_interop::get_buffer<float>(mem);
     (void)buf;
 }
 
@@ -85,7 +86,7 @@ TEST_P(sycl_memory_test, ConstructorAllocate) {
 
     memory mem(mem_d, eng, DNNL_MEMORY_ALLOCATE);
 
-    auto buf = mem.get_sycl_buffer<float>();
+    auto buf = sycl_interop::get_buffer<float>(mem);
 
     {
         auto acc = buf.get_access<access::mode::write>();
@@ -114,9 +115,9 @@ TEST_P(sycl_memory_test, BasicInteropGetSet) {
     memory mem(mem_d, eng);
 
     buffer<float, 1> interop_sycl_buf {range<1>(sz)};
-    mem.set_sycl_buffer(interop_sycl_buf);
+    sycl_interop::set_buffer(mem, interop_sycl_buf);
 
-    auto sycl_buf = mem.get_sycl_buffer<float>();
+    auto sycl_buf = sycl_interop::get_buffer<float>(mem);
 
     {
         auto a = interop_sycl_buf.get_access<access::mode::write>();
@@ -164,8 +165,8 @@ TEST_P(sycl_memory_test, InteropReorder) {
         stream s(eng);
         memory dst_mem(dst_mem_d, eng);
 
-        src_mem.set_sycl_buffer(src_buf);
-        dst_mem.set_sycl_buffer(dst_buf);
+        sycl_interop::set_buffer(src_mem, src_buf);
+        sycl_interop::set_buffer(dst_mem, dst_buf);
 
         reorder(src_mem, dst_mem).execute(s, src_mem, dst_mem);
         s.wait();
@@ -227,15 +228,15 @@ TEST_P(sycl_memory_test, InteropReorderAndUserKernel) {
         stream s(eng);
         memory tmp_mem(tmp_mem_d, eng);
 
-        mem.set_sycl_buffer(buf);
-        tmp_mem.set_sycl_buffer(tmp_buf);
+        sycl_interop::set_buffer(mem, buf);
+        sycl_interop::set_buffer(tmp_mem, tmp_buf);
 
         // Direct reorder mem -> tmp_mem
         reorder(mem, tmp_mem).execute(s, mem, tmp_mem);
         s.wait();
 
         // Invert the signs of the tmp elements
-        auto q = s.get_sycl_queue();
+        auto q = sycl_interop::get_queue(s);
         q.submit([&](handler &cgh) {
             auto acc = buf.get_access<access::mode::write>(cgh);
             auto tmp_acc = tmp_buf.get_access<access::mode::read_write>(cgh);
@@ -270,7 +271,7 @@ TEST_P(sycl_memory_test, EltwiseWithUserKernel) {
     engine eng(eng_kind, 0);
     memory mem({mem_d, eng});
 
-    auto sycl_buf = mem.get_sycl_buffer<float>();
+    auto sycl_buf = sycl_interop::get_buffer<float>(mem);
 
     std::unique_ptr<queue> q;
     if (eng_kind == engine::kind::cpu) {

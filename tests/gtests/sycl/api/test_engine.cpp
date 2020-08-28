@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 
 #include "dnnl.hpp"
+#include "dnnl_sycl.hpp"
 
 #include <memory>
 #include <CL/sycl.hpp>
@@ -41,7 +42,6 @@ std::string to_string(ctx_kind kind) {
 }
 
 struct sycl_engine_test_params {
-    engine::kind eng_kind;
     dev_kind adev_kind;
     ctx_kind actx_kind;
     dnnl_status_t expected_status;
@@ -121,13 +121,13 @@ TEST_P(sycl_engine_test, BasicInterop) {
 
     catch_expected_failures(
             [&]() {
-                engine eng(param.eng_kind, dev, ctx);
+                auto eng = sycl_interop::make_engine(dev, ctx);
                 if (param.expected_status != dnnl_success) {
                     FAIL() << "Success not expected";
                 }
 
-                EXPECT_EQ(eng.get_sycl_device(), dev);
-                EXPECT_EQ(eng.get_sycl_context(), ctx);
+                EXPECT_EQ(sycl_interop::get_device(eng), dev);
+                EXPECT_EQ(sycl_interop::get_context(eng), ctx);
             },
             param.expected_status != dnnl_success, param.expected_status);
 }
@@ -136,7 +136,7 @@ TEST(sycl_engine_test, HostDevice) {
     device dev(host_selector {});
     context ctx(dev);
 
-    engine eng(engine::kind::cpu, dev, ctx);
+    auto eng = sycl_interop::make_engine(dev, ctx);
 
     memory::dims tz = {2, 3, 4, 5};
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
@@ -166,20 +166,15 @@ TEST(sycl_engine_test, HostDevice) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Simple, sycl_engine_test,
-        ::testing::Values(sycl_engine_test_params {engine::kind::gpu,
-                                  dev_kind::gpu, ctx_kind::gpu, dnnl_success},
-                sycl_engine_test_params {engine::kind::cpu, dev_kind::cpu,
-                        ctx_kind::cpu, dnnl_success},
-                sycl_engine_test_params {engine::kind::cpu, dev_kind::host,
-                        ctx_kind::host, dnnl_success}));
+        ::testing::Values(sycl_engine_test_params {dev_kind::gpu, ctx_kind::gpu,
+                                  dnnl_success},
+                sycl_engine_test_params {
+                        dev_kind::cpu, ctx_kind::cpu, dnnl_success},
+                sycl_engine_test_params {
+                        dev_kind::host, ctx_kind::host, dnnl_success}));
 
 INSTANTIATE_TEST_SUITE_P(InvalidArgs, sycl_engine_test,
-        ::testing::Values(
-                sycl_engine_test_params {engine::kind::cpu, dev_kind::gpu,
-                        ctx_kind::gpu, dnnl_invalid_arguments},
-                sycl_engine_test_params {engine::kind::gpu, dev_kind::gpu_only,
-                        ctx_kind::cpu_only, dnnl_invalid_arguments},
-                sycl_engine_test_params {engine::kind::cpu, dev_kind::cpu_only,
-                        ctx_kind::gpu_only, dnnl_invalid_arguments}));
+        ::testing::Values(sycl_engine_test_params {dev_kind::cpu_only,
+                ctx_kind::gpu_only, dnnl_invalid_arguments}));
 
 } // namespace dnnl

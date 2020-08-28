@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 
 #include "dnnl.hpp"
+#include "dnnl_sycl.hpp"
 
 #include <cstdint>
 #include <vector>
@@ -34,8 +35,8 @@ class fill_kernel;
 class sycl_memory_usm_test : public ::testing::TestWithParam<engine::kind> {
 protected:
     static void fill_data(void *usm_ptr, memory::dim n, const engine &eng) {
-        auto alloc_kind
-                = cl::sycl::get_pointer_type(usm_ptr, eng.get_sycl_context());
+        auto alloc_kind = cl::sycl::get_pointer_type(
+                usm_ptr, sycl_interop::get_context(eng));
         if (alloc_kind == cl::sycl::usm::alloc::host
                 && alloc_kind == cl::sycl::usm::alloc::shared) {
             for (int i = 0; i < n; i++)
@@ -45,7 +46,7 @@ protected:
             for (int i = 0; i < n; i++)
                 host_ptr[i] = float(i);
 
-            auto q = stream(eng).get_sycl_queue();
+            auto q = sycl_interop::get_queue(stream(eng));
             q.memcpy(usm_ptr, host_ptr.data(), n * sizeof(float)).wait();
         }
     }
@@ -59,8 +60,8 @@ TEST_P(sycl_memory_usm_test, Constructor) {
     memory::dim n = 100;
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
-    void *ptr = cl::sycl::malloc_shared(
-            sizeof(float) * n, eng.get_sycl_device(), eng.get_sycl_context());
+    void *ptr = cl::sycl::malloc_shared(sizeof(float) * n,
+            sycl_interop::get_device(eng), sycl_interop::get_context(eng));
     memory mem(mem_d, eng, ptr);
 
     ASSERT_EQ(ptr, mem.get_data_handle());
@@ -78,7 +79,7 @@ TEST_P(sycl_memory_usm_test, Constructor) {
         }
     }
 
-    cl::sycl::free(ptr, eng.get_sycl_context());
+    cl::sycl::free(ptr, sycl_interop::get_context(eng));
 }
 
 TEST_P(sycl_memory_usm_test, ConstructorNone) {

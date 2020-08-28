@@ -16,28 +16,38 @@
 
 #include <CL/sycl.hpp>
 
+#include "dnnl_sycl.h"
+
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"
-#include "sycl/capi.hpp"
 #include "sycl/sycl_engine.hpp"
 
 using namespace dnnl::impl;
 
-status_t dnnl_engine_create_sycl(engine_t **engine, engine_kind_t kind,
-        const void *dev, const void *ctx) {
+status_t dnnl_sycl_interop_engine_create(
+        engine_t **engine, const void *dev, const void *ctx) {
     bool args_ok = !utils::any_null(engine, dev, ctx);
     if (!args_ok) return status::invalid_arguments;
+
+    auto &sycl_dev = *static_cast<const cl::sycl::device *>(dev);
+    auto &sycl_ctx = *static_cast<const cl::sycl::context *>(ctx);
+
+    engine_kind_t kind;
+    if (sycl_dev.is_gpu())
+        kind = engine_kind::gpu;
+    else if (sycl_dev.is_cpu() || sycl_dev.is_host())
+        kind = engine_kind::cpu;
+    else
+        return status::invalid_arguments;
 
     auto ef = dnnl::impl::sycl::get_engine_factory(kind);
     if (!ef) return status::invalid_arguments;
 
-    auto &sycl_dev = *static_cast<const cl::sycl::device *>(dev);
-    auto &sycl_ctx = *static_cast<const cl::sycl::context *>(ctx);
     return ef->engine_create(engine, sycl_dev, sycl_ctx);
 }
 
-status_t dnnl_engine_get_sycl_context(engine_t *engine, void **ctx) {
+status_t dnnl_sycl_interop_engine_get_context(engine_t *engine, void **ctx) {
     bool args_ok = true && !utils::any_null(ctx, engine)
             && engine->runtime_kind() == runtime_kind::sycl;
 
@@ -50,7 +60,7 @@ status_t dnnl_engine_get_sycl_context(engine_t *engine, void **ctx) {
     return status::success;
 }
 
-status_t dnnl_engine_get_sycl_device(engine_t *engine, void **dev) {
+status_t dnnl_sycl_interop_engine_get_device(engine_t *engine, void **dev) {
     bool args_ok = true && !utils::any_null(dev, engine)
             && engine->runtime_kind() == runtime_kind::sycl;
 

@@ -16,17 +16,18 @@
 
 #include <CL/sycl.hpp>
 
+#include "dnnl_sycl.h"
+
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/stream.hpp"
 #include "common/utils.hpp"
-#include "sycl/capi.hpp"
 #include "sycl/sycl_engine.hpp"
 #include "sycl/sycl_stream.hpp"
 
 using namespace dnnl::impl;
 
-status_t dnnl_stream_create_sycl(
+status_t dnnl_sycl_interop_stream_create(
         stream_t **stream, engine_t *engine, void *queue) {
     bool args_ok = true && !utils::any_null(stream, engine, queue)
             && engine->kind() == engine_kind::gpu;
@@ -38,7 +39,7 @@ status_t dnnl_stream_create_sycl(
     return sycl_engine->create_stream(stream, sycl_queue);
 }
 
-status_t dnnl_stream_get_sycl_queue(stream_t *stream, void **queue) {
+status_t dnnl_sycl_interop_stream_get_queue(stream_t *stream, void **queue) {
     bool args_ok = true && !utils::any_null(queue, stream)
             && stream->engine()->runtime_kind() == runtime_kind::sycl;
 
