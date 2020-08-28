@@ -39,7 +39,11 @@ if(DPCPP_SUPPORTED)
 
     # Explicitly link against sycl as Intel oneAPI DPC++ Compiler does not
     # always do it implicitly.
-    list(APPEND EXTRA_SHARED_LIBS sycl)
+    if(WIN32)
+        list(APPEND EXTRA_SHARED_LIBS $<$<CONFIG:Debug>:sycld> $<$<NOT:$<CONFIG:Debug>>:sycl>)
+    else()
+        list(APPEND EXTRA_SHARED_LIBS sycl)
+    endif()
     if(DNNL_SYCL_CUDA)
         # Explicitly linking against OpenCL without finding the right one can
         # end up linking the tests against Nvidia OpenCL. This can be
