@@ -60,7 +60,7 @@ namespace spec {
 struct direct_copy {};
 struct direct_copy_except_dim_0 {};
 struct reference {};
-struct conv_s8s8 {};
+struct conv_req_comp {}; // {s8, u8: asymmetric quantization}
 } // namespace spec
 
 #define SIMPLE_REORDER_TEMPL_DECL \
@@ -125,32 +125,41 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                 format_tag::wigo, format_tag::hwio,
                                 format_tag::hwigo, format_tag::dhwio,
                                 format_tag::dhwigo),
-                spec::conv_s8s8>::type> {
+                spec::conv_req_comp>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         using namespace data_type;
+        using namespace utils;
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
-        const size_t D_mask = utils::array_product(
+        const size_t D_mask = array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
-        static constexpr bool w_groups = utils::one_of(
+        static constexpr bool w_groups = one_of(
                 tag_o, format_tag::wigo, format_tag::hwigo, format_tag::dhwigo);
         const int oc_idx = w_groups ? 1 : 0;
         const int oc = input_d.dims()[oc_idx];
         const int g = w_groups ? (input_d.dims()[0]) : 1;
 
-        const bool compensation_mask_ok
-                = output_d.extra().compensation_mask == (w_groups ? 0x3 : 0x1);
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+        const bool req_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
+        auto mask_ok = [&](bool check, int mask) {
+            return IMPLICATION(check, mask == (w_groups ? 0x3 : 0x1));
+        };
 
         return simple_attr_check(attr, true, false)
                 && output_d.matches_tag(tag_o) && input_d.is_plain()
-                && (output_d.extra().flags
-                        & memory_extra_flags::compensation_conv_s8s8)
-                && compensation_mask_ok
-                && utils::one_of(input_d.data_type(), f32, s8, bf16)
-                && output_d.data_type() == s8
-                && (D_mask == 1 || D_mask == (size_t)g * oc);
+                && (req_comp || req_asymmetric_comp)
+                && mask_ok(req_comp, output_d.extra().compensation_mask)
+                && mask_ok(req_asymmetric_comp,
+                        output_d.extra().asymm_compensation_mask)
+                && IMPLICATION(
+                        req_comp, one_of(D_mask, (size_t)1, (size_t)g * oc))
+                && one_of(input_d.data_type(), f32, s8, bf16)
+                && output_d.data_type() == s8;
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -178,9 +187,13 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const float *scales = pd->attr()->output_scales_.scales_;
         const size_t D_mask = utils::array_product(input_d.dims(),
                 math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+        const bool has_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
 
-        assert(output_d.extra().flags
-                & memory_extra_flags::compensation_conv_s8s8);
+        assert(req_comp || has_asymmetric_comp);
+
         float adj_scale
                 = (output_d.extra().flags & memory_extra_flags::scale_adjust)
                 ? output_d.extra().scale_adjust
@@ -188,10 +201,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         size_t offset
                 = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
-        int32_t *cp = reinterpret_cast<int32_t *>(output + offset);
+        size_t zp_offset = offset
+                + (req_comp ? G * pdims[w_groups + 0] * sizeof(int32_t) : 0);
+        int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
+                               : nullptr;
+        int32_t *zp = has_asymmetric_comp
+                ? reinterpret_cast<int32_t *>(output + zp_offset)
+                : nullptr;
 
         parallel_nd(G, OC, [&](int g, int oc) {
-            cp[g * OC + oc] = 0;
+            if (req_comp) cp[g * OC + oc] = 0;
+            if (has_asymmetric_comp) zp[g * OC + oc] = 0;
             for_(int ic = 0; ic < IC; ic++)
             for_(int d = 0; d < D; d++)
             for_(int h = 0; h < H; h++)
@@ -212,9 +232,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const float s = scales[(D_mask == 1) ? 0 : g * OC + oc];
 
                 o = qz_b0<data_t<type_i>, data_t<type_o>>()(i, s * adj_scale);
-                cp[g * OC + oc] -= (int32_t)o;
+                if (req_comp) cp[g * OC + oc] -= (int32_t)o;
+                if (has_asymmetric_comp) zp[g * OC + oc] -= (int32_t)o;
             }
-            cp[g * OC + oc] *= 128;
+            if (req_comp) cp[g * OC + oc] *= 128;
         });
         return status::success;
     }
@@ -252,33 +273,42 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                         format_tag::gOIdhw4i16o4i,
                                         format_tag::gOIdhw2i8o4i,
                                         format_tag::gOIdhw4o4i))),
-                spec::conv_s8s8>::type> {
+                spec::conv_req_comp>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         using namespace format_tag;
         using namespace data_type;
+        using namespace utils;
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
-        const size_t D_mask = utils::array_product(
+        const size_t D_mask = array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
-        const bool w_groups = !utils::one_of(tag_o, OIw4i16o4i, OIw2i8o4i,
-                OIw4o4i, OIhw4i16o4i, OIhw2i8o4i, OIhw4o4i, OIdhw4i16o4i,
-                OIdhw2i8o4i, OIdhw4o4i);
+        const bool w_groups = !one_of(tag_o, OIw4i16o4i, OIw2i8o4i, OIw4o4i,
+                OIhw4i16o4i, OIhw2i8o4i, OIhw4o4i, OIdhw4i16o4i, OIdhw2i8o4i,
+                OIdhw4o4i);
         const int oc = (input_d.dims()[w_groups ? 1 : 0]);
         const int g = w_groups ? input_d.dims()[0] : 1;
 
-        const bool compensation_mask_ok
-                = output_d.extra().compensation_mask == (w_groups ? 0x3 : 0x1);
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+        const bool req_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
+        auto mask_ok = [&](bool check, int mask) {
+            return IMPLICATION(check, mask == (w_groups ? 0x3 : 0x1));
+        };
 
         return simple_attr_check(attr, true, false)
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
-                && (output_d.extra().flags
-                        & memory_extra_flags::compensation_conv_s8s8)
-                && compensation_mask_ok
-                && utils::one_of(input_d.data_type(), f32, s8, bf16)
-                && output_d.data_type() == s8
-                && (D_mask == 1 || D_mask == (size_t)g * oc);
+                && (req_comp || req_asymmetric_comp)
+                && mask_ok(req_comp, output_d.extra().compensation_mask)
+                && mask_ok(req_asymmetric_comp,
+                        output_d.extra().asymm_compensation_mask)
+                && IMPLICATION(
+                        req_comp, one_of(D_mask, (size_t)1, (size_t)g * oc))
+                && one_of(input_d.data_type(), f32, s8, bf16)
+                && output_d.data_type() == s8;
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -320,17 +350,21 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const float *scales = pd->attr()->output_scales_.scales_;
         const size_t D_mask = utils::array_product(input_d.dims(),
                 math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+        const bool has_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
 
-        assert(output_d.extra().flags
-                & memory_extra_flags::compensation_conv_s8s8);
+        assert(req_comp || has_asymmetric_comp);
+
         float adj_scale
                 = (output_d.extra().flags & memory_extra_flags::scale_adjust)
                 ? output_d.extra().scale_adjust
                 : 1.f;
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
-                           int32_t *c, const float *s, const int oc_block,
-                           const int ic_block) {
+                           int32_t *c, int32_t *zp, const float *s,
+                           const int oc_block, const int ic_block) {
 #define index AB_or_BC_blk_off<tag_traits<tag_o>::inner_blks>
             for_(int ic = 0; ic < ic_block; ++ic)
             for (int oc = 0; oc < oc_block; ++oc) {
@@ -339,7 +373,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         + ic * plain_d.blocking_desc().strides[w_groups + 1];
                 out[index(oc, ic)] = qz_b0<data_t<type_i>, data_t<type_o>>()(
                         inp[plain_off], s[oc] * adj_scale);
-                c[oc] -= (128 * (int32_t)(out[index(oc, ic)]));
+                if (req_comp) c[oc] -= (128 * (int32_t)(out[index(oc, ic)]));
+                if (has_asymmetric_comp)
+                    zp[oc] -= (int32_t)(out[index(oc, ic)]);
             }
 #undef index
         };
@@ -349,8 +385,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         size_t offset
                 = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
-        int32_t *cp = reinterpret_cast<int32_t *>(output + offset);
-        parallel_nd(G * NB_OC * blksize, [&](int i) { cp[i] = 0; });
+        size_t zp_offset = offset
+                + (req_comp ? G * pdims[w_groups + 0] * sizeof(int32_t) : 0);
+        int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
+                               : nullptr;
+        int32_t *zp = has_asymmetric_comp
+                ? reinterpret_cast<int32_t *>(output + zp_offset)
+                : nullptr;
+        parallel_nd(G * NB_OC * blksize, [&](int i) {
+            if (req_comp) cp[i] = 0;
+            if (has_asymmetric_comp) zp[i] = 0;
+        });
 
 #define wei_blk_off(md, g, o, i, d, h, w) \
     (is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
@@ -358,9 +403,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                    : (md).blk_off<!w_groups>(g, o, i, h, w))
 
         parallel_nd(G, NB_OC, [&](int g, int O) {
-            for (int I = 0; I < NB_IC; I++)
-                for (int d = 0; d < D; d++)
-                    for_(int h = 0; h < H; h++)
+            for_(int I = 0; I < NB_IC; I++)
+            for_(int d = 0; d < D; d++)
+            for_(int h = 0; h < H; h++)
             for (int w = 0; w < W; w++) {
                 auto i = &input[wei_blk_off(
                         input_d, g, i_mult * O, i_mult * I, d, h, w)];
@@ -370,7 +415,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 const int ic_block = nstl::min(blksize, IC - I * blksize);
 
                 int _offset = (g * NB_OC + O) * blksize;
-                ker(i, o, (order_keep) ? &cp[_offset] : nullptr,
+                ker(i, o, (order_keep && req_comp) ? &cp[_offset] : nullptr,
+                        (order_keep && has_asymmetric_comp) ? &zp[_offset]
+                                                            : nullptr,
                         &scales[(D_mask == 1) ? 0 : _offset], oc_block,
                         ic_block);
             }
@@ -394,27 +441,33 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                 && utils::one_of(tag_o, format_tag::Goihw16g,
                                         format_tag::Goihw8g,
                                         format_tag::Goihw4g)),
-                spec::conv_s8s8>::type> {
+                spec::conv_req_comp>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         using namespace data_type;
+        using namespace utils;
 
         if (input_d.has_runtime_dims_or_strides()) return false;
 
-        const size_t D_mask = utils::array_product(
+        const size_t D_mask = array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
         const dim_t g = input_d.dims()[0];
         const dim_t oc = input_d.dims()[1];
         const dim_t ic = input_d.dims()[2];
 
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+        const bool req_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
+
         return order_keep && oc == 1 && ic == 1 // depth-wise case
                 && simple_attr_check(attr, true, false)
+                && (req_comp || req_asymmetric_comp)
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
-                && (output_d.extra().flags
-                        & memory_extra_flags::compensation_conv_s8s8)
-                && utils::one_of(input_d.data_type(), f32, s8, bf16)
-                && output_d.data_type() == s8
-                && (D_mask == 1 || D_mask == (size_t)g * oc);
+                && IMPLICATION(
+                        req_comp, one_of(D_mask, (size_t)1, (size_t)g * oc))
+                && one_of(input_d.data_type(), f32, s8, bf16)
+                && output_d.data_type() == s8;
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -443,31 +496,45 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const size_t D_mask = utils::array_product(input_d.dims(),
                 math::ilog2q(pd->attr()->output_scales_.mask_ + 1));
         const float *scales = pd->attr()->output_scales_.scales_;
+        const bool req_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_s8s8;
+        const bool has_asymmetric_comp = output_d.extra().flags
+                & memory_extra_flags::compensation_conv_asymmetric_src;
 
-        assert(output_d.extra().flags
-                & memory_extra_flags::compensation_conv_s8s8);
+        assert(req_comp || has_asymmetric_comp);
+
         float adj_scale
                 = (output_d.extra().flags & memory_extra_flags::scale_adjust)
                 ? output_d.extra().scale_adjust
                 : 1.f;
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
-                           int32_t *cp, const float *s, const int g_block) {
+                           int32_t *cp, int32_t *zp, const float *s,
+                           const int g_block) {
             PRAGMA_OMP_SIMD()
             for (int g = 0; g < g_block; g++) {
                 const auto i_off = g * input_d.blocking_desc().strides[0];
                 out[g] = qz_b0<data_t<type_i>, data_t<type_o>>()(
                         inp[i_off], s[g * OC] * adj_scale);
-                cp[g * OC] -= 128 * (int32_t)(out[g]);
+                if (req_comp) cp[g * OC] -= 128 * (int32_t)(out[g]);
+                if (has_asymmetric_comp) zp[g * OC] -= (int32_t)(out[g]);
             }
         };
 
-        size_t cp_offset = output_d.size() - output_d.additional_buffer_size();
-        int32_t *cp = reinterpret_cast<int32_t *>(output + cp_offset);
+        size_t offset = output_d.size() - output_d.additional_buffer_size();
+        size_t zp_offset = offset + (req_comp ? Gp * OC * sizeof(int32_t) : 0);
+        int32_t *cp = req_comp ? reinterpret_cast<int32_t *>(output + offset)
+                               : nullptr;
+        int32_t *zp = has_asymmetric_comp
+                ? reinterpret_cast<int32_t *>(output + zp_offset)
+                : nullptr;
+
         parallel_nd((Gp / blksize) * OC, [&](int ib) {
             PRAGMA_OMP_SIMD()
-            for (int i = 0; i < blksize; i++)
-                cp[ib * blksize + i] = 0;
+            for (int i = 0; i < blksize; i++) {
+                if (req_comp) cp[ib * blksize + i] = 0;
+                if (has_asymmetric_comp) zp[ib * blksize + i] = 0;
+            }
         });
 
 #define wei_blk_off(md, g, o, i, h, w) \
@@ -483,7 +550,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     const auto out
                             = &output[wei_blk_off(output_d, gb, O, I, h, w)];
                     int offset = gb * blksize + O;
-                    ker(inp, out, &cp[offset],
+                    ker(inp, out, req_comp ? &cp[offset] : nullptr,
+                            has_asymmetric_comp ? &zp[offset] : nullptr,
                             &scales[(D_mask == 1) ? 0 : offset], g_block);
                 }
             }
@@ -1372,6 +1440,7 @@ struct simple_reorder_t : public primitive_t {
                     && dst_md->data_type == type_o
                     && attr->has_default_values(
                             dnnl_primitive_attr::skip_mask_t::oscale_runtime
+                            | dnnl_primitive_attr::skip_mask_t::zero_points
                             | dnnl_primitive_attr::skip_mask_t::
                                     zero_points_runtime
                             | dnnl_primitive_attr::skip_mask_t::post_ops)

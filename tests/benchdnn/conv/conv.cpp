@@ -354,8 +354,10 @@ int fill_wei(
     const bool wino_s8 = prb->alg == WINO && prb->cfg[WEI].dt == dnnl_s8;
     const bool s8_s8
             = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dnnl_s8;
+    const bool is_def_zp = prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
-    const bool check_reorder = diff_data_type && !wino_s8 && !s8_s8;
+    const bool check_reorder
+            = diff_data_type && !wino_s8 && !s8_s8 && is_def_zp;
 
     dnn_mem_t extra_mem;
     if (check_reorder) {
