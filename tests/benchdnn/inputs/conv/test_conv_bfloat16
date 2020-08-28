@@ -6,14 +6,15 @@
 --cfg=bf16bf16bf16 --batch=set_conv_all
 
 --dir=FWD_D
---cfg=bf16bf16bf16 --batch=shapes_resnet_50
+--cfg=bf16bf16bf16 --batch=shapes_resnet_50 --batch=shapes_regression_1x1
 
 --dir=BWD_D
---cfg=f32bf16bf16  --batch=shapes_resnet_50
+--cfg=f32bf16bf16  --batch=shapes_resnet_50 --batch=shapes_regression_1x1
 --cfg=bf16bf16bf16 --batch=set_conv_all
 
 --dir=BWD_WB
---cfg=bf16f32bf16 --batch=set_conv_all --batch=set_dilated-conv
+--cfg=bf16f32bf16
+--batch=set_conv_all --batch=set_dilated-conv --batch=shapes_regression_1x1
 --cfg=bf16bf16bf16 --batch=shapes_resnet_50 --batch=set_dilated-conv
 
 --reset
