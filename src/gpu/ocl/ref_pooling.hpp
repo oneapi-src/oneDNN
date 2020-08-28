@@ -48,6 +48,8 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
             auto dst_data_t = dst_md()->data_type;
             auto acc_data_t = desc()->accum_data_type;
 
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
+
             bool ok = set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, forward_training,
                             forward_inference)
@@ -71,7 +73,8 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
                     && IMPLICATION(utils::one_of(src_data_t, s8, u8)
                                     && dst_data_t != f32,
                             acc_data_t == s32)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values(attr_skip_mask)
+                    && post_ops_ok(attr());
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;
@@ -83,6 +86,24 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
 
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        bool post_ops_ok(const primitive_attr_t *attr) const {
+            const auto &p = attr->post_ops_;
+
+            auto is_eltwise
+                    = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
+            auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
+            auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
+
+            bool is_po_ok = true;
+            for (int po_idx = 0; po_idx < p.len(); ++po_idx) {
+                is_po_ok &= is_eltwise(po_idx) | is_sum(po_idx)
+                        | is_binary(po_idx);
+            }
+            if (p.len() > 10) is_po_ok = false;
+
+            return is_po_ok;
+        }
 
         pool_conf_t conf;
         offsets_t off;

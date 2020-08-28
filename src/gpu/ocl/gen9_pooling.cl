@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
 #if DT_S8 || DT_U8
@@ -36,8 +37,8 @@ inline void write_vect_c_block_int(
 
 #if IS_FWD
 KERNEL_ATTR
-__kernel void gen9_pooling_fwd(
-        __global DATA_T *src, __global int *ws, __global DATA_T *dst) {
+__kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
+        __global DATA_T *dst POST_OP_ARGS) {
     const int mb = GWS_GET_MB();
     const int c = GWS_GET_C();
     const int od = GWS_GET_OD();
@@ -120,6 +121,52 @@ __kernel void gen9_pooling_fwd(
 #endif // ALG_AVG_NP
 
         int dst_off = DST_OFF(mb, c, od, oh, ow);
+        VECT_DATA_T sum0;
+        VECT_DATA_T sum1;
+#if WITH_SUM
+        sum0 = read_vect_c_block(0, &dst[dst_off], c, dst_stride);
+        sum1 = read_vect_c_block(1, &dst[dst_off], c, dst_stride);
+#endif
+
+        const int local_id = get_sub_group_local_id();
+
+#if VECT_DT_N == 1
+        const int po_mb = mb;
+        const int po_oc = c + local_id;
+        float d0_i = convert_float(DATA_TO_REF(D0));
+        APPLY_POST_OPS(D0, float, sum0, DATA_T, po_mb, 1, po_oc, 1, 0, 1, 0, 1,
+                0, 1, 0, 1);
+        D0 = CONVERT_DATA_T(d0_i);
+        float d1_i = convert_float(DATA_TO_REF(D1));
+        APPLY_POST_OPS(d1_i, float, sum1, DATA_T, po_mb, 1, po_oc, 1, 0, 1, 0,
+                1, 0, 1, 0, 1);
+        D1 = CONVERT_DATA_T(d1_i);
+#else
+        for (int idx = 0; idx < VECT_DT_N; ++idx) {
+#if USE_MB_BLOCK == 1
+            int po_mb = (mb + idx) % MB;
+#else
+            int po_mb = mb;
+#endif
+#if USE_C_BLOCK == 1
+            const int po_oc = c + idx * SUB_GROUP_SIZE + local_id;
+#else
+            const int po_oc = c + local_id;
+#endif
+            float d0_i = convert_float(DATA_TO_REF(D0[idx]));
+            DATA_T sum0_i = sum0[idx];
+            APPLY_POST_OPS(d0_i, float, sum0_i, DATA_T, po_mb, 1, po_oc, 1, 0,
+                    1, 0, 1, 0, 1, 0, 1);
+            D0[idx] = CONVERT_DATA_T(d0_i);
+
+            float d1_i = convert_float(DATA_TO_REF(D1[idx]));
+            DATA_T sum1_i = sum1[idx];
+            po_mb += VECT_DT_N;
+            APPLY_POST_OPS(d1_i, float, sum1_i, DATA_T, po_mb, 1, po_oc, 1, 0,
+                    1, 0, 1, 0, 1, 0, 1);
+            D1[idx] = CONVERT_DATA_T(d1_i);
+        }
+#endif // #if VECT_DT_N == 1
         write_vect_c_block(0, &dst[dst_off], c, dst_stride, D0);
         write_vect_c_block(1, &dst[dst_off], c, dst_stride, D1);
 

@@ -309,6 +309,7 @@ struct pool_conf_t {
     compute::dispatch_t dispatch;
     int sub_group_size;
 
+    attr_info_t attr_info;
     memory_desc_info_t src_md_info;
     memory_desc_info_t dst_md_info;
 };
@@ -557,7 +558,7 @@ struct shuffle_conf_t {
 
 inline void set_default_pool_conf(pool_conf_t &conf,
         const pooling_v2_desc_t &desc, const memory_desc_t &src_md,
-        const memory_desc_t &dst_md) {
+        const memory_desc_t &dst_md, const primitive_attr_t &attr) {
     const memory_desc_wrapper src_mdw(src_md);
     const memory_desc_wrapper dst_mdw(dst_md);
 
@@ -606,6 +607,8 @@ inline void set_default_pool_conf(pool_conf_t &conf,
 
     conf.is_training = desc.prop_kind == prop_kind::forward_training;
     conf.is_backward = desc.prop_kind == prop_kind::backward_data;
+
+    conf.attr_info = attr_info_t::create(&attr);
 }
 
 inline void set_default_conf(conv_conf_t &conf, const convolution_desc_t &cd,
