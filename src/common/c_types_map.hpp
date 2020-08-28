@@ -628,6 +628,8 @@ const memory_extra_flags_t compensation_conv_s8s8
 const memory_extra_flags_t scale_adjust = dnnl_memory_extra_flag_scale_adjust;
 const memory_extra_flags_t gpu_rnn_u8s8_compensation
         = dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation;
+const memory_extra_flags_t compensation_conv_asymmetric_src
+        = dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
 } // namespace memory_extra_flags
 
 using engine_kind_t = dnnl_engine_kind_t;

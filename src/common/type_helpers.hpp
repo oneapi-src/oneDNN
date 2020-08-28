@@ -146,15 +146,16 @@ inline format_kind_t format_tag_to_kind(format_tag_t tag) {
 
 inline bool memory_extra_desc_is_equal(
         const memory_extra_desc_t &lhs, const memory_extra_desc_t &rhs) {
+    using namespace memory_extra_flags;
     return true && lhs.flags == rhs.flags
-            && IMPLICATION(
-                    lhs.flags & memory_extra_flags::compensation_conv_s8s8,
+            && IMPLICATION(lhs.flags & compensation_conv_s8s8,
                     lhs.compensation_mask == rhs.compensation_mask)
-            && IMPLICATION(
-                    lhs.flags & memory_extra_flags::gpu_rnn_u8s8_compensation,
+            && IMPLICATION(lhs.flags & gpu_rnn_u8s8_compensation,
                     lhs.compensation_mask == rhs.compensation_mask)
-            && IMPLICATION(lhs.flags & memory_extra_flags::scale_adjust,
-                    lhs.scale_adjust == rhs.scale_adjust);
+            && IMPLICATION(lhs.flags & scale_adjust,
+                    lhs.scale_adjust == rhs.scale_adjust)
+            && IMPLICATION(lhs.flags & compensation_conv_asymmetric_src,
+                    lhs.asymm_compensation_mask == rhs.asymm_compensation_mask);
 }
 
 inline bool blocking_desc_is_equal(const memory_desc_t &lhs_md,

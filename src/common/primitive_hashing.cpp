@@ -226,6 +226,11 @@ size_t get_md_hash(const memory_desc_t &md) {
         if (md.extra.flags & dnnl_memory_extra_flag_scale_adjust) {
             seed = hash_combine(seed, md.extra.scale_adjust);
         }
+
+        if (md.extra.flags
+                & dnnl_memory_extra_flag_compensation_conv_asymmetric_src) {
+            seed = hash_combine(seed, md.extra.asymm_compensation_mask);
+        }
     }
     // Combined hash for a memory descriptor
     return seed;

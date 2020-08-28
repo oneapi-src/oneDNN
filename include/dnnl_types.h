@@ -1163,6 +1163,7 @@ typedef enum {
     dnnl_memory_extra_flag_compensation_conv_s8s8 = 0x1U,
     dnnl_memory_extra_flag_scale_adjust = 0x2U,
     dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation = 0x4U,
+    dnnl_memory_extra_flag_compensation_conv_asymmetric_src = 0x8U,
 } dnnl_memory_extra_flags_t;
 
 /// Description of extra information stored in memory
@@ -1174,8 +1175,10 @@ typedef struct {
     int compensation_mask;
     /// Scale applied to the data
     float scale_adjust;
+    /// Compensation mask for asymmetric quantization
+    int asymm_compensation_mask;
     /// For future backwards compatibility
-    char reserved[64];
+    char reserved[60];
 } dnnl_memory_extra_desc_t;
 
 /// Memory descriptor. The description is based on a number of dimensions,

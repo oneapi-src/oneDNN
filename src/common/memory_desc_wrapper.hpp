@@ -98,35 +98,51 @@ struct memory_desc_wrapper : public c_compatible {
     size_t data_type_size() const { return types::data_type_size(data_type()); }
 
     /** return the size of data type of additional buffer */
-    size_t additional_buffer_data_size() const {
-        if (extra().flags & memory_extra_flags::compensation_conv_s8s8)
+    size_t additional_buffer_data_size(uint64_t flag_select) const {
+        if (flag_select & memory_extra_flags::compensation_conv_s8s8)
             return sizeof(int32_t);
-        if (extra().flags & memory_extra_flags::gpu_rnn_u8s8_compensation)
+        if (flag_select & memory_extra_flags::gpu_rnn_u8s8_compensation)
             return sizeof(float);
+        if (flag_select & memory_extra_flags::compensation_conv_asymmetric_src)
+            return sizeof(int32_t);
         return 0;
     }
 
     /** return true if memory format has additional buffer */
     bool is_additional_buffer() const {
+        using namespace memory_extra_flags;
         return (extra().flags
-                & (memory_extra_flags::compensation_conv_s8s8
-                        | memory_extra_flags::gpu_rnn_u8s8_compensation));
+                & (compensation_conv_s8s8 | gpu_rnn_u8s8_compensation
+                        | compensation_conv_asymmetric_src));
     }
 
-    /** returns the size of additional buffer */
+    /** returns the size of the appended buffer when the memory descriptor
+     * requires extra space to hold compensation data */
     size_t additional_buffer_size() const {
-        if (extra().flags
-                & (memory_extra_flags::compensation_conv_s8s8
-                        | memory_extra_flags::gpu_rnn_u8s8_compensation)) {
-            int cmask = extra().compensation_mask;
+        using namespace memory_extra_flags;
+
+        auto calculate_size = [=](int cmask, size_t buff_data_size) {
             assert(cmask == 1 || cmask == 3 || cmask == 27);
             dim_t prod = 1;
             for (int d = 0; d < ndims(); ++d)
                 if (cmask & (1 << d)) prod *= padded_dims()[d];
-            return prod * additional_buffer_data_size();
+            return (size_t)prod * buff_data_size;
+        };
+
+        size_t buff_size = 0;
+        const uint64_t comp_flags
+                = compensation_conv_s8s8 | gpu_rnn_u8s8_compensation;
+        if (extra().flags & comp_flags) {
+            buff_size += calculate_size(extra().compensation_mask,
+                    additional_buffer_data_size(comp_flags));
+        }
+        if (extra().flags & compensation_conv_asymmetric_src) {
+            buff_size += calculate_size(extra().asymm_compensation_mask,
+                    additional_buffer_data_size(
+                            compensation_conv_asymmetric_src));
         }
 
-        return 0;
+        return buff_size;
     }
 
     /** returns the size required to store described memory
