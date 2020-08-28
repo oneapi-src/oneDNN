@@ -60,6 +60,7 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
             pos--;
 
         int dim_idx = std::tolower(tag[pos0]) - 'a';
+        if (dim_idx >= ndims) return FAIL;
         int block_str_len = pos0 - pos - 1;
         int block = (block_str_len == 0)
                 ? 1
