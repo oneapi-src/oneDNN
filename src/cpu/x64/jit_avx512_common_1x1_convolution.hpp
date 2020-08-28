@@ -69,7 +69,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
-            rtus_prepare(this, conv_d, src_d, dst_md());
+            rtus_prepare(this, conv_d, src_d, dst_md(), weights_md());
 
             status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
                     *conv_d, *src_d, *weights_md(), *dst_md(), *attr(),
@@ -307,7 +307,7 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_t {
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *diff_src_d = diff_src_md();
-            rtus_prepare(this, conv_d, diff_src_d, diff_dst_md());
+            rtus_prepare(this, conv_d, diff_src_d, diff_dst_md(), weights_md());
 
             status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
                     *conv_d, *diff_src_d, *weights_md(), *diff_dst_md(),
@@ -397,7 +397,7 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t : public primitive_t {
 
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
-            rtus_prepare(this, conv_d, src_d, diff_dst_md());
+            rtus_prepare(this, conv_d, src_d, diff_dst_md(), diff_weights_md());
 
             status_t status = jit_avx512_common_1x1_conv_kernel::init_conf(jcp_,
                     *conv_d, *src_d, *diff_weights_md(), *diff_dst_md(),
