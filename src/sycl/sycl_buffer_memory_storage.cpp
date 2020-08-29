@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,10 +22,27 @@
 #include "common/guard_manager.hpp"
 #include "common/memory.hpp"
 #include "common/utils.hpp"
+#include "sycl/sycl_stream.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace sycl {
+
+namespace {
+template <::sycl::access_mode mode>
+gpu::sycl::sycl_memory_arg_t<mode> get_memory_arg(
+        const sycl_buffer_memory_storage_t *storage, stream_t *stream,
+        ::sycl::handler &cgh) {
+    void *handle = nullptr;
+    storage->get_data_handle(&handle);
+    if (!handle) {
+        auto *sycl_stream = utils::downcast<sycl_stream_t *>(stream);
+        return {sycl_stream->get_dummy_accessor<mode>(cgh)};
+    }
+    return {storage->buffer().get_access<mode>(cgh)};
+}
+
+} // namespace
 
 struct map_buffer_tag;
 
@@ -112,6 +129,23 @@ buffer_u8_t &sycl_buffer_memory_storage_t::parent_buffer() const {
     return utils::downcast<const sycl_buffer_memory_storage_t *>(
             parent_storage())
             ->buffer();
+}
+
+gpu::sycl::sycl_in_memory_arg_t sycl_buffer_memory_storage_t::get_in_memory_arg(
+        stream_t *stream, ::sycl::handler &cgh) const {
+    return get_memory_arg<::sycl::access::mode::read>(this, stream, cgh);
+}
+
+gpu::sycl::sycl_out_memory_arg_t
+sycl_buffer_memory_storage_t::get_out_memory_arg(
+        stream_t *stream, cl::sycl::handler &cgh) const {
+    return get_memory_arg<::sycl::access::mode::write>(this, stream, cgh);
+}
+
+gpu::sycl::sycl_inout_memory_arg_t
+sycl_buffer_memory_storage_t::get_inout_memory_arg(
+        stream_t *stream, cl::sycl::handler &cgh) const {
+    return get_memory_arg<::sycl::access::mode::read_write>(this, stream, cgh);
 }
 
 } // namespace sycl

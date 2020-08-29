@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2021 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,6 +107,13 @@ public:
 
         return storage;
     }
+
+    gpu::sycl::sycl_in_memory_arg_t get_in_memory_arg(
+            stream_t *stream, cl::sycl::handler &cgh) const override;
+    gpu::sycl::sycl_out_memory_arg_t get_out_memory_arg(
+            stream_t *stream, cl::sycl::handler &cgh) const override;
+    gpu::sycl::sycl_inout_memory_arg_t get_inout_memory_arg(
+            stream_t *stream, cl::sycl::handler &cgh) const override;
 
 protected:
     status_t init_allocate(size_t size) override {

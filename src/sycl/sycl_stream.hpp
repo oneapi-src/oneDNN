@@ -272,6 +272,12 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         cgh.depends_on(get_deps());
     }
 
+    template <::sycl::access_mode mode>
+    ::sycl::accessor<uint8_t, 1, mode> get_dummy_accessor(
+            ::sycl::handler &cgh) {
+        return dummy_buffer_.get_access<mode>(cgh);
+    }
+
 protected:
     sycl_stream_t(engine_t *engine, unsigned flags)
         : gpu::compute::compute_stream_t(engine, flags) {}
@@ -287,6 +293,10 @@ protected:
 
     std::unique_ptr<::sycl::queue> queue_;
     mutable utils::thread_local_storage_t<std::vector<::sycl::event>> deps_tls_;
+
+    // XXX: this is a temporary solution to make sycl_memory_arg_t
+    // default constructible.
+    buffer_u8_t dummy_buffer_ = buffer_u8_t(1);
 
 private:
     status_t init();

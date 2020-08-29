@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2019-2022 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #define SYCL_MEMORY_STORAGE_BASE_HPP
 
 #include "common/memory_storage.hpp"
+#include "gpu/sycl/sycl_types.hpp"
 #include "sycl/sycl_c_types_map.hpp"
 
 namespace dnnl {
@@ -29,6 +30,13 @@ public:
     using memory_storage_t::memory_storage_t;
 
     virtual memory_kind_t memory_kind() const = 0;
+
+    virtual gpu::sycl::sycl_in_memory_arg_t get_in_memory_arg(
+            stream_t *stream, cl::sycl::handler &cgh) const = 0;
+    virtual gpu::sycl::sycl_out_memory_arg_t get_out_memory_arg(
+            stream_t *stream, cl::sycl::handler &cgh) const = 0;
+    virtual gpu::sycl::sycl_inout_memory_arg_t get_inout_memory_arg(
+            stream_t *stream, cl::sycl::handler &cgh) const = 0;
 };
 
 } // namespace sycl
