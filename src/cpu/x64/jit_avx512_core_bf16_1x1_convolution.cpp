@@ -1031,10 +1031,11 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
             }
         } else {
             if (is_bf16_out) {
+                const auto ic_work = nstl::min(jcp.ic, ic_b_end * jcp.ic_block)
+                        - ic_b_start * jcp.ic_block;
                 for_(int g = g_start; g < g_end; g++)
                 for (int oc_b = oc_b_start; oc_b < oc_b_end; oc_b++) {
-                    const size_t acc_size
-                            = (size_t)ic_b_work * jcp.ic_block * jcp.oc_block;
+                    const size_t acc_size = (size_t)ic_work * jcp.oc_block;
                     const size_t off
                             = wht_blk_off(diff_weights_d, g, oc_b, ic_b_start);
 
