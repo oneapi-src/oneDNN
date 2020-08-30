@@ -43,7 +43,7 @@ protected:
     virtual void SetUp() { e = get_test_engine(); }
 };
 
-TEST_F(ip_formats_test, TestChecksAllFormats) {
+HANDLE_EXCEPTIONS_FOR_TEST_F(ip_formats_test, TestChecksAllFormats) {
     SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
             "GPU takes a lot of time to complete this test.");
     static auto isa = get_effective_cpu_isa();
