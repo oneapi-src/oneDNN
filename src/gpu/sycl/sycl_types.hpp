@@ -26,6 +26,9 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
+#define CHECK_SYCL_KERNEL_ARG_TYPE(type) \
+    static_assert(::sycl::is_device_copyable_v<type>)
+
 template <::sycl::access_mode mode>
 struct sycl_memory_arg_t {
     using acc_t = ::sycl::accessor<uint8_t, 1, mode>;
@@ -165,6 +168,13 @@ private:
     dims32_t inner_blks_;
     dims32_t inner_idxs_;
 };
+
+// Add a check for every SYCL kernel argument type.
+//
+// Exception: sycl_memory_arg_t doesn't pass the check because it contains
+// sycl::accessor which is not device copyable. However, it is treated by the
+// compiler in a special way allowing it not to satisfy the requirement.
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_md_t);
 
 } // namespace sycl
 } // namespace impl
