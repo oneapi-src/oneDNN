@@ -77,25 +77,12 @@ cmake .. \
           <extra build options>
 ~~~
 
-- Compile with Arm Compute Library (AArch64 only)
-
-~~~sh
-export ACL_ROOT_DIR=<path/to/Compute Library>
-cmake .. \
-         -DDNNL_AARCH64_USE_ACL=ON \
-         <extra build options>
-~~~
-
-Only ACL versions 21.02 or above are supported.
-
-#### Build and Install the Library
-
 - Build the library
 ~~~sh
 make -j
 ~~~
 
-#### GCC targeting AArch64
+#### GCC targeting AArch64 on x64 host
 
 - Set up the environment for the compiler
 
@@ -107,6 +94,23 @@ cmake .. \
           -DCMAKE_SYSTEM_NAME=Linux \
           -DCMAKE_SYSTEM_PROCESSOR=AARCH64 \
           -DCMAKE_LIBRARY_PATH=/usr/aarch64-linux-gnu/lib \
+          <extra build options>
+~~~
+
+- Build the library
+~~~sh
+make -j
+~~~
+
+#### GCC with Arm Compute Library (ACL) on AArch64 host
+
+- Set up the environment for the compiler
+
+- Configure CMake and generate makefiles
+~~~sh
+export ACL_ROOT_DIR=<path/to/Compute Library>
+cmake .. \
+          -DDNNL_AARCH64_USE_ACL=ON \
           <extra build options>
 ~~~
 
