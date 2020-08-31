@@ -29,6 +29,13 @@ namespace impl {
 namespace gpu {
 namespace sycl {
 
+#define CTX_IN_SYCL_STORAGE(arg) \
+    utils::downcast<const impl::sycl::sycl_memory_storage_base_t *>( \
+            &CTX_IN_STORAGE(arg))
+#define CTX_OUT_SYCL_STORAGE(arg) \
+    utils::downcast<impl::sycl::sycl_memory_storage_base_t *>( \
+            &CTX_OUT_STORAGE(arg))
+
 #define CHECK_SYCL_KERNEL_ARG_TYPE(type) \
     static_assert(::sycl::is_device_copyable_v<type>)
 
@@ -40,7 +47,7 @@ struct sycl_memory_arg_t {
         : usm_(usm), acc_(dummy_acc) {}
     sycl_memory_arg_t(const acc_t &acc) : usm_(nullptr), acc_(acc) {}
     // This method must be called only from inside a kernel.
-    void *get_pointer() { return usm_ ? usm_ : acc_.get_pointer().get(); }
+    void *get_pointer() const { return usm_ ? usm_ : acc_.get_pointer().get(); }
 
 private:
     void *usm_;

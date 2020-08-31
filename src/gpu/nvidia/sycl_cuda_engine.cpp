@@ -39,6 +39,8 @@
 #include "gpu/nvidia/sycl_cuda_scoped_context.hpp"
 #include "gpu/nvidia/sycl_cuda_stream.hpp"
 
+#include "gpu/sycl/ref_binary.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -147,7 +149,7 @@ cublasHandle_t *sycl_cuda_engine_t::get_cublas_handle() {
 }
 
 device_id_t sycl_cuda_engine_t::device_id() const {
-    return device_id_t(static_cast<int>(sycl::backend_t::nvidia),
+    return device_id_t(static_cast<int>(impl::sycl::backend_t::nvidia),
             static_cast<uint64_t>(compat::get_native<CUdevice>(device())),
             static_cast<uint64_t>(0));
 }
@@ -223,6 +225,7 @@ constexpr dnnl::impl::impl_list_item_t sycl_cuda_impl_list[] = {
 
         // Binary
         INSTANCE(cudnn_binary_t)
+        INSTANCE(sycl::ref_binary_t)
 
         // MatMul
         INSTANCE(cudnn_matmul_t)

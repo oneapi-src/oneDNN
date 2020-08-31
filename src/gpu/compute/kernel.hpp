@@ -84,15 +84,18 @@ public:
     }
 
     virtual status_t parallel_for(
-            stream_t &stream, const std::function<void(void *)> &cgf) const {
+            stream_t &stream, const std::function<void(void *)> &cgf) {
         assert(!"unexpected");
         return status::runtime_error;
     }
 
     virtual status_t realize(kernel_t *kernel, const engine_t *engine,
-            program_list_t *programs) const = 0;
+            program_list_t *programs) const {
+        return status::success;
+    }
 
-    virtual void clear() = 0;
+    virtual void clear() {}
+
     virtual status_t binary_size(size_t *binary_size) const {
         assert(!"unexpected");
         return status::runtime_error;
@@ -102,8 +105,15 @@ public:
         return status::runtime_error;
     }
 
-    virtual const std::vector<scalar_type_t> &arg_types() const = 0;
-    virtual const std::shared_ptr<compute::binary_t> &binary() const = 0;
+    virtual const std::vector<scalar_type_t> &arg_types() const {
+        static const std::vector<scalar_type_t> dummy;
+        return dummy;
+    }
+
+    virtual const std::shared_ptr<compute::binary_t> &binary() const {
+        static const std::shared_ptr<compute::binary_t> dummy;
+        return dummy;
+    }
 };
 
 inline kernel_t::id_t kernel_t::id() const {

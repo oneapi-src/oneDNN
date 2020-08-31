@@ -23,7 +23,7 @@ namespace gpu {
 namespace sycl {
 
 status_t sycl_gpu_kernel_t::parallel_for(
-        stream_t &stream, const std::function<void(void *)> &cgf) const {
+        stream_t &stream, const std::function<void(void *)> &cgf) {
     auto *sycl_stream = utils::downcast<impl::sycl::sycl_stream_t *>(&stream);
     auto &queue = sycl_stream->queue();
 

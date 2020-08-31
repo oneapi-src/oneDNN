@@ -26,6 +26,11 @@ if(DNNL_SYCL_CUDA OR DNNL_SYCL_HIP)
         "sycl_interop_gpu_kernel.hpp"
         "sycl_interop_gpu_kernel.cpp"
         )
+    if(DNNL_SYCL_CUDA)
+        append(CMAKE_CXX_FLAGS "-fsycl-targets=nvptx64-nvidia-cuda")
+        # Suppress irrelevant warning about incompatible triplets.
+        append(CMAKE_CXX_FLAGS "-Wno-linker-warnings")
+    endif()
 else()
     # GPU vendor Intel needs only the following files from this directory.
     set(SOURCES
