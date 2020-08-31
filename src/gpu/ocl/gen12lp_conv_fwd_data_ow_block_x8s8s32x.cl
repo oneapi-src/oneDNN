@@ -236,7 +236,7 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
 #endif
                 barrier(CLK_LOCAL_MEM_FENCE);
 
-                unroll_for(int kw = 0; kw < KW; kw++) {
+                for (int kw = 0; kw < KW; kw++) {
                     unroll_for(int i = 0; i < OW_BLOCK; i++) {
                         S0[i] = block_read(
                                 S_work + (kw * (1 + DW) + SW * i) * 8);
