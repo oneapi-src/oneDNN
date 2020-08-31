@@ -618,9 +618,9 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
                 cmp(reg_load_loop_work, label_idx * simd_w);
                 jg(load_loop_blk[label_idx]);
             }
-            for (int idx = label_idx - 1; idx > 0; --idx) {
+            for (int idx = label_idx - 1; idx >= 0; --idx) {
                 cmp(reg_load_loop_work, simd_w * (idx + 1));
-                je(load_loop_blk[idx], T_NEAR);
+                jge(load_loop_blk[idx], T_NEAR);
             }
             if (ur_idx < num_ur_cases - 2) {
                 cmp(reg_load_loop_work, simd_w);
