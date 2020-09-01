@@ -54,18 +54,23 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding)
-                    && (utils::everyone_is(
-                                f32, src_data_t, dst_data_t, acc_data_t)
-                            || utils::everyone_is(
-                                    f16, src_data_t, dst_data_t, acc_data_t)
-                            || utils::everyone_is(bf16, src_data_t, dst_data_t)
-                            || utils::everyone_is(u8, src_data_t, dst_data_t)
-                            || utils::everyone_is(s8, src_data_t, dst_data_t)
-                            || utils::everyone_is(s32, src_data_t, dst_data_t))
                     && IMPLICATION(utils::one_of(src_data_t, f16, s8, u8, s32),
                             desc()->prop_kind == forward_inference)
-                    && IMPLICATION(src_data_t == u8 || src_data_t == s8,
-                            desc()->accum_data_type == s32)
+                    && IMPLICATION(src_data_t != dst_data_t,
+                            desc()->prop_kind == forward_inference)
+                    && IMPLICATION(utils::one_of(src_data_t, bf16, f16),
+                            src_data_t == dst_data_t)
+                    && IMPLICATION(src_data_t == s8,
+                            utils::one_of(dst_data_t, s8, f32))
+                    && IMPLICATION(src_data_t == u8,
+                            utils::one_of(dst_data_t, u8, f32))
+                    && IMPLICATION(src_data_t == f32,
+                            utils::one_of(dst_data_t, s8, u8, f32))
+                    && IMPLICATION(utils::one_of(f32, src_data_t, dst_data_t),
+                            acc_data_t == f32)
+                    && IMPLICATION(utils::one_of(src_data_t, s8, u8)
+                                    && dst_data_t != f32,
+                            acc_data_t == s32)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

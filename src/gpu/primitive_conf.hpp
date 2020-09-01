@@ -297,6 +297,7 @@ struct pool_conf_t {
     int dd, dh, dw;
     int f_pad, t_pad, l_pad;
     data_type_t src_dt;
+    data_type_t dst_dt;
     alg_kind_t alg;
     bool is_training, is_backward;
     bool use_mb_block, use_c_block;
@@ -304,6 +305,9 @@ struct pool_conf_t {
     int nvect;
     compute::dispatch_t dispatch;
     int sub_group_size;
+
+    memory_desc_info_t src_md_info;
+    memory_desc_info_t dst_md_info;
 };
 
 // Inner Product
@@ -592,6 +596,10 @@ inline void set_default_pool_conf(pool_conf_t &conf,
     conf.alg = desc.alg_kind;
 
     conf.src_dt = src_mdw.data_type();
+    conf.dst_dt = dst_mdw.data_type();
+
+    conf.src_md_info = memory_desc_info_t::create(src_mdw);
+    conf.dst_md_info = memory_desc_info_t::create(dst_mdw);
 
     conf.is_training = desc.prop_kind == prop_kind::forward_training;
     conf.is_backward = desc.prop_kind == prop_kind::backward_data;

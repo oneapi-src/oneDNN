@@ -25,7 +25,7 @@
 #if IS_FWD
 KERNEL_ATTR
 __kernel void ref_pooling_fwd(
-        __global DATA_T *src, __global int *ws, __global DATA_T *dst) {
+        __global DATA_T *src, __global int *ws, __global DST_DATA_T *dst) {
     const int mb = GWS_GET_MB();
     const int oc = GWS_GET_OC();
 
@@ -78,7 +78,7 @@ __kernel void ref_pooling_fwd(
                         }
                     }
 #if ALG_MAX
-                dst[dst_off] = CONVERT_DATA_T(d);
+                dst[dst_off] = TO_DST(d);
 #if IS_TRAINING
                 if (ws[dst_off] < 0) ws[dst_off] = 0;
 #endif
@@ -111,7 +111,7 @@ __kernel void ref_pooling_fwd(
                         * (KH - ih_start_excluded - ih_end_excluded)
                         * (KW - iw_start_excluded - iw_end_excluded);
 #endif
-                dst[dst_off] = CONVERT_DATA_T(RINT(d / num_summands));
+                dst[dst_off] = TO_DST(d / num_summands);
 #endif
             }
 }
@@ -120,7 +120,7 @@ __kernel void ref_pooling_fwd(
 #if IS_BWD
 KERNEL_ATTR
 __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
-        __global DATA_T *diff_dst) {
+        __global DST_DATA_T *diff_dst) {
     const int mb = GWS_GET_MB();
     const int oc = GWS_GET_OC();
 

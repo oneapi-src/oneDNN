@@ -97,6 +97,8 @@ The pooling primitive supports the following combinations of data types:
 | forward / backward | f32, bf16            | f32
 | forward            | f16                  | f16
 | forward            | s8, u8, s32          | s32
+| forward inference  | s8, u8 / f32         | f32
+| forward inference  | f32 / s8, u8         | f32
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -135,9 +137,12 @@ of any preceding compute-intensive primitive.
 @anchor dg_pool_impl_limits
 ## Implementation Limitations
 
-1. No primitive specific limitations. Refer to @ref dev_guide_data_types for
-   limitations related to data types support.
+1. Refer to @ref dev_guide_data_types for limitations related to data types
+   support.
 
+2. **CPU**
+    - Different data types of source and destination in forward inference
+      are not supported.
 
 ## Performance Tips
 

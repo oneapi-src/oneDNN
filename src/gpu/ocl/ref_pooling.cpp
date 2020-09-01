@@ -82,6 +82,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
     def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);
 
+    def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
+    def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
+
     def_dispatch(kernel_ctx, conf.dispatch);
 
     return status::success;

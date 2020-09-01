@@ -33,53 +33,38 @@ namespace pool {
  * params: {data_type, min, max, f_min, f_max, eps}
  */
 
-const _dt_conf_t conf_f32 = {
-        // though integers are expected, eps is needed to cover division error
-        {dnnl_f32, -FLT_MAX, FLT_MAX, -2048, 2048, 3e-7},
-        {},
-        {},
-        {dnnl_f32, -FLT_MAX, FLT_MAX, -2048, 2048, 3e-7},
-};
-
-const _dt_conf_t conf_s32 = {
-        {dnnl_s32, INT_MIN, INT_MAX, -2048, 2048, 0.},
-        {},
-        {},
-        {dnnl_s32, INT_MIN, INT_MAX, -2048, 2048, 0.},
-};
+// though integers are expected, eps is needed to cover division error
+const dt_conf_t conf_entry_f32
+        = {dnnl_f32, -FLT_MAX, FLT_MAX, -2048, 2048, 3e-7};
+const dt_conf_t conf_entry_s32 = {dnnl_s32, INT_MIN, INT_MAX, -2048, 2048, 0.};
+const dt_conf_t conf_entry_s8
+        = {dnnl_s8, INT8_MIN, INT8_MAX, INT8_MIN, INT8_MAX, 0.};
+const dt_conf_t conf_entry_u8 = {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0.};
 
 const float16_t flt16_max = dnnl::impl::nstl::numeric_limits<float16_t>::max();
-const _dt_conf_t conf_f16 = {
-        {dnnl_f16, -flt16_max, flt16_max, -32, 32, 1e-3},
-        {},
-        {},
-        {dnnl_f16, -flt16_max, flt16_max, -32, 32, 1e-3},
-};
+const dt_conf_t conf_entry_f16
+        = {dnnl_f16, -flt16_max, flt16_max, -32, 32, 1e-3};
 
 #define BFLT16_MAX 3.38953138925153547590470800371487866880e+38F
-const _dt_conf_t conf_bf16 = {
-        /* Although integers are expected, eps is needed to cover
-     * for the division error */
-        {dnnl_bf16, -BFLT16_MAX, BFLT16_MAX, -32, 32, 1e-2},
-        {},
-        {},
-        {dnnl_bf16, -BFLT16_MAX, BFLT16_MAX, -32, 32, 5e-2},
-};
+/* Although integers are expected, eps is needed to cover
+ * for the division error */
+const dt_conf_t conf_entry_bf16
+        = {dnnl_bf16, -BFLT16_MAX, BFLT16_MAX, -32, 32, 5e-2};
 #undef BFLT16_MAX
 
-const _dt_conf_t conf_s8 = {
-        {dnnl_s8, INT8_MIN, INT8_MAX, INT8_MIN, INT8_MAX, 0.},
-        {},
-        {},
-        {dnnl_s8, INT8_MIN, INT8_MAX, INT8_MIN, INT8_MAX, 0.},
-};
+// Configurations with same SRC and DST datatypes
+const _dt_conf_t conf_f32 = {conf_entry_f32, {}, {}, conf_entry_f32};
+const _dt_conf_t conf_s32 = {conf_entry_s32, {}, {}, conf_entry_s32};
+const _dt_conf_t conf_f16 = {conf_entry_f16, {}, {}, conf_entry_f16};
+const _dt_conf_t conf_bf16 = {conf_entry_bf16, {}, {}, conf_entry_bf16};
+const _dt_conf_t conf_s8 = {conf_entry_s8, {}, {}, conf_entry_s8};
+const _dt_conf_t conf_u8 = {conf_entry_u8, {}, {}, conf_entry_u8};
 
-const _dt_conf_t conf_u8 = {
-        {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0.},
-        {},
-        {},
-        {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0.},
-};
+// Configurations with different SRC and DST datatypes
+const _dt_conf_t conf_s8f32 {conf_entry_s8, {}, {}, conf_entry_f32};
+const _dt_conf_t conf_f32s8 {conf_entry_f32, {}, {}, conf_entry_s8};
+const _dt_conf_t conf_u8f32 {conf_entry_u8, {}, {}, conf_entry_f32};
+const _dt_conf_t conf_f32u8 {conf_entry_f32, {}, {}, conf_entry_u8};
 
 const dt_conf_t *str2cfg(const char *str) {
 #define CASE(cfg) \
@@ -90,6 +75,10 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(bf16);
     CASE(s8);
     CASE(u8);
+    CASE(s8f32);
+    CASE(f32s8);
+    CASE(u8f32);
+    CASE(f32u8);
 #undef CASE
     []() {
         SAFE(FAIL, CRIT);
@@ -107,6 +96,10 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     CASE(bf16);
     CASE(s8);
     CASE(u8);
+    CASE(s8f32);
+    CASE(f32s8);
+    CASE(u8f32);
+    CASE(f32u8);
 #undef CASE
     SAFE_V(FAIL);
     return s;

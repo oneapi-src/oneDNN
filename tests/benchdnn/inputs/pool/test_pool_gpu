@@ -47,3 +47,6 @@
 --dir=FWD_I
 --alg=MAX
 --batch=set_all_small
+
+# Test different src and dst datatypes
+--batch=harness_pooling_different_dt
