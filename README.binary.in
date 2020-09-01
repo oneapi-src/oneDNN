@@ -60,12 +60,15 @@ Common dependencies:
 
 Runtime specific dependencies:
 
-| Runtime configuration | Dependency                                |
-| --------------------- | ----------------------------------------- |
-| cpu_gomp              | GNU OpenMP runtime (libgomp.so)           |
-| cpu_iomp              | Intel OpenMP runtime (libiomp5.so)        |
-| cpu_tbb               | TBB 2017 Update 2 or later (libtbb.so)    |
-| cpu_dpcpp_gpu_dpcpp   | Intel DPC++ Compiler Beta                            |
+| Runtime configuration | Dependency                                         |
+| --------------------- | -------------------------------------------------- |
+| cpu_gomp              | GNU OpenMP runtime (libgomp.so)                    |
+| cpu_iomp              | Intel OpenMP runtime (libiomp5.so)                 |
+| cpu_tbb               | TBB 2017 Update 2 or later (libtbb.so)             |
+| cpu_dpcpp_gpu_dpcpp   | Intel oneAPI DPC++ Compiler runtime (libsycl.so.3) |
+|                       | TBB 2020.2 or later (libtbb.so.12)                 |
+|                       | oneAPI Level Zero loader (libze_loader.so.1)       |
+|                       | OpenCL loader (libOpenCL.so)                       |
 
 ## Windows
 
@@ -74,12 +77,15 @@ Common dependencies:
 
 Runtime specific dependencies:
 
-| Runtime configuration | Dependency                                |
-| --------------------- | ----------------------------------------- |
-| cpu_vcomp             | No additional dependencies                |
-| cpu_iomp              | Intel OpenMP runtime                      |
-| cpu_tbb               | TBB 2017 Update 2 or later (libtbb.so)    |
-| cpu_dpcpp_gpu_dpcpp   | Intel DPC++ Compiler Beta                            |
+| Runtime configuration | Dependency                                         |
+| --------------------- | -------------------------------------------------- |
+| cpu_vcomp             | No additional dependencies                         |
+| cpu_iomp              | Intel OpenMP runtime                               |
+| cpu_tbb               | TBB 2017 Update 2 or later (tbb.dll)               |
+| cpu_dpcpp_gpu_dpcpp   | Intel oneAPI DPC++ Compiler runtime (sycl.dll)     |
+|                       | TBB 2020.2 or later (tbb.dll)                      |
+|                       | oneAPI Level Zero loader (ze_loader.dll)           |
+|                       | OpenCL loader (OpenCL.dll)                         |
 
 ## macOS
 
