@@ -336,7 +336,13 @@ struct rtus_driver_t : public jit_generator {
                     default: assert(!"Unsupported typesize");
                 }
             } else {
-                load_bytes(vreg, reg, offset, load_size);
+                // FIXME: figure out a better way for compile-time definition
+                // of xmm/ymm registers
+                const bool is_ymm = load_size > 16;
+                if (is_ymm)
+                    load_bytes(Ymm(vreg.getIdx()), reg, offset, load_size);
+                else
+                    load_bytes(vreg, reg, offset, load_size);
             }
         };
 
@@ -351,7 +357,13 @@ struct rtus_driver_t : public jit_generator {
                     default: assert(!"Unsupported typesize");
                 }
             } else {
-                store_bytes(vreg, reg, offset, store_size);
+                // FIXME: figure out a better way for compile-time definition
+                // of xmm/ymm registers
+                const bool is_ymm = store_size > 16;
+                if (is_ymm)
+                    store_bytes(Ymm(vreg.getIdx()), reg, offset, store_size);
+                else
+                    store_bytes(vreg, reg, offset, store_size);
             }
         };
 
