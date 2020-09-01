@@ -680,6 +680,7 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
                 if (is_rd_tail && rd_tail_size != 0
                         && (rd == rd_loop - brg.rd_step)
                         && (brg.is_bf16 || brg.is_int8)) {
+                    vpxord(bcst(), bcst(), bcst());
                     Xmm xmm_tmp = Xmm(bcst().getIdx());
                     load_bytes(xmm_tmp, reg_aux_A, A_offset(bd, rd),
                             rd_tail_size * brg.typesize_A);
