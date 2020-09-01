@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-jit_avx512_core_s16_copy_bn_kern::jit_avx512_core_s16_copy_bn_kern()
+jit_avx512_core_s16_24x8_copy_bn_kern::jit_avx512_core_s16_24x8_copy_bn_kern()
     : jit_generator(nullptr, S16_COPY_KERNEL_CODE_SIZE) {}
 
-void jit_avx512_core_s16_copy_bn_kern::generate() {
+void jit_avx512_core_s16_24x8_copy_bn_kern::generate() {
 
 #ifndef _WIN32
 #define M rdi
@@ -463,7 +463,7 @@ void jit_avx512_core_s16_copy_bn_kern::generate() {
         align(4);
 
         L(l568);
-
+        vzeroupper();
         postamble();
     }
     outLocalLabel();
