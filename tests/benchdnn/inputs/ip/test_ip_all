@@ -4,7 +4,7 @@
 --batch=set_all --batch=shapes_0d
 
 --dir=FWD_B
---attr-post-ops='sum:0.5;relu:0.5'
+--attr-post-ops='sum:0.5;relu:0.5;add:f32:per_oc'
 --mb=2 --batch=set_all
 --mb=0 --batch=shapes_0d
 
@@ -17,7 +17,7 @@
 --mb=0                    --batch=shapes_0d
 
 --attr-oscale=per_oc:2.25,common:0.025
---attr-post-ops='sum:0.5;relu:0.5','square:0:0:10'
+--attr-post-ops='mul:s8;sum:0.5;relu:0.5','square:0:0:10'
 --mb=2 --batch=set_all
 --mb=0 --batch=shapes_0d
 

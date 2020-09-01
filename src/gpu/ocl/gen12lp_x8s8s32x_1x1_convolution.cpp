@@ -186,6 +186,8 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
             utils::div_up(conf.ow, conf.sp_block) % conf.lws_d[1] == 0);
     kernel_ctx.define_int("OUT_SP_TAIL", conf.ow % conf.sp_block);
 
+    kernel_ctx.define_int("WEI_4O8I8O4I", 1);
+
     kernel_ctx.set_data_type(conf.dst_data_type);
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");
     def_data_type(kernel_ctx, conf.dst_data_type, "DST");
@@ -199,6 +201,16 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
     return status::success;
 }
 
+void gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_scratchpad() {
+    if (conf.attr_info.with_src_zpoints) {
+        size_t size = conf.ngroups * utils::rnd_up(conf.oc, 32);
+
+        auto scratchpad = scratchpad_registry().registrar();
+        scratchpad.book(memory_tracking::names::key_conv_wei_reduction, size,
+                types::data_type_size(data_type::s32), OCL_BUFFER_ALIGNMENT);
+    }
+}
+
 status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
@@ -206,8 +218,29 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
     auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
     auto &oscales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &src_zpoints
+            = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC);
+    auto &dst_zpoints
+            = CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
 
     const auto &conf = pd()->conf;
+
+    std::unique_ptr<memory_storage_t> temp_src_compensation;
+    if (conf.attr_info.with_src_zpoints) {
+        temp_src_compensation = ctx.get_scratchpad_grantor().get_memory_storage(
+                memory_tracking::names::key_conv_wei_reduction);
+
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, src_zpoints);
+        arg_list.set(1, weights);
+        arg_list.set(2, *temp_src_compensation);
+
+        auto nd_range = compute::nd_range_t(
+                {8, utils::div_up(conf.oc, 32), conf.ngroups}, {8, 1, 1});
+        status_t status = parallel_for(
+                ctx, nd_range, src_compensation_kernel_, arg_list);
+        if (status != status::success) return status::runtime_error;
+    }
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -233,6 +266,16 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
     } else {
         arg_list.set(arg_idx++, memory_storage_t::empty_storage());
     }
+
+    if (conf.attr_info.with_src_zpoints)
+        arg_list.set(arg_idx++, *temp_src_compensation);
+    else
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
+
+    if (conf.attr_info.with_dst_zpoints)
+        arg_list.set(arg_idx++, dst_zpoints);
+    else
+        arg_list.set(arg_idx++, memory_storage_t::empty_storage());
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);

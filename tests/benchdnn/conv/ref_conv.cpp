@@ -98,7 +98,7 @@ void compute_ref_fwd(const prb_t *p, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
 
 void compute_ref_bwd_d(const prb_t *p, dnnl_primitive_t c_ref,
         dnn_mem_t &diff_src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
-        dnn_mem_t &diff_dst_m) {
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m) {
     if (c_ref) {
         exec_conv(get_args_conv_bwd_d, p, c_ref, diff_src_m, wei_m, bia_m,
                 diff_dst_m);
@@ -107,7 +107,8 @@ void compute_ref_bwd_d(const prb_t *p, dnnl_primitive_t c_ref,
     if (p->alg == WINO && p->cfg[SRC].dt == dnnl_f32) {
         compute_wino_ref_bwd_d(p, diff_src_m, wei_m, bia_m, diff_dst_m);
     } else {
-        compute_ref_direct_bwd_d(p, diff_src_m, wei_m, bia_m, diff_dst_m);
+        compute_ref_direct_bwd_d(
+                p, diff_src_m, wei_m, bia_m, binary_po, diff_dst_m);
     }
 }
 
@@ -188,6 +189,7 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                 maybe_oscale(p->attr, conv_res, p->scales, g * OCG + oc);
 
                 std::vector<float> v_binary_vals;
+                v_binary_vals.reserve(v_bin_po_mask.size());
                 for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
                     auto bin_po_offset
                             = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
@@ -204,7 +206,8 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 }
 
 void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m) {
+        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m) {
 
     /* help compiler optimize the code */
     const int64_t MB = p->mb, G = p->g, OC = p->oc, IC = p->ic;
@@ -296,6 +299,7 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         }
     };
 
+    std::vector<int> v_bin_po_mask = p->attr.post_ops.get_binary_po_masks();
     dnnl::impl::parallel_nd(G, MB, ICG, ID, IH, IW,
             [&](int64_t g, int64_t mb, int64_t ic, int64_t id, int64_t ih,
                     int64_t iw) {
@@ -312,7 +316,16 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
                     conv_res += ((float *)bia_m)[bia_off];
                 }
                 maybe_oscale(p->attr, conv_res, p->scales, g * ICG + ic);
-                maybe_post_ops(p->attr, conv_res, ds);
+
+                std::vector<float> v_binary_vals;
+                v_binary_vals.reserve(v_bin_po_mask.size());
+                for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
+                    auto bin_po_offset = diff_src_m.get_scale_idx(
+                            src_off, v_bin_po_mask[d]);
+                    float binary_val = binary_po[d].get_elem(bin_po_offset);
+                    v_binary_vals.push_back(binary_val);
+                }
+                maybe_post_ops(p->attr, conv_res, ds, v_binary_vals);
 
                 ds = conv_res;
             });

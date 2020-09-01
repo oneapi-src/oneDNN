@@ -21,7 +21,8 @@
 namespace matmul {
 
 void compute_ref(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &src_m,
-        dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
+        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m) {
     const int64_t MB = p->mb;
     const int64_t M = p->m;
     const int64_t N = p->n;
@@ -45,6 +46,7 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &src_m,
         ((float *)dst_tmp)[dst_off_f(p, mb, m, n)] = dst;
     });
 
+    std::vector<int> v_bin_po_mask = p->attr.post_ops.get_binary_po_masks();
     dnnl::impl::parallel_nd(MB, M, N, [&](int64_t mb, int64_t m, int64_t n) {
         size_t dst_off = dst_off_f(p, mb, m, n);
         float &dst = ((float *)dst_m)[dst_off];
@@ -56,7 +58,16 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &src_m,
             tmp += bia_ptr[wei_off];
         }
         maybe_oscale(p->attr, tmp, p->scales, n);
-        maybe_post_ops(p->attr, tmp, dst);
+
+        std::vector<float> v_binary_vals;
+        v_binary_vals.reserve(v_bin_po_mask.size());
+        for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
+            auto bin_po_offset = dst_m.get_scale_idx(dst_off, v_bin_po_mask[d]);
+            float binary_val = binary_po[d].get_elem(bin_po_offset);
+            v_binary_vals.push_back(binary_val);
+        }
+        maybe_post_ops(p->attr, tmp, dst, v_binary_vals);
+
         tmp += dst_zero_point;
         dst = tmp;
     });

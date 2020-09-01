@@ -17,6 +17,7 @@
 #include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
+#include "gpu/ocl/ocl_zero_points.h"
 
 #define SRC_DATA_BLOCK_T MMAD_DATA8_T
 #define AS_SRC_DATA_BLOCK_T AS_MMAD_DATA8_T
@@ -47,7 +48,9 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
         const __global float *bias, __global DST_DATA_T *dst POST_OP_ARGS,
-        float scale, const __global float *scales_per_oc) {
+        float scale, const __global float *scales_per_oc,
+        const __global int *src_compensation, const __global int *src_zpoints,
+        const __global int *dst_compensation) {
 #ifdef MB_FULL_BLOCK
     const int mb_blocks = 1;
 #else // MB_FULL_BLOCK
@@ -107,25 +110,89 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
     int8 C20 = 0, C21 = 0, C22 = 0, C23 = 0;
     int8 C30 = 0, C31 = 0, C32 = 0, C33 = 0;
 
-    __attribute__((opencl_unroll_hint)) for (int ic_chunk = 0;
-                                             ic_chunk < IC_NCHUNK; ic_chunk++) {
+    for (int ic_chunk = 0; ic_chunk < IC_NCHUNK; ic_chunk++) {
+
         SRC_DATA_BLOCK_T S0, S1, S2, S3;
         int8 W0, W1, W2, W3;
         for (int kd = 0; kd < KD; kd++) {
+#if WITH_SRC_ZPOINTS
+            const int is_pad_d
+                    = kd * (1 + DD) + id < 0 || kd * (1 + DD) + id >= ID;
+#else
             if (kd * (1 + DD) + id < 0 || kd * (1 + DD) + id >= ID) {
                 src += IC_BLOCK * MB_BLOCK * IH * IW * (1 + DD);
                 wei += IC_BLOCK * OC_BLOCK * KH * KW;
                 continue;
             }
+#endif // WITH_SRC_ZPOINTS
             for (int kh = 0; kh < KH; kh++) {
+#if WITH_SRC_ZPOINTS
+                const int is_pad_h
+                        = kh * (1 + DH) + ih < 0 || kh * (1 + DH) + ih >= IH;
+#else
                 if (kh * (1 + DH) + ih < 0 || kh * (1 + DH) + ih >= IH) {
                     src += IC_BLOCK * MB_BLOCK * IW * (1 + DH);
                     wei += IC_BLOCK * OC_BLOCK * KW;
                     continue;
                 }
-                __attribute__((opencl_unroll_hint)) for (int kw = 0; kw < KW;
-                                                         kw++) {
-                    if (kw * (1 + DW) + iw >= 0 && kw * (1 + DW) + iw < IW) {
+#endif // WITH_SRC_ZPOINTS
+                for (int kw = 0; kw < KW; kw++) {
+#if WITH_SRC_ZPOINTS
+                    const int is_pad_w = kw * (1 + DW) + iw < 0
+                            || kw * (1 + DW) + iw >= IW;
+                    if (is_pad_w || is_pad_h || is_pad_d) {
+#if WITH_SRC_ZPOINTS_PER_IC
+                        const int4 z = read_src_zero_points_32c(
+                                src_zpoints, (group_ic + ic_chunk) * IC_BLOCK);
+#else
+                        const int z = read_src_zero_point(src_zpoints);
+#endif // WITH_SRC_ZPOINTS_PER_IC
+                        BLOCK_READ_WHT(W0, 0);
+                        BLOCK_READ_WHT(W1, 8 * IC_BLOCK);
+                        BLOCK_READ_WHT(W2, 16 * IC_BLOCK);
+                        BLOCK_READ_WHT(W3, 24 * IC_BLOCK);
+
+                        int4 acc = 0;
+#if WITH_SRC_ZPOINTS_PER_IC
+                        acc.s0 += calc_src_compensation_x32(z, W0);
+                        acc.s1 += calc_src_compensation_x32(z, W1);
+                        acc.s2 += calc_src_compensation_x32(z, W2);
+                        acc.s3 += calc_src_compensation_x32(z, W3);
+#else
+                        unroll_for(uint i = 0; i < 8; ++i) {
+                            acc.s0 = idot4(0x01010101, W0[i], acc.s0);
+                            acc.s1 = idot4(0x01010101, W1[i], acc.s1);
+                            acc.s2 = idot4(0x01010101, W2[i], acc.s2);
+                            acc.s3 = idot4(0x01010101, W3[i], acc.s3);
+                        }
+                        acc = z * acc;
+#endif // WITH_SRC_ZPOINTS_PER_IC
+
+                        C00 += acc.s0;
+                        C01 += acc.s1;
+                        C02 += acc.s2;
+                        C03 += acc.s3;
+#if MB > 8
+                        C10 += acc.s0;
+                        C11 += acc.s1;
+                        C12 += acc.s2;
+                        C13 += acc.s3;
+#ifdef MB_FULL_BLOCK
+                        C20 += acc.s0;
+                        C21 += acc.s1;
+                        C22 += acc.s2;
+                        C23 += acc.s3;
+                        C30 += acc.s0;
+                        C31 += acc.s1;
+                        C32 += acc.s2;
+                        C33 += acc.s3;
+#endif // MB_FULL_BLOCK
+#endif // MB > 8
+                    } else
+#else
+                    if (kw * (1 + DW) + iw >= 0 && kw * (1 + DW) + iw < IW)
+#endif // WITH_SRC_ZPOINTS
+                    {
                         BLOCK_READ_SRC(S0, 0);
 #if MB > 8
                         BLOCK_READ_SRC(S1, 8 * IC_BLOCK);
@@ -169,6 +236,32 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
         src += IC_BLOCK * MB_BLOCK * (ID - KD * (1 + DD)) * IH * IW;
     } // IC_NCHUNK loop
 
+#if WITH_SRC_ZPOINTS
+    int4 src_comp = as_int4(intel_sub_group_block_read4(
+            (__global uint *)(&src_compensation[(group_oc + oc) * OC_BLOCK])));
+
+    C00 -= src_comp.s0;
+    C01 -= src_comp.s1;
+    C02 -= src_comp.s2;
+    C03 -= src_comp.s3;
+#if MB > 8
+    C10 -= src_comp.s0;
+    C11 -= src_comp.s1;
+    C12 -= src_comp.s2;
+    C13 -= src_comp.s3;
+#ifdef MB_FULL_BLOCK
+    C20 -= src_comp.s0;
+    C21 -= src_comp.s1;
+    C22 -= src_comp.s2;
+    C23 -= src_comp.s3;
+    C30 -= src_comp.s0;
+    C31 -= src_comp.s1;
+    C32 -= src_comp.s2;
+    C33 -= src_comp.s3;
+#endif // MB_FULL_BLOCK
+#endif // MB > 8
+#endif // WITH_SRC_ZPOINTS && !WITH_SRC_ZPOINTS_PER_IC
+
     float4 tmp;
     DST_DATA4_T dst_pack[8];
     DST_DATA4_T D0[8];
@@ -205,6 +298,20 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
 #endif // MB > 8
 #endif // with_sum
 
+#if WITH_DST_ZPOINTS
+    int4 dst_zp = read_dst_zero_points_32c(
+            dst_compensation, (group_oc + oc) * OC_BLOCK);
+#define ADD_DST_COMPENSATION() tmp += convert_float4(dst_zp);
+#else
+#define ADD_DST_COMPENSATION()
+#endif // WITH_DST_ZPOINTS
+
+#if WITH_SRC_ZPOINTS
+#define ZERO_PAD_DST() tmp = zero_pad_dst_32c(tmp, (group_oc + oc) * OC_BLOCK);
+#else
+#define ZERO_PAD_DST()
+#endif // WITH_SRC_ZPOINTS
+
 #define PACK(C0, C1, C2, C3, idx) \
     do { \
         tmp[0] = C0[idx]; \
@@ -225,6 +332,8 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
             QUANTIZE_ADD_BIAS(); \
             float4 df = convert_float4(AS_SUM_DATA4_T(D[n_i])); \
             APPLY_POST_OPS(tmp, float, df, float); \
+            ADD_DST_COMPENSATION(); \
+            ZERO_PAD_DST(); \
             CONVERT_PACK(n_i); \
         } \
         BLOCK_WRITE_DST16( \

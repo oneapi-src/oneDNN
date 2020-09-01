@@ -48,6 +48,7 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
 
             const auto attr_skip_mask
                     = primitive_attr_t::skip_mask_t::oscale_runtime
+                    | primitive_attr_t::skip_mask_t::zero_points_runtime
                     | primitive_attr_t::skip_mask_t::post_ops
                     | primitive_attr_t::skip_mask_t::sum_dt;
 
@@ -64,7 +65,7 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
                             compute::device_ext_t::intel_subgroups)
                     && attr()->has_default_values(
                             attr_skip_mask, desc()->dst_desc.data_type)
-                    && post_ops_ok(attr())
+                    && post_ops_ok(attr()) && zero_points_ok(attr())
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             utils::one_of(
                                     attr()->output_scales_.mask_, 0, 1 << 1));
@@ -73,6 +74,8 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
 
             status_t status = init_conf();
             if (status != status::success) return status;
+
+            init_scratchpad();
 
             auto scales_status = init_scales_md();
             if (scales_status != status::success) return scales_status;
@@ -84,6 +87,7 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
 
         status_t init_conf();
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        void init_scratchpad();
 
         const memory_desc_t *scales_md() const { return &scales_md_; }
 
@@ -138,6 +142,13 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
         create_kernel(engine, &kernel_, kernel_name, kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
+        if (pd()->conf.attr_info.with_src_zpoints
+                && (pd()->conf.is_depthwise || pd()->conf.ic > 4)) {
+            create_kernel(engine, &src_compensation_kernel_,
+                    "gen12lp_x8s8s32x_compensation", kernel_ctx);
+            if (!src_compensation_kernel_) return status::runtime_error;
+        }
+
         return status::success;
     }
 
@@ -176,6 +187,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)gpu_primitive_t::pd().get(); }
     compute::kernel_t kernel_;
+    compute::kernel_t src_compensation_kernel_;
     enum { SCALES_ = 0 };
 };
 

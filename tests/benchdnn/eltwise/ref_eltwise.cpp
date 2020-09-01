@@ -31,6 +31,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
         float res = compute_eltwise_fwd(
                 p->alg, src_ptr[i], 1.0, p->alpha, p->beta);
         std::vector<float> v_binary_vals;
+        v_binary_vals.reserve(v_bin_po_mask.size());
         for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
             auto bin_po_offset = src.get_scale_idx(i, v_bin_po_mask[d]);
             float binary_val = binary_po[d].get_elem(bin_po_offset);

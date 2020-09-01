@@ -90,7 +90,9 @@ struct matmul_pd_t : public primitive_desc_t {
         return index == 0 ? &dst_md_ : &glob_zero_md;
     }
 
-    int n_inputs() const override { return 2 + with_bias(); }
+    int n_inputs() const override {
+        return 2 + with_bias() + n_binary_po_inputs();
+    }
     int n_outputs() const override { return 1; }
 
     bool has_zero_dim_memory() const {

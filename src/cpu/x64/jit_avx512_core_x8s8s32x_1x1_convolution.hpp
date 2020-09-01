@@ -78,7 +78,7 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
-            rtus_prepare(this, conv_d, src_d, dst_md());
+            rtus_prepare(this, conv_d, src_d, dst_md(), weights_md());
 
             status_t status
                     = jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(jcp_,

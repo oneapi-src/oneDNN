@@ -60,6 +60,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("KD", conf.kd);
     kernel_ctx.define_int("KH", conf.kh);
     kernel_ctx.define_int("KW", conf.kw);
+    kernel_ctx.define_int("DD", conf.dd);
+    kernel_ctx.define_int("DH", conf.dh);
+    kernel_ctx.define_int("DW", conf.dw);
     kernel_ctx.define_int("SD", conf.stride_d);
     kernel_ctx.define_int("SH", conf.stride_h);
     kernel_ctx.define_int("SW", conf.stride_w);

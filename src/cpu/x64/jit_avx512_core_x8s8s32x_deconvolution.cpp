@@ -223,6 +223,7 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
 
     /* kernel blocking params */
     const int regs = jcp.ver == ver_vnni ? 30 : 28;
+    jcp.nb_ch_blocking = 1;
     jcp.nb_oc_blocking = nstl::min(4, jcp.nb_oc);
     for (; jcp.nb_oc_blocking > 1; jcp.nb_oc_blocking--)
         if (jcp.nb_oc % jcp.nb_oc_blocking == 0

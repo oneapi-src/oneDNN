@@ -62,7 +62,8 @@ struct nhwc_pooling_fwd_t : public primitive_t {
                     && set_default_params() == status::success
                     && attr()->has_default_values()
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
-                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag);
+                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)
+                    && !is_dilated();
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;
@@ -136,7 +137,8 @@ struct nhwc_pooling_bwd_t : public primitive_t {
                     && set_default_params() == status::success && !is_fwd()
                     && attr()->has_default_values()
                     && memory_desc_matches_tag(*diff_dst_md(), desired_fmt_tag)
-                    && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag);
+                    && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag)
+                    && !is_dilated();
             if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == pooling_max) {

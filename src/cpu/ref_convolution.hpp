@@ -32,9 +32,8 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type,
-        impl::data_type_t acc_type = dst_type>
+template <data_type_t src_type, data_type_t wei_type = src_type,
+        data_type_t dst_type = src_type, data_type_t acc_type = dst_type>
 struct ref_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
@@ -45,7 +44,7 @@ struct ref_convolution_fwd_t : public primitive_t {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
-            bool ok = true && is_fwd()
+            bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, wei_type, data_type::undef,
                             dst_type, acc_type)
@@ -53,10 +52,9 @@ struct ref_convolution_fwd_t : public primitive_t {
                     && platform::has_data_type_support(wei_type)
                     && platform::has_data_type_support(dst_type)
                     && IMPLICATION(with_bias(),
-                            true
-                                    && IMPLICATION(src_type == u8,
-                                            utils::one_of(bias_md_.data_type,
-                                                    f32, s32, s8, u8))
+                            IMPLICATION(src_type == u8,
+                                    utils::one_of(bias_md_.data_type, f32, s32,
+                                            s8, u8))
                                     && IMPLICATION(src_type == f32,
                                             bias_md_.data_type == f32))
                     && set_default_formats()
@@ -129,9 +127,8 @@ private:
     std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
-template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
-        impl::data_type_t diff_dst_type,
-        impl::data_type_t acc_type = diff_src_type>
+template <data_type_t diff_src_type, data_type_t wei_type,
+        data_type_t diff_dst_type, data_type_t acc_type = diff_src_type>
 struct ref_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
@@ -154,7 +151,9 @@ struct ref_convolution_bwd_data_t : public primitive_t {
             return ok ? status::success : status::unimplemented;
         }
 
-        bool support_bias() const override { return true; }
+        // Bias support is disabled to enable highly optimized conv impl in
+        // reference deconv impl and apply bias there.
+        bool support_bias() const override { return false; }
 
     protected:
         bool set_default_formats() {
@@ -191,9 +190,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-template <impl::data_type_t src_type, impl::data_type_t diff_wei_type,
-        impl::data_type_t diff_dst_type,
-        impl::data_type_t acc_type = diff_wei_type>
+template <data_type_t src_type, data_type_t diff_wei_type,
+        data_type_t diff_dst_type, data_type_t acc_type = diff_wei_type>
 struct ref_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         using cpu_convolution_bwd_weights_pd_t::

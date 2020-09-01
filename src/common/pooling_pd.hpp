@@ -22,6 +22,7 @@
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
+#include "utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -29,16 +30,16 @@ namespace impl {
 struct pooling_fwd_pd_t;
 
 struct pooling_pd_t : public primitive_desc_t {
-    static constexpr auto base_pkind = primitive_kind::pooling;
+    static constexpr auto base_pkind = primitive_kind::pooling_v2;
 
-    pooling_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
+    pooling_pd_t(const pooling_v2_desc_t *adesc, const primitive_attr_t *attr,
             const pooling_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
-        , desc_(*adesc)
+        , desc_(cast_pool_v1_to_v2(*adesc))
         , hint_fwd_pd_(hint_fwd_pd)
         , ws_md_() {}
 
-    const pooling_desc_t *desc() const { return &desc_; }
+    const pooling_v2_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
@@ -49,7 +50,14 @@ struct pooling_pd_t : public primitive_desc_t {
                 *(prop_kind_t *)result = desc()->prop_kind;
                 break;
             case query::pooling_d:
-                *(const pooling_desc_t **)result = desc();
+                *(const pooling_desc_t **)result
+                        = reinterpret_cast<const pooling_desc_t *>(desc());
+                break;
+            case query::pooling_v2_d:
+                *(const pooling_v2_desc_t **)result = desc();
+                break;
+            case query::primitive_kind:
+                *(primitive_kind_t *)result = desc_.primitive_kind;
                 break;
             default: return primitive_desc_t::query(what, idx, result);
         }
@@ -77,6 +85,20 @@ struct pooling_pd_t : public primitive_desc_t {
     dim_t KSH() const { return ndims() >= 4 ? desc_.strides[ndims() - 4] : 1; }
     dim_t KSW() const { return desc_.strides[ndims() - 3]; }
 
+    dim_t DD() const {
+        return is_pooling_v2()
+                ? (ndims() >= 5 ? desc_.dilation[ndims() - 5] : 0)
+                : 0;
+    }
+    dim_t DH() const {
+        return is_pooling_v2()
+                ? (ndims() >= 4 ? desc_.dilation[ndims() - 4] : 0)
+                : 0;
+    }
+    dim_t DW() const {
+        return is_pooling_v2() ? desc_.dilation[ndims() - 3] : 0;
+    }
+
     dim_t padFront() const {
         return ndims() >= 5 ? desc_.padding[0][ndims() - 5] : 0;
     }
@@ -96,6 +118,11 @@ struct pooling_pd_t : public primitive_desc_t {
     int spatial_ndims() const { return ndims() - 2; }
     bool is_3d() const { return ndims() == 5; }
 
+    bool is_pooling_v2() const {
+        return desc_.primitive_kind == primitive_kind::pooling_v2;
+    }
+    bool is_dilated() const { return DD() != 0 || DH() != 0 || DW() != 0; }
+
     bool has_zero_dim_memory() const {
         return memory_desc_wrapper(src_desc()).has_zero_dim();
     }
@@ -114,7 +141,7 @@ struct pooling_pd_t : public primitive_desc_t {
     }
 
 protected:
-    pooling_desc_t desc_;
+    pooling_v2_desc_t desc_;
     const pooling_fwd_pd_t *hint_fwd_pd_;
 
     memory_desc_t ws_md_;
@@ -140,14 +167,45 @@ private:
     const memory_desc_t &dst_desc() const {
         return is_fwd() ? desc_.dst_desc : desc_.diff_dst_desc;
     }
+
+    pooling_v2_desc_t cast_pool_v1_to_v2(
+            const pooling_v2_desc_t &pool_desc) const {
+        if (pool_desc.primitive_kind == primitive_kind::pooling_v2)
+            return pool_desc;
+
+        pooling_v2_desc_t pool_v2_desc;
+        pool_v2_desc.primitive_kind = primitive_kind::pooling;
+        pool_v2_desc.prop_kind = pool_desc.prop_kind;
+        pool_v2_desc.alg_kind = pool_desc.alg_kind;
+        pool_v2_desc.src_desc = pool_desc.src_desc;
+        pool_v2_desc.diff_src_desc = pool_desc.diff_src_desc;
+        pool_v2_desc.dst_desc = pool_desc.dst_desc;
+        pool_v2_desc.diff_dst_desc = pool_desc.diff_dst_desc;
+        utils::array_copy(
+                pool_v2_desc.strides, pool_desc.strides, DNNL_MAX_NDIMS);
+        utils::array_copy(
+                pool_v2_desc.kernel, pool_desc.kernel, DNNL_MAX_NDIMS);
+        utils::array_copy(
+                pool_v2_desc.padding[0], pool_desc.padding[0], DNNL_MAX_NDIMS);
+        utils::array_copy(
+                pool_v2_desc.padding[1], pool_desc.padding[1], DNNL_MAX_NDIMS);
+        utils::array_copy(
+                pool_v2_desc.kernel, pool_desc.kernel, DNNL_MAX_NDIMS);
+        utils::array_copy(
+                pool_v2_desc.kernel, pool_desc.kernel, DNNL_MAX_NDIMS);
+        utils::array_set(pool_v2_desc.dilation, 0, DNNL_MAX_NDIMS);
+        pool_v2_desc.accum_data_type = pool_desc.accum_data_type;
+
+        return pool_v2_desc;
+    }
 };
 
 struct pooling_fwd_pd_t : public pooling_pd_t {
     typedef pooling_fwd_pd_t base_class;
     typedef pooling_fwd_pd_t hint_class;
 
-    pooling_fwd_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
-            const pooling_fwd_pd_t *hint_fwd_pd)
+    pooling_fwd_pd_t(const pooling_v2_desc_t *adesc,
+            const primitive_attr_t *attr, const pooling_fwd_pd_t *hint_fwd_pd)
         : pooling_pd_t(adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , dst_md_(desc_.dst_desc) {}
@@ -206,8 +264,8 @@ struct pooling_bwd_pd_t : public pooling_pd_t {
     typedef pooling_bwd_pd_t base_class;
     typedef pooling_fwd_pd_t hint_class;
 
-    pooling_bwd_pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
-            const pooling_fwd_pd_t *hint_fwd_pd)
+    pooling_bwd_pd_t(const pooling_v2_desc_t *adesc,
+            const primitive_attr_t *attr, const pooling_fwd_pd_t *hint_fwd_pd)
         : pooling_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)
         , diff_dst_md_(desc_.diff_dst_desc) {}

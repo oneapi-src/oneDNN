@@ -62,10 +62,12 @@ void pooling_example(dnnl::engine::kind engine_kind) {
             PW_L = 0, // width padding: left
             PW_R = 0, // width padding: right
             SH = 4, // height-wise stride
-            SW = 4; // width-wise stride
+            SW = 4, // width-wise stride
+            DH = 1, // height-wise dilation
+            DW = 1; // width-wise dilation
 
-    const memory::dim OH = (IH - KH + PH_L + PH_R) / SH + 1;
-    const memory::dim OW = (IW - KW + PW_L + PW_R) / SW + 1;
+    const memory::dim OH = (IH - ((KH - 1) * DH + KH) + PH_L + PH_R) / SH + 1;
+    const memory::dim OW = (IW - ((KW - 1) * DW + KW) + PW_L + PW_R) / SW + 1;
 
     // Source (src) and destination (dst) tensors dimensions.
     memory::dims src_dims = {N, IC, IH, IW};
@@ -78,6 +80,7 @@ void pooling_example(dnnl::engine::kind engine_kind) {
     memory::dims strides_dims = {SH, SW};
     memory::dims padding_dims_l = {PH_L, PW_L};
     memory::dims padding_dims_r = {PH_R, PW_R};
+    memory::dims dilation = {DH, DW};
 
     // Allocate buffers.
     std::vector<float> src_data(product(src_dims));
@@ -99,12 +102,12 @@ void pooling_example(dnnl::engine::kind engine_kind) {
     write_to_dnnl_memory(src_data.data(), src_mem);
 
     // Create operation descriptor.
-    auto pooling_d = pooling_forward::desc(prop_kind::forward_training,
+    auto pooling_d = pooling_v2_forward::desc(prop_kind::forward_training,
             algorithm::pooling_max, src_md, dst_md, strides_dims, kernel_dims,
-            padding_dims_l, padding_dims_r);
+            dilation, padding_dims_l, padding_dims_r);
 
     // Create primitive descriptor.
-    auto pooling_pd = pooling_forward::primitive_desc(pooling_d, engine);
+    auto pooling_pd = pooling_v2_forward::primitive_desc(pooling_d, engine);
 
     // Create workspace memory objects using memory descriptor created by the
     // primitive descriptor.
@@ -113,7 +116,7 @@ void pooling_example(dnnl::engine::kind engine_kind) {
     auto workspace_mem = memory(pooling_pd.workspace_desc(), engine);
 
     // Create the primitive.
-    auto pooling_prim = pooling_forward(pooling_pd);
+    auto pooling_prim = pooling_v2_forward(pooling_pd);
 
     // Primitive arguments. Set up in-place execution by assigning src as DST.
     std::unordered_map<int, memory> pooling_args;

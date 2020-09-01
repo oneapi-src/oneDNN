@@ -27,7 +27,7 @@ where *pool-knobs* are:
 
 and *pool-desc* is a problem descriptor. The canonical form is:
 ```
-    mbXicX_idXihXiwX_odXohXowX_kdXkhXkwX_sdXshXswX_pdXphXpwX_nS
+    mbXicX_idXihXiwX_odXohXowX_kdXkhXkwX_sdXshXswX_pdXphXpwX_ddXdhXdwX_nS
 ```
 Refer to [descriptor](knobs_desc.md) for details. Input shape and kernel size
 are mandatory inputs. Output shape and padding may be deduced based on the

@@ -16,6 +16,8 @@
 
 #include <stdlib.h>
 
+#include <cmath>
+
 #include "tests/test_thread.hpp"
 
 #include "rnn/rnn.hpp"
@@ -216,9 +218,13 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_layer_,
     prepare_ws_bwd(p, ws_bwd_buffer, ws_diff_src_layer, ws_diff_src_iter,
             ws_diff_src_iter_c);
 
-    auto *b_gates = new float[p.mb * p.n_gates() * p.dhc];
+    int64_t b_gates_size = p.mb * p.n_gates() * p.dhc;
+    auto *b_gates = new float[b_gates_size];
+    for (int i = 0; i < b_gates_size; i++) {
+        b_gates[i] = NAN;
+    }
 
-    int64_t cell_scratchpad_size;
+    int64_t cell_scratchpad_size = 0;
     switch (p.alg) {
         case VANILLA_LSTM: cell_scratchpad_size = p.mb * p.dhc; break;
         case LBR_GRU:
@@ -228,6 +234,9 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_layer_,
         default: cell_scratchpad_size = 0;
     }
     float *cell_scratchpad_ = new float[cell_scratchpad_size];
+    for (int i = 0; i < cell_scratchpad_size; i++) {
+        cell_scratchpad_[i] = NAN;
+    }
 
     auto process_direction = [&](rnn_iter_direction_t iter_dir,
                                      rnn_layer_direction_t lay_dir,

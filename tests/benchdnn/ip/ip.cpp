@@ -27,10 +27,10 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "binary/binary.hpp"
 #include "ip/ip.hpp"
 
 namespace ip {
-/* extra control parameter which shouldn't be placed in prb_t */
 
 static int init_pd(dnnl_engine_t engine, const prb_t *p,
         dnnl_primitive_desc_t &ippd, res_t *r, dir_t dir,
@@ -98,6 +98,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
 
     attr_args_t attr_args;
     attr_args.prepare_output_scales(p->attr, p->scales, p->oc);
+    attr_args.prepare_binary_post_op_mds(p->attr, 2, dst_dims);
     auto dnnl_attr = create_dnnl_attr(p->attr, attr_args);
 
     dnnl_status_t init_status = dnnl_success;
@@ -289,6 +290,13 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common(
             {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, p->dir, r);
+    if (r->state == SKIPPED) return;
+
+    // TODO: temporary disable binary post-op on GPU
+    if (engine_tgt_kind == dnnl_gpu && p->attr.post_ops.binary_index() != -1) {
+        r->state = SKIPPED, r->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 int doit(const prb_t *p, res_t *r) {
@@ -335,6 +343,11 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t bia_dt(bia_md, test_engine);
     dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
+    std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;
+    std::vector<int> binary_po_args;
+    SAFE(binary::setup_binary_po(
+                 const_pd, binary_po_args, binary_po_dt, binary_po_fp),
+            WARN);
 
     dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
@@ -354,11 +367,13 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+        args.set(binary_po_args, binary_po_dt);
 
         SAFE(execute_and_wait(ip, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_fwd(test_engine, p, src_fp, wei_fp, bia_fp, dst_fp);
+            compute_ref_fwd(test_engine, p, src_fp, wei_fp, bia_fp,
+                    binary_po_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, tag::abx, test_engine);
             SAFE(compare_dat(p, DST, dst, dst_fp, r), WARN);
         }

@@ -17,8 +17,9 @@
 #include "gpu/ocl/ocl_math_utils.h"
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
+#include "gpu/ocl/ocl_zero_points.h"
 
-#define KDHW_SIZE KD *KH *KW
+#define KDHW_SIZE (KD * KH * KW)
 
 #if SCALES_PER_OC
 #define SCALE scales
@@ -36,7 +37,9 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
 conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
         const __global char *wei, const __global float *bias,
         __global DST_DATA_T *dst POST_OP_ARGS, float scale,
-        const __global float *scales_per_oc) {
+        const __global float *scales_per_oc,
+        const __global int *src_compensation, const __global int *src_zpoints,
+        const __global int *dst_compensation) {
 
     const int osp = get_global_id(1);
     const int od = osp / (OW * OH);
@@ -62,9 +65,15 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     int8 S01 = 0;
     uchar16 A00, A10, A20, A30;
 
-    __attribute__((opencl_unroll_hint)) for (int sp = 0;
-                                             sp < KDHW_SIZE - KDHW_SIZE % 4;
-                                             sp += 4) {
+#if WITH_SRC_ZPOINTS
+#if WITH_SRC_ZPOINTS_PER_IC
+    const int2 z = read_src_zero_points_32g(src_zpoints, g);
+#else
+    const int2 z = read_src_zero_point(src_zpoints);
+#endif // WITH_SRC_ZPOINTS_PER_IC
+#endif // WITH_SRC_ZPOINTS
+
+    unroll_for(int sp = 0; sp < KDHW_SIZE - KDHW_SIZE % 4; sp += 4) {
         const int4 s = {sp, sp + 1, sp + 2, sp + 3};
         const int4 kd = s / (KH * KW);
         const int4 kh = (s % (KH * KW)) / KW;
@@ -103,6 +112,36 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
                 intel_sub_group_block_read_uc8((const __global uchar *)(wei)));
         char4 W1 = W.s0246;
         char4 W2 = W.s1357;
+#if WITH_SRC_ZPOINTS
+        if (index.s0) {
+            int2 src_comp;
+            src_comp.s0 = z.s0 * W.s0;
+            src_comp.s1 = z.s1 * W.s1;
+            S00 += src_comp.s01010101;
+            S01 += src_comp.s01010101;
+        }
+        if (index.s1) {
+            int2 src_comp;
+            src_comp.s0 = z.s0 * W.s2;
+            src_comp.s1 = z.s1 * W.s3;
+            S00 += src_comp.s01010101;
+            S01 += src_comp.s01010101;
+        }
+        if (index.s2) {
+            int2 src_comp;
+            src_comp.s0 = z.s0 * W.s4;
+            src_comp.s1 = z.s1 * W.s5;
+            S00 += src_comp.s01010101;
+            S01 += src_comp.s01010101;
+        }
+        if (index.s3) {
+            int2 src_comp;
+            src_comp.s0 = z.s0 * W.s6;
+            src_comp.s1 = z.s1 * W.s7;
+            S00 += src_comp.s01010101;
+            S01 += src_comp.s01010101;
+        }
+#endif // WITH_SRC_ZPOINTS
         S00.s0 = idot4(
                 (SRC_DATA4_T)(A00.s0, A10.s0, A20.s0, A30.s0), W1, S00.s0);
         S00.s1 = idot4(
@@ -138,8 +177,7 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
         wei += 4 * OC_BLOCK;
     }
 
-    __attribute__((opencl_unroll_hint)) for (int sp = KDHW_SIZE - KDHW_SIZE % 4;
-                                             sp < KDHW_SIZE; sp++) {
+    unroll_for(int sp = KDHW_SIZE - KDHW_SIZE % 4; sp < KDHW_SIZE; sp++) {
         const int kd = sp / (KH * KW);
         const int kh = (sp % (KH * KW)) / KW;
         const int kw = (sp % (KH * KW)) % KW;
@@ -159,6 +197,16 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
                 intel_sub_group_block_read_uc2((const __global uchar *)(wei)));
         const char W1 = W.s0;
         const char W2 = W.s1;
+#if WITH_SRC_ZPOINTS
+        if (index) {
+            int2 src_comp;
+            src_comp.s0 = z.s0 * W.s0;
+            src_comp.s1 = z.s1 * W.s1;
+
+            S00 += src_comp.s01010101;
+            S01 += src_comp.s01010101;
+        }
+#endif // WITH_SRC_ZPOINTS
         S00.s0 += ((SRC_DATA_T)A00.s0) * W1;
         S00.s1 += ((SRC_DATA_T)A00.s1) * W2;
         S00.s2 += ((SRC_DATA_T)A00.s2) * W1;
@@ -178,6 +226,13 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
 
         wei += OC_BLOCK;
     }
+#if WITH_SRC_ZPOINTS
+    const int2 src_comp = as_int2(intel_sub_group_block_read2(
+            (__global uint *)(&src_compensation[g])));
+    S00 -= src_comp.s01010101;
+    S01 -= src_comp.s01010101;
+#endif // WITH_SRC_ZPOINTS
+
     float8 tmp00 = convert_float8(S00);
     float8 tmp01 = convert_float8(S01);
 
@@ -213,6 +268,13 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
 
     float16 tmp_x16 = (float16)(tmp00, tmp01);
     APPLY_POST_OPS(tmp_x16, float, D00, SUM_DATA_T);
+
+#if WITH_DST_ZPOINTS
+    float2 dst_zp
+            = convert_float2(read_dst_zero_points_32g(dst_compensation, g));
+    float8 tmp_zp = dst_zp.s01010101;
+    tmp_x16 += (float16)(tmp_zp, tmp_zp);
+#endif // WITH_DST_ZPOINTS
 
     DST_DATA16_T R0 = CONVERT_DST_DATA16_T(tmp_x16);
 

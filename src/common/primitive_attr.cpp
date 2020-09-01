@@ -250,6 +250,12 @@ status_t post_ops_t::append_binary(
     if (!alg_ok) return invalid_arguments;
     if (!memory_desc_sanity_check(src1_desc)) return invalid_arguments;
 
+    // Additional check to restrict run-time dimension usage until supported.
+    for (int d = 0; d < src1_desc->ndims; ++d) {
+        if (src1_desc->dims[d] == DNNL_RUNTIME_DIM_VAL)
+            return invalid_arguments;
+    }
+
     entry_.emplace_back();
     auto &e = entry_.back();
     e.kind = primitive_kind::binary;

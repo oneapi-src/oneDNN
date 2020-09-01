@@ -584,6 +584,19 @@ public:
         vmulss(x, Xbyak::Xmm(op1.getIdx()), Xbyak::Xmm(op2.getIdx()));
     }
 
+    void uni_vfmadd132ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        // Note: x1 gets overriden by x1*op
+        // This is incorrect if x1 == x2
+        assert(x1.getIdx() != x2.getIdx());
+        mulps(x1, op);
+        addps(x1, x2);
+    }
+    void uni_vfmadd132ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op) {
+        vfmadd132ps(x1, x2, op);
+    }
+
     void uni_vfmadd213ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
         // Note: x1 gets overriden by x1*x2

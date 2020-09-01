@@ -24,15 +24,16 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/primitive_attr_postops.hpp"
+
 #include "cpu/cpu_inner_product_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type,
-        impl::data_type_t acc_type = dst_type>
+template <data_type_t src_type, data_type_t wei_type = src_type,
+        data_type_t dst_type = src_type, data_type_t acc_type = dst_type>
 struct ref_inner_product_fwd_t : public primitive_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
         using cpu_inner_product_fwd_pd_t::cpu_inner_product_fwd_pd_t;
@@ -41,25 +42,45 @@ struct ref_inner_product_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            using smask_t = primitive_attr_t::skip_mask_t;
 
-            bool ok = true && is_fwd() && src_md()->data_type == src_type
-                    && weights_md()->data_type == wei_type
-                    && desc()->accum_data_type == acc_type
-                    && dst_md()->data_type == dst_type
+            bool ok = is_fwd()
+                    && expect_data_types(src_type, wei_type, data_type::undef,
+                            dst_type, acc_type)
+                    && platform::has_data_type_support(src_type)
+                    && platform::has_data_type_support(wei_type)
+                    && platform::has_data_type_support(dst_type)
                     && IMPLICATION(with_bias(),
-                            utils::one_of(
-                                    weights_md(1)->data_type, f32, s32, s8, u8))
+                            IMPLICATION(src_type == u8,
+                                    utils::one_of(bias_md_.data_type, f32, s32,
+                                            s8, u8))
+                                    && IMPLICATION(src_type == f32,
+                                            bias_md_.data_type == f32))
+                    && set_default_params() == status::success
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
-                    && attr()->post_ops_.len() <= 1
-                    && IMPLICATION(attr()->post_ops_.len() == 1,
-                            attr()->post_ops_.entry_[0].is_relu(true, false))
-                    && set_default_params() == status::success;
+                            smask_t::oscale | smask_t::post_ops)
+                    && output_scales_mask_ok();
             return ok ? status::success : status::unimplemented;
+        }
+
+    private:
+        bool output_scales_mask_ok() const {
+            using namespace data_type;
+            const auto &mask = attr()->output_scales_.mask_;
+            return IMPLICATION(!utils::one_of(src_type, s8, u8),
+                           attr()->output_scales_.has_default_values())
+                    && (mask == 0 || mask == 1 << 1);
         }
     };
 
     ref_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
+        ref_post_ops
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops) return status::out_of_memory;
+        return status::success;
+    }
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -74,11 +95,11 @@ struct ref_inner_product_fwd_t : public primitive_t {
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
-template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
-        impl::data_type_t diff_dst_type,
-        impl::data_type_t acc_type = diff_src_type>
+template <data_type_t diff_src_type, data_type_t wei_type,
+        data_type_t diff_dst_type, data_type_t acc_type = diff_src_type>
 struct ref_inner_product_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_inner_product_bwd_data_pd_t {
         using cpu_inner_product_bwd_data_pd_t::cpu_inner_product_bwd_data_pd_t;
@@ -114,7 +135,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-template <impl::data_type_t data_type>
+template <data_type_t data_type>
 struct ref_inner_product_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_inner_product_bwd_weights_pd_t {
         using cpu_inner_product_bwd_weights_pd_t::

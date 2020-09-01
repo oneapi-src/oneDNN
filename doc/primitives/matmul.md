@@ -40,12 +40,13 @@ of dimensions as the \dst.
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 
-| Primitive input/output | Execution argument index |
-| ---                    | ---                      |
-| \src                   | DNNL_ARG_SRC             |
-| \weights               | DNNL_ARG_WEIGHTS         |
-| \bias                  | DNNL_ARG_BIAS            |
-| \dst                   | DNNL_ARG_DST             |
+| Primitive input/output | Execution argument index                                                  |
+| ---                    | ---                                                                       |
+| \src                   | DNNL_ARG_SRC                                                              |
+| \weights               | DNNL_ARG_WEIGHTS                                                          |
+| \bias                  | DNNL_ARG_BIAS                                                             |
+| \dst                   | DNNL_ARG_DST                                                              |
+| \f$binary post-op\f$   | DNNL_ARG_ATTR_MULTIPLE_POST_OP(binary_post_op_position) \| DNNL_ARG_SRC_1 |
 
 ## Implementation Details
 
@@ -110,12 +111,13 @@ always be #dnnl::memory::format_tag::ab for the 2D case and
 Attributes and post-ops enable modifying the behavior of the MatMul primitive.
 The following attributes and post-ops are supported:
 
-| Type      | Operation                                                     | Description                                                                   | Restrictions            |
-| :--       | :--                                                           | :--                                                                           | :--                     |
-| Attribute | [Output scales](@ref dnnl::primitive_attr::set_output_scales) | Scales the result by given scale factor(s)                                    |                         |
-| Attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points)     | Sets zero point(s) for the corresponding tensors                              | Int8 computations only  |
-| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                | Applies an @ref dnnl_api_eltwise operation to the result                      |                         |
-| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)                        | Adds the operation result to the destination tensor instead of overwriting it |                         |
+| Type      | Operation                                                     | Description                                                                   | Restrictions                        |
+| :--       | :--                                                           | :--                                                                           | :--                                 |
+| Attribute | [Output scales](@ref dnnl::primitive_attr::set_output_scales) | Scales the result by given scale factor(s)                                    |                                     |
+| Attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points)     | Sets zero point(s) for the corresponding tensors                              | Int8 computations only              |
+| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                | Applies an @ref dnnl_api_eltwise operation to the result                      |                                     |
+| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)                        | Adds the operation result to the destination tensor instead of overwriting it |                                     |
+| Post-op   | [Binary](@ref dnnl::post_ops::append_binary)                  | Applies a @ref dnnl_api_binary operation to the result                        | General binary post-op restrictions |
 
 To facilitate dynamic quantization, the primitive supports run-time output
 scales. That means a user could configure attributes with output scales set to

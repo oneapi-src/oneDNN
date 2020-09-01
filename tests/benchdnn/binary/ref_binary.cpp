@@ -39,6 +39,7 @@ void compute_ref(const prb_t *p, const dnn_mem_t &src0, const dnn_mem_t &src1,
                 p->alg, scales[0] * A[i], scales[1] * B[idx_B]);
         float &dst = dst_ptr[i];
         std::vector<float> v_binary_vals;
+        v_binary_vals.reserve(v_bin_po_mask.size());
         for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
             auto bin_po_offset = src0.get_scale_idx(i, v_bin_po_mask[d]);
             float binary_val = binary_po[d].get_elem(bin_po_offset);

@@ -46,6 +46,7 @@ struct ref_matmul_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
+            using smask_t = primitive_attr_t::skip_mask_t;
 
             bool ok = src_md()->data_type == src_type
                     && weights_md()->data_type == weights_type
@@ -56,12 +57,9 @@ struct ref_matmul_t : public primitive_t {
                             acc_type == s32, attr()->zero_points_.common())
                     && IMPLICATION(acc_type != s32,
                             attr()->zero_points_.has_default_values())
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale_runtime
-                            | primitive_attr_t::skip_mask_t::zero_points_runtime
-                            | primitive_attr_t::skip_mask_t::post_ops)
-                    && attr_oscale_ok() && attr_post_ops_ok()
-                    && set_default_formats();
+                    && attr()->has_default_values(smask_t::oscale_runtime
+                            | smask_t::zero_points_runtime | smask_t::post_ops)
+                    && attr_oscale_ok() && set_default_formats();
 
             if (with_bias()) {
                 auto bia_dt = weights_md(1)->data_type;
@@ -78,27 +76,14 @@ struct ref_matmul_t : public primitive_t {
             const auto &oscale = attr()->output_scales_;
             return oscale.mask_ == 0 || oscale.mask_ == (1 << (batched() + 1));
         }
-
-        bool attr_post_ops_ok() const {
-            using namespace primitive_kind;
-            const auto &p = attr()->post_ops_;
-            switch (p.len()) {
-                case 0: return true;
-                case 1: return p.contain(sum, 0) || p.contain(eltwise, 0);
-                case 2: return p.contain(sum, 0) && p.contain(eltwise, 1);
-                default: return false;
-            }
-        }
     };
 
     ref_matmul_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        int e_idx = pd()->attr()->post_ops_.find(primitive_kind::eltwise);
-        if (e_idx != -1)
-            CHECK(safe_ptr_assign(eltwise_ker_,
-                    new ref_eltwise_scalar_fwd_t(
-                            pd()->attr()->post_ops_.entry_[e_idx].eltwise)));
+        ref_post_ops
+                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
+        if (!ref_post_ops) return status::out_of_memory;
         return status::success;
     }
 
@@ -114,8 +99,7 @@ struct ref_matmul_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
-
-    std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_ker_;
+    std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
 } // namespace matmul
