@@ -48,9 +48,9 @@ struct brgemm_strides_t {
 };
 
 struct brgemm_t {
-    int M;
-    int N;
-    int K;
+    int bcast_dim; // M;
+    int load_dim; // N;
+    int reduce_dim; // K;
     int LDA;
     int LDB;
     int LDC;
@@ -59,13 +59,12 @@ struct brgemm_t {
     float alpha;
     float beta;
 
-    int mb, m_block, mb_tail;
-    int mb2, m_block2, mb2_tail;
-
-    int nb, n_block, nb_tail;
-    int nb2, n_block2, nb2_tail;
-
-    int kb, k_block, kb_tail;
+    int bdb, bd_block, bdb_tail;
+    int bdb2, bd_block2, bdb2_tail;
+    int ldb, ld_block, ldb_tail;
+    int ldb2, ld_block2, ldb2_tail;
+    int rdb, rd_block, rdb_tail;
+    int rd_step, ld_step;
 
     impl::data_type_t dt_a;
     impl::data_type_t dt_c;
@@ -82,7 +81,6 @@ struct brgemm_t {
     bool is_int8, is_int8_amx;
     bool is_bf16, is_bf16_amx;
     bool is_f32;
-    int k_step, n_step;
 
     dim_t stride_a; // Offset in bytes
     dim_t stride_b;
@@ -115,7 +113,7 @@ struct brgemm_kernel_params_t {
     void *ptr_buf;
 
     size_t do_post_ops;
-    size_t N;
+    size_t BS;
 };
 
 struct jit_brgemm_kernel_base_t;
