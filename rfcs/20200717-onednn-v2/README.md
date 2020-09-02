@@ -22,9 +22,9 @@ with respect to the backwards compatibility with `dev-v2` branch though
    | Headers                                             | API For                | Namespace (applicable for C++ header files only) |
    | :--                                                 | :--                    | :--                                              |
    | `dnnl_types.h`, `dnnl.h`, `dnnl.hpp`                | Common and RT-agnostic | `dnnl`                                           |
-   | `dnnl_sycl_types.h`, `dnnl_sycl.h`, `dnnl_sycl.hpp` | SYCL-specific          | `dnnl::sycl`                                     |
-   | `dnnl_ocl.h`, `dnnl_ocl.hpp`                        | OpenCL specific        | `dnnl::ocl`                                      |
-   | `dnnl_threadpool.h`, `dnnl_threadpool.hpp`          | Thread pool specific   | `dnnl::threadpool`                               |
+   | `dnnl_sycl_types.h`, `dnnl_sycl.h`, `dnnl_sycl.hpp` | SYCL-specific          | `dnnl::sycl_interop`                             |
+   | `dnnl_ocl.h`, `dnnl_ocl.hpp`                        | OpenCL specific        | `dnnl::ocl_interop`                              |
+   | `dnnl_threadpool.h`, `dnnl_threadpool.hpp`          | Thread pool specific   | `dnnl::threadpool_interop`                       |
 
 2. Stream attributes are removed. This should affect only the integration with
    Thread Pool.
@@ -131,6 +131,13 @@ documents discuss some of the options that we decided not to proceed with:
     Agreed on proceeding this way. This simplifies the API, its concepts, it is
     more flexible, and in future, if buffers are de-prioritized / dropped,
     there would be minimum changes to the API (essentially 0).
+
+- 20/09/09. After we discovered the issue with namespace clashing, we renamed
+  `dnnl::sycl` (and other) namespaces to `dnnl::sycl_interop`. Along with that
+  we also simplified the names of the interoperability functions. For instance,
+  instead of `dnnl::sycl_interop::memory_get_memory_kind()` the function is now
+  called `dnnl::sycl_interop::get_memory_kind()` as subject can be guessed by
+  the first argument name.
 
 
 ---

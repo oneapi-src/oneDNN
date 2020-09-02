@@ -58,13 +58,13 @@ For some of the options below the following enum is used:
 ``` cpp
 // dnnl_sycl.hpp
 namespace dnnl {
-namespace sycl {
+namespace sycl_interop {
 enum class memory_kind {
     buffer,
     usm_shared,
     usm_device,
 };
-} // namespace sycl
+} // namespace sycl_interop
 } // namespace dnnl
 ```
 
@@ -96,8 +96,8 @@ The options:
      auto eng_gpu_usm = dnnl::engine(kind::gpu, memory_kind::usm_device, 0);
      ```
    - Introduce a global control (not attached to the engine) to select memory
-     kind: `dnnl::sycl::set_memory_kind(memory_kind::buffer)` and corresponding
-     environment variable duplicating the setter.
+     kind: `dnnl::sycl_interop::set_memory_kind(memory_kind::buffer)` and
+     corresponding environment variable duplicating the setter.
 
    <details><summary>What if [Appendix A](#appendix-a-wrapper-to-handle-usm-and-buffers) doesn't work</summary><p>
    It is worth mentioning that the all these options above lead to at least 2x
@@ -172,7 +172,7 @@ options seem to be:
    - The kind of memory used during memory object could be either specified
      using a flag:
      ``` cpp
-     auto mem = dnnl::sycl::make_memory(engine, md, memory_kind::buffer);
+     auto mem = dnnl::sycl_interop::make_memory(md, engine, memory_kind::buffer);
      ```
    - For default constructor pick the default option. Assuming that USM is
      generally more user-frindly than buffers, the suggestion is to default to

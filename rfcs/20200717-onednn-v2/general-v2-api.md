@@ -68,23 +68,23 @@ C++ API only:
    //     parameters (type erasure), the compiler won't be able to check that
    //     the arguments are passed correctly. The users are encouraged to use
    //     the corresponding C++ API instead.
-   dnnl_status_t dnnl_sycl_engine_create(dnnl_engine_t *engine,
+   dnnl_status_t dnnl_sycl_interop_engine_create(dnnl_engine_t *engine,
            void *sycl_dev_ptr, void *sycl_ctx_ptr); // <-- type erasure
 
    // =============
    // dnnl_sycl.hpp
    // =============
    namespace dnnl {
-   namespace sycl {
-   inline engine engine_create(cl::sycl::device dev, cl::sycl::context ctx) {
+   namespace sycl_interop {
+   inline engine make_engine(cl::sycl::device dev, cl::sycl::context ctx) {
      dnnl_engine_t e = nullptr;
      dnnl::error(
-         dnnl_sycl_engine_create(&e, /* type erasure */ &dev, /* type erasure */ &ctx),
+         dnnl_sycl_interop_engine_create(&e, /* type erasure */ &dev, /* type erasure */ &ctx),
          "cannot create engine"
      );
      return dnnl::engine(e);
    }
-   } // namespace sycl
+   } // namespace sycl_interop
    } // namespace dnnl
    ```
 
@@ -110,7 +110,7 @@ There would be 2 ways to create an engine:
 
 // 1. The most advance, runtime-specific way of creating an engine that accepts
 // API/RT-specific input arguments. Example below for DPC++ (similar for OCL).
-dnnl::engine dnnl::sycl::engine_create(
+dnnl::engine dnnl::sycl_interop::make_engine(
         const cl::sycl::device &dev, const cl::sycl::context &ctx);
 
 // ========
@@ -128,7 +128,7 @@ Just like in oneDNN v1.x and `dev-v2` branch, the engine created with the
 second (API/RT-agnostic way) would depend on the library configuration. Say,
 for `cpu_dpcpp_gpu_dpcpp` configuration the engine will be backed up by DPC++.
 
-Notice, there is no `engine::kind` argument in `dnnl::sycl::engine_create()`
+Notice, there is no `engine::kind` argument in `dnnl::sycl::make_engine()`
 (same for OpenCL). The assumption is that the kind could be derived from the
 input device.
 
@@ -142,13 +142,13 @@ input device.
    // =============
    // dnnl_sycl.hpp
    // =============
-   stream stream_create(const engine &e, cl::sycl::queue &queue);
+   stream make_stream(const engine &e, cl::sycl::queue &queue);
 
    // ===================
    // dnnl_threadpool.hpp
    // ===================
 
-   stream stream_create(const engine &e, threadpool_iface *threadpool);
+   stream make_stream(const engine &e, threadpool_iface *threadpool);
    ```
 
 2. Since thread pool now deserves a separate header file we suggest to get rid
@@ -198,19 +198,19 @@ input device.
    will use on of the following functions:
    ``` cpp
     template <typename T, int ndims>
-    memory memory_create(const desc &md, const engine &aengine,
+    memory make_memory(const desc &md, const engine &aengine,
             cl::sycl::buffer<T, ndims> buf, stream &s);
 
     template <typename T, int ndims>
-    void memory_set_data_handle(memory &m, cl::sycl::buffer<T, ndims> b);
+    void set_buffer(memory &m, cl::sycl::buffer<T, ndims> b);
    ```
 
 3. For DPC++ the [USM and Buffers Support](usm-and-buffer-support.md) discusses
    the support for buffers and USM. Assuming we choose to go with the suggested
    approach (that is supporting both USM and buffers at memory creation,
    allowing user to mix those at a primitive execution), the DPC++ specific
-   header defines `dnnl::sycl::memory_kind` enum class, that declares different
-   kinds of memory (device USM, shared USM, and buffers).
+   header defines `dnnl::sycl_interop::memory_kind` enum class, that declares
+   different kinds of memory (device USM, shared USM, and buffers).
    - A memory object created through RT-agnostic API (`dnnl.hpp`) will use
      _device USM_ as an option that gives the best performance and usability.
 
@@ -219,7 +219,7 @@ The relevant piece of the `dnnl_sycl.hpp`:
 
 ``` cpp
 namespace dnnl {
-namespace sycl {
+namespace sycl_interop {
 
 enum class memory_kind { // maybe memory_model is better name?
     usm_device, // default for SYCL-agnostic engine creation
@@ -228,21 +228,22 @@ enum class memory_kind { // maybe memory_model is better name?
 };
 
 // for mkind == buffer, handle could only be DNNL_MEMORY_{ALLOCATE,NONE}
-memory memory_create(const desc &md, const engine &aengine, memory_kind mkind,
+memory make_memory(const desc &md, const engine &aengine, memory_kind mkind,
         void *handle = DNNL_MEMORY_ALLOCATE);
-memory memory_create(const desc &md, const engine &astream, memory_kind mkind,
+memory make_memory(const desc &md, const engine &astream, memory_kind mkind,
         void *handle = DNNL_MEMORY_ALLOCATE);
 
 // API for sycl buffers The `memory_kind == buffer` is implied.
 template <typename T, int ndims>
-memory memory_create(const desc &md, const engine &aengine,
-        cl::sycl::buffer<T, ndims> buf, stream &s);
+memory make_memory(const desc &md, const engine &aengine, cl::sycl::buffer<T, ndims> buf);
+template <typename T, int ndims>
+memory make_memory(const desc &md, const stream &astream, cl::sycl::buffer<T, ndims> buf);
 
 // memory_kind could be changed during the lifetime, by setting the USM handle
 // or SYCL buffer
 memory_kind memory_get_memory_kind(const memory &amemory);
 
-} // namespace sycl
+} // namespace sycl_interop
 } // namespace dnnl
 ```
 
@@ -255,7 +256,7 @@ For this purpose, the interoperability API is used:
 // =============
 // dnnl_sycl.hpp
 // =============
-cl::sycl::event dnnl::sycl::primitive_execute(const primitive &p,
+cl::sycl::event dnnl::sycl_interop::execute(const primitive &p,
         const stream &s, const std::unordered_map<int, memory> &args,
         const std::vector<cl::sycl::event> &dependencies = {});
 
@@ -365,7 +366,7 @@ do now), in which case an arbitrary configuration could be chosen.
    - Same as above + the way to create a stream with thread pool attached
      happens by including `dnnl_threadpool.hpp` header file and calling
      ``` cpp
-     dnnl::threadpool::create_stream(const engine &e, threadpool_iface *thread_pool);
+     dnnl::threadpool_interop::make_stream(const engine &e, threadpool_iface *thread_pool);
      ```
 
 3. **OpenCL** API
@@ -381,14 +382,15 @@ one above.
 
 1. **DPC++** API
    - Constructors with SYCL objects are migrated to `dnnl_sycl.hpp` into a free
-     functions, like `dnnl::sycl::engine_create(dev, ctx)` with slightly
+     functions, like `dnnl::sycl_interop::make_engine(dev, ctx)` with slightly
      different parameters.
    - The default memory kind switched from buffers to device USM.
    - There is no more control between buffers and USM via
      `DNNL_USE_SYCL_BUFFERS` macro. The control happens through passing the
-     desired memory kind to memory creation: `dnnl::sycl::memory_create(...)`.
+     desired memory kind to memory creation:
+     `dnnl::sycl_interop::make_memory(...)`.
    - Primitive execution that has dependencies and returns a SYCL event is
-     moved to a separate function `dnnl::sycl::primitive_execute(...)`.
+     moved to a separate function `dnnl::sycl_interop::execute(...)`.
 
 
 ### 4.5. Feedback from Frameworks
