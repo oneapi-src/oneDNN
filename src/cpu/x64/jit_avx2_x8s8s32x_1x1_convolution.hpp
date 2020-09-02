@@ -29,8 +29,8 @@
 #include "cpu/platform.hpp"
 
 #include "cpu/x64/jit_avx2_x8s8s32x_1x1_conv_kernel.hpp"
-#include "cpu/x64/jit_avx2_x8s8s32x_convolution.hpp"
 #include "cpu/x64/jit_uni_1x1_conv_utils.hpp"
+#include "cpu/x64/jit_uni_x8s8s32x_convolution.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -129,8 +129,8 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         jit_conv_conf_t *jcp_dw_; // doesn't own a resource
         std::unique_ptr<cpu_convolution_fwd_pd_t> dw_conv_pd_;
         template <data_type_t sdt, data_type_t ddt>
-        using dw_pd_t =
-                typename jit_avx2_x8s8s32x_convolution_fwd_t<sdt, ddt>::pd_t;
+        using dw_pd_t = typename jit_uni_x8s8s32x_convolution_fwd_t<avx2, sdt,
+                ddt>::pd_t;
 
     protected:
         status_t copy(const pd_t &other) {
@@ -330,7 +330,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
 
     template <impl::data_type_t sdt, impl::data_type_t ddt>
     using fusable_pd_type =
-            typename jit_avx2_x8s8s32x_convolution_fwd_t<sdt, ddt>::pd_t;
+            typename jit_uni_x8s8s32x_convolution_fwd_t<avx2, sdt, ddt>::pd_t;
 
     jit_avx2_x8s8s32x_1x1_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd) {}
@@ -374,7 +374,7 @@ private:
 
     std::unique_ptr<jit_avx2_x8s8s32x_1x1_conv_kernel> kernel_;
     std::unique_ptr<rtus_driver_t<avx2>> rtus_driver_;
-    using dw_conv_kernel_t = jit_avx2_x8s8s32x_fwd_kernel;
+    using dw_conv_kernel_t = jit_uni_x8s8s32x_fwd_kernel<avx2>;
     std::unique_ptr<dw_conv_kernel_t> kernel_dw_;
 };
 

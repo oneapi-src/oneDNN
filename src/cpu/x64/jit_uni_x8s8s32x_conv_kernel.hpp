@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_AVX2_X8S8S32X_CONV_KERNEL_HPP
-#define CPU_X64_JIT_AVX2_X8S8S32X_CONV_KERNEL_HPP
+#ifndef CPU_X64_JIT_UNI_X8S8S32X_CONV_KERNEL_HPP
+#define CPU_X64_JIT_UNI_X8S8S32X_CONV_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
@@ -29,24 +29,24 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <typename Vmm>
-struct _jit_avx2_x8s8s32x_fwd_kernel : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx2_x8s8s32x_conv_fwd_ker_t_)
+template <cpu_isa_t isa, typename Vmm>
+struct _jit_uni_x8s8s32x_fwd_kernel : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_uni_x8s8s32x_conv_fwd_ker_t_)
 
-    _jit_avx2_x8s8s32x_fwd_kernel(
+    _jit_uni_x8s8s32x_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_
-                    = new jit_uni_eltwise_injector_f32<avx2>(this, jcp.eltwise);
+                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
     }
-    ~_jit_avx2_x8s8s32x_fwd_kernel() { delete eltwise_injector_; }
+    ~_jit_uni_x8s8s32x_fwd_kernel() { delete eltwise_injector_; }
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
 
 private:
-    jit_uni_eltwise_injector_f32<avx2> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
     const int ic_sub_step = 4;
 
     enum {
@@ -84,55 +84,62 @@ private:
     const Xbyak::Reg64 reg_kj = reg_ptr_scales;
     const Xbyak::Reg64 reg_overflow = reg_ptr_scales;
     const Xbyak::Reg64 reg_icb = reg_bias;
-    const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
     // Using 3d regs as depthwise3d is not yet supported
     const Xbyak::Reg64 reg_inp_buffer_ptr = aux_reg_inp_d;
     const Xbyak::Reg64 aux_reg_inp_buffer_ptr = aux_reg_ker_d;
+    const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
 
-    const Vmm vmm_wei = Vmm(15);
+    const Vmm vmm_wei = Vmm(0);
     /* used during bias section of store_output */
-    const Vmm vmm_comp = Vmm(14); // only for signed input
-    const Vmm vmm_bias = Vmm(15);
+    const Vmm vmm_comp = Vmm(1); // only for signed input
+    const Vmm vmm_bias = Vmm(0);
     /* used during post_op sum section of store_output */
-    const Vmm vmm_prev_dst = Vmm(15);
+    const Vmm vmm_prev_dst = Vmm(0);
     /* used during write-out section of store_output */
-    const Vmm vmm_zero = Vmm(15);
-    const Vmm vmm_saturation = Vmm(15);
+    const Vmm vmm_zero = Vmm(0);
+    const Vmm vmm_saturation = Vmm(0);
 
     /* used in compute_ker (but set during prepare_output) */
     const Vmm vmm_shift = vmm_comp; // only for signed input
     /* used in compute_ker */
-    const Vmm vmm_tmp = Vmm(12); // not used for depthwise
+    const Vmm vmm_tmp = Vmm(3); // not used for depthwise
     const Vmm vmm_one
-            = Vmm(13); // set at start of kernel, not used for depthwise.
+            = Vmm(2); // set at start of kernel, not used for depthwise.
+    /* used during scale section of store output */
+    const Vmm vmm_scale = vmm_tmp;
     /* registers use only for depthwise
-     * groups are always blocked by 8 (padded if needed),
-     * hence use only Ymm registers */
-    const Xbyak::Ymm ymm_wei = Xbyak::Ymm(15);
-    Xbyak::Ymm ymm_tmp;
-    Xbyak::Ymm ymm_src;
-    Xbyak::Ymm ymm_shifted_zero;
+     * groups are always blocked by 8/4 (padded if needed),
+     * hence use only Ymm registers for avx2 
+     * use Xmm registers for sse41*/
+    const Vmm vmm_dw_wei = Vmm(0);
+    Vmm vmm_dw_tmp;
+    Vmm vmm_dw_src;
+    Vmm vmm_dw_shifted_zero;
 
     Vmm vmm_out(int i_ur, int i_oc) {
-        int idx = i_ur + i_oc * jcp.ur_w;
+        int nb_x_blocking
+                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
+        int idx = i_ur * nb_x_blocking + i_oc;
         assert(idx
                 < (jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx));
-        return Vmm(idx);
+        /* remap register indices from 4 to 15
+  	 * to avoid passing xmm0 to comp*/
+        return Vmm(15 - idx);
     }
     Vmm vmm_inp(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
         assert(idx < 15);
-        return Vmm(idx);
+        return Vmm(15 - idx);
     }
     Vmm vmm_bias_alpha() {
         int nb_c_block
                 = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return Vmm(nb_c_block * jcp.ur_w);
+        return Vmm(15 - nb_c_block * jcp.ur_w);
     }
     Xbyak::Xmm xmm_bias_alpha() {
         int nb_c_block
                 = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return Xbyak::Xmm(nb_c_block * jcp.ur_w);
+        return Xbyak::Xmm(15 - nb_c_block * jcp.ur_w);
     }
     int get_ow_start(int ki, int pad_l) {
         return nstl::max(0,
@@ -169,19 +176,22 @@ private:
             int offset, int load_size);
 };
 
-struct jit_avx2_x8s8s32x_fwd_kernel {
+template <cpu_isa_t isa>
+struct jit_uni_x8s8s32x_fwd_kernel {
 
-    jit_avx2_x8s8s32x_fwd_kernel(
+    jit_uni_x8s8s32x_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : kernel_(nullptr) {
         int ch_block = ajcp.is_depthwise ? ajcp.ch_block : ajcp.ic_block;
         switch (ch_block) {
             case 8:
-                kernel_ = new _jit_avx2_x8s8s32x_fwd_kernel<Xbyak::Ymm>(
-                        ajcp, attr);
-                return;
+                if (utils::one_of(isa, avx2)) {
+                    kernel_ = new _jit_avx2_x8s8s32x_fwd_kernel(ajcp, attr);
+                    return;
+                } else
+                    assert(!"invalid channel blocking for current ISA");
             case 4:
-                kernel_ = new _jit_avx2_x8s8s32x_fwd_kernel<Xbyak::Xmm>(
+                kernel_ = new _jit_uni_x8s8s32x_fwd_kernel<isa, Xbyak::Xmm>(
                         ajcp, attr);
                 return;
             default: assert(!"invalid channel blocking");
@@ -190,7 +200,7 @@ struct jit_avx2_x8s8s32x_fwd_kernel {
 
     status_t create_kernel() { return kernel_->create_kernel(); }
 
-    ~jit_avx2_x8s8s32x_fwd_kernel() { delete kernel_; }
+    ~jit_uni_x8s8s32x_fwd_kernel() { delete kernel_; }
 
     void operator()(const jit_conv_call_s *p) const { (*kernel_)(p); }
 
@@ -203,8 +213,12 @@ struct jit_avx2_x8s8s32x_fwd_kernel {
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
+    void (*jit_ker)(jit_conv_call_s *);
+    using _jit_avx2_x8s8s32x_fwd_kernel
+            = _jit_uni_x8s8s32x_fwd_kernel<avx2, Xbyak::Ymm>;
+
 private:
-    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx2_x8s8s32x_fwd_kernel);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_x8s8s32x_fwd_kernel<isa>);
     jit_generator *kernel_;
 };
 

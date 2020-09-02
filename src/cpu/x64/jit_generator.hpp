@@ -1138,8 +1138,7 @@ public:
     *
     * for (int idx = 0; idx < load_size; ++idx)
     *     vpinsrb(xmm, xmm, ptr[reg + offset + idx], idx);
-    *
-    * TODO: Implement this routine for every ISA.
+    * 
     * TODO: Add an option to zero-out unloaded bytes in the Xmm register.
     * TODO: Add an option for unsafe_load wherein one could read outside the
     * provided memory buffer so as to minimize the total number of read
@@ -1164,7 +1163,6 @@ public:
 
         assert(IMPLICATION(load_size > 16, is_ymm));
 
-        // TODO: Support this routine for every isa
         assert(mayiuse(sse41)
                 && "routine is not supported for the current isa");
 
@@ -1401,7 +1399,6 @@ public:
         // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
 
-        // TODO: Support this routine for every isa
         assert(mayiuse(sse41)
                 && "routine is not supported for the current isa");
 
@@ -1512,25 +1509,6 @@ public:
         jit_utils::register_jit_code(code, code_size, name(), source_file());
     }
 
-    // TODO: make this function protected/private and call it using
-    // create_kernel()
-    const Xbyak::uint8 *getCode() {
-        this->ready();
-        if (!is_initialized()) return nullptr;
-        const Xbyak::uint8 *code = CodeGenerator::getCode();
-        register_jit_code(code, getSize());
-        return code;
-    }
-
-    template <typename F>
-    const F getCode() {
-        return (const F)getCode();
-    }
-
-    static inline bool is_initialized() {
-        return Xbyak::GetError() == Xbyak::ERR_NONE;
-    }
-
     const Xbyak::uint8 *jit_ker() const { return jit_ker_; }
 
     template <typename... kernel_args_t>
@@ -1542,13 +1520,26 @@ public:
 
     virtual status_t create_kernel() {
         generate();
-        jit_ker_ = getCode<Xbyak::uint8 *>();
+        jit_ker_ = getCode();
         return (jit_ker_) ? status::success : status::runtime_error;
+    }
+
+private:
+    const Xbyak::uint8 *getCode() {
+        this->ready();
+        if (!is_initialized()) return nullptr;
+        const Xbyak::uint8 *code = CodeGenerator::getCode();
+        register_jit_code(code, getSize());
+        return code;
+    }
+
+    static inline bool is_initialized() {
+        return Xbyak::GetError() == Xbyak::ERR_NONE;
     }
 
 protected:
     virtual void generate() = 0;
-    Xbyak::uint8 *jit_ker_;
+    const Xbyak::uint8 *jit_ker_;
 };
 
 } // namespace x64
