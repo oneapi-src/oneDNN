@@ -169,12 +169,51 @@ private:
     dims32_t inner_idxs_;
 };
 
+struct bfloat16_t {
+    uint16_t raw_bits_;
+    bfloat16_t() = default;
+    constexpr bfloat16_t(uint16_t r) : raw_bits_(r) {}
+    bfloat16_t(float f) { (*this) = f; }
+
+    bfloat16_t &operator=(float f) {
+        auto iraw = utils::bit_cast<std::array<uint16_t, 2>>(f);
+
+        if (::sycl::isnormal(f)) {
+            // FP_NORMAL: round to nearest even and truncate
+            const uint32_t rounding_bias = 0x00007FFF + (iraw[1] & 0x1);
+            const uint32_t int_raw
+                    = utils::bit_cast<uint32_t>(f) + rounding_bias;
+            iraw = utils::bit_cast<std::array<uint16_t, 2>>(int_raw);
+            raw_bits_ = iraw[1];
+        } else if (::sycl::isinf(f)) {
+            // FP_INFINITE
+            raw_bits_ = iraw[1];
+        } else if (::sycl::isnan(f)) {
+            // FP_NAN: truncate and set MSB of the mantissa force QNAN
+            raw_bits_ = iraw[1];
+            raw_bits_ |= 1 << 6;
+        } else {
+            // FP_SUBNORMAL, FP_ZERO: sign preserving zero (denormal go to zero)
+            raw_bits_ = iraw[1];
+            raw_bits_ &= 0x8000;
+        }
+
+        return *this;
+    }
+
+    operator float() const {
+        std::array<uint16_t, 2> iraw = {{0, raw_bits_}};
+        return utils::bit_cast<float>(iraw);
+    }
+};
+
 // Add a check for every SYCL kernel argument type.
 //
 // Exception: sycl_memory_arg_t doesn't pass the check because it contains
 // sycl::accessor which is not device copyable. However, it is treated by the
 // compiler in a special way allowing it not to satisfy the requirement.
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_md_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(bfloat16_t);
 
 } // namespace sycl
 } // namespace impl
