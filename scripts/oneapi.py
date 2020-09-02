@@ -47,7 +47,7 @@ from zipfile import ZipFile
 sys.path.insert(0, os.path.abspath(join('source','conf')))
 import common_conf
 
-oneapi_spec_version = common_conf.env['oneapi_version']
+llga_spec_version = common_conf.env['llga_version']
 args = None
 
         
@@ -238,11 +238,11 @@ def stage_publish(root, target=None):
     root_only(root)
     local_top = 'site'
     local_versions = join(local_top, 'versions')
-    local_versions_x = join(local_versions, oneapi_spec_version)
+    local_versions_x = join(local_versions, llga_spec_version)
     local_versions_latest = join(local_versions, 'latest')
     s3_top = 's3://%s' % (staging_host)
     s3_versions = '%s/versions' % s3_top
-    s3_versions_x = '%s/%s' % (s3_versions, oneapi_spec_version)
+    s3_versions_x = '%s/%s' % (s3_versions, llga_spec_version)
     s3_versions_latest = '%s/latest' % s3_versions
 
     # Sync everything but versions
@@ -300,7 +300,7 @@ def site(root, target=None):
     # Build the site. It will have everything but the older versions
     site = 'site'
     versions = join(site,'versions')
-    versions_x = join(versions, oneapi_spec_version)
+    versions_x = join(versions, llga_spec_version)
     pdf = join('build','latex','oneAPI-spec.pdf')
     html = join('build','html')
     rm(site)

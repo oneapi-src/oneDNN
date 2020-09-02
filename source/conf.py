@@ -15,12 +15,17 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath('conf'))
-# element_conf needs to import this conf
-sys.path.insert(0, os.path.abspath('.'))
+
+from common_conf import *
 
 project = 'oneDNN Graph Library'
 
-from element_conf import *
+project = u'oneAPI Specification'
+copyright = u'2020, Intel Corporation'
+author = u'Intel'
+
+version = env['llga_version']
+release = version
 
 html_js_files = ['custom.js']
 html_static_path = ['_static']
