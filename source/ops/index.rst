@@ -2,6 +2,8 @@
 OP definitions
 ##############
 
+Here is the link to all of operators supported in LLGA: https://gitlab.devtools.intel.com/llga/llga/-/blob/dev/include/llga/buildin_ops.h 
+
 .. toctree::
 
    arithmetic/Add_1.rst
