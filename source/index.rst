@@ -11,5 +11,4 @@ oneDNN Graph Library
    architecture.rst
    programming_model.rst
    ops/index.rst
-   target_fusion_patterns.rst
    appendix.rst

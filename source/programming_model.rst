@@ -271,3 +271,15 @@ A more advanced API might involve specifying the partition policy for different 
 Another issue is the location after compilation, add a location string to llga OP, e.g. line number and location of source code. Backend can decide how to use it, the most common case is to report error origin.
 
 User knows the error information associated with operation within the sub-graph.
+
+---------
+Custom OP
+---------
+
+LLGA extension supports custom op description and so that the bridge can fill the information of framework custom op and pass to LLGA backend.  The LLGA custom op may have a variable number of input/output tensors and attributes and a string describing the logic using language like PlaidML Tile.
+
+-----------
+Wildcard OP
+-----------
+
+Placeholder for wildcard OP.

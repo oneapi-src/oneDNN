@@ -2,20 +2,24 @@
 OP definitions
 ##############
 
-.. include:: arithmetic/Add_1.rst
-.. include:: pooling/AvgPool_1.rst
-.. include:: pooling/AvgPoolBackprop_1.rst
-.. include:: normalization/BatchNormForwardTraining_1.rst
-.. include:: normalization/BatchNormInference_1.rst
-.. include:: normalization/BatchNormTrainingBackprop_1.rst
-.. include:: arithmetic/BiasAddBackprop_1.rst
-.. include:: convolution/Convolution_1.rst
-.. include:: convolution/ConvolutionBackpropData_1.rst
-.. include:: convolution/ConvolutionBackpropFilters_1.rst
-.. include:: matrix/MatMul_1.rst
-.. include:: pooling/MaxPool_1.rst
-.. include:: pooling/MaxPoolBackprop_1.rst
-.. include:: activation/ReLU_1.rst
-.. include:: activation/ReLUBackprop_1.rst
-.. include:: shape/Reshape_1.rst
+List of all operators supported in LLGA can be found `here <https://gitlab.devtools.intel.com/llga/llga/-/blob/dev/include/llga/buildin_ops.h>`__.
+
+.. toctree::
+
+   arithmetic/Add_1.rst
+   pooling/AvgPool_1.rst
+   pooling/AvgPoolBackprop_1.rst
+   normalization/BatchNormForwardTraining_1.rst
+   normalization/BatchNormInference_1.rst
+   normalization/BatchNormTrainingBackprop_1.rst
+   arithmetic/BiasAddBackprop_1.rst
+   convolution/Convolution_1.rst
+   convolution/ConvolutionBackpropData_1.rst
+   convolution/ConvolutionBackpropFilters_1.rst
+   matrix/MatMul_1.rst
+   pooling/MaxPool_1.rst
+   pooling/MaxPoolBackprop_1.rst
+   activation/ReLU_1.rst
+   activation/ReLUBackprop_1.rst
+   shape/Reshape_1.rst
 
