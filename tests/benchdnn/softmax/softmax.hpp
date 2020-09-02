@@ -91,15 +91,15 @@ struct prb_t {
     attr_t attr;
     int ndims;
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         tag_ = normalize_tag(p_->tag, p_->ndims);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
@@ -119,32 +119,32 @@ private:
 };
 
 inline void map_off_to_mb_ic(
-        const prb_t *p, int64_t off, int64_t &mb, int64_t &ic) {
-    for (int i = p->ndims - 1; i > 1; i--)
-        off /= p->dims[i];
+        const prb_t *prb, int64_t off, int64_t &mb, int64_t &ic) {
+    for (int i = prb->ndims - 1; i > 1; i--)
+        off /= prb->dims[i];
 
-    ic = off % p->dims[1];
-    off /= p->dims[1];
-    mb = off % p->dims[0];
-    off /= p->dims[0];
+    ic = off % prb->dims[1];
+    off /= prb->dims[1];
+    mb = off % prb->dims[0];
+    off /= prb->dims[0];
     assert(off == 0);
 }
 
-inline void get_sizes(const prb_t *p, int64_t &outer_size, int64_t &inner_size,
-        int64_t &axis_size) {
+inline void get_sizes(const prb_t *prb, int64_t &outer_size,
+        int64_t &inner_size, int64_t &axis_size) {
     outer_size = inner_size = axis_size = 1;
-    for (int i = 0; i < p->axis; i++)
-        outer_size *= p->dims[i];
-    for (int i = p->axis + 1; i < p->ndims; i++)
-        inner_size *= p->dims[i];
-    axis_size = p->dims[p->axis];
+    for (int i = 0; i < prb->axis; i++)
+        outer_size *= prb->dims[i];
+    for (int i = prb->axis + 1; i < prb->ndims; i++)
+        inner_size *= prb->dims[i];
+    axis_size = prb->dims[prb->axis];
 }
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst);
-void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
+void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst);
+void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &dst,
         const dnn_mem_t &diff_dst, dnn_mem_t &diff_src);
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 } // namespace softmax

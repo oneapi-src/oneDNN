@@ -101,26 +101,26 @@ int32_t *prb_t::generate_zero_points(int arg) {
     return zp;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    s << "--sdt=" << cfg2dt(p.conf_in) << " ";
-    s << "--ddt=" << cfg2dt(p.conf_out) << " ";
-    s << "--stag=" << p.reorder.tag_in << " ";
-    s << "--dtag=" << p.reorder.tag_out << " ";
+    s << "--sdt=" << cfg2dt(prb.conf_in) << " ";
+    s << "--ddt=" << cfg2dt(prb.conf_out) << " ";
+    s << "--stag=" << prb.reorder.tag_in << " ";
+    s << "--dtag=" << prb.reorder.tag_out << " ";
 
-    if (canonical || p.alg != def.alg[0])
-        s << "--alg=" << alg2str(p.alg) << " ";
-    if (canonical || p.oflag != def.oflag[0])
-        s << "--oflag=" << flag2str(p.oflag) << " ";
-    if (canonical || p.cross_engine != def.cross_engine[0])
-        s << "--cross-engine=" << cross_engine2str(p.cross_engine) << " ";
-    if (canonical || p.runtime_dim_mask != def.runtime_dim_mask[0])
-        s << "--runtime-dim-mask=" << p.runtime_dim_mask << " ";
+    if (canonical || prb.alg != def.alg[0])
+        s << "--alg=" << alg2str(prb.alg) << " ";
+    if (canonical || prb.oflag != def.oflag[0])
+        s << "--oflag=" << flag2str(prb.oflag) << " ";
+    if (canonical || prb.cross_engine != def.cross_engine[0])
+        s << "--cross-engine=" << cross_engine2str(prb.cross_engine) << " ";
+    if (canonical || prb.runtime_dim_mask != def.runtime_dim_mask[0])
+        s << "--runtime-dim-mask=" << prb.runtime_dim_mask << " ";
 
-    s << p.attr;
-    s << p.reorder.dims;
+    s << prb.attr;
+    s << prb.reorder.dims;
 
     return s;
 }

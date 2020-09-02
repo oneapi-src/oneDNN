@@ -20,16 +20,16 @@
 
 namespace eltwise {
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
+void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst) {
     const float *src_ptr = (const float *)src;
     float *dst_ptr = (float *)dst;
     const auto nelems = src.nelems();
-    std::vector<int> v_bin_po_mask = p->attr.post_ops.get_binary_po_masks();
+    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         float res = compute_eltwise_fwd(
-                p->alg, src_ptr[i], 1.0, p->alpha, p->beta);
+                prb->alg, src_ptr[i], 1.0, prb->alpha, prb->beta);
         std::vector<float> v_binary_vals;
         v_binary_vals.reserve(v_bin_po_mask.size());
         for (size_t d = 0; d < v_bin_po_mask.size(); ++d) {
@@ -37,12 +37,12 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
             float binary_val = binary_po[d].get_elem(bin_po_offset);
             v_binary_vals.push_back(binary_val);
         }
-        maybe_post_ops(p->attr, res, 0.f, v_binary_vals);
+        maybe_post_ops(prb->attr, res, 0.f, v_binary_vals);
         dst_ptr[i] = res;
     });
 }
 
-void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
+void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &diff_dst, dnn_mem_t &diff_src) {
     const float *src_ptr = (const float *)src;
     const float *d_dst_ptr = (const float *)diff_dst;
@@ -51,7 +51,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         d_src_ptr[i] = compute_eltwise_bwd(
-                p->alg, d_dst_ptr[i], src_ptr[i], p->alpha, p->beta);
+                prb->alg, d_dst_ptr[i], src_ptr[i], prb->alpha, prb->beta);
     });
 }
 

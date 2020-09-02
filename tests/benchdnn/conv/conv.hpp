@@ -29,7 +29,7 @@
 #include "conv/conv_common.hpp"
 namespace conv {
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 } // namespace conv

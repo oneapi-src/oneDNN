@@ -30,50 +30,51 @@
 
 namespace sum {
 
-static int init_pd(dnnl_engine_t engine, const prb_t *p,
-        dnnl_primitive_desc_t &spd, res_t *r, dir_t dir,
+static int init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &spd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     std::vector<dnnl_memory_desc_t> src_d;
-    src_d.resize(p->n_inputs());
+    src_d.resize(prb->n_inputs());
 
     dnnl_memory_desc_t dst_d;
 
-    for (int i_input = 0; i_input < p->n_inputs(); ++i_input)
-        SAFE(init_md(&src_d[i_input], p->ndims, p->dims.data(), p->sdt[i_input],
-                     p->stag[i_input]),
+    for (int i_input = 0; i_input < prb->n_inputs(); ++i_input)
+        SAFE(init_md(&src_d[i_input], prb->ndims, prb->dims.data(),
+                     prb->sdt[i_input], prb->stag[i_input]),
                 CRIT);
 
-    if (p->dtag != tag::undef) {
-        SAFE(init_md(&dst_d, p->ndims, p->dims.data(), p->ddt, p->dtag), CRIT);
+    if (prb->dtag != tag::undef) {
+        SAFE(init_md(&dst_d, prb->ndims, prb->dims.data(), prb->ddt, prb->dtag),
+                CRIT);
     }
 
-    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args_t());
+    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
 
     dnnl_status_t init_status = dnnl_sum_primitive_desc_create(&spd,
-            p->dtag != tag::undef ? &dst_d : nullptr, p->n_inputs(),
-            p->scales.data(), src_d.data(), dnnl_attr, engine);
+            prb->dtag != tag::undef ? &dst_d : nullptr, prb->n_inputs(),
+            prb->scales.data(), src_d.data(), dnnl_attr, engine);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
-        return r->state = UNIMPLEMENTED, OK;
+        return res->state = UNIMPLEMENTED, OK;
     else
         SAFE(init_status, WARN);
 
-    r->impl_name = query_impl_info(spd);
-    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
+    res->impl_name = query_impl_info(spd);
+    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
 
     return OK;
 }
 
-static int compare(const prb_t *p, const dnnl_data_type_t dst_data_type,
-        const dnn_mem_t &fp_mem, const dnn_mem_t &dt_mem, res_t *r) {
+static int compare(const prb_t *prb, const dnnl_data_type_t dst_data_type,
+        const dnn_mem_t &fp_mem, const dnn_mem_t &dt_mem, res_t *res) {
     const auto nelems = dt_mem.nelems();
-    if (nelems == 0) return r->state = PASSED, OK;
+    if (nelems == 0) return res->state = PASSED, OK;
 
-    r->total = nelems;
+    res->total = nelems;
 
-    float trh = epsilon_dt(dst_data_type) * p->n_inputs();
+    float trh = epsilon_dt(dst_data_type) * prb->n_inputs();
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
@@ -84,13 +85,13 @@ static int compare(const prb_t *p, const dnnl_data_type_t dst_data_type,
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         const bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
 
-        r->errors += !ok;
+        res->errors += !ok;
 
-        const bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
+        const bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
                 || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
-            dims_t dims_idx = off2dims_idx(p->dims, i);
+            dims_t dims_idx = off2dims_idx(prb->dims, i);
             ss << dims_idx;
             std::string ind_str = ss.str();
 
@@ -100,18 +101,18 @@ static int compare(const prb_t *p, const dnnl_data_type_t dst_data_type,
         }
     }
 
-    if (r->errors) r->state = FAILED;
+    if (res->errors) res->state = FAILED;
 
-    if (r->state == UNTESTED) r->state = PASSED; /* optimism */
+    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
 
-    return r->state == FAILED ? FAIL : OK;
+    return res->state == FAILED ? FAIL : OK;
 }
 
 int fill_src(
-        const prb_t *p, int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+        const prb_t *prb, int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 
     const auto nelems = mem_fp.nelems();
-    const auto dt = p->sdt[input_idx];
+    const auto dt = prb->sdt[input_idx];
     const int range = 16;
     const int f_min = dt == dnnl_u8 ? 0 : -range / 2;
 
@@ -128,28 +129,28 @@ int fill_src(
     return OK;
 }
 
-void check_known_skipped_case(const prb_t *p, res_t *r) {
-    std::vector<dnnl_data_type_t> dts = p->sdt;
-    dts.push_back(p->ddt);
-    check_known_skipped_case_common(dts, FWD_D, r);
+void check_known_skipped_case(const prb_t *prb, res_t *res) {
+    std::vector<dnnl_data_type_t> dts = prb->sdt;
+    dts.push_back(prb->ddt);
+    check_known_skipped_case_common(dts, FWD_D, res);
 }
 
-int doit(const prb_t *p, res_t *r) {
-    if (bench_mode == LIST) return r->state = LISTED, OK;
+int doit(const prb_t *prb, res_t *res) {
+    if (bench_mode == LIST) return res->state = LISTED, OK;
 
-    check_known_skipped_case(p, r);
-    if (r->state == SKIPPED) return OK;
+    check_known_skipped_case(prb, res);
+    if (res->state == SKIPPED) return OK;
 
     dnnl_primitive_t s {};
-    SAFE(init_prim(&s, init_pd, p, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    SAFE(init_prim(&s, init_pd, prb, res), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(s, &const_pd), CRIT);
 
     if (dnn_mem_t::check_mem_size(const_pd) != OK) {
         DNN_SAFE_V(dnnl_primitive_destroy(s));
-        return r->state = SKIPPED, r->reason = NOT_ENOUGH_RAM, OK;
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
     const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
@@ -176,26 +177,26 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
     std::vector<dnn_mem_t> src_fp, src_dt;
-    src_fp.reserve(p->n_inputs());
-    src_dt.reserve(p->n_inputs());
+    src_fp.reserve(prb->n_inputs());
+    src_dt.reserve(prb->n_inputs());
 
-    for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
+    for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
         const auto &src_md = q(DNNL_ARG_MULTIPLE_SRC + i_input);
         src_fp.emplace_back(src_md, fp, tag, test_engine);
         src_dt.emplace_back(src_md, test_engine);
-        SAFE(fill_src(p, i_input, src_dt[i_input], src_fp[i_input]), WARN);
+        SAFE(fill_src(prb, i_input, src_dt[i_input], src_fp[i_input]), WARN);
         args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
     }
 
     SAFE(execute_and_wait(s, args), WARN);
 
     if (bench_mode & CORR) {
-        compute_ref(p, src_fp, dst_fp);
+        compute_ref(prb, src_fp, dst_fp);
         dnn_mem_t dst(dst_dt, fp, tag, test_engine);
-        SAFE(compare(p, dst_data_type, dst_fp, dst, r), WARN);
+        SAFE(compare(prb, dst_data_type, dst_fp, dst, res), WARN);
     }
 
-    measure_perf(r->timer, s, args);
+    measure_perf(res->timer, s, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(s));
 

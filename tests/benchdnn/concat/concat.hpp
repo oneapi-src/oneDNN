@@ -99,18 +99,18 @@ struct prb_t {
         ddims[axis] = axis_size();
     }
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         sdt_ = {p_->sdt};
         for (size_t d = 0; d < p_->stag.size(); d++)
             stag_.push_back(normalize_tag(p_->stag[d], p_->ndims));
         dtag_ = normalize_tag(p_->dtag, p_->ndims);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_desc(std::ostream &s) const override { s << p_->sdims; }
@@ -131,9 +131,9 @@ private:
 };
 
 void compute_ref(
-        const prb_t *p, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst);
+        const prb_t *prb, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst);
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 } // namespace concat

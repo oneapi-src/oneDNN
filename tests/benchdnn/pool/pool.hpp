@@ -58,9 +58,9 @@ struct desc_t {
     }
 
 private:
-    int64_t opp_pad(
-            int64_t i, int64_t o, int64_t k, int64_t d, int64_t s, int64_t p) {
-        return (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - p;
+    int64_t opp_pad(int64_t i, int64_t o, int64_t k, int64_t d, int64_t s,
+            int64_t prb) {
+        return (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - prb;
     }
 };
 
@@ -139,15 +139,15 @@ struct prb_t : public desc_t {
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         tag_ = normalize_tag(p_->tag, p_->ndims);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
@@ -183,57 +183,57 @@ private:
     std::string tag_;
 };
 
-inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t id,
+inline int64_t src_off_f(const prb_t *prb, int64_t mb, int64_t ic, int64_t id,
         int64_t ih, int64_t iw) {
-    return (((mb * p->ic + ic) * p->id + id) * p->ih + ih) * p->iw + iw;
+    return (((mb * prb->ic + ic) * prb->id + id) * prb->ih + ih) * prb->iw + iw;
 }
 
-inline void inv_src_off_f(const prb_t *p, int64_t off, int64_t &mb, int64_t &ic,
-        int64_t &id, int64_t &ih, int64_t &iw) {
-    iw = off % p->iw;
-    off /= p->iw;
-    ih = off % p->ih;
-    off /= p->ih;
-    id = off % p->id;
-    off /= p->id;
-    ic = off % p->ic;
-    off /= p->ic;
-    mb = off % p->mb;
-    off /= p->mb;
+inline void inv_src_off_f(const prb_t *prb, int64_t off, int64_t &mb,
+        int64_t &ic, int64_t &id, int64_t &ih, int64_t &iw) {
+    iw = off % prb->iw;
+    off /= prb->iw;
+    ih = off % prb->ih;
+    off /= prb->ih;
+    id = off % prb->id;
+    off /= prb->id;
+    ic = off % prb->ic;
+    off /= prb->ic;
+    mb = off % prb->mb;
+    off /= prb->mb;
     assert(off == 0);
 }
 
-inline int64_t dst_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t od,
+inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t ic, int64_t od,
         int64_t oh, int64_t ow) {
-    return (((mb * p->ic + ic) * p->od + od) * p->oh + oh) * p->ow + ow;
+    return (((mb * prb->ic + ic) * prb->od + od) * prb->oh + oh) * prb->ow + ow;
 }
 
-inline void inv_dst_off_f(const prb_t *p, int64_t off, int64_t &mb, int64_t &ic,
-        int64_t &od, int64_t &oh, int64_t &ow) {
-    ow = off % p->ow;
-    off /= p->ow;
-    oh = off % p->oh;
-    off /= p->oh;
-    od = off % p->od;
-    off /= p->od;
-    ic = off % p->ic;
-    off /= p->ic;
-    mb = off % p->mb;
-    off /= p->mb;
+inline void inv_dst_off_f(const prb_t *prb, int64_t off, int64_t &mb,
+        int64_t &ic, int64_t &od, int64_t &oh, int64_t &ow) {
+    ow = off % prb->ow;
+    off /= prb->ow;
+    oh = off % prb->oh;
+    off /= prb->oh;
+    od = off % prb->od;
+    off /= prb->od;
+    ic = off % prb->ic;
+    off /= prb->ic;
+    mb = off % prb->mb;
+    off /= prb->mb;
     assert(off == 0);
 }
 
-inline int64_t ker_off_f(const prb_t *p, int64_t kd, int64_t kh, int64_t kw) {
-    return (kd * p->kh + kh) * p->kw + kw;
+inline int64_t ker_off_f(const prb_t *prb, int64_t kd, int64_t kh, int64_t kw) {
+    return (kd * prb->kh + kh) * prb->kw + kw;
 }
 
 inline int64_t get_num_summands(
-        const prb_t *p, int64_t d, int64_t h, int64_t w) {
-    const int64_t ID = p->id, IH = p->ih, IW = p->iw;
-    const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
-    const int64_t DD = p->dd, DH = p->dh, DW = p->dw;
-    const int64_t PD = p->pd, PH = p->ph, PW = p->pw;
-    const int64_t SD = p->sd, SH = p->sh, SW = p->sw;
+        const prb_t *prb, int64_t d, int64_t h, int64_t w) {
+    const int64_t ID = prb->id, IH = prb->ih, IW = prb->iw;
+    const int64_t KD = prb->kd, KH = prb->kh, KW = prb->kw;
+    const int64_t DD = prb->dd, DH = prb->dh, DW = prb->dw;
+    const int64_t PD = prb->pd, PH = prb->ph, PW = prb->pw;
+    const int64_t SD = prb->sd, SH = prb->sh, SW = prb->sw;
 
     auto id_start = d * SD - PD;
     auto ih_start = h * SH - PH;
@@ -252,24 +252,28 @@ inline int64_t get_num_summands(
     auto ih_end_excluded = ih_end > IH ? (ih_end - IH - 1) / (DH + 1) + 1 : 0;
     auto iw_end_excluded = iw_end > IW ? (iw_end - IW - 1) / (DW + 1) + 1 : 0;
 
-    return p->alg == AVG_P ? KD * KH * KW
-                           : (KD - id_start_excluded - id_end_excluded)
+    return prb->alg == AVG_P ? KD * KH * KW
+                             : (KD - id_start_excluded - id_end_excluded)
                     * (KH - ih_start_excluded - ih_end_excluded)
                     * (KW - iw_start_excluded - iw_end_excluded);
 }
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
+void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst, dnn_mem_t &ws);
-void compute_ref_bwd(const prb_t *p, dnn_mem_t &diff_src,
+void compute_ref_bwd(const prb_t *prb, dnn_mem_t &diff_src,
         const dnn_mem_t &diff_dst, const dnn_mem_t &ws);
 
-int compare_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-int compare_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-int fill_ws(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
+int compare_src(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int compare_dst(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int fill_src(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int fill_dst(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int fill_ws(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 } // namespace pool

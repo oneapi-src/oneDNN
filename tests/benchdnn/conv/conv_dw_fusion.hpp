@@ -35,7 +35,7 @@ using prb_t = conv::prb_t;
 using alg_t = conv::alg_t;
 using dt_conf_t = conv::dt_conf_t;
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 
 } // namespace conv_dw_fusion
 

@@ -20,21 +20,21 @@
 
 namespace binary {
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     using ::operator<<;
 
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || p.sdt != def.sdt[0]) s << "--sdt=" << p.sdt << " ";
-    if (canonical || p.ddt != def.ddt[0]) s << "--ddt=" << p.ddt << " ";
-    if (canonical || p.stag != def.stag[0]) s << "--stag=" << p.stag << " ";
-    if (canonical || p.alg != def.alg[0]) s << "--alg=" << p.alg << " ";
-    if (canonical || p.inplace != def.inplace[0])
-        s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
+    if (canonical || prb.ddt != def.ddt[0]) s << "--ddt=" << prb.ddt << " ";
+    if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
+    if (canonical || prb.alg != def.alg[0]) s << "--alg=" << prb.alg << " ";
+    if (canonical || prb.inplace != def.inplace[0])
+        s << "--inplace=" << bool2str(prb.inplace) << " ";
 
-    s << p.attr;
-    s << p.sdims;
+    s << prb.attr;
+    s << prb.sdims;
 
     return s;
 }

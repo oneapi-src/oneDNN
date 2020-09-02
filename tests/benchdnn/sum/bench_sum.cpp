@@ -48,22 +48,23 @@ void check_correctness(const settings_t &s) {
             if (i_scales.size() != 1 && i_scales.size() != i_sdt.size())
                 SAFE_V(FAIL);
 
-            const prb_t p(s.dims, i_sdt, i_ddt, i_stag, i_dtag, i_scales, attr);
+            const prb_t prb(
+                    s.dims, i_sdt, i_ddt, i_stag, i_dtag, i_scales, attr);
             std::stringstream ss;
-            ss << p;
+            ss << prb;
             const std::string cpp_pstr = ss.str();
             const char *pstr = cpp_pstr.c_str();
             BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
             res_t res {};
-            int status = doit(&p, &res);
+            int status = doit(&prb, &res);
 
             bool want_perf_report = false;
             parse_result(res, want_perf_report, status, pstr);
 
             if (want_perf_report && bench_mode & PERF) {
                 perf_report_t pr(s.perf_template);
-                pr.report(&p, &res, pstr);
+                pr.report(&prb, &res, pstr);
             }
 
             benchdnn_stat.tests++;

@@ -370,14 +370,14 @@ private:
     prb_t(const prb_t &) = delete;
     prb_t &operator=(const prb_t &) = delete;
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
-        base_report(r, prb_str);
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
+        base_report(res, prb_str);
     }
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
@@ -409,11 +409,11 @@ private:
     const prb_t *p_ = nullptr;
 };
 
-void prepare_ws_fwd(const prb_t &p, std::vector<float> &ws_fwd_buffer,
+void prepare_ws_fwd(const prb_t &prb, std::vector<float> &ws_fwd_buffer,
         AOC<float> &ws_src_layer, AOC<float> &ws_src_iter,
         AOC<float> &ws_src_iter_c, AOC<float> &ws_gates, AOC<float> &ws_ht);
 
-void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
+void rnn_linear_fwd(const prb_t &prb, const float *src_layer_,
         const float *src_iter_, const float *src_iter_c_,
         const float *weights_layer_, const float *weights_iter_,
         const float *weights_peephole_, const float *weights_projection_,
@@ -422,14 +422,14 @@ void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
         const AOC<float> &ws_src_iter, const AOC<float> &ws_src_iter_c,
         const AOC<float> &ws_gates, const AOC<float> &ws_ht);
 
-void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
+void compute_ref_fwd(const prb_t &prb, dnn_mem_t &src_layer_m,
         dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
         dnn_mem_t &weights_layer_m, dnn_mem_t &weights_iter_m,
         dnn_mem_t &weights_peephole_m, dnn_mem_t &weights_projection_m,
         dnn_mem_t &bias_m, dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
         dnn_mem_t &dst_iter_c_m);
 
-void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
+void compute_ref_bwd(const prb_t &prb, dnn_mem_t &src_layer_m,
         dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
         dnn_mem_t &diff_dst_layer_m, dnn_mem_t &diff_dst_iter_m,
         dnn_mem_t &diff_dst_iter_c_m, dnn_mem_t &weights_layer_m,
@@ -441,7 +441,7 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &diff_weights_iter_m, dnn_mem_t &diff_weights_peephole_m,
         dnn_mem_t &diff_weights_projection_m, dnn_mem_t &diff_bias_m);
 
-int doit(const prb_t &p, res_t *res);
+int doit(const prb_t &prb, res_t *res);
 int bench(int argc, char **argv);
 
 } // namespace rnn

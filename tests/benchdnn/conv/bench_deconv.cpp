@@ -47,10 +47,10 @@ void check_correctness(const settings_t &s) {
         attr.insert(i_scratchpad_mode);
         handle_legacy_attr(attr, s.attr);
 
-        const prb_t p(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg, attr,
-                i_mb);
+        const prb_t prb(s.desc, i_dir, i_cfg, i_stag, i_wtag, i_dtag, i_alg,
+                attr, i_mb);
         std::stringstream ss;
-        ss << p;
+        ss << prb;
         const std::string cpp_pstr = ss.str();
         const char *pstr = cpp_pstr.c_str();
 
@@ -58,14 +58,14 @@ void check_correctness(const settings_t &s) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        const int status = deconv::doit(&p, &res);
+        const int status = deconv::doit(&prb, &res);
 
         bool want_perf_report = false;
         parse_result(res, want_perf_report, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
             perf_report_t pr(s.perf_template);
-            pr.report(&p, &res, pstr);
+            pr.report(&prb, &res, pstr);
         }
 
         benchdnn_stat.tests++;

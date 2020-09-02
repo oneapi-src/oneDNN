@@ -19,25 +19,25 @@
 
 namespace concat {
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     using ::operator<<;
 
     dump_global_params(s);
     settings_t def;
 
     bool has_default_tags = true;
-    for (const auto &i_stag : p.stag)
+    for (const auto &i_stag : prb.stag)
         has_default_tags = has_default_tags && i_stag == tag::abx;
 
-    if (canonical || p.sdt != def.sdt[0]) s << "--sdt=" << p.sdt << " ";
-    if (canonical || (p.dtag != def.dtag[0] && p.ddt != def.ddt[0]))
-        s << "--ddt=" << p.ddt << " ";
-    if (canonical || !has_default_tags) s << "--stag=" << p.stag << " ";
-    if (canonical || p.dtag != def.dtag[0]) s << "--dtag=" << p.dtag << " ";
-    if (canonical || p.axis != def.axis[0]) s << "--axis=" << p.axis << " ";
+    if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
+    if (canonical || (prb.dtag != def.dtag[0] && prb.ddt != def.ddt[0]))
+        s << "--ddt=" << prb.ddt << " ";
+    if (canonical || !has_default_tags) s << "--stag=" << prb.stag << " ";
+    if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
+    if (canonical || prb.axis != def.axis[0]) s << "--axis=" << prb.axis << " ";
 
-    s << p.attr;
-    s << p.sdims;
+    s << prb.attr;
+    s << prb.sdims;
 
     return s;
 }

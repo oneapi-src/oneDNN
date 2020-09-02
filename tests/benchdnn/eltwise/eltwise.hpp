@@ -96,15 +96,15 @@ struct prb_t {
                 || alg == alg_t::LOGISTIC_DST || alg == alg_t::EXP_DST;
     }
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         tag_ = normalize_tag(p_->tag, p_->ndims);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_alg(std::ostream &s) const override { s << p_->alg; }
@@ -123,12 +123,12 @@ private:
 };
 
 bool check_extreme_values(const float &a, const float &b, alg_t alg);
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
+void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst);
-void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
+void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &diff_dst, dnn_mem_t &diff_src);
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 } // namespace eltwise

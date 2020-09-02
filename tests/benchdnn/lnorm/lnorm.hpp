@@ -124,16 +124,16 @@ struct prb_t {
     };
 };
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         tag_ = normalize_tag(p_->tag, p_->ndims);
         stat_tag_ = normalize_tag(p_->stat_tag, p_->ndims - 1);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_desc(std::ostream &s) const override { s << p_->dims; }
@@ -155,13 +155,13 @@ private:
     std::string tag_, stat_tag_;
 };
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
+void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst);
-void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
+void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
         const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss);
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 } // namespace lnorm
