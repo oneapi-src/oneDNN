@@ -267,8 +267,8 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
 
         if (utils::one_of(
                     dst_type, data_type::u8, data_type::s8, data_type::s32)) {
-            saturate_f32(
-                    vreg_dst_, vreg_zero, vreg_saturation_ubound, dst_type);
+            saturate_f32(vreg_dst_, vreg_zero, vreg_saturation_ubound,
+                    vreg_scale /* vreg_tmp */, dst_type);
             vcvtps2dq(vreg_dst_, vreg_dst_);
         } else if (dst_type == data_type::bf16) {
             if (isa_ == avx512_core_bf16)

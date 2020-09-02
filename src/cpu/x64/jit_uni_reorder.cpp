@@ -599,7 +599,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                     for (int ur = 0; ur < reg_unroll; ur += load_step) {
                         if (need_saturation)
                             saturate_f32(Xmm(ur), xmm_zero,
-                                    xmm_saturation_ubound, prb_.otype);
+                                    xmm_saturation_ubound, xmm_tmp, prb_.otype);
                         cvt2odt(Xmm(ur), prb_.otype,
                                 interim_f32 ? f32 : prb_.itype);
                     }
@@ -734,8 +734,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
             init_saturate_f32(
                     xmm_zero, xmm_saturation_ubound, reg_tmp, f32, prb_.otype);
             for (int ur = 0; ur < reg_unroll; ur += ur_step) {
-                saturate_f32(
-                        Xmm(ur), xmm_zero, xmm_saturation_ubound, prb_.otype);
+                saturate_f32(Xmm(ur), xmm_zero, xmm_saturation_ubound, xmm_tmp,
+                        prb_.otype);
             }
         }
 
