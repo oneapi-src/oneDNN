@@ -125,18 +125,19 @@ private:
     Xbyak::Zmm accm(int ld_block, int bd, int ld) {
         return Xbyak::Zmm(31 - (bd * ld_block + ld));
     }
-#if _N_BCST_1_LOAD
+#if defined(_N_BCST_1_LOAD)
     Xbyak::Zmm bcst(int bd) {
-        return Xbyak::Zmm(31 - (brg.ld_block2 * brg.bd_block + bd));
+        assert(brg.ld_block2 * brg.bd_block < 31);
+        return Xbyak::Zmm(31 - (brg.ld_block2 * brg.bd_block) - bd);
     }
-    Xbyak::Zmm load() { return Xbyak::Zmm(31); }
-#endif
+    Xbyak::Zmm load() { return Xbyak::Zmm(0); }
+#else
     Xbyak::Zmm load(int ld) {
-        assert(brg.ld_block2 * brg.bd_block < 31); // zmm0 is bcast ?
+        assert(brg.ld_block2 * brg.bd_block < 31);
         return Xbyak::Zmm(31 - (brg.ld_block2 * brg.bd_block) - ld);
     }
-
     Xbyak::Zmm bcst() { return Xbyak::Zmm(0); }
+#endif
 
     Xbyak::Zmm zmm_tmp_1() { return Xbyak::Zmm(0); }
     Xbyak::Zmm zmm_tmp_2() { return Xbyak::Zmm(1); }
@@ -673,6 +674,37 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
     } else
         rd_loop = brg.rd_block;
 
+#if defined(_N_BCST_1_LOAD)
+    for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
+        for (int bd = 0; bd < bd_block && !is_emdbd; bd++) {
+            if (is_rd_tail && rd_tail_size != 0 && (rd == rd_loop - brg.rd_step)
+                    && (brg.is_bf16 || brg.is_int8)) {
+                vpxord(bcst(bd), bcst(bd), bcst(bd));
+                Xmm xmm_tmp = Xmm(bcst(bd).getIdx());
+                load_bytes(xmm_tmp, reg_aux_A, A_offset(bd, rd),
+                        rd_tail_size * brg.typesize_A);
+                vpbroadcastd(bcst(bd), xmm_tmp);
+            } else
+                broadcast(bcst(bd), A_offset(bd, rd));
+        }
+        for (int ld = 0; ld < ld_block2; ld++) {
+            if (is_ld_tail) {
+                vmovups(load() | ld_tail_mask | T_z,
+                        ptr[reg_aux_B + B_offset(ld, rd)]);
+            } else {
+                vmovups(load(), ptr[reg_aux_B + B_offset(ld, rd)]);
+            }
+            for (int bd = 0; bd < bd_block; bd++) {
+                auto zmm = accm(ld_block2, bd, ld);
+                if (is_emdbd)
+                    vfmadd231ps(
+                            zmm, load(), zword_b[reg_aux_A + A_offset(bd, rd)]);
+                else
+                    dot_product(zmm, load(), bcst(bd));
+            }
+        }
+    }
+#else
     for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
         int prefetch_count_B = 0;
         for (int ld = 0; ld < ld_block2; ld++) {
@@ -710,6 +742,7 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
             }
         }
     }
+#endif
 }
 
 void jit_brgemm_kernel_base_t::gemm_microkernel(int bd_block2, bool is_bdb_tail,
@@ -912,10 +945,12 @@ void jit_brgemm_kernel_base_t::generate() {
 
     read_params();
 
+#if !defined(_N_BCST_1_LOAD)
     if (!brg.embd_bcst && (brg.is_bf16 || brg.is_int8)) {
         Xmm xmm_tmp = Xmm(bcst().getIdx());
         vpxor(xmm_tmp, xmm_tmp, xmm_tmp);
     }
+#endif
 
     bdb_loop();
 
