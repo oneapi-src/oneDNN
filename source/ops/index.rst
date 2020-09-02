@@ -2,7 +2,7 @@
 OP definitions
 ##############
 
-Here is the link to all of operators supported in LLGA: https://gitlab.devtools.intel.com/llga/llga/-/blob/dev/include/llga/buildin_ops.h 
+List of all operators supported in LLGA can be found `here <https://gitlab.devtools.intel.com/llga/llga/-/blob/dev/include/llga/buildin_ops.h>`__.
 
 .. toctree::
 
