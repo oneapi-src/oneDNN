@@ -24,6 +24,7 @@
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace sycl {
 
 #define CHECK_SYCL_KERNEL_ARG_TYPE(type) \
@@ -207,6 +208,8 @@ struct bfloat16_t {
     }
 };
 
+using float16_t = ::sycl::half;
+
 // Add a check for every SYCL kernel argument type.
 //
 // Exception: sycl_memory_arg_t doesn't pass the check because it contains
@@ -215,7 +218,36 @@ struct bfloat16_t {
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_md_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(bfloat16_t);
 
+template <data_type_t>
+struct sycl_prec_traits;
+
+template <>
+struct sycl_prec_traits<data_type::f16> {
+    using type = float16_t;
+};
+template <>
+struct sycl_prec_traits<data_type::bf16> {
+    using type = bfloat16_t;
+};
+template <>
+struct sycl_prec_traits<data_type::f32> {
+    using type = float;
+};
+template <>
+struct sycl_prec_traits<data_type::s32> {
+    using type = int32_t;
+};
+template <>
+struct sycl_prec_traits<data_type::s8> {
+    using type = int8_t;
+};
+template <>
+struct sycl_prec_traits<data_type::u8> {
+    using type = uint8_t;
+};
+
 } // namespace sycl
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
