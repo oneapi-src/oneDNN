@@ -85,6 +85,8 @@ struct brgemm_t {
     dim_t stride_a; // Offset in bytes
     dim_t stride_b;
 
+    brgemm_layout_t layout;
+
     brgemm_batch_kind_t type;
     bool embd_bcst;
 

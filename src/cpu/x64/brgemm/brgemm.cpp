@@ -143,65 +143,61 @@ status_t brgemm_desc_init(brgemm_t *brg, brgemm_batch_kind_t type,
         dim_t LDB, dim_t LDC, dim_t M, dim_t N, dim_t K,
         const brgemm_strides_t *strides) {
     /*
-    Matrices are in row-major layouts:
     m - number of rows of the matrix op(A) and number of rows of the matrix C
     n - number of columns of the matrix op(B) and number of columns of the matrix C
     k - number of columns of the matrix op(A) and number of rows of the matrix op(B)
 
-    A: lda * m
-    B: ldb * k
-    C: ldc * m
+    Matrices are in row-major layouts:
+        A: lda * m, LDA - lda must be at least max(1, k)
+        B: ldb * k, LDB - ldb must be at least max(1, n)
+        C: ldc * m, LDC - ldc must be at least max(1, n)
 
-    LDA - lda must be at least max(1, k);
-    LDB - ldb must be at least max(1, n);
-    LDC - ldc must be at least max(1, n);
+    Matrices are in column-major layouts:
+        A: lda * k, LDA - lda must be at least max(1, m)
+        B: ldb * n, LDB - ldb must be at least max(1, k)
+        C: ldc * n, LDC - ldc must be at least max(1, m)
     */
     if (brg == nullptr) return status::invalid_arguments;
-
     if (transA || transB) return status::unimplemented;
-    if (layout == brgemm_col_major) return status::unimplemented;
 
-    brg->dt_a = dt_a;
-    brg->dt_b = dt_b;
+    brg->layout = layout;
+    auto is_row_major = [&]() { return brg->layout == brgemm_row_major; };
+    if (M <= 0 || N <= 0 || K <= 0) return status::invalid_arguments;
+    bool ldx_check = (is_row_major()) ? (LDA < K || LDB < N || LDC < N)
+                                      : (LDA < M || LDB < K || LDC < M);
+    if (ldx_check) return status::invalid_arguments;
+
+    brg->dt_a = (is_row_major()) ? dt_a : dt_b;
+    brg->dt_b = (is_row_major()) ? dt_b : dt_a;
 
     brg->is_int8 = (brg->dt_a == data_type::u8 && brg->dt_b == data_type::s8);
     brg->is_bf16
             = (brg->dt_a == data_type::bf16 && brg->dt_b == data_type::bf16);
     brg->is_f32 = (brg->dt_a == data_type::f32 && brg->dt_b == data_type::f32);
-
+    if (!brg->is_int8 && !brg->is_bf16 && !brg->is_f32)
+        return status::unimplemented;
     brg->dt_c = (brg->is_int8) ? data_type::s32 : data_type::f32;
     brg->dt_d = brg->dt_c;
     brg->dt_bias = brg->dt_c;
 
-    if (!brg->is_int8 && !brg->is_bf16 && !brg->is_f32)
-        return status::unimplemented;
     if (brg->is_f32 && !mayiuse(avx512_core)) return status::unimplemented;
     if (brg->is_bf16 && (!mayiuse(avx512_core_bf16) && !mayiuse(amx_bf16)))
         return status::unimplemented;
     if (brg->is_int8 && (!mayiuse(avx512_core_vnni) && !mayiuse(amx_int8)))
         return status::unimplemented;
 
-    brg->dt_c = (brg->is_int8) ? data_type::s32 : data_type::f32;
-    brg->dt_d = brg->dt_c;
-    brg->dt_bias = brg->dt_c;
-
     brg->is_int8_amx = brg->is_int8 && mayiuse(amx_int8);
     brg->is_bf16_amx = brg->is_bf16 && mayiuse(amx_bf16);
 
-    brg->LDA = (int)LDA;
-    brg->LDB = (int)LDB;
+    brg->LDA = (is_row_major()) ? (int)LDA : (int)LDB;
+    brg->LDB = (is_row_major()) ? (int)LDB : (int)LDA;
+
     brg->LDC = (int)LDC;
     brg->LDD = (int)LDC;
 
-    brg->bcast_dim = (int)M;
-    brg->load_dim = (int)N;
+    brg->bcast_dim = (is_row_major()) ? (int)M : (int)N;
+    brg->load_dim = (is_row_major()) ? (int)N : (int)M;
     brg->reduce_dim = (int)K;
-
-    if (brg->bcast_dim <= 0 || brg->load_dim <= 0 || brg->reduce_dim <= 0
-            || brg->LDA < nstl::max(1, brg->reduce_dim)
-            || brg->LDB < nstl::max(1, brg->load_dim)
-            || brg->LDC < nstl::max(1, brg->load_dim))
-        return status::invalid_arguments;
 
     brg->with_bias = false;
     brg->with_eltwise = false;

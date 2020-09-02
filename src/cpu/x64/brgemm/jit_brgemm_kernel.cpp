@@ -142,10 +142,10 @@ private:
     Xbyak::Zmm zmm_tmp_2() { return Xbyak::Zmm(1); }
     Xbyak::Zmm zmm_tmp_3() { return Xbyak::Zmm(2); }
 
-    Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag,
-            bool store, Xbyak::Opmask ktail_mask);
-    Xbyak::Ymm ymm_mask(const Xbyak::Ymm ymm_in, bool mask_flag,
-            bool store, Xbyak::Opmask ktail_mask);
+    Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag, bool store,
+            Xbyak::Opmask ktail_mask);
+    Xbyak::Ymm ymm_mask(const Xbyak::Ymm ymm_in, bool mask_flag, bool store,
+            Xbyak::Opmask ktail_mask);
 
     void cvt2ps(data_type_t type_in, const Xbyak::Zmm zmm_in,
             const Xbyak::Operand &op, bool mask_flag, bool store,
@@ -287,8 +287,16 @@ void jit_brgemm_kernel_base_t::cvt2ps(data_type_t type_in,
 void jit_brgemm_kernel_base_t::read_params() {
     Label label_done;
 
-    mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
-    mov(reg_B, ptr[param1 + GET_OFF(ptr_B)]);
+    if (brg.layout == brgemm_row_major)
+        mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
+    else
+        mov(reg_A, ptr[param1 + GET_OFF(ptr_B)]);
+
+    if (brg.layout == brgemm_row_major)
+        mov(reg_B, ptr[param1 + GET_OFF(ptr_B)]);
+    else
+        mov(reg_B, ptr[param1 + GET_OFF(ptr_A)]);
+
     mov(reg_C, ptr[param1 + GET_OFF(ptr_C)]);
     mov(reg_D, ptr[param1 + GET_OFF(ptr_D)]);
     mov(reg_BS, ptr[param1 + GET_OFF(BS)]);
