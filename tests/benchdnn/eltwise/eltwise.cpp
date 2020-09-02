@@ -98,6 +98,12 @@ bool check_extreme_values(const float &a, const float &b, alg_t alg) {
         case alg_t::POW:
         case alg_t::SQRT:
         case alg_t::SQRT_DST:
+        // It is impossible to reliably test against reference in eltwise
+        // post-op chain since some algs may produce inf or NaN in the middle
+        // which is not expected for a standalone testing. Thus, when passing
+        // alg == ELTWISE_END, accept this fact. This alg to be used when
+        // comparing results with eltwise post-op chain.
+        case alg_t::ELTWISE_END:
             if (std::isnan(a) && std::isnan(b)) return true;
             if (std::isinf(a) && std::isinf(b)
                     && std::signbit(a) == std::signbit(b))
@@ -179,28 +185,27 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
     }
 }
 
+float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd) {
+    // Tolerate only rounding error (1 ulp) for other than fp32 precisions.
+    float trh = dt == dnnl_f32 ? 4e-6 : epsilon_dt(dt);
+    // Tolerate bigger compute errors for complex algorithms.
+    bool alg_has_higher_tolerance = alg == alg_t::GELU_TANH || alg == alg_t::ELU
+            || alg == alg_t::SWISH || alg == alg_t::TANH || alg == alg_t::SRELU
+            || alg == alg_t::LOG || IMPLICATION(alg == alg_t::ELU_DST, is_fwd)
+            || IMPLICATION(alg == alg_t::TANH_DST, is_fwd);
+    if (dt == dnnl_f32 && alg_has_higher_tolerance) trh = 4e-5;
+    return trh;
+}
+
 static int compare(const prb_t *prb, const dnn_mem_t &mem_arg_fp,
         const dnn_mem_t &mem_fp, const dnn_mem_t &mem_dt, res_t *res) {
-    const bool is_fwd = prb->dir & FLAG_FWD;
-
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return res->state = PASSED, OK;
 
     res->total = nelems;
 
-    // Tolerate only rounding error (1 ulp) for other than fp32 precisions.
-    float trh = epsilon_dt(prb->dt);
-    if (prb->dt == dnnl_f32) {
-        // Tolerate bigger compute errors for complex algorithms.
-        if (prb->alg == alg_t::GELU_TANH || prb->alg == alg_t::ELU
-                || prb->alg == alg_t::SWISH || prb->alg == alg_t::TANH
-                || prb->alg == alg_t::SRELU || prb->alg == alg_t::LOG
-                || (is_fwd && prb->alg == alg_t::ELU_DST)
-                || (is_fwd && prb->alg == alg_t::TANH_DST))
-            trh = 4e-5;
-        else
-            trh = 4e-6;
-    }
+    const float trh
+            = get_eltwise_threshold(prb->dt, prb->alg, prb->dir & FLAG_FWD);
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = mem_dt.get_elem(i);

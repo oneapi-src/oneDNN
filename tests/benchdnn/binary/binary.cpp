@@ -151,11 +151,20 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
 
     res->total = nelems;
 
-    const float trh = epsilon_dt(prb->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32)
+    float trh = epsilon_dt(prb->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32)
             * prb->n_inputs();
-    const int eltwise_idx = prb->attr.post_ops.eltwise_index();
 
-    const bool has_eltwise = eltwise_idx >= 0;
+    // Update trh with the largest value from all eltwise post-ops
+    const auto &po = prb->attr.post_ops;
+    bool has_eltwise = po.eltwise_index() != -1;
+    if (has_eltwise) {
+        for (int i = 0; i < po.len(); ++i) {
+            const auto &e = po.entry[i];
+            if (e.is_eltwise_kind())
+                trh = MAX2(
+                        trh, eltwise::get_eltwise_threshold(prb->ddt, e.kind));
+        }
+    }
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
@@ -166,8 +175,7 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
         if (!ok && has_eltwise)
-            ok = eltwise::check_extreme_values(
-                    fp, dt, prb->attr.post_ops.entry[eltwise_idx].kind);
+            ok = eltwise::check_extreme_values(fp, dt, alg_t::ELTWISE_END);
 
         res->errors += !ok;
 
@@ -243,7 +251,7 @@ int doit(const prb_t *prb, res_t *res) {
         const auto &dst_md = q(DNNL_ARG_DST);
         placeholder_dst_dt = dnn_mem_t(dst_md, test_engine);
 
-        if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
+        if (prb->attr.post_ops.find(alg_t::SUM) >= 0)
             SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
     }
     dnn_mem_t &dst_dt = prb->inplace ? src0_dt : placeholder_dst_dt;

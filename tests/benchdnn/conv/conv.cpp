@@ -137,12 +137,14 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     int in_ok = 0, below_ok = 0, above_ok = 0;
     int non_zero = 0;
 
-    const int eltwise_idx = prb->attr.post_ops.eltwise_index();
-    const bool has_eltwise = eltwise_idx >= 0;
+    // Update trh with the largest value from all eltwise post-ops
+    const auto &po = prb->attr.post_ops;
+    bool has_eltwise = po.eltwise_index() != -1;
+    using pk_t = attr_t::post_ops_t::kind_t;
 
-    int sum_ind = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM);
-    auto sum_dt = (sum_ind != -1) ? prb->attr.post_ops.entry[sum_ind].sum.dt
-                                  : dnnl_data_type_undef;
+    int sum_ind = po.find(pk_t::SUM);
+    auto sum_dt
+            = (sum_ind != -1) ? po.entry[sum_ind].sum.dt : dnnl_data_type_undef;
 
     bool diff_sum_dt = kind == DST && !final_compare
             && sum_dt != dnnl_data_type_undef && sum_dt != prb->cfg[kind].dt;
@@ -165,24 +167,31 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
             diff_norm.update(f_min, dt);
             ok = dt == f_min;
             if (!ok && has_eltwise)
-                ok = eltwise::check_extreme_values(
-                        fp, dt, prb->attr.post_ops.entry[eltwise_idx].kind);
+                ok = eltwise::check_extreme_values(fp, dt, pk_t::ELTWISE_END);
             below += 1;
             below_ok += ok;
         } else if (fp > f_max) {
             diff_norm.update(f_max, dt);
             ok = dt == f_max;
             if (!ok && has_eltwise)
-                ok = eltwise::check_extreme_values(
-                        fp, dt, prb->attr.post_ops.entry[eltwise_idx].kind);
+                ok = eltwise::check_extreme_values(fp, dt, pk_t::ELTWISE_END);
             above += 1;
             above_ok += ok;
         } else {
             diff_norm.update(fp, dt);
-            ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= get_eps(prb, kind);
+            float trh = get_eps(prb, kind);
+            if (has_eltwise) {
+                for (int i = 0; i < po.len(); ++i) {
+                    const auto &e = po.entry[i];
+                    if (e.is_eltwise_kind())
+                        trh = MAX2(trh,
+                                eltwise::get_eltwise_threshold(
+                                        f_dt, e.kind, prb->dir & FLAG_FWD));
+                }
+            }
+            ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= trh;
             if (!ok && has_eltwise)
-                ok = eltwise::check_extreme_values(
-                        fp, dt, prb->attr.post_ops.entry[eltwise_idx].kind);
+                ok = eltwise::check_extreme_values(fp, dt, pk_t::ELTWISE_END);
             in += 1;
             in_ok += ok;
         }
