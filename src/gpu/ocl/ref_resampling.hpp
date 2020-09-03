@@ -104,6 +104,9 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
         kernel_ctx.define_int("ID", pd()->ID());
         kernel_ctx.define_int("IH", pd()->IH());
         kernel_ctx.define_int("IW", pd()->IW());
+        kernel_ctx.define_int("OD", pd()->OD());
+        kernel_ctx.define_int("OH", pd()->OH());
+        kernel_ctx.define_int("OW", pd()->OW());
         kernel_ctx.define_float("FD", pd()->FD());
         kernel_ctx.define_float("FH", pd()->FH());
         kernel_ctx.define_float("FW", pd()->FW());
