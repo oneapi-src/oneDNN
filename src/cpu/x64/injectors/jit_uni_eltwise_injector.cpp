@@ -31,12 +31,23 @@ using namespace Xbyak;
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
         const injector_utils::vmm_index_set_t &vmm_idxs) {
+    using namespace alg_kind;
     using namespace Xbyak::util;
     preserved_vecs_count = 0;
     vecs_to_preserve = aux_vecs_count();
     const auto start_idx = *(vmm_idxs.begin());
     const auto end_idx = *(vmm_idxs.rbegin()) + 1;
     start_idx_tail = vmm_idxs.begin();
+
+    // For avx we need a register to save the upper part of Ymm
+    preserve_vec_for_avx = isa == avx
+            && utils::one_of(alg_, eltwise_tanh, eltwise_elu, eltwise_abs,
+                    eltwise_soft_relu, eltwise_logistic, eltwise_exp,
+                    eltwise_gelu_tanh, eltwise_swish, eltwise_gelu_erf,
+                    eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
+                    eltwise_logistic_use_dst_for_bwd,
+                    eltwise_exp_use_dst_for_bwd);
+    if (preserve_vec_for_avx) vecs_to_preserve++;
 
     // For sse41 mask register has to be Xmm(0)
     if (isa == sse41 && vecs_to_preserve > 0) {
@@ -140,6 +151,37 @@ void jit_uni_eltwise_injector_f32<isa>::assign_regs() {
     vmm_aux2 = Vmm(preserved_vec_idxs[2]);
     vmm_aux3 = Vmm(preserved_vec_idxs[3]);
     vmm_aux4 = Vmm(preserved_vec_idxs[4]);
+    if (preserve_vec_for_avx) {
+        vmm_tmp = Vmm(preserved_vec_idxs[vecs_to_preserve - 1]);
+        ymm_tmp = Ymm(preserved_vec_idxs[vecs_to_preserve - 1]);
+        xmm_tmp = Xmm(preserved_vec_idxs[vecs_to_preserve - 1]);
+    }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::vec_shift(const Vmm &vmm_dst,
+        const Vmm &vmm_src, bool shift_left, const int imm) {
+    if (isa != avx) {
+        if (shift_left)
+            h->uni_vpslld(vmm_dst, vmm_src, imm);
+        else
+            h->uni_vpsrld(vmm_dst, vmm_src, imm);
+    } else {
+        // Declare appropriate vectors to use non-uni instructions
+        Xmm xmm_dst = Xmm(vmm_dst.getIdx());
+        Ymm ymm_dst = Ymm(vmm_dst.getIdx());
+        Ymm ymm_src = Ymm(vmm_src.getIdx());
+        if (vmm_dst.getIdx() != vmm_src.getIdx()) h->vmovups(ymm_dst, ymm_src);
+        h->vextractf128(xmm_tmp, ymm_dst, 1);
+        if (shift_left) {
+            h->vpslld(xmm_dst, xmm_dst, imm);
+            h->vpslld(xmm_tmp, xmm_tmp, imm);
+        } else {
+            h->vpsrld(xmm_dst, xmm_dst, imm);
+            h->vpsrld(xmm_tmp, xmm_tmp, imm);
+        }
+        h->vinsertf128(ymm_dst, ymm_dst, xmm_tmp, 1);
+    }
 }
 
 // Uses injector masks objects: k_mask (>= avx512_common) or vmm_mask (<= avx2).
@@ -203,11 +245,19 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
 
     // compute 2^n
     h->uni_vcvtps2dq(vmm_aux2, vmm_src);
-    h->uni_vpaddd(vmm_aux2, vmm_aux2, table_val(exponent_bias));
-    h->uni_vpslld(vmm_aux2, vmm_aux2, n_mantissa_bits); //Vmm(6) = 2^-fx
-
+    if (isa != avx)
+        h->uni_vpaddd(vmm_aux2, vmm_aux2, table_val(exponent_bias));
+    else {
+        Ymm ymm_aux2 = Ymm(vmm_aux2.getIdx());
+        Xmm xmm_aux2 = Xmm(vmm_aux2.getIdx());
+        h->vextractf128(xmm_tmp, ymm_aux2, 1);
+        h->vpaddd(xmm_tmp, xmm_tmp, table_val(exponent_bias));
+        h->vpaddd(xmm_aux2, xmm_aux2, table_val(exponent_bias));
+        h->vinsertf128(ymm_aux2, ymm_aux2, xmm_tmp, 1);
+    }
+    vec_shift(vmm_aux2, vmm_aux2, true, n_mantissa_bits); //Vmm(6) = 2^-fx
     // use vmm_src as tmp vmm_zero when applying mask
-    h->uni_vpxor(vmm_src, vmm_src, vmm_src);
+    h->uni_vxorps(vmm_src, vmm_src, vmm_src);
     // set zeroes at those points which were < log(FLT_MIN)
     blend_with_mask(vmm_aux2, vmm_src);
 
@@ -270,8 +320,10 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
         vmm_pol = vmm_aux2, vmm_indices = vmm_aux3, vmm_src_original = vmm_aux4,
         vmm_sign = vmm_aux4;
     Reg64 gpr_idx[XMM_float_lanes_count];
+    // tmp_reg to save the state of regs64 (for avx only).
+    Reg64 tmp_reg;
 
-    if (isa == sse41) {
+    if (isa == sse41 || isa == avx) {
         assert(aux_gprs_count() >= XMM_float_lanes_count);
         for (int i = 0; i < XMM_float_lanes_count; i++)
             gpr_idx[i] = Reg64(preserved_gpr_idxs[i]);
@@ -293,6 +345,10 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
     // - sse4.1: we do it the naive way using vextract/vinsert.
     //           Here we will extract the indices in gpr only once and
     //           reuse them as there are only 4 of them.
+    // - avx: we do the same as for sse4.1 but use half of the 64-bits
+    //           registers to store the idx of second half of YMM and half for
+    //           responding XMM. Halfway through the copy we exchange Xmm and
+    //           higher half of Ymm and we get the expected result.
     // - avx2: we use vpermps and blend for each coefficient.
     //         This needs an extra vmm to store the mask
     // - avx512: because the table fits in 2 registers, we can use vpermi2d.
@@ -308,6 +364,11 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
                 for (int i = 0; i < XMM_float_lanes_count; ++i)
                     h->pextrd(gpr_idx[i].cvt32(), vmm_pol_idx, i);
                 break;
+            case avx: {
+                Xmm xmm_pol_idx = Xmm(vmm_pol_idx.getIdx());
+                for (int i = 0; i < XMM_float_lanes_count; ++i)
+                    h->vpextrd(gpr_idx[i].cvt32(), xmm_pol_idx, i);
+            } break;
             case avx2:
                 // needed for gather instruction
                 h->uni_vxorps(vmm_mask, vmm_mask, vmm_mask);
@@ -328,6 +389,15 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
                     h->pinsrd(vmm_coeff, coeff_addr, idx);
                 }
                 break;
+            case avx: {
+                Xmm xmm_coeff = Xmm(vmm_coeff.getIdx());
+                for (int idx = 0; idx < 4; ++idx) {
+                    Xbyak::Address coeff_addr
+                            = ptr[p_table + coeffs_off(coeff_idx)
+                                    + gpr_idx[idx] * sizeof(float)];
+                    h->vpinsrd(xmm_coeff, xmm_coeff, coeff_addr, idx);
+                }
+            } break;
             case avx2: {
                 Xbyak::Address idx_addr = ptr[p_table + coeffs_off(coeff_idx)
                         + vmm_pol_idx * sizeof(float)];
@@ -363,9 +433,18 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
 
     // We compute the indices for the table lookup
     h->uni_vmovups(vmm_indices, vmm_src);
-    h->uni_vpsubd(vmm_indices, vmm_indices, table_val(tanh_idx_bias));
+    if (isa != avx)
+        h->uni_vpsubd(vmm_indices, vmm_indices, table_val(tanh_idx_bias));
+    else {
+        Ymm ymm_indices = Ymm(vmm_indices.getIdx());
+        Xmm xmm_indices = Xmm(vmm_indices.getIdx());
+        h->vextractf128(xmm_tmp, ymm_indices, 1);
+        h->vpsubd(xmm_tmp, xmm_tmp, table_val(tanh_idx_bias));
+        h->vpsubd(xmm_indices, xmm_indices, table_val(tanh_idx_bias));
+        h->vinsertf128(ymm_indices, ymm_indices, xmm_tmp, 1);
+    }
     h->uni_vandps(vmm_indices, vmm_indices, table_val(tanh_idx_mask));
-    h->uni_vpsrld(vmm_indices, vmm_indices, 22);
+    vec_shift(vmm_indices, vmm_indices, false, 22);
 
     // we do the argument reduction
     h->uni_vmovups(vmm_src_shift, vmm_src);
@@ -378,6 +457,25 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
     for (int deg = 5; deg >= 0; --deg) {
         gather_coefficient(vmm_coeff, deg, vmm_indices);
         h->uni_vfmadd213ps(vmm_pol, vmm_src, vmm_coeff);
+    }
+
+    if (isa == avx) {
+        Ymm ymm_indices = Ymm(vmm_indices.getIdx());
+        Ymm ymm_pol = Ymm(vmm_pol.getIdx());
+        Ymm ymm_src = Ymm(vmm_src.getIdx());
+        Xmm xmm_src = Xmm(vmm_src.getIdx());
+        Xmm xmm_coeff = Xmm(vmm_coeff.getIdx());
+
+        h->vperm2f128(ymm_src, ymm_src, ymm_src, 1);
+        h->vperm2f128(ymm_indices, ymm_indices, ymm_indices, 1);
+        gather_coefficient_init(vmm_indices, vlen / sizeof(float));
+        gather_coefficient(vmm_tmp, 6, vmm_indices);
+        for (int deg = 5; deg >= 0; --deg) {
+            gather_coefficient(vmm_coeff, deg, vmm_indices);
+            h->vmulps(xmm_tmp, xmm_tmp, xmm_src);
+            h->vaddps(xmm_tmp, xmm_tmp, xmm_coeff);
+        }
+        h->vinsertf128(ymm_pol, ymm_pol, xmm_tmp, 1);
     }
 
     // we restore src with cleared sign, and keep sign
@@ -507,17 +605,29 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
     if (has_avx512()) {
         h->vmulps(vmm_aux1, vmm_src, table_val(minus_one));
         h->vcvtps2dq(vmm_aux1, vmm_aux1);
+    } else if (isa == avx) {
+        h->uni_vxorps(vmm_aux1, vmm_src, table_val(sign_mask));
+        h->uni_vcvtps2dq(vmm_aux1, vmm_aux1);
     } else {
         h->uni_vcvtps2dq(vmm_aux1, vmm_src);
         h->uni_vpsignd(vmm_aux1, vmm_aux1, table_val(minus_one));
     }
 
-    h->uni_vpaddd(vmm_aux1, vmm_aux1, table_val(exponent_bias));
-    h->uni_vpslld(vmm_aux1, vmm_aux1, n_mantissa_bits); //vmm_aux1 = 2^-fx
+    if (isa != avx)
+        h->uni_vpaddd(vmm_aux1, vmm_aux1, table_val(exponent_bias));
+    else {
+        Ymm ymm_aux1 = Ymm(vmm_aux1.getIdx());
+        Xmm xmm_aux1 = Xmm(vmm_aux1.getIdx());
+        h->vextractf128(xmm_tmp, ymm_aux1, 1);
+        h->vpaddd(xmm_tmp, xmm_tmp, table_val(exponent_bias));
+        h->vpaddd(xmm_aux1, xmm_aux1, table_val(exponent_bias));
+        h->vinsertf128(ymm_aux1, ymm_aux1, xmm_tmp, 1);
+    }
+    vec_shift(vmm_aux1, vmm_aux1, true, n_mantissa_bits); //vmm_aux1 = 2^-fx
     // calculate ln(1 + y)
     h->uni_vaddps(vmm_aux3, vmm_aux3, vmm_aux1);
     // frexp()
-    h->uni_vpsrld(vmm_src, vmm_aux3, n_mantissa_bits);
+    vec_shift(vmm_src, vmm_aux3, false, n_mantissa_bits);
     h->uni_vcvtdq2ps(vmm_src, vmm_src);
     // got n. where n is x = 2^n * y. y = 0.5 .. 1
     h->uni_vsubps(vmm_src, vmm_src, table_val(soft_relu_one_twenty_six));
@@ -615,38 +725,54 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
     // If (x == 0) result = -inf;
     // If (x < 0) result = qnan;
 
+    // set unused register as tmp for avx
+    if (isa == avx) {
+        ymm_tmp = Ymm(vmm_aux0.getIdx());
+        xmm_tmp = Xmm(vmm_aux0.getIdx());
+    }
+
     // save source on stack to check neg and zero values at the end
     h->sub(h->rsp, vlen);
     h->uni_vmovups(h->ptr[h->rsp], vmm_src);
 
     // compute i
     const int approx_order = 5;
-    h->uni_vpsrld(vmm_aux1, vmm_src, n_mantissa_bits - approx_order);
+    vec_shift(vmm_aux1, vmm_src, false, n_mantissa_bits - approx_order);
     h->uni_vandps(vmm_aux1, vmm_aux1, table_val(log_five_bit_offset));
-    h->uni_vpslld(vmm_aux1, vmm_aux1, 1); // multiply i by 2
+    vec_shift(vmm_aux1, vmm_aux1, true, 1); // multiply i by 2
 
     // compute anticancellation i
-    h->uni_vpsrld(vmm_aux2, vmm_aux1, approx_order);
+    vec_shift(vmm_aux2, vmm_aux1, false, approx_order);
 
     // get E, don't care about sign as only positive numbers are considered
-    h->uni_vpsrld(vmm_aux3, vmm_src, n_mantissa_bits);
-    h->uni_vpaddd(vmm_aux3, vmm_aux3, vmm_aux2);
+    vec_shift(vmm_aux3, vmm_src, false, n_mantissa_bits);
+    if (isa != avx)
+        h->uni_vpaddd(vmm_aux3, vmm_aux3, vmm_aux2);
+    else {
+        Ymm ymm_aux2 = Ymm(vmm_aux2.getIdx());
+        Ymm ymm_aux3 = Ymm(vmm_aux3.getIdx());
+        Xmm xmm_aux2 = Xmm(vmm_aux2.getIdx());
+        Xmm xmm_aux3 = Xmm(vmm_aux3.getIdx());
+        h->vextractf128(xmm_tmp, ymm_aux3, 1);
+        h->vpaddd(xmm_aux3, xmm_aux3, xmm_aux2);
+        h->vperm2f128(ymm_aux2, ymm_aux2, ymm_aux2, 1);
+        h->vpaddd(xmm_tmp, xmm_tmp, xmm_aux2);
+        h->vperm2f128(ymm_aux2, ymm_aux2, ymm_aux2, 1);
+        h->vinsertf128(ymm_aux3, ymm_aux3, xmm_tmp, 1);
+    }
     h->uni_vcvtdq2ps(vmm_aux3, vmm_aux3);
 
     // get m (mantissa)
     h->uni_vxorps(vmm_aux2, vmm_aux2, table_val(exponent_bias));
-    h->uni_vpslld(vmm_aux2, vmm_aux2, n_mantissa_bits);
+    vec_shift(vmm_aux2, vmm_aux2, true, n_mantissa_bits);
     h->uni_vandps(vmm_src, vmm_src, table_val(log_mantissa_mask));
     h->uni_vorps(vmm_src, vmm_src, vmm_aux2);
 
     // At first, adjust indices for table structure which broadcasts elements
-    if (has_avx512()) {
-        h->uni_vpslld(vmm_aux1, vmm_aux1, 4); // multiply by simd_w = 16
-    } else if (isa == avx2) {
-        h->uni_vpslld(vmm_aux1, vmm_aux1, 3); // multiply by simd_w = 8
-    } else if (isa == sse41) {
-        h->uni_vpslld(vmm_aux1, vmm_aux1, 2); // multiply by simd_w = 4
-    }
+    // by multiplying by simd_w
+    const int simd_w = math::ilog2q(
+            vlen / sizeof(float)); // equal to 2/3/4 for xmm/ymm/zmm
+    vec_shift(vmm_aux1, vmm_aux1, true, simd_w);
 
     const auto it = entry_map_.find(log_predefined_vals);
     assert(it != entry_map_.end());
@@ -662,7 +788,7 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
         } else if (isa == avx2) {
             h->uni_vmovups(vmm_mask, table_val(sign_mask));
             h->vgatherdps(vmm_dst, table_idx, vmm_mask);
-        } else if (isa == sse41) {
+        } else if (isa == avx || isa == sse41) {
             Xbyak::Reg64 reg_tmp
                     = p_table.getIdx() != h->r9.getIdx() ? h->r9 : h->r10;
 
@@ -818,7 +944,10 @@ void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector_fwd(
             const Address &source = h->ptr[h->rsp + h->rbx + i * sizeof(float)];
             h->uni_vmovss(xmm0, source);
             h->uni_vmovss(xmm1, h->ptr[h->rsp + h->rbx + vlen]); // beta
+            h->uni_vzeroupper(); // eliminate performance penalties on avx
             h->call(h->rbp);
+            // eliminate performance penalties on sse isa
+            if (isa == sse41) h->uni_vzeroupper();
             h->uni_vmovss(source, xmm0);
         }
 
@@ -978,7 +1107,7 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector_bwd(
     h->add(h->rsp, vlen);
 
     // compute 0.5 * (1 + T) * (1 + G2 * (1 - T))
-    if (isa == sse41) {
+    if (isa == sse41 || isa == avx) {
         h->uni_vmovups(vmm_aux3, table_val(one));
         h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_src);
         h->uni_vmulps(vmm_aux2, vmm_aux2, vmm_aux3);
@@ -1080,7 +1209,7 @@ void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector_bwd(
     h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
     h->add(h->rsp, vlen);
     // compute Q * (1 + R * (1 - Q))
-    if (isa == sse41) {
+    if (utils::one_of(isa, sse41, avx)) {
         h->uni_vmovups(vmm_aux1, table_val(one));
         h->uni_vsubps(vmm_aux1, vmm_aux1, vmm_src);
         h->uni_vmulps(vmm_aux1, vmm_aux1, vmm_aux0);
@@ -1215,7 +1344,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_gprs_count() {
     switch (alg_) {
         case eltwise_tanh_use_dst_for_bwd:
         case eltwise_tanh:
-        case eltwise_gelu_tanh: return isa == sse41 ? 4 : 0;
+        case eltwise_gelu_tanh: return isa == sse41 || isa == avx ? 4 : 0;
         default: return 0;
     }
     return 0;
