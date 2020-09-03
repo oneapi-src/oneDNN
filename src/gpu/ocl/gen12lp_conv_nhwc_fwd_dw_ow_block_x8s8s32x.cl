@@ -66,13 +66,15 @@ conv_nhwc_fwd_dw_ow_block_x8s8s32x(const __global uchar *src,
     int16 S1 = 0;
 
 #if SCALES_PER_OC
-    float2 scales = as_float2(intel_sub_group_block_read_ul(
-            (const __global ulong *)&scales_per_oc[g]));
+    float2 scales;
+    scales.s0 = scales_per_oc[g + 2 * sglid];
+    scales.s1 = scales_per_oc[g + 2 * sglid + 1];
 #endif
 
 #if WITH_BIAS
-    float2 B = as_float2(
-            intel_sub_group_block_read_ul((const __global ulong *)&bias[g]));
+    float2 B;
+    B.s0 = bias[g + 2 * sglid];
+    B.s1 = bias[g + 2 * sglid + 1];
     S0 = convert_int16(B.s0101010101010101);
     S1 = convert_int16(B.s0101010101010101);
 #endif
