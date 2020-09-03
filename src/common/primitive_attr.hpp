@@ -58,10 +58,6 @@ struct rnn_tparams_t : public c_compatible {
     rnn_tparams_t()
         : test_mode_(false), scales_(nullptr), ngates_(0), cscale_(0.0f) {}
 
-    rnn_tparams_t(const rnn_tparams_t &rhs) : rnn_tparams_t() {
-        set(rhs.test_mode_, rhs.ngates_, rhs.scales_, rhs.cscale_);
-    }
-
     ~rnn_tparams_t() {
         test_mode_ = false;
         if (scales_ != nullptr) impl::free(scales_);
@@ -118,6 +114,9 @@ struct rnn_tparams_t : public c_compatible {
     float *scales_;
     dim_t ngates_; /* ngates is equel to the number of scales */
     float cscale_; /* =0.0f if no c state */
+
+private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(rnn_tparams_t);
 };
 
 struct scales_t : public c_compatible {
@@ -125,10 +124,6 @@ struct scales_t : public c_compatible {
     scales_t(dim_t count, int mask, const float *scales)
         : scales_(scales_buf_) {
         set(count, mask, scales);
-    }
-
-    scales_t(const scales_t &rhs) : scales_t() {
-        set(rhs.count_, rhs.mask_, rhs.scales_);
     }
 
     ~scales_t() { cleanup(); }
@@ -174,7 +169,7 @@ private:
         scales_ = scales_buf_;
     }
 
-    scales_t &operator=(const scales_t &other) = delete;
+    DNNL_DISALLOW_COPY_AND_ASSIGN(scales_t);
 };
 
 struct arg_scales_t : public c_compatible {
