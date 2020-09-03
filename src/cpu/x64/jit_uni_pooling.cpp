@@ -253,12 +253,8 @@ public:
         , dst_sp_(static_cast<dim_t>(jpp.od) * jpp.oh * jpp.ow)
         , src_slice_(src_sp_ * jpp.c_block)
         , dst_slice_(dst_sp_ * jpp.c_block)
-        , transpose_src_(jpp.tag_kind == jptg_ncsp
-                  && (src_sp_ > 1 || jpp.c_without_padding != jpp.c
-                          || d_type != wsp_dt))
-        , transpose_dst_(jpp.tag_kind == jptg_ncsp
-                  && (indices || dst_sp_ > 1 || jpp.c_without_padding != jpp.c
-                          || d_type != wsp_dt))
+        , transpose_src_(jpp.tag_kind == jptg_ncsp)
+        , transpose_dst_(jpp.tag_kind == jptg_ncsp)
         , src_d_(src_d)
         , dst_d_(dst_d)
         , indices_d_(indices_d)
@@ -556,6 +552,9 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
                     trans_ctx_.get(), src_d, dst_d, indices_d, wsp_dt_, src,
                     dst, indices, ctx);
 
+    const auto trans_src = transpose_facade.should_transpose_src();
+    const auto trans_dst = transpose_facade.should_transpose_dst();
+
     const auto ker = [&](std::size_t ithr, int n, int b_c, int oh, int ur_bc) {
         assert(ur_bc == jpp.ur_bc || ur_bc == jpp.ur_bc_tail);
         auto arg = jit_pool_call_s();
@@ -568,20 +567,20 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
         assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
         const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
 
-        if (transpose_facade.should_transpose_src())
+        if (trans_src)
             arg.src = transpose_facade.get_src_addr(ithr, ih, jpp);
         else
             arg.src = static_cast<const void *>(
                     &src[src_d.blk_off(n, c_off, ih)]);
 
-        if (transpose_facade.should_transpose_dst())
+        if (trans_dst)
             arg.dst = transpose_facade.get_dst_addr(ithr, oh, jpp);
         else
             arg.dst = static_cast<const void *>(
                     &dst[dst_d.blk_off(n, c_off, oh)]);
 
         if (indices) {
-            if (transpose_facade.should_transpose_dst())
+            if (trans_dst)
                 arg.indices = transpose_facade.get_indices_addr(ithr, oh, jpp);
             else {
                 const size_t ind_off = indices_d.blk_off(n, c_off, oh);
@@ -606,29 +605,42 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
             const auto ur_bc = nstl::min(jpp.ur_bc, jpp.nb_c - b_c);
             ker(0, n, b_c, oh, ur_bc);
         });
-    } else
-        parallel(0, [&](std::size_t ithr, std::size_t nthr) {
-            const std::size_t work_amount
-                    = static_cast<std::size_t>(jpp.mb) * jpp.nb_c * jpp.oh;
-            if (ithr >= work_amount) return;
+    } else {
+        if (trans_src || trans_dst) {
+            // ncsp format
+            parallel_nd_ext(0, jpp.mb, jpp.nb_c,
+                    [&](int ithr, int nthr, int n, int b_c) {
+                        if (trans_src)
+                            transpose_facade.execute_transpose_input(
+                                    ithr, n, b_c);
+                        for (int oh = 0; oh < jpp.oh; ++oh)
+                            ker(ithr, n, b_c, oh, 1);
+                        if (trans_dst)
+                            transpose_facade.execute_transpose_output(
+                                    ithr, n, b_c);
+                    });
+        } else {
+            // nChw16c, nChw8c format
+            parallel(0, [&](std::size_t ithr, std::size_t nthr) {
+                const std::size_t work_amount
+                        = static_cast<std::size_t>(jpp.mb) * jpp.nb_c * jpp.oh;
+                if (ithr >= work_amount) return;
 
-            std::size_t start {0}, end {0};
-            int n {0}, b_c {0}, oh {0};
+                std::size_t start {0}, end {0};
+                int n {0}, b_c {0}, oh {0};
 
-            balance211(work_amount, nthr, ithr, start, end);
-            utils::nd_iterator_init(
-                    start, n, jpp.mb, b_c, jpp.nb_c, oh, jpp.oh);
+                balance211(work_amount, nthr, ithr, start, end);
+                utils::nd_iterator_init(
+                        start, n, jpp.mb, b_c, jpp.nb_c, oh, jpp.oh);
 
-            for (std::size_t iwork = start; iwork < end; ++iwork) {
-                if (transpose_facade.should_transpose_src())
-                    transpose_facade.execute_transpose_input(ithr, n, b_c);
-                ker(ithr, n, b_c, oh, 1);
-                if (transpose_facade.should_transpose_dst())
-                    transpose_facade.execute_transpose_output(ithr, n, b_c);
-
-                utils::nd_iterator_step(n, jpp.mb, b_c, jpp.nb_c, oh, jpp.oh);
-            }
-        });
+                for (std::size_t iwork = start; iwork < end; ++iwork) {
+                    ker(ithr, n, b_c, oh, 1);
+                    utils::nd_iterator_step(
+                            n, jpp.mb, b_c, jpp.nb_c, oh, jpp.oh);
+                }
+            });
+        }
+    }
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
@@ -1190,6 +1202,8 @@ template struct jit_uni_pooling_fwd_t<avx, data_type::f32>;
 template struct jit_uni_pooling_bwd_t<avx, data_type::f32>;
 template struct jit_uni_pooling_fwd_t<avx512_common, data_type::f32>;
 template struct jit_uni_pooling_bwd_t<avx512_common, data_type::f32>;
+template struct jit_uni_pooling_fwd_t<avx512_core, data_type::f32>;
+template struct jit_uni_pooling_bwd_t<avx512_core, data_type::f32>;
 template struct jit_uni_pooling_fwd_t<avx512_core, data_type::bf16>;
 template struct jit_uni_pooling_bwd_t<avx512_core, data_type::bf16>;
 
