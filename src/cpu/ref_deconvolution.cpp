@@ -241,8 +241,7 @@ status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     // Create intermediate memory for f32 output if needed.
     auto dst = args.at(DNNL_ARG_DST);
     memory_t tmp_memory(dst.mem->engine(), pd()->conv_pd_->diff_src_md(),
-            memory_flags_t::use_runtime_ptr,
-            scratchpad.get<float>(key_deconv_bias));
+            scratchpad.get_memory_storage(key_deconv_bias), false);
     memory_arg_t tmp_conv_output = {&tmp_memory, false};
 
     conv_args[DNNL_ARG_DIFF_SRC]
