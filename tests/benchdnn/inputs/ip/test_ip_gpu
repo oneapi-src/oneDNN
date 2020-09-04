@@ -2,10 +2,10 @@
 --reset
 --dir=FWD_B,FWD_D
 --cfg=s8s8s32,s8s8s8,s8s8u8,u8s8s32,u8s8s8,u8s8u8
---attr-oscale=per_oc:2.25 --attr-post-ops='sum:0.5;relu:0.5'
+--attr-oscale=per_oc:2.25 --attr-post-ops='sum:0.5;add:f32;add:u8:per_dim_01;linear:0.5:1.5:2.0;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01;relu:0.5'
 --mb=2 --batch=set_gpu
 --mb=0 --batch=shapes_0d_gpu
---attr-oscale=common:2.25 --attr-post-ops='sum:0.5;square'
+--attr-oscale=common:2.25 --attr-post-ops='sum:0.5;add:f32;add:u8:per_dim_01;linear:0.5:1.5:2.0;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01;square'
 --batch=shapes_1d
 
 # f32
@@ -22,7 +22,7 @@
 --attr-post-ops='sum:2.0;relu:3.0'
 --mb=2 --batch=set_gpu
 --mb=0 --batch=shapes_0d_gpu
---attr-post-ops='sum:2','linear:3:2','linear:0.5:1.5:2'
+--attr-post-ops='sum:2','linear:3:2','add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01;linear:0.5:1.5:2'
 --batch=shapes_1d
 
 # bf16
@@ -36,7 +36,7 @@
 --mb=0,2
 --cfg=f16
 --dir=FWD_B,FWD_D
---attr-post-ops='linear:1:2','linear:2:3:0.5'
+--attr-post-ops='linear:1:2','add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01;linear:2:3:0.5'
 --batch=shapes_1d
 --attr-post-ops=
 
@@ -57,7 +57,8 @@
 --mb=0
 --dir=FWD_B
 --cfg=bf16bf16bf16,bf16bf16f32
---attr-post-ops='sum:0.5;relu:0.5','sum:0.5;tanh','clip:0.5:1.5:2'
+--attr-post-ops='sum:0.5;add:f32;add:u8:per_dim_01;linear:0.5:1.5:2.0;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01;relu:0.5',\
+                'sum:0.5;tanh','clip:0.5:1.5:2'
 --batch=shapes_1d
 
 # diff mem tags

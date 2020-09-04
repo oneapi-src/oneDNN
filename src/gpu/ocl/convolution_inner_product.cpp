@@ -211,6 +211,16 @@ status_t convolution_inner_product_fwd_t::execute_forward(
     c_args[DNNL_ARG_BIAS] = memory_arg_t {bia, true};
     c_args[DNNL_ARG_DST]
             = memory_arg_t {conf.reorder_dst ? wspace_dst.get() : dst, false};
+
+    const auto &args = ctx.args();
+    for (int idx = 0; idx < pd()->attr()->post_ops_.len(); ++idx) {
+        if (pd()->attr()->post_ops_.entry_[idx].is_binary()) {
+            c_args[DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1]
+                    = args.at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                            | DNNL_ARG_SRC_1);
+        }
+    }
+
     exec_ctx_t c_ctx(ctx, std::move(c_args));
     nested_scratchpad_t ns(
             ctx, memory_tracking::names::key_nested_multiple, conv_);

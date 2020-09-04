@@ -130,10 +130,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
                             attr()->scratchpad_mode_ == scratchpad_mode::library
                                     && one_of(attr()->output_scales_.mask_, 0,
                                             1 << 1))
-                    && IMPLICATION(
-                            attr_info_.with_eltwise && attr_info_.with_sum,
-                            attr_info_.sum_idx == 0
-                                    && attr_info_.eltwise_idx == 1);
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type);
             if (!ok) return unimplemented;
 
             // XXX: Empty attributes increase chances of creating a gemm
