@@ -1089,7 +1089,17 @@ struct stream : public handle<dnnl_stream_t> {
                 "could not create a stream");
         reset(stream);
     }
+#endif
 
+    /// Returns the associated engine.
+    engine get_engine() const {
+        dnnl_engine_t c_engine;
+        error::wrap_c_api(dnnl_stream_get_engine(get(), &c_engine),
+                "could not get an engine from a stream object");
+        return engine(c_engine, true);
+    }
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     /// Returns the underlying OpenCL queue object.
     /// @returns OpenCL queue.
     cl_command_queue get_ocl_command_queue() const {

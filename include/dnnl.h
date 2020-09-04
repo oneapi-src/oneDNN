@@ -3320,7 +3320,18 @@ dnnl_status_t DNNL_API dnnl_stream_create_v2(dnnl_stream_t *stream,
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_stream_create_ocl(
         dnnl_stream_t *stream, dnnl_engine_t engine, cl_command_queue queue);
+#endif
 
+/// Returns the engine of a stream object.
+///
+/// @param stream Stream object.
+/// @param engine Output engine on which the stream is created.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_stream_get_engine(
+        const_dnnl_stream_t stream, dnnl_engine_t *engine);
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 /// Returns the OpenCL command queue associated with an execution stream.
 ///
 /// @param stream Execution stream to query.
