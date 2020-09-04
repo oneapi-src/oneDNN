@@ -37,7 +37,10 @@ extern const char *any;
 extern const char *undef;
 } // namespace tag
 
-struct dims_t : public std::vector<int64_t> {};
+struct dims_t : public std::vector<int64_t> {
+    using vector<int64_t>::vector;
+};
+
 enum dir_t {
     DIR_UNDEF = 0,
     FLAG_DAT = 1,
