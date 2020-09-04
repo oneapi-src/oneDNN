@@ -338,6 +338,26 @@ static auto cases_ef = []() {
                              {{1, 11, 2}, data_type::s8, tag::abc}},
             {}, true, dnnl_invalid_arguments});
 
+    // inconsistent wrt runtime dim vals
+    cases.push_back(
+            {{{{3, 10, 10}, data_type::f32, tag::abc},
+                     {{DNNL_RUNTIME_DIM_VAL, 10, 10}, data_type::f32, tag::abc},
+                     {{DNNL_RUNTIME_DIM_VAL, 10, 10}, data_type::f32,
+                             tag::abc}},
+                    {}, true, dnnl_invalid_arguments});
+
+    // inconsistent wrt broadcasting
+    cases.push_back({{{{3, 10, 10}, data_type::f32, tag::abc},
+                             {{1, 10, 10}, data_type::f32, tag::abc},
+                             {{1, 10, 10}, data_type::f32, tag::abc}},
+            {}, true, dnnl_invalid_arguments});
+
+    // no broadcasting on m/k/n dims
+    cases.push_back({{{{10, 10}, data_type::f32, tag::ab},
+                             {{1, 1}, data_type::f32, tag::ab},
+                             {{10, 10}, data_type::f32, tag::ab}},
+            {}, true, dnnl_invalid_arguments});
+
     // f32 data and zero-points
     cases.push_back({{{{10, 1}, data_type::f32, tag::ab},
                              {{1, 20}, data_type::f32, tag::ab},
