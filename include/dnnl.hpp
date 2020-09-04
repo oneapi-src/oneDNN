@@ -5409,7 +5409,6 @@ struct pooling_backward : public primitive {
         /// @param diff_dst_desc Diff destination memory descriptor.
         /// @param strides Vector of strides for spatial dimension.
         /// @param kernel Vector of kernel spatial dimensions.
-        /// @param dilation Array of dilations for spatial dimension.
         /// @param padding_l Vector of padding values for low indices for each
         ///     spatial dimension `([[front,] top,] left)`.
         /// @param padding_r Vector of padding values for high indices for
