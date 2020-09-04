@@ -17,6 +17,8 @@
 #ifndef GPU_SYCL_SYCL_TYPES_HPP
 #define GPU_SYCL_SYCL_TYPES_HPP
 
+#include <limits>
+
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 #include "sycl/sycl_compat.hpp"
@@ -250,5 +252,24 @@ struct sycl_prec_traits<data_type::u8> {
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+namespace std {
+
+template <>
+class numeric_limits<dnnl::impl::gpu::sycl::bfloat16_t> {
+public:
+    static constexpr dnnl::impl::gpu::sycl::bfloat16_t lowest() {
+        return {uint16_t(0xff7f)};
+    }
+    static constexpr dnnl::impl::gpu::sycl::bfloat16_t max() {
+        return {uint16_t(0x7f7f)};
+    }
+    static constexpr int digits = 8;
+    static constexpr dnnl::impl::gpu::sycl::bfloat16_t epsilon() {
+        return {uint16_t((0x7f - (digits - 1)) << (digits - 1))};
+    }
+};
+
+} // namespace std
 
 #endif
