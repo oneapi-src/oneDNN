@@ -528,6 +528,16 @@ public:
         vpsubd(x1, x2, op);
     }
 
+    void uni_vpsubb(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op = Xbyak::Operand()) {
+        assert(x1.getIdx() == x2.getIdx());
+        psubb(x1, op);
+    }
+    void uni_vpsubb(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op = Xbyak::Operand()) {
+        vpsubb(x1, x2, op);
+    }
+
     void uni_vsubss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2 = Xbyak::Operand()) {
         assert(x.isEqualIfNotInherited(op1));
