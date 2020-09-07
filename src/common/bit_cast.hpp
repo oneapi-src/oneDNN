@@ -17,6 +17,7 @@
 #ifndef COMMON_BIT_CAST_HPP
 #define COMMON_BIT_CAST_HPP
 
+#include <cstdint>
 #include <cstring>
 #include <type_traits>
 
@@ -39,7 +40,13 @@ inline T bit_cast(const U &u) {
     static_assert(std::is_trivial<U>::value, "U must be trivially copyable.");
 
     T t;
-    std::memcpy(&t, &u, sizeof(U));
+    // Since bit_cast is used in SYCL kernels it cannot use std::memcpy as it
+    // can be implemented as @llvm.objectsize.* + __memcpy_chk for Release
+    // builds which cannot be translated to SPIR-V.
+    uint8_t *t_ptr = reinterpret_cast<uint8_t *>(&t);
+    const uint8_t *u_ptr = reinterpret_cast<const uint8_t *>(&u);
+    for (size_t i = 0; i < sizeof(U); i++)
+        t_ptr[i] = u_ptr[i];
     return t;
 }
 
