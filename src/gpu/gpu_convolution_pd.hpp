@@ -32,30 +32,6 @@ struct gpu_convolution_fwd_pd_t : public convolution_fwd_pd_t {
     using convolution_fwd_pd_t::convolution_fwd_pd_t;
 
 protected:
-    bool post_ops_ok(const primitive_attr_t *attr) const {
-        const auto &p = attr->post_ops_;
-
-        auto is_eltwise
-                = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
-        auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
-        auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
-
-        bool is_po_ok = true;
-        for (int po_idx = 0; po_idx < p.len(); ++po_idx) {
-            is_po_ok &= is_eltwise(po_idx) | is_sum(po_idx) | is_binary(po_idx);
-            if (is_sum(po_idx)) {
-                if (p.entry_[po_idx].sum.dt != dnnl_data_type_undef
-                        && types::data_type_size(p.entry_[po_idx].sum.dt)
-                                != types::data_type_size(dst_md()->data_type))
-                    is_po_ok = false;
-            }
-        }
-
-        if (p.len() > 10) is_po_ok = false;
-
-        return is_po_ok;
-    }
-
     bool zero_points_ok(const primitive_attr_t *attr) const {
         using namespace data_type;
         const auto src_type = invariant_src_md()->data_type;

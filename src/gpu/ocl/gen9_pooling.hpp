@@ -63,7 +63,8 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
                             || utils::everyone_is(s8, src_data_t, dst_data_t))
                     && IMPLICATION(utils::one_of(src_data_t, f16, s8, u8),
                             desc()->prop_kind == forward_inference)
-                    && post_ops_ok(attr()) && !is_dilated()
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type)
+                    && !is_dilated()
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(src_data_t == f16,
@@ -83,24 +84,6 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
 
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
-
-        bool post_ops_ok(const primitive_attr_t *attr) const {
-            const auto &p = attr->post_ops_;
-
-            auto is_eltwise
-                    = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
-            auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
-            auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
-
-            bool is_po_ok = true;
-            for (int po_idx = 0; po_idx < p.len(); ++po_idx) {
-                is_po_ok &= is_eltwise(po_idx) | is_sum(po_idx)
-                        | is_binary(po_idx);
-            }
-            if (p.len() > 10) is_po_ok = false;
-
-            return is_po_ok;
-        }
 
         pool_conf_t conf;
         offsets_t off;
