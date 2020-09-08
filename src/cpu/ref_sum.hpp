@@ -133,7 +133,7 @@ struct ref_sum_t : public primitive_t {
                 : nullptr;
         auto dst = ctx.args().at(DNNL_ARG_DST);
         memory_t acc(dst.mem->engine(), pd()->dst_acc_md(),
-                std::move(sum_reduce), false);
+                std::move(sum_reduce), true);
         memory_arg_t dst_acc = {&acc, false};
 
         for (int i = 0; i < n; ++i) {
