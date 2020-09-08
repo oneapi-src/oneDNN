@@ -1,4 +1,4 @@
---batch=pool_alexnet
---batch=pool_googlenet_v1
---batch=pool_googlenet_v3
---batch=pool_resnet_50
+--batch=shapes_alexnet
+--batch=shapes_googlenet_v1
+--batch=shapes_googlenet_v3
+--batch=shapes_resnet_50
