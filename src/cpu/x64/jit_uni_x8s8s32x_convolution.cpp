@@ -43,10 +43,13 @@ template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
 status_t
 jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_2d(
         const exec_ctx_t &ctx) const {
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -60,7 +63,6 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_2d(
             ? types::data_type_size(pd()->desc()->bias_desc.data_type)
             : 0;
 
-    const auto &jcp = pd()->jcp_;
     assert(jcp.ch_block == 1);
     assert(jcp.nb_ch_blocking == 1);
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
@@ -183,6 +185,11 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_2d(
                     p.b_overflow = i_b_overflow;
                     p.owb = owb;
 
+                    p.oc_l_off = g_oc;
+                    p.post_ops_binary_rhs_arg_vec
+                            = post_ops_binary_rhs_arg_vec.data();
+                    p.dst_orig = dst;
+
                     (*kernel_)(&p);
                     src_w += src_h_stride * jcp.stride_h;
                     dst_w += dst_h_stride;
@@ -213,10 +220,13 @@ template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
 status_t
 jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_1d(
         const exec_ctx_t &ctx) const {
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -230,7 +240,6 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_1d(
             ? types::data_type_size(pd()->desc()->bias_desc.data_type)
             : 0;
 
-    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
     assert(jcp.nb_ch % jcp.nb_ch_blocking == 0);
 
@@ -313,6 +322,10 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_1d(
             p.b_overflow = 0;
             p.owb = owb;
 
+            p.oc_l_off = g_oc;
+            p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            p.dst_orig = dst;
+
             (*kernel_)(&p);
 
             ++start;
@@ -343,10 +356,13 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_1d(
 template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
 status_t jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
         dst_type>::execute_forward_2d_dw(const exec_ctx_t &ctx) const {
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -360,7 +376,6 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
             ? types::data_type_size(pd()->desc()->bias_desc.data_type)
             : 0;
 
-    const auto &jcp = pd()->jcp_;
     assert(jcp.ic_block == 1);
     assert(jcp.oc_block == 1);
     assert(jcp.nb_ic == 1);
@@ -452,6 +467,11 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
                 p.b_overflow = i_b_overflow;
                 p.owb = owb;
 
+                p.oc_l_off = g;
+                p.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
+                p.dst_orig = dst;
+
                 (*kernel_)(&p);
             });
     return status::success;
@@ -461,10 +481,13 @@ template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
 status_t
 jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_3d(
         const exec_ctx_t &ctx) const {
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -478,7 +501,6 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_3d(
             ? types::data_type_size(pd()->desc()->bias_desc.data_type)
             : 0;
 
-    const auto &jcp = pd()->jcp_;
     assert(jcp.ch_block == 1);
     assert(jcp.nb_ch_blocking == 1);
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
@@ -621,6 +643,11 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_3d(
                     p.f_overflow = d_f_overflow;
                     p.back_overflow = d_back_overflow;
                     p.owb = owb;
+
+                    p.oc_l_off = g_oc;
+                    p.post_ops_binary_rhs_arg_vec
+                            = post_ops_binary_rhs_arg_vec.data();
+                    p.dst_orig = dst;
 
                     (*kernel_)(&p);
                     src_w += src_h_stride * jcp.stride_h;

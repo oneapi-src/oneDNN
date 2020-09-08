@@ -59,18 +59,19 @@ class register_preserve_guard_t {
 public:
     register_preserve_guard_t(jit_generator *host,
             std::initializer_list<Xbyak::Reg64> reg64_to_preserve,
-            std::initializer_list<Xbyak::Xmm> vmm_to_preserve);
+            std::initializer_list<Xbyak::Xmm> vmm_to_preserve = {});
     register_preserve_guard_t(register_preserve_guard_t &&other) = default;
     register_preserve_guard_t &operator=(register_preserve_guard_t &&other)
             = default;
     DNNL_DISALLOW_COPY_AND_ASSIGN(register_preserve_guard_t);
     ~register_preserve_guard_t();
+    size_t stack_space_occupied() const;
 
 private:
     jit_generator *host_;
     std::stack<Xbyak::Reg64> reg64_stack_;
     std::stack<Xbyak::Xmm> vmm_stack_;
-    std::size_t vmm_to_preserve_size_bytes_;
+    size_t vmm_to_preserve_size_bytes_;
 };
 
 using output_dims_t = std::array<dim_t, 5>;

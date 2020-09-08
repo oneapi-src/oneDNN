@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -33,21 +33,15 @@ template <cpu_isa_t isa, typename Vmm>
 struct _jit_uni_x8s8s32x_fwd_kernel : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_uni_x8s8s32x_conv_fwd_ker_t_)
 
-    _jit_uni_x8s8s32x_fwd_kernel(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_
-                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
-    }
-    ~_jit_uni_x8s8s32x_fwd_kernel() { delete eltwise_injector_; }
+    _jit_uni_x8s8s32x_fwd_kernel(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
 
 private:
-    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
-
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
     enum {
         typesize = sizeof(float),
         ic_sub_step = 4,
@@ -121,7 +115,7 @@ private:
     Vmm vmm_dw_tmp;
     Vmm vmm_dw_src;
 
-    Vmm vmm_out(int i_ur, int i_oc) {
+    int vmm_out_idx(int i_ur, int i_oc) {
         const int idx_limit = jcp.src_zero_point
                 ? ker_zp_reg_base_idx
                 : jcp.is_depthwise ? ker_dw_reg_base_idx - jcp.signed_input
@@ -133,7 +127,11 @@ private:
         MAYBE_UNUSED(idx_limit);
         /* remap register indices from 4 to 15
          * to avoid passing xmm0 to comp*/
-        return Vmm(ker_max_reg - idx);
+        return ker_max_reg - idx;
+    }
+    Vmm vmm_out(int i_ur, int i_oc) {
+        const int idx = vmm_out_idx(i_ur, i_oc);
+        return Vmm(idx);
     }
     Vmm vmm_inp(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
@@ -169,39 +167,40 @@ private:
                                 : jcp.oc_without_padding % jcp.oc_block;
     }
 
-    bool maybe_eltwise(int position);
     void prepare_output(int ur_w);
     void store_output(int ur_w, bool last_oc_block_flag);
     void compute_ker_dw(int ur_w, int pad_l, int pad_r,
             ic_block_t last_ic_block_flag, bool h_padded);
     void compute_ker(int ur_w, int pad_l, int pad_r,
             ic_block_t last_ic_block_flag, bool h_padded = false);
-    void compute_eltwise(int ur_w);
     void kh_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
     void generate() override;
 
     void cvt2ps(data_type_t type_in, const Vmm &vmm_in, const Xbyak::Reg64 &reg,
             int offset, int load_size);
+    void apply_postops(int nb_oc_block, int ur_w, bool last_oc_block_flag,
+            int oc_block, const float *p_sum_scale);
 };
 
 template <cpu_isa_t isa>
 struct jit_uni_x8s8s32x_fwd_kernel {
 
-    jit_uni_x8s8s32x_fwd_kernel(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
+    jit_uni_x8s8s32x_fwd_kernel(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md)
         : kernel_(nullptr) {
         int ch_block = ajcp.is_depthwise ? ajcp.ch_block : ajcp.ic_block;
         switch (ch_block) {
             case 8:
                 if (utils::one_of(isa, avx2)) {
-                    kernel_ = new _jit_avx2_x8s8s32x_fwd_kernel(ajcp, attr);
-                    return;
+                    kernel_ = new _jit_uni_x8s8s32x_fwd_kernel<isa, Xbyak::Ymm>(
+                            ajcp, attr, dst_md);
                 } else
                     assert(!"invalid channel blocking for current ISA");
+                return;
             case 4:
                 kernel_ = new _jit_uni_x8s8s32x_fwd_kernel<isa, Xbyak::Xmm>(
-                        ajcp, attr);
+                        ajcp, attr, dst_md);
                 return;
             default: assert(!"invalid channel blocking");
         }
@@ -213,8 +212,6 @@ struct jit_uni_x8s8s32x_fwd_kernel {
 
     void operator()(const jit_conv_call_s *p) const { (*kernel_)(p); }
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
-
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_pd,
             memory_desc_t &weights_pd, memory_desc_t &dst_pd,
@@ -223,8 +220,6 @@ struct jit_uni_x8s8s32x_fwd_kernel {
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     void (*jit_ker)(jit_conv_call_s *);
-    using _jit_avx2_x8s8s32x_fwd_kernel
-            = _jit_uni_x8s8s32x_fwd_kernel<avx2, Xbyak::Ymm>;
 
 private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_x8s8s32x_fwd_kernel<isa>);

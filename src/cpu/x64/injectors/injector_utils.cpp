@@ -98,6 +98,14 @@ register_preserve_guard_t::~register_preserve_guard_t() {
     }
 }
 
+size_t register_preserve_guard_t::stack_space_occupied() const {
+    constexpr static size_t reg64_size = 8;
+    const size_t stack_space_occupied
+            = vmm_to_preserve_size_bytes_ + reg64_stack_.size() * reg64_size;
+
+    return stack_space_occupied;
+};
+
 output_dims_t make_output_dims(const memory_desc_wrapper &dst_d) {
 
     const dim_t n_dims = dst_d.ndims();

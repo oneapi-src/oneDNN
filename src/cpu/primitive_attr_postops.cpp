@@ -198,7 +198,7 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
                 float val_po = types::get_float_value(
                         src1_binary_po_d.data_type(), src1_binary_po, off);
                 res = it_binary_po->compute_scalar(res, val_po);
-                it_binary_po++;
+                ++it_binary_po;
             } break;
             default: assert(!"unsupported post op primitive kind!");
         }

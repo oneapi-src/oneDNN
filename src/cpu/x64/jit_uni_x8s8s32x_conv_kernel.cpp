@@ -21,6 +21,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/x64/injectors/injector_utils.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_uni_x8s8s32x_conv_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
@@ -33,6 +36,7 @@ namespace x64 {
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 using namespace Xbyak;
+using namespace injector_utils;
 
 namespace {
 void pick_loop_order(jit_conv_conf_t &jcp) {
@@ -46,6 +50,28 @@ void pick_loop_order(jit_conv_conf_t &jcp) {
     }
 }
 } // namespace
+
+template <cpu_isa_t isa, typename Vmm>
+_jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::_jit_uni_x8s8s32x_fwd_kernel(
+        const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
+        const memory_desc_t &dst_md)
+    : jcp(ajcp), attr_(attr) {
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
+        using namespace binary_injector;
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = false;
+        const rhs_arg_static_params_t rhs_arg_static_params {15, r13, r14,
+                preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec),
+                memory_desc_wrapper(dst_md)};
+        const static_params_t static_params {
+                this->param1, rhs_arg_static_params};
+
+        postops_injector_
+                = utils::make_unique<injector::jit_uni_postops_injector_t<isa>>(
+                        this, jcp.post_ops, static_params);
+    }
+}
 
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::prepare_output(int ur_w) {
@@ -75,11 +101,62 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::cvt2ps(data_type_t type_in,
     if (type_in != data_type::f32) uni_vcvtdq2ps(vmm_in, vmm_in);
 }
 template <cpu_isa_t isa, typename Vmm>
-void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_eltwise(int ur_w) {
-    int nb_oc_block
-            = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-    // avoid passing xmm0 to eltwise injector for sse41
-    eltwise_injector_->compute_vector_range(16 - nb_oc_block * ur_w, 16);
+void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(int nb_oc_block,
+        int ur_w, bool last_oc_block_flag, int oc_block,
+        const float *p_sum_scale) {
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+        const auto sum_injector = [&]() {
+            for (int k = 0; k < nb_oc_block; ++k) {
+                const bool mask_flag
+                        = last_oc_block_flag && k == nb_oc_block - 1;
+                for (int j = 0; j < ur_w; ++j) {
+                    const int aux_output_offset = jcp.typesize_out
+                            * (k * oc_block
+                                    + j * jcp.oc_without_padding * jcp.ngroups);
+                    cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
+                            mask_flag ? get_tail_size() : get_blocking_size());
+                    const Vmm vmm = vmm_out(j, k);
+                    if (*p_sum_scale == 1.f)
+                        uni_vaddps(vmm, vmm_prev_dst);
+                    else {
+                        uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
+                        uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
+                    }
+                }
+            }
+        };
+        if (jcp.with_sum)
+            postops_injector_->set_lambda_injector(
+                    primitive_kind::sum, sum_injector);
+
+        vmm_index_set_t vmm_idxs;
+        if (jcp.with_binary) {
+            constexpr static auto vmm_len
+                    = cpu_isa_traits<isa>::vlen / sizeof(float);
+            for (int k = 0; k < nb_oc_block; k++) {
+                for (int j = 0; j < ur_w; j++) {
+                    const int aux_output_offset = jcp.typesize_out
+                            * (k * oc_block
+                                    + j * jcp.oc_without_padding * jcp.ngroups);
+                    const auto vmm_idx = vmm_out_idx(j, k);
+                    vmm_idxs.emplace(vmm_idx);
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
+                            vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                            vmm_idx, k * vmm_len);
+                    rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                            vmm_idx, aux_output_offset);
+                }
+            }
+        } else {
+            for (int k = 0; k < nb_oc_block; k++)
+                for (int j = 0; j < ur_w; j++)
+                    vmm_idxs.emplace(vmm_out_idx(j, k));
+        }
+
+        postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+    }
 }
 
 template <cpu_isa_t isa, typename Vmm>
@@ -158,30 +235,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
         }
     }
 
-    /* Do post-ops */
-    if (p_sum_scale && *p_sum_scale != 1.f)
-        mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
-    if (maybe_eltwise(0)) compute_eltwise(ur_w);
-    if (p_sum_scale) { // post_op: sum
-        for (int k = 0; k < nb_oc_block; ++k) {
-            const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
-            for (int j = 0; j < ur_w; ++j) {
-                int aux_output_offset = jcp.typesize_out
-                        * (k * oc_block
-                                + j * jcp.oc_without_padding * jcp.ngroups);
-                cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
-                        mask_flag ? get_tail_size() : get_blocking_size());
-                Vmm vmm = vmm_out(j, k);
-                if (*p_sum_scale == 1.f)
-                    uni_vaddps(vmm, vmm, vmm_prev_dst);
-                else {
-                    uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
-                    uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
-                }
-            }
-        }
-    }
-    if (maybe_eltwise(1)) compute_eltwise(ur_w);
+    apply_postops(nb_oc_block, ur_w, last_oc_block_flag, oc_block, p_sum_scale);
 
     if (jcp.dst_zero_point) {
         mov(reg_dst_zero_point, ptr[param1 + GET_OFF(dst_zero_point)]);
@@ -1087,43 +1141,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
 
     postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
-}
-
-template <cpu_isa_t isa>
-bool jit_uni_x8s8s32x_fwd_kernel<isa>::post_ops_ok(
-        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    using namespace primitive_kind;
-    const auto &p = attr.post_ops_;
-
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-
-    switch (p.len()) {
-        case 0: return true;
-        case 1: return is_eltwise(0) || p.contain(sum, 0);
-        case 2:
-            return (p.contain(sum, 0) && is_eltwise(1))
-                    || (p.contain(sum, 1) && is_eltwise(0));
-        default: return false;
-    }
-
-    return false;
-}
-
-template <cpu_isa_t isa, typename Vmm>
-bool _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::maybe_eltwise(int position) {
-    using namespace primitive_kind;
-    const auto &p = attr_.post_ops_;
-
-    if (position == 0) {
-        /* eltwise before sum */
-        return p.contain(eltwise, 0);
-    } else if (position == 1) {
-        /* eltwise after sum */
-        return p.contain(sum, 0) && p.contain(eltwise, 1);
-    }
-
-    return false;
+    if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
 template <cpu_isa_t isa>
@@ -1237,12 +1255,21 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
             return status::unimplemented;
     }
 
-    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
+    using namespace injector;
+    const bool post_ops_ok_ = post_ops_ok<isa>({eltwise, binary}, attr, dst_d);
+    if (!post_ops_ok_) return status::unimplemented;
 
-    const auto &p = attr.post_ops_;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    const auto &post_ops = attr.post_ops_;
+    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
-    if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+
+    const int binary_ind = post_ops.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+
+    const int sum_ind = post_ops.find(primitive_kind::sum);
+    jcp.with_sum = sum_ind != -1;
+
+    jcp.post_ops = post_ops;
 
     jcp.is_resrc_depthwise = true && jcp.is_depthwise && jcp.stride_w < jcp.kw
             && jcp.kw < 4 && jcp.dilate_w == 0;

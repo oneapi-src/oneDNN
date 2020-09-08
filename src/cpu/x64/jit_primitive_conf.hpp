@@ -399,6 +399,18 @@ struct jit_conv_call_s {
     const int32_t *dst_zero_point;
     const void *tile_cfg;
     const void *tile_cfg_tail;
+
+    // ptr to table of void * elements that are pointers to
+    // post_op binary src1 tensors
+    const void *post_ops_binary_rhs_arg_vec;
+    // logical (# of elems) offset to the processed output channel
+    // (for broadcasting [1,OC,1,1])
+    size_t oc_l_off;
+    const void *dst_orig; // pointer to dst memory (no offset)
+
+    size_t oc_l_off_prf;
+    const void *dst_orig_prf;
+
     size_t kd_offset;
     size_t kd_offset_prf;
     size_t kh_offset;
@@ -499,6 +511,7 @@ struct jit_1x1_conv_conf_t {
     prop_kind_t prop_kind;
     conv_version_t ver;
 
+    int ndims;
     int mb;
     int ngroups, ic, oc, oc_without_padding, ic_without_padding;
     int id, ih, iw, od, oh, ow;
@@ -509,8 +522,10 @@ struct jit_1x1_conv_conf_t {
     bool with_bias;
     bool with_sum;
     bool with_eltwise;
+    bool with_binary;
     bool with_dw_conv;
 
+    post_ops_t post_ops;
     post_ops_t::entry_t::eltwise_t eltwise;
 
     int is, os;
@@ -570,6 +585,14 @@ struct jit_1x1_conv_call_s {
     const int32_t *zp_compensation;
     const int32_t *src_zero_point;
     const int32_t *dst_zero_point;
+
+    // ptr to table of void * elements that are pointers to
+    // post_op binary src1 tensors
+    const void *post_ops_binary_rhs_arg_vec;
+    // logical (# of elems) offset to the processed output channel
+    // (for broadcasting [1,OC,1,1])
+    size_t oc_l_off;
+    const void *dst_orig; // pointer to dst memory (not offseted)
 
     size_t load_dim;
     size_t bcast_dim;

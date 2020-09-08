@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -31,18 +31,9 @@ namespace x64 {
 
 template <cpu_isa_t isa, typename Vmm>
 struct _jit_uni_x8s8s32x_1x1_conv_kernel : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_uni_x8s8s32x_1x1_conv_fwd_ker_t)
-    _jit_uni_x8s8s32x_1x1_conv_kernel(
-            const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_
-                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
-    }
-
-    ~_jit_uni_x8s8s32x_1x1_conv_kernel() { delete eltwise_injector_; }
-
-    bool maybe_eltwise(int position);
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_uni_x8s8s32x_1x1_conv_kernel)
+    _jit_uni_x8s8s32x_1x1_conv_kernel(const jit_1x1_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     int get_tail_size() { return jcp.oc_without_padding % jcp.oc_block; }
 
@@ -50,7 +41,8 @@ struct _jit_uni_x8s8s32x_1x1_conv_kernel : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
-    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
 
     enum {
         ker_max_reg_idx = 13,
@@ -108,7 +100,8 @@ private:
     constexpr static int reg_zp_compensation_off = 6 * reg64_size;
     constexpr static int reg_src_zero_point_off = 7 * reg64_size;
     constexpr static int reg_dst_zero_point_off = 8 * reg64_size;
-    constexpr static int stack_space_needed = 9 * reg64_size;
+    constexpr static int reg_binary_post_op_acc_off = 9 * reg64_size;
+    constexpr static int stack_space_needed = 10 * reg64_size;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
@@ -121,16 +114,18 @@ private:
 template <cpu_isa_t isa>
 struct jit_uni_x8s8s32x_1x1_conv_kernel {
 
-    jit_uni_x8s8s32x_1x1_conv_kernel(
-            const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
+    jit_uni_x8s8s32x_1x1_conv_kernel(const jit_1x1_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md)
         : kernel_(nullptr) {
 
         switch (isa) {
             case avx2:
-                kernel_ = new jit_avx2_x8s8s32x_1x1_conv_kernel(ajcp, attr);
+                kernel_ = new jit_avx2_x8s8s32x_1x1_conv_kernel(
+                        ajcp, attr, dst_md);
                 return;
             case sse41:
-                kernel_ = new jit_sse41_x8s8s32x_1x1_conv_kernel(ajcp, attr);
+                kernel_ = new jit_sse41_x8s8s32x_1x1_conv_kernel(
+                        ajcp, attr, dst_md);
                 return;
             default: assert(!"Current ISA is not supported!");
         }
@@ -141,9 +136,6 @@ struct jit_uni_x8s8s32x_1x1_conv_kernel {
     ~jit_uni_x8s8s32x_1x1_conv_kernel() { delete kernel_; }
 
     void operator()(const jit_1x1_conv_call_s *p) const { (*kernel_)(p); }
-
-    static bool post_ops_ok(
-            jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
