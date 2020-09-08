@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -30,21 +30,8 @@ namespace cpu {
 namespace x64 {
 
 struct jit_sse41_1x1_conv_kernel_f32 : public jit_generator {
-    jit_sse41_1x1_conv_kernel_f32(
-            const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, sse41)
-        , jcp(ajcp)
-        , attr_(attr)
-        , eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<sse41>(
-                    this, jcp.eltwise);
-    }
-
-    ~jit_sse41_1x1_conv_kernel_f32() { delete eltwise_injector_; }
-
-    static bool post_ops_ok(
-            jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
+    jit_sse41_1x1_conv_kernel_f32(const jit_1x1_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -58,6 +45,7 @@ struct jit_sse41_1x1_conv_kernel_f32 : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
+    static constexpr auto simd_w_ = cpu_isa_traits<sse41>::vlen / sizeof(float);
     using reg64_t = const Xbyak::Reg64;
     using xmm_t = const Xbyak::Xmm;
 
@@ -80,18 +68,25 @@ private:
     reg64_t reg_bias_data = r12;
     reg64_t reg_diff_bias_data = bcast_loop_iter;
 
-    int reg_diff_bias_data_stack_offt = 0;
-    int stack_space_needed = 8;
+    constexpr static int reg64_size_ = sizeof(int64_t);
+    constexpr static int reg_diff_bias_data_stack_offt = 0;
+    constexpr static int reg_binary_post_op_acc_off = 1 * reg64_size_;
+    constexpr static int reg_abi_param1_backup = 2 * reg64_size_;
+    constexpr static int stack_space_needed = 3 * reg64_size_;
 
     xmm_t reg_bcast = xmm_t(15);
 
-    jit_uni_eltwise_injector_f32<sse41> *eltwise_injector_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<sse41>>
+            postops_injector_;
 
     void generate_bcast_loop(int load_loop_blk);
     void generate_reduce_loop(int load_loop_blk, int ur);
     void generate_diff_bias_loop(int load_loop_blk);
 
     void generate() override;
+
+    void apply_postops(const int load_loop_blk, const int ur);
+    size_t get_fwd_output_ptr_l_off(int i, int j, int n);
 };
 
 } // namespace x64

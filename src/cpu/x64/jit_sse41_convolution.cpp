@@ -38,17 +38,19 @@ using namespace dnnl::impl::utils;
                        : wht_blk_off_(f, g, oc, ic, kh, kw)
 
 void jit_sse41_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
+    const auto &jcp = kernel_->jcp;
+
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
-
-    const auto &jcp = kernel_->jcp;
 
     int ocb_work = div_up(jcp.nb_oc, jcp.nb_oc_blocking);
     const size_t work_amount = jcp.mb * jcp.ngroups * ocb_work * jcp.oh;
@@ -114,7 +116,8 @@ void jit_sse41_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                         par_conv.flags |= FLAG_IC_FIRST;
                     }
 
-                    if (jcp.with_eltwise && icb + 1 == jcp.nb_ic) {
+                    if ((jcp.with_eltwise || jcp.with_binary)
+                            && icb + 1 == jcp.nb_ic) {
                         par_conv.flags |= FLAG_IC_LAST;
                     }
 
@@ -126,6 +129,12 @@ void jit_sse41_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                             - div_up(i_t_overflow, (jcp.dilate_h + 1))
                             - div_up(i_b_overflow, (jcp.dilate_h + 1));
                     par_conv.kh_padding = nstl::max(0, kh_padding);
+
+                    par_conv.oc_l_off = (g * jcp.nb_oc + ocb) * jcp.oc_block;
+                    par_conv.post_ops_binary_rhs_arg_vec
+                            = post_ops_binary_rhs_arg_vec.data();
+                    par_conv.dst_orig = dst;
+
                     (*kernel_)(&par_conv);
                 }
                 nd_iterator_step(

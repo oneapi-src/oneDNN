@@ -20,6 +20,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_sse41_1x1_conv_kernel_f32.hpp"
 #include "cpu/x64/jit_uni_1x1_conv_utils.hpp"
 
@@ -35,6 +37,32 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
+
+jit_sse41_1x1_conv_kernel_f32::jit_sse41_1x1_conv_kernel_f32(
+        const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr,
+        const memory_desc_t &dst_md)
+    : jit_generator(nullptr, MAX_CODE_SIZE, true, sse41)
+    , jcp(ajcp)
+    , attr_(attr) {
+    if (jcp.with_eltwise || jcp.with_binary) {
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = false;
+        static constexpr size_t helper_vmm_idx = 15;
+        const size_t tail_size = jcp.oc_without_padding % simd_w_;
+        static constexpr bool use_exact_tail_scalar_bcast = false;
+
+        const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
+                helper_vmm_idx, r13, r14, preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec),
+                memory_desc_wrapper(dst_md), tail_size,
+                use_exact_tail_scalar_bcast};
+        const binary_injector::static_params_t static_params {
+                this->param1, rhs_arg_static_params};
+        postops_injector_ = utils::make_unique<
+                injector::jit_uni_postops_injector_t<sse41>>(
+                this, jcp.post_ops, static_params);
+    }
+}
 
 void jit_sse41_1x1_conv_kernel_f32::generate_bcast_loop(int load_loop_blk) {
     mov(aux1_reg_bcast_data, reg_bcast_data);
@@ -83,6 +111,64 @@ void jit_sse41_1x1_conv_kernel_f32::generate_bcast_loop(int load_loop_blk) {
     }
 }
 
+size_t jit_sse41_1x1_conv_kernel_f32::get_fwd_output_ptr_l_off(
+        int i, int j, int n) {
+    return i * get_output_i_offset(jcp) + j * get_output_j_offset(jcp) + n * 4;
+}
+
+static int reg_accum_idx(
+        const int load_loop_blk, const int i, const int j, const int n) {
+    return 2 * j * load_loop_blk + 2 * i + n + 1;
+}
+
+template <typename F>
+static void iterate(const int load_loop_blk, const int ur, const F &f) {
+    for (int j = 0; j < ur; ++j)
+        for (int i = 0; i < load_loop_blk; ++i)
+            for (int n = 0; n < 2; n++)
+                f(i, j, n);
+}
+void jit_sse41_1x1_conv_kernel_f32::apply_postops(
+        const int load_loop_blk, const int ur) {
+    injector_utils::vmm_index_set_t vmm_idxs;
+    if (jcp.with_binary) {
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+        const auto oc_off_oprnd = r12;
+        iterate(load_loop_blk, ur, [&](const int i, const int j, const int n) {
+            const bool mask_flag = (2 * i + n) == load_loop_blk - 1;
+            const int aux_output_offset = get_fwd_output_ptr_l_off(i, j, n);
+            const auto vmm_idx = reg_accum_idx(load_loop_blk, i, j, n);
+            vmm_idxs.emplace(vmm_idx);
+
+            rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
+                    vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
+            rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                    vmm_idx, (2 * i + n) * jcp.load_block / 2);
+            rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
+                    vmm_idx, oc_off_oprnd);
+            rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                    vmm_idx, aux_output_offset);
+            if (mask_flag) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
+        });
+        const injector_utils::register_preserve_guard_t register_guard(
+                this, {abi_param1, oc_off_oprnd});
+        const size_t reg_guard_stack_occupied
+                = register_guard.stack_space_occupied();
+        mov(abi_param1,
+                ptr[rsp + reg_abi_param1_backup + reg_guard_stack_occupied]);
+        mov(oc_off_oprnd,
+                ptr[rsp + reg_binary_post_op_acc_off
+                        + reg_guard_stack_occupied]);
+
+        postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+    } else {
+        iterate(load_loop_blk, ur, [&](const int i, const int j, const int n) {
+            vmm_idxs.emplace(reg_accum_idx(load_loop_blk, i, j, n));
+        });
+        postops_injector_->compute_vector_range(vmm_idxs);
+    }
+}
+
 void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
         int load_loop_blk, int ur) {
     auto reg_load = [=](int i, int n) {
@@ -90,7 +176,7 @@ void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
     };
 
     auto reg_accum = [=](int i, int j, int n) {
-        return Xmm(2 * j * load_loop_blk + 2 * i + n + 1);
+        return Xmm(reg_accum_idx(load_loop_blk, i, j, n));
     };
 
     auto bias_ptr = [=](int i, int n) {
@@ -142,10 +228,7 @@ void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
                         + n * 4 * sizeof(float)];
             default:
                 return ptr[aux_reg_output_data
-                        + (i * get_output_i_offset(jcp)
-                                  + j * get_output_j_offset(jcp))
-                                * sizeof(float)
-                        + n * 4 * sizeof(float)];
+                        + get_fwd_output_ptr_l_off(i, j, n) * sizeof(float)];
         }
     };
 
@@ -205,17 +288,16 @@ void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
 
         L(store_noadd);
 
-        if (jcp.with_eltwise) {
+        if (jcp.with_eltwise || jcp.with_binary) {
             assert(ur * load_loop_blk < 14);
 
-            Label store_norelu;
+            Label store_nopostops;
             test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
-            jz(store_norelu, T_NEAR);
+            jz(store_nopostops, T_NEAR);
 
-            eltwise_injector_->compute_vector_range(
-                    1, 2 * ur * load_loop_blk + 1);
+            apply_postops(load_loop_blk, ur);
 
-            L(store_norelu);
+            L(store_nopostops);
         }
 
         for (int j = 0; j < ur; ++j)
@@ -350,12 +432,22 @@ void jit_sse41_1x1_conv_kernel_f32::generate_diff_bias_loop(int load_loop_blk) {
 void jit_sse41_1x1_conv_kernel_f32::generate() {
     preamble();
 
+    sub(rsp, stack_space_needed);
+    if (jcp.with_binary) {
+        // backup abi_param1 for usage in post_ops processing
+        mov(ptr[rsp + reg_abi_param1_backup], abi_param1);
+
+        // zero initialize binary post_ops offset accumulator (store on stack)
+        const auto zeroed_reg = r15;
+        xor_(zeroed_reg, zeroed_reg);
+        mov(ptr[rsp + reg_binary_post_op_acc_off], zeroed_reg);
+    }
+
     mov(reg_bcast_data, ptr[param1 + GET_OFF(bcast_data)]);
     mov(reg_load_data, ptr[param1 + GET_OFF(load_data)]);
     mov(reg_output_data, ptr[param1 + GET_OFF(output_data)]);
     if (jcp.with_bias) {
         if (jcp.prop_kind == backward_weights) {
-            sub(rsp, stack_space_needed);
             mov(reg_diff_bias_data, ptr[param1 + GET_OFF(bias_data)]);
             mov(ptr[rsp + reg_diff_bias_data_stack_offt], reg_diff_bias_data);
         } else
@@ -379,6 +471,14 @@ void jit_sse41_1x1_conv_kernel_f32::generate() {
                         load_loop_blk * jcp.oc_block * sizeof(float));
                 add(reg_output_data,
                         get_load_loop_output_fwd_offset(jcp, load_loop_blk));
+                if (jcp.with_binary) {
+                    mov(aux_reg_load_data,
+                            EVEX_compress_addr(
+                                    rsp, reg_binary_post_op_acc_off));
+                    add(aux_reg_load_data, jcp.load_block * load_loop_blk);
+                    mov(EVEX_compress_addr(rsp, reg_binary_post_op_acc_off),
+                            aux_reg_load_data);
+                }
                 break;
             case backward_data:
                 add(reg_output_data,
@@ -438,37 +538,11 @@ void jit_sse41_1x1_conv_kernel_f32::generate() {
 
     L(load_loop_blk_end);
 
-    if (jcp.with_bias && jcp.prop_kind == backward_weights)
-        add(rsp, stack_space_needed);
+    add(rsp, stack_space_needed);
 
     postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
-}
-
-bool jit_sse41_1x1_conv_kernel_f32::post_ops_ok(
-        jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    const auto &p = attr.post_ops_;
-
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
-    auto is_convolution
-            = [&](int idx) { return p.entry_[idx].is_convolution(); };
-
-    int dw_idx = p.find(primitive_kind::convolution);
-    int len = dw_idx == -1 ? p.len() : dw_idx + 1;
-
-    switch (len) {
-        case 0: return true; // no post_ops
-        case 1: // eltwise OR sum OR convolution
-            return is_eltwise(0) || is_sum(0) || is_convolution(0);
-        case 2: // sum -> eltwise OR eltwise -> convolution
-            return (is_sum(0) && is_eltwise(1))
-                    || (is_eltwise(0) && is_convolution(1));
-        default: return false;
-    }
-
-    return false;
+    if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
 status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
@@ -514,18 +588,34 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.typesize_in = sizeof(prec_traits<data_type::f32>::type);
     jcp.typesize_out = sizeof(prec_traits<data_type::f32>::type);
 
-    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
+    const auto &post_ops = attr.post_ops_;
 
-    const auto &p = attr.post_ops_;
-
-    const int dw_conv_ind = p.find(primitive_kind::convolution);
+    const int dw_conv_ind = post_ops.find(primitive_kind::convolution);
     jcp.with_dw_conv = dw_conv_ind != -1;
     // Using dw_conv_ind as upper-bound below, as post-ops after it will be
     // handled in depthwise convolution.
-    jcp.with_sum = p.find(primitive_kind::sum, 0, dw_conv_ind) != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise, 0, dw_conv_ind);
+    jcp.with_sum = post_ops.find(primitive_kind::sum, 0, dw_conv_ind) != -1;
+    const int eltwise_ind
+            = post_ops.find(primitive_kind::eltwise, 0, dw_conv_ind);
     jcp.with_eltwise = eltwise_ind != -1;
-    if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+    const int binary_ind
+            = post_ops.find(primitive_kind::binary, 0, dw_conv_ind);
+    jcp.with_binary = binary_ind != -1;
+
+    if (dw_conv_ind >= 0) {
+        // dw_conv and post_ops after it are handled externally, so skip them
+        jcp.post_ops.entry_.assign(post_ops.entry_.cbegin(),
+                post_ops.entry_.cbegin() + dw_conv_ind);
+    } else {
+        jcp.post_ops = post_ops;
+    }
+
+    using namespace injector;
+    static constexpr bool sum_at_pos_0_only = true;
+    static constexpr bool sum_requires_scale_one = true;
+    const bool post_ops_ok_ = post_ops_ok({sse41, {eltwise, binary, sum},
+            jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+    if (!post_ops_ok_) return status::unimplemented;
 
     const auto dat_tag_nxc = utils::pick(ndims - 3, nwc, nhwc);
     const auto dat_tag_blocked = utils::pick(ndims - 3, nCw8c, nChw8c);

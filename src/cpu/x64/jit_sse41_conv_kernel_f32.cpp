@@ -19,6 +19,9 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 
+#include "cpu/x64/injectors/injector_utils.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_sse41_conv_kernel_f32.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
@@ -33,6 +36,31 @@ using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
+
+jit_sse41_conv_fwd_kernel_f32::jit_sse41_conv_fwd_kernel_f32(
+        const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
+        const memory_desc_t &dst_md)
+    : jit_generator(nullptr, MAX_CODE_SIZE, sse41), jcp(ajcp), attr_(attr) {
+    if (jcp.with_eltwise || jcp.with_binary) {
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = false;
+        static constexpr size_t helper_vmm_idx = 15;
+        const size_t tail_size = jcp.oc_without_padding % simd_w_;
+        static constexpr bool use_exact_tail_scalar_bcast = false;
+
+        const binary_injector::rhs_arg_static_params_t rhs_arg_static_params {
+                helper_vmm_idx, r14, r15, preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec),
+                memory_desc_wrapper(dst_md), tail_size,
+                use_exact_tail_scalar_bcast};
+        const binary_injector::static_params_t static_params {
+                this->param1, rhs_arg_static_params};
+
+        postops_injector_ = utils::make_unique<
+                injector::jit_uni_postops_injector_t<sse41>>(
+                this, jcp.post_ops, static_params);
+    }
+}
 
 void jit_sse41_conv_fwd_kernel_f32::oh_step_unroll_kw(
         int ur_w, int pad_l, int pad_r, int oc_blocks) {
@@ -110,6 +138,57 @@ void jit_sse41_conv_fwd_kernel_f32::oh_step_nopad(
     }
 }
 
+int get_xmm_idx(const int ur_w, const int oc_block_idx, const int ur_w_idx) {
+    return ur_w * oc_block_idx + ur_w_idx + 1;
+}
+
+Xmm get_xmm(const int ur_w, const int oc_block_idx, const int ur_w_idx) {
+    return Xmm(get_xmm_idx(ur_w, oc_block_idx, ur_w_idx));
+}
+
+template <typename F>
+static void iterate(const int oc_blocks, const int ur_w, const F &f) {
+    for (int i = 0; i < oc_blocks; i++) {
+        const bool mask_flag = i == oc_blocks - 1;
+        for (int j = 0; j < ur_w; j++)
+            f(mask_flag, i, j);
+    }
+}
+void jit_sse41_conv_fwd_kernel_f32::apply_postops(
+        const int oc_blocks, const int ur_w) {
+    injector_utils::vmm_index_set_t vmm_idxs;
+    if (jcp.with_binary) {
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+        const auto temp_offset_reg = this->r13;
+        iterate(oc_blocks, ur_w,
+                [&](const bool mask_flag, const int i, const int j) {
+                    const int o_off = get_output_offset(i, j) * sizeof(float);
+                    const auto vmm_idx = get_xmm_idx(ur_w, i, j);
+                    vmm_idxs.emplace(vmm_idx);
+
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
+                            vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                            vmm_idx, i * jcp.oc_block);
+                    rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                            vmm_idx, o_off);
+                    rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
+                            vmm_idx, temp_offset_reg);
+                    if (mask_flag)
+                        rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
+                });
+        const injector_utils::register_preserve_guard_t register_guard(
+                this, {temp_offset_reg});
+        imul(temp_offset_reg, simd_iter, simd_w_);
+        postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+    } else {
+        iterate(oc_blocks, ur_w, [&](const bool, const int i, const int j) {
+            vmm_idxs.emplace(get_xmm_idx(ur_w, i, j));
+        });
+        postops_injector_->compute_vector_range(vmm_idxs);
+    }
+}
+
 void jit_sse41_conv_fwd_kernel_f32::width_blk_step(
         int ur_w, int pad_l, int pad_r, int oc_blocks) {
     int kw = jcp.kw;
@@ -133,7 +212,7 @@ void jit_sse41_conv_fwd_kernel_f32::width_blk_step(
 
     for (int ii = 0; ii < oc_blocks; ii++)
         for (int jj = 0; jj < ur_w; jj++)
-            movups(Xmm(ur_w * ii + jj + 1),
+            movups(get_xmm(ur_w, ii, jj),
                     xword[reg_output + get_output_offset(ii, jj)]);
 
     if (jcp.with_sum && jcp.with_bias) {
@@ -142,7 +221,7 @@ void jit_sse41_conv_fwd_kernel_f32::width_blk_step(
 
         for (int ii = 0; ii < oc_blocks; ii++)
             for (int jj = 0; jj < ur_w; jj++)
-                addps(Xmm(ur_w * ii + jj + 1),
+                addps(get_xmm(ur_w, ii, jj),
                         xword[reg_bias + sizeof(float) * ii * oc_blk]);
     }
 
@@ -152,12 +231,14 @@ void jit_sse41_conv_fwd_kernel_f32::width_blk_step(
     if (this->jcp.with_bias) {
         for (int ii = 0; ii < oc_blocks; ii++)
             for (int jj = 0; jj < ur_w; jj++)
-                movups(Xmm(ur_w * ii + jj + 1),
+                movups(get_xmm(ur_w, ii, jj),
                         xword[reg_bias + sizeof(float) * ii * oc_blk]);
     } else {
         for (int ii = 0; ii < oc_blocks; ii++)
-            for (int jj = 0; jj < ur_w; jj++)
-                pxor(Xmm(ur_w * ii + jj + 1), Xmm(ur_w * ii + jj + 1));
+            for (int jj = 0; jj < ur_w; jj++) {
+                const auto xmm = get_xmm(ur_w, ii, jj);
+                pxor(xmm, xmm);
+            }
     }
 
     L(init_done);
@@ -190,19 +271,19 @@ void jit_sse41_conv_fwd_kernel_f32::width_blk_step(
 
     L(skip_kh_loop);
 
-    if (jcp.with_eltwise) {
+    if (jcp.with_eltwise || jcp.with_binary) {
         Label regular_store;
         test(reg_ci_flag, FLAG_IC_LAST);
         je(regular_store, T_NEAR);
 
-        eltwise_injector_->compute_vector_range(1, oc_blocks * ur_w + 1);
+        apply_postops(oc_blocks, ur_w);
 
         L(regular_store);
     }
 
     for (int ii = 0; ii < oc_blocks; ii++) {
         for (int jj = 0; jj < ur_w; jj++) {
-            Xmm reg_out = Xmm(ur_w * ii + jj + 1);
+            const Xmm reg_out = get_xmm(ur_w, ii, jj);
             movups(xword[reg_output + get_output_offset(ii, jj)], reg_out);
         }
     }
@@ -300,24 +381,7 @@ void jit_sse41_conv_fwd_kernel_f32::generate() {
 
     this->postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
-}
-
-bool jit_sse41_conv_fwd_kernel_f32::post_ops_ok(
-        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    const auto &p = attr.post_ops_;
-
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
-
-    switch (p.len()) {
-        case 0: return true; // no post_ops
-        case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-        case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-        default: return false;
-    }
-
-    return false;
+    if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
 status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
@@ -387,13 +451,22 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
-    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
-
-    const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    const auto &post_ops = attr.post_ops_;
+    jcp.with_sum = post_ops.find(primitive_kind::sum) != -1;
+    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
-    if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+
+    const int binary_ind = post_ops.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+
+    jcp.post_ops = post_ops;
+
+    using namespace injector;
+    static constexpr bool sum_at_pos_0_only = true;
+    static constexpr bool sum_requires_scale_one = true;
+    const bool post_ops_ok_ = post_ops_ok({sse41, {eltwise, binary, sum},
+            jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+    if (!post_ops_ok_) return status::unimplemented;
 
     const bool flat = jcp.ic == 3;
     const bool mimo = !flat;

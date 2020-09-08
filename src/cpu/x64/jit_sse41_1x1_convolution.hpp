@@ -225,7 +225,8 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
-                new jit_sse41_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr())));
+                new jit_sse41_1x1_conv_kernel_f32(
+                        pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
         CHECK(kernel_->create_kernel());
         if (pd()->jcp_.with_dw_conv) {
             CHECK(safe_ptr_assign(kernel_dw_,
@@ -247,7 +248,9 @@ private:
     void execute_forward_thr(const int ithr, const int nthr, const data_t *src,
             const data_t *weights, const data_t *bias, const data_t *weights_dw,
             const data_t *bias_dw, data_t *dst,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad,
+            const void *post_ops_binary_rhs_arg_vec,
+            const void *post_ops_binary_rhs_arg_vec_dw) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<jit_sse41_1x1_conv_kernel_f32> kernel_;
     using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<sse41>;
