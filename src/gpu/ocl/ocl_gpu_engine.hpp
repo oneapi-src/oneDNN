@@ -55,6 +55,7 @@ public:
         , enable_ngen_kernels_(false)
         , checked_ngen_kernels_(false) {}
     ~ocl_gpu_engine_t() override {
+        if (device_) { clReleaseDevice(device_); }
         if (context_) { clReleaseContext(context_); }
     }
 

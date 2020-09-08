@@ -35,6 +35,14 @@ status_t ocl_gpu_engine_t::init() {
     CHECK(compute_engine_t::init());
 
     cl_int err = CL_SUCCESS;
+    err = clRetainDevice(device_);
+    if (err != CL_SUCCESS) {
+        device_ = nullptr;
+        context_ = nullptr;
+    }
+
+    OCL_CHECK(err);
+
     if (is_user_context_) {
         err = clRetainContext(context_);
         if (err != CL_SUCCESS) context_ = nullptr;
