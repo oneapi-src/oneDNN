@@ -102,6 +102,16 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             && src_mdw.similar_to(dst_mdw, true, false, 0)
             && !has_padding_or_scale_quant && !use_unroll;
 
+    size_t last_dim = padded_dims[conf.ndims - 1];
+
+    // This kernel will be used where last dimension is not reordered.
+    // It will vectorize that dimension.
+    conf.vectorize_last_dim = !conf.use_dense_vect && !conf.scale_quant
+            && src_mdw.is_dense() && dst_mdw.is_dense() && last_dim % 8 == 0
+            && dst_mdw.md_->format_desc.blocking.strides[conf.ndims - 1] == 1
+            && src_mdw.md_->format_desc.blocking.strides[conf.ndims - 1] == 1
+            && conf.ndims <= 6;
+
     dim_t blocks[6] = {1, 1, 1, 1, 1, 1};
     if (use_unroll_16a16b) {
         blocks[0] = 16;
@@ -118,6 +128,15 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
         conf.sub_group_size = 16;
     }
 
+    if (conf.vectorize_last_dim) {
+        conf.use_ref_impl = false;
+        for (int dim = conf.ndims - 2; dim >= 0; dim--) {
+            if (padded_dims[dim] % 4 == 0) { blocks[dim] = 4; }
+            if (padded_dims[dim] % 8 == 0) { blocks[dim] = 8; }
+            if (padded_dims[dim] % 16 == 0) { blocks[dim] = 16; }
+            if (blocks[dim] != 1) { break; }
+        }
+    }
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
     for (int i = 0; i < 6; ++i) {
@@ -136,6 +155,10 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
 
     if (use_unroll_16a16b || use_unroll_16b || use_unroll_16b16c) {
         conf.dispatch.vectorize_dim("D1", 16);
+    } else if (conf.vectorize_last_dim) {
+        int vectorization_range = (last_dim % 16 == 0) ? 16 : 8;
+        std::string vector_dim = "D" + std::to_string(conf.ndims - 1);
+        conf.dispatch.vectorize_dim(vector_dim, vectorization_range);
     }
 
     conf.dispatch.generate();
@@ -251,6 +274,10 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("DST_IOHW4I8O8I4O", 1);
     } else if (dst_mdw.matches_one_of_tag(OIhw2o8i8o2i, gOIhw2o8i8o2i)) {
         kernel_ctx.define_int("DST_OIHW2O8I8O2I", 1);
+    }
+
+    if (conf.vectorize_last_dim) {
+        kernel_ctx.define_int("VECTORIZE_LAST_DIM", 1);
     }
 
     kernel_ctx.print_options();

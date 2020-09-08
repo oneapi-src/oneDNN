@@ -178,6 +178,7 @@ typedef enum {
     dnnl_ab, ///< plain 2D tensor
     dnnl_abc, ///< plain 3D tensor
     dnnl_abcd, ///< plain 4D tensor
+    dnnl_acbd, ///< plain 4D tensor
     dnnl_abcde, ///< plain 5D tensor
     dnnl_abcdef, ///< plain 6D tensor
 
