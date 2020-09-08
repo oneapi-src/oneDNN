@@ -70,7 +70,12 @@ void check_correctness(const settings_t &s) {
         auto &scale = attr.oscale.scale == 0 ? s.def_scale : attr_scale;
 
         for (const auto &i_scale : scale) {
-            const prb_t prb(reorder_conf, iconf, oconf, attr, i_alg, i_oflag,
+            uint64_t oflag = FLAG_NONE;
+            for (const auto &f : i_oflag) {
+                oflag |= f;
+            }
+
+            const prb_t prb(reorder_conf, iconf, oconf, attr, i_alg, oflag,
                     i_cross_engine, i_runtime_dim_mask, i_scale);
             std::stringstream ss;
             ss << prb;
@@ -106,7 +111,7 @@ int bench(int argc, char **argv) {
                 || parse_dt(s.ddt, def.ddt, argv[0], "ddt")
                 || parse_tag(s.stag, def.stag, argv[0], "stag")
                 || parse_tag(s.dtag, def.dtag, argv[0], "dtag")
-                || parse_vector_option(
+                || parse_multivector_option(
                         s.oflag, def.oflag, str2flag, argv[0], "oflag")
                 || parse_vector_option(s.runtime_dim_mask, def.runtime_dim_mask,
                         atoi, argv[0], "runtime-dim-mask")

@@ -33,9 +33,15 @@ enum alg_t { ALG_REF, ALG_BOOT };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 
-enum flag_t { FLAG_NONE, FLAG_CONV_S8S8, FLAG_GCONV_S8S8 };
-flag_t str2flag(const char *str);
-const char *flag2str(flag_t flag);
+enum flag_t {
+    FLAG_NONE = 0x0U,
+    FLAG_CONV_S8S8 = 0x1U,
+    FLAG_GCONV_S8S8 = 0x2U,
+    FLAG_CONV_ZP_COMP = 0x4U,
+    FLAG_GCONV_ZP_COMP = 0x8U,
+};
+uint64_t str2flag(const char *str);
+const char *flag2str(uint64_t flag);
 
 struct dt_conf_s {
     dnnl_data_type_t dt;
@@ -76,7 +82,7 @@ struct settings_t {
     std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
     std::vector<std::string> stag {tag::abx}, dtag {tag::abx};
     std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
-    std::vector<flag_t> oflag {FLAG_NONE};
+    std::vector<std::vector<uint64_t>> oflag {{FLAG_NONE}};
     std::vector<unsigned> runtime_dim_mask {0};
     std::vector<alg_t> alg {ALG_REF};
     std::vector<cross_engine_t> cross_engine {NONE};
@@ -100,7 +106,7 @@ struct settings_t {
 struct prb_t {
     prb_t(const reorder_conf_t &res, const dt_conf_t &conf_in,
             const dt_conf_t &conf_out, const attr_t &attr, alg_t alg,
-            flag_t oflag, cross_engine_t cross_engine,
+            uint64_t oflag, cross_engine_t cross_engine,
             unsigned runtime_dim_mask, float scale)
         : reorder(res)
         , conf_in(conf_in)
@@ -129,7 +135,7 @@ struct prb_t {
     dt_conf_t conf_out;
     attr_t attr;
     alg_t alg;
-    flag_t oflag;
+    uint64_t oflag;
     cross_engine_t cross_engine;
     unsigned runtime_dim_mask;
     double ops;
