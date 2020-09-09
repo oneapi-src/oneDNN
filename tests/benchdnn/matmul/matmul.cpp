@@ -274,13 +274,6 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             return;
         }
     }
-
-    // TODO: temporary disable binary post-op on GPU
-    if (engine_tgt_kind == dnnl_gpu
-            && prb->attr.post_ops.binary_index() != -1) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
-    }
 }
 
 int doit(const prb_t *prb, res_t *res) {

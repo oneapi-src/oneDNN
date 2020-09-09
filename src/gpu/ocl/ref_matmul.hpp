@@ -55,7 +55,8 @@ struct ref_matmul_t : public gpu_primitive_t {
                             attr()->zero_points_.has_default_values())
                     && attr()->has_default_values(smask_t::oscale_runtime
                             | smask_t::zero_points_runtime | smask_t::post_ops)
-                    && attr_oscale_ok() && attr_post_ops_ok()
+                    && attr_oscale_ok()
+                    && post_ops_with_binary_ok(attr(), dst_dt_)
                     && set_default_formats()
                     && ((utils::one_of(src_dt_, u8, s8)
                                 && utils::one_of(wei_dt_, u8, s8)
@@ -126,17 +127,6 @@ struct ref_matmul_t : public gpu_primitive_t {
             return oscale.mask_ == 0 || oscale.mask_ == (1 << (batched() + 1));
         }
 
-        bool attr_post_ops_ok() const {
-            using namespace primitive_kind;
-            const auto &p = attr()->post_ops_;
-            switch (p.len()) {
-                case 0: return true;
-                case 1: return p.contain(sum, 0) || p.contain(eltwise, 0);
-                case 2: return p.contain(sum, 0) && p.contain(eltwise, 1);
-                default: return false;
-            }
-        }
-
         status_t init_scales_md() {
             scales_md_.data_type = data_type::f32;
             scales_md_.ndims = 1;
@@ -164,6 +154,7 @@ struct ref_matmul_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
 
+        kernel_ctx.define_int("DST_NDIMS", pd()->dst_md()->ndims);
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
         kernel_ctx.define_int("NON_DEFAULT_ATTRS", pd()->non_default_attrs_);
 
