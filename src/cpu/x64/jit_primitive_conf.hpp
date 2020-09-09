@@ -189,6 +189,7 @@ struct jit_conv_conf_t {
     // bf16 bwdw conv
     int tr_ow;
     bool is_hw_transp; // spatial dim height-width transposed
+    int spatial_blk_size; // Height/depth block size inside the driver
     bool global_transpose; // diff_dst & src tensors are transposed in one go
     bool use_nt_stores_ddst; // Use non temporal stores in diff_dst transform
 
