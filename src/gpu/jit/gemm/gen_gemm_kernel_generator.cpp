@@ -5547,7 +5547,8 @@ void gemm_kernel_generator_t<hw>::accumulateSum(bool column, Type Tsrc,
             auto dst = dstBase(blockDst->crosspack);
 
             if (canDP4A) {
-                auto srcDP4A = srcBase.reinterpret(0, Tdst.ngen())(1);
+                auto srcDP4A
+                        = Tsrc.isSigned() ? srcBase.d()(1) : srcBase.ud()(1);
                 if (!hReduce && blockSrc->crosspack == 4) {
                     yinc = std::min(ny - y, 4);
                     if (yinc == 4)
