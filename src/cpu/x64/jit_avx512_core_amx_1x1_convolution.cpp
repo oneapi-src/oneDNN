@@ -148,14 +148,14 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
                     int osb_i = osi + osb;
                     int oh = (osb_i * jcp.tile_width) / jcp.ow;
                     int ow = (osb_i * jcp.tile_width) % jcp.ow;
-                    size_t dst_offset = (is_1d) ? dst_d.blk_off(mb, oc, ow)
-                                                : dst_d.blk_off(mb, oc, oh, ow);
+                    size_t dst_offset = is_1d ? dst_d.blk_off(mb, oc, ow)
+                                              : dst_d.blk_off(mb, oc, oh, ow);
                     p.dst = dst + dst_dt_size * dst_offset;
 
                     int ih = oh * jcp.stride_h;
                     int iw = ow * jcp.stride_w;
-                    size_t inp_offset = (is_1d) ? src_d.blk_off(mb, ic, iw)
-                                                : src_d.blk_off(mb, ic, ih, iw);
+                    size_t inp_offset = is_1d ? src_d.blk_off(mb, ic, iw)
+                                              : src_d.blk_off(mb, ic, ih, iw);
                     p.src = src + src_dt_size * inp_offset;
 
                     bool l_overflow = osb_i + jcp.nb_os_blocking >= nb_os;
@@ -167,14 +167,14 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
             } else {
                 int oh = (osb * jcp.tile_width) / jcp.ow;
                 int ow = (osb * jcp.tile_width) % jcp.ow;
-                size_t dst_offset = (is_1d) ? dst_d.blk_off(mb, oc, ow)
-                                            : dst_d.blk_off(mb, oc, oh, ow);
+                size_t dst_offset = is_1d ? dst_d.blk_off(mb, oc, ow)
+                                          : dst_d.blk_off(mb, oc, oh, ow);
                 p.dst = dst + dst_dt_size * dst_offset;
 
                 int ih = oh * jcp.stride_h;
                 int iw = ow * jcp.stride_w;
-                size_t inp_offset = (is_1d) ? src_d.blk_off(mb, ic, iw)
-                                            : src_d.blk_off(mb, ic, ih, iw);
+                size_t inp_offset = is_1d ? src_d.blk_off(mb, ic, iw)
+                                          : src_d.blk_off(mb, ic, ih, iw);
                 p.src = src + src_dt_size * inp_offset;
 
                 p.last_h = 0;
