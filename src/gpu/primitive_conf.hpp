@@ -557,6 +557,8 @@ struct eltwise_conf_t {
     compute::dispatch_t dispatch;
     memory_desc_info_t data_md_info;
     memory_desc_info_t data_diff_md_info;
+
+    attr_info_t attr_info;
 };
 
 // Shuffle
