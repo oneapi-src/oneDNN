@@ -66,12 +66,8 @@ protected:
         SKIP_IF(src_data_type == memory::data_type::f16
                         && get_test_engine_kind() == engine::kind::cpu,
                 "F16 not supported with CPU engine");
-#if DNNL_X64
-        SKIP_IF(src_data_type == memory::data_type::bf16
-                        && !impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_core)
-                        && get_test_engine_kind() == engine::kind::cpu,
-                "current ISA doesn't support bfloat16 data type");
-#endif
+        SKIP_IF(unsupported_data_type(src_data_type),
+                "Engine does not support this data type.");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
