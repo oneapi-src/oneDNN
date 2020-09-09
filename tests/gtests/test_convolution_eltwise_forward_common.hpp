@@ -227,7 +227,8 @@ protected:
                 ++padR[1];
         }
 
-        SKIP_IF_CUDA(cd.padh < padR[0] || cd.padw < padR[1], "Unsupported padding for CUDA.");
+        SKIP_IF_CUDA(cd.padh < padR[0] || cd.padw < padR[1],
+                "Unsupported padding for CUDA.");
 
         auto test = [&]() {
             dnnl::post_ops ops;

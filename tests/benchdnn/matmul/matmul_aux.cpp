@@ -187,9 +187,7 @@ bool prb_t::maybe_skip_nvidia() const {
         }
     }
 
-    if (!(attr.zero_points.is_def())) {
-        return true;
-    }
+    if (!(attr.zero_points.is_def())) { return true; }
 
     if (bia_dt != dnnl_data_type_undef
             && !(bia_dt == dnnl_s8 || bia_dt == dnnl_f16

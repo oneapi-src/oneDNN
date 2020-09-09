@@ -53,7 +53,6 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
                 WARN);
     }
 
-
     auto dnnl_attr = create_dnnl_attr(attr_t());
 
     dnnl_status_t init_status = dnnl_concat_primitive_desc_create(&cpd,
