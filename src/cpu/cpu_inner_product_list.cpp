@@ -22,6 +22,7 @@
 
 #if DNNL_X64
 #include "cpu/x64/gemm_bf16_inner_product.hpp"
+#include "cpu/x64/jit_brgemm_inner_product.hpp"
 using namespace dnnl::impl::cpu::x64;
 #endif
 
@@ -44,6 +45,8 @@ const pd_create_f impl_list[] = {
         CPU_INSTANCE(ref_inner_product_bwd_data_t<f32, f32, f32, f32>)
         CPU_INSTANCE(ref_inner_product_bwd_weights_t<f32>)
         /* bfloat16 */
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<bf16, bf16, f32>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<bf16>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_fwd_t<f32>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_fwd_t<bf16>)
         CPU_INSTANCE_X64(gemm_bf16_inner_product_bwd_data_t<f32>)
@@ -53,6 +56,14 @@ const pd_create_f impl_list[] = {
         CPU_INSTANCE(ref_inner_product_fwd_t<bf16, bf16, bf16, f32>)
         CPU_INSTANCE(ref_inner_product_fwd_t<bf16, bf16, f32, f32>)
         /* int */
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<u8, s8, u8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<u8, s8, s8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<u8, s8, s32>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<u8, s8, f32>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<s8, s8, u8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<s8, s8, s8>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<s8, s8, s32>)
+        CPU_INSTANCE_X64(brgemm_inner_product_fwd_t<s8, s8, f32>)
         CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, u8>)
         CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s8>)
         CPU_INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s32>)
