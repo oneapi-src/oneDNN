@@ -20,7 +20,15 @@
 #define BLOCK_SIZE OC_BLOCK
 #define BLOCKED_DATA_T CONCAT2(DATA_T, BLOCK_SIZE)
 #define BLOCKED_READ(ptr) vload16(0, ptr)
-#define BLOCKED_WRITE(data, ptr) vstore16(data, 0, ptr)
+
+// Using for loop instead of vstore16 due incorrect results
+#define BLOCKED_WRITE(data, ptr) \
+    do { \
+        BLOCKED_DATA_T result = data; \
+        unroll_for(int _i = 0; _i < BLOCK_SIZE; _i++) { \
+            (ptr)[_i] = result[_i]; \
+        } \
+    } while (0)
 
 #define VECT_SIZE 4
 #define VECT_DATA_T CONCAT2(DATA_T, VECT_SIZE)
@@ -223,6 +231,51 @@ __kernel void gen9_wino_dst_transform(__global DATA_T *dst,
 
     BLOCKED_DATA_T C1 = m0 + m1 + m2;
     BLOCKED_DATA_T C2 = m1 - m2 - m3;
+
+    if (WITH_BIAS || WITH_POST_OP) {
+        const int c_size = WINO_M * OC_BLOCK;
+        DATA_T C[c_size];
+        BLOCKED_WRITE(C1, &C[0]);
+        BLOCKED_WRITE(C2, &C[OC_BLOCK]);
+        if (WITH_BIAS) {
+            for (int oc_outer = 0; oc_outer < OC_BLOCK; oc_outer++) {
+                for (int ow_block = 0; ow_block < WINO_M; ow_block++) {
+                    const int c_off = ow_block * OC_BLOCK + oc_outer;
+                    const int bc_off = oc + oc_outer;
+                    C[c_off] += (OC_WO_PADDING % OC_BLOCK == 0
+                                        || bc_off < OC_WO_PADDING)
+                            ? bias[bc_off]
+                            : DATA_ZERO;
+                }
+            }
+        }
+
+        DATA_T S[c_size];
+        if (WITH_SUM) {
+            BLOCKED_DATA_T S1, S2;
+            int dst_idx = dst_off(n, oc, 0, oh, ow);
+            S1 = BLOCKED_READ(&dst[dst_idx]);
+            if (OW % WINO_M == 0 || ow < OW - 1) {
+                dst_idx += dst_off(0, 0, 0, 0, 1);
+                S2 = BLOCKED_READ(&dst[dst_idx]);
+            } else {
+                S2 = 0;
+            }
+            BLOCKED_WRITE(S1, &S[0]);
+            BLOCKED_WRITE(S2, &S[OC_BLOCK]);
+        }
+        for (int didx = 0; didx < c_size; ++didx) {
+            float accum = CONVERT_FLOAT_T(C[didx]);
+            float sum = CONVERT_FLOAT_T(S[didx]);
+            int po_oc = oc + c_size % OC_BLOCK;
+            APPLY_POST_OPS(C, DATA_T, S, DATA_T, n, 1, po_oc, 1, 0, 1, 0, 1, 0,
+                    1, 0, 1);
+            C[didx] = TO_DATA_T(accum);
+        }
+
+        C1 = BLOCKED_READ(&C[0]);
+        C2 = BLOCKED_READ(&C[OC_BLOCK]);
+    }
 
     int dst_idx = dst_off(n, oc, 0, oh, ow);
     BLOCKED_WRITE(C1, &dst[dst_idx]);

@@ -74,9 +74,6 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
             && conf.t_pad <= 1 && conf.b_pad <= 1;
     if (!is_wino_shape) return status::unimplemented;
 
-    // TODO: Implement bias
-    if (conf.with_bias) return status::unimplemented;
-
     //Using F(m, r) for r = 3 and tile_size = m + r - 1
     const int m = 2;
     const int r = 3;
@@ -240,6 +237,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("OW_LAST", utils::rnd_dn(conf.ow, conf.ow_block));
     kernel_ctx.define_int("OWB", utils::div_up(conf.ow, conf.ow_block));
     kernel_ctx.define_int("OHB", utils::div_up(conf.oh, conf.oh_block));
+    kernel_ctx.define_int("OC_WO_PADDING", conf.oc_without_padding);
     kernel_ctx.define_int("WINO_M", conf.wino_m);
     kernel_ctx.define_int("WINO_R", conf.wino_r);
     kernel_ctx.define_int("WINO_IC_BLOCK", conf.wino_ic_block);
@@ -272,6 +270,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
             utils::one_of(conf.dst_tag, NCw16n16c, NChw16n16c, NCdhw16n16c));
     kernel_ctx.define_int(
             "DST_W16C", utils::one_of(conf.dst_tag, nCw16c, nChw16c, nCdhw16c));
+    kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
 
     def_attr_info(kernel_ctx, conf.attr_info);
 
