@@ -44,6 +44,9 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(reorder_formats_test, TestChecksAllFormats) {
             "GPU takes a lot of time to complete this test.");
     static auto isa = get_effective_cpu_isa();
     bool has_bf16 = isa >= cpu_isa::avx512_core;
+    bool has_int8_zp_support = isa
+            >= cpu_isa::
+                    avx512_core; // to be removed once {sse41, avx2} are enabled
 
     bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
 
@@ -79,11 +82,30 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(reorder_formats_test, TestChecksAllFormats) {
     conv_s8s8.compensation_mask = (1 << 0);
     gconv_s8s8.compensation_mask = (1 << 0) + (1 << 1);
 
-    std::vector<dnnl_memory_extra_desc_t> extra {none, conv_s8s8, gconv_s8s8};
+    auto flag_zp = dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
+    dnnl_memory_extra_desc_t conv_zp {}, gconv_zp {}, conv_s8s8_zp {},
+            gconv_s8s8_zp {};
+
+    // test zero_point compensation for {s8, u8}
+    gconv_zp.flags = conv_zp.flags = conv_s8s8_zp.flags = gconv_s8s8_zp.flags
+            = flag_zp;
+    conv_s8s8_zp.flags |= flag_comp;
+    gconv_s8s8_zp.flags |= flag_comp;
+    conv_s8s8_zp.compensation_mask = (1 << 0);
+    gconv_s8s8_zp.compensation_mask = (1 << 0) + (1 << 1);
+    conv_s8s8_zp.asymm_compensation_mask = conv_zp.asymm_compensation_mask
+            = (1 << 0);
+    gconv_s8s8_zp.asymm_compensation_mask = gconv_zp.asymm_compensation_mask
+            = (1 << 0) + (1 << 1);
+
+    std::vector<dnnl_memory_extra_desc_t> extra {none, conv_s8s8, gconv_s8s8,
+            conv_zp, gconv_zp, conv_s8s8_zp, gconv_s8s8_zp};
 
     for (unsigned i_dt = start_dt; i_dt < end_dt; i_dt++) {
         in_dt = static_cast<dt>(i_dt);
         if (in_dt == dt::bf16 && !has_bf16) continue;
+        if ((in_dt == dt::s8 || in_dt == dt::u8) && !has_int8_zp_support)
+            continue;
 
         for (unsigned i_tag = start_tag; i_tag < end_tag; i_tag++) {
             in_tag = static_cast<tag>(i_tag);
