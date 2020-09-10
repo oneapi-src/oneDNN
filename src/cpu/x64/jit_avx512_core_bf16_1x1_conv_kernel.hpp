@@ -18,10 +18,10 @@
 #define CPU_X64_JIT_AVX512_CORE_BF16_1X1_CONV_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {

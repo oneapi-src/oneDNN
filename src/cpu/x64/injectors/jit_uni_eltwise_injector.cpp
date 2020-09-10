@@ -19,7 +19,7 @@
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,11 +30,13 @@ using namespace Xbyak;
 
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
-        size_t start_idx, size_t end_idx) {
+        const injector_utils::vmm_index_set_t &vmm_idxs) {
     using namespace Xbyak::util;
     preserved_vecs_count = 0;
     vecs_to_preserve = aux_vecs_count();
-    start_idx_tail = start_idx;
+    const auto start_idx = *(vmm_idxs.begin());
+    const auto end_idx = *(vmm_idxs.rbegin()) + 1;
+    start_idx_tail = vmm_idxs.begin();
 
     // For sse41 mask register has to be Xmm(0)
     if (isa == sse41 && vecs_to_preserve > 0) {
@@ -52,7 +54,8 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
 
     size_t preserved_vecs_count_tail = vecs_to_preserve - preserved_vecs_count;
     for (size_t i = 0; i < preserved_vecs_count_tail; i++) {
-        preserved_vec_idxs[preserved_vecs_count++] = start_idx_tail++;
+        preserved_vec_idxs[preserved_vecs_count++] = *start_idx_tail;
+        ++start_idx_tail;
     }
 
     assert(preserved_vecs_count == vecs_to_preserve);
@@ -86,8 +89,8 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
 
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::injector_preamble_tail(
-        size_t start_idx) {
-    size_t tail_vecs_to_preserve = start_idx_tail - start_idx;
+        const injector_utils::vmm_index_set_iterator_t start_idx_it) {
+    size_t tail_vecs_to_preserve = std::distance(start_idx_it, start_idx_tail);
     if (tail_vecs_to_preserve == 0) return;
 
     const int idx_off = vecs_to_preserve - tail_vecs_to_preserve;
@@ -1289,9 +1292,10 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
 
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::compute_body(
-        size_t start_idx, size_t end_idx) {
+        const injector_utils::vmm_index_set_iterator_t &start_idx_it,
+        const injector_utils::vmm_index_set_iterator_t &end_idx_it) {
     using namespace alg_kind;
-    for (size_t idx = start_idx; idx < end_idx; idx++) {
+    std::for_each(start_idx_it, end_idx_it, [&](size_t idx) {
         if (is_fwd_) {
             switch (alg_) {
                 case eltwise_relu_use_dst_for_bwd:
@@ -1376,18 +1380,30 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
         if (scale_ != 1.f) {
             h->uni_vmulps(Vmm(idx), Vmm(idx), table_val(scale));
         }
-    }
+    });
 }
 
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::compute_vector_range(
         size_t start_idx, size_t end_idx) {
-    assert(start_idx < end_idx && end_idx <= vecs_count);
+    injector_utils::vmm_index_set_t vmm_idxs;
+    for (size_t i = start_idx; i < end_idx; i++)
+        vmm_idxs.emplace(i);
+    compute_vector_range(vmm_idxs);
+}
 
-    injector_preamble(start_idx, end_idx);
-    compute_body(start_idx_tail, end_idx);
-    injector_preamble_tail(start_idx);
-    compute_body(start_idx, start_idx_tail);
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::compute_vector_range(
+        const injector_utils::vmm_index_set_t &vmm_idxs) {
+    const auto &start_idx_it = vmm_idxs.begin();
+    const auto &end_idx_it = vmm_idxs.end();
+    assert(*start_idx_it < *vmm_idxs.rbegin() + 1
+            && *vmm_idxs.rbegin() <= vecs_count);
+
+    injector_preamble(vmm_idxs);
+    compute_body(start_idx_tail, end_idx_it);
+    injector_preamble_tail(start_idx_it);
+    compute_body(start_idx_it, start_idx_tail);
     injector_postamble();
 }
 
@@ -1947,9 +1963,11 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
     }
 }
 
+template struct jit_uni_eltwise_injector_f32<avx512_core_bf16>;
 template struct jit_uni_eltwise_injector_f32<avx512_core>;
 template struct jit_uni_eltwise_injector_f32<avx512_common>;
 template struct jit_uni_eltwise_injector_f32<avx2>;
+template struct jit_uni_eltwise_injector_f32<avx>;
 template struct jit_uni_eltwise_injector_f32<sse41>;
 
 } // namespace x64

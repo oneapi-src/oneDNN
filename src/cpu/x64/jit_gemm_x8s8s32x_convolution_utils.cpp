@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
 #include "cpu/x64/jit_gemm_x8s8s32x_convolution_utils.hpp"
 

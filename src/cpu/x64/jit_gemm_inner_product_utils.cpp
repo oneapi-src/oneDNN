@@ -20,9 +20,9 @@
 #include "common/math_utils.hpp"
 #include "cpu/simple_q10n.hpp"
 
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
 #include "cpu/x64/jit_gemm_inner_product_utils.hpp"
 
