@@ -293,10 +293,12 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     // bf16 reorder on cpu supports only bf16/f32 src_dt/dst_dt
     if (engine_tgt_kind == dnnl_cpu
-            && (!IMPLICATION(
-                        sdt == dnnl_bf16, ddt == dnnl_f32 || ddt == dnnl_bf16)
+            && (!IMPLICATION(sdt == dnnl_bf16,
+                        ddt == dnnl_f32 || ddt == dnnl_bf16 || ddt == dnnl_s8
+                                || ddt == dnnl_u8)
                     || !IMPLICATION(ddt == dnnl_bf16,
-                            sdt == dnnl_f32 || sdt == dnnl_bf16))) {
+                            sdt == dnnl_f32 || sdt == dnnl_bf16
+                                    || sdt == dnnl_s8 || sdt == dnnl_u8))) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }
