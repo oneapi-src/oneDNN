@@ -151,9 +151,12 @@ struct memory_desc_wrapper : public c_compatible {
             const auto &bd = blocking_desc();
 
             size_t max_size = 0;
-            for (int d = 0; d < ndims(); ++d)
+            for (int d = 0; d < ndims(); ++d) {
+                dim_t strided_pdim = padded_dims()[d] / blocks[d];
+                dim_t effective_stride = strided_pdim == 1 ? 1 : bd.strides[d];
                 max_size = nstl::max<size_t>(
-                        max_size, padded_dims()[d] / blocks[d] * bd.strides[d]);
+                        max_size, strided_pdim * effective_stride);
+            }
 
             if (max_size == 1 && bd.inner_nblks != 0) {
                 max_size = utils::array_product(bd.inner_blks, bd.inner_nblks);
