@@ -225,11 +225,10 @@ static inline void gemv_kernel_driver(const int trans, const dim_t m,
 #define MIN_WIDTH 32
 // Check if threading is beneficial.
 template <typename a_t>
-static inline dim_t thread_checker(const dim_t m, const dim_t n, int trans) {
+static inline int thread_checker(
+        int nthr, const dim_t m, const dim_t n, int trans) {
     constexpr bool is_f32
             = utils::one_of(data_traits<a_t>::data_type, data_type::f32);
-
-    dim_t nthr = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
 
     if (is_f32) {
         // Threshold based on performance measurement with warm and cold cache
@@ -258,9 +257,8 @@ static inline dim_t thread_checker(const dim_t m, const dim_t n, int trans) {
             if (bandt == 0) {
                 return 1;
             } else {
-                return nstl::min(dim_t(nstl::max((n * m) / dim_t(2 * MN_MIN_N),
-                                         dim_t(1))),
-                        nthr);
+                return nstl::min(
+                        nstl::max(n * m / 2 * MN_MIN_N, dim_t(1)), dim_t(nthr));
             }
         }
     } else {
@@ -311,6 +309,11 @@ static inline void decompose_vector(const dim_t m, const dim_t nthr,
 
 static inline void part_1d(const dim_t k, const int ithr, const int nthr,
         dim_t &off, dim_t &size) {
+    if (ithr >= nthr) {
+        size = 0;
+        off = 0;
+        return;
+    }
     size = utils::div_up(k, nthr);
     off = ithr * size;
     if (off > k) off = k;
@@ -328,7 +331,8 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
     // Quick return if possible.
     if (m <= 0 || n <= 0) return;
 
-    int nthr_goal = thread_checker<a_t>(m, n, trans);
+    auto nthr_max = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
+    auto nthr_goal = thread_checker<a_t>(nthr_max, m, n, trans);
 
     if (nthr_goal == 1) {
         gemv_kernel_driver(
@@ -340,10 +344,14 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
     if (trans == no_trans && dnnl_thr_syncable() && !is_f32)
         ybuf = (c_t *)malloc(sizeof(*ybuf) * m * (nthr_goal - 1), PAGE_4K);
 
-    parallel(nthr_goal, [&](int ithr, int nthr) {
+    // Always use the maximum number of threads to avoid OMP overhead that can
+    // occur due to change thread counts.
+    auto nthr_spawn = dnnl_thr_syncable() ? nthr_max : nthr_goal;
+    parallel(nthr_spawn, [&](int ithr, int nthr) {
+        int nthr_eff = nstl::min(nthr_goal, nthr);
         if (is_f32) {
             dim_t band, disp;
-            decompose_vector(n, nthr, ithr, (c_t *)NULL, &disp, &band);
+            decompose_vector(n, nthr_eff, ithr, (c_t *)NULL, &disp, &band);
 
             dim_t ydisp = disp * incy;
             if (incy < 0) ydisp = ydisp + (-n + band) * incy;
@@ -368,12 +376,12 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
             auto beta_eff = beta;
 
             if (trans == do_trans) {
-                part_1d(n, ithr, nthr, off_n, thread_n);
+                part_1d(n, ithr, nthr_eff, off_n, thread_n);
                 a_eff += off_m + off_n * lda;
                 y_eff += off_n * incy;
                 band = thread_n;
             } else if (ybuf) {
-                part_1d(n, ithr, nthr, off_n, thread_n);
+                part_1d(n, ithr, nthr_eff, off_n, thread_n);
                 a_eff += off_m + off_n * lda;
                 x_eff += off_n * incx;
                 if (ithr != 0) {
@@ -383,7 +391,7 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
                 }
             } else {
                 // Fallback for no_trans with no extra buffer.
-                part_1d(m, ithr, nthr, off_m, thread_m);
+                part_1d(m, ithr, nthr_eff, off_m, thread_m);
                 a_eff += off_m + off_n * lda;
                 y_eff += off_m * incy;
                 band = thread_m;
@@ -392,7 +400,7 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
             // Buffers for y need to be set to zero for reduction case.
             assert(IMPLICATION(ybuf, band > 0));
 
-            if (band > 0)
+            if (band > 0 && ithr < nthr_eff)
                 gemv_kernel_driver(trans, thread_m, thread_n, alpha, a_eff, lda,
                         x_eff, incx, beta_eff, y_eff, incy_eff, arg);
 
@@ -400,8 +408,8 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
             if (ybuf) {
                 dnnl_thr_barrier();
                 // Reduction in each thread.
-                part_1d(m, ithr, nthr, off_m, thread_m);
-                for (int buf_id = 0; buf_id < nthr - 1; buf_id++)
+                part_1d(m, ithr, nthr_eff, off_m, thread_m);
+                for (int buf_id = 0; buf_id < nthr_eff - 1; buf_id++)
                     for (dim_t i = off_m; i < off_m + thread_m; i++)
                         y[i * incy] += ybuf[i + buf_id * m];
             }
