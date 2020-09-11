@@ -132,6 +132,11 @@ void jit_uni_postops_injector_t<isa>::compute_vector(size_t idx,
 }
 
 template <cpu_isa_t isa>
+void jit_uni_postops_injector_t<isa>::compute_vector(size_t idx) {
+    compute_vector_range({idx});
+}
+
+template <cpu_isa_t isa>
 void jit_uni_postops_injector_t<isa>::set_lambda_injector(
         dnnl_primitive_kind_t kind, const std::function<void()> &jit_injector) {
     lambda_jit_injectors_[kind] = jit_injector;

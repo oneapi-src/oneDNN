@@ -64,15 +64,21 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                                             zero_points_runtime
                                     | primitive_attr_t::skip_mask_t::post_ops,
                             dst_type)
-                    && output_scales_mask_ok() && post_ops_ok()
-                    && zero_points_valid(attr());
+                    && output_scales_mask_ok() && zero_points_valid(attr());
 
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
-            return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
-                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
-                    dnnl_get_max_threads());
+            const auto status_ = jit_gemm_convolution_utils::init_conf(jcp_,
+                    scratchpad, *desc(), src_md_, weights_md_, dst_md_,
+                    bias_md_, *attr(), dnnl_get_max_threads());
+
+            if (status_ == status::success) {
+                if (!gemm_x8s8s32x_convolution_utils::post_ops_ok(
+                            attr()->post_ops_, &dst_md_))
+                    return status::unimplemented;
+            }
+            return status_;
         }
 
         conv_gemm_conf_t jcp_;
@@ -81,23 +87,6 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
         bool output_scales_mask_ok() const {
             const auto &mask = attr()->output_scales_.mask_;
             return mask == 0 || mask == 1 << 1;
-        }
-
-        bool post_ops_ok() const {
-            using namespace dnnl::impl::primitive_kind;
-            auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
-
-            switch (po.len()) {
-                case 0: return true;
-                case 1: return is_eltwise(0) || po.contain(sum, 0);
-                case 2:
-                    return (po.contain(sum, 0) && is_eltwise(1))
-                            || (po.contain(sum, 1) && is_eltwise(0));
-                default: return false;
-            }
-            return false;
         }
     };
 
@@ -123,8 +112,9 @@ private:
     status_t execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
             const char *bia_base, const int32_t *zp_src, const int32_t *zp_dst,
-            dst_data_t *dst_base,
-            const memory_tracking::grantor_t &scratchpad) const;
+            dst_data_t *dst_base, const memory_tracking::grantor_t &scratchpad,
+            const void *post_ops_binary_rhs_arg_vec,
+            const exec_ctx_t &ctx) const;
 
     int nthr_ = 0;
 

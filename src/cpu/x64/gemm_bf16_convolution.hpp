@@ -26,7 +26,7 @@
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm_convolution_utils.hpp"
 #include "cpu/x64/cpu_reducer.hpp"
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 
 namespace dnnl {
@@ -55,8 +55,16 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops,
-                            dst_data_type)
-                    && post_ops_ok();
+                            dst_data_type);
+            {
+                using namespace x64::injector;
+                static constexpr bool sum_at_pos_0_only = true;
+                static constexpr bool sum_requires_scale_one = true;
+                const auto dst_md = memory_desc_wrapper(dst_md_);
+                ok &= post_ops_ok({avx512_core, {binary, eltwise, sum},
+                        attr()->post_ops_, &dst_md, sum_at_pos_0_only,
+                        sum_requires_scale_one});
+            }
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -78,22 +86,6 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
         }
 
         conv_gemm_conf_t jcp_;
-
-    protected:
-        bool post_ops_ok() const {
-            auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
-            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
-
-            switch (po.len()) {
-                case 0: return true; // no post_ops
-                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-                case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-                default: return false;
-            }
-            return false;
-        }
     };
 
     gemm_bf16_convolution_fwd_t(const pd_t *apd)
@@ -130,7 +122,8 @@ private:
     status_t execute_forward_thr_nspc(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
             const float *bia_base, dst_data_t *dst_base,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad,
+            const void *post_ops_binary_rhs_arg_vec) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
@@ -139,16 +132,15 @@ private:
         DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_bf16_convolution_fwd_t::pp_kernel);
         pp_ker_t(const pd_t *pd);
 
-        ~pp_ker_t() {
-            delete bf16_emu_;
-            delete eltwise_injector_;
-        }
-
         void operator()(dst_data_t *dst, const acc_data_t *acc,
-                const acc_data_t *bias, float sum_scale, size_t oc_work);
+                const acc_data_t *bias, float sum_scale, size_t oc_work,
+                const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
+                const size_t g_oc_offset);
         void operator()(dst_data_t *dst, const acc_data_t *acc,
                 const acc_data_t *bias, float sum_scale, size_t dst_str,
-                size_t acc_str, size_t sp_len, size_t oc);
+                size_t acc_str, size_t sp_len, size_t oc,
+                const void *post_ops_binary_rhs_arg_vec, const void *dst_orig,
+                const size_t g_oc_offset);
 
     private:
         struct ker_args {
@@ -160,6 +152,10 @@ private:
             size_t acc_stride_in_bytes;
             size_t spatial_length;
             size_t oc_work;
+
+            size_t g_oc_offset;
+            const void *post_ops_binary_rhs_arg_vec;
+            const void *dst_orig;
         };
 
         enum { default_unroll_2_pow_ = 2 };
@@ -192,18 +188,21 @@ private:
         Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(30);
         Xbyak::Zmm bf16_emu_reserv_6 = Xbyak::Zmm(31);
 
+        constexpr static int reg64_size = sizeof(int64_t);
+        constexpr static int reg_binary_post_op_acc_off = 0;
+        constexpr static int stack_space_needed = reg64_size;
+
         const conv_gemm_conf_t &jcp_;
-        size_t OC_;
-        bool do_bias_;
-        bool do_eltwise_;
-        bool do_sum_;
+        const bool do_sum_;
         int max_data_reg_idx_, max_unroll_, compute_reg_step_;
         int data_reg_base_idx_;
         size_t vlen_;
         cpu_isa_t isa_;
-        bf16_emulation_t *bf16_emu_;
-        jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
+        std::unique_ptr<bf16_emulation_t> bf16_emu_;
+        std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
+                postops_injector_;
 
+        void apply_postops(const bool apply_mask, const int vmm_idx);
         void generate() override;
         int vreg_dst_idx(int iter) {
             int idx = data_reg_base_idx_ + iter * compute_reg_step_ + 0;

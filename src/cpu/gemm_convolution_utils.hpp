@@ -41,6 +41,10 @@ struct conv_gemm_conf_t {
     int stride_h, stride_w, stride_d;
     int dilate_h, dilate_w, dilate_d;
     bool with_bias;
+    bool with_eltwise;
+    bool with_binary;
+    bool with_sum;
+    post_ops_t post_ops;
     bool is_nspc;
 
     int is, os, ks;
@@ -58,6 +62,11 @@ struct conv_gemm_conf_t {
     int nthr_oc;
 
     zero_point_config_t zp;
+
+    data_type_t bias_data_type;
+    data_type_t dst_data_type;
+    size_t dst_os_stride;
+    size_t scale_idx_mult;
 };
 
 namespace jit_gemm_convolution_utils {
@@ -103,6 +112,10 @@ void bwd_weights_reduction_par_ncsp(int ithr, int nthr,
 void bwd_weights_reduction_par_nspc(int ithr, int nthr, size_t g_start,
         size_t g_end, const conv_gemm_conf_t &jcp,
         const float *weights_reduce_base, float *diff_weights);
+
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d);
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d);
+
 } // namespace jit_gemm_convolution_utils
 
 } // namespace cpu

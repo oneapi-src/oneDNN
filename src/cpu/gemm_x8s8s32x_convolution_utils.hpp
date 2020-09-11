@@ -18,6 +18,7 @@
 #define CPU_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
 
 #include "cpu/gemm_convolution_utils.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,7 +28,6 @@ namespace gemm_x8s8s32x_convolution_utils {
 struct pp_ker_t {
     static pp_ker_t *create(
             const convolution_pd_t *pd, const conv_gemm_conf_t &jcp);
-
     virtual ~pp_ker_t() = default;
 
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
@@ -36,9 +36,9 @@ struct pp_ker_t {
             const float *scales, float nslope, float sum_scale,
             float signed_scale, int g, size_t start, size_t end,
             const int32_t *zp_src, const int32_t *zp_dst,
-            const int32_t *zp_src_comp) const = 0;
-
-    size_t dst_os_stride_;
+            const int32_t *zp_src_comp, const void *post_ops_binary_rhs_arg_vec,
+            const void *dst_orig, const exec_ctx_t &ctx,
+            const memory_desc_t &dst_md) const = 0;
 
     virtual status_t create_kernel() { return status::success; }
 
@@ -46,17 +46,10 @@ protected:
     pp_ker_t(const convolution_pd_t *pd, const conv_gemm_conf_t &jcp);
 
     const conv_gemm_conf_t &jcp_;
-    size_t OC_;
-    size_t OS_;
-    data_type_t bias_data_type_ = data_type::undef;
-    data_type_t dst_data_type_ = data_type::undef;
-    size_t scale_idx_mult_ = 0;
-    bool do_bias_ = false;
-    bool do_eltwise_ = false;
-    post_ops_t::entry_t::eltwise_t eltwise_;
-    bool do_sum_ = false;
-    bool do_signed_scaling_ = false;
 };
+
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d);
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d);
 
 } // namespace gemm_x8s8s32x_convolution_utils
 } // namespace cpu

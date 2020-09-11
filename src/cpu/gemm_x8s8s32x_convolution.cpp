@@ -22,6 +22,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/binary_injector_utils.hpp"
 #include "cpu/cpu_primitive.hpp"
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm_x8s8s32x_convolution.hpp"
@@ -38,24 +39,27 @@ using namespace dnnl::impl::memory_tracking::names;
 template <data_type_t src_type, data_type_t dst_type>
 status_t _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
         const exec_ctx_t &ctx) const {
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
     auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bia_base = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst_base = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector_utils::prepare_binary_args(
+                    this->pd()->attr()->post_ops_, ctx);
 
     DEFINE_ZERO_POINTS_BUFFER(zp_src, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(zp_dst, DNNL_ARG_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
-
     assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
     std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_forward_thr(ithr, nthr, src_base, wei_base,
-                bia_base, zp_src, zp_dst, dst_base, scratchpad);
+                bia_base, zp_src, zp_dst, dst_base, scratchpad,
+                post_ops_binary_rhs_arg_vec.data(), ctx);
 
         if (st_thr != status::success) st = st_thr;
     });
@@ -76,7 +80,8 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         const int ithr, const int nthr, const src_data_t *src_base,
         const wei_data_t *wei_base, const char *bia_base, const int32_t *zp_src,
         const int32_t *zp_dst, dst_data_t *dst_base,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad,
+        const void *post_ops_binary_rhs_arg_vec, const exec_ctx_t &ctx) const {
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const auto src_md = memory_desc_wrapper(pd()->src_md());
@@ -154,8 +159,7 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         for (int od = 0; od < jcp.od; od++) {
             dst_data_t *__restrict dst = dst_base + n * dst_mb_stride
                     + g * dst_g_stride
-                    + ((od * jcp.oh + oh) * jcp.ow + ow)
-                            * pp_ker_->dst_os_stride_;
+                    + ((od * jcp.oh + oh) * jcp.ow + ow) * jcp.dst_os_stride;
             if (jcp.im2col_sz) {
                 if (is_problem_3d)
                     jit_gemm_convolution_utils::im2col_dt_3d<src_data_t,
@@ -190,11 +194,13 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
                     : 1.f;
 
             parallel(0, [&](int ithr, int nthr) {
-                size_t start, end;
-                balance211((size_t)N * jcp.oc, nthr, ithr, start, end);
+                size_t _start, _end;
+                balance211((size_t)N * jcp.oc, nthr, ithr, _start, _end);
+
                 (*pp_ker_)(dst, acc, bia_base, scales, nslope, sum_scale,
-                        1.f / wei_adj_scale, g, start, end, zp_src, zp_dst,
-                        zp_src_comp);
+                        1.f / wei_adj_scale, g, _start, _end, zp_src, zp_dst,
+                        zp_src_comp, post_ops_binary_rhs_arg_vec, dst_base, ctx,
+                        *pd()->dst_md());
             });
         }
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ohb, nb_oh, owb, nb_ow);

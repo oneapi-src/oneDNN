@@ -21,11 +21,10 @@
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 
+#include "cpu/cpu_convolution_pd.hpp"
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm_convolution_utils.hpp"
 #include "cpu/primitive_attr_postops.hpp"
-
-#include "cpu/cpu_convolution_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -49,7 +48,9 @@ struct gemm_convolution_fwd_t : public primitive_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops,
                             data_type::f32)
-                    && post_ops_ok();
+                    && jit_gemm_convolution_utils::post_ops_ok(
+                            attr()->post_ops_, &dst_md_);
+
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -59,37 +60,18 @@ struct gemm_convolution_fwd_t : public primitive_t {
         }
 
         conv_gemm_conf_t jcp_;
-
-    protected:
-        bool post_ops_ok() const {
-            auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
-            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
-
-            switch (po.len()) {
-                case 0: return true; // no post_ops
-                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-                case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-                default: return false;
-            }
-            return false;
-        }
     };
 
     gemm_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd), eltwise_(nullptr) {}
+        : primitive_t(apd), post_ops_(nullptr) {}
 
     status_t init(engine_t *engine) override {
-        const auto &post_ops = pd()->attr()->post_ops_;
         const data_t one = 1.0, zero = 0.0;
-        beta_ = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
+        const auto &jcp = pd()->jcp_;
+        beta_ = jcp.with_sum ? one : zero;
 
-        const int entry_idx = post_ops.find(primitive_kind::eltwise);
-        if (entry_idx != -1)
-            CHECK(safe_ptr_assign(eltwise_,
-                    new ref_eltwise_scalar_fwd_t(
-                            post_ops.entry_[entry_idx].eltwise)));
+        if (jcp.with_eltwise || jcp.with_binary)
+            CHECK(safe_ptr_assign(post_ops_, new ref_post_ops_t(jcp.post_ops)));
         return status::success;
     }
 
@@ -103,15 +85,15 @@ struct gemm_convolution_fwd_t : public primitive_t {
 private:
     status_t execute_forward_ncsp(const exec_ctx_t &ctx) const;
     status_t execute_forward_nspc(const exec_ctx_t &ctx) const;
-    status_t execute_forward_thr_nspc(const int ithr, const int nthr,
-            const data_t *src_base, const data_t *wei_base,
+    status_t execute_forward_thr_nspc(const exec_ctx_t &ctx, const int ithr,
+            const int nthr, const data_t *src_base, const data_t *wei_base,
             const data_t *bia_base, data_t *dst_base,
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     data_t beta_;
 
-    std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_;
+    std::unique_ptr<ref_post_ops_t> post_ops_;
 };
 
 struct gemm_convolution_bwd_data_t : public primitive_t {

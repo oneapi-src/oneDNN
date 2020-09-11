@@ -108,6 +108,8 @@ public:
      */
     void compute_vector(size_t idx,
             const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params);
+    void compute_vector(size_t idx);
+
     /*
      * Thin wrapper for eltwise injector specific function
      */

@@ -16,13 +16,13 @@
 
 #include "oneapi/dnnl/dnnl_types.h"
 
+#include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-
-#include "common/bfloat16.hpp"
 #include "cpu/gemm_convolution_utils.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 
 #include "cpu/platform.hpp"
 
@@ -1034,6 +1034,15 @@ status_t init_conf(conv_gemm_conf_t &jcp,
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef
             || cd.diff_bias_desc.format_kind != format_kind::undef;
+
+    jcp.post_ops = attr.post_ops_;
+
+    const int eltwise_ind = jcp.post_ops.find(primitive_kind::eltwise);
+    jcp.with_eltwise = eltwise_ind != -1;
+    const int binary_ind = jcp.post_ops.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+    const int sum_ind = jcp.post_ops.find(primitive_kind::sum);
+    jcp.with_sum = sum_ind != -1;
 
     jcp.is = jcp.ih * jcp.iw;
     jcp.os = jcp.oh * jcp.ow;
@@ -2053,6 +2062,13 @@ status_t init_conf(conv_gemm_conf_t &jcp,
         }
     }
 
+    jcp.bias_data_type = cd.bias_desc.data_type;
+    jcp.dst_data_type = dst_md.data_type;
+    jcp.dst_os_stride = dst_d.is_blocking_desc()
+            ? dst_d.blocking_desc().strides[ndims - 1]
+            : 0;
+    jcp.scale_idx_mult = (attr.output_scales_.mask_ == (1 << 1));
+
     if (scratchpad.size() > scratchpad_limit) return status::unimplemented;
     return status::success;
 }
@@ -2118,8 +2134,31 @@ void bwd_weights_reduction_par_nspc(int ithr, int nthr, size_t g_start,
     }
 }
 
-}; // namespace jit_gemm_convolution_utils
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d) {
+#if DNNL_X64
+    using namespace x64::injector;
+    static constexpr bool sum_at_pos_0_only = true;
+    static constexpr bool sum_requires_scale_one = true;
+    return x64::injector::post_ops_ok({x64::isa_all, {binary, eltwise, sum},
+            post_ops, dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+#endif
+    for (int i = 0; i < post_ops.entry_.size(); i++) {
+        const auto &post_op = post_ops.entry_[i];
+        const bool sum_postop_present = post_op.is_sum();
+        if (sum_postop_present && i > 0) return false;
+        if (!(sum_postop_present || post_op.is_eltwise()
+                    || post_op.is_binary()))
+            return false;
+    }
+    return true;
+}
 
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d) {
+    const auto dst_md = memory_desc_wrapper(dst_d);
+    return post_ops_ok(post_ops, &dst_md);
+}
+
+} // namespace jit_gemm_convolution_utils
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

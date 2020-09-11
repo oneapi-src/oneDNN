@@ -18,6 +18,7 @@
 #define CPU_X64_JIT_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
 
 #include "cpu/gemm_x8s8s32x_convolution_utils.hpp"
+#include "cpu/x64/injectors/injector_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,6 +28,9 @@ namespace gemm_x8s8s32x_convolution_utils {
 
 cpu::gemm_x8s8s32x_convolution_utils::pp_ker_t *jit_pp_ker_create(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp);
+
+bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d);
+
 } // namespace gemm_x8s8s32x_convolution_utils
 } // namespace x64
 } // namespace cpu
