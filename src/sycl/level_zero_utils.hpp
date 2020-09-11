@@ -37,11 +37,7 @@ status_t sycl_create_kernel_with_level_zero(
         std::unique_ptr<cl::sycl::kernel> &sycl_kernel,
         const sycl_gpu_engine_t *sycl_engine,
         const std::vector<unsigned char> &binary,
-        const std::string &kernel_name, void **handle_to_destroy);
-
-status_t sycl_destroy_kernel_with_level_zero(
-        std::unique_ptr<cl::sycl::kernel> &sycl_kernel,
-        void *handle_to_destroy);
+        const std::string &kernel_name);
 
 } // namespace sycl
 } // namespace impl

@@ -256,8 +256,8 @@ ocl_wrapper_t<T> make_ocl_wrapper(T t) {
     return ocl_wrapper_t<T>(t);
 }
 
-status_t get_ocl_kernel_arg_type(
-        compute::scalar_type_t *type, cl_kernel ocl_kernel, int idx);
+status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
+        cl_kernel ocl_kernel, int idx, bool allow_undef = false);
 
 #ifdef DNNL_ENABLE_MEM_DEBUG
 cl_mem DNNL_WEAK clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
