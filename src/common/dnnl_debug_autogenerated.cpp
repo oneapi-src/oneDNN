@@ -64,6 +64,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_ab) return "ab";
     if (v == dnnl_abc) return "abc";
     if (v == dnnl_abcd) return "abcd";
+    if (v == dnnl_acbd) return "acbd";
     if (v == dnnl_abcde) return "abcde";
     if (v == dnnl_abcdef) return "abcdef";
     if (v == dnnl_abdc) return "abdc";
@@ -529,7 +530,6 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_eltwise) return "eltwise";
     if (v == dnnl_softmax) return "softmax";
     if (v == dnnl_pooling) return "pooling";
-    if (v == dnnl_pooling_v2) return "pooling_v2";
     if (v == dnnl_lrn) return "lrn";
     if (v == dnnl_batch_normalization) return "batch_normalization";
     if (v == dnnl_layer_normalization) return "layer_normalization";
@@ -540,6 +540,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_logsoftmax) return "logsoftmax";
     if (v == dnnl_matmul) return "matmul";
     if (v == dnnl_resampling) return "resampling";
+    if (v == dnnl_pooling_v2) return "pooling_v2";
     if (v == dnnl_reduction) return "reduction";
     if (v == dnnl_primitive_kind_max) return "primitive_kind_max";
     assert(!"unknown prim_kind");
