@@ -53,7 +53,8 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
     const bool with_groups
             = memory_desc_wrapper(weights_d).ndims() == ndims + 1;
 
-    bool rtus_applicable = utils::one_of(ndims, 3, 4) && !with_groups;
+    bool rtus_applicable = utils::one_of(ndims, 3, 4)
+            && IMPLICATION(with_groups, weights_d->dims[0] == 1);
     if (ndims == 3)
         rtus_applicable = rtus_applicable && conv_d->strides[0] != 1
                 && conv_d->src_desc.data_type != data_type::s32;
