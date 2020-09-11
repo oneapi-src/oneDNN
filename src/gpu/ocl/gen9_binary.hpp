@@ -58,6 +58,7 @@ struct gen9_binary_t : public gpu_primitive_t {
                             || utils::everyone_is(f16, src_md(0)->data_type,
                                     src_md(1)->data_type, dst_md()->data_type)
                             || utils::one_of(src_md(0)->data_type, s8, u8))
+                    && (src_md(0)->data_type == dst_md()->data_type)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(src_md(0)->data_type, s8, u8)
                                     && utils::one_of(

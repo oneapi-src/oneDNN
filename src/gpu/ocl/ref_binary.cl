@@ -26,7 +26,8 @@
 
 KERNEL_ATTR
 __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
-        __global DATA_T *dst POST_OP_ARGS, float src0_scale, float src1_scale) {
+        __global DST_DATA_T *dst POST_OP_ARGS, float src0_scale,
+        float src1_scale) {
     int off = GWS_GET_IDX();
 
     POST_OP_DATA_T tmp_src0 = DATA_TO_REF(src0[off]);
@@ -62,7 +63,8 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
 #else
 KERNEL_ATTR
 __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
-        __global DATA_T *dst POST_OP_ARGS, float src0_scale, float src1_scale) {
+        __global DST_DATA_T *dst POST_OP_ARGS, float src0_scale,
+        float src1_scale) {
 
     // since gws = no. of total elems in A, id will be the logical offset
     int dims0[6] = {0};

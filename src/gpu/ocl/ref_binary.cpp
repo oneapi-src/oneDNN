@@ -34,6 +34,7 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.dst_md_info = memory_desc_info_t::create(dst_d);
     conf.src0_data_type = src0_d.data_type();
     conf.src1_data_type = src1_d.data_type();
+    conf.dst_data_type = dst_d.data_type();
     conf.ndims = ndims;
     for (int i = 0; i < MAX_NDIMS; ++i) {
         conf.bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;

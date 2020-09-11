@@ -45,7 +45,8 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src0, const dnn_mem_t &src1,
             float binary_val = binary_po[d].get_elem(bin_po_offset);
             v_binary_vals.push_back(binary_val);
         }
-        maybe_post_ops(prb->attr, res, dst, v_binary_vals);
+        maybe_post_ops(
+                prb->attr, res, maybe_saturate(prb->ddt, dst), v_binary_vals);
         dst = res;
     });
 }
