@@ -1,0 +1,12 @@
+--reset
+
+--inplace=false
+--alg=ADD
+--ddt=f32
+--sdt=f32:f32
+--stag=nhwc:nhwc
+
+1x256x56x56:1x256x56x56
+1x512x28x28:1x512x28x28
+1x1024x14x14:1x1024x14x14
+1x2048x7x7:1x2048x7x7

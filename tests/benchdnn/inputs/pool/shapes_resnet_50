@@ -1,0 +1,13 @@
+# resnet_50
+
+--reset
+--dir=FWD_I
+--cfg=f32
+--tag=nhwc
+--mb=16
+
+--alg=MAX
+ic64_ih112oh56_kh3sh2n"resnet_50:max_pool1"
+
+--alg=AVG_NP
+ic2048_ih7oh1_kh7sh1n"resnet_50:ave_pool5"

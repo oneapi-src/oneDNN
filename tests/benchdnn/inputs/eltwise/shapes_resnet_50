@@ -1,0 +1,30 @@
+# vgg_16
+--reset
+--dt=f32
+--alg=relu
+--inplace=true
+--alpha=0 --beta=0
+--tag=nhwc
+--dir=FWD_I
+--mb=16
+
+#ic3ih224iw224oc64oh112ow112kh7kw7sh2sw2ph3pw3n"resnet_50:conv1"
+1x64x112x112
+# ic64ih56oc256oh56kh1ph0n"resnet_50:res2a_branch1*4"
+1x256x56x56
+# ic64ih56oc64oh56kh1ph0n"resnet_50:res2a_branch2a"
+1x64x56x56                                        
+# ic256ih56iw56oc512oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch1"
+1x512x28x28
+# ic256ih56iw56oc128oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch2a"
+1x128x28x28
+       
+# ic512ih28iw28oc1024oh14ow14kh1kw1sh2sw2ph0pw0n"resnet_50:res4a_branch1"
+1x1024x14x14
+# ic512ih28iw28oc256oh14ow14kh1kw1sh2sw2ph0pw0n"resnet_50:res4a_branch2a"
+1x256x14x14
+     
+# ic1024ih14iw14oc2048oh7ow7kh1kw1sh2sw2ph0pw0n"resnet_50:res5a_branch1"
+1x2048x7x7
+# ic1024ih14iw14oc512oh7ow7kh1kw1sh2sw2ph0pw0n"resnet_50:res5a_branch2a"
+1x512x7x7

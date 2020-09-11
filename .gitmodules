@@ -1,0 +1,3 @@
+[submodule "trained_weights"]
+	path = trained_weights
+	url = https://github.com/KumudhaN/trained_weights.git

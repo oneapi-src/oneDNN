@@ -1,0 +1,11 @@
+# resnet_50
+
+--reset
+--dir=FWD_D
+--cfg=f32
+--mb=16
+--stag=nhwc
+--dtag=nc
+--wtag=hwio
+
+ic2048ih1iw1oc1000n"resnet:ip1"

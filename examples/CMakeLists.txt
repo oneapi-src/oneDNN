@@ -37,7 +37,7 @@ if(UNIX)
     find_library(LIBM m)
 endif()
 
-file(GLOB_RECURSE sources *.cpp *.c)
+file(GLOB_RECURSE sources *.cpp *.c ${CMAKE_CURRENT_LIST_DIR}/models/*.cpp)
 file(GLOB_RECURSE headers *.hpp *.h)
 
 # Skip SYCL, GPU and cross-engine examples
@@ -170,3 +170,40 @@ if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
             DESTINATION examples)
     endif()
 endif()
+
+add_custom_target(
+  copy_dataset ALL
+  COMMAND
+    ${CMAKE_COMMAND} -E copy_directory
+    ${PROJECT_SOURCE_DIR}/trained_weights/vgg16_transposed_param_files
+    ${CMAKE_BINARY_DIR}/examples/vgg16_transposed_param_files
+  COMMAND
+    ${CMAKE_COMMAND} -E copy
+    ${PROJECT_SOURCE_DIR}/trained_weights/kangaroo.jpg.bin
+    ${CMAKE_BINARY_DIR}/examples/kangaroo.jpg.bin
+  COMMAND
+    ${CMAKE_COMMAND} -E copy
+    ${PROJECT_SOURCE_DIR}/trained_weights/grace_hopper_nhwc.bin
+    ${CMAKE_BINARY_DIR}/examples/grace_hopper_nhwc.bin
+  COMMAND
+    ${CMAKE_COMMAND} -E copy_directory
+    ${PROJECT_SOURCE_DIR}/trained_weights/resnet50_transposed_param_files
+    ${CMAKE_BINARY_DIR}/examples/resnet50_transposed_param_files)
+add_dependencies(models-VGG-cpp copy_dataset)
+add_dependencies(models-ResNet50-cpp copy_dataset)
+
+
+add_custom_target(
+  run_vgg
+  COMMAND models-VGG-cpp gpu
+  COMMENT "Running VGG..."
+  USES_TERMINAL)
+
+add_custom_target(
+  run_resnet
+  COMMAND models-ResNet50-cpp gpu
+  COMMENT "Running ResNet..."
+  USES_TERMINAL)
+
+add_dependencies(run_vgg copy_dataset)
+add_dependencies(run_resnet copy_dataset)
