@@ -156,6 +156,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->sdt, prb->ddt}, FWD_D, res);
     if (res->state == SKIPPED) return;
 
+    if (engine_tgt_kind != dnnl_cpu) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     bool is_invalid = false;
     switch (prb->alg) {
         case alg_t::MEAN:
