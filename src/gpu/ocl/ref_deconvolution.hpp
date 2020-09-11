@@ -116,9 +116,13 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         status_t init(engine_t *engine) {
             using namespace format_tag;
 
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
+
             bool ok = is_fwd()
                     && desc()->alg_kind == alg_kind::deconvolution_direct
-                    && attr()->has_default_values()
+                    && attr()->has_default_values(attr_skip_mask)
+                    && post_ops_with_binary_ok(
+                            attr(), desc()->dst_desc.data_type)
                     && (utils::everyone_is(data_type::f32,
                                 desc()->src_desc.data_type,
                                 desc()->weights_desc.data_type,
@@ -184,6 +188,14 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         conv_args[DNNL_ARG_DIFF_SRC] = args.at(DNNL_ARG_DST);
         if (pd()->with_bias())
             conv_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
+
+        for (int idx = 0; idx < pd()->attr()->post_ops_.len(); ++idx) {
+            if (pd()->attr()->post_ops_.entry_[idx].is_binary()) {
+                conv_args[DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1]
+                        = args.at(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                | DNNL_ARG_SRC_1);
+            }
+        }
         exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 
         nested_scratchpad_t ns(ctx, key_nested, conv_p_);

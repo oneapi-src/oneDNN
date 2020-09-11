@@ -94,7 +94,7 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
 KERNEL_ATTR
 __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
         const __global WEI_DATA_T *wei, const __global DST_DATA_T *diff_dst,
-        const __global BIA_DATA_T *bias) {
+        const __global BIA_DATA_T *bias POST_OP_ARGS) {
     const int n = GWS_GET_MB();
     const int ic = GWS_GET_IC();
     const int g = GWS_GET_G();
@@ -125,7 +125,18 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
             d += DST_TO_REF(diff_dst[dst_off]) * WEI_TO_REF(wei[wei_off]);
         }
     }
-    diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)] = TO_SRC(d);
+
+    float sum_src;
+#if WITH_SUM
+    sum_src = convert_float(
+            SRC_TO_REF(diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)]));
+#endif
+
+    float accumulator = convert_float(d);
+    APPLY_POST_OPS(accumulator, float, sum_src, float, n, 1, g *IC + ic, 1, id,
+            1, ih, 1, iw, 1, 0, 1);
+
+    diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)] = TO_SRC(accumulator);
 }
 #endif
 
