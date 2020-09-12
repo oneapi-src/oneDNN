@@ -241,7 +241,7 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
 
     gen12lp_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
-    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
+    status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
     status_t launch_x8x8s32(gemm_exec_ctx_t ctx, compute::compute_stream_t *s,

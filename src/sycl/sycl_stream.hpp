@@ -72,14 +72,14 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return status::success;
     }
 
-    virtual status_t wait() override {
+    status_t wait() override {
         queue_->wait_and_throw();
         return status::success;
     }
 
     cl::sycl::queue &queue() { return *queue_; }
 
-    virtual status_t enqueue_primitive(const primitive_iface_t *prim_iface,
+    status_t enqueue_primitive(const primitive_iface_t *prim_iface,
             exec_ctx_t &exec_ctx) override {
         auto execute_func = [&]() {
             status_t status = status::success;
@@ -112,8 +112,8 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return status;
     }
 
-    virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size) override {
+    status_t copy(const memory_storage_t &src, const memory_storage_t &dst,
+            size_t size) override {
         if (size == 0) return status::success;
         // TODO: add src and dst sizes check
 
@@ -187,7 +187,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
         return status::success;
     }
 
-    virtual status_t fill(const memory_storage_t &dst, uint8_t pattern,
+    status_t fill(const memory_storage_t &dst, uint8_t pattern,
             size_t size) override {
         auto *sycl_dst
                 = utils::downcast<const sycl_memory_storage_base_t *>(&dst);

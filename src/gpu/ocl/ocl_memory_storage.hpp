@@ -59,7 +59,7 @@ public:
     std::unique_ptr<memory_storage_t> get_sub_storage(
             size_t offset, size_t size) const override;
 
-    virtual std::unique_ptr<memory_storage_t> clone() const override;
+    std::unique_ptr<memory_storage_t> clone() const override;
 
 protected:
     status_t init_allocate(size_t size) override;

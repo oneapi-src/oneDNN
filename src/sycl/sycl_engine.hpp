@@ -79,15 +79,14 @@ public:
         assert(utils::one_of(engine_kind_, engine_kind::cpu, engine_kind::gpu));
     }
 
-    virtual size_t count() const override {
+    size_t count() const override {
         auto dev_type = (engine_kind_ == engine_kind::cpu)
                 ? cl::sycl::info::device_type::cpu
                 : cl::sycl::info::device_type::gpu;
         return get_intel_sycl_devices(dev_type).size();
     }
 
-    virtual status_t engine_create(
-            engine_t **engine, size_t index) const override {
+    status_t engine_create(engine_t **engine, size_t index) const override {
         assert(index < count());
         auto dev_type = (engine_kind_ == engine_kind::cpu)
                 ? cl::sycl::info::device_type::cpu

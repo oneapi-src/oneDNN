@@ -41,12 +41,12 @@ public:
 
     memory_kind_t memory_kind() const override { return memory_kind::buffer; }
 
-    virtual status_t get_data_handle(void **handle) const override {
+    status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(buffer_.get());
         return status::success;
     }
 
-    virtual status_t set_data_handle(void *handle) override {
+    status_t set_data_handle(void *handle) override {
         if (!handle) return status::success;
 
         auto *buf_u8_ptr = static_cast<buffer_u8_t *>(handle);
@@ -54,22 +54,21 @@ public:
         return status::success;
     }
 
-    virtual size_t base_offset() const override { return base_offset_; }
+    size_t base_offset() const override { return base_offset_; }
 
-    virtual status_t map_data(
+    status_t map_data(
             void **mapped_ptr, stream_t *stream, size_t) const override;
-    virtual status_t unmap_data(
-            void *mapped_ptr, stream_t *stream) const override;
+    status_t unmap_data(void *mapped_ptr, stream_t *stream) const override;
 
-    virtual bool is_host_accessible() const override { return false; }
+    bool is_host_accessible() const override { return false; }
 
-    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+    std::unique_ptr<memory_storage_t> get_sub_storage(
             size_t offset, size_t size) const override;
 
-    virtual std::unique_ptr<memory_storage_t> clone() const override;
+    std::unique_ptr<memory_storage_t> clone() const override;
 
 protected:
-    virtual status_t init_allocate(size_t size) override;
+    status_t init_allocate(size_t size) override;
 
 private:
     buffer_u8_t &parent_buffer() const;

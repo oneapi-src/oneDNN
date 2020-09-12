@@ -42,12 +42,12 @@ public:
 
     memory_kind_t memory_kind() const override { return memory_kind::usm; }
 
-    virtual status_t get_data_handle(void **handle) const override {
+    status_t get_data_handle(void **handle) const override {
         *handle = usm_ptr_.get();
         return status::success;
     }
 
-    virtual status_t set_data_handle(void *handle) override {
+    status_t set_data_handle(void *handle) override {
         auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
         auto &sycl_ctx = sycl_engine->context();
 
@@ -57,12 +57,11 @@ public:
         return status::success;
     }
 
-    virtual status_t map_data(
+    status_t map_data(
             void **mapped_ptr, stream_t *stream, size_t size) const override;
-    virtual status_t unmap_data(
-            void *mapped_ptr, stream_t *stream) const override;
+    status_t unmap_data(void *mapped_ptr, stream_t *stream) const override;
 
-    virtual bool is_host_accessible() const override {
+    bool is_host_accessible() const override {
         if (engine()->kind() == engine_kind::cpu) return true; // optimism
 
         /* FIXME: remove the W/A below when possible (fixed driver).
@@ -98,7 +97,7 @@ public:
         return storage;
     }
 
-    virtual std::unique_ptr<memory_storage_t> clone() const override {
+    std::unique_ptr<memory_storage_t> clone() const override {
         auto storage = utils::make_unique<sycl_usm_memory_storage_t>(engine());
         if (!storage) return nullptr;
 
@@ -113,7 +112,7 @@ public:
     }
 
 protected:
-    virtual status_t init_allocate(size_t size) override {
+    status_t init_allocate(size_t size) override {
         auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
         auto &sycl_dev = sycl_engine->device();
         auto &sycl_ctx = sycl_engine->context();

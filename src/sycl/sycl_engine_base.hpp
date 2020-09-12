@@ -67,13 +67,13 @@ public:
         return status::success;
     }
 
-    virtual status_t create_memory_storage(memory_storage_t **storage,
-            unsigned flags, size_t size, void *handle) override;
+    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
+            size_t size, void *handle) override;
 
-    virtual status_t create_stream(stream_t **stream, unsigned flags) override;
+    status_t create_stream(stream_t **stream, unsigned flags) override;
     status_t create_stream(stream_t **stream, cl::sycl::queue &queue);
 
-    virtual status_t create_kernel(gpu::compute::kernel_t *kernel,
+    status_t create_kernel(gpu::compute::kernel_t *kernel,
             gpu::jit::jit_generator_base &jitter) const override {
         if (kind() != engine_kind::gpu) {
             assert("not expected");
@@ -93,8 +93,7 @@ public:
         return status::success;
     }
 
-    virtual status_t create_kernels(
-            std::vector<gpu::compute::kernel_t> *kernels,
+    status_t create_kernels(std::vector<gpu::compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
             const gpu::compute::kernel_ctx_t &kernel_ctx) const override {
         if (kind() != engine_kind::gpu) {
@@ -134,13 +133,9 @@ public:
         return gpu::ocl::make_ocl_wrapper(context().get());
     }
 
-    virtual device_id_t device_id() const override {
-        return sycl_device_id(device_);
-    }
+    device_id_t device_id() const override { return sycl_device_id(device_); }
 
-    virtual bool mayiuse_ngen_kernels() override {
-        return enable_ngen_kernels_;
-    }
+    bool mayiuse_ngen_kernels() override { return enable_ngen_kernels_; }
 
 private:
     cl::sycl::device device_;

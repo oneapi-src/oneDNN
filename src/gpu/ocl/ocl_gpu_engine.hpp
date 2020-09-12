@@ -107,7 +107,7 @@ public:
         return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
     }
 
-    virtual bool mayiuse_ngen_kernels() override {
+    bool mayiuse_ngen_kernels() override {
         check_mayiuse_ngen_kernels();
         return enable_ngen_kernels_;
     }

@@ -39,34 +39,34 @@ public:
         assert(dev.is_cpu() || dev.is_host());
     }
 
-    virtual status_t create_memory_storage(memory_storage_t **storage,
-            unsigned flags, size_t size, void *handle) override {
+    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
+            size_t size, void *handle) override {
         return sycl_engine_base_t::create_memory_storage(
                 storage, flags, size, handle);
     }
 
-    virtual status_t create_stream(stream_t **stream, unsigned flags) override {
+    status_t create_stream(stream_t **stream, unsigned flags) override {
         return sycl_engine_base_t::create_stream(stream, flags);
     }
 
-    virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list(const memory_desc_t *src_md,
+    const reorder_primitive_desc_create_f *get_reorder_implementation_list(
+            const memory_desc_t *src_md,
             const memory_desc_t *dst_md) const override {
         return cpu::cpu_engine_impl_list_t::get_reorder_implementation_list(
                 src_md, dst_md);
     }
 
-    virtual const concat_primitive_desc_create_f *
+    const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override {
         return cpu::cpu_engine_impl_list_t::get_concat_implementation_list();
     }
 
-    virtual const sum_primitive_desc_create_f *
+    const sum_primitive_desc_create_f *
     get_sum_implementation_list() const override {
         return cpu::cpu_engine_impl_list_t::get_sum_implementation_list();
     }
 
-    virtual const primitive_desc_create_f *get_implementation_list(
+    const primitive_desc_create_f *get_implementation_list(
             const op_desc_t *desc) const override {
         return cpu::cpu_engine_impl_list_t::get_implementation_list(desc);
     }

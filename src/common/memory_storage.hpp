@@ -124,7 +124,7 @@ struct empty_memory_storage_t : public memory_storage_t {
         return nullptr;
     }
 
-    virtual std::unique_ptr<memory_storage_t> clone() const override {
+    std::unique_ptr<memory_storage_t> clone() const override {
         assert(!"not expected");
         return nullptr;
     }

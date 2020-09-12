@@ -55,7 +55,7 @@ public:
         return std::unique_ptr<memory_storage_t>(sub_storage);
     }
 
-    virtual std::unique_ptr<memory_storage_t> clone() const override {
+    std::unique_ptr<memory_storage_t> clone() const override {
         auto storage = new cpu_memory_storage_t(engine());
         if (storage)
             storage->init(memory_flags_t::use_runtime_ptr, 0, data_.get());

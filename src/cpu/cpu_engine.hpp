@@ -108,32 +108,32 @@ public:
 
     /* implementation part */
 
-    virtual status_t create_memory_storage(memory_storage_t **storage,
-            unsigned flags, size_t size, void *handle) override;
+    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
+            size_t size, void *handle) override;
 
-    virtual status_t create_stream(stream_t **stream, unsigned flags) override;
+    status_t create_stream(stream_t **stream, unsigned flags) override;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    virtual status_t create_stream(stream_t **stream,
+    status_t create_stream(stream_t **stream,
             dnnl::threadpool_interop::threadpool_iface *threadpool) override;
 #endif
 
-    virtual const concat_primitive_desc_create_f *
+    const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override {
         return cpu_engine_impl_list_t::get_concat_implementation_list();
     }
 
-    virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list(const memory_desc_t *src_md,
+    const reorder_primitive_desc_create_f *get_reorder_implementation_list(
+            const memory_desc_t *src_md,
             const memory_desc_t *dst_md) const override {
         return cpu_engine_impl_list_t::get_reorder_implementation_list(
                 src_md, dst_md);
     }
-    virtual const sum_primitive_desc_create_f *
+    const sum_primitive_desc_create_f *
     get_sum_implementation_list() const override {
         return cpu_engine_impl_list_t::get_sum_implementation_list();
     }
-    virtual const primitive_desc_create_f *get_implementation_list(
+    const primitive_desc_create_f *get_implementation_list(
             const op_desc_t *desc) const override {
         return cpu_engine_impl_list_t::get_implementation_list(desc);
     }
