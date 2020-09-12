@@ -110,7 +110,7 @@ public:
         return reinterpret_cast<intptr_t>(device());
     }
 
-    virtual bool mayiuse_ngen_kernels() override {
+    bool mayiuse_ngen_kernels() override {
         check_mayiuse_ngen_kernels();
         return enable_ngen_kernels_;
     }

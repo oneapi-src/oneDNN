@@ -156,7 +156,7 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
     gen12lp_x8s8s32x_convolution_fwd_t(const pd_t *apd)
         : gpu_primitive_t(apd) {}
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -251,7 +251,7 @@ struct gen12lp_x8s8s32x_convolution_bwd_data_t : public gpu_primitive_t {
     gen12lp_x8s8s32x_convolution_bwd_data_t(const pd_t *apd)
         : gpu_primitive_t(apd) {}
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
 
