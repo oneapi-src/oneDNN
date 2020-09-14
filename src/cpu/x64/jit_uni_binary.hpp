@@ -75,6 +75,15 @@ struct jit_uni_binary_t : public primitive_t {
         }
 
     private:
+        // alg_preserves_zero returns true if operation preserves zero in case
+        // of both inputs contain zero.
+        bool alg_preserves_zero() const {
+            using namespace utils;
+            using namespace alg_kind;
+            return utils::one_of(desc()->alg_kind, binary_add, binary_max,
+                    binary_min, binary_mul);
+        }
+
         bool is_applicable() {
             const memory_desc_wrapper src0_d(src_md(0));
             const memory_desc_wrapper src1_d(src_md(1));
@@ -84,6 +93,13 @@ struct jit_uni_binary_t : public primitive_t {
             // the next check
             bool ok = src0_d.is_dense(true) && src1_d.is_dense(true)
                     && dst_d.is_dense(true);
+            if (!ok) return false;
+
+            const bool has_padding = utils::one_of(true,
+                    src0_d.nelems(true) != src0_d.nelems(false),
+                    src1_d.nelems(true) != src1_d.nelems(false),
+                    dst_d.nelems(true) != dst_d.nelems(false));
+            ok = IMPLICATION(has_padding, alg_preserves_zero());
             if (!ok) return false;
 
             // full tensor operation

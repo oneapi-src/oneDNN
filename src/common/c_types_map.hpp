@@ -111,6 +111,7 @@ const alg_kind_t binary_add = dnnl_binary_add;
 const alg_kind_t binary_mul = dnnl_binary_mul;
 const alg_kind_t binary_max = dnnl_binary_max;
 const alg_kind_t binary_min = dnnl_binary_min;
+const alg_kind_t binary_div = dnnl_binary_div;
 const alg_kind_t resampling_nearest = dnnl_resampling_nearest;
 const alg_kind_t resampling_linear = dnnl_resampling_linear;
 const alg_kind_t reduction_max = dnnl_reduction_max;

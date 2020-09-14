@@ -2,7 +2,7 @@
 --reset
 
 --inplace=false
---alg=ADD,MUL,MAX,MIN
+--alg=ADD,MUL,MAX,MIN,DIV
 --ddt=s8,u8
 --sdt=f32:f32
 --batch=shapes_common
@@ -20,7 +20,7 @@
 --reset
 
 --inplace=false
---alg=ADD,MUL,MAX,MIN
+--alg=ADD,MUL,MAX,MIN,DIV
 --ddt=s8,u8
 --sdt=s8:f32
 --batch=shapes_common

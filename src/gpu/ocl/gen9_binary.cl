@@ -296,6 +296,8 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     d = max(tmp_src0, tmp_src1);
 #elif IS_MIN
     d = min(tmp_src0, tmp_src1);
+#elif IS_DIV
+    d = tmp_src0 / tmp_src1;
 #endif
 
 #if WITH_SUM

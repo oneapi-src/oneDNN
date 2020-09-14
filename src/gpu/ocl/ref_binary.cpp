@@ -43,6 +43,7 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.is_mul = (alg == alg_kind::binary_mul);
     conf.is_max = (alg == alg_kind::binary_max);
     conf.is_min = (alg == alg_kind::binary_min);
+    conf.is_div = (alg == alg_kind::binary_div);
     conf.is_tensor_op = is_tensor_op();
     conf.is_dense = dst_d.is_dense();
     conf.same_src_dt = (src0_d.data_type() == src1_d.data_type());
@@ -107,6 +108,7 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IS_ADD", conf.is_add);
     kernel_ctx.define_int("IS_MAX", conf.is_max);
     kernel_ctx.define_int("IS_MIN", conf.is_min);
+    kernel_ctx.define_int("IS_DIV", conf.is_div);
     kernel_ctx.define_int("IS_TENSOR_OP", conf.is_tensor_op);
     kernel_ctx.define_int("IS_DENSE", conf.is_dense);
     kernel_ctx.define_int("IS_SAME_MD", conf.is_same_md);

@@ -144,6 +144,25 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     return OK;
 }
 
+// Check that on a given input specific alg may return NaN or inf.
+bool check_extreme_values(float a, float b, alg_t alg) {
+    switch (alg) {
+        case alg_t::DIV:
+        // It is impossible to reliably test against reference in binary
+        // post-op chain since some algs may produce inf or NaN in the middle
+        // which is not expected for a standalone testing. Thus, when passing
+        // alg == BINARY_END, accept this fact. This alg to be used when
+        // comparing results with binary post-op chain.
+        case alg_t::BINARY_END:
+            if (std::isnan(a) && std::isnan(b)) return true;
+            if (std::isinf(a) && std::isinf(b)
+                    && std::signbit(a) == std::signbit(b))
+                return true;
+        default: break;
+    }
+    return false;
+}
+
 static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *res) {
     const auto nelems = dt_mem.nelems();
@@ -166,6 +185,8 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
         }
     }
 
+    const bool has_binary = po.binary_index() != -1;
+
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
         const float fp0 = fp_mem.get_elem(i);
@@ -174,8 +195,11 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+        if (!ok) ok = check_extreme_values(fp, dt, prb->alg);
         if (!ok && has_eltwise)
             ok = eltwise::check_extreme_values(fp, dt, alg_t::ELTWISE_END);
+        if (!ok && has_binary)
+            ok = check_extreme_values(fp, dt, alg_t::BINARY_END);
 
         res->errors += !ok;
 

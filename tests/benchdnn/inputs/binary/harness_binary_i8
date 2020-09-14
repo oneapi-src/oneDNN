@@ -2,7 +2,7 @@
 --reset
 
 --inplace=true,false
---alg=ADD,MUL,MAX,MIN
+--alg=ADD,MUL,MAX,MIN,DIV
 
 ## post_ops
 --ddt=s8 --sdt=s8:s8

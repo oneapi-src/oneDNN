@@ -570,6 +570,8 @@ enum class algorithm {
     binary_max = dnnl_binary_max,
     /// Binary min
     binary_min = dnnl_binary_min,
+    /// Binary div
+    binary_div = dnnl_binary_div,
     /// Nearest Neighbor resampling method
     resampling_nearest = dnnl_resampling_nearest,
     /// Linear (Bilinear, Trilinear) resampling method

@@ -203,6 +203,8 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
             uni_vmaxps(v0, v0, v1);
         else if (alg == binary_min)
             uni_vminps(v0, v0, v1);
+        else if (alg == binary_div)
+            uni_vdivps(v0, v0, v1);
         else
             assert(!"not supported operation!");
     }

@@ -160,7 +160,7 @@ static auto expected_failures = []() {
                     dnnl_invalid_arguments},
             // negative dim
             binary_test_params_t {{tag::nchw, tag::nchw}, tag::nchw,
-                    algorithm::binary_add, {-1, 8, 4, 4}, true,
+                    algorithm::binary_div, {-1, 8, 4, 4}, true,
                     dnnl_invalid_arguments});
 };
 
@@ -171,7 +171,7 @@ static auto zero_dim = []() {
             binary_test_params_t {{tag::nChw8c, tag::nhwc}, tag::nChw8c,
                     algorithm::binary_mul, {5, 0, 7, 6}},
             binary_test_params_t {{tag::nChw16c, tag::nchw}, tag::nChw16c,
-                    algorithm::binary_add, {8, 15, 0, 5}},
+                    algorithm::binary_div, {8, 15, 0, 5}},
             binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
                     algorithm::binary_mul, {5, 16, 7, 0}});
 };
@@ -185,7 +185,9 @@ static auto simple_cases = []() {
             binary_test_params_t {{tag::nChw8c, tag::nchw}, tag::nChw8c,
                     algorithm::binary_max, {8, 15, 6, 5}},
             binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::any,
-                    algorithm::binary_min, {5, 16, 7, 6}});
+                    algorithm::binary_min, {5, 16, 7, 6}},
+            binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
+                    algorithm::binary_div, {5, 16, 8, 7}});
 };
 
 #define INST_TEST_CASE(test) \
