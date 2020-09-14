@@ -1,12 +1,12 @@
 ---
-Add
+Pow
 ---
 
-**Versioned name**: *Add-1*
+**Versioned name**: *Pow-1*
 
 **Category**: *Arithmetic*
 
-**Short description**: *Add* performs element-wise addition operation with two given tensors applying multi-directional broadcast rules.
+**Short description**: *Pow* performs element-wise power operation with two given tensors applying multi-directional broadcast rules.
 
 **Attributes**:
 
@@ -29,7 +29,7 @@ Add
 
 **Outputs**
 
-* **1**: The result of element-wise addition operation. A tensor of type T.
+* **1**: The result of element-wise power operation. A tensor of type T. **Required.**
 
 **Types**
 
@@ -38,4 +38,6 @@ Add
 **Detailed description:**
 
 Before performing arithmetic operation, input tensors *a* and *b* are broadcasted if their shapes are different and ``auto_broadcast`` attributes is not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
+
+After broadcasting *Pow* does the following with the input tensors *a* and *b*:
 
