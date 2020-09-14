@@ -32,8 +32,8 @@ namespace cpu {
 using math::get_bias;
 
 namespace {
-dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb, dim_t c,
-        dim_t id, dim_t ih, dim_t iw) {
+inline dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb,
+        dim_t c, dim_t id, dim_t ih, dim_t iw) {
     switch (ndims) {
         case 5: return mdw.off(mb, c, id, ih, iw);
         case 4: return mdw.off(mb, c, ih, iw);
@@ -42,7 +42,7 @@ dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb, dim_t c,
     }
 }
 
-dim_t get_weights_off(const memory_desc_wrapper &mdw, bool with_groups,
+inline dim_t get_weights_off(const memory_desc_wrapper &mdw, bool with_groups,
         int ndims, dim_t g, dim_t oc, dim_t ic, dim_t kd, dim_t kh, dim_t kw) {
     switch (ndims) {
         case 5:
