@@ -34,9 +34,9 @@ LayerNormBackprop
   * **Default value**: 1e-5
   * **Required**: *no*
 
-* *use_stats *
+* *use_stats*
 
-  * **Description**: *use_stats * is used to indicate whether to use input mean and variance.
+  * **Description**: *use_stats* is used to indicate whether to use input mean and variance.
   * **Range of values**: False or True
   * **Type**: ``bool``
   * **Default value**: true

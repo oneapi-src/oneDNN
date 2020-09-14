@@ -24,6 +24,8 @@ List of all operators supported in LLGA can be found `here <https://gitlab.devto
    activation/Exp_1.rst
    activation/GELU_2.rst
    activation/GELUBackprop_2.rst
+   activation/HardTanh_1.rst
+   activation/HardTanhBackprop_1.rst
    normalization/LayerNorm_1.rst
    normalization/LayerNormBackprop_1.rst
    arithmetic/Log_1.rst
