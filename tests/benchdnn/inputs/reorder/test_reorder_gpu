@@ -6,6 +6,15 @@
 --dtag=abx,axb
 11 7x11 5x7x11 3x5x7x11 2x3x5x7x11
 
+# test vectorized kernel
+--stag=abcd
+--dtag=acbd,bacd
+3x5x7x64 64x16x384x64
+
+--stag=abcde
+--dtag=bacde,acbde
+3x5x7x11x16
+
 ### test types
 --reset
 --sdt=f32,s32,s8,u8,f16,bf16

@@ -32,33 +32,34 @@
 
 namespace lrn {
 
-int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
+int compare(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
     const auto nelems = mem_dt.nelems();
-    if (nelems == 0) return r->state = PASSED, OK;
+    if (nelems == 0) return res->state = PASSED, OK;
 
-    r->total = nelems;
+    res->total = nelems;
 
-    const int summands = compute_n_summands(p);
+    const int summands = compute_n_summands(prb);
     float trh = 1e-6 * summands;
-    if (p->dt == dnnl_f16) trh = 1e-3 * summands;
-    if (p->dt == dnnl_bf16) trh = 1e-2 * summands;
+    if (prb->dt == dnnl_f16) trh = 1e-3 * summands;
+    if (prb->dt == dnnl_bf16) trh = 1e-2 * summands;
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
         const float fp0 = mem_fp.get_elem(i);
-        const float fp = round_to_nearest_representable(p->dt, fp0);
+        const float fp = round_to_nearest_representable(prb->dt, fp0);
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         const bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= trh;
 
-        r->errors += !ok;
+        res->errors += !ok;
 
-        const bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
+        const bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
                 || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
             int64_t mb = 0, ic = 0, d = 0, h = 0, w = 0;
-            inv_data_off(p, i, mb, ic, d, h, w);
+            inv_data_off(prb, i, mb, ic, d, h, w);
 
             BENCHDNN_PRINT(0,
                     "[%4ld][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
@@ -68,18 +69,18 @@ int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
         }
     }
 
-    if (r->errors) r->state = FAILED;
+    if (res->errors) res->state = FAILED;
 
-    if (r->state == UNTESTED) r->state = PASSED; /* optimism */
+    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
 
-    return r->state == FAILED ? FAIL : OK;
+    return res->state == FAILED ? FAIL : OK;
 }
 
-int fill_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     const int range = 16;
-    const int f_min = p->dt == dnnl_u8 ? 0 : -range / 2;
+    const int f_min = prb->dt == dnnl_u8 ? 0 : -range / 2;
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const int64_t gen = kind == SRC ? 1091 * i + 1637 : 1279 * i + 1009;
@@ -92,50 +93,50 @@ int fill_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
-int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    return fill_dat(p, SRC, mem_dt, mem_fp);
+int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    return fill_dat(prb, SRC, mem_dt, mem_fp);
 }
 
-int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    return fill_dat(p, DST, mem_dt, mem_fp);
+int fill_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    return fill_dat(prb, DST, mem_dt, mem_fp);
 }
 
-static int init_pd(dnnl_engine_t engine, const prb_t *p,
-        dnnl_primitive_desc_t &lpd, res_t *r, dir_t dir,
+static int init_pd(dnnl_engine_t engine, const prb_t *prb,
+        dnnl_primitive_desc_t &lpd, res_t *res, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
     dnnl_lrn_desc_t ld;
     dnnl_memory_desc_t data_d;
 
-    dnnl_dims_t data_dims_0d = {p->mb, p->ic};
-    dnnl_dims_t data_dims_1d = {p->mb, p->ic, p->iw};
-    dnnl_dims_t data_dims_2d = {p->mb, p->ic, p->ih, p->iw};
-    dnnl_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
+    dnnl_dims_t data_dims_0d = {prb->mb, prb->ic};
+    dnnl_dims_t data_dims_1d = {prb->mb, prb->ic, prb->iw};
+    dnnl_dims_t data_dims_2d = {prb->mb, prb->ic, prb->ih, prb->iw};
+    dnnl_dims_t data_dims_3d = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
 
-    dnnl_dim_t *data_dims = p->ndims == 5
+    dnnl_dim_t *data_dims = prb->ndims == 5
             ? data_dims_3d
-            : p->ndims == 4 ? data_dims_2d
-                            : p->ndims == 3 ? data_dims_1d : data_dims_0d;
+            : prb->ndims == 4 ? data_dims_2d
+                              : prb->ndims == 3 ? data_dims_1d : data_dims_0d;
 
-    SAFE(init_md(&data_d, p->ndims, data_dims, p->dt, p->tag), CRIT);
+    SAFE(init_md(&data_d, prb->ndims, data_dims, prb->dt, prb->tag), CRIT);
 
-    dnnl_alg_kind_t alg = alg2alg_kind(p->alg);
+    dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
     if (dir & FLAG_FWD) {
-        auto prop = p->dir & FLAG_INF ? dnnl_forward_inference
-                                      : dnnl_forward_training;
-        DNN_SAFE(dnnl_lrn_forward_desc_init(&ld, prop, alg, &data_d, p->ls,
-                         p->alpha, p->beta, p->k),
+        auto prop = prb->dir & FLAG_INF ? dnnl_forward_inference
+                                        : dnnl_forward_training;
+        DNN_SAFE(dnnl_lrn_forward_desc_init(&ld, prop, alg, &data_d, prb->ls,
+                         prb->alpha, prb->beta, prb->k),
                 WARN);
     } else {
         dnnl_memory_desc_t diff_data_d;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, p->ndims, data_dims,
-                         p->dt, dnnl_format_tag_any),
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, prb->ndims,
+                         data_dims, prb->dt, dnnl_format_tag_any),
                 WARN);
         DNN_SAFE(dnnl_lrn_backward_desc_init(&ld, alg, &diff_data_d, &data_d,
-                         p->ls, p->alpha, p->beta, p->k),
+                         prb->ls, prb->alpha, prb->beta, prb->k),
                 WARN);
     }
 
-    auto dnnl_attr = create_dnnl_attr(p->attr, attr_args_t());
+    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args_t());
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&lpd, &ld, dnnl_attr, engine, hint);
@@ -143,46 +144,47 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p,
     dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
-        return r->state = UNIMPLEMENTED, OK;
+        return res->state = UNIMPLEMENTED, OK;
     else
         SAFE(init_status, WARN);
 
     // Return if pd is not the one being tested
-    if ((dir & FLAG_FWD) != (p->dir & FLAG_FWD)) return OK;
+    if ((dir & FLAG_FWD) != (prb->dir & FLAG_FWD)) return OK;
 
-    r->impl_name = query_impl_info(lpd);
-    if (maybe_skip(r->impl_name)) {
+    res->impl_name = query_impl_info(lpd);
+    if (maybe_skip(res->impl_name)) {
         BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n",
-                r->impl_name.c_str());
+                res->impl_name.c_str());
         DNN_SAFE(dnnl_primitive_desc_destroy(lpd), WARN);
-        return r->state = SKIPPED, r->reason = SKIP_IMPL_HIT, OK;
+        return res->state = SKIPPED, res->reason = SKIP_IMPL_HIT, OK;
     } else {
-        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", r->impl_name.c_str());
+        BENCHDNN_PRINT(
+                5, "oneDNN implementation: %s\n", res->impl_name.c_str());
     }
 
     return OK;
 }
 
-void check_known_skipped_case(const prb_t *p, res_t *r) {
-    check_known_skipped_case_common({p->dt}, p->dir, r);
+void check_known_skipped_case(const prb_t *prb, res_t *res) {
+    check_known_skipped_case_common({prb->dt}, prb->dir, res);
 }
 
-int doit(const prb_t *p, res_t *r) {
-    if (bench_mode == LIST) return r->state = LISTED, OK;
+int doit(const prb_t *prb, res_t *res) {
+    if (bench_mode == LIST) return res->state = LISTED, OK;
 
-    check_known_skipped_case(p, r);
-    if (r->state == SKIPPED) return OK;
+    check_known_skipped_case(prb, res);
+    if (res->state == SKIPPED) return OK;
 
     dnnl_primitive_t l {};
-    SAFE(init_prim(&l, init_pd, p, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    SAFE(init_prim(&l, init_pd, prb, res), WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_fpd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(l, &const_fpd), CRIT);
 
     if (dnn_mem_t::check_mem_size(const_fpd) != OK) {
         DNN_SAFE_V(dnnl_primitive_destroy(l));
-        return r->state = SKIPPED, r->reason = NOT_ENOUGH_RAM, OK;
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
     const auto q = [](const_dnnl_primitive_desc_t pd,
@@ -205,14 +207,14 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t dst_fp(data_md, fp, tag, test_engine);
     dnn_mem_t dst_dt(data_md, test_engine);
 
-    if (p->dir & FLAG_INF) SAFE(ws_md.ndims == 0 ? OK : FAIL, WARN);
+    if (prb->dir & FLAG_INF) SAFE(ws_md.ndims == 0 ? OK : FAIL, WARN);
     dnn_mem_t ws_fp(ws_md, test_engine);
     dnn_mem_t ws_dt(ws_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     dnn_mem_t d_dst_dt, d_src_dt;
 
-    SAFE(fill_src(p, src_dt, src_fp), WARN);
+    SAFE(fill_src(prb, src_dt, src_fp), WARN);
 
     args_t args;
     args.set(DNNL_ARG_SRC, src_dt);
@@ -222,20 +224,20 @@ int doit(const prb_t *p, res_t *r) {
 
     SAFE(execute_and_wait(l, args), WARN);
 
-    if (p->dir & FLAG_FWD) {
+    if (prb->dir & FLAG_FWD) {
         if (bench_mode & CORR) {
-            compute_ref_fwd(p, src_fp, dst_fp);
+            compute_ref_fwd(prb, src_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, tag, test_engine);
-            SAFE(compare(p, dst, dst_fp, r), WARN);
+            SAFE(compare(prb, dst, dst_fp, res), WARN);
         }
     }
 
-    if (p->dir & FLAG_BWD) {
+    if (prb->dir & FLAG_BWD) {
         dnnl_primitive_t bwd_p {};
-        int status = init_prim(&bwd_p, init_pd, p, r, FLAG_BWD, const_fpd);
+        int status = init_prim(&bwd_p, init_pd, prb, res, FLAG_BWD, const_fpd);
         dnnl_primitive_destroy(l);
         if (status != OK) return status;
-        if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+        if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
         l = bwd_p;
 
         const_dnnl_primitive_desc_t const_bpd;
@@ -243,7 +245,7 @@ int doit(const prb_t *p, res_t *r) {
 
         if (dnn_mem_t::check_mem_size(const_bpd) != OK) {
             DNN_SAFE_V(dnnl_primitive_destroy(l));
-            return r->state = SKIPPED, r->reason = NOT_ENOUGH_RAM, OK;
+            return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
         }
 
         const auto &d_data_md = q(const_bpd, DNNL_ARG_DIFF_DST);
@@ -257,7 +259,7 @@ int doit(const prb_t *p, res_t *r) {
 
         scratchpad_dt = dnn_mem_t(d_scratchpad_md, test_engine);
 
-        SAFE(fill_dst(p, d_dst_dt, d_dst_fp), WARN);
+        SAFE(fill_dst(prb, d_dst_dt, d_dst_fp), WARN);
 
         args.clear();
         args.set(DNNL_ARG_SRC, src_dt);
@@ -269,12 +271,12 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(execute_and_wait(l, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);
+            compute_ref_bwd(prb, src_fp, d_dst_fp, d_src_fp);
             dnn_mem_t d_src(d_src_dt, fp, tag, test_engine);
-            SAFE(compare(p, d_src, d_src_fp, r), WARN);
+            SAFE(compare(prb, d_src, d_src_fp, res), WARN);
         }
     }
-    measure_perf(r->timer, l, args);
+    measure_perf(res->timer, l, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(l));
 

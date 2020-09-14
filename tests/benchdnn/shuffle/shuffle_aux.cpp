@@ -21,18 +21,19 @@
 
 namespace shuffle {
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || p.dir != def.dir[0]) s << "--dir=" << p.dir << " ";
-    if (canonical || p.dt != def.dt[0]) s << "--dt=" << p.dt << " ";
-    if (canonical || p.tag != def.tag[0]) s << "--tag=" << p.tag << " ";
-    if (canonical || p.group != def.group[0]) s << "--group=" << p.group << " ";
-    if (canonical || p.axis != def.axis[0]) s << "--axis=" << p.axis << " ";
+    if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
+    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
+    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
+    if (canonical || prb.group != def.group[0])
+        s << "--group=" << prb.group << " ";
+    if (canonical || prb.axis != def.axis[0]) s << "--axis=" << prb.axis << " ";
 
-    s << p.attr;
-    s << p.dims;
+    s << prb.attr;
+    s << prb.dims;
 
     return s;
 }

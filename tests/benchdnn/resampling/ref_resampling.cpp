@@ -38,23 +38,23 @@ float weight(const int64_t y, const int64_t y_max, const int64_t x_max) {
     return fabs(linear_map(y, y_max, x_max) - left(y, y_max, x_max));
 }
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
-    int64_t MB = p->mb;
-    int64_t IC = p->ic;
-    int64_t ID = p->id;
-    int64_t IH = p->ih;
-    int64_t IW = p->iw;
-    int64_t OD = p->od;
-    int64_t OH = p->oh;
-    int64_t OW = p->ow;
+void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
+    int64_t MB = prb->mb;
+    int64_t IC = prb->ic;
+    int64_t ID = prb->id;
+    int64_t IH = prb->ih;
+    int64_t IW = prb->iw;
+    int64_t OD = prb->od;
+    int64_t OH = prb->oh;
+    int64_t OW = prb->ow;
 
     auto ker_nearest = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh,
                                int64_t ow) {
         const int64_t id = near(od, OD, ID);
         const int64_t ih = near(oh, OH, IH);
         const int64_t iw = near(ow, OW, IW);
-        const auto dst_off = dst_off_f(p, mb, ic, od, oh, ow);
-        dst.set_elem(dst_off, src.get_elem(src_off_f(p, mb, ic, id, ih, iw)));
+        const auto dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
+        dst.set_elem(dst_off, src.get_elem(src_off_f(prb, mb, ic, id, ih, iw)));
     };
     auto ker_linear = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh,
                               int64_t ow) {
@@ -68,9 +68,9 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
         float cd[2][2] = {{0}};
         for_(int i = 0; i < 2; i++)
         for (int j = 0; j < 2; j++)
-            cd[i][j] = src.get_elem(src_off_f(p, mb, ic, id[0], ih[i], iw[j]))
+            cd[i][j] = src.get_elem(src_off_f(prb, mb, ic, id[0], ih[i], iw[j]))
                             * wd[0]
-                    + src.get_elem(src_off_f(p, mb, ic, id[1], ih[i], iw[j]))
+                    + src.get_elem(src_off_f(prb, mb, ic, id[1], ih[i], iw[j]))
                             * wd[1];
 
         float ch[2] = {0};
@@ -79,13 +79,13 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
 
         float cw = ch[0] * ww[0] + ch[1] * ww[1];
 
-        const auto dst_off = dst_off_f(p, mb, ic, od, oh, ow);
+        const auto dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
         dst.set_elem(dst_off, cw);
     };
 
     dnnl::impl::parallel_nd(MB, IC, OD, OH, OW,
             [&](int64_t mb, int64_t ic, int64_t od, int64_t oh, int64_t ow) {
-                if (p->alg == nearest) {
+                if (prb->alg == nearest) {
                     ker_nearest(mb, ic, od, oh, ow);
                 } else {
                     ker_linear(mb, ic, od, oh, ow);
@@ -94,28 +94,28 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
 }
 
 void compute_ref_bwd(
-        const prb_t *p, dnn_mem_t &diff_src, const dnn_mem_t &diff_dst) {
-    int64_t MB = p->mb;
-    int64_t IC = p->ic;
-    int64_t ID = p->id;
-    int64_t IH = p->ih;
-    int64_t IW = p->iw;
-    int64_t OD = p->od;
-    int64_t OH = p->oh;
-    int64_t OW = p->ow;
+        const prb_t *prb, dnn_mem_t &diff_src, const dnn_mem_t &diff_dst) {
+    int64_t MB = prb->mb;
+    int64_t IC = prb->ic;
+    int64_t ID = prb->id;
+    int64_t IH = prb->ih;
+    int64_t IW = prb->iw;
+    int64_t OD = prb->od;
+    int64_t OH = prb->oh;
+    int64_t OW = prb->ow;
 
     auto ker_nearest = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh,
                                int64_t ow) {
-        const auto diff_dst_off = dst_off_f(p, mb, ic, od, oh, ow);
+        const auto diff_dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
         float diff_dst_val = diff_dst.get_elem(diff_dst_off);
         const int64_t id = near(od, OD, ID);
         const int64_t ih = near(oh, OH, IH);
         const int64_t iw = near(ow, OW, IW);
-        ((float *)diff_src)[src_off_f(p, mb, ic, id, ih, iw)] += diff_dst_val;
+        ((float *)diff_src)[src_off_f(prb, mb, ic, id, ih, iw)] += diff_dst_val;
     };
     auto ker_linear = [&](int64_t mb, int64_t ic, int64_t od, int64_t oh,
                               int64_t ow) {
-        const auto diff_dst_off = dst_off_f(p, mb, ic, od, oh, ow);
+        const auto diff_dst_off = dst_off_f(prb, mb, ic, od, oh, ow);
         float diff_dst_val = diff_dst.get_elem(diff_dst_off);
         const int64_t id[2] = {left(od, OD, ID), right(od, OD, ID)};
         const int64_t ih[2] = {left(oh, OH, IH), right(oh, OH, IH)};
@@ -126,7 +126,7 @@ void compute_ref_bwd(
         for_(int i = 0; i < 2; i++)
         for_(int j = 0; j < 2; j++)
         for (int k = 0; k < 2; k++) {
-            ((float *)diff_src)[src_off_f(p, mb, ic, id[i], ih[j], iw[k])]
+            ((float *)diff_src)[src_off_f(prb, mb, ic, id[i], ih[j], iw[k])]
                     += wd[i] * wh[j] * ww[k] * diff_dst_val;
         }
     };
@@ -134,14 +134,14 @@ void compute_ref_bwd(
     // zeroing diff_src for correct result
     dnnl::impl::parallel_nd(MB, IC, ID, IH, IW,
             [&](int64_t mb, int64_t ic, int64_t id, int64_t ih, int64_t iw) {
-                diff_src.set_elem(src_off_f(p, mb, ic, id, ih, iw), 0.);
+                diff_src.set_elem(src_off_f(prb, mb, ic, id, ih, iw), 0.);
             });
 
     dnnl::impl::parallel_nd(MB, IC, [&](int64_t mb, int64_t ic) {
         for_(int64_t od = 0; od < OD; ++od)
         for_(int64_t oh = 0; oh < OH; ++oh)
         for (int64_t ow = 0; ow < OW; ++ow)
-            if (p->alg == nearest) {
+            if (prb->alg == nearest) {
                 ker_nearest(mb, ic, od, oh, ow);
             } else {
                 ker_linear(mb, ic, od, oh, ow);

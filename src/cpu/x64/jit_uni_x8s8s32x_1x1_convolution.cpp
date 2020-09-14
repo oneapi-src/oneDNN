@@ -21,7 +21,7 @@
 
 #include "cpu/x64/jit_generator.hpp"
 
-#include "cpu/x64/jit_avx2_x8s8s32x_1x1_convolution.hpp"
+#include "cpu/x64/jit_uni_x8s8s32x_1x1_convolution.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -38,8 +38,8 @@ using namespace dnnl::impl::utils;
                                   : (f).blk_off(n, c, d, h, w)))
 
 /* convolution forward */
-template <data_type_t src_type, data_type_t dst_type>
-void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
+template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
+void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa, src_type,
         dst_type>::execute_forward(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
@@ -93,8 +93,8 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
     });
 }
 
-template <data_type_t src_type, data_type_t dst_type>
-void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
+template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
+void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa, src_type,
         dst_type>::execute_forward_thr(const int ithr, const int nthr,
         const src_data_t *src, const wei_data_t *weights, const char *bias,
         const wei_data_t *weights_dw, const char *bias_dw, dst_data_t *dst,
@@ -138,7 +138,7 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
 
     auto p = jit_1x1_conv_call_s();
 
-    auto rp = rtus_driver_t<avx2>::call_params_t();
+    auto rp = typename rtus_driver_t<isa>::call_params_t();
     const int nb_oc = jcp.nb_load;
     // override some constants for fused dw_conv
     const int os_block = jcp.with_dw_conv ? jcp.ow : jcp.bcast_block;
@@ -455,14 +455,23 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
 }
 
 using namespace data_type;
-template struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t<u8, u8>;
-template struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, u8>;
-template struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t<u8, s8>;
-template struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, s8>;
-template struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t<u8, s32>;
-template struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, s32>;
-template struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t<u8, f32>;
-template struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, f32>;
+
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<avx2, u8, u8>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<avx2, s8, u8>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<avx2, u8, s8>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<avx2, s8, s8>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<avx2, u8, s32>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<avx2, s8, s32>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<avx2, u8, f32>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<avx2, s8, f32>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<sse41, u8, u8>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<sse41, s8, u8>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<sse41, u8, s8>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<sse41, s8, s8>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<sse41, u8, s32>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<sse41, s8, s32>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<sse41, u8, f32>;
+template struct jit_uni_x8s8s32x_1x1_convolution_fwd_t<sse41, s8, f32>;
 
 } // namespace x64
 } // namespace cpu

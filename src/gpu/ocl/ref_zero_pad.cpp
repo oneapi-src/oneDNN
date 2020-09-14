@@ -57,16 +57,9 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
         if (dims[i] == pdims[i]) continue;
         cl_ulong stride = 1;
         cl_ulong step_count = 1;
-        for (int j = 0; j < ndims; j++) {
-            if (j < i) {
-                stride *= blk_size[j];
-            } else if (i == j) {
-                stride *= pdims[j];
-            } else {
-                step_count *= pdims[j] / blk_size[j];
-                stride *= pdims[j];
-            }
-        }
+
+        step_count = blocking_desc.strides[i] / step_nelems;
+        stride = blocking_desc.strides[i] * (pdims[i] / blk_size[i]);
         size_t npsteps = (nelems / stride) * step_count;
 
         dim_t tail_start = dims[i] % blk_size[i];

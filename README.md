@@ -19,8 +19,8 @@ oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
 The library is optimized for Intel Architecture Processors, Intel Processor
 Graphics and Xe architecture-based Graphics. Support for other architectures
-such as Arm\* 64-bit Architecture (AArch64) and OpenPOWER\* Power ISA (PPC64)
-is experimental.
+such as Arm\* 64-bit Architecture (AArch64), OpenPOWER\* Power ISA (PPC64),
+and IBMz\* (s390x) is experimental.
 See the [System Requirements](#system-requirements) section below.
 
 This is a development branch for oneDNN v2.0 Beta. This is pre-production software
@@ -100,10 +100,11 @@ oneDNN supports platforms based on the following architectures:
 - [Intel 64 or AMD64](https://en.wikipedia.org/wiki/X86-64),
 - [Arm 64-bit Architecture (AArch64)](https://developer.arm.com/architectures/cpu-architecture/a-profile).
 - [OpenPOWER](https://openpowerfoundation.org/) / [IBM Power ISA](https://en.wikipedia.org/wiki/Power_ISA).
+- [IBMz z/Architecture (s390x)](https://en.wikipedia.org/wiki/Z/Architecture).
 
 > **WARNING**
 >
-> Arm 64-bit Architecture (AArch64) and Power ISA (PPC64) support
+> Arm 64-bit Architecture (AArch64), Power ISA (PPC64) and IBMz (s390x) support
 > is **experimental** with limited testing validation.
 
 The library is optimized for the following CPUs:
@@ -124,6 +125,14 @@ require the use of run-time controls to enable them. See
 [CPU dispatcher control](https://oneapi-src.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html)
 for more details.
 
+On a CPU based on Arm AArch64 architecture, oneDNN can be built with Arm
+Compute Library integration. Arm Compute Library is an open-source
+library for computer vision and machine learning applications and
+provides AArch64 optimized implementations of core functions.
+This functionality currently requires that Arm Compute Library is
+downloaded and built separately, see
+[Build from Source](https://oneapi-src.github.io/oneDNN/dev_guide_build.html).
+
 > **WARNING**
 >
 > On macOS, applications that use oneDNN may need to request special
@@ -140,11 +149,13 @@ The library is optimized for the following GPUs:
 ## Requirements for Building from Source
 
 oneDNN supports systems meeting the following requirements:
-* Operating system with Intel 64 / Arm 64 / Power architecture support
+* Operating system with Intel 64 / Arm 64 / Power / IBMz architecture support
 * C++ compiler with C++11 standard support
 * [CMake](https://cmake.org/download/) 2.8.11 or later
 * [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later
   to build the documentation
+* [Arm Compute Library](https://github.com/arm-software/ComputeLibrary)
+  for builds using Compute Library on AArch64.
 
 Configurations of CPU and GPU engines may introduce additional build time
 dependencies.
@@ -153,7 +164,7 @@ dependencies.
 
 oneDNN CPU engine is used to execute primitives on Intel Architecture
 Processors, 64-bit Arm Architecture (AArch64) processors,
-64-bit Power ISA (PPC64) processors, and compatible devices.
+64-bit Power ISA (PPC64) processors, IBMz (s390x), and compatible devices.
 
 The CPU engine is built by default and cannot be disabled at build time. The
 engine can be configured to use the OpenMP, TBB or DPCPP runtime. The

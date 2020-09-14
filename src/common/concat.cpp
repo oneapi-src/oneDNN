@@ -77,8 +77,10 @@ status_t dnnl_concat_primitive_desc_create(
     for (auto c = engine->get_concat_implementation_list(); *c; ++c) {
         if ((*c)(&concat_pd, engine, attr, dst_md, n, concat_dim, src_mds)
                 == success) {
-            return safe_ptr_assign(*concat_pd_iface,
+            auto status = safe_ptr_assign(*concat_pd_iface,
                     new primitive_desc_iface_t(concat_pd, engine));
+            if (status != status::success) delete concat_pd;
+            return status;
         }
     }
     return unimplemented;

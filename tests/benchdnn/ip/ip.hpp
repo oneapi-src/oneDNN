@@ -117,7 +117,7 @@ struct prb_t : public desc_t {
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 const dt_conf_t *str2cfg(const char *str);
 std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
@@ -125,12 +125,12 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         stag_ = {normalize_tag(p_->stag, p_->ndims)};
         wtag_ = normalize_tag(p_->wtag, p_->ndims);
         dtag_ = normalize_tag(p_->dtag, p_->ndims);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
@@ -158,33 +158,33 @@ private:
     std::string wtag_, dtag_;
 };
 
-inline size_t src_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t id,
+inline size_t src_off_f(const prb_t *prb, int64_t mb, int64_t ic, int64_t id,
         int64_t ih, int64_t iw) {
-    return (((mb * p->ic + ic) * p->id + id) * p->ih + ih) * p->iw + iw;
+    return (((mb * prb->ic + ic) * prb->id + id) * prb->ih + ih) * prb->iw + iw;
 }
 
-inline size_t wei_off_f(const prb_t *p, int64_t oc, int64_t ic, int64_t id,
+inline size_t wei_off_f(const prb_t *prb, int64_t oc, int64_t ic, int64_t id,
         int64_t ih, int64_t iw) {
-    return (((oc * p->ic + ic) * p->id + id) * p->ih + ih) * p->iw + iw;
+    return (((oc * prb->ic + ic) * prb->id + id) * prb->ih + ih) * prb->iw + iw;
 }
 
-inline size_t bia_off_f(const prb_t *p, int64_t oc) {
+inline size_t bia_off_f(const prb_t *prb, int64_t oc) {
     return oc;
 }
 
-inline size_t dst_off_f(const prb_t *p, int64_t mb, int64_t oc) {
-    return mb * p->oc + oc;
+inline size_t dst_off_f(const prb_t *prb, int64_t mb, int64_t oc) {
+    return mb * prb->oc + oc;
 }
 
-void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *p,
+void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *prb,
         dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m);
-void compute_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &diff_dst_m);
-void compute_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &diff_wei_m,
-        dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
+void compute_ref_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
+        dnn_mem_t &wei_m, dnn_mem_t &diff_dst_m);
+void compute_ref_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
+        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 
 int bench(int argc, char **argv);
 } // namespace ip

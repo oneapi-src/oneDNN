@@ -48,6 +48,12 @@ status_t dnnl_stream_create(
     return dnnl_stream_create_v2(stream, engine, flags, nullptr);
 }
 
+status_t dnnl_stream_get_engine(const stream_t *stream, engine_t **engine) {
+    if (any_null(stream, engine)) return invalid_arguments;
+    *engine = stream->engine();
+    return success;
+}
+
 status_t dnnl_stream_wait(stream_t *stream) {
     bool args_ok = !any_null(stream);
     if (!args_ok) return invalid_arguments;

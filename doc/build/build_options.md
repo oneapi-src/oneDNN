@@ -16,6 +16,7 @@ oneDNN supports the following build-time options.
 | DNNL_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                         | Enables [primitive cache](@ref dev_guide_primitive_cache)
 | DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
 | DNNL_VERBOSE                | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose)
+| DNNL_AARCH64_USE_ACL        | ON, **OFF**                         | Enables integration with Arm Compute Library for AArch64 builds
 | DNNL_BLAS_VENDOR            | **NONE**, ARMPL                     | Defines an external BLAS library to link to for GEMM-like operations
 
 All other building options or values that can be found in CMake files are intended for
@@ -115,6 +116,37 @@ TBB plus more:
   primitive creation time. At the primitive execution time, the threadpool is
   responsible for balancing the static decomposition from the previous item
   across available worker threads.
+
+### AArch64 Options
+
+oneDNN includes experimental support for Arm 64-bit Architecture (AArch64).
+By default, AArch64 builds will use the reference implementations throughout.
+The following options enable the use of AArch64 optimised implementations
+for a limited number of operations, provided by AArch64 libraries.
+
+| AArch64 build configuration           | CMake Option              | Environment variables                         | Dependencies
+| :---                                  | :---                      | :---                                          | :---
+| Arm Compute Library based primitives  | DNNL_AARCH64_USE_ACL=ON   | ACL_ROOT_DIR=*Arm Compute Library location*   | [Arm Compute Library](https://github.com/ARM-software/ComputeLibrary)
+| Vendor BLAS library support           | DNNL_BLAS_VENDOR=ARMPL    | None                                          | [Arm Performance Libraries](https://developer.arm.com/tools-and-software/server-and-hpc/downloads/arm-performance-libraries)
+
+#### Arm Compute Library
+Arm Compute Library is an open-source library for computer vision and machine learning
+applications. The development repository is available from
+[mlplatform.org](https://review.mlplatform.org/#/admin/projects/ml/ComputeLibrary),
+and releases are also available on [GitHub](https://github.com/ARM-software/ComputeLibrary).
+The `DNNL_AARCH64_USE_ACL` CMake option is used to enable Compute Library integration:
+
+~~~sh
+$ cmake -DDNNL_AARCH64_USE_ACL=ON ..
+~~~
+
+This assumes that the environment variable `ACL_ROOT_DIR` is
+set to the location of Arm Compute Library, which must be downloaded and built
+independently of oneDNN.
+
+@warning
+For a debug build of oneDNN it is advisable to specify a Compute Library build
+which has also been built with debug enabled.
 
 #### Vendor BLAS libraries
 oneDNN can use a standard BLAS library for GEMM operations.

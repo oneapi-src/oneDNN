@@ -41,14 +41,18 @@ defines the threshold for computation errors.
 
 The table below shows supported name configurations for this driver:
 
-| src/dst | cfg  | notes
-|:---     |:---  |:---
-| f32     | f32  | TBA.
-| s32     | s32  |
-| f16     | f16  |
-| bf16    | bf16 |
-| s8      | s8   |
-| u8      | u8   |
+| src   | dst   | cfg   | notes
+|:---   |:---   |:---   |:---
+| f32   | f32   | f32   | TBA.
+| s32   | s32   | s32   |
+| f16   | f16   | f16   |
+| bf16  | bf16  | bf16  |
+| s8    | s8    | s8    |
+| u8    | u8    | u8    |
+| s8    | f32   | s8f32 |
+| f32   | s8    | f32s8 |
+| u8    | f32   | u8f32 |
+| f32   | u8    | f32u8 |
 
 
 ## Essence of Testing

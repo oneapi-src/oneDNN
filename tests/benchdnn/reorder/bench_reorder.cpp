@@ -70,23 +70,23 @@ void check_correctness(const settings_t &s) {
         auto &scale = attr.oscale.scale == 0 ? s.def_scale : attr_scale;
 
         for (const auto &i_scale : scale) {
-            const prb_t p(reorder_conf, iconf, oconf, attr, i_alg, i_oflag,
+            const prb_t prb(reorder_conf, iconf, oconf, attr, i_alg, i_oflag,
                     i_cross_engine, i_runtime_dim_mask, i_scale);
             std::stringstream ss;
-            ss << p;
+            ss << prb;
             const std::string cpp_pstr = ss.str();
             const char *pstr = cpp_pstr.c_str();
             BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
             res_t res {};
-            int status = doit(&p, &res);
+            int status = doit(&prb, &res);
 
             bool want_perf_report = false;
             parse_result(res, want_perf_report, status, pstr);
 
             if (want_perf_report && bench_mode & PERF) {
                 perf_report_t pr(s.perf_template);
-                pr.report(&p, &res, pstr);
+                pr.report(&prb, &res, pstr);
             }
 
             benchdnn_stat.tests++;

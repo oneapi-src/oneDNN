@@ -58,6 +58,7 @@ struct gen9_binary_t : public gpu_primitive_t {
                             || utils::everyone_is(f16, src_md(0)->data_type,
                                     src_md(1)->data_type, dst_md()->data_type)
                             || utils::one_of(src_md(0)->data_type, s8, u8))
+                    && (src_md(0)->data_type == dst_md()->data_type)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(src_md(0)->data_type, s8, u8)
                                     && utils::one_of(
@@ -74,7 +75,7 @@ struct gen9_binary_t : public gpu_primitive_t {
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
                                                     intel_subgroups_short))
-                    && attr_post_ops_ok();
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type);
 
             if (!ok) return status::unimplemented;
 
@@ -118,10 +119,6 @@ struct gen9_binary_t : public gpu_primitive_t {
 
         const auto &conf = pd()->conf;
 
-        auto eltwise_scale = conf.attr_info.eltwise_scale;
-        auto eltwise_alpha = conf.attr_info.eltwise_alpha;
-        auto eltwise_beta = conf.attr_info.eltwise_beta;
-        auto sum_scale = conf.attr_info.sum_scale;
         auto src0_scale = conf.attr_info.src0_scale;
         auto src1_scale = conf.attr_info.src1_scale;
 
@@ -129,12 +126,12 @@ struct gen9_binary_t : public gpu_primitive_t {
         arg_list.set(0, src0);
         arg_list.set(1, src1);
         arg_list.set(2, dst);
-        arg_list.set(3, eltwise_alpha);
-        arg_list.set(4, eltwise_beta);
-        arg_list.set(5, eltwise_scale);
-        arg_list.set(6, sum_scale);
-        arg_list.set(7, src0_scale);
-        arg_list.set(8, src1_scale);
+
+        unsigned arg_idx = append_post_ops_to_arg_list(
+                ctx, arg_list, 3, conf.attr_info.all_post_ops);
+
+        arg_list.set(arg_idx++, src0_scale);
+        arg_list.set(arg_idx, src1_scale);
 
         auto nd_range = conf.dispatch.nd_range();
 

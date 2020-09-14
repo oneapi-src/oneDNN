@@ -1075,16 +1075,13 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(1, weights);
     arg_list.set(2, bias);
     arg_list.set(3, dst);
-    append_post_ops_to_arg_list(arg_list, 4, attr_info.all_post_ops);
+    append_post_ops_to_arg_list(ctx, arg_list, 4, attr_info.all_post_ops);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
-    if (attr_info.with_eltwise
-            && !gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(
-                    attr_info.eltwise_alg, attr_info.eltwise_alpha,
-                    attr_info.eltwise_beta)) {
+    if (!post_ops_preserves_zeroes(ctx, attr_info.all_post_ops)) {
         ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
     }
     return status;

@@ -50,14 +50,15 @@ struct ref_binary_t : public gpu_primitive_t {
                                     src_md(1)->data_type, dst_md()->data_type)
                             || utils::everyone_is(f16, src_md(0)->data_type,
                                     src_md(1)->data_type, dst_md()->data_type)
-                            || utils::one_of(src_md(0)->data_type, s8, u8))
+                            || utils::one_of(src_md(0)->data_type, s8, u8)
+                            || utils::one_of(dst_md()->data_type, s8, u8))
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             utils::one_of(src_md(0)->data_type, s8, u8)
                                     && utils::one_of(
                                             attr()->output_scales_.mask_, 0,
                                             1 << 1))
                     && attr()->has_default_values(attr_skip_mask)
-                    && attr_post_ops_ok();
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type);
 
             if (!ok) return status::unimplemented;
 

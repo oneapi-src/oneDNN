@@ -21,15 +21,15 @@
 namespace sum {
 
 void compute_ref(
-        const prb_t *p, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst) {
+        const prb_t *prb, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst) {
     float *dst_ptr = (float *)dst;
     const auto nelems = dst.nelems();
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t k) {
         dst_ptr[k] = 0;
-        for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
+        for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
             const float *src_ptr = (const float *)src[i_input];
-            dst_ptr[k] += (src_ptr[k] * p->scales[i_input]);
+            dst_ptr[k] += (src_ptr[k] * prb->scales[i_input]);
         }
     });
 }

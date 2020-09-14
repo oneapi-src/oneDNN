@@ -119,15 +119,15 @@ struct prb_t : public desc_t {
         return (flags & FUSE_NORM_RELU) && !(dir & FLAG_INF);
     }
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         tag_ = normalize_tag(p_->tag, p_->ndims);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_desc(std::ostream &s) const override {
@@ -156,34 +156,34 @@ private:
 
 /* some extra control parameters which shouldn't be placed in prb_t */
 
-inline size_t data_off(const prb_t *p, int64_t mb, int64_t c, int64_t d,
+inline size_t data_off(const prb_t *prb, int64_t mb, int64_t c, int64_t d,
         int64_t h, int64_t w) {
-    return (((mb * p->ic + c) * p->id + d) * p->ih + h) * p->iw + w;
+    return (((mb * prb->ic + c) * prb->id + d) * prb->ih + h) * prb->iw + w;
 }
 
-inline void inv_data_off(const prb_t *p, size_t off, int64_t &mb, int64_t &c,
+inline void inv_data_off(const prb_t *prb, size_t off, int64_t &mb, int64_t &c,
         int64_t &d, int64_t &h, int64_t &w) {
-    w = off % p->iw;
-    off /= p->iw;
-    h = off % p->ih;
-    off /= p->ih;
-    d = off % p->id;
-    off /= p->id;
-    c = off % p->ic;
-    off /= p->ic;
-    mb = off % p->mb;
-    off /= p->mb;
+    w = off % prb->iw;
+    off /= prb->iw;
+    h = off % prb->ih;
+    off /= prb->ih;
+    d = off % prb->id;
+    off /= prb->id;
+    c = off % prb->ic;
+    off /= prb->ic;
+    mb = off % prb->mb;
+    off /= prb->mb;
     assert(off == 0);
 }
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
+void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &ss,
         dnn_mem_t &ws, dnn_mem_t &dst, dnn_mem_t &src_hat);
-void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src_hat,
+void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &src_hat,
         const dnn_mem_t &var, const dnn_mem_t &d_dst, const dnn_mem_t &ss,
         const dnn_mem_t &ws, dnn_mem_t &d_src, dnn_mem_t &d_ss);
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 } // namespace bnorm

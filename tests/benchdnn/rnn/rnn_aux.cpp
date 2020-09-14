@@ -160,11 +160,11 @@ int str2desc(desc_t *desc, const char *str) {
     const char *s = str;
     assert(s);
 
-#define CASE_NN(p, c) \
+#define CASE_NN(prb, c) \
     do { \
-        if (!strncmp(p, s, strlen(p))) { \
+        if (!strncmp(prb, s, strlen(prb))) { \
             ok = 1; \
-            s += strlen(p); \
+            s += strlen(prb); \
             char *end_s; \
             d.c = strtol(s, &end_s, 10); \
             s += (end_s - s); \
@@ -211,38 +211,38 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || p.prop != prop2prop_kind(def.prop[0]))
-        s << "--prop=" << prop2str(p.prop) << " ";
-    if (canonical || p.cfg.str() != def.cfg[0])
-        s << "--cfg=" << p.cfg.str() << " ";
-    if (canonical || p.alg != def.alg[0])
-        s << "--alg=" << alg2str(p.alg) << " ";
-    if (canonical || p.direction != def.direction[0])
-        s << "--direction=" << direction2str(p.direction) << " ";
-    if (canonical || p.activation != def.activation[0])
-        s << "--activation=" << activation2str(p.activation) << " ";
-    if (canonical || p.skip_nonlinear != def.skip_nonlinear[0])
-        s << "--skip-nonlinear=" << bool2str(p.skip_nonlinear) << " ";
-    if (canonical || p.with_peephole != def.with_peephole[0])
-        s << "--with-peephole=" << bool2str(p.with_peephole) << " ";
-    if (canonical || p.with_projection != def.with_projection[0])
-        s << "--with-projection=" << bool2str(p.with_projection) << " ";
-    if (canonical || p.wei_scales_policy != def.scale_policy[0])
-        s << "--scaling=" << p.wei_scales_policy << " ";
-    if (canonical || p.trivial_strides != def.trivial_strides[0])
-        s << "--trivial-strides=" << bool2str(p.trivial_strides) << " ";
+    if (canonical || prb.prop != prop2prop_kind(def.prop[0]))
+        s << "--prop=" << prop2str(prb.prop) << " ";
+    if (canonical || prb.cfg.str() != def.cfg[0])
+        s << "--cfg=" << prb.cfg.str() << " ";
+    if (canonical || prb.alg != def.alg[0])
+        s << "--alg=" << alg2str(prb.alg) << " ";
+    if (canonical || prb.direction != def.direction[0])
+        s << "--direction=" << direction2str(prb.direction) << " ";
+    if (canonical || prb.activation != def.activation[0])
+        s << "--activation=" << activation2str(prb.activation) << " ";
+    if (canonical || prb.skip_nonlinear != def.skip_nonlinear[0])
+        s << "--skip-nonlinear=" << bool2str(prb.skip_nonlinear) << " ";
+    if (canonical || prb.with_peephole != def.with_peephole[0])
+        s << "--with-peephole=" << bool2str(prb.with_peephole) << " ";
+    if (canonical || prb.with_projection != def.with_projection[0])
+        s << "--with-projection=" << bool2str(prb.with_projection) << " ";
+    if (canonical || prb.wei_scales_policy != def.scale_policy[0])
+        s << "--scaling=" << prb.wei_scales_policy << " ";
+    if (canonical || prb.trivial_strides != def.trivial_strides[0])
+        s << "--trivial-strides=" << bool2str(prb.trivial_strides) << " ";
 
-    s << p.attr;
-    s << static_cast<const desc_t &>(p);
+    s << prb.attr;
+    s << static_cast<const desc_t &>(prb);
 
     return s;
 }
 
-dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
+dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
         dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_layer_d,
         const dnnl_memory_desc_t *src_iter_d,
         const dnnl_memory_desc_t *src_iter_c_d,
@@ -253,40 +253,40 @@ dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
         const dnnl_memory_desc_t *bias_d, const dnnl_memory_desc_t *dst_layer_d,
         const dnnl_memory_desc_t *dst_iter_d,
         const dnnl_memory_desc_t *dst_iter_c_d) {
-    dnnl_alg_kind_t kind = alg2kind(p.alg);
-    dnnl_alg_kind_t f = activation2kind(p.activation);
+    dnnl_alg_kind_t kind = alg2kind(prb.alg);
+    dnnl_alg_kind_t f = activation2kind(prb.activation);
 
     dnnl_status_t init_status;
     switch (kind) {
         case dnnl_vanilla_rnn:
             init_status = dnnl_vanilla_rnn_forward_desc_init(rd, prop_kind, f,
-                    p.direction, src_layer_d, src_iter_d, weights_layer_d,
-                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p.flags,
-                    p.alpha, p.beta);
+                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, prb.flags,
+                    prb.alpha, prb.beta);
             break;
         case dnnl_vanilla_lstm:
             init_status = dnnl_lstm_forward_desc_init_v3(rd, prop_kind,
-                    p.direction, src_layer_d, src_iter_d, src_iter_c_d,
+                    prb.direction, src_layer_d, src_iter_d, src_iter_c_d,
                     weights_layer_d, weights_iter_d, weights_peephole_d,
                     weights_projection_d, bias_d, dst_layer_d, dst_iter_d,
-                    dst_iter_c_d, p.flags);
+                    dst_iter_c_d, prb.flags);
             break;
         case dnnl_vanilla_gru:
-            init_status = dnnl_gru_forward_desc_init(rd, prop_kind, p.direction,
-                    src_layer_d, src_iter_d, weights_layer_d, weights_iter_d,
-                    bias_d, dst_layer_d, dst_iter_d, p.flags);
+            init_status = dnnl_gru_forward_desc_init(rd, prop_kind,
+                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, prb.flags);
             break;
         case dnnl_lbr_gru:
             init_status = dnnl_lbr_gru_forward_desc_init(rd, prop_kind,
-                    p.direction, src_layer_d, src_iter_d, weights_layer_d,
-                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, p.flags);
+                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    weights_iter_d, bias_d, dst_layer_d, dst_iter_d, prb.flags);
             break;
         default: init_status = dnnl_unimplemented;
     }
     return init_status;
 }
 
-dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
+dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &prb,
         dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_layer_d,
         const dnnl_memory_desc_t *src_iter_d,
         const dnnl_memory_desc_t *src_iter_c_d,
@@ -308,45 +308,45 @@ dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
         const dnnl_memory_desc_t *diff_dst_layer_d,
         const dnnl_memory_desc_t *diff_dst_iter_d,
         const dnnl_memory_desc_t *diff_dst_iter_c_d) {
-    dnnl_alg_kind_t kind = alg2kind(p.alg);
-    dnnl_alg_kind_t f = activation2kind(p.activation);
+    dnnl_alg_kind_t kind = alg2kind(prb.alg);
+    dnnl_alg_kind_t f = activation2kind(prb.activation);
 
     dnnl_status_t init_status;
     switch (kind) {
         case dnnl_vanilla_rnn:
             init_status = dnnl_vanilla_rnn_backward_desc_init(rd, prop_kind, f,
-                    p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
                     weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
                     diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
                     diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
-                    diff_dst_iter_d, p.flags, p.alpha, p.beta);
+                    diff_dst_iter_d, prb.flags, prb.alpha, prb.beta);
             break;
         case dnnl_vanilla_lstm:
             init_status = dnnl_lstm_backward_desc_init_v3(rd, prop_kind,
-                    p.direction, src_layer_d, src_iter_d, src_iter_c_d,
+                    prb.direction, src_layer_d, src_iter_d, src_iter_c_d,
                     weights_layer_d, weights_iter_d, weights_peephole_d,
                     weights_projection_d, bias_d, dst_layer_d, dst_iter_d,
                     dst_iter_c_d, diff_src_layer_d, diff_src_iter_d,
                     diff_src_iter_c_d, diff_weights_layer_d,
                     diff_weights_iter_d, diff_weights_peephole_d,
                     diff_weights_projection_d, diff_bias_d, diff_dst_layer_d,
-                    diff_dst_iter_d, diff_dst_iter_c_d, p.flags);
+                    diff_dst_iter_d, diff_dst_iter_c_d, prb.flags);
             break;
         case dnnl_vanilla_gru:
             init_status = dnnl_gru_backward_desc_init(rd, prop_kind,
-                    p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
                     weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
                     diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
                     diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
-                    diff_dst_iter_d, p.flags);
+                    diff_dst_iter_d, prb.flags);
             break;
         case dnnl_lbr_gru:
             init_status = dnnl_lbr_gru_backward_desc_init(rd, prop_kind,
-                    p.direction, src_layer_d, src_iter_d, weights_layer_d,
+                    prb.direction, src_layer_d, src_iter_d, weights_layer_d,
                     weights_iter_d, bias_d, dst_layer_d, dst_iter_d,
                     diff_src_layer_d, diff_src_iter_d, diff_weights_layer_d,
                     diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
-                    diff_dst_iter_d, p.flags);
+                    diff_dst_iter_d, prb.flags);
             break;
         default: init_status = dnnl_unimplemented;
     }
@@ -385,71 +385,71 @@ float one_m_square(float x) {
 }
 
 namespace {
-void inv_tnc_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &t,
+void inv_tnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &t,
         int64_t &n, int64_t &c) {
-    auto C = (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) ? p.slc
-                                                           : p.dlc(PRIMITIVE);
+    auto C = (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) ? prb.slc
+                                                           : prb.dlc(PRIMITIVE);
     c = off % C;
     off /= C;
-    n = off % p.mb;
-    off /= p.mb;
-    t = off % p.n_iter;
-    off /= p.n_iter;
+    n = off % prb.mb;
+    off /= prb.mb;
+    t = off % prb.n_iter;
+    off /= prb.n_iter;
     assert(off == 0);
 }
 
-void inv_ldnc_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &l,
+void inv_ldnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
         int64_t &d, int64_t &n, int64_t &c) {
-    auto C = p.dhc;
-    if (kind == SRC_ITER || kind == DIFF_SRC_ITER) C = p.sic;
+    auto C = prb.dhc;
+    if (kind == SRC_ITER || kind == DIFF_SRC_ITER) C = prb.sic;
     c = off % C;
     off /= C;
-    n = off % p.mb;
-    off /= p.mb;
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
+    n = off % prb.mb;
+    off /= prb.mb;
+    d = off % prb.n_dir();
+    off /= prb.n_dir();
+    l = off % prb.n_layer;
+    off /= prb.n_layer;
     assert(off == 0);
 }
 
-void inv_ldigo_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &l,
+void inv_ldigo_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
         int64_t &d, int64_t &ic, int64_t &g, int64_t &oc) {
-    auto IC = (kind == WEIGHTS_LAYER || kind == DIFF_WEIGHTS_LAYER) ? p.slc
-                                                                    : p.sic;
-    oc = off % p.dhc;
-    off /= p.dhc;
-    g = off % p.n_gates();
-    off /= p.n_gates();
+    auto IC = (kind == WEIGHTS_LAYER || kind == DIFF_WEIGHTS_LAYER) ? prb.slc
+                                                                    : prb.sic;
+    oc = off % prb.dhc;
+    off /= prb.dhc;
+    g = off % prb.n_gates();
+    off /= prb.n_gates();
     ic = off % IC;
     off /= IC;
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
+    d = off % prb.n_dir();
+    off /= prb.n_dir();
+    l = off % prb.n_layer;
+    off /= prb.n_layer;
     assert(off == 0);
 }
 
-void inv_ldio_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &l,
+void inv_ldio_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
         int64_t &d, int64_t &ic, int64_t &oc) {
     auto OC = (kind == WEIGHTS_PROJECTION || kind == DIFF_WEIGHTS_PROJECTION)
-            ? p.dic
-            : p.dhc;
-    auto IC = p.dhc; // assume weights_projection
+            ? prb.dic
+            : prb.dhc;
+    auto IC = prb.dhc; // assume weights_projection
     if (kind == WEIGHTS_PEEPHOLE || kind == DIFF_WEIGHTS_PEEPHOLE) IC = 3;
-    if (kind == BIAS || kind == DIFF_BIAS) IC = p.n_bias();
+    if (kind == BIAS || kind == DIFF_BIAS) IC = prb.n_bias();
     oc = off % OC;
     off /= OC;
     ic = off % IC;
     off /= IC;
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
+    d = off % prb.n_dir();
+    off /= prb.n_dir();
+    l = off % prb.n_layer;
+    off /= prb.n_layer;
     assert(off == 0);
 }
 
-void print_value(const prb_t &p, data_kind_t kind, int64_t i, float fp,
+void print_value(const prb_t &prb, data_kind_t kind, int64_t i, float fp,
         float dt, float diff = 0, float rel_diff = 0,
         bool final_compare = true) {
     const char *skind = data_kind2str(kind);
@@ -460,7 +460,7 @@ void print_value(const prb_t &p, data_kind_t kind, int64_t i, float fp,
         case DST_LAYER:
         case DIFF_SRC_LAYER:
         case DIFF_DST_LAYER:
-            inv_tnc_off_f(p, kind, i, t, n, c);
+            inv_tnc_off_f(prb, kind, i, t, n, c);
             BENCHDNN_PRINT(0,
                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
                     "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
@@ -476,7 +476,7 @@ void print_value(const prb_t &p, data_kind_t kind, int64_t i, float fp,
         case DIFF_DST_ITER:
         case DIFF_SRC_ITER_C:
         case DIFF_DST_ITER_C:
-            inv_ldnc_off_f(p, kind, i, l, d, n, c);
+            inv_ldnc_off_f(prb, kind, i, l, d, n, c);
             BENCHDNN_PRINT(0,
                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT
                     "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
@@ -488,7 +488,7 @@ void print_value(const prb_t &p, data_kind_t kind, int64_t i, float fp,
         case WEIGHTS_ITER:
         case DIFF_WEIGHTS_LAYER:
         case DIFF_WEIGHTS_ITER:
-            inv_ldigo_off_f(p, kind, i, l, d, ic, g, oc);
+            inv_ldigo_off_f(prb, kind, i, l, d, ic, g, oc);
             BENCHDNN_PRINT(0,
                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
                     "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
@@ -502,7 +502,7 @@ void print_value(const prb_t &p, data_kind_t kind, int64_t i, float fp,
         case DIFF_WEIGHTS_PEEPHOLE:
         case DIFF_WEIGHTS_PROJECTION:
         case DIFF_BIAS:
-            inv_ldio_off_f(p, kind, i, l, d, ic, oc);
+            inv_ldio_off_f(prb, kind, i, l, d, ic, oc);
             BENCHDNN_PRINT(0,
                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT
                     "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
@@ -516,12 +516,12 @@ void print_value(const prb_t &p, data_kind_t kind, int64_t i, float fp,
 
 } // namespace
 
-int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
+int compare_dat(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *res, bool final_compare = false) {
     const auto nelems = mem_dt.nelems();
-    if (nelems == 0) return r->state = PASSED, OK;
+    if (nelems == 0) return res->state = PASSED, OK;
 
-    r->total += nelems;
+    res->total += nelems;
 
     diff_norm_t diff_norm;
     size_t errors = 0;
@@ -534,21 +534,21 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     min_fp = max_fp = mem_fp.get_elem(0);
 #endif
 
-    int64_t fwd_acc_dim
-            = 2 * p.n_gates() + 1; // factor 2 is because of the sum of 2 GEMMs
-    if (p.alg == VANILLA_GRU) fwd_acc_dim *= p.sic;
-    int64_t bwdd_acc_dim = p.n_gates() * p.dhc;
-    int64_t bwdw_acc_dim = p.mb;
+    int64_t fwd_acc_dim = 2 * prb.n_gates()
+            + 1; // factor 2 is because of the sum of 2 GEMMs
+    if (prb.alg == VANILLA_GRU) fwd_acc_dim *= prb.sic;
+    int64_t bwdd_acc_dim = prb.n_gates() * prb.dhc;
+    int64_t bwdw_acc_dim = prb.mb;
     int64_t acc_dim = fwd_acc_dim;
-    if (p.prop == dnnl_backward) acc_dim *= MAX2(bwdd_acc_dim, bwdw_acc_dim);
+    if (prb.prop == dnnl_backward) acc_dim *= MAX2(bwdd_acc_dim, bwdw_acc_dim);
     // Here the factor 4 just gives some wiggle room for fp32 testing
     float rel_eps = 4
-            * (1 + (p.prop == dnnl_backward)) // double wiggle room for bwd
-            * ((p.direction == dnnl_bidirectional_sum)
+            * (1 + (prb.prop == dnnl_backward)) // double wiggle room for bwd
+            * ((prb.direction == dnnl_bidirectional_sum)
                     + 1) // double threshold if bidir_sum
-            * ceilf(log2f(acc_dim * p.n_iter)) * p.cfg[kind].eps;
+            * ceilf(log2f(acc_dim * prb.n_iter)) * prb.cfg[kind].eps;
 #ifdef BENCHDNN_RNN_PRINT_STATISTICS
-    printf("rel_eps(%a) eps(%a) %ld\n", rel_eps, p.cfg[kind].eps, acc_dim);
+    printf("rel_eps(%a) eps(%a) %ld\n", rel_eps, prb.cfg[kind].eps, acc_dim);
 #endif
 
     /* Note: we do an eltwise comparison only when:
@@ -581,8 +581,8 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
          two simple ops: f32 = scale * u8 + shift.
     */
     bool check_norm0
-            = (p.skip_nonlinear || ((p.n_layer == 1) && (p.n_iter == 1)));
-    if (p.is_int8() && kind == DST_ITER_C) check_norm0 = false;
+            = (prb.skip_nonlinear || ((prb.n_layer == 1) && (prb.n_iter == 1)));
+    if (prb.is_int8() && kind == DST_ITER_C) check_norm0 = false;
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
@@ -607,18 +607,18 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
 
         bool ok = true;
         if (check_norm0) {
-            const float diff_threshold = p.cfg[kind].eps;
+            const float diff_threshold = prb.cfg[kind].eps;
 
             ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
-            if (p.cfg[kind].dt == dnnl_u8) // expect exact value for int8
+            if (prb.cfg[kind].dt == dnnl_u8) // expect exact value for int8
                 ok = diff == 0;
 
             // TODO: Dirty hack to make testing green. Find an original source
             // of the problem and find a better solution.
-            if (!ok && (p.alg == LBR_GRU || p.alg == VANILLA_RNN)
-                    && p.prop == dnnl_backward
-                    && (p.direction == dnnl_bidirectional_concat
-                            || p.direction == dnnl_bidirectional_sum)) {
+            if (!ok && (prb.alg == LBR_GRU || prb.alg == VANILLA_RNN)
+                    && prb.prop == dnnl_backward
+                    && (prb.direction == dnnl_bidirectional_concat
+                            || prb.direction == dnnl_bidirectional_sum)) {
                 ok = diff < diff_threshold;
             }
 
@@ -628,7 +628,7 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         bool dump = (check_norm0 && !ok && (errors < 10 || verbose >= 10))
                 || (final_compare && verbose >= 50);
         if (dump)
-            print_value(p, kind, i, fp, dt, diff, rel_diff, final_compare);
+            print_value(prb, kind, i, fp, dt, diff, rel_diff, final_compare);
     }
 
     diff_norm.done();
@@ -658,10 +658,11 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                 diff_norm.rel_diff(norm_t::L8));
     }
 
-    r->errors += errors;
-    if (errors != 0) r->state = FAILED;
+    res->errors += errors;
+    if (errors != 0) res->state = FAILED;
 
-    if (final_compare && r->state == UNTESTED) r->state = PASSED; /* optimism */
+    if (final_compare && res->state == UNTESTED)
+        res->state = PASSED; /* optimism */
 
 #ifdef BENCHDNN_RNN_PRINT_STATISTICS
     printf("dt: min(%a) max(%a) mean(%a), var(%a)\n", min_dt, max_dt,

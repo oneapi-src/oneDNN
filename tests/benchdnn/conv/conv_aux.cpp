@@ -78,18 +78,18 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     const char *s = str;
     assert(s);
 
-#define CASE_NN(p, c) \
+#define CASE_NN(prb, c) \
     do { \
-        if (!strncmp(p, s, strlen(p))) { \
+        if (!strncmp(prb, s, strlen(prb))) { \
             ok = 1; \
-            s += strlen(p); \
+            s += strlen(prb); \
             char *end_s; \
             d.c = strtol(s, &end_s, 10); \
             s += (end_s - s); \
             /* check any # groups, including one, works correcly */ \
-            if (!strncmp(p, "g", 1)) d.has_groups = true; \
+            if (!strncmp(prb, "g", 1)) d.has_groups = true; \
             if (d.c < 0) return FAIL; \
-            /* printf("@@@debug: %s: %d\n", p, d. c); */ \
+            /* printf("@@@debug: %s: %d\n", prb, d. c); */ \
         } \
     } while (0)
 #define CASE_N(c) CASE_NN(#c, c)
@@ -132,11 +132,11 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     if (d.sd <= 0 || d.sh <= 0 || d.sw <= 0) return FAIL;
 
     auto compute_out = [](bool is_deconv, int64_t i, int64_t k, int64_t s,
-                               int64_t p, int64_t d) {
+                               int64_t prb, int64_t d) {
         if (is_deconv)
-            return (i - 1) * s + (k - 1) * (d + 1) - 2 * p + 1;
+            return (i - 1) * s + (k - 1) * (d + 1) - 2 * prb + 1;
         else
-            return (i - ((k - 1) * (d + 1) + 1) + 2 * p) / s + 1;
+            return (i - ((k - 1) * (d + 1) + 1) + 2 * prb) / s + 1;
     };
     auto compute_pad = [](bool is_deconv, int64_t o, int64_t i, int64_t k,
                                int64_t s, int64_t d) {
@@ -312,20 +312,20 @@ int32_t *generate_zero_points(
     return zp;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || p.dir != def.dir[0]) s << "--dir=" << p.dir << " ";
-    if (canonical || p.cfg != def.cfg[0]) s << "--cfg=" << p.cfg << " ";
-    if (canonical || p.stag != def.stag[0]) s << "--stag=" << p.stag << " ";
-    if (canonical || p.wtag != def.wtag[0]) s << "--wtag=" << p.wtag << " ";
-    if (canonical || p.dtag != def.dtag[0]) s << "--dtag=" << p.dtag << " ";
-    if (canonical || p.alg != def.alg[0])
-        s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
+    if (canonical || prb.cfg != def.cfg[0]) s << "--cfg=" << prb.cfg << " ";
+    if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
+    if (canonical || prb.wtag != def.wtag[0]) s << "--wtag=" << prb.wtag << " ";
+    if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
+    if (canonical || prb.alg != def.alg[0])
+        s << "--alg=" << alg2str(prb.alg) << " ";
 
-    s << p.attr;
-    s << static_cast<const desc_t &>(p);
+    s << prb.attr;
+    s << static_cast<const desc_t &>(prb);
 
     return s;
 }

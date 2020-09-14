@@ -1,0 +1,29 @@
+# testing ddt different from sdt
+--reset
+
+--inplace=false
+--alg=ADD,MUL,MAX,MIN
+--ddt=s8,u8
+--sdt=f32:f32
+--batch=shapes_common
+
+--attr-post-ops='sum:0.5'
+--batch=shapes_common
+
+--attr-post-ops='linear:2:0.125:1.5'
+--batch=shapes_common
+
+--attr-post-ops='sum:0.25;relu:-0.01'
+--batch=shapes_common
+
+# test case with different dt of src0, src1 and dst
+--reset
+
+--inplace=false
+--alg=ADD,MUL,MAX,MIN
+--ddt=s8,u8
+--sdt=s8:f32
+--batch=shapes_common
+
+--attr-post-ops='sum:0.5'
+--batch=shapes_common

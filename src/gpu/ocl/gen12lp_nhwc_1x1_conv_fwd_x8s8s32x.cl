@@ -392,13 +392,27 @@ gen12lp_nhwc_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
         dst_pack[idx] = CONVERT_DST_DATA4_T(tmp); \
     } while (0)
 
-#define STORE_DST(n, C0, C1, C2, C3, D, dst_ptr) \
+#define STORE_DST(n, C0, C1, C2, C3, D, dst_ptr, mb_stride) \
     do { \
         for (int n_i = 0; n_i < n; n_i++) { \
             PACK(C0, C1, C2, C3, n_i); \
             QUANTIZE_ADD_BIAS(); \
-            float4 df = convert_float4(AS_SUM_DATA4_T(D[n_i])); \
-            APPLY_POST_OPS(tmp, float, df, float); \
+            for (int didx = 0; didx < 4; ++didx) { \
+                float tmp_i = tmp[didx]; \
+                float dni_i = convert_float(AS_SUM_DATA_T(D[n_i][didx])); \
+                int po_mb; \
+                if (MB_BLOCK == 32) \
+                    po_mb = (mb_group_id * MB_BLOCK / 2 + mb_stride * 8 + n_i) \
+                            % MB; \
+                else \
+                    po_mb = mb_group_id % MB; \
+                const int po_oc = (oc_group_id * OC_BLOCK + sg_local_id \
+                                          + didx * SUB_GROUP_SIZE) \
+                        % (OC * G); \
+                APPLY_POST_OPS(tmp_i, float, dni_i, float, po_mb, 1, po_oc, 1, \
+                        0, 1, 0, 1, 0, 1, 0, 1); \
+                tmp[didx] = tmp_i; \
+            } \
             ADD_DST_COMPENSATION(); \
             CONVERT_PACK(n_i); \
         } \
@@ -410,13 +424,13 @@ gen12lp_nhwc_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
 #endif
     {
         if (OUT_SP_TAIL && ow + SP_BLOCK > OW) {
-            STORE_DST(min(BLOCK0, OUT_SP_TAIL), C00, C01, C02, C03, D0, dst);
-            STORE_DST(
-                    OUT_SP_TAIL - 8, C10, C11, C12, C13, D1, dst + 8 * G * OC);
+            STORE_DST(min(BLOCK0, OUT_SP_TAIL), C00, C01, C02, C03, D0, dst, 0);
+            STORE_DST(OUT_SP_TAIL - 8, C10, C11, C12, C13, D1, dst + 8 * G * OC,
+                    1);
         } else {
-            STORE_DST(BLOCK0, C00, C01, C02, C03, D0, dst);
+            STORE_DST(BLOCK0, C00, C01, C02, C03, D0, dst, 0);
             if (SP_BLOCK > 8) {
-                STORE_DST(BLOCK1, C10, C11, C12, C13, D1, dst + 8 * G * OC);
+                STORE_DST(BLOCK1, C10, C11, C12, C13, D1, dst + 8 * G * OC, 1);
             }
         }
     }

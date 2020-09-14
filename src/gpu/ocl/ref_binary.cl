@@ -22,11 +22,11 @@
 #define SRC1_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC1, x0, x1, x2, x3, x4, x5)
 #define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
 
-#if IS_TENSOR_OP && IS_DENSE && IS_SAME_MD
+#if IS_TENSOR_OP && IS_DENSE && IS_SAME_MD && !WITH_BINARY_POST_OP
+
 KERNEL_ATTR
 __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
-        __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale, float sum_scale, float src0_scale,
+        __global DST_DATA_T *dst POST_OP_ARGS, float src0_scale,
         float src1_scale) {
     int off = GWS_GET_IDX();
 
@@ -51,20 +51,19 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     d = min(tmp_src0, tmp_src1);
 #endif
 
+    POST_OP_DATA_T dst_data;
 #if WITH_SUM
-    d += (SUM_SCALE1 ? 1 : sum_scale) * DATA_TO_REF(dst[off]);
+    dst_data = DATA_TO_REF(dst[off]);
 #endif
 
-#if WITH_ELTWISE
-    d = fwd_eltwise(d, eltwise_alpha, eltwise_beta, eltwise_scale);
-#endif
+    APPLY_POST_OPS(d, POST_OP_DATA_T, dst_data, POST_OP_DATA_T, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0);
     dst[off] = TO_DST(d);
 }
 #else
 KERNEL_ATTR
 __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
-        __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale, float sum_scale, float src0_scale,
+        __global DST_DATA_T *dst POST_OP_ARGS, float src0_scale,
         float src1_scale) {
 
     // since gws = no. of total elems in A, id will be the logical offset
@@ -77,6 +76,8 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
     dims0[5] = GWS_GET_D5();
     int d1_block = GWS_GET_D1_BLOCK();
     int d1_init = GWS_GET_D1();
+    int dims0_po[6]
+            = {dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]};
 
     int src1_off = 0;
     int src0_off = SRC0_OFF(
@@ -127,19 +128,22 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         d = min(tmp_src0, tmp_src1);
 #endif
 
+        POST_OP_DATA_T dst_data;
+        if (DST_D1 == DST_PD1 || d1_init + ic < DST_D1) {
 #if WITH_SUM
-        d += (SUM_SCALE1 ? 1 : sum_scale) * DATA_TO_REF(dst[dst_off]);
+            dst_data = DATA_TO_REF(dst[dst_off]);
 #endif
-#if WITH_ELTWISE
-        d = fwd_eltwise(d, eltwise_alpha, eltwise_beta, eltwise_scale);
-#endif
+            APPLY_POST_OPS(d, POST_OP_DATA_T, dst_data, POST_OP_DATA_T,
+                    dims0_po[0], 1, dims0_po[1], 1, dims0_po[2], 1, dims0_po[3],
+                    1, dims0_po[4], 1, dims0_po[5], 1);
 
-        if (DST_D1 == DST_PD1 || d1_init + ic < DST_D1)
             dst[dst_off] = TO_DST(d);
+        }
 
 #if USE_UNROLL_16B || SRC0_UNROLL_16B
         src0_off++;
         dst_off++;
+        ++dims0_po[1];
         if (USE_UNROLL_16B && (SRC1_D1 > 1)) {
             src1_off++;
         } else if (SRC0_UNROLL_16B && (SRC1_D1 > 1)) {

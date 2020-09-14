@@ -2,7 +2,9 @@
 
 --inplace=true,false
 --alg=ADD,MUL,MAX,MIN
---attr-post-ops='','sum:0.5','linear:2:0.125:1.5','sum:0.25;relu:-0.01'
+--attr-post-ops='','sum:0.5',\
+                'sum:0.75;add:f32;min:u8:per_dim_01;linear:2:0.125:1.5;mul:f32:per_dim_0;add:f32:per_dim_01;mul:s8;add:f32:per_oc',\
+                'sum:0.25;relu:-0.01'
 
 --ddt=f32 --sdt=f32:f32
 --batch=option_set_all
@@ -17,3 +19,28 @@
 --attr-scales=,src:common:0.25_src1:common:0.5
 --batch=option_set_all
 
+# testing binary post ops
+--reset
+
+--inplace=true,false
+--alg=ADD,MUL,MAX,MIN
+--attr-post-ops='sum:0.75;add:f32;min:u8:per_dim_01;relu;mul:f32:per_dim_0;add:f32:per_dim_01;max:f16;mul:s8;add:f32:per_oc'
+
+--ddt=s8
+--sdt=s8:u8
+--batch=shapes_common
+
+--ddt=f16
+--sdt=f16:f16
+--batch=shapes_common
+
+--ddt=bf16
+--sdt=bf16:bf16
+--batch=shapes_common
+
+--ddt=f32
+--sdt=f32:f32
+--batch=shapes_common
+
+# test different dt in src and dst
+--batch=harness_binary_different_dt

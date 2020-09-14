@@ -34,6 +34,7 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.dst_md_info = memory_desc_info_t::create(dst_d);
     conf.src0_data_type = src0_d.data_type();
     conf.src1_data_type = src1_d.data_type();
+    conf.dst_data_type = dst_d.data_type();
     conf.ndims = ndims;
     for (int i = 0; i < MAX_NDIMS; ++i) {
         conf.bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
@@ -46,6 +47,9 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.is_dense = dst_d.is_dense();
     conf.same_src_dt = (src0_d.data_type() == src1_d.data_type());
     conf.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
+    conf.attr_info = attr_info_t::create(attr());
+    conf.with_binary_post_op
+            = conf.attr_info.all_post_ops.find(primitive_kind::binary) != -1;
     int ic_block_sz = 1;
     conf.use_unroll_16b = false;
     conf.src0_unroll_16b = false;
@@ -73,14 +77,11 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_d.md_);
-    if (conf.is_tensor_op && conf.is_dense && conf.is_same_md) {
+    if (conf.is_tensor_op && conf.is_dense && conf.is_same_md
+            && !conf.with_binary_post_op) {
         conf.dispatch.define_dim("IDX", 0, dst_d.nelems());
     } else {
-        // Setting the MB as the innermost dim for optimized performance
-        // Hence starting i = 1, ignoring MB
-        conf.dispatch.define_dim_with_nesting_level(
-                "D0", ndims, dst_d.dims()[0], 1);
-        for (int i = 1; i < MAX_NDIMS; ++i) {
+        for (int i = 0; i < MAX_NDIMS; ++i) {
             if (i == 1 && (conf.use_unroll_16b || conf.src0_unroll_16b)) {
                 // changing value for broadcasting offsets
                 // division by IC for enabling blocking within kernel
@@ -95,7 +96,6 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
         }
     }
     conf.dispatch.generate();
-    conf.attr_info = attr_info_t::create(attr());
     return status::success;
 }
 
@@ -110,6 +110,7 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IS_TENSOR_OP", conf.is_tensor_op);
     kernel_ctx.define_int("IS_DENSE", conf.is_dense);
     kernel_ctx.define_int("IS_SAME_MD", conf.is_same_md);
+    kernel_ctx.define_int("WITH_BINARY_POST_OP", conf.with_binary_post_op);
     kernel_ctx.define_int("SAME_SRC_DT", conf.same_src_dt);
     kernel_ctx.define_int("BCAST_DIM0", conf.bcast_dims[0]);
     kernel_ctx.define_int("BCAST_DIM1", conf.bcast_dims[1]);
@@ -139,10 +140,6 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const auto &conf = pd()->conf;
 
-    auto eltwise_scale = conf.attr_info.eltwise_scale;
-    auto eltwise_alpha = conf.attr_info.eltwise_alpha;
-    auto eltwise_beta = conf.attr_info.eltwise_beta;
-    auto sum_scale = conf.attr_info.sum_scale;
     auto src0_scale = conf.attr_info.src0_scale;
     auto src1_scale = conf.attr_info.src1_scale;
 
@@ -150,12 +147,12 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(0, src0);
     arg_list.set(1, src1);
     arg_list.set(2, dst);
-    arg_list.set(3, eltwise_alpha);
-    arg_list.set(4, eltwise_beta);
-    arg_list.set(5, eltwise_scale);
-    arg_list.set(6, sum_scale);
-    arg_list.set(7, src0_scale);
-    arg_list.set(8, src1_scale);
+
+    unsigned arg_idx = append_post_ops_to_arg_list(
+            ctx, arg_list, 3, conf.attr_info.all_post_ops);
+
+    arg_list.set(arg_idx++, src0_scale);
+    arg_list.set(arg_idx, src1_scale);
 
     auto nd_range = conf.dispatch.nd_range();
 

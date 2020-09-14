@@ -74,16 +74,16 @@ int str2desc(desc_t *desc, const char *str) {
         return strtol(nptr, endptr, 10);
     };
 
-#define CASE_NN(p, c, cvfunc) \
+#define CASE_NN(prb, c, cvfunc) \
     do { \
-        if (!strncmp(p, s, strlen(p))) { \
+        if (!strncmp(prb, s, strlen(prb))) { \
             ok = 1; \
-            s += strlen(p); \
+            s += strlen(prb); \
             char *end_s; \
             d.c = cvfunc(s, &end_s); \
             s += (end_s - s); \
             if (d.c < 0) return FAIL; \
-            /* printf("@@@debug: %s: " IFMT "\n", p, d. c); */ \
+            /* printf("@@@debug: %s: " IFMT "\n", prb, d. c); */ \
         } \
     } while (0)
 #define CASE_N(c, cvfunc) CASE_NN(#c, c, cvfunc)
@@ -133,24 +133,24 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || p.dir != def.dir[0]) s << "--dir=" << p.dir << " ";
-    if (canonical || p.dt != def.dt[0]) s << "--dt=" << p.dt << " ";
-    if (canonical || p.tag != def.tag[0]) s << "--tag=" << p.tag << " ";
-    if (canonical || p.flags != def.flags[0])
-        s << "--flags=" << flags2str(p.flags) << " ";
-    if (canonical || p.check_alg != def.check_alg)
-        s << "--check-alg=" << check_alg2str(p.check_alg) << " ";
-    if (canonical || p.inplace != def.inplace[0])
-        s << "--inplace=" << bool2str(p.inplace) << " ";
-    if (canonical || p.debug_check_ws != def.debug_check_ws)
-        s << "--debug-check-ws=" << bool2str(p.debug_check_ws) << " ";
+    if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
+    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
+    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
+    if (canonical || prb.flags != def.flags[0])
+        s << "--flags=" << flags2str(prb.flags) << " ";
+    if (canonical || prb.check_alg != def.check_alg)
+        s << "--check-alg=" << check_alg2str(prb.check_alg) << " ";
+    if (canonical || prb.inplace != def.inplace[0])
+        s << "--inplace=" << bool2str(prb.inplace) << " ";
+    if (canonical || prb.debug_check_ws != def.debug_check_ws)
+        s << "--debug-check-ws=" << bool2str(prb.debug_check_ws) << " ";
 
-    s << p.attr;
-    s << static_cast<const desc_t &>(p);
+    s << prb.attr;
+    s << static_cast<const desc_t &>(prb);
 
     return s;
 }

@@ -82,15 +82,15 @@ struct prb_t {
     attr_t attr;
     int ndims;
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         tag_ = normalize_tag(p_->tag, p_->ndims);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_desc(std::ostream &s) const override { s << p_->dims; }
@@ -108,14 +108,14 @@ private:
     std::string tag_;
 };
 
-inline size_t data_off(const prb_t *p, int64_t mb, int64_t c, int64_t d,
+inline size_t data_off(const prb_t *prb, int64_t mb, int64_t c, int64_t d,
         int64_t h, int64_t w) {
-    const auto &dims = p->dims;
+    const auto &dims = prb->dims;
     return (((mb * dims[1] + c) * dims[2] + d) * dims[3] + h) * dims[4] + w;
 }
 
-void compute_shuffle(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst);
-int doit(const prb_t *p, res_t *res);
+void compute_shuffle(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst);
+int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 } // namespace shuffle
 

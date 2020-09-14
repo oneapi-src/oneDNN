@@ -48,25 +48,33 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
             auto dst_data_t = dst_md()->data_type;
             auto acc_data_t = desc()->accum_data_type;
 
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
+
             bool ok = set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, forward_training,
                             forward_inference)
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding)
-                    && (utils::everyone_is(
-                                f32, src_data_t, dst_data_t, acc_data_t)
-                            || utils::everyone_is(
-                                    f16, src_data_t, dst_data_t, acc_data_t)
-                            || utils::everyone_is(bf16, src_data_t, dst_data_t)
-                            || utils::everyone_is(u8, src_data_t, dst_data_t)
-                            || utils::everyone_is(s8, src_data_t, dst_data_t)
-                            || utils::everyone_is(s32, src_data_t, dst_data_t))
                     && IMPLICATION(utils::one_of(src_data_t, f16, s8, u8, s32),
                             desc()->prop_kind == forward_inference)
-                    && IMPLICATION(src_data_t == u8 || src_data_t == s8,
-                            desc()->accum_data_type == s32)
-                    && attr()->has_default_values();
+                    && IMPLICATION(src_data_t != dst_data_t,
+                            desc()->prop_kind == forward_inference)
+                    && IMPLICATION(utils::one_of(src_data_t, bf16, f16),
+                            src_data_t == dst_data_t)
+                    && IMPLICATION(src_data_t == s8,
+                            utils::one_of(dst_data_t, s8, f32))
+                    && IMPLICATION(src_data_t == u8,
+                            utils::one_of(dst_data_t, u8, f32))
+                    && IMPLICATION(src_data_t == f32,
+                            utils::one_of(dst_data_t, s8, u8, f32))
+                    && IMPLICATION(utils::one_of(f32, src_data_t, dst_data_t),
+                            acc_data_t == f32)
+                    && IMPLICATION(utils::one_of(src_data_t, s8, u8)
+                                    && dst_data_t != f32,
+                            acc_data_t == s32)
+                    && attr()->has_default_values(attr_skip_mask)
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type);
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;

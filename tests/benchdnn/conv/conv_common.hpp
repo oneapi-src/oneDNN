@@ -60,9 +60,9 @@ struct desc_t {
 
 private:
     int64_t opp_pad(bool is_deconv, int64_t i, int64_t o, int64_t k, int64_t s,
-            int64_t p, int64_t d) {
-        return is_deconv ? (i - 1) * s - o + ((k - 1) * (d + 1) + 1) - p
-                         : (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - p;
+            int64_t prb, int64_t d) {
+        return is_deconv ? (i - 1) * s - o + ((k - 1) * (d + 1) + 1) - prb
+                         : (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - prb;
     }
 };
 
@@ -185,17 +185,17 @@ struct prb_t : public desc_t {
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         stag_ = {normalize_tag(p_->stag, p_->ndims)};
         wtag_ = normalize_tag(p_->wtag, p_->ndims);
         dtag_ = normalize_tag(p_->dtag, p_->ndims);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
@@ -236,137 +236,148 @@ private:
     std::string wtag_, dtag_;
 };
 
-inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t g, int64_t ic,
+inline int64_t src_off_f(const prb_t *prb, int64_t mb, int64_t g, int64_t ic,
         int64_t id, int64_t ih, int64_t iw) {
-    return (((mb * p->ic + g * p->ic / p->g + ic) * p->id + id) * p->ih + ih)
-            * p->iw
+    return (((mb * prb->ic + g * prb->ic / prb->g + ic) * prb->id + id)
+                           * prb->ih
+                   + ih)
+            * prb->iw
             + iw;
 }
 
-inline void inv_src_off_f(const prb_t *p, int64_t off, int64_t &mb, int64_t &g,
-        int64_t &ic, int64_t &id, int64_t &ih, int64_t &iw) {
-    iw = off % p->iw;
-    off /= p->iw;
-    ih = off % p->ih;
-    off /= p->ih;
-    id = off % p->id;
-    off /= p->id;
-    ic = off % (p->ic / p->g);
-    off /= (p->ic / p->g);
-    g = off % p->g;
-    off /= p->g;
-    mb = off % p->mb;
-    off /= p->mb;
+inline void inv_src_off_f(const prb_t *prb, int64_t off, int64_t &mb,
+        int64_t &g, int64_t &ic, int64_t &id, int64_t &ih, int64_t &iw) {
+    iw = off % prb->iw;
+    off /= prb->iw;
+    ih = off % prb->ih;
+    off /= prb->ih;
+    id = off % prb->id;
+    off /= prb->id;
+    ic = off % (prb->ic / prb->g);
+    off /= (prb->ic / prb->g);
+    g = off % prb->g;
+    off /= prb->g;
+    mb = off % prb->mb;
+    off /= prb->mb;
     assert(off == 0);
 }
 
-inline int64_t wei_off_f(const prb_t *p, int64_t g, int64_t oc, int64_t ic,
+inline int64_t wei_off_f(const prb_t *prb, int64_t g, int64_t oc, int64_t ic,
         int64_t kd, int64_t kh, int64_t kw) {
-    return ((((g * p->oc / p->g + oc) * p->ic / p->g + ic) * p->kd + kd) * p->kh
+    return ((((g * prb->oc / prb->g + oc) * prb->ic / prb->g + ic) * prb->kd
+                    + kd) * prb->kh
                    + kh)
-            * p->kw
+            * prb->kw
             + kw;
 }
 
-inline void inv_wei_off_f(const prb_t *p, int64_t off, int64_t &g, int64_t &oc,
-        int64_t &ic, int64_t &kd, int64_t &kh, int64_t &kw) {
-    kw = off % p->kw;
-    off /= p->kw;
-    kh = off % p->kh;
-    off /= p->kh;
-    kd = off % p->kd;
-    off /= p->kd;
-    ic = off % (p->ic / p->g);
-    off /= (p->ic / p->g);
-    oc = off % (p->oc / p->g);
-    off /= (p->oc / p->g);
-    g = off % p->g;
-    off /= p->g;
+inline void inv_wei_off_f(const prb_t *prb, int64_t off, int64_t &g,
+        int64_t &oc, int64_t &ic, int64_t &kd, int64_t &kh, int64_t &kw) {
+    kw = off % prb->kw;
+    off /= prb->kw;
+    kh = off % prb->kh;
+    off /= prb->kh;
+    kd = off % prb->kd;
+    off /= prb->kd;
+    ic = off % (prb->ic / prb->g);
+    off /= (prb->ic / prb->g);
+    oc = off % (prb->oc / prb->g);
+    off /= (prb->oc / prb->g);
+    g = off % prb->g;
+    off /= prb->g;
     assert(off == 0);
 }
 
-inline int64_t bia_off_f(const prb_t *p, int64_t g, int64_t oc) {
-    return g * p->oc / p->g + oc;
+inline int64_t bia_off_f(const prb_t *prb, int64_t g, int64_t oc) {
+    return g * prb->oc / prb->g + oc;
 }
 
 inline void inv_bia_off_f(
-        const prb_t *p, int64_t off, int64_t &g, int64_t &oc) {
-    oc = off % (p->oc / p->g);
-    off /= (p->oc / p->g);
-    g = off % p->g;
-    off /= p->g;
+        const prb_t *prb, int64_t off, int64_t &g, int64_t &oc) {
+    oc = off % (prb->oc / prb->g);
+    off /= (prb->oc / prb->g);
+    g = off % prb->g;
+    off /= prb->g;
     assert(off == 0);
 }
 
-inline int64_t dst_off_f(const prb_t *p, int64_t mb, int64_t g, int64_t oc,
+inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t g, int64_t oc,
         int64_t od, int64_t oh, int64_t ow) {
-    return (((mb * p->oc + g * p->oc / p->g + oc) * p->od + od) * p->oh + oh)
-            * p->ow
+    return (((mb * prb->oc + g * prb->oc / prb->g + oc) * prb->od + od)
+                           * prb->oh
+                   + oh)
+            * prb->ow
             + ow;
 }
 
-inline void inv_dst_off_f(const prb_t *p, int64_t off, int64_t &mb, int64_t &g,
-        int64_t &oc, int64_t &od, int64_t &oh, int64_t &ow) {
-    ow = off % p->ow;
-    off /= p->ow;
-    oh = off % p->oh;
-    off /= p->oh;
-    od = off % p->od;
-    off /= p->od;
-    oc = off % (p->oc / p->g);
-    off /= (p->oc / p->g);
-    g = off % p->g;
-    off /= p->g;
-    mb = off % p->mb;
-    off /= p->mb;
+inline void inv_dst_off_f(const prb_t *prb, int64_t off, int64_t &mb,
+        int64_t &g, int64_t &oc, int64_t &od, int64_t &oh, int64_t &ow) {
+    ow = off % prb->ow;
+    off /= prb->ow;
+    oh = off % prb->oh;
+    off /= prb->oh;
+    od = off % prb->od;
+    off /= prb->od;
+    oc = off % (prb->oc / prb->g);
+    off /= (prb->oc / prb->g);
+    g = off % prb->g;
+    off /= prb->g;
+    mb = off % prb->mb;
+    off /= prb->mb;
     assert(off == 0);
 }
 
-float oscale(const prb_t *p, int oc);
+float oscale(const prb_t *prb, int oc);
 
-void compute_ref_fwd(const prb_t *p, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
+void compute_ref_fwd(const prb_t *prb, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m);
-void compute_ref_bwd_d(const prb_t *p, dnnl_primitive_t c_ref,
+void compute_ref_bwd_d(const prb_t *prb, dnnl_primitive_t c_ref,
         dnn_mem_t &diff_src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m);
-void compute_ref_bwd_w(const prb_t *p, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
-        dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
+void compute_ref_bwd_w(const prb_t *prb, dnnl_primitive_t c_ref,
+        dnn_mem_t &src_m, dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m,
+        dnn_mem_t &diff_dst_m);
 
-void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &bia_m, const std::vector<dnn_mem_t> &binary_po,
-        dnn_mem_t &dst_m);
-void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
+void compute_ref_direct_fwd(const prb_t *prb, dnn_mem_t &src_m,
+        dnn_mem_t &wei_m, dnn_mem_t &bia_m,
+        const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m);
+void compute_ref_direct_bwd_d(const prb_t *prb, dnn_mem_t &diff_src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &diff_dst_m);
-void compute_ref_direct_bwd_w(const prb_t *p, dnn_mem_t &src_m,
+void compute_ref_direct_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
         dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
 
-void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
+void compute_wino_ref_fwd(const prb_t *prb, dnn_mem_t &src_m, dnn_mem_t &wei_m,
         dnn_mem_t &bia_m, dnn_mem_t &dst_m);
-void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &idiff_src_m,
+void compute_wino_ref_bwd_d(const prb_t *prb, dnn_mem_t &idiff_src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m);
-void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
+void compute_wino_ref_bwd_w(const prb_t *prb, dnn_mem_t &src_m,
         dnn_mem_t &diff_wei_m, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
 
-int compare_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
-        bool final_compare = false);
-int compare_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
-        bool final_compare = false);
-int compare_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
-        bool final_compare = false);
-int compare_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
-        bool final_compare = false);
-int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r);
-double get_trust_nz_level(const prb_t *p, data_kind_t kind, bool final_compare);
+int compare_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+        res_t *res, bool final_compare = false);
+int compare_wei(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+        res_t *res, bool final_compare = false);
+int compare_bia(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+        res_t *res, bool final_compare = false);
+int compare_dst(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+        res_t *res, bool final_compare = false);
+int fill_src(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int fill_wei(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int fill_bia(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+int fill_dst(
+        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res);
+double get_trust_nz_level(
+        const prb_t *prb, data_kind_t kind, bool final_compare);
 
 void compute_ref_bwd_bias(
-        const prb_t *p, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
-void compute_bias_fwd(const prb_t *p, dnn_mem_t &bia_m, dnn_mem_t &dst_m);
-void compute_ref_bwd_weights(const prb_t *p, dnn_mem_t &src_m,
+        const prb_t *prb, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m);
+void compute_bias_fwd(const prb_t *prb, dnn_mem_t &bia_m, dnn_mem_t &dst_m);
+void compute_ref_bwd_weights(const prb_t *prb, dnn_mem_t &src_m,
         dnn_mem_t &diff_wei_m, dnn_mem_t &diff_dst_m);
 
 } // namespace conv

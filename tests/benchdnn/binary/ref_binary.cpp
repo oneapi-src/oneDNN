@@ -20,23 +20,23 @@
 
 namespace binary {
 
-void compute_ref(const prb_t *p, const dnn_mem_t &src0, const dnn_mem_t &src1,
+void compute_ref(const prb_t *prb, const dnn_mem_t &src0, const dnn_mem_t &src1,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst) {
     float *dst_ptr = (float *)dst;
     const float *A = (const float *)src0;
     const float *B = (const float *)src1;
 
-    float scales[2] = {p->attr.scales.get(DNNL_ARG_SRC_0).scale,
-            p->attr.scales.get(DNNL_ARG_SRC_1).scale};
+    float scales[2] = {prb->attr.scales.get(DNNL_ARG_SRC_0).scale,
+            prb->attr.scales.get(DNNL_ARG_SRC_1).scale};
 
     const auto nelems_A = src0.nelems();
-    const auto broadcast_mask = p->get_broadcast_mask();
-    std::vector<int> v_bin_po_mask = p->attr.post_ops.get_binary_po_masks();
+    const auto broadcast_mask = prb->get_broadcast_mask();
+    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
 
     dnnl::impl::parallel_nd(nelems_A, [&](int64_t i) {
         auto idx_B = src0.get_scale_idx(i, broadcast_mask);
         float res = compute_binary(
-                p->alg, scales[0] * A[i], scales[1] * B[idx_B]);
+                prb->alg, scales[0] * A[i], scales[1] * B[idx_B]);
         float &dst = dst_ptr[i];
         std::vector<float> v_binary_vals;
         v_binary_vals.reserve(v_bin_po_mask.size());
@@ -45,7 +45,8 @@ void compute_ref(const prb_t *p, const dnn_mem_t &src0, const dnn_mem_t &src1,
             float binary_val = binary_po[d].get_elem(bin_po_offset);
             v_binary_vals.push_back(binary_val);
         }
-        maybe_post_ops(p->attr, res, dst, v_binary_vals);
+        maybe_post_ops(
+                prb->attr, res, maybe_saturate(prb->ddt, dst), v_binary_vals);
         dst = res;
     });
 }

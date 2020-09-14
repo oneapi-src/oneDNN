@@ -73,33 +73,38 @@ struct gemm_info_t {
 
     void (*copyA)(const dim_t *m, const dim_t *n, const a_type *a,
             const dim_t *lda, const float *alpha, a_type *b,
-            const dim_t *dummy1, const dim_t *dummy2, c_type *row_col_sum);
+            const dim_t *dummy1, const dim_t *dummy2, c_type *row_col_sum)
+            = nullptr;
 
     void (*copyB)(const dim_t *m, const dim_t *n, const b_type *a,
             const dim_t *lda, const float *alpha, b_type *b,
-            const dim_t *dummy1, const dim_t *dummy2, c_type *row_col_sum);
+            const dim_t *dummy1, const dim_t *dummy2, c_type *row_col_sum)
+            = nullptr;
 
     void (*kernel[2][2][2])(const dim_t *m, const dim_t *n, const dim_t *k,
             const float *alpha, const a_type *a, const b_type *b, c_type *c,
-            const dim_t ldc, const c_type *col_offset,
-            const c_type *row_offset);
+            const dim_t ldc, const c_type *col_offset, const c_type *row_offset)
+            = {{{nullptr}}};
 
     // Gemv kernels
     void (*gemv_kernel[2])(const dim_t *m, const dim_t *n, const float *alpha,
             const a_type *a, const dim_t *lda, const b_type *x,
-            const dim_t *incx, c_type *y, const dim_t *incy);
+            const dim_t *incx, c_type *y, const dim_t *incy)
+            = {nullptr};
 
     void (*gemv_s8s8s32_kernel)(const dim_t, const dim_t, const float,
-            const int8_t *, const dim_t, const int8_t *, const float,
-            int32_t *);
+            const int8_t *, const dim_t, const int8_t *, const float, int32_t *)
+            = nullptr;
 
     void (*gemv_s8u8s32_kernel)(const dim_t, const dim_t, const float,
             const int8_t *, const dim_t, const uint8_t *, const float,
-            int32_t *);
+            int32_t *)
+            = nullptr;
 
     void (*gemv_u8s8s32_kernel)(const dim_t, const dim_t, const float,
             const uint8_t *, const dim_t, const int8_t *, const float,
-            int32_t *);
+            int32_t *)
+            = nullptr;
 
     // Gemv parameters
     int swap;

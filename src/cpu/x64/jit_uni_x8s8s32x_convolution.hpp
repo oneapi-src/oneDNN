@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_AVX2_X8S8S32X_CONVOLUTION_HPP
-#define CPU_X64_JIT_AVX2_X8S8S32X_CONVOLUTION_HPP
+#ifndef CPU_X64_JIT_UNI_X8S8S32X_CONVOLUTION_HPP
+#define CPU_X64_JIT_UNI_X8S8S32X_CONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -25,22 +25,22 @@
 
 #include "cpu/cpu_convolution_pd.hpp"
 
-#include "cpu/x64/jit_avx2_x8s8s32x_conv_kernel.hpp"
+#include "cpu/x64/jit_uni_x8s8s32x_conv_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <impl::data_type_t src_type, impl::data_type_t dst_type>
-struct jit_avx2_x8s8s32x_convolution_fwd_t : public primitive_t {
+template <cpu_isa_t isa, impl::data_type_t src_type, impl::data_type_t dst_type>
+struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_int8:", avx2, ""),
-                jit_avx2_x8s8s32x_convolution_fwd_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_uni_int8:", isa, ""),
+                jit_uni_x8s8s32x_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
             const bool args_ok = true && is_fwd()
@@ -58,13 +58,13 @@ struct jit_avx2_x8s8s32x_convolution_fwd_t : public primitive_t {
                     && !has_zero_dim_memory();
             if (!args_ok) return status::unimplemented;
 
-            const auto status = jit_avx2_x8s8s32x_fwd_kernel::init_conf(jcp_,
-                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
-                    dnnl_get_max_threads());
+            const auto status = jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(
+                    jcp_, *desc(), src_md_, weights_md_, dst_md_, bias_md_,
+                    *attr(), dnnl_get_max_threads());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx2_x8s8s32x_fwd_kernel::init_scratchpad(
+            jit_uni_x8s8s32x_fwd_kernel<isa>::init_scratchpad(
                     scratchpad, jcp_, *attr());
 
             return status;
@@ -73,7 +73,7 @@ struct jit_avx2_x8s8s32x_convolution_fwd_t : public primitive_t {
         jit_conv_conf_t jcp_;
     };
 
-    jit_avx2_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    jit_uni_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -81,7 +81,8 @@ struct jit_avx2_x8s8s32x_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
-                new jit_avx2_x8s8s32x_fwd_kernel(pd()->jcp_, *pd()->attr())));
+                new jit_uni_x8s8s32x_fwd_kernel<isa>(
+                        pd()->jcp_, *pd()->attr())));
         return kernel_->create_kernel();
     }
 
@@ -113,7 +114,7 @@ private:
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
 
-    std::unique_ptr<jit_avx2_x8s8s32x_fwd_kernel> kernel_;
+    std::unique_ptr<jit_uni_x8s8s32x_fwd_kernel<isa>> kernel_;
 };
 
 } // namespace x64

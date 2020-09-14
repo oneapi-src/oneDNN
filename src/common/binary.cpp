@@ -60,14 +60,14 @@ status_t dnnl_binary_desc_init(binary_desc_t *binary_desc, alg_kind_t alg_kind,
 
     // check dst
     if (dst_md->format_kind == format_kind::blocked) {
-        if (memory_desc_wrapper(dst_md) != memory_desc_wrapper(src0_md))
+        if (!memory_desc_wrapper(dst_md).similar_to(
+                    memory_desc_wrapper(src0_md), true, false))
             return invalid_arguments;
     } else {
         if (dst_md->ndims != ndims) return invalid_arguments;
         for (int d = 0; d < ndims; ++d) {
             if (dst_md->dims[d] != dims[d]) return invalid_arguments;
         }
-        if (dst_md->data_type != src0_md->data_type) return invalid_arguments;
     }
 
     *binary_desc = bod;

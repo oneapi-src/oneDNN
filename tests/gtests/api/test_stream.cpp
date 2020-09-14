@@ -114,7 +114,23 @@ TEST_P(stream_test_cpp, Wait) {
             "Incompatible stream flags.");
 
     stream s(eng, stream_flags);
+    engine s_eng = s.get_engine();
     s.wait();
+}
+
+TEST(stream_test_c, GetStream) {
+    dnnl_engine_t engine;
+    DNNL_CHECK(dnnl_engine_create(&engine, dnnl_cpu, 0));
+
+    dnnl_stream_t stream;
+    DNNL_CHECK(dnnl_stream_create(&stream, engine, dnnl_stream_default_flags));
+
+    dnnl_engine_t stream_engine;
+    DNNL_CHECK(dnnl_stream_get_engine(stream, &stream_engine));
+    ASSERT_EQ(engine, stream_engine);
+
+    DNNL_CHECK(dnnl_stream_destroy(stream));
+    DNNL_CHECK(dnnl_engine_destroy(engine));
 }
 
 namespace {

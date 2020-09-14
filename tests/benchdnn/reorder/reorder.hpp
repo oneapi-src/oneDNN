@@ -98,11 +98,11 @@ struct settings_t {
 };
 
 struct prb_t {
-    prb_t(const reorder_conf_t &r, const dt_conf_t &conf_in,
+    prb_t(const reorder_conf_t &res, const dt_conf_t &conf_in,
             const dt_conf_t &conf_out, const attr_t &attr, alg_t alg,
             flag_t oflag, cross_engine_t cross_engine,
             unsigned runtime_dim_mask, float scale)
-        : reorder(r)
+        : reorder(res)
         , conf_in(conf_in)
         , conf_out(conf_out)
         , attr(attr)
@@ -150,18 +150,18 @@ struct prb_t {
     float *generate_oscales();
     int32_t *generate_zero_points(int arg);
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         sdt_ = {cfg2dt(p_->conf_in)};
         ddt_ = cfg2dt(p_->conf_out);
         stag_ = {normalize_tag(p_->reorder.tag_in, p_->ndims)};
         dtag_ = normalize_tag(p_->reorder.tag_out, p_->ndims);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_alg(std::ostream &s) const override { s << alg2str(p_->alg); }
@@ -200,7 +200,7 @@ private:
     std::string dtag_;
 };
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 
 } // namespace reorder

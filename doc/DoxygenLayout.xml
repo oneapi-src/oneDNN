@@ -50,6 +50,7 @@
       <tab type="user" title="Softmax" url="@ref dev_guide_softmax"/>
       <tab type="user" title="Sum" url="@ref dev_guide_sum"/>
       <tab type="user" title="Reorder" url="@ref dev_guide_reorder"/>
+      <tab type="user" title="Reduction" url="@ref dev_guide_reduction"/>
     </tab>
     <tab type="user" title="Examples" url="@ref dev_guide_examples"/>
     <tab type="usergroup" title="Performance Profiling and Inspection">

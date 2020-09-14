@@ -31,6 +31,7 @@
 #include "gpu/ocl/gen9_binary.hpp"
 #include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/gen9_pooling.hpp"
+#include "gpu/ocl/gen9_softmax.hpp"
 #include "gpu/ocl/ref_batch_normalization.hpp"
 #include "gpu/ocl/ref_binary.hpp"
 #include "gpu/ocl/ref_convolution.hpp"
@@ -104,6 +105,7 @@ const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::ref_inner_product_bwd_weights_t),
 
         // Softmax
+        INSTANCE(ocl::gen9_softmax_fwd_t),
         INSTANCE(ocl::ref_softmax_fwd_t),
         INSTANCE(ocl::ref_softmax_bwd_t),
 

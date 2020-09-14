@@ -86,6 +86,26 @@ struct memory_desc_proxy_t {
 
 enum test_direction_t { BI_DIRECTION = 0 /* default */, UNI_DIRECTION = 1 };
 
+namespace properties {
+
+using fmt = dnnl::memory::format_tag;
+
+TEST(memory_desc_properties_test, TestMemoryDescSize) {
+    auto md1_simple = memory_desc_proxy_t {{1, 1, 1, 1}, {1, 1, 1, 1}}.md;
+    auto md1_strided = memory_desc_proxy_t {{1, 1, 1, 1}, {8, 4, 2, 1}}.md;
+    auto md2_blocked = memory_desc_proxy_t {{1, 4, 1, 1}, fmt::nChw8c}.md;
+
+    ASSERT_EQ(md1_simple, md1_strided);
+    ASSERT_NE(md2_blocked, md1_simple);
+    ASSERT_NE(md2_blocked, md1_strided);
+
+    ASSERT_EQ(md1_simple.get_size(), 1 * sizeof(float));
+    ASSERT_EQ(md1_strided.get_size(), 1 * sizeof(float));
+    ASSERT_EQ(md2_blocked.get_size(), 8 * sizeof(float));
+}
+
+} // namespace properties
+
 namespace reshape {
 
 struct params_t {

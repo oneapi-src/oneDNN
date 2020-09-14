@@ -66,13 +66,15 @@ conv_nhwc_fwd_dw_ow_block_x8s8s32x(const __global uchar *src,
     int16 S1 = 0;
 
 #if SCALES_PER_OC
-    float2 scales = as_float2(intel_sub_group_block_read_ul(
-            (const __global ulong *)&scales_per_oc[g]));
+    float2 scales;
+    scales.s0 = scales_per_oc[g + 2 * sglid];
+    scales.s1 = scales_per_oc[g + 2 * sglid + 1];
 #endif
 
 #if WITH_BIAS
-    float2 B = as_float2(
-            intel_sub_group_block_read_ul((const __global ulong *)&bias[g]));
+    float2 B;
+    B.s0 = bias[g + 2 * sglid];
+    B.s1 = bias[g + 2 * sglid + 1];
     S0 = convert_int16(B.s0101010101010101);
     S1 = convert_int16(B.s0101010101010101);
 #endif
@@ -633,8 +635,21 @@ conv_nhwc_fwd_dw_ow_block_x8s8s32x(const __global uchar *src,
 
     SUM_DATA16_T D0_sdt = AS_SUM_DATA16_T(D0);
     SUM_DATA16_T D1_sdt = AS_SUM_DATA16_T(D1);
-    APPLY_POST_OPS(ACC0, ACC_DATA_TYPE, D0_sdt, SUM_DATA_T);
-    APPLY_POST_OPS(ACC1, ACC_DATA_TYPE, D1_sdt, SUM_DATA_T);
+
+#define APPLY_POST_OPS_COMMON(accumulator, sum, offset) \
+    { \
+        for (int didx = 0; didx < 16; ++didx) { \
+            int po_mb = mb; \
+            int po_oc = g * OC + 2 * get_sub_group_local_id() + (didx % 2); \
+            ACC_DATA_TYPE accum = accumulator[didx]; \
+            SUM_DATA_T sum_di = sum[didx]; \
+            APPLY_POST_OPS(accum, ACC_DATA_TYPE, sum_di, SUM_DATA_T, po_mb, 1, \
+                    po_oc, 1, 0, 1, 0, 1, 0, 1, 0, 1); \
+            accumulator[didx] = accum; \
+        } \
+    }
+    APPLY_POST_OPS_COMMON(ACC0, D0_sdt, 0);
+    APPLY_POST_OPS_COMMON(ACC1, D1_sdt, 8);
 
     DST_DATA16_T R0 = CONVERT_DST_DATA16_T(ACC0);
     DST_DATA16_T R1 = CONVERT_DST_DATA16_T(ACC1);

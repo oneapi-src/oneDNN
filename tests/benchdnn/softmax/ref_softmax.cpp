@@ -20,13 +20,13 @@
 
 namespace softmax {
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
+void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst) {
     int64_t outer_size {0}, inner_size {0}, axis_size {0};
-    get_sizes(p, outer_size, inner_size, axis_size);
+    get_sizes(prb, outer_size, inner_size, axis_size);
 
     const float *src_ptr = (const float *)src;
     float *dst_ptr = (float *)dst;
-    const auto alg = p->alg;
+    const auto alg = prb->alg;
 
     dnnl::impl::parallel_nd(
             outer_size, inner_size, [&](int64_t ou, int64_t in) {
@@ -67,15 +67,15 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
             });
 }
 
-void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
+void compute_ref_bwd(const prb_t *prb, const dnn_mem_t &dst,
         const dnn_mem_t &diff_dst, dnn_mem_t &diff_src) {
     int64_t outer_size {0}, inner_size {0}, axis_size {0};
-    get_sizes(p, outer_size, inner_size, axis_size);
+    get_sizes(prb, outer_size, inner_size, axis_size);
 
     const float *dst_ptr = (const float *)dst;
     const float *d_dst_ptr = (const float *)diff_dst;
     float *d_src_ptr = (float *)diff_src;
-    const auto alg = p->alg;
+    const auto alg = prb->alg;
 
     dnnl::impl::parallel_nd(
             outer_size, inner_size, [&](int64_t ou, int64_t in) {

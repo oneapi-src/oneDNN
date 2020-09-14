@@ -28,7 +28,7 @@
 #include "dnnl_memory.hpp"
 
 namespace deconv {
-int doit(const conv::prb_t *p, res_t *res);
+int doit(const conv::prb_t *prb, res_t *res);
 int bench(int argc, char **argv);
 } // namespace deconv
 #endif

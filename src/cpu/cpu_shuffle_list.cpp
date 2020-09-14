@@ -18,6 +18,11 @@
 
 #include "cpu/ref_shuffle.hpp"
 
+#if DNNL_X64
+#include "cpu/x64/shuffle/jit_uni_shuffle.hpp"
+using namespace dnnl::impl::cpu::x64;
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -29,6 +34,9 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 const pd_create_f impl_list[] = {
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<avx512_common, 4>)   /* f32 or s32 */
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<avx, 4>)   /* f32 or s32 */
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<sse41, 4>) /* f32 or s32 */
         CPU_INSTANCE(ref_shuffle_t<4>) /* f32 or s32 */
         CPU_INSTANCE(ref_shuffle_t<2>) /* bf16 */
         CPU_INSTANCE(ref_shuffle_t<1>) /* s8 or u8 */

@@ -137,6 +137,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(ab, {0, 1}, {}, {});
         C(abc, {0, 1, 2}, {}, {});
         C(abcd, {0, 1, 2, 3}, {}, {});
+        C(acbd, {0, 2, 1, 3}, {}, {});
         C(abcde, {0, 1, 2, 3, 4}, {}, {});
         C(abcdef, {0, 1, 2, 3, 4, 5}, {}, {});
         C(abdc, {0, 1, 3, 2}, {}, {});

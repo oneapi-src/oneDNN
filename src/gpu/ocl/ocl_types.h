@@ -598,8 +598,8 @@
 #endif
 #if DST_DT_BF16
 #define TO_DST(x) cvt_f32_to_bf16(x)
-#define TO_DST2(x) cvt_f32_to_bf16(convert_float8(x))
-#define TO_DST4(x) cvt_f32_to_bf16(convert_float8(x))
+#define TO_DST2(x) cvt_f32_to_bf16(convert_float2(x))
+#define TO_DST4(x) cvt_f32_to_bf16(convert_float4(x))
 #define TO_DST8(x) cvt_f32_to_bf16(convert_float8(x))
 #elif DST_DT_F16
 #define TO_DST(x) convert_half(x)
@@ -698,25 +698,96 @@
 #endif
 #endif
 
+#define OFF_MD_2(prefix, x0, x1, x2, x3, x4, x5) \
+    (((x0 / CONCAT2(prefix, _B0_2)) / CONCAT2(prefix, _B0_1) \
+             * CONCAT2(prefix, _S0_0)) \
+            + ((x0 / CONCAT2(prefix, _B0_2)) % CONCAT2(prefix, _B0_1) \
+                    * CONCAT2(prefix, _S0_1)) \
+            + ((x0 % CONCAT2(prefix, _B0_2)) * CONCAT2(prefix, _S0_2)) \
+            + ((x1 / CONCAT2(prefix, _B1_2)) / CONCAT2(prefix, _B1_1) \
+                    * CONCAT2(prefix, _S1_0)) \
+            + ((x1 / CONCAT2(prefix, _B1_2)) % CONCAT2(prefix, _B1_1) \
+                    * CONCAT2(prefix, _S1_1)) \
+            + ((x1 % CONCAT2(prefix, _B1_2)) * CONCAT2(prefix, _S1_2)) \
+            + ((x2 / CONCAT2(prefix, _B2_2)) / CONCAT2(prefix, _B2_1) \
+                    * CONCAT2(prefix, _S2_0)) \
+            + ((x2 / CONCAT2(prefix, _B2_2)) % CONCAT2(prefix, _B2_1) \
+                    * CONCAT2(prefix, _S2_1)) \
+            + ((x2 % CONCAT2(prefix, _B2_2)) * CONCAT2(prefix, _S2_2)) \
+            + ((x3 / CONCAT2(prefix, _B3_2)) / CONCAT2(prefix, _B3_1) \
+                    * CONCAT2(prefix, _S3_0)) \
+            + ((x3 / CONCAT2(prefix, _B3_2)) % CONCAT2(prefix, _B3_1) \
+                    * CONCAT2(prefix, _S3_1)) \
+            + ((x3 % CONCAT2(prefix, _B3_2)) * CONCAT2(prefix, _S3_2)) \
+            + ((x4 / CONCAT2(prefix, _B4_2)) / CONCAT2(prefix, _B4_1) \
+                    * CONCAT2(prefix, _S4_0)) \
+            + ((x4 / CONCAT2(prefix, _B4_2)) % CONCAT2(prefix, _B4_1) \
+                    * CONCAT2(prefix, _S4_1)) \
+            + ((x4 % CONCAT2(prefix, _B4_2)) * CONCAT2(prefix, _S4_2)) \
+            + ((x5 / CONCAT2(prefix, _B5_2)) / CONCAT2(prefix, _B5_1) \
+                    * CONCAT2(prefix, _S5_0)) \
+            + ((x5 / CONCAT2(prefix, _B5_2)) % CONCAT2(prefix, _B5_1) \
+                    * CONCAT2(prefix, _S5_1)) \
+            + ((x5 % CONCAT2(prefix, _B5_2)) * CONCAT2(prefix, _S5_2)))
+
+#define OFF_MD_3(prefix, x0, x1, x2, x3, x4, x5) \
+    (((((x0 / CONCAT2(prefix, _B0_3)) / CONCAT2(prefix, _B0_2)) \
+              / CONCAT2(prefix, _B0_1)) \
+             * CONCAT2(prefix, _S0_0)) \
+            + ((((x0 / CONCAT2(prefix, _B0_3)) / CONCAT2(prefix, _B0_2)) \
+                       % CONCAT2(prefix, _B0_1)) \
+                    * CONCAT2(prefix, _S0_1)) \
+            + (((x0 / CONCAT2(prefix, _B0_3)) % CONCAT2(prefix, _B0_2)) \
+                    * CONCAT2(prefix, _S0_2)) \
+            + ((x0 % CONCAT2(prefix, _B0_3)) * CONCAT2(prefix, _S0_3)) \
+            + ((((x1 / CONCAT2(prefix, _B1_3)) / CONCAT2(prefix, _B1_2)) \
+                       / CONCAT2(prefix, _B1_1)) \
+                    * CONCAT2(prefix, _S1_0)) \
+            + ((((x1 / CONCAT2(prefix, _B1_3)) / CONCAT2(prefix, _B1_2)) \
+                       % CONCAT2(prefix, _B1_1)) \
+                    * CONCAT2(prefix, _S1_1)) \
+            + (((x1 / CONCAT2(prefix, _B1_3)) % CONCAT2(prefix, _B1_2)) \
+                    * CONCAT2(prefix, _S1_2)) \
+            + ((x1 % CONCAT2(prefix, _B1_3)) * CONCAT2(prefix, _S1_3)) \
+            + ((((x2 / CONCAT2(prefix, _B2_3)) / CONCAT2(prefix, _B2_2)) \
+                       / CONCAT2(prefix, _B2_1)) \
+                    * CONCAT2(prefix, _S2_0)) \
+            + ((((x2 / CONCAT2(prefix, _B2_3)) / CONCAT2(prefix, _B2_2)) \
+                       % CONCAT2(prefix, _B2_1)) \
+                    * CONCAT2(prefix, _S2_1)) \
+            + (((x2 / CONCAT2(prefix, _B2_3)) % CONCAT2(prefix, _B2_2)) \
+                    * CONCAT2(prefix, _S2_2)) \
+            + ((x2 % CONCAT2(prefix, _B2_3)) * CONCAT2(prefix, _S2_3)) \
+            + ((((x3 / CONCAT2(prefix, _B3_3)) / CONCAT2(prefix, _B3_2)) \
+                       / CONCAT2(prefix, _B3_1)) \
+                    * CONCAT2(prefix, _S3_0)) \
+            + ((((x3 / CONCAT2(prefix, _B3_3)) / CONCAT2(prefix, _B3_2)) \
+                       % CONCAT2(prefix, _B3_1)) \
+                    * CONCAT2(prefix, _S3_1)) \
+            + (((x3 / CONCAT2(prefix, _B3_3)) % CONCAT2(prefix, _B3_2)) \
+                    * CONCAT2(prefix, _S3_2)) \
+            + ((x3 % CONCAT2(prefix, _B3_3)) * CONCAT2(prefix, _S3_3)) \
+            + ((((x4 / CONCAT2(prefix, _B4_3)) / CONCAT2(prefix, _B4_2)) \
+                       / CONCAT2(prefix, _B4_1)) \
+                    * CONCAT2(prefix, _S4_0)) \
+            + ((((x4 / CONCAT2(prefix, _B4_3)) / CONCAT2(prefix, _B4_2)) \
+                       % CONCAT2(prefix, _B4_1)) \
+                    * CONCAT2(prefix, _S4_1)) \
+            + (((x4 / CONCAT2(prefix, _B4_3)) % CONCAT2(prefix, _B4_2)) \
+                    * CONCAT2(prefix, _S4_2)) \
+            + ((x4 % CONCAT2(prefix, _B4_3)) * CONCAT2(prefix, _S4_3)) \
+            + ((((x5 / CONCAT2(prefix, _B5_3)) / CONCAT2(prefix, _B5_2)) \
+                       / CONCAT2(prefix, _B5_1)) \
+                    * CONCAT2(prefix, _S5_0)) \
+            + ((((x5 / CONCAT2(prefix, _B5_3)) / CONCAT2(prefix, _B5_2)) \
+                       % CONCAT2(prefix, _B5_1)) \
+                    * CONCAT2(prefix, _S5_1)) \
+            + (((x5 / CONCAT2(prefix, _B5_3)) % CONCAT2(prefix, _B5_2)) \
+                    * CONCAT2(prefix, _S5_2)) \
+            + ((x5 % CONCAT2(prefix, _B5_3)) * CONCAT2(prefix, _S5_3)))
+
 #define OFF_MD(prefix, x0, x1, x2, x3, x4, x5) \
-    ((x0 / prefix##_B0_2) / prefix##_B0_1 * prefix##_S0_0) \
-            + ((x0 / prefix##_B0_2) % prefix##_B0_1 * prefix##_S0_1) \
-            + ((x0 % prefix##_B0_2) * prefix##_S0_2) \
-            + ((x1 / prefix##_B1_2) / prefix##_B1_1 * prefix##_S1_0) \
-            + ((x1 / prefix##_B1_2) % prefix##_B1_1 * prefix##_S1_1) \
-            + ((x1 % prefix##_B1_2) * prefix##_S1_2) \
-            + ((x2 / prefix##_B2_2) / prefix##_B2_1 * prefix##_S2_0) \
-            + ((x2 / prefix##_B2_2) % prefix##_B2_1 * prefix##_S2_1) \
-            + ((x2 % prefix##_B2_2) * prefix##_S2_2) \
-            + ((x3 / prefix##_B3_2) / prefix##_B3_1 * prefix##_S3_0) \
-            + ((x3 / prefix##_B3_2) % prefix##_B3_1 * prefix##_S3_1) \
-            + ((x3 % prefix##_B3_2) * prefix##_S3_2) \
-            + ((x4 / prefix##_B4_2) / prefix##_B4_1 * prefix##_S4_0) \
-            + ((x4 / prefix##_B4_2) % prefix##_B4_1 * prefix##_S4_1) \
-            + ((x4 % prefix##_B4_2) * prefix##_S4_2) \
-            + ((x5 / prefix##_B5_2) / prefix##_B5_1 * prefix##_S5_0) \
-            + ((x5 / prefix##_B5_2) % prefix##_B5_1 * prefix##_S5_1) \
-            + ((x5 % prefix##_B5_2) * prefix##_S5_2)
+    CONCAT2(OFF_MD_, CONCAT2(prefix, _NLEVELS))(prefix, x0, x1, x2, x3, x4, x5)
 
 #if NDIMS == 2
 #define SRC_OFF(x0, x1, d, h, w) \

@@ -205,11 +205,12 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     // gemv_kern[trans]
     static gemv_fptr_t gemv_kern[2] = {nullptr};
 
-    static gemv_s8s8s32_fptr_t gemv_s8s8s32_kern = {nullptr};
+    static gemv_s8s8s32_fptr_t gemv_s8s8s32_kern = nullptr;
+    static gemv_s8u8s32_fptr_t gemv_s8u8s32_kern = nullptr;
+    static gemv_u8s8s32_fptr_t gemv_u8s8s32_kern = nullptr;
 
-    static gemv_s8u8s32_fptr_t gemv_s8u8s32_kern = {nullptr};
-
-    static gemv_u8s8s32_fptr_t gemv_u8s8s32_kern = {nullptr};
+    // TODO: Add dispatching for 1-fma SKUs with support to bf16 instructions.
+    bool use_bf16_ymm = false;
 
     switch (data_traits<a_t>::data_type) {
         case data_type::s8:
@@ -284,12 +285,12 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->blocking_small_k = 0;
                 this->bn_small_k = 0;
             } else if (mayiuse(avx512_core)) {
-                this->um = 48;
+                this->um = use_bf16_ymm ? 24 : 48;
                 this->un = 8;
                 this->uk = 1;
                 this->bm = 9984;
                 this->bn = 384;
-                this->bk = 768;
+                this->bk = use_bf16_ymm ? 384 : 768;
 
                 this->bk_traditional = 384;
                 this->blocking_small_k = 48;
@@ -434,16 +435,26 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 break;
 
             case data_type::bf16:
-                if (mayiuse(avx512_core)) {
+                if (mayiuse(avx512_core) && !use_bf16_ymm) {
                     copy_a[no_trans][no_sum]
-                            = new jit_avx512_core_s16_copy_an_kern();
+                            = new jit_avx512_core_s16_48x8_copy_an_kern();
                     copy_a[do_trans][no_sum]
-                            = new jit_avx512_core_s16_copy_at_kern();
+                            = new jit_avx512_core_s16_48x8_copy_at_kern();
 
                     copy_b[no_trans][no_sum]
-                            = new jit_avx512_core_s16_copy_bn_kern();
+                            = new jit_avx512_core_s16_48x8_copy_bn_kern();
                     copy_b[do_trans][no_sum]
-                            = new jit_avx512_core_s16_copy_bt_kern();
+                            = new jit_avx512_core_s16_48x8_copy_bt_kern();
+                } else if (mayiuse(avx512_core) && use_bf16_ymm) {
+                    copy_a[no_trans][no_sum]
+                            = new jit_avx512_core_s16_24x8_copy_an_kern();
+                    copy_a[do_trans][no_sum]
+                            = new jit_avx512_core_s16_24x8_copy_at_kern();
+
+                    copy_b[no_trans][no_sum]
+                            = new jit_avx512_core_s16_24x8_copy_bn_kern();
+                    copy_b[do_trans][no_sum]
+                            = new jit_avx512_core_s16_24x8_copy_bt_kern();
                 }
                 break;
 
@@ -562,7 +573,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                         for (int isAlpha1 : {no_alpha1, do_alpha1}) {
                             kernel[isBeta0][isAlpha1][no_sum][no_sum]
                                     = new jit_avx512_core_gemm_bf16bf16f32_kern(
-                                            isBeta0, isAlpha1);
+                                            isBeta0, isAlpha1, !use_bf16_ymm);
                         }
                 }
                 break;

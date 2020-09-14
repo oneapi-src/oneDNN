@@ -14,13 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
-
-#if DT_S8 || DT_U8
-#define RINT rint
-#else
-#define RINT
-#endif
 
 // Read functions.
 inline VECT_DATA_T read_vect_c_block(
@@ -36,8 +31,8 @@ inline void write_vect_c_block_int(
 
 #if IS_FWD
 KERNEL_ATTR
-__kernel void gen9_pooling_fwd(
-        __global DATA_T *src, __global int *ws, __global DATA_T *dst) {
+__kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
+        __global DATA_T *dst POST_OP_ARGS) {
     const int mb = GWS_GET_MB();
     const int c = GWS_GET_C();
     const int od = GWS_GET_OD();
@@ -58,12 +53,8 @@ __kernel void gen9_pooling_fwd(
         const int ih = oh * SH - PH;
         const int iw = ow * SW - PW;
 
-#if ALG_AVG_P || ALG_AVG_NP
-        VECT_FLOAT_T A0 = DATA_ZERO;
-        VECT_FLOAT_T A1 = DATA_ZERO;
-#endif
-        VECT_DATA_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
-        VECT_DATA_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+        VECT_FLOAT_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+        VECT_FLOAT_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
         VECT_INT_T WS0 = 0, WS1 = 0;
 
         for (int kd = 0; kd < KD; ++kd)
@@ -75,10 +66,10 @@ __kernel void gen9_pooling_fwd(
 
                     int src_off = SRC_OFF(mb, c, id + kd, ih + kh, iw + kw);
 
-                    VECT_DATA_T S0 = read_vect_c_block(
-                            0, &src[src_off], c, src_stride);
-                    VECT_DATA_T S1 = read_vect_c_block(
-                            1, &src[src_off], c, src_stride);
+                    VECT_FLOAT_T S0 = CONVERT_VECT_FLOAT_T(
+                            read_vect_c_block(0, &src[src_off], c, src_stride));
+                    VECT_FLOAT_T S1 = CONVERT_VECT_FLOAT_T(
+                            read_vect_c_block(1, &src[src_off], c, src_stride));
 
 #if ALG_MAX
 #if IS_TRAINING
@@ -95,15 +86,16 @@ __kernel void gen9_pooling_fwd(
                     D1 = max(D1, S1);
 #endif // TRAINING
 #else // ALG_MAX
-                    A0 += CONVERT_VECT_FLOAT_T(S0);
-                    A1 += CONVERT_VECT_FLOAT_T(S1);
+                    D0 += S0;
+                    D1 += S1;
 #endif // ALG_MAX
                 }
             }
 
 #if ALG_AVG_P
-        D0 = CONVERT_VECTOR_DATA_T(RINT(A0 / (KD * KH * KW)));
-        D1 = CONVERT_VECTOR_DATA_T(RINT(A1 / (KD * KH * KW)));
+        D0 = D0 / (KD * KH * KW);
+        D1 = D1 / (KD * KH * KW);
+
 #endif // ALG_AVG_P
 
 #if ALG_AVG_NP
@@ -115,13 +107,60 @@ __kernel void gen9_pooling_fwd(
         const int iw_end = min(ow * SW - PW + KW, IW);
         const DATA_T num_summands = (ih_end - ih_start) * (iw_end - iw_start)
                 * (id_end - id_start);
-        D0 = CONVERT_VECTOR_DATA_T(RINT(A0 / num_summands));
-        D1 = CONVERT_VECTOR_DATA_T(RINT(A1 / num_summands));
+        D0 = D0 / num_summands;
+        D1 = D1 / num_summands;
 #endif // ALG_AVG_NP
 
         int dst_off = DST_OFF(mb, c, od, oh, ow);
-        write_vect_c_block(0, &dst[dst_off], c, dst_stride, D0);
-        write_vect_c_block(1, &dst[dst_off], c, dst_stride, D1);
+        VECT_DATA_T sum0;
+        VECT_DATA_T sum1;
+#if WITH_SUM
+        sum0 = read_vect_c_block(0, &dst[dst_off], c, dst_stride);
+        sum1 = read_vect_c_block(1, &dst[dst_off], c, dst_stride);
+#endif
+
+        const int local_id = get_sub_group_local_id();
+
+#if VECT_DT_N == 1
+        const int po_mb = mb;
+        const int po_oc = c + local_id;
+        POST_OP_DATA_T po_sum0 = DATA_TO_REF(sum0);
+        APPLY_POST_OPS(D0, float, po_sum0, POST_OP_DATA_T, po_mb, 1, po_oc, 1,
+                0, 1, 0, 1, 0, 1, 0, 1);
+
+        POST_OP_DATA_T po_sum1 = DATA_TO_REF(sum1);
+        APPLY_POST_OPS(D1, POST_OP_DATA_T, po_sum1, POST_OP_DATA_T, po_mb, 1,
+                po_oc, 1, 0, 1, 0, 1, 0, 1, 0, 1);
+#else
+        for (int idx = 0; idx < VECT_DT_N; ++idx) {
+#if USE_MB_BLOCK == 1
+            int po_mb = (mb + idx) % MB;
+#else
+            int po_mb = mb;
+#endif
+#if USE_C_BLOCK == 1
+            const int po_oc = c + idx * SUB_GROUP_SIZE + local_id;
+#else
+            const int po_oc = c + local_id;
+#endif
+            POST_OP_DATA_T d0_i = D0[idx];
+            POST_OP_DATA_T sum0_i = DATA_TO_REF(sum0[idx]);
+            APPLY_POST_OPS(d0_i, POST_OP_DATA_T, sum0_i, POST_OP_DATA_T, po_mb,
+                    1, po_oc, 1, 0, 1, 0, 1, 0, 1, 0, 1);
+            D0[idx] = d0_i;
+
+            POST_OP_DATA_T d1_i = D1[idx];
+            POST_OP_DATA_T sum1_i = DATA_TO_REF(sum1[idx]);
+            po_mb += VECT_DT_N;
+            APPLY_POST_OPS(d1_i, POST_OP_DATA_T, sum1_i, POST_OP_DATA_T, po_mb,
+                    1, po_oc, 1, 0, 1, 0, 1, 0, 1, 0, 1);
+            D1[idx] = d1_i;
+        }
+#endif // #if VECT_DT_N == 1
+        write_vect_c_block(
+                0, &dst[dst_off], c, dst_stride, CONVERT_VECTOR_DATA_T(D0));
+        write_vect_c_block(
+                1, &dst[dst_off], c, dst_stride, CONVERT_VECTOR_DATA_T(D1));
 
 #if ALG_MAX && IS_TRAINING
         int ws_off = dst_off;

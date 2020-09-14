@@ -64,6 +64,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_ab) return "ab";
     if (v == dnnl_abc) return "abc";
     if (v == dnnl_abcd) return "abcd";
+    if (v == dnnl_acbd) return "acbd";
     if (v == dnnl_abcde) return "abcde";
     if (v == dnnl_abcdef) return "abcdef";
     if (v == dnnl_abdc) return "abdc";
@@ -399,6 +400,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_IOdhw16o16i) return "IOdhw16o16i";
     if (v == dnnl_Goiw16g) return "Goiw16g";
     if (v == dnnl_Goiw8g) return "Goiw8g";
+    if (v == dnnl_Goiw4g) return "Goiw4g";
     if (v == dnnl_gIOw16o16i) return "gIOw16o16i";
     if (v == dnnl_gIOw16i16o) return "gIOw16i16o";
     if (v == dnnl_gOIw16i16o) return "gOIw16i16o";
@@ -447,6 +449,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_gOIhw4o4i) return "gOIhw4o4i";
     if (v == dnnl_gOihw4o) return "gOihw4o";
     if (v == dnnl_Goihw8g) return "Goihw8g";
+    if (v == dnnl_Goihw4g) return "Goihw4g";
     if (v == dnnl_gOIhw8i16o2i) return "gOIhw8i16o2i";
     if (v == dnnl_gOIhw8i8o) return "gOIhw8i8o";
     if (v == dnnl_gOIhw8o16i2o) return "gOIhw8o16i2o";
@@ -527,7 +530,6 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_eltwise) return "eltwise";
     if (v == dnnl_softmax) return "softmax";
     if (v == dnnl_pooling) return "pooling";
-    if (v == dnnl_pooling_v2) return "pooling_v2";
     if (v == dnnl_lrn) return "lrn";
     if (v == dnnl_batch_normalization) return "batch_normalization";
     if (v == dnnl_layer_normalization) return "layer_normalization";
@@ -538,6 +540,8 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_logsoftmax) return "logsoftmax";
     if (v == dnnl_matmul) return "matmul";
     if (v == dnnl_resampling) return "resampling";
+    if (v == dnnl_pooling_v2) return "pooling_v2";
+    if (v == dnnl_reduction) return "reduction";
     if (v == dnnl_primitive_kind_max) return "primitive_kind_max";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
@@ -591,6 +595,15 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_binary_min) return "binary_min";
     if (v == dnnl_resampling_nearest) return "resampling_nearest";
     if (v == dnnl_resampling_linear) return "resampling_linear";
+    if (v == dnnl_reduction_max) return "reduction_max";
+    if (v == dnnl_reduction_min) return "reduction_min";
+    if (v == dnnl_reduction_sum) return "reduction_sum";
+    if (v == dnnl_reduction_mul) return "reduction_mul";
+    if (v == dnnl_reduction_mean) return "reduction_mean";
+    if (v == dnnl_reduction_norm_lp_max) return "reduction_norm_lp_max";
+    if (v == dnnl_reduction_norm_lp_sum) return "reduction_norm_lp_sum";
+    if (v == dnnl_reduction_norm_lp_power_p_max) return "reduction_norm_lp_power_p_max";
+    if (v == dnnl_reduction_norm_lp_power_p_sum) return "reduction_norm_lp_power_p_sum";
     assert(!"unknown alg_kind");
     return "unknown alg_kind";
 }

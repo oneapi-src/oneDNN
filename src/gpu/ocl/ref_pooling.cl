@@ -14,18 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
-
-#if DT_S8 || DT_U8
-#define RINT rint
-#else
-#define RINT
-#endif
 
 #if IS_FWD
 KERNEL_ATTR
-__kernel void ref_pooling_fwd(
-        __global DATA_T *src, __global int *ws, __global DATA_T *dst) {
+__kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
+        __global DST_DATA_T *dst POST_OP_ARGS) {
     const int mb = GWS_GET_MB();
     const int oc = GWS_GET_OC();
 
@@ -78,7 +73,6 @@ __kernel void ref_pooling_fwd(
                         }
                     }
 #if ALG_MAX
-                dst[dst_off] = CONVERT_DATA_T(d);
 #if IS_TRAINING
                 if (ws[dst_off] < 0) ws[dst_off] = 0;
 #endif
@@ -111,8 +105,25 @@ __kernel void ref_pooling_fwd(
                         * (KH - ih_start_excluded - ih_end_excluded)
                         * (KW - iw_start_excluded - iw_end_excluded);
 #endif
-                dst[dst_off] = CONVERT_DATA_T(RINT(d / num_summands));
+                d /= num_summands;
+
 #endif
+
+                    // post op service
+#if DT_BF16
+                POST_OP_DATA_T tmp = d;
+#else // DT_BF16 == 0
+                POST_OP_DATA_T tmp = DATA_TO_REF(d);
+#endif
+                POST_OP_DATA_T sum_src;
+#if WITH_SUM
+                sum_src = DATA_TO_REF(dst[dst_off]);
+#endif
+                APPLY_POST_OPS(tmp, POST_OP_DATA_T, sum_src, POST_OP_DATA_T, mb,
+                        1, oc, 1, od, 1, oh, 1, ow, 1, 0, 1);
+
+                // store result
+                dst[dst_off] = TO_DST(tmp);
             }
 }
 #endif
@@ -120,7 +131,7 @@ __kernel void ref_pooling_fwd(
 #if IS_BWD
 KERNEL_ATTR
 __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
-        __global DATA_T *diff_dst) {
+        __global DST_DATA_T *diff_dst) {
     const int mb = GWS_GET_MB();
     const int oc = GWS_GET_OC();
 

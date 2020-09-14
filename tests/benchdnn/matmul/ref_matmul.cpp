@@ -20,17 +20,17 @@
 
 namespace matmul {
 
-void compute_ref(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &src_m,
+void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m) {
-    const int64_t MB = p->mb;
-    const int64_t M = p->m;
-    const int64_t N = p->n;
-    const int64_t K = p->k;
+    const int64_t MB = prb->mb;
+    const int64_t M = prb->m;
+    const int64_t N = prb->n;
+    const int64_t K = prb->k;
 
-    const int src_zero_point = p->attr.zero_points[DNNL_ARG_SRC];
-    const int wei_zero_point = p->attr.zero_points[DNNL_ARG_WEIGHTS];
-    const int dst_zero_point = p->attr.zero_points[DNNL_ARG_DST];
+    const int src_zero_point = prb->attr.zero_points[DNNL_ARG_SRC];
+    const int wei_zero_point = prb->attr.zero_points[DNNL_ARG_WEIGHTS];
+    const int dst_zero_point = prb->attr.zero_points[DNNL_ARG_DST];
 
     dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, tag::undef, engine_tgt);
 
@@ -40,24 +40,24 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &src_m,
 
         float dst = 0;
         for (int64_t k = 0; k < K; ++k)
-            dst += (src[src_off_f(p, mb, m, k)] - src_zero_point)
-                    * (wei[wei_off_f(p, mb, k, n)] - wei_zero_point);
+            dst += (src[src_off_f(prb, mb, m, k)] - src_zero_point)
+                    * (wei[wei_off_f(prb, mb, k, n)] - wei_zero_point);
 
-        ((float *)dst_tmp)[dst_off_f(p, mb, m, n)] = dst;
+        ((float *)dst_tmp)[dst_off_f(prb, mb, m, n)] = dst;
     });
 
-    std::vector<int> v_bin_po_mask = p->attr.post_ops.get_binary_po_masks();
+    std::vector<int> v_bin_po_mask = prb->attr.post_ops.get_binary_po_masks();
     dnnl::impl::parallel_nd(MB, M, N, [&](int64_t mb, int64_t m, int64_t n) {
-        size_t dst_off = dst_off_f(p, mb, m, n);
+        size_t dst_off = dst_off_f(prb, mb, m, n);
         float &dst = ((float *)dst_m)[dst_off];
 
         float tmp = ((float *)dst_tmp)[dst_off];
-        if (p->bia_dt != dnnl_data_type_undef) {
-            int64_t wei_off = bia_off_f(p, mb, m, n);
+        if (prb->bia_dt != dnnl_data_type_undef) {
+            int64_t wei_off = bia_off_f(prb, mb, m, n);
             float *bia_ptr = (float *)bia_m;
             tmp += bia_ptr[wei_off];
         }
-        maybe_oscale(p->attr, tmp, p->scales, n);
+        maybe_oscale(prb->attr, tmp, prb->scales, n);
 
         std::vector<float> v_binary_vals;
         v_binary_vals.reserve(v_bin_po_mask.size());
@@ -66,7 +66,7 @@ void compute_ref(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &src_m,
             float binary_val = binary_po[d].get_elem(bin_po_offset);
             v_binary_vals.push_back(binary_val);
         }
-        maybe_post_ops(p->attr, tmp, dst, v_binary_vals);
+        maybe_post_ops(prb->attr, tmp, dst, v_binary_vals);
 
         tmp += dst_zero_point;
         dst = tmp;

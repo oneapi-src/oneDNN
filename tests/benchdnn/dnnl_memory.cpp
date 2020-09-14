@@ -66,6 +66,7 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
             pos--;
 
         int dim_idx = std::tolower(tag[pos0]) - 'a';
+        if (dim_idx >= ndims) return FAIL;
         int block_str_len = pos0 - pos - 1;
         int block = (block_str_len == 0)
                 ? 1
@@ -262,8 +263,8 @@ int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
 // Returns physical offset by logical one. Logical offset is represented by an
 // array pos. If is_pos_padded is true pos represents the position in already
 // padded area.
-static dnnl_dim_t md_off_v(const dnnl_memory_desc_t &md, const dnnl_dims_t pos,
-        bool is_pos_padded = false) {
+dnnl_dim_t md_off_v(const dnnl_memory_desc_t &md, const dnnl_dims_t pos,
+        bool is_pos_padded) {
     assert(md.format_kind == dnnl_blocked);
     const auto &blk = md.format_desc.blocking;
 

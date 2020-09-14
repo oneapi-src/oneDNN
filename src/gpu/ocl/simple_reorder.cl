@@ -307,8 +307,42 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         }
     }
 
-#else // REF_REORDER == 0
-#if USE_DENSE_VECT
+#elif VECTORIZE_LAST_DIM
+
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d2 = GWS_GET_D2();
+    const int d3 = GWS_GET_D3();
+    const int d4 = GWS_GET_D4();
+    const int d5 = GWS_GET_D5();
+
+    const int d0_block = GWS_GET_D0_BLOCK();
+    const int d1_block = GWS_GET_D1_BLOCK();
+    const int d2_block = GWS_GET_D2_BLOCK();
+    const int d3_block = GWS_GET_D3_BLOCK();
+    const int d4_block = GWS_GET_D4_BLOCK();
+
+    for_(int d0i = 0; d0i < d0_block; d0i++)
+    for_(int d1i = 0; d1i < d1_block; d1i++)
+    for_(int d2i = 0; d2i < d2_block; d2i++)
+    for_(int d3i = 0; d3i < d3_block; d3i++)
+    for (int d4i = 0; d4i < d4_block; d4i++) {
+
+        int src_off
+                = SRC_OFF(d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5);
+        SRC_DATA_T src_tmp = SRC_BLOCK_READ(&src[src_off]);
+
+        int dst_off
+                = DST_OFF(d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5);
+        DST_DATA_T dst_tmp;
+#if WITH_SUM_AB
+        dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
+#endif
+        REORDER(dst_tmp, src_tmp, alpha, beta);
+        DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
+    }
+
+#elif USE_DENSE_VECT
     const int d0_blk_start = GWS_GET_D0();
     const int d0_blk_end = d0_blk_start + (GWS_GET_D0_BLOCK() * 16);
     for (int d0 = d0_blk_start; d0 < d0_blk_end; d0 += 128) {
@@ -524,6 +558,5 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #endif // (SRC_16B16C || SRC_16C16B) && (DST_16B16C || DST_16C16B)
 #endif // SRC_16B16C || DST_16B16C || SRC_16C16B || DST_16C16B
 
-#endif // USE_DENSE_VECT
 #endif // REF_REORDER
 }

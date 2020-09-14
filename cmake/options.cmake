@@ -231,3 +231,13 @@ set(DNNL_BLAS_VENDOR "NONE" CACHE STRING
         (https://developer.arm.com/tools-and-software/server-and-hpc/downloads/arm-performance-libraries)
       - ANY
         FindBLAS will search default library paths for a known BLAS installation.")
+
+# ==============================================
+# AArch64 optimizations with Arm Compute Library
+# ==============================================
+
+option(DNNL_AARCH64_USE_ACL "Enables use of AArch64 optimised functions
+    from Arm Compute Library.
+    This is only supported on AArch64 builds and assumes there is a
+    functioning Compute Library build available at the location specified by the
+    environment variable ACL_ROOT_DIR." OFF)

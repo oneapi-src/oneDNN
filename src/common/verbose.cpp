@@ -40,6 +40,7 @@
 #include "lrn_pd.hpp"
 #include "matmul_pd.hpp"
 #include "pooling_pd.hpp"
+#include "reduction_pd.hpp"
 #include "reorder_pd.hpp"
 #include "resampling_pd.hpp"
 #include "rnn_pd.hpp"
@@ -1028,6 +1029,34 @@ void init_info_zero_pad(
             attr_str, aux_str, prb_str);
 }
 
+template <typename pd_t>
+static void init_info_reduction(const engine_t *e, pd_t *s, char *buffer) {
+    DECL_DAT_AUX_PRB_STRS();
+
+    { // src
+        auto md = s->src_md();
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
+    }
+    { // dst
+        auto md = s->dst_md();
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+    }
+
+    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
+
+    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s p:%g eps:%g",
+            dnnl_alg_kind2str(s->desc()->alg_kind), s->desc()->p,
+            s->desc()->eps);
+
+    verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
+            attr_str, aux_str, prb_str);
+}
+
 #undef DPRINT
 } // namespace
 
@@ -1059,6 +1088,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(matmul);
             case primitive_kind::pooling_v2:
             CASE(pooling);
+            CASE(reduction);
             CASE(reorder);
             CASE(resampling);
             CASE(rnn);

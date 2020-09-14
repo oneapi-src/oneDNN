@@ -26,22 +26,22 @@ flags_t str2flags(const char *str) {
     return flags;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || p.dir != def.dir[0]) s << "--dir=" << p.dir << " ";
-    if (canonical || p.dt != def.dt[0]) s << "--dt=" << p.dt << " ";
-    if (canonical || p.tag != def.tag[0]) s << "--tag=" << p.tag << " ";
-    if (canonical || p.stat_tag != def.stat_tag[0])
-        s << "--stat_tag=" << p.stat_tag << " ";
-    if (canonical || p.flags != def.flags[0])
-        s << "--flags=" << flags2str(p.flags) << " ";
-    if (canonical || p.inplace != def.inplace[0])
-        s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
+    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
+    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
+    if (canonical || prb.stat_tag != def.stat_tag[0])
+        s << "--stat_tag=" << prb.stat_tag << " ";
+    if (canonical || prb.flags != def.flags[0])
+        s << "--flags=" << flags2str(prb.flags) << " ";
+    if (canonical || prb.inplace != def.inplace[0])
+        s << "--inplace=" << bool2str(prb.inplace) << " ";
 
-    s << p.attr;
-    s << p.dims;
+    s << prb.attr;
+    s << prb.dims;
 
     return s;
 }

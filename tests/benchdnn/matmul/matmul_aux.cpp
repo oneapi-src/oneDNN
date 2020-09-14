@@ -83,16 +83,16 @@ int str2desc(desc_t *desc, const char *str) {
     const char *s = str;
     assert(s);
 
-#define CASE_NN(p, c) \
+#define CASE_NN(prb, c) \
     do { \
-        if (!strncmp(p, s, strlen(p))) { \
+        if (!strncmp(prb, s, strlen(prb))) { \
             ok = 1; \
-            s += strlen(p); \
+            s += strlen(prb); \
             char *end_s; \
             d.c = strtol(s, &end_s, 10); \
             s += (end_s - s); \
             if (d.c < 0) return FAIL; \
-            /* printf("@@@debug: %s: %d\n", p, d. c); */ \
+            /* printf("@@@debug: %s: %d\n", prb, d. c); */ \
         } \
     } while (0)
 #define CASE_N(c) CASE_NN(#c, c)
@@ -133,41 +133,41 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || p.cfg != def.cfg[0]) s << "--cfg=" << p.cfg << " ";
-    if (canonical || p.stag != def.stag[0]) s << "--stag=" << p.stag << " ";
-    if (canonical || p.wtag != def.wtag[0]) s << "--wtag=" << p.wtag << " ";
-    if (canonical || p.dtag != def.dtag[0]) s << "--dtag=" << p.dtag << " ";
+    if (canonical || prb.cfg != def.cfg[0]) s << "--cfg=" << prb.cfg << " ";
+    if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
+    if (canonical || prb.wtag != def.wtag[0]) s << "--wtag=" << prb.wtag << " ";
+    if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
 
     // TODO: switch me on when run-time leading dimensions will be supported
-    // if (canonical || p.ld_src != defaults::ld)
-    //     s << "--ld_src=" << p.ld_src << " ";
-    // if (canonical || p.ld_wei != defaults::ld)
-    //     s << "--ld_wei=" << p.ld_wei << " ";
-    // if (canonical || p.ld_dst != defaults::ld)
-    //     s << "--ld_dst=" << p.ld_dst << " ";
+    // if (canonical || prb.ld_src != defaults::ld)
+    //     s << "--ld_src=" << prb.ld_src << " ";
+    // if (canonical || prb.ld_wei != defaults::ld)
+    //     s << "--ld_wei=" << prb.ld_wei << " ";
+    // if (canonical || prb.ld_dst != defaults::ld)
+    //     s << "--ld_dst=" << prb.ld_dst << " ";
 
-    if (canonical || p.runtime_mb != def.runtime_mb[0])
-        s << "--runtime_mb=" << p.runtime_mb << " ";
-    if (canonical || p.runtime_m != def.runtime_m[0])
-        s << "--runtime_m=" << p.runtime_m << " ";
-    if (canonical || p.runtime_n != def.runtime_n[0])
-        s << "--runtime_n=" << p.runtime_n << " ";
-    if (canonical || p.runtime_k != def.runtime_k[0])
-        s << "--runtime_k=" << p.runtime_k << " ";
+    if (canonical || prb.runtime_mb != def.runtime_mb[0])
+        s << "--runtime_mb=" << prb.runtime_mb << " ";
+    if (canonical || prb.runtime_m != def.runtime_m[0])
+        s << "--runtime_m=" << prb.runtime_m << " ";
+    if (canonical || prb.runtime_n != def.runtime_n[0])
+        s << "--runtime_n=" << prb.runtime_n << " ";
+    if (canonical || prb.runtime_k != def.runtime_k[0])
+        s << "--runtime_k=" << prb.runtime_k << " ";
 
-    if (canonical || p.bia_dt != def.bia_dt[0]) {
-        s << "--bia_dt=" << p.bia_dt << " ";
+    if (canonical || prb.bia_dt != def.bia_dt[0]) {
+        s << "--bia_dt=" << prb.bia_dt << " ";
 
-        if (canonical || p.bia_mask != def.bia_mask[0])
-            s << "--bia_mask=" << p.bia_mask << " ";
+        if (canonical || prb.bia_mask != def.bia_mask[0])
+            s << "--bia_mask=" << prb.bia_mask << " ";
     }
 
-    s << p.attr;
-    s << static_cast<const desc_t &>(p);
+    s << prb.attr;
+    s << static_cast<const desc_t &>(prb);
 
     return s;
 }

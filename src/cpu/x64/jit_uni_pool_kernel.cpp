@@ -56,6 +56,9 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
 
     const bool is_avx512 = utils::one_of(isa, avx512_common, avx512_core);
+    jpp.ndims = ndims;
+    jpp.mb = src_d.dims()[0];
+    jpp.c_without_padding = src_d.dims()[1];
     jpp.c_block = is_avx512 ? 16 : 8;
 
     jpp.alg = pd.alg_kind;
@@ -67,28 +70,30 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
 
     // src_d.data_type() is equal to dst_d.data_type(). This is checked in init
     auto ncsp_fmt_tag = format_tag::undef;
-    if (ndims == 5) {
-        const unsigned int L3_cache_size_per_core
-                = platform::get_per_core_cache_size(3);
-        const size_t block_size
-                = (jpp.id * jpp.ih * jpp.iw + jpp.od * jpp.oh * jpp.ow)
-                * jpp.c_block * types::data_type_size(data_type::f32);
-        const bool backward_ncsp_allowed = jpp.is_backward
-                && !(jpp.alg == pooling_max
-                        && block_size > L3_cache_size_per_core);
-        ncsp_fmt_tag = ((backward_ncsp_allowed || !jpp.is_backward))
-                        && (src_d.data_type() == data_type::bf16
-                                && isa == avx512_core)
-                ? format_tag::ncdhw
-                : format_tag::undef;
-    } else {
-        bool forward_ncsp_allowed = !jpp.is_backward && jpp.oh == 1;
-        ncsp_fmt_tag = ((forward_ncsp_allowed || jpp.is_backward)
-                               && isa == avx512_core && ndims < 5
-                               && src_d.data_type() == data_type::bf16)
-                ? utils::pick(ndims - 3, ncw, nchw)
-                : format_tag::undef;
-    }
+
+    const unsigned int L3_cache_size_per_core
+            = platform::get_per_core_cache_size(3);
+    const size_t block_size
+            = ((size_t)jpp.id * jpp.ih * jpp.iw + jpp.od * jpp.oh * jpp.ow)
+            * jpp.c_block * types::data_type_size(src_d.data_type());
+
+    const bool forward_ncsp_allowed = !jpp.is_backward
+            && jpp.c_without_padding > 3
+            && ((jpp.ih > 1 && jpp.iw > 1
+                        && block_size <= L3_cache_size_per_core)
+                    || src_d.data_type() == data_type::bf16);
+
+    const bool backward_ncsp_allowed = jpp.is_backward
+            && ((jpp.ih > 1 && jpp.iw > 1 && jpp.c_without_padding > 1
+                        && block_size <= L3_cache_size_per_core)
+                    || (src_d.data_type() == data_type::bf16
+                            && !(jpp.alg == pooling_max
+                                    && block_size > L3_cache_size_per_core)));
+
+    ncsp_fmt_tag = ((forward_ncsp_allowed || backward_ncsp_allowed)
+                           && isa == avx512_core && ndims <= 5)
+            ? utils::pick(ndims - 3, ncw, nchw, ncdhw)
+            : format_tag::undef;
 
     const auto nspc_fmt_tag = (ndims <= 5)
             ? utils::pick(ndims - 3, nwc, nhwc, ndhwc)
@@ -121,9 +126,6 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                     pooling_avg_include_padding, pooling_avg_exclude_padding);
     if (!args_ok) return status::unimplemented;
 
-    jpp.ndims = ndims;
-    jpp.mb = src_d.dims()[0];
-    jpp.c_without_padding = src_d.dims()[1];
     jpp.c = jpp.tag_kind == jptg_blocked
             ? utils::rnd_up(jpp.c_without_padding, jpp.c_block)
             : jpp.c_without_padding;

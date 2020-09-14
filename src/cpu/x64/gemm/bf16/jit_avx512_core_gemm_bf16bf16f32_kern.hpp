@@ -27,7 +27,8 @@ namespace x64 {
 
 class jit_avx512_core_gemm_bf16bf16f32_kern : public jit_generator {
 public:
-    jit_avx512_core_gemm_bf16bf16f32_kern(bool beta_zero, bool alpha_one);
+    jit_avx512_core_gemm_bf16bf16f32_kern(
+            bool beta_zero, bool alpha_one, bool use_zmm);
     ~jit_avx512_core_gemm_bf16bf16f32_kern();
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_gemm_bf16bf16f32_kern);
 
@@ -35,6 +36,12 @@ protected:
     bool beta_zero_;
     bool alpha_one_;
     bool bfloat16_;
+
+    int UNROLL_M_;
+
+    int a_nelems_;
+    int b_nelems_;
+    int c_nelems_;
 
     void prefetch_a(const Xbyak::Address &src) { prefetcht0(src); }
     void prefetch_b(const Xbyak::Address &src) { prefetcht0(src); }
@@ -54,7 +61,6 @@ protected:
     void generate() override;
 
 private:
-    static const int UNROLL_M_ = 48;
     static const int UNROLL_N_ = 8;
 
     static const int isize_ = 2;
@@ -72,8 +78,11 @@ private:
     Xbyak::Reg64 AO_, BO_, CO1_, CO2_, AA_;
 
     // Vector register assignments
-    Xbyak::Zmm alpha_, a_regs_[max_unroll_m_ >> 4], b_regs_[2];
-    Xbyak::Zmm c_regs_[max_unroll_m_ >> 4][max_unroll_n_];
+    Xbyak::Xmm alpha_, a_regs_[max_unroll_m_ >> 4], b_regs_[2];
+    Xbyak::Xmm c_regs_[max_unroll_m_ >> 4][max_unroll_n_];
+
+    // Kind of vector register (Zmm or Ymm)
+    Xbyak::Operand::Kind kind_;
 
     // Stack variable assignments
     int stack_alloc_size_;

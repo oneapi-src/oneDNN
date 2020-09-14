@@ -294,7 +294,15 @@ gen9_conv_nhwc_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
 #endif // WITH_SUM
 
-    APPLY_POST_OPS(blockC00, DATA_T, blockS00, DATA_T);
+    for (int didx = 0; didx < OW_BLOCK; ++didx) {
+        DATA_T accum = blockC00[didx];
+        DATA_T sum = blockS00[didx];
+        const int po_mb = (mb) % MB;
+        const int po_oc = (oc * OC_BLOCK + local_id) % (OC * G);
+        APPLY_POST_OPS(accum, DATA_T, sum, DATA_T, po_mb, 1, po_oc, 1, od, 1,
+                oh, 1, ow, 1, 0, 1);
+        blockC00[didx] = accum;
+    }
 
     // Save
     for (int i = 0; i < min(OW_BLOCK, OW - ow); i++) {

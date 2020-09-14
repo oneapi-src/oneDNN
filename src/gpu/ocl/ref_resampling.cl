@@ -25,10 +25,9 @@ __kernel void ref_resampling_fwd(
     const uint od = GWS_GET_OD();
     const uint oh = GWS_GET_OH();
     const uint ow = GWS_GET_OW();
-    //use fma() to ensure consistency in rounding with ref implementation
-    const float id = fma(od + .5f, 1 / FD, 0.f);
-    const float ih = fma(oh + .5f, 1 / FH, 0.f);
-    const float iw = fma(ow + .5f, 1 / FW, 0.f);
+    const float id = (od + .5f) * ID / OD;
+    const float ih = (oh + .5f) * IH / OH;
+    const float iw = (ow + .5f) * IW / OW;
 #if NEAREST
     for (int c = ch; c < min((uint)C, ch + (uint)C_BLOCK); c++) {
         const uint src_index = SRC_OFF(mb, c, (uint)id, (uint)ih, (uint)iw);
@@ -70,19 +69,19 @@ __kernel void ref_resampling_fwd(
 }
 #endif
 #if IS_BWD == 1
-float linear(uint x, float f) {
-    //use fma() to ensure consistency in rounding with ref implementation
-    return fma(x + .5f, f, 0.f) - .5f;
+float linear(uint x, int fo, int fi) {
+    return ((x + .5f) * fo / fi) - .5f;
 }
 KERNEL_ATTR
 __kernel void ref_resampling_bwd(
         __global DATA_T *diff_src, __global const DATA_T *diff_dst) {
 #define CEIL(x) max((uint)ceil(x), (uint)0)
-#define L(x, f) linear(x, f)
-#define LS(x, f) CEIL(L(x, f))
-#define RS(x, f) L(x - 1, f) < 0 ? 0 : (uint)(L(x - 1, f)) + 1
-#define LE(x, f, lim) min(CEIL(L(x + 1, f)), (uint)lim)
-#define RE(x, f, lim) min((L(x, f) < 0 ? 0 : (uint)(L(x, f)) + 1), (uint)lim)
+#define L(x, fo, fi) linear(x, fo, fi)
+#define LS(x, fo, fi) CEIL(L(x, fo, fi))
+#define RS(x, fo, fi) L(x - 1, fo, fi) < 0 ? 0 : (uint)(L(x - 1, fo, fi)) + 1
+#define LE(x, fo, fi, lim) min(CEIL(L(x + 1, fo, fi)), (uint)lim)
+#define RE(x, fo, fi, lim) \
+    min((L(x, fo, fi) < 0 ? 0 : (uint)(L(x, fo, fi)) + 1), (uint)lim)
     const uint mb = GWS_GET_MB();
     const uint c = GWS_GET_C();
     const uint id = GWS_GET_ID();
@@ -107,18 +106,18 @@ __kernel void ref_resampling_bwd(
     }
     diff_src[src_index] = TO_DATA_T(src_val);
 #else
-    uint left_sd = id == 0 ? 0 : LS(id, FD);
-    uint left_sh = ih == 0 ? 0 : LS(ih, FH);
-    uint left_sw = iw == 0 ? 0 : LS(iw, FW);
-    uint right_sd = RS(id, FD);
-    uint right_sh = RS(ih, FH);
-    uint right_sw = RS(iw, FW);
-    uint left_ed = LE(id, FD, OD);
-    uint left_eh = LE(ih, FH, OH);
-    uint left_ew = LE(iw, FW, OW);
-    uint right_ed = id == (ID - 1) ? OD : RE(id, FD, OD);
-    uint right_eh = ih == (IH - 1) ? OH : RE(ih, FH, OH);
-    uint right_ew = iw == (IW - 1) ? OW : RE(iw, FW, OW);
+    uint left_sd = id == 0 ? 0 : LS(id, OD, ID);
+    uint left_sh = ih == 0 ? 0 : LS(ih, OH, IH);
+    uint left_sw = iw == 0 ? 0 : LS(iw, OW, IW);
+    uint right_sd = RS(id, OD, ID);
+    uint right_sh = RS(ih, OH, IH);
+    uint right_sw = RS(iw, OW, IW);
+    uint left_ed = LE(id, OD, ID, OD);
+    uint left_eh = LE(ih, OH, IH, OH);
+    uint left_ew = LE(iw, OW, IW, OW);
+    uint right_ed = id == (ID - 1) ? OD : RE(id, OD, ID, OD);
+    uint right_eh = ih == (IH - 1) ? OH : RE(ih, OH, IH, OH);
+    uint right_ew = iw == (IW - 1) ? OW : RE(iw, OW, IW, OW);
     uint od_start[2] = {left_sd, right_sd};
     uint oh_start[2] = {left_sh, right_sh};
     uint ow_start[2] = {left_sw, right_sw};
@@ -135,9 +134,9 @@ __kernel void ref_resampling_bwd(
                         for (int k = ow_start[c3]; k < ow_end[c3]; k++) {
                             DEF_ACC_DATA_T dst_val = TO_DEF_ACC_DATA_T(
                                     diff_dst[DST_OFF(mb, c, i, j, k)]);
-                            float d = L(i, 1.f / FD);
-                            float h = L(j, 1.f / FH);
-                            float w = L(k, 1.f / FW);
+                            float d = L(i, ID, OD);
+                            float h = L(j, IH, OH);
+                            float w = L(k, IW, OW);
                             float Wid = c1 == 0 ? 1.f - fabs(d - (int)d)
                                                 : fabs(d - (int)d);
                             float Wih = c2 == 0 ? 1.f - fabs(h - (int)h)

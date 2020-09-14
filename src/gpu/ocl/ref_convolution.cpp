@@ -164,7 +164,6 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             "SUM");
 
     def_attr_info(kernel_ctx, conf.attr_info);
-
     return status::success;
 }
 
@@ -201,7 +200,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(3, dst);
 
     unsigned arg_idx = append_post_ops_to_arg_list(
-            arg_list, 4, conf.attr_info.all_post_ops);
+            ctx, arg_list, 4, conf.attr_info.all_post_ops);
 
     arg_list.set(arg_idx, common_oscales);
     if (conf.attr_info.with_per_oc_oscales) {

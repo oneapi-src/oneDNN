@@ -21,25 +21,25 @@
 
 namespace rnn {
 
-void rnn_fwd(const prb_t &p, float *dst_layer_, float *gates_,
+void rnn_fwd(const prb_t &prb, float *dst_layer_, float *gates_,
         const float *weights_layer_, const float *weights_iter_,
         const float *bias_, const float *src_layer_, const float *src_iter_);
 
-void rnn_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
+void rnn_bwd(const prb_t &prb, float *diff_src_layer_, float *diff_src_iter_,
         float *diff_weights_layer_, float *diff_weights_iter_,
         float *diff_bias_, float *b_gates_, const float *src_layer_,
         const float *src_iter_, const float *weights_layer_,
         const float *weights_iter_, const float *bias_, const float *gates_,
         const float *diff_dst_layer_, const float *diff_dst_iter_);
 
-void lstm_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_,
+void lstm_fwd(const prb_t &prb, float *dst_layer_, float *dst_iter_,
         float *dst_iter_c_, float *gates_, float *ht_,
         const float *weights_layer_, const float *weights_iter_,
         const float *weights_peephole_, const float *weights_projection_,
         const float *bias_, const float *src_layer_, const float *src_iter_,
         const float *src_iter_c_);
 
-void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
+void lstm_bwd(const prb_t &prb, float *diff_src_layer_, float *diff_src_iter_,
         float *diff_src_iter_c_, float *diff_weights_layer_,
         float *diff_weights_iter_, float *diff_weights_peephole_,
         float *diff_weights_projection_, float *diff_bias_, float *b_gates_,
@@ -52,11 +52,11 @@ void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
         const float *diff_dst_iter_, const float *diff_dst_iter_c_,
         float *cell_scratchpad_);
 
-void gru_fwd(const prb_t &p, float *dst_layer_, float *gates_,
+void gru_fwd(const prb_t &prb, float *dst_layer_, float *gates_,
         const float *weights_layer_, const float *weights_iter_,
         const float *bias_, const float *src_layer_, const float *src_iter_);
 
-void gru_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
+void gru_bwd(const prb_t &prb, float *diff_src_layer_, float *diff_src_iter_,
         float *diff_weights_layer_, float *diff_weights_iter_,
         float *diff_bias_, float *b_gates_, const float *src_layer_,
         const float *src_iter_, const float *weights_layer_,
@@ -64,18 +64,18 @@ void gru_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
         const float *diff_dst_layer_, const float *diff_dst_iter_,
         float *cell_scratchpad_);
 
-void lbr_gru_fwd(const prb_t &p, float *dst_layer_, float *gates_,
+void lbr_gru_fwd(const prb_t &prb, float *dst_layer_, float *gates_,
         const float *weights_layer_, const float *weights_iter_,
         const float *bias_, const float *src_layer_, const float *src_iter_,
         float *cell_scratchpad_);
 
-void lbr_gru_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
-        float *diff_weights_layer_, float *diff_weights_iter_,
-        float *diff_bias_, float *b_gates_, const float *src_layer_,
-        const float *src_iter_, const float *weights_layer_,
-        const float *weights_iter_, const float *bias_, const float *gates_,
-        const float *diff_dst_layer_, const float *diff_dst_iter_,
-        float *cell_scratchpad_);
+void lbr_gru_bwd(const prb_t &prb, float *diff_src_layer_,
+        float *diff_src_iter_, float *diff_weights_layer_,
+        float *diff_weights_iter_, float *diff_bias_, float *b_gates_,
+        const float *src_layer_, const float *src_iter_,
+        const float *weights_layer_, const float *weights_iter_,
+        const float *bias_, const float *gates_, const float *diff_dst_layer_,
+        const float *diff_dst_iter_, float *cell_scratchpad_);
 
 } // namespace rnn
 

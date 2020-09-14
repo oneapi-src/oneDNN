@@ -234,8 +234,7 @@
 
 KERNEL_ATTR
 __kernel void gen9_binary(__global SRC0_DATA_T *src0,
-        __global SRC1_DATA_T *src1, __global DATA_T *dst, float eltwise_alpha,
-        float eltwise_beta, float eltwise_scale, float sum_scale,
+        __global SRC1_DATA_T *src1, __global DATA_T *dst POST_OP_ARGS,
         float src0_scale, float src1_scale) {
 
     // since gws = no. of total elems in A, id will be the logical offset
@@ -260,15 +259,19 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     src1 += src1_off;
 #if NVECT == 1
     float d = 0;
+    float dst_data;
     float tmp_src0 = CONVERT_FLOAT_T(SRC0_BLOCK_READ(&src0[0]));
 #elif NVECT == 2
     float2 d = 0;
+    float2 dst_data;
     float2 tmp_src0 = CONVERT_FLOAT2_T(SRC0_BLOCK_READ2(&src0[0]));
 #elif NVECT == 4
     float4 d = 0;
+    float4 dst_data;
     float4 tmp_src0 = CONVERT_FLOAT4_T(SRC0_BLOCK_READ4(&src0[0]));
 #elif NVECT == 8
     float8 d = 0;
+    float8 dst_data;
     float8 tmp_src0 = CONVERT_FLOAT8_T(SRC0_BLOCK_READ8(&src0[0]));
 #endif
 
@@ -297,18 +300,29 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 
 #if WITH_SUM
 #if NVECT == 1
-    d += sum_scale * CONVERT_FLOAT_T(DST_BLOCK_READ(&src0[0]));
+    dst_data = CONVERT_FLOAT_T(DST_BLOCK_READ(&src0[0]));
 #elif NVECT == 2
-    d += sum_scale * CONVERT_FLOAT2_T(DST_BLOCK_READ2(&src0[0]));
+    dst_data = CONVERT_FLOAT2_T(DST_BLOCK_READ2(&src0[0]));
 #elif NVECT == 4
-    d += sum_scale * CONVERT_FLOAT4_T(DST_BLOCK_READ4(&src0[0]));
+    dst_data = CONVERT_FLOAT4_T(DST_BLOCK_READ4(&src0[0]));
 #elif NVECT == 8
-    d += sum_scale * CONVERT_FLOAT8_T(DST_BLOCK_READ8(&src0[0]));
+    dst_data = CONVERT_FLOAT8_T(DST_BLOCK_READ8(&src0[0]));
 #endif
 #endif
 
-#if WITH_ELTWISE
-    d = fwd_eltwise(d, eltwise_alpha, eltwise_beta, eltwise_scale);
+    const int po_mb = dims0[0];
+    const int po_oc = dims0[1] + get_sub_group_local_id();
+#if NVECT == 1
+    APPLY_POST_OPS(d, float, dst_data, float, po_mb, 1, po_oc, 1, 0, 1, 0, 1, 0,
+            1, 0, 1);
+#else
+    for (int vidx = 0; vidx < NVECT; ++vidx) {
+        float d_i = d[vidx];
+        float dst_i = dst_data[vidx];
+        APPLY_POST_OPS(d_i, float, dst_i, float, po_mb, 1, po_oc, 1, 0, 1, 0, 1,
+                0, 1, 0, 1);
+        d[vidx] = d_i;
+    }
 #endif
 
 #if NVECT == 1

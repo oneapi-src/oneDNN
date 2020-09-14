@@ -127,6 +127,7 @@ PKIND_TRAITS_INST(binary);
 PKIND_TRAITS_INST(logsoftmax);
 PKIND_TRAITS_INST(matmul);
 PKIND_TRAITS_INST(resampling);
+PKIND_TRAITS_INST(reduction);
 #undef PKIND_TRAITS_INST
 
 } // namespace impl

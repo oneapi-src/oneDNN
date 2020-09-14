@@ -63,7 +63,8 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                     && this->set_default_formats()
                     && attr()->has_default_values(
                             attr_skip_mask, dst_md_.data_type)
-                    && post_ops_ok(attr()) && zero_points_ok(attr())
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type)
+                    && zero_points_ok(attr())
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8, u8)
                                     && utils::one_of(

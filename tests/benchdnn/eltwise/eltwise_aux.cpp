@@ -21,21 +21,21 @@
 
 namespace eltwise {
 
-std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     dump_global_params(s);
     settings_t def;
 
-    if (canonical || p.dir != def.dir[0]) s << "--dir=" << p.dir << " ";
-    if (canonical || p.dt != def.dt[0]) s << "--dt=" << p.dt << " ";
-    if (canonical || p.tag != def.tag[0]) s << "--tag=" << p.tag << " ";
-    s << "--alg=" << p.alg << " ";
-    s << "--alpha=" << p.alpha << " ";
-    s << "--beta=" << p.beta << " ";
-    if (canonical || p.inplace != def.inplace[0])
-        s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
+    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
+    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
+    s << "--alg=" << prb.alg << " ";
+    s << "--alpha=" << prb.alpha << " ";
+    s << "--beta=" << prb.beta << " ";
+    if (canonical || prb.inplace != def.inplace[0])
+        s << "--inplace=" << bool2str(prb.inplace) << " ";
 
-    s << p.attr;
-    s << p.dims;
+    s << prb.attr;
+    s << prb.dims;
 
     return s;
 }

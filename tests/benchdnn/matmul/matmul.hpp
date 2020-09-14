@@ -133,7 +133,7 @@ struct prb_t : public desc_t {
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
-std::ostream &operator<<(std::ostream &s, const prb_t &p);
+std::ostream &operator<<(std::ostream &s, const prb_t &prb);
 
 /* some extra control parameters which shouldn't be placed in prb_t */
 
@@ -143,12 +143,12 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
 
-    void report(const prb_t *p, const res_t *r, const char *prb_str) {
-        p_ = p;
+    void report(const prb_t *prb, const res_t *res, const char *prb_str) {
+        p_ = prb;
         stag_ = {normalize_tag(p_->stag, p_->ndims)};
         wtag_ = normalize_tag(p_->wtag, p_->ndims);
         dtag_ = normalize_tag(p_->dtag, p_->ndims);
-        base_report(r, prb_str);
+        base_report(res, prb_str);
     }
 
     void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
@@ -175,31 +175,31 @@ private:
     std::string wtag_, dtag_;
 };
 
-inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t m, int64_t k) {
-    return (mb * p->m + m) * p->k + k;
+inline int64_t src_off_f(const prb_t *prb, int64_t mb, int64_t m, int64_t k) {
+    return (mb * prb->m + m) * prb->k + k;
 }
 
-inline int64_t wei_off_f(const prb_t *p, int64_t mb, int64_t k, int64_t n) {
-    return (mb * p->k + k) * p->n + n;
+inline int64_t wei_off_f(const prb_t *prb, int64_t mb, int64_t k, int64_t n) {
+    return (mb * prb->k + k) * prb->n + n;
 }
 
-inline int64_t dst_off_f(const prb_t *p, int64_t mb, int64_t m, int64_t n) {
-    return (mb * p->m + m) * p->n + n;
+inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t m, int64_t n) {
+    return (mb * prb->m + m) * prb->n + n;
 }
 
-inline int64_t bia_off_f(const prb_t *p, int64_t mb, int64_t m, int64_t n) {
-    int64_t bia_stride[3] = {p->m * p->n, p->n, 1}, factor = 1;
-    if ((p->bia_mask & (1 << ((p->ndims == 3) + 1))) == 0) {
+inline int64_t bia_off_f(const prb_t *prb, int64_t mb, int64_t m, int64_t n) {
+    int64_t bia_stride[3] = {prb->m * prb->n, prb->n, 1}, factor = 1;
+    if ((prb->bia_mask & (1 << ((prb->ndims == 3) + 1))) == 0) {
         bia_stride[2] = 0;
-        factor *= p->n;
+        factor *= prb->n;
     }
-    if ((p->bia_mask & (1 << ((p->ndims == 3) + 0))) == 0) {
+    if ((prb->bia_mask & (1 << ((prb->ndims == 3) + 0))) == 0) {
         bia_stride[1] = 0;
-        factor *= p->m;
+        factor *= prb->m;
     } else {
         bia_stride[1] /= factor;
     }
-    if (p->ndims == 2 || ((p->bia_mask & (1 << 0)) == 0)) {
+    if (prb->ndims == 2 || ((prb->bia_mask & (1 << 0)) == 0)) {
         bia_stride[0] = 0;
     } else {
         bia_stride[0] /= factor;
@@ -207,11 +207,11 @@ inline int64_t bia_off_f(const prb_t *p, int64_t mb, int64_t m, int64_t n) {
     return mb * bia_stride[0] + m * bia_stride[1] + n * bia_stride[2];
 }
 
-void compute_ref(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &src_m,
+void compute_ref(const engine_t &engine_tgt, const prb_t *prb, dnn_mem_t &src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst_m);
 
-int doit(const prb_t *p, res_t *res);
+int doit(const prb_t *prb, res_t *res);
 
 int bench(int argc, char **argv);
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_JIT_AVX2_X8S8S32X_1X1_CONVOLUTION_HPP
-#define CPU_X64_JIT_AVX2_X8S8S32X_1X1_CONVOLUTION_HPP
+#ifndef CPU_X64_JIT_UNI_X8S8S32X_1X1_CONVOLUTION_HPP
+#define CPU_X64_JIT_UNI_X8S8S32X_1X1_CONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -28,17 +28,17 @@
 #include "cpu/dw_convolution_utils.hpp"
 #include "cpu/platform.hpp"
 
-#include "cpu/x64/jit_avx2_x8s8s32x_1x1_conv_kernel.hpp"
-#include "cpu/x64/jit_avx2_x8s8s32x_convolution.hpp"
 #include "cpu/x64/jit_uni_1x1_conv_utils.hpp"
+#include "cpu/x64/jit_uni_x8s8s32x_1x1_conv_kernel.hpp"
+#include "cpu/x64/jit_uni_x8s8s32x_convolution.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <impl::data_type_t src_type, impl::data_type_t dst_type>
-struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
+template <cpu_isa_t isa, impl::data_type_t src_type, impl::data_type_t dst_type>
+struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         using dw_conv_pd_type = cpu_convolution_fwd_pd_t;
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -52,8 +52,8 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             if (copy(other) != status::success) is_initialized_ = false;
         }
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_int8_1x1:", avx2, ""),
-                jit_avx2_x8s8s32x_1x1_convolution_fwd_t);
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_uni_int8_1x1:", isa, ""),
+                jit_uni_x8s8s32x_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
@@ -78,8 +78,8 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, dst_md(), weights_md());
 
-            status_t status = jit_avx2_x8s8s32x_1x1_conv_kernel::init_conf(jcp_,
-                    *conv_d, *src_d, *weights_md(), *dst_md(),
+            status_t status = jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
+                    jcp_, *conv_d, *src_d, *weights_md(), *dst_md(),
                     with_bias() ? *weights_md(1) : types::zero_md(), *attr(),
                     dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
@@ -90,7 +90,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             }
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_avx2_x8s8s32x_1x1_conv_kernel::init_scratchpad(
+            jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_scratchpad(
                     scratchpad, jcp_, *attr());
 
             rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
@@ -129,8 +129,8 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         jit_conv_conf_t *jcp_dw_; // doesn't own a resource
         std::unique_ptr<cpu_convolution_fwd_pd_t> dw_conv_pd_;
         template <data_type_t sdt, data_type_t ddt>
-        using dw_pd_t =
-                typename jit_avx2_x8s8s32x_convolution_fwd_t<sdt, ddt>::pd_t;
+        using dw_pd_t = typename jit_uni_x8s8s32x_convolution_fwd_t<isa, sdt,
+                ddt>::pd_t;
 
     protected:
         status_t copy(const pd_t &other) {
@@ -182,11 +182,23 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             using namespace format_tag;
 
             const bool is_src_s8 = src_md_.data_type == data_type::s8;
-            format_tag_t wei_tag = with_groups()
-                    ? utils::pick(
-                            ndims() - 3, gOIw2i8o4i, gOIhw2i8o4i, gOIdhw2i8o4i)
-                    : utils::pick(
-                            ndims() - 3, OIw2i8o4i, OIhw2i8o4i, OIdhw2i8o4i);
+            format_tag_t wei_tag;
+            switch (isa) {
+                case avx2:
+                    wei_tag = with_groups()
+                            ? utils::pick(ndims() - 3, gOIw2i8o4i, gOIhw2i8o4i,
+                                    gOIdhw2i8o4i)
+                            : utils::pick(ndims() - 3, OIw2i8o4i, OIhw2i8o4i,
+                                    OIdhw2i8o4i);
+                    break;
+                case sse41:
+                    wei_tag = with_groups() ? utils::pick(ndims() - 3, gOIw4o4i,
+                                      gOIhw4o4i, gOIdhw4o4i)
+                                            : utils::pick(ndims() - 3, OIw4o4i,
+                                                    OIhw4o4i, OIdhw4o4i);
+                    break;
+                default: assert(!"Current ISA is not supported!"); break;
+            }
 
             memory_desc_t want_wei_md = weights_md_;
             memory_desc_init_by_tag(want_wei_md, wei_tag);
@@ -228,7 +240,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             // for dw: Always fuse with same ISA.
             // Caveat: May be a better dw conv exists.
 
-            bool ok = true && (!mayiuse(avx512_core))
+            bool ok = true && (!mayiuse(isa == avx2 ? avx512_core : avx2))
                     && (attr_1x1.post_ops_.find(primitive_kind::sum) == -1)
                     // TODO: Below may be further tuned.
                     && (l2_cache < src_d.size())
@@ -325,14 +337,14 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         }
     };
 
-    template <cpu_isa_t isa, typename conv_t>
+    template <cpu_isa_t _isa, typename conv_t>
     friend status_t init_rtus_driver(conv_t *self);
 
-    template <impl::data_type_t sdt, impl::data_type_t ddt>
+    template <impl::data_type_t _sdt, impl::data_type_t _ddt>
     using fusable_pd_type =
-            typename jit_avx2_x8s8s32x_convolution_fwd_t<sdt, ddt>::pd_t;
+            typename jit_uni_x8s8s32x_convolution_fwd_t<isa, _sdt, _ddt>::pd_t;
 
-    jit_avx2_x8s8s32x_1x1_convolution_fwd_t(const pd_t *apd)
+    jit_uni_x8s8s32x_1x1_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
@@ -344,7 +356,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
-                new jit_avx2_x8s8s32x_1x1_conv_kernel(
+                new jit_uni_x8s8s32x_1x1_conv_kernel<isa>(
                         pd()->jcp_, *pd()->attr())));
         CHECK(kernel_->create_kernel());
 
@@ -355,7 +367,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             CHECK(kernel_dw_->create_kernel());
         }
 
-        CHECK(init_rtus_driver<avx2>(this));
+        CHECK(init_rtus_driver<isa>(this));
         return status::success;
     }
 
@@ -372,9 +384,9 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<jit_avx2_x8s8s32x_1x1_conv_kernel> kernel_;
-    std::unique_ptr<rtus_driver_t<avx2>> rtus_driver_;
-    using dw_conv_kernel_t = jit_avx2_x8s8s32x_fwd_kernel;
+    std::unique_ptr<jit_uni_x8s8s32x_1x1_conv_kernel<isa>> kernel_;
+    std::unique_ptr<rtus_driver_t<isa>> rtus_driver_;
+    using dw_conv_kernel_t = jit_uni_x8s8s32x_fwd_kernel<isa>;
     std::unique_ptr<dw_conv_kernel_t> kernel_dw_;
 };
 

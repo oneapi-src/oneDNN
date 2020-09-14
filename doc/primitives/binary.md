@@ -47,14 +47,13 @@ argument index as specified by the following table.
  * The \dst memory format can be either specified explicitly or by
    #dnnl::memory::format_tag::any (recommended), in which case the primitive
    will derive the most appropriate memory format based on the format of the
+   source 0 tensor. The \dst tensor dimensions must match the ones of the
    source 0 tensor.
-
- * Destination memory descriptor should completely match source 0 memory
-   descriptor.
 
  * The binary primitive supports in-place operations, meaning that source 0
    tensor may be used as the destination, in which case its data will
-   be overwritten.
+   be overwritten. In-place mode requires the \dst and source 0 data types to be
+   either the same or an arbitrary combination of `int8` data types. 
 
 ### Post-ops and Attributes
 
@@ -83,6 +82,10 @@ meaning associated with any of tensors dimensions.
 
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
+
+2. **CPU**
+    - Destination memory descriptor should completely match source 0 memory
+      descriptor.
 
 ## Performance Tips
 

@@ -642,6 +642,20 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
 
 #if WITH_POST_OP
 
+#define APPLY_POST_OPS_COMMON(nelems, accum, sum) \
+    for (int didx = 0; didx < nelems; ++didx) { \
+        float tmp_i = accum[didx]; \
+        SUM_DATA_T d_i = sum[didx]; \
+        const int po_mb = group_mb % MB; \
+        const int po_oc \
+                = (oc * OC_BLOCK + ((didx * SUB_GROUP_SIZE) % OC_BLOCK) \
+                          + sub_local_id) \
+                % (OC * G); \
+        APPLY_POST_OPS(tmp_i, float, d_i, SUM_DATA_T, po_mb, 1, po_oc, 1, 0, \
+                1, 0, 1, 0, 1, 0, 1); \
+        accum[didx] = tmp_i; \
+    }
+
 #if DST_NHWC
 #define DO_POST_OP() \
     do { \
@@ -649,7 +663,7 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
         if (WITH_SUM) \
             d = AS_SUM_DATA4_T( \
                     read_oc_block4(dst, (group_oc + oc) * OC_BLOCK)); \
-        APPLY_POST_OPS(tmp, float, d, SUM_DATA_T); \
+        APPLY_POST_OPS_COMMON(4, tmp, d); \
     } while (0)
 #define DO_POST_OP_4() \
     { \
@@ -665,7 +679,7 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
                             read_oc_block4(dst + G * OC * 3, \
                                     (group_oc + oc) * OC_BLOCK))); \
         float16 tmp_x16 = (float16)(tmp0, tmp1); \
-        APPLY_POST_OPS(tmp_x16, float, d, SUM_DATA_T); \
+        APPLY_POST_OPS_COMMON(16, tmp_x16, d); \
         tmp0 = tmp_x16.s01234567; \
         tmp1 = tmp_x16.s89abcdef; \
     }
@@ -674,7 +688,7 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
     { \
         SUM_DATA4_T d; \
         if (WITH_SUM) d = AS_SUM_DATA4_T(BLOCK_READ_DST4(dst)); \
-        APPLY_POST_OPS(tmp, float, d, SUM_DATA_T); \
+        APPLY_POST_OPS_COMMON(4, tmp, d); \
     }
 
 #define DO_POST_OP_4() \
@@ -682,7 +696,7 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
         SUM_DATA16_T d; \
         if (WITH_SUM) d = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst)); \
         float16 tmp_x16 = (float16)(tmp0, tmp1); \
-        APPLY_POST_OPS(tmp_x16, float, d, SUM_DATA_T); \
+        APPLY_POST_OPS_COMMON(16, tmp_x16, d); \
         tmp0 = tmp_x16.s01234567; \
         tmp1 = tmp_x16.s89abcdef; \
     }
