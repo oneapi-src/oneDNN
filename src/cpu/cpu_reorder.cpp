@@ -409,7 +409,7 @@ const impl_list_map_t regular_impl_list_map {
         REG_SR_BIDIR(s8, any, s8, OIhw4i16o4i),
         REG_SR_BIDIR(s8, any, f32, gOIhw4i16o4i),
         REG_SR_BIDIR(s8, any, bf16, gOIhw4i16o4i),
-        REG_SR_BIDIR(s8, any, s8, OIhw4i16o4i),
+        REG_SR_BIDIR(s8, any, s8, gOIhw4i16o4i),
 
         REG_SR(s8, any, f32, any, fmt_order::any, spec::reference),
         REG_SR(s8, any, s32, any, fmt_order::any, spec::reference),
