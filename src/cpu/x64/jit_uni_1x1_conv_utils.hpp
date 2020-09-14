@@ -345,9 +345,10 @@ struct rtus_driver_t : public jit_generator {
                 // of xmm/ymm registers
                 const bool is_ymm = load_size > 16;
                 if (is_ymm)
-                    load_bytes(Ymm(vreg.getIdx()), reg, offset, load_size);
+                    load_bytes(Ymm(vreg.getIdx()), reg, offset, load_size,
+                            isa == sse41);
                 else
-                    load_bytes(vreg, reg, offset, load_size);
+                    load_bytes(vreg, reg, offset, load_size, isa == sse41);
             }
         };
 
@@ -366,9 +367,10 @@ struct rtus_driver_t : public jit_generator {
                 // of xmm/ymm registers
                 const bool is_ymm = store_size > 16;
                 if (is_ymm)
-                    store_bytes(Ymm(vreg.getIdx()), reg, offset, store_size);
+                    store_bytes(Ymm(vreg.getIdx()), reg, offset, store_size,
+                            isa == sse41);
                 else
-                    store_bytes(vreg, reg, offset, store_size);
+                    store_bytes(vreg, reg, offset, store_size, isa == sse41);
             }
         };
 

@@ -1178,12 +1178,14 @@ public:
     */
     template <typename Vmm>
     void load_bytes(const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset,
-            int load_size) {
+            int load_size, bool force_sse = false) {
 
         constexpr bool is_xmm = std::is_same<Vmm, Xbyak::Xmm>::value;
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
         static_assert(
                 is_xmm || is_ymm, "only Xmm or Ymm registers are allowed");
+        const bool use_avx = mayiuse(avx) && !force_sse;
+
         MAYBE_UNUSED(is_xmm);
         MAYBE_UNUSED(is_ymm);
 
@@ -1193,6 +1195,7 @@ public:
         // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
 
+        // At most 16 bytes can fit inside the Xmm register
         assert(IMPLICATION(load_size > 16, is_ymm));
 
         assert(mayiuse(sse41)
@@ -1205,6 +1208,26 @@ public:
         const auto addr = [&](int bytes_offset) {
             return ptr[reg + offset + bytes_offset * sizeof(int8_t)];
         };
+
+        // VEX-fying macro when AVX and SSE41 instructions have
+        // same number of arguments
+#define MAYBE_VEX2(instr, arg1, arg2) \
+    do { \
+        if (use_avx) \
+            CONCAT2(v, instr)(arg1, arg2); \
+        else \
+            instr(arg1, arg2); \
+    } while (0)
+
+        // VEX-fying macro when AVX have one extra argument for
+        // destination (namely, the first argument)
+#define MAYBE_VEX(instr, arg1, arg2, arg3) \
+    do { \
+        if (use_avx) \
+            CONCAT2(v, instr)(arg1, arg1, arg2, arg3); \
+        else \
+            instr(arg1, arg2, arg3); \
+    } while (0)
 
         if (load_size == 32) {
             vmovups(ymm, addr(0));
@@ -1221,52 +1244,52 @@ public:
         }
 
         if (bytes_to_load >= 8 && bytes_to_load < 16)
-            uni_vpinsrq(xmm, xmm, addr(start_bytes), 0);
+            MAYBE_VEX(pinsrq, xmm, addr(start_bytes), 0);
         else if (bytes_to_load == 16)
-            uni_vmovdqu(xmm, addr(start_bytes));
+            MAYBE_VEX2(movdqu, xmm, addr(start_bytes));
 
         switch (bytes_to_load) {
             case 0: break;
-            case 1: uni_vpinsrb(xmm, xmm, addr(start_bytes), 0); break;
-            case 2: uni_vpinsrw(xmm, xmm, addr(start_bytes), 0); break;
+            case 1: MAYBE_VEX(pinsrb, xmm, addr(start_bytes), 0); break;
+            case 2: MAYBE_VEX(pinsrw, xmm, addr(start_bytes), 0); break;
             case 3:
-                uni_vpinsrw(xmm, xmm, addr(start_bytes), 0);
-                uni_vpinsrb(xmm, xmm, addr(start_bytes + 2), 2);
+                MAYBE_VEX(pinsrw, xmm, addr(start_bytes), 0);
+                MAYBE_VEX(pinsrb, xmm, addr(start_bytes + 2), 2);
                 break;
-            case 4: uni_vpinsrd(xmm, xmm, addr(start_bytes), 0); break;
+            case 4: MAYBE_VEX(pinsrd, xmm, addr(start_bytes), 0); break;
             case 5:
-                uni_vpinsrd(xmm, xmm, addr(start_bytes), 0);
-                uni_vpinsrb(xmm, xmm, addr(start_bytes + 4), 4);
+                MAYBE_VEX(pinsrd, xmm, addr(start_bytes), 0);
+                MAYBE_VEX(pinsrb, xmm, addr(start_bytes + 4), 4);
                 break;
             case 6:
-                uni_vpinsrd(xmm, xmm, addr(start_bytes), 0);
-                uni_vpinsrw(xmm, xmm, addr(start_bytes + 4), 2);
+                MAYBE_VEX(pinsrd, xmm, addr(start_bytes), 0);
+                MAYBE_VEX(pinsrw, xmm, addr(start_bytes + 4), 2);
                 break;
             case 7:
-                uni_vpinsrd(xmm, xmm, addr(start_bytes), 0);
-                uni_vpinsrw(xmm, xmm, addr(start_bytes + 4), 2);
-                uni_vpinsrb(xmm, xmm, addr(start_bytes + 6), 6);
+                MAYBE_VEX(pinsrd, xmm, addr(start_bytes), 0);
+                MAYBE_VEX(pinsrw, xmm, addr(start_bytes + 4), 2);
+                MAYBE_VEX(pinsrb, xmm, addr(start_bytes + 6), 6);
                 break;
             case 8: break;
-            case 9: uni_vpinsrb(xmm, xmm, addr(start_bytes + 8), 8); break;
-            case 10: uni_vpinsrw(xmm, xmm, addr(start_bytes + 8), 4); break;
+            case 9: MAYBE_VEX(pinsrb, xmm, addr(start_bytes + 8), 8); break;
+            case 10: MAYBE_VEX(pinsrw, xmm, addr(start_bytes + 8), 4); break;
             case 11:
-                uni_vpinsrw(xmm, xmm, addr(start_bytes + 8), 4);
-                uni_vpinsrb(xmm, xmm, addr(start_bytes + 10), 10);
+                MAYBE_VEX(pinsrw, xmm, addr(start_bytes + 8), 4);
+                MAYBE_VEX(pinsrb, xmm, addr(start_bytes + 10), 10);
                 break;
-            case 12: uni_vpinsrd(xmm, xmm, addr(start_bytes + 8), 2); break;
+            case 12: MAYBE_VEX(pinsrd, xmm, addr(start_bytes + 8), 2); break;
             case 13:
-                uni_vpinsrd(xmm, xmm, addr(start_bytes + 8), 2);
-                uni_vpinsrb(xmm, xmm, addr(start_bytes + 12), 12);
+                MAYBE_VEX(pinsrd, xmm, addr(start_bytes + 8), 2);
+                MAYBE_VEX(pinsrb, xmm, addr(start_bytes + 12), 12);
                 break;
             case 14:
-                uni_vpinsrd(xmm, xmm, addr(start_bytes + 8), 2);
-                uni_vpinsrw(xmm, xmm, addr(start_bytes + 12), 6);
+                MAYBE_VEX(pinsrd, xmm, addr(start_bytes + 8), 2);
+                MAYBE_VEX(pinsrw, xmm, addr(start_bytes + 12), 6);
                 break;
             case 15:
-                uni_vpinsrd(xmm, xmm, addr(start_bytes + 8), 2);
-                uni_vpinsrw(xmm, xmm, addr(start_bytes + 12), 6);
-                uni_vpinsrb(xmm, xmm, addr(start_bytes + 14), 14);
+                MAYBE_VEX(pinsrd, xmm, addr(start_bytes + 8), 2);
+                MAYBE_VEX(pinsrw, xmm, addr(start_bytes + 12), 6);
+                MAYBE_VEX(pinsrb, xmm, addr(start_bytes + 14), 14);
                 break;
             case 16: break;
             default: assert(!"improper load size");
@@ -1276,6 +1299,8 @@ public:
             vinsertf128(ymm, ymm, xmm, 1); // insert to upper bits of ymm
             vinsertf128(ymm, ymm, addr(0), 0); // insert to lower bits of ymm
         }
+#undef MAYBE_VEX2
+#undef MAYBE_VEX
     }
 
     /**
@@ -1298,12 +1323,14 @@ public:
     */
     template <typename Vmm>
     void store_bytes(const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset,
-            int store_size) {
+            int store_size, bool force_sse = false) {
 
         constexpr bool is_xmm = std::is_same<Vmm, Xbyak::Xmm>::value;
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
         static_assert(
                 is_xmm || is_ymm, "only Xmm or Ymm registers are allowed");
+        const bool use_avx = mayiuse(avx) && !force_sse;
+
         MAYBE_UNUSED(is_xmm);
         MAYBE_UNUSED(is_ymm);
 
@@ -1313,6 +1340,7 @@ public:
         // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
 
+        // At most 16 bytes can fit inside the Xmm register
         assert(IMPLICATION(store_size > 16, is_ymm));
 
         assert(mayiuse(sse41)
@@ -1324,6 +1352,24 @@ public:
         const auto addr = [&](int bytes_offset) {
             return ptr[reg + offset + bytes_offset * sizeof(int8_t)];
         };
+
+        // VEX-fying macro when AVX and SSE41 instructions have
+        // same number of arguments
+#define MAYBE_VEX2(instr, arg1, arg2) \
+    do { \
+        if (use_avx) \
+            CONCAT2(v, instr)(arg1, arg2); \
+        else \
+            instr(arg1, arg2); \
+    } while (0)
+
+#define MAYBE_VEX3(instr, arg1, arg2, arg3) \
+    do { \
+        if (use_avx) \
+            CONCAT2(v, instr)(arg1, arg2, arg3); \
+        else \
+            instr(arg1, arg2, arg3); \
+    } while (0)
 
         if (store_size == 32) {
             vmovups(addr(0), ymm);
@@ -1341,56 +1387,58 @@ public:
         }
 
         if (bytes_to_store >= 8 && bytes_to_store < 16)
-            uni_vpextrq(addr(start_bytes), xmm, 0);
+            MAYBE_VEX3(pextrq, addr(start_bytes), xmm, 0);
         else if (bytes_to_store == 16)
-            uni_vmovdqu(addr(start_bytes), xmm);
+            MAYBE_VEX2(movdqu, addr(start_bytes), xmm);
 
         switch (bytes_to_store) {
             case 0: break;
-            case 1: uni_vpextrb(addr(start_bytes), xmm, 0); break;
-            case 2: uni_vpextrw(addr(start_bytes), xmm, 0); break;
+            case 1: MAYBE_VEX3(pextrb, addr(start_bytes), xmm, 0); break;
+            case 2: MAYBE_VEX3(pextrw, addr(start_bytes), xmm, 0); break;
             case 3:
-                uni_vpextrw(addr(start_bytes), xmm, 0);
-                uni_vpextrb(addr(start_bytes + 2), xmm, 2);
+                MAYBE_VEX3(pextrw, addr(start_bytes), xmm, 0);
+                MAYBE_VEX3(pextrb, addr(start_bytes + 2), xmm, 2);
                 break;
-            case 4: uni_vpextrd(addr(start_bytes), xmm, 0); break;
+            case 4: MAYBE_VEX3(pextrd, addr(start_bytes), xmm, 0); break;
             case 5:
-                uni_vpextrd(addr(start_bytes), xmm, 0);
-                uni_vpextrb(addr(start_bytes + 4), xmm, 4);
+                MAYBE_VEX3(pextrd, addr(start_bytes), xmm, 0);
+                MAYBE_VEX3(pextrb, addr(start_bytes + 4), xmm, 4);
                 break;
             case 6:
-                uni_vpextrd(addr(start_bytes), xmm, 0);
-                uni_vpextrw(addr(start_bytes + 4), xmm, 2);
+                MAYBE_VEX3(pextrd, addr(start_bytes), xmm, 0);
+                MAYBE_VEX3(pextrw, addr(start_bytes + 4), xmm, 2);
                 break;
             case 7:
-                uni_vpextrd(addr(start_bytes), xmm, 0);
-                uni_vpextrw(addr(start_bytes + 4), xmm, 2);
-                uni_vpextrb(addr(start_bytes + 6), xmm, 6);
+                MAYBE_VEX3(pextrd, addr(start_bytes), xmm, 0);
+                MAYBE_VEX3(pextrw, addr(start_bytes + 4), xmm, 2);
+                MAYBE_VEX3(pextrb, addr(start_bytes + 6), xmm, 6);
                 break;
             case 8: break;
-            case 9: uni_vpextrb(addr(start_bytes + 8), xmm, 8); break;
-            case 10: uni_vpextrw(addr(start_bytes + 8), xmm, 4); break;
+            case 9: MAYBE_VEX3(pextrb, addr(start_bytes + 8), xmm, 8); break;
+            case 10: MAYBE_VEX3(pextrw, addr(start_bytes + 8), xmm, 4); break;
             case 11:
-                uni_vpextrw(addr(start_bytes + 8), xmm, 4);
-                uni_vpextrb(addr(start_bytes + 10), xmm, 10);
+                MAYBE_VEX3(pextrw, addr(start_bytes + 8), xmm, 4);
+                MAYBE_VEX3(pextrb, addr(start_bytes + 10), xmm, 10);
                 break;
-            case 12: uni_vpextrd(addr(start_bytes + 8), xmm, 2); break;
+            case 12: MAYBE_VEX3(pextrd, addr(start_bytes + 8), xmm, 2); break;
             case 13:
-                uni_vpextrd(addr(start_bytes + 8), xmm, 2);
-                uni_vpextrb(addr(start_bytes + 12), xmm, 12);
+                MAYBE_VEX3(pextrd, addr(start_bytes + 8), xmm, 2);
+                MAYBE_VEX3(pextrb, addr(start_bytes + 12), xmm, 12);
                 break;
             case 14:
-                uni_vpextrd(addr(start_bytes + 8), xmm, 2);
-                uni_vpextrw(addr(start_bytes + 12), xmm, 6);
+                MAYBE_VEX3(pextrd, addr(start_bytes + 8), xmm, 2);
+                MAYBE_VEX3(pextrw, addr(start_bytes + 12), xmm, 6);
                 break;
             case 15:
-                uni_vpextrd(addr(start_bytes + 8), xmm, 2);
-                uni_vpextrw(addr(start_bytes + 12), xmm, 6);
-                uni_vpextrb(addr(start_bytes + 14), xmm, 14);
+                MAYBE_VEX3(pextrd, addr(start_bytes + 8), xmm, 2);
+                MAYBE_VEX3(pextrw, addr(start_bytes + 12), xmm, 6);
+                MAYBE_VEX3(pextrb, addr(start_bytes + 14), xmm, 14);
                 break;
             case 16: break;
             default: assert(!"improper store size");
         }
+#undef MAYBE_VEX2
+#undef MAYBE_VEX3
     }
 
     /**
