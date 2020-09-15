@@ -181,12 +181,12 @@ struct cpu_isa_traits<avx512_core_amx> {
     static constexpr const char *user_option_env = "AVX512_CORE_AMX";
 };
 
-namespace {
-
-const Xbyak::util::Cpu &cpu() {
+inline const Xbyak::util::Cpu &cpu() {
     const static Xbyak::util::Cpu cpu_;
     return cpu_;
 }
+
+namespace {
 
 static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     using namespace Xbyak::util;
