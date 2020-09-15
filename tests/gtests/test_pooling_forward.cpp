@@ -200,8 +200,8 @@ protected:
                 : create_md(
                         {pd.mb, pd.c, pd.oh, pd.ow}, data_type, p.dst_format);
 
-        auto p_src = memory(p_src_desc, eng);
-        auto p_dst = memory(p_dst_desc, eng);
+        auto p_src = test::make_memory(p_src_desc, eng);
+        auto p_dst = test::make_memory(p_dst_desc, eng);
 
         fill_data<data_t>(
                 p_src.get_desc().get_size() / sizeof(data_t), p_src, 1., true);
@@ -246,7 +246,7 @@ protected:
             check_prim_desc<pooling_forward::primitive_desc>(pool_prim_desc);
 
             auto workspace_desc = pool_prim_desc.workspace_desc();
-            workspace = memory(workspace_desc, eng);
+            workspace = test::make_memory(workspace_desc, eng);
 
             pooling_forward(pool_prim_desc)
                     .execute(strm,
@@ -265,7 +265,7 @@ protected:
             check_prim_desc<pooling_v2_forward::primitive_desc>(pool_prim_desc);
 
             auto workspace_desc = pool_prim_desc.workspace_desc();
-            workspace = memory(workspace_desc, eng);
+            workspace = test::make_memory(workspace_desc, eng);
 
             pooling_v2_forward(pool_prim_desc)
                     .execute(strm,

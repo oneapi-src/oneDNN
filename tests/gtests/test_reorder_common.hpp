@@ -98,8 +98,8 @@ protected:
         auto md_i = memory::desc(p.dims, prec_i, p.fmt_i);
         auto md_o = memory::desc(p.dims, prec_o, p.fmt_o);
 
-        auto src = memory(md_i, eng_i);
-        auto dst = memory(md_o, eng_o);
+        auto src = test::make_memory(md_i, eng_i);
+        auto dst = test::make_memory(md_o, eng_o);
 
         /* initialize input data */
         const dnnl::impl::memory_desc_wrapper mdw_i(md_i.data);

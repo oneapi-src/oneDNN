@@ -149,10 +149,14 @@ protected:
         ip_primitive_desc = inner_product_backward_data::primitive_desc(
                 ip_primitive_desc.get()); // test construction from a C pd
 
-        memory ip_diff_src(ip_primitive_desc.diff_src_desc(), eng);
-        memory ip_weights(ip_primitive_desc.weights_desc(), eng);
-        memory ip_diff_dst(ip_primitive_desc.diff_dst_desc(), eng);
-        memory diff_src_ref(ip_primitive_desc.diff_src_desc(), eng);
+        auto ip_diff_src
+                = test::make_memory(ip_primitive_desc.diff_src_desc(), eng);
+        auto ip_weights
+                = test::make_memory(ip_primitive_desc.weights_desc(), eng);
+        auto ip_diff_dst
+                = test::make_memory(ip_primitive_desc.diff_dst_desc(), eng);
+        auto diff_src_ref
+                = test::make_memory(ip_primitive_desc.diff_src_desc(), eng);
 
         fill_data<data_t>(ip_diff_dst.get_desc().get_size() / sizeof(data_t),
                 ip_diff_dst);

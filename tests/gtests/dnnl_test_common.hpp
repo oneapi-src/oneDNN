@@ -562,6 +562,17 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
     return false;
 }
 
+namespace test {
+inline dnnl::memory make_memory(
+        const dnnl::memory::desc &md, const dnnl::engine &eng) {
+    return dnnl::memory(md, eng);
+}
+inline dnnl::memory make_memory(
+        const dnnl::memory::desc &md, const dnnl::engine &eng, void *handle) {
+    return dnnl::memory(md, eng, handle);
+}
+} // namespace test
+
 #define TEST_MALLOC_OFFSET 8
 static char *test_malloc(size_t size) {
     void *ptr;
@@ -595,9 +606,9 @@ public:
         size_ = d.get_size();
         if (is_cpu_native) {
             data_.reset(test_malloc(size_), test_free);
-            mem_ = memory(d, e, data_.get());
+            mem_ = test::make_memory(d, e, data_.get());
         } else {
-            mem_ = memory(d, e);
+            mem_ = test::make_memory(d, e);
         }
         // Fill with a magic number to catch possible uninitialized access
         mapped_ptr_t<char> ptr(&mem_);
@@ -609,7 +620,7 @@ public:
             const malloc_t &f_malloc, const free_t &f_free) {
         size_ = d.get_size();
         data_.reset(static_cast<char *>(f_malloc(size_)), f_free);
-        mem_ = memory(d, e, data_.get());
+        mem_ = test::make_memory(d, e, data_.get());
 
         // Fill with a magic number to catch possible uninitialized access
         mapped_ptr_t<char> ptr(&mem_);

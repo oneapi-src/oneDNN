@@ -367,9 +367,9 @@ protected:
 
     void Forward() {
         data_desc.reset(new memory::desc(p.dims, data_type, p.data_format));
-        src = memory(*data_desc, eng);
-        memory dst(*data_desc, eng);
-        memory ref_dst(*data_desc, eng);
+        src = test::make_memory(*data_desc, eng);
+        auto dst = test::make_memory(*data_desc, eng);
+        auto ref_dst = test::make_memory(*data_desc, eng);
 
         data_t data_median = data_t(0);
         data_t data_deviation = (p.alg_kind == algorithm::eltwise_elu
@@ -405,8 +405,8 @@ protected:
 
     void Backward() {
         memory::desc diff_data_desc(p.dims, data_type, p.diff_format);
-        memory diff_src(diff_data_desc, eng);
-        memory diff_dst(diff_data_desc, eng);
+        auto diff_src = test::make_memory(diff_data_desc, eng);
+        auto diff_dst = test::make_memory(diff_data_desc, eng);
 
         data_t data_median = data_t(0);
         data_t data_deviation = p.alg_kind == algorithm::eltwise_elu

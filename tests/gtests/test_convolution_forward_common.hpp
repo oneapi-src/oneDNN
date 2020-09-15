@@ -202,7 +202,7 @@ protected:
                                 {DNNL_ARG_DST, c_dst.get()}});
         strm.wait();
 
-        auto ref_memory = memory(c_dst_desc, eng);
+        auto ref_memory = test::make_memory(c_dst_desc, eng);
         compute_ref_conv_fwd<data_t_src, data_t_wei, data_t_acc, data_t_dst>(cd,
                 attr, c_src_desc, c_weights_desc, c_bias_desc, c_dst_desc,
                 c_src.get(), c_weights.get(), c_bias.get(), ref_memory);

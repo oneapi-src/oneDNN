@@ -41,7 +41,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(submemory_test_cpp_t, SubmemoryMemoryInteraction) {
     const memory::dim copy_size = 1;
 
     float src_buf[1] = {35};
-    memory src({{1}, memory::data_type::f32, memory::format_tag::a}, eng);
+    auto src = test::make_memory(
+            {{1}, memory::data_type::f32, memory::format_tag::a}, eng);
     {
         auto mapped_src_ptr = map_memory<float>(src);
         std::copy(src_buf, src_buf + sizeof(src_buf) / sizeof(src_buf[0]),
@@ -49,7 +50,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(submemory_test_cpp_t, SubmemoryMemoryInteraction) {
     }
 
     float dst_buf[2] = {1, 0};
-    memory dst({{2}, memory::data_type::f32, memory::format_tag::a}, eng);
+    auto dst = test::make_memory(
+            {{2}, memory::data_type::f32, memory::format_tag::a}, eng);
     {
         auto mapped_dst_ptr = map_memory<float>(dst);
         std::copy(dst_buf, dst_buf + sizeof(dst_buf) / sizeof(dst_buf[0]),

@@ -99,7 +99,7 @@ TEST_P(memory_test_cpp, OutOfMemory) {
     auto tag = memory::format_tag::x;
     memory::desc md({sz}, dt, tag);
     try {
-        memory mem(md, eng);
+        auto mem = test::make_memory(md, eng);
         ASSERT_NE(mem.get_data_handle(), nullptr);
     } catch (const dnnl::error &e) {
         ASSERT_EQ(e.status, dnnl_out_of_memory);

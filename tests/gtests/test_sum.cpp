@@ -160,7 +160,7 @@ protected:
 
         for (size_t i = 0; i < num_srcs; i++) {
             auto desc = memory::desc(p.dims, src_data_type, p.srcs_format[i]);
-            auto src_memory = memory(desc, eng);
+            auto src_memory = test::make_memory(desc, eng);
             const size_t sz
                     = src_memory.get_desc().get_size() / sizeof(src_data_t);
             fill_data<src_data_t>(sz, src_memory);
@@ -195,7 +195,7 @@ protected:
 
             ASSERT_EQ(sum_pd.dst_desc().data.ndims, dst_desc.data.ndims);
         }
-        dst = memory(sum_pd.dst_desc(), eng);
+        dst = test::make_memory(sum_pd.dst_desc(), eng);
         // test construction from a C pd
         sum_pd = sum::primitive_desc(sum_pd.get());
 

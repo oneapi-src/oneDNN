@@ -116,9 +116,9 @@ TEST_F(ip_formats_test, TestChecksAllFormats) {
                 if (ip_fwd_pd) {
                     auto ip_fwd_prim = ip_fwd(ip_fwd_pd);
                     auto strm = make_stream(ip_fwd_pd.get_engine());
-                    auto src = memory(ip_fwd_pd.src_desc(), e);
-                    auto wei = memory(ip_fwd_pd.weights_desc(), e);
-                    auto dst = memory(ip_fwd_pd.dst_desc(), e);
+                    auto src = test::make_memory(ip_fwd_pd.src_desc(), e);
+                    auto wei = test::make_memory(ip_fwd_pd.weights_desc(), e);
+                    auto dst = test::make_memory(ip_fwd_pd.dst_desc(), e);
                     ip_fwd_prim.execute(strm,
                             {{DNNL_ARG_SRC, src}, {DNNL_ARG_WEIGHTS, wei},
                                     {DNNL_ARG_DST, dst}});
@@ -136,9 +136,12 @@ TEST_F(ip_formats_test, TestChecksAllFormats) {
                 if (ip_bwd_d_pd) {
                     auto ip_bwd_d_prim = ip_bwd_d(ip_bwd_d_pd);
                     auto strm = make_stream(ip_bwd_d_pd.get_engine());
-                    auto d_src = memory(ip_bwd_d_pd.diff_src_desc(), e);
-                    auto d_wei = memory(ip_bwd_d_pd.weights_desc(), e);
-                    auto d_dst = memory(ip_bwd_d_pd.diff_dst_desc(), e);
+                    auto d_src
+                            = test::make_memory(ip_bwd_d_pd.diff_src_desc(), e);
+                    auto d_wei
+                            = test::make_memory(ip_bwd_d_pd.weights_desc(), e);
+                    auto d_dst
+                            = test::make_memory(ip_bwd_d_pd.diff_dst_desc(), e);
                     ip_bwd_d_prim.execute(strm,
                             {{DNNL_ARG_DIFF_SRC, d_src},
                                     {DNNL_ARG_WEIGHTS, d_wei},
@@ -152,9 +155,11 @@ TEST_F(ip_formats_test, TestChecksAllFormats) {
                 if (ip_bwd_w_pd) {
                     auto ip_bwd_w_prim = ip_bwd_w(ip_bwd_w_pd);
                     auto strm = make_stream(ip_bwd_w_pd.get_engine());
-                    auto src = memory(ip_bwd_w_pd.src_desc(), e);
-                    auto d_wei = memory(ip_bwd_w_pd.diff_weights_desc(), e);
-                    auto d_dst = memory(ip_bwd_w_pd.diff_dst_desc(), e);
+                    auto src = test::make_memory(ip_bwd_w_pd.src_desc(), e);
+                    auto d_wei = test::make_memory(
+                            ip_bwd_w_pd.diff_weights_desc(), e);
+                    auto d_dst
+                            = test::make_memory(ip_bwd_w_pd.diff_dst_desc(), e);
                     ip_bwd_w_prim.execute(strm,
                             {{DNNL_ARG_SRC, src},
                                     {DNNL_ARG_DIFF_WEIGHTS, d_wei},

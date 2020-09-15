@@ -209,7 +209,7 @@ protected:
             fill_data<data_t>(bias->get_size() / sizeof(data_t), bias->get());
         }
 
-        auto weights_tr = memory(*con_weights_desc, eng);
+        auto weights_tr = test::make_memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
         auto deconv_desc = with_bias
                 ? deconvolution_forward::desc(aprop_kind,
@@ -285,7 +285,7 @@ protected:
 
         fill_data<data_t>(dst->get_size() / sizeof(data_t), dst->get());
 
-        auto weights_tr = memory(*con_weights_desc, eng);
+        auto weights_tr = test::make_memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
 
         auto deconv_desc = deconvolution_forward::desc(
@@ -347,7 +347,7 @@ protected:
                 deconvolution_test_params_t>::GetParam();
         auto conv_src = dst;
         auto conv_dst = src;
-        auto conv_weights = memory(*con_weights_desc, eng);
+        auto conv_weights = test::make_memory(*con_weights_desc, eng);
         test_convolution_sizes_t dd = p.sizes;
 
         fill_data<data_t>(src->get_size() / sizeof(data_t), src->get());
@@ -417,13 +417,13 @@ protected:
                                 {DNNL_ARG_DIFF_WEIGHTS, conv_weights}});
         strm.wait();
 
-        auto weights_tr = memory(*con_weights_desc, eng);
+        auto weights_tr = test::make_memory(*con_weights_desc, eng);
         transpose_wei<data_t>(dd, weights->get(), weights_tr);
 
         compare_data<data_t>(weights_tr, conv_weights);
 
         if (with_bias) {
-            auto ref_bias = memory(*dec_bias_desc, eng);
+            auto ref_bias = test::make_memory(*dec_bias_desc, eng);
             compute_bias_bwd<data_t>(dd, dst->get(), ref_bias);
             compare_data<data_t>(ref_bias, bias->get());
         }

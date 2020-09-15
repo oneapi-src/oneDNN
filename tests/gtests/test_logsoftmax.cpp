@@ -39,7 +39,7 @@ class logsoftmax_test_t
     : public ::testing::TestWithParam<logsoftmax_test_params_t<data_t>> {
 private:
     logsoftmax_test_params_t<data_t> p;
-    std::shared_ptr<memory> dst, workspace;
+    memory dst, workspace;
     std::shared_ptr<logsoftmax_forward::primitive_desc> pd_fwd_hint;
 
 protected:
@@ -100,9 +100,9 @@ protected:
         ASSERT_TRUE(pd.diff_dst_desc().is_zero());
         ASSERT_TRUE(pd.diff_weights_desc().is_zero());
 
-        auto src = memory(data_desc, eng);
-        dst.reset(new memory(data_desc, eng));
-        workspace.reset(new memory(workspace_desc, eng));
+        auto src = test::make_memory(data_desc, eng);
+        dst = test::make_memory(data_desc, eng);
+        workspace = test::make_memory(workspace_desc, eng);
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             fill_data<data_t>(
@@ -111,16 +111,16 @@ protected:
 
             // test out-place mode
             logsoftmax.execute(strm,
-                    {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, *dst},
-                            {DNNL_ARG_WORKSPACE, *workspace}});
+                    {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},
+                            {DNNL_ARG_WORKSPACE, workspace}});
             strm.wait();
-            check_zero_tail<data_t>(0, *dst);
+            check_zero_tail<data_t>(0, dst);
 
             // test in-place mode
             if (p.aprop_kind != prop_kind::backward_data) {
                 logsoftmax.execute(strm,
                         {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, src},
-                                {DNNL_ARG_WORKSPACE, *workspace}});
+                                {DNNL_ARG_WORKSPACE, workspace}});
                 strm.wait();
                 check_zero_tail<data_t>(0, src);
             }
@@ -176,8 +176,8 @@ protected:
         ASSERT_TRUE(pd.weights_desc().is_zero());
         ASSERT_TRUE(pd.diff_weights_desc().is_zero());
 
-        auto diff_src = memory(diff_data_desc, eng);
-        auto diff_dst = memory(diff_data_desc, eng);
+        auto diff_src = test::make_memory(diff_data_desc, eng);
+        auto diff_dst = test::make_memory(diff_data_desc, eng);
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             // Fill the logsoftmax backward diffs
@@ -186,9 +186,9 @@ protected:
             check_zero_tail<data_t>(1, diff_dst);
 
             logsoftmax.execute(strm,
-                    {{DNNL_ARG_DST, *dst}, {DNNL_ARG_DIFF_DST, diff_dst},
+                    {{DNNL_ARG_DST, dst}, {DNNL_ARG_DIFF_DST, diff_dst},
                             {DNNL_ARG_DIFF_SRC, diff_src},
-                            {DNNL_ARG_WORKSPACE, *workspace}});
+                            {DNNL_ARG_WORKSPACE, workspace}});
             strm.wait();
 
             check_zero_tail<data_t>(0, diff_src);

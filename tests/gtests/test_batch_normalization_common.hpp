@@ -169,10 +169,10 @@ protected:
                 bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == bnorm_fwd_pd.workspace_desc());
 
-        weights = memory(bnorm_fwd_pd.weights_desc(), eng);
+        weights = test::make_memory(bnorm_fwd_pd.weights_desc(), eng);
         if (isTraining || useGlobalStats) {
-            mean = memory(bnorm_fwd_pd.mean_desc(), eng);
-            variance = memory(bnorm_fwd_pd.variance_desc(), eng);
+            mean = test::make_memory(bnorm_fwd_pd.mean_desc(), eng);
+            variance = test::make_memory(bnorm_fwd_pd.variance_desc(), eng);
         }
 
         fill<data_t>(src->get());
@@ -230,10 +230,11 @@ protected:
                 bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == bnorm_bwd_pd.workspace_desc());
 
-        if (useScaleShift) weights = memory(bnorm_bwd_pd.weights_desc(), eng);
-        diff_weights = memory(bnorm_bwd_pd.diff_weights_desc(), eng);
-        mean = memory(bnorm_bwd_pd.mean_desc(), eng);
-        variance = memory(bnorm_bwd_pd.variance_desc(), eng);
+        if (useScaleShift)
+            weights = test::make_memory(bnorm_bwd_pd.weights_desc(), eng);
+        diff_weights = test::make_memory(bnorm_bwd_pd.diff_weights_desc(), eng);
+        mean = test::make_memory(bnorm_bwd_pd.mean_desc(), eng);
+        variance = test::make_memory(bnorm_bwd_pd.variance_desc(), eng);
 
         if (useScaleShift) fill<float>(weights);
         fill<float>(diff_src->get());

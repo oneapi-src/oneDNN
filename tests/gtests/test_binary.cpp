@@ -134,10 +134,10 @@ protected:
 
             const auto test_engine = pd.get_engine();
 
-            auto mem_A = memory(src0_desc, test_engine);
-            auto mem_B = memory(src1_desc, test_engine);
-            auto mem_C = memory(dst_desc, test_engine);
-            auto mem_ws = memory(workspace_desc, test_engine);
+            auto mem_A = test::make_memory(src0_desc, test_engine);
+            auto mem_B = test::make_memory(src1_desc, test_engine);
+            auto mem_C = test::make_memory(dst_desc, test_engine);
+            auto mem_ws = test::make_memory(workspace_desc, test_engine);
 
             prim.execute(strm,
                     {{DNNL_ARG_SRC_0, mem_A}, {DNNL_ARG_SRC_1, mem_B},

@@ -115,8 +115,8 @@ TEST_F(reorder_formats_test, TestChecksAllFormats) {
 
                     out_md.data.extra = i_extra;
 
-                    auto src = memory(in_md, e);
-                    auto dst = memory(out_md, e);
+                    auto src = test::make_memory(in_md, e);
+                    auto dst = test::make_memory(out_md, e);
                     reorder::primitive_desc r_pd(
                             e, in_md, e, out_md, primitive_attr(), true);
                     if (r_pd) {

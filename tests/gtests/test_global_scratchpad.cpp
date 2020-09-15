@@ -63,9 +63,9 @@ struct conv_ctx_t {
 
         c_.pd = convolution_forward::primitive_desc(desc, eng_);
 
-        c_.src_mem = memory(c_.pd.src_desc(), eng_);
-        c_.wei_mem = memory(c_.pd.weights_desc(), eng_);
-        c_.dst_mem = memory(c_.pd.dst_desc(), eng_);
+        c_.src_mem = test::make_memory(c_.pd.src_desc(), eng_);
+        c_.wei_mem = test::make_memory(c_.pd.weights_desc(), eng_);
+        c_.dst_mem = test::make_memory(c_.pd.dst_desc(), eng_);
 
         c_.prim = convolution_forward(c_.pd);
     }

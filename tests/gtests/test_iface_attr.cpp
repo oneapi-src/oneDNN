@@ -80,9 +80,9 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScratchpadArg) {
         attr.set_scratchpad_mode(m);
         auto softmax_pd = softmax_forward::primitive_desc(softmax_d, attr, eng);
 
-        memory src(softmax_pd.src_desc(), eng);
-        memory dst(softmax_pd.dst_desc(), eng);
-        memory scratchpad(softmax_pd.scratchpad_desc(), eng);
+        auto src = test::make_memory(softmax_pd.src_desc(), eng);
+        auto dst = test::make_memory(softmax_pd.dst_desc(), eng);
+        auto scratchpad = test::make_memory(softmax_pd.scratchpad_desc(), eng);
 
         fill_data<float>(src.get_desc().get_size() / sizeof(float), src);
 

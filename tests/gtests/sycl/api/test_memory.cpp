@@ -70,7 +70,7 @@ TEST_P(sycl_memory_test, ConstructorNone) {
     engine eng(eng_kind, 0);
     memory::desc mem_d({0}, memory::data_type::f32, memory::format_tag::x);
 
-    memory mem(mem_d, eng, DNNL_MEMORY_NONE);
+    auto mem = test::make_memory(mem_d, eng, DNNL_MEMORY_NONE);
 
     auto buf = sycl_interop::get_buffer<float>(mem);
     (void)buf;
@@ -84,7 +84,7 @@ TEST_P(sycl_memory_test, ConstructorAllocate) {
     memory::dim n = 100;
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
-    memory mem(mem_d, eng, DNNL_MEMORY_ALLOCATE);
+    auto mem = test::make_memory(mem_d, eng, DNNL_MEMORY_ALLOCATE);
 
     auto buf = sycl_interop::get_buffer<float>(mem);
 
@@ -112,7 +112,7 @@ TEST_P(sycl_memory_test, BasicInteropGetSet) {
     size_t sz = size_t(tz[0]) * tz[1] * tz[2] * tz[3];
 
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
-    memory mem(mem_d, eng);
+    auto mem = test::make_memory(mem_d, eng);
 
     buffer<float, 1> interop_sycl_buf {range<1>(sz)};
     sycl_interop::set_buffer(mem, interop_sycl_buf);
@@ -157,13 +157,13 @@ TEST_P(sycl_memory_test, InteropReorder) {
 
         memory::desc src_mem_d(
                 tz, memory::data_type::f32, memory::format_tag::nchw);
-        memory src_mem(src_mem_d, eng);
+        auto src_mem = test::make_memory(src_mem_d, eng);
 
         memory::desc dst_mem_d(
                 tz, memory::data_type::f32, memory::format_tag::nhwc);
 
         stream s(eng);
-        memory dst_mem(dst_mem_d, eng);
+        auto dst_mem = test::make_memory(dst_mem_d, eng);
 
         sycl_interop::set_buffer(src_mem, src_buf);
         sycl_interop::set_buffer(dst_mem, dst_buf);
@@ -220,13 +220,13 @@ TEST_P(sycl_memory_test, InteropReorderAndUserKernel) {
 
         memory::desc mem_d(
                 tz, memory::data_type::f32, memory::format_tag::nchw);
-        memory mem(mem_d, eng);
+        auto mem = test::make_memory(mem_d, eng);
 
         memory::desc tmp_mem_d(
                 tz, memory::data_type::f32, memory::format_tag::nhwc);
 
         stream s(eng);
-        memory tmp_mem(tmp_mem_d, eng);
+        auto tmp_mem = test::make_memory(tmp_mem_d, eng);
 
         sycl_interop::set_buffer(mem, buf);
         sycl_interop::set_buffer(tmp_mem, tmp_buf);
@@ -269,7 +269,7 @@ TEST_P(sycl_memory_test, EltwiseWithUserKernel) {
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
 
     engine eng(eng_kind, 0);
-    memory mem({mem_d, eng});
+    auto mem = test::make_memory(mem_d, eng);
 
     auto sycl_buf = sycl_interop::get_buffer<float>(mem);
 

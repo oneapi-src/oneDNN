@@ -140,7 +140,7 @@ TEST(sycl_engine_test, HostDevice) {
 
     memory::dims tz = {2, 3, 4, 5};
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
-    memory mem(mem_d, eng);
+    auto mem = test::make_memory(mem_d, eng);
 
     {
         auto *ptr = mem.map_data<float>();

@@ -146,11 +146,11 @@ protected:
         auto c_dst_desc = create_md({cd.mb, cd.oc, cd.oh, cd.ow}, data_type_dst,
                 p.formats.dst_format);
 
-        auto c_src = memory(c_src_desc, eng);
-        auto c_weights = memory(c_weights_desc, eng);
-        auto c_dst = memory(c_dst_desc, eng);
+        auto c_src = test::make_memory(c_src_desc, eng);
+        auto c_weights = test::make_memory(c_weights_desc, eng);
+        auto c_dst = test::make_memory(c_dst_desc, eng);
 
-        auto dst_ref = memory(c_dst_desc, eng);
+        auto dst_ref = test::make_memory(c_dst_desc, eng);
 
         fill_data<data_t_src>(c_src.get_desc().get_size() / sizeof(data_t_src),
                 c_src, data_t_src(0), data_t_src(1));
@@ -165,7 +165,7 @@ protected:
         auto c_bias_desc = with_bias
                 ? create_md({cd.oc}, data_type_dst, p.formats.bias_format)
                 : create_md({0}, data_type_dst, p.formats.bias_format);
-        auto c_bias = memory(c_bias_desc, eng);
+        auto c_bias = test::make_memory(c_bias_desc, eng);
         if (with_bias) {
             fill_data<data_t_dst>(
                     c_bias.get_desc().get_size() / sizeof(data_t_dst), c_bias,
