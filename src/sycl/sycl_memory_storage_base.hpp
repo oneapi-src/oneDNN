@@ -18,21 +18,17 @@
 #define SYCL_MEMORY_STORAGE_BASE_HPP
 
 #include "common/memory_storage.hpp"
+#include "sycl/sycl_c_types_map.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace sycl {
 
-enum class memory_api_kind_t {
-    buffer,
-    usm,
-};
-
 class sycl_memory_storage_base_t : public memory_storage_t {
 public:
     using memory_storage_t::memory_storage_t;
 
-    virtual memory_api_kind_t memory_api_kind() const = 0;
+    virtual memory_kind_t memory_kind() const = 0;
 };
 
 } // namespace sycl

@@ -40,9 +40,7 @@ public:
 
     void *usm_ptr() const { return usm_ptr_.get(); }
 
-    memory_api_kind_t memory_api_kind() const override {
-        return memory_api_kind_t::usm;
-    }
+    memory_kind_t memory_kind() const override { return memory_kind::usm; }
 
     virtual status_t get_data_handle(void **handle) const override {
         *handle = usm_ptr_.get();

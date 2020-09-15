@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
+#include "sycl/sycl_c_types_map.hpp"
 #include "sycl/sycl_memory_storage_base.hpp"
 #include "sycl/sycl_utils.hpp"
 
@@ -38,9 +39,7 @@ public:
 
     buffer_u8_t &buffer() const { return *buffer_; }
 
-    memory_api_kind_t memory_api_kind() const override {
-        return memory_api_kind_t::buffer;
-    }
+    memory_kind_t memory_kind() const override { return memory_kind::buffer; }
 
     virtual status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(buffer_.get());

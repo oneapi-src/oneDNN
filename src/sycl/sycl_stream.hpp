@@ -121,8 +121,8 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 = utils::downcast<const sycl_memory_storage_base_t *>(&src);
         auto *sycl_dst
                 = utils::downcast<const sycl_memory_storage_base_t *>(&dst);
-        bool usm = utils::everyone_is(memory_api_kind_t::usm,
-                sycl_src->memory_api_kind(), sycl_dst->memory_api_kind());
+        bool usm = utils::everyone_is(memory_kind::usm, sycl_src->memory_kind(),
+                sycl_dst->memory_kind());
         cl::sycl::event e;
 
 #ifdef DNNL_SYCL_DPCPP
@@ -164,7 +164,7 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             size_t size) override {
         auto *sycl_dst
                 = utils::downcast<const sycl_memory_storage_base_t *>(&dst);
-        bool usm = sycl_dst->memory_api_kind() == memory_api_kind_t::usm;
+        bool usm = sycl_dst->memory_kind() == memory_kind::usm;
 
         cl::sycl::event out_event;
         std::vector<cl::sycl::event> in_deps = get_deps();

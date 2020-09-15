@@ -25,6 +25,7 @@
 #include "common/primitive.hpp"
 #include "common/stream.hpp"
 #include "common/utils.hpp"
+#include "sycl/sycl_c_types_map.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 
 #include <assert.h>
@@ -136,8 +137,8 @@ void submit_cpu_primitive(stream_t *stream, const primitive_iface_t *prim_iface,
                 auto mem_api_kind
                         = utils::downcast<const sycl_memory_storage_base_t *>(
                                 mem_storage)
-                                  ->memory_api_kind();
-                if (mem_api_kind == memory_api_kind_t::usm) continue;
+                                  ->memory_kind();
+                if (mem_api_kind == memory_kind::usm) continue;
 #endif
                 sycl_mem_storages.push_back(mem_storage);
             }
