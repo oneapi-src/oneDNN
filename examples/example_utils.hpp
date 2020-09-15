@@ -175,24 +175,25 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
     bool is_gpu_sycl = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
             && eng.get_kind() == dnnl::engine::kind::gpu);
     if (is_cpu_sycl || is_gpu_sycl) {
-#ifdef DNNL_USE_SYCL_BUFFERS
-        auto buffer = dnnl::sycl_interop::get_buffer<uint8_t>(mem);
-        auto src = buffer.get_access<cl::sycl::access::mode::read>();
-        uint8_t *src_ptr = src.get_pointer();
-        for (size_t i = 0; i < size; ++i)
-            ((uint8_t *)handle)[i] = src_ptr[i];
-#elif defined(DNNL_USE_DPCPP_USM)
-        uint8_t *src_ptr = (uint8_t *)mem.get_data_handle();
-        if (is_cpu_sycl) {
+        auto mkind = dnnl::sycl_interop::get_memory_kind(mem);
+        if (mkind == dnnl::sycl_interop::memory_kind::buffer) {
+            auto buffer = dnnl::sycl_interop::get_buffer<uint8_t>(mem);
+            auto src = buffer.get_access<cl::sycl::access::mode::read>();
+            uint8_t *src_ptr = src.get_pointer();
             for (size_t i = 0; i < size; ++i)
                 ((uint8_t *)handle)[i] = src_ptr[i];
         } else {
-            auto sycl_queue = dnnl::sycl_interop::get_queue(dnnl::stream(eng));
-            sycl_queue.memcpy(src_ptr, handle, size).wait();
+            assert(mkind == dnnl::sycl_interop::memory_kind::usm);
+            uint8_t *src_ptr = (uint8_t *)mem.get_data_handle();
+            if (is_cpu_sycl) {
+                for (size_t i = 0; i < size; ++i)
+                    ((uint8_t *)handle)[i] = src_ptr[i];
+            } else {
+                auto sycl_queue
+                        = dnnl::sycl_interop::get_queue(dnnl::stream(eng));
+                sycl_queue.memcpy(src_ptr, handle, size).wait();
+            }
         }
-#else
-#error "Not expected"
-#endif
         return;
     }
 #endif
@@ -231,24 +232,25 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
     bool is_gpu_sycl = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
             && eng.get_kind() == dnnl::engine::kind::gpu);
     if (is_cpu_sycl || is_gpu_sycl) {
-#ifdef DNNL_USE_SYCL_BUFFERS
-        auto buffer = dnnl::sycl_interop::get_buffer<uint8_t>(mem);
-        auto dst = buffer.get_access<cl::sycl::access::mode::write>();
-        uint8_t *dst_ptr = dst.get_pointer();
-        for (size_t i = 0; i < size; ++i)
-            dst_ptr[i] = ((uint8_t *)handle)[i];
-#elif defined(DNNL_USE_DPCPP_USM)
-        uint8_t *dst_ptr = (uint8_t *)mem.get_data_handle();
-        if (is_cpu_sycl) {
+        auto mkind = dnnl::sycl_interop::get_memory_kind(mem);
+        if (mkind == dnnl::sycl_interop::memory_kind::buffer) {
+            auto buffer = dnnl::sycl_interop::get_buffer<uint8_t>(mem);
+            auto dst = buffer.get_access<cl::sycl::access::mode::write>();
+            uint8_t *dst_ptr = dst.get_pointer();
             for (size_t i = 0; i < size; ++i)
                 dst_ptr[i] = ((uint8_t *)handle)[i];
         } else {
-            auto sycl_queue = dnnl::sycl_interop::get_queue(dnnl::stream(eng));
-            sycl_queue.memcpy(dst_ptr, handle, size).wait();
+            assert(mkind == dnnl::sycl_interop::memory_kind::usm);
+            uint8_t *dst_ptr = (uint8_t *)mem.get_data_handle();
+            if (is_cpu_sycl) {
+                for (size_t i = 0; i < size; ++i)
+                    dst_ptr[i] = ((uint8_t *)handle)[i];
+            } else {
+                auto sycl_queue
+                        = dnnl::sycl_interop::get_queue(dnnl::stream(eng));
+                sycl_queue.memcpy(dst_ptr, handle, size).wait();
+            }
         }
-#else
-#error "Not expected"
-#endif
         return;
     }
 #endif
