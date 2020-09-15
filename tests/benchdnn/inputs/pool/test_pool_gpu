@@ -56,11 +56,11 @@
 --attr-post-ops='add:f32;add:u8:per_dim_01;linear:0.5:1.5;mul:f32:per_dim_0;add:s8:per_oc'
 --mb=2
 --tag=abx,aBx16b
---batch=pool_3d_small
+--batch=shapes_3d_small
 
 --mb=16
 --tag=ABx16a16b
---batch=pool_2d_small
+--batch=shapes_2d_small
 
 # Test different src and dst datatypes
 --batch=harness_pooling_different_dt
