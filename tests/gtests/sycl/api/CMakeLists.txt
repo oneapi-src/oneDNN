@@ -27,5 +27,3 @@ if(DNNL_SYCL_COMPUTECPP)
         SOURCES ${TEST_SOURCES}
     )
 endif()
-
-add_subdirectory(usm)

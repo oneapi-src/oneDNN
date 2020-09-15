@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#define TEST_DNNL_DPCPP_BUFFER
+
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
@@ -32,9 +34,10 @@ class init_kernel;
 
 namespace dnnl {
 
-class sycl_memory_test : public ::testing::TestWithParam<engine::kind> {};
+class sycl_memory_buffer_test : public ::testing::TestWithParam<engine::kind> {
+};
 
-TEST_P(sycl_memory_test, BasicInteropCtor) {
+TEST_P(sycl_memory_buffer_test, BasicInteropCtor) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
@@ -63,20 +66,21 @@ TEST_P(sycl_memory_test, BasicInteropCtor) {
     }
 }
 
-TEST_P(sycl_memory_test, ConstructorNone) {
+TEST_P(sycl_memory_buffer_test, ConstructorNone) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
     engine eng(eng_kind, 0);
     memory::desc mem_d({0}, memory::data_type::f32, memory::format_tag::x);
 
-    auto mem = test::make_memory(mem_d, eng, DNNL_MEMORY_NONE);
+    auto mem = sycl_interop::make_memory(
+            mem_d, eng, sycl_interop::memory_kind::buffer, DNNL_MEMORY_NONE);
 
     auto buf = sycl_interop::get_buffer<float>(mem);
     (void)buf;
 }
 
-TEST_P(sycl_memory_test, ConstructorAllocate) {
+TEST_P(sycl_memory_buffer_test, ConstructorAllocate) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
@@ -84,7 +88,8 @@ TEST_P(sycl_memory_test, ConstructorAllocate) {
     memory::dim n = 100;
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
-    auto mem = test::make_memory(mem_d, eng, DNNL_MEMORY_ALLOCATE);
+    auto mem = sycl_interop::make_memory(mem_d, eng,
+            sycl_interop::memory_kind::buffer, DNNL_MEMORY_ALLOCATE);
 
     auto buf = sycl_interop::get_buffer<float>(mem);
 
@@ -102,7 +107,7 @@ TEST_P(sycl_memory_test, ConstructorAllocate) {
     mem.unmap_data(mapped_ptr);
 }
 
-TEST_P(sycl_memory_test, BasicInteropGetSet) {
+TEST_P(sycl_memory_buffer_test, BasicInteropGetSet) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
@@ -112,7 +117,8 @@ TEST_P(sycl_memory_test, BasicInteropGetSet) {
     size_t sz = size_t(tz[0]) * tz[1] * tz[2] * tz[3];
 
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
-    auto mem = test::make_memory(mem_d, eng);
+    auto mem = sycl_interop::make_memory(
+            mem_d, eng, sycl_interop::memory_kind::buffer);
 
     buffer<float, 1> interop_sycl_buf {range<1>(sz)};
     sycl_interop::set_buffer(mem, interop_sycl_buf);
@@ -132,7 +138,7 @@ TEST_P(sycl_memory_test, BasicInteropGetSet) {
     }
 }
 
-TEST_P(sycl_memory_test, InteropReorder) {
+TEST_P(sycl_memory_buffer_test, InteropReorder) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
@@ -157,13 +163,15 @@ TEST_P(sycl_memory_test, InteropReorder) {
 
         memory::desc src_mem_d(
                 tz, memory::data_type::f32, memory::format_tag::nchw);
-        auto src_mem = test::make_memory(src_mem_d, eng);
+        auto src_mem = sycl_interop::make_memory(
+                src_mem_d, eng, sycl_interop::memory_kind::buffer);
 
         memory::desc dst_mem_d(
                 tz, memory::data_type::f32, memory::format_tag::nhwc);
 
         stream s(eng);
-        auto dst_mem = test::make_memory(dst_mem_d, eng);
+        auto dst_mem = sycl_interop::make_memory(
+                dst_mem_d, eng, sycl_interop::memory_kind::buffer);
 
         sycl_interop::set_buffer(src_mem, src_buf);
         sycl_interop::set_buffer(dst_mem, dst_buf);
@@ -193,7 +201,7 @@ TEST_P(sycl_memory_test, InteropReorder) {
 // Intel(R) oneAPI DPC++ Compiler does not support mixing fat binaries and host
 // binaries. So the test is enabled for ComputeCpp SYCL only
 #ifdef DNNL_SYCL_COMPUTECPP
-TEST_P(sycl_memory_test, InteropReorderAndUserKernel) {
+TEST_P(sycl_memory_buffer_test, InteropReorderAndUserKernel) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
@@ -220,13 +228,15 @@ TEST_P(sycl_memory_test, InteropReorderAndUserKernel) {
 
         memory::desc mem_d(
                 tz, memory::data_type::f32, memory::format_tag::nchw);
-        auto mem = test::make_memory(mem_d, eng);
+        auto mem = sycl_interop::make_memory(
+                mem_d, eng, sycl_interop::memory_kind::buffer);
 
         memory::desc tmp_mem_d(
                 tz, memory::data_type::f32, memory::format_tag::nhwc);
 
         stream s(eng);
-        auto tmp_mem = test::make_memory(tmp_mem_d, eng);
+        auto tmp_mem = sycl_interop::make_memory(
+                tmp_mem_d, eng, sycl_interop::memory_kind::buffer);
 
         sycl_interop::set_buffer(mem, buf);
         sycl_interop::set_buffer(tmp_mem, tmp_buf);
@@ -259,7 +269,7 @@ TEST_P(sycl_memory_test, InteropReorderAndUserKernel) {
 
 #endif
 
-TEST_P(sycl_memory_test, EltwiseWithUserKernel) {
+TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
@@ -269,7 +279,8 @@ TEST_P(sycl_memory_test, EltwiseWithUserKernel) {
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
 
     engine eng(eng_kind, 0);
-    auto mem = test::make_memory(mem_d, eng);
+    auto mem = sycl_interop::make_memory(
+            mem_d, eng, sycl_interop::memory_kind::buffer);
 
     auto sycl_buf = sycl_interop::get_buffer<float>(mem);
 
@@ -312,7 +323,7 @@ struct PrintToStringParamName {
 };
 } // namespace
 
-INSTANTIATE_TEST_SUITE_P(Simple, sycl_memory_test,
+INSTANTIATE_TEST_SUITE_P(Simple, sycl_memory_buffer_test,
         ::testing::Values(engine::kind::cpu, engine::kind::gpu),
         PrintToStringParamName());
 

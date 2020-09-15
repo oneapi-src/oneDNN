@@ -44,6 +44,10 @@
 #include "dnnl_test_common_ocl.hpp"
 #endif
 
+#if DNNL_WITH_SYCL
+#include "dnnl_sycl.hpp"
+#endif
+
 #include "src/common/bfloat16.hpp"
 #include "src/common/float16.hpp"
 #include "src/common/memory_desc_wrapper.hpp"
@@ -565,11 +569,21 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
 namespace test {
 inline dnnl::memory make_memory(
         const dnnl::memory::desc &md, const dnnl::engine &eng) {
+#if defined(TEST_DNNL_DPCPP_BUFFER)
+    return dnnl::sycl_interop::make_memory(
+            md, eng, dnnl::sycl_interop::memory_kind::buffer);
+#else
     return dnnl::memory(md, eng);
+#endif
 }
 inline dnnl::memory make_memory(
         const dnnl::memory::desc &md, const dnnl::engine &eng, void *handle) {
+#if defined(TEST_DNNL_DPCPP_BUFFER)
+    return dnnl::sycl_interop::make_memory(
+            md, eng, dnnl::sycl_interop::memory_kind::buffer, handle);
+#else
     return dnnl::memory(md, eng, handle);
+#endif
 }
 } // namespace test
 
@@ -615,6 +629,7 @@ public:
         memset(ptr, 0xFF, size_);
     }
 
+#if 0
     template <typename malloc_t, typename free_t>
     test_memory(const memory::desc &d, const dnnl::engine &e,
             const malloc_t &f_malloc, const free_t &f_free) {
@@ -626,6 +641,7 @@ public:
         mapped_ptr_t<char> ptr(&mem_);
         memset(ptr, 0xFF, size_);
     }
+#endif
 
     size_t get_size() const { return size_; }
     const memory &get() const { return mem_; }

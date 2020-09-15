@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#define DNNL_USE_DPCPP_USM
-
 #include "dnnl.hpp"
 #include "dnnl_debug.h"
 #include "dnnl_sycl.hpp"
@@ -46,7 +44,8 @@ void sycl_usm_tutorial(engine::kind engine_kind) {
     memory::desc mem_d(
             tz_dims, memory::data_type::f32, memory::format_tag::nchw);
 
-    memory mem(mem_d, eng, usm_buffer);
+    memory mem = sycl_interop::make_memory(
+            mem_d, eng, sycl_interop::memory_kind::usm, usm_buffer);
 
     queue q = sycl_interop::get_queue(strm);
     auto fill_e = q.submit([&](handler &cgh) {

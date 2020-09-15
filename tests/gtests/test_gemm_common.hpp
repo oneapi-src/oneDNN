@@ -617,16 +617,7 @@ inline test_memory get_matrix_memory(
         memory::dim n, memory::dim off, engine &eng) {
     auto d = create_md(
             {n + off}, data_traits<T>::data_type, memory::format_tag::x);
-#if defined(DNNL_SYCL_DPCPP) && defined(DNNL_USE_DPCPP_USM)
-    auto dev = sycl_interop::get_device(eng);
-    auto ctx = sycl_interop::get_context(eng);
-    auto f_malloc
-            = [=](size_t sz) { return cl::sycl::malloc_shared(sz, dev, ctx); };
-    auto f_free = [=](void *ptr) { return cl::sycl::free(ptr, ctx); };
-    return test_memory(d, eng, f_malloc, f_free);
-#else
     return test_memory(d, eng);
-#endif
 }
 
 template <typename a_dt, typename b_dt, typename c_dt>
@@ -1502,14 +1493,14 @@ protected:
         if (get_test_engine_kind() == engine::kind::gpu) {
             const auto &p = ::testing::TestWithParam<test_params>::GetParam();
 
-#ifdef DNNL_USE_DPCPP_USM
+#if defined(TEST_DNNL_DPCPP_BUFFER)
+            // Test SYCL buffer interfaces
+            run_test_gemm<a_dt, b_dt, c_dt>::call(p);
+#else
             // Test SYCL USM interfaces
             bool zero_off = (p.off.a == 0 && p.off.b == 0 && p.off.c == 0);
             SKIP_IF(!zero_off, "USM interfaces do not support offsets.");
 
-            run_test_gemm<a_dt, b_dt, c_dt>::call(p);
-#else
-            // Test SYCL buffer interfaces
             run_test_gemm<a_dt, b_dt, c_dt>::call(p);
 #endif
 

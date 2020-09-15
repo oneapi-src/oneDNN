@@ -33,11 +33,6 @@
 
 #include "dnnl.h"
 
-#if DNNL_WITH_SYCL
-#include "dnnl_sycl.h"
-#include <CL/sycl.hpp>
-#endif
-
 /// @endcond
 
 // __cpp_exceptions is referred from
@@ -1099,6 +1094,8 @@ DNNL_DEFINE_BITMASK_OPS(stream::flags)
 /// the way tensor indices map to offsets in linear memory space. Memory
 /// objects are passed to primitives during execution.
 struct memory : public handle<dnnl_memory_t> {
+    using handle::handle;
+
     /// Integer type for representing dimension sizes and indices.
     typedef dnnl_dim_t dim;
     /// Vector of dimensions. Implementations are free to force a limit on the
@@ -1930,25 +1927,6 @@ struct memory : public handle<dnnl_memory_t> {
     /// absence of a parameter.
     memory() = default;
 
-#if DNNL_WITH_SYCL
-    /// Constructs a memory object.
-    ///
-    /// @param md Memory descriptor.
-    /// @param aengine Engine to store the data on.
-    /// @param handle Handle of the memory buffer to use.
-    memory(const desc &md, const engine &aengine, void *handle) {
-        dnnl_memory_t result;
-#ifdef DNNL_USE_DPCPP_USM
-        dnnl_sycl_interop_memory_kind_t memory_kind = dnnl_sycl_interop_usm;
-#else
-        dnnl_sycl_interop_memory_kind_t memory_kind = dnnl_sycl_interop_buffer;
-#endif
-        error::wrap_c_api(dnnl_sycl_interop_memory_create(&result, &md.data,
-                                  aengine.get(), memory_kind, handle),
-                "could not create a memory object");
-        reset(result);
-    }
-#else
     /// Constructs a memory object.
     ///
     /// Unless @p handle is equal to #DNNL_MEMORY_NONE, the constructed memory
@@ -1975,7 +1953,6 @@ struct memory : public handle<dnnl_memory_t> {
                 "could not create a memory object");
         reset(result);
     }
-#endif
 
     /// Constructs a memory object.
     ///

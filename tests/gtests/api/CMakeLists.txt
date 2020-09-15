@@ -23,6 +23,6 @@ register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")
 
 # Create DPC++ USM target.
 if(DNNL_SYCL_DPCPP)
-    register_exe(${TEST_EXE}_usm "${TEST_SOURCES}" "test" "dnnl_gtest")
-    target_compile_definitions(${TEST_EXE}_usm PUBLIC -DDNNL_USE_DPCPP_USM)
+    register_exe(${TEST_EXE}_buffer "${TEST_SOURCES}" "test" "dnnl_gtest")
+    target_compile_definitions(${TEST_EXE}_buffer PUBLIC -DTEST_DNNL_DPCPP_BUFFER)
 endif()

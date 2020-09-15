@@ -174,18 +174,24 @@ function(register_gtest exe src)
     endif()
 endfunction()
 
-# These primitives can create memory_t out of sycl_buffer_memory_storage_t
-# and pass it to reorder. The reorder expects both arguments to be either
-# usm or buffer memory storages.
-# TODO: Remove this after introducing a proper API for managing the memory models
-set(skip_usm_pattern "(test_sum_.*|test_inner_product_.*|test_cross_engine_reorder)")
+set(skip_usm_pattern "^$") # no skip by default
+if(DNNL_SYCL_DPCPP)
+    # - cross_engine_reorder creates usm pointers on CPU and GPU that belong to
+    #   the different context, which causes synchronization issues.
+    #   FIXME: the library should handle this case gracefully.
+    set(skip_usm_pattern "(test_cross_engine_reorder)")
+endif()
+
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component(exe ${TEST_FILE} NAME_WE)
-    register_gtest(${exe} ${TEST_FILE})
-    # Create additional USM targets for GEMM tests.
-    if(DNNL_SYCL_DPCPP AND NOT ${exe} MATCHES ${skip_usm_pattern})
-        register_gtest(${exe}_usm ${TEST_FILE})
-        target_compile_definitions(${exe}_usm PUBLIC -DDNNL_USE_DPCPP_USM)
+    if(NOT ${exe} MATCHES "${skip_usm_pattern}")
+        register_gtest(${exe} ${TEST_FILE})
+    endif()
+
+    # Create additional buffer targets for SYCL.
+    if(DNNL_SYCL_DPCPP)
+        register_gtest(${exe}_buffer ${TEST_FILE})
+        target_compile_definitions(${exe}_buffer PUBLIC -DTEST_DNNL_DPCPP_BUFFER)
     endif()
 endforeach()
 

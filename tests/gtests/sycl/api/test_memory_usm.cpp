@@ -62,7 +62,8 @@ TEST_P(sycl_memory_usm_test, Constructor) {
 
     void *ptr = cl::sycl::malloc_shared(sizeof(float) * n,
             sycl_interop::get_device(eng), sycl_interop::get_context(eng));
-    auto mem = test::make_memory(mem_d, eng, ptr);
+    auto mem = sycl_interop::make_memory(
+            mem_d, eng, sycl_interop::memory_kind::usm, ptr);
 
     ASSERT_EQ(ptr, mem.get_data_handle());
 
@@ -89,7 +90,8 @@ TEST_P(sycl_memory_usm_test, ConstructorNone) {
     engine eng(eng_kind, 0);
     memory::desc mem_d({0}, memory::data_type::f32, memory::format_tag::x);
 
-    auto mem = test::make_memory(mem_d, eng, DNNL_MEMORY_NONE);
+    auto mem = sycl_interop::make_memory(
+            mem_d, eng, sycl_interop::memory_kind::usm, DNNL_MEMORY_NONE);
 
     ASSERT_EQ(nullptr, mem.get_data_handle());
 }
@@ -102,7 +104,8 @@ TEST_P(sycl_memory_usm_test, ConstructorAllocate) {
     memory::dim n = 100;
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
-    auto mem = test::make_memory(mem_d, eng, DNNL_MEMORY_ALLOCATE);
+    auto mem = sycl_interop::make_memory(
+            mem_d, eng, sycl_interop::memory_kind::usm, DNNL_MEMORY_ALLOCATE);
 
     void *ptr = mem.get_data_handle();
     fill_data(ptr, n, eng);
@@ -122,7 +125,8 @@ TEST_P(sycl_memory_usm_test, DefaultConstructor) {
     memory::dim n = 100;
     memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
-    auto mem = test::make_memory(mem_d, eng);
+    auto mem = sycl_interop::make_memory(
+            mem_d, eng, sycl_interop::memory_kind::usm);
 
     void *ptr = mem.get_data_handle();
     fill_data(ptr, n, eng);

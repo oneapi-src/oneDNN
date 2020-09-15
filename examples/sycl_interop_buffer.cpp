@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example  sycl_interop.cpp
-/// Annotated version: @ref sycl_interop_cpp
+/// @example  sycl_interop_buffer.cpp
+/// Annotated version: @ref sycl_interop_buffer_cpp
 ///
-/// @page  sycl_interop_cpp Getting started on both CPU and GPU with SYCL extensions API
-/// Full example text: @ref sycl_interop.cpp
+/// @page  sycl_interop_buffer_cpp Getting started on both CPU and GPU with SYCL extensions API
+/// Full example text: @ref sycl_interop_buffer.cpp
 ///
 /// This C++ API example demonstrates programming for Intel(R) Processor
 /// Graphics with SYCL extensions API in oneDNN.
@@ -33,9 +33,9 @@
 ///   - Execute the primitive with the initialized memory.
 ///   - Validate the result through a host accessor.
 ///
-/// @page sycl_interop_cpp
+/// @page sycl_interop_buffer_cpp
 
-/// @section sycl_interop_cpp_headers Public headers
+/// @section sycl_interop_buffer_cpp_headers Public headers
 ///
 /// To start using oneDNN, we must first include the @ref dnnl.hpp
 /// header file in the application. We also include CL/sycl.hpp from DPC++ for
@@ -45,8 +45,8 @@
 /// All C++ API types and functions reside in the `dnnl` namespace, and
 /// SYCL API types and functions reside in the `cl::sycl` namespace.
 /// For simplicity of the example we import both namespaces.
-/// @page sycl_interop_cpp
-/// @snippet  sycl_interop.cpp Prologue
+/// @page sycl_interop_buffer_cpp
+/// @snippet  sycl_interop_buffer.cpp Prologue
 // [Prologue]
 
 #include "dnnl.hpp"
@@ -65,13 +65,13 @@ using namespace cl::sycl;
 
 class kernel_tag;
 
-/// @page sycl_interop_cpp
-/// @section sycl_interop_cpp_tutorial sycl_interop_tutorial() function
-/// @page sycl_interop_cpp
-void sycl_interop_tutorial(engine::kind engine_kind) {
+/// @page sycl_interop_buffer_cpp
+/// @section sycl_interop_buffer_cpp_tutorial sycl_interop_buffer_tutorial() function
+/// @page sycl_interop_buffer_cpp
+void sycl_interop_buffer_tutorial(engine::kind engine_kind) {
 
-    /// @page sycl_interop_cpp
-    /// @subsection sycl_interop_cpp_sub1 Engine and stream
+    /// @page sycl_interop_buffer_cpp
+    /// @subsection sycl_interop_buffer_cpp_sub1 Engine and stream
     ///
     /// All oneDNN primitives and memory objects are attached to a
     /// particular @ref dnnl::engine, which is an abstraction of a
@@ -89,7 +89,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// during engine creation, an SYCL context is also created and attaches
     /// to the created engine.
     ///
-    /// @snippet  sycl_interop.cpp Initialize engine
+    /// @snippet  sycl_interop_buffer.cpp Initialize engine
     // [Initialize engine]
     engine eng(engine_kind, 0);
     // [Initialize engine]
@@ -102,12 +102,12 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// This example assumes DPC++ being a runtime. During stream creation,
     /// a SYCL queue is also created and attaches to this stream.
     ///
-    /// @snippet  sycl_interop.cpp Initialize stream
+    /// @snippet  sycl_interop_buffer.cpp Initialize stream
     // [Initialize stream]
     dnnl::stream strm(eng);
     // [Initialize stream]
 
-    /// @subsection  sycl_interop_cpp_sub2 Wrapping data into oneDNN memory object
+    /// @subsection  sycl_interop_buffer_cpp_sub2 Wrapping data into oneDNN memory object
     ///
     /// Next, we create a memory object. We need to specify dimensions of our
     /// memory by passing a memory::dims object. Then we create a memory
@@ -115,7 +115,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// data type, and with the dnnl::memory::format_tag::nchw memory format.
     /// Finally, we construct a memory object and pass the memory descriptor.
     /// The library allocates memory internally.
-    /// @snippet  sycl_interop.cpp memory alloc
+    /// @snippet  sycl_interop_buffer.cpp memory alloc
     //  [memory alloc]
     memory::dims tz_dims = {2, 3, 4, 5};
     const size_t N = std::accumulate(tz_dims.begin(), tz_dims.end(), (size_t)1,
@@ -124,16 +124,17 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     memory::desc mem_d(
             tz_dims, memory::data_type::f32, memory::format_tag::nchw);
 
-    memory mem(mem_d, eng);
+    memory mem = sycl_interop::make_memory(
+            mem_d, eng, sycl_interop::memory_kind::buffer);
     //  [memory alloc]
 
-    /// @subsection  sycl_interop_cpp_sub3 Initialize the data executing a custom SYCL kernel
+    /// @subsection  sycl_interop_buffer_cpp_sub3 Initialize the data executing a custom SYCL kernel
     ///
     /// The underlying SYCL buffer can be extracted from the memory object using
     /// the interoperability interface:
-    /// `dnnl::sycl_interop::get_buffer<T>(const dnnl::memory)`.
+    /// `dnnl::sycl_interop_buffer::get_buffer<T>(const dnnl::memory)`.
     ///
-    /// @snippet  sycl_interop.cpp get sycl buf
+    /// @snippet  sycl_interop_buffer.cpp get sycl buf
     // [get sycl buf]
     auto sycl_buf = sycl_interop::get_buffer<float>(mem);
     // [get sycl buf]
@@ -142,7 +143,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// To execute SYCL kernel we need a SYCL queue.
     /// For simplicity we can construct a stream and extract the SYCL queue from it.
     /// The kernel initializes the data by the `0, -1, 2, -3, ...` sequence: `data[i] = (-1)^i * i`.
-    /// @snippet sycl_interop.cpp sycl kernel exec
+    /// @snippet sycl_interop_buffer.cpp sycl kernel exec
     // [sycl kernel exec]
     queue q = sycl_interop::get_queue(strm);
     q.submit([&](handler &cgh) {
@@ -154,7 +155,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     });
     // [sycl kernel exec]
 
-    /// @subsection sycl_interop_cpp_sub4 Create and execute a primitive
+    /// @subsection sycl_interop_buffer_cpp_sub4 Create and execute a primitive
     /// There are three steps to create an operation primitive in oneDNN:
     /// 1. Create an operation descriptor.
     /// 2. Create a primitive descriptor.
@@ -167,7 +168,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// some implementation for this engine. A primitive object is a realization
     /// of a primitive descriptor, and its construction is usually much
     /// "heavier".
-    /// @snippet sycl_interop.cpp relu creation
+    /// @snippet sycl_interop_buffer.cpp relu creation
     //  [relu creation]
     auto relu_d = eltwise_forward::desc(
             prop_kind::forward, algorithm::eltwise_relu, mem_d, 0.0f);
@@ -176,7 +177,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     //  [relu creation]
 
     /// Next, execute the primitive.
-    /// @snippet sycl_interop.cpp relu exec
+    /// @snippet sycl_interop_buffer.cpp relu exec
     // [relu exec]
     relu.execute(strm, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
     strm.wait();
@@ -188,8 +189,8 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     ///    previously submitted primitives are completed.
     ///
 
-    /// @page sycl_interop_cpp
-    /// @subsection sycl_interop_cpp_sub5 Validate the results
+    /// @page sycl_interop_buffer_cpp
+    /// @subsection sycl_interop_buffer_cpp_sub5 Validate the results
     ///
     /// Before running validation codes, we need to access the SYCL memory on
     /// the host.
@@ -197,7 +198,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// construct a host accessor. Then we can directly read and write this data on the host.
     /// However no any conflicting operations are allowed until the host accessor is destroyed.
     /// We can run validation codes on the host accordingly.
-    /// @snippet sycl_interop.cpp Check the results
+    /// @snippet sycl_interop_buffer.cpp Check the results
     // [Check the results]
     auto host_acc = sycl_buf.get_access<access::mode::read>();
     for (size_t i = 0; i < N; i++) {
@@ -210,7 +211,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     // [Check the results]
 }
 
-/// @section sycl_interop_cpp_main main() function
+/// @section sycl_interop_buffer_cpp_main main() function
 ///
 /// We now just call everything we prepared earlier.
 ///
@@ -219,15 +220,15 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
 /// exceptions of type @ref dnnl::error, which contains the error status
 /// (of type @ref dnnl_status_t) and a human-readable error message accessible
 /// through the regular `what()` method.
-/// @page sycl_interop_cpp
-/// @snippet sycl_interop.cpp Main
+/// @page sycl_interop_buffer_cpp
+/// @snippet sycl_interop_buffer.cpp Main
 // [Main]
 int main(int argc, char **argv) {
     int exit_code = 0;
 
     engine::kind engine_kind = parse_engine_kind(argc, argv);
     try {
-        sycl_interop_tutorial(engine_kind);
+        sycl_interop_buffer_tutorial(engine_kind);
     } catch (dnnl::error &e) {
         std::cout << "oneDNN error caught: " << std::endl
                   << "\tStatus: " << dnnl_status2str(e.status) << std::endl
@@ -251,4 +252,4 @@ int main(int argc, char **argv) {
 /// Example passed.
 /// ~~~
 ///
-/// @page sycl_interop_cpp
+/// @page sycl_interop_buffer_cpp

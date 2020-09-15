@@ -63,8 +63,9 @@ public:
             void *mapped_ptr, stream_t *stream) const override;
 
     virtual bool is_host_accessible() const override {
+        if (engine()->kind() == engine_kind::cpu) return true; // optimism
         return utils::one_of(usm_kind_, cl::sycl::usm::alloc::host,
-                cl::sycl::usm::alloc::shared);
+                cl::sycl::usm::alloc::shared, cl::sycl::usm::alloc::unknown);
     }
 
     virtual std::unique_ptr<memory_storage_t> get_sub_storage(

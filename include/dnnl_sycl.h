@@ -86,8 +86,7 @@ dnnl_status_t DNNL_API dnnl_sycl_interop_engine_get_device(
 ///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
 ///       allocate the buffer that corresponds to the memory allocation kind
 ///       @p memory_kind for the memory object. In this case the library
-///       owns the buffer. If @p memory_kind equals dnnl_sycl_interop_usm
-///       device USM is used.
+///       owns the buffer.
 ///     - The DNNL_MEMORY_NONE specific value. Instructs the library to
 ///       create memory object without an underlying buffer.
 /// @returns #dnnl_success on success and a status describing the error
