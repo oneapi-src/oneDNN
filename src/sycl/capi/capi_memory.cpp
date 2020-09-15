@@ -63,3 +63,17 @@ status_t dnnl_sycl_interop_memory_create(memory_t **memory,
     return safe_ptr_assign(
             *memory, new memory_t(engine, md, std::move(mem_storage), true));
 }
+
+status_t dnnl_sycl_interop_memory_get_memory_kind(
+        const memory_t *memory, memory_kind_t *memory_kind) {
+    using namespace dnnl::impl::sycl;
+
+    bool ok = !utils::any_null(memory, memory_kind)
+            && memory->engine()->runtime_kind() == runtime_kind::sycl;
+    if (!ok) return status::invalid_arguments;
+
+    *memory_kind = utils::downcast<const sycl_memory_storage_base_t *>(
+            memory->memory_storage())
+                           ->memory_kind();
+    return status::success;
+}

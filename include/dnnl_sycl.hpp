@@ -178,6 +178,19 @@ void set_buffer(memory &amemory, cl::sycl::buffer<T, ndims> &abuffer) {
             "could not set SYCL buffer object");
 }
 
+/// Returns the memory allocation kind associated with a memory object.
+///
+/// @param amemory A memory object.
+///
+/// @returns The underlying memory allocation kind of the memory object.
+inline memory_kind get_memory_kind(const memory &amemory) {
+    dnnl_sycl_interop_memory_kind_t ckind;
+    error::wrap_c_api(
+            dnnl_sycl_interop_memory_get_memory_kind(amemory.get(), &ckind),
+            "could not get memory kind");
+    return static_cast<memory_kind>(ckind);
+}
+
 /// Constructs a memory object from a SYCL buffer.
 ///
 /// @param memory_desc Memory descriptor.
