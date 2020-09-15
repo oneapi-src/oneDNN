@@ -173,8 +173,25 @@ template <typename T, int ndims>
 void set_buffer(memory &amemory, cl::sycl::buffer<T, ndims> &abuffer) {
     auto range = cl::sycl::range<1>(abuffer.get_size());
     auto buf_u8 = abuffer.template reinterpret<uint8_t, 1>(range);
-    error::wrap_c_api(dnnl_memory_set_data_handle(
-                              amemory.get(), static_cast<void *>(&buf_u8)),
+    error::wrap_c_api(dnnl_sycl_interop_memory_set_buffer(amemory.get(),
+                              static_cast<void *>(&buf_u8), nullptr),
+            "could not set SYCL buffer object");
+}
+
+/// Sets SYCL buffer associated with a memory object in a specified stream.
+///
+/// @tparam T Type of the buffer.
+/// @tparam ndims Number of dimensions of the buffer.
+/// @param amemory Memory object to change.
+/// @param abuffer SYCL buffer.
+/// @param astream Stream to use to execute padding in.
+template <typename T, int ndims>
+void set_buffer(memory &amemory, cl::sycl::buffer<T, ndims> &abuffer,
+        const stream &astream) {
+    auto range = cl::sycl::range<1>(abuffer.get_size());
+    auto buf_u8 = abuffer.template reinterpret<uint8_t, 1>(range);
+    error::wrap_c_api(dnnl_sycl_interop_memory_set_buffer(amemory.get(),
+                              static_cast<void *>(&buf_u8), astream.get(true)),
             "could not set SYCL buffer object");
 }
 

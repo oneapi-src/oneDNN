@@ -64,6 +64,29 @@ status_t dnnl_sycl_interop_memory_create(memory_t **memory,
             *memory, new memory_t(engine, md, std::move(mem_storage), true));
 }
 
+status_t dnnl_sycl_interop_memory_set_buffer(
+        memory_t *memory, void *buffer, stream_t *stream) {
+    using namespace dnnl::impl::sycl;
+
+    bool ok = !utils::any_null(memory, buffer)
+            && memory->engine()->runtime_kind() == runtime_kind::sycl;
+    if (!ok) return status::invalid_arguments;
+
+    std::unique_ptr<memory_storage_t> mem_storage(
+            new sycl_buffer_memory_storage_t(memory->engine()));
+    if (!mem_storage) return status::out_of_memory;
+
+    size_t size = memory_desc_wrapper(memory->md()).size();
+    CHECK(mem_storage->init(memory_flags_t::use_runtime_ptr, size, buffer));
+
+    if (stream) stream->before_exec_hook();
+    status_t status
+            = memory->reset_memory_storage(std::move(mem_storage), true);
+    if (stream) stream->after_exec_hook();
+
+    return status;
+}
+
 status_t dnnl_sycl_interop_memory_get_memory_kind(
         const memory_t *memory, memory_kind_t *memory_kind) {
     using namespace dnnl::impl::sycl;

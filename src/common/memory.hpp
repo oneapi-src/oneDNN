@@ -68,6 +68,10 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
     dnnl::impl::status_t zero_pad(dnnl::impl::stream_t *stream) const;
     dnnl::impl::status_t zero_pad(const dnnl::impl::exec_ctx_t &ctx) const;
 
+    dnnl::impl::status_t reset_memory_storage(
+            std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage,
+            bool do_zero_pad = true);
+
 protected:
     dnnl::impl::engine_t *engine_;
     const dnnl::impl::memory_desc_t md_;

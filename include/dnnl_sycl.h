@@ -106,6 +106,16 @@ dnnl_status_t DNNL_API dnnl_sycl_interop_memory_get_memory_kind(
         const_dnnl_memory_t memory,
         dnnl_sycl_interop_memory_kind_t *memory_kind);
 
+/// Sets a SYCL buffer for a memory object.
+///
+/// @param memory Memory object.
+/// @param buffer SYCL buffer to be set in the memory object.
+/// @param stream Stream to use to execute padding in.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_sycl_interop_memory_set_buffer(
+        dnnl_memory_t memory, void *buffer, dnnl_stream_t stream);
+
 /// Creates an execution stream for a given engine associated with a SYCL
 /// queue.
 ///
