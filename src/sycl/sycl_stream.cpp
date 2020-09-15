@@ -47,7 +47,11 @@ status_t sycl_stream_t::init() {
         // so construct it from scratch.
         if (!sycl_engine.is_service_stream_created()) {
 #ifdef DNNL_SYCL_DPCPP
-            queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev));
+            cl::sycl::property_list props = (flags() & stream_flags::in_order)
+                    ? cl::sycl::property_list {cl::sycl::property::queue::
+                                    in_order {}}
+                    : cl::sycl::property_list {};
+            queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev, props));
 #else
             // XXX: Create a queue based on the SYCL context and engine kind.
             // This is not reliable but there is no constructor from

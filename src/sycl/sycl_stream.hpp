@@ -105,8 +105,10 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
             return status;
         };
         status_t status = execute_func();
+#ifndef DNNL_SYCL_DPCPP
         // Emulate in-order behavior
         if (flags() & stream_flags::in_order) wait();
+#endif
         return status;
     }
 
