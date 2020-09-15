@@ -21,7 +21,7 @@
 
 --reset
 # compensation reorders without groups
---sdt=f32,s8
+--sdt=f32,s8,bf16
 --ddt=s8
 --stag=abx
 --dtag=xba

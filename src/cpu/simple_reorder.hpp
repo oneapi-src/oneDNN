@@ -148,7 +148,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
                 && compensation_mask_ok
-                && (input_d.data_type() == f32 || input_d.data_type() == s8)
+                && utils::one_of(input_d.data_type(), f32, s8, bf16)
                 && output_d.data_type() == s8
                 && (D_mask == 1 || D_mask == (size_t)g * oc);
     }
@@ -276,7 +276,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
                 && compensation_mask_ok
-                && (input_d.data_type() == f32 || input_d.data_type() == s8)
+                && utils::one_of(input_d.data_type(), f32, s8, bf16)
                 && output_d.data_type() == s8
                 && (D_mask == 1 || D_mask == (size_t)g * oc);
     }
@@ -412,7 +412,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
-                && (input_d.data_type() == f32 || input_d.data_type() == s8)
+                && utils::one_of(input_d.data_type(), f32, s8, bf16)
                 && output_d.data_type() == s8
                 && (D_mask == 1 || D_mask == (size_t)g * oc);
     }

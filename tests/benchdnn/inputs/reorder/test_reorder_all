@@ -48,11 +48,11 @@
 --stag=aBx16b      --dtag=aBx8b  2x71x16x16 2x72x16x16 2x73x16x16
 
 #
-# s8, f32 -> s8 w/ compensations
+# s8, f32, bf16 -> s8 w/ compensations
 #
 --reset
 --alg=bootstrap
---sdt=f32,s8
+--sdt=f32,s8,bf16
 --ddt=s8
 
 --stag=oiw,wio --dtag=wio,OIw4i16o4i,OIw2i8o4i,OIw4o4i
