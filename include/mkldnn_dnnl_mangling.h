@@ -715,7 +715,6 @@
 #define mkldnn_stream_create dnnl_stream_create
 #define mkldnn_stream_create_ocl dnnl_ocl_interop_stream_create
 #define mkldnn_stream_default_flags dnnl_stream_default_flags
-#define mkldnn_stream_default_order dnnl_stream_default_order
 #define mkldnn_stream_destroy dnnl_stream_destroy
 #define mkldnn_stream_flags_t dnnl_stream_flags_t
 #define mkldnn_stream_get_ocl_command_queue \

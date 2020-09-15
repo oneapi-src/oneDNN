@@ -2276,15 +2276,12 @@ typedef enum {
 
 /// @brief Stream flags.
 typedef enum {
-    /// Default order execution. Either in-order or out-of-order depending on
-    /// the runtime.
-    dnnl_stream_default_order = 0x1U,
     /// In-order execution.
-    dnnl_stream_in_order = 0x2U,
+    dnnl_stream_in_order = 0x1U,
     /// Out-of-order execution.
-    dnnl_stream_out_of_order = 0x4U,
+    dnnl_stream_out_of_order = 0x2U,
     /// Default stream configuration.
-    dnnl_stream_default_flags = dnnl_stream_default_order,
+    dnnl_stream_default_flags = dnnl_stream_in_order,
 } dnnl_stream_flags_t;
 
 /// @struct dnnl_stream

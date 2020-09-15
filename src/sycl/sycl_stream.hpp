@@ -45,16 +45,12 @@ namespace sycl {
 
 struct sycl_stream_t : public gpu::compute::compute_stream_t {
     static status_t create_stream(
-            stream_t **stream, engine_t *engine, unsigned generic_flags) {
-        unsigned flags;
-        status_t status = sycl_stream_t::init_flags(&flags, generic_flags);
-        if (status != status::success) return status;
-
+            stream_t **stream, engine_t *engine, unsigned flags) {
         std::unique_ptr<sycl_stream_t> sycl_stream(
                 new sycl_stream_t(engine, flags));
         if (!sycl_stream) return status::out_of_memory;
 
-        status = sycl_stream->init();
+        status_t status = sycl_stream->init();
         if (status != status::success) return status;
         *stream = sycl_stream.release();
         return status::success;
@@ -252,15 +248,6 @@ private:
         , queue_(new cl::sycl::queue(queue)) {}
 
     status_t init();
-
-    static status_t init_flags(unsigned *flags, unsigned generic_flags) {
-        *flags = 0;
-        if (generic_flags & stream_flags::default_order)
-            *flags |= stream_flags::out_of_order;
-        else
-            *flags |= generic_flags;
-        return status::success;
-    }
 
     static status_t init_flags(unsigned *flags, cl::sycl::queue &queue) {
         // SYCL queue is always out-of-order

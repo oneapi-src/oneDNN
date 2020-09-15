@@ -144,8 +144,7 @@ struct PrintToStringParamName {
 };
 
 auto all_params = ::testing::Combine(::testing::Values(dnnl_cpu, dnnl_gpu),
-        ::testing::Values(dnnl_stream_default_flags, dnnl_stream_in_order,
-                dnnl_stream_out_of_order));
+        ::testing::Values(dnnl_stream_in_order, dnnl_stream_out_of_order));
 
 } // namespace
 

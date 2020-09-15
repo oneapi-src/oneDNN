@@ -843,7 +843,6 @@ using memory_t = dnnl_memory;
 
 using stream_flags_t = dnnl_stream_flags_t;
 namespace stream_flags {
-const stream_flags_t default_order = dnnl_stream_default_order;
 const stream_flags_t in_order = dnnl_stream_in_order;
 const stream_flags_t out_of_order = dnnl_stream_out_of_order;
 const stream_flags_t default_flags = dnnl_stream_default_flags;

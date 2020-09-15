@@ -32,17 +32,13 @@ namespace ocl {
 
 struct ocl_stream_t : public compute::compute_stream_t {
     static status_t create_stream(
-            stream_t **stream, engine_t *engine, unsigned generic_flags) {
-
-        unsigned flags;
-        status_t status = ocl_stream_t::init_flags(&flags, generic_flags);
-        if (status != status::success) return status;
+            stream_t **stream, engine_t *engine, unsigned flags) {
 
         std::unique_ptr<ocl_stream_t> ocl_stream(
                 new ocl_stream_t(engine, flags));
         if (!ocl_stream) return status::out_of_memory;
 
-        status = ocl_stream->init();
+        status_t status = ocl_stream->init();
         if (status != status::success) return status;
 
         *stream = ocl_stream.release();
@@ -90,13 +86,6 @@ private:
     ocl_stream_t(engine_t *engine, unsigned flags, cl_command_queue queue)
         : compute_stream_t(engine, flags), queue_(queue) {}
     status_t init();
-
-    static status_t init_flags(unsigned *flags, unsigned generic_flags) {
-        *flags = 0;
-        if (generic_flags & stream_flags::default_order)
-            *flags |= stream_flags::in_order;
-        return status::success;
-    }
 
     static status_t init_flags(unsigned *flags, cl_command_queue queue) {
         *flags = 0;
