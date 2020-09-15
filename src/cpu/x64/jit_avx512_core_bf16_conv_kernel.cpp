@@ -150,14 +150,7 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_dst(int ur_w) {
     }
 
     if (jcp.with_eltwise) {
-        if (ur_w == jcp.ur_w) {
-            eltwise_injector_->compute_vector_range(
-                    0, jcp.nb_oc_blocking * jcp.ur_w);
-        } else {
-            for (int k = 0; k < jcp.nb_oc_blocking; k++)
-                eltwise_injector_->compute_vector_range(
-                        k * jcp.ur_w, k * jcp.ur_w + ur_w);
-        }
+        eltwise_injector_->compute_vector_range(0, jcp.nb_oc_blocking * ur_w);
     }
 
     L(store_label);

@@ -121,13 +121,15 @@ private:
     Xbyak::Zmm zmm_permute;
 
     Vmm vmm_out(int i_ur, int i_oc) {
-        int idx = i_ur + i_oc * jcp.ur_w;
+        int nb_x_blocking
+                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
+        int idx = i_ur * nb_x_blocking + i_oc;
         assert(idx
                 < (jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx));
         return Vmm(idx);
     }
     Xbyak::Zmm zmm_out(int i_ur, int i_oc) {
-        int idx = i_ur + i_oc * jcp.ur_w;
+        int idx = vmm_out(i_ur, i_oc).getIdx();
         assert(idx
                 < (jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx));
         return Xbyak::Zmm(idx);

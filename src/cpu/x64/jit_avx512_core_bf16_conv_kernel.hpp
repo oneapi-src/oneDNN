@@ -94,7 +94,7 @@ private:
     reg64_t reg_dst_long_offt = r14;
 
     Vmm vmm_dst(int i_ur, int i_oc) {
-        int idx = i_ur + i_oc * jcp.ur_w;
+        int idx = i_ur * jcp.nb_oc_blocking + i_oc;
         assert(idx < ker_reg_base_idx);
         return Vmm(idx);
     }
