@@ -264,15 +264,23 @@ gen9_conv_bwd_weights(__global float *src,
             + oc * KD * KH * KW * IC_BLOCK * OC_BLOCK
             + kd * KH * KW * IC_BLOCK * OC_BLOCK + kh * KW * IC_BLOCK * OC_BLOCK
             + kw * IC_BLOCK * OC_BLOCK + g * OC * IC * KD * KH * KW;
+#if NCHUNK == 1
+    intel_sub_group_block_write8(
+            (__global uint8 *)diff_wei, as_uint8(blockC00));
+    intel_sub_group_block_write8(
+            (__global uint8 *)(diff_wei + 8 * OC_BLOCK), as_uint8(blockC01));
+#else
     for (int i = 0; i < 8; i++)
         atomic_add_global(diff_wei + i * OC_BLOCK + local_x, blockC00[i]);
 
     for (int i = 0; i < 8; i++)
         atomic_add_global(diff_wei + (8 + i) * OC_BLOCK + local_x, blockC01[i]);
 #endif
+#endif
 
 #endif
 #if VER_8OW16C == 1
+#define HAS_PAD_W (PW > 0 || (OW - 1) * SW - PW + (KW - 1) * (1 + DW) >= IW)
     const int ksp = get_global_id(1);
 #if CASE_3D
     const int kd = ksp / (KW * KH);
@@ -316,6 +324,7 @@ gen9_conv_bwd_weights(__global float *src,
     const int mb_end = min((mb_chunk + 1) * MB_CHUNK_SIZE, MB);
 
     const bool do_bias = (ic == 0 || IS_DW) && kh == 0 && kw == 0 && kd == 0;
+    const int OW_LOOP_BLOCK = (IC == 3) ? 2 * OW_BLOCK : OW_BLOCK;
 
     src += ic * ID * IH * IW * IC_BLOCK * MB_BLOCK + mb * IC * G * ID * IH * IW
             + g * IC * ID * IH * IW * MB_BLOCK;
@@ -382,7 +391,11 @@ gen9_conv_bwd_weights(__global float *src,
                     continue;
                 }
 
-                for (int ow = ow_beg; ow < ow_beg + OWB; ow += OW_BLOCK) {
+                for (int ow = ow_beg;
+                        ow < min(ow_beg + OWB,
+                                (OW / OW_LOOP_BLOCK) * OW_LOOP_BLOCK);
+                        ow += OW_LOOP_BLOCK) {
+
                     const int id = od * SD - PD + kd * (1 + DD);
                     const int ih = oh * SH - PH + kh * (1 + DH);
                     const int iw = ow * SW - PW + kw * (1 + DW);
@@ -417,11 +430,80 @@ gen9_conv_bwd_weights(__global float *src,
         _result = FMA8(_blockB.s7, TRANSPOSE_8(_blockA, 7, col), _result); \
     }
 
+                    float8 blockA, blockB, blockC;
+#if IC == 3
+                    for (int i = 0; i < 3; i++) {
+                        if (HAS_PAD_W
+                                && (iw + (local_x)*SW < 0
+                                        || iw + (local_x)*SW >= IW))
+                            blockA[i] = 0;
+                        else
+                            blockA[i] = src1[i * ID * IH * IW + (local_x)*SW];
+                    }
+#else
+                    for (int i = 0; i < OW_BLOCK; i++) {
+                        if (HAS_PAD_W && (iw + i < 0 || iw + i * SW >= IW)) {
+                            blockA[i] = 0;
+                        } else {
+                            blockA[i] = as_float(intel_sub_group_block_read((
+                                    const __global uint
+                                            *)(&src1[i * IC_BLOCK * SW])));
+                        }
+                    }
+#endif
+
+                    blockB = as_float8(intel_sub_group_block_read8((
+                            const __global uint *)(diff_dst1 + ow * OC_BLOCK)));
+
+#if IC == 3
+                    blockC = as_float8(intel_sub_group_block_read8(
+                            (const __global uint *)(diff_dst1
+                                    + (ow + 8) * OC_BLOCK)));
+                    for (int i = 0; i < 8; i++) {
+                        for (int j = 0; j < 3; j++)
+                            blockC00[j] = fma(blockB[i],
+                                    intel_sub_group_shuffle(blockA[j], i),
+                                    blockC00[j]);
+                        for (int j = 0; j < 3; j++)
+                            blockC00[j] = fma(blockC[i],
+                                    intel_sub_group_shuffle(blockA[j], i + 8),
+                                    blockC00[j]);
+                    }
+
+#elif IS_DW
+                    for (int i = 0; i < 8; i++) {
+                        blockC00 = fma(blockA[i], blockB[i], blockC00);
+                    }
+#else
+                    MULTIPLY_BLOCKS_8x8(blockC00, blockA, blockB, 0);
+                    MULTIPLY_BLOCKS_8x8(blockC01, blockA, blockB, 8);
+
+#endif
+#if WITH_BIAS == 1
+                    for (int i = 0; i < 8; i++) {
+#if IC == 3
+                        bias_loc += blockC[i];
+#endif
+                        bias_loc += blockB[i];
+                    }
+#endif
+                }
+
+                for (int ow = (OW / OW_LOOP_BLOCK) * OW_LOOP_BLOCK;
+                        ow < min(ow_beg + OWB, OW); ow += OW_LOOP_BLOCK) {
+                    const int id = od * SD - PD + kd * (1 + DD);
+                    const int ih = oh * SH - PH + kh * (1 + DH);
+                    const int iw = ow * SW - PW + kw * (1 + DW);
+                    __global float *src1;
                     float8 blockA, blockB;
+
+                    src1 = src + id * IH * IW * IC_BLOCK + ih * IW * IC_BLOCK
+                            + iw * IC_BLOCK;
 #if IC == 3
                     if (local_x < IC) {
-                        for (int i = 0; i < OW_BLOCK; i++) {
-                            if (iw + i * SW < 0 || iw + i * SW >= IW)
+                        for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                            if (HAS_PAD_W
+                                    && (iw + i * SW < 0 || iw + i * SW >= IW))
                                 blockA[i] = 0;
                             else
                                 blockA[i]
@@ -431,8 +513,9 @@ gen9_conv_bwd_weights(__global float *src,
                         blockA = 0.0f;
                     }
 #else
-                    for (int i = 0; i < OW_BLOCK; i++) {
-                        if (iw + i < 0 || iw + i * SW >= IW) {
+
+                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                        if (HAS_PAD_W && (iw + i < 0 || iw + i * SW >= IW)) {
                             blockA[i] = 0;
                         } else {
                             blockA[i] = as_float(intel_sub_group_block_read((
@@ -441,33 +524,33 @@ gen9_conv_bwd_weights(__global float *src,
                         }
                     }
 #endif
-#if OW % OWB != 0
-                    for (int i = 0; i < 8; i++) {
-                        if (ow + i >= OW) {
-                            blockB[i] = 0.0;
-                        } else {
-                            blockB[i] = as_float(intel_sub_group_block_read(
-                                    (const __global uint *)(&diff_dst1[(ow + i)
-                                            * OC_BLOCK])));
-                        }
-                    }
-#else
-                    blockB = as_float8(intel_sub_group_block_read8((
-                            const __global uint *)(diff_dst1 + ow * OC_BLOCK)));
-#endif
 
+                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                        blockB[i] = as_float(intel_sub_group_block_read((
+                                const __global uint
+                                        *)(&diff_dst1[(ow + i) * OC_BLOCK])));
+                    }
 #if IC == 3
-                    MULTIPLY_BLOCKS_8x8(blockC00, blockA, blockB, 0);
+                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                        blockC00 = FMA8(
+                                blockB[i], TRANSPOSE_8(blockA, i, 0), blockC00);
+                    }
+
 #elif IS_DW
-                    for (int i = 0; i < 8; i++) {
+                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
                         blockC00 = fma(blockA[i], blockB[i], blockC00);
                     }
 #else
-                    MULTIPLY_BLOCKS_8x8(blockC00, blockA, blockB, 0);
-                    MULTIPLY_BLOCKS_8x8(blockC01, blockA, blockB, 8);
+
+                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                        blockC00 = FMA8(
+                                blockB[i], TRANSPOSE_8(blockA, i, 0), blockC00);
+                        blockC01 = FMA8(
+                                blockB[i], TRANSPOSE_8(blockA, i, 8), blockC01);
+                    }
 #endif
 #if WITH_BIAS == 1
-                    for (int i = 0; i < 8; i++)
+                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++)
                         bias_loc += blockB[i];
 #endif
                 }
@@ -496,11 +579,18 @@ gen9_conv_bwd_weights(__global float *src,
             + oc * KD * KH * KW * IC_BLOCK * OC_BLOCK
             + kd * KH * KW * IC_BLOCK * OC_BLOCK + kh * KW * IC_BLOCK * OC_BLOCK
             + kw * IC_BLOCK * OC_BLOCK + g * OC * IC * KD * KH * KW;
+#if NCHUNK == 1
+    intel_sub_group_block_write8(
+            (__global uint8 *)diff_wei, as_uint8(blockC00));
+    intel_sub_group_block_write8(
+            (__global uint8 *)(diff_wei + 8 * OC_BLOCK), as_uint8(blockC01));
+#else
     for (int i = 0; i < 8; i++)
         atomic_add_global(diff_wei + i * OC_BLOCK + local_x, blockC00[i]);
 
     for (int i = 0; i < 8; i++)
         atomic_add_global(diff_wei + (8 + i) * OC_BLOCK + local_x, blockC01[i]);
+#endif
 #endif
 #endif
 }
