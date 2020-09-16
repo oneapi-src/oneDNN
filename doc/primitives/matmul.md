@@ -20,20 +20,26 @@ dev_guide_conventions):
 \f]
 
 The MatMul primitive also supports batching multiple independent matrix
-multiplication operations, in which case the tensors must be 3D:
+multiplication operations, in which case the tensors can be up to 12D:
 
 \f[
-    \dst(mb, m, n) =
+    \dst(bs_0, bs_1, bs_2, \ldots, m, n) =
         \sum_{k=0}^{K} \left(
-            \src(mb, m, k) \cdot \weights(mb, k, n)
+            \src(bs_0, bs_1, bs_2, \ldots, m, k) \cdot
+            \weights(bs_0, bs_1, bs_2, \ldots, k, n)
         \right) +
-        \bias(mb, m, n)
+        \bias(bs_0, bs_1, bs_2, \ldots, m, n)
 \f]
 
-The bias tensor is optional and supports implicit broadcast semantics:
-any of its dimensions can be 1 and the same value would be used across
-the corresponding dimension. However, \bias must have the same number
-of dimensions as the \dst.
+MatMul also supports implicit broadcast semantics i.e., \src can be broadcasted
+into \weights if the corresponding dimension in \src is 1 (and vice versa).
+However, all tensors (including \bias, if it exists) must have the same number
+of dimensions.
+
+The shape of \dst only depends on \src and \weights tensors. The \bias cannot
+change the dimensions of \dst by broadcasting. In other words, for every
+dimension, the following constraint must hold true:
+`dimension(bias) == dimension(dst) || dimension(bias) == 1`.
 
 ## Execution Arguments
 
@@ -65,6 +71,15 @@ argument index as specified by the following table.
    shapes enable users to create a primitive once and use it in different
    situations.
 
+2. Inconsistency with dimensions being "primitive-creation-time-defined" vs
+   "runtime-defined" is invalid. For example, \src and \weights with dimensions
+   set to `{3, 4, 4}` and `{DNNL_RUNTIME_DIM_VAL, 4, 4}` respectively is
+   invalid.
+
+3. The broadcasting shape consistency check is not done for the dimensions with
+   #DNNL_RUNTIME_DIM_VAL. It is user responsibility to make sure the dimensions
+   for the tensors are valid.
+
    @sa Please check tutorials below to see #DNNL_RUNTIME_DIM_VAL support in use.
 
 ### Data Types
@@ -83,27 +98,22 @@ types for source, destination, weights, and bias tensors:
 
 The MatMul primitive expects the following tensors:
 
-| Dims | Source                     | Weights                    | Destination                | Bias                                                                               |
-| :--  | :--                        | :--                        | :--                        | :--                                                                                |
-| 2D   | \f$M \times K\f$           | \f$K \times N\f$           | \f$M \times N\f$           | None or \f$(M \text{ or } 1) \times (N  \text{ or } 1)\f$                          |
-| 3D   | \f$MB \times M \times K\f$ | \f$MB \times K \times N\f$ | \f$MB \times M \times N\f$ | None or \f$(MB \text{ or } 1) \times (M \text{ or } 1) \times (N \text{ or } 1)\f$ |
+| Dims | Source                                                        | Weights                                                           | Destination                                                   | Bias                                                     |
+| :--  | :--                                                           | :--                                                               | :--                                                           | :--                                                      |
+| 2D   | \f$M \times K\f$                                              | \f$K \times N\f$                                                  | \f$M \times N\f$                                              | None or \f$(M \text{ or } 1) \times (N  \text{ or } 1)\f$|
+| ND   | \f$(\prod_{i=0}^{ND - 2} src{\_}dims[i]) \times M \times K\f$ | \f$(\prod_{i=0}^{ND - 2} weights{\_}dims[i]) \times K \times N\f$ | \f$(\prod_{i=0}^{ND - 2} dst{\_}dims[i]) \times M \times N\f$ | None or \f$\prod_{i=0}^{ND} (dst{\_}dims[i] { or } 1)\f$ |
 
 The MatMul primitive is generally optimized for the case in which memory objects
-use plain memory formats (with some restrictions; see the table below).
-However, it is recommended to use the placeholder memory format
- #dnnl::memory::format_tag::any if an input tensor is reused across multiple
+use plain memory formats. Additionally, the \src and \weights must have at least
+one of the axes `m` or `k` and `n` or `k` contiguous (i.e., stride=1)
+respectively. However, it is recommended to use the placeholder memory format
+#dnnl::memory::format_tag::any if an input tensor is reused across multiple
 executions. In this case, the primitive will set the most appropriate memory
 format for the corresponding input tensor.
 
-The table below shows the combinations of memory formats for which the MatMul
-primitive is optimized. The memory format of the destination tensor should
-always be #dnnl::memory::format_tag::ab for the 2D case and
-#dnnl::memory::format_tag::abc for the 3D one.
-
-| Dims | Logical tensors                                                             | MatMul is optimized for the following memory formats
-| :--  | :--                                                                         | :--
-| 2D   | Source: \f$M \times K\f$ <br> Weights: \f$K \times N\f$                     | Source: #dnnl_ab or #dnnl_ba <br> Weights: #dnnl_ab or #dnnl_ba
-| 3D   | Source: \f$MB \times M \times K\f$ <br> Weights: \f$MB \times K \times N\f$ | Source: #dnnl_abc or #dnnl_acb <br> Weights: #dnnl_abc or #dnnl_acb
+The memory format of the destination tensor should always be plain with `n` axis
+contiguous. For example, #dnnl::memory::format_tag::ab for the 2D case and
+#dnnl::memory::format_tag::abc or #dnnl::memory::format_tag::bac for the 3D one.
 
 ### Attributes and Post-ops
 
