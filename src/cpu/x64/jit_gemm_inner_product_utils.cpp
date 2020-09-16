@@ -39,15 +39,15 @@ template <data_type_t acc_type, data_type_t dst_type>
 struct jit_pp_kernel_t : public pp_kernel_t<acc_type, dst_type>, jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(inner_product_utils::jit_pp_kernel_t);
 
-    jit_pp_kernel_t(size_t OC, size_t MB, const primitive_attr_t *attr,
-            data_type_t bias_dt, bool skip_sum);
+    jit_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
+            const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum);
 
     typedef typename prec_traits<acc_type>::type acc_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
             const float *scales, size_t start, size_t end, size_t runtime_oc,
-            const float *dst_zero_points) const override;
+            dim_t dst_mb_stride, const float *dst_zero_points) const override;
 
 private:
     void generate();
@@ -64,6 +64,7 @@ private:
         size_t oc;
         size_t len;
         size_t oc_offset;
+        dim_t dst_mb_stride;
     };
 
     enum { default_OC_loop_unroll_ = 4 };
@@ -89,6 +90,10 @@ private:
     // register used for temp computation, needs not to be preserved
     Xbyak::Reg64 reg_tmp_comp = r15;
 
+    // *mb_stride used only in matmul_pp_kernel && compute_oc_channel_blk()
+    Xbyak::Reg64 reg_dst_mb_stride = r12;
+    Xbyak::Reg64 reg_acc_mb_stride = r14;
+
     // Will be assigned in constructor
     Xbyak::Zmm vreg_zero, vreg_saturation_ubound, vreg_scale, vreg_sum_scale,
             vreg_dst_zero_points;
@@ -99,7 +104,7 @@ private:
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(28);
     Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(29);
     Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(30);
-    Xbyak::Reg64 bf16_emu_reserv_4 = r12;
+    Xbyak::Reg64 bf16_emu_reserv_4 = reg_tmp_comp;
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(31);
 
     cpu_isa_t isa_ = isa_any;
@@ -135,8 +140,10 @@ private:
 
 template <data_type_t acc_type, data_type_t dst_type>
 jit_pp_kernel_t<acc_type, dst_type>::jit_pp_kernel_t(size_t OC, size_t MB,
-        const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum)
-    : pp_kernel_t<acc_type, dst_type>(OC, MB, attr, bias_dt, skip_sum) {
+        dim_t dst_mb_stride, const primitive_attr_t *attr, data_type_t bias_dt,
+        bool skip_sum)
+    : pp_kernel_t<acc_type, dst_type>(
+            OC, MB, dst_mb_stride, attr, bias_dt, skip_sum) {
     assert(mayiuse(avx512_core));
 
     if (this->do_scale_) vreg_scale = Zmm(idx_compute_vreg_start_++);
@@ -311,6 +318,14 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
             lea(reg_bias, ptr[reg_bias + offset * this->bias_data_type_size_]);
     };
 
+    // incase of non-trivial dst_mb_strides, fixup the reg_dst and reg_acc
+    auto maybe_advance_mb_stride = [&]() {
+        if (!this->has_trivial_mb_stride()) {
+            lea(reg_dst, ptr[reg_dst + reg_dst_mb_stride * sizeof(dst_data_t)]);
+            lea(reg_acc, ptr[reg_acc + reg_acc_mb_stride * sizeof(acc_data_t)]);
+        }
+    };
+
     // Rewind pointers that point to data that is indexed by output channel
     // (bias or per-oc scaling factors)
     auto rewind_ptrs = [&]() {
@@ -372,7 +387,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
         cmp(reg_tmp, reg_len);
         cmovg(reg_tmp, reg_len);
         sub(reg_len, reg_tmp);
-
+        maybe_advance_mb_stride();
         process_runtime_oc();
         rewind_ptrs();
     }
@@ -392,6 +407,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
             rewind_ptrs();
 
             sub(reg_len, reg_oc);
+            maybe_advance_mb_stride();
             cmp(reg_len, reg_oc);
             jge(l_main_loop, T_NEAR);
         }
@@ -441,6 +457,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
 
             rewind_ptrs();
             sub(reg_len, reg_oc);
+            maybe_advance_mb_stride();
             cmp(reg_len, reg_oc);
             jge(l_main_loop, T_NEAR);
         }
@@ -616,6 +633,15 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
     mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
     if (this->do_scale_ && this->scale_idx_mult_ == 0)
         vbroadcastss(vreg_scale, dword[reg_scales]);
+    if (!this->has_trivial_mb_stride()) {
+        mov(reg_dst_mb_stride, ptr[reg_param + PARAM_OFF(dst_mb_stride)]);
+        sub(reg_dst_mb_stride, reg_oc);
+        // if dst and acc point to same address (in-place), then strides must be
+        // similar, else assume acc buffer is dense.
+        xor_(reg_acc_mb_stride, reg_acc_mb_stride);
+        cmp(reg_dst, reg_acc);
+        cmove(reg_acc_mb_stride, reg_dst_mb_stride);
+    }
 #undef PARAM_OFF
 
     if (this->do_sum_) {
@@ -634,7 +660,8 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
     bool supported_postops = this->do_scale_ || this->do_eltwise_
             || this->do_sum_ || this->do_dst_zero_points_;
 
-    if (this->do_bias() && !supported_postops && dim_restrict) {
+    if (this->do_bias() && !supported_postops && dim_restrict
+            && this->has_trivial_mb_stride()) {
         this->mb_blk_kernel_ = true;
         compute_mb_blk();
     } else {
@@ -651,7 +678,7 @@ void jit_pp_kernel_t<acc_type, dst_type>::generate() {
 template <data_type_t acc_type, data_type_t dst_type>
 void jit_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
-        size_t start, size_t end, size_t runtime_oc,
+        size_t start, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
         const float *dst_zero_points) const {
     assert(ker_);
 
@@ -661,29 +688,44 @@ void jit_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
 
     ker_args args;
     size_t oc_offset = start % OC;
-    args.dst = dst + start;
-    args.acc = acc + start;
+    if (this->has_trivial_mb_stride()) {
+        args.dst = dst + start;
+        args.acc = acc + start;
+    } else {
+        const dim_t offt = (start / OC) * dst_mb_stride + oc_offset;
+        args.dst = dst + offt;
+        // if dst and acc point to same address (inplace), then strides
+        // must be similar, else assume acc buffer is dense.
+        if (dst == (dst_data_t *)acc)
+            args.acc = acc + offt;
+        else
+            args.acc = acc + start;
+    }
     args.bias = bias + oc_offset * this->bias_data_type_size_;
     args.scales = scales + this->scale_idx_mult_ * oc_offset;
     args.dst_zero_points = dst_zero_points;
     args.oc = OC;
     args.len = end - start;
     args.oc_offset = oc_offset;
+    args.dst_mb_stride = dst_mb_stride;
+
     ker_(&args);
 }
 
 template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type> *jit_pp_kernel_create(size_t OC, size_t MB,
-        const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum) {
+        dim_t dst_mb_stride, const primitive_attr_t *attr, data_type_t bias_dt,
+        bool skip_sum) {
     if (!mayiuse(avx512_core)) return nullptr;
     return new jit_pp_kernel_t<acc_type, dst_type>(
-            OC, MB, attr, bias_dt, skip_sum);
+            OC, MB, dst_mb_stride, attr, bias_dt, skip_sum);
 }
 
 #define INST(acc_type, dst_type) \
-    template pp_kernel_t<acc_type, dst_type> * \
-    jit_pp_kernel_create<acc_type, dst_type>(size_t OC, size_t MB, \
-            const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum);
+    template pp_kernel_t<acc_type, dst_type> \
+            *jit_pp_kernel_create<acc_type, dst_type>(size_t OC, size_t MB, \
+                    dim_t dst_mb_stride, const primitive_attr_t *attr, \
+                    data_type_t bias_dt, bool skip_sum);
 
 using namespace data_type;
 INST(f32, f32);

@@ -41,7 +41,7 @@
 --reset
 
 --cfg=f32,bf16bf16f32,bf16bf16bf16,u8s8s8,s8s8f32
---stag=abc,acb --wtag=abc,acb --dtag=abc
+--stag=abc,acb --wtag=abc,acb --dtag=abc,bac
 --bia_dt=undef,f32 --bia_mask=4,6
 
 --runtime_mb=0,1 --runtime_m=0 --runtime_n=0 --runtime_k=0

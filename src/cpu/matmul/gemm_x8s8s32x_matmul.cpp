@@ -277,7 +277,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
                 if (postops_in_matmul) {
                     (*pp_kernel_)(curr_dst, curr_acc, bias, scales, 0, M * N,
-                            (size_t)N, &dst_zero_point_f32);
+                            (size_t)N, ldc, &dst_zero_point_f32);
                 }
                 utils::dim_iterator(dst_d.dims(), d_dims_idx, batch_ndims);
             }
@@ -314,7 +314,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
                 size_t start {}, end {};
                 balance211((size_t)(M * N), nthr, ithr, start, end);
                 (*pp_kernel_)(dst, acc, bias, scales, start, end, (size_t)N,
-                        &dst_zero_point_f32);
+                        ldc, &dst_zero_point_f32);
             });
         }
     }
