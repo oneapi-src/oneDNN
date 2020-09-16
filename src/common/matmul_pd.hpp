@@ -101,6 +101,12 @@ struct matmul_pd_t : public primitive_desc_t {
 
     int ndims() const { return dst_md_.ndims; }
 
+    dim_t ldc() const {
+        return memory_desc_wrapper(dst_md(0))
+                .blocking_desc()
+                .strides[ndims() - 2];
+    }
+
     bool with_bias() const { return bias_md_.ndims != 0; }
     bool batched() const { return ndims() > 2; }
 

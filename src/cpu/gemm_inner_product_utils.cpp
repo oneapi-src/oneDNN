@@ -34,9 +34,10 @@ namespace inner_product_utils {
 
 template <data_type_t acc_type, data_type_t dst_type>
 struct ref_pp_kernel_t : public pp_kernel_t<acc_type, dst_type> {
-    ref_pp_kernel_t(size_t OC, size_t MB, const primitive_attr_t *attr,
-            data_type_t bias_dt, bool skip_sum)
-        : pp_kernel_t<acc_type, dst_type>(OC, MB, attr, bias_dt, skip_sum) {
+    ref_pp_kernel_t(size_t OC, size_t MB, dim_t dst_mb_stride,
+            const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum)
+        : pp_kernel_t<acc_type, dst_type>(
+                OC, MB, dst_mb_stride, attr, bias_dt, skip_sum) {
         if (this->do_eltwise_)
             ref_eltwise_.reset(new ref_eltwise_scalar_fwd_t(this->eltwise_.alg,
                     this->eltwise_.alpha, this->eltwise_.beta,
@@ -48,7 +49,7 @@ struct ref_pp_kernel_t : public pp_kernel_t<acc_type, dst_type> {
 
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
             const float *scales, size_t start, size_t end, size_t runtime_oc,
-            const float *dst_zero_points) const override;
+            dim_t dst_mb_stride, const float *dst_zero_points) const override;
 
 private:
     std::unique_ptr<ref_eltwise_scalar_fwd_t> ref_eltwise_;
@@ -57,24 +58,47 @@ private:
 template <data_type_t acc_type, data_type_t dst_type>
 void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
-        size_t start, size_t end, size_t runtime_oc,
+        size_t start, size_t end, size_t runtime_oc, dim_t dst_mb_stride,
         const float *dst_zero_points) const {
     using math::get_bias;
 
     if (end <= start) return;
 
     const size_t OC = this->runtime_oc() ? runtime_oc : this->OC_;
+    const bool acc_is_dst = dst == (dst_data_t *)acc;
 
     size_t oc = start % OC;
-    for (size_t i = start; i < end; i++) {
-        float d = (float)acc[i];
+    if (this->has_trivial_mb_stride()) {
+        dst = dst + start;
+        acc = acc + start;
+    } else {
+        const dim_t offt = (start / OC) * dst_mb_stride + oc;
+        dst = dst + offt;
+        // if dst and acc point to same address (inplace), then strides
+        // must be similar, else assume acc buffer is dense.
+        acc = acc + (acc_is_dst ? offt : start);
+    }
+
+    while (start < end) {
+        float d = (float)*acc;
         if (this->do_bias()) d += get_bias(bias, oc, this->bias_data_type_);
         if (this->do_scale_) d *= scales[oc * this->scale_idx_mult_];
-        if (this->do_sum_) d += this->sum_scale_ * dst[i];
+        if (this->do_sum_) d += this->sum_scale_ * (*dst);
         if (this->do_eltwise_) d = ref_eltwise_->compute_scalar(d);
         if (this->do_dst_zero_points_) d += dst_zero_points[0];
-        dst[i] = qz_a1b0<float, dst_data_t>()(d);
+        *dst = qz_a1b0<float, dst_data_t>()(d);
         oc = (oc == OC - 1) ? 0 : oc + 1;
+        if (oc == 0) {
+            if (!this->has_trivial_mb_stride()) {
+                dst = dst + dst_mb_stride - OC;
+                // if dst and acc point to same address (inplace), then strides
+                // must be similar, else assume acc buffer is dense.
+                if (acc_is_dst) acc = acc + dst_mb_stride - OC;
+            }
+        }
+        ++dst;
+        ++acc;
+        ++start;
     }
 }
 
@@ -82,8 +106,12 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
 
 template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
-        const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum)
-    : OC_(OC), MB_(MB), bias_data_type_(bias_dt) {
+        dim_t dst_mb_stride, const primitive_attr_t *attr, data_type_t bias_dt,
+        bool skip_sum)
+    : OC_(OC)
+    , MB_(MB)
+    , dst_mb_stride_(dst_mb_stride)
+    , bias_data_type_(bias_dt) {
     do_scale_ = !attr->output_scales_.has_default_values();
     if (do_scale_) scale_idx_mult_ = (attr->output_scales_.mask_ == (1 << 1));
 
@@ -105,16 +133,16 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
 
 template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type> *pp_kernel_t<acc_type, dst_type>::create(
-        size_t OC, size_t MB, const primitive_attr_t *attr, data_type_t bias_dt,
-        bool skip_sum) {
+        size_t OC, size_t MB, dim_t dst_mb_stride, const primitive_attr_t *attr,
+        data_type_t bias_dt, bool skip_sum) {
 #if DNNL_X64
     auto *res = x64::inner_product_utils::jit_pp_kernel_create<acc_type,
-            dst_type>(OC, MB, attr, bias_dt, skip_sum);
+            dst_type>(OC, MB, dst_mb_stride, attr, bias_dt, skip_sum);
     if (res) return res;
 #endif
 
     return new ref_pp_kernel_t<acc_type, dst_type>(
-            OC, MB, attr, bias_dt, skip_sum);
+            OC, MB, dst_mb_stride, attr, bias_dt, skip_sum);
 }
 
 using namespace data_type;
