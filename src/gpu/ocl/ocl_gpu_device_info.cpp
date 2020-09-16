@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_gpu_device_info.hpp"
+#include "gpu/ocl/ocl_gpu_detect.hpp"
 
 #include "cpu/platform.hpp"
 
@@ -22,6 +23,125 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+status_t ocl_gpu_device_info_t::init_arch() {
+    // try to detect gpu by device name first
+    gpu_arch_ = detect_gpu_arch_by_device_name(name());
+    if (gpu_arch_ != compute::gpu_arch_t::unknown) return status::success;
+
+    // if failed, use slower method
+    if (utils::any_null(device_)) return status::invalid_arguments;
+
+    cl_int err = CL_SUCCESS;
+    cl_context context
+            = clCreateContext(nullptr, 1, &device_, nullptr, nullptr, &err);
+    OCL_CHECK(err);
+
+    gpu_arch_ = detect_gpu_arch(device_, context);
+    err = clReleaseContext(context);
+    OCL_CHECK(err);
+
+    return status::success;
+}
+
+status_t ocl_gpu_device_info_t::init_device_name() {
+    cl_int err = CL_SUCCESS;
+
+    size_t param_size = 0;
+    err = clGetDeviceInfo(device_, CL_DEVICE_NAME, 0, nullptr, &param_size);
+    OCL_CHECK(err);
+
+    std::string device_name(param_size, '\0');
+    err = clGetDeviceInfo(
+            device_, CL_DEVICE_NAME, param_size, &device_name[0], &param_size);
+    OCL_CHECK(err);
+
+    set_name(device_name);
+    return status::success;
+}
+
+status_t ocl_gpu_device_info_t::init_runtime_version() {
+    cl_int err = CL_SUCCESS;
+
+    size_t param_size = 0;
+    err = clGetDeviceInfo(device_, CL_DRIVER_VERSION, 0, nullptr, &param_size);
+    OCL_CHECK(err);
+
+    std::string driver_version(param_size, '\0');
+    err = clGetDeviceInfo(device_, CL_DRIVER_VERSION, param_size,
+            &driver_version[0], nullptr);
+    OCL_CHECK(err);
+
+    compute::runtime_version_t runtime_version;
+    if (runtime_version.set_from_string(&driver_version[0])
+            != status::success) {
+        runtime_version.major = 0;
+        runtime_version.minor = 0;
+        runtime_version.build = 0;
+    }
+
+    set_runtime_version(runtime_version);
+    return status::success;
+}
+
+static uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
+    uint64_t extensions = 0;
+    return extensions;
+}
+
+status_t ocl_gpu_device_info_t::init_extensions() {
+    cl_int err = CL_SUCCESS;
+
+    // query device for extensions
+    size_t param_size = 0;
+    err = clGetDeviceInfo(
+            device_, CL_DEVICE_EXTENSIONS, 0, nullptr, &param_size);
+    OCL_CHECK(err);
+
+    std::string extension_string(param_size, '\0');
+    err = clGetDeviceInfo(device_, CL_DEVICE_EXTENSIONS, param_size,
+            &extension_string[0], &param_size);
+    OCL_CHECK(err);
+
+    // convert to ours
+    using namespace compute;
+    for (uint64_t i_ext = 1; i_ext < (uint64_t)device_ext_t::last;
+            i_ext <<= 1) {
+        const char *s_ext = ext2cl_str((device_ext_t)i_ext);
+        if (s_ext && extension_string.find(s_ext) != std::string::npos) {
+            extensions_ |= i_ext;
+        }
+    }
+
+    // Handle future extensions, not yet supported by the OpenCL API
+    extensions_ |= (uint64_t)get_future_extensions(gpu_arch());
+
+    return status::success;
+}
+
+status_t ocl_gpu_device_info_t::init_attributes() {
+    cl_int err = CL_SUCCESS;
+
+    cl_uint eu_count = 0;
+    err = clGetDeviceInfo(device_, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint),
+            &eu_count, nullptr);
+    OCL_CHECK(err);
+    eu_count_ = (int32_t)eu_count;
+
+    // Assume 7 threads by default
+    int32_t threads_per_eu = 7;
+
+    switch (gpu_arch_) {
+        case compute::gpu_arch_t::gen9: threads_per_eu = 7; break;
+        case compute::gpu_arch_t::gen12lp: threads_per_eu = 7; break;
+        default: break;
+    }
+
+    hw_threads_ = eu_count_ * threads_per_eu;
+    llc_cache_size_ = get_llc_cache_size();
+
+    return status::success;
+}
 
 size_t ocl_gpu_device_info_t::get_llc_cache_size() const {
     // Integrated GPUs share LLC with CPU which is L3 cache on CPU.
