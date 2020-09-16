@@ -135,7 +135,7 @@ static inline int dst_off(int n, int c, int d, int h, int w) {
     return 0;
 }
 
-__kernel void gen9_wino_wei_transform(
+__kernel void gen9_wino_wei_transform_2x3(
         __global DATA_T *U, const __global DATA_T *weights) {
     const uint weights_tile_width = WINO_M;
     const uint weights_tile_height = 1;
@@ -171,7 +171,7 @@ __kernel void gen9_wino_wei_transform(
     U[out_idx] = tile.z;
 }
 
-__kernel void gen9_wino_src_transform(
+__kernel void gen9_wino_src_transform_2x3(
         __global DATA_T *V, const __global DATA_T *src) {
     const uint tile_id_x = get_global_id(0);
     const uint tile_id_y = get_global_id(1);
@@ -208,7 +208,7 @@ __kernel void gen9_wino_src_transform(
     BLOCKED_WRITE(d1 - d3, &V[out_idx]);
 }
 
-__kernel void gen9_wino_dst_transform(__global DATA_T *dst,
+__kernel void gen9_wino_dst_transform_2x3(__global DATA_T *dst,
         const __global DATA_T *M, const __global DATA_T *bias POST_OP_ARGS) {
 
     const uint tile_id_x = get_global_id(0);
@@ -286,8 +286,8 @@ __kernel void gen9_wino_dst_transform(__global DATA_T *dst,
     }
 }
 
-__attribute__((reqd_work_group_size(8, 1, 1))) __kernel void gen9_wino_conv_fwd(
-        __global DATA_T *M, const __global DATA_T *V,
+__attribute__((reqd_work_group_size(8, 1, 1))) __kernel void
+gen9_wino_conv_fwd_2x3(__global DATA_T *M, const __global DATA_T *V,
         const __global DATA_T *U_param) {
     const int VH_SIZE_VECT = V_off(0, 0, 1 - PH, 0, 0) / VECT_SIZE;
     const int MH_SIZE_VECT = M_off(0, 0, 1, 0, 0) / VECT_SIZE;

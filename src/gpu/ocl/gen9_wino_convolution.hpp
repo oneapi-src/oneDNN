@@ -96,9 +96,9 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
     gen9_wino_convolution_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        std::vector<const char *> kernel_names
-                = {"gen9_wino_conv_fwd", "gen9_wino_wei_transform",
-                        "gen9_wino_src_transform", "gen9_wino_dst_transform"};
+        std::vector<const char *> kernel_names = {"gen9_wino_conv_fwd_2x3",
+                "gen9_wino_wei_transform_2x3", "gen9_wino_src_transform_2x3",
+                "gen9_wino_dst_transform_2x3"};
 
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
