@@ -176,6 +176,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
 
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
+    const dim_t acc_ldc = dst_is_acc ? ldc : N;
 
     std::atomic<status_t> st(status::success);
     const bool parallel_over_batch = batch > 1;
@@ -213,7 +214,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
 
                 status_t st_thr = gemm_bf16bf16f32(&transB, &transA, &N, &M, &K,
                         &alpha, curr_weights, &ldb, curr_src, &lda, &beta,
-                        curr_acc, &ldc);
+                        curr_acc, &acc_ldc);
                 if (st_thr != status::success) {
                     st = st_thr;
                     return;
@@ -231,7 +232,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
         });
     } else {
         st = gemm_bf16bf16f32(&transB, &transA, &N, &M, &K, &alpha, weights,
-                &ldb, src, &lda, &beta, acc, &ldc);
+                &ldb, src, &lda, &beta, acc, &acc_ldc);
         if (st != status::success) return st;
 
         if (params.has_pp_kernel_) {

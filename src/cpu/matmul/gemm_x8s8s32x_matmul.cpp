@@ -213,6 +213,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
+    const dim_t acc_ldc = dst_is_acc ? ldc : N;
 
     std::atomic<status_t> st(status::success);
     const bool parallel_over_batch = batch > 1;
@@ -257,7 +258,8 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
                 status_t st_thr = gemm_s8x8s32(&transB, &transA, "F", &N, &M,
                         &K, &alpha, curr_weights, &ldb, &gemm_off_b, curr_src,
-                        &lda, &gemm_off_a, &beta, curr_acc, &ldc, &gemm_off_c);
+                        &lda, &gemm_off_a, &beta, curr_acc, &acc_ldc,
+                        &gemm_off_c);
                 if (st_thr != status::success) {
                     st = st_thr;
                     return;
@@ -269,7 +271,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
                             weights_compensation, M, N, K, curr_src,
                             src_strides[0], src_strides[1], curr_weights,
                             weights_strides[0], weights_strides[1], curr_acc,
-                            ldc, src_zero_point, weights_zero_point);
+                            acc_ldc, src_zero_point, weights_zero_point);
                 }
 
                 bool postops_in_matmul
@@ -290,7 +292,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
         status_t st = gemm_s8x8s32(&transB, &transA, "F", &N, &M, &K, &alpha,
                 weights, &ldb, &gemm_off_b, src, &lda, &gemm_off_a, &beta, acc,
-                &ldc, &gemm_off_c);
+                &acc_ldc, &gemm_off_c);
         if (st != status::success) return st;
 
         std::vector<acc_data_t> src_compensation(M, 0);
@@ -301,7 +303,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
             post_process_src_and_weights_zero_points(src_compensation,
                     weights_compensation, M, N, K, src, src_strides[0],
                     src_strides[1], weights, weights_strides[0],
-                    weights_strides[1], acc, ldc, src_zero_point,
+                    weights_strides[1], acc, acc_ldc, src_zero_point,
                     weights_zero_point);
         }
 
