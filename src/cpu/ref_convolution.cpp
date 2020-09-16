@@ -418,10 +418,11 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
             for (dim_t kh = 0; kh < KH; ++kh) {
                 // Note: placing these 2 params outside the `kw-loop` because
                 // of a compiler-generated bug.
-                dim_t od = id - kd * KDD + padFront;
+                dim_t od_ = id - kd * KDD + padFront;
                 const dim_t weights_off = oc * weights_oc_stride
                         + kd * weights_kd_stride + kh * weights_kh_stride;
                 for (dim_t kw = 0; kw < KW; ++kw) {
+                    dim_t od = od_;
                     dim_t ow = iw - kw * KDW + padL;
                     dim_t oh = ih - kh * KDH + padT;
                     if (ow < 0 || oh < 0 || od < 0 || ow % KSW != 0
