@@ -787,7 +787,10 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         /* --- */
 
         load_blocking = div_up(jcp.load_dim, jcp.load_block);
-        while (true && !is_data_layout_nxc) {
+        const bool no_load_tail = jcp.load_dim % jcp.load_block == 0;
+        const bool modify_load_blocking
+                = IMPLICATION(is_data_layout_nxc, no_load_tail);
+        while (modify_load_blocking) {
             if (load_blocking <= 32)
                 break;
             else if (load_blocking % 2 == 0)
@@ -803,8 +806,17 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
                 !is_data_layout_nxc, jcp.load_dim % load_blocking == 0));
 
         bcast_blocking = div_up(jcp.bcast_dim, jcp.bcast_block);
-        while (true && !is_data_layout_nxc) {
-            if (bcast_blocking <= 9)
+        const int bcast_blocking_lim = is_data_layout_nxc ? 17 : 9;
+        const bool no_bcast_tail = jcp.bcast_dim % jcp.bcast_block == 0;
+        const bool small_size_for_bcast
+                = static_cast<dim_t>(jcp.id) * jcp.ih * jcp.iw <= 1024;
+
+        // TODO Verify if the size limitation helps for blocked format as well
+        const bool modify_bcast_blocking = IMPLICATION(
+                is_data_layout_nxc, no_bcast_tail && small_size_for_bcast);
+
+        while (modify_bcast_blocking) {
+            if (bcast_blocking <= bcast_blocking_lim)
                 break;
             else if (bcast_blocking % 2 == 0)
                 bcast_blocking /= 2;
@@ -819,7 +831,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
                 !is_data_layout_nxc, jcp.bcast_dim % bcast_blocking == 0));
 
         reduce_blocking = is_data_layout_nxc
-                ? rnd_up(nstl::min(jcp.ow, 256), jcp.reduce_block)
+                ? rnd_up(nstl::min(jcp.ow, 128), jcp.reduce_block)
                 : 128; // affects L1$ utilization
         reduce_blocking_max = rnd_dn(reduce_blocking * 3 / 2, jcp.reduce_block);
     } else
@@ -839,12 +851,11 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.nb_load_blocking = div_up(load_blocking, jcp.load_block);
     jcp.nb_load_blocking_max = div_up(load_blocking_max, jcp.load_block);
     jcp.nb_reduce_blocking = div_up(reduce_blocking, jcp.reduce_block);
+    jcp.nb_reduce_blocking_max = div_up(reduce_blocking_max, jcp.reduce_block);
 
     jcp.nb_bcast = div_up(jcp.bcast_dim, jcp.bcast_block);
     jcp.nb_load = div_up(jcp.load_dim, jcp.load_block);
     jcp.nb_reduce = div_up(jcp.reduce_dim, jcp.reduce_block);
-    jcp.nb_reduce_blocking = div_up(reduce_blocking, jcp.reduce_block);
-    jcp.nb_reduce_blocking_max = div_up(reduce_blocking_max, jcp.reduce_block);
 
     return status::success;
 }
