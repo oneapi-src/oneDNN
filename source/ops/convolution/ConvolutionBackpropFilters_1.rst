@@ -71,7 +71,7 @@ ConvolutionBackpropFilters takes the input tensor, filter shape and output gradi
   
 * *data_format*
 
-  * **Description**: *data_format* denotes the data format of the input data.
+  * **Description**: *data_format* denotes the data format of the input data and output delta.
   * **Range of values**: *NSC* or *NCS* (S means HW for 2D convolution, DHW for 3D convolution)
   * **Type**: string
   * **Default value**: *NSC*
