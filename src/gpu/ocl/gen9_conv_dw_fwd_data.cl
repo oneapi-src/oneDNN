@@ -54,7 +54,9 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     const int ohw = osp % (OWB * OH);
     const int ow = (ohw % OWB) * OW_BLOCK;
     const int oh = ohw / OWB;
-    const int g = get_group_id(0) * OC_BLOCK;
+    const int g
+            = (get_group_id(0) * (LWS_0 / SUB_GROUP_SIZE) + get_sub_group_id())
+            * OC_BLOCK;
     const int mb = get_global_id(2) * MB_BLOCK;
 
     const int id = od * SD - PD;
@@ -185,7 +187,9 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     const int ohw = osp % (OWB * OH);
     const int ow = (ohw % OWB) * OW_BLOCK;
     const int oh = ohw / OWB;
-    const int g = get_group_id(0) * OC_BLOCK;
+    const int g
+            = (get_group_id(0) * (LWS_0 / SUB_GROUP_SIZE) + get_sub_group_id())
+            * OC_BLOCK;
     const int mb = get_global_id(2) * MB_BLOCK;
 
     const int id = od * SD - PD;
