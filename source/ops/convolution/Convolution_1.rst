@@ -95,10 +95,18 @@ Convolution
   * **Default value**: 1
   * **Required**: *no*
 
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input and output data.
+  * **Range of values**: *NSC* or *NCS* (S means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *NSC*
+  * **Required**: *no*
+
 **Inputs**:
 
-* **1**: Input tensor. The layout is determined by the value of layout in logical tensor. **Required.**
-* **2**: Convolution kernel tensor. The layout is determined by the value of layout in logical tensor. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
+* **1**: Input tensor. The format is specified by *data_format*. The layout is determined by the value of layout in logical tensor. **Required.**
+* **2**: Convolution kernel tensor. The format is OIS (OIYX for 2D convolution, OIZYX for 3D convolution). The layout is determined by the value of layout in logical tensor. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
 
 **Outputs**:
 
