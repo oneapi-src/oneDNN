@@ -18,7 +18,8 @@ This is an Add with bias restricted to be 1-D. Broadcasting is supported.
 
 * **2**: ``bias`` - 1-D tensor. **Required.**
 
-**Attributes**
+**Attributes**:
+
 * *data_format*
 
   * **Description**: *data_format* denotes the data format of the input and output data.
