@@ -787,7 +787,10 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         /* --- */
 
         load_blocking = div_up(jcp.load_dim, jcp.load_block);
-        while (true) {
+        const bool no_load_tail = jcp.load_dim % jcp.load_block == 0;
+        const bool modify_load_blocking
+                = IMPLICATION(is_data_layout_nxc, no_load_tail);
+        while (modify_load_blocking) {
             if (load_blocking <= 32)
                 break;
             else if (load_blocking % 2 == 0)
@@ -804,10 +807,15 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
         bcast_blocking = div_up(jcp.bcast_dim, jcp.bcast_block);
         const int bcast_blocking_lim = is_data_layout_nxc ? 17 : 9;
-        // TODO Verify if the below helps for blocked format as well
-        const bool apply_bcast_blocking = IMPLICATION(is_data_layout_nxc,
-                static_cast<dim_t>(jcp.id) * jcp.ih * jcp.iw <= 32 * 32);
-        while (apply_bcast_blocking) {
+        const bool no_bcast_tail = jcp.bcast_dim % jcp.bcast_block == 0;
+        const bool small_size_for_bcast
+                = static_cast<dim_t>(jcp.id) * jcp.ih * jcp.iw <= 1024;
+
+        // TODO Verify if the size limitation helps for blocked format as well
+        const bool modify_bcast_blocking = IMPLICATION(
+                is_data_layout_nxc, no_bcast_tail && small_size_for_bcast);
+
+        while (modify_bcast_blocking) {
             if (bcast_blocking <= bcast_blocking_lim)
                 break;
             else if (bcast_blocking % 2 == 0)
