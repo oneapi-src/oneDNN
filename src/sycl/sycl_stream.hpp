@@ -121,12 +121,12 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 = utils::downcast<const sycl_memory_storage_base_t *>(&src);
         auto *sycl_dst
                 = utils::downcast<const sycl_memory_storage_base_t *>(&dst);
-        bool usm = utils::everyone_is(memory_kind::usm, sycl_src->memory_kind(),
-                sycl_dst->memory_kind());
+        bool usm_src = sycl_src->memory_kind() == memory_kind::usm;
+        bool usm_dst = sycl_dst->memory_kind() == memory_kind::usm;
         cl::sycl::event e;
 
 #ifdef DNNL_SYCL_DPCPP
-        if (usm) {
+        if (usm_src && usm_dst) {
             auto *usm_src
                     = utils::downcast<const sycl_usm_memory_storage_t *>(&src);
             auto *usm_dst
@@ -135,9 +135,36 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                 register_deps(cgh);
                 cgh.memcpy(usm_dst->usm_ptr(), usm_src->usm_ptr(), size);
             });
-        } else
+        } else if (usm_src && !usm_dst) {
+            auto *usm_src
+                    = utils::downcast<const sycl_usm_memory_storage_t *>(&src);
+            auto *buffer_dst
+                    = utils::downcast<const sycl_buffer_memory_storage_t *>(
+                            &dst);
+            auto &b_dst = buffer_dst->buffer();
+            e = queue_->submit([&](cl::sycl::handler &cgh) {
+                register_deps(cgh);
+                auto acc_dst
+                        = b_dst.get_access<cl::sycl::access::mode::write>(cgh);
+                cgh.copy(usm_src->usm_ptr(), acc_dst);
+            });
+        } else if (!usm_src && usm_dst) {
+            auto *buffer_src
+                    = utils::downcast<const sycl_buffer_memory_storage_t *>(
+                            &src);
+            auto &b_src = buffer_src->buffer();
+            auto *usm_dst
+                    = utils::downcast<const sycl_usm_memory_storage_t *>(&dst);
+            e = queue_->submit([&](cl::sycl::handler &cgh) {
+                register_deps(cgh);
+                auto acc_src
+                        = b_src.get_access<cl::sycl::access::mode::read>(cgh);
+                cgh.copy(acc_src, usm_dst->usm_ptr());
+            });
+        } else // if (!usm_src && !usm_dst)
 #endif
         {
+            assert(!usm_src && !usm_dst && "USM is not supported yet");
             auto *buffer_src
                     = utils::downcast<const sycl_buffer_memory_storage_t *>(
                             &src);
