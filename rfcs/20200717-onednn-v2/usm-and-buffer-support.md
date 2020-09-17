@@ -60,9 +60,8 @@ For some of the options below the following enum is used:
 namespace dnnl {
 namespace sycl_interop {
 enum class memory_kind {
+    usm,
     buffer,
-    usm_shared,
-    usm_device,
 };
 } // namespace sycl_interop
 } // namespace dnnl
@@ -93,7 +92,7 @@ The options:
      a user wants to use, e.g.:
      ``` cpp
      auto eng_cpu_buf = dnnl::engine(kind::cpu, memory_kind::buffer, 0);
-     auto eng_gpu_usm = dnnl::engine(kind::gpu, memory_kind::usm_device, 0);
+     auto eng_gpu_usm = dnnl::engine(kind::gpu, memory_kind::usm, 0);
      ```
    - Introduce a global control (not attached to the engine) to select memory
      kind: `dnnl::sycl_interop::set_memory_kind(memory_kind::buffer)` and
@@ -177,10 +176,13 @@ options seem to be:
    - For default constructor pick the default option. Assuming that USM is
      generally more user-frindly than buffers, the suggestion is to default to
      USM. This is also well aligned with the Native C++ API, that works with
-     pointers. Futhermore, it is suggested to use specifically device USM, as
-     opposite to shared USM, as the former gives better performance and is also
-     aligned with the fact library's memory objects are attached to engine
-     (device).
+     pointers. Futhermore, it is suggested by default to use specifically
+     device USM, as opposite to shared USM, as the former gives better
+     performance and is also aligned with the fact library's memory objects are
+     attached to engine (device). Users are free to create a memory object with
+     other kind of USM as long as they comply with the requirement that a
+     pointer is accessible on the device associated with memory objects'
+     engine.
 
 In my opinion, since buffers are first-class citizens of DPC++ we should
 properly support them. That's why option 1 doesn't seem really feasible.
@@ -202,8 +204,8 @@ somehow solves the issue of differentiating between different kinds of USM:
 auto eng_cpu_buf = dnnl::engine(kind::cpu, memory_kind::buffer, 0);
 auto cpu_mem(eng_cpu_buf, md); // use buffer
 
-auto eng_gpu_usm = dnnl::engine(kind::gpu, memory_kind::usm_shared, 0);
-auto gpu_mem(eng_gpu_usm, md); // shared USM
+auto eng_gpu_usm = dnnl::engine(kind::gpu, memory_kind::usm, 0);
+auto gpu_mem(eng_gpu_usm, md); // device USM
 float *x = (float *)gpu_mem.get_data_handle();
 x[0] = 1; // oK, as it is shared USM
 ```
@@ -224,7 +226,7 @@ The table of downsides:
 
 We don't expect many (any?) will mix buffers and USM, so simplifying the API
 accordingly is acceptable. Subjectively, asking to pass an extra argument to
-engine (`memory_kind::usm_device`) is not that big of a hassle.
+engine (`memory_kind::usm`) is not that big of a hassle.
 
 </p></details>
 

@@ -139,6 +139,11 @@ documents discuss some of the options that we decided not to proceed with:
   called `dnnl::sycl_interop::get_memory_kind()` as subject can be guessed by
   the first argument name.
 
+- 20/09/17. Remove `usm_device` and `usm_shared` in favor of simple `usm` for
+  `sycl_interop::memory_kind`. Justification: simpler API and in most of the
+  cases the type of USM is not that important. For the cases where the type of
+  USM is important users could use `sycl::get_pointer_type()`.
+
 
 ---
 

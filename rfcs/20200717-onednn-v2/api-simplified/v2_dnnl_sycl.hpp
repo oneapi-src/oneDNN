@@ -6,8 +6,7 @@ namespace dnnl {
 namespace sycl_interop {
 
 enum class memory_kind { // maybe memory_model is better name?
-    usm_device, // default for SYCL-agnostic engine creation
-    usm_shared,
+    usm, // default for SYCL-agnostic engine creation (use device usm)
     buffer,
 };
 
@@ -35,6 +34,8 @@ cl::sycl::queue get_queue(const stream &s);
 // ======
 
 // for mkind == buffer, handle could only be DNNL_MEMORY_{ALLOCATE,NONE}
+// for mkind == usm && handle == DNNL_MEMORY_ALLOCATE use device USM.
+// for mkind == usm, handle could be USM of any kind.
 memory make_memory(const desc &md, const engine &aengine, memory_kind mkind,
         void *handle = DNNL_MEMORY_ALLOCATE);
 memory make_memory(const desc &md, const engine &astream, memory_kind mkind,
