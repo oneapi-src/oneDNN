@@ -33,8 +33,7 @@ namespace ocl {
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::format_tag;
 
-static void fwd_compute_block_sizes(
-        conv_conf_t &conf, const convolution_pd_t *pd) {
+static void fwd_compute_block_sizes(conv_conf_t &conf) {
 
     if (conf.ver == ver_16mb16c) {
         conf.mb_block = (conf.src_data_type == data_type::f16)
@@ -44,14 +43,37 @@ static void fwd_compute_block_sizes(
         conf.mb_block = 1;
     }
 
+    //Using F(m, r) for r = 3 and tile_size = m + r - 1
+    const int m = conf.src_data_type == data_type::f16 ? 6 : 2;
+    const int r = 3;
+    conf.is_fused = (m == 6);
+
+    conf.wino_m = m;
+    conf.wino_r = r;
+    conf.tile_size = m + r - 1;
+
     conf.oc_block = 16;
     conf.ic_block = nstl::min(conf.ic, 16);
     conf.wino_ic_block = 32;
-    conf.wino_oc_block = 32;
     conf.ocb = utils::div_up(conf.oc, conf.oc_block);
 
-    conf.oh_block = 8;
-    conf.ow_block = conf.wino_m;
+    if (conf.is_fused) {
+        conf.wino_oc_block = 16;
+        conf.oh_block = conf.wino_m;
+        conf.ow_block = 14;
+    } else {
+        conf.wino_oc_block = 32;
+        conf.oh_block = 8;
+        conf.ow_block = conf.wino_m;
+    }
+
+    // Used for the internal data transform
+    conf.wino_ow = utils::rnd_up(conf.ow, conf.ow_block);
+    conf.wino_iw = conf.wino_ow;
+    conf.wino_oh = utils::rnd_up(conf.oh, conf.oh_block);
+    conf.wino_ih = conf.wino_oh + conf.t_pad + conf.b_pad;
+    conf.wino_ic = utils::rnd_up(conf.ic, conf.wino_ic_block);
+    conf.wino_oc = utils::rnd_up(conf.oc, conf.wino_oc_block);
 }
 
 status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
@@ -74,22 +96,8 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
             && conf.t_pad <= 1 && conf.b_pad <= 1;
     if (!is_wino_shape) return status::unimplemented;
 
-    //Using F(m, r) for r = 3 and tile_size = m + r - 1
-    const int m = 2;
-    const int r = 3;
-
-    conf.wino_m = m;
-    conf.wino_r = r;
-    conf.tile_size = m + r - 1;
-
     const bool is_16oc = conf.oc % 16 == 0;
     const bool is_16ic = conf.ic % 16 == 0;
-
-    conf.mb_block = 1;
-    conf.oc_block = 1;
-    conf.ic_block = 1;
-    conf.od_block = 1;
-    conf.ocb = 1;
 
     if ((is_16oc && is_16ic)) {
         conf.ver = (conf.mb % 16 == 0) ? ver_16mb16c : ver_8ow16c;
@@ -97,60 +105,68 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
         return status::unimplemented;
     }
 
-    fwd_compute_block_sizes(conf, this);
-
-    // Used for the internal data transform
-    conf.wino_ow = utils::div_up(conf.ow, conf.ow_block);
-    conf.wino_iw = conf.wino_ow;
-    conf.wino_oh = utils::rnd_up(conf.oh, conf.oh_block);
-    conf.wino_ih = conf.wino_oh + conf.t_pad + conf.b_pad;
-    conf.wino_ic = utils::rnd_up(conf.ic, conf.wino_ic_block);
-    conf.wino_oc = utils::rnd_up(conf.oc, conf.wino_oc_block);
+    fwd_compute_block_sizes(conf);
 
     size_t U_sz = conf.tile_size * conf.kh * conf.wino_ic * conf.wino_oc;
-    size_t M_sz = conf.tile_size * conf.mb * conf.wino_oc * conf.wino_oh
-            * conf.wino_ow;
-    size_t V_sz = conf.tile_size * conf.mb * conf.wino_ic * conf.wino_ih
-            * conf.wino_iw;
+    size_t M_sz = 0, V_sz = 0;
+    if (!conf.is_fused) {
+        M_sz = conf.tile_size * conf.mb * conf.wino_oc * conf.wino_oh
+                * conf.wino_ow;
+        V_sz = conf.tile_size * conf.mb * conf.wino_ic * conf.wino_ih
+                * conf.wino_iw;
+    }
 
     // Limit max problem size since this method uses more memory
     if (U_sz + M_sz + V_sz > 300000000) return status::unimplemented;
 
     //Using F(m, r) for r = 3 and tile_size = m + r - 1
-    switch (conf.ver) {
-        case ver_8ow16c:
-        case ver_16mb16c: {
-            conf.mb_block = 1;
-            conf.lws_d[0] = 8;
-            conf.lws_d[1] = 1;
-            conf.lws_d[2] = 1;
-            conf.gws_d[0] = (conf.wino_oc / conf.wino_oc_block) * conf.lws_d[0];
-            conf.gws_d[1] = conf.wino_ow * (conf.wino_oh / conf.oh_block);
-            conf.gws_d[2] = (conf.mb / conf.mb_block) * conf.tile_size;
+    if (!conf.is_fused) {
+        conf.mb_block = 1;
+        conf.lws_d[0] = 8;
+        conf.lws_d[1] = 1;
+        conf.lws_d[2] = 1;
+        conf.gws_d[0] = (conf.wino_oc / conf.wino_oc_block) * conf.lws_d[0];
+        conf.gws_d[1] = conf.wino_ow * (conf.wino_oh / conf.oh_block);
+        conf.gws_d[2] = (conf.mb / conf.mb_block) * conf.tile_size;
 
-            conf.U_lws_d[0] = 1;
-            conf.U_lws_d[1] = 1;
-            conf.U_lws_d[2] = 1;
-            conf.U_gws_d[0] = 1;
-            conf.U_gws_d[1] = 3; // kh or kw depending
-            conf.U_gws_d[2] = conf.wino_ic * conf.wino_oc;
+        conf.U_lws_d[0] = 1;
+        conf.U_lws_d[1] = 1;
+        conf.U_lws_d[2] = 1;
+        conf.U_gws_d[0] = 1;
+        conf.U_gws_d[1] = 3; // kh or kw depending
+        conf.U_gws_d[2] = conf.wino_ic * conf.wino_oc;
 
-            conf.V_lws_d[0] = 1;
-            conf.V_lws_d[1] = 1;
-            conf.V_lws_d[2] = 1;
-            conf.V_gws_d[0] = conf.wino_ow;
-            conf.V_gws_d[1] = conf.wino_ih;
-            conf.V_gws_d[2] = conf.wino_ic / conf.ic_block * conf.mb;
+        conf.V_lws_d[0] = 1;
+        conf.V_lws_d[1] = 1;
+        conf.V_lws_d[2] = 1;
+        conf.V_gws_d[0] = conf.wino_ow;
+        conf.V_gws_d[1] = conf.wino_ih;
+        conf.V_gws_d[2] = conf.wino_ic / conf.ic_block * conf.mb;
 
-            conf.M_lws_d[0] = 1;
-            conf.M_lws_d[1] = 1;
-            conf.M_lws_d[2] = 1;
-            conf.M_gws_d[0] = utils::div_up(conf.ow, conf.ow_block);
-            conf.M_gws_d[1] = conf.oh;
-            conf.M_gws_d[2] = conf.oc / conf.oc_block * conf.mb;
-            break;
-        }
-        default: return status::unimplemented;
+        conf.M_lws_d[0] = 1;
+        conf.M_lws_d[1] = 1;
+        conf.M_lws_d[2] = 1;
+        conf.M_gws_d[0] = utils::div_up(conf.ow, conf.ow_block);
+        conf.M_gws_d[1] = conf.oh;
+        conf.M_gws_d[2] = conf.oc / conf.oc_block * conf.mb;
+    } else {
+        conf.mb_block = 1;
+        conf.lws_d[0] = 16;
+        conf.lws_d[1] = 8;
+        conf.lws_d[2] = 1;
+        conf.gws_d[0]
+                = utils::div_up(conf.wino_ow, conf.ow_block) * conf.lws_d[0];
+        conf.gws_d[1]
+                = utils::div_up(conf.wino_oh, conf.oh_block) * conf.lws_d[1];
+        conf.gws_d[2] = (conf.mb / conf.mb_block)
+                * (conf.wino_oc / conf.wino_oc_block);
+
+        conf.U_lws_d[0] = 16;
+        conf.U_lws_d[1] = 1;
+        conf.U_lws_d[2] = 1;
+        conf.U_gws_d[0] = conf.wino_ic * conf.wino_oc / 8;
+        conf.U_gws_d[1] = 3;
+        conf.U_gws_d[2] = 1; // kh or kw depending
     }
 
     format_tag_t src_tag, dst_tag, wei_tag;
@@ -204,16 +220,24 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
 void gen9_wino_convolution_fwd_t::pd_t::init_scratchpad() {
     auto scratchpad = scratchpad_registry().registrar();
 
+    auto wei_data_t = this->desc()->weights_desc.data_type;
     size_t U_sz = conf.tile_size * conf.kh * conf.wino_ic * conf.wino_oc;
-    scratchpad.book<float>(key_wino_U, U_sz);
+    scratchpad.book(key_wino_U, U_sz, types::data_type_size(wei_data_t),
+            OCL_BUFFER_ALIGNMENT);
 
-    size_t M_sz = conf.tile_size * conf.mb * conf.wino_oc * conf.wino_oh
-            * conf.wino_ow;
-    scratchpad.book<float>(key_wino_M, M_sz);
+    if (!conf.is_fused) {
+        auto dst_data_t = this->desc()->dst_desc.data_type;
+        size_t M_sz = conf.tile_size * conf.mb * conf.wino_oc * conf.wino_oh
+                * conf.wino_ow;
+        scratchpad.book(key_wino_M, M_sz, types::data_type_size(dst_data_t),
+                OCL_BUFFER_ALIGNMENT);
 
-    size_t V_sz = conf.tile_size * conf.mb * conf.wino_ic * conf.wino_ih
-            * conf.wino_iw;
-    scratchpad.book<float>(key_wino_V, V_sz);
+        auto src_data_t = this->desc()->src_desc.data_type;
+        size_t V_sz = conf.tile_size * conf.mb * conf.wino_ic * conf.wino_ih
+                * conf.wino_iw;
+        scratchpad.book(key_wino_V, V_sz, types::data_type_size(src_data_t),
+                OCL_BUFFER_ALIGNMENT);
+    }
 }
 
 status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
@@ -250,7 +274,6 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("WINO_OW", conf.wino_ow);
     kernel_ctx.define_int("OC_BLOCK", conf.oc_block);
     kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
-    kernel_ctx.define_int("WINO_IC_BLOCK", conf.wino_ic_block);
 
     kernel_ctx.set_data_type(conf.src_data_type);
 
@@ -298,33 +321,46 @@ status_t gen9_wino_convolution_fwd_t::execute_forward(
     status_t status = parallel_for(
             ctx, wei_trans_nd_range, wei_trans_kernel_, wei_transform_args);
 
-    std::unique_ptr<memory_storage_t> src_trans
-            = ctx.get_scratchpad_grantor().get_memory_storage(key_wino_V);
-    compute::kernel_arg_list_t src_transform_args;
-    src_transform_args.set(0, *src_trans);
-    src_transform_args.set(1, src);
-    auto src_trans_nd_range = compute::nd_range_t(conf.V_gws_d, conf.V_lws_d);
-    status = parallel_for(
-            ctx, src_trans_nd_range, src_trans_kernel_, src_transform_args);
+    if (conf.is_fused) {
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, dst);
+        arg_list.set(1, src);
+        arg_list.set(2, *wei_trans);
+        arg_list.set(3, bias);
+        append_post_ops_to_arg_list(ctx, arg_list, 4, attr_info.all_post_ops);
+        auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
+        status = parallel_for(ctx, nd_range, kernel_, arg_list);
+    } else {
+        std::unique_ptr<memory_storage_t> src_trans
+                = ctx.get_scratchpad_grantor().get_memory_storage(key_wino_V);
+        compute::kernel_arg_list_t src_transform_args;
+        src_transform_args.set(0, *src_trans);
+        src_transform_args.set(1, src);
+        auto src_trans_nd_range
+                = compute::nd_range_t(conf.V_gws_d, conf.V_lws_d);
+        status = parallel_for(
+                ctx, src_trans_nd_range, src_trans_kernel_, src_transform_args);
 
-    std::unique_ptr<memory_storage_t> M_buf
-            = ctx.get_scratchpad_grantor().get_memory_storage(key_wino_M);
-    compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, *M_buf);
-    arg_list.set(1, *src_trans);
-    arg_list.set(2, *wei_trans);
-    auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
-    status = parallel_for(ctx, nd_range, kernel_, arg_list);
+        std::unique_ptr<memory_storage_t> M_buf
+                = ctx.get_scratchpad_grantor().get_memory_storage(key_wino_M);
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, *M_buf);
+        arg_list.set(1, *src_trans);
+        arg_list.set(2, *wei_trans);
+        auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
+        status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
-    compute::kernel_arg_list_t dst_transform_args;
-    dst_transform_args.set(0, dst);
-    dst_transform_args.set(1, *M_buf);
-    dst_transform_args.set(2, bias);
-    append_post_ops_to_arg_list(
-            ctx, dst_transform_args, 3, attr_info.all_post_ops);
-    auto dst_trans_nd_range = compute::nd_range_t(conf.M_gws_d, conf.M_lws_d);
-    status = parallel_for(
-            ctx, dst_trans_nd_range, dst_trans_kernel_, dst_transform_args);
+        compute::kernel_arg_list_t dst_transform_args;
+        dst_transform_args.set(0, dst);
+        dst_transform_args.set(1, *M_buf);
+        dst_transform_args.set(2, bias);
+        append_post_ops_to_arg_list(
+                ctx, dst_transform_args, 3, attr_info.all_post_ops);
+        auto dst_trans_nd_range
+                = compute::nd_range_t(conf.M_gws_d, conf.M_lws_d);
+        status = parallel_for(
+                ctx, dst_trans_nd_range, dst_trans_kernel_, dst_transform_args);
+    }
 
     if (attr_info.with_eltwise
             && !gpu_eltwise_fwd_pd_t::eltwise_preserves_zero(

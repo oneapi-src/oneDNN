@@ -59,8 +59,9 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                     && utils::one_of(this->desc()->prop_kind, forward_training,
                             forward_inference)
                     && this->desc()->alg_kind == alg_kind::convolution_winograd
-                    && utils::one_of(
-                            true, expect_data_types(f32, f32, f32, f32, f32))
+                    && utils::one_of(true,
+                            expect_data_types(f32, f32, f32, f32, f32),
+                            expect_data_types(f16, f16, f16, f16, f16))
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(src_data_t == f16,
@@ -96,9 +97,23 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
     gen9_wino_convolution_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        std::vector<const char *> kernel_names = {"gen9_wino_conv_fwd_2x3",
-                "gen9_wino_wei_transform_2x3", "gen9_wino_src_transform_2x3",
-                "gen9_wino_dst_transform_2x3"};
+        bool is_fused = pd()->conf.is_fused;
+        bool is_fused_6x3 = pd()->conf.wino_m == 6 && is_fused;
+        bool is_nonfused_2x3 = pd()->conf.wino_m == 2 && !is_fused;
+
+        std::vector<const char *> kernel_names;
+        if (is_fused_6x3) {
+            kernel_names.push_back("gen9_wino_conv_fwd_6x3");
+            kernel_names.push_back("gen9_wino_wei_transform_6x3");
+        } else if (is_nonfused_2x3) {
+            kernel_names.push_back("gen9_wino_conv_fwd_2x3");
+            kernel_names.push_back("gen9_wino_wei_transform_2x3");
+            kernel_names.push_back("gen9_wino_src_transform_2x3");
+            kernel_names.push_back("gen9_wino_dst_transform_2x3");
+        } else {
+            assert(!"Invalid Winograd version chosen by init_conf");
+            return status::unimplemented;
+        }
 
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -108,11 +123,13 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
         create_kernels(engine, &kernels, kernel_names, kernel_ctx);
         kernel_ = kernels[0];
         wei_trans_kernel_ = kernels[1];
-        src_trans_kernel_ = kernels[2];
-        dst_trans_kernel_ = kernels[3];
-        if (!kernel_ || !wei_trans_kernel_ || !src_trans_kernel_
-                || !dst_trans_kernel_)
-            return status::runtime_error;
+        if (!kernel_ || !wei_trans_kernel_) return status::runtime_error;
+        if (!is_fused) {
+            src_trans_kernel_ = kernels[2];
+            dst_trans_kernel_ = kernels[3];
+            if (!src_trans_kernel_ || !dst_trans_kernel_)
+                return status::runtime_error;
+        }
 
         return status::success;
     }

@@ -55,7 +55,7 @@ protected:
         static const auto isa = get_effective_cpu_isa();
         input_f32.wino_supported = (is_cpu && isa >= cpu_isa::avx512_mic)
                 || is_gpu || is_nvidia_gpu(eng);
-        input_f16.wino_supported = is_nvidia_gpu(eng);
+        input_f16.wino_supported = is_gpu || is_nvidia_gpu(eng);
         input_int8.wino_supported = (is_cpu && isa >= cpu_isa::avx512_core);
 #if DNNL_X64
         input_f32.backward_supported
