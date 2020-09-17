@@ -45,7 +45,7 @@ struct ref_binary_t : public primitive_t {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
-            bool ok = src0_type == src_md(0)->data_type
+            const bool ok = src0_type == src_md(0)->data_type
                     && src1_type == src_md(1)->data_type
                     && dst_type == dst_md()->data_type
                     && platform::has_data_type_support(src0_type)
