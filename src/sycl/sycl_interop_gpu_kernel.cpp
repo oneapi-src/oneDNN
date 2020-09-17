@@ -17,6 +17,7 @@
 #include <CL/sycl.hpp>
 
 #include "common/utils.hpp"
+#include "common/verbose.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/zero_pad_struct.h"
 #include "sycl/level_zero_utils.hpp"
@@ -133,6 +134,26 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
     if (range.is_zero()) return status::success;
     auto *sycl_stream = utils::downcast<sycl::sycl_stream_t *>(&stream);
     auto &queue = sycl_stream->queue();
+    sycl_gpu_engine_t *sycl_engine
+            = utils::downcast<sycl_gpu_engine_t *>(sycl_stream->engine());
+
+    // XXX: DPCPP/L0 does not support non-uniform work-groups and does not
+    // provide any diagnostics. This is to catch potential issues on oneDNN
+    // side.
+    if (sycl_engine->backend() == backend_t::level0 && range.local_range()) {
+        for (size_t i = 0; i < range.ndims(); i++) {
+            size_t gws = range.global_range()[i];
+            size_t lws = range.local_range()[i];
+            if (lws > 0 && gws % lws != 0) {
+                if (get_verbose()) {
+                    printf("dnnl_verbose,gpu,error,Level Zero backend only "
+                           "supports uniform work-groups\n");
+                    fflush(0);
+                }
+                return status::invalid_arguments;
+            }
+        }
+    }
 
     auto event = queue.submit([&](cl::sycl::handler &cgh) {
         cgh.depends_on(sycl_stream->get_deps());
