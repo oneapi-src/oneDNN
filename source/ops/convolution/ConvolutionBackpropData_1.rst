@@ -103,11 +103,19 @@ If ``output_shape`` is specified, ``pads_begin`` and ``pads_end`` are ignored, a
   * **Default value**: 1
   * **Required**: *no*
 
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input and output data.
+  * **Range of values**: *NSC* or *NCS* (S means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *NSC*
+  * **Required**: *no*
+
 **Inputs**:
 
 * **1**: ``data`` -- input tensor of rank 3 or greater. *Required*.
 
-* **2**: ``filter`` -- convolution kernel tensor. Spatial size of the kernel ``[K_D, ..., K_1]`` is derived from the shape of this input and aren't specified by any attribute. *Required*.
+* **2**: ``filter`` -- convolution kernel tensor. Spatial size of the kernel is derived from the shape of this input and aren't specified by any attribute. *Required*.
 
 * **3**: ``output_shape`` is 1D integer tensor that specifies spatial shape of the output. *Optional*. If specified, *padding amount* is deduced from relation of input and output spatial shapes according to formulas in the description. If not specified, *output shape* is calculated based on the ``pads_begin`` and ``pads_end`` or completely according to ``auto_pad``.
 
