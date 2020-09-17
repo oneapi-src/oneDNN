@@ -58,7 +58,7 @@ protected:
                           && impl::cpu::x64::mayiuse(
                                   impl::cpu::x64::avx512_common))
                 || get_test_engine_kind() == engine::kind::gpu;
-        input_f16.wino_supported = false;
+        input_f16.wino_supported = get_test_engine_kind() == engine::kind::gpu;
         input_int8.wino_supported = get_test_engine_kind() == engine::kind::cpu
                 && impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_core);
         input_f32.backward_supported
