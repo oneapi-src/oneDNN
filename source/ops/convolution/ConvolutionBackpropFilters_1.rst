@@ -68,7 +68,15 @@ ConvolutionBackpropFilters takes the input tensor, filter shape and output gradi
   * **Type**: int
   * **Default value**: 1
   * **Required**: *no*
+  
+* *data_format*
 
+  * **Description**: *data_format* denotes the data format of the input data.
+  * **Range of values**: *NSC* or *NCS* (S means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *NSC*
+  * **Required**: *no*
+  
 **Inputs**:
 
 * **1**: ``input`` - input tensor. **Required**.
@@ -79,4 +87,4 @@ ConvolutionBackpropFilters takes the input tensor, filter shape and output gradi
 
 **Outputs**:
 
-* **1**: ``filter_delta`` - gradient tensor w.r.t. the filter of the convolution.
+* **1**: ``filter_delta`` - gradient tensor w.r.t. the filter of the convolution. The format is OIS (OIYX for 2D convolution, OIZYX for 3D convolution).
