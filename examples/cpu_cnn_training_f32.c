@@ -270,7 +270,7 @@ void simple_net() {
     // AlexNet: relu
     // {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, CONV_OH, CONV_OW}
 
-    float negative_slope = 1.0f;
+    float negative_slope = 0.0f;
 
     // keep memory format of source same as the format of convolution
     // output in order to avoid reorder

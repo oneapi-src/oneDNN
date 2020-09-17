@@ -130,7 +130,7 @@ void simple_net(engine::kind engine_kind) {
     // AlexNet: relu
     // {batch, 96, 55, 55} -> {batch, 96, 55, 55}
     memory::dims relu_data_tz = {batch, 96, 55, 55};
-    const float negative_slope = 1.0f;
+    const float negative_slope = 0.0f;
 
     // create relu primitive desc
     // keep memory format tag of source same as the format tag of convolution
