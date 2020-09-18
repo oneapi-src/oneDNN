@@ -265,7 +265,7 @@ Consider the following pseudo-code:
 
 ~~~
     primitive_attr attr;
-    attr.set_output_scale(alpha);
+    attr.set_output_scale(/* mask */ 0, alpha);
     attr.set_post_ops({
             { sum={scale=beta} },
             { eltwise={scale=gamma, type=tanh, alpha=ignore, beta=ignored }
@@ -290,7 +290,7 @@ The following pseudo-code:
 
 ~~~
     primitive_attr attr;
-    attr.set_output_scale(alpha);
+    attr.set_output_scale(/* mask */ 0, alpha);
     attr.set_post_ops({
             { eltwise={scale=gamma, type=relu, alpha=eta, beta=ignored }
             { sum={scale=beta} },
@@ -316,9 +316,9 @@ The following pseudo-code:
 
 ~~~
     primitive_attr attr;
-    attr.set_output_scale(alpha);
-    attr.set_zero_point(src, shift_src);
-    attr.set_zero_point(dst, shift_dst);
+    attr.set_output_scale(/* mask */ 0, alpha);
+    attr.set_zero_point(src, /* mask */ 0, shift_src);
+    attr.set_zero_point(dst, /* mask */ 0, shift_dst);
     attr.set_post_ops({
             { eltwise={scale=gamma, type=relu, alpha=eta, beta=ignored }
         });
