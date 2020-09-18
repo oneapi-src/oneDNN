@@ -98,9 +98,9 @@ Convolution
 * *data_format*
 
   * **Description**: *data_format* denotes the data format of the input and output data.
-  * **Range of values**: *NSC* or *NCS* (S means HW for 2D convolution, DHW for 3D convolution)
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D convolution, DHW for 3D convolution)
   * **Type**: string
-  * **Default value**: *NSC*
+  * **Default value**: *NXC*
   * **Required**: *no*
 
 **Inputs**:
