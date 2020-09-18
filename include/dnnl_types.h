@@ -1445,12 +1445,7 @@ typedef struct {
     dnnl_data_type_t accum_data_type;
 } dnnl_pooling_desc_t;
 
-/// @} dnnl_api_pooling
-
-/// @addtogroup dnnl_api_pooling_v2
-/// @{
-
-/// A descriptor of a pooling operation.
+/// A descriptor of a pooling (version 2) operation.
 typedef struct {
     /// The kind of primitive. Used for self-identifying the primitive
     /// descriptor. Must be #dnnl_pooling_v2.
@@ -1485,7 +1480,7 @@ typedef struct {
     dnnl_dims_t dilation;
 } dnnl_pooling_v2_desc_t;
 
-/// @} dnnl_api_pooling_v2
+/// @} dnnl_api_pooling
 
 /// @addtogroup dnnl_api_lrn
 /// @{
