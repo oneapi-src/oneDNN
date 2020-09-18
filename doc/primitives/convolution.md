@@ -264,7 +264,7 @@ data type happens just before the actual storing.
 Consider the following pseudo-code:
 
 ~~~
-    attribute attr;
+    primitive_attr attr;
     attr.set_output_scale(alpha);
     attr.set_post_ops({
             { sum={scale=beta} },
@@ -289,7 +289,7 @@ The would lead to the following:
 The following pseudo-code:
 
 ~~~
-    attribute attr;
+    primitive_attr attr;
     attr.set_output_scale(alpha);
     attr.set_post_ops({
             { eltwise={scale=gamma, type=relu, alpha=eta, beta=ignored }
@@ -315,7 +315,7 @@ That would lead to the following:
 The following pseudo-code:
 
 ~~~
-    attribute attr;
+    primitive_attr attr;
     attr.set_output_scale(alpha);
     attr.set_zero_point(src, shift_src);
     attr.set_zero_point(dst, shift_dst);
