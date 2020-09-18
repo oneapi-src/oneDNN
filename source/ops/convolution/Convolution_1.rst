@@ -103,10 +103,18 @@ Convolution
   * **Default value**: *NXC*
   * **Required**: *no*
 
+* *filter_format*
+
+  * **Description**: *filter_format* denotes the data format of the filter.
+  * **Range of values**: *XIO* or *OIX* (X means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *XIO*
+  * **Required**: *no*
+
 **Inputs**:
 
 * **1**: Input tensor. The format is specified by *data_format*. The layout is determined by the value of layout in logical tensor. **Required.**
-* **2**: Convolution kernel tensor. The format is OIS (OIYX for 2D convolution, OIZYX for 3D convolution). The layout is determined by the value of layout in logical tensor. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
+* **2**: Convolution kernel tensor. The format is specified by *filter_format*. The layout is determined by the value of layout in logical tensor. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
 
 **Outputs**:
 
