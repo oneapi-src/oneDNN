@@ -277,6 +277,12 @@ Please submit your questions, feature requests, and bug reports on the
 You may reach out to project maintainers privately
 at dnnl.maintainers@intel.com.
 
+> **WARNING**
+>
+> The following functionality has preview status and might be changed without
+> prior notification in future releases:
+> * [Zero points support in convolution](https://intel.github.io/mkl-dnn/dev_guide_convolution.html)
+
 # Contributing
 
 We welcome community contributions to oneDNN. If you have an idea on how
