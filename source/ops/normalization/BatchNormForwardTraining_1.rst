@@ -26,9 +26,17 @@ BatchNormForwardTraining
   * **Default value**: 0.1
   * **Required**: *yes*
 
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input and output data.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *NXC*
+  * **Required**: *no*
+
 **Inputs**
 
-* **1**: ``input`` - input tensor with data for normalization. **Required.**
+* **1**: ``input`` - input tensor with data for normalization.  The format is specified by *data_format*. The layout is determined by the value of layout in logical tensor. **Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T with the same span as input's channel axis. **Optional.**
 * **3**: ``beta`` - beta added to the scaled normalized value. A 1D tensor of type T with the same span as input's channel axis. **Optional.**
 * **4**: ``mean`` - value for mean normalization. A 1D tensor of type T with the same span as input's channel axis. **Required.**
@@ -36,7 +44,7 @@ BatchNormForwardTraining
 
 **Outputs**
 
-* **1**: ``output`` - the result of normalization. A tensor of the same type and shape with 1st input tensor.
+* **1**: ``output`` - the result of normalization. A tensor of the same type, shape and format with 1st input tensor.
 * **2**: ``running mean`` - the computed running mean.
 * **3**: ``running variance`` - the computed running variance.
 * **4**: ``batch mean`` - the computed batch mean.
