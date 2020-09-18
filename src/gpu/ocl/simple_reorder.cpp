@@ -27,6 +27,33 @@ namespace ocl {
 
 using namespace dnnl::impl::memory_tracking::names;
 
+int innermost_block(dnnl_blocking_desc_t blk) {
+    int last = blk.inner_nblks - 1;
+    return blk.inner_blks[last];
+}
+
+bool matches_ABxxxx8ayb_layout(dnnl_blocking_desc_t blk, int ndims) {
+    if (ndims > 2) { return false; }
+    int last = blk.inner_nblks - 1;
+    // Don't allow this kernel when two adjacent blocks by b create
+    // total block size smaller than 16 - in that situation macros
+    // used for calculation of dst address return wrong values.
+    for (int d = last - 2; d >= 0; d--) {
+        if (blk.inner_idxs[d] == ndims - 1) {
+            int double_block = blk.inner_blks[last] * blk.inner_blks[d];
+            if (double_block < 16) {
+                return false;
+            } else {
+                break;
+            }
+        }
+    }
+    return ((blk.inner_blks[last] == 4 || blk.inner_blks[last] == 2)
+            && blk.inner_idxs[last] == ndims - 1
+            && blk.inner_blks[last - 1] == 8
+            && blk.inner_idxs[last - 1] == ndims - 2);
+}
+
 status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     using namespace format_tag;
 
@@ -102,15 +129,25 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             && src_mdw.similar_to(dst_mdw, true, false, 0)
             && !has_padding_or_scale_quant && !use_unroll;
 
-    size_t last_dim = padded_dims[conf.ndims - 1];
+    int last = conf.ndims - 1;
+    size_t last_dim = padded_dims[last];
 
     // This kernel will be used where last dimension is not reordered.
     // It will vectorize that dimension.
-    conf.vectorize_last_dim = !conf.use_dense_vect && !conf.scale_quant
-            && src_mdw.is_dense() && dst_mdw.is_dense() && last_dim % 8 == 0
-            && dst_mdw.md_->format_desc.blocking.strides[conf.ndims - 1] == 1
-            && src_mdw.md_->format_desc.blocking.strides[conf.ndims - 1] == 1
+    conf.vectorize_last_dim = !conf.use_dense_vect
+            && !has_padding_or_scale_quant && src_mdw.is_dense()
+            && dst_mdw.is_dense() && last_dim % 8 == 0
+            && dst_mdw.md_->format_desc.blocking.strides[last] == 1
+            && src_mdw.md_->format_desc.blocking.strides[last] == 1
             && conf.ndims <= 6;
+
+    // This kernel supports 2D reorders into blocked formats that
+    // end in 8a4b or 8a2b, no matter how many block layers, but no padding.
+    conf.plain_to_ABxx8ayb = !conf.use_dense_vect && !has_padding_or_scale_quant
+            && !conf.vectorize_last_dim && src_mdw.matches_one_of_tag(ab)
+            && matches_ABxxxx8ayb_layout(
+                    dst_mdw.md_->format_desc.blocking, conf.ndims)
+            && padded_dims[last] % 16 == 0;
 
     dim_t blocks[6] = {1, 1, 1, 1, 1, 1};
     if (use_unroll_16a16b) {
@@ -122,20 +159,25 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
         blocks[2] = 16;
     }
 
-    if (conf.use_dense_vect || use_unroll_16a16b || use_unroll_16b
-            || use_unroll_16b16c) {
+    if (conf.use_dense_vect || use_unroll) {
         conf.use_ref_impl = false;
         conf.sub_group_size = 16;
     }
 
     if (conf.vectorize_last_dim) {
         conf.use_ref_impl = false;
-        for (int dim = conf.ndims - 2; dim >= 0; dim--) {
+        for (int dim = last - 1; dim >= 0; dim--) {
             if (padded_dims[dim] % 4 == 0) { blocks[dim] = 4; }
             if (padded_dims[dim] % 8 == 0) { blocks[dim] = 8; }
             if (padded_dims[dim] % 16 == 0) { blocks[dim] = 16; }
             if (blocks[dim] != 1) { break; }
         }
+    }
+
+    if (conf.plain_to_ABxx8ayb) {
+        conf.use_ref_impl = false;
+        conf.sub_group_size = 16;
+        blocks[0] = 8;
     }
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
@@ -159,6 +201,9 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
         int vectorization_range = (last_dim % 16 == 0) ? 16 : 8;
         std::string vector_dim = "D" + std::to_string(conf.ndims - 1);
         conf.dispatch.vectorize_dim(vector_dim, vectorization_range);
+    } else if (conf.plain_to_ABxx8ayb) {
+        auto dim_str = utils::format("D%d", last);
+        conf.dispatch.vectorize_dim(dim_str, 16);
     }
 
     conf.dispatch.generate();
@@ -280,6 +325,11 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("VECTORIZE_LAST_DIM", 1);
     }
 
+    if (conf.plain_to_ABxx8ayb) {
+        kernel_ctx.define_int("PLAIN_TO_AB_XX_8AYB", 1);
+        kernel_ctx.define_int(
+                "BLK_L", innermost_block(dst_mdw.md_->format_desc.blocking));
+    }
     kernel_ctx.print_options();
     return status::success;
 }

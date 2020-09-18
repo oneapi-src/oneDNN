@@ -15,6 +15,11 @@
 --dtag=bacde,acbde
 3x5x7x11x16
 
+# test plain-to-ABxxxx8ayb kernel
+--stag=ab
+--dtag=AB32a32b8a4b,AB32a32b8a2b,AB8a4b,AB8a2b
+512x512
+
 ### test types
 --reset
 --sdt=f32,s32,s8,u8,f16,bf16

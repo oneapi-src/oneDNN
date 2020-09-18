@@ -307,6 +307,63 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         }
     }
 
+#elif PLAIN_TO_AB_XX_8AYB
+    // Reorders 2D plain format to a blocked one, where last two
+    // blocks are 8a4b or 8a2b. Supports formats with more block layers.
+    //
+    // Uses subgroup size 16
+    // Each subgroup will read 8 sets of 16 values. Sets are not
+    // adjacent in src, they are strided by 0th dim
+    // All those 8*16 values will be shared between work items in subgroup
+    // Each WI selects a set of 8 values out of 8*16 to write back
+    // Each subgroup will write 8 sets of 16 values. Sets are adjacent in dst.
+    //
+    // TODO: make it generic across number of dimensions, for now only works with 2D
+    // TODO: reduce shuffles from 8*16 to 28(?) - even though it doesn't improve perf
+    // TODO: the two dst_buf<-tmp_buf formulas should be unified
+    int sgId = get_sub_group_local_id();
+
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+
+    const int d0b = GWS_GET_D0_BLOCK();
+    const int d1b = GWS_GET_D1_BLOCK();
+
+    SRC_DATA_T src_buf[d0b];
+    DST_DATA_T dst_buf[d0b];
+
+    for (int d0i = 0; d0i < d0b; ++d0i) {
+        const int src_off = SRC_OFF(d0 + d0i, d1, 0, 0, 0, 0);
+        src_buf[d0i] = SRC_BLOCK_READ(&src[src_off]);
+    }
+
+    SRC_DATA_T tmp_buf[d0b][SUB_GROUP_SIZE];
+    for (int i = 0; i < d0b; i++) {
+        for (int sg = 0; sg < SUB_GROUP_SIZE; sg++) {
+            tmp_buf[i][sg] = intel_sub_group_shuffle(src_buf[i], sg);
+        }
+    }
+#if BLK_L == 4
+    for (int d0i = 0; d0i < d0b; ++d0i) {
+        dst_buf[d0i] = tmp_buf[(d0i % 2 * BLK_L) + sgId / BLK_L]
+                              [(d0i / 2) * BLK_L + sgId % BLK_L];
+    }
+#else // BLK_L == 2
+    for (int d0i = 0; d0i < d0b; ++d0i) {
+        dst_buf[d0i] = tmp_buf[sgId / BLK_L][d0i * BLK_L + sgId % BLK_L];
+    }
+#endif
+    for (int d0i = 0; d0i < d0b; ++d0i) {
+        const int dst_off = DST_OFF(d0, d1, 0, 0, 0, 0) + SUB_GROUP_SIZE * d0i;
+
+        DST_DATA_T dst_tmp;
+#if WITH_SUM_AB
+        dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
+#endif
+        REORDER(dst_tmp, dst_buf[d0i], alpha, beta);
+        DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
+    }
+
 #elif VECTORIZE_LAST_DIM
 
     const int d0 = GWS_GET_D0();

@@ -384,6 +384,11 @@ const format_tag_t aBCdef4b8c2b = dnnl_aBCdef4b8c2b;
 const format_tag_t aBCd4c8b2c = dnnl_aBCd4c8b2c;
 const format_tag_t aBCde4c8b2c = dnnl_aBCde4c8b2c;
 const format_tag_t aBCdef4c8b2c = dnnl_aBCdef4c8b2c;
+const format_tag_t AB32a32b8a4b = dnnl_AB32a32b8a4b;
+const format_tag_t AB8a4b = dnnl_AB8a4b;
+const format_tag_t AB32a32b8a2b = dnnl_AB32a32b8a2b;
+const format_tag_t AB8a2b = dnnl_AB8a2b;
+
 const format_tag_t last = dnnl_format_tag_last;
 
 const format_tag_t x = dnnl_x;
