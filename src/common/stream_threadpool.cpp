@@ -38,7 +38,8 @@ dnnl_status_t dnnl_threadpool_interop_stream_create(
     bool args_ok = !utils::any_null(stream, engine);
     if (!args_ok) return invalid_arguments;
 
-    auto tp = static_cast<dnnl::threadpool_iface *>(threadpool);
+    auto tp = static_cast<dnnl::threadpool_interop::threadpool_iface *>(
+            threadpool);
 
     return engine->create_stream(stream, tp);
 }
@@ -46,7 +47,7 @@ dnnl_status_t dnnl_threadpool_interop_stream_create(
 dnnl_status_t dnnl_threadpool_interop_stream_get_threadpool(
         dnnl_stream_t stream, void **threadpool) {
     if (utils::any_null(stream, threadpool)) return status::invalid_arguments;
-    dnnl::threadpool_iface *tp;
+    dnnl::threadpool_interop::threadpool_iface *tp;
     auto status = stream->get_threadpool(&tp);
     if (status == status::success) *threadpool = static_cast<void *>(tp);
     return status;

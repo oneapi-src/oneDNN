@@ -45,8 +45,8 @@ status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
 }
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-status_t cpu_engine_t::create_stream(
-        stream_t **stream, dnnl::threadpool_iface *threadpool) {
+status_t cpu_engine_t::create_stream(stream_t **stream,
+        dnnl::threadpool_interop::threadpool_iface *threadpool) {
     return safe_ptr_assign<stream_t>(
             *stream, new cpu_stream_t(this, threadpool));
 }

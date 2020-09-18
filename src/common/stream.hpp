@@ -54,15 +54,15 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
             const dnnl::impl::exec_ctx_t &ctx);
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    dnnl_stream(
-            dnnl::impl::engine_t *engine, dnnl::threadpool_iface *threadpool)
+    dnnl_stream(dnnl::impl::engine_t *engine,
+            dnnl::threadpool_interop::threadpool_iface *threadpool)
         : dnnl_stream(engine, dnnl::impl::stream_flags::in_order) {
         assert(engine->kind() == dnnl::impl::engine_kind::cpu);
         threadpool_ = threadpool;
     }
 
     dnnl::impl::status_t get_threadpool(
-            dnnl::threadpool_iface **threadpool) const {
+            dnnl::threadpool_interop::threadpool_iface **threadpool) const {
         using namespace dnnl::impl;
         if (engine_->kind() != engine_kind::cpu)
             return status::invalid_arguments;
@@ -75,7 +75,7 @@ protected:
     dnnl::impl::engine_t *engine_;
     unsigned flags_;
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    dnnl::threadpool_iface *threadpool_ = nullptr;
+    dnnl::threadpool_interop::threadpool_iface *threadpool_ = nullptr;
 #endif
 };
 

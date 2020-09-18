@@ -233,10 +233,13 @@ namespace impl {
 namespace threadpool_utils {
 
 namespace {
-static thread_local threadpool_iface *active_threadpool = nullptr;
+static thread_local dnnl::threadpool_interop::threadpool_iface
+        *active_threadpool
+        = nullptr;
 }
 
-void DNNL_API activate_threadpool(threadpool_iface *tp) {
+void DNNL_API activate_threadpool(
+        dnnl::threadpool_interop::threadpool_iface *tp) {
     assert(!active_threadpool);
     if (!active_threadpool) active_threadpool = tp;
 }
@@ -245,7 +248,7 @@ void DNNL_API deactivate_threadpool() {
     active_threadpool = nullptr;
 }
 
-threadpool_iface *get_active_threadpool() {
+dnnl::threadpool_interop::threadpool_iface *get_active_threadpool() {
     return active_threadpool;
 }
 

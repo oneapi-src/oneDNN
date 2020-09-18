@@ -114,8 +114,8 @@ public:
     virtual status_t create_stream(stream_t **stream, unsigned flags) override;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    virtual status_t create_stream(
-            stream_t **stream, dnnl::threadpool_iface *threadpool) override;
+    virtual status_t create_stream(stream_t **stream,
+            dnnl::threadpool_interop::threadpool_iface *threadpool) override;
 #endif
 
     virtual const concat_primitive_desc_create_f *

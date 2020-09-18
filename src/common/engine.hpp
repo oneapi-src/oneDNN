@@ -66,8 +66,8 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
             = 0;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    virtual dnnl::impl::status_t create_stream(
-            dnnl::impl::stream_t **stream, dnnl::threadpool_iface *threadpool) {
+    virtual dnnl::impl::status_t create_stream(dnnl::impl::stream_t **stream,
+            dnnl::threadpool_interop::threadpool_iface *threadpool) {
         return dnnl::impl::status::invalid_arguments;
     }
 #endif

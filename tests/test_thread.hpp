@@ -41,15 +41,15 @@ namespace dnnl {
 // need to be re-declared because of the hack above.
 namespace impl {
 namespace threadpool_utils {
-void activate_threadpool(threadpool_iface *tp);
+void activate_threadpool(dnnl::threadpool_interop::threadpool_iface *tp);
 void deactivate_threadpool();
-threadpool_iface *get_active_threadpool();
+dnnl::threadpool_interop::threadpool_iface *get_active_threadpool();
 } // namespace threadpool_utils
 } // namespace impl
 
 namespace testing {
 
-threadpool_iface *get_threadpool();
+dnnl::threadpool_interop::threadpool_iface *get_threadpool();
 
 // Sets the testing threadpool as active for the lifetime of the object.
 // Required for the tests that throw to work.

@@ -41,11 +41,12 @@ struct cpu_stream_t : public stream_t {
     }
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    cpu_stream_t(engine_t *engine, threadpool_iface *threadpool)
+    cpu_stream_t(engine_t *engine,
+            dnnl::threadpool_interop::threadpool_iface *threadpool)
         : stream_t(engine, threadpool) {}
 
     void before_exec_hook() override {
-        threadpool_iface *tp;
+        dnnl::threadpool_interop::threadpool_iface *tp;
         auto rc = this->get_threadpool(&tp);
         if (rc == status::success) threadpool_utils::activate_threadpool(tp);
     }
