@@ -201,7 +201,9 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
         print_spatial("sd", d.sd, "sh", d.sh, "sw", d.sw);
 
     print_spatial("pd", d.pd, "ph", d.ph, "pw", d.pw);
-    print_spatial("dd", d.dd, "dh", d.dh, "dw", d.dw);
+
+    if (canonical || d.dh != 0 || d.dw != 0 || d.dd != 0)
+        print_spatial("dd", d.dd, "dh", d.dh, "dw", d.dw);
 
     if (d.name) s << "n" << d.name;
 
