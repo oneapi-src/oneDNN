@@ -100,7 +100,7 @@ status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
     if (!ok) return invalid_arguments;
 
     exec_args_t args;
-    status_t status = cvt_primtive_args(
+    status_t status = cvt_primitive_args(
             primitive_iface->pd()->impl().get(), nargs, c_args, args);
     if (status != status::success) return status;
 

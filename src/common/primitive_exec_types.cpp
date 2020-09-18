@@ -22,7 +22,7 @@
 namespace dnnl {
 namespace impl {
 
-status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
+status_t cvt_primitive_args(const primitive_desc_t *pd, int nargs,
         const dnnl_exec_arg_t *c_args, exec_args_t &args) {
     using namespace status;
 
