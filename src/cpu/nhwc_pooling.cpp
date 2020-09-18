@@ -59,6 +59,10 @@ size_t strided_offset(const int _n, const size_t _sn, const int _d,
 } // namespace nhwc_pooling
 
 template <data_type_t d_type>
+nhwc_pooling_fwd_t<d_type>::nhwc_pooling_fwd_t(const pd_t *apd)
+    : primitive_t(apd), ref_post_ops_(pd()->attr()->post_ops_) {}
+
+template <data_type_t d_type>
 void nhwc_pooling_fwd_t<d_type>::array_div_by_const(const int n,
         const ker_data_t *src, const size_t num, ker_data_t *dst) const {
     for (int i = 0; i < n; ++i) {
@@ -185,9 +189,18 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     DECLARE_READ_STRIDES(src);
     DECLARE_READ_STRIDES(dst);
 
-    auto apply_offset = [=](int index, int offset) {
+    const auto apply_offset = [=](int index, int offset) {
         return (index > offset) ? index - offset : 0;
     };
+
+    const dim_t SP = OW * OH;
+    const dim_t OSP = SP * OD;
+
+    const auto get_logical_offset
+            = [&](int mb, int oc, int od, int oh, int ow) -> dim_t {
+        return OSP * OC * mb + OSP * oc + SP * od + OW * oh + ow;
+    };
+    const bool are_postops_set = !(pd()->attr()->post_ops_.entry_.empty());
 
     parallel_nd(MB, OD, OH, OW, [&](int mb, int od, int oh, int ow) {
         size_t dst_offset_init = strided_offset(mb, dst_n_stride, od,
@@ -280,6 +293,19 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
             // for GCC 4.8.5 to vectorize
             array_div_by_const(OC, d, num_summands, d);
         }
+
+        if (are_postops_set) {
+            auto *d = dst + dst_offset_init;
+            ref_post_ops_t::args_t args;
+            args.ctx = &ctx;
+            args.l_offset = get_logical_offset(mb, 0, od, oh, ow);
+            args.dst_md = pd()->dst_md();
+
+            for (int oc = 0; oc < OC; ++oc) {
+                ref_post_ops_.execute(d[oc], args);
+                args.l_offset += OSP;
+            }
+        }
     });
 }
 
@@ -333,20 +359,29 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
         return (index > offset) ? index - offset : 0;
     };
 
+    const dim_t SP = OW * OH;
+    const dim_t OSP = SP * OD;
+
+    const auto get_logical_offset
+            = [&](int mb, int oc, int od, int oh, int ow) -> dim_t {
+        return OSP * OC * mb + OSP * oc + SP * od + OW * oh + ow;
+    };
+    const bool are_postops_set = !(pd()->attr()->post_ops_.entry_.empty());
+
     parallel_nd_ext(0, MB, OD, OH, OW,
             [&](int ithr, int, int mb, int od, int oh, int ow) {
                 size_t dst_offset_init = strided_offset(mb, dst_n_stride, od,
                         dst_d_stride, oh, dst_h_stride, ow, dst_w_stride);
+                float *dst_f32 = &bf16cvt_dst_wsp[ithr * OC];
+                float *src_f32 = &bf16cvt_src_wsp[ithr * OC];
+
                 if (alg == alg_kind::pooling_max) {
                     size_t ws_offset_init = 0;
                     if (ws) {
                         DECLARE_READ_STRIDES(ws);
                         ws_offset_init = strided_offset(mb, ws_n_stride, od,
                                 ws_d_stride, oh, ws_h_stride, ow, ws_w_stride);
-                    }
-                    float *dst_f32 = &bf16cvt_dst_wsp[ithr * OC];
-                    float *src_f32 = &bf16cvt_src_wsp[ithr * OC];
-
+                    };
                     // Note: GCC 4.8.5 won't vectorize below
                     // simple loops unless they are singled out
                     // into separate helper routines:
@@ -392,12 +427,8 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
                                     kd * KH * KW + kh * KW + kw);
                         }
                     }
-                    cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
                 } else {
                     // pooling_avg
-                    float *dst_f32 = &bf16cvt_dst_wsp[ithr * OC];
-                    float *src_f32 = &bf16cvt_src_wsp[ithr * OC];
-
                     utils::array_set(dst_f32, 0, OC);
 
                     auto id_start = apply_offset(od * SD, padF);
@@ -434,8 +465,20 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
                     // need to move the loop to separate function
                     // for GCC 4.8.5 to vectorize
                     array_div_by_const(OC, dst_f32, num_summands, dst_f32);
-                    cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
                 }
+
+                if (are_postops_set) {
+                    ref_post_ops_t::args_t args;
+                    args.ctx = &ctx;
+                    args.l_offset = get_logical_offset(mb, 0, od, oh, ow);
+                    args.dst_md = pd()->dst_md();
+
+                    for (int oc = 0; oc < OC; ++oc) {
+                        ref_post_ops_.execute(dst_f32[oc], args);
+                        args.l_offset += OSP;
+                    }
+                }
+                cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
             });
 }
 

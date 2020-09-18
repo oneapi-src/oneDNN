@@ -28,6 +28,7 @@
 
 #include "cpu/cpu_pooling_pd.hpp"
 #include "cpu/platform.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -44,7 +45,7 @@ struct nchw_pooling_fwd_t : public primitive_t {
             const format_tag_t desired_fmt_tag = utils::pick(ndims() - 3,
                     format_tag::ncw, format_tag::nchw, format_tag::ncdhw);
 
-            bool ok = is_fwd()
+            const bool ok = is_fwd()
                     && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                             alg_kind::pooling_avg_include_padding,
                             alg_kind::pooling_avg_exclude_padding)
@@ -53,13 +54,15 @@ struct nchw_pooling_fwd_t : public primitive_t {
                     && platform::has_data_type_support(d_type)
                     && !has_zero_dim_memory()
                     && set_default_params() == status::success
-                    && attr()->has_default_values()
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, d_type)
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)
                     && !is_dilated();
             if (!ok) return status::unimplemented;
 
-            bool is_training = desc_.prop_kind == prop_kind::forward_training;
+            const bool is_training
+                    = desc_.prop_kind == prop_kind::forward_training;
             if (desc()->alg_kind == alg_kind::pooling_max && is_training)
                 init_default_ws();
 
@@ -79,9 +82,9 @@ struct nchw_pooling_fwd_t : public primitive_t {
         }
     };
 
-    nchw_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    nchw_pooling_fwd_t(const pd_t *apd);
 
-    typedef typename prec_traits<d_type>::type data_t;
+    using data_t = typename prec_traits<d_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);
@@ -91,6 +94,7 @@ struct nchw_pooling_fwd_t : public primitive_t {
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    const ref_post_ops_t ref_post_ops_;
 };
 
 template <data_type_t d_type>

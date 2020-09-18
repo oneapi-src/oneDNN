@@ -28,6 +28,7 @@
 
 #include "cpu/cpu_pooling_pd.hpp"
 #include "cpu/platform.hpp"
+#include "cpu/primitive_attr_postops.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -60,7 +61,8 @@ struct nhwc_pooling_fwd_t : public primitive_t {
                             d_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(d_type)
                     && set_default_params() == status::success
-                    && attr()->has_default_values()
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, d_type)
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*dst_md(), desired_fmt_tag)
                     && !is_dilated();
@@ -90,7 +92,7 @@ struct nhwc_pooling_fwd_t : public primitive_t {
         }
     };
 
-    nhwc_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    nhwc_pooling_fwd_t(const pd_t *apd);
 
     typedef typename prec_traits<d_type>::type data_t;
     typedef typename prec_traits<data_type::f32>::type ker_data_t;
@@ -112,6 +114,7 @@ private:
             const size_t ws_offset, const data_type_t ws_dt) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    const ref_post_ops_t ref_post_ops_;
 };
 
 template <impl::data_type_t d_type>
