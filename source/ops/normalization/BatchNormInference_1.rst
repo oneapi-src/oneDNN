@@ -18,9 +18,17 @@ BatchNormInference
   * **Default value**: None
   * **Required**: *yes*
 
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input and output data.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *NXC*
+  * **Required**: *no*
+
 **Inputs**
 
-* **1**: ``input`` - input tensor with data for normalization. At least a 2D tensor of type T, the second dimension represents the channel axis and must have a span of at least 1. **Required.**
+* **1**: ``input`` - input tensor with data for normalization. The format is specified by *data_format*. The layout is determined by the value of layout in logical tensor.**Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T with the same span as input's channel axis. **Required.**
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor of type T with the same span as input's channel axis.. **Required.**
 * **4**: ``mean`` - value for mean normalization. A 1D tensor of type T with the same span as input's channel axis.. **Required.**
@@ -28,7 +36,7 @@ BatchNormInference
 
 **Outputs**
 
-* **1**: The result of normalization. A tensor of the same type and shape with 1st input tensor.
+* **1**: The result of normalization. A tensor of the same type, shape and format with 1st input tensor.
 
 **Types**
 
