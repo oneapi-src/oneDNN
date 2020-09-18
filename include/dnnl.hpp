@@ -2857,7 +2857,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     hold: \f$zero\_points.size() = \prod\limits_{d \in mask}
     ///     argument.dims[d].\f$ If the zero points are not known at the time
     ///     of the call, this vector must contain a single
-    ///     #DNNL_RUNTIME_F32_VAL value and the zero points must be passed at
+    ///     #DNNL_RUNTIME_S32_VAL value and the zero points must be passed at
     ///     execution time as an argument with index
     ///     #DNNL_ARG_ATTR_ZERO_POINTS.
     void set_zero_points(
