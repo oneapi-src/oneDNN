@@ -78,13 +78,21 @@ MaxPool
   * **Default value**: None
   * **Required**: *yes*
 
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input and output data.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *NXC*
+  * **Required**: *no*
+
 **Inputs**:
 
-* **1**: 4D or 5D input tensor. Required.
+* **1**: ``input`` - the input tensor. Required.
 
 **Outputs**
 
-* **1**: The result tensor.
+* **1**: ``output`` -  the result tensor.
 
 **Mathematical Formulation**
 
