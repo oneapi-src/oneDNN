@@ -58,9 +58,9 @@ struct desc_t {
     }
 
 private:
-    int64_t opp_pad(int64_t i, int64_t o, int64_t k, int64_t d, int64_t s,
-            int64_t prb) {
-        return (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - prb;
+    int64_t opp_pad(
+            int64_t i, int64_t o, int64_t k, int64_t d, int64_t s, int64_t p) {
+        return (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - p;
     }
 };
 
