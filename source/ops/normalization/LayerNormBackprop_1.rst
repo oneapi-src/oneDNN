@@ -42,6 +42,14 @@ LayerNormBackprop
   * **Default value**: true
   * **Required**: *no*
 
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input and input_delta.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *NXC*
+  * **Required**: *no*
+
 **Inputs**
 
 * **1**: ``input`` - input tensor . **Required.**
