@@ -107,7 +107,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
         const int vmm_idx = ur * load_loop_blk + i_load;
         assert(vmm_idx < ker_max_reg_idx);
         /* remap the register indices to
-  	 * avoid passing xmm0 to eltwise injector */
+         * avoid passing xmm0 to eltwise injector */
         return Vmm(15 - vmm_idx);
     };
 

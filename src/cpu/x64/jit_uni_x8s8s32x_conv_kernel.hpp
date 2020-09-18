@@ -109,7 +109,7 @@ private:
     const Vmm vmm_scale = vmm_tmp;
     /* registers use only for depthwise
      * groups are always blocked by 8/4 (padded if needed),
-     * hence use only Ymm registers for avx2 
+     * hence use only Ymm registers for avx2
      * use Xmm registers for sse41*/
     const Vmm vmm_dw_wei = Vmm(0);
     Vmm vmm_dw_tmp;
