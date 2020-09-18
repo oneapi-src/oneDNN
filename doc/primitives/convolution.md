@@ -227,11 +227,11 @@ object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
 
 Similarly to run-time output scales, the primitive supports run-time zero
 points. The wildcard value for zero points is #DNNL_RUNTIME_S32_VAL. During
-the execution stage, the corresponding memory object needs to be passed in the
-argument with index set to
+the execution stage, the corresponding memory object must be passed as an
+argument with its index set to
 (`DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_${MEMORY_INDEX}`). Possible
 `${MEMORY_INDEX}` values are `DNNL_ARG_SRC` and `DNNL_ARG_DST`.
-- For instance, source tensor zero points memory argument would be passed with
+- For instance, a source tensor zero points memory argument would be passed with
   index (`DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC`).
 
 @note The library does not prevent using post-ops in training, but note that
@@ -252,7 +252,7 @@ following sequences deploy optimized code:
 The attributes and post-ops take effect in the following sequence:
 - Source zero point attribute,
 - Output scale attribute,
-- Post-ops, in order they were attached,
+- Post-ops, in the order they were attached,
 - Destination zero point attribute.
 
 The operations during attributes and post-ops applying are done in single
@@ -261,7 +261,7 @@ data type happens just before the actual storing.
 
 #### Example 1
 
-Consider the following pseudo code:
+Consider the following pseudo-code:
 
 ~~~
     attribute attr;
@@ -286,7 +286,7 @@ The would lead to the following:
 
 #### Example 2
 
-The following pseudo code:
+The following pseudo-code:
 
 ~~~
     attribute attr;
@@ -312,7 +312,7 @@ That would lead to the following:
 
 #### Example 3
 
-The following pseudo code:
+The following pseudo-code:
 
 ~~~
     attribute attr;
