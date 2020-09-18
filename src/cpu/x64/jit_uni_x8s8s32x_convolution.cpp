@@ -385,7 +385,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<wei_data_t *>(weights);
-    int32_t *compensation = (jcp.signed_input)
+    const int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
@@ -411,7 +411,7 @@ status_t jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type,
 
                 auto bias_w = bias ? bias + (bias_d.blk_off(g) * bia_dt_size)
                                    : nullptr;
-                int32_t *compensation_w
+                const int32_t *compensation_w
                         = jcp.signed_input ? compensation + g : nullptr;
 
                 auto dst_w = dst + dst_d.blk_off(n, g, oh_s, ow_s);
@@ -501,7 +501,7 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_3d(
 
     size_t offset = weights_d.size() - weights_d.additional_buffer_size();
     auto w = const_cast<wei_data_t *>(weights);
-    int32_t *compensation = (jcp.signed_input)
+    const int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(&w[offset])
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point

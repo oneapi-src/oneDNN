@@ -139,7 +139,7 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa, src_type,
 
     auto offset = weights_d.size() - weights_d.additional_buffer_size();
     wei_data_t *w = const_cast<wei_data_t *>(weights);
-    int32_t *compensation = (jcp.signed_input)
+    const int32_t *compensation = (jcp.signed_input)
             ? reinterpret_cast<int32_t *>(w + offset)
             : nullptr;
     const int32_t *zp_compensation = jcp.src_zero_point
