@@ -42,6 +42,14 @@ LayerNorm
   * **Default value**: 1e-5
   * **Required**: *no*
 
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input and output data.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *NXC*
+  * **Required**: *no*
+
 **Inputs**
 
 * **1**: ``input`` - input tensor with data for normalization. **Required.**
@@ -51,7 +59,7 @@ LayerNorm
 
 **Outputs**
 
-* **1**: The result of normalization. A tensor of the same type and shape with 1st input tensor. **Required.**
+* **1**: ``output``  The result of normalization. A tensor of the same type and shape with 1st input tensor. **Required.**
 * **2**: ``mean`` Output the mean calculated along the given axis. **Optional.**
 * **3**: ``variance`` Output the std calculated along the given axis. **Optional.**
 
