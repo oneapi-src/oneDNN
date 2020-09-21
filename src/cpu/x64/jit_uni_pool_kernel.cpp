@@ -46,20 +46,23 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
 
     if (jpp.with_postops) {
         static constexpr bool use_per_oc_spatial_strategy = false;
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = true;
+        static constexpr bool use_exact_tail_scalar_bcast = false;
+
+        const binary_injector::rhs_arg_static_params_t rhs_sp {
+                static_cast<std::size_t>(this->xmm4.getIdx()), this->rax,
+                this->rdx, preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec),
+                memory_desc_wrapper(*dst_md), static_cast<size_t>(jpp.c_tail),
+                k_c_tail_mask, use_exact_tail_scalar_bcast};
+
+        const binary_injector::static_params_t bsp {
+                reg_param, use_per_oc_spatial_strategy, rhs_sp};
 
         postops_injector_
                 = utils::make_unique<injector::jit_uni_postops_injector_t<isa>>(
-                        this, jpp.post_ops,
-                        binary_injector::static_params_t(reg_param,
-                                use_per_oc_spatial_strategy,
-                                binary_injector::rhs_arg_static_params_t {
-                                        static_cast<std::size_t>(
-                                                this->xmm4.getIdx()),
-                                        this->rax, this->rdx,
-                                        true /*preserve gpr*/,
-                                        true /*preserve vmm*/,
-                                        GET_OFF(post_ops_binary_rhs_arg_vec),
-                                        memory_desc_wrapper(*dst_md)}));
+                        this, jpp.post_ops, bsp);
     }
 }
 
@@ -412,13 +415,12 @@ bool jit_uni_pool_kernel<isa>::post_ops_ok(jit_pool_conf_t &jpp,
         jpp.with_postops = jpp.with_eltwise || jpp.with_binary;
     }
 
-    return binary_injector::binary_args_broadcast_supported(post_ops, dst_d)
-            && binary_injector::binary_args_tail_supported(
-                    post_ops, dst_d, cpu_isa_traits<isa>::vlen);
+    return binary_injector::binary_args_broadcast_supported(post_ops, dst_d);
 }
 
 template <cpu_isa_t isa>
-void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block) {
+void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block,
+        const std::function<bool(int)> &is_tail_predicate) {
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
     const int end_idx = vmm_idx_upper_bound() + 1;
     const int start_idx = end_idx - (ur_bc * ur_w);
@@ -426,6 +428,7 @@ void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block) {
             = isa == sse41 && disable_postops_when_sse_high_half_processed_;
 
     if (jpp.with_binary && !sse41_postops_disabled) {
+
         static constexpr int sse41_simd_w
                 = cpu_isa_traits<sse41>::vlen / sizeof(float);
         const int sse_elem_off = sse_high_half ? sse41_simd_w : 0;
@@ -437,6 +440,8 @@ void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block) {
                         vmm_idx, ptr[param1 + GET_OFF(c_elem_off)]);
                 rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
                         vmm_idx, bci * c_block + sse_elem_off);
+                if (is_tail_predicate && is_tail_predicate(bci))
+                    rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
             }
         }
     }
@@ -595,7 +600,8 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
             }
         }
 
-        if (jpp.with_postops) apply_postops(ur_bc, ur_w, c_block);
+        if (jpp.with_postops)
+            apply_postops(ur_bc, ur_w, c_block, is_tail_processing);
 
         for (int jj = 0; jj < ur_w; jj++) {
             for (int bci = 0; bci < ur_bc; bci++) {
@@ -748,7 +754,8 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
     if (with_c_tail_proccessing && jpp.is_c_padded && isa == sse41)
         mov(tmp_gpr, 0); // needed zero to fill padded tail
 
-    if (jpp.with_postops) apply_postops(ur_bc, ur_w, c_block);
+    if (jpp.with_postops)
+        apply_postops(ur_bc, ur_w, c_block, is_tail_processing);
 
     for_(int jj = 0; jj < ur_w; jj++)
     for (int bci = 0; bci < ur_bc; bci++) {

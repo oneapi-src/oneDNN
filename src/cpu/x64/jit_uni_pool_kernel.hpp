@@ -19,6 +19,7 @@
 #define CPU_X64_JIT_UNI_POOL_KERNEL_HPP
 
 #include <cfloat>
+#include <functional>
 #include <memory>
 
 #include "common/c_types_map.hpp"
@@ -244,7 +245,8 @@ private:
         pcmpeqd(x0, x1);
     }
 
-    void apply_postops(int ur_bc, int ur_w, int c_block);
+    void apply_postops(int ur_bc, int ur_w, int c_block,
+            const std::function<bool(int)> &is_tail_predicate);
 
     static bool post_ops_ok(jit_pool_conf_t &jpp, const primitive_attr_t &attr,
             const memory_desc_wrapper &dst_d);
