@@ -615,22 +615,11 @@ template <typename T>
 void jit_uni_binary_injector_t<isa>::execute_binary(
         alg_kind_t binary_alg, const Vmm &dst, const T &rhs) const {
     switch (binary_alg) {
-        case alg_kind::binary_add: host_->vaddps(dst, dst, rhs); break;
-        case alg_kind::binary_mul: host_->vmulps(dst, dst, rhs); break;
-        case alg_kind::binary_max: host_->vmaxps(dst, dst, rhs); break;
-        case alg_kind::binary_min: host_->vminps(dst, dst, rhs); break;
-        default: assert(!"unsupported algorithm");
-    }
-}
-template <>
-template <typename T>
-void jit_uni_binary_injector_t<sse41>::execute_binary(
-        alg_kind_t binary_alg, const Vmm &dst, const T &rhs) const {
-    switch (binary_alg) {
-        case alg_kind::binary_add: host_->addps(dst, rhs); break;
-        case alg_kind::binary_mul: host_->mulps(dst, rhs); break;
-        case alg_kind::binary_max: host_->maxps(dst, rhs); break;
-        case alg_kind::binary_min: host_->minps(dst, rhs); break;
+        case alg_kind::binary_add: host_->uni_vaddps(dst, dst, rhs); break;
+        case alg_kind::binary_mul: host_->uni_vmulps(dst, dst, rhs); break;
+        case alg_kind::binary_max: host_->uni_vmaxps(dst, dst, rhs); break;
+        case alg_kind::binary_min: host_->uni_vminps(dst, dst, rhs); break;
+        case alg_kind::binary_div: host_->uni_vdivps(dst, dst, rhs); break;
         default: assert(!"unsupported algorithm");
     }
 }
