@@ -55,7 +55,9 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
                     && is_fwd() && !has_zero_dim_memory()
                     && everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
-                    && attr()->has_default_values() && !is_dilated();
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops, d_type)
+                    && !is_dilated();
             if (!ok) return status::unimplemented;
 
             const bool is_training

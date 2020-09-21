@@ -12,8 +12,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
 #include <functional>
+#include <new>
 #include "dnnl_types.h"
 
 #include "common/c_types_map.hpp"
@@ -479,12 +479,15 @@ private:
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
 jit_uni_pooling_fwd_t<isa, d_type>::jit_uni_pooling_fwd_t(const pd_t *apd)
-    : primitive_t(apd)
-    , kernel_(utils::make_unique<jit_uni_pool_kernel<isa>>(pd()->jpp_))
-    , trans_ctx_(nullptr) {}
+    : primitive_t(apd), kernel_(nullptr), trans_ctx_(nullptr) {}
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
 status_t jit_uni_pooling_fwd_t<isa, d_type>::init(engine_t *engine) {
+
+    CHECK(safe_ptr_assign(kernel_,
+            new (std::nothrow) jit_uni_pool_kernel<isa>(
+                    pd()->jpp_, pd()->invariant_dst_md())));
+
     if (pd()->jpp_.tag_kind == jptg_ncsp) CHECK(init_ncsp_trans_ctx());
     return kernel_->create_kernel();
 }
@@ -543,6 +546,8 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
     const auto ind_dt_size
             = indices ? types::data_type_size(indices_d.data_type()) : 0;
     const auto &jpp = pd()->jpp_;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jpp.post_ops, ctx);
 
     using wsp_data_t = typename prec_traits<wsp_dt_>::type;
     using namespace jit_uni_pooling_utils;
@@ -566,6 +571,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
         const int ih = nstl::max(ij - jpp.t_pad, 0);
         assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
         const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
+        const int c_elem_off = jpp.c_block * b_c;
 
         if (trans_src)
             arg.src = transpose_facade.get_src_addr(ithr, ih, jpp);
@@ -595,6 +601,8 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
                 - nstl::max(0, jpp.t_pad - oh * jpp.stride_h));
         arg.ur_bc = ur_bc;
         arg.b_c = b_c;
+        arg.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+        arg.c_elem_off = c_elem_off;
         (*kernel_)(&arg);
     };
 
@@ -646,13 +654,15 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
 template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
         data_t *dst, char *indices, const exec_ctx_t &ctx) const {
+
+    const auto &jpp = pd()->jpp_;
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper indices_d(pd()->workspace_md());
     const size_t ind_dt_size
             = indices ? types::data_type_size(indices_d.data_type()) : 0;
-
-    const auto &jpp = pd()->jpp_;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jpp.post_ops, ctx);
 
     using wsp_data_t = typename prec_traits<wsp_dt_>::type;
     using namespace jit_uni_pooling_utils;
@@ -715,6 +725,8 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
 
         arg.ur_bc = ur_bc;
         arg.b_c = b_c;
+        arg.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+        arg.c_elem_off = jpp.c_block * b_c;
         (*kernel_)(&arg);
     };
 
@@ -779,7 +791,8 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_pooling_bwd_t<isa, d_type>::jit_uni_pooling_bwd_t(const pd_t *apd)
     : primitive_t(apd)
-    , kernel_(utils::make_unique<jit_uni_pool_kernel<isa>>(pd()->jpp_))
+    , kernel_(utils::make_unique<jit_uni_pool_kernel<isa>>(
+              pd()->jpp_, pd()->invariant_dst_md()))
     , trans_ctx_(nullptr) {}
 
 template <cpu_isa_t isa, data_type_t d_type>
@@ -1200,6 +1213,8 @@ template struct jit_uni_pooling_fwd_t<sse41, data_type::f32>;
 template struct jit_uni_pooling_bwd_t<sse41, data_type::f32>;
 template struct jit_uni_pooling_fwd_t<avx, data_type::f32>;
 template struct jit_uni_pooling_bwd_t<avx, data_type::f32>;
+template struct jit_uni_pooling_fwd_t<avx2, data_type::f32>;
+template struct jit_uni_pooling_bwd_t<avx2, data_type::f32>;
 template struct jit_uni_pooling_fwd_t<avx512_common, data_type::f32>;
 template struct jit_uni_pooling_bwd_t<avx512_common, data_type::f32>;
 template struct jit_uni_pooling_fwd_t<avx512_core, data_type::f32>;
