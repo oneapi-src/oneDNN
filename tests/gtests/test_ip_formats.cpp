@@ -55,8 +55,16 @@ TEST_F(ip_formats_test, TestChecksAllFormats) {
     memory::dims SP4D = {2, 2, 2, 2};
     memory::dims SP5D = {2, 2, 2, 2, 2};
     memory::dims SP6D = {2, 2, 2, 2, 2, 2};
-    std::vector<memory::dims> v_dims = {SP2D, SP3D, SP4D, SP5D};
-    std::vector<memory::dims> unsup_dims = {SP1D, SP6D};
+    memory::dims SP7D = {2, 2, 2, 2, 2, 2, 2};
+    memory::dims SP8D = {2, 2, 2, 2, 2, 2, 2, 2};
+    memory::dims SP9D = {2, 2, 2, 2, 2, 2, 2, 2, 2};
+    memory::dims SP10D = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+    memory::dims SP11D = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+    memory::dims SP12D = {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+    std::vector<memory::dims> v_dims = {SP1D, SP2D, SP3D, SP4D, SP5D, SP6D,
+            SP7D, SP8D, SP9D, SP10D, SP11D, SP12D};
+    std::vector<memory::dims> unsup_dims
+            = {SP1D, SP6D, SP7D, SP8D, SP9D, SP10D, SP11D, SP12D};
 
     unsigned start_tag = static_cast<unsigned>(tag::any);
     unsigned end_tag = static_cast<unsigned>(tag::format_tag_last);
@@ -87,7 +95,7 @@ TEST_F(ip_formats_test, TestChecksAllFormats) {
         for (unsigned stag = start_tag; stag < end_tag; stag++) {
             src_tag = static_cast<tag>(stag);
 
-            // ip does not support 1D and 6D cases
+            // ip does not support 1D and 6D-12D cases
             bool skip_tag = false;
             for (const auto &i_dims : unsup_dims) {
                 src_md = md(i_dims, i_cfg[0], src_tag, true);
