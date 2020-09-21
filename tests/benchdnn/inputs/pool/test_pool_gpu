@@ -4,7 +4,7 @@
 --cfg=f32,bf16
 --dir=FWD_D,FWD_I,BWD_D
 --alg=MAX,AVG_NP,AVG_P
---tag=abx,aBx16b
+--tag=abx,aBx16b,aBx32b
 --batch=set_all_small
 
 # f32
@@ -12,7 +12,7 @@
 --cfg=f32
 --dir=FWD_D,FWD_I,BWD_D
 --alg=MAX,AVG_NP,AVG_P
---tag=ABx16a16b
+--tag=ABx16a16b,ABx32a32b
 --batch=set_all_small
 
 # u8, s8, s32, f16, bf16
@@ -20,13 +20,16 @@
 --cfg=u8,s8,s32,f16,bf16
 --dir=FWD_I
 --alg=MAX,AVG_NP,AVG_P
---tag=abx,aBx16b
+--tag=abx,aBx16b,aBx32b
 --batch=shapes_2d_small
 
 --mb=16
 --tag=ABx16a16b
 --batch=set_all_small
 
+--mb=32
+--tag=ABx32a32b
+--batch=set_all_small
 
 --reset
 # f32, nhwc
@@ -60,6 +63,10 @@
 
 --mb=16
 --tag=ABx16a16b
+--batch=shapes_2d_small
+
+--mb=32
+--tag=ABx32a32b
 --batch=shapes_2d_small
 
 # Test different src and dst datatypes

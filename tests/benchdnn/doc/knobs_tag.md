@@ -27,6 +27,8 @@ meta-tags:
 | aBx8b        | Includes `aBc8b`, `aBcd8b`, `aBcde8b` tags and their former names for activations.
 | aBx16b       | Includes `aBc16b`, `aBcd16b`, `aBcde16b` tags and their former names for activations.
 | ABx16a16b    | Includes `ABc16a16b`, `ABcd16a16b`, `ABcde16a16b` tags and their former names for activations.
+| aBx32b       | Includes `aBc32b`, `aBcd32b`, `aBcde32b` tags and their former names for activations.
+| ABx32a32b    | Includes `ABc32a32b`, `ABcd32a32b`, `ABcde32a32b` tags and their former names for activations.
 
 The following special tags are supported:
 

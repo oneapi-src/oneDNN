@@ -316,7 +316,8 @@ struct pool_conf_t {
     data_type_t dst_dt;
     alg_kind_t alg;
     bool is_training, is_backward;
-    bool use_mb_block, use_c_block;
+    bool use_mb_c_block, use_only_c_block;
+    int chunks_per_c_block, chunks_per_mb_block;
     int vect_dt_n;
     int nvect;
     compute::dispatch_t dispatch;
