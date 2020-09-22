@@ -32,6 +32,8 @@
 
 #define VECT_SIZE 4
 #define VECT_DATA_T CONCAT2(DATA_T, VECT_SIZE)
+#define AS_VECT_DATA_T AS_DATA4_T
+#define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA4_T
 
 #define OC_OUTER_BLOCK OC_BLOCK
 #define IC_OUTER_BLOCK IC_BLOCK
@@ -361,7 +363,8 @@ __attribute__((reqd_work_group_size(8, 1, 1))) __kernel void gen9_wino_conv_fwd(
 
 #define DOT_PRODUCT(_i, _j) \
     do { \
-        a = intel_sub_group_shuffle(V##_i, _j); \
+        a = AS_VECT_DATA_T( \
+                intel_sub_group_shuffle(AS_VECT_BLOCK_DATA_T(V##_i), _j)); \
         M##_i = mad(a.x, U0, mad(a.y, U1, mad(a.z, U2, mad(a.w, U3, M##_i)))); \
     } while (0)
 
