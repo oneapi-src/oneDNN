@@ -76,6 +76,7 @@ public:
                     this, (op_desc_t *)&desc, nullptr, nullptr);
             ++it;
             std::unique_ptr<primitive_desc_t> zero_pad_pd(it.fetch_once());
+            if (zero_pad_pd == nullptr) return status::unimplemented;
             status = zero_pad_pd->create_primitive(zero_pad_primitive_, this);
         }
         result = zero_pad_primitive_.get();
