@@ -59,9 +59,8 @@ struct gen9_wino_convolution_fwd_t : public gpu_primitive_t {
                     && utils::one_of(this->desc()->prop_kind, forward_training,
                             forward_inference)
                     && this->desc()->alg_kind == alg_kind::convolution_winograd
-                    && utils::one_of(true,
-                            expect_data_types(f32, f32, f32, f32, f32),
-                            expect_data_types(f16, f16, f16, f16, f16))
+                    && utils::one_of(
+                            true, expect_data_types(f32, f32, f32, f32, f32))
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && IMPLICATION(src_data_t == f16,
