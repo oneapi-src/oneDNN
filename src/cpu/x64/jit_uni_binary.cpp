@@ -76,8 +76,14 @@ bool jit_uni_binary_t<src_type>::post_ops_ok(
             return false;
     }
 
+    const dim_t n_dims = dst_d.ndims();
+    const dim_t &oc = n_dims >= 2 ? dst_d.dims()[1] : 1;
+    /*
+     * TODO: Remove limitation supporting tail with blocked format
+     */
+    const bool blocked_tail = p.len() && blocked_format && oc % blksize;
     return binary_injector::binary_args_broadcast_supported(p, dst_d)
-            && binary_injector::binary_args_tail_supported(p, dst_d, vlen)
+            && !blocked_tail
             && IMPLICATION(postops_per_oc_broadcast_exists,
                     binary_injector::all_binary_postop_rhs_per_oc_broadcast(p,
                             dst_d,
@@ -112,7 +118,7 @@ static op_t get_bcast_per_c(const memory_desc_wrapper &src0_d) {
     return op_t::none;
 }
 
-struct binary_kernel_t {
+struct binary_kernel_t : public jit_generator {
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
         const void *src0, *src1, *dst;
@@ -122,10 +128,12 @@ struct binary_kernel_t {
     };
 
     binary_kernel_t(int vlen) : vlen_(vlen) {}
-    virtual ~binary_kernel_t() = default;
+    ~binary_kernel_t() override = default;
 
-    virtual void operator()(call_params_t *p) = 0;
-    virtual status_t create_kernel() = 0;
+    void operator()(binary_kernel_t::call_params_t *p) {
+        jit_generator::operator()(p);
+    }
+
     int vlen() const { return vlen_; }
     op_t op_type() const { return op_type_; }
     op_t bcast_per_oc() const { return bcast_per_oc_; }
@@ -138,7 +146,7 @@ protected:
 };
 
 template <cpu_isa_t isa>
-struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
+struct jit_uni_binary_kernel_t : public binary_kernel_t {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_binary_kernel_t)
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
@@ -161,10 +169,10 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
     const Reg64 reg_tmp = r14;
     const Reg64 reg_elt_inj_table = r15;
     const Reg64 reg_off_rhs_postops = rdx;
-
-    Xmm xsum_scale = Xmm(15);
-    Vmm vbcast_src1 = Vmm(is_avx512 ? 30 : 14);
-    Vmm vsum_scale = Vmm(is_avx512 ? 31 : 15);
+    const Opmask tail_opmask_ = Opmask(2);
+    const Xmm xsum_scale = Xmm(15);
+    const Vmm vbcast_src1 = Vmm(is_avx512 ? 30 : 14);
+    const Vmm vsum_scale = Vmm(is_avx512 ? 31 : 15);
 
     size_t unroll_regs_ = is_avx512 ? 8 : 4;
     size_t simd_w_ = 0;
@@ -247,7 +255,8 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
                 false /*use_dst*/);
         const binary_injector::rhs_arg_static_params_t rhs_arg_bsp {10, reg_tmp,
                 reg_elt_inj_table, true /*preserve gpr*/, true /*preserve vmm*/,
-                PARAM_OFF(post_ops_binary_rhs_arg_vec), src0_d};
+                PARAM_OFF(post_ops_binary_rhs_arg_vec), src0_d, tail_size_,
+                tail_opmask_, false /*use_exact_tail_scalar_bcast*/};
         const binary_injector::static_params_t bsp(this->param1, rhs_arg_bsp);
 
         postops_injector_ = utils::make_unique<
@@ -255,7 +264,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
                 this, po, bsp, esp);
     }
 
-    void apply_postops(int unroll) {
+    void apply_postops(int unroll, bool tail) {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         for (int vmm_idx = 1; vmm_idx < unroll + 1; vmm_idx++) {
             if (bcast_per_oc_ == op_t::bcast_c_blocked
@@ -268,6 +277,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
                 rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
                         vmm_idx, (vmm_idx - 1) * static_cast<int>(simd_w_));
             }
+            if (tail) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
         }
         postops_injector_->compute_vector_range(1, unroll + 1, rhs_arg_params);
     }
@@ -378,12 +388,6 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
             postops_injector_->prepare_table();
     }
 
-    status_t create_kernel() override { return jit_generator::create_kernel(); }
-
-    void operator()(binary_kernel_t::call_params_t *p) override {
-        jit_generator::operator()(p);
-    }
-
     jit_uni_binary_kernel_t(const binary_pd_t *pd)
         : binary_kernel_t(cpu_isa_traits<isa>::vlen), pd_(pd) {
         init();
@@ -397,7 +401,6 @@ struct jit_uni_binary_subkernel_t;
 template <data_type_t src_type>
 struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
     : public jit_uni_binary_kernel_t<avx512_core_bf16> {
-    Opmask tail_opmask = Opmask(2);
     Opmask bf16_bcast_opmask = Opmask(3);
 
     void prepare_tail_mask() {
@@ -406,7 +409,7 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
         const int mask_f32 = (1 << tail_size_) - 1;
         Reg32 regw_tmp = reg_tmp.cvt32();
         mov(regw_tmp, mask_f32);
-        kmovd(tail_opmask, regw_tmp);
+        kmovd(tail_opmask_, regw_tmp);
     }
 
     void prepare_bf16_bcast_mask() {
@@ -474,14 +477,14 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
         if (!tail)
             load_no_tail(dst, src, dt);
         else
-            load_tail(dst, tail_opmask, src, dt);
+            load_tail(dst, tail_opmask_, src, dt);
     }
 
     void store(const Address &dst, const Vmm &src, data_type_t dt, bool tail) {
         if (!tail)
             store_no_tail(dst, src, dt);
         else
-            store_tail(dst, tail_opmask, src, dt);
+            store_tail(dst, tail_opmask_, src, dt);
     }
 
     void bcast(const Vmm &dst, const Address &src, data_type_t dt) {
@@ -521,7 +524,7 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
             }
         }
 
-        if (postops_injector_) apply_postops(unroll);
+        if (postops_injector_) apply_postops(unroll, tail);
 
         for (int i = 0; i < unroll; i++) {
             const Vmm vreg_tmp_src0 = Vmm(i + 1);
@@ -536,7 +539,6 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
 template <data_type_t src_type>
 struct jit_uni_binary_subkernel_t<avx512_core, src_type>
     : public jit_uni_binary_kernel_t<avx512_core> {
-    Opmask tail_opmask = Opmask(2);
     Opmask bf16_bcast_opmask = Opmask(3);
 
     // FP32->BF16 emulation
@@ -554,7 +556,7 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
 
         Reg32 regw_tmp = reg_tmp.cvt32();
         mov(regw_tmp, mask_f32);
-        kmovd(tail_opmask, regw_tmp);
+        kmovd(tail_opmask_, regw_tmp);
     }
 
     void prepare_bf16_emulator() {
@@ -632,14 +634,14 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         if (!tail)
             load_no_tail(dst, src, dt);
         else
-            load_tail(dst, tail_opmask, src, dt);
+            load_tail(dst, tail_opmask_, src, dt);
     }
 
     void store(const Address &dst, const Vmm &src, data_type_t dt, bool tail) {
         if (!tail)
             store_no_tail(dst, src, dt);
         else
-            store_tail(dst, tail_opmask, src, dt);
+            store_tail(dst, tail_opmask_, src, dt);
     }
 
     void bcast(const Vmm &dst, const Address &src, data_type_t dt) {
@@ -678,7 +680,7 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
             }
         }
 
-        if (postops_injector_) apply_postops(unroll);
+        if (postops_injector_) apply_postops(unroll, tail);
 
         for (int i = 0; i < unroll; i++) {
             const Vmm vreg_tmp_src0 = Vmm(i + 1);
@@ -745,7 +747,7 @@ struct jit_uni_binary_subkernel_t<avx2, src_type>
             }
         }
 
-        if (postops_injector_) apply_postops(unroll);
+        if (postops_injector_) apply_postops(unroll, tail);
 
         for (int i = 0; i < unroll; i++) {
             const Vmm vreg_tmp_src0 = Vmm(i + 1);
@@ -814,7 +816,7 @@ struct jit_uni_binary_subkernel_t<sse41, src_type>
             }
         }
 
-        if (postops_injector_) apply_postops(unroll);
+        if (postops_injector_) apply_postops(unroll, tail);
 
         for (int i = 0; i < unroll; i++) {
             const Vmm vreg_tmp_src0 = Vmm(i + 1);

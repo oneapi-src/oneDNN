@@ -58,8 +58,9 @@ bool jit_uni_i8i8_binary_t<src0_type, src1_type>::post_ops_ok(
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(p, dst_d);
 
-    if (postops_per_oc_broadcast_exists && !dst_d.is_plain()
-            && dst_d.is_blocking_desc()) {
+    const bool blocked_format = !dst_d.is_plain() && dst_d.is_blocking_desc();
+
+    if (postops_per_oc_broadcast_exists && blocked_format) {
         const auto blocking_desc = dst_d.blocking_desc();
         if (blocking_desc.inner_nblks != 1
                 || blocking_desc.inner_blks[0] != blksize
@@ -67,8 +68,15 @@ bool jit_uni_i8i8_binary_t<src0_type, src1_type>::post_ops_ok(
             return false;
     }
 
+    const dim_t n_dims = dst_d.ndims();
+    const dim_t &oc = n_dims >= 2 ? dst_d.dims()[1] : 1;
+    /*
+     * TODO: Remove limitation supporting tail with blocked format
+     */
+    const bool blocked_tail = p.len() && blocked_format && oc % blksize;
+
     return binary_injector::binary_args_broadcast_supported(p, dst_d)
-            && binary_injector::binary_args_tail_supported(p, dst_d, vlen)
+            && !blocked_tail
             && IMPLICATION(postops_per_oc_broadcast_exists,
                     binary_injector::all_binary_postop_rhs_per_oc_broadcast(p,
                             dst_d,
@@ -100,7 +108,7 @@ static op_t get_bcast_per_c(const memory_desc_wrapper &src0_d) {
         return op_t::bcast_n_c_spatial;
     return op_t::none;
 }
-struct i8i8_binary_kernel_t {
+struct i8i8_binary_kernel_t : public jit_generator {
     struct call_params_t {
         const float *scales_src0, *scales_src1;
         const char *src0;
@@ -112,10 +120,12 @@ struct i8i8_binary_kernel_t {
     };
 
     i8i8_binary_kernel_t(int vlen) : vlen_(vlen) {}
-    virtual ~i8i8_binary_kernel_t() = default;
+    ~i8i8_binary_kernel_t() override = default;
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(i8i8_binary_kernel_t)
 
-    virtual void operator()(call_params_t *p) = 0;
-    virtual status_t create_kernel() = 0;
+    void operator()(i8i8_binary_kernel_t::call_params_t *p) {
+        return jit_generator::operator()(p);
+    }
     int vlen() const { return vlen_; }
 
 protected:
@@ -131,8 +141,7 @@ protected:
 #define PARAM_OFF(x) offsetof(call_params_t, x)
 
 template <cpu_isa_t isa>
-struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
-                                      public jit_generator {
+struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_i8i8_binary_kernel_t)
 
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
@@ -171,6 +180,8 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
     const Vmm vreg_bcast_src1 = Vmm(isa == avx512_common ? 22 : 14);
     const Xmm xreg_bcast_src1 = Xmm(14);
     const Xmm xreg_tmp = Xmm(0);
+    const Opmask elt_inj_opmask_ = Opmask(1);
+    const Opmask tail_opmask_ = Opmask(2);
 
     enum { nargs = 2 };
     // 0:src0 1:src1
@@ -178,7 +189,6 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
 
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
             postops_injector_;
-    Opmask elt_inj_opmask = Opmask(1);
 
     void init() {
         const memory_desc_wrapper src0_d(pd_->src_md(0));
@@ -227,18 +237,17 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
         const memory_desc_wrapper src0_d(pd_->src_md(0));
         const auto &po = pd_->attr()->post_ops_;
         const eltwise_injector::static_params_t esp(true /*save_state*/,
-                reg_elt_inj_table, elt_inj_opmask, true /*is_fwd*/,
+                reg_elt_inj_table, elt_inj_opmask_, true /*is_fwd*/,
                 false /*use_dst*/);
         const binary_injector::rhs_arg_static_params_t rhs_arg_bsp {10, reg_tmp,
                 reg_elt_inj_table, true /*preserve gpr*/, true /*preserve vmm*/,
-                PARAM_OFF(post_ops_binary_rhs_arg_vec), src0_d};
+                PARAM_OFF(post_ops_binary_rhs_arg_vec), src0_d, tail_size_,
+                tail_opmask_, false /*use_exact_tail_scalar_bcast*/};
         const binary_injector::static_params_t bsp(this->param1, rhs_arg_bsp);
-
         postops_injector_
                 = utils::make_unique<injector::jit_uni_postops_injector_t<isa>>(
                         this, po, bsp, esp);
     }
-
     void load_kernel_params() {
         mov(reg_tmp, float2int(sum_scale_));
         uni_vmovq(xreg_sum_scale, reg_tmp);
@@ -331,7 +340,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
 
     virtual void compute_dst(int unroll, bool tail) = 0;
 
-    void apply_postops(int unroll) {
+    void apply_postops(int unroll, bool tail) {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         for (int vmm_idx = vmm_start_idx_; vmm_idx < unroll + vmm_start_idx_;
                 vmm_idx++) {
@@ -345,6 +354,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
                 rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(vmm_idx,
                         (vmm_idx - vmm_start_idx_) * static_cast<int>(simd_w_));
             }
+            if (tail) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
         }
         postops_injector_->compute_vector_range(
                 vmm_start_idx_, unroll + vmm_start_idx_, rhs_arg_params);
@@ -415,17 +425,14 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
 
     void generate() override {
         preamble();
+        prepare_tail_mask();
         load_kernel_params();
         forward();
         postamble();
         if (postops_injector_) postops_injector_->prepare_table();
     }
 
-    status_t create_kernel() override { return jit_generator::create_kernel(); }
-
-    void operator()(i8i8_binary_kernel_t::call_params_t *p) override {
-        return jit_generator::operator()(p);
-    }
+    virtual void prepare_tail_mask() {};
 
     jit_uni_i8i8_binary_kernel_t(const binary_pd_t *pd)
         : i8i8_binary_kernel_t(cpu_isa_traits<isa>::vlen), pd_(pd) {
@@ -441,6 +448,15 @@ struct jit_i8i8_binary_subkernel_t;
 template <data_type_t src0_type, data_type_t src1_type>
 struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
     : public jit_uni_i8i8_binary_kernel_t<avx512_common> {
+
+    void prepare_tail_mask() override {
+        if (!tail_size_) return;
+
+        const int mask_f32 = (1 << tail_size_) - 1;
+        Reg32 regw_tmp = reg_tmp.cvt32();
+        mov(regw_tmp, mask_f32);
+        kmovd(tail_opmask_, regw_tmp);
+    }
 
     void cvt2odt(const Operand &dst, const Vmm &src, data_type_t odt) {
         assert(utils::one_of(
@@ -492,7 +508,7 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
             }
         }
 
-        if (postops_injector_) apply_postops(unroll);
+        if (postops_injector_) apply_postops(unroll, tail);
 
         for (int i = 0; i < unroll; i++) {
             const int offt = simd_w_ * i;
@@ -564,7 +580,7 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>
             }
         }
 
-        if (postops_injector_) apply_postops(unroll);
+        if (postops_injector_) apply_postops(unroll, tail);
 
         for (int i = 0; i < unroll; i++) {
             const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
@@ -635,7 +651,7 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>
             }
         }
 
-        if (postops_injector_) apply_postops(unroll);
+        if (postops_injector_) apply_postops(unroll, tail);
 
         for (int i = 0; i < unroll; i++) {
             const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
