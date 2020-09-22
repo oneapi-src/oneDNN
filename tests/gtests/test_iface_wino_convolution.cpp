@@ -38,22 +38,32 @@ protected:
         data_type wei_dt;
         bool wino_supported;
         bool backward_supported;
-    } input_f32, input_int8;
+    } input_f32, input_f16, input_int8;
 
     void SetUp() override {
         input_f32.dat_dt = data_type::f32;
         input_f32.wei_dt = data_type::f32;
+
+        input_f16.dat_dt = data_type::f16;
+        input_f16.wei_dt = data_type::f16;
+        input_f16.backward_supported = false;
 
         input_int8.dat_dt = data_type::u8;
         input_int8.wei_dt = data_type::s8;
         input_int8.backward_supported = false;
 
 #if DNNL_X64
-        input_f32.wino_supported = get_test_engine_kind() == engine::kind::cpu
-                && impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_common);
+        input_f32.wino_supported
+                = (get_test_engine_kind() == engine::kind::cpu
+                          && impl::cpu::x64::mayiuse(
+                                  impl::cpu::x64::avx512_common))
+                || get_test_engine_kind() == engine::kind::gpu;
+        input_f16.wino_supported = false;
         input_int8.wino_supported = get_test_engine_kind() == engine::kind::cpu
                 && impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_core);
-        input_f32.backward_supported = impl::dnnl_thr_syncable();
+        input_f32.backward_supported
+                = get_test_engine_kind() == engine::kind::cpu
+                && impl::dnnl_thr_syncable();
 
 #else
         input_f32.wino_supported = false;
@@ -63,7 +73,7 @@ protected:
 };
 
 TEST_F(wino_conv_test_t, TestSmallPadding) {
-    for (const auto &input : {input_f32, input_int8}) {
+    for (const auto &input : {input_f32, input_f16, input_int8}) {
         memory::desc src_md {{1, 16, 7, 7}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 3, 3}, input.wei_dt, tag::any};
         memory::desc dst_md {{1, 32, 7, 7}, input.dat_dt, tag::any};
@@ -96,7 +106,7 @@ TEST_F(wino_conv_test_t, TestSmallPadding) {
 }
 
 TEST_F(wino_conv_test_t, TestLargePadding) {
-    for (const auto &input : {input_f32, input_int8}) {
+    for (const auto &input : {input_f32, input_f16, input_int8}) {
         memory::desc src_md {{1, 16, 7, 7}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 3, 3}, input.wei_dt, tag::any};
         memory::desc dst_md {{1, 32, 9, 9}, input.dat_dt, tag::any};
@@ -109,7 +119,7 @@ TEST_F(wino_conv_test_t, TestLargePadding) {
 }
 
 TEST_F(wino_conv_test_t, TestUnsupportedKernel) {
-    for (const auto &input : {input_f32, input_int8}) {
+    for (const auto &input : {input_f32, input_f16, input_int8}) {
         memory::desc src_md {{1, 16, 5, 5}, input.dat_dt, tag::any};
         memory::desc wei_md {{32, 16, 2, 2}, input.wei_dt, tag::any};
         memory::desc dst_md {{1, 32, 6, 6}, input.dat_dt, tag::any};
