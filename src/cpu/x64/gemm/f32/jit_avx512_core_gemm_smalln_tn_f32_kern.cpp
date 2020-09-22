@@ -646,16 +646,16 @@ struct xbyak_gemm_smalln_tn_t : public jit_generator {
     }
 
 private:
-    uint32_t numN;
-    const int N;
-    const float beta;
-    const float alpha;
-    bool isBeta0, isBetaN, isAlpha0, isAlphaN;
-    Xbyak::Zmm *zmm_reg;
+    uint32_t numN = 0;
+    const int N = 0;
+    const float beta = 0.0f;
+    const float alpha = 0.0f;
+    bool isBeta0 = false, isBetaN = false, isAlpha0 = false, isAlphaN = false;
+    Xbyak::Zmm *zmm_reg = nullptr;
     Xbyak::Reg64 A, AO1, AO2, B, BO1, BO2, CO1, CO2;
     Xbyak::Reg64 LDA, LDB, LDC, II, JJ;
     Xbyak::Reg64 TEMP_REG, TEMP_REG2;
-    Xbyak::Address *TEMPZMM, *perm;
+    Xbyak::Address *TEMPZMM = nullptr, *perm = nullptr;
     Xbyak::Opmask k_rem, m_rem;
     Xbyak::Label label_m_loop, label_k_loop, label_no_k_rem, label_krem,
             label_mrem;

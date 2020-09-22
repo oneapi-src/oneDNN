@@ -50,8 +50,8 @@ const int64_t LD_NONE = INT64_MAX - 1;
 struct desc_t {
     desc_t() : name(nullptr) {}
     std::vector<dims_t> sdims;
-    bool is_legacy_desc;
-    const char *name;
+    bool is_legacy_desc = false;
+    const char *name = nullptr;
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);

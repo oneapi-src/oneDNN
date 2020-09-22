@@ -1705,7 +1705,7 @@ private:
 
 protected:
     virtual void generate() = 0;
-    const Xbyak::uint8 *jit_ker_;
+    const Xbyak::uint8 *jit_ker_ = nullptr;
 };
 
 } // namespace x64

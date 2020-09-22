@@ -726,10 +726,10 @@ status_t jit_avx512_core_bf16_convolution_bwd_weights_t ::init(
 }
 
 struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
-    const src_data_t *src;
-    const diff_dst_data_t *diff_dst;
-    const void *diff_weights;
-    const void *diff_bias;
+    const src_data_t *src = nullptr;
+    const diff_dst_data_t *diff_dst = nullptr;
+    const void *diff_weights = nullptr;
+    const void *diff_bias = nullptr;
 
     const memory_tracking::grantor_t scratchpad;
 
@@ -738,19 +738,19 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
     simple_barrier::ctx_t *tr_src_bctx = nullptr;
     simple_barrier::ctx_t *tr_diff_dst_bctx = nullptr;
 
-    float *wei_bia_reduction;
-    float *bia_reduction;
-    simple_barrier::ctx_t *wei_bia_reduction_bctx;
+    float *wei_bia_reduction = nullptr;
+    float *bia_reduction = nullptr;
+    simple_barrier::ctx_t *wei_bia_reduction_bctx = nullptr;
 
-    int ithr;
-    int ithr_ic_b, ithr_oc_b, ithr_g, ithr_mb;
-    int ithr_but_oc;
-    int ithr_but_ic;
+    int ithr = 0;
+    int ithr_ic_b = 0, ithr_oc_b = 0, ithr_g = 0, ithr_mb = 0;
+    int ithr_but_oc = 0;
+    int ithr_but_ic = 0;
 
-    int img_start = 0, img_end = 0, img_work;
-    int g_start = 0, g_end = 0, g_work;
-    int oc_b_start = 0, oc_b_end = 0, oc_b_work;
-    int ic_b_start = 0, ic_b_end = 0, ic_b_work;
+    int img_start = 0, img_end = 0, img_work = 0;
+    int g_start = 0, g_end = 0, g_work = 0;
+    int oc_b_start = 0, oc_b_end = 0, oc_b_work = 0;
+    int ic_b_start = 0, ic_b_end = 0, ic_b_work = 0;
 
     thread_info_t(const jit_avx512_core_bf16_convolution_bwd_weights_t *self,
             const exec_ctx_t &ctx, int ithr)

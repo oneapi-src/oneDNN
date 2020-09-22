@@ -256,7 +256,7 @@ private:
             dim_t spatial_start_offset, int ocb_start, dim_t chb_stride,
             int my_work) const;
 
-    int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
+    int nthr_ = 0, nthr_mb_ = 0, nthr_g_ = 0, nthr_oc_b_ = 0, nthr_ic_b_ = 0;
 
     std::unique_ptr<jit_avx512_core_bf16_conv_bwd_weights_kernel_f32> kernel_;
 

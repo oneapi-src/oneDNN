@@ -718,17 +718,17 @@ private:
 
     inline void setup_stack_space();
     static const int extern_ic_block_step_stack_size = 0;
-    int ic_block_step_stack_size;
-    int stack_space_needed;
-    int permw_buffer_start;
-    int kd_count_offset;
-    int src_d_offset;
-    int ddst_d_offset;
-    int d_index_offset;
-    int trans_tmp_offset;
-    int ih_dilate_shift;
-    int icb_loop_ker_ptr;
-    int icb_loop_src_ptr;
+    int ic_block_step_stack_size = 0;
+    int stack_space_needed = 0;
+    int permw_buffer_start = 0;
+    int kd_count_offset = 0;
+    int src_d_offset = 0;
+    int ddst_d_offset = 0;
+    int d_index_offset = 0;
+    int trans_tmp_offset = 0;
+    int ih_dilate_shift = 0;
+    int icb_loop_ker_ptr = 0;
+    int icb_loop_src_ptr = 0;
 };
 } // namespace x64
 } // namespace cpu
