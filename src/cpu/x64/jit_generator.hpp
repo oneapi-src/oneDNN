@@ -582,6 +582,20 @@ public:
         vsubps(x, op1, op2);
     }
 
+    void uni_vpmulld(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op = Xbyak::Operand()) {
+        if (mayiuse(avx)) {
+            vpmulld(x1, x2, op);
+        } else {
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
+            pmulld(x1, op);
+        }
+    }
+    void uni_vpmulld(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op = Xbyak::Operand()) {
+        vpmulld(x1, x2, op);
+    }
+
     void uni_vmulps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2 = Xbyak::Operand()) {
         if (mayiuse(avx))

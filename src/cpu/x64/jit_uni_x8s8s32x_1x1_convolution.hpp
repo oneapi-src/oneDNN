@@ -56,6 +56,7 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                 jit_uni_x8s8s32x_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
+            using smask_t = primitive_attr_t::skip_mask_t;
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, data_type::s8,
@@ -64,11 +65,11 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                             utils::one_of(desc()->bias_desc.data_type,
                                     data_type::f32, data_type::s32,
                                     data_type::s8, data_type::u8))
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
-                                    | primitive_attr_t::skip_mask_t::post_ops,
+                    && attr()->has_default_values(smask_t::oscale
+                                    | smask_t::zero_points_runtime
+                                    | smask_t::post_ops,
                             dst_type)
-                    && !has_zero_dim_memory()
+                    && !has_zero_dim_memory() && zero_points_ok()
                     && set_default_formats_common(
                             dat_tag(), format_tag::any, dat_tag())
                     && set_or_check_wei_format();
@@ -133,6 +134,18 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                 ddt>::pd_t;
 
     protected:
+        bool zero_points_ok() const {
+            using namespace data_type;
+            int mask_src = 0, mask_dst = 0;
+            const int c_mask = 0x1,
+                      g_mask = 0x3; // mask for i/o-channel and ngroups
+            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                    && utils::one_of(mask_src, 0, c_mask, g_mask)
+                    && utils::one_of(mask_dst, 0, c_mask, g_mask);
+        }
+
         status_t copy(const pd_t &other) {
             jcp_ = other.jcp_;
             rtus_ = other.rtus_;
@@ -180,8 +193,13 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
 
         bool set_or_check_wei_format() {
             using namespace format_tag;
+            using namespace memory_extra_flags;
+            const auto zp = attr()->zero_points_;
+            const int c_mask = 0x1,
+                      g_mask = 0x3; // mask for i/o-channel and ngroups
 
             const bool is_src_s8 = src_md_.data_type == data_type::s8;
+            const bool is_src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);
             format_tag_t wei_tag;
             switch (isa) {
                 case avx2:
@@ -203,12 +221,16 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             memory_desc_t want_wei_md = weights_md_;
             memory_desc_init_by_tag(want_wei_md, wei_tag);
             if (is_src_s8) {
-                want_wei_md.extra.flags = 0
-                        | memory_extra_flags::compensation_conv_s8s8
-                        | memory_extra_flags::scale_adjust;
+                want_wei_md.extra.flags
+                        = 0 | compensation_conv_s8s8 | scale_adjust;
                 want_wei_md.extra.compensation_mask
-                        = (1 << 0) + (with_groups() ? (1 << 1) : 0);
+                        = with_groups() ? g_mask : c_mask;
                 want_wei_md.extra.scale_adjust = 0.5f;
+            }
+            if (is_src_zero_point) {
+                want_wei_md.extra.flags |= compensation_conv_asymmetric_src;
+                want_wei_md.extra.asymm_compensation_mask
+                        = with_groups() ? g_mask : c_mask;
             }
 
             if (weights_md_.format_kind == format_kind::any) {
@@ -372,15 +394,15 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     void execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src, const wei_data_t *weights, const char *bias,
             const wei_data_t *weights_dw, const char *bias_dw, dst_data_t *dst,
+            const int32_t *src_zero_point, const int32_t *dst_zero_point,
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 

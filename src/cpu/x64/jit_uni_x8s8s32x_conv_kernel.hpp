@@ -47,12 +47,14 @@ struct _jit_uni_x8s8s32x_fwd_kernel : public jit_generator {
 
 private:
     jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
-    const int ic_sub_step = 4;
 
     enum {
         typesize = sizeof(float),
+        ic_sub_step = 4,
+        ker_zp_reg_base_idx = 9,
         ker_reg_base_idx = 12,
         ker_dw_reg_base_idx = 14,
+        ker_max_reg = 15,
     };
     enum ic_block_t {
         no_last_block,
@@ -88,6 +90,10 @@ private:
     const Xbyak::Reg64 reg_inp_buffer_ptr = aux_reg_inp_d;
     const Xbyak::Reg64 aux_reg_inp_buffer_ptr = aux_reg_ker_d;
     const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
+    // zero-point computation
+    const Xbyak::Reg64 reg_zp_compensation = aux_reg_inp;
+    const Xbyak::Reg64 reg_src_zero_point = aux_reg_ker_d;
+    const Xbyak::Reg64 reg_dst_zero_point = reg_src_zero_point;
 
     const Vmm vmm_wei = Vmm(0);
     /* used during bias section of store_output */
@@ -98,6 +104,11 @@ private:
     /* used during write-out section of store_output */
     const Vmm vmm_zero = Vmm(0);
     const Vmm vmm_saturation = Vmm(0);
+    /* used for zero-point */
+    const Vmm vmm_zp = Vmm(6);
+    const Vmm vmm_zp_one = Vmm(5);
+    const Vmm vmm_zp_comp = vmm_zp_one;
+    const Vmm vmm_zp_dw_tmp = vmm_zp_one;
 
     /* used in compute_ker (but set during prepare_output) */
     const Vmm vmm_shift = vmm_comp; // only for signed input
@@ -117,29 +128,32 @@ private:
     Vmm vmm_dw_shifted_zero;
 
     Vmm vmm_out(int i_ur, int i_oc) {
-        int nb_x_blocking
+        const int idx_limit = jcp.src_zero_point
+                ? ker_zp_reg_base_idx
+                : (jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx);
+        const int nb_x_blocking
                 = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        int idx = i_ur * nb_x_blocking + i_oc;
-        assert(idx
-                < (jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx));
+        const int idx = i_ur * nb_x_blocking + i_oc;
+        assert(idx < idx_limit);
+        MAYBE_UNUSED(idx_limit);
         /* remap register indices from 4 to 15
-  	 * to avoid passing xmm0 to comp*/
-        return Vmm(15 - idx);
+         * to avoid passing xmm0 to comp*/
+        return Vmm(ker_max_reg - idx);
     }
     Vmm vmm_inp(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
-        assert(idx < 15);
-        return Vmm(15 - idx);
+        assert(idx < ker_max_reg);
+        return Vmm(ker_max_reg - idx);
     }
     Vmm vmm_bias_alpha() {
         int nb_c_block
                 = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return Vmm(15 - nb_c_block * jcp.ur_w);
+        return Vmm(ker_max_reg - nb_c_block * jcp.ur_w);
     }
     Xbyak::Xmm xmm_bias_alpha() {
         int nb_c_block
                 = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        return Xbyak::Xmm(15 - nb_c_block * jcp.ur_w);
+        return Xbyak::Xmm(ker_max_reg - nb_c_block * jcp.ur_w);
     }
     int get_ow_start(int ki, int pad_l) {
         return nstl::max(0,

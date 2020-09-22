@@ -103,6 +103,14 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::bcast_loop(
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
         int load_loop_blk, int ur, int substep, bool wraparound) {
+
+    // use 0x10001 to represent 2 words of 0x1
+    // and avoid using uni_vpbroadcastb that is missing in jit generator
+    const auto xmm_one = Xmm(vmm_one.getIdx());
+    mov(reg_init_bcast, 0x10001);
+    uni_vmovq(xmm_one, reg_init_bcast);
+    uni_vpbroadcastd(vmm_one, xmm_one);
+
     auto vreg_load = [&](int i_load) {
         const int vmm_idx = ur * load_loop_blk + i_load;
         assert(vmm_idx < ker_max_reg_idx);
@@ -186,24 +194,39 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
             uni_vmovq(xmm_bias_alpha(), reg_store_bcast);
             uni_vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
         }
+        if (jcp.src_zero_point) {
+            mov(reg_zp_compensation, ptr[rsp + reg_zp_compensation_off]);
+            mov(reg_src_zero_point, ptr[rsp + reg_src_zero_point_off]);
+        }
         for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+            if (jcp.src_zero_point) {
+                uni_vpbroadcastd(vmm_zp, ptr[reg_src_zero_point]);
+            }
             const bool mask_flag = mask_flag_in && i_load == load_loop_blk - 1;
+            const int load_size = mask_flag ? get_tail_size() : simd_w;
             const auto ptr_scales_offset
                     = jcp.is_oc_scale * (sizeof(float) * jcp.oc_block * i_load);
             if (jcp.with_bias) {
                 if (jcp.signed_input)
                     mov(reg_bias_data, ptr[rsp + reg_bias_data_off]);
                 cvt2ps(jcp.bia_dt, vmm_bias, reg_bias_data,
-                        jcp.typesize_bia * jcp.oc_block * i_load,
-                        mask_flag ? get_tail_size() : simd_w);
+                        jcp.typesize_bia * jcp.oc_block * i_load, load_size);
                 if (jcp.signed_input)
                     uni_vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
             }
             if (jcp.signed_input) {
                 mov(reg_comp_data, ptr[rsp + reg_comp_data_off]);
                 cvt2ps(data_type::s32, vmm_comp, reg_comp_data,
-                        sizeof(int32_t) * jcp.oc_block * i_load,
-                        mask_flag ? get_tail_size() : simd_w);
+                        sizeof(int32_t) * jcp.oc_block * i_load, load_size);
+            }
+            if (jcp.src_zero_point) {
+                const int zp_offset = sizeof(int32_t) * i_load * jcp.oc_block;
+                load_data(data_type::s32, vmm_zp_comp, reg_zp_compensation,
+                        zp_offset, load_size);
+                uni_vpmulld(vmm_zp_comp, vmm_zp_comp, vmm_zp);
+
+                // upscale to f32
+                uni_vcvtdq2ps(vmm_zp_comp, vmm_zp_comp);
             }
 
             if (mask_flag) {
@@ -215,9 +238,10 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
             }
 
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                auto r = vreg_accum(i_load, i_ur);
+                const auto r = vreg_accum(i_load, i_ur);
                 uni_vcvtdq2ps(r, r);
                 if (jcp.signed_input) uni_vaddps(r, r, vmm_comp);
+                if (jcp.src_zero_point) uni_vaddps(r, r, vmm_zp_comp);
                 if (jcp.with_bias) uni_vaddps(r, r, vmm_bias);
 
                 uni_vmulps(r, r, vmm_scale);
@@ -252,6 +276,20 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
         if (maybe_eltwise(1))
             eltwise_injector_->compute_vector_range(
                     16 - ur * load_loop_blk, 16);
+
+        if (jcp.dst_zero_point) {
+            mov(reg_dst_zero_point, ptr[rsp + reg_dst_zero_point_off]);
+            uni_vpbroadcastd(vmm_zp, ptr[reg_dst_zero_point]);
+            uni_vcvtdq2ps(vmm_zp, vmm_zp);
+
+            /* Add dst zero_point to accumulator */
+            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                for (int i_ur = 0; i_ur < ur; ++i_ur) {
+                    const auto r = vreg_accum(i_load, i_ur);
+                    uni_vaddps(r, r, vmm_zp);
+                }
+            }
+        }
 
         // Properly saturate the accumulators for integer datatypes
         if (utils::one_of(jcp.dst_dt, u8, s8, s32)) {
@@ -373,14 +411,6 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
     preamble();
-
-    // used 0x10001 to repsents 2 word of 0x1
-    // to avoid using uni_vpbroadcastb that is missing in jit generator
-    mov(reg_init_bcast, 0x10001);
-    auto xmm_one = Xmm(vmm_one.getIdx());
-    uni_vmovq(xmm_one, reg_init_bcast);
-    uni_vpbroadcastd(vmm_one, xmm_one);
-
     sub(rsp, stack_space_needed);
 
     if (jcp.with_bias) mov(reg_bias_data, ptr[param1 + GET_OFF(bias_data)]);
@@ -388,6 +418,16 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
         mov(ptr[rsp + reg_bias_data_off], reg_bias_data);
         mov(reg_comp_data, ptr[param1 + GET_OFF(compensation)]);
         mov(ptr[rsp + reg_comp_data_off], reg_comp_data);
+    }
+    if (jcp.src_zero_point) {
+        mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
+        mov(ptr[rsp + reg_zp_compensation_off], reg_zp_compensation);
+        mov(reg_src_zero_point, ptr[param1 + GET_OFF(src_zero_point)]);
+        mov(ptr[rsp + reg_src_zero_point_off], reg_src_zero_point);
+    }
+    if (jcp.dst_zero_point) {
+        mov(reg_dst_zero_point, ptr[param1 + GET_OFF(dst_zero_point)]);
+        mov(ptr[rsp + reg_dst_zero_point_off], reg_dst_zero_point);
     }
     mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
     mov(ptr[rsp + reg_ptr_sum_scale_off], reg_ptr_scales);
@@ -417,6 +457,12 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
             add(reg_comp_data,
                     load_loop_blk * jcp.load_block * sizeof(int32_t));
             mov(ptr[rsp + reg_comp_data_off], reg_comp_data);
+        }
+        if (jcp.src_zero_point) {
+            mov(reg_zp_compensation, ptr[rsp + reg_zp_compensation_off]);
+            add(reg_zp_compensation,
+                    load_loop_blk * jcp.load_block * sizeof(int32_t));
+            mov(ptr[rsp + reg_zp_compensation_off], reg_zp_compensation);
         }
         mov(ptr[rsp + reg_bcast_data_off], reg_bcast_data);
         mov(reg_ptr_scales, ptr[rsp + reg_ptr_sum_scale_off]);
@@ -557,6 +603,16 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
     const int eltwise_ind = p.find(primitive_kind::eltwise, 0, dw_conv_ind);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+
+    const auto zp = attr.zero_points_;
+    jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);
+    jcp.src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);
+    jcp.zp_src_is_common
+            = zp.common(DNNL_ARG_SRC); // otherwise, it's per-channel
+    assert(IMPLICATION(jcp.src_zero_point, jcp.zp_src_is_common));
+
+    if ((jcp.dst_zero_point || jcp.src_zero_point) && jcp.with_dw_conv)
+        return status::unimplemented;
 
     format_tag_t dat_tag = utils::pick(
             ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);

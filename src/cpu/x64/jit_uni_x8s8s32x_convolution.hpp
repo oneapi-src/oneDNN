@@ -43,6 +43,7 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
                 jit_uni_x8s8s32x_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
+            using smask_t = primitive_attr_t::skip_mask_t;
             const bool args_ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, data_type::s8,
@@ -51,11 +52,11 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
                             utils::one_of(bias_md_.data_type, data_type::f32,
                                     data_type::s32, data_type::s8,
                                     data_type::u8))
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
-                                    | primitive_attr_t::skip_mask_t::post_ops,
+                    && attr()->has_default_values(smask_t::oscale
+                                    | smask_t::zero_points_runtime
+                                    | smask_t::post_ops,
                             dst_type)
-                    && !has_zero_dim_memory();
+                    && !has_zero_dim_memory() && zero_points_ok();
             if (!args_ok) return status::unimplemented;
 
             const auto status = jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(
@@ -71,6 +72,19 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
         }
 
         jit_conv_conf_t jcp_;
+
+    protected:
+        bool zero_points_ok() const {
+            using namespace data_type;
+            int mask_src = 0, mask_dst = 0;
+            const int c_mask = 0x1,
+                      g_mask = 0x3; // mask for i/o-channel and ngroups
+            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                    && utils::one_of(mask_src, 0, c_mask, g_mask)
+                    && utils::one_of(mask_dst, 0, c_mask, g_mask);
+        }
     };
 
     jit_uni_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -92,24 +106,20 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
         const bool is_dw = _pd->jcp_.is_depthwise;
 
         switch (ndims) {
-            case 3: execute_forward_1d(ctx); break;
+            case 3: return execute_forward_1d(ctx);
             case 4:
-                if (is_dw)
-                    execute_forward_2d_dw(ctx);
-                else
-                    execute_forward_2d(ctx);
-                break;
-            case 5: execute_forward_3d(ctx); break;
-            default: return status::unimplemented;
+                if (is_dw) return execute_forward_2d_dw(ctx);
+                return execute_forward_2d(ctx);
+            case 5: return execute_forward_3d(ctx);
         }
-        return status::success;
+        return status::unimplemented;
     }
 
 private:
-    void execute_forward_1d(const exec_ctx_t &ctx) const;
-    void execute_forward_2d(const exec_ctx_t &ctx) const;
-    void execute_forward_3d(const exec_ctx_t &ctx) const;
-    void execute_forward_2d_dw(const exec_ctx_t &ctx) const;
+    status_t execute_forward_1d(const exec_ctx_t &ctx) const;
+    status_t execute_forward_2d(const exec_ctx_t &ctx) const;
+    status_t execute_forward_3d(const exec_ctx_t &ctx) const;
+    status_t execute_forward_2d_dw(const exec_ctx_t &ctx) const;
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
