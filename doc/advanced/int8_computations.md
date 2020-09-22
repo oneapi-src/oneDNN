@@ -281,7 +281,7 @@ the implementations are given below:
 
 ## GPU
 
-int8 data types are not supported on GPU (see @ref dev_guide_data_types).
+See @ref dev_guide_data_types for details of int8 data type support on GPU.
 
 ## References
 
