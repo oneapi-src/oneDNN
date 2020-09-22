@@ -1,0 +1,3 @@
+-std=c++11
+-I.
+-I/nfs/pdx/disks/mkl_mirror/NN/tools/dpc++/20200601_rls/lnx/compiler/latest/linux/include/sycl/
