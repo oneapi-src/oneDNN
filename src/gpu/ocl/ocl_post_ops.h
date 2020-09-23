@@ -17,6 +17,10 @@
 #ifndef GPU_OCL_OCL_POST_OPS_H
 #define GPU_OCL_OCL_POST_OPS_H
 
+#ifndef SUB_GROUP_SIZE
+#define SUB_GROUP_SIZE get_sub_group_size()
+#endif
+
 #if WITH_POST_OP
 
 #if !WITH_ELTWISE
