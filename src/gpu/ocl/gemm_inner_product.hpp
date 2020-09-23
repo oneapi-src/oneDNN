@@ -59,9 +59,10 @@ status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd,
     gemm_desc.b_type = b_dt;
     gemm_desc.c_type = c_dt;
     gemm_desc.acc_type = c_dt;
-    gemm_desc.bias_mask = bias_mask;
-    gemm_desc.bias_type = c_dt;
-
+    if (bias_mask != 0) {
+        gemm_desc.bias_mask = bias_mask;
+        gemm_desc.bias_type = c_dt;
+    }
     primitive_attr_t gemm_attr(attr);
     if (!gemm_attr.is_initialized()) return status::out_of_memory;
     gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
@@ -108,7 +109,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                             expect_data_types(f32, f32, f32, f32, f32))
                     && attr()->post_ops_.len() <= 2
                     && IMPLICATION(attr()->post_ops_.len() == 2,
-                            attr()->post_ops_.find(dnnl_sum) == 0)
+                            attr()->post_ops_.find(primitive_kind::sum) == 0)
                     && dense_consitency_check(src_md(), weights_md(), dst_md())
                     && dense_gemm_consitency_check(
                             src_md(), weights_md(), dst_md());
@@ -127,7 +128,8 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
                             transpose::notrans, oc, mb, ic_total,
                             wei_tr ? ic_total : oc, ic_total, oc,
                             weights_md()->data_type, src_md()->data_type,
-                            dst_md()->data_type, *attr(), 2, true);
+                            dst_md()->data_type, *attr(), with_bias() ? 2 : 0,
+                            true);
             if (!gemm_ok) return status::unimplemented;
             init_scratchpad();
 

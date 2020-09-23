@@ -72,6 +72,9 @@ inline status_t create_gemm_post_ops_pd(
     ++it;
     gemm_pd.reset(it.fetch_once());
     if (!gemm_pd) return status::unimplemented;
+    std::string impl_name(gemm_pd.get()->name());
+    if (impl_name.find("ref") != std::string::npos)
+        return status::unimplemented;
     return status::success;
 }
 } // namespace
@@ -230,7 +233,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
 
         memory_desc_t scales_md_;
         memory_desc_t ip_scratchpad_md_;
-        bool is_int8_;
+        bool is_int8_ = false;
         attr_info_t attr_info_ = {};
 
     private:
@@ -284,8 +287,6 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             kernel_ctx.define_int("USE_TEMP_DST", pd()->use_temp_dst());
 
             kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
-
-            kernel_ctx.define_int("SUB_GROUP_SIZE", 1);
 
             def_attr_info(kernel_ctx, pd()->attr_info_);
 
