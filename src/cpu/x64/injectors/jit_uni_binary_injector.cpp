@@ -611,14 +611,15 @@ template <cpu_isa_t isa>
 void jit_uni_binary_injector_t<isa>::execute_broadcast_s8u8_no_tail(
         const data_type_t &data_type, const Vmm &tmp_vmm,
         const Xbyak::Address &rhs_addr) const {
+    const Xbyak::Xmm xmm(tmp_vmm.getIdx());
     switch (data_type) {
         case data_type::s8:
-            host_->vpbroadcastb(tmp_vmm, rhs_addr);
-            host_->vpmovsxbd(tmp_vmm, tmp_vmm);
+            host_->vpbroadcastb(xmm, rhs_addr);
+            host_->vpmovsxbd(tmp_vmm, xmm);
             break;
         case data_type::u8:
-            host_->vpbroadcastb(tmp_vmm, rhs_addr);
-            host_->vpmovzxbd(tmp_vmm, tmp_vmm);
+            host_->vpbroadcastb(xmm, rhs_addr);
+            host_->vpmovzxbd(tmp_vmm, xmm);
             break;
         default: assert(!"unsupported data type");
     }

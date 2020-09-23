@@ -52,8 +52,9 @@ bool jit_uni_i8i8_binary_t<src0_type, src1_type>::post_ops_ok(
             return false;
     }
 
-    const int vlen = mayiuse(avx512_core) ? cpu_isa_traits<avx512_core>::vlen
-                                          : cpu_isa_traits<avx2>::vlen;
+    const int vlen = mayiuse(avx512_common)
+            ? cpu_isa_traits<avx512_common>::vlen
+            : cpu_isa_traits<avx2>::vlen;
     const int blksize = vlen / sizeof(float);
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(p, dst_d);
