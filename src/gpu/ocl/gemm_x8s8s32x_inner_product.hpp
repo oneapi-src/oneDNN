@@ -169,7 +169,8 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
         bool with_post_process() const {
             return use_scratchpad() || dst_md()->data_type != data_type::s32
                     || with_bias() || attr_info_.with_oscales
-                    || attr_info_.with_eltwise || attr_info_.with_sum;
+                    || attr_info_.with_eltwise || attr_info_.with_binary
+                    || attr_info_.with_sum;
         }
         bool use_scratchpad() const { return use_temp_dst(); }
 
