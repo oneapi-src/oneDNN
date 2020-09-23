@@ -76,6 +76,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("GWS0", conf.dispatch.nd_range().global_range()[0]);
     kernel_ctx.define_int("GWS1", conf.dispatch.nd_range().global_range()[1]);
     kernel_ctx.define_int("GWS2", conf.dispatch.nd_range().global_range()[2]);
+    kernel_ctx.define_int("SUB_GROUP_SIZE", 32);
 
     bool with_binary_post_ops
             = conf.attr_info.all_post_ops.find(primitive_kind_t::dnnl_binary)

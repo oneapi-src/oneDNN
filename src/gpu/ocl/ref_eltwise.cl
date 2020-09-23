@@ -23,7 +23,7 @@
 #define DIFF_DATA_OFF(x0, x1, x2, x3, x4, x5) \
     OFF_MD(DIFF_DATA, x0, x1, x2, x3, x4, x5)
 
-#define KERNEL_ATTR __attribute__((intel_reqd_sub_group_size(32)))
+#define KERNEL_ATTR __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 
 #if IS_FWD
 KERNEL_ATTR
