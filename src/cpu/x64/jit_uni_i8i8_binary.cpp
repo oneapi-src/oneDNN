@@ -121,6 +121,11 @@ struct i8i8_binary_kernel_t {
 protected:
     int vlen_ = 0;
     op_t postops_per_oc_bcast_ = op_t::none;
+    /* load/store loop should start from vmm1, in case of sse4.1
+     * eltwise injector use xmm(0) implicitly as tmp_xmm causing
+     * assertion when xmm(0) passed to compute_vector_range
+     */
+    constexpr static int vmm_start_idx_ = 1;
 };
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
@@ -328,7 +333,8 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
 
     void apply_postops(int unroll) {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-        for (int vmm_idx = 0; vmm_idx < unroll; vmm_idx++) {
+        for (int vmm_idx = vmm_start_idx_; vmm_idx < unroll + vmm_start_idx_;
+                vmm_idx++) {
             if (postops_per_oc_bcast_ == op_t::bcast_c_blocked
                     || postops_per_oc_bcast_ == op_t::bcast_n_c_spatial) {
                 rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
@@ -336,11 +342,12 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
             } else if (postops_per_oc_bcast_ == op_t::bcast_n_spatial_c) {
                 rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
                         vmm_idx, reg_offt_src0);
-                rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                        vmm_idx, vmm_idx * static_cast<int>(simd_w_));
+                rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(vmm_idx,
+                        (vmm_idx - vmm_start_idx_) * static_cast<int>(simd_w_));
             }
         }
-        postops_injector_->compute_vector_range(0, unroll, rhs_arg_params);
+        postops_injector_->compute_vector_range(
+                vmm_start_idx_, unroll + vmm_start_idx_, rhs_arg_params);
     }
 
     void forward() {
@@ -463,8 +470,8 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
 
     void compute_dst(int unroll, bool tail) override {
         for (int i = 0; i < unroll; i++) {
-            const Vmm vreg_tmp_src0 = Vmm(i);
-            const Vmm vreg_tmp = Vmm(unroll + i);
+            const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
+            const Vmm vreg_tmp = Vmm(unroll + i + vmm_start_idx_);
             const Vmm vreg_tmp_src1
                     = !broadcast_src1_value_ ? vreg_tmp : vreg_bcast_src1;
             const int offt = simd_w_ * i;
@@ -489,7 +496,7 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
 
         for (int i = 0; i < unroll; i++) {
             const int offt = simd_w_ * i;
-            const Vmm vreg_tmp_src0 = Vmm(i);
+            const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
             store(dst_ptr(offt), vreg_tmp_src0, src0_type, tail);
         }
     }
@@ -534,8 +541,8 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>
 
     void compute_dst(int unroll, bool tail) override {
         for (int i = 0; i < unroll; i++) {
-            const Vmm vreg_tmp_src0 = Vmm(i);
-            const Vmm vreg_tmp = Vmm(unroll + i);
+            const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
+            const Vmm vreg_tmp = Vmm(unroll + i + vmm_start_idx_);
             const Vmm vreg_tmp_src1
                     = !broadcast_src1_value_ ? vreg_tmp : vreg_bcast_src1;
             const int offt = simd_w_ * i;
@@ -560,7 +567,7 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>
         if (postops_injector_) apply_postops(unroll);
 
         for (int i = 0; i < unroll; i++) {
-            const Vmm vreg_tmp_src0 = Vmm(i);
+            const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
             const int offt = simd_w_ * i;
             store(dst_ptr(offt), vreg_tmp_src0, src0_type, tail);
         }
@@ -605,8 +612,8 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>
 
     void compute_dst(int unroll, bool tail) override {
         for (int i = 0; i < unroll; i++) {
-            const Vmm vreg_tmp_src0 = Vmm(i);
-            const Vmm vreg_tmp = Vmm(unroll + i);
+            const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
+            const Vmm vreg_tmp = Vmm(unroll + i + vmm_start_idx_);
             const Vmm vreg_tmp_src1
                     = !broadcast_src1_value_ ? vreg_tmp : vreg_bcast_src1;
             const int offt = simd_w_ * i;
@@ -631,8 +638,8 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>
         if (postops_injector_) apply_postops(unroll);
 
         for (int i = 0; i < unroll; i++) {
-            const Vmm vreg_tmp_src0 = Vmm(i);
-            const Vmm vreg_tmp = Vmm(unroll + i);
+            const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
+            const Vmm vreg_tmp = Vmm(unroll + i + vmm_start_idx_);
             const int offt = simd_w_ * i;
             store(dst_ptr(offt), vreg_tmp_src0, vreg_tmp, src0_type, tail);
         }
