@@ -47,7 +47,7 @@ uint64_t str2flag(const char *str) {
     return flag;
 }
 
-const char *flag2str(uint64_t flag) {
+std::string flag2str(uint64_t flag) {
     std::stringstream s;
     bool mult_entry = false;
 
@@ -66,7 +66,7 @@ const char *flag2str(uint64_t flag) {
     CASE(FLAG_GCONV_ZP_COMP, gconv_zp_comp);
 #undef CASE
 
-    return s.str().c_str();
+    return s.str();
 }
 
 cross_engine_t str2cross_engine(const char *str) {

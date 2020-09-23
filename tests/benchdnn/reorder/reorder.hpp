@@ -41,7 +41,7 @@ enum flag_t {
     FLAG_GCONV_ZP_COMP = 0x8U,
 };
 uint64_t str2flag(const char *str);
-const char *flag2str(uint64_t flag);
+std::string flag2str(uint64_t flag);
 
 struct dt_conf_s {
     dnnl_data_type_t dt;
