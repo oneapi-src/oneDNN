@@ -40,18 +40,27 @@ jit_avx512_core_x8s8s32x_deconv_fwd_kernel::
                 const primitive_attr_t &attr, const memory_desc_t &dst_md)
     : jcp(ajcp), attr_(attr), postops_injector_(nullptr) {
 
-    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum)
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
+        const std::size_t tail_size = jcp.is_depthwise
+                ? jcp.ngroups % jcp.ch_block
+                : jcp.oc_without_padding % jcp.oc_block;
+
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = true;
+        static constexpr bool use_exact_tail_scalar_bcast = false;
+
+        const binary_injector::rhs_arg_static_params_t rhs_sp {
+                static_cast<std::size_t>(Xbyak::Xmm(31).getIdx()), this->rdx,
+                this->r14, preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec),
+                memory_desc_wrapper(dst_md), tail_size, ktail_mask,
+                use_exact_tail_scalar_bcast};
+        const binary_injector::static_params_t bsp {this->param1, rhs_sp};
+
         postops_injector_ = utils::make_unique<
-                injector::jit_uni_postops_injector_t<avx512_core>>(this,
-                jcp.post_ops,
-                binary_injector::static_params_t {this->param1,
-                        binary_injector::rhs_arg_static_params_t {
-                                static_cast<std::size_t>(
-                                        Xbyak::Xmm(31).getIdx()),
-                                this->rdx, this->r14, true /*preserve gpr*/,
-                                true /*preserve vmm*/,
-                                GET_OFF(post_ops_binary_rhs_arg_vec),
-                                memory_desc_wrapper(dst_md)}});
+                injector::jit_uni_postops_injector_t<avx512_core>>(
+                this, jcp.post_ops, bsp);
+    }
 }
 
 jit_avx512_core_x8s8s32x_deconv_fwd_kernel::
@@ -327,9 +336,7 @@ bool jit_avx512_core_x8s8s32x_deconv_fwd_kernel::post_ops_ok(
             return false;
     }
 
-    return binary_injector::binary_args_broadcast_supported(p, dst_d)
-            && binary_injector::binary_args_tail_supported(
-                    p, dst_d, cpu_isa_traits<avx512_core>::vlen);
+    return binary_injector::binary_args_broadcast_supported(p, dst_d);
 }
 
 void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
@@ -764,12 +771,16 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::store_output(
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         if (jcp.with_binary) {
             for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
+                const bool mask_flag
+                        = last_oc_block && ocb == jcp.nb_oc_blocking - 1;
                 for (int ur = 0; ur < ur_w; ur++) {
                     const auto zmm_idx = zmm_out(ur, ocb).getIdx();
                     rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
                             zmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
                     rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
                             zmm_idx, ocb * jcp.oc_block);
+                    if (mask_flag)
+                        rhs_arg_params.vmm_tail_idx_.emplace(zmm_idx);
                 }
             }
         }
