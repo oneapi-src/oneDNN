@@ -38,8 +38,7 @@ nchw_pooling_fwd_t<d_type>::nchw_pooling_fwd_t(const pd_t *apd)
 
 template <data_type_t d_type>
 void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
-    auto alg = pd()->desc()->alg_kind;
-
+    const auto alg = pd()->desc()->alg_kind;
     const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
@@ -65,14 +64,14 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     const int padT = pd()->padT();
     const int padL = pd()->padL();
 
-    const auto apply_offset = [=](int index, int offset) {
+    const auto apply_offset = [](int index, int offset) {
         return (index > offset) ? index - offset : 0;
     };
 
     const auto set_ws = [=](int mb, int c, int od, int oh, int ow, int value) {
         if (ws) {
             assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
-            size_t ws_offset = (size_t)OW * OH * OD * C * mb
+            const size_t ws_offset = (size_t)OW * OH * OD * C * mb
                     + (size_t)OW * OH * OD * c + (size_t)OW * OH * od
                     + (size_t)OW * oh + (size_t)ow;
             if (ws_dt == data_type::u8) {

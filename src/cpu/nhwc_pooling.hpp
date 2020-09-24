@@ -53,7 +53,7 @@ struct nhwc_pooling_fwd_t : public primitive_t {
 
             using namespace prop_kind;
             using namespace alg_kind;
-            bool ok = is_fwd()
+            const bool ok = is_fwd()
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding)
@@ -68,7 +68,7 @@ struct nhwc_pooling_fwd_t : public primitive_t {
                     && !is_dilated();
             if (!ok) return status::unimplemented;
 
-            bool is_training = desc_.prop_kind == forward_training;
+            const bool is_training = desc_.prop_kind == forward_training;
             if (desc()->alg_kind == pooling_max && is_training) {
                 init_default_ws();
             }
@@ -82,7 +82,7 @@ struct nhwc_pooling_fwd_t : public primitive_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
             if (src_md()->data_type == data_type::bf16) {
-                size_t bf16cvt_sz_ = C() * dnnl_get_max_threads();
+                const size_t bf16cvt_sz_ = C() * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.template book<float>(
                         key_pool_src_bf16cvt, bf16cvt_sz_);
@@ -94,8 +94,8 @@ struct nhwc_pooling_fwd_t : public primitive_t {
 
     nhwc_pooling_fwd_t(const pd_t *apd);
 
-    typedef typename prec_traits<d_type>::type data_t;
-    typedef typename prec_traits<data_type::f32>::type ker_data_t;
+    using data_t = typename prec_traits<d_type>::type;
+    using ker_data_t = typename prec_traits<data_type::f32>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         execute_forward(ctx);

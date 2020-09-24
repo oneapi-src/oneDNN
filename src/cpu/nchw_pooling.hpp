@@ -75,7 +75,7 @@ struct nchw_pooling_fwd_t : public primitive_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
             if (src_md()->data_type == data_type::bf16) {
-                size_t src_sz_ = ID() * IH() * IW() * C() * MB();
+                const size_t src_sz_ = ID() * IH() * IW() * C() * MB();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.template book<float>(key_pool_src_bf16cvt, src_sz_);
             }
