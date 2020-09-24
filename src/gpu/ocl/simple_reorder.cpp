@@ -191,6 +191,14 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                             aBCdef16c16b, aCBd16b16c, aCBd16c16b, aCBde16b16c,
                             aCBde16c16b, aCBdef16c16b));
 
+    const bool last_dim_is_div_by_16_or_less_than_16
+            = (padded_dims[conf.ndims - 1] % 16) == 0
+            || (padded_dims[conf.ndims - 1] < 16);
+    conf.plain_xFxE_to_abcdef = src_mdw.matches_one_of_tag(abdfce)
+            && dst_mdw.matches_one_of_tag(abcdef)
+            && ((padded_dims[conf.ndims - 2] % 16) == 0)
+            && last_dim_is_div_by_16_or_less_than_16;
+
     bool use_unroll = use_unroll_16b || use_unroll_16b16c || use_unroll_16a16b;
 
     conf.use_dense_vect = !conf.transpose16x16 && !conf.scale_quant
@@ -224,9 +232,11 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     } else if (use_unroll_16b16c) {
         conf.with_group = true;
         blocks[2] = 16;
+    } else if (conf.plain_xFxE_to_abcdef) {
+        blocks[5] = nstl::min(padded_dims[conf.ndims - 1], dnnl_dim_t(16));
     }
 
-    if (conf.use_dense_vect || use_unroll) {
+    if (conf.use_dense_vect || use_unroll || conf.plain_xFxE_to_abcdef) {
         conf.use_ref_impl = false;
         conf.sub_group_size = 16;
     }
@@ -272,6 +282,8 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
 
     if (use_unroll_16a16b || use_unroll_16b || use_unroll_16b16c) {
         conf.dispatch.vectorize_dim("D1", 16);
+    } else if (conf.plain_xFxE_to_abcdef) {
+        conf.dispatch.vectorize_dim("D4", conf.sub_group_size);
     } else if (conf.vectorize_last_dim) {
         int vectorization_range = (last_dim % 16 == 0) ? 16 : 8;
         std::string vector_dim = "D" + std::to_string(conf.ndims - 1);
@@ -400,6 +412,9 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     } else if (dst_mdw.matches_one_of_tag(OIhw2o8i8o2i, gOIhw2o8i8o2i)) {
         kernel_ctx.define_int("DST_OIHW2O8I8O2I", 1);
     }
+
+    if (conf.plain_xFxE_to_abcdef)
+        kernel_ctx.define_int("PLAIN_xFxE_TO_ABCDEF", 1);
 
     if (conf.vectorize_last_dim) {
         kernel_ctx.define_int("VECTORIZE_LAST_DIM", 1);

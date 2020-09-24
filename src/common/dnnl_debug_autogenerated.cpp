@@ -75,6 +75,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_abcdefghijkl) return "abcdefghijkl";
     if (v == dnnl_abdc) return "abdc";
     if (v == dnnl_abdec) return "abdec";
+    if (v == dnnl_abdfce) return "abdfce";
     if (v == dnnl_acb) return "acb";
     if (v == dnnl_acbde) return "acbde";
     if (v == dnnl_acbdef) return "acbdef";

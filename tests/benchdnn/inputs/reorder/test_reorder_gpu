@@ -15,6 +15,13 @@
 --dtag=bacde,acbde
 3x5x7x11x16
 
+# test 6d reorder
+--sdt=f32
+--ddt=f32
+--stag=abdfce
+--dtag=abcdef
+1x1x3x2x16x2
+
 # test plain-to-ABxxxx8ayb kernel
 --stag=ab
 --dtag=AB32a32b8a4b,AB32a32b8a2b,AB8a4b,AB8a2b

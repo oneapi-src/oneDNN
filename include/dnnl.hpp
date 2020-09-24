@@ -1375,6 +1375,8 @@ struct memory : public handle<dnnl_memory_t> {
         /// plain 6D tensor
         abcdef = dnnl_abcdef,
         /// plain 6D tensor
+        abdfce = dnnl_abdfce,
+        /// plain 6D tensor
         acbdef = dnnl_acbdef,
         /// plain 6D tensor
         defcab = dnnl_defcab,

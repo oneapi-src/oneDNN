@@ -187,6 +187,7 @@ const format_tag_t abced = dnnl_abced;
 const format_tag_t abdc = dnnl_abdc;
 const format_tag_t acbd = dnnl_acbd;
 const format_tag_t abdec = dnnl_abdec;
+const format_tag_t abdfce = dnnl_abdfce;
 const format_tag_t acb = dnnl_acb;
 const format_tag_t acbde = dnnl_acbde;
 const format_tag_t acbdef = dnnl_acbdef;
