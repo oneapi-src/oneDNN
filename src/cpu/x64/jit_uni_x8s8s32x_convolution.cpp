@@ -604,7 +604,9 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_3d(
                     int kh_padding = nstl::max(
                             0, jcp.kh - i_t_overflow - i_b_overflow);
 
-                    size_t wei_stride = (!jcp.signed_input) ? wht_h_stride : 0;
+                    size_t wei_stride = (jcp.signed_input || jcp.src_zero_point)
+                            ? 0
+                            : wht_h_stride;
                     p.src = src_w + i_t_overflow * dilate_h * src_h_stride;
                     p.dst = dst_w;
                     p.filt = wht_w + i_t_overflow * wei_stride;
