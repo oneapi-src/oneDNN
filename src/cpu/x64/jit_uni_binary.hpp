@@ -125,22 +125,14 @@ struct jit_uni_binary_t : public primitive_t {
                         && bd1.strides[0] >= bd1.strides[1];
             }
 
-            const bool point_bcast = src1_d.nelems() == 1;
             // check blocking_desc consistency
             const auto valid_bd = [&](const memory_desc_wrapper &mdw) {
                 int blksize = 8;
                 if (mayiuse(avx512_core)) blksize = 16;
                 const auto &bd = mdw.blocking_desc();
-                bool point_bcast_is_ok = true;
-                // this is zero pad guard; the problem appears for blocked
-                // formats when last C block has tails and `add` operation does
-                // not preserve zero in padded area. To be considered when
-                // implementing binary injector.
-                if (point_bcast)
-                    point_bcast_is_ok = src0_d.dims()[1] % blksize == 0;
 
                 return bd.inner_nblks == 1 && bd.inner_blks[0] == blksize
-                        && bd.inner_idxs[0] == 1 && point_bcast_is_ok;
+                        && bd.inner_idxs[0] == 1;
             };
 
             return valid_bd(src0_d) && valid_bd(src1_d);

@@ -229,14 +229,12 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
 
     std::size_t get_tail_size(const memory_desc_wrapper &src0_d,
             bool postops_per_oc_broadcast_exists) const {
-        const bool with_postops = !pd_->attr()->post_ops_.entry_.empty();
         const auto &dims = src0_d.dims();
         const auto &ndims = src0_d.ndims();
 
         dim_t nelems = 0;
 
-        if (bcast_per_oc_ == op_t::bcast_c_blocked && with_postops
-                && is_tail_kernel_)
+        if (bcast_per_oc_ == op_t::bcast_c_blocked && is_tail_kernel_)
             nelems = dims[1];
         else if (op_type_ == op_t::tensor && !postops_per_oc_broadcast_exists)
             nelems = src0_d.nelems(true);
@@ -914,12 +912,15 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
     const auto per_oc_bcast = get_bcast_per_c(src0_d);
     const auto &simd_w = kernel_->simd_w();
     const bool has_oc_tail = C % simd_w;
+    const bool point_broadcast = src1_d.nelems() == 1;
+    const bool point_broadcast_no_oc_tail = point_broadcast && !has_oc_tail;
     const bool blocked_oc_tail = per_oc_bcast == op_t::bcast_c_blocked
-            && has_oc_tail && with_postops;
+            && has_oc_tail && (with_postops || point_broadcast);
     const auto kernel = kernel_.get();
     const auto kernel_tail = kernel_tail_.get();
 
-    if (no_broadcast && !postops_per_oc_broadcast_exists && !blocked_oc_tail) {
+    if ((no_broadcast || point_broadcast_no_oc_tail)
+            && !postops_per_oc_broadcast_exists && !blocked_oc_tail) {
         const dim_t nelems0 = src0_d.nelems(true);
         const dim_t nelems0_simd = nelems0 / simd_w;
         const dim_t nelems0_tail = nelems0 % simd_w;
@@ -941,7 +942,7 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
             binary_kernel_t::call_params_t p;
             p.spat_offt_count = (n_simd_to_do + tail_to_do) * sizeof(data_t);
             p.src0 = src0 + start * simd_w;
-            p.src1 = src1 + start * simd_w;
+            p.src1 = src1 + (point_broadcast ? 0 : (start * simd_w));
             p.dst = dst + start * simd_w;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
             (*kernel)(&p);
@@ -955,7 +956,6 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
                 : ((bcast_dims[0] == 0) ? utils::array_product(
                            src1_d.padded_dims() + 1, ndims - 1)
                                         : 0);
-        const bool point_broadcast = src1_d.nelems() == 1;
 
         if (per_oc_bcast == op_t::bcast_c_blocked) {
             const dim_t C_blocks = std::ceil(src0_d.padded_dims()[1] / simd_w);
