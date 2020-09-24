@@ -160,6 +160,8 @@ private:
             const primitive_attr_t *attr, const memory_desc_wrapper &d);
 
     std::unique_ptr<binary_kernel_t> kernel_;
+    // used only in bcast_c_blocked strategy if tail exists
+    std::unique_ptr<binary_kernel_t> kernel_tail_;
 };
 
 } // namespace x64

@@ -791,7 +791,7 @@ void jit_uni_binary_injector_t<avx2>::execute_broadcast_tail(
     } else if (data_type == data_type::u8 || data_type == data_type::s8) {
         const auto tmp_xmm = Xbyak::Xmm(tmp_vmm.getIdx());
         for (std::size_t i = 0; i < tail_size; i++)
-            host_->vpinsrb(tmp_vmm, tmp_vmm, rhs_addr, i);
+            host_->vpinsrb(tmp_xmm, tmp_xmm, rhs_addr, i);
 
         if (data_type == data_type::s8)
             host_->vpmovsxbd(tmp_vmm, tmp_xmm);

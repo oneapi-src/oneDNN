@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include <functional>
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -76,14 +77,7 @@ bool jit_uni_binary_t<src_type>::post_ops_ok(
             return false;
     }
 
-    const dim_t n_dims = dst_d.ndims();
-    const dim_t &oc = n_dims >= 2 ? dst_d.dims()[1] : 1;
-    /*
-     * TODO: Remove limitation supporting tail with blocked format
-     */
-    const bool blocked_tail = p.len() && blocked_format && oc % blksize;
     return binary_injector::binary_args_broadcast_supported(p, dst_d)
-            && !blocked_tail
             && IMPLICATION(postops_per_oc_broadcast_exists,
                     binary_injector::all_binary_postop_rhs_per_oc_broadcast(p,
                             dst_d,
@@ -118,7 +112,10 @@ static op_t get_bcast_per_c(const memory_desc_wrapper &src0_d) {
     return op_t::none;
 }
 
-struct binary_kernel_t : public jit_generator {
+struct binary_kernel_t : public jit_generator, public c_compatible {
+
+    using c_compatible::operator new;
+    using c_compatible::operator delete;
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
         const void *src0, *src1, *dst;
@@ -127,19 +124,21 @@ struct binary_kernel_t : public jit_generator {
         size_t oc_l_off;
     };
 
-    binary_kernel_t(int vlen) : vlen_(vlen) {}
+    binary_kernel_t(int vlen) : vlen_(vlen), simd_w_(vlen / sizeof(float)) {}
     ~binary_kernel_t() override = default;
 
     void operator()(binary_kernel_t::call_params_t *p) {
         jit_generator::operator()(p);
     }
 
-    int vlen() const { return vlen_; }
-    op_t op_type() const { return op_type_; }
-    op_t bcast_per_oc() const { return bcast_per_oc_; }
+    int simd_w() const noexcept { return simd_w_; }
+    int vlen() const noexcept { return vlen_; }
+    op_t op_type() const noexcept { return op_type_; }
+    op_t bcast_per_oc() const noexcept { return bcast_per_oc_; }
 
 protected:
-    int vlen_ = 0;
+    const int vlen_;
+    const size_t simd_w_;
 
     op_t op_type_ = op_t::none;
     op_t bcast_per_oc_ = op_t::none;
@@ -175,7 +174,6 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const Vmm vsum_scale = Vmm(is_avx512 ? 31 : 15);
 
     size_t unroll_regs_ = is_avx512 ? 8 : 4;
-    size_t simd_w_ = 0;
     size_t tail_size_ = 0;
     size_t data_type_size_ = 0;
     bool do_sum_ = false;
@@ -189,6 +187,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
 
     static constexpr cpu_isa_t inject_isa
             = isa == avx512_core_bf16 ? avx512_core : isa;
+    bool is_tail_kernel_ = false;
     std::unique_ptr<injector::jit_uni_postops_injector_t<inject_isa>>
             postops_injector_;
 
@@ -197,20 +196,16 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     void init() {
         const memory_desc_wrapper src0_d(pd_->src_md(0));
         const memory_desc_wrapper src1_d(pd_->src_md(1));
-        const auto &dims = src0_d.dims();
-        const auto ndims = src0_d.ndims();
+        bcast_per_oc_ = get_bcast_per_c(src0_d);
+        op_type_ = pd_->is_tensor_op() ? op_t::tensor : bcast_per_oc_;
+        assert(op_type_ != op_t::none);
         is_bf16_ = src0_d.data_type() == data_type::bf16;
+        data_type_size_ = is_bf16_ ? sizeof(bfloat16_t) : sizeof(float);
+
+        const auto &po = pd_->attr()->post_ops_;
         const bool postops_per_oc_broadcast_exists
                 = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
-                        pd_->attr()->post_ops_, src0_d);
-        bcast_per_oc_ = get_bcast_per_c(src0_d);
-
-        if (pd_->is_tensor_op())
-            op_type_ = op_t::tensor;
-        else
-            op_type_ = bcast_per_oc_;
-        assert(op_type_ != op_t::none);
-
+                        po, src0_d);
         broadcast_src1_value_
                 = op_type_ == op_t::bcast_n_c_spatial || src1_d.nelems() == 1;
         use_stride_src1_ = !broadcast_src1_value_
@@ -219,23 +214,9 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
         use_stride_rhs_postops_ = postops_per_oc_broadcast_exists
                 && bcast_per_oc_ == op_t::bcast_n_spatial_c;
 
-        dim_t nelems = 0;
-        if (op_type_ == op_t::tensor && !postops_per_oc_broadcast_exists)
-            nelems = src0_d.nelems(true);
-        else {
-            if (bcast_per_oc_ == op_t::bcast_n_spatial_c)
-                nelems = dims[1];
-            else if (bcast_per_oc_ == op_t::bcast_n_c_spatial && ndims >= 3)
-                nelems = utils::array_product(dims + 2, ndims - 2);
-        }
-        // it's float due to for bfloat16 we still load 16 elements, not 32.
-        simd_w_ = vlen_ / sizeof(float);
-        tail_size_ = nelems % simd_w_;
-        data_type_size_ = is_bf16_ ? sizeof(bfloat16_t) : sizeof(float);
-
+        tail_size_ = get_tail_size(src0_d, postops_per_oc_broadcast_exists);
         offt_src0_ = vlen_ / (is_bf16_ ? 2 : 1);
         offt_src1_ = use_stride_src1_ ? offt_src0_ : 0;
-        const auto &po = pd_->attr()->post_ops_;
         do_sum_ = po.contain(primitive_kind::sum, 0)
                 && po.entry_[0].sum.scale != 0.f;
         sum_scale_ = do_sum_ ? po.entry_[0].sum.scale : 0.f;
@@ -244,6 +225,29 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
         const bool with_postops = with_binary || with_eltwise_;
 
         if (with_postops) init_post_ops_injector();
+    }
+
+    std::size_t get_tail_size(const memory_desc_wrapper &src0_d,
+            bool postops_per_oc_broadcast_exists) const {
+        const bool with_postops = !pd_->attr()->post_ops_.entry_.empty();
+        const auto &dims = src0_d.dims();
+        const auto &ndims = src0_d.ndims();
+
+        dim_t nelems = 0;
+
+        if (bcast_per_oc_ == op_t::bcast_c_blocked && with_postops
+                && is_tail_kernel_)
+            nelems = dims[1];
+        else if (op_type_ == op_t::tensor && !postops_per_oc_broadcast_exists)
+            nelems = src0_d.nelems(true);
+        else {
+            if (bcast_per_oc_ == op_t::bcast_n_spatial_c)
+                nelems = dims[1];
+            else if (bcast_per_oc_ == op_t::bcast_n_c_spatial && ndims >= 3)
+                nelems = utils::array_product(dims + 2, ndims - 2);
+        }
+        // it's float due to for bfloat16 we still load 16 elements, not 32.
+        return nelems % simd_w_;
     }
 
     void init_post_ops_injector() {
@@ -337,6 +341,11 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
         const size_t vec_size = simd_w_ * data_type_size_;
 
         compute_bcast(false); // bcast/load vreg just one time per a kernel call
+
+        // used in bcast_c_blocked strategy for last blocked if tail exists
+        const bool treat_each_compute_step_as_tail
+                = is_tail_kernel_ && tail_size_;
+
         L(unroll_loop);
         {
             const size_t offt = unroll_regs_ * vec_size;
@@ -344,7 +353,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
             cmp(reg_reverse_spat_offt, offt);
             jl(unroll_loop_tail, T_NEAR);
 
-            compute_dst(unroll_regs_, false);
+            compute_dst(unroll_regs_, treat_each_compute_step_as_tail);
             sub(reg_reverse_spat_offt, offt);
             add(reg_offt_src0, offt);
             if (use_stride_src1_) add(reg_offt_src1, offt);
@@ -357,7 +366,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
             cmp(reg_reverse_spat_offt, vec_size);
             jl(nelems_tail, T_NEAR);
 
-            compute_dst(1, false);
+            compute_dst(1, treat_each_compute_step_as_tail);
             sub(reg_reverse_spat_offt, vec_size);
             add(reg_offt_src0, vec_size);
             if (use_stride_src1_) add(reg_offt_src1, vec_size);
@@ -388,8 +397,10 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
             postops_injector_->prepare_table();
     }
 
-    jit_uni_binary_kernel_t(const binary_pd_t *pd)
-        : binary_kernel_t(cpu_isa_traits<isa>::vlen), pd_(pd) {
+    jit_uni_binary_kernel_t(const binary_pd_t *pd, bool tail_kernel = false)
+        : binary_kernel_t(cpu_isa_traits<isa>::vlen)
+        , pd_(pd)
+        , is_tail_kernel_(tail_kernel) {
         init();
     }
     ~jit_uni_binary_kernel_t() override = default;
@@ -532,8 +543,8 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
         }
     }
 
-    jit_uni_binary_subkernel_t(const binary_pd_t *pd)
-        : jit_uni_binary_kernel_t(pd) {}
+    jit_uni_binary_subkernel_t(const binary_pd_t *pd, bool tail_kernel)
+        : jit_uni_binary_kernel_t(pd, tail_kernel) {}
 };
 
 template <data_type_t src_type>
@@ -688,8 +699,8 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         }
     }
 
-    jit_uni_binary_subkernel_t(const binary_pd_t *pd)
-        : jit_uni_binary_kernel_t(pd) {}
+    jit_uni_binary_subkernel_t(const binary_pd_t *pd, bool tail_kernel)
+        : jit_uni_binary_kernel_t(pd, tail_kernel) {}
 };
 
 template <data_type_t src_type>
@@ -755,8 +766,8 @@ struct jit_uni_binary_subkernel_t<avx2, src_type>
         }
     }
 
-    jit_uni_binary_subkernel_t(const binary_pd_t *pd)
-        : jit_uni_binary_kernel_t(pd) {}
+    jit_uni_binary_subkernel_t(const binary_pd_t *pd, bool tail_kernel)
+        : jit_uni_binary_kernel_t(pd, tail_kernel) {}
 };
 
 template <data_type_t src_type>
@@ -824,27 +835,27 @@ struct jit_uni_binary_subkernel_t<sse41, src_type>
         }
     }
 
-    jit_uni_binary_subkernel_t(const binary_pd_t *pd)
-        : jit_uni_binary_kernel_t(pd) {}
+    jit_uni_binary_subkernel_t(const binary_pd_t *pd, bool tail_kernel)
+        : jit_uni_binary_kernel_t(pd, tail_kernel) {}
 };
 
 #undef PARAM_OFF
 
 template <data_type_t src_type>
-std::unique_ptr<binary_kernel_t> create_binary_kernel(const binary_pd_t *pd) {
+binary_kernel_t *create_binary_kernel(const binary_pd_t *pd, bool tail_kernel) {
     if (mayiuse(avx512_core_bf16)) {
         using subkernel_t
                 = jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>;
-        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+        return new subkernel_t(pd, tail_kernel);
     } else if (mayiuse(avx512_core)) {
         using subkernel_t = jit_uni_binary_subkernel_t<avx512_core, src_type>;
-        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+        return new subkernel_t(pd, tail_kernel);
     } else if (mayiuse(avx2)) {
         using subkernel_t = jit_uni_binary_subkernel_t<avx2, src_type>;
-        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+        return new subkernel_t(pd, tail_kernel);
     } else {
         using subkernel_t = jit_uni_binary_subkernel_t<sse41, src_type>;
-        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+        return new subkernel_t(pd, tail_kernel);
     }
 }
 
@@ -857,7 +868,19 @@ jit_uni_binary_t<src_type>::~jit_uni_binary_t() = default;
 
 template <data_type_t src_type>
 status_t jit_uni_binary_t<src_type>::init(engine_t *engine) {
-    kernel_ = create_binary_kernel<src_type>(pd());
+    CHECK(safe_ptr_assign(kernel_,
+            create_binary_kernel<src_type>(pd(), false /*tail_kernel*/)));
+
+    const memory_desc_wrapper src0_d(pd_->src_md(0));
+    const auto &simd_w = kernel_->simd_w();
+    const auto oc = src0_d.ndims() >= 2 ? src0_d.dims()[1] : 1;
+
+    if (op_t::bcast_c_blocked == get_bcast_per_c(src0_d) && oc % simd_w) {
+        CHECK(safe_ptr_assign(kernel_tail_,
+                create_binary_kernel<src_type>(pd(), true /*tail_kernel*/)));
+        CHECK(kernel_tail_->create_kernel());
+    }
+
     return kernel_->create_kernel();
 }
 
@@ -887,9 +910,16 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
                     post_ops, src0_d);
     const bool no_broadcast = pd()->is_tensor_op();
+    const bool with_postops = !post_ops.entry_.empty();
+    const auto per_oc_bcast = get_bcast_per_c(src0_d);
+    const auto &simd_w = kernel_->simd_w();
+    const bool has_oc_tail = C % simd_w;
+    const bool blocked_oc_tail = per_oc_bcast == op_t::bcast_c_blocked
+            && has_oc_tail && with_postops;
+    const auto kernel = kernel_.get();
+    const auto kernel_tail = kernel_tail_.get();
 
-    if (no_broadcast && !postops_per_oc_broadcast_exists) {
-        const int simd_w = (*kernel_).vlen() / sizeof(float);
+    if (no_broadcast && !postops_per_oc_broadcast_exists && !blocked_oc_tail) {
         const dim_t nelems0 = src0_d.nelems(true);
         const dim_t nelems0_simd = nelems0 / simd_w;
         const dim_t nelems0_tail = nelems0 % simd_w;
@@ -914,26 +944,40 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
             p.src1 = src1 + start * simd_w;
             p.dst = dst + start * simd_w;
             p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
-            (*kernel_)(&p);
+            (*kernel)(&p);
         });
     } else {
         const auto &bcast_dims = pd()->broadcast_dims();
         const dim_t nelems_slice_src0
                 = utils::array_product(src0_d.padded_dims() + 1, ndims - 1);
-
         const dim_t nelems_slice_src1 = no_broadcast
                 ? nelems_slice_src0
                 : ((bcast_dims[0] == 0) ? utils::array_product(
                            src1_d.padded_dims() + 1, ndims - 1)
                                         : 0);
         const bool point_broadcast = src1_d.nelems() == 1;
-        const auto per_oc_bcast = get_bcast_per_c(src0_d);
-        const int simd_w = (*kernel_).vlen() / sizeof(float);
 
         if (per_oc_bcast == op_t::bcast_c_blocked) {
-            const dim_t C_blocks = src0_d.padded_dims()[1] / simd_w;
+            const dim_t C_blocks = std::ceil(src0_d.padded_dims()[1] / simd_w);
             // Compute strategy:
             // Each block is individual - parallel over MB and C_blocks safely.
+            const std::function<void(binary_kernel_t::call_params_t *, dim_t)>
+                    kernel_blocked_no_tail
+                    = [&](binary_kernel_t::call_params_t *p, dim_t C_blk) {
+                          (*kernel)(p);
+                      };
+            const std::function<void(binary_kernel_t::call_params_t *, dim_t)>
+                    kernel_blocked_tail
+                    = [&](binary_kernel_t::call_params_t *p, dim_t C_blk) {
+                          if (C_blk == (C_blocks - 1))
+                              (*kernel_tail)(p);
+                          else
+                              (*kernel)(p);
+                      };
+            const auto &kernel_blocked = blocked_oc_tail
+                    ? kernel_blocked_tail
+                    : kernel_blocked_no_tail;
+
             parallel_nd(MB, C_blocks, [&](dim_t mb, dim_t C_blk) {
                 binary_kernel_t::call_params_t p;
                 p.spat_offt_count = SP * simd_w * sizeof(data_t);
@@ -949,7 +993,7 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
                 p.oc_l_off = C_blk * simd_w;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
-                (*kernel_)(&p);
+                kernel_blocked(&p, C_blk);
             });
         } else if (per_oc_bcast == op_t::bcast_n_spatial_c) {
             // Compute strategy:
@@ -966,7 +1010,7 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
                 p.oc_l_off = 0;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
-                (*kernel_)(&p);
+                (*kernel)(&p);
             });
 
         } else if (per_oc_bcast == op_t::bcast_n_c_spatial) {
@@ -986,7 +1030,7 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
                 p.oc_l_off = c;
                 p.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
-                (*kernel_)(&p);
+                (*kernel)(&p);
             });
         }
     }
