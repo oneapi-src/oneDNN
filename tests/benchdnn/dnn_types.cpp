@@ -1137,6 +1137,9 @@ float compute_eltwise_bwd(
 }
 
 float compute_binary(pk_t kind, float src0, float src1) {
+    // don't compute on nan, propagate it
+    if (std::isnan(src0) || std::isnan(src1)) return NAN;
+
     if (kind == pk_t::ADD) {
         return src0 + src1;
     } else if (kind == pk_t::MUL) {
@@ -1150,7 +1153,7 @@ float compute_binary(pk_t kind, float src0, float src1) {
     } else {
         assert(!"operation not supported!");
     }
-    return 0;
+    return NAN;
 }
 
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
