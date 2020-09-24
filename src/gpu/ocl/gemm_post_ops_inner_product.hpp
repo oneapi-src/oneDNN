@@ -233,7 +233,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
 
         memory_desc_t scales_md_;
         memory_desc_t ip_scratchpad_md_;
-        bool is_int8_;
+        bool is_int8_ = false;
         attr_info_t attr_info_ = {};
 
     private:
