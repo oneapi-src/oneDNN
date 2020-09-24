@@ -428,6 +428,9 @@ struct jit_conv_call_s {
     int flags;
     int flags_prf;
     int oc_flag;
+
+    size_t oc_off;
+    size_t oc_off_prf;
 };
 
 struct jit_deconv_call_s {
@@ -551,6 +554,8 @@ struct jit_1x1_conv_call_s {
     size_t output_stride; // used in backward_weights only
 
     size_t first_last_flag;
+
+    size_t oc_off;
 };
 
 struct jit_pool_conf_t {

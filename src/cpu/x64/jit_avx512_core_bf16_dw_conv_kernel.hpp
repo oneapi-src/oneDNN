@@ -34,8 +34,8 @@ namespace x64 {
 struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_fwd_kernel_bf16)
 
-    jit_avx512_dw_conv_fwd_kernel_bf16(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp), eltwise_injector_(nullptr), bf16_emu_(nullptr) {
+    jit_avx512_dw_conv_fwd_kernel_bf16(const jit_conv_conf_t &ajcp, const primitive_attr_t& attr)
+        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr), bf16_emu_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
                     this, jcp.eltwise);
@@ -51,6 +51,7 @@ struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
     }
 
     jit_conv_conf_t jcp;
+    const primitive_attr_t& attr_;
 
 private:
     using reg64_t = const Xbyak::Reg64;

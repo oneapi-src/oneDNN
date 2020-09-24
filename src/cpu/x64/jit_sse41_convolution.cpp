@@ -136,6 +136,9 @@ void jit_sse41_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                             - div_up(i_t_overflow, (jcp.dilate_h + 1))
                             - div_up(i_b_overflow, (jcp.dilate_h + 1));
                     par_conv.kh_padding = nstl::max(0, kh_padding);
+
+                    par_conv.oc_off = _oc * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
+
                     (*kernel_)(&par_conv);
                 }
                 nd_iterator_step(

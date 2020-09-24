@@ -22,6 +22,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/x64/jit_generator.hpp"
+#include "jit_uni_quantization_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -94,6 +95,10 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     Reg64 reg_dst_safe_access = rsi;
 
     Reg64 reg_mask = r15; // only used during mask init
+
+    Reg64 reg_oc_off = reg_tmp;
+    Reg64 reg_d_weights = aux_reg_src_h;
+    Reg64 reg_d_bias = aux_reg_src_w;
 
     Opmask k_cmp_mask = Opmask(7);
 
@@ -170,7 +175,14 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
         return Mmx(mmx_msk_base_reg + ll);
     }; // ll: 0..4 [Mmx(2)...Mmx(5)]
 
+    Vmm vmm_d_weights = Vmm(avg_vidx_base + 0);
+    Vmm vmm_d_bias = Vmm(avg_vidx_base + 1);
+    Vmm vreg_mask_dst = vreg_src(1);
+
+    nstl::vector<jit_uni_quantization_injector_f32<isa>*> quantization_injectors;
+
     jit_pool_conf_t jpp;
+    const primitive_attr_t &attr;
 
     void init_tmp_reg();
     void init_mask();
@@ -188,6 +200,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     void store_dst_avg_op(
             int jj, int ll, size_t offset, bool masked, uint64_t msk);
     void store_dst(int jj, int ll, int c_tail);
+    void apply_post_ops(int ur_c, int c_tail);
 
     void compute_avg_step(int ur_c, int c_tail);
     void compute_max_op(const int jj);
@@ -199,7 +212,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
 
     static status_t init_conf(jit_pool_conf_t &jpp, const pooling_pd_t *ppd);
 
-    jit_uni_i8i8_pooling_fwd_ker_t(const jit_pool_conf_t &jpp_) : jpp(jpp_) {}
+    jit_uni_i8i8_pooling_fwd_ker_t(const jit_pool_conf_t &jpp_, const primitive_attr_t &attr_) : jpp(jpp_), attr(attr_) {}
 };
 
 template <>
@@ -590,18 +603,18 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sse41>::store_dst_avg_op(
     // Don't generate useless code
     if (masked && !msk) return;
 
-    const Vmm &vr_dst = vreg_dst_s32(jj, ll);
+    const Vmm &vr_dst = jpp.dst_dt == f32 ? vreg_dst_f32(jj, ll) : vreg_dst_s32(jj, ll);
 
-    if (jpp.src_dt == s32) {
+    if (jpp.dst_dt == s32 || jpp.dst_dt == f32) {
         if (masked)
             for (int i = 0; i < jpp.c_tail; i++)
                 pextrd(ptr[reg_ptr_dst_i8 + offset + i * data_type_size(s32)],
                         vr_dst, i);
         else
             movups(ptr[reg_ptr_dst_i8 + offset], vr_dst);
-    } else if (utils::one_of(jpp.src_dt, s8, u8)) {
+    } else if (utils::one_of(jpp.dst_dt, s8, u8)) {
         packssdw(vr_dst, vr_dst);
-        if (jpp.src_dt == s8)
+        if (jpp.dst_dt == s8)
             packsswb(vr_dst, vr_dst);
         else
             packuswb(vr_dst, vr_dst);
@@ -702,6 +715,17 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(
     };
 
     switch (jpp.dst_dt) {
+        case f32:
+            if (masked) {
+                if (sizeof_src_dt() != sizeof_dst_dt()) {
+                    vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask_dst, vreg_dst_f32(jj, ll));
+                } else {
+                    vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask, vreg_dst_f32(jj, ll));
+                }
+            } else {
+                vmovups(ptr[reg_ptr_dst_i8 + offset], vreg_dst_f32(jj, ll));
+            }
+            break;
         case s32:
             if (masked) {
                 vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask,
@@ -723,11 +747,11 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::store_dst_avg_op(
     // Don't generate useless code
     if (masked && !msk) return;
 
-    const Vmm &vr_dst
-            = masked ? vreg_dst_s32(jj, ll) | mask(ll) : vreg_dst_s32(jj, ll);
+    const Vmm &vr_dst = jpp.dst_dt == f32 ? masked ? vreg_dst_f32(jj, ll) | mask(ll) : vreg_dst_f32(jj, ll)
+                                          : masked ? vreg_dst_s32(jj, ll) | mask(ll) : vreg_dst_s32(jj, ll);
 
     switch (jpp.dst_dt) {
-        case s32: vmovups(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
+        case f32: case s32: vmovups(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
         case s8: vpmovdb(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
         case u8: vpmovusdb(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
         default: assert(!"unsupported dst data_type");
@@ -758,6 +782,61 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::store_dst(
             break;
         }
         default: assert(!"unsupported pooling algorithm");
+    }
+}
+
+template <cpu_isa_t isa>
+void jit_uni_i8i8_pooling_fwd_ker_t<isa>::apply_post_ops(int ur_c, int c_tail) {
+    int quantization_inj_idx = 0;
+    const auto &p = attr.post_ops_;
+    const int num_ll = data_type_size(avg_proc_dt)/data_type_size(jpp.dst_dt);
+    for (int i = 0; i < p.len(); i++) {
+        auto& post_op = p.entry_[i];
+        if (post_op.is_quantization()) {
+            bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
+            bool do_rounding = do_dequantization || jpp.dst_dt == dnnl_f32 || i != p.len() - 1;
+
+            quantization_injectors[quantization_inj_idx]->init_crop_ptrs(reg_oc_off);
+            for (int jj = 0; jj < ur_c; jj++) {
+                for (int ll = 0; ll < num_ll; ll++) {
+                    bool masked = jj == ur_c - 1 && c_tail;
+                    size_t msk = jpp.tail[ll];
+                    if (!(masked && !msk)) {
+                        int s_idx = vreg_dst_f32(jj, ll).getIdx();
+                        quantization_injectors[quantization_inj_idx]->compute_crop(s_idx, s_idx + 1,
+                                (jj + ll) * jpp.c_block / num_ll * sizeof(float));
+                    }
+                }
+            }
+
+            quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(reg_oc_off);
+            for (int jj = 0; jj < ur_c; jj++) {
+                for (int ll = 0; ll < num_ll; ll++) {
+                    bool masked = jj == ur_c - 1 && c_tail;
+                    size_t msk = jpp.tail[ll];
+                    if (!(masked && !msk)) {
+                        int s_idx = vreg_dst_f32(jj, ll).getIdx();
+                        quantization_injectors[quantization_inj_idx]->compute_input_scale_shift(s_idx, s_idx + 1,
+                                (jj + ll) * jpp.c_block / num_ll * sizeof(float), do_rounding);
+                    }
+                }
+            }
+
+            quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(reg_oc_off);
+            for (int jj = 0; jj < ur_c; jj++) {
+                for (int ll = 0; ll < num_ll; ll++) {
+                    bool masked = jj == ur_c - 1 && c_tail;
+                    size_t msk = jpp.tail[ll];
+                    if (!(masked && !msk)) {
+                        int s_idx = vreg_dst_f32(jj, ll).getIdx();
+                        quantization_injectors[quantization_inj_idx]->compute_output_scale_shift(s_idx, s_idx + 1,
+                                (jj + ll) * jpp.c_block / num_ll * sizeof(float));
+                    }
+                }
+            }
+
+            quantization_inj_idx++;
+        }
     }
 }
 
@@ -867,7 +946,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
     int iw = jpp.iw;
     int c = jpp.c;
 
-    const int num_ll = data_type_size(avg_proc_dt) / data_type_size(jpp.src_dt);
+    const int num_ll = data_type_size(avg_proc_dt) / data_type_size(jpp.dst_dt);
 
     for (int jj = 0; jj < ur_c; jj++) {
         for (int ll = 0; ll < num_ll; ll++) {
@@ -927,7 +1006,21 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
             if (!(masked && !msk)) {
                 uni_vcvtdq2ps(vreg_dst_f32(jj, ll), vreg_dst_s32(jj, ll));
                 uni_vfmadd132ps(vreg_dst_f32(jj, ll), vreg_zeros, vreg_tmp);
-                uni_vcvtps2dq(vreg_dst_s32(jj, ll), vreg_dst_f32(jj, ll));
+            }
+        }
+    }
+
+    apply_post_ops(ur_c, c_tail);
+
+    for (int jj = 0; jj < ur_c; jj++) {
+        for (int ll = 0; ll < num_ll; ll++) {
+            bool masked = jj == ur_c - 1 && c_tail;
+            size_t msk = jpp.tail[ll];
+            if (!(masked && !msk)) {
+                if (jpp.dst_dt != f32) {
+                    uni_vcvtps2dq(vreg_dst_s32(jj, ll), vreg_dst_f32(jj, ll));
+                }
+
                 store_dst(jj, ll, c_tail);
             }
         }
@@ -956,12 +1049,15 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_c_block() {
     int c_tail = jpp.c_tail;
 
     xor_(c_iter, c_iter);
+    xor_(reg_oc_off, reg_oc_off);
+
     if (c_steps > 0) {
         L(l_main_loop);
         {
             compute_step(ur_c, 0);
             add(reg_ptr_src_i8, ur_c * c_block * sizeof_src_dt());
             add(reg_ptr_dst_i8, ur_c * c_block * sizeof_dst_dt());
+            add(reg_oc_off, ur_c*c_block*sizeof(float));
             inc(c_iter);
             cmp(c_iter, c_steps);
             jl(l_main_loop, T_NEAR);
@@ -1027,6 +1123,10 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
             // and High (xreg_mask_hi) into full vreg_mask
             // vreg_mask -> {xreg_mask_hi, vreg_mask.xreg}
             vinserti128(vreg_mask, vreg_mask, xreg_mask_hi, 1);
+
+            if (sizeof_src_dt() != sizeof_dst_dt()) {
+                vpmovsxbd(vreg_mask_dst, vreg_mask);
+            }
 
             // Compute mask algned to left from vreg_mask and store it in vreg_mask_2 to be use for tail processing.
             const uint8_t shift = 32 - jpp.c_tail;
@@ -1134,6 +1234,18 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_tmp_reg() {
 
 template <cpu_isa_t isa>
 void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
+    const auto &p = attr.post_ops_;
+    for (int i = 0; i < p.len(); i++) {
+        auto &post_op = p.entry_[i];
+        if (post_op.is_quantization()) {
+            quantization_injectors.push_back(new jit_uni_quantization_injector_f32<isa>(
+                    this,
+                    post_op,
+                    vmm_d_weights, vmm_d_bias, reg_d_weights, reg_d_bias
+            ));
+        }
+    }
+
     preamble();
 
 #if !defined(_WIN32)
@@ -1223,7 +1335,7 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
     //     isa == sse41   : 16 bytes -> 16 for s8/u8, 4 for s32
     //     isa == avx2    : 32 bytes -> 32 for s8/u8, 8 for s32
     //     isa == avx512* : 64 bytes -> 64 for s8/u8, 16 for s32
-    int simd_w = cpu_isa_traits<isa>::vlen / data_type_size(jpp.src_dt);
+    int simd_w = cpu_isa_traits<isa>::vlen / data_type_size(jpp.dst_dt);
 
     /* Verify that vlen-sized memory access happens within the tensor's
      * size, otherwise load/store will always spill outside the memory
@@ -1240,6 +1352,9 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
     jpp.nb_c = jpp.c / jpp.c_block;
     jpp.ur_c = 1;
     jpp.ur_c_tail = jpp.c_tail != 0;
+
+    if (!mayiuse(avx512_common) && jpp.dst_dt != dnnl_f32 && jpp.c_tail != 0)
+        return status::unimplemented;
 
     size_t tail_mask = (1ULL << jpp.c_tail) - 1;
 
@@ -1290,7 +1405,7 @@ jit_uni_i8i8_pooling_fwd_t<isa>::~jit_uni_i8i8_pooling_fwd_t() = default;
 template <cpu_isa_t isa>
 status_t jit_uni_i8i8_pooling_fwd_t<isa>::init(engine_t *engine) {
     CHECK(safe_ptr_assign(
-            ker_, new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_)));
+            ker_, new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_, *pd()->attr())));
     return ker_->create_kernel();
 }
 

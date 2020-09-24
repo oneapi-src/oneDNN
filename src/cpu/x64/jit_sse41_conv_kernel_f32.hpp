@@ -23,6 +23,8 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/jit_uni_depthwise_injector.hpp"
+#include "cpu/x64/jit_uni_quantization_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,13 +34,22 @@ namespace x64 {
 struct jit_sse41_conv_fwd_kernel_f32 : public jit_generator {
     jit_sse41_conv_fwd_kernel_f32(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<sse41>(
-                    this, jcp.eltwise);
+        : jcp(ajcp), attr_(attr) {
     }
 
-    ~jit_sse41_conv_fwd_kernel_f32() { delete eltwise_injector_; }
+    ~jit_sse41_conv_fwd_kernel_f32() {
+        for (auto inj : eltwise_injectors)
+            delete inj;
+        eltwise_injectors.clear();
+
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+
+        for (auto inj : quantization_injectors)
+            delete inj;
+        quantization_injectors.clear();
+    }
 
     static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
@@ -73,7 +84,16 @@ private:
     reg64_t imm_addr64 = reg_oc_blocks;
     Xbyak::Reg32 reg_ci_flag = r13d;
 
-    jit_uni_eltwise_injector_f32<sse41> *eltwise_injector_;
+    reg64_t reg_d_weights = imm_addr64;
+    reg64_t reg_d_bias = ki_iter;
+    reg64_t reg_oc_off = abi_param1;
+
+    Xbyak::Xmm xmm_d_weights = Xbyak::Xmm(14);
+    Xbyak::Xmm xmm_d_bias = Xbyak::Xmm(15);
+
+    nstl::vector<jit_uni_eltwise_injector_f32<sse41>*> eltwise_injectors;
+    nstl::vector<jit_uni_depthwise_injector_f32<sse41>*> depthwise_injectors;
+    nstl::vector<jit_uni_quantization_injector_f32<sse41>*> quantization_injectors;
 
     inline void oh_step_unroll_kw(
             int ur_w, int pad_l, int pad_r, int oc_blocks);

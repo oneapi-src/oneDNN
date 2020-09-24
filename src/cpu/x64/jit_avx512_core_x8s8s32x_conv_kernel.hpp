@@ -23,6 +23,8 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/jit_uni_depthwise_injector.hpp"
+#include "cpu/x64/jit_uni_quantization_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,19 +39,30 @@ struct _jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
 
     _jit_avx512_core_x8s8s32x_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
-                    this, jcp.eltwise);
-    }
+        : jcp(ajcp), attr_(attr) {}
 
-    ~_jit_avx512_core_x8s8s32x_fwd_kernel() { delete eltwise_injector_; }
+    ~_jit_avx512_core_x8s8s32x_fwd_kernel() {
+        for (auto inj : eltwise_injectors)
+            delete inj;
+        eltwise_injectors.clear();
+
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+
+        for (auto inj : quantization_injectors)
+            delete inj;
+        quantization_injectors.clear();
+    }
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
 
 private:
-    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
+    nstl::vector<jit_uni_eltwise_injector_f32<avx512_common>*> eltwise_injectors;
+    nstl::vector<jit_uni_depthwise_injector_f32<avx512_common>*> depthwise_injectors;
+    nstl::vector<jit_uni_quantization_injector_f32<avx512_common>*> quantization_injectors;
+
     const int ic_sub_step = 4;
     enum {
         typesize = sizeof(float),
@@ -90,6 +103,15 @@ private:
     const Xbyak::Reg64 reg_overflow = reg_ptr_scales;
     const Xbyak::Reg64 reg_icb = reg_bias;
     const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
+
+    const Xbyak::Reg64 reg_d_weights = r15;
+    const Xbyak::Reg64 reg_d_bias = r13;
+
+    const Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
+    const Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);
+
+    Xbyak::Opmask mask_post_op_reserved = Xbyak::Opmask(1);
+    Xbyak::Reg64 eltwise_reserved = rax;
 
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Xbyak::Opmask kblend_mask = Xbyak::Opmask(3);
@@ -171,7 +193,6 @@ private:
             ic_block_t last_ic_block_flag, bool h_padded);
     void compute_ker(int ur_w, int pad_l, int pad_r,
             ic_block_t last_ic_block_flag, bool h_padded = false);
-    void compute_eltwise(int ur_w);
     void kh_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
     void generate() override;

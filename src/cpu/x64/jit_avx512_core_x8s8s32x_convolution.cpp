@@ -130,6 +130,8 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
             p.b_overflow = 0;
             p.owb = owb;
 
+            p.oc_off = g_oc * sizeof(float);
+
             (*kernel_)(&p);
 
             ++start;
@@ -284,6 +286,8 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
                     p.b_overflow = i_b_overflow;
                     p.owb = owb;
 
+                    p.oc_off = g_oc * sizeof(float);
+
                     (*kernel_)(&p);
                     src_w += src_h_stride * jcp.stride_h;
                     dst_w += dst_h_stride;
@@ -406,6 +410,8 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
                 p.t_overflow = i_t_overflow;
                 p.b_overflow = i_b_overflow;
                 p.owb = owb;
+
+                p.oc_off = g * sizeof(float);
 
                 (*kernel_)(&p);
             });
@@ -556,6 +562,8 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
                     p.f_overflow = d_f_overflow;
                     p.back_overflow = d_back_overflow;
                     p.owb = owb;
+
+                    p.oc_off = g_oc * sizeof(float);
 
                     (*kernel_)(&p);
                     src_w += src_h_stride * jcp.stride_h;

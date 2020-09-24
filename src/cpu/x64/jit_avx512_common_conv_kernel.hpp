@@ -23,6 +23,8 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/jit_uni_depthwise_injector.hpp"
+#include "cpu/x64/jit_uni_quantization_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,13 +36,21 @@ struct _jit_avx512_common_conv_fwd_kernel : public jit_generator {
 
     _jit_avx512_common_conv_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
-                    this, jcp.eltwise);
-    }
+        : jcp(ajcp), attr_(attr) {}
 
-    ~_jit_avx512_common_conv_fwd_kernel() { delete eltwise_injector_; }
+    ~_jit_avx512_common_conv_fwd_kernel() {
+        for (auto inj : eltwise_injectors)
+            delete inj;
+        eltwise_injectors.clear();
+
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+
+        for (auto inj : quantization_injectors)
+            delete inj;
+        quantization_injectors.clear();
+    }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_common_conv_fwd_kernel)
 
@@ -113,7 +123,15 @@ private:
     Xbyak::Reg64 imm_addr64 = r15;
     Vmm vmm_wei = Vmm(31);
 
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    reg64_t reg_d_weights = imm_addr64;
+    reg64_t reg_d_bias = reg_kj;
+
+    Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
+    Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);
+
+    nstl::vector<jit_uni_eltwise_injector_f32<avx512_common>*> eltwise_injectors;
+    nstl::vector<jit_uni_depthwise_injector_f32<avx512_common>*> depthwise_injectors;
+    nstl::vector<jit_uni_quantization_injector_f32<avx512_common>*> quantization_injectors;
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);

@@ -23,6 +23,8 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/jit_uni_depthwise_injector.hpp"
+#include "cpu/x64/jit_uni_quantization_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,13 +36,21 @@ struct _jit_uni_x8s8s32x_1x1_conv_kernel : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_uni_x8s8s32x_1x1_conv_fwd_ker_t)
     _jit_uni_x8s8s32x_1x1_conv_kernel(
             const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_
-                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
-    }
+        : jcp(ajcp), attr_(attr) {}
 
-    ~_jit_uni_x8s8s32x_1x1_conv_kernel() { delete eltwise_injector_; }
+    ~_jit_uni_x8s8s32x_1x1_conv_kernel() {
+        for (auto inj : eltwise_injectors)
+            delete inj;
+        eltwise_injectors.clear();
+
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+
+        for (auto inj : quantization_injectors)
+            delete inj;
+        quantization_injectors.clear();
+    }
 
     bool maybe_eltwise(int position);
 
@@ -50,7 +60,9 @@ struct _jit_uni_x8s8s32x_1x1_conv_kernel : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
-    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
+    nstl::vector<jit_uni_eltwise_injector_f32<isa>*> eltwise_injectors;
+    nstl::vector<jit_uni_depthwise_injector_f32<isa>*> depthwise_injectors;
+    nstl::vector<jit_uni_quantization_injector_f32<isa>*> quantization_injectors;
 
     enum {
         ker_max_reg_idx = 13,
@@ -75,6 +87,15 @@ private:
     const Xbyak::Reg64 reg_bcast_loop_iter = rdx;
     const Xbyak::Reg64 reg_load_loop_work = rsi;
     const Xbyak::Reg64 aux_reg_output_data = abi_not_param1;
+
+    const Xbyak::Reg64 reg_d_weights = aux_reg_bcast_data;
+    const Xbyak::Reg64 reg_d_bias = abi_param1;
+    const Xbyak::Reg64 reg_oc_off = aux_reg_load_data;
+
+    Vmm vmm_d_weights = Vmm(0);
+    Vmm vmm_d_bias = Vmm(1);
+
+    Xbyak::Reg64 eltwise_reserved = rax;
 
     const Vmm vmm_tmp = Vmm(3);
     const Vmm vmm_one = Vmm(2);

@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include <cpu/cpu_primitive.hpp>
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
@@ -128,7 +129,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
             = [=](int i_load) { return Vmm(ur * load_loop_blk + i_load); };
 
     auto vreg_accum = [=](int i_load, int i_ur) {
-        return Vmm(i_ur * load_loop_blk + i_load);
+        return Vmm(i_ur + i_load * ur);
     };
 
     auto vmm_bias_alpha = [=]() { return Vmm(ur * load_loop_blk); };
@@ -235,29 +236,74 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
             }
         }
 
-        if (maybe_eltwise(0))
-            eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
+        int eltwise_inj_idx = 0;
+        int depthwise_inj_idx = 0;
+        int quantization_inj_idx = 0;
+        for (int i = 0; i < p.len(); i++) {
+            auto& post_op = p.entry_[i];
+            if (post_op.is_eltwise()) {
+                eltwise_injectors[eltwise_inj_idx]->compute_vector_range(0, ur * load_loop_blk);
 
-        if (p_sum_scale) { // post_op: sum
-            for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                const bool mask_flag
-                        = mask_flag_in && i_load == load_loop_blk - 1;
-                for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                    auto r = vreg_accum(i_load, i_ur);
-                    cvt2ps(jcp.dst_dt, vmm_prev_dst, output_ptr(i_load, i_ur),
+                eltwise_inj_idx++;
+            } else if (post_op.is_depthwise()) {
+                mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
+                mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
+
+                add(reg_d_weights, reg_oc_off);
+                add(reg_d_bias, reg_oc_off);
+
+                for (int k = 0; k < load_loop_blk; k++) {
+                    depthwise_injectors[depthwise_inj_idx]->compute_vector_range(
+                            k * ur, k * ur + ur, reg_d_weights, reg_d_bias);
+
+                    add(reg_d_weights, jcp.oc_block * sizeof(float));
+                    add(reg_d_bias, jcp.oc_block * sizeof(float));
+                }
+
+                depthwise_inj_idx++;
+            } else if (post_op.is_quantization()) {
+                bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
+                bool do_rounding = do_dequantization || jcp.dst_dt == dnnl_f32 || i != p.len() - 1;
+
+                quantization_injectors[quantization_inj_idx]->init_crop_ptrs(reg_oc_off);
+                for (int j = 0; j < load_loop_blk; ++j) {
+                    int s_idx = vreg_accum(j, 0).getIdx();
+                    quantization_injectors[quantization_inj_idx]->compute_crop(s_idx, s_idx + ur, j * jcp.oc_block * sizeof(float));
+                }
+
+                quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(reg_oc_off);
+                for (int j = 0; j < load_loop_blk; ++j) {
+                    int s_idx = vreg_accum(j, 0).getIdx();
+                    quantization_injectors[quantization_inj_idx]->compute_input_scale_shift(s_idx, s_idx + ur, j * jcp.oc_block * sizeof(float), do_rounding);
+                }
+
+                quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(reg_oc_off);
+                for (int j = 0; j < load_loop_blk; ++j) {
+                    int s_idx = vreg_accum(j, 0).getIdx();
+                    quantization_injectors[quantization_inj_idx]->compute_output_scale_shift(s_idx, s_idx + ur, j * jcp.oc_block * sizeof(float));
+                }
+
+                quantization_inj_idx++;
+            } else if (post_op.is_sum(false)) {
+                for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+                    const bool mask_flag = mask_flag_in &&
+                                               i_load == load_loop_blk - 1;
+                    for (int i_ur = 0; i_ur < ur; ++i_ur) {
+                        vpxord(vmm_zero, vmm_zero, vmm_zero);
+                        auto zmm_prev_dst = vmm_zero;
+
+                        auto r = vreg_accum(i_load, i_ur);
+                        cvt2ps(post_op.sum.dt, zmm_prev_dst, output_ptr(i_load, i_ur),
                             mask_flag);
 
-                    if (*p_sum_scale == 1.f)
-                        vaddps(r, vmm_prev_dst);
-                    else
-                        vfmadd231ps(
-                                r, vmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+                        if (*p_sum_scale == 1.f)
+                            vaddps(r, zmm_prev_dst);
+                        else
+                            vfmadd231ps(r, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+                    }
                 }
             }
         }
-
-        if (maybe_eltwise(1))
-            eltwise_injector_->compute_vector_range(0, ur * load_loop_blk);
 
         // Properly saturate the accumulators for integer datatypes
         if (one_of(jcp.dst_dt, u8, s8, s32)) {
@@ -342,6 +388,8 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
     Label reduce_loop;
     Label reduce_loop_tail;
 
+    push(reg_oc_off);
+
     mov(aux_reg_load_data, reg_load_data);
 
     mov(aux_reg_bcast_data, aux1_reg_bcast_data);
@@ -366,6 +414,8 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
     } else {
         fma_block(false);
     }
+
+    pop(reg_oc_off);
 
     if (jcp.oc_without_padding != jcp.oc) {
         Label end_store, common_store;
@@ -396,6 +446,25 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
 
 template <typename Vmm>
 void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
+    const auto &p = attr_.post_ops_;
+    for (int i = 0; i < p.len(); i++) {
+        auto &post_op = p.entry_[i];
+        if (post_op.is_eltwise()) {
+            eltwise_injectors.push_back(new jit_uni_eltwise_injector_f32<avx512_common>(
+                    this, post_op.eltwise, true, eltwise_reserved, mask_post_op_reserved
+            ));
+        } else if (post_op.is_depthwise()) {
+            depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<avx512_common>(
+                    this, post_op.depthwise.alg, mask_post_op_reserved
+            ));
+        } else if (post_op.is_quantization()) {
+            quantization_injectors.push_back(new jit_uni_quantization_injector_f32<avx512_common>(
+                    this,
+                    post_op,
+                    zmm_d_weights, zmm_d_bias, reg_d_weights, reg_d_bias
+            ));
+        }
+    }
 
     preamble();
 
@@ -432,6 +501,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
     mov(EVEX_compress_addr(rsp, bcast_loop_work_off), reg_bcast_loop_work);
     mov(reg_reduce_loop_work, ptr[param1 + GET_OFF(reduce_dim)]);
     mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(first_last_flag)]);
+    mov(reg_oc_off, ptr[param1 + GET_OFF(oc_off)]);
 
     auto load_loop_body = [=](int load_loop_blk) {
         bcast_loop(load_loop_blk);
@@ -459,6 +529,7 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
         mov(reg_bcast_data, EVEX_compress_addr(rsp, reg_bcast_data_off));
         add(reg_output_data, load_loop_blk * jcp.load_block * jcp.typesize_out);
         sub(reg_load_loop_work, load_loop_blk * jcp.load_loop_iter_step);
+        add(reg_oc_off, load_loop_blk * jcp.oc_block * sizeof(float));
     };
 
     Label load_loop_blk[7];
@@ -516,7 +587,8 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::generate() {
 
     postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
+    for (auto& inj : eltwise_injectors)
+        inj->prepare_table();
 }
 
 bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::post_ops_ok(
@@ -524,24 +596,23 @@ bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::post_ops_ok(
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
 
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-    auto is_convolution
-            = [&](int idx) { return p.entry_[idx].is_convolution(); };
+    int dw_conv_idx = p.find(primitive_kind::convolution);
+    bool with_dw_conv = dw_conv_idx != -1;
 
-    int dw_idx = p.find(primitive_kind::convolution);
-    int len = dw_idx != -1 ? dw_idx + 1 : p.len();
+    auto all_post_ops_supported = [&]() {
+        bool ok = true;
 
-    switch (len) {
-        case 0: return true;
-        case 1: return is_eltwise(0) || p.contain(sum, 0) || is_convolution(0);
-        case 2:
-            return (p.contain(sum, 0) && is_eltwise(1))
-                    || (p.contain(sum, 1) && is_eltwise(0))
-                    || (is_eltwise(0) && is_convolution(1));
-        default: return false;
-    }
+        int end_idx = with_dw_conv ? dw_conv_idx : p.len();
+        for (int i = 0; i < end_idx; i++) {
+            ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::sum, primitive_kind::eltwise, primitive_kind::depthwise,
+                                     primitive_kind::quantization);
+        }
+        return ok;
+    };
+    auto count = [&](dnnl::impl::primitive_kind_t kind) { return p.count(kind, 0, dw_conv_idx); };
 
-    return false;
+    return all_post_ops_supported() &&
+           count(primitive_kind::sum) <= 1;
 }
 
 status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(

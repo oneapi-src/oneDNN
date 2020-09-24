@@ -51,7 +51,10 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
                             alg_kind::pooling_avg_exclude_padding)
                     && utils::one_of(src_md()->data_type, data_type::s32,
                             data_type::s8, data_type::u8)
-                    && src_md()->data_type == dst_md()->data_type
+                    && utils::one_of(src_md()->data_type, data_type::s32, data_type::s8, data_type::u8)
+                    && IMPLICATION(desc()->alg_kind == alg_kind::pooling_max, src_md()->data_type == dst_md()->data_type)
+                    && IMPLICATION(utils::one_of(desc()->alg_kind, alg_kind::pooling_avg_include_padding, alg_kind::pooling_avg_exclude_padding),
+                                   utils::one_of(dst_md()->data_type, data_type::u8, data_type::s8, data_type::f32))
                     && attr()->has_default_values()
                     && memory_desc_matches_one_of_tag(*src_md(),
                                format_tag::nwc, format_tag::nhwc,
@@ -61,10 +64,27 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
                                format_tag::nwc, format_tag::nhwc,
                                format_tag::ndhwc)
                             != format_tag::undef
-                    && !is_dilated();
+                    && !is_dilated()
+                    && is_supported_post_ops();
             if (!ok) return status::unimplemented;
 
             return jit_conf();
+        }
+
+        virtual bool is_supported_post_ops() const {
+            const auto &p = this->attr()->post_ops_;
+
+            auto all_post_ops_supported = [&]() {
+                bool ok = true;
+
+                for (int i = 0; i < p.len(); i++) {
+                    ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::quantization);
+                }
+                return ok;
+            };
+
+            return all_post_ops_supported()
+                   && IMPLICATION(p.len() > 0, desc()->alg_kind == dnnl_pooling_avg_include_padding || desc()->alg_kind == dnnl_pooling_avg_exclude_padding);
         }
 
         jit_pool_conf_t jpp_;

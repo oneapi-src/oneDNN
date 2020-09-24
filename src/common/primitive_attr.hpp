@@ -172,6 +172,53 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(scales_t);
 };
 
+template <typename T>
+struct shifts_t: public c_compatible {
+    shifts_t(): count_(1), mask_(0), shifts_(shifts_buf_)
+    { set(0); }
+
+    shifts_t(const shifts_t &rhs): shifts_t()
+    { set(rhs.count_, rhs.mask_, rhs.shifts_); }
+
+    ~shifts_t() { cleanup(); }
+
+    shifts_t &operator=(const shifts_t &rhs) {
+        if (&rhs == this)
+            return *this;
+        status_t status = set(rhs.count_, rhs.mask_, rhs.shifts_);
+        assert(status == status::success);
+        (void)status;
+        return *this;
+    }
+
+    bool has_default_values() const {
+        for (int c = 0; c < count_; ++c) {
+            if(shifts_[c] != 0) return false;
+        }
+        return true;
+    }
+
+    status_t set(int count, int mask, const T *zero_points);
+    status_t set(T single_zero_point) { return this->set(1, 0, &single_zero_point); }
+
+    int count_;
+    int mask_;
+    T *shifts_;
+
+private:
+    enum { shifts_buf_size = 16 };
+    T shifts_buf_[shifts_buf_size];
+
+    void cleanup() {
+        if (shifts_ != shifts_buf_ && shifts_ != nullptr)
+            impl::free(shifts_);
+
+        count_ = 1;
+        mask_ = 0;
+        shifts_ = shifts_buf_;
+    }
+};
+
 struct arg_scales_t : public c_compatible {
     arg_scales_t() {
         for (const auto &sa : {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1}) {
@@ -350,6 +397,22 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::memory_desc_t src1_desc;
         };
 
+        struct depthwise_t {
+            dnnl::impl::alg_kind_t alg;
+            const float* weights_data;
+            const float* biases_data;
+        };
+
+        struct quantization_t {
+            dnnl::impl::alg_kind_t alg;
+            const dnnl::impl::shifts_t<float>* crop_low_data;
+            const dnnl::impl::shifts_t<float>* crop_high_data;
+            const dnnl::impl::scales_t* input_scale_data;
+            const dnnl::impl::shifts_t<float>* input_shift_data;
+            const dnnl::impl::scales_t* output_scale_data;
+            const dnnl::impl::shifts_t<float>* output_shift_data;
+        };
+
         dnnl::impl::primitive_kind_t kind
                 = dnnl::impl::primitive_kind::undefined;
         union {
@@ -360,6 +423,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             eltwise_t eltwise;
             depthwise_conv_t depthwise_conv;
             binary_t binary;
+            depthwise_t depthwise;
+            quantization_t quantization;
         };
 
         bool is_eltwise(bool require_scale_one = false) const {
@@ -389,6 +454,16 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
         bool is_binary() const {
             return kind == dnnl::impl::primitive_kind::binary;
+        }
+
+        bool is_depthwise() const {
+            using namespace dnnl::impl;
+            return kind == primitive_kind::depthwise;
+        }
+
+        bool is_quantization() const {
+            using namespace dnnl::impl;
+            return kind == primitive_kind::quantization;
         }
 
         dnnl::impl::status_t set_depthwise_scales(const float *scales);
@@ -429,6 +504,20 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                 case primitive_kind::binary:
                     ret = binary.alg == rhs.binary.alg
                             && binary.src1_desc == rhs.binary.src1_desc;
+                    break;
+                case primitive_kind::depthwise:
+                    ret = depthwise.alg == rhs.depthwise.alg
+                          && depthwise.weights_data == rhs.depthwise.weights_data
+                          && depthwise.biases_data == rhs.depthwise.biases_data;
+                    break;
+                case primitive_kind::quantization:
+                    ret = quantization.alg == rhs.quantization.alg
+                          && quantization.crop_low_data == rhs.quantization.crop_low_data
+                          && quantization.crop_high_data == rhs.quantization.crop_high_data
+                          && quantization.input_scale_data == rhs.quantization.input_scale_data
+                          && quantization.input_shift_data == rhs.quantization.input_shift_data
+                          && quantization.output_scale_data == rhs.quantization.output_scale_data
+                          && quantization.output_shift_data == rhs.quantization.output_shift_data;
                     break;
                 default: assert(!"unsupported post_op");
             }
@@ -476,6 +565,12 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             dnnl::impl::dim_t count, int mask, const float *scales);
     dnnl::impl::status_t append_binary(dnnl::impl::alg_kind_t alg,
             const dnnl::impl::memory_desc_t *src1_desc);
+    dnnl::impl::status_t append_depthwise(dnnl::impl::alg_kind_t alg,
+            const float* weights_data, const float* biases_data);
+    dnnl::impl::status_t append_quantization(dnnl::impl::alg_kind_t alg,
+                                             const void* crop_low, const void* crop_high,
+                                             const void* input_scale, const void* input_shift,
+                                             const void* output_scale, const void* output_shift);
 
     int find(dnnl::impl::primitive_kind_t kind, int start = 0,
             int stop = -1) const {
@@ -484,6 +579,16 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         for (int idx = start; idx < stop; ++idx)
             if (entry_[idx].kind == kind) return idx;
         return -1;
+    }
+
+    int count(dnnl::impl::primitive_kind_t kind, int start = 0,
+              int stop = -1) const {
+        if (stop == -1) stop = len();
+        stop = dnnl::impl::nstl::min(stop, len());
+        int cnt = 0;
+        for (int idx = start; idx < stop; ++idx)
+            if (entry_[idx].kind == kind) cnt++;
+        return cnt;
     }
 
     bool defined() const;
@@ -581,6 +686,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     bool has_default_values(skip_mask_t mask = skip_mask_t::none,
             dnnl::impl::data_type_t dst_dt = dnnl_data_type_undef) const;
 
+    bool has_asymmetric_quantization() const;
+
     /** Returns true if the attributes are fully defined. */
     bool defined(skip_mask_t mask = skip_mask_t::none) const;
 
@@ -608,6 +715,10 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
     dnnl::impl::scales_t rnn_weights_qparams_;
     dnnl::impl::rnn_tparams_t rnn_tparams_;
+
+    dnnl::impl::shifts_t<uint8_t> input_zero_points_;
+    dnnl::impl::shifts_t<float> weights_zero_points_;
+    dnnl::impl::shifts_t<int32_t> output_compensations_;
 
     dnnl_primitive_attr &operator=(const dnnl_primitive_attr &other) = delete;
 };

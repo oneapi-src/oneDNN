@@ -23,6 +23,8 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/jit_uni_depthwise_injector.hpp"
+#include "cpu/x64/jit_uni_quantization_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,18 +37,30 @@ struct _jit_uni_x8s8s32x_fwd_kernel : public jit_generator {
 
     _jit_uni_x8s8s32x_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_
-                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
+        : jcp(ajcp), attr_(attr) {}
+
+    ~_jit_uni_x8s8s32x_fwd_kernel() {
+        for (auto inj : eltwise_injectors)
+            delete inj;
+        eltwise_injectors.clear();
+
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+
+        for (auto inj : quantization_injectors)
+            delete inj;
+        quantization_injectors.clear();
     }
-    ~_jit_uni_x8s8s32x_fwd_kernel() { delete eltwise_injector_; }
 
     jit_conv_conf_t jcp;
     const primitive_attr_t &attr_;
 
 private:
-    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
+    nstl::vector<jit_uni_eltwise_injector_f32<isa>*> eltwise_injectors;
+    nstl::vector<jit_uni_depthwise_injector_f32<isa>*> depthwise_injectors;
+    nstl::vector<jit_uni_quantization_injector_f32<isa, Vmm>*> quantization_injectors;
+
     const int ic_sub_step = 4;
 
     enum {
@@ -89,6 +103,14 @@ private:
     const Xbyak::Reg64 aux_reg_inp_buffer_ptr = aux_reg_ker_d;
     const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
 
+    const Xbyak::Reg64 reg_d_weights = r15;
+    const Xbyak::Reg64 reg_d_bias = r13;
+
+    const Vmm vmm_d_weights = Vmm(0);
+    const Vmm vmm_d_bias = Vmm(1);
+
+    Xbyak::Reg64 eltwise_reserved = rax;
+
     const Vmm vmm_wei = Vmm(0);
     /* used during bias section of store_output */
     const Vmm vmm_comp = Vmm(1); // only for signed input
@@ -117,9 +139,7 @@ private:
     Vmm vmm_dw_shifted_zero;
 
     Vmm vmm_out(int i_ur, int i_oc) {
-        int nb_x_blocking
-                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-        int idx = i_ur * nb_x_blocking + i_oc;
+        int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx
                 < (jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx));
         /* remap register indices from 4 to 15
@@ -160,14 +180,12 @@ private:
                                 : jcp.oc_without_padding % jcp.oc_block;
     }
 
-    bool maybe_eltwise(int position);
     void prepare_output(int ur_w);
     void store_output(int ur_w, bool last_oc_block_flag);
     void compute_ker_dw(int ur_w, int pad_l, int pad_r,
             ic_block_t last_ic_block_flag, bool h_padded);
     void compute_ker(int ur_w, int pad_l, int pad_r,
             ic_block_t last_ic_block_flag, bool h_padded = false);
-    void compute_eltwise(int ur_w);
     void kh_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
     void generate() override;

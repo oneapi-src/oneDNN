@@ -56,6 +56,28 @@ status_t scales_t::set(dim_t count, int mask, const float *scales) {
     return status::success;
 }
 
+template <typename T>
+status_t shifts_t<T>::set(int count, int mask, const T *shifts) {
+    cleanup();
+
+    count_ = count;
+    mask_ = mask;
+
+    if (count_ == 1) {
+        shifts_ = shifts_buf_;
+        utils::array_set(shifts_, shifts[0], shifts_buf_size);
+    } else {
+        shifts_ = (T *)impl::malloc(count_ * sizeof(*shifts_), 64);
+        if (shifts_ == nullptr)
+            return status::out_of_memory;
+
+        for (int c = 0; c < count_; ++c)
+            shifts_[c] = shifts[c];
+    }
+
+    return status::success;
+}
+
 status_t arg_scales_t::set(
         int arg, dim_t count, int mask, const float *scales) {
     if (!check_arg(arg)) return status::invalid_arguments;
@@ -142,6 +164,14 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
                     post_ops_.sum_with_default_dt(dst_dt))
             && this->defined(defined_mask);
 }
+
+    bool primitive_attr_t::has_asymmetric_quantization() const {
+        return true
+               && output_scales_.has_default_values()
+               && rnn_data_qparams_.has_default_values()
+               && rnn_weights_qparams_.has_default_values()
+               && (!input_zero_points_.has_default_values() || !weights_zero_points_.has_default_values());
+    }
 
 bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
     return true
@@ -261,6 +291,48 @@ status_t post_ops_t::append_binary(
     e.kind = primitive_kind::binary;
     e.binary.alg = alg;
     e.binary.src1_desc = *src1_desc;
+
+    return success;
+}
+
+status_t post_ops_t::append_depthwise(alg_kind_t alg, const float* weights_data, const float* biases_data) {
+    using namespace dnnl::impl::alg_kind;
+    if (len() == post_ops_limit) return out_of_memory;
+    bool known_alg = one_of(alg, depthwise_scale_shift, depthwise_prelu);
+    if (!known_alg)
+        return invalid_arguments;
+
+    entry_.emplace_back();
+    auto &e = entry_.back();
+    e.kind = primitive_kind::depthwise;
+    e.depthwise.alg = alg;
+    e.depthwise.weights_data = weights_data;
+    e.depthwise.biases_data = biases_data;
+
+    return success;
+}
+
+status_t post_ops_t::append_quantization(alg_kind_t alg,
+                                         const void* crop_low, const void* crop_high,
+                                         const void* input_scale, const void* input_shift,
+                                         const void* output_scale, const void* output_shift) {
+    using namespace dnnl::impl::alg_kind;
+    if (len() == post_ops_limit) return out_of_memory;
+    bool known_alg = one_of(alg, quantization_quantize_dequantize, quantization_quantize);
+    if (!known_alg)
+        return invalid_arguments;
+
+    entry_.emplace_back();
+    auto &e = entry_.back();
+    e.kind = primitive_kind::quantization;
+    e.quantization.alg = alg;
+    e.quantization.crop_low_data = reinterpret_cast<const shifts_t<float>*>(crop_low);
+    e.quantization.crop_high_data = reinterpret_cast<const shifts_t<float>*>(crop_high);
+    e.quantization.input_scale_data = reinterpret_cast<const scales_t*>(input_scale);
+    e.quantization.input_shift_data = reinterpret_cast<const shifts_t<float>*>(input_shift);
+    e.quantization.output_scale_data = reinterpret_cast<const scales_t*>(output_scale);
+    e.quantization.output_shift_data = reinterpret_cast<const shifts_t<float>*>(output_shift);
+
     return success;
 }
 
@@ -577,6 +649,23 @@ status_t dnnl_post_ops_get_params_binary(const post_ops_t *post_ops, int index,
     return success;
 }
 
+status_t dnnl_post_ops_append_depthwise(dnnl_post_ops_t post_ops, dnnl_alg_kind_t alg,
+                                        const float* weights_data, const float* biases_data) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_depthwise(alg, weights_data, biases_data);
+}
+
+status_t dnnl_post_ops_append_quantization(post_ops_t *post_ops, alg_kind_t kind,
+                                           const void* crop_low, const void* crop_high,
+                                           const void* input_scale, const void* input_shift,
+                                           const void* output_scale, const void* output_shift) {
+    if (post_ops == nullptr)
+        return invalid_arguments;
+
+    return post_ops->append_quantization(kind, crop_low, crop_high, input_scale, input_shift, output_scale, output_shift);
+}
+
 status_t dnnl_primitive_attr_set_rnn_data_qparams(
         primitive_attr_t *attr, const float scale, const float shift) {
     if (attr == nullptr) return invalid_arguments;
@@ -599,3 +688,7 @@ status_t DNNL_API dnnl_primitive_attr_set_rnn_tparams(
 
     return attr->rnn_tparams_.set(mode, ngates, scales, cscale);
 }
+
+template struct dnnl::impl::shifts_t<uint8_t>;
+template struct dnnl::impl::shifts_t<int32_t>;
+template struct dnnl::impl::shifts_t<float>;

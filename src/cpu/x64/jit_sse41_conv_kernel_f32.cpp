@@ -191,15 +191,60 @@ void jit_sse41_conv_fwd_kernel_f32::width_blk_step(
 
     L(skip_kh_loop);
 
-    if (jcp.with_eltwise) {
-        Label regular_store;
-        test(reg_ci_flag, FLAG_IC_LAST);
-        je(regular_store, T_NEAR);
+    Label regular_store;
+    test(reg_ci_flag, FLAG_IC_LAST);
+    je(regular_store, T_NEAR);
 
-        eltwise_injector_->compute_vector_range(1, oc_blocks * ur_w + 1);
+    int eltwise_inj_idx = 0;
+    int depthwise_inj_idx = 0;
+    int quantization_inj_idx = 0;
+    const auto &p = attr_.post_ops_;
 
-        L(regular_store);
+    for (int i = 0; i < p.len(); i++) {
+        auto& post_op = p.entry_[i];
+        if (post_op.is_eltwise()) {
+            eltwise_injectors[eltwise_inj_idx]->compute_vector_range(1, oc_blocks * ur_w + 1);
+            eltwise_inj_idx++;
+        } else if (post_op.is_depthwise()) {
+            mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
+            mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
+
+            add(reg_d_weights, reg_oc_off);
+            add(reg_d_bias, reg_oc_off);
+
+            for (int ii = 0; ii < oc_blocks; ii++) {
+                depthwise_injectors[depthwise_inj_idx]->compute_vector_range(
+                        ur_w * ii + 1, ur_w * ii + ur_w + 1, reg_d_weights, reg_d_bias);
+
+                add(reg_d_weights, oc_blk * sizeof(float));
+                add(reg_d_bias, oc_blk * sizeof(float));
+            }
+
+            depthwise_inj_idx++;
+        } else if (post_op.is_quantization()) {
+            quantization_injectors[quantization_inj_idx]->init_crop_ptrs(reg_oc_off);
+            for (int ii = 0; ii < oc_blocks; ii++) {
+                int s_idx = Xmm(ur_w * ii + 1).getIdx();
+                quantization_injectors[quantization_inj_idx]->compute_crop(s_idx, s_idx + ur_w, ii * jcp.oc_block * sizeof(float));
+            }
+
+            quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(reg_oc_off);
+            for (int ii = 0; ii < oc_blocks; ii++) {
+                int s_idx = Xmm(ur_w * ii + 1).getIdx();
+                quantization_injectors[quantization_inj_idx]->compute_input_scale_shift(s_idx, s_idx + ur_w, ii * jcp.oc_block * sizeof(float), true);
+            }
+
+            quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(reg_oc_off);
+            for (int ii = 0; ii < oc_blocks; ii++) {
+                int s_idx = Xmm(ur_w * ii + 1).getIdx();
+                quantization_injectors[quantization_inj_idx]->compute_output_scale_shift(s_idx, s_idx + ur_w, ii * jcp.oc_block * sizeof(float));
+            }
+
+            quantization_inj_idx++;
+        }
     }
+
+    L(regular_store);
 
     for (int ii = 0; ii < oc_blocks; ii++) {
         for (int jj = 0; jj < ur_w; jj++) {
@@ -213,12 +258,15 @@ void jit_sse41_conv_fwd_kernel_f32::width_blk_step(
     add(aux_reg_kernel, sizeof(float) * 4);
     add(reg_output, sizeof(float) * 4);
     add(reg_bias, sizeof(float) * 4);
+    add(reg_oc_off, sizeof(float) * 4);
+
     inc(simd_iter);
     cmp(simd_iter, 2);
     jl(init_simd_iter_loop, T_NEAR);
 
     sub(reg_output, sizeof(float) * 8);
     sub(reg_bias, sizeof(float) * 8);
+    sub(reg_oc_off, sizeof(float) * 8);
 }
 
 inline void jit_sse41_conv_fwd_kernel_f32::solve_common(int oc_blocks) {
@@ -271,6 +319,28 @@ inline void jit_sse41_conv_fwd_kernel_f32::solve_common(int oc_blocks) {
 }
 
 void jit_sse41_conv_fwd_kernel_f32::generate() {
+    const auto &p = attr_.post_ops_;
+    for (int i = 0; i < p.len(); i++) {
+        auto &post_op = p.entry_[i];
+        if (post_op.is_eltwise()) {
+            eltwise_injectors.push_back(new jit_uni_eltwise_injector_f32<sse41>(
+                    this,
+                    post_op.eltwise
+            ));
+        } else if (post_op.is_depthwise()) {
+            depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<sse41>(
+                    this,
+                    post_op.depthwise.alg
+            ));
+        } else if (post_op.is_quantization()) {
+            quantization_injectors.push_back(new jit_uni_quantization_injector_f32<sse41>(
+                    this,
+                    post_op,
+                    xmm_d_weights, xmm_d_bias, reg_d_weights, reg_d_bias
+            ));
+        }
+    }
+
     this->preamble();
 
     mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
@@ -280,6 +350,7 @@ void jit_sse41_conv_fwd_kernel_f32::generate() {
     mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
     mov(reg_ci_flag, ptr[this->param1 + GET_OFF(flags)]);
     mov(reg_oc_blocks, ptr[this->param1 + GET_OFF(oc_blocks)]);
+    mov(reg_oc_off, ptr[param1 + GET_OFF(oc_off)]);
 
     int nb_oc_tail = jcp.nb_oc % jcp.nb_oc_blocking;
     Label tail, exit;
@@ -301,24 +372,30 @@ void jit_sse41_conv_fwd_kernel_f32::generate() {
 
     this->postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
+    for (auto& inj : eltwise_injectors)
+        inj->prepare_table();
 }
 
 bool jit_sse41_conv_fwd_kernel_f32::post_ops_ok(
         jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
+    auto all_post_ops_supported = [&]() {
+        bool ok = true;
 
-    switch (p.len()) {
-        case 0: return true; // no post_ops
-        case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-        case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-        default: return false;
-    }
+        for (int i = 0; i < p.len(); i++) {
+            ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::sum, primitive_kind::eltwise, primitive_kind::depthwise,
+                                     primitive_kind::quantization);
+        }
+        return ok;
+    };
+    auto contain = [&](dnnl::impl::primitive_kind_t kind) { return p.find(kind) != -1; };
+    auto position = [&](dnnl::impl::primitive_kind_t kind) { return p.find(kind); };
+    auto count = [&](dnnl::impl::primitive_kind_t kind) { return p.count(kind); };
 
-    return false;
+    return all_post_ops_supported() &&
+           count(primitive_kind::sum) <= 1 &&
+           IMPLICATION(contain(primitive_kind::sum), position(primitive_kind::sum) == 0);
 }
 
 status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,

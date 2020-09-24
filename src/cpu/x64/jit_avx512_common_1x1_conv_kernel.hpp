@@ -23,6 +23,8 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/jit_uni_depthwise_injector.hpp"
+#include "cpu/x64/jit_uni_quantization_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,13 +34,21 @@ namespace x64 {
 struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     jit_avx512_common_1x1_conv_kernel(
             const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
-                    this, jcp.eltwise);
-    }
+        : jcp(ajcp), attr_(attr) {}
 
-    ~jit_avx512_common_1x1_conv_kernel() { delete eltwise_injector_; }
+    ~jit_avx512_common_1x1_conv_kernel() {
+        for (auto inj : eltwise_injectors)
+            delete inj;
+        eltwise_injectors.clear();
+
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+
+        for (auto inj : quantization_injectors)
+            delete inj;
+        quantization_injectors.clear();
+    }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_1x1_conv_kernel)
 
@@ -72,7 +82,7 @@ private:
     reg64_t reg_load_loop_work = rsi;
     reg64_t reg_reduce_loop_work = r11;
     reg64_t reg_bcast_loop_iter = rdx;
-    reg64_t reduce_loop_iter = abi_param1;
+    reg64_t reduce_loop_iter = r13;
     reg64_t reg_reduce_pos_flag = rax;
     reg64_t reg_output_stride = r13;
     reg64_t reg_bias_data = r12;
@@ -84,7 +94,16 @@ private:
     Xbyak::Opmask k_load_dim_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_load_dim_tail_mask = Xbyak::Opmask(3);
 
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    reg64_t reg_oc_off = abi_param1;
+    reg64_t reg_d_weights = imm_addr64;
+    reg64_t reg_d_bias = r13;
+
+    Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
+    Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);
+
+    nstl::vector<jit_uni_eltwise_injector_f32<avx512_common>*> eltwise_injectors;
+    nstl::vector<jit_uni_depthwise_injector_f32<avx512_common>*> depthwise_injectors;
+    nstl::vector<jit_uni_quantization_injector_f32<avx512_common>*> quantization_injectors;
 
     int bcast_loop_work_offt = 0;
     int stack_space_needed = 16;

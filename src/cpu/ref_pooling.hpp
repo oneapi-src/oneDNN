@@ -33,7 +33,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t data_type, impl::data_type_t acc_type = data_type>
+template <impl::data_type_t src_type, impl::data_type_t dst_type, impl::data_type_t acc_type = src_type>
 struct ref_pooling_fwd_t : public primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
@@ -43,12 +43,13 @@ struct ref_pooling_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
 
-            bool ok = platform::has_data_type_support(data_type)
+            bool ok = platform::has_data_type_support(src_type) && platform::has_data_type_support(dst_type)
                     && set_default_params() == status::success && is_fwd()
-                    && utils::everyone_is(
-                            data_type, src_md()->data_type, dst_md()->data_type)
+                    && utils::everyone_is(src_type, src_md()->data_type)
+                    && utils::everyone_is(dst_type, dst_md()->data_type)
                     && desc()->accum_data_type == acc_type
-                    && attr()->has_default_values(sm::post_ops);
+                    && attr()->has_default_values(sm::post_ops)
+                    && is_supported_post_ops();
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == prop_kind::forward_training;
@@ -57,18 +58,34 @@ struct ref_pooling_fwd_t : public primitive_t {
 
             return status::success;
         }
+
+        virtual bool is_supported_post_ops() const {
+            const auto &p = this->attr()->post_ops_;
+
+            auto all_post_ops_supported = [&]() {
+                bool ok = true;
+
+                for (int i = 0; i < p.len(); i++) {
+                    ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::quantization);
+                }
+                return ok;
+            };
+
+            return all_post_ops_supported() &&
+                   IMPLICATION(p.len() > 0, (desc()->alg_kind == dnnl_pooling_avg_include_padding || desc()->alg_kind == dnnl_pooling_avg_exclude_padding) &&
+                                           src_type != data_type::bf16);
+
+        }
     };
 
     ref_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        ref_post_ops
-                = utils::make_unique<ref_post_ops_t>(pd()->attr()->post_ops_);
-        if (!ref_post_ops) return status::out_of_memory;
         return status::success;
     }
 
-    using data_t = typename prec_traits<data_type>::type;
+    using src_data_t = typename prec_traits<src_type>::type;
+    using dst_data_t = typename prec_traits<dst_type>::type;
     using acc_data_t = typename prec_traits<acc_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
@@ -79,7 +96,6 @@ struct ref_pooling_fwd_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void execute_forward(const exec_ctx_t &ctx) const;
-    std::unique_ptr<ref_post_ops_t> ref_post_ops;
 };
 
 template <impl::data_type_t data_type>

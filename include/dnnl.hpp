@@ -2607,6 +2607,22 @@ struct post_ops : public handle<dnnl_post_ops_t> {
         aalgorithm = static_cast<dnnl::algorithm>(c_alg);
         src1_desc.data = *data;
     }
+
+    void append_depthwise(algorithm alg, const float* weights_data,
+            const float* biases_data) {
+        error::wrap_c_api(dnnl_post_ops_append_depthwise(get(),
+                    convert_to_c(alg), weights_data, biases_data),
+                "could not append depthwise");
+    }
+
+    void append_quantization(algorithm alg,
+            const void* crop_low, const void* crop_high,
+            const void* input_scale, const void* input_shift,
+            const void* output_scale, const void* output_shift) {
+        error::wrap_c_api(dnnl_post_ops_append_quantization(get(), convert_to_c(alg), crop_low, crop_high,
+                input_scale, input_shift, output_scale, output_shift),
+                          "could not append quantization");
+    }
 };
 
 /// @cond DO_NOT_DOCUMENT_THIS

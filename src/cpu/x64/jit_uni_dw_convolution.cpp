@@ -142,6 +142,8 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
                 assert(jcp.loop_order != loop_nhwcg);
             }
 
+            par_conv.oc_off = ch * jcp.ch_block * sizeof(float);
+
             (*kernel_)(&par_conv);
 
             if (jcp.loop_order == loop_ngcw) {

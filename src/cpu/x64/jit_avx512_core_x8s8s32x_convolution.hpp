@@ -58,7 +58,9 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
                             primitive_attr_t::skip_mask_t::oscale
                                     | primitive_attr_t::skip_mask_t::post_ops,
                             dst_type)
-                    && !has_zero_dim_memory();
+                    && !has_zero_dim_memory()
+                    && !this->attr()->has_asymmetric_quantization();
+
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(

@@ -74,13 +74,6 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::cvt2ps(data_type_t type_in,
     load_data(type_in, vmm_in, reg, offset, load_size);
     if (type_in != data_type::f32) uni_vcvtdq2ps(vmm_in, vmm_in);
 }
-template <cpu_isa_t isa, typename Vmm>
-void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_eltwise(int ur_w) {
-    int nb_oc_block
-            = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-    // avoid passing xmm0 to eltwise injector for sse41
-    eltwise_injector_->compute_vector_range(16 - nb_oc_block * ur_w, 16);
-}
 
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
@@ -149,27 +142,82 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
     }
 
     /* Do post-ops */
-    if (maybe_eltwise(0)) compute_eltwise(ur_w);
-    if (p_sum_scale) { // post_op: sum
-        for (int k = 0; k < nb_oc_block; ++k) {
-            const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
-            for (int j = 0; j < ur_w; ++j) {
-                int aux_output_offset = jcp.typesize_out
-                        * (k * oc_block
-                                + j * jcp.oc_without_padding * jcp.ngroups);
-                cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
-                        mask_flag ? get_tail_size() : get_blocking_size());
-                Vmm vmm = vmm_out(j, k);
-                if (*p_sum_scale == 1.f)
-                    uni_vaddps(vmm, vmm, vmm_prev_dst);
-                else {
-                    uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
-                    uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
+    int eltwise_inj_idx = 0;
+    int depthwise_inj_idx = 0;
+    int quantization_inj_idx = 0;
+    for (int i = 0; i < p.len(); i++) {
+        auto& post_op = p.entry_[i];
+        if (post_op.is_eltwise()) {
+            size_t s_idx = vmm_out(ur_w - 1, nb_oc_block - 1).getIdx();
+            size_t e_idx = vmm_out(0, 0).getIdx() + 1;
+
+            eltwise_injectors[eltwise_inj_idx]->compute_vector_range(s_idx, e_idx);
+
+            eltwise_inj_idx++;
+        } else if (post_op.is_depthwise()) {
+            mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
+            mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
+
+            add(reg_d_weights, ptr[param1 + GET_OFF(oc_off)]);
+            add(reg_d_bias, ptr[param1 + GET_OFF(oc_off)]);
+
+            for (int k = 0; k < nb_oc_block; k++) {
+                int s_idx = vmm_out(ur_w - 1, k).getIdx();
+                int e_idx = vmm_out(0, k).getIdx() + 1;
+                depthwise_injectors[depthwise_inj_idx]->compute_vector_range(s_idx, e_idx, reg_d_weights, reg_d_bias);
+
+                add(reg_d_weights, oc_block * sizeof(float));
+                add(reg_d_bias, oc_block * sizeof(float));
+            }
+
+            depthwise_inj_idx++;
+        } else if (post_op.is_quantization()) {
+            bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
+            bool do_rounding = do_dequantization || jcp.dst_dt == dnnl_f32 || i != p.len() - 1;
+
+            quantization_injectors[quantization_inj_idx]->init_crop_ptrs(ptr[param1 + GET_OFF(oc_off)]);
+            for (int k = 0; k < nb_oc_block; k++) {
+                int s_idx = vmm_out(ur_w - 1, k).getIdx();
+                int e_idx = vmm_out(0, k).getIdx() + 1;
+                quantization_injectors[quantization_inj_idx]->compute_crop(s_idx, e_idx, k * oc_block * sizeof(float));
+            }
+
+            quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(ptr[param1 + GET_OFF(oc_off)]);
+            for (int k = 0; k < nb_oc_block; k++) {
+                int s_idx = vmm_out(ur_w - 1, k).getIdx();
+                int e_idx = vmm_out(0, k).getIdx() + 1;
+                quantization_injectors[quantization_inj_idx]->compute_input_scale_shift(s_idx, e_idx, k * oc_block * sizeof(float), do_rounding);
+            }
+
+            quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(ptr[param1 + GET_OFF(oc_off)]);
+            for (int k = 0; k < nb_oc_block; k++) {
+                int s_idx = vmm_out(ur_w - 1, k).getIdx();
+                int e_idx = vmm_out(0, k).getIdx() + 1;
+                quantization_injectors[quantization_inj_idx]->compute_output_scale_shift(s_idx, e_idx, k * oc_block * sizeof(float));
+            }
+
+            quantization_inj_idx++;
+        } else if (post_op.is_sum(false)) {
+            for (int k = 0; k < nb_oc_block; k++) {
+                const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
+                for (int j = 0; j < ur_w; j++) {
+                    int aux_output_offset
+                            = jcp.typesize_out
+                            * (k * oc_block
+                                      + j * jcp.oc_without_padding * jcp.ngroups);
+                    cvt2ps(post_op.sum.dt, vmm_prev_dst, reg_out, aux_output_offset,
+                           mask_flag ? get_tail_size() : get_blocking_size());
+                    Vmm vmm = vmm_out(j, k);
+                    if (*p_sum_scale == 1.f)
+                        uni_vaddps(vmm, vmm, vmm_prev_dst);
+                    else {
+                        uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
+                        uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
+                    }
                 }
             }
         }
     }
-    if (maybe_eltwise(1)) compute_eltwise(ur_w);
 
     // Properly saturate the accumulators for integer datatypes
 
@@ -650,6 +698,26 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::icb_loop(
 
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
+        const auto &p = attr_.post_ops_;
+    for (int i = 0; i < p.len(); i++) {
+        auto &post_op = p.entry_[i];
+        if (post_op.is_eltwise()) {
+            eltwise_injectors.push_back(new jit_uni_eltwise_injector_f32<isa>(
+                    this, post_op.eltwise, true, eltwise_reserved
+            ));
+        } else if (post_op.is_depthwise()) {
+            depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<isa>(
+                    this, post_op.depthwise.alg
+            ));
+        } else if (post_op.is_quantization()) {
+            quantization_injectors.push_back(new jit_uni_quantization_injector_f32<isa, Vmm>(
+                    this,
+                    post_op,
+                    vmm_d_weights, vmm_d_bias, reg_d_weights, reg_d_bias
+            ));
+        }
+    }
+
     Label permute_index_table;
     int in_ic_shift = jcp.is_fused_conv ? jcp.dw_conv_buffer_oc
                                         : jcp.ic_without_padding * jcp.ngroups;
@@ -990,7 +1058,8 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
 
     postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
+    for (auto& inj : eltwise_injectors)
+        inj->prepare_table();
 }
 
 template <cpu_isa_t isa>
@@ -999,34 +1068,19 @@ bool jit_uni_x8s8s32x_fwd_kernel<isa>::post_ops_ok(
     using namespace primitive_kind;
     const auto &p = attr.post_ops_;
 
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
+    auto all_post_ops_supported = [&]() {
+        bool ok = true;
 
-    switch (p.len()) {
-        case 0: return true;
-        case 1: return is_eltwise(0) || p.contain(sum, 0);
-        case 2:
-            return (p.contain(sum, 0) && is_eltwise(1))
-                    || (p.contain(sum, 1) && is_eltwise(0));
-        default: return false;
-    }
+        for (int i = 0; i < p.len(); i++) {
+            ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::sum, primitive_kind::eltwise, primitive_kind::depthwise,
+                                     primitive_kind::quantization);
+        }
+        return ok;
+    };
+    auto count = [&](dnnl::impl::primitive_kind_t kind) { return p.count(kind); };
 
-    return false;
-}
-
-template <cpu_isa_t isa, typename Vmm>
-bool _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::maybe_eltwise(int position) {
-    using namespace primitive_kind;
-    const auto &p = attr_.post_ops_;
-
-    if (position == 0) {
-        /* eltwise before sum */
-        return p.contain(eltwise, 0);
-    } else if (position == 1) {
-        /* eltwise after sum */
-        return p.contain(sum, 0) && p.contain(eltwise, 1);
-    }
-
-    return false;
+    return all_post_ops_supported() &&
+           count(primitive_kind::sum) <= 1;
 }
 
 template <cpu_isa_t isa>

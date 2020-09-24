@@ -141,12 +141,74 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_activation(
+void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_postprocess(
         int ur_ch_blocks, int ur_w) {
-    if (this->jcp.with_eltwise) {
-        int repeats = isa == sse41 ? 2 : 1;
-        eltwise_injector_->compute_vector_range(
-                4, repeats * ur_w * ur_ch_blocks + 4);
+    int repeats = isa == sse41 ? 2 : 1;
+
+    int eltwise_inj_idx = 0;
+    int depthwise_inj_idx = 0;
+    int quantization_inj_idx = 0;
+    const auto &p = attr_.post_ops_;
+
+    for (int i = 0; i < p.len(); i++) {
+        auto& post_op = p.entry_[i];
+        if (post_op.is_eltwise()) {
+            int start_idx = get_acc_reg(0).getIdx();
+            int end_idx = get_acc_reg(repeats * ur_w * ur_ch_blocks).getIdx();
+
+            eltwise_injectors[eltwise_inj_idx]->compute_vector_range(start_idx, end_idx);
+            eltwise_inj_idx++;
+        } else if (post_op.is_depthwise()) {
+            mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
+            mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
+
+            add(reg_d_weights, ptr[this->param1 + GET_OFF(oc_off)]);
+            add(reg_d_bias, ptr[this->param1 + GET_OFF(oc_off)]);
+
+            for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                for (int k = 0; k < repeats; k++) {
+                    int start_idx = get_acc_reg(k*ur_ch_blocks*ur_w + ur_w * ch).getIdx();
+                    int end_idx = get_acc_reg(k*ur_ch_blocks*ur_w + ur_w * ch + ur_w).getIdx();
+
+                    depthwise_injectors[depthwise_inj_idx]->compute_vector_range(
+                            start_idx, end_idx, reg_d_weights, reg_d_bias);
+
+                    add(reg_d_weights, jcp.ch_block / repeats * sizeof(float));
+                    add(reg_d_bias, jcp.ch_block / repeats * sizeof(float));
+                }
+            }
+
+            depthwise_inj_idx++;
+        } else if (post_op.is_quantization()) {
+            quantization_injectors[quantization_inj_idx]->init_crop_ptrs(ptr[this->param1 + GET_OFF(oc_off)]);
+            for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                for (int k = 0; k < repeats; k++) {
+                    int s_idx = get_acc_reg(k*ur_ch_blocks*ur_w + ch*ur_w).getIdx();
+                    quantization_injectors[quantization_inj_idx]->compute_crop(s_idx, s_idx + ur_w,
+                                                                               (k * (jcp.ch_block / 2) + ch * jcp.ch_block) * sizeof(float));
+                }
+            }
+
+            quantization_injectors[quantization_inj_idx]->init_input_scale_shift_ptrs(ptr[this->param1 + GET_OFF(oc_off)]);
+            for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                for (int k = 0; k < repeats; k++) {
+                    int s_idx = get_acc_reg(k*ur_ch_blocks*ur_w + ch*ur_w).getIdx();
+                    quantization_injectors[quantization_inj_idx]->compute_input_scale_shift(s_idx, s_idx + ur_w,
+                                                                                            (k * (jcp.ch_block / 2) + ch * jcp.ch_block) * sizeof(float), true);
+                }
+            }
+
+            quantization_injectors[quantization_inj_idx]->init_output_scale_shift_ptrs(ptr[this->param1 + GET_OFF(oc_off)]);
+            for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                for (int k = 0; k < repeats; k++) {
+                    int s_idx = get_acc_reg(k*ur_ch_blocks*ur_w + ch*ur_w).getIdx();
+                    quantization_injectors[quantization_inj_idx]->compute_output_scale_shift(s_idx, s_idx + ur_w,
+                                                                                             (k * (jcp.ch_block / 2) + ch * jcp.ch_block) * sizeof(float));
+                }
+            }
+
+            quantization_inj_idx++;
+        }
     }
 }
 
@@ -201,7 +263,7 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::compute_loop(
         mov(aux_reg_kernel, reg_kernel);
         load_src(ur_ch_blocks, ur_w);
         apply_filter_unrolled(ur_ch_blocks, ur_w, pad_l, pad_r);
-        apply_activation(ur_ch_blocks, ur_w);
+        apply_postprocess(ur_ch_blocks, ur_w);
         store_dst(ur_ch_blocks, ur_w);
     };
 
@@ -322,6 +384,28 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::ow_loop(int ur_ch_blocks) {
 
 template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
+    const auto &p = attr_.post_ops_;
+    for (int i = 0; i < p.len(); i++) {
+        auto &post_op = p.entry_[i];
+        if (post_op.is_eltwise()) {
+            eltwise_injectors.push_back(new jit_uni_eltwise_injector_f32<isa>(
+                    this,
+                    post_op.eltwise
+            ));
+        } else if (post_op.is_depthwise()) {
+            depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<isa>(
+                    this,
+                    post_op.depthwise.alg
+            ));
+        } else if (post_op.is_quantization()) {
+            quantization_injectors.push_back(new jit_uni_quantization_injector_f32<isa>(
+                    this,
+                    post_op,
+                    vmm_d_weights, vmm_d_bias, reg_d_weights, reg_d_bias
+            ));
+        }
+    }
+
     this->preamble();
 
     if (jcp.is_fused_conv) {
@@ -377,7 +461,8 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
 
     this->postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
+    for (auto& inj : eltwise_injectors)
+        inj->prepare_table();
 }
 
 template struct jit_uni_dw_conv_fwd_kernel_f32<avx512_common>;

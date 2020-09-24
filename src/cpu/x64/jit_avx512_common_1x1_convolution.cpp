@@ -206,6 +206,8 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         } else
             p.bcast_data = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
 
+        p.oc_off = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
+
         (*kernel_)(&p);
     };
     auto conv_1x1 = [&](int bcast_start, int bcast_end, int ocb_start,
@@ -341,6 +343,8 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
             par_conv_dw.kh_padding = (size_t)nstl::max(0, kh_padding);
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw.nb_ch) - ch;
+
+            par_conv_dw.oc_off = ch * jcp_dw.ch_block * sizeof(float);
 
             (*kernel_dw_)(&par_conv_dw);
 

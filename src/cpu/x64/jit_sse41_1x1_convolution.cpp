@@ -170,6 +170,8 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
                 = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
                                                : weights_d.blk_off(ocb, icb)];
 
+        par_conv.oc_off = _ocb * jcp.oc_block * sizeof(float);
+
         (*kernel_)(&par_conv);
     };
 
@@ -238,6 +240,8 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
             par_conv_dw.kh_padding = (size_t)nstl::max(0, kh_padding);
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw.nb_ch) - ch;
+
+            par_conv_dw.oc_off = ch * jcp_dw.ch_block * sizeof(float);
 
             (*kernel_dw_)(&par_conv_dw);
 

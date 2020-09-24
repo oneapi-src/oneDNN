@@ -263,6 +263,8 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
         } else
             p.bcast_data = src + src_off;
 
+        p.oc_off = _ocb * jcp.oc_block * sizeof(float);
+
         (*kernel_)(&p);
     };
 
@@ -381,6 +383,8 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
             par_conv_dw.scales = dw_oscales
                     ? &dw_oscales[jcp_dw->is_oc_scale * ocb * jcp_dw->ch_block]
                     : nullptr;
+
+            par_conv_dw.oc_off = ocb * jcp_dw->ch_block * sizeof(float);
 
             (*kernel_dw_)(&par_conv_dw);
 
