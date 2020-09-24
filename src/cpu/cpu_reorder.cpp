@@ -341,7 +341,7 @@ const impl_list_map_t regular_impl_list_map {
 
         REG_SR_BIDIR(bf16, any, f32, OIdhw16o16i),
         REG_SR_BIDIR(bf16, any, f32, OIdhw16i16o),
-    
+
         REG_SR_BIDIR(bf16, any, s8, OIdhw16o16i),
         REG_SR_BIDIR(bf16, any, s8, OIdhw16i16o),
 
