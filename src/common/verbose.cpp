@@ -21,9 +21,9 @@
 #include <windows.h>
 #endif
 
-#include "dnnl.h"
-#include "dnnl_debug.h"
-#include "dnnl_version.h"
+#include "oneapi/dnnl/dnnl.h"
+#include "oneapi/dnnl/dnnl_debug.h"
+#include "oneapi/dnnl/dnnl_version.h"
 
 #include "c_types_map.hpp"
 #include "verbose.hpp"

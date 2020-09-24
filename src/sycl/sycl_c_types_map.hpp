@@ -17,7 +17,7 @@
 #ifndef SYCL_SYCL_C_TYPES_MAP_HPP
 #define SYCL_SYCL_C_TYPES_MAP_HPP
 
-#include "dnnl_sycl_types.h"
+#include "oneapi/dnnl/dnnl_sycl_types.h"
 
 namespace dnnl {
 namespace impl {

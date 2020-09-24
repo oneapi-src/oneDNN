@@ -17,10 +17,10 @@
 #ifndef CPU_CPU_STREAM_HPP
 #define CPU_CPU_STREAM_HPP
 
-#include "dnnl_config.h"
+#include "oneapi/dnnl/dnnl_config.h"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool_iface.hpp"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #endif
 
 #include "common/c_types_map.hpp"

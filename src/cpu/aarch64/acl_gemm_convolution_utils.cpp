@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2020 Arm Ltd. and affiliates
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"

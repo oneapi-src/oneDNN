@@ -17,7 +17,7 @@
 #ifndef COMMON_PRIMITIVE_ITERATOR_HPP
 #define COMMON_PRIMITIVE_ITERATOR_HPP
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"

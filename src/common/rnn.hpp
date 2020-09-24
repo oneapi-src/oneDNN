@@ -17,7 +17,7 @@
 #ifndef COMMON_RNN_HPP
 #define COMMON_RNN_HPP
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 namespace dnnl {
 namespace impl {

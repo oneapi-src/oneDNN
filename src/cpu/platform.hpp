@@ -18,7 +18,7 @@
 #ifndef CPU_PLATFORM_HPP
 #define CPU_PLATFORM_HPP
 
-#include "dnnl_config.h"
+#include "oneapi/dnnl/dnnl_config.h"
 
 #include "common/c_types_map.hpp"
 #include "common/z_magic.hpp"

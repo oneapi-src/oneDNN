@@ -18,8 +18,8 @@
 #include <cinttypes>
 #include <stdio.h>
 
-#include "dnnl_debug.h"
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_debug.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"

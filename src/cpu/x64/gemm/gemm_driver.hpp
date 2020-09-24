@@ -17,7 +17,7 @@
 #ifndef CPU_X64_GEMM_GEMM_DRIVER_HPP
 #define CPU_X64_GEMM_GEMM_DRIVER_HPP
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/c_types_map.hpp"
 

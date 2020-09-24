@@ -17,7 +17,7 @@
 #ifndef CPU_GEMM_F32_REF_GEMM_F32_HPP
 #define CPU_GEMM_F32_REF_GEMM_F32_HPP
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/c_types_map.hpp"
 

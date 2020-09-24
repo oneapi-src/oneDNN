@@ -16,7 +16,7 @@
 
 #include <CL/sycl.hpp>
 
-#include "dnnl_sycl.h"
+#include "oneapi/dnnl/dnnl_sycl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"

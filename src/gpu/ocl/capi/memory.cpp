@@ -16,7 +16,7 @@
 
 #include <CL/cl.h>
 
-#include "dnnl_ocl.h"
+#include "oneapi/dnnl/dnnl_ocl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"

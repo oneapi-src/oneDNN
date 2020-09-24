@@ -19,7 +19,7 @@
 
 #include <unordered_map>
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "c_types_map.hpp"
 #include "memory.hpp"

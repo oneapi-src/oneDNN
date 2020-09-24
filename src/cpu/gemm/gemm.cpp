@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool_iface.hpp"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #endif
 
 #include "common/bfloat16.hpp"

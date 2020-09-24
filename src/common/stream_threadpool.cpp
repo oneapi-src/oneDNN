@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl_config.h"
+#include "oneapi/dnnl/dnnl_config.h"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include <assert.h>
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
-#include "dnnl_threadpool.h"
+#include "oneapi/dnnl/dnnl_threadpool.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"

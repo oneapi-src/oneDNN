@@ -16,13 +16,13 @@
 
 #include <memory>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
+
+#include "c_types_map.hpp"
 #include "engine.hpp"
 #include "memory.hpp"
 #include "nstl.hpp"
 #include "primitive.hpp"
-
-#include "c_types_map.hpp"
 #include "utils.hpp"
 
 #include "cpu/cpu_engine.hpp"

@@ -18,7 +18,7 @@
 #define COMMON_SUM_PD_HPP
 
 #include <assert.h>
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"

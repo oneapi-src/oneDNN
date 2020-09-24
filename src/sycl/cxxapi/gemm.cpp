@@ -17,7 +17,7 @@
 #include <memory>
 #include <CL/sycl.hpp>
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #include "common/dnnl_traits.hpp"
 #include "common/gemm_utils.hpp"

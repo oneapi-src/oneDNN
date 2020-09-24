@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
 

@@ -17,7 +17,7 @@
 #ifndef GPU_OCL_RNN_RNN_UTILS_HPP
 #define GPU_OCL_RNN_RNN_UTILS_HPP
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"

@@ -17,7 +17,7 @@
 #ifndef COMMON_GEMM_TYPES_HPP
 #define COMMON_GEMM_TYPES_HPP
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 namespace dnnl {
 namespace impl {

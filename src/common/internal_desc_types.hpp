@@ -18,7 +18,7 @@
 #define COMMON_INTERNAL_DESC_TYPES_HPP
 
 #include <vector>
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 namespace dnnl {
 namespace impl {

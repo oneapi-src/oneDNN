@@ -18,8 +18,8 @@
 #define COMMON_STREAM_HPP
 
 #include <assert.h>
-#include "dnnl.h"
-#include "dnnl_threadpool_iface.hpp"
+#include "oneapi/dnnl/dnnl.h"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"

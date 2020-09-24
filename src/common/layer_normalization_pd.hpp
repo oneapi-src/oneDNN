@@ -17,7 +17,7 @@
 #ifndef COMMON_LAYER_NORMALIZATION_PD_HPP
 #define COMMON_LAYER_NORMALIZATION_PD_HPP
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"

@@ -23,7 +23,7 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
-#include "dnnl_debug.h"
+#include "oneapi/dnnl/dnnl_debug.h"
 
 #include "common/bfloat16.hpp"
 #include "cpu/x64/jit_generator.hpp"

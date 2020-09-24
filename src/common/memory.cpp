@@ -18,11 +18,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "dnnl.h"
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.h"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #if DNNL_WITH_SYCL
-#include "dnnl_sycl.h"
+#include "oneapi/dnnl/dnnl_sycl.h"
 #endif
 
 #include "c_types_map.hpp"

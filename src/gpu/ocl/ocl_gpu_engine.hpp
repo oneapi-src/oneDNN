@@ -17,7 +17,7 @@
 #ifndef GPU_OCL_OCL_GPU_ENGINE_HPP
 #define GPU_OCL_OCL_GPU_ENGINE_HPP
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"

@@ -17,7 +17,8 @@
 #ifndef COMMON_C_TYPES_MAP_HPP
 #define COMMON_C_TYPES_MAP_HPP
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
+
 #include "gemm_types.hpp"
 #include "internal_desc_types.hpp"
 

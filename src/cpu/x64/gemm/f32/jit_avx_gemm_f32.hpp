@@ -17,7 +17,7 @@
 #ifndef CPU_X64_GEMM_F32_JIT_AVX_GEMM_F32_HPP
 #define CPU_X64_GEMM_F32_JIT_AVX_GEMM_F32_HPP
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "cpu/gemm/f32/gemm_utils_f32.hpp"
 

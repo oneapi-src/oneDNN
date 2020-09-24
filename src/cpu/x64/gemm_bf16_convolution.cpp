@@ -16,7 +16,7 @@
 
 #include <atomic>
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"

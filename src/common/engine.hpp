@@ -17,10 +17,10 @@
 #ifndef COMMON_ENGINE_HPP
 #define COMMON_ENGINE_HPP
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool_iface.hpp"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #endif
 
 #include "c_types_map.hpp"

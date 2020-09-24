@@ -17,7 +17,7 @@
 #ifndef COMMON_GEMM_PD_HPP
 #define COMMON_GEMM_PD_HPP
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"

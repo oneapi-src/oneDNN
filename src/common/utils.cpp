@@ -35,7 +35,8 @@
 #include <mutex>
 #include <string>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
+
 #include "memory_debug.hpp"
 #include "utils.hpp"
 
@@ -227,7 +228,7 @@ dnnl_cpu_isa_t dnnl_get_effective_cpu_isa() {
 }
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool_iface.hpp"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 namespace dnnl {
 namespace impl {
 namespace threadpool_utils {

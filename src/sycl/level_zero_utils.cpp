@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl_config.h"
+#include "oneapi/dnnl/dnnl_config.h"
 
 #if defined(DNNL_WITH_LEVEL_ZERO)
 

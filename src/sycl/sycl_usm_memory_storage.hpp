@@ -17,7 +17,7 @@
 #ifndef SYCL_USM_MEMORY_STORAGE_HPP
 #define SYCL_USM_MEMORY_STORAGE_HPP
 
-#include "dnnl_config.h"
+#include "oneapi/dnnl/dnnl_config.h"
 
 #ifdef DNNL_SYCL_DPCPP
 
