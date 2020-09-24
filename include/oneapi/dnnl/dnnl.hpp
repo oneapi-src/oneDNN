@@ -10322,6 +10322,12 @@ inline void primitive::execute(const stream &astream,
 
 } // namespace dnnl
 
+/// oneAPI namespace
+namespace oneapi {
+/// oneDNN alias namespace
+namespace dnnl = ::dnnl;
+} // namespace oneapi
+
 /// @} dnnl_api
 
 #endif
