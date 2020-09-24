@@ -203,12 +203,17 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
 
         // XXX: CPU and OpenCL behavior of int8 saturation is not aligned for
         // NaN. Accroding to OpenCL 2.0 specification NaN value is saturated to
-        // 0. On CPU library saturates NaN value into lowest value representable
-        // in destination data type.
+        // 0. On CPU library saturates:
+        //  * -NaN value into lowest value representable in destination data type
+        //  * +NaN value into lowest value representable in int data type
         // TODO: Check CUDA specification.
         if (!ok && std::isnan(fp0) && engine_tgt_kind == dnnl_gpu
                 && (prb->ddt == dnnl_s8 || prb->ddt == dnnl_s32)) {
-            ok = diff == 128;
+            if (std::signbit(fp0))
+                ok = diff == 128;
+            else
+                ok = diff
+                        == (float)dnnl::impl::nstl::numeric_limits<int>::max();
         }
 
         res->errors += !ok;

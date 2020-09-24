@@ -26,6 +26,7 @@ using namespace alg_kind;
 using namespace math;
 
 float compute_binary_scalar(alg_kind_t alg, float x, float y) {
+    if (std::isnan(x) || std::isnan(y)) return NAN;
     switch (alg) {
         case binary_add: return x + y;
         case binary_div: return x / y;
@@ -41,7 +42,7 @@ float compute_eltwise_scalar_fwd(
     // don't compute on nan, propagate it
     if (std::isnan(s)) return s;
 
-    float d = 0.f;
+    float d = NAN;
     switch (alg) {
         case eltwise_relu: d = relu_fwd(s, alpha); break;
         case eltwise_tanh: d = tanh_fwd(s); break;

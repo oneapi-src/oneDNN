@@ -98,6 +98,7 @@ bool check_extreme_values(const float &a, const float &b, alg_t alg) {
         case alg_t::POW:
         case alg_t::SQRT:
         case alg_t::SQRT_DST:
+        case alg_t::SQUARE:
         // It is impossible to reliably test against reference in eltwise
         // post-op chain since some algs may produce inf or NaN in the middle
         // which is not expected for a standalone testing. Thus, when passing
