@@ -17,35 +17,6 @@
 #ifndef DNNL_SYCL_TYPES_H
 #define DNNL_SYCL_TYPES_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "oneapi/dnnl/dnnl_sycl_types.h"
 
-/// @addtogroup dnnl_api
-/// @{
-
-/// @addtogroup dnnl_api_interop
-/// @{
-
-/// @addtogroup dnnl_api_sycl_interop
-/// @{
-
-/// Memory allocation kind.
-typedef enum {
-    /// USM (device, shared, host, or unknown) memory allocation kind.
-    dnnl_sycl_interop_usm,
-    /// Buffer memory allocation kind.
-    dnnl_sycl_interop_buffer,
-} dnnl_sycl_interop_memory_kind_t;
-
-/// @} dnnl_api_sycl_interop
-
-/// @} dnnl_api_interop
-
-/// @} dnnl_api
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+#endif /* DNNL_SYCL_TYPES_H */

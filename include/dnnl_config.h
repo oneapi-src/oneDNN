@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef DNNL_OCL_HPP
-#define DNNL_OCL_HPP
+#ifndef DNNL_CONFIG_H
+#define DNNL_CONFIG_H
 
-#include "oneapi/dnnl/dnnl_ocl.hpp"
+#include "oneapi/dnnl/dnnl_config.h"
 
-#endif /* DNNL_OCL_HPP */
+#endif /* DNNL_CONFIG_H */

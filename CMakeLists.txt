@@ -152,8 +152,8 @@ else()
 endif()
 
 configure_file(
-    "${PROJECT_SOURCE_DIR}/include/dnnl_config.h.in"
-    "${PROJECT_BINARY_DIR}/include/dnnl_config.h"
+    "${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/dnnl_config.h.in"
+    "${PROJECT_BINARY_DIR}/include/oneapi/dnnl/dnnl_config.h"
 )
 include_directories(${PROJECT_BINARY_DIR}/include)
 

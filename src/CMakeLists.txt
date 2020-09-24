@@ -14,10 +14,14 @@
 # limitations under the License.
 #===============================================================================
 
-file(GLOB_RECURSE HEADERS
-    ${PROJECT_BINARY_DIR}/include/*.h
+file(GLOB HEADERS_ROOT
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.hpp
+    )
+file(GLOB HEADERS_SUBDIR
+    ${PROJECT_BINARY_DIR}/include/oneapi/dnnl/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/*.hpp
     )
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -87,11 +91,10 @@ endif()
 
 get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)
 add_library(${LIB_NAME} ${DNNL_LIBRARY_TYPE}
-    ${VERSION_RESOURCE_FILE} ${HEADERS} ${LIB_DEPS})
+    ${VERSION_RESOURCE_FILE} ${HEADERS_ROOT} ${HEADERS_SUBDIR} ${LIB_DEPS})
 
 set_property(TARGET ${LIB_NAME} PROPERTY VERSION "${DNNL_VERSION_MAJOR}.${DNNL_VERSION_MINOR}")
 set_property(TARGET ${LIB_NAME} PROPERTY SOVERSION "${DNNL_VERSION_MAJOR}")
-set_property(TARGET ${LIB_NAME} PROPERTY PUBLIC_HEADER ${HEADERS})
 
 target_include_directories(${LIB_NAME} PUBLIC
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
@@ -112,8 +115,15 @@ install(TARGETS ${LIB_NAME}
     EXPORT "${LIB_EXPORT_NAME}"
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+# If only Cmake could preserve the directory hierarchy...
+foreach(header ${HEADERS_ROOT})
+    install(FILES ${header} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/")
+endforeach()
+foreach(header ${HEADERS_SUBDIR})
+    install(FILES ${header} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/oneapi/dnnl/")
+endforeach()
 
 # Write version and package config files
 set(LIB_CONFIG_GENERATE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")

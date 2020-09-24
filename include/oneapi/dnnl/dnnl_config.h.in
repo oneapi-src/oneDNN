@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef DNNL_CONFIG_H
-#define DNNL_CONFIG_H
+#ifndef ONEAPI_DNNL_DNNL_CONFIG_H
+#define ONEAPI_DNNL_DNNL_CONFIG_H
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 /// @cond DO_NOT_DOCUMENT_THIS
 
