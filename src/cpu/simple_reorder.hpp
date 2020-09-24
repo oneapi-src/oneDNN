@@ -508,16 +508,30 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 ? output_d.extra().scale_adjust
                 : 1.f;
 
-        auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
-                           int32_t *cp, int32_t *zp, const float *s,
-                           const int g_block) {
+        auto ker_out = [&](const data_t<type_i> *inp, data_t<type_o> *out,
+                               const float *s, const int g_block) {
             PRAGMA_OMP_SIMD()
             for (int g = 0; g < g_block; g++) {
                 const auto i_off = g * input_d.blocking_desc().strides[0];
                 out[g] = qz_b0<data_t<type_i>, data_t<type_o>>()(
                         inp[i_off], s[g * OC] * adj_scale);
-                if (req_comp) cp[g * OC] -= 128 * (int32_t)(out[g]);
-                if (has_asymmetric_comp) zp[g * OC] -= (int32_t)(out[g]);
+            }
+        };
+
+        /* Note: having separate kernels for s8 and zero-point fixes a
+         * compiler-generated bug which results in seg-fault. */
+        auto ker_s8 = [&](const data_t<type_o> *out, int32_t *cp,
+                              const int g_block) {
+            PRAGMA_OMP_SIMD()
+            for (int g = 0; g < g_block; g++) {
+                cp[g * OC] -= 128 * (int32_t)(out[g]);
+            }
+        };
+        auto ker_zp = [&](const data_t<type_o> *out, int32_t *zp,
+                              const int g_block) {
+            PRAGMA_OMP_SIMD()
+            for (int g = 0; g < g_block; g++) {
+                zp[g * OC] -= (int32_t)(out[g]);
             }
         };
 
@@ -550,9 +564,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     const auto out
                             = &output[wei_blk_off(output_d, gb, O, I, h, w)];
                     int offset = gb * blksize + O;
-                    ker(inp, out, req_comp ? &cp[offset] : nullptr,
-                            has_asymmetric_comp ? &zp[offset] : nullptr,
-                            &scales[(D_mask == 1) ? 0 : offset], g_block);
+
+                    ker_out(inp, out, &scales[(D_mask == 1) ? 0 : offset],
+                            g_block);
+                    if (req_comp) ker_s8(out, &cp[offset], g_block);
+                    if (has_asymmetric_comp) ker_zp(out, &zp[offset], g_block);
                 }
             }
         });
