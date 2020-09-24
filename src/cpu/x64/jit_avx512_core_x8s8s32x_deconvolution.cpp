@@ -16,7 +16,7 @@
 
 #include "cpu/x64/jit_avx512_core_x8s8s32x_deconvolution.hpp"
 #include "common/dnnl_thread.hpp"
-
+#include "common/memory_desc_wrapper.hpp"
 #define GET_OFF(field) offsetof(jit_deconv_call_s, field)
 
 namespace dnnl {
@@ -34,6 +34,29 @@ using namespace nstl;
 #define wht_blk_off(d, g, ...) \
     (pd()->with_groups() ? (d).blk_off((g), __VA_ARGS__) \
                          : (d).blk_off(__VA_ARGS__))
+
+jit_avx512_core_x8s8s32x_deconv_fwd_kernel::
+        jit_avx512_core_x8s8s32x_deconv_fwd_kernel(const jit_conv_conf_t &ajcp,
+                const primitive_attr_t &attr, const memory_desc_t &dst_md)
+    : jcp(ajcp), attr_(attr), postops_injector_(nullptr) {
+
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum)
+        postops_injector_ = utils::make_unique<
+                injector::jit_uni_postops_injector_t<avx512_core>>(this,
+                jcp.post_ops,
+                binary_injector::static_params_t {this->param1,
+                        binary_injector::rhs_arg_static_params_t {
+                                static_cast<std::size_t>(
+                                        Xbyak::Xmm(31).getIdx()),
+                                this->rdx, this->r14, true /*preserve gpr*/,
+                                true /*preserve vmm*/,
+                                GET_OFF(post_ops_binary_rhs_arg_vec),
+                                memory_desc_wrapper(dst_md)}});
+}
+
+jit_avx512_core_x8s8s32x_deconv_fwd_kernel::
+        ~jit_avx512_core_x8s8s32x_deconv_fwd_kernel()
+        = default;
 
 status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
         jit_conv_conf_t &jcp, const deconvolution_desc_t &cd,
@@ -194,12 +217,20 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
     if (kernel_outside_src) return status::unimplemented;
 
-    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
+    if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+    const int binary_ind = p.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+
+    const int sum_ind = p.find(primitive_kind::sum);
+    jcp.with_sum = sum_ind != -1;
+
+    //save post_ops desc for further usage
+    jcp.post_ops = p;
 
     jcp.ver = ver_avx512_core;
     if (mayiuse(avx512_core_vnni)) jcp.ver = ver_vnni;
@@ -282,43 +313,23 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     return status::success;
 }
 
-bool jit_avx512_core_x8s8s32x_deconv_fwd_kernel::maybe_eltwise(int position) {
-    using namespace primitive_kind;
-    const auto &p = attr_.post_ops_;
-
-    if (position == 0) {
-        /* eltwise before sum */
-        return p.contain(eltwise, 0);
-    } else if (position == 1) {
-        /* eltwise after sum */
-        return p.contain(sum, 0) && p.contain(eltwise, 1);
-    }
-    return false;
-}
-
-void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::compute_eltwise(int ur_w) {
-    int nb_oc_block
-            = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-    eltwise_injector_->compute_vector_range(0, nb_oc_block * ur_w);
-}
-
 bool jit_avx512_core_x8s8s32x_deconv_fwd_kernel::post_ops_ok(
-        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    using namespace primitive_kind;
+        jit_conv_conf_t &jcp, const primitive_attr_t &attr,
+        const memory_desc_wrapper &dst_d) {
     const auto &p = attr.post_ops_;
+    const auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
+    const auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
 
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-
-    switch (p.len()) {
-        case 0: return true;
-        case 1: return is_eltwise(0) || p.contain(sum, 0);
-        case 2:
-            return (p.contain(sum, 0) && is_eltwise(1))
-                    || (p.contain(sum, 1) && is_eltwise(0));
-        default: return false;
+    for (int i = 0; i < p.len(); i++) {
+        if (p.contain(primitive_kind::sum, i)) {
+            if (i > 0) return false;
+        } else if (!(is_eltwise(i) || is_binary(i)))
+            return false;
     }
 
-    return false;
+    return binary_injector::binary_args_broadcast_supported(p, dst_d)
+            && binary_injector::binary_args_tail_supported(
+                    p, dst_d, cpu_isa_traits<avx512_core>::vlen);
 }
 
 void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
@@ -720,26 +731,53 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::store_output(
                     EVEX_compress_addr(reg_ptr_scales, scale_offset));
         }
     }
-    if (maybe_eltwise(0)) compute_eltwise(ur_w);
-    if (p_sum_scale) { // post_op: sum
-        for (int k = 0; k < jcp.nb_oc_blocking; k++) {
-            const bool mask_flag
-                    = last_oc_block == 1 && k == jcp.nb_oc_blocking - 1;
-            for (int j = 0; j < ur_w; j++) {
-                int aux_output_offset = jcp.typesize_out
-                        * (k * jcp.oc_block
-                                + j * jcp.oc_without_padding * jcp.ngroups);
-                auto addr = EVEX_compress_addr(reg_dst, aux_output_offset);
-                Zmm zmm = zmm_out(j, k);
-                cvt2ps(jcp.dst_dt, zmm_prev_dst, addr, mask_flag);
-                if (*p_sum_scale == 1.f)
-                    vaddps(zmm, zmm_prev_dst);
-                else
-                    vfmadd231ps(zmm, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
+    /* Do post-ops */
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
+        const auto sum_injector = [&]() {
+            if (p_sum_scale) { // post_op: sum
+                for (int k = 0; k < jcp.nb_oc_blocking; k++) {
+                    const bool mask_flag
+                            = last_oc_block == 1 && k == jcp.nb_oc_blocking - 1;
+                    for (int j = 0; j < ur_w; j++) {
+                        int aux_output_offset = jcp.typesize_out
+                                * (k * jcp.oc_block
+                                        + j * jcp.oc_without_padding
+                                                * jcp.ngroups);
+                        auto addr = EVEX_compress_addr(
+                                reg_dst, aux_output_offset);
+                        Zmm zmm = zmm_out(j, k);
+                        cvt2ps(jcp.dst_dt, zmm_prev_dst, addr, mask_flag);
+                        if (*p_sum_scale == 1.f)
+                            vaddps(zmm, zmm_prev_dst);
+                        else
+                            vfmadd231ps(zmm, zmm_prev_dst,
+                                    zword_b[reg_ptr_sum_scale]);
+                    }
+                }
+            }
+        };
+
+        if (p_sum_scale)
+            postops_injector_->set_lambda_injector(
+                    primitive_kind::sum, sum_injector);
+
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+        if (jcp.with_binary) {
+            for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
+                for (int ur = 0; ur < ur_w; ur++) {
+                    const auto zmm_idx = zmm_out(ur, ocb).getIdx();
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
+                            zmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                            zmm_idx, ocb * jcp.oc_block);
+                }
             }
         }
+        const int nb_oc_block
+                = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
+        postops_injector_->compute_vector_range(
+                0, nb_oc_block * ur_w, rhs_arg_params);
     }
-    if (maybe_eltwise(1)) compute_eltwise(ur_w);
 
     // Properly saturate the accumulators for integer datatypes
 
@@ -953,7 +991,7 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::generate() {
     }
     postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
+    if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
 template <data_type_t src_type, data_type_t dst_type>
@@ -969,10 +1007,12 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
-    auto &jcp = kernel_->jcp;
+    const auto &jcp = kernel_->jcp;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
 
-    int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
-    int nb_groups = jcp.nb_ch;
+    const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+    const int nb_groups = jcp.nb_ch;
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
     if (jcp.signed_input && jcp.ver != ver_vnni) {
@@ -1026,7 +1066,8 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
             p.b_overflow = 0;
             p.kh_padding = jcp.kh;
             p.oc_blocks = jcp.is_depthwise ? g : ocb;
-
+            p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            p.oc_l_off = g_oc;
             (*kernel_)(&p);
 
             ++start;
@@ -1047,13 +1088,13 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
-
+    const auto &jcp = kernel_->jcp;
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
-
-    auto &jcp = kernel_->jcp;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int nb_groups = jcp.nb_ch;
@@ -1170,6 +1211,9 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
                 p.kh_padding = kh_len;
                 p.scales = scales;
                 p.oc_blocks = jcp.is_depthwise ? g : ocb;
+                p.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
+                p.oc_l_off = g_oc;
                 (*kernel_)(&p);
             }
             if (jcp.loop_order == loop_ngc)
@@ -1191,13 +1235,14 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    auto &jcp = kernel_->jcp;
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
-
-    auto &jcp = kernel_->jcp;
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     int nb_groups = jcp.nb_ch;
@@ -1366,6 +1411,9 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
                 p.kd_padding = kd_len;
                 p.scales = scales;
                 p.oc_blocks = jcp.is_depthwise ? g : ocb;
+                p.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
+                p.oc_l_off = g_oc;
                 (*kernel_)(&p);
             }
             if (jcp.loop_order == loop_ngc)

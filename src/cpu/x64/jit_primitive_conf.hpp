@@ -106,10 +106,13 @@ struct jit_conv_conf_t {
     bool with_bias;
     bool with_sum;
     bool with_eltwise;
+    bool with_binary;
+
     bool is_fused_conv;
     int dw_conv_buffer_oc;
 
     post_ops_t::entry_t::eltwise_t eltwise;
+    post_ops_t post_ops;
 
     int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
 
@@ -444,6 +447,10 @@ struct jit_deconv_call_s {
     const void *bias; /* hack, non-const for backward_bias */
     const void *scales;
     const void *compensation;
+    /* ptr to table of void * elements that are pointers to post_op binary src1 tensors */
+    const void *post_ops_binary_rhs_arg_vec;
+    /* logical (# of elems) offset to the processed output channel (for broadcasting [1,OC,1,1]) */
+    size_t oc_l_off;
     size_t t_overflow;
     size_t b_overflow;
     size_t f_overflow;
