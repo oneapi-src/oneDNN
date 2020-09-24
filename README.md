@@ -52,6 +52,10 @@ applications enabled with oneDNN:
 * [API reference](https://oneapi-src.github.io/oneDNN/modules.html) provides
   a comprehensive reference of the library API.
 
+# Relevant articles
+- [Anatomy Of High-Performance Deep Learning Convolutions On SIMD Architectures](https://arxiv.org/abs/1808.05567) Evangelos Georganas, Sasikanth Avancha, Kunal Banerjee, Dhiraj Kalamkar, Greg Henry, Hans Pabst, Alexander Heinecke
+- [Applying the Roofline model for Deep Learning performance optimizations](https://arxiv.org/abs/2009.11224) Jacek Czaja, Michal Gallus, Joanna Wozna, Adam Grygielski, Luo Tao
+
 # Installation
 
 Pre-built binaries for Linux\*, Windows\*, and macOS\* are available
