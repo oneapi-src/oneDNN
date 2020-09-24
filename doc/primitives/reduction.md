@@ -83,8 +83,6 @@ meaning associated with any of the dimensions of a tensor.
 
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
-2. GPU is not supported
-
 
 ## Performance Tips
 
@@ -93,6 +91,6 @@ meaning associated with any of the dimensions of a tensor.
 
 ## Examples
 
-| Engine | Name                       | Comments
-| :--    | :--                        | :--
-| CPU    | @ref reduction_example_cpp | @copydetails reduction_example_cpp_short
+| Engine  | Name                       | Comments
+| :--     | :--                        | :--
+| CPU/GPU | @ref reduction_example_cpp | @copydetails reduction_example_cpp_short

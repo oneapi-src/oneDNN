@@ -101,5 +101,6 @@ void reduction_example(dnnl::engine::kind engine_kind) {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(reduction_example, engine::kind::cpu);
+    return handle_example_errors(
+            reduction_example, parse_engine_kind(argc, argv));
 }

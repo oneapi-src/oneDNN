@@ -519,6 +519,19 @@ struct binary_conf_t {
     attr_info_t attr_info;
 };
 
+// Reduction
+struct reduction_conf_t {
+    int ndims, power, div;
+    float eps;
+    dim_t reduce_dims[MAX_NDIMS], dst_dims[MAX_NDIMS];
+    bool is_reduction_dim[MAX_NDIMS];
+    data_type_t src_type, dst_type;
+    alg_kind_t alg;
+    compute::dispatch_t dispatch;
+    memory_desc_info_t src_md_info, dst_md_info;
+    offsets_t off;
+};
+
 // Reorder
 struct reorder_conf_t {
     bool do_reorder, with_group, has_padding;
