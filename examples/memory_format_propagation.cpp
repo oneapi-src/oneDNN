@@ -91,7 +91,7 @@
 /// which in turn is called from `main()` which is also responsible for error
 /// handling.
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #include "example_utils.hpp"
 

@@ -27,7 +27,7 @@
 
 #include <math.h>
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #include "example_utils.hpp"
 

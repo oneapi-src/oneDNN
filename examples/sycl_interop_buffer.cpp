@@ -49,10 +49,10 @@
 /// @snippet  sycl_interop_buffer.cpp Prologue
 // [Prologue]
 
-#include "dnnl.hpp"
-#include "dnnl_debug.h"
-#include "dnnl_sycl.hpp"
 #include "example_utils.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl_debug.h"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 #include <CL/sycl.hpp>
 
 #include <cassert>

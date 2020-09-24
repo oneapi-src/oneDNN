@@ -56,8 +56,8 @@
 
 #include <CL/cl.h>
 
-#include "dnnl.hpp"
-#include "dnnl_ocl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl_ocl.hpp"
 
 #include "example_utils.hpp"
 
