@@ -314,4 +314,12 @@ bool check_md_consistency_with_tag(
 void check_known_skipped_case_common(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *r);
 
+bool is_nvidia_gpu(const engine_t &engine = get_test_engine());
+bool is_nvidia_eltwise_ok(
+        dir_t dir, attr_t::post_ops_t::kind_t alg, float alpha);
+inline bool is_nvidia_eltwise_ok(
+        dir_t dir, const attr_t::post_ops_t::entry_t &e) {
+    return is_nvidia_eltwise_ok(dir, e.kind, e.eltwise.alpha);
+}
+
 #endif

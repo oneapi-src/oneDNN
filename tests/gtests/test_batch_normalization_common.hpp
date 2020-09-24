@@ -58,7 +58,7 @@ void fill(const memory &m) {
 template <typename data_t>
 class bnorm_test_common : public ::testing::TestWithParam<test_bnorm_params_t> {
 private:
-    std::shared_ptr<test_memory> src, dst, diff_src, diff_dst;
+    std::shared_ptr<test_memory> src, dst, ws, diff_src, diff_dst;
     memory weights, diff_weights, mean, variance;
 
     std::shared_ptr<memory::desc> data_d;
@@ -75,8 +75,32 @@ private:
 protected:
     virtual void SetUp() {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
+
+        SKIP_IF_CUDA(!cuda_check_format_tags(p.tags.data_tag, p.tags.diff_tag),
+                "Unsupported format tag");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+
+    bool cuda_check_format_tags(
+            memory::format_tag src_format, memory::format_tag diff_format) {
+        bool src_ok = src_format == memory::format_tag::ncdhw
+                || src_format == memory::format_tag::ndhwc
+                || src_format == memory::format_tag::nchw
+                || src_format == memory::format_tag::nhwc
+                || src_format == memory::format_tag::ncw
+                || src_format == memory::format_tag::nwc
+                || src_format == memory::format_tag::any;
+        bool diff_ok = diff_format == memory::format_tag::oidhw
+                || diff_format == memory::format_tag::odhwi
+                || diff_format == memory::format_tag::oihw
+                || diff_format == memory::format_tag::hwio
+                || diff_format == memory::format_tag::oiw
+                || diff_format == memory::format_tag::oiw
+                || diff_format == memory::format_tag::any;
+
+        return src_ok && diff_ok;
     }
 
     void Test() {
@@ -169,7 +193,11 @@ protected:
                 bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == bnorm_fwd_pd.workspace_desc());
 
+        auto ws_desc = bnorm_fwd_pd.query_md(query::workspace_md);
+        ws.reset(new test_memory(ws_desc, eng));
+
         weights = test::make_memory(bnorm_fwd_pd.weights_desc(), eng);
+
         if (isTraining || useGlobalStats) {
             mean = test::make_memory(bnorm_fwd_pd.mean_desc(), eng);
             variance = test::make_memory(bnorm_fwd_pd.variance_desc(), eng);
@@ -197,6 +225,11 @@ protected:
             normalization_flags flags = normalization_flags::none) {
         bool useScaleShift
                 = (bool)(flags & normalization_flags::use_scale_shift);
+        bool useGlobalStats
+                = (bool)(flags & normalization_flags::use_global_stats);
+        (void)useGlobalStats;
+
+        SKIP_IF_CUDA(useGlobalStats, "Global stats not supported");
 
         auto bnorm_fwd_d = batch_normalization_forward::desc(
                 prop_kind::forward_training, *data_d, p.epsilon, flags);
@@ -230,6 +263,9 @@ protected:
                 bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == bnorm_bwd_pd.workspace_desc());
 
+        auto ws_desc = bnorm_bwd_pd.query_md(dnnl::query::workspace_md);
+        ws.reset(new test_memory(ws_desc, eng));
+
         if (useScaleShift)
             weights = test::make_memory(bnorm_bwd_pd.weights_desc(), eng);
         diff_weights = test::make_memory(bnorm_bwd_pd.diff_weights_desc(), eng);
@@ -243,6 +279,11 @@ protected:
         fill<float>(variance);
         check_zero_tail<data_t>(1, diff_src->get());
         check_zero_tail<data_t>(1, diff_dst->get());
+
+        // Run a forward pass first for Nvidia backend to generate the workspace
+        // needed by the backward pass.
+        if (is_nvidia_gpu(eng))
+            execBnormFwd(true, useGlobalStats, useScaleShift);
 
         execBnormBwd(useScaleShift, pk);
 
@@ -264,6 +305,7 @@ protected:
         std::unordered_map<int, memory> args = {
                 {DNNL_ARG_SRC, src->get()},
                 {DNNL_ARG_DST, dst->get()},
+                {DNNL_ARG_WORKSPACE, ws->get()},
         };
 
         if (useScaleShift) args.insert({DNNL_ARG_SCALE_SHIFT, weights});
@@ -284,6 +326,7 @@ protected:
                 {DNNL_ARG_MEAN, mean},
                 {DNNL_ARG_VARIANCE, variance},
                 {DNNL_ARG_DIFF_SRC, diff_src->get()},
+                {DNNL_ARG_WORKSPACE, ws->get()},
         };
 
         if (useScaleShift) {

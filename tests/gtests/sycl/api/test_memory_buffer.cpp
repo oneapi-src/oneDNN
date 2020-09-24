@@ -273,6 +273,11 @@ TEST_P(sycl_memory_buffer_test, EltwiseWithUserKernel) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
+#ifdef DNNL_SYCL_CUDA
+    SKIP_IF(eng_kind == engine::kind::gpu,
+            "OpenCL features are not supported on CUDA backend");
+#endif
+
     memory::dims tz = {2, 3, 4, 5};
     const size_t N = tz.size();
 

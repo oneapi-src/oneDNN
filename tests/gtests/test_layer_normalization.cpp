@@ -62,6 +62,7 @@ private:
 
 protected:
     void SetUp() override {
+        SKIP_IF_CUDA(true, "Layer normalization not supported by CUDA.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);

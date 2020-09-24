@@ -19,10 +19,13 @@ set(TEST_EXE test_api)
 file(GLOB TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
 list(APPEND TEST_SOURCES ${MAIN_SRC_GTEST})
 
-register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")
+# Switch off C API tests for CUDA since USM model is not supported
+if(NOT DNNL_SYCL_CUDA)
+    register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")
+endif()
 
-# Create DPC++ USM target.
-if(DNNL_SYCL_DPCPP)
+# Create DPC++ buffer target.
+if(DNNL_SYCL_DPCPP AND NOT DNNL_SYCL_CUDA)
     register_exe(${TEST_EXE}_buffer "${TEST_SOURCES}" "test" "dnnl_gtest")
     target_compile_definitions(${TEST_EXE}_buffer PUBLIC -DTEST_DNNL_DPCPP_BUFFER)
 endif()

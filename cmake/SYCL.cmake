@@ -37,10 +37,22 @@ if(DPCPP_SUPPORTED)
         message(STATUS "DPC++ support is enabled (OpenCL)")
     endif()
 
-    # Explicitly link against sycl as Intel oneAPI DPC++ Compiler doesn't always do it implicitly
+    # Explicitly link against sycl as Intel oneAPI DPC++ Compiler does not
+    # always do it implicitly.
     list(APPEND EXTRA_SHARED_LIBS sycl)
-    # Explicitly link against OpenCL as Intel oneAPI DPC++ Compiler doesn't do it implicitly
-    list(APPEND EXTRA_SHARED_LIBS OpenCL)
+    if(DNNL_SYCL_CUDA)
+        # Explicitly linking against OpenCL without finding the right one can
+        # end up linking the tests against Nvidia OpenCL. This can be
+        # problematic as Intel OpenCL CPU backend will not work. When multiple
+        # OpenCL backends are available we need to make sure that we are linking
+        # against the correct one.
+        find_package(OpenCL REQUIRED)
+        find_package(cuBLAS REQUIRED)
+        find_package(cuDNN REQUIRED)
+        list(APPEND EXTRA_SHARED_LIBS OpenCL::OpenCL)
+    else()
+        list(APPEND EXTRA_SHARED_LIBS OpenCL)
+    endif()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
 
     if(LevelZero_FOUND)

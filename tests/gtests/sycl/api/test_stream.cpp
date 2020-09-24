@@ -30,6 +30,9 @@ namespace dnnl {
 class sycl_stream_test : public ::testing::Test {
 protected:
     virtual void SetUp() {
+#ifdef DNNL_SYCL_CUDA
+        SKIP_IF(true, "OpenCL features are not supported on CUDA backend");
+#endif
         if (!find_ocl_device(CL_DEVICE_TYPE_GPU)) { return; }
 
         eng.reset(new engine(engine::kind::gpu, 0));

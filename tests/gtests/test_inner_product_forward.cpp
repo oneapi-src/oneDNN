@@ -88,8 +88,45 @@ class inner_product_test_t
 protected:
     void SetUp() override {
         auto p = ::testing::TestWithParam<inprod_test_params_t>::GetParam();
+        SKIP_IF_CUDA(!cuda_check_format_tags(p.src_format, p.weights_format,
+                             p.bias_format, p.dst_format),
+                "Unsupported format tag");
+        SKIP_IF_CUDA(p.ndims > 5, "Unsupported number of dimensions");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+
+    bool cuda_check_format_tags(memory::format_tag src_format,
+            memory::format_tag wei_format, memory::format_tag bia_format,
+            memory::format_tag dst_format) {
+        bool src_ok = src_format == memory::format_tag::ncdhw
+                || src_format == memory::format_tag::ndhwc
+                || src_format == memory::format_tag::nchw
+                || src_format == memory::format_tag::nhwc
+                || src_format == memory::format_tag::ncw
+                || src_format == memory::format_tag::nwc
+                || src_format == memory::format_tag::nc
+                || src_format == memory::format_tag::any;
+        bool wei_ok = wei_format == memory::format_tag::oidhw
+                || wei_format == memory::format_tag::odhwi
+                || wei_format == memory::format_tag::dhwio
+                || wei_format == memory::format_tag::oihw
+                || wei_format == memory::format_tag::ohwi
+                || wei_format == memory::format_tag::hwio
+                || wei_format == memory::format_tag::oiw
+                || wei_format == memory::format_tag::owi
+                || wei_format == memory::format_tag::wio
+                || wei_format == memory::format_tag::io
+                || wei_format == memory::format_tag::oi
+                || wei_format == memory::format_tag::any;
+        bool bia_ok = bia_format == memory::format_tag::undef
+                || bia_format == memory::format_tag::any
+                || bia_format == memory::format_tag::a
+                || bia_format == memory::format_tag::x;
+        bool dst_ok = dst_format == memory::format_tag::any
+                || dst_format == memory::format_tag::nc;
+
+        return src_ok && wei_ok && bia_ok && dst_ok;
     }
 
     void Test() {

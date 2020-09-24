@@ -124,8 +124,53 @@ protected:
     virtual void SetUp() {
         auto p = ::testing::TestWithParam<
                 test_convolution_params_t>::GetParam();
+
+        SKIP_IF_CUDA(
+                !(cuda_check_format_tags(p.formats.src_format)
+                        && cuda_check_format_tags(p.formats.dst_format)
+                        && (cuda_check_format_tags(p.formats.weights_format)
+                                || (impl::utils::one_of(
+                                        p.formats.weights_format,
+                                        /* weights formats */
+                                        memory::format_tag::gowi,
+                                        memory::format_tag::gohwi,
+                                        memory::format_tag::godhwi,
+                                        memory::format_tag::owi,
+                                        memory::format_tag::ohwi,
+                                        memory::format_tag::odhwi)))
+                        && data_traits<data_t_src>::data_type
+                                == memory::data_type::f32
+                        && data_traits<data_t_diff_dst>::data_type
+                                == memory::data_type::f32
+                        && data_traits<data_t_diff_weights>::data_type
+                                == memory::data_type::f32
+                        && check_cuda_alg_format(p.formats.dst_format,
+                                p.formats.weights_format, p.aalgorithm)),
+                "format is not supported.");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+
+    bool cuda_check_format_tags(memory::format_tag tag) {
+        return impl::utils::one_of(tag, memory::format_tag::ab,
+                memory::format_tag::abc, memory::format_tag::abcd,
+                memory::format_tag::abcde, memory::format_tag::abcdef,
+                memory::format_tag::acb, memory::format_tag::acdb,
+                memory::format_tag::acdeb);
+    }
+
+    bool check_cuda_alg_format(memory::format_tag dst_fmt,
+            memory::format_tag wei_fmt, algorithm alg) {
+        bool res = dst_fmt == wei_fmt;
+        if (alg == dnnl::algorithm::convolution_winograd) {
+            res = res
+                    && impl::utils::one_of(wei_fmt, memory::format_tag::ab,
+                            memory::format_tag::abc, memory::format_tag::abcd,
+                            memory::format_tag::abcde,
+                            memory::format_tag::abcdef);
+        }
+        return res;
     }
 
     void Test() {

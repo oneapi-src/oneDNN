@@ -218,6 +218,15 @@ static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &fp_mem,
     float eps = eps_coeff * (kind == DATA ? 5e-7 : 0);
     if (kind == SS && prb->dir & FLAG_BWD) eps = eps_coeff * 5e-6;
 
+    if (is_nvidia_gpu()) {
+        // cuDNN stores unbiased variance which requires rescaling by
+        // `(N - 1) / N`, where `N = MB * Spatial`. Hence, we cannot set the
+        // threshold to 0...
+        // Also the mean could also be rounded incorrectly (how?!)
+        if (kind == MEAN) eps = 1e-7;
+        if (kind == VAR) eps = 4e-7;
+    }
+
     // Since bwd testing is done using results from forward which are random
     // fp32 values, diff_ss starts fluctuating, so we check norm for both data
     // and SS.
@@ -457,6 +466,20 @@ int init_pd(dnnl_engine_t engine, const prb_t *prb, dnnl_primitive_desc_t &bpd,
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
+    if (res->state == SKIPPED) return;
+
+    if (is_nvidia_gpu()) {
+        const bool bwd_ok
+                = !((prb->dir & FLAG_BWD) && (prb->flags & GLOB_STATS));
+        const bool inference_ok
+                = IMPLICATION(prb->dt == dnnl_s8 || prb->dt == dnnl_f16,
+                        (prb->dir & FLAG_INF) && (prb->flags & GLOB_STATS));
+
+        if (!bwd_ok || !inference_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 int doit(const prb_t *prb, res_t *res) {

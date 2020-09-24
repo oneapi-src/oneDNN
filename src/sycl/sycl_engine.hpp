@@ -33,11 +33,33 @@
 
 namespace dnnl {
 namespace impl {
+
+#ifdef DNNL_SYCL_CUDA
+// XXX: forward declarations to avoid cuda dependencies on sycl level.
+namespace gpu {
+namespace nvidia {
+
+bool is_nvidia_gpu(const cl::sycl::device &dev);
+
+status_t cuda_engine_create(engine_t **engine, engine_kind_t engine_kind,
+        const cl::sycl::device &dev, const cl::sycl::context &ctx);
+
+} // namespace nvidia
+} // namespace gpu
+#endif
+
 namespace sycl {
 
-inline std::vector<cl::sycl::device> get_intel_sycl_devices(
+inline std::vector<cl::sycl::device> get_sycl_devices(
         cl::sycl::info::device_type dev_type) {
     const int intel_vendor_id = 0x8086;
+#ifdef DNNL_SYCL_CUDA
+    const int vendor_id = ((dev_type == cl::sycl::info::device_type::gpu)
+                    ? 0x10DE
+                    : intel_vendor_id);
+#else
+    const int vendor_id = intel_vendor_id;
+#endif
     auto gpu_backend = get_sycl_gpu_backend();
 
     std::vector<cl::sycl::device> devices;
@@ -53,7 +75,7 @@ inline std::vector<cl::sycl::device> get_intel_sycl_devices(
                     [=](const cl::sycl::device &dev) {
                         auto _vendor_id = dev.get_info<
                                 cl::sycl::info::device::vendor_id>();
-                        if (_vendor_id != intel_vendor_id) return true;
+                        if (_vendor_id != vendor_id) return true;
 
                         auto _dev_type = dev.get_info<
                                 cl::sycl::info::device::device_type>();
@@ -83,7 +105,7 @@ public:
         auto dev_type = (engine_kind_ == engine_kind::cpu)
                 ? cl::sycl::info::device_type::cpu
                 : cl::sycl::info::device_type::gpu;
-        return get_intel_sycl_devices(dev_type).size();
+        return get_sycl_devices(dev_type).size();
     }
 
     status_t engine_create(engine_t **engine, size_t index) const override;

@@ -215,8 +215,19 @@ private:
     stream strm;
 
 protected:
+    bool cuda_supported_format_tag(memory::format_tag tag) {
+        return impl::utils::one_of(
+                tag, dnnl_abc, dnnl_abcd, dnnl_acb, dnnl_acdb);
+    }
     void SetUp() override {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
+        SKIP_IF_CUDA(p.aalgorithm == algorithm::resampling_nearest,
+                "nearet algorithm is not supported for cudnn backend");
+        SKIP_IF_CUDA(p.ndims == 5,
+                "cudnn resampling backend does not support 5d tensor");
+        SKIP_IF_CUDA(!cuda_supported_format_tag(p.src_format),
+                "Unsupported format tag");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }

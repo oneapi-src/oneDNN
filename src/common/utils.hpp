@@ -579,6 +579,7 @@ public:
 // -------------------------------------------------------------
 //  Host         | <backend_t::host, 0, 0>
 //  OpenCL       | <backend_t::opencl, cl_device, 0>
+//  NVIDIA       | <backend_t::nvidia, cuDevice, 0>
 //  Level0       | <backend_t::level0, uuid[0-63], uuid[64-127]>
 //  Pure CPU     | <0, 0, 0>
 //  Pure GPU     | <0, cl_device, 0>

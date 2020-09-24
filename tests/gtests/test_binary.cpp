@@ -50,23 +50,36 @@ protected:
         SKIP_IF(unsupported_data_type(src0_dt),
                 "Engine does not support this data type.");
 
+        SKIP_IF(unsupported_data_type(src1_dt),
+                "Engine does not support this data type.");
+
+        for (auto tag : p.srcs_format) {
+            SKIP_IF_CUDA(!cuda_check_format_tag(tag),
+                    "Unsupported source format tag");
+        }
+        SKIP_IF_CUDA(!cuda_check_format_tag(p.dst_format),
+                "Unsupported destination format tag");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
+    bool cuda_check_format_tag(tag atag) {
+        return atag == tag::abcd || atag == tag::acdb;
+    }
+
     void Test() {
+        auto eng = get_test_engine();
+        auto strm = make_stream(eng);
+
         // binary specific types and values
         using op_desc_t = binary::desc;
         using pd_t = binary::primitive_desc;
         allows_attr_t aa {false};
-        aa.po_sum = true;
-        aa.po_eltwise = true;
-        aa.po_binary = true;
         aa.scales = true;
-
-        auto eng = get_test_engine();
-        auto strm = make_stream(eng);
-
+        aa.po_sum = !is_nvidia_gpu(eng);
+        aa.po_eltwise = !is_nvidia_gpu(eng);
+        aa.po_binary = !is_nvidia_gpu(eng);
         std::vector<memory::desc> srcs_md;
         std::vector<memory> srcs;
 
@@ -96,6 +109,9 @@ protected:
             auto desc_B = memory::desc(dims_B, src1_dt, memory::dims());
             auto desc_C = memory::desc(p.dims, dst_dt, p.dst_format);
 
+            const dnnl::impl::memory_desc_wrapper mdw_desc_A(desc_A.data);
+            const bool has_zero_dim = mdw_desc_A.has_zero_dim();
+
             // default op desc ctor
             auto op_desc = op_desc_t();
             // regular op desc ctor
@@ -106,7 +122,8 @@ protected:
             // regular pd ctor
             ASSERT_NO_THROW(pd = pd_t(op_desc, eng));
             // test all pd ctors
-            test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
+            if (!has_zero_dim)
+                test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
 
             // default primitive ctor
             auto prim = binary();

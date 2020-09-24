@@ -104,18 +104,14 @@ inline void host_task(H &cgh, F f) {
     host_task_impl<K>(cgh, f, 0);
 }
 
-enum class backend_t {
-    unknown,
-    host,
-    level0,
-    opencl,
-};
+enum class backend_t { unknown, host, level0, opencl, nvidia };
 
 inline std::string to_string(backend_t backend) {
     switch (backend) {
         case backend_t::host: return "Host";
         case backend_t::level0: return "Level Zero";
         case backend_t::opencl: return "OpenCL";
+        case backend_t::nvidia: return "Nvidia";
         default: return "Unknown";
     }
 }
@@ -129,6 +125,7 @@ inline backend_t get_sycl_backend(const cl::sycl::device &dev) {
     auto plat = dev.get_platform();
     std::string plat_name = plat.get_info<cl::sycl::info::platform::name>();
     if (plat_name.find("OpenCL") != std::string::npos) return backend_t::opencl;
+    if (plat_name.find("NVIDIA") != std::string::npos) return backend_t::nvidia;
 
     if (plat_name.find("Level-Zero") != std::string::npos)
         return backend_t::level0;

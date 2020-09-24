@@ -39,6 +39,7 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     res->total = nelems;
 
     float trh = 0;
+    float eps = 1e-5;
     if (prb->alg == nearest) {
         // On forward, `dst` consists of exact `src` elements, hence the result
         // shall be exact (no matter what data type is). On backward, the
@@ -54,6 +55,12 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     } else {
         assert(prb->alg == linear);
         trh = prb->dt == dnnl_f32 ? 1e-6 : 1e-2;
+        if (is_nvidia_gpu()) {
+            // cuDNN precision is different from ref one due to different
+            // computation algorithm used for resampling.
+            trh = prb->dt == dnnl_f16 ? 4e-1 : 8e-4;
+            eps = prb->dt == dnnl_f16 ? 1e-1 : 8e-5;
+        }
     }
 
     for (int64_t i = 0; i < nelems; ++i) {
@@ -63,7 +70,7 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+        const bool ok = (fabsf(fp) > eps ? rel_diff : diff) <= trh;
 
         res->errors += !ok;
 
@@ -150,7 +157,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             : prb->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
     std::string src_tag = (prb->dir & FLAG_FWD) ? prb->tag : tag::any;
-    std::string dst_tag = tag::any;
+    std::string dst_tag = (prb->dir & FLAG_BWD) ? prb->tag : tag::any;
 
     SAFE(init_md(&src_d, prb->ndims, src_dims, prb->dt, src_tag), CRIT);
 
@@ -219,6 +226,14 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->dt}, prb->dir, res);
+    if (res->state == SKIPPED) return;
+
+    if (is_nvidia_gpu()) {
+        if (prb->ndims == 5 || prb->alg == nearest) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 int doit(const prb_t *prb, res_t *res) {

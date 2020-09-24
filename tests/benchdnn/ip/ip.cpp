@@ -301,6 +301,29 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
             res);
     if (res->state == SKIPPED) return;
+
+    if (is_nvidia_gpu()) {
+        const auto &po = prb->attr.post_ops;
+        bool post_ops_ok = true;
+        for (int i = 0; i < po.len(); ++i) {
+            const auto &e = po.entry[i];
+            if (e.is_sum_kind())
+                continue;
+            else if (e.is_eltwise_kind())
+                post_ops_ok = post_ops_ok && is_nvidia_eltwise_ok(prb->dir, e);
+            else if (e.is_binary_kind() || e.is_convolution_kind())
+                post_ops_ok = false;
+            else
+                assert(!"unknown post-op type");
+        }
+
+        const bool oscale_ok = prb->attr.oscale.policy == policy_t::COMMON;
+
+        if (!post_ops_ok || !oscale_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 int doit(const prb_t *prb, res_t *res) {

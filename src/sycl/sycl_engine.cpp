@@ -62,6 +62,11 @@ status_t sycl_engine_factory_t::engine_create(engine_t **engine,
             });
     if (it == ctx_devs.end()) return status::invalid_arguments;
 
+#ifdef DNNL_SYCL_CUDA
+    if (gpu::nvidia::is_nvidia_gpu(dev))
+        return gpu::nvidia::cuda_engine_create(engine, engine_kind_, dev, ctx);
+#endif
+
     if (engine_kind_ == engine_kind::cpu && !dev.is_cpu() && !dev.is_host())
         return status::invalid_arguments;
     if (engine_kind_ == engine_kind::gpu && !dev.is_gpu())

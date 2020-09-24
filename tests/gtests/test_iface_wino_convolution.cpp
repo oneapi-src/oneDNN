@@ -53,8 +53,9 @@ protected:
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
         static const auto isa = get_effective_cpu_isa();
-        input_f32.wino_supported
-                = (is_cpu && isa >= cpu_isa::avx512_mic) || is_gpu;
+        input_f32.wino_supported = (is_cpu && isa >= cpu_isa::avx512_mic)
+                || is_gpu || is_nvidia_gpu(eng);
+        input_f16.wino_supported = is_nvidia_gpu(eng);
         input_int8.wino_supported = (is_cpu && isa >= cpu_isa::avx512_core);
 #if DNNL_X64
         input_f32.backward_supported
@@ -114,7 +115,7 @@ TEST_F(wino_conv_test_t, TestLargePadding) {
                 algorithm::convolution_winograd, src_md, wei_md, dst_md, {1, 1},
                 {2, 2}, {2, 2});
 
-        bool large_pad_is_supported = false;
+        bool large_pad_is_supported = is_nvidia_gpu(eng) ? true : false;
         if (input.wino_supported && large_pad_is_supported) {
             EXPECT_NO_THROW(
                     convolution_forward::primitive_desc(fwd_op_desc, eng));

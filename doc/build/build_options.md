@@ -18,6 +18,7 @@ oneDNN supports the following build-time options.
 | DNNL_VERBOSE                | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose)
 | DNNL_AARCH64_USE_ACL        | ON, **OFF**                         | Enables integration with Arm Compute Library for AArch64 builds
 | DNNL_BLAS_VENDOR            | **NONE**, ARMPL                     | Defines an external BLAS library to link to for GEMM-like operations
+| DNNL_GPU_VENDOR             | **INTEL**, NVIDIA                   | Defines GPU vendor for GPU engines
 
 All other building options or values that can be found in CMake files are intended for
 development/debug purposes and are subject to change without notice.

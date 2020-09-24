@@ -131,10 +131,43 @@ private:
 
 protected:
     void SetUp() override {
+        memory::data_type data_type = data_traits<data_t>::data_type;
+        SKIP_IF(unsupported_data_type(data_type),
+                "Engine does not support this data type.");
+
         auto p = ::testing::TestWithParam<
                 deconvolution_test_params_t>::GetParam();
+
+        SKIP_IF_CUDA(
+                !(cuda_check_format_tags(p.formats.src_format, data_type)
+                        && cuda_check_format_tags(
+                                p.formats.dst_format, data_type)
+                        && cuda_check_src_wei_format_tags(p.formats.src_format,
+                                p.formats.weights_format, p.sizes.ng > 1)),
+                "Format is not supported.");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+
+    bool cuda_check_format_tags(memory::format_tag tag, memory::data_type dt) {
+        return ((impl::utils::one_of(tag, memory::format_tag::ab,
+                        memory::format_tag::abc, memory::format_tag::abcd,
+                        memory::format_tag::abcde, memory::format_tag::abcdef,
+                        memory::format_tag::acb, memory::format_tag::acdb,
+                        memory::format_tag::acdeb))
+                || (dt == memory::data_type::s8
+                        && impl::utils::one_of(tag, memory::format_tag::aBcd4b,
+                                memory::format_tag::aBcde4b)));
+    }
+
+    bool cuda_check_src_wei_format_tags(
+            memory::format_tag src, memory::format_tag wei, bool is_grouped) {
+        if (src == memory::format_tag::abcd) return true;
+        if (src == memory::format_tag::acdb)
+            return wei
+                    != (is_grouped ? memory::format_tag::abcde
+                                   : memory::format_tag::abcd);
     }
 
     void Test() {
@@ -190,6 +223,8 @@ protected:
 
         padR = {right_padding(dd.oh, dd.ih, dd.kh, dd.padh, dd.strh, dd.dilh),
                 right_padding(dd.ow, dd.iw, dd.kw, dd.padw, dd.strw, dd.dilw)};
+        SKIP_IF_CUDA(p.sizes.padh < padR[0] || p.sizes.padw < padR[1],
+                "Padding not supported");
         Forward();
         BackwardData();
         BackwardWeights();

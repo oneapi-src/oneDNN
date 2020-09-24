@@ -53,6 +53,12 @@ protected:
         dnnl::memory::desc md(p.dims, memory::data_type::f32, p.fmt_tag);
         dnnl::memory::dim phys_size = md.get_size() / sizeof(data_t);
 
+#ifdef DNNL_SYCL_CUDA
+        const dnnl::impl::memory_desc_wrapper mdw(md.data);
+        SKIP_IF(!mdw.is_plain() && !mdw.format_any(),
+                "Non-plain formats are not supported on CUDA backend");
+#endif
+
         // mem0
         // Initially spoiled by putting non-zero values in padded area.
         // The test will manually fix it later.

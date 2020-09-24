@@ -348,8 +348,28 @@ protected:
                         && (data_type == memory::data_type::s32
                                 || data_type == memory::data_type::s8),
                 "oneDNN only supports relu w/ slope=0 for integers");
+        SKIP_IF_CUDA(p.alg_kind != algorithm::eltwise_relu
+                        && p.alg_kind != algorithm::eltwise_bounded_relu
+                        && p.alg_kind != algorithm::eltwise_tanh
+                        && p.alg_kind != algorithm::eltwise_elu
+                        && p.alg_kind != algorithm::eltwise_logistic,
+                "Unsupported algorithm type for CUDA");
+        SKIP_IF_CUDA(p.alg_kind == algorithm::eltwise_relu && p.alpha != 0.0,
+                "DNNL only supports relu w/ slope=0 for integers");
+        SKIP_IF_CUDA(!cuda_check_format_tag(p.data_format),
+                "Unsupported format tag");
+        SKIP_IF_CUDA(!cuda_check_format_tag(p.diff_format),
+                "Unsupported format tag");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+
+    bool cuda_check_format_tag(memory::format_tag tag) {
+        // Blocking is not supported by cuDNN
+        return (tag != memory::format_tag::aBcd8b
+                && tag != memory::format_tag::aBcd16b
+                && tag != memory::format_tag::aBcde8b
+                && tag != memory::format_tag::aBcde16b);
     }
 
     void Test() {
@@ -404,6 +424,12 @@ protected:
     }
 
     void Backward() {
+        SKIP_IF_CUDA(p.alg_kind != algorithm::eltwise_relu
+                        && p.alg_kind != algorithm::eltwise_bounded_relu,
+                "Unsupported algorithm");
+        SKIP_IF_CUDA(p.diff_format != p.data_format,
+                "CUDA does not support different data formats for data and "
+                "diff vectors");
         memory::desc diff_data_desc(p.dims, data_type, p.diff_format);
         auto diff_src = test::make_memory(diff_data_desc, eng);
         auto diff_dst = test::make_memory(diff_data_desc, eng);

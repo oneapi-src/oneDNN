@@ -17,6 +17,10 @@
 #ifndef DNNL_MEMORY_HPP
 #define DNNL_MEMORY_HPP
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+#include "oneapi/dnnl/dnnl_sycl.h"
+#endif
+
 #include "dnnl_common.hpp"
 
 int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
@@ -231,7 +235,22 @@ private:
         } else {
             is_data_owner_ = false;
             data_ = NULL;
+
+#if DNNL_WITH_SYCL
+            // XXX: A hack to mitigate the issue from create_from_host_ptr when
+            // perform a CPU reorder due to USM in not supported on Nvidia, but
+            // it's not allowed to convert host_ptr to SYCL buffer.
+            engine_t e(engine_kind_);
+            if (is_nvidia_gpu(e)) {
+                DNN_SAFE(dnnl_sycl_interop_memory_create(&m_, &md_, engine,
+                                 dnnl_sycl_interop_buffer, handle),
+                        CRIT);
+            } else {
+                DNN_SAFE(dnnl_memory_create(&m_, &md_, engine, handle), CRIT);
+            }
+#else
             DNN_SAFE(dnnl_memory_create(&m_, &md_, engine, handle), CRIT);
+#endif
         }
 
         if (handle == DNNL_MEMORY_ALLOCATE) {

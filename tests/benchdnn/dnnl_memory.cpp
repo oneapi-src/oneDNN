@@ -19,10 +19,6 @@
 #include <cctype>
 #include <numeric>
 
-#if DNNL_WITH_SYCL
-#include <CL/sycl.hpp>
-#endif
-
 #include "oneapi/dnnl/dnnl.hpp"
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "oneapi/dnnl/dnnl_ocl.hpp"

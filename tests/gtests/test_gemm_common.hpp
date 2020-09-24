@@ -1415,6 +1415,7 @@ protected:
                                 || data_traits<a_dt>::data_type
                                         == memory::data_type::s8),
                 "SYCL GPU int GEMM not implemented.");
+        SKIP_IF_CUDA(true, "Test not supported in CUDA backend");
 #endif
 
         bool is_bf16bf16f32 = true

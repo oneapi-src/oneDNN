@@ -18,10 +18,12 @@ oneAPI Deep Neural Network Library (oneDNN)
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
 The library is optimized for Intel Architecture Processors, Intel Processor
-Graphics and Xe architecture-based Graphics. Support for other architectures
-such as Arm\* 64-bit Architecture (AArch64), OpenPOWER\* Power ISA (PPC64),
-and IBMz\* (s390x) is experimental.
-See the [System Requirements](#system-requirements) section below.
+Graphics and Xe architecture-based Graphics. oneDNN has experimental support
+for the following architectures:
+* Arm\* 64-bit Architecture (AArch64)
+* NVIDIA\* GPU
+* OpenPOWER\* Power ISA (PPC64)
+* IBMz\* (s390x)
 
 This is a development branch for oneDNN v2.0 Beta. This is pre-production software
 and functionality may change without prior notice. You can find production
@@ -195,8 +197,20 @@ is enabled:
       with Intel subgroups extension support
 * DPCPP runtime requires
     * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) Beta
-    * OpenCL\* runtime library (OpenCL version 1.2 or later)
+    * OpenCL runtime library (OpenCL version 1.2 or later)
     * [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
+* DPCPP runtime with NVIDIA GPU support requires
+    * [oneAPI DPC++ Compiler](https://github.com/intel/llvm)
+    * OpenCL runtime library (OpenCL version 1.2 or later)
+    * NVIDIA CUDA\* driver
+    * cuBLAS 10.1 or later
+    * cuDNN 7.6 or later
+
+> **WARNING**
+>
+> NVIDIA GPU support is experimental. General information, build instructions
+> and implementation limitations is available in
+> [NVIDIA backend readme](https://github.com/oneapi-src/oneDNN/blob/master/src/gpu/NVIDIA/README.md).
 
 ### Runtime Dependencies
 

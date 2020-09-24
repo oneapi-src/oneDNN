@@ -194,6 +194,7 @@ const format_tag_t abdfce = dnnl_abdfce;
 const format_tag_t acb = dnnl_acb;
 const format_tag_t acbde = dnnl_acbde;
 const format_tag_t acbdef = dnnl_acbdef;
+const format_tag_t abdefc = dnnl_abdefc;
 const format_tag_t acdb = dnnl_acdb;
 const format_tag_t acdeb = dnnl_acdeb;
 const format_tag_t ba = dnnl_ba;
@@ -645,6 +646,9 @@ const format_tag_t gOIdhw4i8o2i = dnnl_gOIdhw4i8o2i;
 const format_tag_t gOIw4o8i2o = dnnl_gOIw4o8i2o;
 const format_tag_t gOIhw4o8i2o = dnnl_gOIhw4o8i2o;
 const format_tag_t gOIdhw4o8i2o = dnnl_gOIdhw4o8i2o;
+const format_tag_t gowi = dnnl_gowi;
+const format_tag_t gohwi = dnnl_gohwi;
+const format_tag_t godhwi = dnnl_godhwi;
 } // namespace format_tag
 
 using memory_extra_flags_t = dnnl_memory_extra_flags_t;

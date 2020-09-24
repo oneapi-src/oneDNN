@@ -78,6 +78,12 @@ protected:
         test_simple_params<reorder_types> p
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
 
+        SKIP_IF_CUDA(!((supported_format(p.fmt_i)
+                               || supported_blocking(prec_i, p.fmt_i))
+                             && (supported_format(p.fmt_o)
+                                     || supported_blocking(prec_o, p.fmt_o))),
+                "Unsupported cuda format tag/ data type");
+
         catch_expected_failures(
                 [=]() {
                     engine eng = get_test_engine();
@@ -86,6 +92,19 @@ protected:
                 p.expect_to_fail, p.expected_status);
     }
 #endif
+    bool supported_format(memory::format_tag fmt) {
+        return impl::utils::one_of(fmt, memory::format_tag::abcde,
+                memory::format_tag::acdeb, memory::format_tag::abcd,
+                memory::format_tag::acdb, memory::format_tag::abc,
+                memory::format_tag::acb, memory::format_tag::ab,
+                memory::format_tag::ba, memory::format_tag::a,
+                memory::format_tag::any);
+    }
+
+    bool supported_blocking(memory::data_type dt, memory::format_tag fmt) {
+        return (dt == dnnl_u8
+                && impl::utils::one_of(fmt, dnnl_aBcd4b, dnnl_aBcde4b));
+    }
 
     void Test(engine &eng_i, engine &eng_o) {
         using data_i_t = typename reorder_types::first_type;
@@ -101,6 +120,13 @@ protected:
         test_simple_params<reorder_types> p
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
 
+#ifdef DNNL_SYCL_CUDA
+        SKIP_IF(!((supported_format(p.fmt_i)
+                          || supported_blocking(prec_i, p.fmt_i))
+                        && (supported_format(p.fmt_o)
+                                || supported_blocking(prec_o, p.fmt_o))),
+                "Unsupported cuda format tag/ data type");
+#endif
         catch_expected_failures([&]() { RunTest(eng_i, eng_o); },
                 p.expect_to_fail, p.expected_status);
     }

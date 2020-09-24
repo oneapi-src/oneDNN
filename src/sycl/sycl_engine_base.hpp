@@ -53,7 +53,7 @@ public:
 
         backend_ = get_sycl_backend(device_);
         if (!utils::one_of(backend_, backend_t::host, backend_t::opencl,
-                    backend_t::level0))
+                    backend_t::level0, backend_t::nvidia))
             return status::invalid_arguments;
 
         status_t status = gpu::jit::gpu_supports_binary_format(

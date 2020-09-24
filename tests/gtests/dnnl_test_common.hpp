@@ -87,6 +87,27 @@ dnnl::engine::kind get_test_engine_kind();
 dnnl::engine get_test_engine();
 #endif
 
+inline int get_vendor_id(const std::string &vendor) {
+    if (vendor == "nvidia") {
+        return 0x10DE;
+    } else if (vendor == "intel") {
+        return 0x8086;
+    } else {
+        return -1;
+    }
+}
+
+inline bool is_nvidia_gpu(const dnnl::engine &eng) {
+#if DNNL_WITH_SYCL
+    const int nvidia_vendor_id = get_vendor_id("nvidia");
+    const auto device = dnnl::sycl_interop::get_device(eng);
+    const auto eng_vendor_id
+            = device.get_info<cl::sycl::info::device::vendor_id>();
+    return eng_vendor_id == nvidia_vendor_id;
+#endif
+    return false;
+}
+
 inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
     dnnl::engine::kind kind = eng.get_kind();
 
@@ -94,7 +115,16 @@ inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
     if (kind == dnnl::engine::kind::cpu)
         supported = dnnl::impl::cpu::platform::has_data_type_support(
                 memory::convert_to_c(dt));
-
+#ifdef DNNL_SYCL_CUDA
+    if (is_nvidia_gpu(eng)) {
+        switch (dt) {
+            case memory::data_type::f32: return false;
+            case memory::data_type::f16: return false;
+            case memory::data_type::s8: return false;
+            default: return true;
+        }
+    }
+#endif
     return !supported;
 }
 
