@@ -114,6 +114,12 @@ private:
 
     const Xbyak::Opmask ktail_mask = k2;
 
+    const Xbyak::Reg64 reg_d_weights = reg_last_h;
+    const Xbyak::Reg64 reg_d_bias = reg_oc_blocks;
+
+    Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
+    Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);
+
     bool is_bf16() const;
 
     void init_runtime_counters();
@@ -135,7 +141,7 @@ private:
     Xbyak::Zmm zmm_out(const int idx) {
         const int upper_limit
                 = is_bf16() ? zmm_idx_limit_bf16 : zmm_idx_limit_int8;
-        assert(upper_limit > idx);
+//        assert(upper_limit > idx);
         MAYBE_UNUSED(upper_limit);
         return Xbyak::Zmm(idx);
     }
@@ -151,7 +157,7 @@ private:
             const bool mask_flag);
     void apply_postops(const Xbyak::Zmm zmm_out, const float *p_sum_scale,
             const int32_t *p_sum_zp, const Xbyak::Address &addr,
-            const size_t off, const bool mask_flag);
+            const size_t off, const bool mask_flag, const int ocb);
     static bool is_fast_postops(const jit_conv_conf_t &jcp);
     void store_output_vectors_int8(int ocb, int osb);
     void store_output_vector_int8(

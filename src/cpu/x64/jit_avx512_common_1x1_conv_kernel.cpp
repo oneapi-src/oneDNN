@@ -51,7 +51,7 @@ jit_avx512_common_1x1_conv_kernel::jit_avx512_common_1x1_conv_kernel(
         const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
     : jit_generator(jit_name()), jcp(ajcp), attr_(attr) {
-    if (jcp.with_eltwise || jcp.with_binary) {
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_depthwise || jcp.with_quantization) {
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
@@ -66,10 +66,12 @@ jit_avx512_common_1x1_conv_kernel::jit_avx512_common_1x1_conv_kernel(
                 use_exact_tail_scalar_bcast};
         const static_params_t static_params {
                 this->param1, rhs_arg_static_params};
+        quantization_injector::static_params_t quantization_static_params
+                {zmm_d_weights.getIdx(), zmm_d_bias.getIdx(), reg_d_weights, reg_d_bias};
 
         postops_injector_ = utils::make_unique<
                 injector::jit_uni_postops_injector_t<avx512_core>>(
-                this, jcp.post_ops, static_params);
+                this, jcp.post_ops, static_params, quantization_static_params);
     }
 }
 
@@ -169,6 +171,16 @@ static void iterate(const int load_loop_blk, const int ur, const F &fun) {
 
 void jit_avx512_common_1x1_conv_kernel::apply_postops(
         const bool is_out_layout_nxc, const int load_loop_blk, const int ur) {
+    std::map<size_t, int> vmm_idx_off;
+    iterate(load_loop_blk, ur,
+            [&](const bool, const int i_load, const int i_ur) {
+                vmm_idx_off.insert({vreg_accum_idx(load_loop_blk, i_load, i_ur), i_load * jcp.load_block * sizeof(float)});
+            });
+
+    depthwise_injector::dynamic_params_t ddp {zmm_d_weights.getIdx(), zmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
+                                              reg_oc_off, vmm_idx_off};
+    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off};
+
     injector_utils::vmm_index_set_t vmm_idxs;
     if (jcp.with_binary) {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
@@ -194,7 +206,7 @@ void jit_avx512_common_1x1_conv_kernel::apply_postops(
 
         mov(abi_param1, ptr[rsp + reg_abi_param1_backup]);
 
-        postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+        postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params, ddp, qdp);
         if (jcp.with_dw_conv) {
             sub(aux_reg_output_data,
                     EVEX_compress_addr(rsp, reg_dw_binary_output_off));
@@ -205,7 +217,7 @@ void jit_avx512_common_1x1_conv_kernel::apply_postops(
                     vmm_idxs.emplace(
                             vreg_accum_idx(load_loop_blk, i_load, i_ur));
                 });
-        postops_injector_->compute_vector_range(vmm_idxs);
+        postops_injector_->compute_vector_range(vmm_idxs, binary_injector::rhs_arg_dynamic_params_t(), ddp, qdp);
     }
 }
 
@@ -310,7 +322,7 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
 
         L(store_noadd);
 
-        if (jcp.with_eltwise || jcp.with_binary) {
+        if (jcp.with_eltwise || jcp.with_binary || jcp.with_depthwise || jcp.with_quantization) {
             Label store_nopostops;
             test(reg_reduce_pos_flag, FLAG_REDUCE_LAST);
             jz(store_nopostops, T_NEAR);
@@ -433,6 +445,7 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
     mov(reg_reduce_pos_flag, ptr[param1 + GET_OFF(first_last_flag)]);
     if (jcp.prop_kind == backward_weights)
         mov(reg_output_stride, ptr[param1 + GET_OFF(output_stride)]);
+    mov(reg_oc_off, ptr[param1 + GET_OFF(oc_off)]);
 
     const int load_dim_tail
             = (one_of(jcp.prop_kind, forward_training, forward_inference)
@@ -457,6 +470,7 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
         }
         bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
+        add(reg_oc_off, load_loop_blk * jcp.oc_block * sizeof(float));
         const size_t offst_with_dw_conv = load_loop_blk * jcp.load_block
                 * jcp.typesize_out
                 * (is_out_layout_nxc(jcp)
@@ -626,6 +640,8 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
             = post_ops.find(primitive_kind::binary, 0, dw_conv_ind);
     const int prelu_ind = post_ops.find(primitive_kind::prelu, 0, dw_conv_ind);
     jcp.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
+    jcp.with_depthwise = post_ops.find(primitive_kind::depthwise, 0, dw_conv_ind) != -1;
+    jcp.with_quantization = post_ops.find(primitive_kind::quantization, 0, dw_conv_ind) != -1;
 
     if (dw_conv_ind >= 0) {
         // dw_conv and post_ops after it are handled externally, so skip them
@@ -656,7 +672,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     static constexpr bool sum_requires_scale_one = true;
     static constexpr bool sum_requires_zp_zero = true;
     const bool post_ops_ok_ = post_ops_ok(post_ops_ok_args_t(avx512_core,
-            {eltwise, binary, sum}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
+            {eltwise, binary, sum, depthwise, quantization}, jcp.post_ops, &dst_d, sum_at_pos_0_only,
             sum_requires_scale_one, sum_requires_zp_zero));
     if (!post_ops_ok_) return status::unimplemented;
 

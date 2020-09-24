@@ -346,6 +346,12 @@ private:
     const Xbyak::Reg64 bin_injector_helper_reg_2 = r15;
     const Xbyak::Reg64 bin_injector_helper_reg_3 = r11;
 
+    const Xbyak::Reg64 reg_d_weights = reg_zp_compensation;
+    const Xbyak::Reg64 reg_d_bias = reg_src_zero_point;
+
+    const Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
+    const Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);
+
     // AUX: Steps, shifts and offsets
     size_t get_inp_icb_step() const;
     size_t get_wei_icb_step() const;
@@ -394,7 +400,7 @@ private:
             const bool mask_flag);
     void apply_postops(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
             const int32_t *p_sum_zp, const Xbyak::Address &addr,
-            const size_t off, const bool mask_flag);
+            const size_t off, const bool mask_flag, const int ocb);
     inline void store_output_ymm_bf16(
             const int idx, const Xbyak::Address &addr, const bool mask_flag);
     void store_output_vector_bf16(

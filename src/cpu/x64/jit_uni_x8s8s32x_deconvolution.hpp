@@ -140,6 +140,13 @@ private:
             int ur_w, int l_overflow, int r_overflow, bool h_padded);
     void append_zp_src_pad_str_comp(int ur_w, int l_overflow, int r_overflow,
             bool h_padded, bool last_oc_block);
+
+    /* depthwise and quantization post ops */
+    const Xbyak::Reg64 reg_d_weights = r15;
+    const Xbyak::Reg64 reg_d_bias = r13;
+    Vmm vmm_d_weights = Vmm(0);
+    Vmm vmm_d_bias = Vmm(1);
+
     void kh_loop(int ur_w, int pad_l, int pad_r, ker_block_t last_ker_block);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool last_block);
     void generate() override;

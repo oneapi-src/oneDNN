@@ -634,6 +634,16 @@ dnnl_status_t DNNL_API dnnl_post_ops_append_prelu(
 dnnl_status_t DNNL_API dnnl_post_ops_get_params_prelu(
         const_dnnl_post_ops_t post_ops, int index, int *mask);
 
+dnnl_status_t DNNL_API dnnl_post_ops_append_depthwise(
+        dnnl_post_ops_t post_ops, dnnl_alg_kind_t alg,
+        const float* weights_data, const float* biases_data);
+
+dnnl_status_t DNNL_API dnnl_post_ops_append_quantization(
+        dnnl_post_ops_t post_ops, dnnl_alg_kind_t alg,
+        const void* crop_low, const void* crop_high,
+        const void* input_scale, const void* input_shift,
+        const void* output_scale, const void* output_shift);
+
 /// @} dnnl_api_attributes
 
 /// @} dnnl_api_primitives

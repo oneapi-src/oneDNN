@@ -127,9 +127,15 @@ private:
     constexpr static int off_reg_ker_ = 8;
     constexpr static int stack_space_needed_ = 16;
 
-    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core, Vmm>>
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
             postops_injector_;
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
+
+    reg64_t reg_d_weights = r15;
+    reg64_t reg_d_bias = reg_kj;
+
+    Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
+    Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);
 
     inline void prepare_dst(int ur_w);
     void apply_postops(int ur_w);

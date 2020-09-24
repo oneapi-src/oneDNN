@@ -217,6 +217,8 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
         p.dst_orig = static_cast<const float *>(p.output_data) - dst_off;
 
+        p.oc_off = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
+
         (*kernel_)(&p);
     };
 
@@ -295,6 +297,8 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
             par_conv_dw.post_ops_binary_rhs_arg_vec
                     = post_ops_binary_rhs_arg_vec_dw;
             par_conv_dw.dst_orig = dst;
+
+            par_conv_dw.oc_off = ch * jcp_dw->ch_block * sizeof(float);
 
             (*dw_jit_ker)(&par_conv_dw);
 

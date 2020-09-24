@@ -96,11 +96,16 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     Reg64 aux_reg_src_h = rax;
     Reg64 aux_reg_src_w = rbx;
 
+    Reg64 reg_store_tmp = r11; // shared with reg_kh_index and used only as tmp register for store on avx2
     Reg64 reg_tmp = rdx; // only used during mask init and store
     Reg64 reg_src_safe_access = rbp;
     Reg64 reg_dst_safe_access = rsi;
 
     Reg64 reg_mask = r15; // only used during mask init
+
+    Reg64 reg_oc_off = reg_tmp;
+    Reg64 reg_d_weights = aux_reg_src_h;
+    Reg64 reg_d_bias = aux_reg_src_w;
 
     Opmask k_cmp_mask = Opmask(7);
 
@@ -137,6 +142,9 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     jit_pool_conf_t jpp;
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
             postops_injector_;
+
+    Vmm vmm_d_weights = vreg(3);
+    Vmm vmm_d_bias = vreg(4);
 
     enum : int { max_vidx_base = utils::one_of(isa, sse41, avx2) ? 7 : 2 };
     //"avg" pool uses more registers for unrolling.
@@ -262,10 +270,12 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
                     use_exact_tail_scalar_bcast};
             const binary_injector::static_params_t bsp {
                     reg_param, get_supported_bcast_strategies(), rhs_sp};
+            quantization_injector::static_params_t qsp =
+                    {vmm_d_weights.getIdx(), vmm_d_bias.getIdx(), reg_d_weights, reg_d_bias};
 
             postops_injector_ = utils::make_unique<
                     injector::jit_uni_postops_injector_t<isa>>(
-                    this, jpp.post_ops, bsp);
+                    this, jpp.post_ops, bsp, qsp);
         }
     }
 };
@@ -658,18 +668,18 @@ void jit_uni_i8i8_pooling_fwd_ker_t<sse41>::store_dst_avg_op(
     // Don't generate useless code
     if (masked && !msk) return;
 
-    const Vmm &vr_dst = vreg_dst_s32(jj, ll);
+    const Vmm &vr_dst = jpp.dst_dt == f32 ? vreg_dst_f32(jj, ll) : vreg_dst_s32(jj, ll);
 
-    if (jpp.src_dt == s32) {
+    if (jpp.dst_dt == s32 || jpp.dst_dt == f32) {
         if (masked)
             for (int i = 0; i < jpp.c_tail; i++)
                 pextrd(ptr[reg_ptr_dst_i8 + offset + i * data_type_size(s32)],
                         vr_dst, i);
         else
             movups(ptr[reg_ptr_dst_i8 + offset], vr_dst);
-    } else if (utils::one_of(jpp.src_dt, s8, u8)) {
+    } else if (utils::one_of(jpp.dst_dt, s8, u8)) {
         packssdw(vr_dst, vr_dst);
-        if (jpp.src_dt == s8)
+        if (jpp.dst_dt == s8)
             packsswb(vr_dst, vr_dst);
         else
             packuswb(vr_dst, vr_dst);
@@ -728,8 +738,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(
         //         maskmovdqu/vmaskmovdqu
         //         with low 8-bytes mask throws exception if high 8-bytes belongs write-protected page.
         // NOTE: use indirect move via gpr to avoid transition penalty
-        vmovq(reg_tmp, Xmm(vr_dst.getIdx()));
-        movq(mmx_dst_i8, reg_tmp);
+        vmovq(reg_store_tmp, Xmm(vr_dst.getIdx()));
+        movq(mmx_dst_i8, reg_store_tmp);
 
         // mmx_full_msk - mask for all 8 bytes in zero-tail case
         // mmx_mask(ll) - ll-th mask of tail in non-zero-tail case
@@ -770,6 +780,17 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(
     };
 
     switch (jpp.dst_dt) {
+        case f32:
+            if (masked) {
+                if (sizeof_src_dt() != sizeof_dst_dt()) {
+                    vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask_2, vreg_dst_f32(jj, ll));
+                } else {
+                    vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask, vreg_dst_f32(jj, ll));
+                }
+            } else {
+                vmovups(ptr[reg_ptr_dst_i8 + offset], vreg_dst_f32(jj, ll));
+            }
+            break;
         case s32:
             if (masked) {
                 vpmaskmovd(ptr[reg_ptr_dst_i8 + offset], vreg_mask,
@@ -791,11 +812,11 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::store_dst_avg_op(
     // Don't generate useless code
     if (masked && !msk) return;
 
-    const Vmm &vr_dst
-            = masked ? vreg_dst_s32(jj, ll) | mask(ll) : vreg_dst_s32(jj, ll);
+    const Vmm &vr_dst = jpp.dst_dt == f32 ? masked ? vreg_dst_f32(jj, ll) | mask(ll) : vreg_dst_f32(jj, ll)
+                                          : masked ? vreg_dst_s32(jj, ll) | mask(ll) : vreg_dst_s32(jj, ll);
 
     switch (jpp.dst_dt) {
-        case s32: vmovups(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
+        case f32: case s32: vmovups(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
         case s8: vpmovsdb(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
         case u8: vpmovusdb(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
         default: assert(!"unsupported dst data_type");
@@ -935,7 +956,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
     int iw = jpp.iw;
     int c = jpp.c;
 
-    const int num_ll = data_type_size(avg_proc_dt) / data_type_size(jpp.src_dt);
+    const int num_ll = data_type_size(avg_proc_dt) / data_type_size(jpp.dst_dt);
 
     for (int jj = 0; jj < ur_c; jj++) {
         for (int ll = 0; ll < num_ll; ll++) {
@@ -948,6 +969,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
             }
         }
     }
+
+    if (jpp.with_depthwise || jpp.with_quantization)
+        push(reg_oc_off);
 
     mov(aux_reg_src_d, reg_ptr_src_i8);
     xor_(reg_kd_index, reg_kd_index);
@@ -988,6 +1012,11 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
         jl(l_kd, T_NEAR);
     }
 
+    static constexpr int vlen_size_elem = cpu_isa_traits<isa>::vlen / sizeof(float);
+
+    if (jpp.with_depthwise || jpp.with_quantization)
+        pop(reg_oc_off);
+
     for (int jj = 0; jj < ur_c; jj++) {
         for (int ll = 0; ll < num_ll; ll++) {
             const bool masked = jj == ur_c - 1 && c_tail;
@@ -999,6 +1028,15 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
                 uni_vfmadd132ps(reg_dst_f32, vreg_zeros, vreg_tmp);
 
                 if (jpp.with_postops) {
+                    std::map<size_t, int> vmm_idx_off;
+                    vmm_idx_off.insert({reg_dst_f32.getIdx(), (ll * vlen_size_elem + jj * vlen_size_elem) * sizeof(float)});
+                    depthwise_injector::dynamic_params_t ddp {vmm_d_weights.getIdx(), vmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
+                                                              reg_oc_off, vmm_idx_off};
+                    quantization_injector::dynamic_params_t qdp {reg_oc_off, vmm_idx_off};
+
+                    injector_utils::vmm_index_set_t vmm_idxs;
+                    vmm_idxs.emplace(reg_dst_f32.getIdx());
+
                     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
                     if (jpp.with_binary) {
                         rhs_arg_params.vmm_idx_to_out_reg.emplace(
@@ -1010,16 +1048,19 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
                             rhs_arg_params.vmm_tail_idx_.emplace(
                                     reg_dst_f32.getIdx());
                     }
-                    postops_injector_->compute_vector(
-                            reg_dst_f32.getIdx(), rhs_arg_params);
+                    postops_injector_->compute_vector_range(
+                            vmm_idxs, rhs_arg_params, ddp, qdp);
                 }
 
-                uni_vcvtps2dq(reg_dst_s32, reg_dst_f32);
+                if (jpp.dst_dt != f32) {
+                    uni_vcvtps2dq(reg_dst_s32, reg_dst_f32);
+                }
 
                 if (jpp.with_postops)
                     if (jpp.dst_dt == u8) {
                         uni_vpmaxsd(reg_dst_s32, reg_dst_s32, vreg_zeros);
                     }
+
                 store_dst(jj, ll, c_tail);
             }
         }
@@ -1048,12 +1089,17 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_c_block() {
     int c_tail = jpp.c_tail;
 
     xor_(c_iter, c_iter);
+    if (jpp.with_quantization)
+        xor_(reg_oc_off, reg_oc_off);
+
     if (c_steps > 0) {
         L(l_main_loop);
         {
             compute_step(ur_c, 0);
             add(reg_ptr_src_i8, ur_c * c_block * sizeof_src_dt());
             add(reg_ptr_dst_i8, ur_c * c_block * sizeof_dst_dt());
+            if (jpp.with_quantization)
+                add(reg_oc_off, ur_c*c_block*sizeof(float));
             inc(c_iter);
             cmp(c_iter, c_steps);
             jl(l_main_loop, T_NEAR);
@@ -1129,6 +1175,10 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::init_mask() {
                 vpalignr(vreg_mask_2, vreg_mask_2, vreg_zeros, 32 - shift);
             }
             vextracti128(xreg_mask_2_hi, vreg_mask_2, 0x1);
+
+            if (sizeof_src_dt() != sizeof_dst_dt()) {
+                vpmovsxbd(vreg_mask_2, vreg_mask);
+            }
         }
 
         // Need mask in MMX regs ?
@@ -1320,7 +1370,7 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
     //     isa == sse41   : 16 bytes -> 16 for s8/u8, 4 for s32
     //     isa == avx2    : 32 bytes -> 32 for s8/u8, 8 for s32
     //     isa == avx512* : 64 bytes -> 64 for s8/u8, 16 for s32
-    int simd_w = cpu_isa_traits<isa>::vlen / data_type_size(jpp.src_dt);
+    int simd_w = cpu_isa_traits<isa>::vlen / data_type_size(jpp.dst_dt);
 
     /* Verify that vlen-sized memory access happens within the tensor's
      * size, otherwise load/store will always spill outside the memory
@@ -1382,6 +1432,8 @@ bool jit_uni_i8i8_pooling_fwd_ker_t<isa>::post_ops_ok(jit_pool_conf_t &jpp,
     jpp.with_postops = false;
     jpp.with_eltwise = false;
     jpp.with_binary = false;
+    jpp.with_depthwise = false;
+    jpp.with_quantization = false;
 
     if (entries.empty()) return true;
 
@@ -1394,11 +1446,16 @@ bool jit_uni_i8i8_pooling_fwd_ker_t<isa>::post_ops_ok(jit_pool_conf_t &jpp,
                     && entry.binary.src1_desc.data_type == data_type::bf16)
                 return false;
             jpp.with_binary = true;
-        } else
+        } else if (entry.is_depthwise()) {
+            jpp.with_depthwise = true;
+        } else if (entry.is_quantization()) {
+            jpp.with_quantization = true;
+        } else {
             return false;
+        }
     }
 
-    jpp.with_postops = jpp.with_eltwise || jpp.with_binary;
+    jpp.with_postops = jpp.with_eltwise || jpp.with_binary || jpp.with_depthwise || jpp.with_quantization;
     jpp.post_ops = post_ops;
 
     /*

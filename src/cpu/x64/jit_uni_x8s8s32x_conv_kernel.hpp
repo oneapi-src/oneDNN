@@ -97,6 +97,12 @@ private:
     /* binary post-ops operand */
     const Xbyak::Reg64 temp_offset_reg = r12;
 
+    const Xbyak::Reg64 reg_d_weights = r15;
+    const Xbyak::Reg64 reg_d_bias = r13;
+
+    const Vmm vmm_d_weights = Vmm(0);
+    const Vmm vmm_d_bias = Vmm(1);
+
     const Vmm vmm_wei = Vmm(0);
     /* used during bias/comp/scale section of store_output */
     const Vmm vmm_bias = Vmm(0);
