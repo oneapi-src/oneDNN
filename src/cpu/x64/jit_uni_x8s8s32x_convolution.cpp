@@ -606,10 +606,10 @@ jit_uni_x8s8s32x_convolution_fwd_t<isa, src_type, dst_type>::execute_forward_3d(
 
                     size_t wei_stride = (jcp.signed_input || jcp.src_zero_point)
                             ? 0
-                            : wht_h_stride;
+                            : wht_h_stride * i_t_overflow;
                     p.src = src_w + i_t_overflow * dilate_h * src_h_stride;
                     p.dst = dst_w;
-                    p.filt = wht_w + i_t_overflow * wei_stride;
+                    p.filt = wht_w + wei_stride;
                     p.bias = bias_w;
                     p.compensation = compensation_w;
                     p.oc_blocks = ocb;
