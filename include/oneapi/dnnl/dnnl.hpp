@@ -685,6 +685,12 @@ enum class algorithm {
     softmax_accurate = dnnl_softmax_accurate,
     /// LogSoftmax, numerically stable
     softmax_log = dnnl_softmax_log,
+
+    depthwise_scale_shift = dnnl_depthwise_scale_shift,
+    depthwise_prelu = dnnl_depthwise_prelu,
+
+    quantization_quantize_dequantize = dnnl_quantization_quantize_dequantize,
+    quantization_quantize = dnnl_quantization_quantize,
 };
 
 /// Converts algorithm kind enum value from C++ API to C API type.
@@ -3435,6 +3441,22 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     void get_params_prelu(int index, int &mask) const {
         error::wrap_c_api(dnnl_post_ops_get_params_prelu(get(), index, &mask),
                 "could not get parameters of a binary post-op");
+    }
+
+    void append_depthwise(algorithm alg, const float* weights_data,
+            const float* biases_data) {
+        error::wrap_c_api(dnnl_post_ops_append_depthwise(get(),
+                    convert_to_c(alg), weights_data, biases_data),
+                "could not append depthwise");
+    }
+
+    void append_quantization(algorithm alg,
+            const void* crop_low, const void* crop_high,
+            const void* input_scale, const void* input_shift,
+            const void* output_scale, const void* output_shift) {
+        error::wrap_c_api(dnnl_post_ops_append_quantization(get(), convert_to_c(alg), crop_low, crop_high,
+                input_scale, input_shift, output_scale, output_shift),
+                          "could not append quantization");
     }
 };
 

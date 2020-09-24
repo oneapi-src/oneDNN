@@ -1383,6 +1383,10 @@ typedef enum {
     dnnl_deconvolution,
     /// An element-wise primitive.
     dnnl_eltwise,
+    /// An depthwise-wise primitive.
+    dnnl_depthwise,
+    /// A quantization primitive.
+    dnnl_quantization,
     /// A softmax primitive.
     dnnl_softmax,
     /// A pooling primitive.
@@ -1585,6 +1589,12 @@ typedef enum {
     dnnl_softmax_accurate = 0x30000,
     /// Logsoftmax
     dnnl_softmax_log,
+
+    dnnl_depthwise_scale_shift = 0x3fff0,
+    dnnl_depthwise_prelu = 0x3fff1,
+
+    dnnl_quantization_quantize_dequantize = 0x4fff0,
+    dnnl_quantization_quantize = 0x4fff1,
 } dnnl_alg_kind_t;
 
 /// Flags for normalization primitives.

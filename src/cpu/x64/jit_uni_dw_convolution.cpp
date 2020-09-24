@@ -144,6 +144,8 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
             par_conv.post_ops_binary_rhs_arg_vec
                     = post_ops_binary_rhs_arg_vec.data();
             par_conv.dst_orig = dst;
+            par_conv.oc_off = ch * jcp.ch_block * sizeof(float);
+
             (*kernel_)(&par_conv);
 
             if (jcp.loop_order == loop_ngcw) {

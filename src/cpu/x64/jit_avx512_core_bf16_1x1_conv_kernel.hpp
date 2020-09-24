@@ -111,6 +111,12 @@ private:
     Xbyak::Opmask half_mask = Xbyak::Opmask(6);
     Xbyak::Opmask half_mask_hi = Xbyak::Opmask(5);
     Xbyak::Label dst_prm_table;
+    reg64_t reg_oc_off = abi_param1;
+    reg64_t reg_d_weights = imm_addr64;
+    reg64_t reg_d_bias = aux_reg_bcast_data;
+
+    Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
+    Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);
 
     constexpr static int reg64_size_ = sizeof(int64_t);
     constexpr static int bcast_loop_work_offt = 0;

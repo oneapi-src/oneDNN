@@ -70,6 +70,13 @@ private:
     std::unique_ptr<injector::jit_uni_postops_injector_t<sse41>>
             postops_injector_;
 
+    reg64_t reg_d_weights = imm_addr64;
+    reg64_t reg_d_bias = ki_iter;
+    reg64_t reg_oc_off = abi_param1;
+
+    Xbyak::Xmm xmm_d_weights = Xbyak::Xmm(14);
+    Xbyak::Xmm xmm_d_bias = Xbyak::Xmm(15);
+
     inline void oh_step_unroll_kw(
             int ur_w, int pad_l, int pad_r, int oc_blocks);
     inline void oh_step_nopad(int ur_w, int pad_l, int pad_r, int oc_blocks);

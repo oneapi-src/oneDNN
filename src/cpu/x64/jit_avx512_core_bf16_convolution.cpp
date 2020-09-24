@@ -132,6 +132,8 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
             par_conv.dst_orig = dst;
             par_conv.post_ops_binary_rhs_arg_vec
                     = post_ops_binary_rhs_arg_vec.data();
+            par_conv.oc_off = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
+
             (*kernel_)(&par_conv);
 
             if (jcp.loop_order == loop_cwgn) {
@@ -256,6 +258,8 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
                 par_conv.dst_orig = dst;
                 par_conv.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
+                par_conv.oc_off = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
+
                 (*kernel_)(&par_conv);
 
                 src_w += src_h_stride * jcp.stride_h;
@@ -395,6 +399,8 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
                 par_conv.dst_orig = dst;
                 par_conv.post_ops_binary_rhs_arg_vec
                         = post_ops_binary_rhs_arg_vec.data();
+                par_conv.oc_off = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
+
                 (*kernel_)(&par_conv);
 
                 src_w += src_h_stride * jcp.stride_h;

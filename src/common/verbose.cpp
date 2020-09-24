@@ -499,6 +499,14 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                     ss << delim << "prelu"
                        << ":" << ep.mask;
                 } break;
+                case primitive_kind::depthwise: {
+                    const post_ops_t::entry_t::depthwise_t &dw = e.depthwise;
+                    ss << delim << dw.alg;
+                } break;
+                case primitive_kind::quantization: {
+                    const post_ops_t::entry_t::quantization_t &qt = e.quantization;
+                    ss << delim << qt.alg;
+                } break;
                 default: assert(!"unsupported post op primitive kind!"); break;
             }
             delim = attr_delim;

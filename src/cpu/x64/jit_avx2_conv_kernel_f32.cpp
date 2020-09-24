@@ -47,7 +47,7 @@ jit_avx2_conv_fwd_kernel_f32::jit_avx2_conv_fwd_kernel_f32(
     : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx2)
     , jcp(ajcp)
     , attr_(attr) {
-    if (jcp.with_eltwise || jcp.with_binary) {
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_depthwise || jcp.with_quantization) {
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
@@ -61,10 +61,12 @@ jit_avx2_conv_fwd_kernel_f32::jit_avx2_conv_fwd_kernel_f32(
                 memory_desc_wrapper(dst_md), tail_size,
                 use_exact_tail_scalar_bcast};
         static_params_t static_params {this->param1, rhs_arg_static_params};
+        quantization_injector::static_params_t quantization_static_params
+                {ymm_d_weights.getIdx(), ymm_d_bias.getIdx(), reg_d_weights, reg_d_bias};
 
         postops_injector_ = utils::make_unique<
                 injector::jit_uni_postops_injector_t<avx2>>(
-                this, jcp.post_ops, static_params);
+                this, jcp.post_ops, static_params, quantization_static_params);
     }
 }
 
@@ -201,10 +203,18 @@ void iterate(const int load_loop_blk, const int ur, const F &f) {
 
 void jit_avx2_conv_fwd_kernel_f32::apply_postops(
         const int oc_blocks, const int ur_w, const int oc_tail) {
-    if (jcp.with_eltwise || jcp.with_binary) {
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_depthwise || jcp.with_quantization) {
         Label regular_store;
         test(reg_ci_flag, FLAG_IC_LAST);
         je(regular_store, T_NEAR);
+
+        std::map<size_t, int> vmm_idx_off;
+        iterate(oc_blocks, ur_w, [&](const bool, const int i, const int j) {
+            vmm_idx_off.insert({get_ymm_idx(ur_w, i, j), i * jcp.oc_block * sizeof(float)});
+        });
+        depthwise_injector::dynamic_params_t ddp {ymm_d_weights.getIdx(), ymm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
+                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
+        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
 
         injector_utils::vmm_index_set_t vmm_idxs;
         if (jcp.with_binary) {
@@ -237,14 +247,14 @@ void jit_avx2_conv_fwd_kernel_f32::apply_postops(
                 jmp(postops_done, T_NEAR);
                 L(postops_no_tail);
             }
-            postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+            postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params, ddp, qdp);
             L(postops_done);
 
         } else {
             iterate(oc_blocks, ur_w, [&](const bool, const int i, const int j) {
                 vmm_idxs.emplace(get_ymm_idx(ur_w, i, j));
             });
-            postops_injector_->compute_vector_range(vmm_idxs);
+            postops_injector_->compute_vector_range(vmm_idxs, binary_injector::rhs_arg_dynamic_params_t(), ddp, qdp);
         }
         L(regular_store);
     }
@@ -665,6 +675,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     jcp.with_eltwise = eltwise_ind != -1;
     const int binary_ind = post_ops.find(primitive_kind::binary);
     jcp.with_binary = binary_ind != -1;
+    jcp.with_depthwise = post_ops.find(primitive_kind::depthwise) != -1;
+    jcp.with_quantization = post_ops.find(primitive_kind::quantization) != -1;
 
     jcp.post_ops = post_ops;
 
@@ -685,14 +697,14 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         if (mimo) jcp.ic = rnd_up(jcp.ic, simd_w);
     }
 
-    if (jcp.with_eltwise || jcp.with_binary)
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_depthwise || jcp.with_quantization)
         if (!mayiuse(avx2)) return status::unimplemented;
 
     using namespace injector;
     static constexpr bool sum_at_pos_0_only = true;
     static constexpr bool sum_requires_scale_one = true;
     static constexpr bool sum_requires_zp_zero = true;
-    const bool post_ops_ok_ = post_ops_ok({avx2, {eltwise, binary, sum},
+    const bool post_ops_ok_ = post_ops_ok({avx2, {eltwise, binary, sum, depthwise, quantization},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
             sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;

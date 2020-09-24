@@ -307,7 +307,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
 
         if (pd()->jcp_.with_dw_conv) {
             CHECK(safe_ptr_assign(kernel_dw_,
-                    new dw_conv_kernel_t(*(pd()->jcp_dw_), *pd()->dst_md(0))));
+                    new dw_conv_kernel_t(*(pd()->jcp_dw_), *pd()->dst_md(0), *pd()->dw_conv_pd_->attr())));
             CHECK(kernel_dw_->create_kernel());
         }
 

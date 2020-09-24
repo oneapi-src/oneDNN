@@ -62,7 +62,8 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
                             dst_md(0)->data_type)
                     && attr()->post_ops_.check_sum_consistent_dt(
                             dst_md(0)->data_type)
-                    && !has_zero_dim_memory() && zero_points_ok();
+                    && !has_zero_dim_memory() && zero_points_ok()
+                    && !this->attr()->has_asymmetric_quantization();
             if (!ok) return status::unimplemented;
 
             CHECK(jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jcp_, *desc(),

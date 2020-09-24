@@ -51,10 +51,11 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
                             alg_kind::pooling_avg_exclude_padding)
                     && utils::one_of(src_md()->data_type, data_type::s32,
                             data_type::s8, data_type::u8)
-                    && src_md()->data_type == dst_md()->data_type
                     && !is_dilated()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops)
+                    && IMPLICATION(utils::one_of(desc()->alg_kind, alg_kind::pooling_avg_include_padding, alg_kind::pooling_avg_exclude_padding),
+                                   utils::one_of(dst_md()->data_type, data_type::u8, data_type::s8, data_type::f32))
                     && set_default_params() == status::success
                     && memory_desc_matches_one_of_tag(
                                *src_md(), nwc, nhwc, ndhwc)

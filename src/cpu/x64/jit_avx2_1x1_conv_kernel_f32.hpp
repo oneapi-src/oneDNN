@@ -84,6 +84,12 @@ private:
     constexpr static int reg_abi_param1_backup = 2 * reg64_size_;
     constexpr static int stack_space_needed = 3 * reg64_size_;
 
+    reg64_t reg_oc_off = load_loop_iter;
+    reg64_t reg_d_weights = aux_reg_bcast_data;
+    reg64_t reg_d_bias = reduce_loop_iter; // todo: [AV] check, conflict with out_off_oprnd (r15)
+    ymm_t ymm_d_weights = Xbyak::Ymm(14);
+    ymm_t ymm_d_bias = Xbyak::Ymm(15);
+
     ymm_t vreg_bcast = ymm_t(15);
     ymm_t vtmp = ymm_t(14);
 

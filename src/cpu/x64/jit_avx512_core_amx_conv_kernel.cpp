@@ -1053,7 +1053,7 @@ jit_avx512_core_amx_fwd_kernel_t::jit_avx512_core_amx_fwd_kernel_t(
     : jit_generator(jit_name(), nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
     , jcp(ajcp)
     , attr_(attr) {
-    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum || jcp.with_depthwise || jcp.with_quantization) {
         using namespace binary_injector;
         const auto &rhs_addr_reg = bin_injector_helper_reg_1;
         const auto &rhs_helper_reg = bin_injector_helper_reg_2;
@@ -1070,9 +1070,12 @@ jit_avx512_core_amx_fwd_kernel_t::jit_avx512_core_amx_fwd_kernel_t(
         const binary_injector::static_params_t static_params {
                 this->param1, rhs_arg_static_params};
 
+        quantization_injector::static_params_t quantization_static_params =
+                {zmm_d_weights.getIdx(), zmm_d_bias.getIdx(), reg_d_weights, reg_d_bias};
+
         postops_injector_ = utils::make_unique<
                 injector::jit_uni_postops_injector_t<avx512_core>>(
-                this, jcp.post_ops, static_params);
+                this, jcp.post_ops, static_params, quantization_static_params);
     }
     copy_to_pbuffer_
             = utils::make_unique<jit_avx512_core_amx_copy_to_pbuffer_t>(jcp);
@@ -1374,22 +1377,27 @@ void jit_avx512_core_amx_fwd_kernel_t::apply_sum(const Zmm &zmm_out,
 
 void jit_avx512_core_amx_fwd_kernel_t::apply_postops(const Zmm &zmm_out,
         const float *p_sum_scale, const int32_t *p_sum_zp,
-        const Xbyak::Address &addr, const size_t off, const bool mask_flag) {
+        const Xbyak::Address &addr, const size_t off, const bool mask_flag, const int ocb) {
     if (jcp.with_eltwise || jcp.with_binary
-            || (jcp.with_sum && p_sum_scale != nullptr)) {
+            || (jcp.with_sum && p_sum_scale != nullptr) || jcp.with_depthwise || jcp.with_quantization) {
+        std::map<size_t, int> vmm_idx_off;
+        vmm_idx_off.insert({zmm_out.getIdx(), ocb * jcp.oc_block * sizeof(float)});
+        depthwise_injector::dynamic_params_t ddp {zmm_d_weights.getIdx(), zmm_d_bias.getIdx(), reg_d_weights, reg_d_bias,
+                                                  ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off};
+        quantization_injector::dynamic_params_t qdp {ptr[this->param1 + GET_OFF(oc_off)], vmm_idx_off, jcp.dst_dt};
+
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+
         apply_sum(zmm_out, p_sum_scale, p_sum_zp, addr, mask_flag);
 
         const auto vmm_idx = zmm_out.getIdx();
         if (jcp.with_binary) {
-            binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
             rhs_arg_params.vmm_idx_to_out_reg.emplace(vmm_idx, reg_out_ptr);
             rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(vmm_idx, off);
             if (mask_flag) rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
-
-            postops_injector_->compute_vector(vmm_idx, rhs_arg_params);
-        } else {
-            postops_injector_->compute_vector(vmm_idx);
         }
+
+        postops_injector_->compute_vector_range({(size_t)vmm_idx}, rhs_arg_params, ddp, qdp);
     }
 }
 
@@ -1434,7 +1442,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_bf16(
 
     static constexpr auto skip_sum_injection = nullptr;
     apply_postops(zmm_out, skip_sum_injection, skip_sum_injection, addr, off,
-            mask_flag);
+            mask_flag, ocb);
 
     if (jcp.dst_dt == data_type::bf16) {
         store_output_ymm_bf16(zmm_out.getIdx(), addr, mask_flag);
@@ -1503,7 +1511,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output_vector_int8(
     vmulps(zmm_out_msk, zmm_out,
             EVEX_compress_addr(reg_ptr_scales, scale_offset));
 
-    apply_postops(zmm_out, p_sum_scale, p_sum_zp, addr, off, mask_flag);
+    apply_postops(zmm_out, p_sum_scale, p_sum_zp, addr, off, mask_flag, ocb);
 
     if (jcp.dst_zero_point) { vaddps(zmm_out, zmm_out, zmm_dst_zp); }
 
@@ -2445,7 +2453,11 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.with_eltwise = eltwise_ind != -1;
     const int binary_ind = p.find(primitive_kind::binary);
     jcp.with_binary = binary_ind != -1;
-    jcp.sum_dt = p.get_sum_dt(jcp.dst_dt);
+    if (jcp.with_sum)
+        jcp.sum_dt = p.entry_[sum_ind].sum.dt;
+
+    jcp.with_depthwise = p.find(primitive_kind::depthwise) != -1;
+    jcp.with_quantization = p.find(primitive_kind::quantization) != -1;
 
     jcp.post_ops = p;
 
@@ -2453,7 +2465,7 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     const bool sum_at_pos_0_only = (jcp.src_dt == data_type::bf16);
     const bool sum_requires_scale_one = sum_at_pos_0_only;
     const bool sum_requires_zp_zero = sum_at_pos_0_only;
-    const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum},
+    const bool post_ops_ok_ = post_ops_ok({avx512_core, {eltwise, binary, sum, depthwise, quantization},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one,
             sum_requires_zp_zero});
     if (!post_ops_ok_) return status::unimplemented;
@@ -2505,9 +2517,11 @@ status_t jit_avx512_core_amx_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     jcp.nb_oc_blocking_thr_chunk = 1;
 
-    const int target_palette = amx::get_target_palette();
-    jcp.max_tiles = amx::get_max_tiles(target_palette);
-    jcp.full_tile_width = amx::get_max_rows(target_palette);
+    // @todo This change must be explained with a comment
+    // const int target_palette = amx::get_target_palette();
+    jcp.max_tiles = 8; //amx::get_max_tiles(target_palette);
+    jcp.full_tile_width = 16; //amx::get_max_rows(target_palette);
+
     if (jcp.max_tiles != 8 || jcp.full_tile_width != 16)
         return status::unimplemented;
 

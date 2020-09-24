@@ -180,7 +180,7 @@ private:
         Xbyak::Reg64 reserved_eltwise_gpr = r10;
         Xbyak::Opmask reserved_eltwise_maskr = k2;
 
-        Xbyak::Zmm vreg_sum_scale, vreg_bias;
+        Xbyak::Zmm vreg_sum_scale, vreg_bias, vreg_dw;
 
         Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(27);
         Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(28);

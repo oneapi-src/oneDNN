@@ -67,7 +67,7 @@ private:
     reg64_t reg_load_loop_work = rsi;
     reg64_t reg_reduce_loop_work = r11;
     reg64_t reg_bcast_loop_iter = rdx;
-    reg64_t reduce_loop_iter = abi_param1;
+    reg64_t reduce_loop_iter = r13;
     reg64_t reg_reduce_pos_flag = rax;
     reg64_t reg_output_stride = r13;
     reg64_t reg_bias_data = r12;
@@ -86,6 +86,13 @@ private:
     constexpr static int reg_abi_param1_backup = 2 * reg64_size_;
     constexpr static int reg_bcast_data_off = 3 * reg64_size_;
     constexpr static int stack_space_needed = 4 * reg64_size_;
+
+    reg64_t reg_oc_off = abi_param1;
+    reg64_t reg_d_weights = imm_addr64;
+    reg64_t reg_d_bias = r13;
+
+    Xbyak::Zmm zmm_d_weights = Xbyak::Zmm(31);
+    Xbyak::Zmm zmm_d_bias = Xbyak::Zmm(30);
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);

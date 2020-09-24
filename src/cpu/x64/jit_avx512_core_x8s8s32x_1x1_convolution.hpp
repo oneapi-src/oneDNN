@@ -78,7 +78,8 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                     && !has_zero_dim_memory() && zero_points_ok()
                     && set_default_formats_common(
                             dat_tag(), format_tag::any, dat_tag())
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
+                    && attr_.set_default_formats(dst_md(0)) == status::success
+                    && !this->attr()->has_asymmetric_quantization();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();

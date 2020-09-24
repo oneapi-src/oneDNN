@@ -215,13 +215,15 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
                         broadcasting_strategy_t::per_oc,
                         broadcasting_strategy_t::no_broadcast);
     }
+    jcp.with_depthwise = post_ops.find(primitive_kind::depthwise) != -1;
+    jcp.with_quantization = post_ops.find(primitive_kind::quantization) != -1;
 
     jcp.post_ops = post_ops;
 
     using namespace injector;
     static constexpr bool sum_at_pos_0_only = true;
     static constexpr bool sum_requires_scale_one = true;
-    const bool post_ops_ok_ = post_ops_ok({isa, {eltwise, binary, sum},
+    const bool post_ops_ok_ = post_ops_ok({isa, {eltwise, binary, sum, depthwise, quantization},
             jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
     if (!post_ops_ok_) return status::unimplemented;
 

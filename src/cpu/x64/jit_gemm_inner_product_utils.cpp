@@ -1161,8 +1161,7 @@ void jit_pp_kernel_t<isa>::generate() {
     // at least 2 blocks of mb within vlen
     bool dim_restrict = !this->runtime_oc() && !this->runtime_mb()
             && (this->OC_ <= vlen / 2) && (this->MB_ >= vlen);
-    bool supported_postops = this->do_scale_ || this->do_eltwise_
-            || this->do_binary_ || this->do_sum_ || this->do_dst_zero_points_;
+    bool supported_postops = this->do_scale_ || (this->post_ops_.len() > 0) || this->do_dst_zero_points_;
     if (this->do_bias() && !supported_postops && dim_restrict
             && this->has_trivial_mb_stride()) {
         this->mb_blk_kernel_ = true;

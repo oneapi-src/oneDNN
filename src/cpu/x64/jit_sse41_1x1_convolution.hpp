@@ -59,7 +59,8 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, f32)
                     && !has_zero_dim_memory() && set_default_formats()
-                    && attr_.set_default_formats(dst_md(0)) == status::success;
+                    && attr_.set_default_formats(dst_md(0)) == status::success
+                    && !this->attr()->has_asymmetric_quantization();
             if (!ok) return status::unimplemented;
 
             CHECK(jit_sse41_1x1_conv_kernel_f32::init_conf(jcp_, *desc(),
@@ -250,7 +251,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
         if (pd()->jcp_.with_dw_conv) {
             CHECK(safe_ptr_assign(kernel_dw_,
                     new dw_conv_kernel_t(
-                            pd()->dw_conv_pd_->jcp_, *pd()->dst_md(0))));
+                            pd()->dw_conv_pd_->jcp_, *pd()->dst_md(0), *pd()->dw_conv_pd_->attr())));
             return kernel_dw_->create_kernel();
         }
 

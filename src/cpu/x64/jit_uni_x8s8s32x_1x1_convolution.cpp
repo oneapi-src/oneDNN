@@ -291,6 +291,7 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward_thr(
         p.oc_l_off = g * nb_oc + ocb * jcp.oc_block;
         p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
         p.dst_orig = jcp.with_dw_conv ? pbuf : dst;
+        p.oc_off = _ocb * jcp.oc_block * sizeof(float);
 
         (*kernel_)(&p);
     };
@@ -420,6 +421,7 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa>::execute_forward_thr(
             par_conv_dw.post_ops_binary_rhs_arg_vec
                     = post_ops_binary_rhs_arg_vec_dw;
             par_conv_dw.dst_orig = dst;
+            p.oc_off = ocb * jcp_dw->ch_block * sizeof(float);
 
             (*kernel_dw_)(&par_conv_dw);
 
