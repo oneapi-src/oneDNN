@@ -43,6 +43,7 @@
 #include "gpu/ocl/ref_lrn.hpp"
 #include "gpu/ocl/ref_matmul.hpp"
 #include "gpu/ocl/ref_pooling.hpp"
+#include "gpu/ocl/ref_reduction.hpp"
 #include "gpu/ocl/ref_resampling.hpp"
 #include "gpu/ocl/ref_shuffle.hpp"
 #include "gpu/ocl/ref_softmax.hpp"
@@ -136,6 +137,9 @@ const pd_create_f gpu_impl_list[] = {
         // MatMul
         INSTANCE(ocl::gemm_matmul_t),
         INSTANCE(ocl::ref_matmul_t),
+
+        // Reduction
+        INSTANCE(ocl::ref_reduction_t),
 
         // Resampling
         INSTANCE(ocl::ref_resampling_fwd_t),
