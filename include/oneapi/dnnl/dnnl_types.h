@@ -549,35 +549,39 @@ typedef enum {
     /// 6D CNN weights tensor (incl. groups), an alias to #dnnl_defcab
     dnnl_dhwigo = dnnl_defcab,
 
-    /// 3D RNN data tensor in the format (seq_length, batch, input channels).
+    /// 3D RNN data tensor in the format (seq_length, batch, input channels),
+    /// an alias to #dnnl_abc.
     dnnl_tnc = dnnl_abc,
-    /// 3D RNN data tensor in the format (batch, seq_length, input channels).
+    /// 3D RNN data tensor in the format (batch, seq_length, input channels),
+    /// an alias to #dnnl_bac.
     dnnl_ntc = dnnl_bac,
     /// 4D RNN states tensor in the format (num_layers, num_directions,
-    /// batch, state channels).
+    /// batch, state channels), an alias to #dnnl_abcd.
     dnnl_ldnc = dnnl_abcd,
     /// 5D RNN weights tensor in the format (num_layers, num_directions,
-    ///  input_channels, num_gates, output_channels).
+    /// input_channels, num_gates, output_channels), an alias to #dnnl_abcde.
     ///
     ///  - For LSTM cells, the gates order is input, forget, candidate
     ///    and output gate.
     ///  - For GRU cells, the gates order is update, reset and output gate.
     dnnl_ldigo = dnnl_abcde,
     /// 5D RNN weights tensor in the format (num_layers, num_directions,
-    /// num_gates, output_channels, input_channels).
+    /// num_gates, output_channels, input_channels), an alias to #dnnl_abdec.
     ///
     ///  - For LSTM cells, the gates order is input, forget, candidate
     ///    and output gate.
     ///  - For GRU cells, the gates order is update, reset and output gate.
     dnnl_ldgoi = dnnl_abdec,
     /// 4D LSTM projection tensor in the format (num_layers, num_directions,
-    /// num_channels_in_hidden_state, num_channels_in_recurrent_projection).
+    /// num_channels_in_hidden_state, num_channels_in_recurrent_projection),
+    /// an alias to #dnnl_abcd.
     dnnl_ldio = dnnl_abcd,
     /// 4D LSTM projection tensor in the format (num_layers, num_directions,
-    /// num_channels_in_recurrent_projection, num_channels_in_hidden_state).
+    /// num_channels_in_recurrent_projection, num_channels_in_hidden_state),
+    /// an alias to #dnnl_abdc.
     dnnl_ldoi = dnnl_abdc,
     /// 4D RNN bias tensor in the format (num_layers, num_directions,
-    /// num_gates, output_channels).
+    /// num_gates, output_channels), an alias to #dnnl_abcd.
     ///
     ///  - For LSTM cells, the gates order is input, forget, candidate
     ///    and output gate.

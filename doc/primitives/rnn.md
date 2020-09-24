@@ -359,11 +359,11 @@ primitive parameters.
 The following table summarizes the data layouts supported by the RNN
 primitive.
 
- Propagation        | Input/Output Data | Recurrent Data | Layer and Iteration Weights | Peephole Weights and Bias | Projection LSTM Weights
-------------------- | ----------------- | -------------- | --------------------------- | ------------------------- | -------------------------------
- Forward / Backward | any               | any            | any                         | ldgo                      | any
- Forward            | ntc, tnc          | ldnc           | ldigo                       | ldgo                      | ldio
- Backward           | ntc, tnc          | ldnc           | ldgoi                       | ldgo                      | ldoi
+ Propagation        | Input/Output Data    | Recurrent Data       | Layer and Iteration Weights | Peephole Weights and Bias | Projection LSTM Weights
+------------------- |--------------------- | -------------------- | --------------------------- | ------------------------- | -----------------------
+ Forward / Backward | #dnnl_format_tag_any | #dnnl_format_tag_any | #dnnl_format_tag_any        | #dnnl_ldgo                | #dnnl_format_tag_any
+ Forward            | #dnnl_ntc, #dnnl_tnc | #dnnl_ldnc           | #dnnl_ldigo                 | #dnnl_ldgo                | #dnnl_ldio
+ Backward           | #dnnl_ntc, #dnnl_tnc | #dnnl_ldnc           | #dnnl_ldgoi                 | #dnnl_ldgo                | #dnnl_ldoi
 
 While an RNN primitive can be created with memory formats specified
 explicitly, the performance is likely to be sub-optimal.  When using `any` it
