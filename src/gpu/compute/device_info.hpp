@@ -36,13 +36,29 @@ enum class gpu_arch_t {
     gen12lp,
 };
 
-enum class device_ext_t : int64_t {
-    intel_subgroups = 1 << 0,
-    intel_subgroups_short = 1 << 1,
-    khr_fp16 = 1 << 2,
-    khr_int64_base_atomics = 1 << 3,
-    intel_subgroup_local_block_io = 1 << 5,
+enum class device_ext_t : uint64_t {
+    // clang-format off
+    // OpenCL data types
+    khr_fp16 = 1ull << 0,
+    khr_fp64 = 1ull << 1,
+    // OpenCL atomics
+    khr_global_int32_base_atomics     = 1ull << 2,
+    khr_global_int32_extended_atomics = 1ull << 3,
+    khr_int64_base_atomics            = 1ull << 4,
+    khr_int64_extended_atomics        = 1ull << 5,
+    khr_local_int32_base_atomics      = 1ull << 6,
+    khr_local_int32_extended_atomics  = 1ull << 7,
+    // Intel specific Gen9+
+    intel_subgroups              = 1ull << 16,
+    intel_required_subgroup_size = 1ull << 17,
+    intel_subgroups_char         = 1ull << 18,
+    intel_subgroups_short        = 1ull << 19,
+    intel_subgroups_long         = 1ull << 20,
+    // Intel specific Gen12LP+
+    intel_subgroup_local_block_io = 1ull << 21,
+    intel_dot_accumulate          = 1ull << 22,
     last
+    // clang-format on
 };
 
 inline gpu_arch_t str2gpu_arch(const char *str) {
@@ -68,15 +84,29 @@ inline const char *gpu_arch2str(gpu_arch_t arch) {
 #undef CASE
 }
 
-static inline const char *ext2cl_str(compute::device_ext_t ext) {
+static inline const char *ext2cl_str(device_ext_t ext) {
 #define CASE(x) \
-    case compute::device_ext_t::x: return STRINGIFY(CONCAT2(cl_, x));
+    case device_ext_t::x: return STRINGIFY(CONCAT2(cl_, x));
     switch (ext) {
-        CASE(intel_subgroups);
-        CASE(intel_subgroups_short);
-        CASE(intel_subgroup_local_block_io);
-        CASE(khr_fp16);
-        CASE(khr_int64_base_atomics);
+        CASE(khr_fp16)
+        CASE(khr_fp64)
+
+        CASE(khr_global_int32_base_atomics)
+        CASE(khr_global_int32_extended_atomics)
+        CASE(khr_int64_base_atomics)
+        CASE(khr_int64_extended_atomics)
+        CASE(khr_local_int32_base_atomics)
+        CASE(khr_local_int32_extended_atomics)
+
+        CASE(intel_subgroups)
+        CASE(intel_required_subgroup_size)
+        CASE(intel_subgroups_char)
+        CASE(intel_subgroups_short)
+        CASE(intel_subgroups_long)
+
+        CASE(intel_subgroup_local_block_io)
+        CASE(intel_dot_accumulate)
+
         default: return nullptr;
     }
 #undef CASE
@@ -148,7 +178,16 @@ struct device_info_t {
 public:
     virtual ~device_info_t() = default;
 
-    virtual status_t init() = 0;
+    status_t init() {
+        CHECK(init_device_name());
+        CHECK(init_arch());
+        CHECK(init_runtime_version());
+        CHECK(init_extensions());
+        CHECK(init_attributes());
+
+        return status::success;
+    }
+
     virtual bool has(device_ext_t ext) const = 0;
 
     virtual gpu_arch_t gpu_arch() const = 0;
@@ -169,6 +208,12 @@ protected:
     void set_name(const std::string &name) { name_ = name; }
 
 private:
+    virtual status_t init_arch() = 0;
+    virtual status_t init_device_name() = 0;
+    virtual status_t init_runtime_version() = 0;
+    virtual status_t init_extensions() = 0;
+    virtual status_t init_attributes() = 0;
+
     runtime_version_t runtime_version_;
     std::string name_;
 };

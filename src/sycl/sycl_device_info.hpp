@@ -20,9 +20,7 @@
 #include <vector>
 #include <CL/sycl.hpp>
 
-#include "cpu/platform.hpp"
 #include "gpu/compute/device_info.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,80 +28,33 @@ namespace sycl {
 
 class sycl_device_info_t : public gpu::compute::device_info_t {
 public:
-    sycl_device_info_t(const cl::sycl::device &device)
-        : device_(device), ext_(0), eu_count_(0), hw_threads_(0) {}
-
-    status_t init() override {
-        // Extensions
-        for (uint64_t i_ext = 1;
-                i_ext < (uint64_t)gpu::compute::device_ext_t::last;
-                i_ext <<= 1) {
-            const char *s_ext = ext2cl_str((gpu::compute::device_ext_t)i_ext);
-            if (s_ext != nullptr && device_.has_extension(s_ext)) {
-                ext_ |= i_ext;
-            }
-        }
-
-        // Device name
-        auto dev_name = device_.get_info<cl::sycl::info::device::name>();
-        set_name(dev_name);
-
-        // EU count
-        eu_count_
-                = device_.get_info<cl::sycl::info::device::max_compute_units>();
-
-        // Gen9 value, for GPU, for now
-        int threads_per_eu = (device_.is_gpu() ? 7 : 1);
-        hw_threads_ = eu_count_ * threads_per_eu;
-
-        CHECK(init_arch());
-
-        // Integrated GPUs share LLC with CPU which is L3 cache on CPU.
-        size_t cache_size = cpu::platform::get_per_core_cache_size(3)
-                * cpu::platform::get_num_cores();
-        llc_cache_size_ = (size_t)cache_size;
-
-        // Runtime version
-        auto driver_version
-                = device_.get_info<cl::sycl::info::device::driver_version>();
-        gpu::compute::runtime_version_t runtime_version;
-        if (runtime_version.set_from_string(driver_version.c_str())
-                != status::success) {
-            runtime_version.major = 0;
-            runtime_version.minor = 0;
-            runtime_version.build = 0;
-        }
-        set_runtime_version(runtime_version);
-
-        return status::success;
-    }
+    sycl_device_info_t(const cl::sycl::device &device) : device_(device) {}
 
     bool has(gpu::compute::device_ext_t ext) const override {
-        return ext_ & (uint64_t)ext;
+        return this->extensions_ & (uint64_t)ext;
     }
 
     gpu::compute::gpu_arch_t gpu_arch() const override { return gpu_arch_; }
+
     int eu_count() const override { return eu_count_; }
     int hw_threads() const override { return hw_threads_; }
     size_t llc_cache_size() const override { return llc_cache_size_; }
 
 private:
-    status_t init_arch() {
-        if (name().find("Gen9") != std::string::npos)
-            gpu_arch_ = gpu::compute::gpu_arch_t::gen9;
-        else if (name().find("Gen12LP") != std::string::npos)
-            gpu_arch_ = gpu::compute::gpu_arch_t::gen12lp;
-        else
-            gpu_arch_ = gpu::compute::gpu_arch_t::unknown;
-
-        return status::success;
-    }
+    status_t init_arch() override;
+    status_t init_device_name() override;
+    status_t init_runtime_version() override;
+    status_t init_extensions() override;
+    status_t init_attributes() override;
 
     cl::sycl::device device_;
-    uint64_t ext_;
-    int32_t eu_count_, hw_threads_;
-    gpu::compute::gpu_arch_t gpu_arch_ = gpu::compute::gpu_arch_t::unknown;
+
+    int32_t hw_threads_ = 0;
+    int32_t eu_count_ = 0;
     size_t llc_cache_size_ = 0;
+
+    uint64_t extensions_ = 0;
+    gpu::compute::gpu_arch_t gpu_arch_ = gpu::compute::gpu_arch_t::unknown;
 };
 
 } // namespace sycl
