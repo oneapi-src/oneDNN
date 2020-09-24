@@ -20,11 +20,11 @@ output="$2"
 shift 2
 
 {
-    echo '#include "dnnl.h"'
+    echo '#include "oneapi/dnnl/dnnl.h"'
     echo "const void *c_functions[] = {"
     # -xc++ to get rid of c++-style comments that are part of c99,
     # but -xc -std=c99 doesn't work on macOS for whatever reason...
-    cpp -xc++ -w "${@/#/-I}" "${dnnl_root}/include/dnnl.h" \
+    cpp -xc++ -w "${@/#/-I}" "${dnnl_root}/include/oneapi/dnnl/dnnl.h" \
         | grep -o 'dnnl_\w\+(' \
         | sed 's/\(.*\)(/(void*)\1,/g' \
         | sort -u

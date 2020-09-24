@@ -23,11 +23,11 @@
 #include <CL/sycl.hpp>
 #endif
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "dnnl_ocl.hpp"
+#include "oneapi/dnnl/dnnl_ocl.hpp"
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
-#include "dnnl_sycl.hpp"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
 #include "dnn_types.hpp"

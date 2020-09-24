@@ -24,8 +24,8 @@
 #include <iostream>
 #include <sstream>
 
-#include "dnnl.h"
 #include "dnnl_memory.hpp"
+#include "oneapi/dnnl/dnnl.h"
 
 // Please update doc/knobs_perf_report.md in case of any changes!
 

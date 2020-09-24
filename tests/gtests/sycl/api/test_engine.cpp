@@ -17,8 +17,8 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "dnnl.hpp"
-#include "dnnl_sycl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 
 #include <memory>
 #include <CL/sycl.hpp>

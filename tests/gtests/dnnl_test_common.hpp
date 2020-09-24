@@ -32,12 +32,12 @@
 #define collapse(x)
 #endif
 
-#include "dnnl.hpp"
-#include "dnnl_debug.h"
 #include "dnnl_test_macros.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl_debug.h"
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool.hpp"
+#include "oneapi/dnnl/dnnl_threadpool.hpp"
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL || DNNL_WITH_SYCL
@@ -45,7 +45,7 @@
 #endif
 
 #if DNNL_WITH_SYCL
-#include "dnnl_sycl.hpp"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
 #include "src/common/bfloat16.hpp"

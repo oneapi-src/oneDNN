@@ -18,8 +18,8 @@
 #include "gtest/gtest.h"
 
 #include <memory>
-#include "dnnl_ocl.h"
-#include "dnnl_ocl.hpp"
+#include "oneapi/dnnl/dnnl_ocl.h"
+#include "oneapi/dnnl/dnnl_ocl.hpp"
 #include <CL/cl.h>
 
 namespace dnnl {

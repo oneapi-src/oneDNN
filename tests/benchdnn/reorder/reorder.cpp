@@ -17,7 +17,7 @@
 #include <cmath>
 #include <stdlib.h>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"

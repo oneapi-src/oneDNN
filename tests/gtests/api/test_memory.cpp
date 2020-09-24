@@ -17,14 +17,14 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "dnnl.h"
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.h"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #include <limits>
 #include <new>
 
 #if DNNL_WITH_SYCL
-#include "dnnl_sycl.hpp"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 #include <CL/sycl.hpp>
 #endif
 

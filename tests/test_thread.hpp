@@ -34,7 +34,7 @@
 #endif
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool_iface.hpp"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 namespace dnnl {
 
 // Original threadpool utils are used by the scoped_tp_activation_t and thus

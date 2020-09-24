@@ -21,15 +21,15 @@
 #include "dnnl_thread.hpp"
 #include "gtest/gtest.h"
 
-#include "dnnl.h"
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "dnnl_ocl.hpp"
+#include "oneapi/dnnl/dnnl_ocl.hpp"
 #endif
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-#include "dnnl_sycl.hpp"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
 #if DNNL_X64

@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl.hpp"
 #include "dnnl_test_common.hpp"
 #include "math_utils.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 #include "test_convolution_eltwise_forward_common.hpp"
 #include "gtest/gtest.h"
 

@@ -21,8 +21,8 @@
 #include <stdlib.h>
 #include <string>
 
-#include "dnnl.h"
 #include "dnnl_memory.hpp"
+#include "oneapi/dnnl/dnnl.h"
 
 namespace parser {
 

@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #endif
 
-#include "dnnl_threadpool_iface.hpp"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #include "src/common/counting_barrier.hpp"
 #include "tests/test_thread.hpp"
 

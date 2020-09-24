@@ -19,7 +19,7 @@
 
 #include "gtest/gtest.h"
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 #include "src/cpu/x64/cpu_isa_traits.hpp"
 
 namespace dnnl {

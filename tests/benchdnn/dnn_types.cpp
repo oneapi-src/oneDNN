@@ -24,10 +24,10 @@
 
 #include <sstream>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool.h"
+#include "oneapi/dnnl/dnnl_threadpool.h"
 #endif
 
 #include "common.hpp"

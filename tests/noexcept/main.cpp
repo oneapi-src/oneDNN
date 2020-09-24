@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 int main(int argc, char **argv) {
 

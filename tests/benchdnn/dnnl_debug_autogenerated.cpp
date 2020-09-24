@@ -21,7 +21,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "dnnl_debug.h"
+#include "oneapi/dnnl/dnnl_debug.h"
 #include "dnnl_debug.hpp"
 
 #include "src/common/z_magic.hpp"
