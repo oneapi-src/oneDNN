@@ -903,8 +903,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_src_nxc(
             tr_src += tr_src_stride;
         }
         work_rest -= sp_work;
-        sp_work = nstl::min(
-                work_rest, max_spatial_work - spatial_start - icb * sp_work);
+        sp_work = nstl::min(work_rest, max_spatial_work);
         icb++;
         src = src_base + icb * chb_stride;
     }
@@ -971,8 +970,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_dst_nxc(
             tr_diff_dst += tr_diff_dst_stride;
         }
         work_rest -= sp_work;
-        sp_work = nstl::min(
-                work_rest, max_spatial_work - spatial_start - ocb * sp_work);
+        sp_work = nstl::min(work_rest, max_spatial_work);
         ocb++;
         diff_dst = diff_dst_base + ocb * chb_stride;
     }
