@@ -31,42 +31,51 @@
 
 namespace matmul {
 
-void prep_bia_dims(
-        const prb_t *p, dnnl_dims_t &bia_dims, const dnnl_dims_t &dst_dims) {
+void prep_bia_dims(const prb_t *p, dims_t &bia_dims, const dims_t &dst_dims) {
+    bia_dims.resize(dst_dims.size());
     for (int d = 0; d < p->ndims; ++d)
         bia_dims[d] = (p->bia_mask & (1 << d)) ? dst_dims[d] : 1;
+}
+
+dims_t get_runtime_dims(const dims_t &dims, const dims_mask_t &mask) {
+    if (mask.none() || dims.empty()) return dims;
+    dims_t runtime_dims;
+    runtime_dims.resize(dims.size());
+    for (size_t i = 0; i < dims.size(); ++i) {
+        runtime_dims[i] = mask[i] ? DNNL_RUNTIME_DIM_VAL : dims[i];
+    }
+    return runtime_dims;
 }
 
 static int init_pd(dnnl_engine_t engine, const prb_t *p,
         dnnl_primitive_desc_t &mpd, res_t *r, dir_t dir,
         const_dnnl_primitive_desc_t hint) {
-    const int64_t MB = p->runtime_mb ? DNNL_RUNTIME_DIM_VAL : p->mb;
-    const int64_t M = p->runtime_m ? DNNL_RUNTIME_DIM_VAL : p->m;
-    const int64_t N = p->runtime_n ? DNNL_RUNTIME_DIM_VAL : p->n;
-    const int64_t K = p->runtime_k ? DNNL_RUNTIME_DIM_VAL : p->k;
-
-    dnnl_dims_t src_dims {}, wei_dims {}, dst_dims {}, bia_dims {};
-    src_dims[0 + (p->ndims == 3)] = dst_dims[0 + (p->ndims == 3)] = M;
-    src_dims[1 + (p->ndims == 3)] = wei_dims[0 + (p->ndims == 3)] = K;
-    wei_dims[1 + (p->ndims == 3)] = dst_dims[1 + (p->ndims == 3)] = N;
-    if (p->ndims == 3) src_dims[0] = wei_dims[0] = dst_dims[0] = MB;
-
-    prep_bia_dims(p, bia_dims, dst_dims);
+    const auto &src_rt_dims
+            = get_runtime_dims(p->src_dims(), p->src_runtime_dim_mask());
+    const auto &weights_rt_dims = get_runtime_dims(
+            p->weights_dims(), p->weights_runtime_dim_mask());
+    const auto &dst_rt_dims
+            = get_runtime_dims(p->dst_dims(), p->dst_runtime_dim_mask());
 
     dnnl_memory_desc_t src_d, wei_d, dst_d, bia_d {};
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_dims,
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_rt_dims.data(),
                      p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims, wei_dims,
-                     p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims,
+                     weights_rt_dims.data(), p->cfg[WEI].dt,
+                     convert_tag(p->wtag, p->ndims)),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, dst_dims,
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, dst_rt_dims.data(),
                      p->cfg[DST].dt, convert_tag(p->dtag, p->ndims)),
             WARN);
-    if (p->bia_dt != dnnl_data_type_undef)
+    if (p->bia_dt != dnnl_data_type_undef) {
+        dims_t bia_dims;
+        prep_bia_dims(p, bia_dims, p->dst_dims());
+        bia_dims = get_runtime_dims(bia_dims, p->dst_runtime_dim_mask());
         DNN_SAFE(dnnl_memory_desc_init_by_strides(
-                         &bia_d, p->ndims, bia_dims, p->bia_dt, NULL),
+                         &bia_d, p->ndims, bia_dims.data(), p->bia_dt, NULL),
                 WARN);
+    }
 
     dnnl_matmul_desc_t op_d;
     DNN_SAFE(
@@ -204,6 +213,52 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 void check_known_skipped_case(const prb_t *p, res_t *r) {
     check_known_skipped_case_common(
             {p->cfg[SRC].dt, p->cfg[WEI].dt, p->cfg[DST].dt}, r);
+    if (r->state == SKIPPED) return;
+
+    // zero points for non-integral data type does not make sense
+    if (!p->attr.zero_points.is_def() && p->cfg[WEI].dt != dnnl_s8) {
+        r->state = SKIPPED, r->reason = INVALID_CASE;
+        return;
+    }
+
+    auto src_rt_mask = p->src_runtime_dim_mask();
+    auto wei_rt_mask = p->weights_runtime_dim_mask();
+    auto dst_rt_mask = p->dst_runtime_dim_mask();
+
+    // memory layout should be defined when some dimension is unknown in pd
+    // creation time
+    if ((src_rt_mask.any() && p->stag == "any")
+            || (wei_rt_mask.any() && p->wtag == "any")
+            || (dst_rt_mask.any() && p->dtag == "any")) {
+        r->state = SKIPPED, r->reason = INVALID_CASE;
+        return;
+    }
+
+    // inconsistent runtime mask for m, k, n are not supported
+    const int m_idx = p->ndims - 2;
+    const int k_idx_src = p->ndims - 1;
+    const int k_idx_wei = p->ndims - 2;
+    const int n_idx = p->ndims - 1;
+    if (src_rt_mask[m_idx] != dst_rt_mask[m_idx]
+            || src_rt_mask[k_idx_src] != wei_rt_mask[k_idx_wei]
+            || wei_rt_mask[n_idx] != dst_rt_mask[n_idx]) {
+        r->state = SKIPPED, r->reason = INVALID_CASE;
+        return;
+    }
+
+    // inconsistent runtime masks for batch dims are not supported
+    if (p->ndims > 2) {
+        dims_mask_t batch_rt_mask;
+        for (int i = 0; i < p->ndims - 2; ++i)
+            batch_rt_mask[i] = true;
+        src_rt_mask &= batch_rt_mask;
+        wei_rt_mask &= batch_rt_mask;
+        dst_rt_mask &= batch_rt_mask;
+        if (src_rt_mask != wei_rt_mask || src_rt_mask != dst_rt_mask) {
+            r->state = SKIPPED, r->reason = INVALID_CASE;
+            return;
+        }
+    }
 }
 
 int doit(const prb_t *p, res_t *r) {
@@ -229,41 +284,49 @@ int doit(const prb_t *p, res_t *r) {
                 const_pd, dnnl_query_exec_arg_md, index);
     };
 
-    dnnl_memory_desc_t src_md, wei_md, dst_md, bia_md;
-    if (p->runtime_mb || p->runtime_m || p->runtime_n || p->runtime_k) {
-        src_md.dims[0 + (p->ndims == 3)] = p->m;
-        src_md.dims[1 + (p->ndims == 3)] = p->k;
-        wei_md.dims[0 + (p->ndims == 3)] = p->k;
-        wei_md.dims[1 + (p->ndims == 3)] = p->n;
-        dst_md.dims[0 + (p->ndims == 3)] = p->m;
-        dst_md.dims[1 + (p->ndims == 3)] = p->n;
-
-        if (p->ndims == 3) {
-            src_md.dims[0] = p->mb;
-            wei_md.dims[0] = p->mb;
-            dst_md.dims[0] = p->mb;
-        }
-
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_md, p->ndims, src_md.dims,
-                         p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
-                WARN);
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_md, p->ndims, wei_md.dims,
-                         p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
-                WARN);
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_md, p->ndims, dst_md.dims,
-                         p->cfg[DST].dt, convert_tag(p->dtag, p->ndims)),
-                WARN);
-        if (p->bia_dt != dnnl_data_type_undef) {
-            prep_bia_dims(p, bia_md.dims, dst_md.dims);
-            DNN_SAFE(dnnl_memory_desc_init_by_strides(
-                             &bia_md, p->ndims, bia_md.dims, p->bia_dt, NULL),
-                    WARN);
-        }
-    } else {
-        src_md = q(DNNL_ARG_SRC);
-        wei_md = q(DNNL_ARG_WEIGHTS);
+    dnnl_memory_desc_t src_md {}, wei_md {}, dst_md {}, bia_md {}, def_md {};
+    // query md if it was defined at pd creation time
+    if (p->src_runtime_dim_mask().none()) src_md = q(DNNL_ARG_SRC);
+    if (p->weights_runtime_dim_mask().none()) wei_md = q(DNNL_ARG_WEIGHTS);
+    if (p->dst_runtime_dim_mask().none()) {
         dst_md = q(DNNL_ARG_DST);
         if (p->bia_dt != dnnl_data_type_undef) bia_md = q(DNNL_ARG_BIAS);
+    }
+
+    // if md is same as default, it means we need to re-create it
+    const auto &src_dims = p->src_dims();
+    if (dnnl_memory_desc_equal(&src_md, &def_md)) {
+        assert(p->stag != tag::any);
+        DNN_SAFE(
+                dnnl_memory_desc_init_by_tag(&src_md, p->ndims, src_dims.data(),
+                        p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
+                WARN);
+    }
+
+    const auto &weights_dims = p->weights_dims();
+    if (dnnl_memory_desc_equal(&wei_md, &def_md)) {
+        assert(p->wtag != "any");
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_md, p->ndims,
+                         weights_dims.data(), p->cfg[WEI].dt,
+                         convert_tag(p->wtag, p->ndims)),
+                WARN);
+    }
+
+    const auto &dst_dims = p->dst_dims();
+    if (dnnl_memory_desc_equal(&dst_md, &def_md)) {
+        assert(p->dtag != tag::any);
+        DNN_SAFE(
+                dnnl_memory_desc_init_by_tag(&dst_md, p->ndims, dst_dims.data(),
+                        p->cfg[DST].dt, convert_tag(p->dtag, p->ndims)),
+                WARN);
+    }
+
+    if (p->bia_dt != dnnl_data_type_undef) {
+        dims_t bia_dims;
+        prep_bia_dims(p, bia_dims, dst_dims);
+        DNN_SAFE(dnnl_memory_desc_init_by_strides(
+                         &bia_md, p->ndims, bia_dims.data(), p->bia_dt, NULL),
+                WARN);
     }
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 

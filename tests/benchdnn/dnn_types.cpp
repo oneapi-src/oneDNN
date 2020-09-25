@@ -769,6 +769,12 @@ dnnl_format_tag_t get_abx_tag(int ndims) {
         case 4: return dnnl_abcd;
         case 5: return dnnl_abcde;
         case 6: return dnnl_abcdef;
+        case 7: return dnnl_abcdefg;
+        case 8: return dnnl_abcdefgh;
+        case 9: return dnnl_abcdefghi;
+        case 10: return dnnl_abcdefghij;
+        case 11: return dnnl_abcdefghijk;
+        case 12: return dnnl_abcdefghijkl;
         default: assert(!"unsupported ndims");
     }
     return dnnl_format_tag_undef;

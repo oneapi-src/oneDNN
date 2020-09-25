@@ -53,3 +53,6 @@
 
 # Run-time
 --batch=test_matmul_runtime
+
+# multidim
+--batch=test_matmul_multidims
