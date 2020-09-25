@@ -67,6 +67,7 @@ protected:
 
 #else
         input_f32.wino_supported = false;
+        input_f16.wino_supported = false;
         input_int8.wino_supported = false;
 #endif // DNNL_X64
     }
