@@ -86,7 +86,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             char *end_s; \
             d.c = strtol(s, &end_s, 10); \
             s += (end_s - s); \
-            /* check any # groups, including one, works correcly */ \
+            /* check any # groups, including one, works correctly */ \
             if (!strncmp(prb, "g", 1)) d.has_groups = true; \
             if (d.c < 0) return FAIL; \
             /* printf("@@@debug: %s: %d\n", prb, d. c); */ \
