@@ -960,8 +960,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
             if (!(masked && !msk)) {
                 const auto &reg_dst_f32 = vreg_dst_f32(jj, ll);
                 const auto &reg_dst_s32 = vreg_dst_s32(jj, ll);
-                vcvtdq2ps(reg_dst_f32, reg_dst_s32);
-                vfmadd132ps(reg_dst_f32, vreg_zeros, vreg_tmp);
+                uni_vcvtdq2ps(reg_dst_f32, reg_dst_s32);
+                uni_vfmadd132ps(reg_dst_f32, vreg_zeros, vreg_tmp);
 
                 if (jpp.with_postops) {
                     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
@@ -976,11 +976,11 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
                             reg_dst_f32.getIdx(), rhs_arg_params);
                 }
 
-                vcvtps2dq(reg_dst_s32, reg_dst_f32);
+                uni_vcvtps2dq(reg_dst_s32, reg_dst_f32);
 
                 if (jpp.with_postops)
                     if (jpp.dst_dt == u8) {
-                        vpmaxsd(reg_dst_s32, reg_dst_s32, vreg_zeros);
+                        uni_vpmaxsd(reg_dst_s32, reg_dst_s32, vreg_zeros);
                     }
 
                 store_dst(jj, ll, c_tail);
