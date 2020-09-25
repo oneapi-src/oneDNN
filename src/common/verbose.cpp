@@ -888,8 +888,8 @@ static void init_info_rnn(engine_t *e, pd_t *s, char *buffer) {
 
     DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
             "l" DFMT "t" DFMT "mb" DFMT "sic" DFMT "slc" DFMT "dhc" DFMT
-            "dlc" DFMT,
-            s->L(), s->T(), s->MB(), s->SIC(), s->SLC(), s->DHC(), s->DLC());
+            "dic" DFMT,
+            s->L(), s->T(), s->MB(), s->SIC(), s->SLC(), s->DHC(), s->DIC());
 
     verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
             dat_str, attr_str, aux_str, prb_str);
