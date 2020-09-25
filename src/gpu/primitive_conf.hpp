@@ -526,6 +526,7 @@ struct reorder_conf_t {
     bool use_ref_impl, use_dense_vect;
     bool vectorize_last_dim;
     bool plain_to_ABxx8ayb;
+    int transpose16x16; // 3-state logic
     int ndims;
     size_t nelems;
 

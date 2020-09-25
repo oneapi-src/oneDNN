@@ -307,6 +307,76 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         }
     }
 
+#elif TRANSPOSE_16X16
+    // Reorders xaxb <-> xba, where a=16 or blocked by 16, b%16=0.
+    //
+    // Uses subgroup size 16.
+    // Each subgroup will read 16 sets of 16 values. Sets are strided by 'a' in src.
+    // The 16x16 data piece is shared between subgroup's work items and transposed
+    // Each subgroup will write 16 sets of 16 values. Sets are adjacent in dst.
+    int sgId = get_sub_group_local_id();
+
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d2 = GWS_GET_D2();
+    const int d3 = GWS_GET_D3();
+    const int d4 = GWS_GET_D4();
+    const int d5 = GWS_GET_D5();
+
+    const int d0_block = GWS_GET_D0_BLOCK();
+    const int d1_block = GWS_GET_D1_BLOCK();
+    const int d2_block = GWS_GET_D2_BLOCK();
+    const int d3_block = GWS_GET_D3_BLOCK();
+    const int d4_block = GWS_GET_D4_BLOCK();
+
+    SRC_DATA_T src_buf[SUB_GROUP_SIZE];
+    SRC_DATA_T dst_buf[SUB_GROUP_SIZE];
+    SRC_DATA_T send_buf;
+
+    for_(int d0i = 0; d0i < d0_block; d0i++)
+    for_(int d1i = 0; d1i < d1_block; d1i++)
+    for_(int d2i = 0; d2i < d2_block; d2i++)
+    for_(int d3i = 0; d3i < d3_block; d3i++)
+    for (int d4i = 0; d4i < d4_block; d4i++) {
+        int iter = d0i + d1i + d2i + d3i + d4i;
+#if PLAIN_TO_BLOCK
+        int src_off
+                = SRC_OFF(d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5);
+#else
+        int src_off = SRC_OFF(d0, d1, d2, d3, d4, d5) + 16 * iter;
+#endif
+        src_buf[iter] = SRC_BLOCK_READ(&src[src_off]);
+    }
+
+    // Share and transpose. Each work item keeps 1 own value and
+    // gets 15 values from other work items
+    dst_buf[sgId] = src_buf[sgId];
+    for (int i = 1; i < SUB_GROUP_SIZE; i++) {
+        send_buf = src_buf[(i + sgId) % 16];
+        dst_buf[(16 + sgId - i) % 16]
+                = intel_sub_group_shuffle(send_buf, (16 + sgId - i) % 16);
+    }
+
+    for_(int d0i = 0; d0i < d0_block; d0i++)
+    for_(int d1i = 0; d1i < d1_block; d1i++)
+    for_(int d2i = 0; d2i < d2_block; d2i++)
+    for_(int d3i = 0; d3i < d3_block; d3i++)
+    for (int d4i = 0; d4i < d4_block; d4i++) {
+        int iter = d0i + d1i + d2i + d3i + d4i;
+#if PLAIN_TO_BLOCK
+        int dst_off = DST_OFF(d0, d1, d2, d3, d4, d5) + 16 * iter;
+#else
+        int dst_off
+                = DST_OFF(d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5);
+#endif
+        DST_DATA_T dst_tmp;
+#if WITH_SUM_AB
+        dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
+#endif
+        REORDER(dst_tmp, dst_buf[iter], alpha, beta);
+        DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
+    }
+
 #elif PLAIN_TO_AB_XX_8AYB
     // Reorders 2D plain format to a blocked one, where last two
     // blocks are 8a4b or 8a2b. Supports formats with more block layers.
