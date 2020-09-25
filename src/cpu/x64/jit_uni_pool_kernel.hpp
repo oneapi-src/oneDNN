@@ -146,6 +146,7 @@ private:
     Reg32 reg_shuf_mask = esi;
 
     bool sse_high_half = false;
+    bool disable_postops_when_sse_high_half_processed_ = false;
 
     int prev_kw;
 

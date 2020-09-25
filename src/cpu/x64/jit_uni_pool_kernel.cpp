@@ -424,9 +424,10 @@ void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block) {
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
     const int end_idx = vmm_idx_upper_bound() + 1;
     const int start_idx = end_idx - (ur_bc * ur_w);
+    const bool sse41_postops_disabled
+            = isa == sse41 && disable_postops_when_sse_high_half_processed_;
 
-    if (jpp.with_binary) {
-
+    if (jpp.with_binary && !sse41_postops_disabled) {
         static constexpr int sse41_simd_w
                 = cpu_isa_traits<sse41>::vlen / sizeof(float);
         const int sse_elem_off = sse_high_half ? sse41_simd_w : 0;
@@ -1201,16 +1202,25 @@ void jit_uni_pool_kernel<isa>::generate() {
         step(ur_w, ur_bc, lpad, rpad, with_c_tail_proccessing);
 
         if (isa == sse41) {
-            if (with_c_tail_proccessing && !jpp.is_c_padded
-                    && jpp.c_tail <= (jpp.c_block / 2)) {
+            if (with_c_tail_proccessing && jpp.c_tail <= (jpp.c_block / 2)) {
+
                 // In nspc format in case of c tail processing if c tail is
                 // equal or lower than 4 we don't have to process
                 // last high half block, because it doesn't exist
-                ur_bc -= 1;
+                if (!jpp.is_c_padded) ur_bc -= 1;
+                /*
+                 * In case of c_tail_processing if c_tail is equal or lower than 4
+                 * applying postops never make sense. In case of blocked format it
+                 * can cause overwriting zero padding or segfault because the element
+                 * corresponding to the piece with padded zeros doesn't exist in binary
+                 * postops arg1 tensor (nchw format) in per_oc bcast strategy.
+                 */
+                disable_postops_when_sse_high_half_processed_ = true;
             }
             sse_high_half = true;
             step_high_half(ur_w, ur_bc, lpad, rpad, with_c_tail_proccessing);
             sse_high_half = false;
+            disable_postops_when_sse_high_half_processed_ = false;
         }
 
         if (!inc_reg) return;
