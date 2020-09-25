@@ -40,40 +40,51 @@ status_t dnnl_matmul_desc_init(matmul_desc_t *matmul_desc,
     if (bias_md) op_d.bias_desc = *bias_md;
     op_d.dst_desc = *dst_md;
 
-    const int ndims = op_d.dst_desc.ndims;
-    bool ok = op_d.src_desc.ndims == ndims && op_d.weights_desc.ndims == ndims;
-
-    int offset = 0;
-    if (ndims == 3) {
-        // check: batch
-        ok = ok
-                && everyone_is(op_d.dst_desc.dims[0], op_d.src_desc.dims[0],
-                        op_d.weights_desc.dims[0]);
-        offset = 1;
-    }
-
-    // check: m, n, k
-    ok = ok && op_d.dst_desc.dims[offset + 0] == op_d.src_desc.dims[offset + 0]
-            && op_d.dst_desc.dims[offset + 1]
-                    == op_d.weights_desc.dims[offset + 1]
-            && op_d.src_desc.dims[offset + 1]
-                    == op_d.weights_desc.dims[offset + 0];
+    const bool with_bias = op_d.bias_desc.ndims != 0;
+    const int ndims = dst_md->ndims;
+    bool ok = ndims >= 2 && ndims <= DNNL_MAX_NDIMS
+            && everyone_is(ndims, src_md->ndims, weights_md->ndims)
+            && IMPLICATION(with_bias, op_d.bias_desc.ndims == ndims);
     if (!ok) return status::invalid_arguments;
 
-    // bias check
-    if (op_d.bias_desc.ndims != 0) {
-        bool bias_ok = op_d.bias_desc.ndims == ndims
-                && one_of(op_d.bias_desc.dims[0], 1, op_d.dst_desc.dims[0])
-                && one_of(op_d.bias_desc.dims[1], 1, op_d.dst_desc.dims[1])
-                && IMPLICATION(ndims == 3,
-                        one_of(op_d.bias_desc.dims[2], 1,
-                                op_d.dst_desc.dims[2]));
-        if (!bias_ok) return status::invalid_arguments;
+    // check: m, n, k
+    const int m_idx = ndims - 2;
+    const int k_idx_src = m_idx + 1;
+    const int k_idx_wei = m_idx;
+    const int n_idx = ndims - 1;
+    ok = dst_md->dims[m_idx] == src_md->dims[m_idx]
+            && dst_md->dims[n_idx] == weights_md->dims[n_idx]
+            && src_md->dims[k_idx_src] == weights_md->dims[k_idx_wei]
+            && IMPLICATION(with_bias,
+                    one_of(op_d.bias_desc.dims[n_idx], 1, dst_md->dims[n_idx]))
+            && IMPLICATION(with_bias,
+                    one_of(op_d.bias_desc.dims[m_idx], 1, dst_md->dims[m_idx]));
+    if (!ok) return status::invalid_arguments;
+
+    // check if other dims match.
+    for (int d = 0; d < ndims - 2; ++d) {
+        const dim_t s_dim = src_md->dims[d];
+        const dim_t w_dim = weights_md->dims[d];
+        const dim_t d_dim = dst_md->dims[d];
+        const dim_t b_dim = with_bias ? op_d.bias_desc.dims[d] : 0;
+
+        if (one_of(DNNL_RUNTIME_DIM_VAL, s_dim, w_dim, d_dim, b_dim)) {
+
+            if (!(everyone_is(DNNL_RUNTIME_DIM_VAL, s_dim, w_dim, d_dim)
+                        && IMPLICATION(
+                                with_bias, b_dim == DNNL_RUNTIME_DIM_VAL)))
+                return status::invalid_arguments;
+        } else {
+            ok = s_dim > 0 && w_dim > 0 && d_dim > 0
+                    && IMPLICATION(s_dim != 1, w_dim == s_dim || w_dim == 1)
+                    && (d_dim == nstl::max(s_dim, w_dim))
+                    && IMPLICATION(with_bias, one_of(b_dim, 1, d_dim));
+            if (!ok) return status::invalid_arguments;
+        }
     }
 
-    op_d.accum_data_type = types::default_accum_data_type(
-            op_d.src_desc.data_type, op_d.weights_desc.data_type,
-            op_d.dst_desc.data_type, prop_kind::forward);
+    op_d.accum_data_type = types::default_accum_data_type(src_md->data_type,
+            weights_md->data_type, dst_md->data_type, prop_kind::forward);
     if (op_d.accum_data_type == data_type::undef)
         return status::invalid_arguments;
 
