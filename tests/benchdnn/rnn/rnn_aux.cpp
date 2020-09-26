@@ -181,6 +181,14 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(slc);
         CASE_N(dhc);
         CASE_N(dic);
+        if (!strncmp("dlc", s, 3)) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "WARNING: the RNN descriptor symbol `dlc` is no longer "
+                    "supported. Please adjust the RNN descriptor and try "
+                    "again. Note: usually it is enough to simply remove `dlc` "
+                    "from the descriptor string.");
+            return FAIL;
+        }
         if (*s == 'n') {
             d.name = s + 1;
             break;
