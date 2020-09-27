@@ -2,7 +2,7 @@
 --reset
 
 --trivial-strides=true
---prop=FWD_D
+--prop=FWD_I
 --alg=VANILLA_GRU
 --activation=UNDEF
 

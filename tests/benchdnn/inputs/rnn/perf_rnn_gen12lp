@@ -3,7 +3,7 @@
 --reset
 
 # Forward, int8
---prop=FWD_D
+--prop=FWD_I
 --cfg=u8u8u8u8
 --scaling=per_oc
 --trivial-strides=true

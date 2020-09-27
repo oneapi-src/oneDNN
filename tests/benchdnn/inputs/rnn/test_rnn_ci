@@ -7,7 +7,7 @@
 --mb=1,2
 
 --trivial-strides=true,false
---prop=FWD_D,BWD_DW
+--prop=FWD_I,BWD_DW
 --cfg=f32,bf16,f16
 
 # Run all activations with left2right...

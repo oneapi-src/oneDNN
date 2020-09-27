@@ -417,7 +417,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
     dnnl_rnn_desc_t rd;
     dnnl_prop_kind_t fwd_prop = dnnl_prop_kind_undef;
     switch (prb.prop) {
-        case dnnl_forward: fwd_prop = dnnl_forward_inference; break;
+        case dnnl_forward_training: fwd_prop = dnnl_forward_training; break;
+        case dnnl_forward_inference: fwd_prop = dnnl_forward_inference; break;
         // If we are testing backward, we have to run forward training first
         // in order to generate a valid workspace.
         case dnnl_backward: fwd_prop = dnnl_forward_training; break;
@@ -826,7 +827,7 @@ int doit(const prb_t &prb, res_t *res) {
 
     SAFE_CLEAN(execute_and_wait(c, args), WARN, cleanup);
 
-    if ((prb.prop == dnnl_forward) && (bench_mode & CORR)) {
+    if ((prb.prop != dnnl_backward) && (bench_mode & CORR)) {
         compute_ref_fwd(prb, src_layer_fp, src_iter_fp, src_iter_c_fp,
                 weights_layer_fp, weights_iter_fp, weights_peephole_fp,
                 weights_projection_fp, bias_fp, dst_layer_fp, dst_iter_fp,
@@ -839,9 +840,7 @@ int doit(const prb_t &prb, res_t *res) {
             COMPARE_DAT(
                     compare_status, DST_ITER_C, dst_iter_c, tag::abx /*ldnc*/);
         SAFE_CLEAN(compare_status, WARN, cleanup);
-    }
-
-    if (prb.prop == dnnl_backward) {
+    } else {
         dnnl_primitive_t bwd_p {};
         int status = init_prim(&bwd_p, init_pd, &prb, res, FLAG_BWD);
         dnnl_primitive_destroy(c);

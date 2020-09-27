@@ -105,14 +105,16 @@ dir_t str2dir(const char *str) {
 }
 
 dnnl_prop_kind_t prop2prop_kind(const dir_t dir) {
-    if (dir == FWD_D) return dnnl_forward;
+    if (dir == FWD_D) return dnnl_forward_training;
+    if (dir == FWD_I) return dnnl_forward_inference;
     if (dir == BWD_DW) return dnnl_backward;
     assert(!"unknown dir");
     return dnnl_prop_kind_undef;
 }
 
 const char *prop2str(dnnl_prop_kind_t prop) {
-    if (prop == dnnl_forward) return "FWD_D";
+    if (prop == dnnl_forward_training) return "FWD_D";
+    if (prop == dnnl_forward_inference) return "FWD_I";
     if (prop == dnnl_backward) return "BWD_DW";
     assert(!"unknown prop_kind");
     return "unknown prop_kind";

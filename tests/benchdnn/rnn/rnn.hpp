@@ -208,7 +208,7 @@ struct settings_t {
 
     desc_t desc {};
 
-    std::vector<dir_t> prop {FWD_D};
+    std::vector<dir_t> prop {FWD_I};
     std::vector<std::string> cfg {"f32"};
     std::vector<alg_t> alg {VANILLA_RNN};
     std::vector<dnnl_rnn_direction_t> direction {

@@ -2,7 +2,7 @@
 --reset
 
 --trivial-strides=true,false
---prop=FWD_D,BWD_DW
+--prop=FWD_I,BWD_DW
 --alg=VANILLA_LSTM
 --activation=UNDEF
 --cfg=f32
