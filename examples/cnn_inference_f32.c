@@ -276,7 +276,7 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
 
     // AlexNet: relu
     // {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, CONV_OH, CONV_OW}
-    float negative_slope = 1.0f;
+    float negative_slope = 0.0f;
 
     // create relu memory descriptor on dst memory descriptor
     // from previous primitive

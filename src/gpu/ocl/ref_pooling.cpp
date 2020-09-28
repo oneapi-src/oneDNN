@@ -51,6 +51,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     using namespace dnnl::impl::alg_kind;
     kernel_ctx.set_data_type(conf.src_dt);
 
+    kernel_ctx.define_int("SUB_GROUP_SIZE", 1);
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("OC_WO_PADDING", conf.c);

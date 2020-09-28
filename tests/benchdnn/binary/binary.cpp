@@ -144,6 +144,25 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     return OK;
 }
 
+// Check that on a given input specific alg may return NaN or inf.
+bool check_extreme_values(float a, float b, alg_t alg) {
+    switch (alg) {
+        case alg_t::DIV:
+        // It is impossible to reliably test against reference in binary
+        // post-op chain since some algs may produce inf or NaN in the middle
+        // which is not expected for a standalone testing. Thus, when passing
+        // alg == BINARY_END, accept this fact. This alg to be used when
+        // comparing results with binary post-op chain.
+        case alg_t::BINARY_END:
+            if (std::isnan(a) && std::isnan(b)) return true;
+            if (std::isinf(a) && std::isinf(b)
+                    && std::signbit(a) == std::signbit(b))
+                return true;
+        default: break;
+    }
+    return false;
+}
+
 static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *res) {
     const auto nelems = dt_mem.nelems();
@@ -151,11 +170,22 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
 
     res->total = nelems;
 
-    const float trh = epsilon_dt(prb->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32)
+    float trh = epsilon_dt(prb->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32)
             * prb->n_inputs();
-    const int eltwise_idx = prb->attr.post_ops.eltwise_index();
 
-    const bool has_eltwise = eltwise_idx >= 0;
+    // Update trh with the largest value from all eltwise post-ops
+    const auto &po = prb->attr.post_ops;
+    bool has_eltwise = po.eltwise_index() != -1;
+    if (has_eltwise) {
+        for (int i = 0; i < po.len(); ++i) {
+            const auto &e = po.entry[i];
+            if (e.is_eltwise_kind())
+                trh = MAX2(
+                        trh, eltwise::get_eltwise_threshold(prb->ddt, e.kind));
+        }
+    }
+
+    const bool has_binary = po.binary_index() != -1;
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
@@ -165,9 +195,21 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+        if (!ok) ok = check_extreme_values(fp, dt, prb->alg);
         if (!ok && has_eltwise)
-            ok = eltwise::check_extreme_values(
-                    fp, dt, prb->attr.post_ops.entry[eltwise_idx].kind);
+            ok = eltwise::check_extreme_values(fp, dt, alg_t::ELTWISE_END);
+        if (!ok && has_binary)
+            ok = check_extreme_values(fp, dt, alg_t::BINARY_END);
+
+        // XXX: CPU and OpenCL behavior of int8 saturation is not aligned for
+        // NaN. Accroding to OpenCL 2.0 specification NaN value is saturated to
+        // 0. On CPU library saturates NaN value into lowest value representable
+        // in destination data type.
+        // TODO: Check CUDA specification.
+        if (!ok && std::isnan(fp0) && engine_tgt_kind == dnnl_gpu
+                && (prb->ddt == dnnl_s8 || prb->ddt == dnnl_s32)) {
+            ok = diff == 128;
+        }
 
         res->errors += !ok;
 
@@ -243,7 +285,7 @@ int doit(const prb_t *prb, res_t *res) {
         const auto &dst_md = q(DNNL_ARG_DST);
         placeholder_dst_dt = dnn_mem_t(dst_md, test_engine);
 
-        if (prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
+        if (prb->attr.post_ops.find(alg_t::SUM) >= 0)
             SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
     }
     dnn_mem_t &dst_dt = prb->inplace ? src0_dt : placeholder_dst_dt;

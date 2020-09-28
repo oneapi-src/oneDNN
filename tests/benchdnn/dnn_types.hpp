@@ -224,6 +224,7 @@ struct attr_t {
             // binary
             BINARY_START, // a guard to check kind is binary
             ADD,
+            DIV,
             MAX,
             MIN,
             MUL,

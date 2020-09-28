@@ -25,7 +25,7 @@
 
 #include "cpu/x64/jit_generator.hpp"
 
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_uni_softmax.hpp"
 
 #if __INTEL_COMPILER && __INTEL_COMPILER < 1900

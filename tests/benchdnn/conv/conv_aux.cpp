@@ -132,11 +132,11 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     if (d.sd <= 0 || d.sh <= 0 || d.sw <= 0) return FAIL;
 
     auto compute_out = [](bool is_deconv, int64_t i, int64_t k, int64_t s,
-                               int64_t prb, int64_t d) {
+                               int64_t p, int64_t d) {
         if (is_deconv)
-            return (i - 1) * s + (k - 1) * (d + 1) - 2 * prb + 1;
+            return (i - 1) * s + (k - 1) * (d + 1) - 2 * p + 1;
         else
-            return (i - ((k - 1) * (d + 1) + 1) + 2 * prb) / s + 1;
+            return (i - ((k - 1) * (d + 1) + 1) + 2 * p) / s + 1;
     };
     auto compute_pad = [](bool is_deconv, int64_t o, int64_t i, int64_t k,
                                int64_t s, int64_t d) {

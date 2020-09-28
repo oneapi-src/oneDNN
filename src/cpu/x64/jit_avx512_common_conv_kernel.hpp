@@ -20,9 +20,9 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -99,7 +99,7 @@ private:
     }
 
     inline Vmm vmm_out(int i_ur, int i_oc) {
-        int idx = i_ur + i_oc * jcp.ur_w;
+        int idx = i_ur * jcp.nb_oc_blocking + i_oc;
         assert(idx < ker_reg_base_idx);
         return Vmm(idx);
     }

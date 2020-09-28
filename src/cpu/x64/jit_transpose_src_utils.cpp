@@ -48,9 +48,9 @@ private:
     using opmask_t = const Xbyak::Opmask;
 
     enum { typesize = sizeof(float), transpose_size = 16, small_spatial = 14 };
-    int src_stride, tr_src_stride;
-    int tail;
-    bool enable_prefetch;
+    int src_stride = 0, tr_src_stride = 0;
+    int tail = 0;
+    bool enable_prefetch = false;
 
     opmask_t k3333 = k1;
     opmask_t k5555 = k2;
@@ -794,9 +794,9 @@ private:
         transpose_size = 16,
         small_spatial = 14
     };
-    size_t src_stride, tr_src_stride;
-    int tail;
-    bool enable_prefetch;
+    size_t src_stride = 0, tr_src_stride = 0;
+    int tail = 0;
+    bool enable_prefetch = false;
 
     opmask_t kFF = k1;
     opmask_t mask_lo = k2;

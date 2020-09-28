@@ -137,12 +137,15 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     int in_ok = 0, below_ok = 0, above_ok = 0;
     int non_zero = 0;
 
-    const int eltwise_idx = prb->attr.post_ops.eltwise_index();
-    const bool has_eltwise = eltwise_idx >= 0;
+    // Update trh with the largest value from all eltwise post-ops
+    const auto &po = prb->attr.post_ops;
+    bool has_eltwise = po.eltwise_index() != -1;
+    const bool has_binary = po.binary_index() != -1;
+    using pk_t = attr_t::post_ops_t::kind_t;
 
-    int sum_ind = prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM);
-    auto sum_dt = (sum_ind != -1) ? prb->attr.post_ops.entry[sum_ind].sum.dt
-                                  : dnnl_data_type_undef;
+    int sum_ind = po.find(pk_t::SUM);
+    auto sum_dt
+            = (sum_ind != -1) ? po.entry[sum_ind].sum.dt : dnnl_data_type_undef;
 
     bool diff_sum_dt = kind == DST && !final_compare
             && sum_dt != dnnl_data_type_undef && sum_dt != prb->cfg[kind].dt;
@@ -165,24 +168,37 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
             diff_norm.update(f_min, dt);
             ok = dt == f_min;
             if (!ok && has_eltwise)
-                ok = eltwise::check_extreme_values(
-                        fp, dt, prb->attr.post_ops.entry[eltwise_idx].kind);
+                ok = eltwise::check_extreme_values(fp, dt, pk_t::ELTWISE_END);
+            if (!ok && has_binary)
+                ok = binary::check_extreme_values(fp, dt, pk_t::BINARY_END);
             below += 1;
             below_ok += ok;
         } else if (fp > f_max) {
             diff_norm.update(f_max, dt);
             ok = dt == f_max;
             if (!ok && has_eltwise)
-                ok = eltwise::check_extreme_values(
-                        fp, dt, prb->attr.post_ops.entry[eltwise_idx].kind);
+                ok = eltwise::check_extreme_values(fp, dt, pk_t::ELTWISE_END);
+            if (!ok && has_binary)
+                ok = binary::check_extreme_values(fp, dt, pk_t::BINARY_END);
             above += 1;
             above_ok += ok;
         } else {
             diff_norm.update(fp, dt);
-            ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= get_eps(prb, kind);
+            float trh = get_eps(prb, kind);
+            if (has_eltwise) {
+                for (int i = 0; i < po.len(); ++i) {
+                    const auto &e = po.entry[i];
+                    if (e.is_eltwise_kind())
+                        trh = MAX2(trh,
+                                eltwise::get_eltwise_threshold(
+                                        f_dt, e.kind, prb->dir & FLAG_FWD));
+                }
+            }
+            ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= trh;
             if (!ok && has_eltwise)
-                ok = eltwise::check_extreme_values(
-                        fp, dt, prb->attr.post_ops.entry[eltwise_idx].kind);
+                ok = eltwise::check_extreme_values(fp, dt, pk_t::ELTWISE_END);
+            if (!ok && has_binary)
+                ok = binary::check_extreme_values(fp, dt, pk_t::BINARY_END);
             in += 1;
             in_ok += ok;
         }
@@ -338,8 +354,10 @@ int fill_wei(
     const bool wino_s8 = prb->alg == WINO && prb->cfg[WEI].dt == dnnl_s8;
     const bool s8_s8
             = prb->cfg[WEI].dt == dnnl_s8 && prb->cfg[SRC].dt == dnnl_s8;
+    const bool is_def_zp = prb->attr.zero_points.is_def(DNNL_ARG_SRC);
     const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
-    const bool check_reorder = diff_data_type && !wino_s8 && !s8_s8;
+    const bool check_reorder
+            = diff_data_type && !wino_s8 && !s8_s8 && is_def_zp;
 
     dnn_mem_t extra_mem;
     if (check_reorder) {
@@ -604,44 +622,63 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     // Winograd implementation limitations.
     if (prb->alg == WINO) {
-        static auto isa = dnnl_get_effective_cpu_isa();
-        static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic;
-        static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core;
-        bool is_int8 = prb->cfg[WEI].dt == dnnl_s8;
+        if (engine_tgt_kind == dnnl_cpu) {
+            static auto isa = dnnl_get_effective_cpu_isa();
+            static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic;
+            static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core;
+            bool is_int8 = prb->cfg[WEI].dt == dnnl_s8;
 
-        bool pad_ok_f32 = prb->pw <= 1 && prb->ph <= 1 && prb->pw_r <= 1
-                && prb->ph_r <= 1;
-        bool pad_ok_int8 = prb->pw <= 1 && prb->ph <= 1 && prb->pw == prb->pw_r
-                && prb->ph == prb->ph_r;
+            bool pad_ok_f32 = prb->pw <= 1 && prb->ph <= 1 && prb->pw_r <= 1
+                    && prb->ph_r <= 1;
+            bool pad_ok_int8 = prb->pw <= 1 && prb->ph <= 1
+                    && prb->pw == prb->pw_r && prb->ph == prb->ph_r;
 
-        bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
-                && prb->kw == 3 && prb->sh == 1 && prb->sw == 1 && prb->dh == 0
-                && prb->dw == 0 && IMPLICATION(!is_int8, pad_ok_f32)
-                && IMPLICATION(is_int8,
-                        (prb->ic % 16 == 0) && (prb->oc % 16 == 0)
-                                && pad_ok_int8);
-        bool bwd_is_syncable = IMPLICATION(
-                (prb->dir & FLAG_BWD), dnnl::impl::dnnl_thr_syncable());
+            bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
+                    && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
+                    && prb->dh == 0 && prb->dw == 0
+                    && IMPLICATION(!is_int8, pad_ok_f32)
+                    && IMPLICATION(is_int8,
+                            (prb->ic % 16 == 0) && (prb->oc % 16 == 0)
+                                    && pad_ok_int8);
+            bool bwd_is_syncable = IMPLICATION(
+                    (prb->dir & FLAG_BWD), dnnl::impl::dnnl_thr_syncable());
 
-        const auto stag = normalize_tag(prb->stag, prb->ndims);
-        const bool stag_is_abx = stag == normalize_tag(tag::abx, prb->ndims);
-        const bool stag_is_axb = stag == normalize_tag(tag::axb, prb->ndims);
-        const auto dtag = normalize_tag(prb->dtag, prb->ndims);
-        const bool dtag_is_abx = dtag == normalize_tag(tag::abx, prb->ndims);
-        const bool dtag_is_axb = dtag == normalize_tag(tag::axb, prb->ndims);
-        const bool is_plain
-                = stag_is_abx || stag_is_axb || dtag_is_abx || dtag_is_axb;
-        const bool plain_ok = is_int8 && !stag_is_abx && !dtag_is_abx
-                && (stag_is_axb || dtag_is_axb);
+            const auto stag = normalize_tag(prb->stag, prb->ndims);
+            const bool stag_is_abx
+                    = stag == normalize_tag(tag::abx, prb->ndims);
+            const bool stag_is_axb
+                    = stag == normalize_tag(tag::axb, prb->ndims);
+            const auto dtag = normalize_tag(prb->dtag, prb->ndims);
+            const bool dtag_is_abx
+                    = dtag == normalize_tag(tag::abx, prb->ndims);
+            const bool dtag_is_axb
+                    = dtag == normalize_tag(tag::axb, prb->ndims);
+            const bool is_plain
+                    = stag_is_abx || stag_is_axb || dtag_is_abx || dtag_is_axb;
+            const bool plain_ok = is_int8 && !stag_is_abx && !dtag_is_abx
+                    && (stag_is_axb || dtag_is_axb);
 
-        const auto &po = prb->attr.post_ops;
-        const auto sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
-        const bool sum_post_op_ok
-                = sum_idx == -1 || po.entry[sum_idx].sum.scale == 1.f;
+            const auto &po = prb->attr.post_ops;
+            const auto sum_idx = po.find(attr_t::post_ops_t::kind_t::SUM);
+            const bool sum_post_op_ok
+                    = sum_idx == -1 || po.entry[sum_idx].sum.scale == 1.f;
 
-        if (!has_avx512_common || !shape_ok || (!has_avx512_bw && is_int8)
-                || !bwd_is_syncable || (is_plain && !plain_ok)
-                || !sum_post_op_ok) {
+            if (!has_avx512_common || !shape_ok || (!has_avx512_bw && is_int8)
+                    || !bwd_is_syncable || (is_plain && !plain_ok)
+                    || !sum_post_op_ok) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+                return;
+            }
+        } else if (engine_tgt_kind == dnnl_gpu) {
+            bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
+                    && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
+                    && prb->dh == 0 && prb->dw == 0;
+            if (!shape_ok) {
+                res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            }
+            return;
+        } else {
+            assert(!"Unknown Engine");
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }

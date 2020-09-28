@@ -1800,11 +1800,29 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                               !jcp.signed_input)
                     ? (ptrdiff_t)jcp.ic * jcp.ks * jcp.os
                     : 0;
-            jcp.outer_threading = jcp.os / max_threads < 256
-                    && (jcp.mb != 1 || jcp.ngroups > 2);
-            jcp.nthr = jcp.outer_threading ? max_threads : 1;
             const size_t gemm_col_datatype_size
                     = is_bf16_conv ? sizeof(bfloat16_t) : sizeof(float);
+
+            // Potential scratchpad memory requirement when outer threading is
+            // enabled during f32/bf16 BWD_W nspc convolution
+            size_t thr_mem_estimate = max_threads
+                    * (gemm_col_datatype_size * jcp.im2col_sz
+                            + gemm_col_datatype_size * jcp.id * jcp.is * jcp.ic
+                            + sizeof(float) * weights_d.size());
+            if (is_bf16_to_bf16_conv) {
+                thr_mem_estimate += sizeof(float) * weights_d.size();
+                if (jcp.with_bias
+                        && one_of(data_type::bf16, cd.diff_bias_desc.data_type,
+                                cd.bias_desc.data_type))
+                    thr_mem_estimate += sizeof(float) * jcp.ngroups * jcp.oc;
+            }
+            const bool outer_threading_mem_ok
+                    = thr_mem_estimate < scratchpad_limit;
+
+            jcp.outer_threading = outer_threading_mem_ok
+                    && jcp.os / max_threads < 256
+                    && (jcp.mb != 1 || jcp.ngroups > 2);
+            jcp.nthr = jcp.outer_threading ? max_threads : 1;
 
             scratchpad.book(key_conv_gemm_col, jcp.nthr * jcp.im2col_sz,
                     gemm_col_datatype_size);

@@ -591,7 +591,7 @@ struct xbyak_gemm_smalln_tn_t : public jit_generator {
             int endval = (MROW < 5) ? MROW : 5;
             for (int ii = 8; ii < 8 + endval; ii++) {
                 // Storing A values in zmm_reg[8-12]
-                vmovups(zmm_reg[ii] | (krem ? k_rem : k0), ptr[AO2]);
+                vmovups(zmm_reg[ii] | (krem ? k_rem : k0) | T_z, ptr[AO2]);
                 add(AO2, LDA);
             }
             for (int ii = 0; ii < endval; ii++) {
@@ -616,7 +616,7 @@ struct xbyak_gemm_smalln_tn_t : public jit_generator {
                     ? 8
                     : MROW; // Do not process more than 8 rows here.
             for (int ii = 0; ii < MROW2; ii++) {
-                vmovups(zmm_reg[ii] | (krem ? k_rem : k0), ptr[AO2]);
+                vmovups(zmm_reg[ii] | (krem ? k_rem : k0) | T_z, ptr[AO2]);
                 add(AO2, LDA);
             }
             for (int ii = 0; ii < MROW2; ii++) {
@@ -629,7 +629,7 @@ struct xbyak_gemm_smalln_tn_t : public jit_generator {
             if (MROW > 8) {
                 vmovaps(zmm_reg[0], zmm_reg[15]);
                 for (int ii = 8; ii < MROW; ii++) {
-                    vmovups(zmm_reg[ii] | (krem ? k_rem : k0), ptr[AO2]);
+                    vmovups(zmm_reg[ii] | (krem ? k_rem : k0) | T_z, ptr[AO2]);
                     add(AO2, LDA);
                 }
                 for (int ii = 8; ii < MROW; ii++)
@@ -646,16 +646,16 @@ struct xbyak_gemm_smalln_tn_t : public jit_generator {
     }
 
 private:
-    uint32_t numN;
-    const int N;
-    const float beta;
-    const float alpha;
-    bool isBeta0, isBetaN, isAlpha0, isAlphaN;
-    Xbyak::Zmm *zmm_reg;
+    uint32_t numN = 0;
+    const int N = 0;
+    const float beta = 0.0f;
+    const float alpha = 0.0f;
+    bool isBeta0 = false, isBetaN = false, isAlpha0 = false, isAlphaN = false;
+    Xbyak::Zmm *zmm_reg = nullptr;
     Xbyak::Reg64 A, AO1, AO2, B, BO1, BO2, CO1, CO2;
     Xbyak::Reg64 LDA, LDB, LDC, II, JJ;
     Xbyak::Reg64 TEMP_REG, TEMP_REG2;
-    Xbyak::Address *TEMPZMM, *perm;
+    Xbyak::Address *TEMPZMM = nullptr, *perm = nullptr;
     Xbyak::Opmask k_rem, m_rem;
     Xbyak::Label label_m_loop, label_k_loop, label_no_k_rem, label_krem,
             label_mrem;

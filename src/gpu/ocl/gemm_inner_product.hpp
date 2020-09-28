@@ -18,6 +18,7 @@
 #define GPU_OCL_GEMM_INNER_PRODUCT_HPP
 
 #include <assert.h>
+#include <string>
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
@@ -38,7 +39,8 @@ namespace {
 status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd,
         engine_t *engine, transpose_t transa, transpose_t transb, int m, int n,
         int k, int lda, int ldb, int ldc, data_type_t a_dt, data_type_t b_dt,
-        data_type_t c_dt, const primitive_attr_t &attr) {
+        data_type_t c_dt, const primitive_attr_t &attr, dim_t bias_mask = 0,
+        bool is_fwd = false) {
     auto gemm_desc = gemm_desc_t();
     gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.transa = transa;
@@ -57,7 +59,10 @@ status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd,
     gemm_desc.b_type = b_dt;
     gemm_desc.c_type = c_dt;
     gemm_desc.acc_type = c_dt;
-
+    if (bias_mask != 0) {
+        gemm_desc.bias_mask = bias_mask;
+        gemm_desc.bias_type = c_dt;
+    }
     primitive_attr_t gemm_attr(attr);
     if (!gemm_attr.is_initialized()) return status::out_of_memory;
     gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
@@ -68,6 +73,9 @@ status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd,
     ++it;
     gemm_pd.reset(it.fetch_once());
     if (!gemm_pd) return status::unimplemented;
+    std::string impl_name(gemm_pd.get()->name());
+    if (is_fwd && impl_name.find("ref") != std::string::npos)
+        return status::unimplemented;
     return status::success;
 }
 } // namespace
@@ -79,6 +87,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             : gpu_inner_product_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
         pd_t(const pd_t &rhs) : gpu_inner_product_fwd_pd_t(rhs) {
             gemm_pd_.reset(rhs.gemm_pd_->clone());
+            attr_info_ = rhs.attr_info_;
         }
         ~pd_t() = default;
 
@@ -92,17 +101,15 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
 
             attr_info_ = attr_info_t::create(attr());
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
             bool ok = is_fwd() && set_default_params() == status::success
                     && !has_zero_dim_memory()
                     && utils::one_of(true,
                             expect_data_types(f16, f16, f16, f16, f16),
                             expect_data_types(f32, f32, f32, f32, f32))
-                    && attr()->has_default_values(attr_skip_mask)
-                    && attr()->post_ops_.len() <= 1
-                    && IMPLICATION(attr_info_.with_eltwise, !with_bias())
-                    && !attr_info_.with_sum
+                    && attr()->post_ops_.len() <= 2
+                    && IMPLICATION(attr()->post_ops_.len() == 2,
+                            attr()->post_ops_.find(primitive_kind::sum) == 0)
                     && dense_consitency_check(src_md(), weights_md(), dst_md())
                     && dense_gemm_consitency_check(
                             src_md(), weights_md(), dst_md());
@@ -114,14 +121,15 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
             const int mb = this->MB();
             const int oc = this->OC();
             const int ic_total = this->IC_total_padded();
-
+            // bias mask is 2 because batch stride=0, oc stride=1, mb stride=0
             bool gemm_ok = status::success
                     == create_gemm_pd(gemm_pd_, engine,
                             wei_tr ? transpose::trans : transpose::notrans,
                             transpose::notrans, oc, mb, ic_total,
                             wei_tr ? ic_total : oc, ic_total, oc,
                             weights_md()->data_type, src_md()->data_type,
-                            dst_md()->data_type, *attr());
+                            dst_md()->data_type, *attr(), with_bias() ? 2 : 0,
+                            true);
             if (!gemm_ok) return status::unimplemented;
             init_scratchpad();
 
@@ -145,18 +153,6 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
         if (gemm_status != status::success) return gemm_status;
 
-        if (pd()->with_bias()) {
-            compute::kernel_ctx_t kernel_ctx;
-
-            kernel_ctx.set_data_type(pd()->src_md()->data_type);
-            kernel_ctx.define_int("MB", pd()->MB());
-            kernel_ctx.define_int("OC", pd()->OC());
-
-            create_kernel(engine, &bias_kernel_,
-                    "gemm_inner_product_forward_bias", kernel_ctx);
-            if (!bias_kernel_) return status::runtime_error;
-        }
-
         return status::success;
     }
 
@@ -174,7 +170,6 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::shared_ptr<primitive_t> gemm_;
-    compute::kernel_t bias_kernel_;
 };
 
 struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {

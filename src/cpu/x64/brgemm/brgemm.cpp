@@ -46,7 +46,7 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_buf = scratch;
     brgemm_p.ptr_bias = nullptr;
     brgemm_p.do_post_ops = 0;
-    brgemm_p.N = bs;
+    brgemm_p.BS = bs;
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -64,7 +64,7 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_buf = scratch;
     brgemm_p.ptr_bias = nullptr;
     brgemm_p.do_post_ops = 0;
-    brgemm_p.N = bs;
+    brgemm_p.BS = bs;
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -79,7 +79,7 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_buf = scratch;
     brgemm_p.ptr_bias = nullptr;
     brgemm_p.do_post_ops = 0;
-    brgemm_p.N = bs;
+    brgemm_p.BS = bs;
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -96,7 +96,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_bias = bias;
     brgemm_p.ptr_scales = scales;
     brgemm_p.do_post_ops = 1;
-    brgemm_p.N = bs;
+    brgemm_p.BS = bs;
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -116,7 +116,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_bias = bias;
     brgemm_p.ptr_scales = scales;
     brgemm_p.do_post_ops = 1;
-    brgemm_p.N = bs;
+    brgemm_p.BS = bs;
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -133,7 +133,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     brgemm_p.ptr_bias = bias;
     brgemm_p.ptr_scales = scales;
     brgemm_p.do_post_ops = 1;
-    brgemm_p.N = bs;
+    brgemm_p.BS = bs;
     (*brg_kernel)(&brgemm_p);
 }
 
@@ -143,61 +143,61 @@ status_t brgemm_desc_init(brgemm_t *brg, brgemm_batch_kind_t type,
         dim_t LDB, dim_t LDC, dim_t M, dim_t N, dim_t K,
         const brgemm_strides_t *strides) {
     /*
-    Matrices are in row-major layouts:
     m - number of rows of the matrix op(A) and number of rows of the matrix C
     n - number of columns of the matrix op(B) and number of columns of the matrix C
     k - number of columns of the matrix op(A) and number of rows of the matrix op(B)
 
-    A: lda * m
-    B: ldb * k
-    C: ldc * m
+    Matrices are in row-major layouts:
+        A: lda * m, LDA - lda must be at least max(1, k)
+        B: ldb * k, LDB - ldb must be at least max(1, n)
+        C: ldc * m, LDC - ldc must be at least max(1, n)
 
-    LDA - lda must be at least max(1, k);
-    LDB - ldb must be at least max(1, n);
-    LDC - ldc must be at least max(1, n);
+    Matrices are in column-major layouts:
+        A: lda * k, LDA - lda must be at least max(1, m)
+        B: ldb * n, LDB - ldb must be at least max(1, k)
+        C: ldc * n, LDC - ldc must be at least max(1, m)
     */
     if (brg == nullptr) return status::invalid_arguments;
-
     if (transA || transB) return status::unimplemented;
-    if (layout == brgemm_col_major) return status::unimplemented;
 
-    brg->dt_a = dt_a;
-    brg->dt_b = dt_b;
+    brg->layout = layout;
+    auto is_row_major = [&]() { return brg->layout == brgemm_row_major; };
+    if (M <= 0 || N <= 0 || K <= 0) return status::invalid_arguments;
+    bool ldx_check = (is_row_major()) ? (LDA < K || LDB < N || LDC < N)
+                                      : (LDA < M || LDB < K || LDC < M);
+    if (ldx_check) return status::invalid_arguments;
+
+    brg->dt_a = (is_row_major()) ? dt_a : dt_b;
+    brg->dt_b = (is_row_major()) ? dt_b : dt_a;
 
     brg->is_int8 = (brg->dt_a == data_type::u8 && brg->dt_b == data_type::s8);
     brg->is_bf16
             = (brg->dt_a == data_type::bf16 && brg->dt_b == data_type::bf16);
     brg->is_f32 = (brg->dt_a == data_type::f32 && brg->dt_b == data_type::f32);
-
     if (!brg->is_int8 && !brg->is_bf16 && !brg->is_f32)
         return status::unimplemented;
+    brg->dt_c = (brg->is_int8) ? data_type::s32 : data_type::f32;
+    brg->dt_d = brg->dt_c;
+    brg->dt_bias = brg->dt_c;
+
     if (brg->is_f32 && !mayiuse(avx512_core)) return status::unimplemented;
     if (brg->is_bf16 && (!mayiuse(avx512_core_bf16) && !mayiuse(amx_bf16)))
         return status::unimplemented;
     if (brg->is_int8 && (!mayiuse(avx512_core_vnni) && !mayiuse(amx_int8)))
         return status::unimplemented;
 
-    brg->dt_c = (brg->is_int8) ? data_type::s32 : data_type::f32;
-    brg->dt_d = brg->dt_c;
-    brg->dt_bias = brg->dt_c;
-
     brg->is_int8_amx = brg->is_int8 && mayiuse(amx_int8);
     brg->is_bf16_amx = brg->is_bf16 && mayiuse(amx_bf16);
 
-    brg->LDA = (int)LDA;
-    brg->LDB = (int)LDB;
+    brg->LDA = (is_row_major()) ? (int)LDA : (int)LDB;
+    brg->LDB = (is_row_major()) ? (int)LDB : (int)LDA;
+
     brg->LDC = (int)LDC;
     brg->LDD = (int)LDC;
 
-    brg->M = (int)M;
-    brg->N = (int)N;
-    brg->K = (int)K;
-
-    if (brg->M <= 0 || brg->N <= 0 || brg->K <= 0
-            || brg->LDA < nstl::max(1, brg->K)
-            || brg->LDB < nstl::max(1, brg->N)
-            || brg->LDC < nstl::max(1, brg->N))
-        return status::invalid_arguments;
+    brg->bcast_dim = (is_row_major()) ? (int)M : (int)N;
+    brg->load_dim = (is_row_major()) ? (int)N : (int)M;
+    brg->reduce_dim = (int)K;
 
     brg->with_bias = false;
     brg->with_eltwise = false;
@@ -214,104 +214,104 @@ status_t brgemm_desc_init(brgemm_t *brg, brgemm_batch_kind_t type,
     brg->typesize_D = types::data_type_size(brg->dt_d);
     brg->type = type;
 
-    brg->m_block2 = 0;
-    brg->mb2 = 0;
-    brg->mb2_tail = 0;
+    brg->bd_block2 = 0;
+    brg->bdb2 = 0;
+    brg->bdb2_tail = 0;
 
-    brg->n_step = brg->k_step = 4 / brg->typesize_A;
+    brg->ld_step = brg->rd_step = 4 / brg->typesize_A;
 
     if (!brg->is_int8_amx && !brg->is_bf16_amx) {
-        brg->n_block = 16;
-        brg->nb = brg->N / brg->n_block;
-        brg->nb_tail = brg->N % brg->n_block;
+        brg->ld_block = 16;
+        brg->ldb = brg->load_dim / brg->ld_block;
+        brg->ldb_tail = brg->load_dim % brg->ld_block;
 
-        brg->n_block2 = 4; // (M < 9) ? 2 : 4 | TODO - fix this for INT8
-        brg->nb2 = brg->nb / brg->n_block2;
-        brg->nb2_tail = brg->nb % brg->n_block2;
+        brg->ld_block2 = 4; // (M < 9) ? 2 : 4 | TODO - fix this for INT8
+        brg->ldb2 = brg->ldb / brg->ld_block2;
+        brg->ldb2_tail = brg->ldb % brg->ld_block2;
 
-        if (brg->nb2 == 0) brg->n_block2 = nstl::max(1, brg->nb2_tail);
+        if (brg->ldb2 == 0) brg->ld_block2 = nstl::max(1, brg->ldb2_tail);
         brg->embd_bcst = !brg->is_int8 && !brg->is_bf16
-                && (brg->nb2_tail <= 1 && brg->nb2 == 0);
+                && (brg->ldb2_tail <= 1 && brg->ldb2 == 0);
 
-        int n_block = (brg->nb2 != 0) ? brg->n_block2 : brg->nb2_tail;
+        int ld_block = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
         int max_regs = (brg->embd_bcst ? 28
                                        : ((brg->beta == 1.f || brg->beta == 0.f)
                                                        ? 30
                                                        : 29))
-                / (n_block + 1);
-
+                / (ld_block + 1);
         int min_block = 6;
 
-        brg->m_block = 1;
+        brg->bd_block = 1;
         for (int m_block = max_regs; m_block >= min_block; m_block--) {
-            if (brg->M % m_block == 0) {
-                brg->m_block = m_block;
+            if (brg->bcast_dim % m_block == 0) {
+                brg->bd_block = m_block;
                 break;
             }
         }
-        if (brg->m_block == 1) {
-            brg->m_block = nstl::min(max_regs, brg->M);
-            int m_tail = brg->M % max_regs;
+        if (brg->bd_block == 1) {
+            brg->bd_block = nstl::min(max_regs, brg->bcast_dim);
+            int m_tail = brg->bcast_dim % max_regs;
             for (int i = max_regs; i >= min_block; i--) {
-                int i_tail = brg->M % i;
+                int i_tail = brg->bcast_dim % i;
                 if (i_tail > m_tail || i_tail == 0) {
-                    brg->m_block = i;
+                    brg->bd_block = i;
                     m_tail = i_tail;
                     if (i_tail == 0) break;
                 }
             }
         }
-        brg->mb = brg->M / brg->m_block;
-        brg->mb_tail = brg->M % brg->m_block;
+        brg->bdb = brg->bcast_dim / brg->bd_block;
+        brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
-        brg->k_block = 16 / brg->typesize_A;
-        brg->kb = brg->K / brg->k_block;
-        brg->kb_tail = brg->K % brg->k_block;
+        brg->rd_block = 16 / brg->typesize_A;
+        brg->rdb = brg->reduce_dim / brg->rd_block;
+        brg->rdb_tail = brg->reduce_dim % brg->rd_block;
     } else {
         // Blocking configuration for AMX
         const int max_width = 16, min_width = 1;
         for (int m_block = max_width; m_block >= min_width; m_block--) {
-            if (brg->M % m_block == 0) {
-                brg->m_block = m_block;
+            if (brg->bcast_dim % m_block == 0) {
+                brg->bd_block = m_block;
                 break;
             }
         }
-        if (brg->m_block == 1) {
-            brg->m_block = nstl::min(max_width, brg->M);
-            brg->mb_tail = brg->M % max_width;
+        if (brg->bd_block == 1) {
+            brg->bd_block = nstl::min(max_width, brg->bcast_dim);
+            brg->bdb_tail = brg->bcast_dim % max_width;
             for (int i = max_width; i >= min_width; i--) {
-                int i_tail = brg->M % i;
-                if (i_tail > brg->mb_tail || i_tail == 0) {
-                    brg->m_block = i;
-                    brg->mb_tail = i_tail;
+                int i_tail = brg->bcast_dim % i;
+                if (i_tail > brg->bdb_tail || i_tail == 0) {
+                    brg->bd_block = i;
+                    brg->bdb_tail = i_tail;
                     if (i_tail == 0) break;
                 }
             }
         }
-        brg->mb = brg->M / brg->m_block;
-        brg->mb_tail = brg->M % brg->m_block;
+        brg->bdb = brg->bcast_dim / brg->bd_block;
+        brg->bdb_tail = brg->bcast_dim % brg->bd_block;
+        brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
-        brg->m_block2 = (brg->mb > 2) ? 2 : 1;
-        brg->mb2 = brg->mb / brg->m_block2;
-        brg->mb2_tail
-                = (brg->m_block2 == 1) ? brg->mb : brg->mb % brg->m_block2;
+        brg->bd_block2 = (brg->bdb >= 2) ? 2 : 1;
+        brg->bdb2 = brg->bdb / brg->bd_block2;
+        brg->bdb2_tail
+                = (brg->bd_block2 == 1) ? brg->bdb : brg->bdb % brg->bd_block2;
 
-        brg->n_block = 16;
-        brg->nb = brg->N / brg->n_block;
-        brg->nb_tail = brg->N % brg->n_block;
+        brg->ld_block = 16;
+        brg->ldb = brg->load_dim / brg->ld_block;
+        brg->ldb_tail = brg->load_dim % brg->ld_block;
 
-        brg->n_block2 = (brg->nb > 0 && brg->nb % 2 == 0) ? 2 : 1;
-        brg->nb2 = brg->nb / brg->n_block2;
-        brg->nb2_tail = brg->nb % brg->n_block2;
+        brg->ld_block2 = (brg->ldb > 0 && brg->ldb % 2 == 0) ? 2 : 1;
+        brg->ldb2 = brg->ldb / brg->ld_block2;
+        brg->ldb2_tail = brg->ldb % brg->ld_block2;
 
-        brg->k_block = brg->is_bf16_amx ? 32 : 64;
-        brg->kb = brg->K / brg->k_block;
-        brg->kb_tail = brg->K % brg->k_block;
+        brg->rd_block = brg->is_bf16_amx ? 32 : 64;
+        brg->rdb = brg->reduce_dim / brg->rd_block;
+        brg->rdb_tail = brg->reduce_dim % brg->rd_block;
 
         // Remove these guard in the future:
-        if ((brg->kb > 0 && brg->kb_tail) || (brg->nb > 0 && brg->nb_tail))
+        if ((brg->rdb > 0 && brg->rdb_tail) || (brg->ldb > 0 && brg->ldb_tail))
             return status::unimplemented;
-        if (brg->kb_tail % ((brg->is_bf16_amx) ? 2 : 4))
+        if (brg->rdb_tail % ((brg->is_bf16_amx) ? 2 : 4))
             return status::unimplemented;
     }
 
@@ -395,22 +395,22 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
 
     if (!(brg.is_int8_amx || brg.is_bf16_amx)) return status::unimplemented;
 
-    int n_block = (!brg.nb && brg.nb_tail) ? brg.nb_tail : brg.n_block;
-    int k_block = (!brg.kb && brg.kb_tail) ? brg.kb_tail : brg.k_block;
+    int ld_block = (!brg.ldb && brg.ldb_tail) ? brg.ldb_tail : brg.ld_block;
+    int rd_block = (!brg.rdb && brg.rdb_tail) ? brg.rdb_tail : brg.rd_block;
 
-    auto cfg_tiles = [=](palette_config_t *buff, int Ac, int n_block) {
+    auto cfg_tiles = [=](palette_config_t *buff, int Ac, int ld_block) {
         char *_tc = (char *)buff;
         for (int i = 0; i < max_palette_size_in_bytes; i++)
             _tc[i] = 0;
 
-        int Ar = brg.m_block;
+        int Ar = brg.bd_block;
         int Br = (brg.typesize_C != 0) ? Ac / brg.typesize_C : 0;
-        int Cr = brg.m_block;
+        int Cr = brg.bd_block;
 
-        int k_step = 4 / brg.typesize_A;
+        int rd_step = 4 / brg.typesize_A;
 
-        int Bc = n_block * brg.typesize_B * k_step;
-        int Cc = n_block * brg.typesize_C;
+        int Bc = ld_block * brg.typesize_B * rd_step;
+        int Cc = ld_block * brg.typesize_C;
 
         for (int m = 0; m < brgemm_amx::max_m_block2; m++)
             tc_configure_tile(buff, brgemm_amx::get_A_tensor(m), Ar, Ac);
@@ -424,8 +424,8 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
         buff->palette_id = amx::get_max_palette();
     };
 
-    int Ac = brg.typesize_A * k_block;
-    cfg_tiles((palette_config_t *)(palette), Ac, n_block);
+    int Ac = brg.typesize_A * rd_block;
+    cfg_tiles((palette_config_t *)(palette), Ac, ld_block);
 
     return status::success;
     // TODO: add tail processing support

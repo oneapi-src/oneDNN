@@ -19,12 +19,14 @@
 #define CPU_X64_JIT_UNI_POOL_KERNEL_HPP
 
 #include <cfloat>
+#include <memory>
 
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -35,16 +37,11 @@ namespace x64 {
 
 template <cpu_isa_t isa>
 struct jit_uni_pool_kernel : public jit_generator {
-    jit_uni_pool_kernel(jit_pool_conf_t ajpp) : jpp(ajpp), bf16_emu_(nullptr) {
-        if (jpp.is_bf16 && !isa_has_bf16(jpp.isa))
-            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
-                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
-                    bf16_emu_reserv_5);
-    }
 
-    ~jit_uni_pool_kernel() { delete bf16_emu_; }
-
+    jit_uni_pool_kernel(
+            const jit_pool_conf_t &ajpp, const memory_desc_t *dst_md);
     jit_pool_conf_t jpp;
+    ~jit_uni_pool_kernel();
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_pool_kernel)
 
@@ -60,18 +57,22 @@ private:
     using Reg32 = Xbyak::Reg32;
     using Reg64 = Xbyak::Reg64;
 
-    using Vmm = typename utils::conditional3<isa == sse41, Xmm, isa == avx, Ymm,
-            Zmm>::type;
-    int reg_idx(int idx) {
-        return (utils::one_of(isa, avx512_common, avx512_core) ? 31 : 15) - idx;
-    }
-    Xmm xreg(int idx) { return Xmm(reg_idx(idx)); }
-    Ymm yreg(int idx) { return Ymm(reg_idx(idx)); }
-    Zmm zreg(int idx) { return Zmm(reg_idx(idx)); }
-    Vmm vreg(int idx) { return Vmm(reg_idx(idx)); }
+    using Vmm = typename cpu_isa_traits<isa>::Vmm;
 
-    const Xbyak::AddressFrame &vmmword
-            = (isa == sse41) ? xword : (isa == avx) ? yword : zword;
+    int vmm_idx_upper_bound() const noexcept {
+        return utils::one_of(isa, avx512_common, avx512_core) ? 31 : 15;
+    }
+
+    int reg_idx(int idx) const noexcept { return vmm_idx_upper_bound() - idx; }
+
+    Xmm xreg(int idx) const noexcept { return Xmm(reg_idx(idx)); }
+    Ymm yreg(int idx) const noexcept { return Ymm(reg_idx(idx)); }
+    Zmm zreg(int idx) const noexcept { return Zmm(reg_idx(idx)); }
+    Vmm vreg(int idx) const noexcept { return Vmm(reg_idx(idx)); }
+
+    const Xbyak::AddressFrame &vmmword = (isa == sse41)
+            ? xword
+            : (isa == avx || isa == avx2) ? yword : zword;
 
     Xmm vmm_mask = Xmm(0);
     Ymm ymm_tmp_1 = Ymm(0);
@@ -145,6 +146,7 @@ private:
     Reg32 reg_shuf_mask = esi;
 
     bool sse_high_half = false;
+    bool disable_postops_when_sse_high_half_processed_ = false;
 
     int prev_kw;
 
@@ -242,7 +244,14 @@ private:
         pcmpeqd(x0, x1);
     }
 
-    bf16_emulation_t *bf16_emu_;
+    void apply_postops(int ur_bc, int ur_w, int c_block);
+
+    static bool post_ops_ok(jit_pool_conf_t &jpp, const primitive_attr_t &attr,
+            const memory_desc_wrapper &dst_d);
+
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
 };
 
 } // namespace x64

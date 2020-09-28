@@ -358,6 +358,29 @@ void init_buffer(float *buf, int64_t size, float value) {
         buf[i] = value;
 }
 
+// If needed, dequantize u8 data to f32 via data scale and shift
+float maybe_deq(const prb_t &prb, const float in) {
+    if (!prb.cfg.is_int8()) return in;
+    return (in - prb.data_shift) * (1.0f / prb.data_scale);
+}
+
+// If needed, dequantize s32 accumulators to f32 via data and weights scales
+// (no data shift is needed as it is handled by the compensation in the bias)
+float maybe_deq(const prb_t &prb, const float in, int64_t oc) {
+    if (!prb.cfg.is_int8()) return in;
+    float scale = prb.get_wei_scale(oc);
+    return in * (1.0f / (scale * prb.data_scale));
+}
+
+float maybe_q(const prb_t &prb, float h) {
+    if (!prb.cfg.is_int8()) return h;
+    float fp = prb.data_scale * h + prb.data_shift;
+    if (fp > prb.cfg[SRC_LAYER].max) fp = prb.cfg[SRC_LAYER].max;
+    if (fp < prb.cfg[SRC_LAYER].min) fp = prb.cfg[SRC_LAYER].min;
+    fp = mxcsr_cvt(fp);
+    return fp;
+}
+
 float logistic(float x) {
     if (x < 0)
         return (expf(x) / (1 + expf(x)));

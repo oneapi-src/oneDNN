@@ -563,6 +563,8 @@ enum class algorithm {
     binary_max = dnnl_binary_max,
     /// Binary min
     binary_min = dnnl_binary_min,
+    /// Binary div
+    binary_div = dnnl_binary_div,
     /// Nearest Neighbor resampling method
     resampling_nearest = dnnl_resampling_nearest,
     /// Linear (Bilinear, Trilinear) resampling method
@@ -1247,12 +1249,47 @@ struct memory : public handle<dnnl_memory_t> {
         cdeba = dnnl_cdeba,
         /// permuted 5D tensor
         decab = dnnl_decab,
+        /// permuted 5D tensor
+        abced = dnnl_abced,
+
         /// plain 6D tensor
         abcdef = dnnl_abcdef,
         /// plain 6D tensor
         acbdef = dnnl_acbdef,
         /// plain 6D tensor
         defcab = dnnl_defcab,
+        /// permuted 6D tensor
+        abcdfe = dnnl_abcdfe,
+
+        /// plain 7D tensor
+        abcdefg = dnnl_abcdefg,
+        /// permuted 7D tensor
+        abcdegf = dnnl_abcdegf,
+
+        /// plain 8D tensor
+        abcdefgh = dnnl_abcdefgh,
+        /// permuted 8D tensor
+        abcdefhg = dnnl_abcdefhg,
+
+        /// plain 9D tensor
+        abcdefghi = dnnl_abcdefghi,
+        /// permuted 9D tensor
+        abcdefgih = dnnl_abcdefgih,
+
+        /// plain 10D tensor
+        abcdefghij = dnnl_abcdefghij,
+        /// permuted 10D tensor
+        abcdefghji = dnnl_abcdefghji,
+
+        /// plain 11D tensor
+        abcdefghijk = dnnl_abcdefghijk,
+        /// permuted 11D tensor
+        abcdefghikj = dnnl_abcdefghikj,
+
+        /// plain 12D tensor
+        abcdefghijkl = dnnl_abcdefghijkl,
+        /// permuted 12D tensor
+        abcdefghijlk = dnnl_abcdefghijlk,
 
         /// 1D tensor; an alias for #dnnl::memory::format_tag::a
         x = a,
@@ -2679,7 +2716,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     hold: \f$zero\_points.size() = \prod\limits_{d \in mask}
     ///     argument.dims[d].\f$ If the zero points are not known at the time
     ///     of the call, this vector must contain a single
-    ///     #DNNL_RUNTIME_F32_VAL value and the zero points must be passed at
+    ///     #DNNL_RUNTIME_S32_VAL value and the zero points must be passed at
     ///     execution time as an argument with index
     ///     #DNNL_ARG_ATTR_ZERO_POINTS.
     void set_zero_points(

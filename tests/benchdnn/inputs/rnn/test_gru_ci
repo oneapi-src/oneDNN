@@ -12,3 +12,15 @@
 --prop=FWD_D,BWD_DW
 --cfg=f32,bf16,f16
 --batch=shapes_small
+
+# int8
+--trivial-strides=true
+--prop=FWD_D
+
+--cfg=u8u8u8u8,f32u8f32f32
+--scaling=common
+--batch=shapes_small
+
+--cfg=u8u8u8f32,f32u8f32u8
+--scaling=per_oc
+--batch=shapes_small

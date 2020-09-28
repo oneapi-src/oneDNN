@@ -24,7 +24,7 @@
 #include "gpu/ocl/gemm/ref_gemm.hpp"
 #include "gpu/ocl/gemm_inner_product.hpp"
 #include "gpu/ocl/gemm_matmul.hpp"
-#include "gpu/ocl/gemm_x8s8s32x_inner_product.hpp"
+#include "gpu/ocl/gemm_post_ops_inner_product.hpp"
 #include "gpu/ocl/gen12lp_x8s8s32x_1x1_convolution.hpp"
 #include "gpu/ocl/gen12lp_x8s8s32x_convolution.hpp"
 #include "gpu/ocl/gen9_batch_normalization.hpp"
@@ -32,6 +32,7 @@
 #include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/gen9_pooling.hpp"
 #include "gpu/ocl/gen9_softmax.hpp"
+#include "gpu/ocl/gen9_wino_convolution.hpp"
 #include "gpu/ocl/ref_batch_normalization.hpp"
 #include "gpu/ocl/ref_binary.hpp"
 #include "gpu/ocl/ref_convolution.hpp"
@@ -71,6 +72,7 @@ const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::gen12lp_x8s8s32x_1x1_convolution_fwd_t),
         INSTANCE(ocl::gen12lp_x8s8s32x_convolution_fwd_t),
         INSTANCE(ocl::gen12lp_x8s8s32x_convolution_bwd_data_t),
+        INSTANCE(ocl::gen9_wino_convolution_fwd_t),
         INSTANCE(ocl::gen9_convolution_fwd_t),
         INSTANCE(ocl::gen9_convolution_bwd_data_t),
         INSTANCE(ocl::gen9_convolution_bwd_weights_t),
@@ -95,8 +97,8 @@ const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::ref_lrn_bwd_t),
 
         // Inner Product
-        INSTANCE(ocl::gemm_x8s8s32x_inner_product_fwd_t),
         INSTANCE(ocl::gemm_inner_product_fwd_t),
+        INSTANCE(ocl::gemm_post_ops_inner_product_fwd_t),
         INSTANCE(ocl::convolution_inner_product_fwd_t),
         INSTANCE(ocl::gemm_inner_product_bwd_data_t),
         INSTANCE(ocl::gemm_inner_product_bwd_weights_t),

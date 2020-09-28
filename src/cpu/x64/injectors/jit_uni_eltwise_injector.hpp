@@ -24,12 +24,34 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/x64/injectors/injector_utils.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
+
+namespace eltwise_injector {
+struct static_params_t {
+
+    static_params_t(bool save_state = true,
+            Xbyak::Reg64 p_table = Xbyak::util::rax,
+            Xbyak::Opmask k_mask = Xbyak::Opmask(1), bool is_fwd = true,
+            bool use_dst = false)
+        : save_state(save_state)
+        , p_table(p_table)
+        , k_mask(k_mask)
+        , is_fwd(is_fwd)
+        , use_dst(use_dst) {}
+
+    bool save_state;
+    Xbyak::Reg64 p_table;
+    Xbyak::Opmask k_mask;
+    bool is_fwd;
+    bool use_dst;
+};
+} // namespace eltwise_injector
 
 template <cpu_isa_t isa>
 struct jit_uni_eltwise_injector_f32 {
@@ -63,7 +85,8 @@ struct jit_uni_eltwise_injector_f32 {
         , is_fwd_(is_fwd)
         , use_dst_(use_dst) {
         using namespace alg_kind;
-        assert(utils::one_of(isa, sse41, avx2, avx512_common, avx512_core));
+        assert(utils::one_of(
+                isa, sse41, avx, avx2, avx512_common, avx512_core));
         assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
                 eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                 eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
@@ -85,7 +108,8 @@ struct jit_uni_eltwise_injector_f32 {
                 is_fwd, use_dst) {}
 
     void compute_vector_range(size_t start_idx, size_t end_idx);
-    void compute_vector(size_t idx) { compute_vector_range(idx, idx + 1); }
+    void compute_vector_range(const injector_utils::vmm_index_set_t &vmm_idxs);
+    void compute_vector(size_t idx) { compute_vector_range({idx}); }
     void prepare_table(bool gen_table = true);
     void load_table_addr() { h->mov(p_table, l_table); }
 
@@ -121,28 +145,37 @@ private:
     }
 
     static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
-    static constexpr size_t preserved_vecs_max = 5;
-    static constexpr size_t preserved_gprs_max = 4;
+    static constexpr size_t preserved_vecs_max = 6;
+    static constexpr size_t preserved_gprs_max = 5;
     static constexpr size_t vecs_count = has_avx512() ? 32 : 16;
     static constexpr int n_mantissa_bits = 23;
     static constexpr int k_mask_size = 8;
+
+    bool preserve_vec_for_avx = false;
 
     size_t vecs_to_preserve = 0;
     size_t preserved_vecs_count = 0;
     size_t preserved_vec_idxs[preserved_vecs_max] = {0};
     size_t preserved_gpr_idxs[preserved_gprs_max] = {0};
-    size_t start_idx_tail = 0;
+    injector_utils::vmm_index_set_iterator_t start_idx_tail;
 
-    Vmm vmm_mask, vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3, vmm_aux4;
+    Vmm vmm_mask, vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3, vmm_aux4, vmm_tmp;
+    Xbyak::Ymm ymm_tmp;
+    Xbyak::Xmm xmm_tmp;
 
     size_t aux_vecs_count();
     size_t aux_gprs_count();
 
-    void compute_body(size_t start_idx, size_t end_idx);
-    void injector_preamble(size_t start_idx, size_t end_idx);
-    void injector_preamble_tail(size_t start_idx);
+    void compute_body(
+            const injector_utils::vmm_index_set_iterator_t &start_idx_it,
+            const injector_utils::vmm_index_set_iterator_t &end_idx_it);
+    void injector_preamble(const injector_utils::vmm_index_set_t &vmm_idxs);
+    void injector_preamble_tail(
+            const injector_utils::vmm_index_set_iterator_t start_idx_it);
     void injector_postamble();
     void assign_regs();
+    void vec_shift(const Vmm &vmm_dst, const Vmm &vmm_src, bool shift_left,
+            const int imm);
     void compute_cmp_mask(const Vmm &vmm_src,
             const Xbyak::Operand &compare_operand, int cmp_predicate);
     void blend_with_mask(const Vmm &vmm_dst, const Xbyak::Operand &src);

@@ -40,6 +40,7 @@ static status_t init_conf_common(eltwise_conf_t &conf, offsets_t &off,
     conf.data_type = data_d.data_type();
     conf.alg = alg;
     conf.is_forward = is_forward;
+    conf.attr_info = attr_info_t::create(pd->attr());
 
     set_offsets(data_d, off.src_off);
     set_offsets(diff_data_d, off.dst_off);
@@ -75,8 +76,13 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("GWS0", conf.dispatch.nd_range().global_range()[0]);
     kernel_ctx.define_int("GWS1", conf.dispatch.nd_range().global_range()[1]);
     kernel_ctx.define_int("GWS2", conf.dispatch.nd_range().global_range()[2]);
+    kernel_ctx.define_int("SUB_GROUP_SIZE", 32);
 
-    kernel_ctx.define_int("ZERO_PADDING", conf.with_zero_padding);
+    bool with_binary_post_ops
+            = conf.attr_info.all_post_ops.find(primitive_kind_t::dnnl_binary)
+            != -1;
+    kernel_ctx.define_int(
+            "USE_GWS_GET", conf.with_zero_padding || with_binary_post_ops);
 
     def_memory_desc_info(kernel_ctx, conf.data_md_info, "DATA");
 
@@ -86,6 +92,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         kernel_ctx.define_int("IS_FWD", 1);
     }
 
+    def_attr_info(kernel_ctx, conf.attr_info);
     def_dispatch(kernel_ctx, conf.dispatch);
 
     return status::success;
@@ -115,6 +122,8 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     arg_list.set(1, dst);
     arg_list.set(2, alpha);
     arg_list.set(3, beta);
+
+    append_post_ops_to_arg_list(ctx, arg_list, 4, conf.attr_info.all_post_ops);
 
     auto nd_range = conf.dispatch.nd_range();
     return parallel_for(ctx, nd_range, kernel_, arg_list);

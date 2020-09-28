@@ -22,8 +22,7 @@
 KERNEL_ATTR
 __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
         __global WEI_DATA_T *wei, __global BIA_DATA_T *bias,
-        __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float eltwise_scale, float sum_scale, float output_scale) {
+        __global DST_DATA_T *dst POST_OP_ARGS, float output_scale) {
 
     const int mb = GWS_GET_MB();
     const int oc = GWS_GET_OC();
@@ -50,17 +49,14 @@ __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
 
     tmp *= output_scale;
 
-#if SUM_IDX == 0 && ELTWISE_IDX == 1
-    tmp += sum_scale * DST_TO_REF(dst[mb * OC + oc]);
-    tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta, eltwise_scale);
-#else
-#if WITH_ELTWISE
-    tmp = fwd_eltwise(tmp, eltwise_alpha, eltwise_beta, eltwise_scale);
-#endif
+    float dest_data;
 #if WITH_SUM
-    tmp = sum_scale * DST_TO_REF(dst[mb * OC + oc]) + tmp;
+    dest_data = DST_TO_REF(dst[mb * OC + oc]);
 #endif
-#endif
+
+    APPLY_POST_OPS(tmp, DATA_T, dest_data, float, mb, 1, oc, 1, 0, 1, 0, 1, 0,
+            1, 0, 1);
+
     dst[mb * OC + oc] = TO_DST(tmp);
 }
 #endif

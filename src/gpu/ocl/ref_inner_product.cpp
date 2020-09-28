@@ -179,10 +179,6 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     const auto &conf = pd()->conf;
 
-    auto eltwise_scale = conf.attr_info.eltwise_scale;
-    auto eltwise_alpha = conf.attr_info.eltwise_alpha;
-    auto eltwise_beta = conf.attr_info.eltwise_beta;
-    auto sum_scale = conf.attr_info.sum_scale;
     const float *output_scales = pd()->attr()->output_scales_.scales_;
 
     compute::kernel_arg_list_t arg_list;
@@ -190,11 +186,11 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(1, weights);
     arg_list.set(2, bias);
     arg_list.set(3, dst);
-    arg_list.set(4, eltwise_alpha);
-    arg_list.set(5, eltwise_beta);
-    arg_list.set(6, eltwise_scale);
-    arg_list.set(7, sum_scale);
-    arg_list.set(8, output_scales[0]);
+
+    unsigned arg_idx = append_post_ops_to_arg_list(
+            ctx, arg_list, 4, conf.attr_info.all_post_ops);
+
+    arg_list.set(arg_idx, output_scales[0]);
 
     auto nd_range = conf.dispatch.nd_range();
 

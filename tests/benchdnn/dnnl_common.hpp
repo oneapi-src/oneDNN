@@ -19,6 +19,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
+#include <cmath>
 #include <vector>
 
 #include "oneapi/dnnl/dnnl.h"
@@ -181,13 +183,14 @@ inline float max_dt(dnnl_data_type_t dt) {
 #undef CASE_ALL
 
 template <dnnl_data_type_t dt>
-inline float saturate(float val) {
-    auto res = MAX2((float)dnnl::impl::nstl::numeric_limits<
-                            typename prec_traits<dt>::type>::lowest(),
-            MIN2((float)dnnl::impl::nstl::numeric_limits<
-                         typename prec_traits<dt>::type>::max(),
-                    val));
-    return mxcsr_cvt(res);
+inline float saturate_and_round(float val) {
+    const float dt_max = (float)dnnl::impl::nstl::numeric_limits<
+            typename prec_traits<dt>::type>::max();
+    const float dt_min = (float)dnnl::impl::nstl::numeric_limits<
+            typename prec_traits<dt>::type>::lowest();
+    if (val > dt_max) val = dt_max;
+    if (val < dt_min || (std::isnan(val) && std::signbit(val))) val = dt_min;
+    return mxcsr_cvt(val);
 }
 
 inline float maybe_saturate(dnnl_data_type_t dt, float value) {
@@ -195,7 +198,7 @@ inline float maybe_saturate(dnnl_data_type_t dt, float value) {
         switch (dt) {
 #define CASE(dt) \
     case dt: { \
-        return saturate<dt>(value); \
+        return saturate_and_round<dt>(value); \
     }
             CASE(dnnl_s32);
             CASE(dnnl_s8);

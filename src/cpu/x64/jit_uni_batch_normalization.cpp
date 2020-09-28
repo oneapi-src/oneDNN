@@ -1713,9 +1713,7 @@ struct jit_bnorm_t : public jit_generator {
         postamble();
     }
 
-    void operator()(const call_params_t *p) {
-        return jit_generator::operator()(p);
-    }
+    void operator()(const call_params_t *p) { jit_generator::operator()(p); }
 
     ~jit_bnorm_t() override { delete bf16_emu_; }
 };

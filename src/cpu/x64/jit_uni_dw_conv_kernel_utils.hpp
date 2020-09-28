@@ -24,9 +24,9 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
 #include "cpu/x64/jit_avx512_core_bf16_dw_conv_kernel.hpp"
 #include "cpu/x64/jit_uni_dw_conv_kernel_f32.hpp"

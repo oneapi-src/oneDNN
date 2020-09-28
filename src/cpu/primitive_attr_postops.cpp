@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cmath>
+
 #include "primitive_attr_postops.hpp"
 
 namespace dnnl {
@@ -26,6 +28,7 @@ using namespace math;
 float compute_binary_scalar(alg_kind_t alg, float x, float y) {
     switch (alg) {
         case binary_add: return x + y;
+        case binary_div: return x / y;
         case binary_max: return nstl::max(x, y);
         case binary_min: return nstl::min(x, y);
         case binary_mul: return x * y;
@@ -35,6 +38,9 @@ float compute_binary_scalar(alg_kind_t alg, float x, float y) {
 
 float compute_eltwise_scalar_fwd(
         const alg_kind_t alg, float s, float alpha, float beta) {
+    // don't compute on nan, propagate it
+    if (std::isnan(s)) return s;
+
     float d = 0.f;
     switch (alg) {
         case eltwise_relu: d = relu_fwd(s, alpha); break;

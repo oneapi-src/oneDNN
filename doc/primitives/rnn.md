@@ -326,12 +326,12 @@ argument index as specified by the following table.
 The following table lists the combination of data types supported by the RNN
 primitive for each input and output memory object.
 
- Propagation                | Cell Function | Input data | Recurrent data (1) | Weights | Bias | Output Data
---------------------------- | ------------- | ---------- | ------------------ | ------- | ---- | ------------
- Forward / Backward         |  All          | f32        | f32                | f32     | f32  | f32
- Forward / Backward (2)     |  All (3)      | bf16       | bf16               | bf16    | f32  | bf16
- Forward                    |  All (3)      | f16        | f16                | f16     | f16  | f16
- Forward inference          |  Vanilla LSTM | u8         | u8                 | s8      | f32  | u8, f32
+ Propagation                | Cell Function         | Input data | Recurrent data (1) | Weights | Bias | Output Data
+--------------------------- | --------------------- | ---------- | ------------------ | ------- | ---- | ------------
+ Forward / Backward         |  All                  | f32        | f32                | f32     | f32  | f32
+ Forward / Backward (2)     |  All (3)              | bf16       | bf16               | bf16    | f32  | bf16
+ Forward                    |  All (3)              | f16        | f16                | f16     | f16  | f16
+ Forward inference          |  Vanilla LSTM and GRU | u8         | u8                 | s8      | f32  | u8, f32
 
 (1) With LSTM and Peephole LSTM cells, the cell state datatype is always f32.
 
@@ -370,8 +370,8 @@ different.
 
 ### Post-ops and Attributes
 
-Currently post-ops and attributes are only used by the int8 variant of
-LSTM. See the markdown @ref cpu_rnn_inference_int8_cpp for more
+Currently post-ops and attributes are only used by the int8 variants of
+LSTM and GRU. See the markdown @ref cpu_rnn_inference_int8_cpp for more
 details on how to use and set these quantization parameters.
 
 ## Implementation Limitations

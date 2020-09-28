@@ -181,7 +181,7 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // AlexNet: relu1
     // {batch, 96, 55, 55} -> {batch, 96, 55, 55}
-    const float negative1_slope = 1.0f;
+    const float negative1_slope = 0.0f;
 
     /// Create the relu primitive. For better performance, keep the input data
     /// format for ReLU (as well as for other operation primitives until another
@@ -311,7 +311,7 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // AlexNet: relu2
     // {batch, 256, 27, 27} -> {batch, 256, 27, 27}
-    const float negative2_slope = 1.0f;
+    const float negative2_slope = 0.0f;
 
     // create relu primitive and add it to net
     auto relu2_desc = eltwise_forward::desc(prop_kind::forward_inference,
@@ -428,7 +428,7 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // AlexNet: relu3
     // {batch, 384, 13, 13} -> {batch, 384, 13, 13}
-    const float negative3_slope = 1.0f;
+    const float negative3_slope = 0.0f;
 
     // create relu primitive and add it to net
     auto relu3_desc = eltwise_forward::desc(prop_kind::forward_inference,
@@ -502,7 +502,7 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // AlexNet: relu4
     // {batch, 384, 13, 13} -> {batch, 384, 13, 13}
-    const float negative4_slope = 1.0f;
+    const float negative4_slope = 0.0f;
 
     // create relu primitive and add it to net
     auto relu4_desc = eltwise_forward::desc(prop_kind::forward_inference,
@@ -575,7 +575,7 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // AlexNet: relu5
     // {batch, 256, 13, 13} -> {batch, 256, 13, 13}
-    const float negative5_slope = 1.0f;
+    const float negative5_slope = 0.0f;
 
     // create relu primitive and add it to net
     auto relu5_desc = eltwise_forward::desc(prop_kind::forward_inference,

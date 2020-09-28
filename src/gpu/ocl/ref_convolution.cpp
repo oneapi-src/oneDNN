@@ -251,6 +251,9 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     arg_list.set(2, diff_dst);
     arg_list.set(3, bias);
 
+    append_post_ops_to_arg_list(
+            ctx, arg_list, 4, pd()->conf.attr_info.all_post_ops);
+
     auto nd_range = pd()->conf.dispatch.nd_range();
 
     status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);

@@ -29,10 +29,10 @@ namespace x64 {
 /// @param brg Output BRGEMM descriptor
 /// @param type Type of batch
 /// @param dt_a Data type of A matrix, can be
-///     AVX512: f32, u8, bf16
+///     AVX512: f32, u8(row-major layout), s8(column-major layout), bf16
 ///     AMX: u8, s8, bf16
 /// @param dt_b Data type of B matrix
-///     AVX512: f32, s8, bf16
+///     AVX512: f32, s8(row-major layout), u8(column-major layout), bf16
 ///     AMX: u8, s8, bf16
 /// @note
 ///     Data type of matrix C depends on data types of matrices A and B

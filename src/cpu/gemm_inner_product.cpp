@@ -61,7 +61,7 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
             size_t start, end;
             balance211((size_t)(OC * MB), nthr, ithr, start, end);
             (*pp_kernel_)(
-                    dst, dst, (char *)bias, scales, start, end, 0, nullptr);
+                    dst, dst, (char *)bias, scales, start, end, 0, 0, nullptr);
         });
     }
 

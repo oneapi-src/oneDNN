@@ -65,11 +65,40 @@ struct params_t {
     }
 };
 
+inline bool check_gemm_compatible_formats(const matmul_pd_t &pd) {
+
+    const memory_desc_wrapper dst_d(pd.dst_md());
+    const int ndims = dst_d.ndims();
+
+    auto check_input_format = [=](const memory_desc_t *md) {
+        memory_desc_wrapper mdw(md);
+
+        if (!mdw.is_plain()) return false;
+
+        const dims_t &strides = mdw.blocking_desc().strides;
+
+        // for GeMM atleast one of the two innermost axes must be contiguous
+        return utils::one_of(1, strides[ndims - 1], strides[ndims - 2]);
+    };
+
+    bool ok = check_input_format(pd.src_md())
+            && check_input_format(pd.weights_md()) && dst_d.is_plain()
+            && dst_d.blocking_desc().strides[ndims - 1] == 1;
+
+    return ok;
+}
+
 inline void book_acc_scratchpad(
         matmul_pd_t &pd, const params_t &params, size_t sizeof_acc_data) {
-    bool is_runtime_dims
-            = utils::one_of(DNNL_RUNTIME_DIM_VAL, pd.batch(), pd.M(), pd.N());
-    if (!params.dst_is_acc_ && !is_runtime_dims) {
+    bool has_runtime_dims = false;
+    for (auto d : pd.dst_md()->dims) {
+        if (d == DNNL_RUNTIME_DIM_VAL) {
+            has_runtime_dims = true;
+            break;
+        }
+    }
+
+    if (!params.dst_is_acc_ && !has_runtime_dims) {
         auto scratchpad = pd.scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
                 nstl::min(pd.batch(), (dim_t)dnnl_get_max_threads()) * pd.M()

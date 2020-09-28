@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_X8S8S32X_INNER_PRODUCT_HPP
-#define GPU_OCL_GEMM_X8S8S32X_INNER_PRODUCT_HPP
+#ifndef GPU_OCL_GEMM_POST_OPS_INNER_PRODUCT_HPP
+#define GPU_OCL_GEMM_POST_OPS_INNER_PRODUCT_HPP
 
 #include <assert.h>
 
@@ -39,7 +39,7 @@ namespace ocl {
 
 namespace {
 // XXX: Can be unified and used across all primitives
-inline status_t create_gemm_x8s8s32x_pd(
+inline status_t create_gemm_post_ops_pd(
         std::unique_ptr<primitive_desc_t> &gemm_pd, engine_t *engine,
         transpose_t transa, transpose_t transb, int m, int n, int k, int lda,
         int ldb, int ldc, data_type_t a_dt, data_type_t b_dt, data_type_t c_dt,
@@ -72,11 +72,14 @@ inline status_t create_gemm_x8s8s32x_pd(
     ++it;
     gemm_pd.reset(it.fetch_once());
     if (!gemm_pd) return status::unimplemented;
+    std::string impl_name(gemm_pd.get()->name());
+    if (impl_name.find("ref") != std::string::npos)
+        return status::unimplemented;
     return status::success;
 }
 } // namespace
 
-struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
+struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
@@ -87,6 +90,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             ip_scratchpad_md_ = rhs.ip_scratchpad_md_;
             scales_md_ = rhs.scales_md_;
             attr_info_ = rhs.attr_info_;
+            is_int8_ = rhs.is_int8_;
         }
 
         ~pd_t() = default;
@@ -97,11 +101,12 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             ip_scratchpad_md_ = rhs.ip_scratchpad_md_;
             scales_md_ = rhs.scales_md_;
             attr_info_ = rhs.attr_info_;
+            is_int8_ = rhs.is_int8_;
             return *this;
         }
 
         DECLARE_COMMON_PD_T(
-                "ocl:gemm_x8s8s32x", gemm_x8s8s32x_inner_product_fwd_t);
+                "ocl:gemm_post_ops_fwd", gemm_post_ops_inner_product_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace status;
@@ -117,23 +122,27 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
                     = primitive_attr_t::skip_mask_t::oscale
                     | primitive_attr_t::skip_mask_t::post_ops;
             bool ok = is_fwd() && set_default_params() == success
-                    && one_of(src_md()->data_type, s8, u8)
-                    && weights_md()->data_type == s8
-                    && IMPLICATION(with_bias(),
-                            one_of(weights_md(1)->data_type, s8, u8, f32, s32))
-                    && one_of(dst_md()->data_type, u8, s8, f32, s32)
+                    && ((one_of(src_md()->data_type, s8, u8)
+                                && weights_md()->data_type == s8
+                                && IMPLICATION(with_bias(),
+                                        one_of(weights_md(1)->data_type, s8, u8,
+                                                f32, s32))
+                                && one_of(
+                                        dst_md()->data_type, u8, s8, f32, s32))
+                            || (utils::one_of(true,
+                                    expect_data_types(f16, f16, f16, f16, f16),
+                                    expect_data_types(
+                                            f32, f32, f32, f32, f32))))
                     && dense_consitency_check(src_md(), weights_md(), dst_md())
                     && dense_gemm_consitency_check(
                             src_md(), weights_md(), dst_md())
                     && attr()->has_default_values(attr_skip_mask)
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type)
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             attr()->scratchpad_mode_ == scratchpad_mode::library
                                     && one_of(attr()->output_scales_.mask_, 0,
-                                            1 << 1))
-                    && IMPLICATION(
-                            attr_info_.with_eltwise && attr_info_.with_sum,
-                            attr_info_.sum_idx == 0
-                                    && attr_info_.eltwise_idx == 1);
+                                            1 << 1));
+
             if (!ok) return unimplemented;
 
             // XXX: Empty attributes increase chances of creating a gemm
@@ -142,6 +151,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             // Current implementation computes attr - related things in the post
             // process kernel.
             primitive_attr_t gemm_attr;
+            is_int8_ = weights_md()->data_type == s8;
 
             const auto &wmd = *this->weights_md();
             bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
@@ -151,11 +161,13 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             const int ic_total = this->IC_total_padded();
 
             bool gemm_ok = status::success
-                    == create_gemm_x8s8s32x_pd(gemm_pd_, engine,
+                    == create_gemm_post_ops_pd(gemm_pd_, engine,
                             wei_tr ? transpose::trans : transpose::notrans,
                             transpose::notrans, oc, mb, ic_total,
                             wei_tr ? ic_total : oc, ic_total, oc,
-                            weights_md()->data_type, src_md()->data_type, s32,
+                            weights_md()->data_type, src_md()->data_type,
+                            weights_md()->data_type == s8 ? s32
+                                                          : dst_md()->data_type,
                             gemm_attr);
             if (!gemm_ok) return status::unimplemented;
 
@@ -170,15 +182,17 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
         }
 
         bool with_post_process() const {
-            return use_scratchpad() || dst_md()->data_type != data_type::s32
+            return use_scratchpad()
+                    || (is_int8_ && dst_md()->data_type != data_type::s32)
                     || with_bias() || attr_info_.with_oscales
-                    || attr_info_.with_eltwise || attr_info_.with_sum;
+                    || attr_info_.with_eltwise || attr_info_.with_binary
+                    || attr_info_.with_sum;
         }
         bool use_scratchpad() const { return use_temp_dst(); }
 
         bool use_temp_dst() const {
             using namespace data_type;
-            return !utils::one_of(dst_md()->data_type, s32, f32)
+            return (is_int8_ && !utils::one_of(dst_md()->data_type, s32, f32))
                     || attr_info_.with_sum;
         }
         const memory_desc_t *ip_scratchpad_md() const {
@@ -188,7 +202,8 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
 
         status_t init_ip_scratchpad_md() {
             if (use_scratchpad()) {
-                ip_scratchpad_md_.data_type = data_type::s32;
+                ip_scratchpad_md_.data_type
+                        = is_int8_ ? data_type::s32 : dst_md()->data_type;
                 ip_scratchpad_md_.ndims = 1;
                 ip_scratchpad_md_.dims[0] = 0;
 
@@ -218,7 +233,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
 
         memory_desc_t scales_md_;
         memory_desc_t ip_scratchpad_md_;
-
+        bool is_int8_ = false;
         attr_info_t attr_info_ = {};
 
     private:
@@ -238,7 +253,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
         }
     };
 
-    gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
+    gemm_post_ops_inner_product_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
@@ -253,14 +268,20 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
 
             kernel_ctx.define_int("MB", mb);
             kernel_ctx.define_int("OC", oc);
-
-            kernel_ctx.set_data_type(data_type::f32);
-            def_data_type(kernel_ctx, data_type::s32, "SRC");
-            def_data_type(kernel_ctx, data_type::f32, "ACC");
+            bool int8 = pd()->is_int8_;
+            kernel_ctx.set_data_type(
+                    int8 ? data_type::f32 : pd()->src_md()->data_type);
             def_data_type(kernel_ctx,
-                    pd()->with_bias() ? pd()->weights_md(1)->data_type
-                                      : data_type::f32,
+                    int8 ? data_type::s32 : pd()->dst_md()->data_type, "SRC");
+            def_data_type(kernel_ctx,
+                    int8 ? data_type::f32 : pd()->dst_md()->data_type, "ACC");
+            def_data_type(kernel_ctx,
+                    pd()->with_bias()
+                            ? pd()->weights_md(int8 ? 1 : 0)->data_type
+                            : int8 ? data_type::f32 : pd()->dst_md()->data_type,
                     "BIAS");
+            def_data_type(kernel_ctx,
+                    int8 ? data_type::s32 : pd()->dst_md()->data_type, "SPAD");
             def_data_type(kernel_ctx, pd()->dst_md()->data_type, "DST");
 
             kernel_ctx.define_int("USE_TEMP_DST", pd()->use_temp_dst());
@@ -270,7 +291,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             def_attr_info(kernel_ctx, pd()->attr_info_);
 
             create_kernel(engine, &post_process_kernel_,
-                    "gemm_x8s8s32x_inner_product_post_process", kernel_ctx);
+                    "gemm_post_ops_inner_product", kernel_ctx);
             if (!post_process_kernel_) return status::runtime_error;
         }
 

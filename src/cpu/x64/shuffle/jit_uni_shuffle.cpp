@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -106,18 +106,22 @@ void jit_uni_shuffle_kernel_t<isa, 4, 3>::generate() {
     static constexpr int data_type_size = 4;
     static constexpr int blk_size = 16;
     static constexpr int offset_data_type_size = 4;
-    static constexpr int xmm_max = cpu_isa_traits<isa>::n_vregs;
+    static constexpr int xmm_max_avx = cpu_isa_traits<avx>::n_vregs;
+    // In case AVX512DQ is not available, due to usage of vpinsrd instruction,
+    // xmm_max has to be limited to avx's xmm_max.
+    static const int xmm_max = !mayiuse(avx512_core)
+            ? xmm_max_avx
+            : cpu_isa_traits<isa>::n_vregs;
     static constexpr int step_size = 4;
     static constexpr int unit_size = 4;
-
     const size_t C = this->pd_->C();
     const auto C_over_grps = utils::div_up(C, group_size);
     const auto stride = C_over_grps * data_type_size;
 
     const Reg32 load_registers_32[4]
-            = {this->ebx, this->ecx, this->edx, this->esi};
+            = {this->ebx, this->eax, this->edx, this->esi};
     const Reg64 load_registers_64[4]
-            = {this->rbx, this->rcx, this->rdx, this->rsi};
+            = {this->rbx, this->rax, this->rdx, this->rsi};
 
     for (int i = 0; i < 4; i++)
         this->xor_(load_registers_64[i], load_registers_64[i]);

@@ -36,6 +36,12 @@
 #if SRC1_DT_S8
 #define SRC1_BLOCK_READ(src) \
     as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ2(src) \
+    as_char2(intel_sub_group_block_read_uc2((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ4(src) \
+    as_char4(intel_sub_group_block_read_uc4((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ8(src) \
+    as_char8(intel_sub_group_block_read_uc8((const __global uchar *)(src)))
 #endif // SRC_DT_S8
 
 #if SRC0_DT_U8
@@ -52,6 +58,12 @@
 #if SRC1_DT_U8
 #define SRC1_BLOCK_READ(src) \
     as_uchar(intel_sub_group_block_read_uc((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ2(src) \
+    as_uchar2(intel_sub_group_block_read_uc2((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ4(src) \
+    as_uchar4(intel_sub_group_block_read_uc4((const __global uchar *)(src)))
+#define SRC1_BLOCK_READ8(src) \
+    as_uchar8(intel_sub_group_block_read_uc8((const __global uchar *)(src)))
 #endif // SRC1_DT_U8
 
 #if SRC0_DT_F16
@@ -68,6 +80,12 @@
 #if SRC1_DT_F16
 #define SRC1_BLOCK_READ(src) \
     as_half(intel_sub_group_block_read_us((const __global ushort *)(src)))
+#define SRC1_BLOCK_READ2(src) \
+    as_half2(intel_sub_group_block_read_us2((const __global ushort *)(src)))
+#define SRC1_BLOCK_READ4(src) \
+    as_half4(intel_sub_group_block_read_us4((const __global ushort *)(src)))
+#define SRC1_BLOCK_READ8(src) \
+    as_half8(intel_sub_group_block_read_us8((const __global ushort *)(src)))
 #endif // SRC1_DT_F16
 
 #if SRC0_DT_S32
@@ -84,6 +102,12 @@
 #if SRC1_DT_S32
 #define SRC1_BLOCK_READ(src) \
     as_int(intel_sub_group_block_read((const __global uint *)(src)))
+#define SRC1_BLOCK_READ2(src) \
+    as_int2(intel_sub_group_block_read2((const __global uint *)(src)))
+#define SRC1_BLOCK_READ4(src) \
+    as_int4(intel_sub_group_block_read4((const __global uint *)(src)))
+#define SRC1_BLOCK_READ8(src) \
+    as_int8(intel_sub_group_block_read8((const __global uint *)(src)))
 #endif // SRC1_DT_S32
 
 #if SRC0_DT_F32
@@ -100,6 +124,12 @@
 #if SRC1_DT_F32
 #define SRC1_BLOCK_READ(src) \
     as_float(intel_sub_group_block_read((const __global uint *)(src)))
+#define SRC1_BLOCK_READ2(src) \
+    as_float2(intel_sub_group_block_read2((const __global uint *)(src)))
+#define SRC1_BLOCK_READ4(src) \
+    as_float4(intel_sub_group_block_read4((const __global uint *)(src)))
+#define SRC1_BLOCK_READ8(src) \
+    as_float8(intel_sub_group_block_read8((const __global uint *)(src)))
 #endif // SRC1_DT_F32
 
 #if SRC0_DT_BF16
@@ -116,6 +146,12 @@
 #if SRC1_DT_BF16
 #define SRC1_BLOCK_READ(src) \
     as_ushort(intel_sub_group_block_read_us((const __global ushort *)(src)))
+#define SRC1_BLOCK_READ2(src) \
+    as_ushort2(intel_sub_group_block_read_us2((const __global ushort *)(src)))
+#define SRC1_BLOCK_READ4(src) \
+    as_ushort4(intel_sub_group_block_read_us4((const __global ushort *)(src)))
+#define SRC1_BLOCK_READ8(src) \
+    as_ushort8(intel_sub_group_block_read_us8((const __global ushort *)(src)))
 #endif // SRC1_DT_BF16
 
 #if DST_DT_S8
@@ -232,6 +268,8 @@
     intel_sub_group_block_write_us8((__global ushort *)(dst), as_ushort8(val))
 #endif // SRC_DT_F16
 
+#if !IS_NCX_LAYOUT
+
 KERNEL_ATTR
 __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         __global SRC1_DATA_T *src1, __global DATA_T *dst POST_OP_ARGS,
@@ -296,6 +334,8 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     d = max(tmp_src0, tmp_src1);
 #elif IS_MIN
     d = min(tmp_src0, tmp_src1);
+#elif IS_DIV
+    d = tmp_src0 / tmp_src1;
 #endif
 
 #if WITH_SUM
@@ -335,3 +375,144 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     DST_BLOCK_WRITE8(&dst[0], TO_DST8(d));
 #endif
 }
+
+#else // #if !IS_NCX_LAYOUT
+
+KERNEL_ATTR
+__kernel void gen9_binary(__global SRC0_DATA_T *src0,
+        __global SRC1_DATA_T *src1, __global DATA_T *dst POST_OP_ARGS,
+        float src0_scale, float src1_scale) {
+
+    int dims0[6] = {0};
+
+    unsigned mid_dim = GWS_GET_MIXED_DIM();
+    dims0[5] = mid_dim % DST_D5;
+    mid_dim /= DST_D5;
+    dims0[4] = mid_dim % DST_D4;
+    mid_dim /= DST_D4;
+    dims0[3] = mid_dim % DST_D3;
+    mid_dim /= DST_D3;
+    dims0[2] = mid_dim % DST_D2;
+    mid_dim /= DST_D2;
+    dims0[1] = mid_dim % DST_D1;
+    mid_dim /= DST_D1;
+    dims0[0] = mid_dim;
+
+    int src0_off = SRC0_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    src0 += src0_off;
+
+    int src1_off = SRC1_OFF(dims0[0] * (!BCAST_DIM0), dims0[1] * (!BCAST_DIM1),
+            dims0[2] * (!BCAST_DIM2), dims0[3] * (!BCAST_DIM3),
+            dims0[4] * (!BCAST_DIM4), dims0[5] * (!BCAST_DIM5));
+    src1 += src1_off;
+
+    int dst_off = DST_OFF(
+            dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
+    dst += dst_off;
+
+#if WITH_SRC0_SCALE
+#define src0_scale_val src0_scale
+#else
+#define src0_scale_val 1
+#endif
+#if WITH_SRC1_SCALE
+#define src1_scale_val src1_scale
+#else
+#define src1_scale_val 1
+#endif
+
+#define READ_DATA(size, name, source_ptr, dest_ptr, scale) \
+    { \
+        unsigned offset = 0; \
+        unroll_for(unsigned j8 = 0; j8 < size / 8; ++j8) { \
+            *((float8 *)(dest_ptr + offset)) = scale \
+                    * CONVERT_FLOAT8_T(CONCAT2(name, _BLOCK_READ8)( \
+                            (source_ptr + offset * SUB_GROUP_SIZE))); \
+            offset += 8; \
+        } \
+        if ((size % 8) / 4) { \
+            *((float4 *)(dest_ptr + offset)) = scale \
+                    * CONVERT_FLOAT4_T(CONCAT2(name, _BLOCK_READ4)( \
+                            (source_ptr + offset * SUB_GROUP_SIZE))); \
+            offset += 4; \
+        } \
+        if ((size % 4) / 2) { \
+            *((float2 *)(dest_ptr + offset)) = scale \
+                    * CONVERT_FLOAT2_T(CONCAT2(name, _BLOCK_READ2)( \
+                            (source_ptr + offset * SUB_GROUP_SIZE))); \
+            offset += 2; \
+        } \
+        if ((size % 2)) { \
+            *((float *)(dest_ptr + offset)) = scale \
+                    * CONVERT_FLOAT_T(CONCAT2(name, _BLOCK_READ)( \
+                            (source_ptr + offset * SUB_GROUP_SIZE))); \
+        } \
+    }
+
+    float tmp_src0[NVECT];
+    READ_DATA(NVECT, SRC0, (&src0[0]), (&tmp_src0[0]), src0_scale_val);
+
+#if BCAST_AT_INNERMOST_DIM
+    float tmp_src1[1];
+    tmp_src1[0] = src1_scale_val * CONVERT_FLOAT_T(src1[0]);
+#define SRC1_IDX_MASK 0
+#else
+    float tmp_src1[NVECT];
+    READ_DATA(NVECT, SRC1, (&src1[0]), (&tmp_src1[0]), src1_scale_val);
+#define SRC1_IDX_MASK 1
+#endif
+
+    float tmp[NVECT];
+    unroll_for(unsigned idx = 0; idx < NVECT; ++idx) {
+#if IS_ADD
+        tmp[idx] = tmp_src0[idx] + tmp_src1[idx * SRC1_IDX_MASK];
+#elif IS_MUL
+        tmp[idx] = tmp_src0[idx] * tmp_src1[idx * SRC1_IDX_MASK];
+#elif IS_MAX
+        tmp[idx] = max(tmp_src0[idx], tmp_src1[idx * SRC1_IDX_MASK]);
+#elif IS_MIN
+        tmp[idx] = min(tmp_src0[idx], tmp_src1[idx * SRC1_IDX_MASK]);
+#elif IS_DIV
+        tmp[idx] = tmp_src0[idx] / tmp_src1[idx * SRC1_IDX_MASK];
+#endif
+    }
+
+    float dst_data[NVECT];
+#if WITH_SUM
+    READ_DATA(NVECT, DST, (&dst[0]), (&dst_data[0]), 1);
+#endif
+    APPLY_POST_OPS(tmp, float, dst_data, float, dims0[0], 1, dims0[1], 1,
+            dims0[2], 1, dims0[3], 1, dims0[4], 1, dims0[5], 1);
+
+#define WRITE_DATA(size, name, source_ptr, dest_ptr) \
+    { \
+        unsigned offset = 0; \
+        unroll_for(unsigned j8 = 0; j8 < size / 8; ++j8) { \
+            CONCAT2(name, _BLOCK_WRITE8) \
+            ((dest_ptr + offset * SUB_GROUP_SIZE), \
+                    TO_DST8(*((float8 *)(source_ptr + offset)))); \
+            offset += 8; \
+        } \
+        if ((size % 8) / 4) { \
+            CONCAT2(name, _BLOCK_WRITE4) \
+            ((dest_ptr + offset * SUB_GROUP_SIZE), \
+                    TO_DST4(*((float4 *)(source_ptr + offset)))); \
+            offset += 4; \
+        } \
+        if ((size % 4) / 2) { \
+            CONCAT2(name, _BLOCK_WRITE2) \
+            ((dest_ptr + offset * SUB_GROUP_SIZE), \
+                    TO_DST2(*((float2 *)(source_ptr + offset)))); \
+            offset += 2; \
+        } \
+        if ((size % 2)) { \
+            CONCAT2(name, _BLOCK_WRITE) \
+            ((dest_ptr + offset * SUB_GROUP_SIZE), \
+                    TO_DST(*((float *)(source_ptr + offset)))); \
+        } \
+    }
+    WRITE_DATA(NVECT, DST, (&tmp[0]), (&dst[0]));
+}
+
+#endif // #if !IS_NCX_LAYOUT

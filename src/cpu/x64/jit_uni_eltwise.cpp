@@ -23,8 +23,8 @@
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_uni_eltwise.hpp"
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
 #define GET_OFF(field) offsetof(jit_args_t, field)
 
@@ -422,11 +422,13 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::execute(
 }
 
 template struct jit_uni_eltwise_fwd_t<sse41, data_type::f32>;
+template struct jit_uni_eltwise_fwd_t<avx, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx2, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx512_common, data_type::f32>;
 template struct jit_uni_eltwise_fwd_t<avx512_core, data_type::bf16>;
 
 template struct jit_uni_eltwise_bwd_t<sse41, data_type::f32>;
+template struct jit_uni_eltwise_bwd_t<avx, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx2, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx512_common, data_type::f32>;
 template struct jit_uni_eltwise_bwd_t<avx512_core, data_type::bf16>;

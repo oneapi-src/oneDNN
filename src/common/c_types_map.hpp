@@ -112,6 +112,7 @@ const alg_kind_t binary_add = dnnl_binary_add;
 const alg_kind_t binary_mul = dnnl_binary_mul;
 const alg_kind_t binary_max = dnnl_binary_max;
 const alg_kind_t binary_min = dnnl_binary_min;
+const alg_kind_t binary_div = dnnl_binary_div;
 const alg_kind_t resampling_nearest = dnnl_resampling_nearest;
 const alg_kind_t resampling_linear = dnnl_resampling_linear;
 const alg_kind_t reduction_max = dnnl_reduction_max;
@@ -170,6 +171,20 @@ const format_tag_t abc = dnnl_abc;
 const format_tag_t abcd = dnnl_abcd;
 const format_tag_t abcde = dnnl_abcde;
 const format_tag_t abcdef = dnnl_abcdef;
+const format_tag_t abcdefg = dnnl_abcdefg;
+const format_tag_t abcdefgh = dnnl_abcdefgh;
+const format_tag_t abcdefghi = dnnl_abcdefghi;
+const format_tag_t abcdefghij = dnnl_abcdefghij;
+const format_tag_t abcdefghijk = dnnl_abcdefghijk;
+const format_tag_t abcdefghijkl = dnnl_abcdefghijkl;
+const format_tag_t abcdefghijlk = dnnl_abcdefghijlk;
+const format_tag_t abcdefghikj = dnnl_abcdefghikj;
+const format_tag_t abcdefghji = dnnl_abcdefghji;
+const format_tag_t abcdefgih = dnnl_abcdefgih;
+const format_tag_t abcdefhg = dnnl_abcdefhg;
+const format_tag_t abcdegf = dnnl_abcdegf;
+const format_tag_t abcdfe = dnnl_abcdfe;
+const format_tag_t abced = dnnl_abced;
 const format_tag_t abdc = dnnl_abdc;
 const format_tag_t acbd = dnnl_acbd;
 const format_tag_t abdec = dnnl_abdec;
@@ -614,6 +629,8 @@ const memory_extra_flags_t compensation_conv_s8s8
 const memory_extra_flags_t scale_adjust = dnnl_memory_extra_flag_scale_adjust;
 const memory_extra_flags_t gpu_rnn_u8s8_compensation
         = dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation;
+const memory_extra_flags_t compensation_conv_asymmetric_src
+        = dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
 } // namespace memory_extra_flags
 
 using engine_kind_t = dnnl_engine_kind_t;

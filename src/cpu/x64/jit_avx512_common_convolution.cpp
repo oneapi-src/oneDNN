@@ -1372,8 +1372,10 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
             int ddst_offset = diff_dst_offset(g, i_mb, i_od, i_oh, i_ow, i_oc);
             int s_off_base = src_offset(g, i_mb, i_id, i_ih, 0, i_iw);
             int dwei_off_base = diff_weights_offset(g, i_kd, i_kh, 0, 0, i_oc);
+            // ensure all parameters are 64bit, to comply with windows kernel
+            // param access where the params from 5th are passed using stack.
             (*kernel_)(&diff_wei[dwei_off_base], &ti->src[s_off_base],
-                    &ti->diff_dst[ddst_offset], i_iw, i_ow);
+                    &ti->diff_dst[ddst_offset], (dim_t)i_iw, (dim_t)i_ow);
         }
         nd_iterator_step(
                 i_mb, jcp.mb, i_od, jcp.od, i_oh, jcp.oh, i_owb, jcp.nb_ow);

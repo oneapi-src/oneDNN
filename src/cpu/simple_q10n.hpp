@@ -19,6 +19,8 @@
 
 #include <assert.h>
 
+#include <cmath>
+
 #include "common/c_types_map.hpp"
 #include "common/math_utils.hpp"
 #include "common/nstl.hpp"
@@ -37,13 +39,33 @@ saturate(const acc_t &x) {
     return v;
 }
 
+// This template breaks in two: one with fp acc_t, another one with integral
+// acc_t. This has to exist to compile on Windows due to lack of
+// isnan(IntegralType) in MSVC.
 template <typename data_t, typename acc_t>
 inline typename utils::enable_if<nstl::is_integral<data_t>::value,
-        typename utils::remove_reference<acc_t>::type>::type
+        typename utils::enable_if<!nstl::is_integral<acc_t>::value,
+                typename utils::remove_reference<acc_t>::type>::type>::type
 saturate(const acc_t &x) {
     acc_t v = x;
     acc_t lbound = (acc_t)nstl::numeric_limits<data_t>::lowest();
     acc_t ubound = (acc_t)nstl::numeric_limits<data_t>::max();
+
+    // isnan(v) should present to properly saturate on v == -NAN
+    if (v < lbound || (std::isnan(v) && std::signbit(v))) v = lbound;
+    if (v > ubound) v = ubound;
+    return v;
+}
+
+template <typename data_t, typename acc_t>
+inline typename utils::enable_if<nstl::is_integral<data_t>::value,
+        typename utils::enable_if<nstl::is_integral<acc_t>::value,
+                typename utils::remove_reference<acc_t>::type>::type>::type
+saturate(const acc_t &x) {
+    acc_t v = x;
+    acc_t lbound = (acc_t)nstl::numeric_limits<data_t>::lowest();
+    acc_t ubound = (acc_t)nstl::numeric_limits<data_t>::max();
+
     if (v < lbound) v = lbound;
     if (v > ubound) v = ubound;
     return v;

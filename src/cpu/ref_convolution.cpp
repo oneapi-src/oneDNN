@@ -32,8 +32,8 @@ namespace cpu {
 using math::get_bias;
 
 namespace {
-dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb, dim_t c,
-        dim_t id, dim_t ih, dim_t iw) {
+inline dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb,
+        dim_t c, dim_t id, dim_t ih, dim_t iw) {
     switch (ndims) {
         case 5: return mdw.off(mb, c, id, ih, iw);
         case 4: return mdw.off(mb, c, ih, iw);
@@ -42,7 +42,7 @@ dim_t get_data_off(const memory_desc_wrapper &mdw, int ndims, dim_t mb, dim_t c,
     }
 }
 
-dim_t get_weights_off(const memory_desc_wrapper &mdw, bool with_groups,
+inline dim_t get_weights_off(const memory_desc_wrapper &mdw, bool with_groups,
         int ndims, dim_t g, dim_t oc, dim_t ic, dim_t kd, dim_t kh, dim_t kw) {
     switch (ndims) {
         case 5:
@@ -417,13 +417,15 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
             for_(dim_t kd = 0; kd < KD; ++kd)
             for (dim_t kh = 0; kh < KH; ++kh) {
                 // Note: placing these 2 params outside the `kw-loop` because
-                // of a compiler-generated bug.
-                dim_t od = id - kd * KDD + padFront;
-                const dim_t weights_off = oc * weights_oc_stride
+                // of a compiler-generated bug. Declaring 'od' as volatile
+                // fixes a recurring seg-fault.
+                const volatile dim_t od_ = id - kd * KDD + padFront;
+                const dim_t weights_off_ = oc * weights_oc_stride
                         + kd * weights_kd_stride + kh * weights_kh_stride;
                 for (dim_t kw = 0; kw < KW; ++kw) {
                     dim_t ow = iw - kw * KDW + padL;
                     dim_t oh = ih - kh * KDH + padT;
+                    dim_t od = od_;
                     if (ow < 0 || oh < 0 || od < 0 || ow % KSW != 0
                             || oh % KSH != 0 || od % KSD != 0)
                         continue;
@@ -433,9 +435,9 @@ status_t ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
                     if (od >= OD || oh >= OH || ow >= OW) continue;
                     const dim_t diff_dst_off = oc + od * diff_dst_od_stride
                             + oh * diff_dst_oh_stride + ow * diff_dst_ow_stride;
-                    const dim_t weights_off_ = weights_off + kw;
+                    const dim_t weights_off = weights_off_ + kw;
                     d += (acc_data_t)diff_dst_loc[diff_dst_off]
-                            * weights_loc[weights_off_];
+                            * weights_loc[weights_off];
                 }
             }
         }

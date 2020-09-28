@@ -46,7 +46,7 @@ status_t dnnl_sycl_interop_primitive_execute(
 
     // run primitive
     exec_args_t exec_args;
-    CHECK(cvt_primtive_args(
+    CHECK(cvt_primitive_args(
             primitive_iface->pd()->impl().get(), nargs, args, exec_args));
 
     exec_ctx_t ctx(sycl_stream, std::move(exec_args));

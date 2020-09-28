@@ -141,7 +141,7 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
         if (arg == DNNL_ARG_SCALE_SHIFT && use_scaleshift())
             return arg_usage_t::input;
 
-        if (arg == DNNL_ARG_WORKSPACE && is_training() && fuse_norm_relu())
+        if (arg == DNNL_ARG_WORKSPACE && !types::is_zero_md(workspace_md()))
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
@@ -177,8 +177,7 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
     }
 
     const memory_desc_t *workspace_md(int index = 0) const override {
-        return index == 0 && is_training() && fuse_norm_relu() ? &ws_md_
-                                                               : &glob_zero_md;
+        return index == 0 ? &ws_md_ : &glob_zero_md;
     }
 
     const memory_desc_t *stat_md() const {
@@ -189,7 +188,8 @@ struct batch_normalization_fwd_pd_t : public batch_normalization_pd_t {
         return 1 + 2 * stats_is_src() + use_scaleshift();
     }
     int n_outputs() const override {
-        return 1 + (fuse_norm_relu() + 2 * (!stats_is_src())) * is_training();
+        return 1 + !types::is_zero_md(workspace_md())
+                + (2 * (!stats_is_src())) * is_training();
     }
 
 protected:
@@ -218,7 +218,7 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
         if (arg == DNNL_ARG_SCALE_SHIFT && use_scaleshift())
             return arg_usage_t::input;
 
-        if (arg == DNNL_ARG_WORKSPACE && fuse_norm_relu())
+        if (arg == DNNL_ARG_WORKSPACE && !types::is_zero_md(workspace_md()))
             return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DIFF_SRC) return arg_usage_t::output;
@@ -260,13 +260,13 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
     }
 
     const memory_desc_t *workspace_md(int index = 0) const override {
-        return index == 0 && fuse_norm_relu() ? &ws_md_ : &glob_zero_md;
+        return index == 0 ? &ws_md_ : &glob_zero_md;
     }
 
     const memory_desc_t *stat_md() const { return src_md(1); }
 
     int n_inputs() const override {
-        return 4 + use_scaleshift() + fuse_norm_relu();
+        return 4 + (!types::is_zero_md(workspace_md())) + use_scaleshift();
     }
     int n_outputs() const override {
         return 1 + (!types::is_zero_md(diff_weights_md()));

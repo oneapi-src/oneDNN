@@ -145,6 +145,7 @@ status_t ocl_gpu_device_info_t::init_attributes() {
 
     // Assume 7 threads by default
     int32_t threads_per_eu = 7;
+
     switch (gpu_arch_) {
         case compute::gpu_arch_t::gen9:
         case compute::gpu_arch_t::gen12lp: threads_per_eu = 7; break;

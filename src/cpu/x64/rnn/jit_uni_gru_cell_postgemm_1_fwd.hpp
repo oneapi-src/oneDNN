@@ -73,7 +73,7 @@ protected:
         Reg64 loop_cnt(rbx); // loop counter
 
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        Vmm G0(1), G1(2), tmp1_vmm(3);
+        Vmm G0(1), G1(2), tmp1_vmm(3), tmp2_vmm(4);
 
         // We start code generations here
         preamble();
@@ -121,6 +121,9 @@ protected:
         {
             // Compute gate 0: G0 = sigmoid(G0 + b0)
             uni_vmovups(G0, sg_addr(0));
+            // dequantize gate from s32 to f32 if needed
+            if (src_data_t == data_type::u8)
+                deq_w(G0, tmp1_vmm, tmp2_vmm, 0, true);
             uni_vmovups(tmp1_vmm, B_addr(0));
             uni_vaddps(G0, G0, tmp1_vmm);
             sigmoid_injector_->compute_vector(G0.getIdx());
@@ -130,6 +133,9 @@ protected:
 
             // Compute gate 1:  G1 = sigmoid(G1 + b1)
             uni_vmovups(G1, sg_addr(1));
+            // dequantize gate from s32 to f32 if needed
+            if (src_data_t == data_type::u8)
+                deq_w(G1, tmp1_vmm, tmp2_vmm, 1, true);
             uni_vmovups(tmp1_vmm, B_addr(1));
             uni_vaddps(G1, G1, tmp1_vmm);
             sigmoid_injector_->compute_vector(G1.getIdx());
@@ -172,10 +178,13 @@ protected:
         {
             // remaping registers to Xmms
             Xmm G0s(G0.getIdx()), G1s(G1.getIdx()),
-                    tmp1s_vmm(tmp1_vmm.getIdx());
+                    tmp1s_vmm(tmp1_vmm.getIdx()), tmp2s_vmm(tmp2_vmm.getIdx());
 
             // Compute gate 0:  G0 = sigmoid(G0 + b0)
             uni_vmovss(G0s, sg_addr(0));
+            // dequantize gate from s32 to f32 if needed
+            if (src_data_t == data_type::u8)
+                deq_w(G0s, tmp1s_vmm, tmp2s_vmm, 0, false);
             uni_vaddss(G0s, G0s, B_addr(0));
             sigmoid_injector_->compute_vector(G0s.getIdx());
             // we store it for use in postgemm_part2
@@ -185,6 +194,9 @@ protected:
 
             // Compute gate 1: G1 = sigmoid(G1 + b1)
             uni_vmovss(G1s, sg_addr(1));
+            // dequantize gate from s32 to f32 if needed
+            if (src_data_t == data_type::u8)
+                deq_w(G1s, tmp1s_vmm, tmp2s_vmm, 1, false);
             uni_vaddss(G1s, G1s, B_addr(1));
             sigmoid_injector_->compute_vector(G1s.getIdx());
             uni_vmovss(sg_addr(1), G1);

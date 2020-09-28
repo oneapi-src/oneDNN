@@ -83,7 +83,8 @@ struct convolution_inner_product_fwd_t : public primitive_t {
                             utils::one_of(desc()->bias_desc.data_type, u8, s8,
                                     bf16, f16, f32))
                     && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_ok(attr())
+                    && post_ops_with_binary_ok(
+                            attr(), desc()->dst_desc.data_type)
                     && IMPLICATION(desc()->src_desc.data_type == f16,
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))

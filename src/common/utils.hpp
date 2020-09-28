@@ -489,9 +489,20 @@ inline int get_dims_mask(const dims_t dims1, const dims_t dims2, int ndims) {
     return mask;
 };
 
-inline void apply_mask_on_dims(dims_t dims, int ndims, int mask) {
+inline void copy_dims_with_mask(
+        dims_t ddims, const dims_t sdims, int ndims, int mask) {
     for (int d = 0; d < ndims; ++d) {
-        dims[d] = (mask & (1 << d)) ? dims[d] : 0;
+        ddims[d] = (mask & (1 << d)) ? sdims[d] : 0;
+    }
+}
+
+inline void apply_mask_on_dims(dims_t dims, int ndims, int mask) {
+    copy_dims_with_mask(dims, dims, ndims, mask);
+}
+
+inline void dim_iterator(const dims_t dims, dims_t indices, int ndims) {
+    while (--ndims >= 0 && ++indices[ndims] >= dims[ndims]) {
+        indices[ndims] = 0;
     }
 }
 

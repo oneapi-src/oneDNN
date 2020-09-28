@@ -52,7 +52,8 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
                     && utils::one_of(src_md()->data_type, data_type::s32,
                             data_type::s8, data_type::u8)
                     && src_md()->data_type == dst_md()->data_type
-                    && attr()->has_default_values()
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && memory_desc_matches_one_of_tag(*src_md(),
                                format_tag::nwc, format_tag::nhwc,
                                format_tag::ndhwc)

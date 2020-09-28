@@ -13,14 +13,13 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-
 #include "cpu/x64/jit_uni_i8i8_pooling.hpp"
-
 #include <math.h>
 
 #include "common/dnnl_thread.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
@@ -46,9 +45,12 @@ using namespace dnnl::impl::utils;
 using namespace dnnl::impl::types;
 using namespace alg_kind;
 
+#define GET_OFF(field) offsetof(call_params_t, field)
+
 struct call_params_t {
     const char *src_i8;
     const char *dst_i8;
+    const void *post_ops_binary_rhs_arg_vec;
     size_t kd_range;
     size_t kh_range;
     size_t kw_range;
@@ -126,6 +128,9 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     Mmx mmx_full_msk = Mmx(
             1); // "avg" - Mmx reg for full mask (all 8 bytes) - used until not in tail
     Mmx mmx_tmp = Mmx(2);
+    jit_pool_conf_t jpp;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
 
     enum : int { max_vidx_base = utils::one_of(isa, sse41, avx2) ? 7 : 2 };
     //"avg" pool uses more registers for unrolling.
@@ -170,7 +175,8 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
         return Mmx(mmx_msk_base_reg + ll);
     }; // ll: 0..4 [Mmx(2)...Mmx(5)]
 
-    jit_pool_conf_t jpp;
+    static bool post_ops_ok(jit_pool_conf_t &jpp, const primitive_attr_t &attr,
+            const memory_desc_wrapper &dst_d);
 
     void init_tmp_reg();
     void init_mask();
@@ -199,7 +205,22 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
 
     static status_t init_conf(jit_pool_conf_t &jpp, const pooling_pd_t *ppd);
 
-    jit_uni_i8i8_pooling_fwd_ker_t(const jit_pool_conf_t &jpp_) : jpp(jpp_) {}
+    jit_uni_i8i8_pooling_fwd_ker_t(
+            const jit_pool_conf_t &jpp_, const memory_desc_t *dst_md)
+        : jpp(jpp_), postops_injector_(nullptr) {
+
+        if (jpp.with_postops) {
+            postops_injector_ = utils::make_unique<
+                    injector::jit_uni_postops_injector_t<isa>>(this,
+                    jpp.post_ops,
+                    binary_injector::static_params_t(reg_param,
+                            binary_injector::rhs_arg_static_params_t {0, rax,
+                                    r14, true /*preserve gpr*/,
+                                    true /*preserve vmm*/,
+                                    GET_OFF(post_ops_binary_rhs_arg_vec),
+                                    memory_desc_wrapper(*dst_md)}));
+        }
+    }
 };
 
 template <>
@@ -728,7 +749,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::store_dst_avg_op(
 
     switch (jpp.dst_dt) {
         case s32: vmovups(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
-        case s8: vpmovdb(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
+        case s8: vpmovsdb(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
         case u8: vpmovusdb(ptr[reg_ptr_dst_i8 + offset], vr_dst); break;
         default: assert(!"unsupported dst data_type");
     }
@@ -920,14 +941,48 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
         jl(l_kd, T_NEAR);
     }
 
+    static constexpr int vlen_size_elem
+            = cpu_isa_traits<isa>::vlen / sizeof(float);
+    const auto reg_tmp_postops = r15;
+    const injector_utils::register_preserve_guard_t reg_guard(this,
+            jpp.with_binary
+                    ? std::initializer_list<Xbyak::Reg64> {reg_tmp_postops}
+                    : std::initializer_list<Xbyak::Reg64> {},
+            {});
+    if (jpp.with_binary) {
+        imul(reg_tmp_postops, c_iter, ur_c * num_ll * vlen_size_elem);
+    }
+
     for (int jj = 0; jj < ur_c; jj++) {
         for (int ll = 0; ll < num_ll; ll++) {
             bool masked = jj == ur_c - 1 && c_tail;
             size_t msk = jpp.tail[ll];
             if (!(masked && !msk)) {
-                uni_vcvtdq2ps(vreg_dst_f32(jj, ll), vreg_dst_s32(jj, ll));
-                uni_vfmadd132ps(vreg_dst_f32(jj, ll), vreg_zeros, vreg_tmp);
-                uni_vcvtps2dq(vreg_dst_s32(jj, ll), vreg_dst_f32(jj, ll));
+                const auto &reg_dst_f32 = vreg_dst_f32(jj, ll);
+                const auto &reg_dst_s32 = vreg_dst_s32(jj, ll);
+                uni_vcvtdq2ps(reg_dst_f32, reg_dst_s32);
+                uni_vfmadd132ps(reg_dst_f32, vreg_zeros, vreg_tmp);
+
+                if (jpp.with_postops) {
+                    binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+                    if (jpp.with_binary) {
+                        rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
+                                reg_dst_f32.getIdx(), reg_tmp_postops);
+                        rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                                reg_dst_f32.getIdx(),
+                                ll * vlen_size_elem + jj * vlen_size_elem);
+                    }
+                    postops_injector_->compute_vector(
+                            reg_dst_f32.getIdx(), rhs_arg_params);
+                }
+
+                uni_vcvtps2dq(reg_dst_s32, reg_dst_f32);
+
+                if (jpp.with_postops)
+                    if (jpp.dst_dt == u8) {
+                        uni_vpmaxsd(reg_dst_s32, reg_dst_s32, vreg_zeros);
+                    }
+
                 store_dst(jj, ll, c_tail);
             }
         }
@@ -1164,6 +1219,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
 
     emms();
     postamble();
+
+    if (jpp.with_eltwise && postops_injector_)
+        postops_injector_->prepare_table();
 }
 
 template <cpu_isa_t isa>
@@ -1174,7 +1232,6 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
     const auto &pd = *ppd->desc();
     const memory_desc_wrapper src_d(ppd->src_md());
     const memory_desc_wrapper dst_d(ppd->dst_md());
-
     const int ndims = src_d.ndims();
     const bool is_1d = ndims == 3;
     const bool is_3d = ndims == 5;
@@ -1272,7 +1329,40 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
         default: return status::unimplemented;
     }
 
+    if (!post_ops_ok(jpp, *ppd->attr(), dst_d)) return status::unimplemented;
+
     return status::success;
+}
+
+template <cpu_isa_t isa>
+bool jit_uni_i8i8_pooling_fwd_ker_t<isa>::post_ops_ok(jit_pool_conf_t &jpp,
+        const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
+    const auto &post_ops = attr.post_ops_;
+    const auto &entries = post_ops.entry_;
+    jpp.with_postops = false;
+    jpp.with_eltwise = false;
+    jpp.with_binary = false;
+
+    for (const auto &entry : entries) {
+        if (entry.is_eltwise()) {
+            jpp.with_eltwise = true;
+        } else if (entry.is_binary()) {
+            jpp.with_binary = true;
+        } else
+            return false;
+    }
+
+    jpp.with_postops = jpp.with_eltwise || jpp.with_binary;
+    jpp.post_ops = post_ops;
+
+    /*
+     * TODO Currently eltwise/binary injectors assumes that data in vmm has f32 dt.
+     * In max pooling data remains in i8 data type.
+     */
+    return IMPLICATION(jpp.with_postops, jpp.alg != pooling_max)
+            && binary_injector::binary_args_broadcast_supported(post_ops, dst_d)
+            && binary_injector::binary_args_tail_supported(
+                    post_ops, dst_d, cpu_isa_traits<isa>::vlen);
 }
 
 template <cpu_isa_t isa>
@@ -1289,8 +1379,9 @@ jit_uni_i8i8_pooling_fwd_t<isa>::~jit_uni_i8i8_pooling_fwd_t() = default;
 
 template <cpu_isa_t isa>
 status_t jit_uni_i8i8_pooling_fwd_t<isa>::init(engine_t *engine) {
-    CHECK(safe_ptr_assign(
-            ker_, new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_)));
+    CHECK(safe_ptr_assign(ker_,
+            new jit_uni_i8i8_pooling_fwd_ker_t<isa>(
+                    pd()->jpp_, pd()->invariant_dst_md())));
     return ker_->create_kernel();
 }
 
@@ -1304,7 +1395,8 @@ void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
     const auto &jpp = pd()->jpp_;
-
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jpp.post_ops, ctx);
     /* Calculate when the memory-access will happen outisde of the memory
      * boundary, if so, compute a safe memory access. */
     const auto src_safe_access = reinterpret_cast<char *>(
@@ -1348,7 +1440,8 @@ void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
                                         : jpp.kd * jpp.kh * jpp.kw);
                 p.src_safe_access = src_safe_access;
                 p.dst_safe_access = dst_safe_access;
-
+                p.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
                 (*ker_)(&p);
             });
 }

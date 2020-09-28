@@ -40,7 +40,7 @@ int8 values. These primitives are:
  * [Convolution](@ref dev_guide_convolution)
  * Int8 GEMMs: dnnl_gemm_s8s8s32() and dnnl_gemm_u8s8s32()
  * [Inner Product](@ref dev_guide_inner_product)
- * [LSTM](@ref dev_guide_rnn)
+ * [RNN](@ref dev_guide_rnn) with LSTM or GRU cell functions
 
 Ideally, the semantics of these operations should be as follows:
  1. **Convert all inputs to s32 data type**.
@@ -137,13 +137,13 @@ u7 `[0, 127]` instead of u8 for the unsigned input, or s7 `[-64, 63]` instead
 of the s8 one. It is worth mentioning that this is required only when the Intel
 AVX2 or Intel AVX512 Instruction Set is used.
 
-The **LSTM** primitive behaves slightly differently than the convolution and
+The **RNN** primitive behaves slightly differently than the convolution and
 inner product primitives, or u8/s8 GEMM. Even though its hidden state is
 represented by the u8 data type, the non-symmetric quantization is assumed.
 Namely, the formula is:
 - \f$data_{f32}[:] = \frac{1}{scale}(data_{u8}[:] - shift)\f$.
 
-But similarly to the other primitives, the LSTM primitive does not handle
+But similarly to the other primitives, the RNN primitive does not handle
 potential overflows automatically. It is up to the user to specify the
 appropriate quantization parameters (see
 dnnl::primitive_attr::set_rnn_data_qparams() and
@@ -276,7 +276,7 @@ the implementations are given below:
    behavior of the latter. The user should consider using the appropriate
    scaling factors to avoid potential issues.
 
-4. The **LSTM** primitive does not support s8/s8 inputs.
+4. The **RNN** primitive does not support s8/s8 inputs.
 
 
 ## GPU

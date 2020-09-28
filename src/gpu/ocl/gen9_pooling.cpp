@@ -31,15 +31,21 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     auto is_c_dense = [](const memory_desc_wrapper &mdw) {
         return mdw.blocking_desc().strides[1] == 1;
     };
-    auto is_16c = [](const memory_desc_wrapper &mdw) {
-        auto &blk = mdw.blocking_desc();
-        if (blk.inner_nblks == 0) return false;
-        return (blk.inner_idxs[blk.inner_nblks - 1] == 1)
-                && (blk.inner_blks[blk.inner_nblks - 1] == 16);
-    };
-    if (!is_16c(src_mdw) && !is_c_dense(src_mdw)) return status::unimplemented;
+    auto is_c_blocked_by
+            = [](const memory_desc_wrapper &mdw, const int blockSize) {
+                  auto &blk = mdw.blocking_desc();
+                  if (blk.inner_nblks == 0) return false;
+                  return (blk.inner_idxs[blk.inner_nblks - 1] == 1)
+                          && (blk.inner_blks[blk.inner_nblks - 1] == blockSize);
+              };
 
-    if (!is_16c(dst_mdw) && !is_c_dense(dst_mdw)) return status::unimplemented;
+    if (!is_c_blocked_by(src_mdw, 16) && !is_c_blocked_by(src_mdw, 32)
+            && !is_c_dense(src_mdw))
+        return status::unimplemented;
+
+    if (!is_c_blocked_by(dst_mdw, 16) && !is_c_blocked_by(dst_mdw, 32)
+            && !is_c_dense(dst_mdw))
+        return status::unimplemented;
 
     set_default_pool_conf(conf, *pd->desc(), *pd->invariant_src_md(),
             *pd->invariant_dst_md(), *pd->attr());
@@ -48,32 +54,42 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     set_offsets(dst_mdw, off.dst_off);
 
     conf.sub_group_size = 16;
-    conf.use_mb_block = false;
-    conf.use_c_block = false;
+    conf.use_mb_c_block = false;
+    conf.use_only_c_block = false;
     int c_padded = utils::rnd_up(conf.c, conf.sub_group_size);
 
     if (src_mdw.matches_one_of_tag(NCw16n16c, NChw16n16c, NCdhw16n16c)) {
-        conf.use_mb_block = true;
+        conf.use_mb_c_block = true;
         conf.vect_dt_n = 8;
         conf.nvect = 2;
+        conf.chunks_per_c_block = 16 / conf.sub_group_size;
+        conf.chunks_per_mb_block
+                = conf.vect_dt_n * conf.nvect / conf.chunks_per_c_block;
+    } else if (src_mdw.matches_one_of_tag(NCw32n32c, NChw32n32c, NCdhw32n32c)) {
+        c_padded = utils::rnd_up(conf.c, 32);
+        conf.use_mb_c_block = true;
+        conf.vect_dt_n = 8;
+        conf.nvect = 1;
+        conf.chunks_per_c_block = 32 / conf.sub_group_size;
+        conf.chunks_per_mb_block
+                = conf.vect_dt_n * conf.nvect / conf.chunks_per_c_block;
     } else {
-        conf.use_c_block = true;
+        conf.use_only_c_block = true;
         const size_t num_c_blocks = c_padded / conf.sub_group_size;
         conf.vect_dt_n = 8;
         while (num_c_blocks % conf.vect_dt_n != 0) {
             conf.vect_dt_n /= 2;
         }
         conf.nvect = 1;
+        conf.chunks_per_c_block = conf.nvect * conf.vect_dt_n;
+        conf.chunks_per_mb_block = 1;
     }
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(
             conf.is_backward ? src_mdw.md_ : dst_mdw.md_);
 
-    int vect_block = conf.nvect * conf.vect_dt_n;
-    conf.dispatch.define_dim(
-            "MB", 0, conf.mb, conf.use_mb_block ? vect_block : 1);
-    conf.dispatch.define_dim(
-            "C", 1, c_padded, conf.use_c_block ? vect_block : 1);
+    conf.dispatch.define_dim("MB", 0, conf.mb, conf.chunks_per_mb_block);
+    conf.dispatch.define_dim("C", 1, c_padded, conf.chunks_per_c_block);
 
     int ndims = conf.ndims;
     if (!conf.is_backward) {
@@ -126,8 +142,12 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("VECT_DT_N", conf.vect_dt_n);
     kernel_ctx.define_int("NVECT", conf.nvect);
-    kernel_ctx.define_int("USE_C_BLOCK", conf.use_c_block);
-    kernel_ctx.define_int("USE_MB_BLOCK", conf.use_mb_block);
+    kernel_ctx.define_int("USE_ONLY_C_BLOCK", conf.use_only_c_block);
+    kernel_ctx.define_int("USE_MB_C_BLOCK", conf.use_mb_c_block);
+    kernel_ctx.define_int("CHUNKS_PER_C_BLOCK", conf.chunks_per_c_block);
+    kernel_ctx.define_int("CHUNKS_PER_MB_BLOCK", conf.chunks_per_mb_block);
+
+    kernel_ctx.add_option("-Dcl_intel_subgroups_char");
 
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
     def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);

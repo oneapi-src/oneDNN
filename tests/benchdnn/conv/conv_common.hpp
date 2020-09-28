@@ -60,9 +60,9 @@ struct desc_t {
 
 private:
     int64_t opp_pad(bool is_deconv, int64_t i, int64_t o, int64_t k, int64_t s,
-            int64_t prb, int64_t d) {
-        return is_deconv ? (i - 1) * s - o + ((k - 1) * (d + 1) + 1) - prb
-                         : (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - prb;
+            int64_t p, int64_t d) {
+        return is_deconv ? (i - 1) * s - o + ((k - 1) * (d + 1) + 1) - p
+                         : (o - 1) * s - i + ((k - 1) * (d + 1) + 1) - p;
     }
 };
 

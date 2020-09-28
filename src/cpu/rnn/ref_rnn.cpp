@@ -571,8 +571,9 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
                 rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
                     for (int j = 0; j < rnn.sic; j++)
                         ws_states_iter(lay + 1, dir, 0, b, j) = (src_data_t)0;
-                    for (int j = 0; j < rnn.dhc; j++)
-                        ws_states_iter_c(lay + 1, dir, 1, b, j) = 0.0f;
+                    if (pd->cell_kind() == alg_kind::vanilla_lstm)
+                        for (int j = 0; j < rnn.dhc; j++)
+                            ws_states_iter_c(lay + 1, dir, 1, b, j) = 0.0f;
                 });
     }
 }
@@ -611,9 +612,10 @@ void copy_init_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
                 rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int i) {
                     for (int j = 0; j < rnn.dic; j++)
                         ws_diff_states_iter(lay, dir, rnn.n_iter, i, j) = 0.0f;
-                    for (int j = 0; j < rnn.dhc; j++)
-                        ws_diff_states_iter_c(lay, dir, rnn.n_iter, i, j)
-                                = 0.0f;
+                    if (pd->cell_kind() == alg_kind::vanilla_lstm)
+                        for (int j = 0; j < rnn.dhc; j++)
+                            ws_diff_states_iter_c(lay, dir, rnn.n_iter, i, j)
+                                    = 0.0f;
                 });
     }
 }
@@ -1154,8 +1156,9 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
                     rnn.ws_diff_states_layer_size / sizeof(gemm_acc_t));
             zero_ws(ithr, nthr, ws_diff_states_iter,
                     rnn.ws_diff_states_iter_size / sizeof(gemm_acc_t));
-            zero_ws(ithr, nthr, ws_diff_states_iter_c,
-                    rnn.ws_diff_states_iter_c_size / sizeof(gemm_acc_t));
+            if (this->pd()->cell_kind() == alg_kind::vanilla_lstm)
+                zero_ws(ithr, nthr, ws_diff_states_iter_c,
+                        rnn.ws_diff_states_iter_c_size / sizeof(gemm_acc_t));
         });
     }
 

@@ -47,6 +47,7 @@ void compute_ref(const prb_t *prb, const dnn_mem_t &src0, const dnn_mem_t &src1,
         }
         maybe_post_ops(
                 prb->attr, res, maybe_saturate(prb->ddt, dst), v_binary_vals);
+        maybe_saturate(prb->ddt, res);
         dst = res;
     });
 }

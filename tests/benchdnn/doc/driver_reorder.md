@@ -27,9 +27,15 @@ where *reorder-knobs* are:
             Example: 0.125, 0.25, 0.5, 1, 2, 4, 8
  - `--alg={reference [default], bootstrap}` -- reorder testing mode. `bootstrap`
             tests memory with weights compensation.
- - `--oflag={none [default], conv_s8s8, gconv_s8s8}` -- memory descriptor extra
-            field specifier. Also sets compensation mask based on the flag
-            value. Only applicable when `--alg=bootstrap`.
+ - `--oflag={none [default], conv_s8s8, gconv_s8s8, conv_zp_comp,
+            gconv_zp_comp}` -- memory descriptor extra field specifier. Also
+            sets compensation mask based on the flag value. Only applicable
+            when `--alg=bootstrap`.
+            Multiple flags can be specified when separated by a ':'. Currently,
+            the only accepted combination is '(g)conv_s8s8:(g)conv_zp_comp'.
+            Note: the '(g)conv_zp_comp' flag is only meant for testing purposes.
+            This is used to insert compensation data during optimized
+            zero-point computation, and is transparent to the user.
  - `--cross-engine={none [default], cpu2gpu, gpu2cpu}` -- defines what kind of
             cross-engine reorder will be used. If `--engine` is set to `cpu`,
             `none` is the only supported value.

@@ -726,10 +726,10 @@ status_t jit_avx512_core_bf16_convolution_bwd_weights_t ::init(
 }
 
 struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
-    const src_data_t *src;
-    const diff_dst_data_t *diff_dst;
-    const void *diff_weights;
-    const void *diff_bias;
+    const src_data_t *src = nullptr;
+    const diff_dst_data_t *diff_dst = nullptr;
+    const void *diff_weights = nullptr;
+    const void *diff_bias = nullptr;
 
     const memory_tracking::grantor_t scratchpad;
 
@@ -738,19 +738,19 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
     simple_barrier::ctx_t *tr_src_bctx = nullptr;
     simple_barrier::ctx_t *tr_diff_dst_bctx = nullptr;
 
-    float *wei_bia_reduction;
-    float *bia_reduction;
-    simple_barrier::ctx_t *wei_bia_reduction_bctx;
+    float *wei_bia_reduction = nullptr;
+    float *bia_reduction = nullptr;
+    simple_barrier::ctx_t *wei_bia_reduction_bctx = nullptr;
 
-    int ithr;
-    int ithr_ic_b, ithr_oc_b, ithr_g, ithr_mb;
-    int ithr_but_oc;
-    int ithr_but_ic;
+    int ithr = 0;
+    int ithr_ic_b = 0, ithr_oc_b = 0, ithr_g = 0, ithr_mb = 0;
+    int ithr_but_oc = 0;
+    int ithr_but_ic = 0;
 
-    int img_start = 0, img_end = 0, img_work;
-    int g_start = 0, g_end = 0, g_work;
-    int oc_b_start = 0, oc_b_end = 0, oc_b_work;
-    int ic_b_start = 0, ic_b_end = 0, ic_b_work;
+    int img_start = 0, img_end = 0, img_work = 0;
+    int g_start = 0, g_end = 0, g_work = 0;
+    int oc_b_start = 0, oc_b_end = 0, oc_b_work = 0;
+    int ic_b_start = 0, ic_b_end = 0, ic_b_work = 0;
 
     thread_info_t(const jit_avx512_core_bf16_convolution_bwd_weights_t *self,
             const exec_ctx_t &ctx, int ithr)
@@ -903,8 +903,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_src_nxc(
             tr_src += tr_src_stride;
         }
         work_rest -= sp_work;
-        sp_work = nstl::min(
-                work_rest, max_spatial_work - spatial_start - icb * sp_work);
+        sp_work = nstl::min(work_rest, max_spatial_work);
         icb++;
         src = src_base + icb * chb_stride;
     }
@@ -971,8 +970,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::trans_dst_nxc(
             tr_diff_dst += tr_diff_dst_stride;
         }
         work_rest -= sp_work;
-        sp_work = nstl::min(
-                work_rest, max_spatial_work - spatial_start - ocb * sp_work);
+        sp_work = nstl::min(work_rest, max_spatial_work);
         ocb++;
         diff_dst = diff_dst_base + ocb * chb_stride;
     }
@@ -990,6 +988,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
     const int wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block * jcp.nb_ic
             * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
     const int bias_buf_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
+    const int optimal_hblock = jcp.spatial_blk_size;
 
     float *diff_wei;
     if (diff_weights_d.data_type() == data_type::bf16)
@@ -1014,37 +1013,6 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
         return tr_diff_dst_buf_number(ti, g, oc) * jcp.tr_diff_dst_buf_size
                 + oj * tr_row_size;
     };
-
-    int optimal_hblock = jcp.oh;
-    if (!jcp.global_transpose) {
-        optimal_hblock = 1; // default value, works best most of the times
-
-        // Diff_weights computation can be roughly broken down into
-        // the following three steps
-        // = [Src transform*] + [Diff_dst transform] + [Weights computation]
-        //
-        // where the bottleneck lies with diff_dst transform which h_blocking
-        // tries to mitigate by avoiding cache thrashing.
-        // *note: Src transform may not always be needed.
-        //
-        // In idealistic scenario, optimal_hblock will be an explicit function
-        // of the following form
-        // optimal_hblock = f(oh, ow, oc)
-        //
-        // though owing to lack of data points w.r.t. 1st convolution shapes it
-        // is approximated by one with few exceptional cases [found by manual
-        // optimization] as written below
-
-        if (utils::one_of(jcp.oh, 149, 300, 224, 512, 608)) {
-            switch (jcp.oh) {
-                case 149: optimal_hblock = 10; break;
-                case 224: optimal_hblock = 56; break;
-                case 300: optimal_hblock = 30; break;
-                case 512: optimal_hblock = 8; break;
-                case 608: optimal_hblock = 10; break;
-            }
-        }
-    }
 
     int img {0}, oh_s {0};
     int start = ti->img_start;
@@ -1251,6 +1219,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
     const int wei_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block * jcp.nb_ic
             * jcp.ic_block * jcp.kh * jcp.kw * jcp.kd;
     const int bias_buf_size = jcp.ngroups * jcp.nb_oc * jcp.oc_block;
+    const int optimal_dblock = jcp.spatial_blk_size;
 
     float *diff_wei;
     if (diff_weights_d.data_type() == data_type::bf16)
@@ -1282,10 +1251,6 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
     int end = ti->img_end;
 
     int ext_kd = calculate_extended_filter_size(jcp.kd, jcp.dilate_d);
-
-    // TODO: optimal_dblock may not be optimal for shapes with intermediate
-    // sizes, especially the ones not belonging to the 1st convolution
-    const int optimal_dblock = 1;
 
     nd_iterator_init(start, img, jcp.mb, od_s, jcp.od);
     while (start < end) {

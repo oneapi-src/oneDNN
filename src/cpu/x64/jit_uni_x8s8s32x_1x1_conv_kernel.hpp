@@ -20,9 +20,9 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -75,6 +75,10 @@ private:
     const Xbyak::Reg64 reg_bcast_loop_iter = rdx;
     const Xbyak::Reg64 reg_load_loop_work = rsi;
     const Xbyak::Reg64 aux_reg_output_data = abi_not_param1;
+    // zero-point computation
+    const Xbyak::Reg64 reg_zp_compensation = aux_reg_load_data; // r15
+    const Xbyak::Reg64 reg_src_zero_point = aux_reg_bcast_data; // r14
+    const Xbyak::Reg64 reg_dst_zero_point = reg_src_zero_point;
 
     const Vmm vmm_tmp = Vmm(3);
     const Vmm vmm_one = Vmm(2);
@@ -89,6 +93,9 @@ private:
     /* used during bias section of store_output */
     const Vmm vmm_comp = Vmm(0); // only for signed input
     const Vmm vmm_bias = Vmm(3);
+    /* zero-point */
+    const Vmm vmm_zp = Vmm(1);
+    const Vmm vmm_zp_comp = Vmm(2);
 
     constexpr static int simd_w = isa == avx2 ? 8 : 4;
     constexpr static int reg64_size = sizeof(int64_t);
@@ -98,7 +105,10 @@ private:
     constexpr static int reg_load_data_off = 3 * reg64_size;
     constexpr static int reg_ptr_sum_scale_off = 4 * reg64_size;
     constexpr static int reg_comp_data_off = 5 * reg64_size;
-    constexpr static int stack_space_needed = 6 * reg64_size;
+    constexpr static int reg_zp_compensation_off = 6 * reg64_size;
+    constexpr static int reg_src_zero_point_off = 7 * reg64_size;
+    constexpr static int reg_dst_zero_point_off = 8 * reg64_size;
+    constexpr static int stack_space_needed = 9 * reg64_size;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);

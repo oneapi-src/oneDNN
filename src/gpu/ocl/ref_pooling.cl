@@ -17,6 +17,17 @@
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
+// these are all supported combinations of different src/dst datatypes
+#if DST_DT_F32
+#define DST_DATA_MIN -FLT_MAX
+#elif DST_DT_S8
+#define DST_DATA_MIN CHAR_MIN
+#elif DST_DT_U8
+#define DST_DATA_MIN 0
+#else
+#define DST_DATA_MIN DATA_MIN
+#endif
+
 #if IS_FWD
 KERNEL_ATTR
 __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
@@ -35,9 +46,9 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
                 float d = 0;
 #endif
 #if ALG_MAX && DT_BF16
-                DEF_ACC_DATA_T d = DATA_MIN;
+                DEF_ACC_DATA_T d = DST_DATA_MIN;
 #elif ALG_MAX // DT_BF16
-                DATA_T d = DATA_MIN;
+                float d = DST_DATA_MIN;
 #endif
                 for (int kd = 0; kd < KD; ++kd)
                     for (int kh = 0; kh < KH; ++kh) {
@@ -59,7 +70,7 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 #if DT_BF16
                             DEF_ACC_DATA_T s = DATA_TO_REF(src[src_off]);
 #else // DT_BF16 == 0
-                            DATA_T s = src[src_off];
+                            float s = DATA_TO_REF(src[src_off]);
 #endif
                             if (s > d) {
                                 d = s;

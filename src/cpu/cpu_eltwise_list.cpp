@@ -41,6 +41,8 @@ const pd_create_f impl_list[] = {
         CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx512_core, bf16>)
         CPU_INSTANCE_X64(jit_uni_eltwise_fwd_t<avx2, f32>)
         CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx2, f32>)
+        CPU_INSTANCE_X64(jit_uni_eltwise_fwd_t<avx, f32>)
+        CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<avx, f32>)
         CPU_INSTANCE_X64(jit_uni_eltwise_fwd_t<sse41, f32>)
         CPU_INSTANCE_X64(jit_uni_eltwise_bwd_t<sse41, f32>)
         CPU_INSTANCE_X64(jit_uni_eltwise_int_fwd_t<avx512_common, s32>)

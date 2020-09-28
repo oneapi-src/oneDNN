@@ -90,6 +90,9 @@ struct attr_info_t {
 
         attr_info.all_post_ops.copy_from(po);
 
+        int binary_idx = po.find(primitive_kind::binary);
+        attr_info.with_binary = (binary_idx != -1);
+
         // Eltwise
         attr_info.eltwise_idx = po.find(primitive_kind::eltwise);
         attr_info.with_eltwise = (attr_info.eltwise_idx != -1);
@@ -171,6 +174,7 @@ struct attr_info_t {
 
     post_ops_t all_post_ops;
 
+    bool with_binary;
     bool with_eltwise;
     int eltwise_idx;
     alg_kind_t eltwise_alg;
@@ -283,6 +287,19 @@ struct conv_conf_t {
     bool is_src_nchw, is_src_nhwc;
     bool is_dst_nhwc;
 
+    int tile_size;
+    int wino_m;
+    int wino_r;
+    int wino_ih, wino_oh;
+    int wino_iw, wino_ow;
+    int wino_ic;
+    int wino_oc;
+    int wino_ic_block;
+    int wino_oc_block;
+    size_t U_gws_d[3], U_lws_d[3];
+    size_t V_gws_d[3], V_lws_d[3];
+    size_t M_gws_d[3], M_lws_d[3];
+
     data_type_t src_data_type;
     data_type_t weights_data_type;
     data_type_t bias_data_type;
@@ -303,7 +320,8 @@ struct pool_conf_t {
     data_type_t dst_dt;
     alg_kind_t alg;
     bool is_training, is_backward;
-    bool use_mb_block, use_c_block;
+    bool use_mb_c_block, use_only_c_block;
+    int chunks_per_c_block, chunks_per_mb_block;
     int vect_dt_n;
     int nvect;
     compute::dispatch_t dispatch;
@@ -476,6 +494,7 @@ struct lnorm_conf_t {
 struct binary_conf_t {
     int ndims, nvect;
     bool use_unroll_16b, src0_unroll_16b;
+    bool is_ncX_layout;
     data_type_t src0_data_type;
     data_type_t src1_data_type;
     data_type_t dst_data_type;
@@ -483,6 +502,7 @@ struct binary_conf_t {
     bool is_add;
     bool is_max;
     bool is_min;
+    bool is_div;
     bool is_tensor_op;
     compute::dispatch_t dispatch;
     int dim0[MAX_NDIMS];
@@ -541,6 +561,8 @@ struct eltwise_conf_t {
     compute::dispatch_t dispatch;
     memory_desc_info_t data_md_info;
     memory_desc_info_t data_diff_md_info;
+
+    attr_info_t attr_info;
 };
 
 // Shuffle
@@ -791,6 +813,7 @@ inline void def_binary_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("BINARY_MUL", alg_kind::binary_mul);
     kernel_ctx.define_int("BINARY_MIN", alg_kind::binary_min);
     kernel_ctx.define_int("BINARY_MAX", alg_kind::binary_max);
+    kernel_ctx.define_int("BINARY_DIV", alg_kind::binary_div);
 }
 
 inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {

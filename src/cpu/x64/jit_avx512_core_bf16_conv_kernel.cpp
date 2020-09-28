@@ -150,14 +150,7 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_dst(int ur_w) {
     }
 
     if (jcp.with_eltwise) {
-        if (ur_w == jcp.ur_w) {
-            eltwise_injector_->compute_vector_range(
-                    0, jcp.nb_oc_blocking * jcp.ur_w);
-        } else {
-            for (int k = 0; k < jcp.nb_oc_blocking; k++)
-                eltwise_injector_->compute_vector_range(
-                        k * jcp.ur_w, k * jcp.ur_w + ur_w);
-        }
+        eltwise_injector_->compute_vector_range(0, jcp.nb_oc_blocking * ur_w);
     }
 
     L(store_label);
@@ -4152,6 +4145,8 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         jcp.transpose_dst = true;
     }
 
+    const bool is_2d = (ndims == 4);
+    const bool is_3d = (ndims == 5);
     jcp.typesize_in = sizeof(bfloat16_t);
     jcp.typesize_out = sizeof(float);
     const dim_t cache_l2
@@ -4177,16 +4172,52 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     // diff_dst tensor enough work must be present in the joint width-height
     // dimension. Finally, there is no blocking along the width dimension
     const bool blocking_ok = large_diff_dst_size
-            && IMPLICATION(jcp.od == 1, jcp.ow >= 124)
-            && IMPLICATION(jcp.od > 1, jcp.ow * jcp.oh >= 64 * 124)
-            && (jcp.od > 1 || jcp.oh > 1);
+            && IMPLICATION(is_2d, jcp.ow >= 124 && jcp.oh > 1)
+            && IMPLICATION(is_3d, jcp.ow * jcp.oh >= 64 * 124 && jcp.od > 1)
+            && (is_2d || is_3d);
 
-    jcp.global_transpose = dnnl_thr_syncable();
     // TODO: Find more shapes (especially 3D with large spatials) for which
-    // local transposition will be beneficial
-    if (jcp.is_1stconv && !nt_stores_ok && blocking_ok)
-        jcp.global_transpose = false;
+    // local transposition will be beneficial. Furthermore, for TBB threads
+    // more shapes can potentially benefit from spatial blocking
+    bool use_spatial_blocking = jcp.is_1stconv && !nt_stores_ok && blocking_ok;
+    int optimal_blk_size = is_3d ? jcp.od : is_2d ? jcp.oh : jcp.ow;
+    if (use_spatial_blocking) {
+        // Default value, works best most of the times
+        // TODO: For 3D shapes with intermediate sizes especially the ones not
+        // belonging to the 1st convolution, we potentially have more scope
+        // for optimization
+        optimal_blk_size = 1;
+
+        // Diff_weights computation can be roughly broken down into
+        // the following three steps
+        // = [Src transform*] + [Diff_dst transform] + [Weights computation]
+        //
+        // where the bottleneck lies with diff_dst transform that spatial
+        // blocking tries to mitigate by avoiding cache thrashing.
+        // *note: Src transform may not always be needed.
+        //
+        // In an idealistic scenario, optimal_blk_size will be an explicit
+        // function of the following form
+        // optimal_blk_size = f(od, oh, ow, oc)
+        //
+        // though owing to lack of data points w.r.t. 1st convolution shapes it
+        // is approximated by one with few exceptional cases [found by manual
+        // optimization] as written below
+
+        if (is_2d && utils::one_of(jcp.oh, 149, 300, 224, 512, 608)) {
+            switch (jcp.oh) {
+                case 149: optimal_blk_size = 10; break;
+                case 224: optimal_blk_size = 56; break;
+                case 300: optimal_blk_size = 30; break;
+                case 512: optimal_blk_size = 8; break;
+                case 608: optimal_blk_size = 10; break;
+            }
+        }
+    }
+
+    jcp.global_transpose = dnnl_thr_syncable() && !use_spatial_blocking;
     jcp.use_nt_stores_ddst = jcp.global_transpose && nt_stores_ok;
+    jcp.spatial_blk_size = optimal_blk_size;
 
     const bool padding_ok = IMPLICATION(!jcp.transpose_src,
             jcp.l_pad < max_ur_w && jcp.r_pad < max_ur_w

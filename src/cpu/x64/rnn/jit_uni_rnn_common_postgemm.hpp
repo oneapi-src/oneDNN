@@ -25,7 +25,7 @@
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
-#include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 
 #include "cpu/rnn/rnn_utils.hpp"
 
@@ -444,6 +444,20 @@ protected:
 #endif
     }
 
+    // dequantize from u8 to float
+    template <typename Vmm>
+    void deq_h(Vmm dst, Xbyak::Address src, int in_len) {
+        if (4 == in_len) {
+            uni_vpinsrb(dst, dst, src, 0x0);
+            uni_vpmovzxbd(dst, dst);
+        } else {
+            uni_vpmovzxbd(dst, src);
+        }
+        uni_vcvtdq2ps(dst, dst);
+        uni_vsubps(dst, dst, dshift_off_addr);
+        uni_vdivps(dst, dst, dscale_off_addr);
+    }
+
     // upconvert from bf16 to float
     template <typename Vmm>
     void bf16_uc(Vmm dst, Xbyak::Address src, int in_len) {
@@ -519,6 +533,7 @@ protected:
                     assert(!"unsupported");
                 break;
             case data_type::bf16: bf16_uc(dst, src, in_len); break;
+            case data_type::u8: deq_h(dst, src, in_len); break;
             default: assert(!"unsupported");
         }
     }

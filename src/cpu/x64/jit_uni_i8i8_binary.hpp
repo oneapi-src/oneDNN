@@ -40,13 +40,13 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
     struct pd_t : public cpu_binary_pd_t {
         using cpu_binary_pd_t::cpu_binary_pd_t;
 
-        DECLARE_COMMON_PD_T("jit:uni", jit_uni_i8i8_binary_t);
+        DECLARE_COMMON_PD_T("jit:uni:i8i8", jit_uni_i8i8_binary_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
-            bool ok = src_md(0)->data_type == src0_type
+            const bool ok = src_md(0)->data_type == src0_type
                     && src_md(1)->data_type == src1_type
                     && dst_md(0)->data_type == src0_type
                     && set_default_params()
@@ -55,7 +55,7 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
                     && memory_desc_wrapper(src_md(0))
                             == memory_desc_wrapper(dst_md(0))
                     && attr()->has_default_values(sm::post_ops | sm::scales)
-                    && attr_post_ops_ok()
+                    && post_ops_ok(attr(), src_md(0))
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask());
             if (!ok) return status::unimplemented;
@@ -101,7 +101,8 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
+    static bool post_ops_ok(
+            const primitive_attr_t *attr, const memory_desc_wrapper &d);
     std::unique_ptr<i8i8_binary_kernel_t> kernel_;
 };
 

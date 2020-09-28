@@ -108,7 +108,7 @@ protected:
     void within_body_reg_blocked(int loop_count, int max_reg_block, int hoff,
             int Hoff, int woff, int Woff, int stride, prop_kind_t pk);
 
-    const bool emulate_bfloat_;
+    const bool emulate_bfloat_ = false;
     const Xbyak::Zmm bf16_emu_reserv_1_ = Xbyak::Zmm(28);
     const Xbyak::Zmm bf16_emu_reserv_2_ = Xbyak::Zmm(29);
     const Xbyak::Reg64 bf16_emu_scratch_ = this->rax;

@@ -42,6 +42,8 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
+
             using namespace alg_kind;
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
@@ -63,7 +65,8 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::f16, data_type::bf16,
                             data_type::s32, data_type::s8, data_type::u8)
-                    && attr()->has_default_values()
+                    && attr()->has_default_values(attr_skip_mask)
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type)
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::f16,
                             compute_engine->mayiuse(

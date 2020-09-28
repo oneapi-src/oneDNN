@@ -138,15 +138,15 @@ struct dnn_mem_t {
         }
     }
 
-    int64_t get_scale_idx(int64_t data_idx, int scale_mask) const {
-        const int ndims = md_.ndims;
+    int64_t get_scale_idx(
+            int64_t data_idx, int scale_mask, const int ndims) const {
         const auto &dims = md_.dims;
         int64_t stride = 1;
         int64_t offset = 0;
 
         if (scale_mask != 0) {
             for (int i = 0; i < ndims; ++i) {
-                int d = md_.ndims - 1 - i;
+                int d = ndims - 1 - i;
                 auto pos = data_idx % dims[d];
                 data_idx /= dims[d];
                 if (scale_mask & (1 << d)) {
@@ -157,6 +157,10 @@ struct dnn_mem_t {
         }
 
         return offset;
+    }
+
+    int64_t get_scale_idx(int64_t data_idx, int scale_mask) const {
+        return get_scale_idx(data_idx, scale_mask, md_.ndims);
     }
 
     dnnl_engine_t engine() const { return engine_; }

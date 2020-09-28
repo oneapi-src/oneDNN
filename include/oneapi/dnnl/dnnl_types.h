@@ -181,6 +181,12 @@ typedef enum {
     dnnl_acbd, ///< plain 4D tensor
     dnnl_abcde, ///< plain 5D tensor
     dnnl_abcdef, ///< plain 6D tensor
+    dnnl_abcdefg, ///< plain 7D tensor
+    dnnl_abcdefgh, ///< plain 8D tensor
+    dnnl_abcdefghi, ///< plain 9D tensor
+    dnnl_abcdefghij, ///< plain 10D tensor
+    dnnl_abcdefghijk, ///< plain 11D tensor
+    dnnl_abcdefghijkl, ///< plain 12D tensor
 
     // Permuted plain formats
 
@@ -204,6 +210,14 @@ typedef enum {
     dnnl_cdeba, ///< permuted 5D tensor
     dnnl_decab, ///< permuted 5D tensor
     dnnl_defcab, ///< permuted 6D tensor
+    dnnl_abced, ///< permuted 5D tensor
+    dnnl_abcdfe, ///< permuted 6D tensor
+    dnnl_abcdegf, ///< permuted 7D tensor
+    dnnl_abcdefhg, ///< permuted 8D tensor
+    dnnl_abcdefgih, ///< permuted 9D tensor
+    dnnl_abcdefghji, ///< permuted 10D tensor
+    dnnl_abcdefghikj, ///< permuted 11D tensor
+    dnnl_abcdefghijlk, ///< permuted 12D tensor
 
     // Opaque blocked formats
 
@@ -943,6 +957,8 @@ typedef enum {
     dnnl_binary_max = 0x1fff2,
     /// Binary min
     dnnl_binary_min = 0x1fff3,
+    /// Binary div
+    dnnl_binary_div = 0x1fff4,
     /// Nearest Neighbor Resampling Method
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method
@@ -1147,6 +1163,7 @@ typedef enum {
     dnnl_memory_extra_flag_compensation_conv_s8s8 = 0x1U,
     dnnl_memory_extra_flag_scale_adjust = 0x2U,
     dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation = 0x4U,
+    dnnl_memory_extra_flag_compensation_conv_asymmetric_src = 0x8U,
 } dnnl_memory_extra_flags_t;
 
 /// Description of extra information stored in memory
@@ -1158,8 +1175,10 @@ typedef struct {
     int compensation_mask;
     /// Scale applied to the data
     float scale_adjust;
+    /// Compensation mask for asymmetric quantization
+    int asymm_compensation_mask;
     /// For future backwards compatibility
-    char reserved[64];
+    char reserved[60];
 } dnnl_memory_extra_desc_t;
 
 /// Memory descriptor. The description is based on a number of dimensions,
@@ -1730,8 +1749,8 @@ typedef struct {
     /// descriptor. Must be #dnnl_binary.
     dnnl_primitive_kind_t primitive_kind;
     /// The kind of the binary algorithm. Possible values:
-    /// #dnnl_binary_add, #dnnl_binary_mul, #dnnl_binary_max and
-    /// #dnnl_binary_min.
+    /// #dnnl_binary_add, #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min
+    /// and #dnnl_binary_div.
     dnnl_alg_kind_t alg_kind;
     /// Source memory descriptors.
     dnnl_memory_desc_t src_desc[2];

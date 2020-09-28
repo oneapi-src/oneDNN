@@ -16,10 +16,13 @@ where *matmul-knobs* are:
  - `--dtag={ab [default], any, ...}` -- memory format of the destination memory.
             Refer to [tags](knobs_tag.md) for details.
  - `--runtime_mb=BOOL` -- specify whether `mb` dimension is a run-time
-            parameter.
- - `--runtime_m=BOOL` -- specify whether `m` dimension is a run-time parameter.
- - `--runtime_n=BOOL` -- specify whether `n` dimension is a run-time parameter.
- - `--runtime_k=BOOL` -- specify whether `k` dimension is a run-time parameter.
+            parameter (will be deprecated soon. See `--runtime_dims_masks`).
+ - `--runtime_m=BOOL` -- specify whether `m` dimension is a run-time parameter
+            (will be deprecated soon. See `--runtime_dims_masks`).
+ - `--runtime_n=BOOL` -- specify whether `n` dimension is a run-time parameter
+            (will be deprecated soon. See `--runtime_dims_masks`).
+ - `--runtime_k=BOOL` -- specify whether `k` dimension is a run-time parameter
+            (will be deprecated soon. See `--runtime_dims_masks`).
  - `--attr-oscale="STRING"` -- output scale primitive attribute. No oscale is
             set by default. Refer to [attributes](knobs_attr.md) for details.
  - `--attr-zero-points="STRING"` -- zero points primitive attribute. No zero
@@ -33,8 +36,24 @@ where *matmul-knobs* are:
             Refer to [data types](knobs_dt.md) for details.
  - `--bia_mask=INT` -- a bit-mask that indicates which bias dimensions are
             broadcasted. 0-bit means broadcast, 1-bit means full dimension.
+- `--runtime_dims_masks=[INT][:INT]` -- a bit-mask values for `src` and
+            `weights` that indicates if a dimension is `DNNL_RUNTIME_DIM_VAL`
+            (indicated as 1-bit in corresponding dimension position). Default is
+            `0` for all dimensions, meaning all tensor dimensions are fully
+            defined at primitive creation.
 
 and *matmul-desc* is a problem descriptor. The canonical form is:
+```
+    d0xd1xd2x..xMxK:d0xd1xd2x..xKxN[:d0xd1xd2x..xMxN][nS]
+```
+Here `x` is delimiter for dimensions within a tensor and `:` is delimiter for
+tensors in the order `src`, `weights` and `dst`. The `dst` is optional and each
+of its individual dimensions are computed as
+`max(src_dimension, weights_dimension)` by the driver if not provided by user.
+`d0`, `d1`, `d2` and so on are dimension values of the corresponding tensor,
+where as `m`, `n` and `k` are inner dimensions for matrix multiplication.
+
+**Deprecated desc (only supports up to 3D)**
 ```
     [mbX]mXnXkX_nS
 ```
@@ -57,6 +76,13 @@ file:
 Run single precision matrix multiplication with all sizes provided at run-time:
 ``` sh
     ./benchdnn --matmul \
+               --runtime_dims_masks=3:3 \
+               10x30:30x20
+```
+
+The same can be expressed with deprecated matmul desc as below:
+``` sh
+    ./benchdnn --matmul \
                --runtime_m=true --runtime_n=true --runtime_k=true \
                m10n20k30
 ```
@@ -71,7 +97,7 @@ runtime, but sizes specified at creation time:
                --cfg=u8s8u8 \
                --wtag=any \
                --attr-zero-points=src:1*_dst:-2* \
-               m10n20k30
+               10x30:30x20 # or m10n20k3 with deprecated matmul desc
 ```
 
 Run single precision batched matrix multiplication with bias, of which only the
@@ -79,7 +105,7 @@ full dimension is along the `n`-axis:
 ``` sh
     ./benchdnn --matmul \
                --bia_dt=f32 --bia_mask=4 \
-               mb2m10n20k30
+               2x10x30:2x30x20 # or mb2m10n20k3 with deprecated matmul desc
 ```
 
 More examples with different driver options can be found at

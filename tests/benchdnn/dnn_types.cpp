@@ -16,7 +16,7 @@
 
 #include <assert.h>
 #include <cctype>
-#include <math.h>
+#include <cmath>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -326,6 +326,7 @@ static po_table_entry_t kind_table[] = {
         // binary
         {pk_t::BINARY_START, "binary_undef", dnnl_alg_kind_undef},
         {pk_t::ADD, "add", dnnl_binary_add},
+        {pk_t::DIV, "div", dnnl_binary_div},
         {pk_t::MAX, "max", dnnl_binary_max},
         {pk_t::MIN, "min", dnnl_binary_min},
         {pk_t::MUL, "mul", dnnl_binary_mul},
@@ -1065,6 +1066,9 @@ float compute_eltwise_fwd(
         pk_t kind, float src, float scale, float alpha, float beta) {
     using namespace dnnl::impl::math;
 
+    // don't compute on nan, propagate it
+    if (std::isnan(src)) return src;
+
     switch (kind) {
         case pk_t::RELU: return scale * relu_fwd(src, alpha);
         case pk_t::TANH: return scale * tanh_fwd(src);
@@ -1141,6 +1145,8 @@ float compute_binary(pk_t kind, float src0, float src1) {
         return MAX2(src0, src1);
     } else if (kind == pk_t::MIN) {
         return MIN2(src0, src1);
+    } else if (kind == pk_t::DIV) {
+        return src0 / src1;
     } else {
         assert(!"operation not supported!");
     }

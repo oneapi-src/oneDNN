@@ -28,8 +28,8 @@ compute::gpu_arch_t detect_gpu_arch(cl_device_id device, cl_context context) {
     HW hw = jit::jit_generator<HW::Unknown>::detectHW(context, device);
     switch (hw) {
         case HW::Gen9: return compute::gpu_arch_t::gen9;
-        case HW::Gen12LP: return compute::gpu_arch_t::gen12lp; break;
-        default: return compute::gpu_arch_t::unknown; break;
+        case HW::Gen12LP: return compute::gpu_arch_t::gen12lp;
+        default: return compute::gpu_arch_t::unknown;
     }
 }
 

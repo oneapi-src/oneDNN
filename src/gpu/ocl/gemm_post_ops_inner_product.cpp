@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/gemm_x8s8s32x_inner_product.hpp"
+#include "gpu/ocl/gemm_post_ops_inner_product.hpp"
 
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -24,7 +24,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
+status_t gemm_post_ops_inner_product_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
     using namespace gemm_utils;
@@ -57,14 +57,12 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
         arg_list.set(0, CTX_OUT_STORAGE(DNNL_ARG_DST));
         arg_list.set(1, CTX_IN_STORAGE(DNNL_ARG_BIAS));
         arg_list.set(2, CTX_OUT_STORAGE(DNNL_ARG_DST));
-        arg_list.set(3, pd()->attr_info_.eltwise_alpha);
-        arg_list.set(4, pd()->attr_info_.eltwise_beta);
-        arg_list.set(5, pd()->attr_info_.eltwise_scale);
-        arg_list.set(6, pd()->attr_info_.sum_scale);
-        arg_list.set(7,
+        unsigned arg_idx = append_post_ops_to_arg_list(
+                ctx, arg_list, 3, pd()->attr_info_.all_post_ops);
+        arg_list.set(arg_idx++,
                 pd()->use_scratchpad() ? *acc
                                        : memory_storage_t::empty_storage());
-        arg_list.set(8,
+        arg_list.set(arg_idx,
                 pd()->attr_info_.with_oscales
                         ? CTX_GPU_RES_STORAGE(SCALES_)
                         : memory_storage_t::empty_storage());
@@ -72,9 +70,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
         size_t mb = pd()->MB();
         size_t oc = pd()->OC();
 
-        const size_t gws[] = {1, mb, oc};
-        const size_t lws[] = {1, 1, 1};
-        auto nd_range = compute::nd_range_t(gws, lws);
+        auto nd_range = compute::nd_range_t({mb * oc});
 
         status_t status
                 = parallel_for(ctx, nd_range, post_process_kernel_, arg_list);

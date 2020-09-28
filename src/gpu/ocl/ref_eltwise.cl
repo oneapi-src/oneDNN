@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/ocl_eltwise.h"
+#include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
 
 #define DATA_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DATA, x0, x1, x2, x3, x4, x5)
@@ -22,13 +23,13 @@
 #define DIFF_DATA_OFF(x0, x1, x2, x3, x4, x5) \
     OFF_MD(DIFF_DATA, x0, x1, x2, x3, x4, x5)
 
-#define KERNEL_ATTR __attribute__((intel_reqd_sub_group_size(32)))
+#define KERNEL_ATTR __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 
 #if IS_FWD
 KERNEL_ATTR
-__kernel void ref_eltwise_fwd(
-        __global DATA_T *src, __global DATA_T *dst, float alpha, float beta) {
-#if ZERO_PADDING
+__kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
+        float alpha, float beta POST_OP_ARGS) {
+#if USE_GWS_GET
     int d0 = GWS_GET_D0();
     int d1 = GWS_GET_D1();
     int d2 = GWS_GET_D2();
@@ -46,6 +47,13 @@ __kernel void ref_eltwise_fwd(
             + get_global_id(2) * GWS0 * GWS1
 #endif
             ;
+
+    const int d0 = 0;
+    const int d1 = 0;
+    const int d2 = 0;
+    const int d3 = 0;
+    const int d4 = 0;
+    const int d5 = 0;
 #endif
 
 #if DT_F16 == 1
@@ -53,8 +61,16 @@ __kernel void ref_eltwise_fwd(
 #else
     float tmp_s = DATA_TO_REF(src[data_off]);
 #endif
+    tmp_s = fwd_eltwise(tmp_s, alpha, beta, 1.0f);
 
-    dst[data_off] = CONVERT_DATA_T(fwd_eltwise(tmp_s, alpha, beta, 1.0f));
+    float dst_data;
+#if WITH_SUM
+    dst_data = convert_float(DATA_TO_REF(dst[data_off]));
+#endif
+
+    APPLY_POST_OPS(tmp_s, float, dst_data, float, d0, 1, d1, 1, d2, 1, d3, 1,
+            d4, 1, d5, 1);
+    dst[data_off] = CONVERT_DATA_T(tmp_s);
 }
 
 #else // #if IS_FWD

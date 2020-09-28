@@ -67,6 +67,5 @@ g4ic20oc20_id5od5kd3pd1_n"3d_conv:grouped_tail"
 g4ic20oc20_id8od4kd3pd1sd2_n"3d_conv:grouped_stride_tail"
 g16ic16oc16_id5od5kd3pd1_n"3d_conv:depthwise"
 g17ic17oc17_id5od5kd3pd1_n"3d_conv:depthwise_tail"
-# TODO: enable this shape once bug in reference conv is fixed
-#g17ic17oc17_id8od4kd3pd1sd2_n"3d_conv:depthwise_stride_tail"
+g17ic17oc17_id8od4kd3pd1sd2_n"3d_conv:depthwise_stride_tail"
 
