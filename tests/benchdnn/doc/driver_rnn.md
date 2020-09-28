@@ -29,7 +29,7 @@ where *rnn-knobs* are:
             product of previous dimensions.
  - `--with-peephole={true, false [default]}` -- LSTM extension. Specify if LSTM
             with peephole should be run.
- - `--with-peephole={true, false [default]}` -- LSTM extension. Specify if LSTM
+ - `--with-projection={true, false [default]}` -- LSTM extension. Specify if LSTM
             with projection should be run.
  - `--l=INT` -- override `l` (number of layers) value specified in the problem
             descriptor. When `INT` is set to `0` (the default), use `l` value

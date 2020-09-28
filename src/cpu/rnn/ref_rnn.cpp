@@ -181,7 +181,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     AOC<gates_t, 4> ws_grid(
             ws_grid_, rnn.n_layer, rnn.n_dir, rnn.n_iter, (int)rnn.ws_per_cell);
 
-    /* Raw inputs/ouputs coming from the user */
+    /* Raw inputs/outputs coming from the user */
     // Here we cannot use AOC as user's input can have arbitrary strides, so we use desc_wrapper.
     auto src_layer_mdw = memory_desc_wrapper(pd()->src_md(0));
     auto dst_layer_mdw = memory_desc_wrapper(pd()->dst_md(0));
@@ -257,7 +257,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
                 // The dst_* paths should be before the src_* paths as
                 // the later will override cell_src_layer and
-                // cell_src_iter appropriatly for 1st layer and 1st
+                // cell_src_iter appropriately for 1st layer and 1st
                 // iter.
                 bool last_iter_skip_copy = rnn.skip_dst_iter_copy()
                         && (cell_position & last_iter);
