@@ -463,6 +463,9 @@ struct bnorm_conf_t {
     bool fuse_norm_relu, calculate_stats, calculate_diff_stats;
     bool diff_scaleshift;
     float relu_negative_slope, eps;
+    int sub_group_size;
+    bool vectorize_calc_stats;
+    bool skip_reduce_stat;
 
     compute::dispatch_t dispatch_calc_stat;
     compute::dispatch_t dispatch_reduce_stat;

@@ -17,6 +17,8 @@
 #if MB_BLOCK == 16
 #define MB16
 #define VECT_DT_N 8
+#elif VECTORIZE_CALC_STATS == 1
+#define VECT_DT_N VECT_SIZE
 #else
 #define VECT_DT_N 1
 #endif
@@ -35,6 +37,99 @@ int reduce_index(int x[5]) {
 
 #if USE_16MB_UNROLL == 0 && CALCULATE_STATS == 1
 
+#if VECTORIZE_CALC_STATS == 1
+
+NAMED_KERNEL_ATTR(CALC)
+__kernel void calculate_mean(__global DATA_T *src, __global float *mean) {
+    int x[5];
+    x[0] = GWS_GET_STAT_MB();
+    x[1] = GWS_GET_STAT_IC();
+    x[2] = GWS_GET_STAT_ID();
+    x[3] = GWS_GET_STAT_IH();
+    x[4] = GWS_GET_STAT_IW();
+
+    // Add-reduce one dimension of input using subgroups and vectorization
+    VECT_FLOAT_T vect_sum = 0;
+    for (int i = 0; i < REDUCE_DIM; i += SUB_GROUP_SIZE * VECT_DT_N) {
+        x[REDUCE_DIM_IDX] = i;
+        int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4]);
+        vect_sum += CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+                VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off])));
+    }
+#if VECT_DT_N == 1
+    float sum = vect_sum;
+#else // VECT_DT_N == 1
+    float sum = 0;
+    for (int i = 0; i < VECT_DT_N; ++i) {
+        sum += vect_sum[i];
+    }
+#endif // VECT_DT_N == 1
+
+    x[REDUCE_DIM_IDX] = 0;
+    int reduce_idx = reduce_index(x);
+
+    float total_sum = sub_group_reduce_add(sum);
+    int local_id = get_sub_group_local_id();
+    if (local_id == 0) {
+        if (SKIP_REDUCE_STATS) {
+            // Reduce phase of bnorm won't be run as there are
+            // no more dimensions to be reduced
+            mean[x[1]] = total_sum / (MB * ID * IH * IW);
+        } else {
+            mean[reduce_idx * IC + x[1]] = total_sum;
+        }
+    }
+}
+
+NAMED_KERNEL_ATTR(CALC)
+__kernel void calculate_variance(
+        __global DATA_T *src, __global float *mean, __global float *variance) {
+    int x[5];
+    x[0] = GWS_GET_STAT_MB();
+    x[1] = GWS_GET_STAT_IC();
+    x[2] = GWS_GET_STAT_ID();
+    x[3] = GWS_GET_STAT_IH();
+    x[4] = GWS_GET_STAT_IW();
+
+    VECT_FLOAT_T mean_tmp = mean[x[1]];
+    VECT_FLOAT_T vect_sum = 0;
+
+    for (int i = 0; i < REDUCE_DIM; i += SUB_GROUP_SIZE * VECT_DT_N) {
+        x[REDUCE_DIM_IDX] = i;
+        int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4]);
+        VECT_FLOAT_T v0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+                VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[src_off])));
+        v0 -= mean_tmp;
+        vect_sum += v0 * v0;
+    }
+#if VECT_DT_N == 1
+    float sum = vect_sum;
+#else // VECT_DT_N == 1
+    float sum = 0;
+    for (int i = 0; i < VECT_DT_N; ++i) {
+        sum += vect_sum[i];
+    }
+#endif // VECT_DT_N == 1
+
+    x[REDUCE_DIM_IDX] = 0;
+    int reduce_idx = reduce_index(x);
+
+    float total_sum = sub_group_reduce_add(sum);
+    int local_id = get_sub_group_local_id();
+    if (local_id == 0) {
+        if (SKIP_REDUCE_STATS) {
+            // Reduce phase of bnorm won't be run as there are
+            // no more dimensions to be reduced
+            variance[x[1]] = total_sum / (MB * ID * IH * IW);
+        } else {
+            variance += MB * ID * IH * IW * IC / REDUCE_DIM;
+            variance[reduce_idx * IC + x[1]] = total_sum;
+        }
+    }
+}
+
+#else // VECTORIZE_CALC_STATS == 1
+
 NAMED_KERNEL_ATTR(CALC)
 __kernel void calculate_mean(__global DATA_T *src, __global float *mean) {
     int x[5];
@@ -51,18 +146,6 @@ __kernel void calculate_mean(__global DATA_T *src, __global float *mean) {
     x[REDUCE_DIM_IDX] = 0;
     int reduce_idx = reduce_index(x);
     mean[reduce_idx * IC + x[1]] = sum;
-}
-
-NAMED_KERNEL_ATTR(REDUCE)
-__kernel void reduce_mean(__global float *reduce_temp, __global float *mean) {
-    const int c = GWS_GET_REDUCE_STAT_IC();
-    reduce_temp += c;
-    float sum = 0.0f;
-    int reduce_size = MB * ID * IH * IW / REDUCE_DIM;
-    for (int i = 0; i < reduce_size; i++) {
-        sum += reduce_temp[i * IC];
-    }
-    mean[c] = sum / (MB * ID * IH * IW);
 }
 
 NAMED_KERNEL_ATTR(CALC)
@@ -87,6 +170,20 @@ __kernel void calculate_variance(
     int reduce_idx = reduce_index(x);
 
     variance[reduce_idx * IC + x[1]] = sum;
+}
+
+#endif // VECTORIZE_CALC_STATS == 1
+
+NAMED_KERNEL_ATTR(REDUCE)
+__kernel void reduce_mean(__global float *reduce_temp, __global float *mean) {
+    const int c = GWS_GET_REDUCE_STAT_IC();
+    reduce_temp += c;
+    float sum = 0.0f;
+    int reduce_size = MB * ID * IH * IW / REDUCE_DIM;
+    for (int i = 0; i < reduce_size; i++) {
+        sum += reduce_temp[i * IC];
+    }
+    mean[c] = sum / (MB * ID * IH * IW);
 }
 
 NAMED_KERNEL_ATTR(REDUCE)

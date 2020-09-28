@@ -147,17 +147,65 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
                 }
             }
             conf.reduce_dim = calc_dims[reduce_dim_idx];
-            calc_dims[reduce_dim_idx] = 1;
             conf.reduce_dim_idx = reduce_dim_idx;
+            const std::string dim_names[5]
+                    = {"STAT_MB", "STAT_IC", "STAT_ID", "STAT_IH", "STAT_IW"};
+            const std::string &reduce_dim_name = dim_names[reduce_dim_idx];
+
+            conf.vectorize_calc_stats = false;
+            conf.vect_size = 1;
+            conf.sub_group_size = 1;
+            int calc_dims_blocks[5] = {1, 1, 1, 1, 1};
+
+            // Translate reduce_dim_idx from being an index in calc_dims to dims array
+            const int base_reduce_dim_idx
+                    = reduce_dim_idx == 0 ? 0 : reduce_dim_idx - (5 - ndims);
+            const int reduce_dim_stride
+                    = data_mdw.blocking_desc().strides[base_reduce_dim_idx];
+            if (conf.is_forward && conf.reduce_dim % 16 == 0
+                    && reduce_dim_stride == 1) {
+                // Calculations over reduce dimension will be splitted
+                // between execution units in the single subgroup.
+                // Each unit will read vector_size of elements at once.
+                conf.vectorize_calc_stats = true;
+                conf.sub_group_size = 16;
+
+                int vector_size = 8;
+                while (conf.reduce_dim % (conf.sub_group_size * vector_size)
+                        != 0) {
+                    vector_size /= 2;
+                }
+                conf.vect_size = vector_size;
+                calc_dims_blocks[reduce_dim_idx]
+                        = conf.reduce_dim / conf.sub_group_size;
+            } else {
+                // Whole reduce dimension will be handled by single execution unit.
+                calc_dims[reduce_dim_idx] = 1;
+            }
+
             conf.stat_ic = utils::array_product(calc_dims, 5);
-            conf.dispatch_calc_stat.define_dim("STAT_MB", 0, calc_dims[0]);
-            conf.dispatch_calc_stat.define_dim("STAT_IC", 1, calc_dims[1]);
             conf.dispatch_calc_stat.define_dim(
-                    "STAT_ID", nstl::max(1, ndims - 3), calc_dims[2]);
+                    dim_names[0], 0, calc_dims[0], calc_dims_blocks[0]);
             conf.dispatch_calc_stat.define_dim(
-                    "STAT_IH", nstl::max(1, ndims - 2), calc_dims[3]);
-            conf.dispatch_calc_stat.define_dim(
-                    "STAT_IW", nstl::max(1, ndims - 1), calc_dims[4]);
+                    dim_names[1], 1, calc_dims[1], calc_dims_blocks[1]);
+            conf.dispatch_calc_stat.define_dim(dim_names[2],
+                    nstl::max(1, ndims - 3), calc_dims[2], calc_dims_blocks[2]);
+            conf.dispatch_calc_stat.define_dim(dim_names[3],
+                    nstl::max(1, ndims - 2), calc_dims[3], calc_dims_blocks[3]);
+            conf.dispatch_calc_stat.define_dim(dim_names[4],
+                    nstl::max(1, ndims - 1), calc_dims[4], calc_dims_blocks[4]);
+
+            conf.skip_reduce_stat = false;
+            if (conf.vectorize_calc_stats) {
+                conf.dispatch_calc_stat.vectorize_dim(
+                        reduce_dim_name, conf.sub_group_size);
+                if (conf.stat_ic == conf.reduce_dim * calc_dims[1]) {
+                    // if there are only 2 dimensions greater than 1:
+                    // IC and reduce_dim, calc phase of batchnorm will do
+                    // whole reduction and reduce phase can be skipped
+                    conf.skip_reduce_stat = true;
+                }
+            }
 
             conf.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
             conf.dispatch_calc_stat.generate();
@@ -204,6 +252,10 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("USE_SCALESHIFT", conf.use_scaleshift);
     kernel_ctx.define_int("CALCULATE_DIFF_STATS", conf.calculate_diff_stats);
     kernel_ctx.define_int("DIFF_SCALESHIFT", conf.diff_scaleshift);
+    kernel_ctx.define_int("VECTORIZE_CALC_STATS", conf.vectorize_calc_stats);
+    kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
+    kernel_ctx.define_int("VECT_SIZE", conf.vect_size);
+    kernel_ctx.define_int("SKIP_REDUCE_STATS", conf.skip_reduce_stat);
 
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
 
@@ -262,8 +314,10 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
 
     std::unique_ptr<memory_storage_t> temp_reduce = nullptr;
     if (conf.calculate_stats) {
-        temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
-                key_bnorm_reduction);
+        if (!conf.skip_reduce_stat || !conf.save_stats) {
+            temp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
+                    key_bnorm_reduction);
+        }
 
         if (!conf.save_stats) {
             mean_ptr = temp_reduce.get();
@@ -279,7 +333,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
 
         compute::kernel_arg_list_t calc_mean_arg_list;
         calc_mean_arg_list.set(0, src);
-        calc_mean_arg_list.set(1, *temp_reduce);
+        calc_mean_arg_list.set(1, conf.skip_reduce_stat ? mean : *temp_reduce);
 
         auto nd_range_calc_mean = conf.dispatch_calc_stat.nd_range();
 
@@ -287,20 +341,23 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
                 calc_mean_arg_list);
         if (status != status::success) return status;
 
-        compute::kernel_arg_list_t reduce_mean_arg_list;
-        reduce_mean_arg_list.set(0, *temp_reduce);
-        reduce_mean_arg_list.set(1, mean);
+        if (!conf.skip_reduce_stat) {
+            compute::kernel_arg_list_t reduce_mean_arg_list;
+            reduce_mean_arg_list.set(0, *temp_reduce);
+            reduce_mean_arg_list.set(1, mean);
 
-        auto nd_range_reduce_mean = conf.dispatch_reduce_stat.nd_range();
+            auto nd_range_reduce_mean = conf.dispatch_reduce_stat.nd_range();
 
-        status = parallel_for(ctx, nd_range_reduce_mean, reduce_mean_kernel_,
-                reduce_mean_arg_list);
-        if (status != status::success) return status;
+            status = parallel_for(ctx, nd_range_reduce_mean,
+                    reduce_mean_kernel_, reduce_mean_arg_list);
+            if (status != status::success) return status;
+        }
 
         compute::kernel_arg_list_t calc_var_arg_list;
         calc_var_arg_list.set(0, src);
         calc_var_arg_list.set(1, mean);
-        calc_var_arg_list.set(2, *temp_reduce);
+        calc_var_arg_list.set(
+                2, conf.skip_reduce_stat ? variance : *temp_reduce);
 
         auto nd_range_calc_var = conf.dispatch_calc_stat.nd_range();
 
@@ -308,15 +365,17 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
                 calculate_variance_kernel_, calc_var_arg_list);
         if (status != status::success) return status;
 
-        compute::kernel_arg_list_t reduce_var_arg_list;
-        reduce_var_arg_list.set(0, *temp_reduce);
-        reduce_var_arg_list.set(1, variance);
+        if (!conf.skip_reduce_stat) {
+            compute::kernel_arg_list_t reduce_var_arg_list;
+            reduce_var_arg_list.set(0, *temp_reduce);
+            reduce_var_arg_list.set(1, variance);
 
-        auto nd_range_reduce_var = conf.dispatch_reduce_stat.nd_range();
+            auto nd_range_reduce_var = conf.dispatch_reduce_stat.nd_range();
 
-        status = parallel_for(ctx, nd_range_reduce_var, reduce_variance_kernel_,
-                reduce_var_arg_list);
-        if (status != status::success) return status;
+            status = parallel_for(ctx, nd_range_reduce_var,
+                    reduce_variance_kernel_, reduce_var_arg_list);
+            if (status != status::success) return status;
+        }
     }
 
     compute::kernel_arg_list_t arg_list;
