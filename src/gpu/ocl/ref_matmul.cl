@@ -51,17 +51,18 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
 #endif
         temp *= scales[scale_stride * n];
 
-        POST_OP_DATA_T dst_data;
+        float dst_data;
 #if WITH_SUM
-        dst_data = DATA_TO_REF(C[c_off]);
+        dst_data = convert_float(DATA_TO_REF(C[c_off]));
 #endif
 
         unsigned po_oc = DST_NDIMS == 3 ? m : n;
-        APPLY_POST_OPS(temp, POST_OP_DATA_T, dst_data, POST_OP_DATA_T, mb, 1,
-                po_oc, 1, 0, 1, 0, 1, 0, 1, 0, 1);
+        float po_acc = convert_float(temp);
+        APPLY_POST_OPS(po_acc, float, dst_data, float, m, 1, po_oc, 1, 0, 1, 0,
+                1, 0, 1, 0, 1);
 
-        temp += c0[0];
-        C[c_off] = TO_DST(temp);
+        po_acc += c0[0];
+        C[c_off] = TO_DST(po_acc);
 #else
         C[c_off] = TO_DST(acc);
 #endif
