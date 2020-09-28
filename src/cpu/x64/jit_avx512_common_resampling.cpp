@@ -43,12 +43,11 @@ struct jit_resampling_args_t {
     dim_t w; // fwd: ow  bwd: iw
 };
 
-struct jit_avx512_common_resampling_kernel : public c_compatible {
+struct jit_avx512_common_resampling_kernel : public jit_generator {
     jit_avx512_common_resampling_kernel(const resampling_pd_t *pd) : pd_(pd) {}
-    virtual ~jit_avx512_common_resampling_kernel() = default;
-
-    virtual status_t create_kernel() = 0;
-    virtual void operator()(const jit_resampling_args_t *args) = 0;
+    void operator()(const jit_resampling_args_t *args) {
+        jit_generator::operator()(args);
+    }
 
 protected:
     // Convert between vector register lengths.
@@ -73,8 +72,7 @@ protected:
 namespace {
 
 struct jit_avx512_common_resampling_t
-    : public jit_avx512_common_resampling_kernel,
-      public jit_generator {
+    : public jit_avx512_common_resampling_kernel {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_resampling)
 
     jit_avx512_common_resampling_t(const resampling_pd_t *pd)
@@ -99,12 +97,6 @@ struct jit_avx512_common_resampling_t
         tail_mask_ = (((size_t)1 << (inner_stride_ % simd_w())) - (size_t)1);
         if (tail_mask_ != 0) prepare_mask();
         stack_size_needed_ = 0;
-    }
-
-    status_t create_kernel() override { return jit_generator::create_kernel(); }
-
-    void operator()(const jit_resampling_args_t *args) override {
-        return jit_generator::operator()(args);
     }
 
 private:

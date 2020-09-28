@@ -111,10 +111,7 @@ static op_t get_bcast_per_c(const memory_desc_wrapper &src0_d) {
     return op_t::none;
 }
 
-struct binary_kernel_t : public jit_generator, public c_compatible {
-
-    using c_compatible::operator new;
-    using c_compatible::operator delete;
+struct binary_kernel_t : public jit_generator {
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
         const void *src0, *src1, *dst;

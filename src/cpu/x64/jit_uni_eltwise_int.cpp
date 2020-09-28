@@ -37,12 +37,10 @@ struct jit_args_t {
     size_t work_amount;
 };
 
-struct jit_uni_eltwise_int_kernel : public c_compatible {
+struct jit_uni_eltwise_int_kernel : public jit_generator {
     jit_uni_eltwise_int_kernel(const eltwise_desc_t &desc) : desc_(desc) {}
-    virtual ~jit_uni_eltwise_int_kernel() = default;
 
-    virtual void operator()(jit_args_t *p) = 0;
-    virtual status_t create_kernel() = 0;
+    void operator()(jit_args_t *p) { jit_generator::operator()(p); }
 
 protected:
     data_type_t data_type() const { return desc_.data_desc.data_type; }
@@ -59,12 +57,11 @@ namespace {
 using namespace Xbyak;
 
 template <cpu_isa_t isa>
-struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel,
-                                 public jit_generator {
+struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_subkernel_int)
 
     jit_uni_subkernel_int_t(const eltwise_desc_t &desc)
-        : jit_uni_eltwise_int_kernel(desc), jit_generator() {
+        : jit_uni_eltwise_int_kernel(desc) {
         using namespace data_type;
 
         // Relu and linear for int types: s32, s8, u8; Only forward direction
@@ -72,12 +69,6 @@ struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel,
                 alg_kind::eltwise_linear));
         assert(utils::one_of(data_type(), s32, s8, u8));
         assert(utils::one_of(isa, sse41, avx2, avx512_common));
-    }
-
-    status_t create_kernel() override { return jit_generator::create_kernel(); }
-
-    void operator()(jit_args_t *p) override {
-        return jit_generator::operator()(p);
     }
 
     void generate() override {

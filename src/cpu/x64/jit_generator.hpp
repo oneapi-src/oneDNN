@@ -110,7 +110,13 @@ static const Xbyak::Reg64 abi_param1(Xbyak::Operand::RDI),
 
 } // namespace
 
-class jit_generator : public Xbyak::CodeGenerator {
+class jit_generator : public Xbyak::CodeGenerator, public c_compatible {
+public:
+    using c_compatible::operator new;
+    using c_compatible::operator new[];
+    using c_compatible::operator delete;
+    using c_compatible::operator delete[];
+
 private:
     const size_t xmm_len = 16;
 #ifdef _WIN32
