@@ -255,6 +255,20 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
                     else
                         DPRINT(str, len, written, "sum:%g;", e.sum.scale);
                 } break;
+                case primitive_kind::convolution: {
+                    using namespace data_type;
+                    const auto &c = e.depthwise_conv;
+                    DPRINT(str, len, written, "dw_k3s%dp1", c.stride);
+                    if (c.wei_dt == s8) {
+                        DPRINT(str, len, written, ":%s:%d",
+                                dnnl_dt2str(c.dst_dt), c.mask);
+                        if (c.mask == 0)
+                            DPRINT(str, len, written, ":%g", c.scales[0]);
+                    } else if (c.dst_dt != f32) {
+                        DPRINT(str, len, written, ":%s", dnnl_dt2str(c.dst_dt));
+                    }
+                    DPRINT(str, len, written, ";");
+                } break;
                 case primitive_kind::eltwise: {
                     const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
                     const char *alg_str = dnnl_alg_kind2str(ew.alg);
