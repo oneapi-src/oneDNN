@@ -42,17 +42,10 @@ LayerNormBackprop
   * **Default value**: true
   * **Required**: *no*
 
-* *data_format*
-
-  * **Description**: *data_format* denotes the data format of the input and input_delta.
-  * **Range of values**: *NXC* or *NCX* (X means HW for 2D, DHW for 3D)
-  * **Type**: string
-  * **Default value**: *NXC*
-  * **Required**: *no*
 
 **Inputs**
 
-* **1**: ``input`` - input tensor . **Required.**
+* **1**: ``input`` - input tensor. This op normalizes over the last dimension, e.g. C in TNC for 3D and LDNC for 4D. **Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T with the same span as input's channel axis. Required by attributs ``use_affine``. **Optional.**
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor of type T with the same span as input's channel axis.Required by attributs ``use_affine``. **Optional.**
 * **4**: ``mean`` - mean of input. Required by attributs ``use_stats``. **Optional.**
