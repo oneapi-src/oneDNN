@@ -2292,6 +2292,20 @@ dnnl_status_t DNNL_API dnnl_inner_product_backward_weights_desc_init(
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_rnn_data_qparams(
         dnnl_primitive_attr_t attr, const float scale, const float shift);
 
+/// Returns the quantization scale and shift parameters for RNN data tensors.
+///
+/// @note
+///     Quantization scale and shift are common for src_layer, src_iter,
+///     dst_iter, and dst_layer.
+///
+/// @param attr Primitive attributes.
+/// @param scale The value to scale the data by.
+/// @param shift The value to shift the data by.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_rnn_data_qparams(
+        const_dnnl_primitive_attr_t attr, float *scale, float *shift);
+
 /// Sets quantization scaling factors for RNN weights tensors. The
 /// low-precision configuration of the RNN primitives expects input weights to
 /// use the signed 8-bit integer data type. The scaling factors are used to
@@ -2325,6 +2339,25 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_rnn_weights_qparams(
         dnnl_primitive_attr_t attr, dnnl_dim_t count, int mask,
         const float *scales);
 
+/// Returns the quantization scaling factors for RNN weights tensors.
+///
+/// @param attr Primitive attributes.
+/// @param count Number of elements in the @p scales array.
+/// @param mask Scaling factors correspondence mask that defines the
+///     correspondence between the output tensor dimensions and the @p
+///     scales vector. The set i-th bit indicates that a dedicated scaling
+///     factor should be used for each index along that dimension. Set the
+///     mask to 0 to use a common scaling factor for the whole output
+///     tensor.
+/// @param scales Array of output scaling factors that contain @p count
+///     values and the following equality must hold:
+///     \f[count = \prod\limits_{d \in mask} weights.dims[d].\f]
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_rnn_weights_qparams(
+        const_dnnl_primitive_attr_t attr, dnnl_dim_t *count, int *mask,
+        const float **scales);
+
 /// Sets quantization scaling factors for RNN projection weights tensors. The
 /// low-precision configuration of the RNN primitives expects input weights to
 /// use the signed 8-bit integer data type. The scaling factors are used to
@@ -2354,6 +2387,25 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_rnn_weights_qparams(
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_rnn_weights_projection_qparams(
         dnnl_primitive_attr_t attr, dnnl_dim_t count, int mask,
         const float *scales);
+
+/// Returns the quantization scaling factors for RNN projection weights tensors.
+///
+/// @param attr Primitive attributes.
+/// @param count Number of elements in the @p scales array.
+/// @param mask Scaling factors correspondence mask that defines the
+///     correspondence between the output tensor dimensions and the @p
+///     scales vector. The set i-th bit indicates that a dedicated scaling
+///     factor should be used for each index along that dimension. Set the
+///     mask to 0 to use a common scaling factor for the whole output
+///     tensor.
+/// @param scales Array of output scaling factors that contain @p count
+///     values and the following equality must hold:
+///     \f[count = \prod\limits_{d \in mask} weights.dims[d].\f]
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_rnn_weights_projection_qparams(
+        const_dnnl_primitive_attr_t attr, dnnl_dim_t *count, int *mask,
+        const float **scales);
 
 /// @} dnnl_api_attributes
 

@@ -592,6 +592,17 @@ status_t dnnl_primitive_attr_set_rnn_data_qparams(
     return attr->rnn_data_qparams_.set(scale, shift);
 }
 
+status_t dnnl_primitive_attr_get_rnn_data_qparams(
+        const primitive_attr_t *attr, float *scale, float *shift) {
+    if (attr == nullptr) return invalid_arguments;
+
+    const auto qparams = attr->rnn_data_qparams_;
+    if (scale) *scale = qparams.scale_;
+    if (shift) *shift = qparams.shift_;
+
+    return success;
+}
+
 status_t dnnl_primitive_attr_set_rnn_weights_qparams(
         primitive_attr_t *attr, dim_t count, int mask, const float *scales) {
     bool ok = !any_null(attr, scales) && count > 0 && mask >= 0;
@@ -600,12 +611,38 @@ status_t dnnl_primitive_attr_set_rnn_weights_qparams(
     return attr->rnn_weights_qparams_.set(count, mask, scales);
 }
 
+status_t dnnl_primitive_attr_get_rnn_weights_qparams(
+        const primitive_attr_t *attr, dim_t *count, int *mask,
+        const float **scales) {
+    if (attr == nullptr) return invalid_arguments;
+
+    const auto &qparams = attr->rnn_weights_qparams_;
+    if (count) *count = qparams.count_;
+    if (mask) *mask = qparams.mask_;
+    if (scales) *scales = qparams.scales_;
+
+    return success;
+}
+
 status_t dnnl_primitive_attr_set_rnn_weights_projection_qparams(
         primitive_attr_t *attr, dim_t count, int mask, const float *scales) {
     bool ok = !any_null(attr, scales) && count > 0 && mask >= 0;
     if (!ok) return invalid_arguments;
 
     return attr->rnn_weights_projection_qparams_.set(count, mask, scales);
+}
+
+status_t dnnl_primitive_attr_get_rnn_weights_projection_qparams(
+        const primitive_attr_t *attr, dim_t *count, int *mask,
+        const float **scales) {
+    if (attr == nullptr) return invalid_arguments;
+
+    const auto &qparams = attr->rnn_weights_projection_qparams_;
+    if (count) *count = qparams.count_;
+    if (mask) *mask = qparams.mask_;
+    if (scales) *scales = qparams.scales_;
+
+    return success;
 }
 
 status_t DNNL_API dnnl_primitive_attr_set_rnn_tparams(
