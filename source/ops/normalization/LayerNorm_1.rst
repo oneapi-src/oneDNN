@@ -45,7 +45,7 @@ LayerNorm
 
 **Inputs**
 
-* **1**: ``input`` - input tensor with data for normalization. This op normalizes over the last dimension, e.g. TN``C`` for 3D and LDN``C`` for 4D. **Required.**
+* **1**: ``input`` - input tensor with data for normalization. This op normalizes over the last dimension, e.g. C in TNC for 3D and LDNC for 4D. **Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T with the same span as input's channel axis. Required by attributs ``use_affine``. **Optional.**
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor of type T with the same span as input's channel axis.Required by attributs ``use_affine``. **Optional.**
 
