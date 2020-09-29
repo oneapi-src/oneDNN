@@ -257,8 +257,8 @@ static inline int thread_checker(
             if (bandt == 0) {
                 return 1;
             } else {
-                return nstl::min(
-                        nstl::max(n * m / 2 * MN_MIN_N, dim_t(1)), dim_t(nthr));
+                return nstl::min(nstl::max(n * m / (2 * MN_MIN_N), dim_t(1)),
+                        dim_t(nthr));
             }
         }
     } else {
@@ -289,6 +289,12 @@ static inline void decompose_vector(const dim_t m, const dim_t nthr,
         const dim_t ithr, T *addr, dim_t *offset, dim_t *size) {
     dim_t loffset = 0;
     dim_t lsize = 0;
+
+    if (ithr >= nthr) {
+        *offset = loffset;
+        *size = lsize;
+        return;
+    }
 
     if (addr == NULL) {
         dim_t xthr = m % nthr;
