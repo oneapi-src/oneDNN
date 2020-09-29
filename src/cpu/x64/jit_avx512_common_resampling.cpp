@@ -845,14 +845,14 @@ private:
     bwd_counting_range_t oh;
     bwd_counting_range_t od;
 
-    dim_t stride_d_;
-    dim_t stride_h_;
-    dim_t stride_w_;
-    dim_t inner_stride_;
-    unsigned number_of_loops_;
-    size_t tail_mask_;
-    bool use_bf16_emulation_;
-    unsigned stack_size_needed_;
+    dim_t stride_d_ = 0;
+    dim_t stride_h_ = 0;
+    dim_t stride_w_ = 0;
+    dim_t inner_stride_ = 0;
+    unsigned number_of_loops_ = 0;
+    size_t tail_mask_ = 0;
+    bool use_bf16_emulation_ = false;
+    unsigned stack_size_needed_ = 0;
 };
 
 } // namespace
