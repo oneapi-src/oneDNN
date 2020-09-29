@@ -90,7 +90,7 @@ bool jit_uni_binary_t<src_type>::post_ops_ok(
                             [&dst_d](const memory_desc_wrapper &rhs_arg_md) {
                                 return IMPLICATION(!mayiuse(avx2),
                                         dst_d.consistent_with(rhs_arg_md)
-                                                || rhs_arg_md.is_plain());
+                                                || dst_d.is_plain());
                             }));
 }
 
