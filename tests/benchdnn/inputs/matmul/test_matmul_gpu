@@ -9,8 +9,8 @@
 --attr-oscale=common:1.25 --attr-post-ops='sum;add:f32;add:u8:per_dim_01;linear:0.5:1.5:2.0;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01'       m10n20k30
 --attr-oscale=per_oc:1.25 --attr-post-ops='relu;add:f32;add:u8:per_dim_01;linear:0.5:1.5:2.0;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01'      m10n20k30
 --attr-oscale=
---attr-post-ops='sum:2;;add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01linear:3:-1'                   m10n1k30
---attr-post-ops=;add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01'linear:3:-1:2'                       m10n1k30
+--attr-post-ops='sum:2;add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01;linear:3:-1'                   m10n1k30
+--attr-post-ops='add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01;linear:3:-1:2'                       m10n1k30
 
 # test any
 --reset
