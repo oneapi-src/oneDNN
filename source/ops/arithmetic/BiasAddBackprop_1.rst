@@ -21,7 +21,7 @@ This op accumulates all the values from output_delta into the channel dimension,
 * *data_format*
 
   * **Description**: *data_format* denotes the data format of the input.
-  * **Range of values**: *NXC* or *NCX* (X means HW for 2D convolution, DHW for 3D convolution)
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D, DHW for 3D)
   * **Type**: string
   * **Default value**: *NXC*
   * **Required**: *no*
