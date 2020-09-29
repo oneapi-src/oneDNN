@@ -549,8 +549,9 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     float data_shift = pd->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd->attr()->rnn_data_qparams_.scale_;
 
-    const bool quantize = pd->with_src_iter()
-            && pd->src_md(1)->data_type == data_type::f32 && rnn.is_int8();
+    const bool quantize = rnn.is_int8()
+            && IMPLICATION(pd->with_src_iter(),
+                    pd->src_md(1)->data_type == data_type::f32);
     auto maybe_q = [&](input_data_t f) {
         if (quantize) {
             float qf = f * data_scale + data_shift;
@@ -558,6 +559,7 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
         } else
             return (src_data_t)f;
     };
+    const src_data_t zero = maybe_q(0.f);
 
     if (src_iter_) {
         parallel_nd(
@@ -573,7 +575,7 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
         parallel_nd(
                 rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
                     for (int j = 0; j < rnn.sic; j++)
-                        ws_states_iter(lay + 1, dir, 0, b, j) = (src_data_t)0;
+                        ws_states_iter(lay + 1, dir, 0, b, j) = zero;
                     if (pd->cell_kind() == alg_kind::vanilla_lstm)
                         for (int j = 0; j < rnn.dhc; j++)
                             ws_states_iter_c(lay + 1, dir, 0, b, j) = 0.0f;
