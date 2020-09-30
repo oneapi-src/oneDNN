@@ -20,7 +20,7 @@ LayerNorm
 
 * *begin_norm_axis*
 
-  * **Description**: *begin_norm_axis* is used to indicate which axis to perform layer normalization. Negative values means indexing from right to left. 
+  * **Description**: *begin_norm_axis* is used to indicate which axis to start layer normalization. Negative values means indexing from right to left. This op normalizes over the last dimension by default, e.g. C in TNC for 3D and LDNC for 4D.
   * **Range of values**: integer values
   * **Type**: int
   * **Default value**: -1
@@ -45,7 +45,7 @@ LayerNorm
 
 **Inputs**
 
-* **1**: ``input`` - input tensor with data for normalization. This op normalizes over the last dimension, e.g. C in TNC for 3D and LDNC for 4D. **Required.**
+* **1**: ``input`` - input tensor with data for normalization. **Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T with the same span as input's channel axis. Required by attributs ``use_affine``. **Optional.**
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor of type T with the same span as input's channel axis.Required by attributs ``use_affine``. **Optional.**
 
