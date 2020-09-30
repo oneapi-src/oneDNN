@@ -1843,9 +1843,30 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                             cd.bias_desc.data_type))
                 scratchpad.book<float>(
                         key_conv_bias_bf16_convert_wsp, jcp.ngroups * jcp.oc);
-        } else if (!jcp.is_nspc && is_bwd_w)
-            jcp.outer_threading = jcp.os / max_threads < 256
+        } else if (!jcp.is_nspc && is_bwd_w) {
+            // Potential scratchpad memory requirement when outer threading is
+            // enabled during f32/bf16 BWD_W blocked convolution
+            size_t thr_mem_estimate
+                    = sizeof(float) * max_threads * weights_d.size();
+            if (is_bf16_to_bf16_conv) {
+                thr_mem_estimate += sizeof(float) * weights_d.size();
+                if (jcp.with_bias
+                        && one_of(data_type::bf16, cd.diff_bias_desc.data_type,
+                                cd.bias_desc.data_type))
+                    thr_mem_estimate += sizeof(float) * jcp.ngroups * jcp.oc;
+            }
+            const size_t gemm_col_datatype_size
+                    = is_bf16_conv ? sizeof(bfloat16_t) : sizeof(float);
+            // Minimum memory requirement as os_block >= simd_w
+            thr_mem_estimate += gemm_col_datatype_size * max_threads * jcp.ic
+                    * jcp.ks * simd_w;
+
+            const bool outer_threading_mem_ok
+                    = thr_mem_estimate < scratchpad_limit;
+            jcp.outer_threading = outer_threading_mem_ok
+                    && jcp.os / max_threads < 256
                     && (jcp.mb != 1 || jcp.ngroups > 2);
+        }
 
         if (!jcp.is_nspc) {
             jcp.nthr = jcp.outer_threading ? max_threads : 1;
