@@ -27,10 +27,28 @@
 --dtag=AB32a32b8a4b,AB32a32b8a2b,AB8a4b,AB8a2b
 512x512
 
-# test transpose16x16 kernel
+# test transpose16x16 kernel, including checks if it tries to support formats it's not suitable for
+--allow-enum-tags-only=0
+
 --stag=abcd,aBcd16b
 --dtag=abcd,aBcd16b
-1x256x360x640 1x64x720x1280 15x64x31x64 16x16x16x16
+1x256x360x640 1x64x720x1280 15x64x31x64 16x16x16x16 16x64x32x128
+
+--stag=ab,AB8a8b,AB8a16b,AB16a8b,AB16a16b
+--dtag=Ab16a,BA16b16a,BA8b16a,BA32b16a,Ab32a,Ab8a
+128x128 128x136 136x128 96x96
+
+--stag=AB32a32b16a16b,BA32b16a16b
+--dtag=Ab16a
+1024x1024
+
+--stag=abc
+--dtag=acb,aBc16b,aCB16c16b,ABc16a16b,cBa16b
+16x128x16 16x96x96 96x16x96 96x96x16 7x96x96 96x7x96 96x96x7 128x128x128
+
+--stag=abcdef
+--dtag=abcdEf16e,Abcdef16a,bcdefa
+16x16x16x16x16x16 16x15x16x16x16x16 15x16x16x16x16x16 16x16x16x16x16x15 16x16x16x16x15x16
 
 ### test types
 --reset

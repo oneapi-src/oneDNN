@@ -26,15 +26,21 @@
 #undef SRC_OFF
 #undef DST_OFF
 
-#define SRC_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC, x0, x1, x2, x3, x4, x5)
-#define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
+#define SRC_OFF(x0, x1, x2, x3, x4, x5) \
+    OFF_MD(SRC, (x0), (x1), (x2), (x3), (x4), (x5))
+#define DST_OFF(x0, x1, x2, x3, x4, x5) \
+    OFF_MD(DST, (x0), (x1), (x2), (x3), (x4), (x5))
 
 #if WITH_GROUP
-#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(SRC, gr, x0, x1, x2, x3, x4)
-#define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(DST, gr, x0, x1, x2, x3, x4)
+#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) \
+    OFF_MD(SRC, gr, (x0), (x1), (x2), (x3), (x4))
+#define DST_OFF_G(gr, x0, x1, x2, x3, x4) \
+    OFF_MD(DST, gr, (x0), (x1), (x2), (x3), (x4))
 #else
-#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(SRC, x0, x1, x2, x3, x4, 0)
-#define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(DST, x0, x1, x2, x3, x4, 0)
+#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) \
+    OFF_MD(SRC, (x0), (x1), (x2), (x3), (x4), 0)
+#define DST_OFF_G(gr, x0, x1, x2, x3, x4) \
+    OFF_MD(DST, (x0), (x1), (x2), (x3), (x4), 0)
 #endif
 
 #if SRC_DT_S8
@@ -364,10 +370,13 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     REORDER_BLOCK(block_size, src_mem, src_all, d5);
 
 #elif TRANSPOSE_16X16
-    // Reorders xaxb <-> xba, where a=16 or blocked by 16, b%16=0.
+    // Fast reorder that uses intel_sub_group_read/write functions
+    // to guarantee good memory bandwidth. Supports many layouts,
+    // see details in simple_reorder.cpp
     //
     // Uses subgroup size 16.
-    // Each subgroup will read 16 sets of 16 values. Sets are strided by 'a' in src.
+    // Each subgroup will read 16 sets of 16 values. Sets are strided in src by
+    // the dimension that'll be last in dst.
     // The 16x16 data piece is shared between subgroup's work items and transposed
     // Each subgroup will write 16 sets of 16 values. Sets are adjacent in dst.
     int sgId = get_sub_group_local_id();
@@ -384,6 +393,7 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     const int d2_block = GWS_GET_D2_BLOCK();
     const int d3_block = GWS_GET_D3_BLOCK();
     const int d4_block = GWS_GET_D4_BLOCK();
+    const int d5_block = GWS_GET_D5_BLOCK();
 
     SRC_DATA_T src_buf[SUB_GROUP_SIZE];
     SRC_DATA_T dst_buf[SUB_GROUP_SIZE];
@@ -393,11 +403,12 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     for_(int d1i = 0; d1i < d1_block; d1i++)
     for_(int d2i = 0; d2i < d2_block; d2i++)
     for_(int d3i = 0; d3i < d3_block; d3i++)
-    for (int d4i = 0; d4i < d4_block; d4i++) {
-        int iter = d0i + d1i + d2i + d3i + d4i;
+    for_(int d4i = 0; d4i < d4_block; d4i++)
+    for (int d5i = 0; d5i < d5_block; d5i++) {
+        int iter = d0i + d1i + d2i + d3i + d4i + d5i;
 #if PLAIN_TO_BLOCK
-        int src_off
-                = SRC_OFF(d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5);
+        int src_off = SRC_OFF(
+                d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5 + d5i);
 #else
         int src_off = SRC_OFF(d0, d1, d2, d3, d4, d5) + 16 * iter;
 #endif
@@ -417,13 +428,14 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     for_(int d1i = 0; d1i < d1_block; d1i++)
     for_(int d2i = 0; d2i < d2_block; d2i++)
     for_(int d3i = 0; d3i < d3_block; d3i++)
-    for (int d4i = 0; d4i < d4_block; d4i++) {
-        int iter = d0i + d1i + d2i + d3i + d4i;
+    for_(int d4i = 0; d4i < d4_block; d4i++)
+    for (int d5i = 0; d5i < d5_block; d5i++) {
+        int iter = d0i + d1i + d2i + d3i + d4i + d5i;
 #if PLAIN_TO_BLOCK
         int dst_off = DST_OFF(d0, d1, d2, d3, d4, d5) + 16 * iter;
 #else
-        int dst_off
-                = DST_OFF(d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5);
+        int dst_off = DST_OFF(
+                d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5 + d5i);
 #endif
         DST_DATA_T dst_tmp;
 #if WITH_SUM_AB

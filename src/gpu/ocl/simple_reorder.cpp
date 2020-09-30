@@ -27,52 +27,56 @@ namespace ocl {
 
 using namespace dnnl::impl::memory_tracking::names;
 
+using dimension = struct {
+    int size;
+    int idx;
+};
+
+// Returns size and index of dimension or block that's last or at given
+// distance from end. Blocks, if exist, take precedence before dimensions.
+// Order of dimensions is determined by sorting strides; smallest stride is
+// last dimension.
+dimension get_Nth_last_dim_or_block(
+        const memory_desc_wrapper &md, int distance = 0) {
+    int nblks = md.md_->format_desc.blocking.inner_nblks;
+    if (nblks >= distance + 1) {
+        dimension last;
+        last.idx
+                = md.md_->format_desc.blocking.inner_idxs[nblks - 1 - distance];
+        last.size
+                = md.md_->format_desc.blocking.inner_blks[nblks - 1 - distance];
+        return last;
+    } else {
+        int dim_distance = distance - nblks;
+        std::vector<std::pair<int, int>> strides(md.md_->ndims);
+        for (int d = 0; d < md.md_->ndims; ++d) {
+            strides[d].first = md.md_->format_desc.blocking.strides[d];
+            strides[d].second = d;
+        }
+        std::sort(strides.begin(), strides.end());
+        dimension ret;
+        ret.idx = strides[dim_distance].second;
+        ret.size = md.padded_dims()[ret.idx];
+        return ret;
+    }
+}
+
 int innermost_block(dnnl_blocking_desc_t blk) {
     int last = blk.inner_nblks - 1;
     return blk.inner_blks[last];
 }
 
-int get_stride(const memory_desc_wrapper &md, int dim) {
-    return md.md_->format_desc.blocking.strides[dim];
-}
+bool matches_one_16x16_layout(
+        const memory_desc_wrapper &src, const memory_desc_wrapper &dst) {
+    auto dst_last = get_Nth_last_dim_or_block(dst, 0);
+    auto src_last = get_Nth_last_dim_or_block(src, 0);
+    auto dst_next_last = get_Nth_last_dim_or_block(dst, 1);
 
-int find_stride_1(const memory_desc_wrapper &md) {
-    for (int i = 0; i < md.ndims(); i++) {
-        if (get_stride(md, i) == 1) { return i; }
-    }
-    return -1;
-}
-
-int innermost_dim_idx(const memory_desc_wrapper &md) {
-    int nblks = md.md_->format_desc.blocking.inner_nblks;
-    if (nblks != 0) {
-        return md.md_->format_desc.blocking.inner_idxs[nblks - 1];
-    } else {
-        return find_stride_1(md);
-    }
-}
-
-int innermost_dim_size(const memory_desc_wrapper &md) {
-    int nblks = md.md_->format_desc.blocking.inner_nblks;
-    if (nblks != 0) {
-        return md.md_->format_desc.blocking.inner_blks[nblks - 1];
-    } else {
-        return md.padded_dims()[md.md_->ndims - 1];
-    }
-}
-
-bool try_16x16(const memory_desc_wrapper &one, const memory_desc_wrapper &two) {
-    using namespace format_tag;
-    // TODO: don't rely on tags and make it more generic
-    // The real limitations are:
-    // dst's last dimension or block == 16
-    // dst's penultimate dimension or block % 16 == 0
-    // src's last dimension is dst's penultimate dimension
-    // the dimension that's last in dst: in src it must be not blocked
-    // or blocked with block size % 16 == 0
-    if (innermost_dim_size(one) % 16 != 0) { return false; }
-    if (innermost_dim_size(two) != 16) { return false; }
-    return one.matches_one_of_tag(abcd) && two.matches_one_of_tag(aBcd16b);
+    if (dst_last.size != 16) { return false; }
+    if (dst_next_last.size % 16 != 0) { return false; }
+    if (src_last.size % 16 != 0) { return false; }
+    if (dst_next_last.idx != src_last.idx) { return false; }
+    return true;
 }
 
 // Checks if the transpose_16x16 kernel can be used with given tensors.
@@ -83,9 +87,9 @@ bool try_16x16(const memory_desc_wrapper &one, const memory_desc_wrapper &two) {
 // Returns 2 if src is blocked and dst is plain
 int matches_16x16_layout(
         const memory_desc_wrapper &src, const memory_desc_wrapper &dst) {
-    if (try_16x16(src, dst)) {
+    if (matches_one_16x16_layout(src, dst)) {
         return 1;
-    } else if (try_16x16(dst, src)) {
+    } else if (matches_one_16x16_layout(dst, src)) {
         return 2;
     } else {
         return 0;
@@ -162,9 +166,9 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     const bool type_s8_u8 = utils::one_of(src_mdw.data_type(), dnnl_s8, dnnl_u8)
             || utils::one_of(dst_mdw.data_type(), dnnl_s8, dnnl_u8);
 
-    const bool tr16x16
-            = !has_padding_or_scale_quant && padded_dims[last] % 16 == 0;
-    conf.transpose16x16 = (int)tr16x16 * matches_16x16_layout(src_mdw, dst_mdw);
+    conf.transpose16x16 = (!has_padding_or_scale_quant
+                    ? matches_16x16_layout(src_mdw, dst_mdw)
+                    : 0);
 
     const bool allow_unroll = !has_padding_or_scale_quant && !type_s8_u8
             && !conf.transpose16x16;
@@ -260,8 +264,9 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     if (conf.transpose16x16) {
         conf.use_ref_impl = false;
         conf.sub_group_size = 16;
-        auto dm = innermost_dim_idx(
-                (conf.transpose16x16 == 1) ? dst_mdw : src_mdw);
+        auto dm = get_Nth_last_dim_or_block(
+                (conf.transpose16x16 == 1) ? dst_mdw : src_mdw)
+                          .idx;
         blocks[dm] = 16;
     }
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
@@ -292,8 +297,9 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
         auto dim_str = utils::format("D%d", last);
         conf.dispatch.vectorize_dim(dim_str, 16);
     } else if (conf.transpose16x16) {
-        auto dm = innermost_dim_idx(
-                (conf.transpose16x16 == 1) ? src_mdw : dst_mdw);
+        auto dm = get_Nth_last_dim_or_block(
+                (conf.transpose16x16 == 1) ? src_mdw : dst_mdw)
+                          .idx;
         auto dim_str = utils::format("D%d", dm);
         conf.dispatch.vectorize_dim(dim_str, 16);
     }
