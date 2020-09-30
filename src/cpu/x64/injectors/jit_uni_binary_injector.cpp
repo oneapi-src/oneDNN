@@ -116,7 +116,9 @@ bool binary_args_tail_supported(const post_ops_t &post_ops,
                 if (entry.is_binary()) {
                     const auto bcast_type = get_rhs_arg_broadcasting_strategy(
                             entry.binary.src1_desc, dst_d);
-                    return bcast_type == broadcasting_strategy_t::per_oc
+                    return utils::one_of(bcast_type,
+                                   broadcasting_strategy_t::per_oc,
+                                   broadcasting_strategy_t::per_oc_spatial)
                             && (dims[1] % vmm_l_len != 0);
                 }
                 return false;
