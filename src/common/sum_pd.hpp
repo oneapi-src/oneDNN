@@ -97,9 +97,13 @@ protected:
     std::vector<float> scales_;
     memory_desc_t dst_md_, dst_acc_md_;
     std::vector<memory_desc_t> src_mds_;
-
-protected:
     sum_desc_t desc_;
+
+    // backends could redefine the accumulation tensor if required
+    virtual void define_dst_acc_md() {
+        dst_acc_md_ = dst_md_;
+        dst_acc_md_.data_type = dnnl_f32;
+    }
     /* inits dst_md_ in simple cases. The call may fail. */
     status_t init(engine_t *engine) {
         for (int i = 0; i < n_; ++i) {
@@ -112,10 +116,7 @@ protected:
         if (!ok) return status::unimplemented;
 
         // use f32 accumulator to handle float scales w/o accuracy loss
-        if (need_output_reorder()) {
-            dst_acc_md_ = dst_md_;
-            dst_acc_md_.data_type = dnnl_f32;
-        }
+        if (need_output_reorder()) { define_dst_acc_md(); }
 
         return status::success;
     }
