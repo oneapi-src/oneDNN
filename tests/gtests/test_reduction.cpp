@@ -96,6 +96,9 @@ protected:
         auto mem_src = memory(src_desc, test_engine);
         auto mem_dst = memory(dst_desc, test_engine);
 
+        fill_data<src_data_t>(
+                src_desc.get_size() / sizeof(src_data_t), mem_src);
+
         prim.execute(strm, {{DNNL_ARG_SRC, mem_src}, {DNNL_ARG_DST, mem_dst}});
         strm.wait();
     }
