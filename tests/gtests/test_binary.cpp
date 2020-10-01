@@ -139,6 +139,11 @@ protected:
             auto mem_C = test::make_memory(dst_desc, test_engine);
             auto mem_ws = test::make_memory(workspace_desc, test_engine);
 
+            fill_data<src0_data_t>(
+                    src0_desc.get_size() / sizeof(src0_data_t), mem_A);
+            fill_data<src1_data_t>(
+                    src1_desc.get_size() / sizeof(src1_data_t), mem_B);
+
             prim.execute(strm,
                     {{DNNL_ARG_SRC_0, mem_A}, {DNNL_ARG_SRC_1, mem_B},
                             {DNNL_ARG_DST, mem_C},
