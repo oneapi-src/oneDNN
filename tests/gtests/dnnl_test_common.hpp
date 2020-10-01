@@ -32,7 +32,6 @@
 #define collapse(x)
 #endif
 
-#include "dnnl_test_macros.hpp"
 #include "oneapi/dnnl/dnnl.hpp"
 #include "oneapi/dnnl/dnnl_debug.h"
 
@@ -47,6 +46,9 @@
 #if DNNL_WITH_SYCL
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
+
+// Don't move it higher than library public headers
+#include "dnnl_test_macros.hpp"
 
 #include "src/common/bfloat16.hpp"
 #include "src/common/float16.hpp"
