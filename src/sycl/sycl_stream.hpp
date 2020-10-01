@@ -269,14 +269,12 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
     void register_deps(cl::sycl::handler &cgh) const {}
 #endif
 
-private:
+protected:
     sycl_stream_t(engine_t *engine, unsigned flags)
         : gpu::compute::compute_stream_t(engine, flags) {}
     sycl_stream_t(engine_t *engine, unsigned flags, cl::sycl::queue &queue)
         : gpu::compute::compute_stream_t(engine, flags)
         , queue_(new cl::sycl::queue(queue)) {}
-
-    status_t init();
 
     static status_t init_flags(unsigned *flags, cl::sycl::queue &queue) {
         // SYCL queue is always out-of-order
@@ -284,12 +282,15 @@ private:
         return status::success;
     }
 
-private:
     std::unique_ptr<cl::sycl::queue> queue_;
+
     // XXX: This is a temporary solution, ideally events should be a part of
     // execution context.
     std::vector<cl::sycl::event> deps_;
-}; // namespace sycl
+
+private:
+    status_t init();
+};
 
 } // namespace sycl
 } // namespace impl
