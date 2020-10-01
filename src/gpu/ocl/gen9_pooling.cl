@@ -61,8 +61,13 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         const int ih = oh * SH - PH;
         const int iw = ow * SW - PW;
 
-        VECT_FLOAT_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
-        VECT_FLOAT_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+#if ALG_AVG_P || ALG_AVG_NP
+        VECT_FLOAT_T D0 = DATA_ZERO;
+        VECT_FLOAT_T D1 = DATA_ZERO;
+#else // ALG_AVG_P || ALG_AVG_NP
+        VECT_DATA_T D0 = DATA_MIN;
+        VECT_DATA_T D1 = DATA_MIN;
+#endif // ALG_AVG_P || ALG_AVG_NP
         VECT_INT_T WS0 = 0, WS1 = 0;
 
         for (int kd = 0; kd < KD; ++kd)
@@ -73,13 +78,19 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
                     if (iw + kw < 0 || iw + kw >= IW) continue;
 
                     int src_off = SRC_OFF(mb, c, id + kd, ih + kh, iw + kw);
-
+#if ALG_AVG_P || ALG_AVG_NP
                     VECT_FLOAT_T S0 = CONVERT_VECT_FLOAT_T(
                             read_vect_c_block(0, &src[src_off], c, src_stride,
                                     src_chunks_per_c_block));
                     VECT_FLOAT_T S1 = CONVERT_VECT_FLOAT_T(
                             read_vect_c_block(1, &src[src_off], c, src_stride,
                                     src_chunks_per_c_block));
+#else // ALG_AVG_P || ALG_AVG_NP
+                    VECT_DATA_T S0 = read_vect_c_block(0, &src[src_off], c,
+                            src_stride, src_chunks_per_c_block);
+                    VECT_DATA_T S1 = read_vect_c_block(1, &src[src_off], c,
+                            src_stride, src_chunks_per_c_block);
+#endif // ALG_AVG_P || ALG_AVG_NP
 
 #if ALG_MAX
 #if IS_TRAINING
@@ -137,12 +148,16 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         const int po_mb = mb;
         const int po_oc = c + local_id;
         POST_OP_DATA_T po_sum0 = DATA_TO_REF(sum0);
-        APPLY_POST_OPS(D0, float, po_sum0, POST_OP_DATA_T, po_mb, 1, po_oc, 1,
-                0, 1, 0, 1, 0, 1, 0, 1);
+        float po_D0 = CONVERT_FLOAT_T(D0);
+        APPLY_POST_OPS(po_D0, float, po_sum0, POST_OP_DATA_T, po_mb, 1, po_oc,
+                1, 0, 1, 0, 1, 0, 1, 0, 1);
+        D0 = CONVERT_DATA_T(po_D0);
 
         POST_OP_DATA_T po_sum1 = DATA_TO_REF(sum1);
-        APPLY_POST_OPS(D1, POST_OP_DATA_T, po_sum1, POST_OP_DATA_T, po_mb, 1,
-                po_oc, 1, 0, 1, 0, 1, 0, 1, 0, 1);
+        float po_D1 = CONVERT_FLOAT_T(D1);
+        APPLY_POST_OPS(po_D1, float, po_sum1, POST_OP_DATA_T, po_mb, 1, po_oc,
+                1, 0, 1, 0, 1, 0, 1, 0, 1);
+        D1 = CONVERT_DATA_T(po_D1);
 #else
         for (int idx = 0; idx < VECT_DT_N; ++idx) {
 #if USE_MB_C_BLOCK
@@ -155,18 +170,18 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
             int po_mb = mb;
 #endif // USE_MB_C_BLOCK
 
-            POST_OP_DATA_T d0_i = D0[idx];
+            float d0_i = CONVERT_FLOAT_T(D0[idx]);
             POST_OP_DATA_T sum0_i = DATA_TO_REF(sum0[idx]);
-            APPLY_POST_OPS(d0_i, POST_OP_DATA_T, sum0_i, POST_OP_DATA_T, po_mb,
-                    1, po_oc, 1, 0, 1, 0, 1, 0, 1, 0, 1);
-            D0[idx] = d0_i;
+            APPLY_POST_OPS(d0_i, float, sum0_i, POST_OP_DATA_T, po_mb, 1, po_oc,
+                    1, 0, 1, 0, 1, 0, 1, 0, 1);
+            D0[idx] = CONVERT_DATA_T(d0_i);
 
-            POST_OP_DATA_T d1_i = D1[idx];
+            float d1_i = CONVERT_FLOAT_T(D1[idx]);
             POST_OP_DATA_T sum1_i = DATA_TO_REF(sum1[idx]);
             po_mb += VECT_DT_N;
-            APPLY_POST_OPS(d1_i, POST_OP_DATA_T, sum1_i, POST_OP_DATA_T, po_mb,
-                    1, po_oc, 1, 0, 1, 0, 1, 0, 1, 0, 1);
-            D1[idx] = d1_i;
+            APPLY_POST_OPS(d1_i, float, sum1_i, POST_OP_DATA_T, po_mb, 1, po_oc,
+                    1, 0, 1, 0, 1, 0, 1, 0, 1);
+            D1[idx] = CONVERT_DATA_T(d1_i);
         }
 #endif // #if VECT_DT_N == 1
         write_vect_c_block(0, &dst[dst_off], c, dst_stride,
