@@ -34,11 +34,13 @@
 
 #include "dnnl.hpp"
 #include "dnnl_debug.h"
-#include "dnnl_test_macros.hpp"
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "dnnl_test_common_ocl.hpp"
 #endif
+
+// Don't move it higher than library public headers
+#include "dnnl_test_macros.hpp"
 
 #include "src/common/bfloat16.hpp"
 #include "src/common/float16.hpp"
