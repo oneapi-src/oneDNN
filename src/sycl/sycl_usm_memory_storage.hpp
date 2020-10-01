@@ -64,8 +64,27 @@ public:
 
     virtual bool is_host_accessible() const override {
         if (engine()->kind() == engine_kind::cpu) return true; // optimism
+
+        /* FIXME: remove the W/A below when possible (fixed driver).
+         * Currently, shared USM suffers from synchronization issues between
+         * different devices. Specifically, the data migration from GPU to CPU
+         * may misbehave if accessed from multiple threads.
+         *
+         * One of the possible ways to work around the issue is to pretend that
+         * shared USM is not accessible on the host, hence map will allocate an
+         * extra memory and do a true copy of the data. This is what is done
+         * here: the shared USM marked as not-host-accessible.
+         *
+         * There is another possible work-around: touch the data on the host in
+         * the main thread, causing the "sequential" data migration. This W/A
+         * is a little bit more preferable as it doesn't allocate extra memory
+         * on the host. However it didn't work well for benchdnn, though worked
+         * perfectly fine for gtests. As we weren't able to find the cause of
+         * this behavior we went with the approach above. Hopefully, the driver
+         * will be fixed and we can get rid of W/A altogether. */
         return utils::one_of(usm_kind_, cl::sycl::usm::alloc::host,
-                cl::sycl::usm::alloc::shared, cl::sycl::usm::alloc::unknown);
+                // cl::sycl::usm::alloc::shared, // W/A (see above)
+                cl::sycl::usm::alloc::unknown);
     }
 
     virtual std::unique_ptr<memory_storage_t> get_sub_storage(
