@@ -2757,10 +2757,10 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v3(dnnl_rnn_desc_t *rnn_desc,
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
-/// - @p src_iter_desc together with @p src_iter_c_desc, diff_src_iter_desc,
+/// - @p src_iter_desc together with @p src_iter_c_desc, @p diff_src_iter_desc,
 ///   and @p diff_src_iter_c_desc,
 /// - @p bias_desc together with @p diff_bias_desc,
-/// - @p dst_iter_desc together with @p dst_iter_c_desc, diff_dst_iter_desc,
+/// - @p dst_iter_desc together with @p dst_iter_c_desc, @p diff_dst_iter_desc,
 ///   and @p diff_dst_iter_c_desc.
 ///
 /// This would then indicate that the LSTM backward propagation primitive
@@ -2839,11 +2839,11 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
-/// - @p src_iter_desc together with @p src_iter_c_desc, diff_src_iter_desc,
+/// - @p src_iter_desc together with @p src_iter_c_desc, @p diff_src_iter_desc,
 ///   and @p diff_src_iter_c_desc,
 /// - @p weights_peephole_desc together with @p diff_weights_peephole_desc,
 /// - @p bias_desc together with @p diff_bias_desc,
-/// - @p dst_iter_desc together with @p dst_iter_c_desc, diff_dst_iter_desc,
+/// - @p dst_iter_desc together with @p dst_iter_c_desc, @p diff_dst_iter_desc,
 ///   and @p diff_dst_iter_c_desc.
 ///
 /// This would then indicate that the LSTM backward propagation primitive
@@ -2927,11 +2927,11 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v2(
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
-/// - @p src_iter_desc together with @p src_iter_c_desc, diff_src_iter_desc,
+/// - @p src_iter_desc together with @p src_iter_c_desc, @p diff_src_iter_desc,
 ///   and @p diff_src_iter_c_desc,
 /// - @p weights_peephole_desc together with @p diff_weights_peephole_desc,
 /// - @p bias_desc together with @p diff_bias_desc,
-/// - @p dst_iter_desc together with @p dst_iter_c_desc, diff_dst_iter_desc,
+/// - @p dst_iter_desc together with @p dst_iter_c_desc, @p diff_dst_iter_desc,
 ///   and @p diff_dst_iter_c_desc.
 ///
 /// This would then indicate that the LSTM backward propagation primitive
