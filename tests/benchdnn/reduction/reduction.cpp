@@ -173,7 +173,10 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             break;
         default: break;
     }
-    if (is_invalid) res->state = SKIPPED, res->reason = INVALID_CASE;
+    if (is_invalid) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
+    }
 }
 
 int doit(const prb_t *prb, res_t *res) {

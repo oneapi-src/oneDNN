@@ -55,7 +55,7 @@ static void set_scalar_arg(
 status_t sycl_ocl_gpu_kernel_t::realize(
         gpu::compute::kernel_t *kernel, engine_t *engine) const {
     assert(state_ == state_t::binary);
-    if (binary_.size() == 0) return status::success;
+    if (binary_.empty()) return status::success;
     auto *compute_engine = utils::downcast<sycl_gpu_engine_t *>(engine);
 
     cl_device_id ocl_device;

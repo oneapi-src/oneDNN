@@ -117,7 +117,7 @@ status_t sycl_buffer_memory_storage_t::init_allocate(size_t size) {
         return status::out_of_memory;
     }
 
-    buffer_.reset(new buffer_u8_t(cl::sycl::range<1>(size)));
+    buffer_ = std::make_shared<buffer_u8_t>(cl::sycl::range<1>(size));
     if (!buffer_) return status::out_of_memory;
     return status::success;
 }
