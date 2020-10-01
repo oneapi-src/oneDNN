@@ -643,6 +643,9 @@ void simple_net() {
     // access those.
     /// @snippet cpu_rnn_inference_int8.cpp noctx mem dim
     //[noctx mem dim]
+    std::vector<float> dec_dst_iter(
+            dec_n_layers * batch * 2 * feature_size, 1.0f);
+
     memory::dims dec_dst_iter_dims
             = {dec_n_layers, 1, batch, feature_size + feature_size};
     memory::dims dec_dst_iter_noctx_dims
@@ -699,7 +702,8 @@ void simple_net() {
     /// @snippet cpu_rnn_inference_int8.cpp create noctx mem
     ///
     //[create noctx mem]
-    auto dec_dst_iter_memory = memory(dec_dst_iter_md, cpu_engine);
+    auto dec_dst_iter_memory
+            = memory(dec_dst_iter_md, cpu_engine, dec_dst_iter.data());
     auto dec_dst_iter_noctx_md = dec_dst_iter_md.submemory_desc(
             dec_dst_iter_noctx_dims, {0, 0, 0, 0, 0});
     //[create noctx mem]
