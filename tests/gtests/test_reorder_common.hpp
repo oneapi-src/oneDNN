@@ -65,8 +65,19 @@ class reorder_simple_test
 protected:
 #ifdef DNNL_TEST_WITH_ENGINE_PARAM
     void Test() {
+        using data_i_t = typename reorder_types::first_type;
+        using data_o_t = typename reorder_types::second_type;
+        memory::data_type prec_i = data_traits<data_i_t>::data_type;
+        memory::data_type prec_o = data_traits<data_o_t>::data_type;
+
+        SKIP_IF(unsupported_data_type(prec_i),
+                "Engine does not support this data type.");
+        SKIP_IF(unsupported_data_type(prec_o),
+                "Engine does not support this data type.");
+
         test_simple_params<reorder_types> p
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
+
         catch_expected_failures(
                 [=]() {
                     engine eng = get_test_engine();
@@ -77,8 +88,19 @@ protected:
 #endif
 
     void Test(engine &eng_i, engine &eng_o) {
+        using data_i_t = typename reorder_types::first_type;
+        using data_o_t = typename reorder_types::second_type;
+        memory::data_type prec_i = data_traits<data_i_t>::data_type;
+        memory::data_type prec_o = data_traits<data_o_t>::data_type;
+
+        SKIP_IF(unsupported_data_type(prec_i, eng_i),
+                "Engine does not support this data type.");
+        SKIP_IF(unsupported_data_type(prec_o, eng_o),
+                "Engine does not support this data type.");
+
         test_simple_params<reorder_types> p
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
+
         catch_expected_failures([&]() { RunTest(eng_i, eng_o); },
                 p.expect_to_fail, p.expected_status);
     }
