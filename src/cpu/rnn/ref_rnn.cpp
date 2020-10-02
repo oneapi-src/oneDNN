@@ -576,7 +576,7 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
                         ws_states_iter(lay + 1, dir, 0, b, j) = (src_data_t)0;
                     if (pd->cell_kind() == alg_kind::vanilla_lstm)
                         for (int j = 0; j < rnn.dhc; j++)
-                            ws_states_iter_c(lay + 1, dir, 1, b, j) = 0.0f;
+                            ws_states_iter_c(lay + 1, dir, 0, b, j) = 0.0f;
                 });
     }
 }
