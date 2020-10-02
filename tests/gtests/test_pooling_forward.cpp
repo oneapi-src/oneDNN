@@ -700,7 +700,7 @@ INSTANTIATE_TEST_SUITE_P(TestPoolingForwardEF, pooling_test_float,
                         algorithm::eltwise_square, memory::format_tag::nchw,
                         memory::format_tag::nchw,
                         EXPAND_SIZES_2D(
-                                2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1, 1, 1),
+                                2, 4, 4, 4, 4, 4, 3, 3, 0, 0, 1, 1, 1, 1),
                         true, dnnl_invalid_arguments}));
 
 INSTANTIATE_TEST_SUITE_P(TestPooling_nChw16c_with_padded, pooling_test_float,
