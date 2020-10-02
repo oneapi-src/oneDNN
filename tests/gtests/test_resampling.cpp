@@ -368,6 +368,26 @@ INSTANTIATE_TEST_SUITE_P(TestResampleForwardPlainLinear, resampling_test_float,
                         EXPAND_SIZES_3D(
                                 1, 16, 5, 10, 1, 10, 5, 1, 2.f, 0.5f, 1.f)}));
 
+GPU_INSTANTIATE_TEST_SUITE_P(TestResamplePlainLinear, resampling_test_float,
+        ::testing::Values(
+                resampling_test_params_t {prop_kind::forward,
+                        algorithm::resampling_linear, memory::format_tag::ncw,
+                        EXPAND_SIZES_1D(1, 1, 5, 10, 2.f)},
+                resampling_test_params_t {prop_kind::forward,
+                        algorithm::resampling_linear, memory::format_tag::ncw,
+                        EXPAND_SIZES_1D(1, 1, 525, 5, 0.01f)},
+                resampling_test_params_t {prop_kind::forward,
+                        algorithm::resampling_linear, memory::format_tag::ncw,
+                        EXPAND_SIZES_1D(13, 10, 7, 13, 1.99f)},
+                resampling_test_params_t {prop_kind::forward,
+                        algorithm::resampling_linear, memory::format_tag::ncw,
+                        EXPAND_SIZES_1D(10, 16, 7, 13, 1.9f)},
+                resampling_test_params_t {prop_kind::forward,
+                        algorithm::resampling_linear, memory::format_tag::nchw,
+                        EXPAND_SIZES_2D(32, 10, 14, 7, 29, 5, 2.1f, 0.72f)},
+                resampling_test_params_t {prop_kind::forward,
+                        algorithm::resampling_linear, memory::format_tag::nhwc,
+                        EXPAND_SIZES_2D(2, 14, 5, 5, 2, 3, 0.5f, 0.6f)}));
 INSTANTIATE_TEST_SUITE_P(TestResampleForwardBlockedLinear,
         resampling_test_float,
         ::testing::Values(

@@ -40,6 +40,30 @@ GPU_INST_TEST_CASE(Simple_ref,
         PARAMS(nChw4c, Ohwi4o, FMT_NO_BIAS, nChw8c, 2, 1, 32, 8, 8, 32, 8, 8, 3,
                 3, 6, 6, 1, 1, 5, 5));
 
+GPU_INST_TEST_CASE(Simple_no_blocking,
+        PARAMS(nhwc, oihw, FMT_BIAS, nhwc, 16, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6,
+                6, 1, 1, 5, 5),
+        PARAMS(nhwc, ohwi, FMT_BIAS, nhwc, 16, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6,
+                6, 1, 1, 5, 5),
+        PARAMS(nchw, goihw, FMT_BIAS, nchw, 2, 2, 4, 1, 1, 4, 1, 1, 1, 1, 0, 0,
+                1, 2, 0, 0),
+        PARAMS(nhwc, oihw, FMT_NO_BIAS, nhwc, 16, 1, 32, 8, 8, 32, 8, 8, 3, 3,
+                6, 6, 1, 1, 5, 5),
+        PARAMS(nhwc, ohwi, FMT_NO_BIAS, nhwc, 16, 1, 32, 8, 8, 32, 8, 8, 3, 3,
+                6, 6, 1, 1, 5, 5),
+        PARAMS(nchw, goihw, FMT_NO_BIAS, nchw, 2, 2, 4, 1, 1, 4, 1, 1, 1, 1, 0,
+                0, 1, 2, 0, 0));
+
+GPU_INST_TEST_CASE(Simple_io_formats,
+        PARAMS(nhwc, bacd, FMT_BIAS, nhwc, 16, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6,
+                6, 1, 1, 5, 5),
+        PARAMS(nhwc, bcda, FMT_BIAS, nhwc, 16, 1, 32, 8, 8, 32, 8, 8, 3, 3, 6,
+                6, 1, 1, 5, 5),
+        PARAMS(nchw, acbde, FMT_BIAS, nchw, 2, 2, 4, 1, 1, 4, 1, 1, 1, 1, 0, 0,
+                1, 2, 0, 0),
+        PARAMS(nhwc, acdeb, FMT_NO_BIAS, nhwc, 2, 2, 32, 8, 8, 32, 8, 8, 3, 3,
+                6, 6, 1, 1, 5, 5));
+
 INST_TEST_CASE(Simple_ZeroDim,
         PARAMS(nchw, oihw, FMT_BIAS, nchw, 0, 1, 4, 4, 4, 6, 4, 4, 3, 3, 1, 1,
                 1, 1),
