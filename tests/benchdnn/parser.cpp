@@ -19,9 +19,9 @@
 #include <string.h>
 #include <string>
 
-#include "dnnl.h"
-#include "dnnl_memory.hpp"
 #include "parser.hpp"
+
+#include "dnnl_common.hpp"
 
 namespace parser {
 

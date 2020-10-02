@@ -20,9 +20,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+#include <vector>
 
-#include "dnnl.h"
-#include "dnnl_memory.hpp"
+#include "dnnl_types.h"
+
+#include "dnn_types.hpp"
+#include "dnnl_debug.hpp"
 
 namespace parser {
 
