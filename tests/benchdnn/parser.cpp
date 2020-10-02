@@ -19,9 +19,9 @@
 #include <string.h>
 #include <string>
 
-#include "dnnl_memory.hpp"
-#include "oneapi/dnnl/dnnl.h"
 #include "parser.hpp"
+
+#include "dnnl_common.hpp"
 
 namespace parser {
 
