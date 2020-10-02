@@ -454,9 +454,9 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
         if (!tail_size_) return;
 
         const int mask_f32 = (1 << tail_size_) - 1;
-        Reg32 regw_tmp = reg_tmp.cvt32();
+        const Reg32 regw_tmp = reg_tmp.cvt32();
         mov(regw_tmp, mask_f32);
-        kmovd(tail_opmask_, regw_tmp);
+        kmovw(tail_opmask_, regw_tmp);
     }
 
     void cvt2odt(const Operand &dst, const Vmm &src, data_type_t odt) {
