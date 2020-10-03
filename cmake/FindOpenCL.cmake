@@ -35,6 +35,7 @@
 list(APPEND opencl_root_hints
             ${OPENCLROOT}
             $ENV{OPENCLROOT})
+
 set(original_cmake_prefix_path ${CMAKE_PREFIX_PATH})
 if(opencl_root_hints)
     list(INSERT CMAKE_PREFIX_PATH 0 ${opencl_root_hints})
@@ -78,7 +79,8 @@ endfunction()
 find_path(OpenCL_INCLUDE_DIR
   NAMES
     CL/cl.h OpenCL/cl.h
-  PATHS
+  HINTS
+    ${opencl_root_hints}
     ENV "PROGRAMFILES(X86)"
     ENV AMDAPPSDKROOT
     ENV INTELOCLSDKROOT
@@ -92,6 +94,8 @@ find_path(OpenCL_INCLUDE_DIR
     "AMD APP/include")
 
 _FIND_OPENCL_VERSION()
+
+message(STATUS "Found OpenCL-headers: ${OpenCL_INCLUDE_DIR}")
 
 if(WIN32)
   if(CMAKE_SIZEOF_VOID_P EQUAL 4)
