@@ -16,7 +16,6 @@
 
 #include <assert.h>
 #include <float.h>
-#include <math.h>
 
 #include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
@@ -150,15 +149,14 @@ void simple_resampling_fwd_t<data_type>::execute_forward(
     const int IH = pd()->IH();
     const int IW = pd()->IW();
 
-    parallel_nd(nsp_outer_, OD, OH, OW,
-            [&](dim_t nsp0, dim_t od, dim_t oh, dim_t ow) {
-                dim_t src_off = nsp0 * ID * IH * IW * inner_stride_;
-                dim_t dst_off
-                        = (nsp0 * OD * OH * OW + od * OH * OW + oh * OW + ow)
-                        * inner_stride_;
-                (this->*(interpolate))(
-                        src + src_off, dst + dst_off, od, oh, ow);
-            });
+    parallel_nd(nsp_outer_, OD, OH, [&](dim_t nsp0, dim_t od, dim_t oh) {
+        for (dim_t ow = 0; ow < OW; ow++) {
+            dim_t src_off = nsp0 * ID * IH * IW * inner_stride_;
+            dim_t dst_off = (nsp0 * OD * OH * OW + od * OH * OW + oh * OW + ow)
+                    * inner_stride_;
+            (this->*(interpolate))(src + src_off, dst + dst_off, od, oh, ow);
+        }
+    });
 }
 
 template struct simple_resampling_fwd_t<data_type::f32>;
