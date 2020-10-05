@@ -10,7 +10,7 @@ where *ip-knobs* are:
  - `--dir={FWD_B [default], FWD_D, FWD_I, BWD_D, BWD_W, BWD_WB}`
             -- dnnl_prop_kind_t. Refer to [direction](knobs_dir.md) for details.
  - `--cfg={f32 [default], ...}` -- refer to ``Configurations`` in
-            driver_conv.md.
+            [convolution driver](driver_conv.md).
  - `--stag={any [default], ...}` -- physical src memory layout.
             Refer to [tags](knobs_tag.md) for details.
  - `--wtag={any [default], ...}` -- physical wei memory layout.
