@@ -702,11 +702,9 @@ void jit_uni_binary_injector_t<isa>::execute_broadcast_tail(
             break;
         case data_type::bf16:
             if (is_avx512_) {
-                host_->vpbroadcastw(
-                        tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
+                host_->vpbroadcastw(tmp_vmm, rhs_addr);
                 host_->vpslld(
                         tmp_vmm | tail_opmask | host_->T_z, tmp_vmm, 0x10);
-                break;
             }
         default: assert(!"unsupported data type");
     }
