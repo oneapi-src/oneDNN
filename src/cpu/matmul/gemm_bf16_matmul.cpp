@@ -189,7 +189,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
         // either c-like "(type)var" or functional "type(var)" notation in order
         // to avoid gcc bug with c++14 standard. Otherwise, capture by value.
         parallel(0, [=, &st](int ithr, int nthr) {
-            size_t batch_start {}, batch_end {};
+            size_t batch_start {0}, batch_end {0};
             balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
             dims_t s_dims_idx, w_dims_idx, d_dims_idx;
             // account for M, N dims for index calculations

@@ -48,7 +48,7 @@ const int64_t LD_GOOD = INT64_MAX;
 const int64_t LD_NONE = INT64_MAX - 1;
 
 struct desc_t {
-    desc_t() : name(nullptr) {}
+    desc_t() : is_legacy_desc(false), name(nullptr) {}
     std::vector<dims_t> sdims;
     bool is_legacy_desc = false;
     const char *name = nullptr;
