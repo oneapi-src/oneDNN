@@ -1220,7 +1220,8 @@ void jit_uni_pool_kernel<isa>::generate() {
                  * corresponding to the piece with padded zeros doesn't exist in binary
                  * postops arg1 tensor (nchw format) in per_oc bcast strategy.
                  */
-                disable_postops_when_sse_high_half_processed_ = true;
+                disable_postops_when_sse_high_half_processed_
+                        = jpp.tag_kind == jptg_blocked;
             }
             sse_high_half = true;
             step_high_half(ur_w, ur_bc, lpad, rpad, with_c_tail_proccessing);
