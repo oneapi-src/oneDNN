@@ -313,7 +313,9 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         brg->ldb = brg->load_dim / brg->ld_block;
         brg->ldb_tail = brg->load_dim % brg->ld_block;
 
-        brg->ld_block2 = (brg->ldb > 0 && brg->ldb % 2 == 0) ? 2 : 1;
+        brg->ld_block2
+                = (brg->ldb > 0 && brg->ldb % 2 == 0 && brg->ldb_tail == 0) ? 2
+                                                                            : 1;
         brg->ldb2 = brg->ldb / brg->ld_block2;
         brg->ldb2_tail = brg->ldb % brg->ld_block2;
 
@@ -321,9 +323,8 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         brg->rdb = brg->reduce_dim / brg->rd_block;
         brg->rdb_tail = brg->reduce_dim % brg->rd_block;
 
-        // Remove these guard in the future:
-        if ((brg->rdb > 0 && brg->rdb_tail) || (brg->ldb > 0 && brg->ldb_tail))
-            return status::unimplemented;
+        // Remove these guard in the future (add tail processing by reduction dimension)
+        if (brg->rdb > 0 && brg->rdb_tail) return status::unimplemented;
         if (brg->rdb_tail % ((brg->is_bf16_amx) ? 2 : 4))
             return status::unimplemented;
     }
@@ -408,40 +409,48 @@ status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]) {
 
     if (!(brg.is_int8_amx || brg.is_bf16_amx)) return status::unimplemented;
 
-    int ld_block = (!brg.ldb && brg.ldb_tail) ? brg.ldb_tail : brg.ld_block;
+    //TODO: Add support of tail processing by reduction dimension
     int rd_block = (!brg.rdb && brg.rdb_tail) ? brg.rdb_tail : brg.rd_block;
 
-    auto cfg_tiles = [=](palette_config_t *buff, int Ac, int ld_block) {
-        char *_tc = (char *)buff;
-        for (int i = 0; i < max_palette_size_in_bytes; i++)
-            _tc[i] = 0;
+    palette_config_t *buff = (palette_config_t *)(palette);
 
-        int Ar = brg.bd_block;
-        int Br = (brg.typesize_C != 0) ? Ac / brg.typesize_C : 0;
-        int Cr = brg.bd_block;
+    char *_tc = (char *)buff;
+    for (int i = 0; i < max_palette_size_in_bytes; i++)
+        _tc[i] = 0;
 
-        int rd_step = 4 / brg.typesize_A;
-
-        int Bc = ld_block * brg.typesize_B * rd_step;
-        int Cc = ld_block * brg.typesize_C;
-
-        for (int m = 0; m < brgemm_amx::max_m_block2; m++)
-            tc_configure_tile(buff, brgemm_amx::get_A_tensor(m), Ar, Ac);
-        for (int n = 0; n < brgemm_amx::max_n_block2; n++)
-            tc_configure_tile(buff, brgemm_amx::get_B_tensor(n), Br, Bc);
-
-        for (int m = 0; m < brgemm_amx::max_m_block2; m++)
-            for (int n = 0; n < brgemm_amx::max_n_block2; n++)
-                tc_configure_tile(buff, brgemm_amx::get_C_tensor(m, n), Cr, Cc);
-
-        buff->palette_id = amx::get_max_palette();
-    };
+    int rd_step = 4 / brg.typesize_A;
 
     int Ac = brg.typesize_A * rd_block;
-    cfg_tiles((palette_config_t *)(palette), Ac, ld_block);
+
+    int Bc = brg.ld_block * brg.typesize_B * rd_step;
+    int Bc_t = brg.ldb_tail * brg.typesize_B * rd_step;
+
+    int Cc = brg.ld_block * brg.typesize_C;
+    int Cc_t = brg.ldb_tail * brg.typesize_C;
+
+    int Ar = brg.bd_block;
+    int Br = (brg.typesize_C != 0) ? Ac / brg.typesize_C : 0;
+    int Cr = brg.bd_block;
+
+    if (brg.ldb_tail && (brg.ld_block2 + 1 > brgemm_amx::max_n_block2))
+        return status::unimplemented;
+    for (int m = 0; m < brgemm_amx::max_m_block2; m++)
+        tc_configure_tile(buff, brgemm_amx::get_A_tensor(m), Ar, Ac);
+    for (int n = 0; n < brg.ld_block2; n++)
+        tc_configure_tile(buff, brgemm_amx::get_B_tensor(n), Br, Bc);
+    if (brg.ldb_tail)
+        tc_configure_tile(
+                buff, brgemm_amx::get_B_tensor(brg.ld_block2), Br, Bc_t);
+    for (int m = 0; m < brgemm_amx::max_m_block2; m++) {
+        for (int n = 0; n < brg.ld_block2; n++)
+            tc_configure_tile(buff, brgemm_amx::get_C_tensor(m, n), Cr, Cc);
+        if (brg.ldb_tail)
+            tc_configure_tile(
+                    buff, brgemm_amx::get_C_tensor(m, brg.ld_block2), Cr, Cc_t);
+    }
+    buff->palette_id = amx::get_max_palette();
 
     return status::success;
-    // TODO: add tail processing support
 }
 
 } // namespace x64
