@@ -15,6 +15,13 @@
 --dtag=bacde,acbde
 3x5x7x11x16
 
+# test 6d reorder
+--sdt=f32
+--ddt=f32
+--stag=abdfce
+--dtag=abcdef
+1x1x3x2x16x2
+
 ### test types
 --reset
 --sdt=f32,s32,s8,u8,f16,bf16

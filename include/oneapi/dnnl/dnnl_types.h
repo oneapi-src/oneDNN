@@ -192,6 +192,7 @@ typedef enum {
 
     dnnl_abdc, ///< permuted 4D tensor
     dnnl_abdec, ///< permuted 5D tensor
+    dnnl_abdfce, ///< permuted 6D tensor
     dnnl_acb, ///< permuted 3D tensor
     dnnl_acbde, ///< permuted 5D tensor
     dnnl_acbdef, ///< permuted 6D tensor
