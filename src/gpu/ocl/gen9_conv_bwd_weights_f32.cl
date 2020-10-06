@@ -324,7 +324,7 @@ gen9_conv_bwd_weights(__global float *src,
     const int mb_end = min((mb_chunk + 1) * MB_CHUNK_SIZE, MB);
 
     const bool do_bias = (ic == 0 || IS_DW) && kh == 0 && kw == 0 && kd == 0;
-    const int OW_LOOP_BLOCK = (IC == 3) ? 2 * OW_BLOCK : OW_BLOCK;
+    const int OW_LOOP_BLOCK = 8;
 
     src += ic * ID * IH * IW * IC_BLOCK * MB_BLOCK + mb * IC * G * ID * IH * IW
             + g * IC * ID * IH * IW * MB_BLOCK;
@@ -363,10 +363,10 @@ gen9_conv_bwd_weights(__global float *src,
 #if WITH_BIAS == 1
                     if (do_bias) {
                         for (int ow = ow_beg; ow < ow_beg + OWB;
-                                ow += OW_BLOCK) {
+                                ow += OW_LOOP_BLOCK) {
                             float8 blockB;
 #if OW % OWB != 0
-                            for (int i = 0; i < 8; i++) {
+                            for (int i = 0; i < OW_LOOP_BLOCK; i++) {
                                 if (ow + i >= OW) {
                                     blockB[i] = 0.0;
                                 } else {
@@ -383,7 +383,7 @@ gen9_conv_bwd_weights(__global float *src,
                                             + ow * OC_BLOCK)));
 #endif
 
-                            for (int i = 0; i < OW_BLOCK; i++)
+                            for (int i = 0; i < OW_LOOP_BLOCK; i++)
                                 bias_loc += blockB[i];
                         }
                     }
@@ -392,9 +392,8 @@ gen9_conv_bwd_weights(__global float *src,
                 }
 
                 for (int ow = ow_beg;
-                        ow < min(ow_beg + OWB,
-                                (OW / OW_LOOP_BLOCK) * OW_LOOP_BLOCK);
-                        ow += OW_LOOP_BLOCK) {
+                        ow < min(ow_beg + OWB, (OW / OW_BLOCK) * OW_BLOCK);
+                        ow += OW_BLOCK) {
 
                     const int id = od * SD - PD + kd * (1 + DD);
                     const int ih = oh * SH - PH + kh * (1 + DH);
@@ -459,7 +458,7 @@ gen9_conv_bwd_weights(__global float *src,
                     blockC = as_float8(intel_sub_group_block_read8(
                             (const __global uint *)(diff_dst1
                                     + (ow + 8) * OC_BLOCK)));
-                    for (int i = 0; i < 8; i++) {
+                    for (int i = 0; i < OW_LOOP_BLOCK; i++) {
                         for (int j = 0; j < 3; j++)
                             blockC00[j] = fma(blockB[i],
                                     intel_sub_group_shuffle(blockA[j], i),
@@ -471,7 +470,7 @@ gen9_conv_bwd_weights(__global float *src,
                     }
 
 #elif IS_DW
-                    for (int i = 0; i < 8; i++) {
+                    for (int i = 0; i < OW_LOOP_BLOCK; i++) {
                         blockC00 = fma(blockA[i], blockB[i], blockC00);
                     }
 #else
@@ -480,7 +479,7 @@ gen9_conv_bwd_weights(__global float *src,
 
 #endif
 #if WITH_BIAS == 1
-                    for (int i = 0; i < 8; i++) {
+                    for (int i = 0; i < OW_LOOP_BLOCK; i++) {
 #if IC == 3
                         bias_loc += blockC[i];
 #endif
@@ -489,7 +488,7 @@ gen9_conv_bwd_weights(__global float *src,
 #endif
                 }
 
-                for (int ow = (OW / OW_LOOP_BLOCK) * OW_LOOP_BLOCK;
+                for (int ow = (OW / OW_BLOCK) * OW_BLOCK;
                         ow < min(ow_beg + OWB, OW); ow += OW_LOOP_BLOCK) {
                     const int id = od * SD - PD + kd * (1 + DD);
                     const int ih = oh * SH - PH + kh * (1 + DH);
@@ -501,7 +500,7 @@ gen9_conv_bwd_weights(__global float *src,
                             + iw * IC_BLOCK;
 #if IC == 3
                     if (local_x < IC) {
-                        for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                        for (int i = 0; i < min(OW_LOOP_BLOCK, OW - ow); i++) {
                             if (HAS_PAD_W
                                     && (iw + i * SW < 0 || iw + i * SW >= IW))
                                 blockA[i] = 0;
@@ -514,7 +513,7 @@ gen9_conv_bwd_weights(__global float *src,
                     }
 #else
 
-                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                    for (int i = 0; i < min(OW_LOOP_BLOCK, OW - ow); i++) {
                         if (HAS_PAD_W && (iw + i < 0 || iw + i * SW >= IW)) {
                             blockA[i] = 0;
                         } else {
@@ -525,24 +524,24 @@ gen9_conv_bwd_weights(__global float *src,
                     }
 #endif
 
-                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                    for (int i = 0; i < min(OW_LOOP_BLOCK, OW - ow); i++) {
                         blockB[i] = as_float(intel_sub_group_block_read((
                                 const __global uint
                                         *)(&diff_dst1[(ow + i) * OC_BLOCK])));
                     }
 #if IC == 3
-                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                    for (int i = 0; i < min(OW_LOOP_BLOCK, OW - ow); i++) {
                         blockC00 = FMA8(
                                 blockB[i], TRANSPOSE_8(blockA, i, 0), blockC00);
                     }
 
 #elif IS_DW
-                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                    for (int i = 0; i < min(OW_LOOP_BLOCK, OW - ow); i++) {
                         blockC00 = fma(blockA[i], blockB[i], blockC00);
                     }
 #else
 
-                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++) {
+                    for (int i = 0; i < min(OW_LOOP_BLOCK, OW - ow); i++) {
                         blockC00 = FMA8(
                                 blockB[i], TRANSPOSE_8(blockA, i, 0), blockC00);
                         blockC01 = FMA8(
@@ -550,7 +549,7 @@ gen9_conv_bwd_weights(__global float *src,
                     }
 #endif
 #if WITH_BIAS == 1
-                    for (int i = 0; i < OW % OW_LOOP_BLOCK; i++)
+                    for (int i = 0; i < min(OW_LOOP_BLOCK, OW - ow); i++)
                         bias_loc += blockB[i];
 #endif
                 }
