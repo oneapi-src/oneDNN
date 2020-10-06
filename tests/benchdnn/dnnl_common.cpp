@@ -20,6 +20,8 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "cpu/platform.hpp"
+
 float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
     switch (dt) {
         case dnnl_f32: break;
@@ -222,12 +224,12 @@ bool check_md_consistency_with_tag(
 
 void check_known_skipped_case_common(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *r) {
-    static auto isa = dnnl_get_effective_cpu_isa();
     const bool has_bf16_support
-            = (engine_tgt_kind == dnnl_cpu && isa >= dnnl_cpu_isa_avx512_core)
+            = (engine_tgt_kind == dnnl_cpu
+                      && dnnl::impl::cpu::platform::has_data_type_support(
+                              dnnl_bf16))
             || engine_tgt_kind == dnnl_gpu;
 
-    // rely on dnnl_cpu_isa_t enum order where AVX512_MIC < AVX512_CORE
     for (const auto &i_dt : v_dt) {
         // bf16 is supported on AVX512-CORE+
         if (!has_bf16_support && i_dt == dnnl_bf16) {
