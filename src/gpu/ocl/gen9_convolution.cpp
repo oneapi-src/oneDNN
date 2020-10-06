@@ -883,7 +883,7 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
             conf.mb_block = 1;
             conf.oc_block = 16;
             conf.ic_block = is_1stconv ? 1 : 16;
-            conf.ow_block = 8;
+            conf.ow_block = is_1stconv ? 16 : 8;
             break;
         case ver_16mb16c:
             conf.mb_block = 16;
