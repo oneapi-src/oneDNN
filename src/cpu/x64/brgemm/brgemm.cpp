@@ -137,11 +137,11 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
     (*brg_kernel)(&brgemm_p);
 }
 
-status_t brgemm_desc_init(brgemm_t *brg, brgemm_batch_kind_t type,
-        impl::data_type_t dt_a, impl::data_type_t dt_b, bool transA,
-        bool transB, brgemm_layout_t layout, float alpha, float beta, dim_t LDA,
-        dim_t LDB, dim_t LDC, dim_t M, dim_t N, dim_t K,
-        const brgemm_strides_t *strides) {
+status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
+        brgemm_batch_kind_t type, impl::data_type_t dt_a,
+        impl::data_type_t dt_b, bool transA, bool transB,
+        brgemm_layout_t layout, float alpha, float beta, dim_t LDA, dim_t LDB,
+        dim_t LDC, dim_t M, dim_t N, dim_t K, const brgemm_strides_t *strides) {
     /*
     m - number of rows of the matrix op(A) and number of rows of the matrix C
     n - number of columns of the matrix op(B) and number of columns of the matrix C
@@ -186,9 +186,23 @@ status_t brgemm_desc_init(brgemm_t *brg, brgemm_batch_kind_t type,
     if (brg->is_int8 && (!mayiuse(avx512_core_vnni) && !mayiuse(amx_int8)))
         return status::unimplemented;
 
-    brg->is_int8_amx = brg->is_int8 && mayiuse(amx_int8);
-    brg->is_bf16_amx = brg->is_bf16 && mayiuse(amx_bf16);
-
+    if (isa != isa_any) {
+        if (!one_of(isa, avx512_core, avx512_core_bf16, avx512_core_vnni,
+                    amx_bf16, amx_int8)) {
+            return status::invalid_arguments;
+        }
+        if (brg->is_int8 && isa == amx_int8) {
+            if (!mayiuse(amx_int8)) return status::invalid_arguments;
+            brg->is_int8_amx = true;
+        }
+        if (brg->is_bf16 && isa == amx_bf16) {
+            if (!mayiuse(amx_bf16)) return status::invalid_arguments;
+            brg->is_bf16_amx = true;
+        }
+    } else {
+        brg->is_int8_amx = brg->is_int8 && mayiuse(amx_int8);
+        brg->is_bf16_amx = brg->is_bf16 && mayiuse(amx_bf16);
+    }
     brg->LDA = (is_row_major()) ? (int)LDA : (int)LDB;
     brg->LDB = (is_row_major()) ? (int)LDB : (int)LDA;
 
@@ -288,7 +302,6 @@ status_t brgemm_desc_init(brgemm_t *brg, brgemm_batch_kind_t type,
             }
         }
         brg->bdb = brg->bcast_dim / brg->bd_block;
-        brg->bdb_tail = brg->bcast_dim % brg->bd_block;
         brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
         brg->bd_block2 = (brg->bdb >= 2) ? 2 : 1;

@@ -19,6 +19,7 @@
 
 #include "cpu/x64/brgemm/brgemm_amx.hpp"
 #include "cpu/x64/brgemm/brgemm_types.hpp"
+#include "cpu/x64/cpu_isa_traits.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,6 +28,9 @@ namespace x64 {
 /// Initializes a BRGEMM descriptor
 ///
 /// @param brg Output BRGEMM descriptor
+/// @param isa Target ISA of BRGEMM kernel
+///     If isa is equal to 'isa_any' maximum supported ISA on current
+//      hardware will be used for BRGEMM kernel generation
 /// @param type Type of batch
 /// @param dt_a Data type of A matrix, can be
 ///     AVX512: f32, u8(row-major layout), s8(column-major layout), bf16
@@ -59,10 +63,11 @@ namespace x64 {
 ///        the number of rows of the matrces B
 /// @param strides Strides between the matrices in the batch. Can be nullptr.
 ///
-status_t brgemm_desc_init(brgemm_t *brg, brgemm_batch_kind_t type,
-        impl::data_type_t dt_a, impl::data_type_t dt_b, bool transA,
-        bool transB, brgemm_layout_t layout, float alpha, float beta, dim_t LDA,
-        dim_t LDB, dim_t LDC, dim_t M, dim_t N, dim_t K,
+status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
+        brgemm_batch_kind_t type, impl::data_type_t dt_a,
+        impl::data_type_t dt_b, bool transA, bool transB,
+        brgemm_layout_t layout, float alpha, float beta, dim_t LDA, dim_t LDB,
+        dim_t LDC, dim_t M, dim_t N, dim_t K,
         const brgemm_strides_t *strides = nullptr);
 
 /// Adds post-operations to BRGEMM descriptor
