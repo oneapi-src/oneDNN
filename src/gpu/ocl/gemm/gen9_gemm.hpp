@@ -176,9 +176,15 @@ struct gen9_gemm_t : public gpu_gemm_t {
         }
 
         void init_scratchpad_copy_based() {
+            int block_m, block_n, block_k;
+            std::tie(block_m, block_n, block_k) = get_blocking(false);
+            auto bytes = (block_m + block_n) * block_k
+                            * types::data_type_size(desc()->acc_type)
+                    + 0x2000;
+
             auto scratchpad = scratchpad_registry().registrar();
-            scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer,
-                    128 << 20, 1, OCL_BUFFER_ALIGNMENT);
+            scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer, bytes,
+                    1, OCL_BUFFER_ALIGNMENT);
         }
 
         void init_scratchpad_nocopy_superkernel() {
@@ -327,7 +333,6 @@ struct gen9_gemm_t : public gpu_gemm_t {
         }
 
         size_t max_plan_size() const {
-
             auto m = desc()->m;
             auto n = desc()->n;
             bool transa = (desc()->transa == dnnl_trans);
@@ -342,6 +347,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
             return sizeof(plan_element_t) * (max_threads + 1);
         }
+
+        std::tuple<int, int, int> get_blocking(bool nocopy) const;
 
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;

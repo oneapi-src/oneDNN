@@ -48,6 +48,31 @@ struct driver_params_f32_nocopy_t {
 static_assert(sizeof(plan_element_t) == 8,
         "Plan element structure has been padded by the compiler.");
 
+std::tuple<int, int, int> gen9_gemm_t::pd_t::get_blocking(bool nocopy) const {
+    int block_m, block_n, block_k;
+
+    if (!nocopy) {
+        if (desc()->acc_type == data_type::f16) {
+            block_m = driver_params_f16_copy_t::block_m;
+            block_n = driver_params_f16_copy_t::block_n;
+            block_k = driver_params_f16_copy_t::block_k;
+        } else {
+            block_m = driver_params_f32_copy_t::block_m;
+            block_n = driver_params_f32_copy_t::block_n;
+            block_k = driver_params_f32_copy_t::block_k;
+        }
+    } else {
+        block_m = driver_params_f32_nocopy_t::block_m;
+        block_n = driver_params_f32_nocopy_t::block_n;
+        block_k = driver_params_f32_nocopy_t::block_k;
+    }
+
+    if (desc()->acc_type != desc()->c_type)
+        block_k = utils::rnd_up(desc()->k, 64);
+
+    return std::make_tuple(block_m, block_n, block_k);
+}
+
 status_t gen9_gemm_t::launch_beta(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, int64_t m, int64_t n,
         float alpha, const memory_storage_t &a, int64_t offset_a,
@@ -309,22 +334,9 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
 
     status_t status;
     constexpr int64_t align = 0x1000;
+
     int block_m, block_n, block_k;
-    if (!nocopy) {
-        if (pd()->desc()->acc_type == data_type::f16) {
-            block_m = driver_params_f16_copy_t::block_m;
-            block_n = driver_params_f16_copy_t::block_n;
-            block_k = driver_params_f16_copy_t::block_k;
-        } else {
-            block_m = driver_params_f32_copy_t::block_m;
-            block_n = driver_params_f32_copy_t::block_n;
-            block_k = driver_params_f32_copy_t::block_k;
-        }
-    } else {
-        block_m = driver_params_f32_nocopy_t::block_m;
-        block_n = driver_params_f32_nocopy_t::block_n;
-        block_k = driver_params_f32_nocopy_t::block_k;
-    }
+    std::tie(block_m, block_n, block_k) = pd()->get_blocking(nocopy);
 
     if (!nocopy && beta != 0. && beta != 1.) {
         status = launch_beta(
@@ -334,7 +346,7 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
 
     int64_t off_b_packed = 0;
     int64_t off_a_packed
-            = ((off_b_packed + block_n * block_k) + align - 1) & -align;
+            = utils::rnd_up(off_b_packed + block_n * block_k, align);
 
     auto temp_buf = ctx.get_scratchpad_grantor().get_memory_storage(
             memory_tracking::names::key_gemm_tmp_buffer);
