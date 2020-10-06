@@ -153,7 +153,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                 = utils::get_dims_mask(dst_d.dims(), weights_d.dims(), ndims);
 
         parallel(0, [&](int ithr, int nthr) {
-            size_t batch_start {}, batch_end {};
+            size_t batch_start {0}, batch_end {0};
             balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
             dims_t s_dims_idx, w_dims_idx, d_dims_idx;
             // account for M, N dims for index calculations
