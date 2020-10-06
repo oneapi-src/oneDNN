@@ -328,6 +328,7 @@ static po_table_entry_t kind_table[] = {
         {pk_t::MAX, "max", dnnl_binary_max},
         {pk_t::MIN, "min", dnnl_binary_min},
         {pk_t::MUL, "mul", dnnl_binary_mul},
+        {pk_t::SUB, "sub", dnnl_binary_sub},
         {pk_t::BINARY_END, "binary_undef", dnnl_alg_kind_undef},
         // guard entry
         {pk_t::KIND_TOTAL, "kind_undef", dnnl_alg_kind_undef}};
@@ -1148,6 +1149,8 @@ float compute_binary(pk_t kind, float src0, float src1) {
         return MIN2(src0, src1);
     } else if (kind == pk_t::DIV) {
         return src0 / src1;
+    } else if (kind == pk_t::SUB) {
+        return src0 - src1;
     } else {
         assert(!"operation not supported!");
     }

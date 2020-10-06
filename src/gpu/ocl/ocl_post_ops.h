@@ -42,6 +42,7 @@ float fwd_Xnary(
         case BINARY_MIN: return x < y ? x : y; break;
         case BINARY_MAX: return x > y ? x : y; break;
         case BINARY_DIV: return x / y; break;
+        case BINARY_SUB: return x - y; break;
 
         // unary
         default:

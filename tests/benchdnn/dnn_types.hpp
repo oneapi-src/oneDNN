@@ -228,6 +228,7 @@ struct attr_t {
             MAX,
             MIN,
             MUL,
+            SUB,
             BINARY_END, // a guard to check kind is binary
             // guard entry
             KIND_TOTAL

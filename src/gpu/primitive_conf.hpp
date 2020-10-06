@@ -503,6 +503,7 @@ struct binary_conf_t {
     bool is_max;
     bool is_min;
     bool is_div;
+    bool is_sub;
     bool is_tensor_op;
     compute::dispatch_t dispatch;
     int dim0[MAX_NDIMS];
@@ -830,6 +831,7 @@ inline void def_binary_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("BINARY_MIN", alg_kind::binary_min);
     kernel_ctx.define_int("BINARY_MAX", alg_kind::binary_max);
     kernel_ctx.define_int("BINARY_DIV", alg_kind::binary_div);
+    kernel_ctx.define_int("BINARY_SUB", alg_kind::binary_sub);
 }
 
 inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {

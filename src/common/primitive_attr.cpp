@@ -246,8 +246,8 @@ status_t post_ops_t::append_binary(
         alg_kind_t alg, const memory_desc_t *src1_desc) {
     if (len() == post_ops_limit) return out_of_memory;
     using namespace alg_kind;
-    bool alg_ok = one_of(
-            alg, binary_add, binary_mul, binary_max, binary_min, binary_div);
+    bool alg_ok = one_of(alg, binary_add, binary_mul, binary_max, binary_min,
+            binary_div, binary_sub);
     if (!alg_ok) return invalid_arguments;
     if (!memory_desc_sanity_check(src1_desc)) return invalid_arguments;
 

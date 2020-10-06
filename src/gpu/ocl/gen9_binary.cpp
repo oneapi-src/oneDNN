@@ -42,6 +42,7 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
     conf.is_max = (alg == alg_kind::binary_max);
     conf.is_min = (alg == alg_kind::binary_min);
     conf.is_div = (alg == alg_kind::binary_div);
+    conf.is_sub = (alg == alg_kind::binary_sub);
     conf.is_tensor_op = is_tensor_op();
     conf.is_dense = dst_d.is_dense();
     conf.same_src_dt = (src0_d.data_type() == src1_d.data_type());

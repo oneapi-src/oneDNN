@@ -82,7 +82,7 @@ struct jit_uni_binary_t : public primitive_t {
             using namespace utils;
             using namespace alg_kind;
             return utils::one_of(desc()->alg_kind, binary_add, binary_max,
-                    binary_min, binary_mul);
+                    binary_min, binary_mul, binary_sub);
         }
 
         bool is_applicable() {

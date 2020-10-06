@@ -964,6 +964,8 @@ typedef enum {
     dnnl_binary_min = 0x1fff3,
     /// Binary div
     dnnl_binary_div = 0x1fff4,
+    /// Binary sub
+    dnnl_binary_sub = 0x1fff5,
     /// Nearest Neighbor Resampling Method
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method
@@ -1759,8 +1761,8 @@ typedef struct {
     /// descriptor. Must be #dnnl_binary.
     dnnl_primitive_kind_t primitive_kind;
     /// The kind of the binary algorithm. Possible values:
-    /// #dnnl_binary_add, #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min
-    /// and #dnnl_binary_div.
+    /// #dnnl_binary_add, #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min,
+    /// #dnnl_binary_div and #dnnl_binary_sub.
     dnnl_alg_kind_t alg_kind;
     /// Source memory descriptors.
     dnnl_memory_desc_t src_desc[2];
