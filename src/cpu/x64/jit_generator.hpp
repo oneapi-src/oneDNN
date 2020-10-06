@@ -445,8 +445,13 @@ public:
         if (mayiuse(avx2)) {
             vpbroadcastd(x, op);
         } else {
-            Xbyak::Xmm t(x.getIdx());
-            if (!t.isEqualIfNotInherited(op)) movsd(t, op);
+            const Xbyak::Xmm t(x.getIdx());
+            if (!t.isEqualIfNotInherited(op)) {
+                if (op.isMEM())
+                    vmovss(t, op.getAddress());
+                else
+                    vmovss(t, t, op);
+            }
             vinsertf128(x, x, t, 1);
             vshufps(x, x, x, 0);
         }
