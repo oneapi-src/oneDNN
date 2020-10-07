@@ -13,7 +13,7 @@
 
 # f16
 --reset
---cfg=f16
+--cfg=f16_no_limits
 --mb=2
 --dir=FWD_B
 --attr-post-ops='sum:0.5;add:f32;add:u8:per_dim_01;linear:0.5:1.5:2.0;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01;relu:0.5'
@@ -43,6 +43,6 @@
 
 # regression
 --reset
---cfg=f32,f16 --dtag=axb --alg=auto
+--cfg=f32,f16_no_limits --dtag=axb --alg=auto
 --attr-post-ops='sum:0.5;add:f32;add:u8:per_dim_01;linear:0.5:1.5:2.0;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01;relu:0.5'
 g1ic16iw5oc16ow5kw1pw0
