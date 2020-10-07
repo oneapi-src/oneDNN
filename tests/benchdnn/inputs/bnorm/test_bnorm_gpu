@@ -65,3 +65,17 @@
 --dir=BWD_D,BWD_W,BWD_WB,BWD_DW     --flags=        --batch=shapes_topologies_small
 --dir=BWD_W,BWD_WB,BWD_DW           --flags=SR,GS,S --batch=shapes_topologies_small
 
+# s8 axb tests
+--reset
+--mb=2
+--inplace=true,false
+--tag=axb
+--dt=s8
+--dir=FWD_I
+--flags=G,GS
+--attr-post-ops='','relu'
+--batch=shapes_topologies_small
+
+--flags=GR,GSR
+--attr-post-ops=''
+--batch=shapes_topologies_small
