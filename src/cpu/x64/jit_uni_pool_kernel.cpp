@@ -436,7 +436,7 @@ void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block) {
                 const auto vmm_idx
                         = vreg(reg_ind(0, bci, jj, ur_bc, ur_w)).getIdx();
                 rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                        vmm_idx, ptr[param1 + GET_OFF(c_elem_off)]);
+                        vmm_idx, ptr[reg_param + GET_OFF(c_elem_off)]);
                 rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
                         vmm_idx, bci * c_block + sse_elem_off);
             }
