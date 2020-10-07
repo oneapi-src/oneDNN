@@ -418,8 +418,10 @@ float one_m_square(float x) {
 namespace {
 void inv_tnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &t,
         int64_t &n, int64_t &c) {
-    auto C = (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) ? prb.slc
-                                                           : prb.dlc(PRIMITIVE);
+    auto C = prb.dlc(PRIMITIVE);
+    if (kind == DST_LAYER && prb.with_projection) C = prb.dic;
+    if (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) C = prb.slc;
+
     c = off % C;
     off /= C;
     n = off % prb.mb;
@@ -432,6 +434,7 @@ void inv_tnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &t,
 void inv_ldnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
         int64_t &d, int64_t &n, int64_t &c) {
     auto C = prb.dhc;
+    if (kind == DST_ITER && prb.with_projection) C = prb.dic;
     if (kind == SRC_ITER || kind == DIFF_SRC_ITER) C = prb.sic;
     c = off % C;
     off /= C;
