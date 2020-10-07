@@ -12,8 +12,9 @@
                 'linear:2:0.125', \
                 'sum:0.25;relu:-0.01', \
                 'add:f32:per_oc', \
-                'mul:s8;linear:0.5:0.25', \
-                'sum:0.5;add:f32:common;abs;min:u8:per_oc'
+                'add:bf16:per_oc;linear:2:1', \
+                'max:u8:per_oc', \
+                'mul:s8;add:f32:common;sum:0.5;abs'
 --batch=option_set_all
 
 ## scales
