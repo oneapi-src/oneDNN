@@ -44,16 +44,22 @@ bool jit_uni_binary_t<src_type>::post_ops_ok(
     const auto &p = attr->post_ops_;
     const auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     const auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
+    const auto is_binary_bf16 = [&](int idx) {
+        return is_binary(idx)
+                && p.entry_[idx].binary.src1_desc.data_type == data_type::bf16;
+    };
+    const bool is_avx512_core = mayiuse(avx512_core);
 
     for (int i = 0; i < p.len(); i++) {
         if (p.contain(primitive_kind::sum, i)) {
             if (i > 0) return false;
-        } else if (!(is_eltwise(i) || is_binary(i)))
+        } else if (!(is_eltwise(i) || is_binary(i))
+                || (!is_avx512_core && is_binary_bf16(i)))
             return false;
     }
 
-    const int vlen = mayiuse(avx512_core) ? cpu_isa_traits<avx512_core>::vlen
-                                          : cpu_isa_traits<avx2>::vlen;
+    const int vlen = is_avx512_core ? cpu_isa_traits<avx512_core>::vlen
+                                    : cpu_isa_traits<avx2>::vlen;
 
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(p, dst_d);

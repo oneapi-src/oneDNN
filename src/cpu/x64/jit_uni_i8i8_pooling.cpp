@@ -1380,6 +1380,9 @@ bool jit_uni_i8i8_pooling_fwd_ker_t<isa>::post_ops_ok(jit_pool_conf_t &jpp,
         if (entry.is_eltwise()) {
             jpp.with_eltwise = true;
         } else if (entry.is_binary()) {
+            if (isa != avx512_core
+                    && entry.binary.src1_desc.data_type == data_type::bf16)
+                return false;
             jpp.with_binary = true;
         } else
             return false;

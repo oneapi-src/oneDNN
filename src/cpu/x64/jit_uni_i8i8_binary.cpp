@@ -44,11 +44,15 @@ bool jit_uni_i8i8_binary_t<src0_type, src1_type>::post_ops_ok(
     const auto &p = attr->post_ops_;
     const auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     const auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
+    const auto is_binary_bf16 = [&](int idx) {
+        return is_binary(idx)
+                && p.entry_[idx].binary.src1_desc.data_type == data_type::bf16;
+    };
 
     for (int i = 0; i < p.len(); i++) {
         if (p.contain(primitive_kind::sum, i)) {
             if (i > 0) return false;
-        } else if (!(is_eltwise(i) || is_binary(i)))
+        } else if (!(is_eltwise(i) || is_binary(i)) || is_binary_bf16(i))
             return false;
     }
 

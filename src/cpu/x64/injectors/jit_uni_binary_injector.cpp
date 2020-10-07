@@ -600,7 +600,8 @@ void jit_uni_binary_injector_t<isa>::execute_broadcast_no_tail(
             execute_broadcast_s8u8_no_tail(data_type, tmp_vmm, rhs_addr);
             break;
         case data_type::bf16:
-            if (is_avx512_) {
+            if (is_avx512_
+                    && utils::one_of(isa, avx512_core_bf16, avx512_core)) {
                 host_->vpbroadcastw(tmp_vmm, rhs_addr);
                 host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
                 break;
@@ -701,7 +702,8 @@ void jit_uni_binary_injector_t<isa>::execute_broadcast_tail(
             host_->vpmovzxbd(tmp_vmm | tail_opmask | host_->T_z, tmp_vmm);
             break;
         case data_type::bf16:
-            if (is_avx512_) {
+            if (is_avx512_
+                    && utils::one_of(isa, avx512_core_bf16, avx512_core)) {
                 host_->vpbroadcastw(tmp_vmm, rhs_addr);
                 host_->vpslld(
                         tmp_vmm | tail_opmask | host_->T_z, tmp_vmm, 0x10);
@@ -886,7 +888,8 @@ void jit_uni_binary_injector_t<isa>::load_rhs_no_tail(
         case data_type::s8: host_->uni_vpmovsxbd(tmp_vmm, rhs_addr); break;
         case data_type::u8: host_->uni_vpmovzxbd(tmp_vmm, rhs_addr); break;
         case data_type::bf16:
-            if (is_avx512_) {
+            if (is_avx512_
+                    && utils::one_of(isa, avx512_core_bf16, avx512_core)) {
                 host_->vpmovzxwd(tmp_vmm, rhs_addr);
                 host_->vpslld(tmp_vmm, tmp_vmm, 0x10);
                 break;
@@ -918,7 +921,8 @@ void jit_uni_binary_injector_t<isa>::load_rhs_tail(
             host_->vpmovzxbd(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
             break;
         case data_type::bf16:
-            if (is_avx512_) {
+            if (is_avx512_
+                    && utils::one_of(isa, avx512_core_bf16, avx512_core)) {
                 host_->vpmovzxwd(tmp_vmm | tail_opmask | host_->T_z, rhs_addr);
                 host_->vpslld(
                         tmp_vmm | tail_opmask | host_->T_z, tmp_vmm, 0x10);
