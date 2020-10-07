@@ -242,6 +242,24 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(prb->sdt, FWD_D, res);
     if (res->state == SKIPPED) return;
+
+    if (engine_tgt_kind == dnnl_cpu) {
+        const bool is_src0_int_type
+                = prb->sdt[0] == dnnl_s8 || prb->sdt[0] == dnnl_u8;
+        const bool is_src1_int_type
+                = prb->sdt[1] == dnnl_s8 || prb->sdt[1] == dnnl_u8;
+
+        const bool have_src0_and_src1_consistent_type
+                = prb->sdt[0] == prb->sdt[1]
+                || (is_src0_int_type && is_src1_int_type);
+        const bool have_src0_and_dst_consistent_type = prb->sdt[0] == prb->ddt;
+
+        if (!have_src0_and_src1_consistent_type
+                || !have_src0_and_dst_consistent_type) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 int doit(const prb_t *prb, res_t *res) {
