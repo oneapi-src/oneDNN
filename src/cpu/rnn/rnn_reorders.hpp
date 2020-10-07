@@ -68,6 +68,7 @@ struct rnn_data_reorder_t : public primitive_t {
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md) {
+            using namespace format_tag;
             using namespace status;
             const memory_desc_wrapper id(src_md), od(dst_md);
 
@@ -83,11 +84,9 @@ struct rnn_data_reorder_t : public primitive_t {
                             rnn_weights_projection_qparams;
             PD_CHECK_ARG(attr->has_default_values(skip_mask));
             PD_CHECK_ARG(IMPLICATION(id.ndims() == 3,
-                    id.matches_tag(format_tag::tnc)
-                            && od.matches_tag(format_tag::tnc)));
+                    id.matches_tag(tnc) && od.matches_tag(tnc)));
             PD_CHECK_ARG(IMPLICATION(id.ndims() == 4,
-                    id.matches_tag(format_tag::ldnc)
-                            && od.matches_tag(format_tag::ldnc)));
+                    id.matches_tag(ldnc) && od.matches_tag(ldnc)));
 #undef PD_CHECK_ARG
             if (!args_ok) return invalid_arguments;
 
@@ -196,6 +195,8 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md) {
+            using namespace format_tag;
+            using namespace rnn_packed_format;
             using namespace status;
             const memory_desc_wrapper id(src_md), od(dst_md);
 
@@ -206,7 +207,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
             PD_CHECK_ARG(od.data_type() == data_type::s8);
             PD_CHECK_ARG(od.format_kind() == format_kind::rnn_packed);
             PD_CHECK_ARG(utils::one_of(
-                    od.rnn_packed_desc().format, dnnl_ldigo_p, dnnl_ldio_p));
+                    od.rnn_packed_desc().format, ldigo_p, ldio_p));
             PD_CHECK_ARG(od.ndims() == id.ndims());
             // TODO: we have to skip projection qparam even for regular lstm
             // as we use the same attr for regular weights and projection
@@ -221,8 +222,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
             PD_CHECK_ARG(id.is_dense());
             if (!args_ok) return invalid_arguments;
 
-            format_tag_t itag = id.matches_one_of_tag(format_tag::ldigo,
-                    format_tag::ldgoi, format_tag::ldio, format_tag::ldoi);
+            format_tag_t itag = id.matches_one_of_tag(ldigo, ldgoi, ldio, ldoi);
             if (itag == format_tag::undef) return invalid_arguments;
 
             // TODO: add support for layer and direction dimensions
@@ -260,11 +260,13 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
             return status::success;
         }
 
-        format_tag_t itag_ = dnnl_format_tag_undef;
+        format_tag_t itag_ = format_tag::undef;
         size_t thr_scratch_comp_sz_ = 0;
 
     private:
         void init_scratchpad() {
+            using namespace format_tag;
+
             const memory_desc_wrapper id(src_md());
             const size_t nelems = id.nelems();
             const auto &dims = id.dims();
@@ -275,11 +277,10 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
             // we do not use GO directly, as this can cause false
             // sharing when parallelizing on I (2 threads writing to
             // the same cache line)
-            thr_scratch_comp_sz_
-                    = itag_ == format_tag::ldigo ? dims[3] * dims[4] : dims[3];
+            thr_scratch_comp_sz_ = itag_ == ldigo ? dims[3] * dims[4] : dims[3];
             thr_scratch_comp_sz_ = utils::rnd_up(thr_scratch_comp_sz_, 16);
             size_t reduction_size = 0;
-            if (utils::one_of(itag_, format_tag::ldigo, format_tag::ldio))
+            if (utils::one_of(itag_, ldigo, ldio))
                 reduction_size = dnnl_get_max_threads() * thr_scratch_comp_sz_;
 
             scratchpad.template book<int8_t>(
@@ -439,6 +440,8 @@ private:
         // TODO: trivial strides assumed here.
         //       Use proper strides where appropriate
 
+        using namespace format_tag;
+
         auto src = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
         auto dst = CTX_OUT_MEM(char *, DNNL_ARG_TO);
         const memory_desc_wrapper &src_d = pd()->src_md();
@@ -466,12 +469,12 @@ private:
         /* Step 1: we quantize if we need to */
         if (type_i == data_type::f32) {
             switch (pd()->itag_) {
-                case format_tag::ldigo:
-                case format_tag::ldio:
+                case ldigo:
+                case ldio:
                     quantize_igo(scratch_quantized, src_d, (float *)src);
                     break;
-                case format_tag::ldgoi:
-                case format_tag::ldoi:
+                case ldgoi:
+                case ldoi:
                     quantize_goi(scratch_quantized, src_d, (float *)src);
                     break;
                 default: assert(!"Unsupported reorder");
@@ -481,15 +484,13 @@ private:
 
         /* Step 2: we pre-compute the compensation */
         switch (pd()->itag_) {
-            case format_tag::ldigo:
-            case format_tag::ldio:
+            case ldigo:
+            case ldio:
                 compensate_igo(
                         comp, src_d, scratch_quantized, scratch_compensation);
                 break;
-            case format_tag::ldgoi:
-            case format_tag::ldoi:
-                compensate_goi(comp, src_d, scratch_quantized);
-                break;
+            case ldgoi:
+            case ldoi: compensate_goi(comp, src_d, scratch_quantized); break;
             default: assert(!"Unsupported reorder");
         }
 
@@ -518,7 +519,7 @@ private:
                 }
             }
         }
-        return dnnl_success;
+        return status::success;
     }
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -535,6 +536,8 @@ struct rnn_weights_reorder_t : public primitive_t {
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md) {
+            using namespace format_tag;
+            using namespace rnn_packed_format;
             using namespace status;
 
             const memory_desc_wrapper id(src_md), od(dst_md);
@@ -543,14 +546,13 @@ struct rnn_weights_reorder_t : public primitive_t {
             PD_CHECK_ARG(id.data_type() == type_i);
             PD_CHECK_ARG(od.data_type() == type_o);
             PD_CHECK_ARG(od.format_kind() == format_kind::rnn_packed);
-            PD_CHECK_ARG(utils::one_of(od.rnn_packed_desc().format,
-                    dnnl_ldigo_p, dnnl_ldgoi_p, dnnl_ldio_p));
+            PD_CHECK_ARG(utils::one_of(
+                    od.rnn_packed_desc().format, ldigo_p, ldgoi_p, ldio_p));
             PD_CHECK_ARG(attr->has_default_values());
 #undef PD_CHECK_ARG
             if (!args_ok) return invalid_arguments;
 
-            format_tag_t itag = id.matches_one_of_tag(format_tag::ldigo,
-                    format_tag::ldgoi, format_tag::ldio, format_tag::ldoi);
+            format_tag_t itag = id.matches_one_of_tag(ldigo, ldgoi, ldio, ldoi);
             if (itag == format_tag::undef) return invalid_arguments;
 
             auto _pd = new pd_t(attr, src_engine->kind(), src_md,
@@ -580,19 +582,18 @@ struct rnn_weights_reorder_t : public primitive_t {
 
     private:
         void init_scratchpad() {
+            using namespace format_tag;
+            using namespace rnn_packed_format;
+
             const memory_desc_wrapper id(src_md());
             const memory_desc_wrapper od(dst_md());
             const rnn_packed_desc_t &rnn_pdata = od.rnn_packed_desc();
 
-            format_tag_t itag = id.matches_one_of_tag(
-                    format_tag::ldigo, format_tag::ldgoi, format_tag::ldio);
+            format_tag_t itag = id.matches_one_of_tag(ldigo, ldgoi, ldio);
             bool layout_cross_case
-                    = (itag == format_tag::ldigo
-                              && rnn_pdata.format == rnn_packed_format::ldgoi_p)
-                    || (itag == format_tag::ldgoi
-                            && rnn_pdata.format == rnn_packed_format::ldigo_p)
-                    || (itag == format_tag::ldio
-                            && rnn_pdata.format == rnn_packed_format::ldio_p),
+                    = (itag == ldigo && rnn_pdata.format == ldgoi_p)
+                    || (itag == ldgoi && rnn_pdata.format == ldigo_p)
+                    || (itag == ldio && rnn_pdata.format == ldio_p),
                     dt_cross_case
                     = type_i == data_type::f32 && type_o == data_type::bf16;
             size_t sz = id.nelems();
@@ -617,6 +618,9 @@ private:
         // TODO: trivial strides assumed here.
         //       Use proper strides where appropriate
 
+        using namespace format_tag;
+        using namespace rnn_packed_format;
+
         auto input = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
         auto output = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
@@ -631,10 +635,8 @@ private:
         init_dims(L, D, I, G, O, input_d);
 
         /* Pack */
-        const bool from_igo = utils::one_of(
-                pd()->itag_, format_tag::ldigo, format_tag::ldio);
-        const bool to_igo
-                = utils::one_of(rnn_pdata.format, dnnl_ldigo_p, dnnl_ldio_p);
+        const bool from_igo = utils::one_of(pd()->itag_, ldigo, ldio);
+        const bool to_igo = utils::one_of(rnn_pdata.format, ldigo_p, ldio_p);
         int n_parts = rnn_pdata.n_parts;
         const size_t *size_packed_cell = rnn_pdata.part_pack_size;
         const int *parts = rnn_pdata.parts;
