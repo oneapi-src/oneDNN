@@ -767,8 +767,10 @@ static void execute_broadcast_f32_tail_avx(jit_generator *host,
     const auto init_op = [&] { host->vmovss(tmp_xmm, rhs_addr); };
     const auto upper_half_op
             = [&](int upper_half_data_size, bool should_load_lower_half) {
-                  host->vshufps(tmp_xmm, tmp_xmm, tmp_xmm,
-                          imms[upper_half_data_size - 1]);
+                  // one element is already loaded
+                  if (upper_half_data_size > 1)
+                      host->vshufps(tmp_xmm, tmp_xmm, tmp_xmm,
+                              imms.at(upper_half_data_size - 2));
               };
     const auto lower_half_op = [&](int upper_half_data_size) {
         host->vshufps(tmp_xmm, tmp_xmm, tmp_xmm, 0);
