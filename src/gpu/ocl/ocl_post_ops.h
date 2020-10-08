@@ -33,13 +33,11 @@
 
 float fwd_Xnary(
         int algorithm, float x, float y, float alpha, float beta, float scale) {
-    if (isnan(x)) return x;
-    if (isnan(y)) return y;
     switch (algorithm) {
         // binary
         case BINARY_ADD: return x + y; break;
         case BINARY_MUL: return x * y; break;
-        case BINARY_MIN: return x < y ? x : y; break;
+        case BINARY_MIN: return x > y ? y : x; break;
         case BINARY_MAX: return x > y ? x : y; break;
         case BINARY_DIV: return x / y; break;
         case BINARY_SUB: return x - y; break;
