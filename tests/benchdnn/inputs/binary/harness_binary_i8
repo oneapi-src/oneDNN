@@ -1,50 +1,53 @@
 # i8
+
+# Notes:
+# * DIV doesn't make much sense for i8
+# * SUB is MISTRUSTED for u8 since half values are negative becoming zeros
+
 --reset
 
---alg=ADD,MUL,MAX,MIN,DIV,SUB
+--alg=ADD,MUL,MAX,MIN,SUB
 
 ## Shouldn't do binary for different src and dst data types in in-place mod
 ## post_ops
 --inplace=true,false
 --ddt=s8 --sdt=s8:s8
+--attr-scales=
 --attr-post-ops='', \
                 'sum:0.5', \
-                'logistic:0:0:0.5', \
                 'linear:2:0.125', \
-                'sum:0.25;relu:-0.01', \
-                'add:f32:per_oc', \
+                'sum:0.25;relu:-0.01:0:20', \
                 'add:bf16:per_oc;linear:2:1', \
-                'max:u8:per_oc', \
                 'mul:s8;add:f32:common;sum:0.5;abs'
 --batch=option_set_all
+
 --inplace=false
 --ddt=u8 --sdt=s8:s8
 --batch=option_set_all
 
 ## scales
+--alg=ADD,MUL,MAX,MIN
 --inplace=true,false
 --ddt=u8 --sdt=u8:u8
 --attr-scales=, \
-              src:common:0.25_src1:common:0.5, \
-              src:common:0.125, \
-              src1:common:2
+              src:common:16_src1:common:2, \
+              src:common:8, \
+              src1:common:4
+--attr-post-ops=
 --batch=option_set_all
+
 --inplace=false
 --ddt=s8 --sdt=u8:u8
 --batch=option_set_all
 
 ## post_ops + scales
+--alg=ADD,MUL,MAX,MIN,SUB
 --inplace=true,false
 --ddt=s8 --sdt=s8:u8
---attr-scales=, \
-              src1:common:0.5, \
-              src:common:0.125, \
-              src:common:0.25_src1:common:0.5
---attr-post-ops='', \
-                'sum:0.5', \
-                'sum:0.5;logistic:0:0:2', \
-                'linear:2:0.125'
+--attr-scales=,src:common:16_src1:common:2
+--attr-post-ops='','sum:0.5;abs'
 --batch=option_set_all
+
 --inplace=false
 --ddt=u8 --sdt=s8:u8
 --batch=option_set_all
