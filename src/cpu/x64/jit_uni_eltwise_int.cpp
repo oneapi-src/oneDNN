@@ -144,14 +144,14 @@ private:
     Reg64 imm_addr64 = rbx;
     Reg64 reg_int8 = r9;
 
-    Vmm vmm_tmp = Vmm(isa == avx512_common ? 25 : 10);
-    Vmm vmm_saturation_ubound = Vmm(isa == avx512_common ? 26 : 11);
-    Vmm vmm_alpha = Vmm(isa == avx512_common ? 27 : 12);
-    Xmm xmm_alpha = Xmm(12);
-    Vmm vmm_beta = Vmm(isa == avx512_common ? 28 : 13);
-    Xmm xmm_beta = Xmm(13);
-    Vmm vmm_zero = Vmm(isa == avx512_common ? 29 : 14);
-    Vmm vmm_mask = Vmm(isa == avx512_common ? 30 : 15);
+    Xmm xmm_alpha = Xmm(13);
+    Xmm xmm_beta = Xmm(14);
+
+    Vmm vmm_tmp = Vmm(isa == avx512_common ? 26 : 11);
+    Vmm vmm_alpha = Vmm(isa == avx512_common ? 27 : 13);
+    Vmm vmm_beta = Vmm(isa == avx512_common ? 28 : 14);
+    Vmm vmm_zero = Vmm(isa == avx512_common ? 29 : 15);
+    Vmm vmm_mask = Vmm(isa == avx512_common ? 30 : 12);
 
     opmask_t k_mask = k1;
     opmask_t k_mask_int8 = k2; // Mask for store 1 byte in case of AVX512
@@ -270,11 +270,12 @@ void jit_uni_subkernel_int_t<isa>::process_linear(
     uni_vfmadd213ps(vr_to, vmm_alpha, vmm_beta);
 
     // Saturate before converting from f32 to s32
+    Vmm vmm_saturation_ubound = vmm_tmp;
     Reg64 reg_tmp = r10;
     uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
     init_saturate_f32(vmm_zero, vmm_saturation_ubound, reg_tmp, data_type::f32,
             data_type());
-    saturate_f32(vr_to, vmm_zero, vmm_saturation_ubound, vmm_tmp, data_type());
+    saturate_f32(vr_to, vmm_zero, vmm_saturation_ubound, data_type());
 
     uni_vcvtps2dq(vr_to, vr_to);
 }

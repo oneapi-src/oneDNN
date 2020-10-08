@@ -20,7 +20,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <cmath>
 #include <vector>
 
 #include "dnnl.h"
@@ -189,7 +188,7 @@ inline float saturate_and_round(float val) {
     const float dt_min = (float)dnnl::impl::nstl::numeric_limits<
             typename prec_traits<dt>::type>::lowest();
     if (val > dt_max) val = dt_max;
-    if (val < dt_min || (std::isnan(val) && std::signbit(val))) val = dt_min;
+    if (val < dt_min) val = dt_min;
     return mxcsr_cvt(val);
 }
 
