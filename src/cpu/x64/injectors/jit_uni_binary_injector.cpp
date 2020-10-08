@@ -341,16 +341,19 @@ void jit_uni_binary_injector_t<isa>::compute_vector_range(
     const auto rhs_arg_data_type = post_op.binary.src1_desc.data_type;
     const auto &vmm_tail_idx = rhs_arg_params.vmm_tail_idx_;
     const bool tail_exists = !vmm_tail_idx.empty();
-    const bool scalar_f32_non_avx512 = !is_avx512_
-            && rhs_broadcasting_strategy == broadcasting_strategy_t::scalar
+    const bool bcast_f32_non_avx512 = !is_avx512_
+            && utils::one_of(rhs_broadcasting_strategy,
+                    broadcasting_strategy_t::scalar,
+                    broadcasting_strategy_t::per_oc_spatial)
             && rhs_arg_data_type == data_type::f32;
     const bool should_preserve_vmm_tail = tail_exists
             && (!is_avx512_
-                    || rhs_broadcasting_strategy
-                            != broadcasting_strategy_t::scalar
+                    || !utils::one_of(rhs_broadcasting_strategy,
+                            broadcasting_strategy_t::scalar,
+                            broadcasting_strategy_t::per_oc_spatial)
                     || rhs_arg_data_type != data_type::f32);
     const bool dt_helper_vmm_needed = rhs_arg_data_type != data_type::f32
-            || scalar_f32_non_avx512 || should_preserve_vmm_tail;
+            || bcast_f32_non_avx512 || should_preserve_vmm_tail;
 
     // Phase 2 Protect temporary registers content.
     const injector_utils::register_preserve_guard_t register_guard {host_,
@@ -512,12 +515,12 @@ void jit_uni_binary_injector_t<isa>::inject_binary(
 
     const auto &alg = post_op.binary.alg;
     const auto &rhs_arg_data_type = post_op.binary.src1_desc.data_type;
-    const bool scalar_f32
+    const bool bcast_f32
             = rhs_addr.isBroadcast() && rhs_arg_data_type == data_type::f32;
     const bool with_tail_not_fusable_to_binary_op
-            = with_tail && !(scalar_f32 && is_avx512_);
+            = with_tail && !(bcast_f32 && is_avx512_);
     const bool process_rhs_arg_using_tmp_vmm
-            = rhs_arg_data_type != data_type::f32 || (scalar_f32 && !is_avx512_)
+            = rhs_arg_data_type != data_type::f32 || (bcast_f32 && !is_avx512_)
             || with_tail_not_fusable_to_binary_op;
 
     if (process_rhs_arg_using_tmp_vmm) {
@@ -538,7 +541,7 @@ void jit_uni_binary_injector_t<isa>::inject_binary(
     } else {
         const auto lhs = dst;
         const bool with_tail_fusable_to_binary_op
-                = with_tail && scalar_f32 && is_avx512_;
+                = with_tail && bcast_f32 && is_avx512_;
         if (with_tail_fusable_to_binary_op) {
             assert(rhs_arg_static_params_.is_opmask_set()
                     && "Opmask is not set for tail loading avx512");
