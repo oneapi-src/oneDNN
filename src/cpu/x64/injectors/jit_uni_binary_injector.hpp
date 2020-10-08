@@ -332,6 +332,16 @@ private:
     const Xbyak::Reg64 param1_;
     const bool use_per_oc_spatial_strategy_;
     static constexpr bool is_avx512_ = std::is_same<Vmm, Xbyak::Zmm>::value;
+    /*
+     * Instructions from SSE/AVX used to compute binary result like vaddps where
+     * second operand is memory, require mem operand to be 16/32 byte explicitly
+     * aligned. (Intel Manual chapter 2.4).
+     * Rule is relaxed from AVX2 (Intel Manual chapter 14.9).
+     * When using benchdnn zmalloc_protect doesn't guarantee that tensor memory
+     * address is 64 byte aligned, which can cause segmentation fault.
+     */
+    static constexpr bool binary_op_with_unaligned_mem_operand_allowed_
+            = !utils::one_of(isa, avx, sse41);
 };
 
 } // namespace binary_injector
