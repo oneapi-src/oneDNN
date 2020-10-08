@@ -46,8 +46,9 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
         const primitive_attr_t &attr) {
 
     const memory_desc_wrapper src_d(&src_md);
-    const memory_desc_wrapper weights_d(&weights_md);
+    const memory_desc_wrapper wei_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
+    const memory_desc_wrapper bia_d(&bias_md);
 
     // Compute Library currently supports forward propagation only
     const prop_kind_t prop_kind = cd.prop_kind;
@@ -55,14 +56,7 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
             || (prop_kind == dnnl_forward_inference);
     if (!is_fwd) return status::unimplemented;
 
-    // Current implementation does not support int8 or bf16
-    bool is_int8_conv = utils::one_of(src_d.data_type(), s8, u8)
-            && weights_d.data_type() == s8;
-    bool is_bf16_conv = utils::everyone_is(
-            bf16, src_d.data_type(), weights_d.data_type());
-    if (is_int8_conv || is_bf16_conv) return status::unimplemented;
-
-    const int with_groups = weights_d.ndims() == src_d.ndims() + 1;
+    const int with_groups = wei_d.ndims() == src_d.ndims() + 1;
     const int ndims = src_d.ndims();
     const bool is_1d = ndims == 3;
     const bool is_3d = ndims == 5;
@@ -87,8 +81,8 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const int ow = dst_d.dims()[ndims - 1];
 
     // weights height and width
-    const int kh = weights_d.dims()[with_groups + ndims - 2];
-    const int kw = weights_d.dims()[with_groups + ndims - 1];
+    const int kh = wei_d.dims()[with_groups + ndims - 2];
+    const int kw = wei_d.dims()[with_groups + ndims - 1];
 
     // left, right, top, bottom padding
     const int l_pad = cd.padding[0][1];
@@ -114,8 +108,7 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
 
     acp.dilation_info = arm_compute::Size2D(dilate_w, dilate_h);
 
-    acp.with_bias = cd.bias_desc.format_kind != format_kind::undef
-            || cd.diff_bias_desc.format_kind != format_kind::undef;
+    acp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     auto set_or_check_tags = [&](format_tag_t desired_src_tag,
                                      format_tag_t desired_dst_tag) -> status_t {
@@ -163,35 +156,60 @@ status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
     const auto acl_layout = is_nspc ? arm_compute::DataLayout::NHWC
                                     : arm_compute::DataLayout::NCHW;
 
+    auto acl_src_data_t
+            = acl_convolution_utils::get_acl_data_t(src_d.data_type());
+    auto acl_wei_data_t
+            = acl_convolution_utils::get_acl_data_t(wei_d.data_type());
+    auto acl_dst_data_t
+            = acl_convolution_utils::get_acl_data_t(dst_d.data_type());
+    auto acl_bia_data_t
+            = acl_convolution_utils::get_acl_data_t(bia_d.data_type());
+
+    if (acl_bia_data_t == arm_compute::DataType::UNKNOWN)
+        acl_bia_data_t = arm_compute::DataType::F32;
+
     // clang-format off
     acp.src_info = arm_compute::TensorInfo(
             is_nspc ? arm_compute::TensorShape(ic, iw, ih, mb) :
             arm_compute::TensorShape(iw, ih, ic, mb),
             1,
-            arm_compute::DataType::F32,
+            acl_src_data_t,
             acl_layout);
 
     acp.wei_info = arm_compute::TensorInfo(
             is_nspc ? arm_compute::TensorShape(ic, kw, kh, oc) :
             arm_compute::TensorShape(kw, kh, ic, oc),
             1,
-            arm_compute::DataType::F32,
+            acl_wei_data_t,
             acl_layout);
 
     acp.dst_info = arm_compute::TensorInfo(
             is_nspc ? arm_compute::TensorShape(oc, ow, oh, mb) :
             arm_compute::TensorShape(ow, oh, oc, mb),
             1,
-            arm_compute::DataType::F32,
+            acl_dst_data_t,
             acl_layout);
 
     acp.bia_info = arm_compute::TensorInfo(
             acp.with_bias ? arm_compute::TensorShape(oc)
                           : arm_compute::TensorShape(),
             1,
-            arm_compute::DataType::F32,
+            acl_bia_data_t,
             acl_layout);
     // clang-format on
+
+    // Add quantization info to tensors
+    acp.is_int8 = utils::one_of(src_d.data_type(), s8, u8)
+            && wei_d.data_type() == s8;
+
+    if (acp.is_int8) {
+        const float *scales = attr.output_scales_.scales_;
+        acp.src_info.set_quantization_info(arm_compute::QuantizationInfo(1, 0));
+        acp.bia_info.set_quantization_info(arm_compute::QuantizationInfo(1, 0));
+        acp.wei_info.set_quantization_info(arm_compute::QuantizationInfo(1, 0));
+        acp.dst_info.set_quantization_info(
+                arm_compute::QuantizationInfo(1.0f / scales[0], 0));
+    }
 
     // Post-op activations
     acp.act_info = acl_convolution_utils::get_acl_act(attr);
@@ -270,6 +288,18 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
     }
 
     return status::success;
+}
+
+arm_compute::DataType get_acl_data_t(const dnnl_data_type_t dt) {
+    switch (dt) {
+        case bf16: return arm_compute::DataType::BFLOAT16; break;
+        case f32: return arm_compute::DataType::F32; break;
+        case s32: return arm_compute::DataType::S32; break;
+        case f16: return arm_compute::DataType::F16; break;
+        case s8: return arm_compute::DataType::QASYMM8_SIGNED; break;
+        case u8: return arm_compute::DataType::QASYMM8; break;
+        default: return arm_compute::DataType::UNKNOWN;
+    }
 }
 
 arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr) {

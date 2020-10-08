@@ -42,6 +42,7 @@ struct acl_obj_t {
 
 struct acl_conv_conf_t {
     bool with_bias;
+    bool is_int8;
     arm_compute::TensorInfo src_info;
     arm_compute::TensorInfo wei_info;
     arm_compute::TensorInfo bia_info;
@@ -64,9 +65,9 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr);
 
-bool acl_act_ok(alg_kind_t eltwise_activation);
-
+arm_compute::DataType get_acl_data_t(const dnnl_data_type_t dt);
 arm_compute::ActivationLayerInfo get_acl_act(const primitive_attr_t &attr);
+bool acl_act_ok(alg_kind_t eltwise_activation);
 
 } // namespace acl_convolution_utils
 
