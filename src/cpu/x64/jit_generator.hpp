@@ -1225,51 +1225,29 @@ public:
             uni_vshufps(vmm_ubound, tmp, tmp, 0);
     }
 
-    // This function is used to saturate to odt in f32 before converting to s32
-    // in order to avoid bad saturation due to cvtps2dq behavior (it returns
-    // INT_MIN if the f32 is out of the s32 range)
     template <typename Vmm>
     void saturate_f32(const Vmm &vmm, const Vmm &vmm_lbound,
-            const Vmm &vmm_ubound, const Vmm &vmm_tmp, data_type_t odt) {
+            const Vmm &vmm_ubound, data_type_t odt) {
+        // This function is used to saturate to odt in f32 before converting
+        // to s32 in order to avoid bad saturation due to cvtps2dq
+        // behavior (it returns INT_MIN if the f32 is out of the
+        // s32 range)
         using namespace data_type;
         if (!utils::one_of(odt, u8, s8, s32)) return;
 
-        // no need to apply lower saturation bound when odt is signed, as
-        // cvtps2dq will return MIN_INT if the value does not fit.
-        // The comment below for a certain order applied for maxps instruction
-        // as well. No changes here since NaN with positive sign was not met
-        // yet.
+        // no need to apply lower saturation bound when odt is
+        // signed, as cvtps2dq will return MIN_INT if the value
+        // does not fit
         if (odt == u8) {
             if (mayiuse(avx))
                 vmaxps(vmm, vmm, vmm_lbound);
             else
                 maxps(vmm, vmm_lbound);
         }
-
-        // Order matters for minps due to peculiar behavior of the instruction
-        // with NaNs:
-        //     if (SRC1 == NaN)
-        //         return SRC2;
-        //     else if (SRC2 == NaN)
-        //         return SRC2;
-        // that's why we keep user's data at SRC2 reg to pass NaNs further to
-        // cvtps2dq which handles them properly.
         if (mayiuse(avx))
-            vminps(vmm, vmm_ubound, vmm);
-        else {
-            movups(vmm_tmp, vmm_ubound);
-            minps(vmm_tmp, vmm);
-            movups(vmm, vmm_tmp);
-        }
-    }
-
-    // AVX+ version of saturate_f32 which does not require an additional vector
-    // register.
-    template <typename Vmm>
-    void saturate_f32(const Vmm &vmm, const Vmm &vmm_lbound,
-            const Vmm &vmm_ubound, data_type_t odt) {
-        assert(mayiuse(avx));
-        saturate_f32(vmm, vmm_lbound, vmm_ubound, Vmm(), odt);
+            vminps(vmm, vmm, vmm_ubound);
+        else
+            minps(vmm, vmm_ubound);
     }
 
     /**

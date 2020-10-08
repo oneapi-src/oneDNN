@@ -605,10 +605,10 @@ template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
 struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type, dst_type>
     : public jit_uni_i8i8_binary_kernel_t<sse41> {
 
-    void cvt2odt(const Vmm &v, const Vmm &v_tmp, data_type_t odt) {
+    void cvt2odt(const Vmm &v, data_type_t odt) {
         // f32 -> s32
         // properly saturate in f32
-        saturate_f32(v, vreg_zero, vreg_saturation_ubound, v_tmp, odt);
+        saturate_f32(v, vreg_zero, vreg_saturation_ubound, odt);
         cvtps2dq(v, v);
         // v = { 8x32 }
         packssdw(v, vreg_zero);
@@ -622,15 +622,14 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type, dst_type>
         // v = { 4x8, 0 }
     }
 
-    void store(const Address &dst, const Vmm &v_src, const Vmm &v_tmp,
-            data_type_t odt, bool tail) {
+    void store(const Address &dst, const Vmm &src, data_type_t odt, bool tail) {
         // f32 -> i8 and store
-        cvt2odt(v_src, v_tmp, odt);
+        cvt2odt(src, odt);
         if (!tail) {
-            movd(dst, Xmm(v_src.getIdx())); // store 32 bits
+            movd(dst, Xmm(src.getIdx())); // store 32 bits
         } else {
             UNUSED(dst);
-            store_tail(Xmm(v_src.getIdx()));
+            store_tail(Xmm(src.getIdx()));
         }
     }
 
@@ -663,9 +662,8 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type, dst_type>
 
         for (int i = 0; i < unroll; i++) {
             const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
-            const Vmm vreg_tmp = Vmm(unroll + i + vmm_start_idx_);
             const int offt = simd_w_ * i;
-            store(dst_ptr(offt), vreg_tmp_src0, vreg_tmp, dst_type, tail);
+            store(dst_ptr(offt), vreg_tmp_src0, dst_type, tail);
         }
     }
 
