@@ -19,7 +19,8 @@
 
 // f32 <-> bf16 conversion.
 #if DT_BF16 || SRC_DT_BF16 || WEI_DT_BF16 || DST_DT_BF16 || BIA_DT_BF16 \
-        || A_DT_BF16 || B_DT_BF16 || C_DT_BF16 || SUM_DT_BF16
+        || A_DT_BF16 || B_DT_BF16 || C_DT_BF16 || SUM_DT_BF16 \
+        || POST_OP_USING_BF16
 ushort __attribute__((overloadable)) cvt_f32_to_bf16(float f) {
     uint i = as_uint(f);
     i += 0x00007FFF + ((i & 0x10000) >> 16);

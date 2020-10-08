@@ -48,6 +48,17 @@ float fwd_Xnary(
     }
 }
 
+#define CONV_BIN_ARG_TO_FLOAT(idx, bin_arg_val) \
+    ({ \
+        float ret_val; \
+        if (CONCAT3(PO_, idx, _BIN_ARG_DT_IS_BF16)) \
+            ret_val = cvt_bf16_to_f32(bin_arg_val); \
+        else \
+            ret_val = convert_float(bin_arg_val); \
+\
+        ret_val; \
+    })
+
 #define FWD_XNARY_GENERIC_DT(algorithm, result, result_elem_dt, arg0, \
         arg0_elem_dt, arg1, arg1_elem_dt, alpha, beta, scale) \
     { \
@@ -114,7 +125,7 @@ float fwd_Xnary(
     { \
         const unsigned bin_arg_size \
                 = sizeof(accumulator) / sizeof(acc_elem_dt); \
-        CONCAT3(PO_, idx, _BIN_ARG_DATA_T) bin_arg[bin_arg_size]; \
+        float bin_arg[bin_arg_size]; \
         unroll_for(unsigned x0_idx = x0, bin_arg_offset = 0; \
                    x0_idx < x0 + x0_s; ++x0_idx) { \
             unroll_for(unsigned x1_idx = x1; x1_idx < x1 + x1_s; ++x1_idx) { \
@@ -147,20 +158,22 @@ float fwd_Xnary(
                                                 x5_idx \
                                                         % CONCAT3(PO_, idx, \
                                                                 _BIN_ARG_D5)); \
-                                bin_arg[bin_arg_offset] = CONCAT3(po_, idx, \
-                                        _binary_arg)[bin_arg_glob_off]; \
+                                bin_arg[bin_arg_offset] \
+                                        = CONV_BIN_ARG_TO_FLOAT(idx, \
+                                                CONCAT3(po_, idx, _binary_arg) \
+                                                        [bin_arg_glob_off]); \
                             } \
                         } \
                     } \
                 } \
             } \
         } \
-        CONCAT3(PO_, idx, _BIN_ARG_DATA_T) *bin_arg_ptr = &bin_arg[0]; \
+        float *bin_arg_ptr = &bin_arg[0]; \
         REPLICATE_DATA(bin_arg_ptr, bin_arg_size, x0_s, x1_s, x2_s, x3_s, \
                 x4_s, x5_s); \
         FWD_XNARY_GENERIC_DT(CONCAT3(PO_, idx, _ALG), accumulator, \
-                acc_elem_dt, accumulator, acc_elem_dt, bin_arg, \
-                CONCAT3(PO_, idx, _BIN_ARG_DATA_T), 0.0f, 0.0f, 0.0f); \
+                acc_elem_dt, accumulator, acc_elem_dt, bin_arg, float, 0.0f, \
+                0.0f, 0.0f); \
     }
 
 #define APPLY_PO_SUM(idx, accumulator, acc_elem_dt, sum_src, sum_elem_dt) \
