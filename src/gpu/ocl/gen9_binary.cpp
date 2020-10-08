@@ -118,6 +118,7 @@ status_t gen9_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IS_MAX", conf.is_max);
     kernel_ctx.define_int("IS_MIN", conf.is_min);
     kernel_ctx.define_int("IS_DIV", conf.is_div);
+    kernel_ctx.define_int("IS_SUB", conf.is_sub);
     kernel_ctx.define_int("SAME_SRC_DT", conf.same_src_dt);
     kernel_ctx.define_int("BCAST_DIM0", conf.bcast_dims[0]);
     kernel_ctx.define_int("BCAST_DIM1", conf.bcast_dims[1]);

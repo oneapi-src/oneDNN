@@ -336,6 +336,8 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     d = min(tmp_src0, tmp_src1);
 #elif IS_DIV
     d = tmp_src0 / tmp_src1;
+#elif IS_SUB
+    d = tmp_src0 - tmp_src1;
 #endif
 
 #if WITH_SUM
@@ -475,6 +477,8 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
         tmp[idx] = min(tmp_src0[idx], tmp_src1[idx * SRC1_IDX_MASK]);
 #elif IS_DIV
         tmp[idx] = tmp_src0[idx] / tmp_src1[idx * SRC1_IDX_MASK];
+#elif IS_SUB
+        tmp[idx] = tmp_src0[idx] - tmp_src1[idx * SRC1_IDX_MASK];
 #endif
     }
 
