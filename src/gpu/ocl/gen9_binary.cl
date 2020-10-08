@@ -340,13 +340,13 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 
 #if WITH_SUM
 #if NVECT == 1
-    dst_data = CONVERT_FLOAT_T(DST_BLOCK_READ(&src0[0]));
+    dst_data = CONVERT_FLOAT_T(DST_BLOCK_READ(&dst[0]));
 #elif NVECT == 2
-    dst_data = CONVERT_FLOAT2_T(DST_BLOCK_READ2(&src0[0]));
+    dst_data = CONVERT_FLOAT2_T(DST_BLOCK_READ2(&dst[0]));
 #elif NVECT == 4
-    dst_data = CONVERT_FLOAT4_T(DST_BLOCK_READ4(&src0[0]));
+    dst_data = CONVERT_FLOAT4_T(DST_BLOCK_READ4(&dst[0]));
 #elif NVECT == 8
-    dst_data = CONVERT_FLOAT8_T(DST_BLOCK_READ8(&src0[0]));
+    dst_data = CONVERT_FLOAT8_T(DST_BLOCK_READ8(&dst[0]));
 #endif
 #endif
 
