@@ -47,12 +47,10 @@ status_t sycl_usm_memory_storage_t::map_data(
         return status::success;
     }
 
+    if (!stream) CHECK(engine()->get_service_stream(stream));
+
     void *host_ptr = malloc(size, 64);
     if (!host_ptr) return status::out_of_memory;
-
-    auto &guard_manager = guard_manager_t<map_usm_tag>::instance();
-
-    if (!stream) CHECK(engine()->get_service_stream(stream));
 
     cl::sycl::queue sycl_queue
             = utils::downcast<sycl_stream_t *>(stream)->queue();
@@ -65,6 +63,8 @@ status_t sycl_usm_memory_storage_t::map_data(
         sycl_queue.memcpy(usm_ptr, host_ptr, size).wait();
         free(host_ptr);
     };
+
+    auto &guard_manager = guard_manager_t<map_usm_tag>::instance();
     return guard_manager.enter(this, unmap_callback);
 }
 
