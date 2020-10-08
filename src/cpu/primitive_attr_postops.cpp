@@ -39,9 +39,6 @@ float compute_binary_scalar(alg_kind_t alg, float x, float y) {
 
 float compute_eltwise_scalar_fwd(
         const alg_kind_t alg, float s, float alpha, float beta) {
-    // don't compute on nan, propagate it
-    if (std::isnan(s)) return s;
-
     float d = 0.f;
     switch (alg) {
         case eltwise_relu: d = relu_fwd(s, alpha); break;

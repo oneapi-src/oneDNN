@@ -1095,10 +1095,10 @@ void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
 
 float compute_eltwise_fwd(
         pk_t kind, float src, float scale, float alpha, float beta) {
-    using namespace dnnl::impl::math;
-
     // don't compute on nan, propagate it
-    if (std::isnan(src)) return src;
+    if (std::isnan(src)) return NAN;
+
+    using namespace dnnl::impl::math;
 
     switch (kind) {
         case pk_t::RELU: return scale * relu_fwd(src, alpha);
