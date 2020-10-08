@@ -33,13 +33,15 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 
-status_t acl_gemm_convolution_fwd_t::execute_forward(
-        const exec_ctx_t &ctx) const {
+template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
+        data_type_t bia_type>
+status_t acl_gemm_convolution_fwd_t<src_type, wei_type, dst_type,
+        bia_type>::execute_forward(const exec_ctx_t &ctx) const {
     status_t status = status::success;
-    auto src_base = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto wei_base = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
-    auto bia_base = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
-    auto dst_base = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto wei_base = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bia_base = CTX_IN_MEM(const bia_data_t *, DNNL_ARG_BIAS);
+    auto dst_base = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     bool with_bias = pd()->acp_.with_bias;
 
@@ -49,18 +51,18 @@ status_t acl_gemm_convolution_fwd_t::execute_forward(
             = acl_resource->get_acl_obj();
 
     acl_obj.src_tensor.allocator()->import_memory(
-            const_cast<data_t *>(src_base));
+            const_cast<src_data_t *>(src_base));
     acl_obj.wei_tensor.allocator()->import_memory(
-            const_cast<data_t *>(wei_base));
+            const_cast<wei_data_t *>(wei_base));
     acl_obj.dst_tensor.allocator()->import_memory(dst_base);
 
     // Retrieve extra bias memory from the scratchpad and copy from user memory
     if (with_bias) {
         const auto scratchpad = ctx.get_scratchpad_grantor();
-        data_t *bia_memory = scratchpad.template get<data_t>(
+        auto *bia_memory = scratchpad.template get<bia_data_t>(
                 memory_tracking::names::key_none);
         size_t oc = acl_obj.bia_tensor.info()->tensor_shape()[0];
-        std::memcpy(bia_memory, bia_base, oc * sizeof(data_t));
+        std::memcpy(bia_memory, bia_base, oc * sizeof(bia_data_t));
         acl_obj.bia_tensor.allocator()->import_memory(bia_memory);
     }
 
@@ -73,6 +75,10 @@ status_t acl_gemm_convolution_fwd_t::execute_forward(
 
     return status;
 }
+
+using namespace data_type;
+template struct acl_gemm_convolution_fwd_t<f32>;
+template struct acl_gemm_convolution_fwd_t<s8, s8, s8, s32>;
 
 } // namespace aarch64
 } // namespace cpu

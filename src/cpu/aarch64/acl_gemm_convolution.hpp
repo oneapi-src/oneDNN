@@ -74,6 +74,8 @@ private:
 
 }; // acl_resource_t
 
+template <data_type_t src_type, data_type_t wei_type = src_type,
+        data_type_t dst_type = src_type, data_type_t bia_type = dst_type>
 struct acl_gemm_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
@@ -84,13 +86,18 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
                 "gemm:acl", acl_gemm_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
-            bool ok = true && is_fwd()
+            using namespace data_type;
+            using smask_t = primitive_attr_t::skip_mask_t;
+
+            bool ok = is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
-                    && expect_data_types(data_type::f32, data_type::f32,
-                            data_type::f32, data_type::f32, data_type::f32)
+                    && expect_data_types(
+                            src_type, wei_type, bia_type, dst_type, undef)
                     && !has_zero_dim_memory()
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
+                    && attr()->has_default_values(smask_t::oscale
+                                    | smask_t::zero_points | smask_t::post_ops,
+                            dst_type)
+                    && output_scales_mask_ok() && zero_points_ok()
                     && post_ops_ok();
             if (!ok) return status::unimplemented;
 
@@ -108,7 +115,7 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
             if (acp_.with_bias) {
                 auto scratchpad = scratchpad_registry().registrar();
                 const size_t bia_mem_sz_ = acp_.bia_info.tensor_shape()[0];
-                scratchpad.template book<data_t>(
+                scratchpad.template book<bia_data_t>(
                         memory_tracking::names::key_none, bia_mem_sz_);
             }
 
@@ -118,6 +125,21 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
         acl_conv_conf_t acp_;
 
     protected:
+        bool output_scales_mask_ok() const {
+            using namespace data_type;
+            const auto &mask = attr()->output_scales_.mask_;
+            return IMPLICATION(!utils::one_of(src_type, s8, u8),
+                           attr()->output_scales_.has_default_values())
+                    // TODO: add support for per_channel quantization
+                    && mask == 0;
+        }
+
+        bool zero_points_ok() const {
+            using namespace data_type;
+            // TODO: add support for asymmetric quantization
+            return attr()->zero_points_.has_default_values();
+        }
+
         bool post_ops_ok() const {
             auto const &po = attr()->post_ops_;
             auto is_eltwise
@@ -150,9 +172,10 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
         return st;
     }
 
-    ~acl_gemm_convolution_fwd_t() {}
-
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    typedef typename prec_traits<src_type>::type src_data_t;
+    typedef typename prec_traits<wei_type>::type wei_data_t;
+    typedef typename prec_traits<dst_type>::type dst_data_t;
+    typedef typename prec_traits<bia_type>::type bia_data_t;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
