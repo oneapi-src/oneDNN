@@ -895,6 +895,13 @@ inline void def_post_ops_cfg(
             const memory_desc_wrapper src1_mdw(e.binary.src1_desc);
             const auto mdi = memory_desc_info_t::create(src1_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
+            if (mdi.data_type == data_type::bf16) {
+                kernel_ctx.define_int(
+                        "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", 1);
+            } else {
+                kernel_ctx.define_int(
+                        "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", 0);
+            }
         } else {
             dnnl_memory_desc_t empty_mem_desc;
             dnnl_dims_t empty_dims = {1, 1, 1, 1};
@@ -903,6 +910,8 @@ inline void def_post_ops_cfg(
             const memory_desc_wrapper src1_mdw(empty_mem_desc);
             const auto mdi = memory_desc_info_t::create(src1_mdw);
             def_memory_desc_info(kernel_ctx, mdi, bin_arg_name.c_str());
+            kernel_ctx.define_int(
+                    "PO_" + std::to_string(idx) + "_BIN_ARG_DT_IS_BF16", 0);
         }
         if (e.is_eltwise(false)) {
             kernel_ctx.define_int(
@@ -950,6 +959,11 @@ inline void def_post_ops_cfg(
     }
 
     kernel_ctx.define_int("POST_OP_CHAIN_LENGTH", nof_supported_post_ops);
+    if (all_post_ops.len() > 0) {
+        // due to C macro limitations on which post op service is build always
+        // load bf16 convertion functions
+        kernel_ctx.define_int("POST_OP_USING_BF16", 1);
+    }
     po_kernel_args += "\"";
     kernel_ctx.add_option(po_kernel_args);
 }
