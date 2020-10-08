@@ -827,19 +827,21 @@ int doit(const prb_t &prb, res_t *res) {
 
     SAFE_CLEAN(execute_and_wait(c, args), WARN, cleanup);
 
-    if ((prb.prop != dnnl_backward) && (bench_mode & CORR)) {
-        compute_ref_fwd(prb, src_layer_fp, src_iter_fp, src_iter_c_fp,
-                weights_layer_fp, weights_iter_fp, weights_peephole_fp,
-                weights_projection_fp, bias_fp, dst_layer_fp, dst_iter_fp,
-                dst_iter_c_fp);
+    if (prb.prop != dnnl_backward) {
+        if (bench_mode & CORR) {
+            compute_ref_fwd(prb, src_layer_fp, src_iter_fp, src_iter_c_fp,
+                    weights_layer_fp, weights_iter_fp, weights_peephole_fp,
+                    weights_projection_fp, bias_fp, dst_layer_fp, dst_iter_fp,
+                    dst_iter_c_fp);
 
-        int compare_status = OK;
-        COMPARE_DAT(compare_status, DST_LAYER, dst_layer, tag::abx /*tnc*/);
-        COMPARE_DAT(compare_status, DST_ITER, dst_iter, tag::abx /*ldnc*/);
-        if (prb.alg == VANILLA_LSTM)
-            COMPARE_DAT(
-                    compare_status, DST_ITER_C, dst_iter_c, tag::abx /*ldnc*/);
-        SAFE_CLEAN(compare_status, WARN, cleanup);
+            int compare_status = OK;
+            COMPARE_DAT(compare_status, DST_LAYER, dst_layer, tag::abx /*tnc*/);
+            COMPARE_DAT(compare_status, DST_ITER, dst_iter, tag::abx /*ldnc*/);
+            if (prb.alg == VANILLA_LSTM)
+                COMPARE_DAT(compare_status, DST_ITER_C, dst_iter_c,
+                        tag::abx /*ldnc*/);
+            SAFE_CLEAN(compare_status, WARN, cleanup);
+        }
     } else {
         dnnl_primitive_t bwd_p {};
         int status = init_prim(&bwd_p, init_pd, &prb, res, FLAG_BWD);
