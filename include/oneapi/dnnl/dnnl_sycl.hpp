@@ -42,6 +42,8 @@ namespace dnnl {
 
 /// @addtogroup dnnl_api_sycl_interop SYCL interoperability API
 /// API extensions to interact with the underlying SYCL run-time.
+///
+/// @sa @ref dev_guide_dpcpp_interoperability in developer guide
 /// @{
 
 /// SYCL interoperability namespace
