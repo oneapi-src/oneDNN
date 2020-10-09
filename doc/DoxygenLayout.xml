@@ -28,7 +28,6 @@
       <tab type="usergroup" title="Interoperability with DPC++ and OpenCL">
         <tab type="user" title="OpenCL Interoperability" url="@ref dev_guide_opencl_interoperability"/>
         <tab type="user" title="DPC++ Interoperability" url="@ref dev_guide_dpcpp_interoperability"/>
-        <tab type="user" title="Unified Shared Memory with DPC++" url="@ref dev_guide_dpcpp_usm"/>
         <tab type="user" title="DPC++ Backends" url="@ref dev_guide_dpcpp_backends"/>
       </tab>
     </tab>
