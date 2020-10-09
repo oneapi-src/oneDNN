@@ -44,6 +44,8 @@ namespace dnnl {
 
 /// @addtogroup dnnl_api_ocl_interop OpenCL interoperability API
 /// API extensions to interact with the underlying OpenCL run-time.
+///
+/// @sa @ref dev_guide_opencl_interoperability in developer guide
 /// @{
 
 /// OpenCL interoperability namespace
