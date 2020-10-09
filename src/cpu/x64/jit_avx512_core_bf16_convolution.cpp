@@ -1523,19 +1523,28 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
         int ic;
         int icb_start = ic_b;
         if (jcp.global_transpose) {
-            const int work_amount
-                    = ti->g_work * ti->ic_b_work * jcp.ih * jcp.id;
+            const int work_amount = is_src_layout_nxc
+                    ? ti->ic_b_work * jcp.ih * jcp.id
+                    : ti->g_work * ti->ic_b_work * jcp.ih * jcp.id;
 
             int start {0}, end {0};
             balance211(work_amount, nthr_oc_b_, ti->ithr_oc_b, start, end);
             my_work = end - start;
 
-            if (jcp.ndims == 5)
-                nd_iterator_init(start, g, ti->g_work, ic_b, ti->ic_b_work, d,
-                        jcp.id, j, jcp.ih);
-            else
-                nd_iterator_init(
-                        start, g, ti->g_work, ic_b, ti->ic_b_work, j, jcp.ih);
+            if (is_src_layout_nxc) {
+                if (jcp.ndims == 5)
+                    nd_iterator_init(
+                            start, ic_b, ti->ic_b_work, d, jcp.id, j, jcp.ih);
+                else
+                    nd_iterator_init(start, ic_b, ti->ic_b_work, j, jcp.ih);
+            } else {
+                if (jcp.ndims == 5)
+                    nd_iterator_init(start, g, ti->g_work, ic_b, ti->ic_b_work,
+                            d, jcp.id, j, jcp.ih);
+                else
+                    nd_iterator_init(start, g, ti->g_work, ic_b, ti->ic_b_work,
+                            j, jcp.ih);
+            }
             g += ti->g_start;
             ic_b += ti->ic_b_start;
             icb_start = ic_b;
@@ -1548,24 +1557,31 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
             ic_b = 0;
         }
 
-        src_data_t *tr_src = (jcp.ndims == 5)
-                ? &ti->tr_src[tr_src_off_3d(g, ic_b, d, j)]
-                : &ti->tr_src[tr_src_off(g, ic_b, j)];
-        auto src_offset = is_src_layout_nxc
-                ? src_d.blk_off(img, ic)
-                : (jcp.ndims == 5 ? src_d.blk_off(img, ic, d, j)
-                                  : src_d.blk_off(img, ic, j));
-        src_data_t *src = (src_data_t *)&ti->src[src_offset];
+        const bool need_local_gwork = is_src_layout_nxc && jcp.global_transpose;
+        const auto local_gwork = need_local_gwork ? ti->g_work : 1;
 
-        if (is_src_layout_nxc) {
-            dim_t sp_start_offset = (jcp.ndims == 5) ? src_d.blk_off(0, 0, d, j)
-                                                     : src_d.blk_off(0, 0, j);
-            dim_t ch_shift = src_d.blk_off(0, jcp.ic_block);
-            int sp_start_idx = d * jcp.ih + j;
-            trans_src_nxc(tr_src, src, sp_start_idx, sp_start_offset, icb_start,
-                    ch_shift, my_work);
-        } else
-            trans_src(tr_src, src, my_work);
+        for (int gg = g; gg < g + local_gwork; ++gg) {
+            if (need_local_gwork) ic = gg * jcp.ic + ic_b * jcp.ic_block;
+            src_data_t *tr_src = (jcp.ndims == 5)
+                    ? &ti->tr_src[tr_src_off_3d(gg, ic_b, d, j)]
+                    : &ti->tr_src[tr_src_off(gg, ic_b, j)];
+            auto src_offset = is_src_layout_nxc
+                    ? src_d.blk_off(img, ic)
+                    : (jcp.ndims == 5 ? src_d.blk_off(img, ic, d, j)
+                                      : src_d.blk_off(img, ic, j));
+            src_data_t *src = (src_data_t *)&ti->src[src_offset];
+
+            if (is_src_layout_nxc) {
+                dim_t sp_start_offset = (jcp.ndims == 5)
+                        ? src_d.blk_off(0, 0, d, j)
+                        : src_d.blk_off(0, 0, j);
+                dim_t ch_shift = src_d.blk_off(0, jcp.ic_block);
+                int sp_start_idx = d * jcp.ih + j;
+                trans_src_nxc(tr_src, src, sp_start_idx, sp_start_offset,
+                        icb_start, ch_shift, my_work);
+            } else
+                trans_src(tr_src, src, my_work);
+        }
     };
 
     auto diff_dst_trans = [&](int img, int g = 0, int oc_b = 0) {
@@ -1575,19 +1591,28 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
         int ocb_start = oc_b;
 
         if (jcp.global_transpose) {
-            const size_t work_amount
-                    = ti->g_work * ti->oc_b_work * jcp.oh * jcp.od;
+            const size_t work_amount = is_ddst_layout_nxc
+                    ? ti->oc_b_work * jcp.oh * jcp.od
+                    : ti->g_work * ti->oc_b_work * jcp.oh * jcp.od;
 
             size_t start {0}, end {0};
             balance211(work_amount, nthr_ic_b_, ti->ithr_ic_b, start, end);
             my_work = end - start;
 
-            if (jcp.ndims == 5)
-                nd_iterator_init(start, g, ti->g_work, oc_b, ti->oc_b_work, d,
-                        jcp.od, j, jcp.oh);
-            else
-                nd_iterator_init(
-                        start, g, ti->g_work, oc_b, ti->oc_b_work, j, jcp.oh);
+            if (is_ddst_layout_nxc) {
+                if (jcp.ndims == 5)
+                    nd_iterator_init(
+                            start, oc_b, ti->oc_b_work, d, jcp.od, j, jcp.oh);
+                else
+                    nd_iterator_init(start, oc_b, ti->oc_b_work, j, jcp.oh);
+            } else {
+                if (jcp.ndims == 5)
+                    nd_iterator_init(start, g, ti->g_work, oc_b, ti->oc_b_work,
+                            d, jcp.od, j, jcp.oh);
+                else
+                    nd_iterator_init(start, g, ti->g_work, oc_b, ti->oc_b_work,
+                            j, jcp.oh);
+            }
             g += ti->g_start;
             oc_b += ti->oc_b_start;
             ocb_start = oc_b;
@@ -1599,26 +1624,32 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
             g = 0;
             oc_b = 0;
         }
+        const bool need_local_gwork
+                = is_ddst_layout_nxc && jcp.global_transpose;
+        const auto local_gwork = need_local_gwork ? ti->g_work : 1;
 
-        diff_dst_data_t *tr_diff_dst = (jcp.ndims == 5)
-                ? &ti->tr_diff_dst[tr_diff_dst_off_3d(g, oc_b, d, j)]
-                : &ti->tr_diff_dst[tr_diff_dst_off(g, oc_b, j)];
-        auto ddst_offset = is_ddst_layout_nxc
-                ? diff_dst_d.blk_off(img, oc)
-                : (jcp.ndims == 5 ? diff_dst_d.blk_off(img, oc, d, j)
-                                  : diff_dst_d.blk_off(img, oc, j));
-        const diff_dst_data_t *diff_dst = &ti->diff_dst[ddst_offset];
+        for (int gg = g; gg < g + local_gwork; ++gg) {
+            if (need_local_gwork) oc = gg * jcp.oc + oc_b * jcp.oc_block;
+            diff_dst_data_t *tr_diff_dst = (jcp.ndims == 5)
+                    ? &ti->tr_diff_dst[tr_diff_dst_off_3d(gg, oc_b, d, j)]
+                    : &ti->tr_diff_dst[tr_diff_dst_off(gg, oc_b, j)];
+            auto ddst_offset = is_ddst_layout_nxc
+                    ? diff_dst_d.blk_off(img, oc)
+                    : (jcp.ndims == 5 ? diff_dst_d.blk_off(img, oc, d, j)
+                                      : diff_dst_d.blk_off(img, oc, j));
+            const diff_dst_data_t *diff_dst = &ti->diff_dst[ddst_offset];
 
-        if (is_ddst_layout_nxc) {
-            dim_t sp_start_offset = (jcp.ndims == 5)
-                    ? diff_dst_d.blk_off(0, 0, d, j)
-                    : diff_dst_d.blk_off(0, 0, j);
-            dim_t ch_shift = diff_dst_d.blk_off(0, jcp.oc_block);
-            int sp_start_idx = d * jcp.oh + j;
-            trans_dst_nxc(tr_diff_dst, diff_dst, sp_start_idx, sp_start_offset,
-                    ocb_start, ch_shift, my_work);
-        } else
-            trans_dst(tr_diff_dst, diff_dst, my_work);
+            if (is_ddst_layout_nxc) {
+                dim_t sp_start_offset = (jcp.ndims == 5)
+                        ? diff_dst_d.blk_off(0, 0, d, j)
+                        : diff_dst_d.blk_off(0, 0, j);
+                dim_t ch_shift = diff_dst_d.blk_off(0, jcp.oc_block);
+                int sp_start_idx = d * jcp.oh + j;
+                trans_dst_nxc(tr_diff_dst, diff_dst, sp_start_idx,
+                        sp_start_offset, ocb_start, ch_shift, my_work);
+            } else
+                trans_dst(tr_diff_dst, diff_dst, my_work);
+        }
     };
 
     for (int img = ti->img_start; img < ti->img_end; ++img) {
