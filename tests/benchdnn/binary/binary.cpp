@@ -199,6 +199,9 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
         // XXX: if reference fp0 value is nan, allow to return anything from the
         // library for integral target data types.
         if (!ok) ok = std::isnan(fp0) && is_integral_dt(prb->ddt);
+        // XXX: fp16 result can slightly mismatch for division due to difference
+        // in backends implementations
+        if (!ok && prb->alg == alg_t::DIV) ok = diff <= epsilon_dt(prb->ddt);
         if (!ok) ok = check_extreme_values(fp, dt, prb->alg);
         if (!ok && has_eltwise)
             ok = eltwise::check_extreme_values(fp, dt, alg_t::ELTWISE_END);
