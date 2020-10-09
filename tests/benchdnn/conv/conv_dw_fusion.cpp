@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <iterator>
+
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -24,101 +26,10 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "binary/binary.hpp"
 #include "conv/conv_dw_fusion.hpp"
 
 namespace conv_dw_fusion {
-
-// This function is copy-pasted from dnn_types.cpp. We want it here for now to
-// preserve current benchdnn attr semantics - what's set by user is remained
-// untouched - it saves the input state. When fusion is done, it's enough to
-// have only output data type, rest can be deduced from first conv.
-// TODO: consider merge with common code by changing benchdnn attr semantics.
-dnnl_primitive_attr_t create_dnnl_fusion_attr(
-        const prb_t *prb, int64_t scale_cnt) {
-    const attr_t &attr = prb->attr;
-
-    dnnl_primitive_attr_t dnnl_attr = nullptr;
-    DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
-
-    if (!attr.oscale.is_def()) {
-        int64_t count = attr.oscale.policy == policy_t::COMMON ? 1 : scale_cnt;
-        int scale_mask = attr.oscale.policy == policy_t::PER_OC ? 1 << 1 : 0;
-
-        float *scales = prb->scales;
-
-        const bool runtime = attr.oscale.runtime;
-        SAFE_V(scales == nullptr && runtime ? FAIL : OK);
-
-        float *gen_scs = nullptr;
-        if (scales == nullptr) {
-            gen_scs = (float *)zmalloc(count * sizeof(float), 64);
-            SAFE_V(gen_scs != nullptr ? OK : FAIL);
-            for (int64_t i = 0; i < count; ++i)
-                gen_scs[i] = attr.oscale.scale;
-            scales = gen_scs;
-        }
-
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr,
-                runtime ? 1 : count, scale_mask,
-                runtime ? &DNNL_RUNTIME_F32_VAL : scales));
-        if (gen_scs) zfree(gen_scs);
-    }
-
-    if (!attr.post_ops.is_def()) {
-        const auto &po = attr.post_ops;
-        dnnl_post_ops_t ops;
-        DNN_SAFE_V(dnnl_post_ops_create(&ops));
-        for (int idx = 0; idx < po.len(); ++idx) {
-            const auto &e = po.entry[idx];
-            if (e.is_sum_kind()) {
-                DNN_SAFE_V(dnnl_post_ops_append_sum(ops, e.sum.scale));
-            } else if (e.is_convolution_kind()) {
-                const auto &os = e.convolution.oscale;
-                int count = 0, mask = 0;
-                const float *scales = &os.scale;
-                float *gen_scs = nullptr;
-                if (!os.is_def()) {
-                    count = os.policy == policy_t::COMMON ? 1 : scale_cnt;
-                    mask = os.policy == policy_t::PER_OC ? 1 << 1 : 0;
-                    if (mask > 0) {
-                        gen_scs = conv::generate_oscales(os, count);
-                        SAFE_V(gen_scs != nullptr ? OK : FAIL);
-                        scales = gen_scs;
-                    }
-                }
-                const auto wei_dt = prb->cfg[WEI].dt;
-                const auto bia_dt
-                        = prb->dir == FWD_B ? dnnl_f32 : dnnl_data_type_undef;
-
-                if (e.convolution.stride == 1) {
-                    DNN_SAFE_V(dnnl_post_ops_append_dw_k3s1p1(ops, wei_dt,
-                            bia_dt, e.convolution.dst_dt, count, mask, scales));
-                } else {
-                    DNN_SAFE_V(dnnl_post_ops_append_dw_k3s2p1(ops, wei_dt,
-                            bia_dt, e.convolution.dst_dt, count, mask, scales));
-                }
-                if (gen_scs) zfree(gen_scs);
-            } else if (e.is_eltwise_kind()) {
-                DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops, e.eltwise.scale,
-                        e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
-            } else {
-                assert(!"unknown attr::post_ops::kind");
-            }
-        }
-        DNN_SAFE_V(dnnl_primitive_attr_set_post_ops(dnnl_attr, ops));
-
-        const_dnnl_post_ops_t c_ops;
-        DNN_SAFE_V(dnnl_primitive_attr_get_post_ops(dnnl_attr, &c_ops));
-        SAFE_V(dnnl_post_ops_len(c_ops) == po.len() ? OK : FAIL);
-
-        DNN_SAFE_V(dnnl_post_ops_destroy(ops));
-    }
-
-    DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
-            dnnl_attr, attr.scratchpad_mode));
-
-    return dnnl_attr;
-}
 
 static int init_pd(dnnl_engine_t engine, const prb_t *prb,
         dnnl_primitive_desc_t &cpd, res_t *res, dir_t dir,
@@ -217,7 +128,14 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     DNN_SAFE(cd.accum_data_type == acc_dt ? dnnl_success : dnnl_unimplemented,
             CRIT);
 
-    auto dnnl_attr = create_dnnl_fusion_attr(prb, prb->oc);
+    attr_args_t attr_args;
+    attr_args.prepare_output_scales(prb->attr, prb->scales, prb->oc);
+
+    const auto dw_bia_dt = prb->dir == FWD_B ? dnnl_f32 : dnnl_data_type_undef;
+    attr_args.prepare_dw_post_op(
+            prb->attr, prb->cfg[WEI].dt, dw_bia_dt, prb->scales_dw, prb->oc);
+    attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims, dst_dims);
+    auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
 
     dnnl_status_t init_status
             = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, engine, nullptr);
@@ -321,6 +239,13 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(
             {prb->cfg[SRC].dt, prb->cfg[WEI].dt, prb->cfg[DST].dt}, prb->dir,
             res);
+
+    // GPU does not support depthwise fusion
+    if (engine_tgt_kind == dnnl_gpu
+            && prb->attr.post_ops.convolution_index() != -1) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 int doit(const prb_t *prb, res_t *res) {
@@ -400,6 +325,9 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t fused_wei_fp(fused_wei_md, fp, tag::abx, test_engine);
     dnn_mem_t fused_bia_fp(fused_bia_md, fp, tag::x, test_engine);
 
+    std::vector<dnn_mem_t> binary_po_dt;
+    std::vector<int> binary_po_args;
+
     // Current filling doesn't work for fused_wei due to relying on prb values,
     // which are different for fused conv. This can be fixed later by relying
     // on md values, rather than prb desc ones.
@@ -447,6 +375,12 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t wei_fp0(wei_md0, fp, tag::abx, test_engine);
     dnn_mem_t bia_fp0(bia_md0, fp, tag::x, test_engine);
     dnn_mem_t dst_fp0(dst_md0, fp, tag::abx, test_engine);
+
+    std::vector<dnn_mem_t> binary_po_fp0, binary_po_dt0;
+    std::vector<int> binary_po_args0;
+    SAFE(binary::setup_binary_po(
+                 const_pd0, binary_po_args0, binary_po_dt0, binary_po_fp0),
+            WARN);
 
     SAFE(conv::fill_src(p0.get(), src_dt0, src_fp0, res), WARN);
     SAFE(conv::fill_wei(p0.get(), wei_dt0, wei_fp0, res), WARN);
@@ -496,6 +430,12 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t bia_fp1(bia_md1, fp, tag::x, test_engine);
     dnn_mem_t dst_fp1(dst_md1, fp, tag::abx, test_engine);
 
+    std::vector<dnn_mem_t> binary_po_fp1, binary_po_dt1;
+    std::vector<int> binary_po_args1;
+    SAFE(binary::setup_binary_po(
+                 const_pd1, binary_po_args1, binary_po_dt1, binary_po_fp1),
+            WARN);
+
     SAFE(conv::fill_wei(p1.get(), wei_dt1, wei_fp1, res), WARN);
     SAFE(conv::fill_bia(p1.get(), bia_dt1, bia_fp1, res), WARN);
     SAFE(conv::fill_dst(p1.get(), dst_dt1, dst_fp1, res), WARN);
@@ -525,6 +465,7 @@ int doit(const prb_t *prb, res_t *res) {
         args0.set(DNNL_ARG_BIAS, bia_dt0);
         args0.set(DNNL_ARG_DST, dst_dt0);
         args0.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt0);
+        args0.set(binary_po_args0, binary_po_dt0);
 
         SAFE(execute_and_wait(c0, args0), WARN);
         SAFE(src_dt1.reorder(dst_dt0), WARN);
@@ -534,8 +475,36 @@ int doit(const prb_t *prb, res_t *res) {
         args1.set(DNNL_ARG_BIAS, bia_dt1);
         args1.set(DNNL_ARG_DST, dst_dt1);
         args1.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt1);
+        args1.set(binary_po_args1, binary_po_dt1);
 
         SAFE(execute_and_wait(c1, args1), WARN);
+
+        // Reverse engineer binary post-ops indices from second conv and update
+        // them in-place to follow fused conv enumaration.
+        const int dw_idx = prb->attr.post_ops.convolution_index();
+        const auto update_bin_po_args1_indices = [&](size_t i) {
+            auto &b = binary_po_args1[i];
+            const int orig_idx = b / DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE - 1;
+            b = DNNL_ARG_ATTR_MULTIPLE_POST_OP(orig_idx + dw_idx + 1)
+                    | DNNL_ARG_SRC_1;
+        };
+        for (size_t i = 0; i < binary_po_dt1.size(); ++i)
+            update_bin_po_args1_indices(i);
+
+        // As memory is not allowed to be copied, and binary post-op memories
+        // are read-only, we move them to main convolution execution and adjust
+        // arg indices to follow the library API.
+
+        // Move the content to binary_po_dt from separate convs.
+        std::move(binary_po_dt0.begin(), binary_po_dt0.end(),
+                std::back_inserter(binary_po_dt));
+        std::move(binary_po_dt1.begin(), binary_po_dt1.end(),
+                std::back_inserter(binary_po_dt));
+        // Move the content to binary_po_args from separate convs.
+        std::move(binary_po_args0.begin(), binary_po_args0.end(),
+                std::back_inserter(binary_po_args));
+        std::move(binary_po_args1.begin(), binary_po_args1.end(),
+                std::back_inserter(binary_po_args));
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
@@ -544,6 +513,7 @@ int doit(const prb_t *prb, res_t *res) {
         args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, fused_wei_dt);
         args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS, fused_bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+        args.set(binary_po_args, binary_po_dt);
 
         SAFE(execute_and_wait(c, args), WARN);
 

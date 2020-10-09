@@ -216,6 +216,11 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 arg_cache.append_ctx_arg(DNNL_ARG_BIAS);
             arg_cache.append_inout_arg(DNNL_ARG_DST, inout_sp_offset_end,
                     root_pd->dst_md(), false);
+            for (int idx = 0; idx < attr_1x1.post_ops_.len(); ++idx) {
+                if (attr_1x1.post_ops_.contain(primitive_kind::binary, idx))
+                    arg_cache.append_ctx_arg(DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                            | DNNL_ARG_SRC_1);
+            }
             args_.push_back(arg_cache);
 
             // Increment scratchpad offsets
@@ -275,6 +280,15 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 if (op->weights_md(1)->data_type != data_type::undef)
                     arg_cache.append_ctx_arg(DNNL_ARG_BIAS,
                             DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+                for (int idx = 0; idx < attr_dw.post_ops_.len(); ++idx) {
+                    if (attr_dw.post_ops_.contain(primitive_kind::binary, idx))
+                        arg_cache.append_ctx_arg(
+                                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                        | DNNL_ARG_SRC_1),
+                                (DNNL_ARG_ATTR_MULTIPLE_POST_OP(
+                                         idx + po_op_iter + 1)
+                                        | DNNL_ARG_SRC_1));
+                }
 
                 args_.push_back(arg_cache);
 
