@@ -129,6 +129,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     dnnl_dims_t src_1d_dims = {prb->mb, prb->ic, prb->iw};
     dnnl_dims_t src_2d_dims = {prb->mb, prb->ic, prb->ih, prb->iw};
     dnnl_dims_t src_3d_dims = {prb->mb, prb->ic, prb->id, prb->ih, prb->iw};
+    dnnl_dim_t *src_dims = prb->ndims == 5
+            ? src_3d_dims
+            : prb->ndims == 4 ? src_2d_dims : src_1d_dims;
 
     dnnl_dims_t wei_1d_dims
             = {prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kw};
@@ -136,44 +139,37 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             = {prb->g, prb->oc / prb->g, prb->ic / prb->g, prb->kh, prb->kw};
     dnnl_dims_t wei_3d_dims = {prb->g, prb->oc / prb->g, prb->ic / prb->g,
             prb->kd, prb->kh, prb->kw};
+    dnnl_dim_t *wei_dims = prb->ndims == 5
+            ? &wei_3d_dims[!prb->has_groups]
+            : prb->ndims == 4 ? &wei_2d_dims[!prb->has_groups]
+                              : &wei_1d_dims[!prb->has_groups];
 
     dnnl_dims_t bia_dims = {prb->oc};
 
     dnnl_dims_t dst_1d_dims = {prb->mb, prb->oc, prb->ow};
     dnnl_dims_t dst_2d_dims = {prb->mb, prb->oc, prb->oh, prb->ow};
     dnnl_dims_t dst_3d_dims = {prb->mb, prb->oc, prb->od, prb->oh, prb->ow};
+    dnnl_dim_t *dst_dims = prb->ndims == 5
+            ? dst_3d_dims
+            : prb->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
     dnnl_data_type_t src_dt = prb->cfg[SRC].dt;
     dnnl_data_type_t wei_dt = prb->cfg[WEI].dt;
     dnnl_data_type_t bia_dt = prb->cfg[BIA].dt;
     dnnl_data_type_t dst_dt = prb->cfg[DST].dt;
     dnnl_data_type_t acc_dt = prb->cfg[ACC].dt;
-    std::string src_tag = prb->stag;
-    std::string wei_tag = prb->wtag;
     std::string bia_tag = tag::any;
     std::string dst_tag = prb->dtag;
 
-    SAFE(init_md(&src_d, prb->ndims,
-                 prb->ndims == 5 ? src_3d_dims
-                                 : prb->ndims == 3 ? src_1d_dims : src_2d_dims,
-                 src_dt, src_tag),
-            CRIT);
+    SAFE(init_md(&src_d, prb->ndims, src_dims, src_dt, prb->stag), WARN);
 
-    SAFE(init_md(&wei_d, prb->ndims + prb->has_groups,
-                 prb->ndims == 5
-                         ? &wei_3d_dims[!prb->has_groups]
-                         : prb->ndims == 3 ? &wei_1d_dims[!prb->has_groups]
-                                           : &wei_2d_dims[!prb->has_groups],
-                 wei_dt, wei_tag),
-            CRIT);
-
-    SAFE(init_md(&bia_d, 1, bia_dims, bia_dt, bia_tag), CRIT);
-
-    SAFE(init_md(&dst_d, prb->ndims,
-                 prb->ndims == 5 ? dst_3d_dims
-                                 : prb->ndims == 3 ? dst_1d_dims : dst_2d_dims,
-                 dst_dt, dst_tag),
+    SAFE(init_md(&wei_d, prb->ndims + prb->has_groups, wei_dims, wei_dt,
+                 prb->wtag),
             WARN);
+
+    SAFE(init_md(&bia_d, 1, bia_dims, bia_dt, bia_tag), WARN);
+
+    SAFE(init_md(&dst_d, prb->ndims, dst_dims, dst_dt, dst_tag), WARN);
 
     dnnl_dim_t strides_nd[] = {prb->sd, prb->sh, prb->sw};
     dnnl_dim_t dilates_nd[] = {prb->dd, prb->dh, prb->dw};
@@ -397,14 +393,11 @@ int doit(const prb_t *prb, res_t *res) {
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     const auto fp = dnnl_f32;
-    const auto src_tag = tag::abx;
-    const auto wei_tag = tag::abx;
-    const auto fused_wei_tag = tag::abx;
-    dnn_mem_t src_fp(src_md, fp, src_tag, test_engine);
-    dnn_mem_t wei_fp(wei_md, fp, wei_tag, test_engine);
+    dnn_mem_t src_fp(src_md, fp, tag::abx, test_engine);
+    dnn_mem_t wei_fp(wei_md, fp, tag::abx, test_engine);
     dnn_mem_t bia_fp(bia_md, fp, tag::x, test_engine);
-    dnn_mem_t dst_fp(dst_md, fp, src_tag, test_engine);
-    dnn_mem_t fused_wei_fp(fused_wei_md, fp, fused_wei_tag, test_engine);
+    dnn_mem_t dst_fp(dst_md, fp, tag::abx, test_engine);
+    dnn_mem_t fused_wei_fp(fused_wei_md, fp, tag::abx, test_engine);
     dnn_mem_t fused_bia_fp(fused_bia_md, fp, tag::x, test_engine);
 
     // Current filling doesn't work for fused_wei due to relying on prb values,
@@ -444,19 +437,16 @@ int doit(const prb_t *prb, res_t *res) {
             = p0->dir & FLAG_BWD ? q0(DNNL_ARG_DIFF_DST) : q0(DNNL_ARG_DST);
     const auto &scratchpad_md0 = q0(DNNL_ARG_SCRATCHPAD);
 
-    const auto src_tag0 = tag::abx;
-    const auto wei_tag0 = tag::abx;
-
     dnn_mem_t src_dt0(src_md0, test_engine);
     dnn_mem_t wei_dt0(wei_md0, test_engine);
     dnn_mem_t bia_dt0(bia_md0, test_engine);
     dnn_mem_t dst_dt0(dst_md0, test_engine);
     dnn_mem_t scratchpad_dt0(scratchpad_md0, test_engine);
 
-    dnn_mem_t src_fp0(src_md0, fp, src_tag0, test_engine);
-    dnn_mem_t wei_fp0(wei_md0, fp, wei_tag0, test_engine);
+    dnn_mem_t src_fp0(src_md0, fp, tag::abx, test_engine);
+    dnn_mem_t wei_fp0(wei_md0, fp, tag::abx, test_engine);
     dnn_mem_t bia_fp0(bia_md0, fp, tag::x, test_engine);
-    dnn_mem_t dst_fp0(dst_md0, fp, src_tag0, test_engine);
+    dnn_mem_t dst_fp0(dst_md0, fp, tag::abx, test_engine);
 
     SAFE(conv::fill_src(p0.get(), src_dt0, src_fp0, res), WARN);
     SAFE(conv::fill_wei(p0.get(), wei_dt0, wei_fp0, res), WARN);
@@ -496,17 +486,15 @@ int doit(const prb_t *prb, res_t *res) {
             = prb->dir & FLAG_BWD ? q1(DNNL_ARG_DIFF_DST) : q1(DNNL_ARG_DST);
     const auto &scratchpad_md1 = q(DNNL_ARG_SCRATCHPAD);
 
-    const auto src_tag1 = tag::abx;
-    const auto wei_tag1 = tag::abx;
     dnn_mem_t src_dt1(src_md1, test_engine);
     dnn_mem_t wei_dt1(wei_md1, test_engine);
     dnn_mem_t bia_dt1(bia_md1, test_engine);
     dnn_mem_t dst_dt1(dst_md1, test_engine);
     dnn_mem_t scratchpad_dt1(scratchpad_md1, test_engine);
 
-    dnn_mem_t wei_fp1(wei_md1, fp, wei_tag1, test_engine);
+    dnn_mem_t wei_fp1(wei_md1, fp, tag::abx, test_engine);
     dnn_mem_t bia_fp1(bia_md1, fp, tag::x, test_engine);
-    dnn_mem_t dst_fp1(dst_md1, fp, src_tag1, test_engine);
+    dnn_mem_t dst_fp1(dst_md1, fp, tag::abx, test_engine);
 
     SAFE(conv::fill_wei(p1.get(), wei_dt1, wei_fp1, res), WARN);
     SAFE(conv::fill_bia(p1.get(), bia_dt1, bia_fp1, res), WARN);
@@ -562,8 +550,8 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(c, args), WARN);
 
         if (bench_mode & CORR) {
-            dnn_mem_t dst_fused(dst_dt, fp, src_tag, test_engine);
-            dnn_mem_t dst_unfused(dst_dt1, fp, src_tag, test_engine);
+            dnn_mem_t dst_fused(dst_dt, fp, tag::abx, test_engine);
+            dnn_mem_t dst_unfused(dst_dt1, fp, tag::abx, test_engine);
             // Used p1 to avoid writing separate compare function. Compare uses
             // prb->cfg which can be u8s8u8 while after fusion it may be u8s8s8,
             // thus, compare() will saturate values which is not correct.
@@ -571,6 +559,7 @@ int doit(const prb_t *prb, res_t *res) {
                     WARN);
         }
     } else {
+        assert(!"Backward is not supported");
         SAFE(FAIL, CRIT);
     }
 

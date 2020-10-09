@@ -232,50 +232,49 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 
                 const auto &prev_op_pd = op_pds_.back();
 
-                if (po.entry_[po_op_iter].kind == primitive_kind::convolution) {
-                    if (prev_op_pd->kind() != primitive_kind::convolution)
-                        return status::unimplemented;
-                    auto conv_pd = reinterpret_cast<convolution_pd_t *>(
-                            prev_op_pd.get());
-                    bool ok = true && is_fwd()
-                            && utils::everyone_is(1, conv_pd->KD(),
-                                    conv_pd->KH(), conv_pd->KW());
-                    if (!ok) return status::unimplemented;
-
-                    convolution_desc_t cd_dw;
-                    primitive_attr_t attr_dw;
-                    primitive_desc_t *append_conv_pd;
-                    CHECK(get_depthwise_conv_desc(cd_dw, *(conv_pd->dst_md()),
-                            root_attr, attr_dw, po_op_iter));
-                    dnnl_primitive_desc_iterator it(
-                            engine, (op_desc_t *)&cd_dw, &attr_dw, nullptr);
-                    if (!it.is_initialized()) return status::out_of_memory;
-                    ++it;
-                    append_conv_pd = (it.fetch_once());
-                    if (!append_conv_pd) return status::unimplemented;
-
-                    auto status = append_op(append_conv_pd,
-                            inout_sp_offset_begin, inout_sp_offset_end, engine);
-                    if (status != status::success) {
-                        delete append_conv_pd;
-                        return status;
-                    }
-
-                    const auto &op = op_pds_.back();
-                    arg_cache_t arg_cache;
-                    arg_cache.append_inout_arg(DNNL_ARG_SRC,
-                            inout_sp_offset_begin, op->src_md(), true);
-                    arg_cache.append_ctx_arg(DNNL_ARG_DST);
-                    arg_cache.append_ctx_arg(DNNL_ARG_WEIGHTS,
-                            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
-                    if (op->weights_md(1)->data_type != data_type::undef)
-                        arg_cache.append_ctx_arg(DNNL_ARG_BIAS,
-                                DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
-
-                    args_.push_back(arg_cache);
-
-                } else // other fused ops
+                if (po.entry_[po_op_iter].kind != primitive_kind::convolution)
                     return status::unimplemented;
+
+                if (prev_op_pd->kind() != primitive_kind::convolution)
+                    return status::unimplemented;
+
+                auto conv_pd = reinterpret_cast<convolution_pd_t *>(
+                        prev_op_pd.get());
+                bool ok = true && is_fwd()
+                        && utils::everyone_is(
+                                1, conv_pd->KD(), conv_pd->KH(), conv_pd->KW());
+                if (!ok) return status::unimplemented;
+
+                convolution_desc_t cd_dw;
+                primitive_attr_t attr_dw;
+                CHECK(get_depthwise_conv_desc(cd_dw, *(conv_pd->dst_md()),
+                        root_attr, attr_dw, po_op_iter));
+                dnnl_primitive_desc_iterator it(
+                        engine, (op_desc_t *)&cd_dw, &attr_dw, nullptr);
+                if (!it.is_initialized()) return status::out_of_memory;
+
+                primitive_desc_t *append_conv_pd = (++it).fetch_once();
+                if (!append_conv_pd) return status::unimplemented;
+
+                auto status = append_op(append_conv_pd, inout_sp_offset_begin,
+                        inout_sp_offset_end, engine);
+                if (status != status::success) {
+                    delete append_conv_pd;
+                    return status;
+                }
+
+                const auto &op = op_pds_.back();
+                arg_cache_t arg_cache;
+                arg_cache.append_inout_arg(DNNL_ARG_SRC, inout_sp_offset_begin,
+                        op->src_md(), true);
+                arg_cache.append_ctx_arg(DNNL_ARG_DST);
+                arg_cache.append_ctx_arg(DNNL_ARG_WEIGHTS,
+                        DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+                if (op->weights_md(1)->data_type != data_type::undef)
+                    arg_cache.append_ctx_arg(DNNL_ARG_BIAS,
+                            DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+
+                args_.push_back(arg_cache);
 
                 while (++po_op_iter < end) {
                     if (utils::one_of(po.entry_[po_op_iter].kind,
