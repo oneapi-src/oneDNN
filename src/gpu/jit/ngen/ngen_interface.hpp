@@ -257,6 +257,8 @@ void NEOInterfaceHandler::generateDummyCL(std::ostream &stream) const
     }
     stream << ") {\n";
     stream << "    global volatile int *____;\n";
+    if (hw == HW::Gen9)
+        stream << "    volatile double *__df; *__df = 1.1 / *__df;\n";
 
     if (needLocalID)        stream << "    (void) ____[get_local_id(0)];\n";
     if (needLocalSize)      stream << "    (void) ____[get_enqueued_local_size(0)];\n";
