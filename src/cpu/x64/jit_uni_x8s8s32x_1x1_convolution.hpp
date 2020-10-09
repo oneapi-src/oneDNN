@@ -117,9 +117,11 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         }
 
         arg_usage_t arg_usage(int arg) const override {
+            if (arg == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS))
+                return arg_usage_t::input;
 
-            if (utils::one_of(arg, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
-                        DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS))
+            if (arg == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS)
+                    && attr_post_op_dw_inputs() > 1)
                 return arg_usage_t::input;
 
             return convolution_fwd_pd_t::arg_usage(arg);

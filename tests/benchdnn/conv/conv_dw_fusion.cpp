@@ -539,12 +539,10 @@ int doit(const prb_t *prb, res_t *res) {
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
-        if (bia_md.data_type != dnnl_data_type_undef)
-            args.set(DNNL_ARG_BIAS, bia_dt);
+        args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS, fused_wei_dt);
-        if (fused_bia_md.data_type != dnnl_data_type_undef)
-            args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS, fused_bia_dt);
+        args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS, fused_bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         SAFE(execute_and_wait(c, args), WARN);
