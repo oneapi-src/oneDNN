@@ -49,5 +49,5 @@
 --batch=shapes_resnet_50
 
 # remaining configs with binary post op testing
---cfg=bf16,u8s8s32,u8s8f32
+--cfg=bf16bf16bf16,u8s8s32,u8s8f32
 --batch=shapes_resnet_50
