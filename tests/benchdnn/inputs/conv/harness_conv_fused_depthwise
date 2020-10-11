@@ -48,11 +48,13 @@
 
 --skip-impl="ref:gemm"
 --cfg=f32
+--attr-oscale=
 --attr-post-ops='dw_k3s1p1:f32'
 --batch=shapes_fused_large_src
 --attr-post-ops='relu;dw_k3s2p1:f32;tanh'
 --batch=shapes_fused_large_src
 --cfg=s8s8s8
+--attr-oscale=per_oc:0.5
 --attr-post-ops='linear:2;dw_k3s1p1:u8:per_oc:2.5;relu'
 --batch=shapes_fused_large_src
 --attr-post-ops='relu:0.5;dw_k3s2p1:u8:per_oc:2.5;relu'
