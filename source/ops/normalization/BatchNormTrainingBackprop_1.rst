@@ -24,7 +24,7 @@ BatchNormTrainingBackprop
   * **Range of values**: true or false
   * **Type**: ``bool``
   * **Default value**: true
-  * **Required**: *yes*
+  * **Required**: *no*
 
 * *data_format*
 
