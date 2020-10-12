@@ -125,9 +125,10 @@ void jit_uni_postops_injector_t<isa>::set_lambda_injector(
     lambda_jit_injectors_[kind] = jit_injector;
 }
 
+template <cpu_isa_t isa>
 bool post_ops_ok(std::initializer_list<post_op_type> accepted_post_op_types,
-        const size_t vlen, const primitive_attr_t &attr,
-        const memory_desc_wrapper &dst_d, bool sum_first_only) {
+        const primitive_attr_t &attr, const memory_desc_wrapper &dst_d,
+        bool sum_first_only) {
 
     bool binary_postop_present = false;
     const auto &p = attr.post_ops_;
@@ -153,19 +154,36 @@ bool post_ops_ok(std::initializer_list<post_op_type> accepted_post_op_types,
     };
 
     for (int i = 0; i < p.len(); i++) {
+        const auto &entry = p.entry_[i];
         if (p.contain(primitive_kind::sum, i)) {
-            if (sum_first_only && (i > 0 || p.entry_[i].sum.scale != 1.0))
+            if (sum_first_only && (i > 0 || entry.sum.scale != 1.0))
                 return false;
-        } else if (!(is_accepted_postop(i)))
+        } else if (!is_accepted_postop(i)
+                || (!utils::one_of(isa, avx512_core_bf16, avx512_core)
+                        && entry.is_binary()
+                        && entry.binary.src1_desc.data_type == data_type::bf16))
             return false;
     }
 
     return binary_postop_present
             ? binary_injector::binary_args_broadcast_supported(p, dst_d)
                     && binary_injector::binary_args_tail_supported(
-                            p, dst_d, vlen)
+                            p, dst_d, cpu_isa_traits<isa>::vlen)
             : true;
 }
+
+template bool post_ops_ok<avx512_core_bf16>(std::initializer_list<post_op_type>,
+        const primitive_attr_t &, const memory_desc_wrapper &, bool);
+template bool post_ops_ok<avx512_core>(std::initializer_list<post_op_type>,
+        const primitive_attr_t &, const memory_desc_wrapper &, bool);
+template bool post_ops_ok<avx512_common>(std::initializer_list<post_op_type>,
+        const primitive_attr_t &, const memory_desc_wrapper &, bool);
+template bool post_ops_ok<avx2>(std::initializer_list<post_op_type>,
+        const primitive_attr_t &, const memory_desc_wrapper &, bool);
+template bool post_ops_ok<avx>(std::initializer_list<post_op_type>,
+        const primitive_attr_t &, const memory_desc_wrapper &, bool);
+template bool post_ops_ok<sse41>(std::initializer_list<post_op_type>,
+        const primitive_attr_t &, const memory_desc_wrapper &, bool);
 
 template class jit_uni_postops_injector_t<avx512_core_bf16>;
 template class jit_uni_postops_injector_t<avx512_core>;

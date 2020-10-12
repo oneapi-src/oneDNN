@@ -9,7 +9,7 @@
 --mb=1,2
 
 --trivial-strides=true,false
---prop=FWD_D,BWD_DW
+--prop=FWD_I,BWD_DW
 --with-peephole=false,true
 --with-projection=false,true
 --cfg=f32,bf16,f16
@@ -18,7 +18,7 @@
 
 # int8
 --trivial-strides=true
---prop=FWD_D
+--prop=FWD_I
 --with-peephole=false
 --with-projection=false
 --cfg=u8u8u8u8,f32u8f32f32

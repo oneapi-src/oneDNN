@@ -124,6 +124,8 @@ struct isa_info_t {
     dnnl_cpu_isa_t convert_to_public_enum(void) const {
         switch (isa) {
             case avx512_core_amx: return dnnl_cpu_isa_avx512_core_amx;
+            case avx512_core_bf16_amx_bf16: // fallback to avx512_core_bf16
+            case avx512_core_bf16_amx_int8: // fallback to avx512_core_bf16
             case avx512_core_bf16: return dnnl_cpu_isa_avx512_core_bf16;
             case avx512_core_vnni: return dnnl_cpu_isa_avx512_core_vnni;
             case avx512_core: return dnnl_cpu_isa_avx512_core;

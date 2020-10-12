@@ -229,6 +229,9 @@ protected:
                 ? memory::desc({dst_iter_c_dims}, prec, p.fmts.dst_iter_fmt)
                 : memory::desc();
 
+        auto weights_projection_md_ldio = memory::desc(
+                {weights_projection_dims}, prec, memory::format_tag::ldio);
+
         // Create the reference primitive descriptor
         auto ref_d = setDesc(p.aprop, p.extra.activation, p.direction,
                 src_layer_md_any, src_iter_md_any, src_iter_c_md_any,
@@ -294,6 +297,8 @@ protected:
         auto dst_iter_tgt = test::make_memory(dst_iter_md_tgt, eng);
         auto dst_iter_c_tgt = test::make_memory(dst_iter_c_md_tgt, eng);
 
+        auto weights_projection_ldio = memory(weights_projection_md_ldio, eng);
+
         // Assumption: b is a plain layout
         auto init_tensor = [&](memory a, memory b, int scale = 1) {
             auto desc = a.get_desc();
@@ -317,18 +322,18 @@ protected:
             // Zero fill the tmp tensor
             init_tensor(a, tmp, 0);
         };
-        auto init_id_wights_projection = [&](const memory &w) {
-            {
-                auto w_ptr = map_memory<float>(w);
-                for_(memory::dim l = 0; l < dims.l; ++l)
-                for_(memory::dim d = 0; d < dims.d; ++d)
-                for_(memory::dim i = 0; i < dims.dhc; ++i)
-                for (memory::dim o = 0; o < dims.dic; ++o) {
-                    auto off = (((l * dims.d) + d) * dims.dhc + i) * dims.dic
-                            + o;
-                    w_ptr[off] = (i == o) ? 1.f : 0.f;
-                }
+        auto init_id_wights_projection = [&](memory &w_plain, memory &w_rnn) {
+            auto w_plain_ptr = map_memory<float>(w_plain);
+            for_(memory::dim l = 0; l < dims.l; ++l)
+            for_(memory::dim d = 0; d < dims.d; ++d)
+            for_(memory::dim i = 0; i < dims.dhc; ++i)
+            for (memory::dim o = 0; o < dims.dic; ++o) {
+                auto off = (((l * dims.d) + d) * dims.dhc + i) * dims.dic + o;
+                w_plain_ptr[off] = (i == o) ? 1.f : 0.f;
             }
+
+            reorder(w_plain, w_rnn).execute(strm, w_plain, w_rnn);
+            strm.wait();
         };
 
         init_tensor(weights_layer_ref, weights_layer_tgt);
@@ -340,7 +345,8 @@ protected:
         if (is_lstm_projection)
             init_tensor(weights_projection_ref, weights_projection_tgt);
         else if (std::is_same<T, lstm_forward>::value)
-            init_id_wights_projection(weights_projection_ref);
+            init_id_wights_projection(
+                    weights_projection_ldio, weights_projection_ref);
         init_tensor(bias_ref, bias_tgt);
         init_tensor(src_layer_ref, src_layer_tgt);
         if (p.fmts.src_iter_fmt != memory::format_tag::undef) {

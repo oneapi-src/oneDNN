@@ -26,15 +26,21 @@
 #undef SRC_OFF
 #undef DST_OFF
 
-#define SRC_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC, x0, x1, x2, x3, x4, x5)
-#define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
+#define SRC_OFF(x0, x1, x2, x3, x4, x5) \
+    OFF_MD(SRC, (x0), (x1), (x2), (x3), (x4), (x5))
+#define DST_OFF(x0, x1, x2, x3, x4, x5) \
+    OFF_MD(DST, (x0), (x1), (x2), (x3), (x4), (x5))
 
 #if WITH_GROUP
-#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(SRC, gr, x0, x1, x2, x3, x4)
-#define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(DST, gr, x0, x1, x2, x3, x4)
+#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) \
+    OFF_MD(SRC, gr, (x0), (x1), (x2), (x3), (x4))
+#define DST_OFF_G(gr, x0, x1, x2, x3, x4) \
+    OFF_MD(DST, gr, (x0), (x1), (x2), (x3), (x4))
 #else
-#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(SRC, x0, x1, x2, x3, x4, 0)
-#define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(DST, x0, x1, x2, x3, x4, 0)
+#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) \
+    OFF_MD(SRC, (x0), (x1), (x2), (x3), (x4), 0)
+#define DST_OFF_G(gr, x0, x1, x2, x3, x4) \
+    OFF_MD(DST, (x0), (x1), (x2), (x3), (x4), 0)
 #endif
 
 #if SRC_DT_S8
@@ -362,6 +368,139 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     SRC_DATA_T src_all[16][SUB_GROUP_SIZE];
 
     REORDER_BLOCK(block_size, src_mem, src_all, d5);
+
+#elif TRANSPOSE_16X16
+    // Fast reorder that uses intel_sub_group_read/write functions
+    // to guarantee good memory bandwidth. Supports many layouts,
+    // see details in simple_reorder.cpp
+    //
+    // Uses subgroup size 16.
+    // Each subgroup will read 16 sets of 16 values. Sets are strided in src by
+    // the dimension that'll be last in dst.
+    // The 16x16 data piece is shared between subgroup's work items and transposed
+    // Each subgroup will write 16 sets of 16 values. Sets are adjacent in dst.
+    int sgId = get_sub_group_local_id();
+
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d2 = GWS_GET_D2();
+    const int d3 = GWS_GET_D3();
+    const int d4 = GWS_GET_D4();
+    const int d5 = GWS_GET_D5();
+
+    const int d0_block = GWS_GET_D0_BLOCK();
+    const int d1_block = GWS_GET_D1_BLOCK();
+    const int d2_block = GWS_GET_D2_BLOCK();
+    const int d3_block = GWS_GET_D3_BLOCK();
+    const int d4_block = GWS_GET_D4_BLOCK();
+    const int d5_block = GWS_GET_D5_BLOCK();
+
+    SRC_DATA_T src_buf[SUB_GROUP_SIZE];
+    SRC_DATA_T dst_buf[SUB_GROUP_SIZE];
+    SRC_DATA_T send_buf;
+
+    for_(int d0i = 0; d0i < d0_block; d0i++)
+    for_(int d1i = 0; d1i < d1_block; d1i++)
+    for_(int d2i = 0; d2i < d2_block; d2i++)
+    for_(int d3i = 0; d3i < d3_block; d3i++)
+    for_(int d4i = 0; d4i < d4_block; d4i++)
+    for (int d5i = 0; d5i < d5_block; d5i++) {
+        int iter = d0i + d1i + d2i + d3i + d4i + d5i;
+#if PLAIN_TO_BLOCK
+        int src_off = SRC_OFF(
+                d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5 + d5i);
+#else
+        int src_off = SRC_OFF(d0, d1, d2, d3, d4, d5) + 16 * iter;
+#endif
+        src_buf[iter] = SRC_BLOCK_READ(&src[src_off]);
+    }
+
+    // Share and transpose. Each work item keeps 1 own value and
+    // gets 15 values from other work items
+    dst_buf[sgId] = src_buf[sgId];
+    for (int i = 1; i < SUB_GROUP_SIZE; i++) {
+        send_buf = src_buf[(i + sgId) % 16];
+        dst_buf[(16 + sgId - i) % 16]
+                = intel_sub_group_shuffle(send_buf, (16 + sgId - i) % 16);
+    }
+
+    for_(int d0i = 0; d0i < d0_block; d0i++)
+    for_(int d1i = 0; d1i < d1_block; d1i++)
+    for_(int d2i = 0; d2i < d2_block; d2i++)
+    for_(int d3i = 0; d3i < d3_block; d3i++)
+    for_(int d4i = 0; d4i < d4_block; d4i++)
+    for (int d5i = 0; d5i < d5_block; d5i++) {
+        int iter = d0i + d1i + d2i + d3i + d4i + d5i;
+#if PLAIN_TO_BLOCK
+        int dst_off = DST_OFF(d0, d1, d2, d3, d4, d5) + 16 * iter;
+#else
+        int dst_off = DST_OFF(
+                d0 + d0i, d1 + d1i, d2 + d2i, d3 + d3i, d4 + d4i, d5 + d5i);
+#endif
+        DST_DATA_T dst_tmp;
+#if WITH_SUM_AB
+        dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
+#endif
+        REORDER(dst_tmp, dst_buf[iter], alpha, beta);
+        DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
+    }
+
+#elif PLAIN_TO_AB_XX_8AYB
+    // Reorders 2D plain format to a blocked one, where last two
+    // blocks are 8a4b or 8a2b. Supports formats with more block layers.
+    //
+    // Uses subgroup size 16
+    // Each subgroup will read 8 sets of 16 values. Sets are not
+    // adjacent in src, they are strided by 0th dim
+    // All those 8*16 values will be shared between work items in subgroup
+    // Each WI selects a set of 8 values out of 8*16 to write back
+    // Each subgroup will write 8 sets of 16 values. Sets are adjacent in dst.
+    //
+    // TODO: make it generic across number of dimensions, for now only works with 2D
+    // TODO: reduce shuffles from 8*16 to 28(?) - even though it doesn't improve perf
+    // TODO: the two dst_buf<-tmp_buf formulas should be unified
+    int sgId = get_sub_group_local_id();
+
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+
+    const int d0b = GWS_GET_D0_BLOCK();
+    const int d1b = GWS_GET_D1_BLOCK();
+
+    SRC_DATA_T src_buf[d0b];
+    DST_DATA_T dst_buf[d0b];
+
+    for (int d0i = 0; d0i < d0b; ++d0i) {
+        const int src_off = SRC_OFF(d0 + d0i, d1, 0, 0, 0, 0);
+        src_buf[d0i] = SRC_BLOCK_READ(&src[src_off]);
+    }
+
+    SRC_DATA_T tmp_buf[d0b][SUB_GROUP_SIZE];
+    for (int i = 0; i < d0b; i++) {
+        for (int sg = 0; sg < SUB_GROUP_SIZE; sg++) {
+            tmp_buf[i][sg] = intel_sub_group_shuffle(src_buf[i], sg);
+        }
+    }
+#if BLK_L == 4
+    for (int d0i = 0; d0i < d0b; ++d0i) {
+        dst_buf[d0i] = tmp_buf[(d0i % 2 * BLK_L) + sgId / BLK_L]
+                              [(d0i / 2) * BLK_L + sgId % BLK_L];
+    }
+#else // BLK_L == 2
+    for (int d0i = 0; d0i < d0b; ++d0i) {
+        dst_buf[d0i] = tmp_buf[sgId / BLK_L][d0i * BLK_L + sgId % BLK_L];
+    }
+#endif
+    for (int d0i = 0; d0i < d0b; ++d0i) {
+        const int dst_off = DST_OFF(d0, d1, 0, 0, 0, 0) + SUB_GROUP_SIZE * d0i;
+
+        DST_DATA_T dst_tmp;
+#if WITH_SUM_AB
+        dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
+#endif
+        REORDER(dst_tmp, dst_buf[d0i], alpha, beta);
+        DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
+    }
 
 #elif VECTORIZE_LAST_DIM
 

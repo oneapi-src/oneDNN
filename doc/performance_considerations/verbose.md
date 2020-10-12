@@ -71,7 +71,7 @@ dnnl_verbose,exec,cpu,convolution,jit:avx2,forward_training,src_f32::blocked:aBc
 dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:aBcd8b:f0 dst_f32::blocked:abcd:f0,,,2x16x7x7,0.173096
 ~~~
 
-Please see the profiling example [here](@ref dev_guide_verbose), as it uses
+Please see the profiling example [here](@ref performance_profiling_cpp), as it uses
 DNNL_VERBOSE output to tune oneDNN code to align with
 [best practices](@ref dev_guide_inference).
 

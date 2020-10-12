@@ -109,14 +109,16 @@ dir_t str2dir(const char *str) {
 }
 
 dnnl_prop_kind_t prop2prop_kind(const dir_t dir) {
-    if (dir == FWD_D) return dnnl_forward;
+    if (dir == FWD_D) return dnnl_forward_training;
+    if (dir == FWD_I) return dnnl_forward_inference;
     if (dir == BWD_DW) return dnnl_backward;
     assert(!"unknown dir");
     return dnnl_prop_kind_undef;
 }
 
 const char *prop2str(dnnl_prop_kind_t prop) {
-    if (prop == dnnl_forward) return "FWD_D";
+    if (prop == dnnl_forward_training) return "FWD_D";
+    if (prop == dnnl_forward_inference) return "FWD_I";
     if (prop == dnnl_backward) return "BWD_DW";
     assert(!"unknown prop_kind");
     return "unknown prop_kind";
@@ -330,6 +332,7 @@ static po_table_entry_t kind_table[] = {
         {pk_t::MAX, "max", dnnl_binary_max},
         {pk_t::MIN, "min", dnnl_binary_min},
         {pk_t::MUL, "mul", dnnl_binary_mul},
+        {pk_t::SUB, "sub", dnnl_binary_sub},
         {pk_t::BINARY_END, "binary_undef", dnnl_alg_kind_undef},
         // guard entry
         {pk_t::KIND_TOTAL, "kind_undef", dnnl_alg_kind_undef}};
@@ -1137,6 +1140,9 @@ float compute_eltwise_bwd(
 }
 
 float compute_binary(pk_t kind, float src0, float src1) {
+    // don't compute on nan, propagate it
+    if (std::isnan(src0) || std::isnan(src1)) return NAN;
+
     if (kind == pk_t::ADD) {
         return src0 + src1;
     } else if (kind == pk_t::MUL) {
@@ -1147,10 +1153,12 @@ float compute_binary(pk_t kind, float src0, float src1) {
         return MIN2(src0, src1);
     } else if (kind == pk_t::DIV) {
         return src0 / src1;
+    } else if (kind == pk_t::SUB) {
+        return src0 - src1;
     } else {
         assert(!"operation not supported!");
     }
-    return 0;
+    return NAN;
 }
 
 void maybe_post_ops(const attr_t &attr, float &val, float sum_val,

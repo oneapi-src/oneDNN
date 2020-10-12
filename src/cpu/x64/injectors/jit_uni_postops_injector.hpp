@@ -121,9 +121,10 @@ private:
 
 enum post_op_type { sum = 0, eltwise, binary, convolution };
 
+template <cpu_isa_t isa>
 bool post_ops_ok(std::initializer_list<post_op_type> accepted_post_op_types,
-        const size_t vlen, const primitive_attr_t &attr,
-        const memory_desc_wrapper &dst_d, bool sum_first_only = true);
+        const primitive_attr_t &attr, const memory_desc_wrapper &dst_d,
+        bool sum_first_only = true);
 
 } // namespace injector
 } // namespace x64

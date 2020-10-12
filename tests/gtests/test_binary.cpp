@@ -144,6 +144,11 @@ protected:
             fill_data<src1_data_t>(
                     src1_desc.get_size() / sizeof(src1_data_t), mem_B);
 
+            fill_data<src0_data_t>(
+                    src0_desc.get_size() / sizeof(src0_data_t), mem_A);
+            fill_data<src1_data_t>(
+                    src1_desc.get_size() / sizeof(src1_data_t), mem_B);
+
             prim.execute(strm,
                     {{DNNL_ARG_SRC_0, mem_A}, {DNNL_ARG_SRC_1, mem_B},
                             {DNNL_ARG_DST, mem_C},
@@ -178,7 +183,9 @@ static auto zero_dim = []() {
             binary_test_params_t {{tag::nChw16c, tag::nchw}, tag::nChw16c,
                     algorithm::binary_div, {8, 15, 0, 5}},
             binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
-                    algorithm::binary_mul, {5, 16, 7, 0}});
+                    algorithm::binary_mul, {5, 16, 7, 0}},
+            binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::nhwc,
+                    algorithm::binary_sub, {4, 0, 7, 5}});
 };
 
 static auto simple_cases = []() {
@@ -192,7 +199,9 @@ static auto simple_cases = []() {
             binary_test_params_t {{tag::nhwc, tag::nChw16c}, tag::any,
                     algorithm::binary_min, {5, 16, 7, 6}},
             binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
-                    algorithm::binary_div, {5, 16, 8, 7}});
+                    algorithm::binary_div, {5, 16, 8, 7}},
+            binary_test_params_t {{tag::nchw, tag::nChw16c}, tag::any,
+                    algorithm::binary_sub, {5, 16, 8, 7}});
 };
 
 #define INST_TEST_CASE(test) \

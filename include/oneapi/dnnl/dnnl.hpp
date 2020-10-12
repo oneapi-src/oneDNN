@@ -565,6 +565,8 @@ enum class algorithm {
     binary_min = dnnl_binary_min,
     /// Binary div
     binary_div = dnnl_binary_div,
+    /// Binary sub
+    binary_sub = dnnl_binary_sub,
     /// Nearest Neighbor resampling method
     resampling_nearest = dnnl_resampling_nearest,
     /// Linear (Bilinear, Trilinear) resampling method
@@ -1405,6 +1407,15 @@ struct memory : public handle<dnnl_memory_t> {
 
         // Opaque blocked formats
 
+        AB16b16a = dnnl_AB16b16a,
+        AB16b32a = dnnl_AB16b32a,
+        AB16b64a = dnnl_AB16b64a,
+        AB8b16a2b = dnnl_AB8b16a2b,
+        AB8b32a2b = dnnl_AB8b32a2b,
+        AB8b64a2b = dnnl_AB8b64a2b,
+        AB4b16a4b = dnnl_AB4b16a4b,
+        AB4b32a4b = dnnl_AB4b32a4b,
+        AB4b64a4b = dnnl_AB4b64a4b,
         Abc16a = dnnl_Abc16a,
         ABc16a16b = dnnl_ABc16a16b,
         ABc4a4b = dnnl_ABc4a4b,
@@ -1554,6 +1565,10 @@ struct memory : public handle<dnnl_memory_t> {
         aBCd4c8b2c = dnnl_aBCd4c8b2c,
         aBCde4c8b2c = dnnl_aBCde4c8b2c,
         aBCdef4c8b2c = dnnl_aBCdef4c8b2c,
+        AB32a32b8a4b = dnnl_AB32a32b8a4b,
+        AB32a32b8a2b = dnnl_AB32a32b8a2b,
+        AB8a4b = dnnl_AB8a4b,
+        AB8a2b = dnnl_AB8a2b,
 
         format_tag_last = dnnl_format_tag_last,
 
@@ -1572,6 +1587,15 @@ struct memory : public handle<dnnl_memory_t> {
         NCdhw32n32c = dnnl_NCdhw32n32c,
         NChw32n32c = dnnl_NChw32n32c,
         IOhw16i16o = dnnl_IOhw16i16o,
+        OI16i16o = dnnl_OI16i16o,
+        OI16i32o = dnnl_OI16i32o,
+        OI16i64o = dnnl_OI16i64o,
+        OI8i16o2i = dnnl_OI8i16o2i,
+        OI8i32o2i = dnnl_OI8i32o2i,
+        OI8i64o2i = dnnl_OI8i64o2i,
+        OI4i16o4i = dnnl_OI4i16o4i,
+        OI4i32o4i = dnnl_OI4i32o4i,
+        OI4i64o4i = dnnl_OI4i64o4i,
         Ohwi32o = dnnl_Ohwi32o,
         IOdhw16i16o = dnnl_IOdhw16i16o,
         gIOhw16i16o = dnnl_gIOhw16i16o,
@@ -2794,6 +2818,25 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "attribute");
     }
 
+    /// Returns the quantization scale and shift parameters for RNN data
+    /// tensors.
+    ///
+    /// @note
+    ///     Quantization scale and shift are common for src_layer, src_iter,
+    ///     dst_iter, and dst_layer.
+    ///
+    /// @param scale The value to scale the data by.
+    /// @param shift The value to shift the data by.
+    void get_rnn_data_qparams(float &scale, float &shift) {
+        float c_scale, c_shift;
+        error::wrap_c_api(dnnl_primitive_attr_get_rnn_data_qparams(
+                                  get(), &c_scale, &c_shift),
+                "could not set RNN data quantization parameters primitive "
+                "attribute");
+        scale = c_scale;
+        shift = c_shift;
+    }
+
     /// Sets quantization scaling factors for RNN weights tensors. The
     /// low-precision configuration of the RNN primitives expect input weights
     /// to use the signed 8-bit integer data type. The scaling factors are
@@ -2825,6 +2868,111 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                                   (int)scales.size(), mask, scales.data()),
                 "could not set RNN weights quantization parameters primitive "
                 "attribute");
+    }
+
+    /// Returns the quantization scaling factors for RNN projection weights
+    /// tensors.
+    ///
+    /// @note
+    ///     The dimension order is always native and does not depend on the
+    ///     actual layout used. For example, five-dimensional weights always
+    ///     have (l, d, i, g, o) logical dimension ordering.
+    ///
+    /// @param mask Scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the @p
+    ///     scales vector. The set i-th bit indicates that a dedicated scaling
+    ///     factor should be used each index along that dimension. Set the
+    ///     mask to 0 to use a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Constant vector of output scaling factors. The following
+    ///     equality must hold:
+    ///     \f$scales.size() = \prod\limits_{d \in mask} weights.dims[d].\f$
+    ///     Violations can only be detected when the attributes are used to
+    ///     create a primitive descriptor.
+    void get_rnn_weights_qparams(int &mask, std::vector<float> &scales) {
+        dnnl_dim_t count;
+        int c_mask;
+        const float *c_scales;
+        error::wrap_c_api(dnnl_primitive_attr_get_rnn_weights_qparams(
+                                  get(), &count, &c_mask, &c_scales),
+                "could not get primitive RNN weights quantization "
+                "parameters attributes");
+        scales.resize(count);
+
+        mask = c_mask;
+        for (dnnl_dim_t c = 0; c < count; c++)
+            scales[c] = c_scales[c];
+    }
+
+    /// Sets quantization scaling factors for RNN projection weights tensors.
+    //  The low-precision configuration of the RNN primitives expect input
+    //  weights to use the signed 8-bit integer data type. The scaling factors
+    //  are used to quantize floating-point data to signed integer and must be
+    /// passed to RNN primitives using attributes.
+    ///
+    /// @note
+    ///     The dimension order is always native and does not depend on the
+    ///     actual layout used. For example, five-dimensional weights always
+    ///     have (l, d, i, g, o) logical dimension ordering.
+    ///
+    /// @note
+    ///     Quantization scales are common for weights_layer and
+    ///     weights_iteration
+    ///
+    /// @param mask Scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the @p
+    ///     scales vector. The set i-th bit indicates that a dedicated scaling
+    ///     factor should be used each index along that dimension. Set the
+    ///     mask to 0 to use a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Constant vector of output scaling factors. The following
+    ///     equality must hold:
+    ///     \f$scales.size() = \prod\limits_{d \in mask} weights.dims[d].\f$
+    ///     Violations can only be detected when the attributes are used to
+    ///     create a primitive descriptor.
+    void set_rnn_weights_projection_qparams(
+            int mask, const std::vector<float> &scales) {
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_rnn_weights_projection_qparams(
+                        get(), (int)scales.size(), mask, scales.data()),
+                "could not set primitive RNN weights projection quantization "
+                "parameters attributes");
+    }
+
+    /// Returns the quantization scaling factors for RNN projection weights
+    /// tensors.
+    ///
+    /// @note
+    ///     The dimension order is always native and does not depend on the
+    ///     actual layout used. For example, five-dimensional weights always
+    ///     have (l, d, i, g, o) logical dimension ordering.
+    ///
+    /// @param mask Scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the @p
+    ///     scales vector. The set i-th bit indicates that a dedicated scaling
+    ///     factor should be used each index along that dimension. Set the
+    ///     mask to 0 to use a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Constant vector of output scaling factors. The following
+    ///     equality must hold:
+    ///     \f$scales.size() = \prod\limits_{d \in mask} weights.dims[d].\f$
+    ///     Violations can only be detected when the attributes are used to
+    ///     create a primitive descriptor.
+    void get_rnn_weights_projection_qparams(
+            int &mask, std::vector<float> &scales) {
+        dnnl_dim_t count;
+        int c_mask;
+        const float *c_scales;
+        error::wrap_c_api(
+                dnnl_primitive_attr_get_rnn_weights_projection_qparams(
+                        get(), &count, &c_mask, &c_scales),
+                "could not get primitive RNN weights projection quantization "
+                "parameters attributes");
+        scales.resize(count);
+
+        mask = c_mask;
+        for (dnnl_dim_t c = 0; c < count; c++)
+            scales[c] = c_scales[c];
     }
 };
 
@@ -10355,6 +10503,7 @@ inline void primitive::execute(const stream &astream,
                               (int)c_args.size(), c_args.data()),
             "could not execute a primitive");
 }
+
 /// @endcond
 
 #undef DNNL_DEFINE_BITMASK_OPS

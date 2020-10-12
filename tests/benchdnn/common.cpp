@@ -187,6 +187,10 @@ void parse_result(
         case UNTESTED:
             if (!(bench_mode & CORR)) {
                 want_perf_report = true;
+                if (status == FAIL)
+                    bs.failed++;
+                else
+                    bs.passed++;
                 break;
             }
         case FAILED:

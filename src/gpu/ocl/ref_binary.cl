@@ -51,6 +51,8 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     d = min(tmp_src0, tmp_src1);
 #elif IS_DIV
     d = tmp_src0 / tmp_src1;
+#elif IS_SUB
+    d = tmp_src0 - tmp_src1;
 #endif
 
     POST_OP_DATA_T dst_data;
@@ -130,6 +132,8 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         d = min(tmp_src0, tmp_src1);
 #elif IS_DIV
         d = tmp_src0 / tmp_src1;
+#elif IS_SUB
+        d = tmp_src0 - tmp_src1;
 #endif
 
         POST_OP_DATA_T dst_data;

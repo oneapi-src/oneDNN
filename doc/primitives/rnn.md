@@ -168,7 +168,7 @@ If the `weights_peephole_desc` passed to the operation descriptor constructor
 is a zero memory desciptor, the primitive will behave the same as in LSTM
 primitive without peephole.
 
-#### LSTM with Projection
+#### LSTM with Projection (or LSTMP)
 
 A four-gate long short-term memory recurrent cell with projection initialized
 with #dnnl::lstm_forward::desc::desc() or #dnnl::lstm_backward::desc::desc()
@@ -326,12 +326,12 @@ argument index as specified by the following table.
 The following table lists the combination of data types supported by the RNN
 primitive for each input and output memory object.
 
- Propagation                | Cell Function         | Input data | Recurrent data (1) | Weights | Bias | Output Data
---------------------------- | --------------------- | ---------- | ------------------ | ------- | ---- | ------------
- Forward / Backward         |  All                  | f32        | f32                | f32     | f32  | f32
- Forward / Backward (2)     |  All (3)              | bf16       | bf16               | bf16    | f32  | bf16
- Forward                    |  All (3)              | f16        | f16                | f16     | f16  | f16
- Forward inference          |  Vanilla LSTM and GRU | u8         | u8                 | s8      | f32  | u8, f32
+ Propagation                | Cell Function                | Input data | Recurrent data (1) | Weights | Bias | Output Data
+--------------------------- | ---------------------------- | ---------- | ------------------ | ------- | ---- | ------------
+ Forward / Backward         |  All                         | f32        | f32                | f32     | f32  | f32
+ Forward / Backward (2)     |  All (3)                     | bf16       | bf16               | bf16    | f32  | bf16
+ Forward                    |  All (3)                     | f16        | f16                | f16     | f16  | f16
+ Forward inference          |  Vanilla LSTM, LSTMP and GRU | u8         | u8                 | s8      | f32  | u8, f32
 
 (1) With LSTM and Peephole LSTM cells, the cell state datatype is always f32.
 
@@ -353,10 +353,11 @@ primitive parameters.
 The following table summarizes the data layouts supported by the RNN
 primitive.
 
- Input/Output Data | Recurrent Data | Layer and Iteration Weights | Peephole Weights and Bias | Projection LSTM Weights
------------------- | -------------- | --------------------------- | ------------------------- | -------------------------------
- any               | any            | any                         | ldgo                      | any, ldio (Forward propagation)
- ntc, tnc          | ldnc           | ldigo, ldgoi                | ldgo                      | any, ldio (Forward propagation)
+ Propagation        | Input/Output Data | Recurrent Data | Layer and Iteration Weights | Peephole Weights and Bias | Projection LSTM Weights
+------------------- | ----------------- | -------------- | --------------------------- | ------------------------- | -------------------------------
+ Forward / Backward | any               | any            | any                         | ldgo                      | any
+ Forward            | ntc, tnc          | ldnc           | ldigo                       | ldgo                      | ldio
+ Backward           | ntc, tnc          | ldnc           | ldgoi                       | ldgo                      | ldoi
 
 While an RNN primitive can be created with memory formats specified
 explicitly, the performance is likely to be sub-optimal.  When using `any` it

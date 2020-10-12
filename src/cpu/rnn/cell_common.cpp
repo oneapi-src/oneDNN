@@ -21,6 +21,7 @@
 #include "common/bfloat16.hpp"
 
 #include "cpu/rnn/ref_rnn.hpp"
+#include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -45,44 +46,35 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     // Note: here proj_ht is scratchpad if inference or workspace if training
     auto dst_postgemm = rnn.is_lstm_projection ? proj_ht_ : dst_layer_;
+    // for lstmp, the copy to dst_iter happens after the projection
+    auto dst_iter_postgemm = rnn.is_lstm_projection ? nullptr : dst_iter_;
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             dst_postgemm, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
             diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
             diff_dst_iter_c_, weights_peephole_, bias_[0], ws_grid_,
-            scratch_cell_, dst_iter_);
+            scratch_cell_, dst_iter_postgemm);
 
     if (rnn.is_lstm_projection) {
-        // Here, because the accumulation type is likely different
-        // than dst_iter, we have to use scratch to hold temporary
+        auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
+
+        // Here, because the accumulation type is different
+        // than dst_layer, we have to use scratch to hold temporary
         // accumulators
-        // TODO: for projection, directly use a type(dst_iter) for output
-        auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
-        auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
+        assert(rnn.scratch_gates_ld >= rnn.dlc);
+        gemm_acc_t *dst_proj = rnn.dt_conf == all_f32 ? (gemm_acc_t *)dst_layer_
+                                                      : scratch_gates_;
+        int dst_proj_ld
+                = rnn.dt_conf == all_f32 ? dst_layer_ld : rnn.scratch_gates_ld;
 
-        if (rnn.dt_conf == all_f32) {
-            CHECK((this->*gemm_projection_func)('N', 'N', rnn.dic, rnn.mb,
-                    rnn.dhc, 1.0f, w_projection_[0], rnn.weights_projection_ld,
-                    dst_postgemm, rnn.proj_ht_ld, 0.0f,
-                    (gemm_acc_t *)dst_layer_,
-                    rnn.dst_layer_ld(cell_position, true)));
-        } else {
-            CHECK((this->*gemm_projection_func)('N', 'N', rnn.dic, rnn.mb,
-                    rnn.dhc, 1.0f, w_projection_[0], rnn.weights_projection_ld,
-                    dst_postgemm, rnn.proj_ht_ld, 0.0f, scratch_gates_,
-                    rnn.scratch_gates_ld));
+        CHECK((this->*gemm_projection_func)('N', 'N', rnn.dic, rnn.mb, rnn.dhc,
+                1.0f, w_projection_[0], rnn.weights_projection_ld, dst_postgemm,
+                rnn.proj_ht_ld, 0.0f, dst_proj, dst_proj_ld));
 
-            for (int i = 0; i < rnn.mb; i++)
-                cvt_float_to_bfloat16(
-                        (bfloat16_t *)dst_layer_ + i * dst_layer_ld,
-                        (float *)scratch_gates_ + i * rnn.scratch_gates_ld,
-                        rnn.dlc);
-        }
-        // If dst_iter is not nullptr, we need to copy the state to dst_iter
-        if (dst_iter_ != nullptr)
-            for (int i = 0; i < rnn.mb; i++)
-                std::memcpy(dst_iter_ + i * dst_iter_ld,
-                        dst_layer_ + i * dst_layer_ld,
-                        rnn.dlc * sizeof(dst_layer_t));
+        // we have to downconvert the output to dst_layer_t and copy to dst_iter if needed
+        rnn_postgemm_->execute_part2(rnn, cell_position, nullptr, dst_proj,
+                dst_layer_, nullptr, nullptr, w_proj_comp, nullptr, nullptr,
+                nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                nullptr, dst_iter_);
     }
 
     return dnnl_success;

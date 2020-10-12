@@ -242,6 +242,15 @@ typedef enum {
     dnnl_ABc8a16b2a,
     dnnl_ABc8a8b,
     dnnl_ABc8a4b,
+    dnnl_AB16b16a,
+    dnnl_AB16b32a,
+    dnnl_AB16b64a,
+    dnnl_AB8b16a2b,
+    dnnl_AB8b32a2b,
+    dnnl_AB8b64a2b,
+    dnnl_AB4b16a4b,
+    dnnl_AB4b32a4b,
+    dnnl_AB4b64a4b,
     /// 3D tensor blocked by 2nd dimension with block size 8
     dnnl_aBc8b,
     dnnl_ABc8b16a2b,
@@ -422,6 +431,10 @@ typedef enum {
     dnnl_aCBdef4c8b8c4b,
     dnnl_BAcde16a16b,
     dnnl_aCBdef16b16c,
+    dnnl_AB32a32b8a4b,
+    dnnl_AB8a4b,
+    dnnl_AB32a32b8a2b,
+    dnnl_AB8a2b,
 
     /// Just a sentinel, not real memory format tag. Must be changed after new
     /// format tag is added.
@@ -585,6 +598,16 @@ typedef enum {
     dnnl_NChw32n32c = dnnl_ABcd32a32b,
     dnnl_NCdhw32n32c = dnnl_ABcde32a32b,
 
+    // weights, 2D
+    dnnl_OI16i16o = dnnl_AB16b16a,
+    dnnl_OI16i32o = dnnl_AB16b32a,
+    dnnl_OI16i64o = dnnl_AB16b64a,
+    dnnl_OI8i16o2i = dnnl_AB8b16a2b,
+    dnnl_OI8i32o2i = dnnl_AB8b32a2b,
+    dnnl_OI8i64o2i = dnnl_AB8b64a2b,
+    dnnl_OI4i16o4i = dnnl_AB4b16a4b,
+    dnnl_OI4i32o4i = dnnl_AB4b32a4b,
+    dnnl_OI4i64o4i = dnnl_AB4b64a4b,
     // weights, 3D
     dnnl_IOw16o16i = dnnl_BAc16a16b,
     dnnl_IOw16i16o = dnnl_BAc16b16a,
@@ -960,6 +983,8 @@ typedef enum {
     dnnl_binary_min = 0x1fff3,
     /// Binary div
     dnnl_binary_div = 0x1fff4,
+    /// Binary sub
+    dnnl_binary_sub = 0x1fff5,
     /// Nearest Neighbor Resampling Method
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method
@@ -1130,7 +1155,8 @@ typedef struct {
 typedef enum {
     dnnl_packed_format_undef = 0,
     dnnl_ldigo_p,
-    dnnl_ldgoi_p
+    dnnl_ldgoi_p,
+    dnnl_ldio_p
 } dnnl_rnn_packed_memory_format_t;
 
 /// Maximum number of parts of RNN weights tensor that require separate
@@ -1750,8 +1776,8 @@ typedef struct {
     /// descriptor. Must be #dnnl_binary.
     dnnl_primitive_kind_t primitive_kind;
     /// The kind of the binary algorithm. Possible values:
-    /// #dnnl_binary_add, #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min
-    /// and #dnnl_binary_div.
+    /// #dnnl_binary_add, #dnnl_binary_mul, #dnnl_binary_max, #dnnl_binary_min,
+    /// #dnnl_binary_div and #dnnl_binary_sub.
     dnnl_alg_kind_t alg_kind;
     /// Source memory descriptors.
     dnnl_memory_desc_t src_desc[2];

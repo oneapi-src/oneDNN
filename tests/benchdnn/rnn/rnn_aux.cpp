@@ -181,6 +181,14 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(slc);
         CASE_N(dhc);
         CASE_N(dic);
+        if (!strncmp("dlc", s, 3)) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "WARNING: the RNN descriptor symbol `dlc` is no longer "
+                    "supported. Please adjust the RNN descriptor and try "
+                    "again. Note: usually it is enough to simply remove `dlc` "
+                    "from the descriptor string.");
+            return FAIL;
+        }
         if (*s == 'n') {
             d.name = s + 1;
             break;
@@ -233,6 +241,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
         s << "--with-projection=" << bool2str(prb.with_projection) << " ";
     if (canonical || prb.wei_scales_policy != def.scale_policy[0])
         s << "--scaling=" << prb.wei_scales_policy << " ";
+    if (canonical || prb.wei_proj_scales_policy != def.scale_proj_policy[0])
+        s << "--scaling-proj=" << prb.wei_proj_scales_policy << " ";
     if (canonical || prb.trivial_strides != def.trivial_strides[0])
         s << "--trivial-strides=" << bool2str(prb.trivial_strides) << " ";
 
@@ -372,6 +382,20 @@ float maybe_deq(const prb_t &prb, const float in, int64_t oc) {
     return in * (1.0f / (scale * prb.data_scale));
 }
 
+// If needed, dequantize s32 accumulators to f32 via data, weights scales
+// and compensation.
+float maybe_deq(
+        const prb_t &prb, const float in, float scale, float compensation) {
+    if (!prb.cfg.is_int8()) return in;
+    return (in - compensation * prb.data_shift)
+            * (1.0f / (scale * prb.data_scale));
+}
+
+float maybe_deq_proj(
+        const prb_t &prb, const float in, float compensation, int64_t oc) {
+    return maybe_deq(prb, in, prb.get_wei_proj_scale(oc), compensation);
+}
+
 float maybe_q(const prb_t &prb, float h) {
     if (!prb.cfg.is_int8()) return h;
     float fp = prb.data_scale * h + prb.data_shift;
@@ -410,8 +434,10 @@ float one_m_square(float x) {
 namespace {
 void inv_tnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &t,
         int64_t &n, int64_t &c) {
-    auto C = (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) ? prb.slc
-                                                           : prb.dlc(PRIMITIVE);
+    auto C = prb.dlc(PRIMITIVE);
+    if (kind == DST_LAYER && prb.with_projection) C = prb.dic;
+    if (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) C = prb.slc;
+
     c = off % C;
     off /= C;
     n = off % prb.mb;
@@ -424,6 +450,7 @@ void inv_tnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &t,
 void inv_ldnc_off_f(const prb_t &prb, data_kind_t kind, size_t off, int64_t &l,
         int64_t &d, int64_t &n, int64_t &c) {
     auto C = prb.dhc;
+    if (kind == DST_ITER && prb.with_projection) C = prb.dic;
     if (kind == SRC_ITER || kind == DIFF_SRC_ITER) C = prb.sic;
     c = off % C;
     off /= C;
@@ -721,6 +748,7 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
     };
 
     set_wei_scales(wei_scales, wei_nscales);
+    if (with_projection) set_wei_scales(wei_proj_scales, wei_proj_nscales);
 }
 
 void prb_t::set_tparams(float fp_min, float fp_max) {

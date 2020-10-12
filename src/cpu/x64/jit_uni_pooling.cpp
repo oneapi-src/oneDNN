@@ -487,7 +487,7 @@ template <cpu_isa_t isa, impl::data_type_t d_type>
 status_t jit_uni_pooling_fwd_t<isa, d_type>::init(engine_t *engine) {
 
     CHECK(safe_ptr_assign(kernel_,
-            new (std::nothrow) jit_uni_pool_kernel<isa>(
+            new jit_uni_pool_kernel<isa>(
                     pd()->jpp_, pd()->invariant_dst_md())));
 
     if (pd()->jpp_.tag_kind == jptg_ncsp) CHECK(init_ncsp_trans_ctx());

@@ -848,7 +848,7 @@ static void init_info_rnn(engine_t *e, pd_t *s, char *buffer) {
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_layer_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
-    { // src iter
+    if (s->with_src_iter()) { // src iter
         auto md = s->is_fwd() ? s->src_md(1) : s->diff_src_md(1);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " src_iter_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
@@ -869,7 +869,13 @@ static void init_info_rnn(engine_t *e, pd_t *s, char *buffer) {
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_peephole_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
-    { // bias
+    if (s->is_lstm_projection()) { // wei_projection
+        auto md = s->arg_md(s->is_fwd() ? DNNL_ARG_WEIGHTS_PROJECTION
+                                        : DNNL_ARG_DIFF_WEIGHTS_PROJECTION);
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_proj_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+    }
+    if (s->with_bias()) { // bias
         auto md = s->arg_md(s->is_fwd() ? DNNL_ARG_BIAS : DNNL_ARG_DIFF_BIAS);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " bias_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
@@ -879,7 +885,7 @@ static void init_info_rnn(engine_t *e, pd_t *s, char *buffer) {
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_layer_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
     }
-    { // dst iter
+    if (s->with_dst_iter()) { // dst iter
         auto md = s->is_fwd() ? s->dst_md(1) : s->diff_dst_md(1);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_iter_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
@@ -895,8 +901,8 @@ static void init_info_rnn(engine_t *e, pd_t *s, char *buffer) {
 
     DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
             "l" DFMT "t" DFMT "mb" DFMT "sic" DFMT "slc" DFMT "dhc" DFMT
-            "dlc" DFMT,
-            s->L(), s->T(), s->MB(), s->SIC(), s->SLC(), s->DHC(), s->DLC());
+            "dic" DFMT,
+            s->L(), s->T(), s->MB(), s->SIC(), s->SLC(), s->DHC(), s->DIC());
 
     verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
             dat_str, attr_str, aux_str, prb_str);

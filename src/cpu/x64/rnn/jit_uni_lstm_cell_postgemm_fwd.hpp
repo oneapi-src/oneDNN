@@ -76,6 +76,9 @@ protected:
         auto is_training
                 = (pd_->desc()->prop_kind == prop_kind::forward_training);
 
+        int mask = pd_->attr()->rnn_weights_qparams_.mask_;
+        float *weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
+
         // Labels declaration
         Label vector_loop_start_label, vector_loop_inc_regs,
                 vector_loop_end_label;
@@ -133,7 +136,7 @@ protected:
         };
 
         // initialize registers with addresses and constants
-        init_regs(vlen);
+        init_regs(weights_scales, vlen);
 
         sigmoid_injector_->load_table_addr();
         tanh_injector_->load_table_addr();
@@ -151,12 +154,10 @@ protected:
             uni_vmovups(G3, sg_addr(3));
 
             // dequantize the gates from s32 to f32 if needed
-            if (src_data_t == data_type::u8) {
-                deq_w(G0, tmp1_vmm, tmp2_vmm, 0, true);
-                deq_w(G1, tmp1_vmm, tmp2_vmm, 1, true);
-                deq_w(G2, tmp1_vmm, tmp2_vmm, 2, true);
-                deq_w(G3, tmp1_vmm, tmp2_vmm, 3, true);
-            }
+            deq_w(src_data_t, G0, tmp1_vmm, tmp2_vmm, 0 * rnn_.dhc, mask, true);
+            deq_w(src_data_t, G1, tmp1_vmm, tmp2_vmm, 1 * rnn_.dhc, mask, true);
+            deq_w(src_data_t, G2, tmp1_vmm, tmp2_vmm, 2 * rnn_.dhc, mask, true);
+            deq_w(src_data_t, G3, tmp1_vmm, tmp2_vmm, 3 * rnn_.dhc, mask, true);
 
             // add biases
             uni_vmovups(tmp1_vmm, B_addr(0));
@@ -219,10 +220,11 @@ protected:
             // downconvert and write back the state
             to_src<src_data_t>(ptr[addr_states_t_l_reg], tmp1_vmm, vlen);
             // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
-            jle(vector_loop_inc_regs);
+            cmp(addr_states_t_l_copy_reg, 0);
+            je(vector_loop_inc_regs);
             to_src<src_data_t>(
                     ptr[addr_states_t_l_copy_reg], tmp1_vmm, vlen, true);
+            add(addr_states_t_l_copy_reg, vlen_dst);
 
             // increment address pointers
             L(vector_loop_inc_regs);
@@ -230,11 +232,10 @@ protected:
             if (rnn_.is_lstm_peephole) add(addr_weights_peephole_reg, vlen);
             add(addr_bias_reg, vlen);
             add(addr_states_t_l_reg, vlen_dst);
-            add(addr_states_t_l_copy_reg, vlen_dst);
             add(addr_c_states_tm1_l_reg, vlen);
             add(addr_c_states_t_l_reg, vlen);
             if (is_training) add(addr_ws_gates_reg, vlen_dst);
-            inc_regs(vlen);
+            inc_regs(mask, vlen);
 
             // increment loop counter
             sub(loop_cnt, vlen);
@@ -255,12 +256,14 @@ protected:
             uni_vmovss(G3, sg_addr(3));
 
             // dequantize the gates from s32 to f32 if needed
-            if (src_data_t == data_type::u8) {
-                deq_w(G0, tmp1_vmm, tmp2_vmm, 0, false);
-                deq_w(G1, tmp1_vmm, tmp2_vmm, 1, false);
-                deq_w(G2, tmp1_vmm, tmp2_vmm, 2, false);
-                deq_w(G3, tmp1_vmm, tmp2_vmm, 3, false);
-            }
+            deq_w(src_data_t, G0, tmp1_vmm, tmp2_vmm, 0 * rnn_.dhc, mask,
+                    false);
+            deq_w(src_data_t, G1, tmp1_vmm, tmp2_vmm, 1 * rnn_.dhc, mask,
+                    false);
+            deq_w(src_data_t, G2, tmp1_vmm, tmp2_vmm, 2 * rnn_.dhc, mask,
+                    false);
+            deq_w(src_data_t, G3, tmp1_vmm, tmp2_vmm, 3 * rnn_.dhc, mask,
+                    false);
 
             // add biases
             uni_vmovss(tmp1_vmm, B_addr(0));
@@ -327,10 +330,11 @@ protected:
             to_src<src_data_t>(
                     ptr[addr_states_t_l_reg], tmp1_vmm, scratch_dt_size);
             // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
-            jle(rem_loop_inc_regs);
+            cmp(addr_states_t_l_copy_reg, 0);
+            je(rem_loop_inc_regs);
             to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], tmp1_vmm,
                     scratch_dt_size, true);
+            add(addr_states_t_l_copy_reg, hstate_dt_size);
 
             // increment address pointers
             L(rem_loop_inc_regs);
@@ -339,11 +343,10 @@ protected:
                 add(addr_weights_peephole_reg, weights_peephole_dt_size);
             add(addr_bias_reg, bias_dt_size);
             add(addr_states_t_l_reg, hstate_dt_size);
-            add(addr_states_t_l_copy_reg, hstate_dt_size);
             add(addr_c_states_tm1_l_reg, cstate_dt_size);
             add(addr_c_states_t_l_reg, cstate_dt_size);
             if (is_training) add(addr_ws_gates_reg, gate_dt_size);
-            inc_regs(qscale_dt_size);
+            inc_regs(mask, qscale_dt_size);
 
             // increment loop counter
             sub(loop_cnt, scratch_dt_size);

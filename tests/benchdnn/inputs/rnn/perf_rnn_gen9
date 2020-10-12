@@ -2,7 +2,7 @@
 
 # Forward
 
---prop=FWD_D
+--prop=FWD_I
 --cfg=f16,f32
 
 --batch=option_set_perf_inference_lb

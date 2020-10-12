@@ -356,9 +356,9 @@ private:
         transpose_size = 16,
         small_spatial = 14
     };
-    size_t src_stride, tr_src_stride;
-    int tail;
-    bool enable_prefetch;
+    size_t src_stride = 0, tr_src_stride = 0;
+    int tail = 0;
+    bool enable_prefetch = false;
 
     opmask_t kFFFF = k1;
     opmask_t k5555 = k2;

@@ -2,7 +2,7 @@
 --reset
 
 --inplace=false
---alg=ADD,MUL,MAX,MIN,DIV
+--alg=ADD,MUL,MAX,MIN,DIV,SUB
 --ddt=s8,u8
 --sdt=f32:f32
 --batch=option_set_all
@@ -20,7 +20,7 @@
 --reset
 
 --inplace=false
---alg=ADD,MUL,MAX,MIN,DIV
+--alg=ADD,MUL,MAX,MIN,DIV,SUB
 --ddt=s8,u8
 --sdt=s8:f32
 --batch=option_set_all

@@ -4,7 +4,7 @@
 --trivial-strides=true,false
 --alg=VANILLA_RNN
 --cfg=bf16
---prop=FWD_D,BWD_DW
+--prop=FWD_I,BWD_DW
 
 # small test case to check GEMM and non-GEMM ops accuracy
 --direction=left2right,right2left,concat,sum

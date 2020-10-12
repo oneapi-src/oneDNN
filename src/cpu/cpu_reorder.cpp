@@ -162,6 +162,7 @@ const impl_list_map_t regular_impl_list_map {
     }},
     {{f32, f32, 4}, {
         DNNL_X64_ONLY(x64::wino_reorder_t<f32, f32>::pd_t::create,)
+        rnn_weights_reorder_t<f32, f32>::pd_t::create,
 
         REG_FAST_DIRECT_COPY_F32_F32_COMMA
 
@@ -341,7 +342,7 @@ const impl_list_map_t regular_impl_list_map {
 
         REG_SR_BIDIR(bf16, any, f32, OIdhw16o16i),
         REG_SR_BIDIR(bf16, any, f32, OIdhw16i16o),
-    
+
         REG_SR_BIDIR(bf16, any, s8, OIdhw16o16i),
         REG_SR_BIDIR(bf16, any, s8, OIdhw16i16o),
 

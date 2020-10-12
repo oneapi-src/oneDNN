@@ -98,6 +98,7 @@ bool check_extreme_values(const float &a, const float &b, alg_t alg) {
         case alg_t::POW:
         case alg_t::SQRT:
         case alg_t::SQRT_DST:
+        case alg_t::SQUARE:
         // It is impossible to reliably test against reference in eltwise
         // post-op chain since some algs may produce inf or NaN in the middle
         // which is not expected for a standalone testing. Thus, when passing
@@ -136,8 +137,11 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
                     && fabsf(1.f + s * (1.f - v) * dg) <= 4.f * comp_err;
         }
         case alg_t::GELU_ERF: {
-            // catch catastrophic cancellation
-            // which occurs at large negative s
+            // Catch catastrophic cancellation
+            // which occurs at large negative s.
+            // Factor 2 (in bwd) is to account for the fact that error is
+            // accumulated for each summand (except the 1) when they
+            // are of the same order of magnitude.
             const float sqrt_2_over_2 = 0.707106769084930419921875f;
             const float two_over_sqrt_pi = 1.12837922573089599609375f;
             float v = s * sqrt_2_over_2;
@@ -146,7 +150,7 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
             else
                 return fabsf(1.f + erff(v)
                                + v * two_over_sqrt_pi * expf(-v * v))
-                        <= comp_err;
+                        <= comp_err * 2;
         }
         case alg_t::TANH:
             // catch catastrophic cancellation, which occurs when err in tanh(s)

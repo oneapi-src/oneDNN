@@ -208,7 +208,7 @@ struct settings_t {
 
     desc_t desc {};
 
-    std::vector<dir_t> prop {FWD_D};
+    std::vector<dir_t> prop {FWD_I};
     std::vector<std::string> cfg {"f32"};
     std::vector<alg_t> alg {VANILLA_RNN};
     std::vector<dnnl_rnn_direction_t> direction {
@@ -220,6 +220,7 @@ struct settings_t {
     std::vector<bool> with_projection {false};
     std::vector<int64_t> n_layer {0}, n_iter {0}, mb {0};
     std::vector<policy_t> scale_policy {policy_t::COMMON};
+    std::vector<policy_t> scale_proj_policy {policy_t::COMMON};
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
             dnnl_scratchpad_mode_library};
     unsigned int flags = 0x0;
@@ -242,8 +243,9 @@ struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t &cfg, dir_t prop, alg_t alg,
             bool with_peephole, bool with_projection,
             dnnl_rnn_direction_t direction, policy_t scale_policy,
-            unsigned int flags, activation_t activation, const attr_t &attr,
-            float alpha, float beta, bool skip_nonlinear, bool trivial_strides,
+            policy_t scale_proj_policy, unsigned int flags,
+            activation_t activation, const attr_t &attr, float alpha,
+            float beta, bool skip_nonlinear, bool trivial_strides,
             int64_t n_layer, int64_t n_iter, int64_t mb = 0)
         : desc_t(desc)
         , cfg(cfg)
@@ -253,6 +255,7 @@ struct prb_t : public desc_t {
         , with_projection(with_projection)
         , direction(direction)
         , wei_scales_policy(scale_policy)
+        , wei_proj_scales_policy(scale_proj_policy)
         , flags(flags)
         , activation(activation)
         , attr(attr)
@@ -269,6 +272,7 @@ struct prb_t : public desc_t {
         count_ops();
 
         wei_scales = nullptr;
+        wei_proj_scales = nullptr;
         linear_scales = nullptr;
 
         // We always allocate linear scales. Even if they are not
@@ -289,16 +293,37 @@ struct prb_t : public desc_t {
             default: assert(!"unsupported scaling policy");
         }
 
+        if (with_projection) {
+            switch (wei_proj_scales_policy) {
+                case policy_t::PER_OC:
+                    wei_proj_scales_mask = 0x8;
+                    wei_proj_nscales = dic;
+                    break;
+                case policy_t::COMMON:
+                    wei_proj_scales_mask = 0x0;
+                    wei_proj_nscales = 1;
+                    break;
+                default: assert(!"unsupported scaling policy");
+            }
+        }
+
         wei_scales = (float *)zmalloc(sizeof(float) * wei_nscales, 64);
+        wei_proj_scales
+                = (float *)zmalloc(sizeof(float) * wei_proj_nscales, 64);
         set_qparams(-1., 1.);
     }
     ~prb_t() {
         if (wei_scales) zfree(wei_scales);
+        if (wei_proj_scales) zfree(wei_proj_scales);
         if (linear_scales) zfree(linear_scales);
     }
 
     float get_wei_scale(int idx) const {
         return wei_scales[MIN2(idx, wei_nscales - 1)];
+    }
+
+    inline float get_wei_proj_scale(int idx) const {
+        return wei_proj_scales[MIN2(idx, wei_proj_nscales - 1)];
     }
 
     void count_ops() {
@@ -345,6 +370,7 @@ struct prb_t : public desc_t {
     bool with_peephole, with_projection;
     dnnl_rnn_direction_t direction;
     policy_t wei_scales_policy;
+    policy_t wei_proj_scales_policy;
     unsigned int flags;
     activation_t activation;
     attr_t attr;
@@ -356,6 +382,10 @@ struct prb_t : public desc_t {
     float *wei_scales;
     int wei_nscales;
     int wei_scales_mask;
+
+    float *wei_proj_scales;
+    int wei_proj_nscales;
+    int wei_proj_scales_mask;
 
     bool skip_nonlinear;
     bool trivial_strides;

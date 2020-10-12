@@ -16,8 +16,8 @@ between tensors source 0 and source 1 (the variable names follow the standard
         \src_0(\overline{x}) \mathbin{op} \src_1(\overline{x}),
 \f]
 
-where \f$op\f$ is addition, multiplication, division, get maximum value or get
-minimum value.
+where \f$op\f$ is addition, subtraction, multiplication, division, get maximum 
+value or get minimum value.
 
 The binary primitive does not have a notion of forward or backward propagations.
 

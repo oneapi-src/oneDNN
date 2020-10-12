@@ -7,7 +7,7 @@
 
 where *rnn-knobs* are:
 
- - `--prop={FWD_D [default], BWD_DW}` -- dnnl_prop_kind_t.
+ - `--prop={FWD_I [default], FWD_D, BWD_DW}` -- dnnl_prop_kind_t.
             Refer to [direction](knobs_dir.md) for details.
  - `--cfg={f32 [default], ...}` -- refer to ``Configurations`` below.
  - `--alg={VANILLA_RNN [default], VANILLA_LSTM, VANILLA_GRU, LBR_GRU}`
@@ -15,6 +15,8 @@ where *rnn-knobs* are:
  - `--direction={left2right [default], right2left, concat, sum}` -- TBA.
  - `--activation={RELU [default], LOGISTIC, TANH}` -- TBA.
  - `--scaling="scale_str"` -- RNN scaling policy, default `""` (no scaling).
+ - `--scaling-proj="scale_str"` -- RNN scaling policy for the
+            projection weights, default `""` (no scaling).
             Refer to [attributes](knobs_attr.md) for details.
  - `--skip-nonlinear={true, false [default]}` -- specify if transcendental
             activations will be treated as linear. This allows to test longer

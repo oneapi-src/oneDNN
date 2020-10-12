@@ -55,6 +55,11 @@ void create_dnnl_rnn_attr(const prb_t &prb, dnnl_primitive_attr_t *dnnl_attr) {
     DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_qparams(
             *dnnl_attr, prb.wei_nscales, prb.wei_scales_mask, prb.wei_scales));
 
+    if (prb.is_lstm_projection() && prb.is_int8())
+        DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_projection_qparams(
+                *dnnl_attr, prb.wei_proj_nscales, prb.wei_proj_scales_mask,
+                prb.wei_proj_scales));
+
     if (prb.data_scale != 1.0 || prb.data_shift != 0.0)
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_data_qparams(
                 *dnnl_attr, prb.data_scale, prb.data_shift));
@@ -63,10 +68,45 @@ void create_dnnl_rnn_attr(const prb_t &prb, dnnl_primitive_attr_t *dnnl_attr) {
             *dnnl_attr, prb.attr.scratchpad_mode));
 }
 
-int check_s8s8_reorder(
-        const prb_t &prb, const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp) {
+int check_ldoi_s8_reorder(const prb_t &prb, data_kind_t kind,
+        const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp,
+        const_dnnl_primitive_attr_t attr = nullptr) {
     // TODO: enable for all cpu_kind when supported
-    if (engine_tgt_kind != dnnl_cpu) return OK;
+    if (engine_tgt_kind != dnnl_cpu) return FAIL;
+
+    // we compare ldio_f32 -> ldio_s8 to ldio_f32 -> ldoi_f32 -> ldio_s8
+    // fp is in ldio
+    dnn_mem_t mem_ldoi_f32(mem_fp.md_, dnnl_f32, "ldoi", get_test_engine());
+    dnn_mem_t mem_s8_src(mem_dt.md_, dnnl_s8, get_test_engine());
+
+    mem_ldoi_f32.reorder(mem_fp);
+    mem_s8_src.reorder(mem_ldoi_f32, attr);
+
+    dnn_mem_t mem_s8_dst(mem_dt.md_, dnnl_s8, get_test_engine());
+    mem_s8_dst.reorder(mem_fp, attr);
+
+    // we check that the two are identical
+    auto sz = mem_dt.size();
+    uint8_t *s8_src_handle = (uint8_t *)mem_s8_src;
+    uint8_t *s8_dst_handle = (uint8_t *)mem_s8_dst;
+
+    // check that both have the same size
+    assert(mem_s8_src.size() == mem_s8_dst.size());
+    // check that both have the same alignment modulo align_data in
+    // gemm_pack_storage.hpp
+    assert((uint64_t)s8_src_handle % 0x1000
+            == (uint64_t)s8_dst_handle % 0x1000);
+    for (size_t i = 0; i < sz; ++i) {
+        if (s8_src_handle[i] != s8_dst_handle[i]) { return FAIL; }
+    }
+
+    return OK;
+}
+
+int check_s8s8_reorder(const prb_t &prb, data_kind_t kind,
+        const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp) {
+    // TODO: enable for all cpu_kind when supported
+    if (engine_tgt_kind != dnnl_cpu) return FAIL;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_DPCPP
     // DPC++ does not provide a simple way to access the underlying
@@ -110,8 +150,20 @@ int check_s8s8_reorder(
             mem_s8_src.set_elem(idx, val_s8);
         }
     };
-    dnnl::impl::parallel_nd(n_chunks,
-            [&](int idx) { quantize(prb.wei_scales, prb.wei_nscales, idx); });
+    switch (kind) {
+        case WEIGHTS_LAYER:
+        case WEIGHTS_ITER:
+            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+                quantize(prb.wei_scales, prb.wei_nscales, idx);
+            });
+            break;
+        case WEIGHTS_PROJECTION:
+            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+                quantize(prb.wei_proj_scales, prb.wei_proj_nscales, idx);
+            });
+            break;
+        default: assert(!"unsupported kind");
+    }
 
     /* 2. compute s8_plain_quantized --reorder--> s8_packed_quantized */
     mem_s8_dst.reorder(mem_s8_src);
@@ -187,6 +239,12 @@ int fill_memory(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
         }
     };
     switch (kind) {
+        case WEIGHTS_PROJECTION:
+            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+                fill_chunk(
+                        prb.wei_proj_scales, prb.wei_proj_nscales, 0.0f, idx);
+            });
+            break;
         case WEIGHTS_LAYER:
         case WEIGHTS_ITER:
             dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
@@ -208,7 +266,11 @@ int fill_memory(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
     // 3. We reorder the data for the DNNL RNN primitive
     mem_dt.reorder(mem_fp, reorder_attr);
     if ((reorder_attr != nullptr) && (dt == dnnl_s8))
-        if (check_s8s8_reorder(prb, mem_dt, mem_fp) != OK) return FAIL;
+        if (check_s8s8_reorder(prb, kind, mem_dt, mem_fp) != OK) return FAIL;
+    if ((kind == WEIGHTS_PROJECTION) && (dt == dnnl_s8))
+        if (check_ldoi_s8_reorder(prb, kind, mem_dt, mem_fp, reorder_attr)
+                != OK)
+            return FAIL;
 
     // Bullet 4.a holds: quantize weights for int8 benchdnn reference RNN
     if (prb.is_int8()) {
@@ -228,6 +290,12 @@ int fill_memory(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
             case WEIGHTS_ITER:
                 dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
                     quantize_chunk(prb.wei_scales, prb.wei_nscales, idx);
+                });
+                break;
+            case WEIGHTS_PROJECTION:
+                dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+                    quantize_chunk(
+                            prb.wei_proj_scales, prb.wei_proj_nscales, idx);
                 });
                 break;
             default: // Nothing to do
@@ -363,6 +431,11 @@ int fill_weights(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
         mem_pure_fp.set_elem(i, 0);
     }
 
+    auto scales = (kind == WEIGHTS_PROJECTION) ? prb.wei_proj_scales
+                                               : prb.wei_scales;
+    auto n_scales = (kind == WEIGHTS_PROJECTION) ? prb.wei_proj_nscales
+                                                 : prb.wei_nscales;
+
     // Fill weights sparsely to avoid accumulation errors. Using two memories:
     // one is quantized for reference, another is for a reorder.
     for_(int64_t l = 0; l < L; l++)
@@ -373,7 +446,7 @@ int fill_weights(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
         int64_t off = (((l * D + d) * I + i_off) * G + g) * O + o;
         float val = gate_factor;
         mem_pure_fp.set_elem(off, val);
-        if (prb.is_int8()) val *= prb.wei_scales[off % prb.wei_nscales];
+        if (prb.is_int8()) val *= scales[off % n_scales];
         mem_fp.set_elem(off, round_to_nearest_representable(c.dt, val));
     }
 
@@ -384,7 +457,7 @@ int fill_weights(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
 
     // Test that s8 -> s8 reorder works correctly
     if ((reorder_attr != nullptr) && (c.dt == dnnl_s8))
-        return check_s8s8_reorder(prb, mem_dt, mem_pure_fp);
+        return check_s8s8_reorder(prb, kind, mem_dt, mem_pure_fp);
     return OK;
 }
 
@@ -423,7 +496,8 @@ static int init_pd(dnnl_engine_t engine, const prb_t *p_ptr,
     dnnl_rnn_desc_t rd;
     dnnl_prop_kind_t fwd_prop = dnnl_prop_kind_undef;
     switch (prb.prop) {
-        case dnnl_forward: fwd_prop = dnnl_forward_inference; break;
+        case dnnl_forward_training: fwd_prop = dnnl_forward_training; break;
+        case dnnl_forward_inference: fwd_prop = dnnl_forward_inference; break;
         // If we are testing backward, we have to run forward training first
         // in order to generate a valid workspace.
         case dnnl_backward: fwd_prop = dnnl_forward_training; break;
@@ -805,7 +879,7 @@ int doit(const prb_t &prb, res_t *res) {
                  weights_peephole_fp),
             WARN);
     SAFE(fill_weights(prb, WEIGHTS_PROJECTION, weights_projection_dt,
-                 weights_projection_fp),
+                 weights_projection_fp, rnn_attr),
             WARN);
     SAFE(fill_memory(prb, BIAS, bias_dt, bias_fp), WARN);
     SAFE(fill_activation(prb, DST_LAYER, dst_layer_dt, dst_layer_fp), WARN);
@@ -832,22 +906,22 @@ int doit(const prb_t &prb, res_t *res) {
 
     SAFE_CLEAN(execute_and_wait(c, args), WARN, cleanup);
 
-    if ((prb.prop == dnnl_forward) && (bench_mode & CORR)) {
-        compute_ref_fwd(prb, src_layer_fp, src_iter_fp, src_iter_c_fp,
-                weights_layer_fp, weights_iter_fp, weights_peephole_fp,
-                weights_projection_fp, bias_fp, dst_layer_fp, dst_iter_fp,
-                dst_iter_c_fp);
+    if (prb.prop != dnnl_backward) {
+        if (bench_mode & CORR) {
+            compute_ref_fwd(prb, src_layer_fp, src_iter_fp, src_iter_c_fp,
+                    weights_layer_fp, weights_iter_fp, weights_peephole_fp,
+                    weights_projection_fp, bias_fp, dst_layer_fp, dst_iter_fp,
+                    dst_iter_c_fp);
 
-        int compare_status = OK;
-        COMPARE_DAT(compare_status, DST_LAYER, dst_layer, tag::abx /*tnc*/);
-        COMPARE_DAT(compare_status, DST_ITER, dst_iter, tag::abx /*ldnc*/);
-        if (prb.alg == VANILLA_LSTM)
-            COMPARE_DAT(
-                    compare_status, DST_ITER_C, dst_iter_c, tag::abx /*ldnc*/);
-        SAFE_CLEAN(compare_status, WARN, cleanup);
-    }
-
-    if (prb.prop == dnnl_backward) {
+            int compare_status = OK;
+            COMPARE_DAT(compare_status, DST_LAYER, dst_layer, tag::abx /*tnc*/);
+            COMPARE_DAT(compare_status, DST_ITER, dst_iter, tag::abx /*ldnc*/);
+            if (prb.alg == VANILLA_LSTM)
+                COMPARE_DAT(compare_status, DST_ITER_C, dst_iter_c,
+                        tag::abx /*ldnc*/);
+            SAFE_CLEAN(compare_status, WARN, cleanup);
+        }
+    } else {
         dnnl_primitive_t bwd_p {};
         int status = init_prim(&bwd_p, init_pd, &prb, res, FLAG_BWD);
         dnnl_primitive_destroy(c);

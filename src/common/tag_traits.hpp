@@ -53,6 +53,8 @@ enum class inner_blk_t {
     _8b8c,
     _8c8b,
     _16a16b,
+    _16b64a,
+    _16b32a,
     _16b16a,
     _16b16c,
     _16c16b,
@@ -65,8 +67,12 @@ enum class inner_blk_t {
     _2c8b4c,
     _8a16b2a,
     _4b16a4b,
+    _4b32a4b,
+    _4b64a4b,
     _2b8a4b,
     _8b16a2b,
+    _8b32a2b,
+    _8b64a2b,
     _8b16c2b,
     _4c16b4c,
     _8c16b2c,
@@ -92,13 +98,15 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
     static_assert(
             utils::one_of(f, ib::_4a4b, ib::_4b4a, ib::_4b4c, ib::_4c4b,
                     ib::_8a8b, ib::_8b8a, ib::_8b8c, ib::_8c8b, ib::_16a16b,
-                    ib::_16b16a, ib::_16b16c, ib::_16c16b, ib::_32a32b,
-                    ib::_16a2b, ib::_16a4b, ib::_16b2c, ib::_16b4c, ib::_2c8b4c,
-                    ib::_8a16b2a, ib::_4b16a4b, ib::_2b8a4b, ib::_8b16a2b,
-                    ib::_8b16c2b, ib::_4c16b4c, ib::_8c16b2c, ib::_2a8b8a2b,
-                    ib::_2b8c8b2c, ib::_4a8b8a4b, ib::_4b8c8b4c, ib::_2b4c2b,
-                    ib::_2c4b2c, ib::_4b8c2b, ib::_4c8b2c, ib::_16c16b4c,
-                    ib::_16b16a4b, ib::_16c16b2c, ib::_16b16a2b),
+                    ib::_16b64a, ib::_16b32a, ib::_16b16a, ib::_16b16c,
+                    ib::_16c16b, ib::_32a32b, ib::_16a2b, ib::_16a4b,
+                    ib::_16b2c, ib::_16b4c, ib::_2c8b4c, ib::_8a16b2a,
+                    ib::_4b64a4b, ib::_4b32a4b, ib::_4b16a4b, ib::_2b8a4b,
+                    ib::_8b64a2b, ib::_8b32a2b, ib::_8b16a2b, ib::_8b16c2b,
+                    ib::_4c16b4c, ib::_8c16b2c, ib::_2a8b8a2b, ib::_2b8c8b2c,
+                    ib::_4a8b8a4b, ib::_4b8c8b4c, ib::_2b4c2b, ib::_2c4b2c,
+                    ib::_4b8c2b, ib::_4c8b2c, ib::_16c16b4c, ib::_16b16a4b,
+                    ib::_16c16b2c, ib::_16b16a2b),
             "unexpected inner_blk format");
 
     // clang-format off
@@ -108,16 +116,22 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
         : (f == ib::_8a8b || f == ib::_8b8c) ? 8 * x0 + x1
         : (f == ib::_8b8a || f == ib::_8c8b) ? 8 * x1 + x0
         : (f == ib::_16a16b || f == ib::_16b16c) ? 16 * x0 + x1
+        : (f == ib::_16b64a) ? 64 * x1 + x0
+        : (f == ib::_16b32a) ? 32 * x1 + x0
         : (f == ib::_16b16a || f == ib::_16c16b) ? 16 * x1 + x0
         : (f == ib::_16a2b || f == ib::_16b2c) ? 2 * x0 + x1
         : (f == ib::_16a4b || f == ib::_16b4c) ? 4 * x0 + x1
         : (f == ib::_32a32b) ? 32 * x0 + x1
         : (f == ib::_8a16b2a || f == ib::_8b16c2b) ? (x0 / 2) * 32 + x1 * 2 + x0 % 2
         : (f == ib::_4b16a4b || f == ib::_4c16b4c) ? (x1 / 4) * 64 + x0 * 4 + x1 % 4
+        : (f == ib::_4b32a4b) ? (x1 / 4) * 128 + x0 * 4 + x1 % 4
+        : (f == ib::_4b64a4b) ? (x1 / 4) * 256 + x0 * 4 + x1 % 4
         : (f == ib::_2b8a4b || f == ib::_2c8b4c) ? (x1 / 4) * 32 + x0 * 4 + x1 % 4
         : (f == ib::_16b16a4b || f == ib::_16c16b4c) ? (x1 / 4) * 64 + x0 * 4 + x1 % 4
         : (f == ib::_16b16a2b || f == ib::_16c16b2c) ? (x1 / 2) * 32 + x0 * 2 + x1 % 2
         : (f == ib::_8b16a2b || f == ib::_8c16b2c) ? (x1 / 2) * 32 + x0 * 2 + x1 % 2
+        : (f == ib::_8b32a2b) ? (x1 / 2) * 64 + x0 * 2 + x1 % 2
+        : (f == ib::_8b64a2b) ? (x1 / 2) * 128 + x0 * 2 + x1 % 2
         : (f == ib::_2b4c2b || f == ib::_2c4b2c) ? (x0 / 2) * 8 + x1 * 2 + x0 % 2
         : (f == ib::_4b8c2b || f == ib::_4c8b2c) ? (x0 / 2) * 16 + x1 * 2 + x0 % 2
         : (f == ib::_2a8b8a2b || f == ib::_2b8c8b2c) ? (x0 / 8) * 128 + (x1 / 2) * 16 + (x0 % 8) * 2 + x1 % 2
@@ -220,6 +234,15 @@ DECL_TRAITS(Acb4a, _A, _4a, 3);
 DECL_TRAITS(Acdb4a, _A, _4a, 4);
 DECL_TRAITS(Acdeb4a, _A, _4a, 5);
 
+DECL_TRAITS(AB16b16a, _AB, _16b16a, 2);
+DECL_TRAITS(AB16b32a, _AB, _16b32a, 2);
+DECL_TRAITS(AB16b64a, _AB, _16b64a, 2);
+DECL_TRAITS(AB8b16a2b, _AB, _8b16a2b, 2);
+DECL_TRAITS(AB8b32a2b, _AB, _8b32a2b, 2);
+DECL_TRAITS(AB8b64a2b, _AB, _8b64a2b, 2);
+DECL_TRAITS(AB4b16a4b, _AB, _4b16a4b, 2);
+DECL_TRAITS(AB4b32a4b, _AB, _4b32a4b, 2);
+DECL_TRAITS(AB4b64a4b, _AB, _4b64a4b, 2);
 DECL_TRAITS(Abc16a, _A, _16a, 3);
 DECL_TRAITS(ABc16a16b, _AB, _16a16b, 3);
 DECL_TRAITS(ABc4a4b, _AB, _4a4b, 3);

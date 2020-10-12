@@ -56,7 +56,7 @@
 --dir=FWD_I
 --cfg=f32,s32,f16,bf16,u8,s8
 --alg=MAX,AVG_NP,AVG_P
---attr-post-ops='add:f32;add:u8:per_dim_01;linear:-0.5:1.5;mul:f32:per_dim_0;add:s8:per_oc'
+--attr-post-ops='add:s32:per_oc','add:f32;linear:-0.5:1.5'
 --mb=2
 --tag=abx,aBx16b
 --batch=shapes_3d_small

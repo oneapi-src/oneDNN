@@ -215,6 +215,81 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestScales) {
     ASSERT_EQ(scales[2], 3.);
 }
 
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNDataQuantization) {
+    dnnl::primitive_attr attr;
+
+    float scale, shift;
+
+    // default scale and shift
+    attr.get_rnn_data_qparams(scale, shift);
+    ASSERT_EQ(scale, 1.f);
+    ASSERT_EQ(shift, 0.f);
+
+    // non-default
+    attr.set_rnn_data_qparams(0.5f, 2.f);
+    attr.get_rnn_data_qparams(scale, shift);
+    ASSERT_EQ(scale, 0.5f);
+    ASSERT_EQ(shift, 2.f);
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNWeightsQuantization) {
+    dnnl::primitive_attr attr;
+
+    int scales_mask;
+    std::vector<float> scales;
+
+    // default scale and shift
+    attr.get_rnn_weights_qparams(scales_mask, scales);
+    ASSERT_EQ(scales_mask, 0);
+    ASSERT_EQ(scales.size(), 1U);
+    ASSERT_EQ(scales[0], 1.f);
+
+    // single non-default scales
+    attr.set_rnn_weights_qparams(0, {2.f});
+    attr.get_rnn_weights_qparams(scales_mask, scales);
+    ASSERT_EQ(scales_mask, 0);
+    ASSERT_EQ(scales.size(), 1U);
+    ASSERT_EQ(scales[0], 2.f);
+
+    // multiple scales
+    attr.set_rnn_weights_qparams(1 << 1, {1.f, 2.f, 4.f});
+    attr.get_rnn_weights_qparams(scales_mask, scales);
+    ASSERT_EQ(scales_mask, 1 << 1);
+    ASSERT_EQ(scales.size(), 3U);
+    ASSERT_EQ(scales[0], 1.f);
+    ASSERT_EQ(scales[1], 2.f);
+    ASSERT_EQ(scales[2], 4.f);
+}
+
+HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestRNNProjWeightsQuantization) {
+    dnnl::primitive_attr attr;
+
+    int scales_mask;
+    std::vector<float> scales;
+
+    // default scale and shift
+    attr.get_rnn_weights_projection_qparams(scales_mask, scales);
+    ASSERT_EQ(scales_mask, 0);
+    ASSERT_EQ(scales.size(), 1U);
+    ASSERT_EQ(scales[0], 1.f);
+
+    // single non-default scales
+    attr.set_rnn_weights_projection_qparams(0, {2.f});
+    attr.get_rnn_weights_projection_qparams(scales_mask, scales);
+    ASSERT_EQ(scales_mask, 0);
+    ASSERT_EQ(scales.size(), 1U);
+    ASSERT_EQ(scales[0], 2.f);
+
+    // multiple scales
+    attr.set_rnn_weights_projection_qparams(1 << 1, {1.f, 2.f, 4.f});
+    attr.get_rnn_weights_projection_qparams(scales_mask, scales);
+    ASSERT_EQ(scales_mask, 1 << 1);
+    ASSERT_EQ(scales.size(), 3U);
+    ASSERT_EQ(scales[0], 1.f);
+    ASSERT_EQ(scales[1], 2.f);
+    ASSERT_EQ(scales[2], 4.f);
+}
+
 TEST_F(attr_test_t, TestScalesExpectFailure) {
     dnnl::primitive_attr attr;
     const int unsupported_arg = DNNL_ARG_MEAN;

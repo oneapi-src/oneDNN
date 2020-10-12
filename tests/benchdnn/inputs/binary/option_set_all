@@ -14,10 +14,10 @@
                            1000x60:1000x60 # NCF
 
 --stag=axb:axb             3x5x6x9:3x5x6x9
-                           5x3x2x9:5x1x2x9
+                           5x48x2x9:5x1x2x9
                            4x4x4x4:4x4x4x1
-                           32x17x2x3:32x17x1x1
-                           32x17x2x3:1x17x1x1
+                           32x65x2x3:32x65x1x1
+                           32x64x2x3:1x64x1x1
                            16x12x2x2:1x1x1x1
                            8x16x7:8x16x1
                            12x12:1x12
@@ -36,7 +36,7 @@
                            8x16x7:8x16x1
 
 --stag=ABx16a16b:ABx16a16b 32x16x3x4:32x16x3x4
-                           2x16x5x7:2x16x5x1
+                           2x32x5x7:2x32x5x1
                            16x15x5x7:1x15x1x1
                            16x15x5x7:1x1x1x1
 

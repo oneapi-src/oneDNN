@@ -26,12 +26,14 @@ using namespace alg_kind;
 using namespace math;
 
 float compute_binary_scalar(alg_kind_t alg, float x, float y) {
+    if (std::isnan(x) || std::isnan(y)) return NAN;
     switch (alg) {
         case binary_add: return x + y;
         case binary_div: return x / y;
         case binary_max: return nstl::max(x, y);
         case binary_min: return nstl::min(x, y);
         case binary_mul: return x * y;
+        case binary_sub: return x - y;
         default: assert(!"not supported operation!"); return NAN;
     }
 }
@@ -41,7 +43,7 @@ float compute_eltwise_scalar_fwd(
     // don't compute on nan, propagate it
     if (std::isnan(s)) return s;
 
-    float d = 0.f;
+    float d = NAN;
     switch (alg) {
         case eltwise_relu: d = relu_fwd(s, alpha); break;
         case eltwise_tanh: d = tanh_fwd(s); break;
@@ -116,7 +118,8 @@ float compute_eltwise_scalar_bwd(
 
 ref_binary_scalar_t::ref_binary_scalar_t(alg_kind_t alg) : alg_(alg) {
     assert(utils::one_of(alg_, alg_kind::binary_add, alg_kind::binary_max,
-            alg_kind::binary_min, alg_kind::binary_mul));
+            alg_kind::binary_min, alg_kind::binary_mul, alg_kind::binary_div,
+            alg_kind::binary_sub));
 }
 
 ref_binary_scalar_t::ref_binary_scalar_t(

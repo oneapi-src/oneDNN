@@ -33,10 +33,13 @@ namespace cpu {
 using namespace nstl;
 
 template <data_type_t d_type>
-void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
-    auto alg = pd()->desc()->alg_kind;
+nchw_pooling_fwd_t<d_type>::nchw_pooling_fwd_t(const pd_t *apd)
+    : primitive_t(apd), ref_post_ops_(pd()->attr()->post_ops_) {}
 
-    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+template <data_type_t d_type>
+void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
+    const auto alg = pd()->desc()->alg_kind;
+    const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
 
@@ -61,14 +64,14 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     const int padT = pd()->padT();
     const int padL = pd()->padL();
 
-    auto apply_offset = [=](int index, int offset) {
+    const auto apply_offset = [](int index, int offset) {
         return (index > offset) ? index - offset : 0;
     };
 
-    auto set_ws = [=](int mb, int c, int od, int oh, int ow, int value) {
+    const auto set_ws = [=](int mb, int c, int od, int oh, int ow, int value) {
         if (ws) {
             assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);
-            size_t ws_offset = (size_t)OW * OH * OD * C * mb
+            const size_t ws_offset = (size_t)OW * OH * OD * C * mb
                     + (size_t)OW * OH * OD * c + (size_t)OW * OH * od
                     + (size_t)OW * oh + (size_t)ow;
             if (ws_dt == data_type::u8) {
@@ -81,7 +84,7 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
         }
     };
 
-    auto ker_max = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
+    const auto ker_max = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
         for_(int kd = 0; kd < KD; ++kd)
         for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
@@ -93,10 +96,10 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
             if (ih < 0 || ih >= IH) continue;
             if (iw < 0 || iw >= IW) continue;
 
-            auto src_offset = (size_t)IW * IH * ID * C * mb
+            const auto src_offset = (size_t)IW * IH * ID * C * mb
                     + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
                     + (size_t)IW * ih + (size_t)iw;
-            auto s = src[src_offset];
+            const auto &s = src[src_offset];
             if (s > d[0]) {
                 d[0] = s;
                 set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
@@ -104,51 +107,67 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
         }
     };
 
-    auto ker_avg = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
-        auto id_start = apply_offset(od * SD, padF);
-        auto ih_start = apply_offset(oh * SH, padT);
-        auto iw_start = apply_offset(ow * SW, padL);
-        auto id_end = min(od * SD - padF + KD, ID);
-        auto ih_end = min(oh * SH - padT + KH, IH);
-        auto iw_end = min(ow * SW - padL + KW, IW);
+    const auto ker_avg = [=](data_t *d, int mb, int c, int od, int oh, int ow) {
+        const auto id_start = apply_offset(od * SD, padF);
+        const auto ih_start = apply_offset(oh * SH, padT);
+        const auto iw_start = apply_offset(ow * SW, padL);
+        const auto id_end = min(od * SD - padF + KD, ID);
+        const auto ih_end = min(oh * SH - padT + KH, IH);
+        const auto iw_end = min(ow * SW - padL + KW, IW);
 
-        auto num_summands = (alg == alg_kind::pooling_avg_include_padding)
+        const auto num_summands = (alg == alg_kind::pooling_avg_include_padding)
                 ? KD * KW * KH
                 : (id_end - id_start) * (ih_end - ih_start)
                         * (iw_end - iw_start);
 
+        float d_val = 0;
         for_(int id = id_start; id < id_end; ++id)
         for_(int ih = ih_start; ih < ih_end; ++ih)
         for (int iw = iw_start; iw < iw_end; ++iw) {
-            auto src_offset = (size_t)IW * IH * ID * C * mb
+            const auto src_offset = (size_t)IW * IH * ID * C * mb
                     + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
                     + (size_t)IW * ih + (size_t)iw;
-            d[0] += src[src_offset];
+            d_val += src[src_offset];
         }
 
-        d[0] = out_round<data_t>((float)d[0] / num_summands);
+        return d_val / num_summands;
     };
 
     if (alg == alg_kind::pooling_max) {
         parallel_nd(
                 MB, C, OD, OH, OW, [&](int mb, int c, int od, int oh, int ow) {
-                    size_t dst_offset = (size_t)OW * OH * OD * C * mb
+                    const size_t dst_offset = (size_t)OW * OH * OD * C * mb
                             + (size_t)OW * OH * OD * c + (size_t)OW * OH * od
                             + (size_t)OW * oh + (size_t)ow;
                     data_t *d = &dst[dst_offset];
                     d[0] = numeric_limits<data_t>::lowest();
                     set_ws(mb, c, od, oh, ow, 0);
                     ker_max(d, mb, c, od, oh, ow);
+
+                    ref_post_ops_t::args_t args;
+                    args.ctx = &ctx;
+                    args.l_offset = dst_offset;
+                    args.dst_md = pd()->dst_md();
+                    ref_post_ops_.execute(dst[dst_offset], args);
+                    dst[dst_offset]
+                            = saturate_and_round<data_t>(dst[dst_offset]);
                 });
     } else {
         parallel_nd(
                 MB, C, OD, OH, OW, [&](int mb, int c, int od, int oh, int ow) {
-                    size_t dst_offset = (size_t)OW * OH * OD * C * mb
+                    const size_t dst_offset = (size_t)OW * OH * OD * C * mb
                             + (size_t)OW * OH * OD * c + (size_t)OW * OH * od
                             + (size_t)OW * oh + (size_t)ow;
                     data_t *d = &dst[dst_offset];
                     d[0] = 0;
-                    ker_avg(d, mb, c, od, oh, ow);
+                    auto res = ker_avg(d, mb, c, od, oh, ow);
+
+                    ref_post_ops_t::args_t args;
+                    args.ctx = &ctx;
+                    args.l_offset = dst_offset;
+                    args.dst_md = pd()->dst_md();
+                    ref_post_ops_.execute(res, args);
+                    d[0] = saturate_and_round<data_t>(res);
                 });
     }
 }
@@ -162,6 +181,7 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
     auto src = CTX_IN_MEM(const bfloat16_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(bfloat16_t *, DNNL_ARG_DST);
     auto ws = CTX_OUT_MEM(unsigned char *, DNNL_ARG_WORKSPACE);
+    memory_desc_wrapper dst_d(pd()->dst_md());
 
     auto scratchpad = ctx.get_scratchpad_grantor();
     float *bf16cvt_wsp = scratchpad.template get<float>(
@@ -228,7 +248,7 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
             auto src_offset = (size_t)IW * IH * ID * C * mb
                     + (size_t)IW * IH * ID * c + (size_t)IW * IH * id
                     + (size_t)IW * ih + (size_t)iw;
-            auto s = bf16cvt_wsp[src_offset];
+            auto &s = bf16cvt_wsp[src_offset];
 
             if (s > d[0]) {
                 d[0] = s;
@@ -280,7 +300,13 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
 
                     ker_max(&d_fp32, mb, c, od, oh, ow);
 
-                    dst[dst_offset] = (bfloat16_t)d_fp32;
+                    ref_post_ops_t::args_t args;
+                    args.ctx = &ctx;
+                    args.l_offset = dst_offset;
+                    args.dst_md = pd()->dst_md();
+                    ref_post_ops_.execute(d_fp32, args);
+
+                    dst[dst_offset] = static_cast<bfloat16_t>(d_fp32);
                 });
     } else {
         parallel_nd(
@@ -289,10 +315,13 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
                             + (size_t)OW * OH * OD * c + (size_t)OW * OH * od
                             + (size_t)OW * oh + (size_t)ow;
                     float d_fp32 = 0.0f;
-
                     ker_avg(&d_fp32, mb, c, od, oh, ow);
-
-                    dst[dst_offset] = (bfloat16_t)d_fp32;
+                    ref_post_ops_t::args_t args;
+                    args.ctx = &ctx;
+                    args.l_offset = dst_offset;
+                    args.dst_md = pd()->dst_md();
+                    ref_post_ops_.execute(d_fp32, args);
+                    dst[dst_offset] = static_cast<bfloat16_t>(d_fp32);
                 });
     }
 }
