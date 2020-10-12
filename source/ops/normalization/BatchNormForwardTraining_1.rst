@@ -15,7 +15,6 @@ BatchNormForwardTraining
   * **Description**: *epsilon* is the number to be added to the variance to avoid division by zero when normalizing a value. For example, *epsilon* equal to 0.001 means that 0.001 is added to the variance.
   * **Range of values**: a positive floating-point number
   * **Type**: ``float``
-  * **Default value**: None
   * **Required**: *yes*
 
 * *momentum*
@@ -23,8 +22,7 @@ BatchNormForwardTraining
   * **Description**: *momentum* is used for the computation of running_mean and running_var. If it's not available, a cumulative moving average (i.e. simple average) will be computed.
   * **Range of values**: a positive floating-point number
   * **Type**: ``float``
-  * **Default value**: 0.1
-  * **Required**: *yes*
+  * **Required**: *no*
 
 * *data_format*
 
