@@ -5,6 +5,7 @@ g2_ic32oc32_iw27kw2_n"1d_gconv_channel-block-16"
 g8_ic64oc64_iw9kw2_n"1d_gconv_channel-block-8"
 g6_ic24oc24_iw11kw3_n"1d_gconv_channel-block-4"
 g100_ic400oc400_iw15kw1_n"1d_gconv_channel-block-4"
+g100_ic400oc400_iw18kw2sw2_n"1d_gconv_channel-block-4-strided"
 
 g1mb50ic3iw224oc64kw7sw1pw0n"conv1d:1"
 g1mb50ic3iw224oc64ow112kw7sw2pw3n"conv1d:2"
