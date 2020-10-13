@@ -226,3 +226,9 @@ mb2g1ic33iw84350oc33ow84349kw2pw0n"channel_tail_for_specialized_axb_bwd_w_kernel
 # large filter size with tails
 --reset
 --dir=FWD_D,BWD_D mb1g2ic16oc16iw128kw21
+
+# test hw_transpose optimization
+--reset
+--skip-impl='ref:gemm'
+--dir=BWD_WB
+ic3oc64_ih25oh18kh8sh1dh0ph0_iw20ow1kw20sw1dw0pw0n"1st_conv_hw-transpose"
