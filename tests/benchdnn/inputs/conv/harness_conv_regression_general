@@ -232,3 +232,9 @@ ic64ih20iw14oc16oh20ow7kh1kw1sh1sw2ph0pw0n"small_ow_large_oh"
 # large filter size with ic tails
 --reset
 --dir=FWD_D,BWD_D mb1g2ic16oc16iw128kw21n"large_filter_with_ic_tails"
+
+# test hw_transpose optimization
+--reset
+--skip-impl='ref:gemm'
+--dir=BWD_WB
+ic3oc64_ih25oh18kh8sh1dh0ph0_iw20ow1kw20sw1dw0pw0n"1st_conv_hw-transpose"

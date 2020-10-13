@@ -3102,13 +3102,14 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::
     mov(kj, reg_kh);
     L(kh_comeback_label);
     {
+        int kw = jcp.is_hw_transp ? 1 : jcp.kw;
         int inp_mult = is_src_layout_nxc()
                 ? jcp.ngroups * jcp.ic
                 : (jcp.is_1stconv ? 1 : jcp.ic_block);
-        int iw = jcp.ver == ver_4fma ? jcp.tr_iw : jcp.iw;
+        int iw = jcp.is_hw_transp ? 1
+                                  : jcp.ver == ver_4fma ? jcp.tr_iw : jcp.iw;
         sub(reg_input, jcp.typesize_in * (jcp.dilate_h + 1) * iw * inp_mult);
-        sub(reg_kernel,
-                jcp.typesize_out * jcp.kw * jcp.ic_block * jcp.oc_block);
+        sub(reg_kernel, jcp.typesize_out * kw * jcp.ic_block * jcp.oc_block);
         dec(kj);
         cmp(kj, 0);
         jg(kh_comeback_label, T_NEAR);
@@ -3532,7 +3533,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32 ::compute_oh_step_unroll_ow(
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
 
-    int ow = jcp.ow;
+    int inp_icb_sp_stride = jcp.is_hw_transp ? 1 : jcp.iw;
+    int ow = jcp.is_hw_transp ? jcp.oh : jcp.ow;
 
     int r_pad = nstl::max(0, jcp.r_pad);
     int l_pad = jcp.l_pad;
@@ -3579,8 +3581,8 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32 ::compute_oh_step_unroll_ow(
         }
         L(icb_block_label_end);
 
-        const int input_shift
-                = jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw * inp_mul;
+        const int input_shift = jcp.typesize_in * (jcp.dilate_h + 1)
+                * inp_icb_sp_stride * inp_mul;
 
         if (generate_icb_loop || ic_tail) {
             const size_t kernel_icb_shift = (size_t)jcp.typesize_out * jcp.kd
@@ -3643,7 +3645,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32 ::compute_oh_step_unroll_ow(
             add(reg_input, input_shift - jcp.typesize_in * jcp.ic_block);
         }
 
-        if (!(generate_icb_loop || ic_tail))
+        if (!jcp.is_hw_transp && !(generate_icb_loop || ic_tail))
             add(reg_kernel,
                     jcp.typesize_out * (jcp.kw - 1) * ic_block * oc_block);
         dec(kj);
