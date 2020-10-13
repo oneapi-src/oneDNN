@@ -651,7 +651,7 @@ public:
         if (is_valid_isa(avx))
             vmulps(x, op1, op2);
         else {
-            assert(x.isEqualIfNotInherited(op1));
+            if (!x.isEqualIfNotInherited(op1)) movups(x, op1);
             mulps(x, op2);
         }
     }
@@ -953,8 +953,12 @@ public:
 
     void uni_vmaxps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
-        assert(x.isEqualIfNotInherited(op1));
-        maxps(x, op2);
+        if (mayiuse(avx))
+            vmaxps(x, op1, op2);
+        else {
+            if (!x.isEqualIfNotInherited(op1)) movups(x, op1);
+            maxps(x, op2);
+        }
     }
     void uni_vmaxps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
@@ -963,9 +967,15 @@ public:
 
     void uni_vminps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
-        assert(x.isEqualIfNotInherited(op1));
-        minps(x, op2);
+
+        if (mayiuse(avx))
+            vminps(x, op1, op2);
+        else {
+            if (!x.isEqualIfNotInherited(op1)) movups(x, op1);
+            minps(x, op2);
+        }
     }
+
     void uni_vminps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
         vminps(x, op1, op2);

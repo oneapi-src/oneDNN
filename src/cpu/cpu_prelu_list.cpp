@@ -15,8 +15,12 @@
 *******************************************************************************/
 
 #include "cpu/cpu_engine.hpp"
-
 #include "cpu/ref_prelu.hpp"
+
+#if DNNL_X64
+#include "cpu/x64/prelu/jit_prelu_forward.hpp"
+using namespace dnnl::impl::cpu::x64;
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -29,6 +33,7 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 const pd_create_f impl_list[] = {
+        CPU_INSTANCE_X64(jit_prelu_forward_t)
         CPU_INSTANCE(ref_prelu_fwd_t<f32>)
         CPU_INSTANCE(ref_prelu_bwd_t<f32>)
         CPU_INSTANCE(ref_prelu_fwd_t<bf16>)
