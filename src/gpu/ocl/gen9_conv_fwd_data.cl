@@ -676,18 +676,17 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     if (WITH_BIAS) {
         for (int mb_block = 0; mb_block < MB_BLOCK; mb_block++) {
             for (int oc_outer = 0; oc_outer < OC_OUTER; oc_outer++) {
-                for (int ow_block = 0; ow_block < OW_BLOCK; ow_block++) {
-                    const int c_off = dst_idx(mb_block, oc_outer, ow_block);
-                    const int bg_off = g * OC;
-                    const int bc_off = oc + oc_outer * 16 + local_id;
-                    C[c_off] = (OC_WO_PADDING % OC_BLOCK == 0
-                                       || bc_off < OC_WO_PADDING)
-                            ? bia[bg_off + bc_off]
-                            : DATA_ZERO;
-                }
-            }
-        }
-    }
+                const int bg_off = g * OC;
+                const int bc_off = oc + oc_outer * 16 + local_id;
+                if (OC_WO_PADDING % OC_BLOCK == 0 || bc_off < OC_WO_PADDING) {
+                    for (int ow_block = 0; ow_block < OW_BLOCK; ow_block++) {
+                        const int c_off = dst_idx(mb_block, oc_outer, ow_block);
+                        C[c_off] = bia[bg_off + bc_off];
+                    } // ow_block
+                } // copy-bias
+            } // oc_outer
+        } // mb_block
+    } // if-bias
 
     src += src_off(mb, g * IC, id, ih, iw);
     wei += wei_off(g, oc, 0, 0, 0, 0);
