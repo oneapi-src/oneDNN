@@ -18,6 +18,7 @@
 #define CPU_SIMPLE_RESAMPLING_HPP
 
 #include <assert.h>
+#include <functional>
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
@@ -82,8 +83,6 @@ private:
             const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
     void trilinear(
             const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
-    void (simple_resampling_fwd_t::*interpolate)(
-            const data_t *src, data_t *dst, dim_t od, dim_t oh, dim_t ow) const;
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
@@ -93,6 +92,8 @@ private:
     dim_t stride_w_;
     dim_t inner_stride_;
     std::vector<resampling_utils::linear_coeffs_t> linear_coeffs_;
+    std::function<void(const data_t *, data_t *, dim_t, dim_t, dim_t)>
+            interpolate_fn_;
 };
 
 template <impl::data_type_t data_type>
@@ -145,8 +146,6 @@ private:
             dim_t iw) const;
     void trilinear(data_t *diff_src, const data_t *diff_dst, dim_t id, dim_t ih,
             dim_t iw) const;
-    void (simple_resampling_bwd_t::*interpolate)(data_t *diff_src,
-            const data_t *diff_dst, dim_t id, dim_t ih, dim_t iw) const;
     void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
@@ -157,6 +156,8 @@ private:
     dim_t inner_stride_;
     std::vector<resampling_utils::bwd_linear_coeffs_t> bwd_linear_coeffs_;
     std::vector<float> bwd_linear_weights_;
+    std::function<void(data_t *, const data_t *, dim_t, dim_t, dim_t)>
+            interpolate_fn_;
 };
 
 } // namespace cpu
