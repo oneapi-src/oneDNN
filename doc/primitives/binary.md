@@ -53,7 +53,7 @@ argument index as specified by the following table.
  * The binary primitive supports in-place operations, meaning that source 0
    tensor may be used as the destination, in which case its data will
    be overwritten. In-place mode requires the \dst and source 0 data types to be
-   either the same or an arbitrary combination of `int8` data types. 
+   either the same. 
 
 ### Post-ops and Attributes
 
@@ -85,7 +85,7 @@ meaning associated with any of tensors dimensions.
 
 2. **CPU**
     - Destination memory descriptor should completely match source 0 memory
-      descriptor.
+      descriptor (except when using integer data type).
 
 ## Performance Tips
 

@@ -249,13 +249,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         const bool is_src1_int_type
                 = prb->sdt[1] == dnnl_s8 || prb->sdt[1] == dnnl_u8;
 
-        const bool have_src0_and_src1_consistent_type
-                = prb->sdt[0] == prb->sdt[1]
+        const bool have_consistent_types
+                = ((prb->sdt[0] == prb->sdt[1]) && (prb->sdt[1] == prb->ddt))
                 || (is_src0_int_type && is_src1_int_type);
-        const bool have_src0_and_dst_consistent_type = prb->sdt[0] == prb->ddt;
 
-        if (!have_src0_and_src1_consistent_type
-                || !have_src0_and_dst_consistent_type) {
+        if (!have_consistent_types) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -312,6 +310,7 @@ int doit(const prb_t *prb, res_t *res) {
             SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
     }
     dnn_mem_t &dst_dt = prb->inplace ? src0_dt : placeholder_dst_dt;
+    dst_dt.md_.data_type = prb->ddt; // it may be different type for dst
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;

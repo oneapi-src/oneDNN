@@ -1,6 +1,7 @@
 # testing ddt different from sdt
 --reset
 
+## Shouldn't do binary for different src and dst data types in in-place mod
 --inplace=false
 --alg=ADD,MUL,MAX,MIN,DIV,SUB
 --ddt=s8,u8
