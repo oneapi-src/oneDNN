@@ -253,8 +253,8 @@ public:
         , dst_sp_(static_cast<dim_t>(jpp.od) * jpp.oh * jpp.ow)
         , src_slice_(src_sp_ * jpp.c_block)
         , dst_slice_(dst_sp_ * jpp.c_block)
-        , transpose_src_(jpp.tag_kind == jptg_ncsp)
-        , transpose_dst_(jpp.tag_kind == jptg_ncsp)
+        , transpose_src_(jpp.tag_kind == jit_memory_tag_kind_t::ncsp)
+        , transpose_dst_(jpp.tag_kind == jit_memory_tag_kind_t::ncsp)
         , src_d_(src_d)
         , dst_d_(dst_d)
         , indices_d_(indices_d)
@@ -488,7 +488,8 @@ status_t jit_uni_pooling_fwd_t<isa, d_type>::init(engine_t *engine) {
             new jit_uni_pool_kernel<isa>(
                     pd()->jpp_, pd()->invariant_dst_md())));
 
-    if (pd()->jpp_.tag_kind == jptg_ncsp) CHECK(init_ncsp_trans_ctx());
+    if (pd()->jpp_.tag_kind == jit_memory_tag_kind_t::ncsp)
+        CHECK(init_ncsp_trans_ctx());
     return kernel_->create_kernel();
 }
 
@@ -570,7 +571,10 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
                 = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
         const int ih = nstl::max(ij - jpp.t_pad, 0);
         assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
-        const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
+        const int c_off
+                = ((jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c_block
+                                                                 : 1)
+                * b_c;
         const int c_elem_off = jpp.c_block * b_c;
 
         if (trans_src)
@@ -606,7 +610,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
         (*kernel_)(&arg);
     };
 
-    if (jpp.tag_kind == jptg_nspc) {
+    if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
         const auto nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
         parallel_nd(jpp.mb, jpp.oh, nb2_c, [&](int n, int oh, int b2_c) {
             const auto b_c = b2_c * jpp.ur_bc;
@@ -686,7 +690,10 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
         const int i_b_overflow
                 = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
         const int ih = nstl::max(ij - jpp.t_pad, 0);
-        const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
+        const int c_off
+                = ((jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c_block
+                                                                 : 1)
+                * b_c;
 
         if (trans_src)
             arg.src = transpose_facade.get_src_addr_3d(ithr, id, ih, jpp);
@@ -730,7 +737,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(const data_t *src,
         (*kernel_)(&arg);
     };
 
-    if (jpp.tag_kind == jptg_nspc) {
+    if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
         const auto nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
         parallel_nd(jpp.mb, jpp.od, nb2_c, [&](int n, int od, int b2_c) {
             const auto b_c = b2_c * jpp.ur_bc;
@@ -840,7 +847,8 @@ status_t jit_uni_pooling_bwd_t<isa, d_type>::init_ncsp_trans_ctx() {
 
 template <cpu_isa_t isa, data_type_t d_type>
 status_t jit_uni_pooling_bwd_t<isa, d_type>::init(engine_t *engine) {
-    if (pd()->jpp_.tag_kind == jptg_ncsp) CHECK(init_ncsp_trans_ctx());
+    if (pd()->jpp_.tag_kind == jit_memory_tag_kind_t::ncsp)
+        CHECK(init_ncsp_trans_ctx());
     return kernel_->create_kernel();
 }
 
@@ -1005,7 +1013,10 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
         const int i_b_overflow
                 = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
         const int ih = nstl::max(ij - jpp.t_pad, 0);
-        const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
+        const int c_off
+                = ((jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c_block
+                                                                 : 1)
+                * b_c;
 
         if (trans_src)
             arg.src = transpose_facade.get_src_addr_3d(ithr, id + kd, ih, jpp);
@@ -1086,7 +1097,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
     };
 
     if (jpp.simple_alg) {
-        if (jpp.tag_kind == jptg_nspc) {
+        if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
             const auto nb2_c = utils::div_up(jpp.nb_c, jpp.ur_bc);
             parallel_nd(jpp.mb, jpp.od, nb2_c, [&](int n, int od, int b2_c) {
                 const auto b_c = b2_c * jpp.ur_bc;
@@ -1117,7 +1128,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
         }
     } else {
         const data_t zero_val = 0;
-        if (jpp.tag_kind == jptg_nspc) {
+        if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
             const size_t chunk_size = (size_t)jpp.ih * jpp.iw * jpp.c;
             parallel_nd(jpp.mb, jpp.id, [&](int n, int id) {
                 const size_t offset = ((size_t)n * jpp.id + id) * chunk_size;
