@@ -19,6 +19,10 @@
 #include "gpu/ocl/ocl_types.h"
 
 #define KDHW_SIZE (KH * KW * KD)
+// OW blocks are split in two arrays (namely CX0 and CX1). Hence we
+// have offset writting CX1 array by the number of elements in CX0.
+// Assumption: sizeof(CX0) == sizeof(C00)
+#define CX1_OFFSET (sizeof(C00) / sizeof(int))
 
 #if (PW % 4 == 0) && (SRC_SLM_SIZE % 4 == 0)
 #define WRITE_SLM_BLOCK(p, data) block_write(p, data)
@@ -870,7 +874,7 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
 #if OW_TAIL > 8
 #if OW_TAIL < 12
             for (int i = 8; i < OW_TAIL; i++) {
-                STORE_DST(C01, C11, C21, C31, i);
+                STORE_DST(C01, C11, C21, C31, i - CX1_OFFSET);
             }
 #else
 #if !DST_NHWC && MB_BLOCK == 32
@@ -885,7 +889,7 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
 #if OW_TAIL > 12
 #if OW_TAIL < 16
             for (int i = 12; i < OW_TAIL; i++) {
-                STORE_DST(C01, C11, C21, C31, i);
+                STORE_DST(C01, C11, C21, C31, i - CX1_OFFSET);
             }
 #else
 #if !DST_NHWC && MB_BLOCK == 32
