@@ -642,6 +642,58 @@ struct jit_pool_call_s {
     size_t b_c; // contains number of channel blocks already processed
 };
 
+struct jit_resampling_conf_t {
+    unsigned ndims = 0;
+
+    unsigned id = 0, ih = 0, iw = 0;
+    unsigned od = 0, oh = 0, ow = 0;
+
+    unsigned stride_d = 0;
+    unsigned stride_h = 0;
+    unsigned stride_w = 0;
+    unsigned inner_stride = 0;
+
+    unsigned tail = 0;
+    unsigned simd_w = 0;
+
+    // The linear algorithm is an approximation of the point
+    // value based on the limit values. For one dimension,
+    // the approximation is based on the line, for two
+    // dimensions it will be a rectangle, and for three
+    // dimensions it will be a cuboid. Therefore,
+    // the possible variants for the number of corners are 2, 4, 8.
+    unsigned number_of_corners = 0;
+
+    bool is_data_size_bigger_than_L3 = false;
+    data_type_t data_type = data_type::undef;
+    size_t dt_size = 0;
+    size_t el_size_of_indices = 0;
+
+    jit_memory_tag_kind_t tag_kind = jit_memory_tag_kind_t::undef;
+    alg_kind_t alg = alg_kind::undef;
+
+    cpu_isa_t isa = isa_any;
+};
+
+struct jit_resampling_call_s {
+    size_t batch_of_sp_points_to_process = 0;
+
+    const void *src = nullptr;
+    const void *dst = nullptr;
+    const void *indices = nullptr;
+    const void *weights = nullptr;
+
+    size_t src_offset_top = 0;
+    size_t src_offset_bottom = 0;
+    size_t src_offset_front = 0;
+    size_t src_offset_back = 0;
+
+    float weight_top = 0.0f;
+    float weight_bottom = 0.0f;
+    float weight_front = 0.0f;
+    float weight_back = 0.0f;
+};
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl
