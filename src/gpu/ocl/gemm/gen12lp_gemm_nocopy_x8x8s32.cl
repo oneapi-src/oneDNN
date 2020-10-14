@@ -418,7 +418,7 @@ gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
     int idlM = get_local_id(0);
     int idlN = get_local_id(1);
     int lid = get_sub_group_local_id();
-    int lsm = 32;
+    int lsm = get_local_size(0);
     int lsn = 8;
 
     int i0 = (idM * lsm / 16) * 32 + (get_local_id(0) / 16) * 32;
@@ -613,7 +613,7 @@ gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
     int idlM = get_local_id(0);
     int idlN = get_local_id(1);
     int lid = get_sub_group_local_id();
-    int lsm = 32;
+    int lsm = get_local_size(0);
     int lsn = 8;
 
     int i0 = (idM * lsm / 16) * 32 + (get_local_id(0) / 16) * 32;
@@ -836,7 +836,7 @@ gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
     int idlM = get_local_id(0);
     int idlN = get_local_id(1);
     int lid = get_sub_group_local_id();
-    int lsm = 32;
+    int lsm = get_local_size(0);
     int lsn = 8;
 
     int i0 = (idM * lsm / 16) * 32 + (get_local_id(0) / 16) * 32;
@@ -1100,7 +1100,7 @@ gen12lp_gemm_compute_x8x8s32(global A_TYPE *a, global B_TYPE *b, global int *c,
     int idlM = get_local_id(0);
     int idlN = get_local_id(1);
     int lid = get_sub_group_local_id();
-    int lsm = 32;
+    int lsm = get_local_size(0);
     int lsn = 8;
 
     int i0 = (idM * lsm / 16) * 32 + (get_local_id(0) / 16) * 32;
