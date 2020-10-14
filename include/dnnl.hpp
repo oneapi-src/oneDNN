@@ -10555,6 +10555,8 @@ enum class cpu_isa {
     avx512_core_bf16 = dnnl_cpu_isa_avx512_core_bf16,
     /// @copydoc dnnl_cpu_isa_avx512_core_amx
     avx512_core_amx = dnnl_cpu_isa_avx512_core_amx,
+    /// @copydoc dnnl_cpu_isa_avx2_vnni
+    avx2_vnni = dnnl_cpu_isa_avx2_vnni,
 };
 
 /// @copydoc dnnl_set_max_cpu_isa()
