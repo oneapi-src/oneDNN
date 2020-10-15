@@ -513,7 +513,7 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
                 // Print unimplemented but do not treat as error
                 std::cout << "[  UNIMPL  ] "
                           << "Implementation not found" << std::endl;
-                reset_malloc_counter();
+                reset_failed_malloc_counter();
                 return true;
             } else if (test_out_of_memory()
                     && (e.status == dnnl_out_of_memory
@@ -525,7 +525,7 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
                 // gemm_pack_storage_shell_t ctor makes it unable to use the
                 // reference RNN impl, and the iterator produces an
                 // `dnnl_unimplemented` error.
-                increment_malloc_counter();
+                increment_failed_malloc_counter();
                 return catch_expected_failures(f, expect_to_fail,
                         expected_status, ignore_unimplemented);
             } else {
@@ -540,7 +540,7 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
         // Return normally if the failure is expected. Reset failed malloc
         // counter to zero before performing a new test.
         if (expect_to_fail) {
-            reset_malloc_counter();
+            reset_failed_malloc_counter();
             return true;
         }
     }
@@ -554,7 +554,7 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
     }
 
     // Reset failed malloc counter to zero before performing a new test.
-    reset_malloc_counter();
+    reset_failed_malloc_counter();
     return false;
 }
 
