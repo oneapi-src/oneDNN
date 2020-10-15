@@ -16,6 +16,7 @@
 # limitations under the License.
 #===============================================================================
 
+
 while [[ $# -gt 0 ]]; do
     key="$1"
 
@@ -28,6 +29,9 @@ while [[ $# -gt 0 ]]; do
         ;;
         --source-dir)
         SORUCE_DIR="$2"
+        ;;
+        --acl-dir)
+        ACL_DIR="$2"
         ;;
         --build-dir)
         BUILD_DIR="$2"
@@ -42,7 +46,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 CMAKE_OPTIONS="-DCMAKE_BUILD_TYPE=${BUILD_MODE} -DDNNL_BUILD_FOR_CI=ON -DDNNL_WERROR=ON"
-
 CPU_RUNTIME="NONE"
 GPU_RUNTIME="NONE"
 
@@ -57,12 +60,20 @@ elif [ "${BUILD_THREADING}" == "ocl" ]; then
     echo "Info: Setting DNNL_GPU_RUNTIME to OCL..."
     CPU_RUNTIME="OMP"
     GPU_RUNTIME="OCL"
-else 
+else
     echo "Error unknown threading: ${BUILD_THREADING}"
     exit 1
 fi
 
 CMAKE_OPTIONS="${CMAKE_OPTIONS} -DDNNL_CPU_RUNTIME=${CPU_RUNTIME} -DDNNL_GPU_RUNTIME=${GPU_RUNTIME}"
+
+# Enable Compute Library backend if a location for the built library is given
+# NOTE: only for AArch64 builds.
+if [ ! -z ${ACL_DIR} ]; then
+  export ACL_ROOT_DIR=$ACL_DIR
+  CMAKE_OPTIONS="${CMAKE_OPTIONS} -DDNNL_AARCH64_USE_ACL=ON"
+  echo "Info: Building with Arm Compute Library backend for Aarch64..."
+fi
 
 if [ "$(uname)" == "Linux" ]; then
     MAKE_OP="-j$(grep -c processor /proc/cpuinfo)"
