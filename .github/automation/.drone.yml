@@ -16,6 +16,23 @@
 # *******************************************************************************
 
 kind: pipeline
+name: Ubuntu16+ACL
+
+platform:
+  arch: arm64
+
+steps:
+- name: gcc-test+ACL
+  image: ubuntu:16.04
+  commands:
+  - apt-get update && apt-get install -y git build-essential cmake scons
+  - .github/automation/build_acl.sh  --version 20.08 --arch arm64-v8a --root-dir $(pwd)/ComputeLibrary
+  - .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build --acl-dir $(pwd)/ComputeLibrary
+  - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
+
+---
+
+kind: pipeline
 name: Ubuntu16
 
 platform:
@@ -49,6 +66,25 @@ steps:
 
 ---
 kind: pipeline
+name: Ubuntu18-clang+ACL
+
+platform:
+  arch: arm64
+
+steps:
+- name: clang-test+ACL
+  image: ubuntu:18.04
+  commands:
+  - apt-get update && apt-get install -y sudo git build-essential cmake scons
+  - .github/automation/env/clang.sh
+  - export CC=clang
+  - export CXX=clang++
+  - .github/automation/build_acl.sh  --version 20.08 --arch arm64-v8a --root-dir $(pwd)/ComputeLibrary
+  - .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build --acl-dir $(pwd)/ComputeLibrary
+  - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
+
+---
+kind: pipeline
 name: Ubuntu18
 
 platform:
@@ -60,4 +96,20 @@ steps:
   commands:
   - apt-get update && apt-get install -y git build-essential cmake
   - .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
+  - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
+
+---
+kind: pipeline
+name: Ubuntu18+ACL
+
+platform:
+  arch: arm64
+
+steps:
+- name: gcc-test+ACL
+  image: ubuntu:18.04
+  commands:
+  - apt-get update && apt-get install -y git build-essential cmake scons
+  - .github/automation/build_acl.sh  --version 20.08 --arch arm64-v8a --root-dir $(pwd)/ComputeLibrary
+  - .github/automation/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build --acl-dir $(pwd)/ComputeLibrary
   - .github/automation/test.sh --test-kind gtest --build-dir $(pwd)/build --report-dir $(pwd)/report
