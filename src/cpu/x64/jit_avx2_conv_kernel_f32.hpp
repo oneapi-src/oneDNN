@@ -21,7 +21,7 @@
 #include "common/memory.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -31,19 +31,11 @@ namespace cpu {
 namespace x64 {
 
 struct jit_avx2_conv_fwd_kernel_f32 : public jit_generator {
-    jit_avx2_conv_fwd_kernel_f32(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_
-                    = new jit_uni_eltwise_injector_f32<avx2>(this, jcp.eltwise);
-    }
-
-    ~jit_avx2_conv_fwd_kernel_f32() { delete eltwise_injector_; }
+    jit_avx2_conv_fwd_kernel_f32(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_fwd_kernel_f32)
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
@@ -55,6 +47,11 @@ struct jit_avx2_conv_fwd_kernel_f32 : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx2>>
+            postops_injector_;
+
+    constexpr static int isa_simd_width_
+            = cpu_isa_traits<avx2>::vlen / sizeof(float);
     using reg64_t = const Xbyak::Reg64;
     reg64_t reg_input = rax;
     reg64_t aux_reg_input = r8;
@@ -80,11 +77,10 @@ private:
 
     Xbyak::Ymm ytmp = Xbyak::Ymm(14);
 
-    jit_uni_eltwise_injector_f32<avx2> *eltwise_injector_;
-
     inline void oh_step_unroll_kw(
             int ur_w, int pad_l, int pad_r, int oc_blocks);
     inline void oh_step_nopad(int ur_w, int pad_l, int pad_r, int oc_blocks);
+    void apply_postops(const int oc_blocks, const int ur_w, const int oc_tail);
     inline void width_blk_step(int ur_w, int pad_l, int pad_r, int oc_blocks);
     inline void solve_common(int oc_blocks);
 

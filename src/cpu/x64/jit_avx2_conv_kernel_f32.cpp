@@ -21,6 +21,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/x64/injectors/injector_utils.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_avx2_conv_kernel_f32.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
@@ -36,6 +39,31 @@ using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
+
+jit_avx2_conv_fwd_kernel_f32::jit_avx2_conv_fwd_kernel_f32(
+        const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
+        const memory_desc_t &dst_md)
+    : jcp(ajcp), attr_(attr) {
+    if (jcp.with_eltwise || jcp.with_binary) {
+        using namespace binary_injector;
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = false;
+        static constexpr size_t helper_vmm_idx = 15;
+        static constexpr bool use_exact_tail_scalar_bcast = false;
+        const size_t tail_size = jcp.oc_without_padding % isa_simd_width_;
+
+        rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx, r13, r14,
+                preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec),
+                memory_desc_wrapper(dst_md), tail_size,
+                use_exact_tail_scalar_bcast};
+        static_params_t static_params {this->param1, rhs_arg_static_params};
+
+        postops_injector_ = utils::make_unique<
+                injector::jit_uni_postops_injector_t<avx2>>(
+                this, jcp.post_ops, static_params);
+    }
+}
 
 void jit_avx2_conv_fwd_kernel_f32::oh_step_unroll_kw(
         int ur_w, int pad_l, int pad_r, int oc_blocks) {
@@ -142,6 +170,91 @@ void jit_avx2_conv_fwd_kernel_f32::oh_step_nopad(
     }
 }
 
+static int get_ymm_idx(
+        const int ur_w, const int oc_block_idx, const int ur_w_idx) {
+    return (ur_w * oc_block_idx + ur_w_idx);
+}
+
+static Ymm get_ymm(const int ur_w, const int oc_block_idx, const int ur_w_idx) {
+    return Ymm(get_ymm_idx(ur_w, oc_block_idx, ur_w_idx));
+}
+
+template <typename F>
+void iterate(const int load_loop_blk, const int ur, const int load_dim_tail,
+        const F &f) {
+    for (int i = 0; i < load_loop_blk; ++i) {
+        const bool mask_flag = (load_dim_tail > 0) && (i == load_loop_blk - 1);
+        for (int j = 0; j < ur; ++j)
+            f(mask_flag, i, j);
+    }
+}
+template <typename F>
+void iterate(const int load_loop_blk, const int ur, const F &f) {
+    iterate(load_loop_blk, ur, 0, f);
+}
+
+void jit_avx2_conv_fwd_kernel_f32::apply_postops(
+        const int oc_blocks, const int ur_w, const int oc_tail) {
+    if (jcp.with_eltwise || jcp.with_binary) {
+        Label regular_store;
+        test(reg_ci_flag, FLAG_IC_LAST);
+        je(regular_store, T_NEAR);
+
+        injector_utils::vmm_index_set_t vmm_idxs;
+        if (jcp.with_binary) {
+            binary_injector::rhs_arg_dynamic_params_t rhs_arg_params,
+                    rhs_arg_params_tail;
+            const auto temp_offset_reg = r12;
+            iterate(oc_blocks, ur_w, oc_tail,
+                    [&](const bool mask_flag, const int i, const int j) {
+                        const int aux_output_offset
+                                = get_output_offset(i, j) / sizeof(float);
+                        const auto vmm_idx = get_ymm_idx(ur_w, i, j);
+                        vmm_idxs.emplace(vmm_idx);
+
+                        rhs_arg_params_tail.vmm_idx_to_oc_elem_off_addr.emplace(
+                                vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
+                        rhs_arg_params_tail.vmm_idx_to_oc_elem_off_val.emplace(
+                                vmm_idx, i * jcp.oc_block);
+                        rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
+                                vmm_idx, aux_output_offset);
+                        rhs_arg_params_tail.vmm_idx_to_out_off_oprnd.emplace(
+                                vmm_idx, temp_offset_reg);
+                        if (mask_flag)
+                            rhs_arg_params_tail.vmm_tail_idx_.emplace(vmm_idx);
+                    });
+            rhs_arg_params = rhs_arg_params_tail;
+            rhs_arg_params.vmm_tail_idx_.clear();
+
+            const injector_utils::register_preserve_guard_t register_guard(
+                    this, {temp_offset_reg});
+            mov(temp_offset_reg, reg_output);
+            sub(temp_offset_reg, ptr[param1 + GET_OFF(dst_orig)]);
+            shr(temp_offset_reg, std::log2(sizeof(float)));
+
+            Label postops_done;
+            if (oc_tail) {
+                Label postops_no_tail;
+                test(reg_oc_flag, FLAG_OC_LAST);
+                je(postops_no_tail, T_NEAR);
+                postops_injector_->compute_vector_range(
+                        vmm_idxs, rhs_arg_params_tail);
+                jmp(postops_done, T_NEAR);
+                L(postops_no_tail);
+            }
+            postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+            L(postops_done);
+
+        } else {
+            iterate(oc_blocks, ur_w, [&](const bool, const int i, const int j) {
+                vmm_idxs.emplace(get_ymm_idx(ur_w, i, j));
+            });
+            postops_injector_->compute_vector_range(vmm_idxs);
+        }
+        L(regular_store);
+    }
+}
+
 void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
         int ur_w, int pad_l, int pad_r, int oc_blocks) {
     int kw = jcp.kw;
@@ -163,11 +276,12 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
 
         for (int ii = 0; ii < oc_blocks; ii++)
             for (int jj = 0; jj < ur_w; jj++) {
+                const auto ymm = get_ymm(ur_w, ii, jj);
                 if (is_tail && ii == oc_blocks - 1)
-                    load_bytes(Ymm(ur_w * ii + jj), reg_output,
-                            get_output_offset(ii, jj), oc_tail * sizeof(float));
+                    load_bytes(ymm, reg_output, get_output_offset(ii, jj),
+                            oc_tail * sizeof(float));
                 else
-                    vmovups(Ymm(ur_w * ii + jj),
+                    vmovups(ymm,
                             make_safe_addr(reg_output,
                                     get_output_offset(ii, jj), reg_long_offt));
             }
@@ -178,12 +292,13 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
 
             for (int ii = 0; ii < oc_blocks; ii++)
                 for (int jj = 0; jj < ur_w; jj++) {
+                    const Ymm ymm = get_ymm(ur_w, ii, jj);
                     if (is_tail && ii == oc_blocks - 1) {
                         load_bytes(ytmp, reg_bias, sizeof(float) * ii * oc_blk,
                                 oc_tail * sizeof(float));
-                        vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), ytmp);
+                        vaddps(ymm, ymm, ytmp);
                     } else {
-                        vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj),
+                        vaddps(ymm, ymm,
                                 yword[reg_bias + sizeof(float) * ii * oc_blk]);
                     }
                 }
@@ -195,19 +310,20 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
         if (jcp.with_bias) {
             for (int ii = 0; ii < oc_blocks; ii++)
                 for (int jj = 0; jj < ur_w; jj++) {
+                    const Ymm ymm = get_ymm(ur_w, ii, jj);
                     if (is_tail && ii == oc_blocks - 1)
-                        load_bytes(Ymm(ur_w * ii + jj), reg_bias,
-                                sizeof(float) * ii * oc_blk,
+                        load_bytes(ymm, reg_bias, sizeof(float) * ii * oc_blk,
                                 oc_tail * sizeof(float));
                     else
-                        vmovups(Ymm(ur_w * ii + jj),
+                        vmovups(ymm,
                                 yword[reg_bias + sizeof(float) * ii * oc_blk]);
                 }
         } else {
             for (int ii = 0; ii < oc_blocks; ii++)
-                for (int jj = 0; jj < ur_w; jj++)
-                    uni_vpxor(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj),
-                            Ymm(ur_w * ii + jj));
+                for (int jj = 0; jj < ur_w; jj++) {
+                    const Ymm ymm = get_ymm(ur_w, ii, jj);
+                    uni_vpxor(ymm, ymm, ymm);
+                }
         }
         L(init_done);
     };
@@ -302,24 +418,15 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
         pop(reg_output);
     }
 
-    Label regular_store;
+    apply_postops(oc_blocks, ur_w, oc_tail);
 
-    if (jcp.with_eltwise) {
-        test(reg_ci_flag, FLAG_IC_LAST);
-        je(regular_store, T_NEAR);
-
-        eltwise_injector_->compute_vector_range(0, oc_blocks * ur_w);
-
-        L(regular_store);
-    }
-
-    auto store_output = [=](bool is_tail) {
+    auto store_output = [=](bool is_tail, int tail) {
         for (int ii = 0; ii < oc_blocks; ii++)
             for (int jj = 0; jj < ur_w; jj++) {
-                Ymm reg_out = Ymm(ur_w * ii + jj);
+                Ymm reg_out = get_ymm(ur_w, ii, jj);
                 if (is_tail && ii == oc_blocks - 1)
                     store_bytes(reg_out, reg_output, get_output_offset(ii, jj),
-                            oc_tail * sizeof(float));
+                            tail * sizeof(float));
                 else
                     vmovups(make_safe_addr(reg_output,
                                     get_output_offset(ii, jj), reg_long_offt),
@@ -333,18 +440,34 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
             test(reg_oc_flag, FLAG_OC_LAST);
             jne(store_tail, T_NEAR);
 
-            store_output(false);
+            store_output(false, oc_tail);
             jmp(store_done, T_NEAR);
 
             L(store_tail);
-            store_output(true);
+            store_output(true, oc_tail);
 
             L(store_done);
         } else {
-            store_output(true);
+            store_output(true, oc_tail);
         }
     } else {
-        store_output(false);
+        Label regular_store;
+        Label store_done;
+        const int tail = jcp.oc_without_padding % jcp.oc_block;
+        if (jcp.with_binary && tail) {
+            test(reg_ci_flag, FLAG_IC_LAST);
+            je(regular_store, T_NEAR);
+            if (!oc_tail) mov(reg_oc_flag, ptr[param1 + GET_OFF(oc_flag)]);
+            test(reg_oc_flag, FLAG_OC_LAST);
+            je(regular_store, T_NEAR);
+            store_output(true, tail);
+            jmp(store_done, T_NEAR);
+        }
+
+        L(regular_store);
+        store_output(false, oc_tail);
+
+        L(store_done);
     }
 
     if (oc_tail) pop(reg_oc_blocks);
@@ -440,24 +563,7 @@ void jit_avx2_conv_fwd_kernel_f32::generate() {
 
     this->postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
-}
-
-bool jit_avx2_conv_fwd_kernel_f32::post_ops_ok(
-        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    const auto &p = attr.post_ops_;
-
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
-
-    switch (p.len()) {
-        case 0: return true; // no post_ops
-        case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-        case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-        default: return false;
-    }
-
-    return false;
+    if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
 status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
@@ -540,17 +646,15 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
-    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
+    const auto &post_ops = attr.post_ops_;
 
-    const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    jcp.with_sum = post_ops.find(primitive_kind::sum) != -1;
+    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
-    if (jcp.with_eltwise) {
-        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
-        if (!mayiuse(avx2) && jcp.eltwise.alg != alg_kind::eltwise_relu)
-            return status::unimplemented;
-    }
+    const int binary_ind = post_ops.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+
+    jcp.post_ops = post_ops;
 
     const int simd_w = 8;
     const bool flat = jcp.ic < simd_w;
@@ -568,6 +672,13 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         jcp.oc = rnd_up(jcp.oc, simd_w);
         if (mimo) jcp.ic = rnd_up(jcp.ic, simd_w);
     }
+
+    using namespace injector;
+    static constexpr bool sum_at_pos_0_only = true;
+    static constexpr bool sum_requires_scale_one = true;
+    const bool post_ops_ok_ = post_ops_ok({avx2, {eltwise, binary, sum},
+            jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+    if (!post_ops_ok_) return status::unimplemented;
 
     bool args_ok = true
             && IMPLICATION(flat,
@@ -631,7 +742,9 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     if (!args_ok) return status::unimplemented;
 
     jcp.ic_tail = is_data_layout_nxc ? jcp.ic % simd_w : 0;
-    jcp.oc_tail = is_data_layout_nxc ? jcp.oc % simd_w : 0;
+    jcp.oc_tail = is_data_layout_nxc
+            ? jcp.oc % simd_w
+            : (jcp.with_binary ? jcp.oc_without_padding % simd_w : 0);
 
     int r_pad_no_tail = nstl::max(0,
             calculate_end_padding(jcp.l_pad, jcp.ow - jcp.ur_w_tail, jcp.iw,

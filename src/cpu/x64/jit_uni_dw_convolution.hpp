@@ -80,7 +80,8 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
-                new jit_uni_dw_conv_fwd_kernel<isa, src_type>(pd()->jcp_)));
+                new jit_uni_dw_conv_fwd_kernel<isa, src_type>(
+                        pd()->jcp_, *pd()->dst_md(0))));
         return kernel_->create_kernel();
     }
 

@@ -90,7 +90,8 @@ struct jit_avx2_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
-                new jit_avx2_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr())));
+                new jit_avx2_conv_fwd_kernel_f32(
+                        pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
         return kernel_->create_kernel();
     }
 

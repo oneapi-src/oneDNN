@@ -34,16 +34,17 @@ using namespace dnnl::impl::utils;
 template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
 void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
         const exec_ctx_t &ctx) const {
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
-
-    const auto &jcp = pd()->jcp_;
 
     f32_data_t *bias = nullptr;
     if (pd()->desc()->bias_desc.data_type == data_type::bf16) {
@@ -142,6 +143,14 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
                 assert(jcp.loop_order != loop_nhwcg);
             }
 
+            const int oc_work = utils::this_block_size(ch * jcp.ch_block,
+                    jcp.oc_without_padding, jcp.nb_ch_blocking * jcp.ch_block);
+            par_conv.load_work = oc_work;
+
+            par_conv.oc_l_off = ch * jcp.ch_block;
+            par_conv.post_ops_binary_rhs_arg_vec
+                    = post_ops_binary_rhs_arg_vec.data();
+            par_conv.dst_orig = dst;
             (*kernel_)(&par_conv);
 
             if (jcp.loop_order == loop_ngcw) {

@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -34,26 +34,14 @@ namespace x64 {
 struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_fwd_kernel_bf16)
 
-    jit_avx512_dw_conv_fwd_kernel_bf16(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp), eltwise_injector_(nullptr), bf16_emu_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
-                    this, jcp.eltwise);
-        if (!isa_has_bf16(jcp.isa))
-            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
-                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
-                    bf16_emu_reserv_5, bf16_emu_reserv_6);
-    }
-
-    ~jit_avx512_dw_conv_fwd_kernel_bf16() {
-        delete eltwise_injector_;
-        delete bf16_emu_;
-    }
+    jit_avx512_dw_conv_fwd_kernel_bf16(
+            const jit_conv_conf_t &ajcp, const memory_desc_t &dst_md);
 
     jit_conv_conf_t jcp;
 
 private:
     using reg64_t = const Xbyak::Reg64;
+    using mask_t = const Xbyak::Opmask;
     const Xbyak::AddressFrame &vmmword = zword;
 
     const int acc_idx_start = 2;
@@ -76,6 +64,8 @@ private:
     reg64_t reg_input_buffer_ptr = rdx;
     reg64_t aux_reg_input_buffer_ptr = rsi;
     reg64_t reg_iw_offset = reg_input; //Hack: clear reg_input early in kernel
+    reg64_t reg_tail = rax;
+    mask_t k_oc_tail_mask = Xbyak::Opmask(2);
 
     Xbyak::Zmm zmm_ker_reg = Xbyak::Zmm(0);
     Xbyak::Zmm zmm_src_reg = Xbyak::Zmm(1);
@@ -89,10 +79,9 @@ private:
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(29);
     Xbyak::Zmm bf16_emu_reserv_6 = Xbyak::Zmm(30);
 
-    inline Xbyak::Zmm get_acc_reg(int idx) {
-        assert(idx + acc_idx_start <= get_max_regs());
-        return Xbyak::Zmm(idx + acc_idx_start);
-    }
+    int get_acc_reg_idx(int idx);
+
+    Xbyak::Zmm get_acc_reg(int idx);
 
     int get_ow_start(int ki, int pad_l) {
         return nstl::max(0,
@@ -122,12 +111,13 @@ private:
     inline void loop_ow(int ur_ch_blocks);
     inline void apply_filter_unrolled(
             int ur_ch_blocks, int ur_w, int pad_l, int pad_r);
-    inline void apply_activation(int ur_ch_blocks, int ur_w);
+    inline void apply_postops(int ur_ch_blocks, int ur_w);
     inline void store_dst(int ur_ch_blocks, int ur_w);
 
-    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
+            postops_injector_;
 
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     void generate() override;
 };

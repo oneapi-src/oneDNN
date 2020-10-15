@@ -20,7 +20,9 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -33,14 +35,8 @@ template <cpu_isa_t isa>
 struct jit_uni_dw_conv_fwd_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_dw_conv_fwd_kernel_f32)
 
-    jit_uni_dw_conv_fwd_kernel_f32(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_
-                    = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);
-    }
-
-    ~jit_uni_dw_conv_fwd_kernel_f32() { delete eltwise_injector_; }
+    jit_uni_dw_conv_fwd_kernel_f32(
+            const jit_conv_conf_t &ajcp, const memory_desc_t &dst_md);
 
     jit_conv_conf_t jcp;
 
@@ -48,6 +44,7 @@ private:
     using Vmm = typename utils::conditional3<isa == sse41, Xbyak::Xmm,
             isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
     using reg64_t = const Xbyak::Reg64;
+    using mask_t = const Xbyak::Opmask;
     const Xbyak::AddressFrame &vmmword
             = (isa == sse41) ? xword : (isa == avx2) ? yword : zword;
     const int vlen = cpu_isa_traits<isa>::vlen;
@@ -69,17 +66,24 @@ private:
     reg64_t aux_reg_input_buffer_ptr = rbp;
     reg64_t reg_iw_offset = reg_input; //Hack: clear reg_input early in kernel
 
+    reg64_t reg_tail = rax;
+    mask_t k_oc_tail_mask = Xbyak::Opmask(2);
+
     inline void load_src(int ur_ch_blocks, int ur_w);
     inline void compute_loop(int ur_w, int ur_ch_blocks, int pad_l, int pad_r);
     inline void ow_loop(int ur_ch_blocks);
     inline void apply_filter_unrolled(
             int ur_ch_blocks, int ur_w, int pad_l, int pad_r);
-    inline void apply_activation(int ur_ch_blocks, int ur_w);
+    inline void apply_postops(const int ur_ch_blocks, const int ur_w);
     inline void store_dst(int ur_ch_blocks, int ur_w);
 
     inline Vmm get_ker_reg(int idx) { return Vmm(idx + 0); }
     inline Vmm get_src_reg(int idx) { return Vmm(idx + 1); }
-    inline Vmm get_acc_reg(int idx) { return Vmm(idx + 4); }
+    inline int get_acc_reg_idx(int idx) { return idx + 4; }
+    inline Vmm get_acc_reg(int idx) { return Vmm(get_acc_reg_idx(idx)); }
+
+    void store_tail(
+            Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset, int store_size);
 
     int get_ow_start(int ki, int pad_l) {
         return nstl::max(0,
@@ -103,7 +107,8 @@ private:
                 format_tag::nwc);
     }
 
-    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
+            postops_injector_;
 
     void generate() override;
 };

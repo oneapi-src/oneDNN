@@ -20,11 +20,15 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
+#include <type_traits>
 
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
+#include "cpu/x64/injectors/injector_utils.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -39,14 +43,13 @@ namespace x64 {
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_fwd_kernel {
 
-    jit_uni_dw_conv_fwd_kernel(const jit_conv_conf_t &ajcp) : ker_(nullptr) {
-        ker_ = new jit_kernel_t(ajcp);
+    jit_uni_dw_conv_fwd_kernel(
+            const jit_conv_conf_t &ajcp, const memory_desc_t &dst_md) {
+        ker_ = new jit_kernel_t(ajcp, dst_md);
     }
 
     status_t create_kernel() { return ker_->create_kernel(); }
     ~jit_uni_dw_conv_fwd_kernel() { delete ker_; }
-
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_md,
@@ -60,30 +63,13 @@ struct jit_uni_dw_conv_fwd_kernel {
     void operator()(const jit_conv_call_s *p) const { (*ker_)(p); }
 
 private:
-    using jit_kernel_t = typename utils::conditional<isa == avx512_core
-                    && kernel_dt == data_type::bf16,
+    constexpr static bool ker_condition_
+            = isa == avx512_core && kernel_dt == data_type::bf16;
+    using jit_kernel_t = typename utils::conditional<ker_condition_,
             jit_avx512_dw_conv_fwd_kernel_bf16,
             jit_uni_dw_conv_fwd_kernel_f32<isa>>::type;
     jit_kernel_t *ker_;
 };
-
-template <cpu_isa_t isa, data_type_t kernel_dt>
-bool jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::post_ops_ok(
-        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    const auto &p = attr.post_ops_;
-
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
-
-    switch (p.len()) {
-        case 0: return true; // no post_ops
-        case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-        case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-        default: return false;
-    }
-
-    return false;
-}
 
 template <cpu_isa_t isa, data_type_t kernel_dt>
 status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
@@ -220,13 +206,23 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     if (jcp.l_pad > jcp.ur_w || r_pad_no_tail > jcp.ur_w)
         return status::unimplemented;
 
-    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
+    const auto &post_ops = attr.post_ops_;
 
-    const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    jcp.with_sum = post_ops.find(primitive_kind::sum) != -1;
+    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
-    if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+    if (jcp.with_eltwise) jcp.eltwise = post_ops.entry_[eltwise_ind].eltwise;
+    const int binary_ind = post_ops.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+
+    jcp.post_ops = post_ops;
+
+    using namespace injector;
+    static constexpr bool sum_at_pos_0_only = true;
+    static constexpr bool sum_requires_scale_one = true;
+    const bool post_ops_ok_ = post_ops_ok({isa, {eltwise, binary, sum},
+            jcp.post_ops, &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+    if (!post_ops_ok_) return status::unimplemented;
 
     bool ok_to_pad_channels = true && jcp.oc == jcp.ngroups
             && jcp.ic == jcp.ngroups

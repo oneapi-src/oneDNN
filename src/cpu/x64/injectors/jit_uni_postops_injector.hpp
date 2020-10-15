@@ -86,6 +86,9 @@ public:
      */
     void compute_vector_range(const injector_utils::vmm_index_set_t &vmm_idxs,
             const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params);
+
+    void compute_vector_range(const injector_utils::vmm_index_set_t &vmm_idxs);
+
     /*
      * Generates code of post_ops chain injected to host primitive. Applied to
      * range <start_idx, end_idx) of vector registers' indexes.
@@ -94,6 +97,9 @@ public:
      */
     void compute_vector_range(size_t start_idx, size_t end_idx,
             const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params);
+
+    void compute_vector_range(size_t start_idx, size_t end_idx);
+
     /*
      * Generates code of post_ops chain injected to host primitive. Applied to
      * a single vector register index.

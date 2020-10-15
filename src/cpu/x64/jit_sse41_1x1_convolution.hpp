@@ -228,8 +228,9 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
                 new jit_sse41_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr())));
         CHECK(kernel_->create_kernel());
         if (pd()->jcp_.with_dw_conv) {
-            CHECK(safe_ptr_assign(
-                    kernel_dw_, new dw_conv_kernel_t(pd()->dw_conv_pd_->jcp_)));
+            CHECK(safe_ptr_assign(kernel_dw_,
+                    new dw_conv_kernel_t(
+                            pd()->dw_conv_pd_->jcp_, *pd()->dst_md(0))));
             return kernel_dw_->create_kernel();
         }
 

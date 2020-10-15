@@ -88,6 +88,13 @@ void jit_uni_postops_injector_t<isa>::compute_vector_range(size_t start_idx,
 
 template <cpu_isa_t isa>
 void jit_uni_postops_injector_t<isa>::compute_vector_range(
+        size_t start_idx, size_t end_idx) {
+    compute_vector_range(
+            start_idx, end_idx, binary_injector::rhs_arg_dynamic_params_t());
+}
+
+template <cpu_isa_t isa>
+void jit_uni_postops_injector_t<isa>::compute_vector_range(
         const injector_utils::vmm_index_set_t &vmm_idxs,
         const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params) {
 
@@ -105,6 +112,11 @@ void jit_uni_postops_injector_t<isa>::compute_vector_range(
             if (lam != lambda_jit_injectors_.end()) lam->second();
         }
     }
+}
+template <cpu_isa_t isa>
+void jit_uni_postops_injector_t<isa>::compute_vector_range(
+        const injector_utils::vmm_index_set_t &vmm_idxs) {
+    compute_vector_range(vmm_idxs, binary_injector::rhs_arg_dynamic_params_t());
 }
 
 template <cpu_isa_t isa>
@@ -166,7 +178,7 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
             switch (post_op) {
                 case sum:
                     if (entry.is_sum(sum_requires_scale_one))
-                        return IMPLICATION(sum_at_pos_0_only, idx > 0);
+                        return IMPLICATION(sum_at_pos_0_only, idx == 0);
                     break;
                 case eltwise:
                     if (entry.is_eltwise()) return true;
