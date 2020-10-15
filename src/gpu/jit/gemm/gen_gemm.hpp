@@ -116,6 +116,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             return status::success;
         }
 
+        bool with_c_offset() const {
+            return !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
+        }
+
         bool with_eltwise() const { return false; }
 
         float eltwise_alpha() const { return 1.0f; }
@@ -165,8 +169,9 @@ struct gen_gemm_t : public gpu_gemm_t {
 
         kernel_t kernel;
 
-        auto status = kernel.init(pd()->arch_, batched, transa, transb, a_type,
-                b_type, c_type, unroll_m, unroll_n);
+        auto status = kernel.init(pd()->arch_, batched, transa, transb,
+                pd()->with_c_offset(), a_type, b_type, c_type, unroll_m,
+                unroll_n);
         if (status != status::success) return status;
 
         create_kernel(engine, &nocopy_kernel_, kernel);

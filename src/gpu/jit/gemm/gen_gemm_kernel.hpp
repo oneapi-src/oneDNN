@@ -82,7 +82,7 @@ private:
 
 struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
     status_t init(compute::gpu_arch_t arch, bool batch, bool trans_a,
-            bool trans_b, data_type_t a_type, data_type_t b_type,
+            bool trans_b, bool c_offset, data_type_t a_type, data_type_t b_type,
             data_type_t c_type, int unroll_m, int unroll_n) {
 
         problem_.Ta = convert_dnnl_to_kernel_type(a_type);
@@ -104,9 +104,11 @@ struct gen_gemm_nocopy_kernel_t : public gen_gemm_kernel_t {
         problem_.batchedS = batch;
         if (c_type == data_type::s32) {
             problem_.abOffset = ABOffset::Calc;
-            problem_.cOffset = COffset::Post;
             problem_.Ts = Type::f32;
+        }
+        if (c_offset) {
             problem_.CO.base = ngen::AddressBase::createBTS(0);
+            problem_.cOffset = COffset::Post;
             problem_.CO.crosspack = 1;
             problem_.CO.padded = false;
             problem_.CO.alignment = problem_.C.alignment;
