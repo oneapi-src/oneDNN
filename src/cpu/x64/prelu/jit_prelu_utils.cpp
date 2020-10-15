@@ -68,6 +68,41 @@ int get_n_vregs(const cpu_isa_t &isa) noexcept {
     return cpu_isa_traits<sse41>::n_vregs;
 }
 
+bcast get_bcast_type(
+        const memory_desc_wrapper &lhs, const memory_desc_wrapper &rhs) {
+
+    if (lhs == rhs) return bcast::full;
+    const auto &lhs_ndims = lhs.ndims();
+    const auto &rhs_ndims = rhs.ndims();
+
+    if (lhs_ndims != rhs_ndims || lhs_ndims < 2) return bcast::unsupported;
+
+    const auto &rhs_dims = rhs.dims();
+    const auto &lhs_dims = lhs.dims();
+
+    bool bcast_per_oc_exists = rhs_dims[0] == 1 && rhs_dims[1] == lhs_dims[1];
+
+    if (bcast_per_oc_exists) {
+        for (int dim_id = 2; dim_id < rhs_ndims; ++dim_id) {
+            bcast_per_oc_exists = bcast_per_oc_exists && rhs_dims[dim_id] == 1;
+        }
+    }
+
+    if (bcast_per_oc_exists) {
+        const auto &strides = lhs.blocking_desc().strides;
+
+        if (!lhs.is_plain())
+            return bcast::per_oc_blocked;
+        else if (strides[1] == 1)
+            return bcast::per_oc_n_spatial_c;
+        else if (strides[0] >= strides[1]
+                && IMPLICATION(lhs_ndims >= 3, strides[1] >= strides[2]))
+            return bcast::per_oc_n_c_spatial;
+    }
+
+    return bcast::unsupported;
+}
+
 template <typename Vmm>
 jit_prelu_io_helper<Vmm>::jit_prelu_io_helper(jit_generator *host,
         const cpu_isa_t &isa, const data_type_t &data_type,

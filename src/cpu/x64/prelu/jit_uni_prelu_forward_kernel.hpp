@@ -43,6 +43,7 @@ public:
         jit_generator::operator()(params);
     }
     size_t simd_w() const noexcept;
+    prelu::bcast get_bcast() const noexcept;
 
 protected:
     jit_prelu_forward_kernel_t(const cpu_prelu_fwd_pd_t *pd, int vlen);
@@ -65,6 +66,7 @@ protected:
     const Xbyak::Reg64 &reg_weights_ = r9;
     const cpu_prelu_fwd_pd_t *pd_;
     const size_t simd_w_ = 0;
+    const prelu::bcast bcast_;
     const size_t tail_size_ = 0u;
     const data_type_t data_type_;
 };

@@ -18,6 +18,7 @@
 #include "common/type_helpers.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/prelu/jit_prelu_forward.hpp"
+#include "cpu/x64/prelu/jit_prelu_utils.hpp"
 #include "cpu/x64/prelu/jit_uni_prelu_forward_kernel.hpp"
 
 namespace dnnl {
@@ -52,7 +53,36 @@ bool jit_prelu_forward_t::pd_t::dt_supported(const memory_desc_wrapper &src_d,
 bool jit_prelu_forward_t::pd_t::bcast_supported(
         const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d) const {
-    return src_d == weights_d;
+
+    const auto bcast = prelu::get_bcast_type(src_d, weights_d);
+    if (bcast == prelu::bcast::full)
+        return true;
+    else if (bcast == prelu::bcast::unsupported)
+        return false;
+    else if (bcast == prelu::bcast::per_oc_blocked) {
+        const int simd_w = mayiuse(avx512_common) ? 16 : (mayiuse(avx) ? 8 : 4);
+        const auto check_block_consistency
+                = [&](const memory_desc_wrapper &mdw) {
+                      const auto &bd = mdw.blocking_desc();
+
+                      return bd.inner_nblks == 1 && bd.inner_blks[0] == simd_w
+                              && bd.inner_idxs[0] == 1;
+                  };
+
+        return check_block_consistency(src_d)
+                && check_block_consistency(weights_d);
+    } else {
+        const auto &src_strides = src_d.blocking_desc().strides;
+        const auto &weights_strides = weights_d.blocking_desc().strides;
+        // C should be on second position in tag (example nchw or ncw) or on
+        // last postion (nhwc)
+        return src_strides[0] >= src_strides[1]
+                && IMPLICATION(
+                        src_strides[1] > 1, src_strides[1] >= src_strides[2])
+                && weights_strides[0] >= weights_strides[1];
+    }
+
+    return true;
 }
 
 const jit_prelu_forward_t::pd_t *jit_prelu_forward_t::pd() const {
@@ -75,33 +105,86 @@ status_t jit_prelu_forward_t::execute(const exec_ctx_t &ctx) const {
     const memory_desc_wrapper src_d {pd()->src_md()};
     const auto dt_size = types::data_type_size(src_d.data_type());
     const auto kernel = kernel_.get();
-    const auto nelems = src_d.nelems(true);
-    const auto simd_w = kernel->simd_w();
-    const auto res = std::div(nelems, simd_w);
-    const auto &nelems_simd = res.quot;
-    const auto &nelems_tail = res.rem;
-    const auto nelems_parallel = nelems_simd + (nelems_tail ? 1 : 0);
+    const auto bcast = kernel->get_bcast();
+    const auto ndims = src_d.ndims();
+    const auto &dims = src_d.dims();
+    const dim_t MB = dims[0];
+    const dim_t C = ndims >= 2 ? dims[1] : 1;
+    const dim_t D = ndims >= 5 ? dims[ndims - 3] : 1;
+    const dim_t H = ndims >= 4 ? dims[ndims - 2] : 1;
+    const dim_t W = ndims >= 3 ? dims[ndims - 1] : 1;
+    const dim_t SP = D * H * W;
 
-    parallel(0, [&](const int ithr, const int nthr) {
-        dim_t start = 0, end = 0;
-        balance211(nelems_parallel, nthr, ithr, start, end);
-        if (start >= end) return;
+    if (bcast == prelu::bcast::full) {
+        const auto nelems = src_d.nelems(true);
+        const auto simd_w = kernel->simd_w();
+        const auto res = std::div(nelems, simd_w);
+        const auto &nelems_simd = res.quot;
+        const auto &nelems_tail = res.rem;
+        const auto nelems_parallel = nelems_simd + (nelems_tail ? 1 : 0);
 
-        const bool ithr_process_tail = nelems_tail && end == nelems_parallel;
-        const auto n_simd_size = (end - start - ithr_process_tail) * simd_w;
-        const auto offset = start * simd_w * dt_size;
+        parallel(0, [&](const int ithr, const int nthr) {
+            dim_t start = 0, end = 0;
+            balance211(nelems_parallel, nthr, ithr, start, end);
+            if (start >= end) return;
 
-        jit_prelu_forward_kernel_t::call_params_t params;
+            const bool ithr_process_tail
+                    = nelems_tail && end == nelems_parallel;
+            const auto n_simd_size = (end - start - ithr_process_tail) * simd_w;
+            const auto offset = start * simd_w * dt_size;
 
-        params.compute_data_size
-                = (n_simd_size + (nelems_tail ? nelems_tail : 0)) * dt_size;
-        params.src = src + offset;
-        params.weights = weights + offset;
-        params.dst = dst + offset;
+            jit_prelu_forward_kernel_t::call_params_t params;
 
-        (*kernel)(&params);
-    });
+            params.compute_data_size
+                    = (n_simd_size + (nelems_tail ? nelems_tail : 0)) * dt_size;
+            params.src = src + offset;
+            params.weights = weights + offset;
+            params.dst = dst + offset;
 
+            (*kernel)(&params);
+        });
+    } else {
+
+        const dim_t nelems_single_mb
+                = utils::array_product(src_d.padded_dims() + 1, ndims - 1);
+
+        if (bcast == prelu::bcast::per_oc_n_spatial_c) {
+            parallel_nd(MB, SP, [&](dim_t mb, dim_t sp) {
+                const auto offset = (mb * nelems_single_mb + sp * C) * dt_size;
+                jit_prelu_forward_kernel_t::call_params_t params;
+                params.compute_data_size = C * dt_size;
+                params.src = src + offset;
+                params.weights = weights;
+                params.dst = dst + offset;
+                (*kernel)(&params);
+            });
+        } else if (bcast == prelu::bcast::per_oc_n_c_spatial) {
+            parallel_nd(MB, C, [&](dim_t mb, dim_t c) {
+                jit_prelu_forward_kernel_t::call_params_t params;
+                const auto offset = (mb * nelems_single_mb + c * SP) * dt_size;
+                params.compute_data_size = SP * dt_size;
+                params.src = src + offset;
+                params.weights = weights + c * dt_size;
+                params.dst = dst + offset;
+                (*kernel)(&params);
+            });
+        } else if (bcast == prelu::bcast::per_oc_blocked) {
+            const auto simd_w = kernel->simd_w();
+            const dim_t C_blocks = std::ceil(static_cast<float>(C) / simd_w);
+
+            parallel_nd(MB, C_blocks, [&](dim_t mb, dim_t c_blk) {
+                jit_prelu_forward_kernel_t::call_params_t params;
+                params.compute_data_size = SP * simd_w * dt_size;
+                const dim_t offset
+                        = (mb * nelems_single_mb + c_blk * SP * simd_w)
+                        * dt_size;
+                params.src = src + offset;
+                params.weights = weights + c_blk * simd_w * dt_size;
+                params.dst = dst + offset;
+                (*kernel)(&params);
+            });
+        }
+    }
     return status::success;
 }
 

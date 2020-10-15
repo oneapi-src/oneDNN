@@ -31,6 +31,16 @@ struct bf16_emulation_t;
 
 namespace prelu {
 
+enum class bcast {
+    full,
+    per_oc_blocked,
+    per_oc_n_spatial_c,
+    per_oc_n_c_spatial,
+    unsupported
+};
+
+bcast get_bcast_type(
+        const memory_desc_wrapper &lhs, const memory_desc_wrapper &rhs);
 cpu_isa_t get_supported_isa();
 int get_vlen(const cpu_isa_t &isa) noexcept;
 int get_n_vregs(const cpu_isa_t &isa) noexcept;
@@ -44,9 +54,9 @@ public:
             const Xbyak::Reg64 &reg_tmp);
     ~jit_prelu_io_helper();
     void prepare_tail_mask();
+    void broadcast(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
     void load(const Xbyak::Address &src_addr, const Vmm &dst_vmm, bool tail);
     void store(const Vmm &src_vmm, const Xbyak::Address &dst_addr, bool tail);
-    void broadcast(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
 
 private:
     void load_tail(const Xbyak::Address &src_addr, const Vmm &dst_vmm);

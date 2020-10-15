@@ -25,6 +25,8 @@ jit_prelu_forward_kernel_t::jit_prelu_forward_kernel_t(
         const cpu_prelu_fwd_pd_t *pd, int vlen)
     : pd_(pd)
     , simd_w_(vlen / sizeof(float))
+    , bcast_(prelu::get_bcast_type(memory_desc_wrapper(pd_->src_md()),
+              memory_desc_wrapper(pd_->weights_md())))
     , tail_size_(calc_tail_size())
     , data_type_(pd_->src_md()->data_type) {}
 
@@ -32,8 +34,22 @@ size_t jit_prelu_forward_kernel_t::simd_w() const noexcept {
     return simd_w_;
 }
 
+prelu::bcast jit_prelu_forward_kernel_t::get_bcast() const noexcept {
+    return bcast_;
+}
+
 size_t jit_prelu_forward_kernel_t::calc_tail_size() const noexcept {
-    return memory_desc_wrapper(pd_->src_md()).nelems() % simd_w_;
+
+    const auto src_d = memory_desc_wrapper(pd_->src_md());
+    dim_t nelems = 0;
+    const auto &ndims = src_d.ndims();
+    if (bcast_ == prelu::bcast::full)
+        nelems = src_d.nelems();
+    else if (bcast_ == prelu::bcast::per_oc_n_spatial_c)
+        return src_d.dims()[1];
+    else if (bcast_ == prelu::bcast::per_oc_n_c_spatial && ndims >= 3)
+        nelems = utils::array_product(src_d.dims() + 2, ndims - 2);
+    return nelems % simd_w_;
 }
 
 void jit_prelu_forward_kernel_t::generate() {
@@ -113,6 +129,10 @@ jit_uni_prelu_forward_kernel_t<Vmm>::jit_uni_prelu_forward_kernel_t(
     , vmm_zeros_(reserve_vmm())
     , tail_vmm_mask_(tail_size_ && utils::one_of(isa, avx, avx2) ? reserve_vmm()
                                                                  : Vmm(0))
+    , weights_const_vmm_(utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
+                                 prelu::bcast::per_oc_blocked)
+                      ? reserve_vmm()
+                      : Vmm(0))
     , number_vmm_single_compute_(
               utils::one_of(isa, sse41, avx) || data_type_ == data_type::bf16
                       ? 4u
@@ -129,6 +149,10 @@ template <typename Vmm>
 void jit_uni_prelu_forward_kernel_t<Vmm>::prepare_kernel_const_vars() {
     uni_vxorps(vmm_zeros_, vmm_zeros_, vmm_zeros_);
     if (tail_size_) io_.prepare_tail_mask();
+    if (bcast_ == prelu::bcast::per_oc_n_c_spatial)
+        io_.broadcast(ptr[reg_weights_], weights_const_vmm_);
+    else if (bcast_ == prelu::bcast::per_oc_blocked)
+        io_.load(ptr[reg_weights_], weights_const_vmm_, false /*tail*/);
 }
 
 template <typename Vmm>
@@ -163,12 +187,32 @@ size_t jit_uni_prelu_forward_kernel_t<Vmm>::calc_unrolling_factor() const
     const size_t max_unrolling_factor
             = number_of_available_regs / number_vmm_single_compute_;
 
-    const size_t nelems = memory_desc_wrapper(pd_->src_md()).nelems();
-    const size_t thread_vecs_to_do
-            = nelems / (simd_w_ * dnnl_get_max_threads());
+    const auto src_d = memory_desc_wrapper(pd_->src_md());
+    size_t single_thread_estimated_elems = 0;
+    const auto &dims = src_d.dims();
+    const auto &ndims = src_d.ndims();
+    const dim_t D = ndims >= 5 ? dims[ndims - 3] : 1;
+    const dim_t H = ndims >= 4 ? dims[ndims - 2] : 1;
+    const dim_t W = ndims >= 3 ? dims[ndims - 1] : 1;
+    const dim_t SP = D * H * W;
 
-    return nstl::min(
-            max_unrolling_factor, nstl::max(thread_vecs_to_do, size_t(1)));
+    if (bcast_ == prelu::bcast::full) {
+        const size_t nelems = src_d.nelems();
+        single_thread_estimated_elems = nelems / dnnl_get_max_threads();
+    } else if (bcast_ == prelu::bcast::per_oc_n_spatial_c) {
+        single_thread_estimated_elems = src_d.dims()[1];
+    } else if (bcast_ == prelu::bcast::per_oc_blocked) {
+        single_thread_estimated_elems = SP * simd_w_;
+    } else if (bcast_ == prelu::bcast::per_oc_n_c_spatial) {
+        single_thread_estimated_elems = SP;
+    }
+
+    const size_t estimated_vectors_used = nstl::max(
+            static_cast<size_t>(
+                    std::floor(single_thread_estimated_elems / simd_w_)),
+            static_cast<size_t>(1));
+
+    return nstl::min(max_unrolling_factor, estimated_vectors_used);
 }
 
 template <typename Vmm>
@@ -179,7 +223,10 @@ size_t jit_uni_prelu_forward_kernel_t<Vmm>::get_unrolling_factor() const {
 template <typename Vmm>
 const Xbyak::Operand &jit_uni_prelu_forward_kernel_t<Vmm>::get_or_load_weights(
         const Xbyak::Address &src_addr, const Vmm &weights_vmm, bool tail) {
-    if (data_type_ == data_type::bf16) {
+    if (utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
+                prelu::bcast::per_oc_blocked))
+        return weights_const_vmm_;
+    else if (data_type_ == data_type::bf16) {
         io_.load(src_addr, weights_vmm, tail);
         return weights_vmm;
     }
@@ -191,7 +238,10 @@ const Xbyak::Operand &
 jit_uni_prelu_forward_kernel_t<Xbyak::Ymm>::get_or_load_weights(
         const Xbyak::Address &src_addr, const Xbyak::Ymm &weights_vmm,
         bool tail) {
-    if (tail || isa_ == avx) {
+    if (utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
+                prelu::bcast::per_oc_blocked))
+        return weights_const_vmm_;
+    else if (tail || isa_ == avx) {
         io_.load(src_addr, weights_vmm, tail);
         return weights_vmm;
     }
@@ -204,6 +254,11 @@ const Xbyak::Operand &
 jit_uni_prelu_forward_kernel_t<Xbyak::Xmm>::get_or_load_weights(
         const Xbyak::Address &src_addr, const Xbyak::Xmm &weights_vmm,
         bool tail) {
+
+    if (utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
+                prelu::bcast::per_oc_blocked))
+        return weights_const_vmm_;
+
     io_.load(src_addr, weights_vmm, tail);
     return weights_vmm;
 }
