@@ -57,6 +57,14 @@ dimension get_Nth_last_dim_or_block(
         dimension ret;
         ret.idx = strides[dim_distance].second;
         ret.size = md.padded_dims()[ret.idx];
+        // if a dimension has size=1 then two dimensions will have the same strides
+        // and the above sort is not guaranteed to select the correct dimension
+        if (dim_distance < md.md_->ndims - 1) {
+            if (strides[dim_distance].first
+                    == strides[dim_distance + 1].first) {
+                ret.size = 1;
+            }
+        }
         return ret;
     }
 }
