@@ -629,6 +629,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     // Winograd implementation limitations.
     if (prb->alg == WINO) {
         if (engine_tgt_kind == dnnl_cpu) {
+#ifdef DNNL_X64
             static auto isa = dnnl_get_effective_cpu_isa();
             static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic
                     && isa != dnnl_cpu_isa_avx2_vnni;
@@ -677,6 +678,10 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
                 return;
             }
+#else
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+#endif
         } else if (engine_tgt_kind == dnnl_gpu) {
             bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
                     && prb->kw == 3 && prb->sh == 1 && prb->sw == 1
