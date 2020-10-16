@@ -445,6 +445,65 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
     }
 
+#elif REORDER_NCHW
+
+#define BIGGER_THAN_16 (SRC_D1 >= 16)
+
+    int sgId = get_sub_group_local_id();
+
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d2 = GWS_GET_D2();
+    const int d3 = GWS_GET_D3();
+
+    const int d1_block = GWS_GET_D1_BLOCK();
+
+    SRC_DATA_T src_buf[SUB_GROUP_SIZE];
+    SRC_DATA_T dst_buf[SUB_GROUP_SIZE];
+#if BIGGER_THAN_16
+    SRC_DATA_T send_buf;
+#else
+    SRC_DATA_T exch_buf[d1_block][SUB_GROUP_SIZE];
+#endif
+
+#if BIGGER_THAN_16
+#define STRIDE_S SRC_D1
+#else
+#define STRIDE_S 16
+#endif
+#define STRIDE_D (SRC_D2 * SRC_D3)
+
+    for (int i = 0; i < d1_block; i++) {
+        int src_off = SRC_OFF(d0, d1, d2, d3, 0, 0) + STRIDE_S * i;
+        src_buf[i] = SRC_BLOCK_READ(&src[src_off]);
+    }
+#if BIGGER_THAN_16
+    for (int i = 0; i < SUB_GROUP_SIZE; i++) {
+        send_buf = src_buf[(i + sgId) % 16];
+        dst_buf[(16 + sgId - i) % 16]
+                = intel_sub_group_shuffle(send_buf, (16 + sgId - i) % 16);
+    }
+#else
+    for (int i = 0; i < d1_block; i++) {
+        for (int sg = 0; sg < SUB_GROUP_SIZE; sg++) {
+            exch_buf[i][sg] = intel_sub_group_shuffle(src_buf[i], sg);
+        }
+    }
+    for (int i = 0; i < d1_block; i++) {
+        int ofs = i + sgId * d1_block;
+        dst_buf[i] = exch_buf[ofs / SUB_GROUP_SIZE][ofs % SUB_GROUP_SIZE];
+    }
+#endif
+    for (int i = 0; i < d1_block; i++) {
+        int dst_off = DST_OFF(d0, d1, d2, d3, 0, 0) + STRIDE_D * i;
+        DST_DATA_T dst_tmp;
+#if WITH_SUM_AB
+        dst_tmp = DST_BLOCK_READ(&dst[dst_off]);
+#endif
+        REORDER(dst_tmp, dst_buf[i], alpha, beta);
+        DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
+    }
+
 #elif PLAIN_TO_AB_XX_8AYB
     // Reorders 2D plain format to a blocked one, where last two
     // blocks are 8a4b or 8a2b. Supports formats with more block layers.

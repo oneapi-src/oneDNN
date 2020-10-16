@@ -545,6 +545,7 @@ struct reorder_conf_t {
     bool plain_to_ABxx8ayb;
     bool plain_xFxE_to_abcdef;
     int transpose16x16; // 3-state logic
+    bool nchw;
     int ndims;
     size_t nelems;
 

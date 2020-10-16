@@ -129,6 +129,13 @@ bool matches_ABxxxx8ayb_layout(dnnl_blocking_desc_t blk, int ndims) {
             && blk.inner_idxs[last - 1] == ndims - 2);
 }
 
+bool dim_is_div_by_16_or_less_than_16(
+        const memory_desc_wrapper &src, int dim_index) {
+    const auto &padded_dims = src.padded_dims();
+    assert(dim_index < src.ndims());
+    return (padded_dims[dim_index] % 16 == 0 || padded_dims[dim_index] < 16);
+}
+
 status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     using namespace format_tag;
 
@@ -181,8 +188,13 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                     ? matches_16x16_layout(src_mdw, dst_mdw)
                     : 0);
 
+    conf.nchw = !conf.transpose16x16 && padded_dims[conf.ndims - 1] % 16 == 0
+            && dim_is_div_by_16_or_less_than_16(dst_mdw, 1)
+            && src_mdw.matches_one_of_tag(nhwc)
+            && dst_mdw.matches_one_of_tag(nchw);
+
     const bool allow_unroll = !has_padding_or_scale_quant && !type_s8_u8
-            && !conf.transpose16x16;
+            && !conf.transpose16x16 && !conf.nchw;
 
     const bool use_unroll_16a16b = allow_unroll
             && (src_mdw.matches_one_of_tag(ABc16a16b, ABc16b16a, ABcd16a16b,
@@ -206,25 +218,22 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                             aBCdef16c16b, aCBd16b16c, aCBd16c16b, aCBde16b16c,
                             aCBde16c16b, aCBdef16c16b));
 
-    const bool last_dim_is_div_by_16_or_less_than_16
-            = (padded_dims[conf.ndims - 1] % 16) == 0
-            || (padded_dims[conf.ndims - 1] < 16);
     conf.plain_xFxE_to_abcdef = src_mdw.matches_one_of_tag(abdfce)
             && dst_mdw.matches_one_of_tag(abcdef)
             && ((padded_dims[conf.ndims - 2] % 16) == 0)
-            && last_dim_is_div_by_16_or_less_than_16;
+            && dim_is_div_by_16_or_less_than_16(dst_mdw, last);
 
     bool use_unroll = use_unroll_16b || use_unroll_16b16c || use_unroll_16a16b;
 
     conf.use_dense_vect = !conf.transpose16x16 && !conf.scale_quant
-            && (conf.nelems % 256 == 0)
+            && !conf.nchw && (conf.nelems % 256 == 0)
             && src_mdw.similar_to(dst_mdw, true, false, 0)
             && !has_padding_or_scale_quant && !use_unroll;
 
     // This kernel will be used where last dimension is not reordered.
     // It will vectorize that dimension.
     conf.vectorize_last_dim = !conf.transpose16x16 && !conf.use_dense_vect
-            && !has_padding_or_scale_quant && src_mdw.is_dense()
+            && !conf.nchw && !has_padding_or_scale_quant && src_mdw.is_dense()
             && dst_mdw.is_dense() && last_dim % 8 == 0
             && dst_mdw.md_->format_desc.blocking.strides[last] == 1
             && src_mdw.md_->format_desc.blocking.strides[last] == 1
@@ -233,8 +242,8 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     // This kernel supports 2D reorders into blocked formats that
     // end in 8a4b or 8a2b, no matter how many block layers, but no padding.
     conf.plain_to_ABxx8ayb = !conf.transpose16x16 && !conf.use_dense_vect
-            && !has_padding_or_scale_quant && !conf.vectorize_last_dim
-            && src_mdw.matches_one_of_tag(ab)
+            && conf.nchw && !has_padding_or_scale_quant
+            && !conf.vectorize_last_dim && src_mdw.matches_one_of_tag(ab)
             && matches_ABxxxx8ayb_layout(
                     dst_mdw.md_->format_desc.blocking, conf.ndims)
             && padded_dims[last] % 16 == 0;
@@ -280,6 +289,13 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                           .idx;
         blocks[dm] = 16;
     }
+
+    if (conf.nchw) {
+        conf.use_ref_impl = false;
+        conf.sub_group_size = 16;
+        blocks[1] = nstl::min(padded_dims[1], dnnl_dim_t(16));
+    }
+
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
     for (int i = 0; i < 6; ++i) {
@@ -313,6 +329,8 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                           .idx;
         auto dim_str = utils::format("D%d", dm);
         conf.dispatch.vectorize_dim(dim_str, 16);
+    } else if (conf.nchw) {
+        conf.dispatch.vectorize_dim("D3", 16);
     }
 
     conf.dispatch.generate();
@@ -449,6 +467,8 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
             kernel_ctx.define_int("PLAIN_TO_BLOCK", 1);
         }
     }
+
+    if (conf.nchw) { kernel_ctx.define_int("REORDER_NCHW", 1); }
 
     kernel_ctx.print_options();
     return status::success;
