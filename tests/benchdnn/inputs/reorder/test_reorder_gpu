@@ -32,7 +32,7 @@
 
 --stag=abcd,aBcd16b
 --dtag=abcd,aBcd16b
-1x256x360x640 1x64x720x1280 15x64x31x64 16x16x16x16 16x64x32x128
+1x256x360x640 1x64x720x1280 15x64x31x64 16x16x16x16 16x64x32x128 16x16x16x1 16x16x1x16 16x1x16x16 1x16x16x16
 
 --stag=ab,AB8a8b,AB8a16b,AB16a8b,AB16a16b
 --dtag=Ab16a,BA16b16a,BA8b16a,BA32b16a,Ab32a,Ab8a
@@ -49,6 +49,10 @@
 --stag=abcdef
 --dtag=abcdEf16e,Abcdef16a,bcdefa
 16x16x16x16x16x16 16x15x16x16x16x16 15x16x16x16x16x16 16x16x16x16x16x15 16x16x16x16x15x16
+
+--stag=aBcd32b
+--dtag=aBcd16b
+1x64x1x1
 
 ### test types
 --reset
