@@ -180,17 +180,14 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
             // catastrohic cancellation.
             return (prb->dir & FLAG_BWD) && !std::signbit(s)
                     && (1.f / (1.f + expf(s))) <= comp_err;
-        case alg_t::SWISH:
+        case alg_t::SWISH: {
             // catch cancellation happening when W(s) ~~ -1 in (1 + W(s))
             // formula part on backward.
+            const float alpha_s = prb->alpha * s;
             return (prb->dir & FLAG_BWD)
-                    && (prb->alpha * s
-                                    * (1.f
-                                            - 1.f
-                                                    / (1.f
-                                                            + expf(-prb->alpha
-                                                                    * s)))
+                    && (alpha_s * (1.f - 1.f / (1.f + expf(-alpha_s)))
                             <= comp_err);
+        }
         default: return false;
     }
 }
