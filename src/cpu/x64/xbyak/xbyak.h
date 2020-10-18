@@ -951,6 +951,10 @@ inline RegExp operator*(const Reg& r, int scale)
 {
 	return RegExp(r, scale);
 }
+inline RegExp operator*(int scale, const Reg& r)
+{
+  return RegExp(r, scale);
+}
 inline RegExp operator-(const RegExp& e, size_t disp)
 {
 	RegExp ret = e;

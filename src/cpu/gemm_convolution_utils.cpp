@@ -30,6 +30,8 @@
 #include "cpu/x64/cpu_isa_traits.hpp"
 #endif
 
+#include "cpu/fast_copy_1d.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -427,34 +429,67 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
 
     if (jcp.outer_threading) {
         if (sw == 1) {
-            // Generated code is more optimized for stride_w == 1
-            // because innermost loop is by width
-            for (int ic = 0; ic < cb; ic++) {
-                const data_t *__restrict im_ic = _im + (ic + cs) * im_step;
-                for (int kh = 0; kh < jcp.kh; kh++) {
-                    for (int kw = 0; kw < jcp.kw; kw++) {
-                        data_t *__restrict col_k = _col + ic * col_step
-                                + (kh * jcp.kw + kw) * sb;
-                        for (int oh = oh_begin; oh < oh_end; oh++) {
-                            const int ih = oh * sh - tp + kh * dh;
-                            const data_t *__restrict im_
-                                    = im_ic + ih * jcp.iw - lp + kw * dw;
-                            const int ow_begin
-                                    = (oh == first_oh) ? first_ow : 0;
-                            const int ow_end
-                                    = (oh == last_oh) ? (last_ow + 1) : jcp.ow;
-                            data_t *__restrict col_ = col_k + oh * jcp.ow - ss;
-                            if (ih < 0 || ih >= jcp.ih)
-                                for (int ow = ow_begin; ow < ow_end; ow++)
-                                    col_[ow] = zero_val;
-                            else {
-                                for (int ow = ow_begin; ow < ow_end; ++ow) {
-                                    const int iw = ow;
-                                    if (iw < lp - kw * dw
-                                            || iw >= jcp.iw + lp - kw * dw)
-                                        col_[ow] = zero_val;
-                                    else
-                                        col_[ow] = im_[iw];
+            // Using SPMD compiler's code for (small spatial) performance
+            // Batch in Channel direction to hide indicing overhead
+            if (cb % 8 == 0) {
+                for (int ic = 0; ic < cb; ic += 8) {
+                    const data_t *__restrict im_ic = _im + (ic + cs) * im_step;
+                    for (int kh = 0; kh < jcp.kh; ++kh) {
+                        for (int kw = 0; kw < jcp.kw; ++kw) {
+                            data_t *__restrict col_k = _col + ic * col_step
+                                    + (kh * jcp.kw + kw) * sb;
+                            for (int oh = oh_begin; oh < oh_end; ++oh) {
+                                const int ih = oh * sh - tp + kh * dh;
+                                const data_t *__restrict im_
+                                        = im_ic + ih * jcp.iw;
+                                const int ow_begin
+                                        = (oh == first_oh) ? first_ow : 0;
+                                const int ow_end = (oh == last_oh)
+                                        ? (last_ow + 1)
+                                        : jcp.ow;
+                                data_t *__restrict col_
+                                        = col_k + oh * jcp.ow - ss;
+                                if (ih < 0 || ih >= jcp.ih)
+                                    fast_zero_1d_batch_8<data_t>(
+                                            col_ + ow_begin, col_step,
+                                            ow_end - ow_begin);
+                                else {
+                                    auto start_off = ow_begin - lp + kw * dw;
+                                    auto len = ow_end - ow_begin;
+                                    fast_copy_1d_batch_8<data_t>(
+                                            col_ + ow_begin, col_step, im_,
+                                            im_step, start_off, jcp.iw, len);
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                for (int ic = 0; ic < cb; ic++) {
+                    const data_t *__restrict im_ic = _im + (ic + cs) * im_step;
+                    for (int kh = 0; kh < jcp.kh; kh++) {
+                        for (int kw = 0; kw < jcp.kw; kw++) {
+                            data_t *__restrict col_k = _col + ic * col_step
+                                    + (kh * jcp.kw + kw) * sb;
+                            for (int oh = oh_begin; oh < oh_end; oh++) {
+                                const int ih = oh * sh - tp + kh * dh;
+                                const data_t *__restrict im_
+                                        = im_ic + ih * jcp.iw;
+                                const int ow_begin
+                                        = (oh == first_oh) ? first_ow : 0;
+                                const int ow_end = (oh == last_oh)
+                                        ? (last_ow + 1)
+                                        : jcp.ow;
+                                data_t *__restrict col_
+                                        = col_k + oh * jcp.ow - ss;
+                                if (ih < 0 || ih >= jcp.ih)
+                                    fast_zero_1d(
+                                            col_ + ow_begin, ow_end - ow_begin);
+                                else {
+                                    auto start_off = ow_begin - lp + kw * dw;
+                                    auto len = ow_end - ow_begin;
+                                    fast_copy_1d(col_ + ow_begin, im_,
+                                            start_off, jcp.iw, len);
                                 }
                             }
                         }
@@ -515,16 +550,12 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
                                 = _im + (ic + cs) * im_step + ih * jcp.iw;
                         const int iw_shift = kw * dw - lp;
                         if (ih < 0 || ih >= jcp.ih)
-                            for (int ow = ow_start; ow < ow_end; ow++)
-                                col_oh[ow] = zero_val;
-                        else
-                            for (int ow = ow_start; ow < ow_end; ow++) {
-                                const int iw = ow + iw_shift;
-                                if (iw < 0 || iw >= jcp.iw)
-                                    col_oh[ow] = zero_val;
-                                else
-                                    col_oh[ow] = im_[iw];
-                            }
+                            fast_zero_1d(col_oh + ow_start, ow_end - ow_start);
+                        else {
+                            const int start_off = ow_start + iw_shift;
+                            fast_copy_1d(col_oh + ow_start, im_, start_off,
+                                    jcp.iw, ow_end - ow_start);
+                        }
                     });
         else
             parallel_nd(cb, jcp.kh, jcp.kw, oh_range,
@@ -539,8 +570,7 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
                         const data_t *__restrict im_
                                 = _im + (ic + cs) * im_step;
                         if (ih < 0 || ih >= jcp.ih)
-                            for (int ow = ow_start; ow < ow_end; ow++)
-                                col_oh[ow] = zero_val;
+                            fast_zero_1d(col_oh + ow_start, ow_end - ow_start);
                         else
                             for (int ow = ow_start; ow < ow_end; ow++) {
                                 const int iw = ow * sw - lp + kw * dw;
