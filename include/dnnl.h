@@ -2033,6 +2033,53 @@ dnnl_status_t DNNL_API dnnl_pooling_v2_backward_desc_init(
 
 /// @} dnnl_api_pooling
 
+/// @addtogroup dnnl_api_prelu
+/// @{
+
+/// Initializes a descriptor for PReLU
+/// (leaky ReLU with trainable alpha parameter)
+/// forward propagation primitive.
+///
+/// @note
+///     weights descriptor is allowed to be initialized with
+///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
+///
+/// @param prelu_desc Output descriptor for a prelu primitive.
+/// @param prop_kind Propagation kind. Possible values are
+///     #dnnl_forward_training and #dnnl_forward_inference.
+/// @param data_desc Source and destination memory descriptor.
+/// @param weights_desc Alpha parameters memory descriptor.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_prelu_forward_desc_init(
+        dnnl_prelu_desc_t *prelu_desc, dnnl_prop_kind_t prop_kind,
+        const dnnl_memory_desc_t *data_desc,
+        const dnnl_memory_desc_t *weights_desc);
+
+/// Initializes a descriptor for PReLU
+/// (leaky ReLU with trainable alpha parameter)
+/// backward propagation primitive.
+///
+/// @note
+///     weights descriptor and diff_weights descriptor are allowed
+///     to be initialized with #dnnl_format_tag_any or with format_kind
+///     set to #dnnl_format_kind_any.
+///
+/// @param prelu_desc Output descriptor for a prelu primitive.
+/// @param data_desc Source and destination memory descriptor.
+/// @param weights_desc Alpha parameters memory descriptor.
+/// @param diff_data_desc Diff source and destination memory descriptor.
+/// @param diff_weights_desc Diff alpha parameters memory descriptor.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_prelu_backward_desc_init(
+        dnnl_prelu_desc_t *prelu_desc, const dnnl_memory_desc_t *data_desc,
+        const dnnl_memory_desc_t *weights_desc,
+        const dnnl_memory_desc_t *diff_data_desc,
+        const dnnl_memory_desc_t *diff_weights_desc);
+
+/// @} dnnl_api_prelu
+
 /// @addtogroup dnnl_api_lrn
 /// @{
 

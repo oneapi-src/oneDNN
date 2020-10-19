@@ -74,10 +74,6 @@ private:
     size_t vmm_to_preserve_size_bytes_;
 };
 
-using output_dims_t = std::array<dim_t, 5>;
-
-output_dims_t make_output_dims(const memory_desc_wrapper &dst_d);
-
 } // namespace injector_utils
 } // namespace x64
 } // namespace cpu

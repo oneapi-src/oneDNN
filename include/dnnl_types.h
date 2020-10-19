@@ -887,6 +887,8 @@ typedef enum {
     dnnl_pooling_v2,
     /// A reduction primitive.
     dnnl_reduction,
+    /// A PReLU primitive.
+    dnnl_prelu,
 
     /// Parameter to allow internal only primitives without undefined behavior.
     /// This parameter is chosen to be valid for so long as sizeof(int) >= 2.
@@ -1546,6 +1548,28 @@ typedef struct {
 } dnnl_pooling_v2_desc_t;
 
 /// @} dnnl_api_pooling_v2
+
+/// @addtogroup dnnl_api_prelu
+/// @{
+typedef struct {
+    /// The kind of primitive. Used for self-identifying the primitive
+    /// descriptor. Must be #dnnl_prelu.
+    dnnl_primitive_kind_t primitive_kind;
+    /// The kind of propagation. Possible values: #dnnl_forward_training,
+    /// #dnnl_forward_inference, #dnnl_backward
+    dnnl_prop_kind_t prop_kind;
+    /// Source and destination memory descriptor.
+    dnnl_memory_desc_t data_desc;
+    /// Learnable parameter alpha memory descriptor.
+    /// Alpha describes negative slope.
+    dnnl_memory_desc_t weights_desc;
+    /// Source and destination gradient memory descriptor.
+    dnnl_memory_desc_t diff_data_desc;
+    /// Learnable parameter alpha gradient memory descriptor.
+    dnnl_memory_desc_t diff_weights_desc;
+} dnnl_prelu_desc_t;
+
+/// @} dnnl_api_prelu
 
 /// @addtogroup dnnl_api_lrn
 /// @{
@@ -2303,6 +2327,7 @@ typedef enum {
     dnnl_query_eltwise_d, ///< eltwise descriptor
     dnnl_query_softmax_d, ///< softmax descriptor
     dnnl_query_pooling_d, ///< pooling descriptor
+    dnnl_query_prelu_d, ///< prelu descriptor
     dnnl_query_lrn_d, ///< lrn descriptor
     dnnl_query_batch_normalization_d, ///< batch normalization descriptor
     dnnl_query_layer_normalization_d, ///< layer normalization descriptor

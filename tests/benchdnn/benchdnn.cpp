@@ -38,6 +38,7 @@
 #include "lrn/lrn.hpp"
 #include "matmul/matmul.hpp"
 #include "pool/pool.hpp"
+#include "prelu/prelu.hpp"
 #include "reduction/reduction.hpp"
 #include "reorder/reorder.hpp"
 #include "resampling/resampling.hpp"
@@ -100,6 +101,8 @@ int main(int argc, char **argv) {
         softmax::bench(--argc, ++argv);
     } else if (!strcmp("--pool", argv[0])) {
         pool::bench(--argc, ++argv);
+    } else if (!strcmp("--prelu", argv[0])) {
+        prelu::bench(--argc, ++argv);
     } else if (!strcmp("--sum", argv[0])) {
         sum::bench(--argc, ++argv);
     } else if (!strcmp("--eltwise", argv[0])) {

@@ -454,6 +454,15 @@ inline bool operator==(const pooling_v2_desc_t &lhs, const pooling_v2_desc_t &rh
     return ret;
 }
 
+inline bool operator==(const prelu_desc_t &lhs, const prelu_desc_t &rhs) {
+    const bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(prop_kind)
+            && COMPARE_DESC_MEMBERS(data_desc)
+            && COMPARE_DESC_MEMBERS(diff_data_desc)
+            && COMPARE_DESC_MEMBERS(diff_weights_desc);
+    return ret;
+}
+
 inline bool operator==(
         const reduction_desc_t &lhs, const reduction_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
