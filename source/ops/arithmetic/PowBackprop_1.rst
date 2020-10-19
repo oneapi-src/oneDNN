@@ -6,13 +6,13 @@ PowBackprop
 
 **Category**: *Arithmetic*
 
-**Short description**: *PowBackprop* computes gradient for Pow
+**Short description**: *PowBackprop* computes gradient of variable base for Pow
 
 **Inputs**:
 
 * **1**: ``input_forward`` - input of forward. **Required.**
 * **2**: ``output_delta`` - gradients tensor w.r.t. the output. **Required.**
-* **3**: ``beta`` - exponent of input. **Required.**
+* **3**: ``exponent`` - exponent of input. **Required.**
 
 **Outputs**
 
