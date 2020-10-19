@@ -60,9 +60,26 @@ status_t compute_stream_t::zero_pad(
     zero_pad_args[DNNL_ARG_SRC] = arg;
     exec_ctx_t zero_pad_ctx(this, std::move(zero_pad_args));
     zero_pad_ctx.set_resource_mapper(&mapper);
-    CHECK(zero_pad_primitive->execute(zero_pad_ctx));
+    if (get_verbose()) {
+        const int str_size = 64;
+        char md_fmt[str_size];
+        char md_dim[str_size];
+        dnnl_md2fmt_str(md_fmt, str_size, memory->md());
+        dnnl_md2dim_str(md_dim, str_size, memory->md());
 
-    return this->wait();
+        double ms = get_msec();
+        CHECK(zero_pad_primitive->execute(zero_pad_ctx));
+        status_t status = this->wait();
+        ms = get_msec() - ms;
+
+        printf("dnnl_verbose,exec,%s,%s,%s,%s,%g\n", "gpu,zero_pad",
+                zero_pad_primitive->pd()->name(), md_fmt, md_dim, ms);
+
+        return status;
+    } else {
+        CHECK(zero_pad_primitive->execute(zero_pad_ctx));
+        return this->wait();
+    }
 };
 } // namespace compute
 } // namespace gpu
