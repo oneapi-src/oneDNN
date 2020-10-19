@@ -771,7 +771,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
         vmm_dw_tmp = Vmm(--idx);
         if (jcp.signed_input) {
             vmm_dw_shifted_zero = Vmm(--idx);
-            --idx; // due to extra register used for shifts and compensations
+            --idx; // due to extra register used for compensations
         }
         assert(IMPLICATION(
                 !is_zero_point, idx == ker_max_reg - ker_dw_reg_base_idx));
