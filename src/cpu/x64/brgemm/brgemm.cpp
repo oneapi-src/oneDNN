@@ -191,6 +191,7 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
                     amx_bf16, amx_int8)) {
             return status::invalid_arguments;
         }
+        brg->is_int8_amx = brg->is_bf16_amx = false;
         if (brg->is_int8 && isa == amx_int8) {
             if (!mayiuse(amx_int8)) return status::invalid_arguments;
             brg->is_int8_amx = true;
