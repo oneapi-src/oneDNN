@@ -49,13 +49,19 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = true;
         static constexpr bool use_exact_tail_scalar_bcast = false;
+        static constexpr int sse41_single_block_size
+                = cpu_isa_traits<sse41>::vlen / sizeof(float);
+        size_t postop_tail = static_cast<size_t>(jpp.c_tail);
+        const bool high_half_block_empty = isa == sse41
+                && static_cast<size_t>(jpp.c_tail) > sse41_single_block_size;
+        if (high_half_block_empty) postop_tail -= sse41_single_block_size;
 
         const binary_injector::rhs_arg_static_params_t rhs_sp {
                 static_cast<std::size_t>(this->xmm4.getIdx()), this->rax,
                 this->rdx, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec),
-                memory_desc_wrapper(*dst_md), static_cast<size_t>(jpp.c_tail),
-                k_c_tail_mask, use_exact_tail_scalar_bcast};
+                memory_desc_wrapper(*dst_md), postop_tail, k_c_tail_mask,
+                use_exact_tail_scalar_bcast};
 
         const binary_injector::static_params_t bsp {
                 reg_param, use_per_oc_spatial_strategy, rhs_sp};
