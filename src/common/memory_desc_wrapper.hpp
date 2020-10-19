@@ -101,7 +101,7 @@ struct memory_desc_wrapper : public c_compatible {
     size_t additional_buffer_data_size(uint64_t flag_select) const {
         if (flag_select & memory_extra_flags::compensation_conv_s8s8)
             return sizeof(int32_t);
-        if (flag_select & memory_extra_flags::gpu_rnn_u8s8_compensation)
+        if (flag_select & memory_extra_flags::rnn_u8s8_compensation)
             return sizeof(float);
         if (flag_select & memory_extra_flags::compensation_conv_asymmetric_src)
             return sizeof(int32_t);
@@ -112,7 +112,7 @@ struct memory_desc_wrapper : public c_compatible {
     bool is_additional_buffer() const {
         using namespace memory_extra_flags;
         return (extra().flags
-                & (compensation_conv_s8s8 | gpu_rnn_u8s8_compensation
+                & (compensation_conv_s8s8 | rnn_u8s8_compensation
                         | compensation_conv_asymmetric_src));
     }
 
@@ -122,7 +122,7 @@ struct memory_desc_wrapper : public c_compatible {
         using namespace memory_extra_flags;
 
         auto calculate_size = [=](int cmask, size_t buff_data_size) {
-            assert(cmask == 1 || cmask == 3 || cmask == 27);
+            assert(cmask == 1 || cmask == 3 || cmask == 13 || cmask == 27);
             dim_t prod = 1;
             for (int d = 0; d < ndims(); ++d)
                 if (cmask & (1 << d)) prod *= padded_dims()[d];
@@ -131,7 +131,7 @@ struct memory_desc_wrapper : public c_compatible {
 
         size_t buff_size = 0;
         const uint64_t comp_flags
-                = compensation_conv_s8s8 | gpu_rnn_u8s8_compensation;
+                = compensation_conv_s8s8 | rnn_u8s8_compensation;
         if (extra().flags & comp_flags) {
             buff_size += calculate_size(extra().compensation_mask,
                     additional_buffer_data_size(comp_flags));
@@ -141,7 +141,6 @@ struct memory_desc_wrapper : public c_compatible {
                     additional_buffer_data_size(
                             compensation_conv_asymmetric_src));
         }
-
         return buff_size;
     }
 

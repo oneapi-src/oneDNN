@@ -248,12 +248,36 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
         }
     } else {
         using namespace format_tag;
-        format_tag_t tag = weights_type == weights_type_t::projection
-                ? rnn.is_fwd ? ldio : ldoi
-                : rnn.is_fwd ? ldigo : ldgoi;
-        CHECK(memory_desc_init_by_tag(weights_md, tag));
-        // Adjust strides for good leading dimension in GEMM
-        CHECK(set_good_strides(weights_md, tag));
+        if (rnn.is_brgemm) {
+            format_tag_t tag = format_tag::undef;
+            tag = (weights_type == weights_type_t::projection)
+                    ? (rnn.is_int8()) ? format_tag::ldOI32o4i
+                                      : format_tag::ldOi32o
+                    : (rnn.is_int8()) ? format_tag::ldgOI32o4i
+                                      : (rnn.is_bf16()) ? format_tag::ldgOI32o2i
+                                                        : format_tag::ldgOi32o;
+            if (tag != format_tag::undef) {
+                CHECK(memory_desc_init_by_tag(weights_md, tag));
+                if (rnn.is_int8()) {
+                    weights_md.extra.flags
+                            = 0 | memory_extra_flags::rnn_u8s8_compensation;
+                    weights_md.extra.compensation_mask
+                            = (weights_type == weights_type_t::projection)
+                            ? 13 // 1101
+                            : 27; // 11011
+                }
+                return status::success;
+            } else {
+                return status::unimplemented;
+            }
+        } else {
+            format_tag_t tag = weights_type == weights_type_t::projection
+                    ? rnn.is_fwd ? ldio : ldoi
+                    : rnn.is_fwd ? ldigo : ldgoi;
+            CHECK(memory_desc_init_by_tag(weights_md, tag));
+            // Adjust strides for good leading dimension in GEMM
+            CHECK(set_good_strides(weights_md, tag));
+        }
     }
 
     return status::success;

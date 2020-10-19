@@ -435,6 +435,11 @@ typedef enum {
     dnnl_AB8a4b,
     dnnl_AB32a32b8a2b,
     dnnl_AB8a2b,
+    dnnl_abDc32d,
+    dnnl_abDC32d4c,
+    dnnl_abdEc32e,
+    dnnl_abdEC32e2c,
+    dnnl_abdEC32e4c,
 
     /// Just a sentinel, not real memory format tag. Must be changed after new
     /// format tag is added.
@@ -551,6 +556,13 @@ typedef enum {
     ///    and output gate.
     ///  - For GRU cells, the gates order is update, reset and output gate.
     dnnl_ldgo = dnnl_abcd,
+    /// 5D LSTM projection tensor
+    dnnl_ldOi32o = dnnl_abDc32d,
+    dnnl_ldOI32o4i = dnnl_abDC32d4c,
+    /// 6D RNN weights tensor
+    dnnl_ldgOi32o = dnnl_abdEc32e,
+    dnnl_ldgOI32o2i = dnnl_abdEC32e2c,
+    dnnl_ldgOI32o4i = dnnl_abdEC32e4c,
 
     // Opaque data types, are not to be used explicitly
 
@@ -1189,7 +1201,9 @@ typedef enum {
     ///  -128 * SUM(ic : 0,IC; kh : 0,KH; kw : 0,KW){ weights(oc, ic, kh, kw) }
     dnnl_memory_extra_flag_compensation_conv_s8s8 = 0x1U,
     dnnl_memory_extra_flag_scale_adjust = 0x2U,
-    dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation = 0x4U,
+    dnnl_memory_extra_flag_rnn_u8s8_compensation = 0x4U,
+    dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation
+    = dnnl_memory_extra_flag_rnn_u8s8_compensation,
     dnnl_memory_extra_flag_compensation_conv_asymmetric_src = 0x8U,
 } dnnl_memory_extra_flags_t;
 

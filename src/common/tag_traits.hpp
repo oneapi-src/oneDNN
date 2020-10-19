@@ -29,8 +29,12 @@ enum class block_dim_t {
     _,
     _A,
     _B,
+    _D,
+    _E,
     _AB,
     _BC,
+    _CD,
+    _CE,
 };
 
 enum class inner_blk_t {
@@ -43,6 +47,8 @@ enum class inner_blk_t {
     _16b,
     _32a,
     _32b,
+    _32d,
+    _32e,
 
     _4a4b,
     _4b4a,
@@ -63,6 +69,9 @@ enum class inner_blk_t {
     _16a4b,
     _16b2c,
     _16b4c,
+    _32d4c,
+    _32e2c,
+    _32e4c,
 
     _2c8b4c,
     _8a16b2a,
@@ -365,6 +374,11 @@ DECL_TRAITS(aBCdef4b8c2b, _BC, _4b8c2b, 6);
 DECL_TRAITS(aBCd4c8b2c, _BC, _4c8b2c, 4);
 DECL_TRAITS(aBCde4c8b2c, _BC, _4c8b2c, 5);
 DECL_TRAITS(aBCdef4c8b2c, _BC, _4c8b2c, 6);
+DECL_TRAITS(abDc32d, _D, _32d, 4);
+DECL_TRAITS(abDC32d4c, _CD, _32d4c, 4);
+DECL_TRAITS(abdEc32e, _E, _32e, 5);
+DECL_TRAITS(abdEC32e2c, _CE, _32e2c, 5);
+DECL_TRAITS(abdEC32e4c, _CE, _32e4c, 5);
 
 } // namespace impl
 } // namespace dnnl

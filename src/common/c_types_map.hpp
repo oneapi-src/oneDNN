@@ -400,6 +400,11 @@ const format_tag_t AB32a32b8a4b = dnnl_AB32a32b8a4b;
 const format_tag_t AB8a4b = dnnl_AB8a4b;
 const format_tag_t AB32a32b8a2b = dnnl_AB32a32b8a2b;
 const format_tag_t AB8a2b = dnnl_AB8a2b;
+const format_tag_t abDc32d = dnnl_abDc32d;
+const format_tag_t abDC32d4c = dnnl_abDC32d4c;
+const format_tag_t abdEc32e = dnnl_abdEc32e;
+const format_tag_t abdEC32e2c = dnnl_abdEC32e2c;
+const format_tag_t abdEC32e4c = dnnl_abdEC32e4c;
 
 const format_tag_t last = dnnl_format_tag_last;
 
@@ -644,6 +649,11 @@ const format_tag_t gOIdhw4i8o2i = dnnl_gOIdhw4i8o2i;
 const format_tag_t gOIw4o8i2o = dnnl_gOIw4o8i2o;
 const format_tag_t gOIhw4o8i2o = dnnl_gOIhw4o8i2o;
 const format_tag_t gOIdhw4o8i2o = dnnl_gOIdhw4o8i2o;
+const format_tag_t ldOi32o = dnnl_ldOi32o;
+const format_tag_t ldOI32o4i = dnnl_ldOI32o4i;
+const format_tag_t ldgOi32o = dnnl_ldgOi32o;
+const format_tag_t ldgOI32o2i = dnnl_ldgOI32o2i;
+const format_tag_t ldgOI32o4i = dnnl_ldgOI32o4i;
 } // namespace format_tag
 
 using memory_extra_flags_t = dnnl_memory_extra_flags_t;
@@ -652,8 +662,8 @@ const memory_extra_flags_t none = dnnl_memory_extra_flag_none;
 const memory_extra_flags_t compensation_conv_s8s8
         = dnnl_memory_extra_flag_compensation_conv_s8s8;
 const memory_extra_flags_t scale_adjust = dnnl_memory_extra_flag_scale_adjust;
-const memory_extra_flags_t gpu_rnn_u8s8_compensation
-        = dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation;
+const memory_extra_flags_t rnn_u8s8_compensation
+        = dnnl_memory_extra_flag_rnn_u8s8_compensation;
 const memory_extra_flags_t compensation_conv_asymmetric_src
         = dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
 } // namespace memory_extra_flags
