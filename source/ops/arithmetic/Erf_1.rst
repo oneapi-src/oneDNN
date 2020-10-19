@@ -2,7 +2,7 @@
 Erf
 ---
 
-**Versioned name**: *Erf*
+**Versioned name**: *Erf-1*
 
 **Category**: *Arithmetic*
 
