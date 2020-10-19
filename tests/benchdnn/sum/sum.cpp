@@ -19,6 +19,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <random>
+
 #include "dnnl.h"
 
 #include "tests/test_thread.hpp"
@@ -108,20 +110,36 @@ static int compare(const prb_t *prb, const dnnl_data_type_t dst_data_type,
     return res->state == FAILED ? FAIL : OK;
 }
 
-int fill_src(
-        const prb_t *prb, int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-
+int fill_src(int input_idx, int n_inputs, dnnl_data_type_t dt,
+        dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
-    const auto dt = prb->sdt[input_idx];
-    const int range = 16;
-    const int f_min = dt == dnnl_u8 ? 0 : -range / 2;
+    // Do fixed partitioning to have same filling for any number of threads.
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+    // Set proper range of valid values to avoid any reorders back and forth.
+    const bool s8u8_or_u8s8 = (dt == dnnl_s8 && mem_dt.dt() == dnnl_u8)
+            || (dt == dnnl_u8 && mem_dt.dt() == dnnl_s8);
+    float min_val = lowest_dt(dnnl_s8) / n_inputs;
+    float max_val = max_dt(dnnl_u8) / n_inputs;
+    if (s8u8_or_u8s8) {
+        min_val = lowest_dt(dnnl_u8) / n_inputs;
+        max_val = max_dt(dnnl_s8) / n_inputs;
+    } else if (dt == dnnl_s8 || mem_dt.dt() == dnnl_s8) {
+        max_val = max_dt(dnnl_s8) / n_inputs;
+    } else if (dt == dnnl_u8 || mem_dt.dt() == dnnl_u8) {
+        min_val = lowest_dt(dnnl_u8) / n_inputs;
+    }
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const float gen = ((97 * i) - 17 * input_idx + 101) % range;
-        const float value = (dt == dnnl_bf16 || dt == dnnl_f16)
-                ? (f_min + gen) / range
-                : (f_min + gen) * (1.0f + 4.0f / range);
-        mem_fp.set_elem(i, round_to_nearest_representable(dt, value));
+    dnnl::impl::parallel_nd(n_chunks, [&](int idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        // See eltwise.cpp for implementation details.
+        std::minstd_rand msr(input_idx * n_chunks + idx_start + 1);
+        msr.discard(1);
+        std::uniform_int_distribution<> igen(min_val, max_val);
+        // No need to round final value as it's already in needed dt.
+        for (int64_t idx = idx_start; idx < idx_end; ++idx)
+            mem_fp.set_elem(idx, (float)igen(msr));
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
@@ -158,18 +176,12 @@ int doit(const prb_t *prb, res_t *res) {
                 const_pd, dnnl_query_exec_arg_md, index);
     };
 
-    const auto fp = dnnl_f32;
-    const auto tag = tag::abx;
-
-    const auto &dst_md = q(DNNL_ARG_DST);
-    const auto dst_data_type = dst_md.data_type; // needed for deduced dst
-
     const auto &test_engine = get_test_engine();
-
-    dnn_mem_t dst_fp(dst_md, fp, tag, test_engine);
-    dnn_mem_t dst_dt(dst_md, test_engine);
-
+    const auto &dst_md = q(DNNL_ARG_DST);
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+
+    dnn_mem_t dst_fp(dst_md, dnnl_f32, tag::abx, test_engine);
+    dnn_mem_t dst_dt(dst_md, test_engine);
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
 
     args_t args;
@@ -182,9 +194,11 @@ int doit(const prb_t *prb, res_t *res) {
 
     for (int i_input = 0; i_input < prb->n_inputs(); ++i_input) {
         const auto &src_md = q(DNNL_ARG_MULTIPLE_SRC + i_input);
-        src_fp.emplace_back(src_md, fp, tag, test_engine);
+        src_fp.emplace_back(src_md, dnnl_f32, tag::abx, test_engine);
         src_dt.emplace_back(src_md, test_engine);
-        SAFE(fill_src(prb, i_input, src_dt[i_input], src_fp[i_input]), WARN);
+        SAFE(fill_src(i_input, prb->n_inputs(), dst_md.data_type,
+                     src_dt[i_input], src_fp[i_input]),
+                WARN);
         args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
     }
 
@@ -192,8 +206,8 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (bench_mode & CORR) {
         compute_ref(prb, src_fp, dst_fp);
-        dnn_mem_t dst(dst_dt, fp, tag, test_engine);
-        SAFE(compare(prb, dst_data_type, dst_fp, dst, res), WARN);
+        dnn_mem_t dst(dst_dt, dnnl_f32, tag::abx, test_engine);
+        SAFE(compare(prb, dst_md.data_type, dst_fp, dst, res), WARN);
     }
 
     measure_perf(res->timer, s, args);
