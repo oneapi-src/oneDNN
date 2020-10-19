@@ -1,0 +1,41 @@
+--------
+Divide
+--------
+
+**Versioned name**: *Divide-1*
+
+**Category**: *Arithmetic*
+
+**Short description**: *Divide* performs element-wise division  operation with two given tensors applying multi-directional broadcast rules.
+
+**Attributes**:
+
+* *auto_broadcast*
+
+  * **Description**: specifies rules used for auto-broadcasting of input tensors.
+  * **Range of values**:
+
+    * *none* - no auto-broadcasting is allowed, all input shapes should match
+    * *numpy* - numpy broadcasting rules, aligned with ONNX Broadcasting. Description is available in `ONNX docs <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`__.
+
+  * **Type**: string
+  * **Default value**: "numpy"
+  * **Required**: *no*
+
+**Inputs**
+
+* **1**: A tensor of type T. **Required.**
+* **2**: A tensor of type T. **Required.**
+
+**Outputs**
+
+* **1**: The result of element-wise division  operation. A tensor of type T.
+
+**Types**
+
+* *T*: any numeric type.
+
+**Detailed description:**
+
+Before performing arithmetic operation, input tensors *a* and *b* are broadcasted if their shapes are different and ``auto_broadcast`` attributes is not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
+
