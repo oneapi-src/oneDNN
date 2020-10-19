@@ -114,9 +114,10 @@ private:
     Xbyak::Reg64 eltwise_reserved = rax;
 
     const Vmm vmm_wei = Vmm(0);
-    /* used during bias section of store_output */
-    const Vmm vmm_comp = Vmm(1); // only for signed input
+    /* used during bias/comp/scale section of store_output */
     const Vmm vmm_bias = Vmm(0);
+    const Vmm vmm_comp = Vmm(2); // only for signed input
+    const Vmm vmm_scale = Vmm(1);
     /* used during post_op sum section of store_output */
     const Vmm vmm_prev_dst = Vmm(0);
     /* used during write-out section of store_output */
@@ -124,13 +125,11 @@ private:
     const Vmm vmm_saturation = Vmm(0);
 
     /* used in compute_ker (but set during prepare_output) */
-    const Vmm vmm_shift = vmm_comp; // only for signed input
+    const Vmm vmm_shift = Vmm(1); // only for signed input
     /* used in compute_ker */
     const Vmm vmm_tmp = Vmm(3); // not used for depthwise
     const Vmm vmm_one
             = Vmm(2); // set at start of kernel, not used for depthwise.
-    /* used during scale section of store output */
-    const Vmm vmm_scale = vmm_tmp;
     /* registers use only for depthwise
      * groups are always blocked by 8/4 (padded if needed),
      * hence use only Ymm registers for avx2 
@@ -143,7 +142,8 @@ private:
     Vmm vmm_out(int i_ur, int i_oc) {
         int idx = i_ur + i_oc * jcp.ur_w;
         assert(idx
-                < (jcp.is_depthwise ? ker_dw_reg_base_idx : ker_reg_base_idx));
+                < (jcp.is_depthwise ? ker_dw_reg_base_idx - jcp.signed_input
+                                    : ker_reg_base_idx));
         /* remap register indices from 4 to 15
   	 * to avoid passing xmm0 to comp*/
         return Vmm(15 - idx);

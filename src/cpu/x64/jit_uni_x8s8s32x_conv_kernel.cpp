@@ -753,7 +753,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
         vmm_dw_tmp = Vmm(--idx);
         if (jcp.signed_input || jcp.with_input_zp) {
             vmm_dw_shifted_zero = Vmm(--idx);
-            --idx; // due to extra register used for shifts and compensations
+            --idx; // due to extra register used for compensations
         }
         assert(idx == 15 - ker_dw_reg_base_idx);
     }
