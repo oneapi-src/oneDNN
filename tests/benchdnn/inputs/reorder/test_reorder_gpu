@@ -30,6 +30,10 @@
 # test transpose16x16 kernel, including checks if it tries to support formats it's not suitable for
 --allow-enum-tags-only=0
 
+--stag=a
+--dtag=a
+1 15 16 32
+
 --stag=abcd,aBcd16b
 --dtag=abcd,aBcd16b
 1x256x360x640 1x64x720x1280 15x64x31x64 16x16x16x16 16x64x32x128 16x16x16x1 16x16x1x16 16x1x16x16 1x16x16x16

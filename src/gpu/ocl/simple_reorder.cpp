@@ -38,28 +38,29 @@ using dimension = struct {
 // last dimension.
 dimension get_Nth_last_dim_or_block(
         const memory_desc_wrapper &md, int distance = 0) {
-    int nblks = md.md_->format_desc.blocking.inner_nblks;
+    int nblks = md.blocking_desc().inner_nblks;
+    dimension ret;
     if (nblks >= distance + 1) {
-        dimension last;
-        last.idx
-                = md.md_->format_desc.blocking.inner_idxs[nblks - 1 - distance];
-        last.size
-                = md.md_->format_desc.blocking.inner_blks[nblks - 1 - distance];
-        return last;
+        ret.idx = md.blocking_desc().inner_idxs[nblks - 1 - distance];
+        ret.size = md.blocking_desc().inner_blks[nblks - 1 - distance];
+        return ret;
     } else {
+        int ndims = md.ndims();
         int dim_distance = distance - nblks;
-        std::vector<std::pair<int, int>> strides(md.md_->ndims);
-        for (int d = 0; d < md.md_->ndims; ++d) {
-            strides[d].first = md.md_->format_desc.blocking.strides[d];
+
+        assert(dim_distance < ndims);
+
+        std::vector<std::pair<int, int>> strides(ndims);
+        for (int d = 0; d < ndims; ++d) {
+            strides[d].first = md.blocking_desc().strides[d];
             strides[d].second = d;
         }
         std::sort(strides.begin(), strides.end());
-        dimension ret;
         ret.idx = strides[dim_distance].second;
         ret.size = md.padded_dims()[ret.idx];
         // if a dimension has size=1 then two dimensions will have the same strides
         // and the above sort is not guaranteed to select the correct dimension
-        if (dim_distance < md.md_->ndims - 1) {
+        if (dim_distance < ndims - 1) {
             if (strides[dim_distance].first
                     == strides[dim_distance + 1].first) {
                 ret.size = 1;
@@ -76,6 +77,8 @@ int innermost_block(dnnl_blocking_desc_t blk) {
 
 bool matches_one_16x16_layout(
         const memory_desc_wrapper &src, const memory_desc_wrapper &dst) {
+    if (dst.ndims() < 2) { return false; }
+    if (!src.is_blocking_desc() || !dst.is_blocking_desc()) { return false; }
     auto dst_last = get_Nth_last_dim_or_block(dst, 0);
     auto src_last = get_Nth_last_dim_or_block(src, 0);
     auto dst_next_last = get_Nth_last_dim_or_block(dst, 1);
