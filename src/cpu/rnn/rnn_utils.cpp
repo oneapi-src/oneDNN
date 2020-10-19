@@ -73,6 +73,18 @@ bool rnn_utils::is_ldoi(const memory_desc_wrapper &mdw) {
     return check_dims_contiguous_except_one(mdw, 2, {0, 1, 3, 2});
 }
 
+bool rnn_utils::is_ldigo_blocked(const memory_desc_wrapper &mdw) {
+    format_tag_t md_format_tag = mdw.matches_one_of_tag(format_tag::ldgOi32o,
+            format_tag::ldgOI32o2i, format_tag::ldgOI32o4i);
+    return md_format_tag != format_tag::undef;
+}
+
+bool rnn_utils::is_ldio_blocked(const memory_desc_wrapper &mdw) {
+    format_tag_t md_format_tag = mdw.matches_one_of_tag(
+            format_tag::ldOi32o, format_tag::ldOI32o4i);
+    return md_format_tag != format_tag::undef;
+}
+
 int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
     // we want matrices leading dimentions to be 64-byte aligned,
     // and not divisible by 256 to avoid 4K aliasing effects
@@ -279,7 +291,6 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
             CHECK(set_good_strides(weights_md, tag));
         }
     }
-
     return status::success;
 }
 

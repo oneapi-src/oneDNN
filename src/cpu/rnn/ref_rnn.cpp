@@ -337,7 +337,8 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         &(ws_gates(lay, dir, iter, 0)), cell_scratch_gates,
                         proj_ht, scratch_diff_ht_,
                         &(ws_grid(lay, dir, iter, 0)), scratch_cell_,
-                        cell_dst_iter));
+                        cell_dst_iter, amx_scratchpad, A_addr_global,
+                        B_addr_global));
             }
 
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_layer) {
@@ -1084,7 +1085,6 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
             iter_weights_n_comp + rnn.weights_iter_comp_offset);
     auto w_projection_comp = reinterpret_cast<const float *>(
             projection_weights_n_comp + rnn.weights_projection_comp_offset);
-
     auto scratchpad = ctx.get_scratchpad_grantor();
 
     auto ptr_wei_layer
@@ -1101,6 +1101,17 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     auto scratch_diff_ht = scratchpad.template get<gemm_acc_t>(key_rnn_diff_ht);
     auto scratch_cell = scratchpad.template get<scratch_t>(key_rnn_cell);
 
+    gemm_acc_t *amx_scratchpad = nullptr;
+    const src_iter_t **A_addr_global = nullptr;
+    weights_t **B_addr_global = nullptr;
+    if (rnn.is_brgemm && (rnn.is_int8_amx() || rnn.is_bf16_amx())) {
+        amx_scratchpad = scratchpad.template get<gemm_acc_t>(
+                key_brgemm_primitive_buffer);
+        A_addr_global = scratchpad.template get<const src_iter_t *>(
+                key_brgemm_primitive_addr_a);
+        B_addr_global = scratchpad.template get<weights_t *>(
+                key_brgemm_primitive_addr_b);
+    }
     // Fetching buffers from the workspace
     // if no workspace was provided we use the scratchpad
     char *scratch_ptr = scratchpad.template get<char>(key_rnn_space);
@@ -1212,7 +1223,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
             ws_gates, ws_ht, ws_grid, scratch_gates, scratch_ht,
             scratch_diff_ht, scratch_cell, diff_weights_layer,
             diff_weights_iter, diff_weights_projection, diff_weights_peephole,
-            diff_bias);
+            diff_bias, amx_scratchpad, A_addr_global, B_addr_global);
 
     // Finally we copy the results to the result buffers
     if (!(rnn.skip_dst_layer_copy() && rnn.is_fwd)) {
@@ -1240,33 +1251,43 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
 
 /* Fix for MSVS warning C4661 */
 template <>
-rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
+rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_ref);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_brgemm);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
 template <>
-rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
+rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_ref);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_brgemm);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
 
 template <>
-rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution);
+rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_ref);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_brgemm);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru_lbr);
 template <>
-rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution);
+rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_ref);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_brgemm);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr);
 
 template <>
-rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
+rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_ref);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_brgemm);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
 template <>

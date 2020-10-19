@@ -37,19 +37,25 @@ namespace {
 template <typename dst_layer_t, typename dst_iter_t>
 void proj_dst_copy(const rnn_utils::rnn_conf_t &rnn,
         rnn_utils::cell_position_t cell_position, dst_iter_t *dst_iter_,
-        const dst_layer_t *dst_layer_) {
+        const dst_layer_t *dst_layer_, int block_step) {
     assert(rnn.dic == rnn.dlc);
     static_assert(sizeof(dst_layer_t) == sizeof(dst_iter_t),
             "memcpy requires the same data type size for src and dst");
     auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
+    auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
 
     // If dst_iter is not nullptr, we need to copy the state to dst_iter
     if (dst_iter_ != nullptr) {
-        auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
-        for (int i = 0; i < rnn.mb; i++)
-            std::memcpy(dst_iter_ + i * dst_iter_ld,
-                    dst_layer_ + i * dst_layer_ld,
-                    rnn.dlc * sizeof(dst_layer_t));
+        if (rnn.is_brgemm && !rnn.unfused_post_gemm) {
+            for (int i = 0; i < rnn.m_block; i++)
+                std::memcpy(dst_iter_ + i * dst_iter_ld,
+                        dst_layer_ + i * dst_layer_ld, block_step);
+        } else {
+            parallel_nd(rnn.mb, [&](int i) {
+                std::memcpy(dst_iter_ + i * dst_iter_ld,
+                        dst_layer_ + i * dst_layer_ld, block_step);
+            });
+        }
     }
 }
 } // namespace
@@ -57,7 +63,7 @@ void proj_dst_copy(const rnn_utils::rnn_conf_t &rnn,
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_projection_postgemm) {
     // nothing to do for f32, except copy to dst_iter if needed
-    proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_);
+    proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_, block_step);
 }
 
 template <>
@@ -65,12 +71,17 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::lstm_projection_postgemm) {
     auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
 
     // Currently, scratch_gates_ contains the output of the projection
-    for (int i = 0; i < rnn.mb; i++)
+    int n_elem = block_step / (int)sizeof(dst_layer_t);
+
+    int m_block
+            = (rnn.is_brgemm && !rnn.unfused_post_gemm) ? rnn.m_block : rnn.mb;
+
+    for (int i = 0; i < m_block; i++)
         cvt_float_to_bfloat16((bfloat16_t *)dst_layer_ + i * dst_layer_ld,
-                (float *)scratch_gates_ + i * rnn.scratch_gates_ld, rnn.dlc);
+                (float *)scratch_gates_ + i * rnn.scratch_gates_ld, n_elem);
 
     // we copy to dst_iter if necessary
-    proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_);
+    proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_, block_step);
 }
 
 template <>
@@ -82,8 +93,10 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_projection_postgemm) {
     auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
     auto w_proj_comp = src_iter_c_;
 
-    float *weights_projection_scales
-            = pd_->attr()->rnn_weights_projection_qparams_.scales_;
+    float *weights_projection_scales = (rnn.is_brgemm && !rnn.unfused_post_gemm)
+            ? weights_scales_
+            : pd_->attr()->rnn_weights_projection_qparams_.scales_;
+
     float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
 
@@ -103,17 +116,23 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_projection_postgemm) {
         return (saturate<float>(s) - wcomp) / (wscale * data_scale);
     };
 
-    parallel_nd(rnn.mb, [&](int i) {
+    auto postgemm_call = [&](int i) {
+        int n_elem = block_step / (int)sizeof(dst_layer_t);
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dlc; j++) {
+        for (int j = 0; j < n_elem; j++) {
             int scratch_off = i * rnn.scratch_gates_ld + j;
             int dst_off = i * dst_layer_ld + j;
             float tmp = dequantize_s32_f32(scratch_gates_[scratch_off], j);
             dst_layer_[dst_off] = quantize_f32_u8(tmp);
         }
-    });
-
-    proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_);
+    };
+    if (rnn.is_brgemm && !rnn.unfused_post_gemm) {
+        for (int i = 0; i < rnn.m_block; i++)
+            postgemm_call(i);
+    } else {
+        parallel_nd(rnn.mb, [&](int i) { postgemm_call(i); });
+    }
+    proj_dst_copy(rnn, cell_position, dst_iter_, dst_layer_, block_step);
 }
 
 template <>

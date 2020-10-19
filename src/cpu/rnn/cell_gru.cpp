@@ -61,7 +61,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
             diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
-            nullptr, bias_[0], nullptr, nullptr, dst_iter_);
+            nullptr, bias_[0], nullptr, nullptr, dst_iter_, nullptr, 0);
 
     // 4. gemm Wh[2],h~t
     CHECK((this->*gemm_iter_func)('N', 'N', rnn.dhc, rnn.mb, rnn.sic, 1.0,
@@ -73,7 +73,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     rnn_postgemm_->execute_part2(rnn, cell_position, ws_gates_, scratch_gates_,
             dst_layer_, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
             diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
-            nullptr, bias_[0], nullptr, nullptr, dst_iter_);
+            nullptr, bias_[0], nullptr, nullptr, dst_iter_, nullptr, 0);
 
     return dnnl_success;
 }
@@ -122,7 +122,7 @@ dnnl_status_t gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
             diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
-            nullptr, nullptr, nullptr, scratch_cell_, dst_iter_);
+            nullptr, nullptr, nullptr, scratch_cell_, dst_iter_, nullptr, 0);
 
     // 2. calculate intermediate d(hG1)
     // d(hG1) = dG2 * W2h^t
@@ -133,7 +133,7 @@ dnnl_status_t gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     rnn_postgemm_->execute_part2(rnn, cell_position, ws_gates_, scratch_gates_,
             dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
             diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
-            nullptr, nullptr, nullptr, scratch_cell_, dst_iter_);
+            nullptr, nullptr, nullptr, scratch_cell_, dst_iter_, nullptr, 0);
 
     // 4. calculate diff weights
     // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)

@@ -52,7 +52,8 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             dst_layer_, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
             diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-            nullptr, nullptr, bias_[0], ws_grid_, scratch_cell_, dst_iter_);
+            nullptr, nullptr, bias_[0], ws_grid_, scratch_cell_, dst_iter_,
+            nullptr, 0);
 
     return dnnl_success;
 }
@@ -87,7 +88,7 @@ dnnl_status_t common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     rnn_postgemm->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             dst_layer_, nullptr, src_iter_, nullptr, nullptr, diff_src_iter_,
             nullptr, diff_dst_layer_, diff_dst_iter_, nullptr, nullptr,
-            bias_[0], ws_grid_, scratch_cell_, dst_iter_);
+            bias_[0], ws_grid_, scratch_cell_, dst_iter_, nullptr, 0);
 
     // dWx +=  dG^t * x
     if (rnn.need_gemm_layer(cell_position))
