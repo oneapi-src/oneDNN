@@ -57,6 +57,130 @@ inline void init_dims(int &L, int &D, int &I, int &G, int &O,
     assert(G != 0 && O != 0);
 };
 
+template <data_type_t type_i>
+void quantize_igo(int8_t *scratch_quantized, const memory_desc_wrapper &src_d,
+        const float *src, int mask, float *scales) {
+    typedef typename prec_traits<type_i>::type in_data_t;
+
+    // TODO: trivial strides assumes here.
+    //       Use proper strides where appropriate
+    int L, D, I, G, O;
+    init_dims(L, D, I, G, O, src_d);
+
+    assert(scales != nullptr);
+    parallel(0, [&](const int ithr, const int nthr) {
+        int start {0}, end {0};
+        balance211(L * D * I, nthr, ithr, start, end);
+        for (int ldi = start; ldi < end; ldi++) {
+            for (int go = 0; go < G * O; go++) {
+                const float s = scales[(mask == 0) ? 0 : go];
+                scratch_quantized[ldi * G * O + go]
+                        = qz_b0<in_data_t, int8_t>()(src[ldi * G * O + go], s);
+            }
+        }
+    });
+}
+
+template <data_type_t type_i>
+void quantize_goi(int8_t *scratch_quantized, const memory_desc_wrapper &src_d,
+        const float *src, int mask, float *scales) {
+    typedef typename prec_traits<type_i>::type in_data_t;
+
+    // TODO: trivial strides assumes here.
+    //       Use proper strides where appropriate
+    int L, D, I, G, O;
+    init_dims(L, D, I, G, O, src_d);
+
+    assert(scales != nullptr);
+    parallel_nd(L * D, G * O, [&](int ld, int go) {
+        const float s = scales[(mask == 0) ? 0 : go];
+        PRAGMA_OMP_SIMD()
+        for (int i = 0; i < I; i++) {
+            scratch_quantized[ld * I * G * O + i * G * O + go]
+                    = qz_b0<in_data_t, int8_t>()(
+                            src[ld * G * O * I + go * I + i], s);
+        }
+    });
+}
+
+void compensate_igo(float *compensation, const memory_desc_wrapper &src_d,
+        int8_t *scratch_quantized, int32_t *scratch_compensation,
+        size_t scratch_comp_sz) {
+    // TODO: trivial strides assumed here.
+    //       Use proper strides where appropriate
+    int L, D, I, G, O;
+    init_dims(L, D, I, G, O, src_d);
+
+    // We parallelize on LD and GO
+    // TODO: maybe restrict parallelism as we might have large
+    // parallelisation overhead if dimensions are small
+    int nthr = dnnl_get_max_threads();
+    int LD_nthr = nstl::min(L * D, nthr);
+    int GO_nthr = nstl::min(G * O, nthr / LD_nthr);
+    parallel(nthr, [&](const int ithr, const int nthr) {
+        int LD_ithr = -1, LD_s = -1, LD_e = -1;
+        int GO_ithr = -1, GO_s = -1, GO_e = -1;
+        if (ithr < LD_nthr * GO_nthr) {
+            LD_ithr = ithr % LD_nthr;
+            GO_ithr = ithr / LD_nthr;
+            balance211(L * D, LD_nthr, LD_ithr, LD_s, LD_e);
+            balance211(G * O, GO_nthr, GO_ithr, GO_s, GO_e);
+        }
+        int32_t *compensation_s32
+                = scratch_compensation + ithr * scratch_comp_sz;
+        for (int ld = LD_s; ld < LD_e; ld++) {
+            if (I == 1) {
+                PRAGMA_OMP_SIMD()
+                for (int go = GO_s; go < GO_e; go++)
+                    compensation[ld * G * O + go] = saturate<float>(
+                            scratch_quantized[ld * I * G * O + go]);
+            } else {
+                // We split the loop on I in three to avoid conditionals or zeroing compensation
+                int i = 0;
+                PRAGMA_OMP_SIMD()
+                for (int go = GO_s; go < GO_e; go++)
+                    compensation_s32[go]
+                            = scratch_quantized[go + G * O * (i + I * (ld))];
+                // 1 <= i < I-1
+                for (i = 1; i < I - 1; i++) {
+                    PRAGMA_OMP_SIMD()
+                    for (int go = GO_s; go < GO_e; go++)
+                        compensation_s32[go] += scratch_quantized[go
+                                + G * O * (i + I * (ld))];
+                }
+                // i = I-1
+                PRAGMA_OMP_SIMD()
+                for (int go = GO_s; go < GO_e; go++)
+                    compensation[ld * G * O + go] = saturate<float>(
+                            compensation_s32[go]
+                            + scratch_quantized[go + G * O * (i + I * (ld))]);
+            }
+        }
+    });
+}
+
+void compensate_goi(float *compensation, const memory_desc_wrapper &src_d,
+        int8_t *scratch_quantized) {
+    // TODO: trivial strides assumed here.
+    //       Use proper strides where appropriate
+    int L, D, I, G, O;
+    init_dims(L, D, I, G, O, src_d);
+
+    parallel_nd(L * D, G * O, [&](int ld, int go) {
+        int32_t compensation_s32 = 0;
+        PRAGMA_OMP_SIMD()
+        for (int i = 0; i < I; i++) {
+            compensation_s32
+                    += scratch_quantized[ld * I * G * O + i * G * O + go];
+        }
+        // TODO: do not convert to f32 if this compensation is not
+        // going to be added to a bias (e.g. like in lstm
+        // projection where it is directly added to the s32
+        // accumulators)
+        compensation[ld * G * O + go] = saturate<float>(compensation_s32);
+    });
+}
+
 template <data_type_t type_i, data_type_t type_o>
 struct rnn_data_reorder_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
@@ -295,147 +419,6 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
 private:
     typedef typename prec_traits<type_i>::type in_data_t;
 
-    void quantize_goi(int8_t *scratch_quantized,
-            const memory_desc_wrapper &src_d, const float *src) const {
-        // TODO: trivial strides assumes here.
-        //       Use proper strides where appropriate
-        int L, D, I, G, O;
-        init_dims(L, D, I, G, O, src_d);
-
-        float *scales = nullptr;
-        int mask = 0;
-        if (src_d.ndims() == 5) {
-            scales = pd()->attr()->rnn_weights_qparams_.scales_;
-            mask = pd()->attr()->rnn_weights_qparams_.mask_;
-        }
-        if (src_d.ndims() == 4) {
-            scales = pd()->attr()->rnn_weights_projection_qparams_.scales_;
-            mask = pd()->attr()->rnn_weights_projection_qparams_.mask_;
-        }
-        assert(scales != nullptr);
-
-        parallel_nd(L * D, G * O, [&](int ld, int go) {
-            const float s = scales[(mask == 0) ? 0 : go];
-            PRAGMA_OMP_SIMD()
-            for (int i = 0; i < I; i++) {
-                scratch_quantized[ld * I * G * O + i * G * O + go]
-                        = qz_b0<in_data_t, int8_t>()(
-                                src[ld * G * O * I + go * I + i], s);
-            }
-        });
-    }
-
-    void quantize_igo(int8_t *scratch_quantized,
-            const memory_desc_wrapper &src_d, const float *src) const {
-        // TODO: trivial strides assumes here.
-        //       Use proper strides where appropriate
-        int L, D, I, G, O;
-        init_dims(L, D, I, G, O, src_d);
-        // if projection weights, use weights_projection_qparams
-        float *scales = nullptr;
-        int mask = 0;
-        if (src_d.ndims() == 5) {
-            scales = pd()->attr()->rnn_weights_qparams_.scales_;
-            mask = pd()->attr()->rnn_weights_qparams_.mask_;
-        }
-        if (src_d.ndims() == 4) {
-            scales = pd()->attr()->rnn_weights_projection_qparams_.scales_;
-            mask = pd()->attr()->rnn_weights_projection_qparams_.mask_;
-        }
-        assert(scales != nullptr);
-
-        parallel(0, [&](const int ithr, const int nthr) {
-            int start {0}, end {0};
-            balance211(L * D * I, nthr, ithr, start, end);
-            for (int ldi = start; ldi < end; ldi++) {
-                for (int go = 0; go < G * O; go++) {
-                    const float s = scales[(mask == 0) ? 0 : go];
-                    scratch_quantized[ldi * G * O + go]
-                            = qz_b0<in_data_t, int8_t>()(
-                                    src[ldi * G * O + go], s);
-                }
-            }
-        });
-    }
-
-    void compensate_goi(float *compensation, const memory_desc_wrapper &src_d,
-            int8_t *scratch_quantized) const {
-        // TODO: trivial strides assumed here.
-        //       Use proper strides where appropriate
-        int L, D, I, G, O;
-        init_dims(L, D, I, G, O, src_d);
-
-        parallel_nd(L * D, G * O, [&](int ld, int go) {
-            int32_t compensation_s32 = 0;
-            PRAGMA_OMP_SIMD()
-            for (int i = 0; i < I; i++) {
-                compensation_s32
-                        += scratch_quantized[ld * I * G * O + i * G * O + go];
-            }
-            // TODO: do not convert to f32 if this compensation is not
-            // going to be added to a bias (e.g. like in lstm
-            // projection where it is directly added to the s32
-            // accumulators)
-            compensation[ld * G * O + go] = saturate<float>(compensation_s32);
-        });
-    }
-
-    void compensate_igo(float *compensation, const memory_desc_wrapper &src_d,
-            int8_t *scratch_quantized, int32_t *scratch_compensation) const {
-        // TODO: trivial strides assumed here.
-        //       Use proper strides where appropriate
-        int L, D, I, G, O;
-        init_dims(L, D, I, G, O, src_d);
-
-        // We parallelize on LD and GO
-        // TODO: maybe restrict parallelism as we might have large
-        // parallelisation overhead if dimensions are small
-        int nthr = dnnl_get_max_threads();
-        int LD_nthr = nstl::min(L * D, nthr);
-        int GO_nthr = nstl::min(G * O, nthr / LD_nthr);
-        parallel(nthr, [&](const int ithr, const int nthr) {
-            int LD_ithr = -1, LD_s = -1, LD_e = -1;
-            int GO_ithr = -1, GO_s = -1, GO_e = -1;
-            if (ithr < LD_nthr * GO_nthr) {
-                LD_ithr = ithr % LD_nthr;
-                GO_ithr = ithr / LD_nthr;
-                balance211(L * D, LD_nthr, LD_ithr, LD_s, LD_e);
-                balance211(G * O, GO_nthr, GO_ithr, GO_s, GO_e);
-            }
-            int32_t *compensation_s32
-                    = scratch_compensation + ithr * pd()->thr_scratch_comp_sz_;
-            for (int ld = LD_s; ld < LD_e; ld++) {
-                if (I == 1) {
-                    PRAGMA_OMP_SIMD()
-                    for (int go = GO_s; go < GO_e; go++)
-                        compensation[ld * G * O + go] = saturate<float>(
-                                scratch_quantized[ld * I * G * O + go]);
-                } else {
-                    // We split the loop on I in three to avoid conditionals or zeroing compensation
-                    int i = 0;
-                    PRAGMA_OMP_SIMD()
-                    for (int go = GO_s; go < GO_e; go++)
-                        compensation_s32[go] = scratch_quantized[go
-                                + G * O * (i + I * (ld))];
-                    // 1 <= i < I-1
-                    for (i = 1; i < I - 1; i++) {
-                        PRAGMA_OMP_SIMD()
-                        for (int go = GO_s; go < GO_e; go++)
-                            compensation_s32[go] += scratch_quantized[go
-                                    + G * O * (i + I * (ld))];
-                    }
-                    // i = I-1
-                    PRAGMA_OMP_SIMD()
-                    for (int go = GO_s; go < GO_e; go++)
-                        compensation[ld * G * O + go]
-                                = saturate<float>(compensation_s32[go]
-                                        + scratch_quantized[go
-                                                + G * O * (i + I * (ld))]);
-                }
-            }
-        });
-    }
-
     status_t execute(const exec_ctx_t &ctx) const override {
         // TODO: trivial strides assumed here.
         //       Use proper strides where appropriate
@@ -465,17 +448,28 @@ private:
                                           key_reorder_rnn_weights_reduction);
         float *comp = reinterpret_cast<float *>(
                 dst + dst_d.rnn_packed_desc().offset_compensation);
-
+        float *scales = nullptr;
+        int mask = 0;
+        if (src_d.ndims() == 5) {
+            scales = pd()->attr()->rnn_weights_qparams_.scales_;
+            mask = pd()->attr()->rnn_weights_qparams_.mask_;
+        }
+        if (src_d.ndims() == 4) {
+            scales = pd()->attr()->rnn_weights_projection_qparams_.scales_;
+            mask = pd()->attr()->rnn_weights_projection_qparams_.mask_;
+        }
         /* Step 1: we quantize if we need to */
         if (type_i == data_type::f32) {
             switch (pd()->itag_) {
                 case ldigo:
                 case ldio:
-                    quantize_igo(scratch_quantized, src_d, (float *)src);
+                    quantize_igo<type_i>(scratch_quantized, src_d, (float *)src,
+                            mask, scales);
                     break;
                 case ldgoi:
                 case ldoi:
-                    quantize_goi(scratch_quantized, src_d, (float *)src);
+                    quantize_goi<type_i>(scratch_quantized, src_d, (float *)src,
+                            mask, scales);
                     break;
                 default: assert(!"Unsupported reorder");
             }
@@ -486,8 +480,8 @@ private:
         switch (pd()->itag_) {
             case ldigo:
             case ldio:
-                compensate_igo(
-                        comp, src_d, scratch_quantized, scratch_compensation);
+                compensate_igo(comp, src_d, scratch_quantized,
+                        scratch_compensation, pd()->thr_scratch_comp_sz_);
                 break;
             case ldgoi:
             case ldoi: compensate_goi(comp, src_d, scratch_quantized); break;
@@ -706,6 +700,218 @@ private:
                 }
             }
         }
+        return status::success;
+    }
+
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+};
+
+template <data_type_t type_i, data_type_t type_o>
+struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
+    struct pd_t : public cpu_reorder_pd_t {
+        using cpu_reorder_pd_t::cpu_reorder_pd_t;
+
+        DECLARE_COMMON_PD_T("rnn_brgemm_weights_reorder_s8_t",
+                rnn_brgemm_weights_reorder_s8_t);
+
+        static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
+                const primitive_attr_t *attr, engine_t *src_engine,
+                const memory_desc_t *src_md, engine_t *dst_engine,
+                const memory_desc_t *dst_md) {
+            using namespace status;
+            using namespace format_tag;
+
+            const memory_desc_wrapper id(src_md), od(dst_md);
+
+            bool args_ok = true && id.data_type() == type_i
+                    && od.data_type() == data_type::s8 && id.is_dense();
+            if (!args_ok) return invalid_arguments;
+
+            auto skip_mask = primitive_attr_t::skip_mask_t::rnn_data_qparams
+                    | primitive_attr_t::skip_mask_t::rnn_weights_qparams
+                    | primitive_attr_t::skip_mask_t::
+                            rnn_weights_projection_qparams;
+            if (!attr->has_default_values(skip_mask)) return invalid_arguments;
+
+            // TODO: add support for layer and direction dimensions
+            // weights_layer and weights_iter
+            if (id.ndims() == 5
+                    && !utils::one_of(attr->rnn_weights_qparams_.mask_, 0, 24))
+                return unimplemented;
+            // weights_projection
+            if (id.ndims() == 4
+                    && !utils::one_of(
+                            attr->rnn_weights_projection_qparams_.mask_, 0, 8))
+                return unimplemented;
+
+            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+                    dst_engine->kind(), dst_md);
+            if (_pd == nullptr) return out_of_memory;
+            if (_pd->init(engine, src_engine, dst_engine) != success) {
+                delete _pd;
+                return unimplemented;
+            }
+
+            _pd->itag_ = format_tag::undef;
+
+            format_tag_t otag, itag;
+
+            if (((itag = id.matches_one_of_tag(ldigo, ldio))
+                        != format_tag::undef)
+                    && ((otag = od.matches_one_of_tag(ldgOI32o4i, ldOI32o4i))
+                            != format_tag::undef)) {
+                _pd->itag_ = itag;
+            } else {
+                delete _pd;
+                return invalid_arguments;
+            }
+            _pd->init_scratchpad_md();
+            return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
+        }
+
+        format_tag_t itag_;
+
+        size_t thr_scratch_comp_sz_ = 0;
+
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+            status_t status
+                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
+            if (status != status::success) return status;
+
+            init_scratchpad();
+
+            return status::success;
+        }
+
+    private:
+        void init_scratchpad() {
+            using namespace format_tag;
+
+            const memory_desc_wrapper id(src_md());
+            const size_t nelems = id.nelems();
+            const auto &dims = id.dims();
+            const auto ndims = id.ndims();
+
+            using namespace memory_tracking::names;
+            auto scratchpad = scratchpad_registry().registrar();
+            size_t quantization_size = nelems;
+            // we do not use GO directly, as this can cause false
+            // sharing when parallelizing on I (2 threads writing to
+            // the same cache line)
+            thr_scratch_comp_sz_ = (ndims == 5) ? dims[3] * dims[4] : dims[3];
+            thr_scratch_comp_sz_ = utils::rnd_up(thr_scratch_comp_sz_, 16);
+            size_t reduction_size = 0;
+            reduction_size = dnnl_get_max_threads() * thr_scratch_comp_sz_;
+
+            scratchpad.template book<int8_t>(
+                    key_reorder_rnn_weights_quantization, quantization_size);
+            scratchpad.template book<int32_t>(
+                    key_reorder_rnn_weights_reduction, reduction_size);
+        }
+    };
+
+    rnn_brgemm_weights_reorder_s8_t(const pd_t *apd) : primitive_t(apd) {}
+
+private:
+    typedef typename prec_traits<type_i>::type in_data_t;
+    typedef typename prec_traits<type_o>::type out_data_t;
+
+    status_t execute(const exec_ctx_t &ctx) const override {
+        using namespace format_tag;
+        using namespace data_type;
+        using namespace utils;
+
+        auto src = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
+        auto dst = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
+        const memory_desc_wrapper &src_d = pd()->src_md();
+        const memory_desc_wrapper &dst_d = pd()->dst_md();
+        if (src_d.has_zero_dim()) {
+            assert(dst_d.has_zero_dim());
+            return status::success;
+        }
+
+        const auto &blocked_d = dst_d;
+        const auto &pdims = blocked_d.padded_dims();
+
+        int o_block = 32;
+        int i_block = 4;
+
+        int L, D, I, G, O;
+        init_dims(L, D, I, G, O, src_d);
+
+        int pI = pdims[2];
+        int pO = (src_d.ndims() == 5) ? pdims[4] : pdims[3];
+        const int IB = pI / i_block;
+        const int OB = pO / o_block;
+
+        const size_t compensation_offset = (size_t)L * D * G * pI * pO;
+
+        /* Quantize src & compute compensation */
+        auto scratch_quantized
+                = (int8_t * __restrict) ctx.get_scratchpad_grantor()
+                          .template get<void>(memory_tracking::names::
+                                          key_reorder_rnn_weights_quantization);
+        auto scratch_compensation
+                = (int32_t * __restrict) ctx.get_scratchpad_grantor()
+                          .template get<void>(memory_tracking::names::
+                                          key_reorder_rnn_weights_reduction);
+        float *comp = reinterpret_cast<float *>(dst + compensation_offset);
+
+        float *scales = nullptr;
+        int mask = 0;
+        if (src_d.ndims() == 5) {
+            scales = pd()->attr()->rnn_weights_qparams_.scales_;
+            mask = pd()->attr()->rnn_weights_qparams_.mask_;
+        }
+        if (src_d.ndims() == 4) {
+            scales = pd()->attr()->rnn_weights_projection_qparams_.scales_;
+            mask = pd()->attr()->rnn_weights_projection_qparams_.mask_;
+        }
+        if (type_i == data_type::f32) {
+            quantize_igo<type_i>(
+                    scratch_quantized, src_d, (float *)src, mask, scales);
+        } else
+            scratch_quantized = (int8_t * __restrict) src;
+
+        compensate_igo(comp, src_d, scratch_quantized, scratch_compensation,
+                pd()->thr_scratch_comp_sz_);
+
+        auto off_plain = [&](int l, int d, int i, int g, int o) {
+            return ((((dim_t)l * D + d) * I + i) * G + g) * O + o;
+        };
+
+        auto off_blk = [&](int l, int d, int g, int ob, int ib) {
+            return (((((dim_t)l * D + d) * G + g) * OB + ob) * IB + ib)
+                    * i_block * o_block;
+        };
+        auto off_inner_blk = [&](int xdim, int y, int x, int folding_factor) {
+            int row = (xdim) * (y / folding_factor) * folding_factor;
+            int col = x * folding_factor + (y % folding_factor);
+            return row + col;
+        };
+        auto kernel_plain_to_blocked
+                = [&](const out_data_t *inp, out_data_t *out, int ib, int ob) {
+                      PRAGMA_OMP_SIMD()
+                      for (int i = 0; i < i_block * o_block; i++)
+                          out[i] = 0;
+
+                      for_(int i = 0; i < i_block; i++)
+                      for (int o = 0; o < o_block; o++) {
+                          if ((i + ib * i_block < I) && (o + ob * o_block < O))
+                              out[off_inner_blk(o_block, i, o, i_block)]
+                                      = inp[i * G * O + o];
+                      }
+                  };
+
+        parallel_nd(L, D, G, OB, IB, [&](int l, int d, int g, int ob, int ib) {
+            auto inp = &scratch_quantized[off_plain(
+                    l, d, ib * i_block, g, ob * o_block)];
+            auto out = &dst[off_blk(l, d, g, ob, ib)];
+
+            kernel_plain_to_blocked(inp, out, ib, ob);
+        });
+
         return status::success;
     }
 
