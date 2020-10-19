@@ -552,11 +552,11 @@ void jit_brgemm_kernel_base_t::store_accumulators(
             store_accumulators_apply_post_ops(bd_block, ld_block2, is_ld_tail);
             jmp(label_done, T_NEAR);
 
-            L(label_store_without_post_ops);
+            L_aligned(label_store_without_post_ops);
             store_accumulators_without_post_ops(
                     bd_block, ld_block2, is_ld_tail);
 
-            L(label_done);
+            L_aligned(label_done);
         } else {
             store_accumulators_without_post_ops(
                     bd_block, ld_block2, is_ld_tail);
@@ -809,7 +809,7 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
     }
 
     mov(reg_ldb_loop, ldb_loop_length);
-    L(ldb_loop_label);
+    L_aligned(ldb_loop_label, 64);
     {
         load_accumulators(bd_block2, is_bdb_tail, ld_block2, is_ld_tail);
 
@@ -821,13 +821,13 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
 
         if (brg.alpha != 0.f) {
             mov(reg_BS_loop, reg_BS);
-            L(N_loop_label);
+            L_aligned(N_loop_label, 64);
             {
                 set_A_B_matrices();
 
                 if (brg.rdb > 0) {
                     mov(reg_rdb_loop, brg.rdb);
-                    L(rdb_loop_label);
+                    L_aligned(rdb_loop_label, 64);
                     {
                         const bool is_rd_tail = false;
                         gemm_microkernel(bd_block2, is_bdb_tail, ld_block2,
@@ -900,7 +900,7 @@ void jit_brgemm_kernel_base_t::bdb_loop() {
     auto bdb_loop_avx512 = [=]() {
         Label bdb_loop_label;
         mov(reg_bdb_loop, brg.bdb);
-        L(bdb_loop_label);
+        L_aligned(bdb_loop_label, 64);
         {
             bdb_loop_body(1, false);
 
@@ -913,7 +913,7 @@ void jit_brgemm_kernel_base_t::bdb_loop() {
         Label bdb_loop_label;
         if (brg.bd_block2 > 1) {
             mov(reg_bdb_loop, brg.bdb2);
-            L(bdb_loop_label);
+            L_aligned(bdb_loop_label, 64);
             {
                 bdb_loop_body(brg.bd_block2, false);
 
