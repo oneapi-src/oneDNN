@@ -243,8 +243,20 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
 #endif
 
 #if WITH_BIAS
+#if OC % OC_BLOCK == 0
     float2 B = as_float2(
             intel_sub_group_block_read2((const __global uint *)&bias[g]));
+#else
+    float2 B = 0;
+    int i = 0;
+    for (i = 0; i < (G - g) / SUB_GROUP_SIZE && i < 2; ++i) {
+        B[i] = as_float(intel_sub_group_block_read(
+                (const __global uint *)&bias[g + (i * SUB_GROUP_SIZE)]));
+    }
+    if (i < 2 && get_sub_group_local_id() < (G - g) % SUB_GROUP_SIZE) {
+        B[i] = bias[g + (i * SUB_GROUP_SIZE) + get_sub_group_local_id()];
+    }
+#endif
     B *= SCALE;
     float8 B0123 = B.s01010101;
     float8 B4567 = B.s01010101;
