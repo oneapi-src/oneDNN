@@ -84,11 +84,50 @@ enum cpu_isa_t : unsigned {
     isa_all = ~0u & ~amx_tile_bit & ~amx_int8_bit & ~amx_bf16_bit,
 };
 
+enum class cpu_isa_cmp_t {
+    // List of infix comparison relations between two cpu_isa_t
+    // where we take isa_1 and isa_2 to be two cpu_isa_t instances.
+
+    // isa_1 SUBSET isa_2 if all feature flags supported by isa_1
+    // are supported by isa_2 as well (equality allowed)
+    SUBSET,
+
+    // isa_1 SUPERSET isa_2 if all feature flags supported by isa_2
+    // are supported by isa_1 as well (equality allowed)
+    SUPERSET,
+
+    // Few more options that (depending upon need) can be enabled in future
+
+    // 1. PROPER_SUBSET: isa_1 SUBSET isa_2 and isa_1 != isa_2
+    // 2. PROPER_SUPERSET: isa_1 SUPERSET isa_2 and isa_1 != isa_2
+};
+
 const char *get_isa_info();
 
 cpu_isa_t DNNL_API get_max_cpu_isa_mask(bool soft = false);
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
 dnnl_cpu_isa_t get_effective_cpu_isa();
+
+static inline bool compare_isa(
+        cpu_isa_t isa_1, cpu_isa_cmp_t cmp, cpu_isa_t isa_2) {
+    unsigned mask_1 = static_cast<unsigned>(isa_1);
+    unsigned mask_2 = static_cast<unsigned>(isa_2);
+    unsigned mask_min = mask_1 & mask_2;
+
+    switch (cmp) {
+        case cpu_isa_cmp_t::SUBSET: return mask_1 == mask_min;
+        case cpu_isa_cmp_t::SUPERSET: return mask_2 == mask_min;
+        default: assert(!"unsupported comparison of isa"); return false;
+    }
+}
+
+static inline bool is_subset(cpu_isa_t isa_1, cpu_isa_t isa_2) {
+    return compare_isa(isa_1, cpu_isa_cmp_t::SUBSET, isa_2);
+}
+
+static inline bool is_superset(cpu_isa_t isa_1, cpu_isa_t isa_2) {
+    return compare_isa(isa_1, cpu_isa_cmp_t::SUPERSET, isa_2);
+}
 
 template <cpu_isa_t>
 struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
