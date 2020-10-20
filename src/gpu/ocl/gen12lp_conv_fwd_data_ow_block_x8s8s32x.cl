@@ -60,8 +60,26 @@ DECLARE_MMAD(
 #define BLOCK_READ_WHT_8x32(data, idx) \
     data = as_int8(intel_sub_group_block_read8((__global uint *)&wei[idx]));
 
+#if OC % OC_BLOCK == 0
 #define BLOCK_READ_BIA(data, idx) \
     data = as_float4(intel_sub_group_block_read4((__global uint *)&bias[idx]));
+
+#else
+#define BLOCK_READ_BIA(data, idx) \
+    data = (float4)0; \
+    int i; \
+    for (i = idx; i < idx + OC_BLOCK && i < OC - (OC % SUB_GROUP_SIZE); \
+            i += SUB_GROUP_SIZE) { \
+        data[(i - idx) / SUB_GROUP_SIZE] = as_float( \
+                intel_sub_group_block_read((__global uint *)&bias[i])); \
+    } \
+    if ((get_sub_group_local_id() < OC % SUB_GROUP_SIZE) \
+            && (i == OC - OC % SUB_GROUP_SIZE)) { \
+        data[(i - idx) / SUB_GROUP_SIZE] \
+                = as_float(bias[i + get_sub_group_local_id()]); \
+    }
+
+#endif
 
 #define BLOCK_READ_SCALES(data, idx) \
     data = as_float4(intel_sub_group_block_read4( \
