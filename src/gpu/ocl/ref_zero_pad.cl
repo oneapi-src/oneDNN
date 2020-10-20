@@ -21,11 +21,11 @@
 #include "gpu/zero_pad_struct.h"
 
 static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
-        ulong step_nelems, ulong nsteps, ulong step_size,
+        ulong step_nelems, ulong step_block, ulong nsteps, ulong step_size,
         zero_pad_mask_t step_bitmask) {
-    int id = get_global_id(0);
-    int iblock = id / nsteps;
-    int istep = id % nsteps;
+    const int id = get_global_id(0) * step_block;
+    const int iblock = id / nsteps;
+    const int istep = id % nsteps;
     int offset = iblock * step_size + (step_size - nsteps * step_nelems)
             + istep * step_nelems;
 
@@ -38,56 +38,66 @@ static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
     __global short *a2 = (__global short *)a;
     __global char *a1 = (__global char *)a;
 
-    for (int i = 0; i < step_nelems; i++) {
-        if (step_bitmask.mask[i / step] & (1 << (i % step))) {
-            switch (type_size) {
-                case 4: a4[offset + i] = 0; break;
-                case 2: a2[offset + i] = 0; break;
-                case 1: a1[offset + i] = 0; break;
+    for (int k = 0; k < step_block; k++) {
+        __attribute__((opencl_unroll_hint)) // attr:no-format
+        for (int i = 0; i < step_nelems; i++) {
+            if (step_bitmask.mask[i / step] & (1 << (i % step))) {
+                switch (type_size) {
+                    case 4: a4[offset + i] = 0; break;
+                    case 2: a2[offset + i] = 0; break;
+                    case 1: a1[offset + i] = 0; break;
+                }
             }
-        };
-    };
+        }
+
+        offset += step_nelems;
+        if (istep == nsteps) {
+            offset -= step_nelems * nsteps;
+            offset += step_size;
+        }
+    }
 }
 
 static inline void sized_ref_zero_pad(__global void *a, ulong type_size,
-        ulong step_nelems, ulong nsteps, ulong step_size,
+        ulong step_nelems, ulong step_block, ulong nsteps, ulong step_size,
         zero_pad_mask_t step_bitmask) {
     switch (type_size) {
         case 4:
-            typed_ref_zero_pad((__global float *)a, 4, step_nelems, nsteps,
-                    step_size, step_bitmask);
+            typed_ref_zero_pad((__global float *)a, 4, step_nelems, step_block,
+                    nsteps, step_size, step_bitmask);
             break;
         case 2:
-            typed_ref_zero_pad((__global float *)a, 2, step_nelems, nsteps,
-                    step_size, step_bitmask);
+            typed_ref_zero_pad((__global float *)a, 2, step_nelems, step_block,
+                    nsteps, step_size, step_bitmask);
             break;
         case 1:
-            typed_ref_zero_pad((__global float *)a, 1, step_nelems, nsteps,
-                    step_size, step_bitmask);
+            typed_ref_zero_pad((__global float *)a, 1, step_nelems, step_block,
+                    nsteps, step_size, step_bitmask);
             break;
     }
 }
 
 __kernel void ref_zero_pad(__global void *a, ulong type_size, ulong step_nelems,
-        ulong nsteps, ulong step_size, zero_pad_mask_t step_bitmask) {
+        ulong step_block, ulong nsteps, ulong step_size,
+        zero_pad_mask_t step_bitmask) {
     // Use a switch statement here to allow constant propagation optimizations to
     // remove switch statement from loop in typed_ref_zero_pad.
     switch (step_nelems) {
         case 16:
-            sized_ref_zero_pad(
-                    a, type_size, 16, nsteps, step_size, step_bitmask);
+            sized_ref_zero_pad(a, type_size, 16, step_block, nsteps, step_size,
+                    step_bitmask);
             break;
         case 32:
-            sized_ref_zero_pad(
-                    a, type_size, 32, nsteps, step_size, step_bitmask);
+            sized_ref_zero_pad(a, type_size, 32, step_block, nsteps, step_size,
+                    step_bitmask);
             break;
         case 64:
-            sized_ref_zero_pad(
-                    a, type_size, 64, nsteps, step_size, step_bitmask);
+            sized_ref_zero_pad(a, type_size, 64, step_block, nsteps, step_size,
+                    step_bitmask);
             break;
         default:
-            sized_ref_zero_pad(
-                    a, type_size, step_nelems, nsteps, step_size, step_bitmask);
+            sized_ref_zero_pad(a, type_size, step_nelems, step_block, nsteps,
+                    step_size, step_bitmask);
             break;
     }
 }
