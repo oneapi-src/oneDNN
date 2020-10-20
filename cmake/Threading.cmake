@@ -44,10 +44,12 @@ macro(find_package_tbb)
     if(TBB_FOUND)
         # Check for TBB version, required >= 2017
         foreach (_tbb_ver_header tbb_stddef.h version.h)
+        foreach (_tbb_include_subdir oneapi "")
             get_target_property(_tbb_include_dirs TBB::tbb
                 INTERFACE_INCLUDE_DIRECTORIES)
             set(_tbb_ver_header_full_path
-                "${_tbb_include_dirs}/tbb/${_tbb_ver_header}")
+                "${_tbb_include_dirs}/${_tbb_include_subdir}/tbb/${_tbb_ver_header}")
+
             if(EXISTS ${_tbb_ver_header_full_path})
                 file(READ "${_tbb_ver_header_full_path}" _tbb_ver)
                 string(REGEX REPLACE
@@ -63,6 +65,7 @@ macro(find_package_tbb)
                     break()
                 endif()
             endif()
+        endforeach()
         endforeach()
     endif()
 endmacro()
