@@ -36,6 +36,11 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
     const auto &pdims = mdw.padded_dims();
     const blocking_desc_t blocking_desc = mdw.blocking_desc();
     const ptrdiff_t nelems = (ptrdiff_t)mdw.nelems(true);
+    const unsigned int hw_threads
+            = utils::downcast<compute::compute_engine_t *>(
+                    ctx.stream()->engine())
+                      ->device_info()
+                      ->hw_threads();
 
     // Setup Initial parameters used in opencl kernel computation
     dims_t blk_size;
@@ -61,6 +66,13 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
         step_count = blocking_desc.strides[i] / step_nelems;
         stride = blocking_desc.strides[i] * (pdims[i] / blk_size[i]);
         size_t npsteps = (nelems / stride) * step_count;
+
+        // Balance work unit size with parallelism
+        cl_ulong step_block = 1;
+        while (step_nelems * step_block < 4096 && npsteps / step_block % 2 == 0
+                && npsteps / step_block > 2 * hw_threads) {
+            step_block *= 2;
+        }
 
         dim_t tail_start = dims[i] % blk_size[i];
         dims_t pos;
@@ -90,11 +102,12 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
             }
         }
 
-        arg_list.set(3, step_count);
-        arg_list.set(4, stride);
-        arg_list.set(5, bitmask);
+        arg_list.set(3, step_block);
+        arg_list.set(4, step_count);
+        arg_list.set(5, stride);
+        arg_list.set(6, bitmask);
 
-        const size_t gws[1] = {npsteps};
+        const size_t gws[1] = {npsteps / step_block};
         const compute::nd_range_t nd_range = compute::nd_range_t(1, gws);
         status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
         if (status != status::success) return status;
