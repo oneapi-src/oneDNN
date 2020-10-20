@@ -300,7 +300,7 @@ static int reg_ind(int shift, int bc, int j, int ur_bc, int ur_w) noexcept {
 
 template <cpu_isa_t isa>
 inline void jit_uni_pool_kernel<isa>::prepare_tail_mask() {
-    if (isa >= avx512_common) {
+    if (is_superset(isa, avx512_common)) {
         size_t c_tail_mask = (1ULL << jpp.c_tail) - 1ULL;
         mov(tmp_gpr.cvt32(), c_tail_mask);
         kmovw(k_c_tail_mask, tmp_gpr.cvt32());

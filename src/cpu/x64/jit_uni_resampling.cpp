@@ -49,7 +49,7 @@ status_t jit_uni_resampling_fwd_t<isa>::pd_t::init(engine_t *engine) {
                     // the avx512_common version may reject a
                     // problem because it is blocked by 8
                     // instead of 16.
-                    isa >= avx512_common && mayiuse(avx512_core))
+                    is_superset(isa, avx512_common) && mayiuse(avx512_core))
             && utils::everyone_is(
                     conf_.data_type, src_md()->data_type, dst_md()->data_type)
             && platform::has_data_type_support(conf_.data_type)
@@ -97,7 +97,7 @@ status_t jit_uni_resampling_fwd_t<isa>::pd_t::init(engine_t *engine) {
 
     conf_.simd_w = cpu_isa_traits<isa>::vlen / sizeof(float);
 
-    const format_tag_t blocked_tag = isa >= avx512_common
+    const format_tag_t blocked_tag = is_superset(isa, avx512_common)
             ? utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c)
             : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
 

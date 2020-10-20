@@ -283,8 +283,8 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     return false;
 }
 
-inline bool isa_has_bf16(cpu_isa_t isa) {
-    return isa == avx512_core_bf16;
+static inline bool isa_has_bf16(cpu_isa_t isa) {
+    return is_superset(isa, avx512_core_bf16);
 }
 
 } // namespace
