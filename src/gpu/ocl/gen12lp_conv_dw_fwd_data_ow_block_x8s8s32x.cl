@@ -76,8 +76,12 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
     // change after fix from compiler
     // float2 B = as_float2(intel_sub_group_block_read_ul((const __global ulong *)&bias[g]));
     float2 B;
-    B.s0 = bias[g + 2 * get_sub_group_local_id()];
-    B.s1 = bias[g + 2 * get_sub_group_local_id() + 1];
+    if (g + 2 * get_sub_group_local_id() >= G) {
+        B = 0;
+    } else {
+        B.s0 = bias[g + 2 * get_sub_group_local_id()];
+        B.s1 = bias[g + 2 * get_sub_group_local_id() + 1];
+    }
     S0 = convert_int16(B.s0101010101010101);
     S1 = convert_int16(B.s0101010101010101);
 #endif
