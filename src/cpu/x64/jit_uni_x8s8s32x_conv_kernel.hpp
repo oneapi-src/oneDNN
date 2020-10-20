@@ -117,14 +117,9 @@ private:
     const Vmm vmm_tmp = Vmm(3); // not used for depthwise
     const Vmm vmm_one
             = Vmm(2); // set at start of kernel, not used for depthwise.
-    /* registers use only for depthwise
-     * groups are always blocked by 8/4 (padded if needed),
-     * hence use only Ymm registers for avx2
-     * use Xmm registers for sse41*/
-    const Vmm vmm_dw_wei = Vmm(0);
+    /* used only for depthwise */
     Vmm vmm_dw_tmp;
     Vmm vmm_dw_src;
-    Vmm vmm_dw_shifted_zero;
 
     Vmm vmm_out(int i_ur, int i_oc) {
         const int idx_limit = jcp.src_zero_point

@@ -308,8 +308,6 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
         }
     }
 
-    if (jcp.signed_input) uni_vmovups(vmm_dw_shifted_zero, vmm_shift);
-
     for (int ci = 0; ci < jcp.nb_ch_blocking; ++ci) {
         const bool mask_flag = last_ic_block_flag != no_last_block
                 && ci == jcp.nb_ch_blocking - 1;
@@ -333,12 +331,11 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
             int oi_end = get_ow_end(ur_w, ki, pad_r);
 
             if (compute_kernel) {
-                uni_vpmovsxbd(vmm_dw_wei, ptr[aux_reg_ker + aux_kernel_offset]);
+                uni_vpmovsxbd(vmm_wei, ptr[aux_reg_ker + aux_kernel_offset]);
                 if (h_padded) {
                     assert(jcp.signed_input);
                     for (int oi = 0; oi < ur_w; ++oi)
-                        compute(vmm_out(oi, ci), vmm_dw_wei,
-                                vmm_dw_shifted_zero);
+                        compute(vmm_out(oi, ci), vmm_wei, vmm_shift);
                 } else {
                     int start = jcp.signed_input ? 0 : oi_start;
                     int end = jcp.signed_input ? ur_w : oi_end;
@@ -358,11 +355,10 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
                                     uni_vpaddb(
                                             vmm_dw_src, vmm_dw_src, vmm_shift);
                             }
-                            compute(vmm_out(oi, ci), vmm_dw_wei, vmm_dw_src);
+                            compute(vmm_out(oi, ci), vmm_wei, vmm_dw_src);
                         } else {
                             assert(jcp.signed_input);
-                            compute(vmm_out(oi, ci), vmm_dw_wei,
-                                    vmm_dw_shifted_zero);
+                            compute(vmm_out(oi, ci), vmm_wei, vmm_shift);
                         }
                     }
                 }
@@ -373,11 +369,11 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
                 *           src_zero_point_s32 * conv(1, wei_s32) : 0) */
                 if (!compute_kernel) {
                     uni_vpmovsxbd(
-                            vmm_dw_wei, ptr[aux_reg_ker + aux_kernel_offset]);
+                            vmm_wei, ptr[aux_reg_ker + aux_kernel_offset]);
                 } // else: already loaded weights from previous block
                 for (int oi = 0; oi < ur_w; oi++) {
                     if (oi < oi_start || oi >= oi_end || h_padded) {
-                        uni_vpmulld(vmm_zp_dw_tmp, vmm_dw_wei, vmm_zp);
+                        uni_vpmulld(vmm_zp_dw_tmp, vmm_wei, vmm_zp);
                         uni_vpaddd(vmm_out(oi, ci), vmm_out(oi, ci),
                                 vmm_zp_dw_tmp);
                     }
@@ -770,7 +766,6 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
         if (!jcp.is_resrc_depthwise) vmm_dw_src = Vmm(--idx);
         vmm_dw_tmp = Vmm(--idx);
         if (jcp.signed_input) {
-            vmm_dw_shifted_zero = Vmm(--idx);
             --idx; // due to extra register used for compensations
         }
         assert(IMPLICATION(
@@ -1253,7 +1248,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
             && jcp.kw < 4 && jcp.dilate_w == 0;
 
     if (jcp.is_depthwise) {
-        jcp.max_regs_ur = 14 - !jcp.is_resrc_depthwise - 2 * jcp.signed_input;
+        jcp.max_regs_ur = 14 - !jcp.is_resrc_depthwise - jcp.signed_input;
     } else {
         jcp.max_regs_ur = 12;
     }
