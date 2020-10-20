@@ -49,10 +49,9 @@ static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
     };
 }
 
-__kernel void ref_zero_pad(__global void *a, ulong type_size, ulong step_nelems,
-        ulong nsteps, ulong step_size, zero_pad_mask_t step_bitmask) {
-    // Use a switch statement here to allow constant propagation optimizations to
-    // remove switch statement from loop in typed_ref_zero_pad.
+static inline void sized_ref_zero_pad(__global void *a, ulong type_size,
+        ulong step_nelems, ulong nsteps, ulong step_size,
+        zero_pad_mask_t step_bitmask) {
     switch (type_size) {
         case 4:
             typed_ref_zero_pad((__global float *)a, 4, step_nelems, nsteps,
@@ -65,6 +64,30 @@ __kernel void ref_zero_pad(__global void *a, ulong type_size, ulong step_nelems,
         case 1:
             typed_ref_zero_pad((__global float *)a, 1, step_nelems, nsteps,
                     step_size, step_bitmask);
+            break;
+    }
+}
+
+__kernel void ref_zero_pad(__global void *a, ulong type_size, ulong step_nelems,
+        ulong nsteps, ulong step_size, zero_pad_mask_t step_bitmask) {
+    // Use a switch statement here to allow constant propagation optimizations to
+    // remove switch statement from loop in typed_ref_zero_pad.
+    switch (step_nelems) {
+        case 16:
+            sized_ref_zero_pad(
+                    a, type_size, 16, nsteps, step_size, step_bitmask);
+            break;
+        case 32:
+            sized_ref_zero_pad(
+                    a, type_size, 32, nsteps, step_size, step_bitmask);
+            break;
+        case 64:
+            sized_ref_zero_pad(
+                    a, type_size, 64, nsteps, step_size, step_bitmask);
+            break;
+        default:
+            sized_ref_zero_pad(
+                    a, type_size, step_nelems, nsteps, step_size, step_bitmask);
             break;
     }
 }
