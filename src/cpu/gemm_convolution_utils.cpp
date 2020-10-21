@@ -1577,22 +1577,70 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     // - ratio of FMA number to data size
                     // - gemm works better if M divided by 48 and N divided by 8
 
-                    int sp_start {0}, sp_end {0}, oc_start {0}, oc_end {0};
-                    int max_y {0}, max_oc {0};
-                    size_t max_thr_size {0};
-                    size_t min_thr_size {(size_t)spatial * jcp.oc + 1};
+                    const int max_oc = div_up(jcp.oc, nthr_oc);
+                    const int max_y
+                            = div_up(spatial, (int)(max_threads / nthr_oc));
 
-                    for (int i = 0; i < max_threads; i++) {
-                        balance2D(max_threads, i, spatial, sp_start, sp_end,
-                                jcp.oc, oc_start, oc_end, nthr_oc);
-                        const size_t thr_size = (size_t)(sp_end - sp_start)
-                                * (oc_end - oc_start);
-                        if (thr_size > max_thr_size) {
-                            max_y = (sp_end - sp_start);
-                            max_oc = (oc_end - oc_start);
-                            max_thr_size = thr_size;
+                    // The computation of max_thr_size and min_thr_size is
+                    // based on work balance using:
+                    // balance2D(max_threads, i, spatial, sp_start, sp_end,
+                    //            jcp.oc, oc_start, oc_end, nthr_oc);
+                    size_t max_thr_size = 0;
+                    {
+                        /* --- compute max_thr_size ------------
+                         may not necessarily be (max_oc * max_y)
+                         thr_size = thr_oc * (spatial /nthrs_in_slice);
+                         with spatial as const, thr_size has maxima when
+                            (A: thr_oc is max) and (B: nthrs_in_slice is min)
+                        */
+                        if (jcp.oc % nthr_oc > max_threads % nthr_oc) {
+                            // If (A) and (B) are true together, then it is the
+                            // global max
+                            max_thr_size = div_up(jcp.oc, nthr_oc)
+                                    * div_up(spatial,
+                                            int(max_threads / nthr_oc));
+                        } else {
+                            const size_t oc_max_os_min = div_up(jcp.oc, nthr_oc)
+                                    * div_up(spatial,
+                                            (int)div_up(max_threads, nthr_oc));
+                            const size_t oc_min_os_max = (int)(jcp.oc / nthr_oc)
+                                    * div_up(spatial,
+                                            (int)(max_threads / nthr_oc));
+                            max_thr_size
+                                    = nstl::max(oc_max_os_min, oc_min_os_max);
                         }
-                        if (thr_size < min_thr_size) min_thr_size = thr_size;
+                    }
+
+                    size_t min_thr_size
+                            = (size_t)(jcp.oc / nthr_oc) * (size_t)(spatial);
+                    {
+                        /* --- compute min_thr_size ------------
+                         may not necessarily be (min_oc * min_y)
+                         thr_size = thr_oc * (spatial /nthrs_in_slice);
+                         with spatial as const, thr_size has minima when
+                            (A: thr_oc is min) and (B: nthrs_in_slice is max)
+                        */
+                        if (max_threads % nthr_oc > jcp.oc % nthr_oc) {
+                            // If (A) and (B) are true together, then it is the
+                            // global min
+                            min_thr_size = (size_t)(jcp.oc / nthr_oc)
+                                    * (size_t)(spatial
+                                            / (int)div_up(
+                                                    max_threads, nthr_oc));
+                        } else {
+                            const size_t oc_max_os_min
+                                    = (size_t)div_up(jcp.oc, nthr_oc)
+                                    * (size_t)(spatial
+                                            / (int)div_up(
+                                                    max_threads, nthr_oc));
+
+                            const size_t oc_min_os_max
+                                    = (size_t)(jcp.oc / nthr_oc)
+                                    * (size_t)(spatial
+                                            / (int)(max_threads / nthr_oc));
+                            min_thr_size
+                                    = nstl::min(oc_max_os_min, oc_min_os_max);
+                        }
                     }
                     auto thr_disb = (float)min_thr_size / max_thr_size;
 
