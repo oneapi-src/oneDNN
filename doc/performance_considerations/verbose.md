@@ -21,6 +21,7 @@ containing:
 - primitive implementation
 - propagation: `forward_training`, `forward_inference`, or `backward`
 - information about input and output data types and formats
+- primitive attributes
 - auxiliary information like algorithm name or number of inputs
 - a problem description in [benchdnn format](@ref dev_guide_benchdnn)
 - execution time in milliseconds
