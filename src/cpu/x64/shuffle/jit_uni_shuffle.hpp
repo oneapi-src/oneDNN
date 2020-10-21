@@ -35,13 +35,15 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-template <cpu_isa_t isa>
-struct jit_uni_shuffle_base_kernel_t;
+template <int data_type_size>
+struct jit_uni_shuffle_kernel_t;
 
-template <cpu_isa_t isa, int data_type_size>
+template <int data_type_size>
 struct jit_uni_shuffle_t : public primitive_t {
     struct pd_t : public cpu_shuffle_pd_t {
         using cpu_shuffle_pd_t::cpu_shuffle_pd_t;
+
+        static constexpr cpu_isa_t isa = sse41;
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_shuffle_t);
@@ -49,26 +51,37 @@ struct jit_uni_shuffle_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace format_tag;
 
-            const bool set_default_formats
-                    = IMPLICATION(!is_fwd(), set_default_formats_common());
-
-            dat_tag_ = memory_desc_matches_one_of_tag(*data_md(), nChw16c);
-
             const data_type_t data_type = data_md()->data_type;
 
-            // Currently supporting only group=3 (FWD, BWD) for nChw16c format
+            // Currently supporting only group=3 (FWD, BWD) for nChw16c, nCdhw16c formats
             const bool ok = mayiuse(isa)
                     && data_type_size == types::data_type_size(data_type)
                     && platform::has_data_type_support(data_type)
-                    && attr()->has_default_values() && set_default_formats
-                    && dat_tag_ == nChw16c && group_size() == 3 && axis() == 1;
+                    && attr()->has_default_values()
+                    && C() > 3 // Disabling C <= 3 because it caused perf regression
+                    && group_size() == 3 && axis() == 1
+                    && IMPLICATION(!is_fwd(), set_default_formats_common());
 
             if (!ok) return status::unimplemented;
+
+            const auto dat_tag_ = memory_desc_matches_one_of_tag(
+                    *data_md(), nChw16c, nCdhw16c);
+
+            if (dat_tag_ == format_tag::undef) return status::unimplemented;
+
+            const memory_desc_wrapper data_d(data_md());
+
+            blk_size_ = data_d.blocking_desc().strides[ndims() - 1];
+
+            const bool has_spatial = utils::one_of(ndims(), 3, 4, 5);
+            const int HW = H() * W();
+            SP_ = has_spatial ? D() * HW : HW;
 
             return status::success;
         }
 
-        format_tag_t dat_tag_;
+        int blk_size_;
+        int SP_;
     };
 
     jit_uni_shuffle_t(const pd_t *apd);
@@ -79,19 +92,13 @@ struct jit_uni_shuffle_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
-        using namespace format_tag;
-        execute_<nChw16c>(ctx);
-        return status::success;
-    }
+    status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    template <format_tag_t tag>
-    void execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::unique_ptr<jit_uni_shuffle_base_kernel_t<isa>> kernel_;
+    status_t precompute_offsets();
+    std::unique_ptr<jit_uni_shuffle_kernel_t<data_type_size>> kernel_;
     int *input_off_;
-    static constexpr int blk_size = 16;
 };
 
 } // namespace x64
