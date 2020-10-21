@@ -595,6 +595,9 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         const size_t str_size = jcp.bcast_dim * max_load_per_thread;
         p.store_buffer = store_buffer + ithr * str_size
                 + data_blk_off(diff_src_d, 0, 0, id, ih, iw);
+
+        p.oc_off = ic_off_idx * (is_dsrc_layout_nxc ? 1 : jcp.ic_block) * sizeof(float);
+
         (*kernel_)(&p);
         if (pd()->rtus_.reduce_src_) (*rtus_driver_)(&rp);
     };

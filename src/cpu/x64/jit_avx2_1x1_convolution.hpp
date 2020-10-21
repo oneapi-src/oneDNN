@@ -357,7 +357,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::undef, data_type::f32, data_type::f32)
-                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && is_supported_post_ops() && !has_zero_dim_memory()
                     && set_default_formats();
             if (!ok) return status::unimplemented;
 
@@ -407,6 +407,23 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_t {
                     : utils::pick(ndims() - 3, OIw8o8i, OIhw8o8i, OIdhw8o8i);
 
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
+        }
+
+        virtual bool is_supported_post_ops() const {
+            const auto &p = this->attr()->post_ops_;
+            if (p.len() > 1)
+                return false;
+
+            auto all_post_ops_supported = [&]() {
+                bool ok = true;
+
+                for (int i = 0; i < p.len(); i++) {
+                    ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::depthwise);
+                }
+                return ok;
+            };
+
+            return all_post_ops_supported();
         }
     };
 

@@ -222,6 +222,8 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
                         static_cast<size_t>(jcp.oc), ch_work);
         par_conv.ch_blocks = load_work;
 
+        par_conv.ic_off = ch * jcp.ch_block * sizeof(float);
+
         return par_conv;
     };
 

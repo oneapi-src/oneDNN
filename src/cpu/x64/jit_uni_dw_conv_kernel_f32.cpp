@@ -813,6 +813,37 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_filter(
 }
 
 template <cpu_isa_t isa>
+void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::apply_postprocess(int ur_ch_blocks, int ur_str_w) {
+    int repeats = isa == sse41 ? 2 : 1;
+
+    const auto &p = attr_.post_ops_;
+    int depthwise_inj_idx = 0;
+    for (int i = 0; i < p.len(); i++) {
+        auto& post_op = p.entry_[i];
+        if (post_op.is_depthwise()) {
+            mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
+            mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
+
+            add(reg_d_weights, ptr[this->param1 + GET_OFF(ic_off)]);
+            add(reg_d_bias, ptr[this->param1 + GET_OFF(ic_off)]);
+
+            for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                for (int k = 0; k < repeats; k++) {
+                    int start_idx = get_acc_reg(k*ur_ch_blocks*ur_str_w + ur_str_w * ch).getIdx();
+                    int end_idx = get_acc_reg(k*ur_ch_blocks*ur_str_w + ur_str_w * ch + ur_str_w).getIdx();
+
+                    depthwise_injectors[depthwise_inj_idx]->compute_vector_range(start_idx, end_idx, reg_d_weights, reg_d_bias);
+
+                    add(reg_d_weights, jcp.ch_block / repeats * sizeof(float));
+                    add(reg_d_bias, jcp.ch_block / repeats * sizeof(float));
+                }
+            }
+        }
+        depthwise_inj_idx++;
+    }
+}
+
+template <cpu_isa_t isa>
 inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::store_dsrc(
         int ur_ch_blocks, int ur_str_w, bool is_last_ch) {
     int ch_block = jcp.ch_block;
@@ -859,6 +890,7 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::ch_loop_body(
 
                   load_ddst(ur_ch_blocks, unroll_w);
                   apply_filter(ur_ch_blocks, unroll_w, is_last_ch);
+                  apply_postprocess(ur_ch_blocks, unroll_w);
                   store_dsrc(ur_ch_blocks, unroll_w, is_last_ch);
               };
 
@@ -952,6 +984,17 @@ inline void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::unroll_width_body(
 
 template <cpu_isa_t isa>
 void jit_uni_dw_conv_bwd_data_kernel_f32<isa>::generate() {
+    const auto &p = attr_.post_ops_;
+    for (int i = 0; i < p.len(); i++) {
+        auto &post_op = p.entry_[i];
+        if (post_op.is_depthwise()) {
+            depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<isa>(
+                    this,
+                    post_op.depthwise.alg
+            ));
+        }
+    }
+
     preamble();
 
     mov(reg_dsrc, ptr[this->param1 + GET_OFF(src)]);

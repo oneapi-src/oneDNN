@@ -722,6 +722,8 @@ status_t gemm_bf16_convolution_bwd_data_t<
     // threads share work across mini-batch and groups
     const dim_t work_amount = jcp.ngroups * jcp.mb;
 
+    const auto& p = pd()->attr()->post_ops_;
+
     acc_data_t *__restrict col = scratchpad.get<acc_data_t>(key_conv_gemm_col)
             + (ptrdiff_t)ithr * jcp.im2col_sz;
     acc_data_t *__restrict acc = scratchpad.get<acc_data_t>(key_conv_gemm_acc)
@@ -753,6 +755,26 @@ status_t gemm_bf16_convolution_bwd_data_t<
 
         if (jcp.im2col_sz)
             jit_gemm_convolution_utils::col2im_dt<acc_data_t>(jcp, col, acc);
+
+        if (p.len() > 0) {
+            int depthwise_inj_idx = 0;
+            for (int i = 0; i < p.len(); i++) {
+                auto &post_op = p.entry_[i];
+                if (post_op.is_depthwise()) {
+                    auto depthwise_weights = post_op.depthwise.weights_data;
+                    auto depthwise_bias = post_op.depthwise.biases_data;
+                    parallel_nd(static_cast<size_t>(jcp.is) * jcp.id, [&](size_t is) {
+                        diff_src_data_t*__restrict diff_src_arr
+                                = diff_src + is * diff_src_os_stride;
+                        for (int ic = 0; ic < jcp.ic; ic++) {
+                            diff_src_arr[ic] = depthwise_injectors[depthwise_inj_idx]->compute_scalar(diff_src_arr[ic],
+                                depthwise_weights + g * jcp.ic + ic, depthwise_bias + g * jcp.ic + ic);
+                        }
+                    });
+                    depthwise_inj_idx++;
+                }
+            }
+        }
 
         const bool is_diff_src_bf16 = diff_src_data_type == data_type::bf16;
 
@@ -817,6 +839,8 @@ status_t gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
     const dim_t work_amount = (size_t)jcp.ngroups * jcp.mb;
     const bool is_problem_3d = pd()->ndims() == 5;
 
+    const auto& p = pd()->attr()->post_ops_;
+
     std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
@@ -870,6 +894,28 @@ status_t gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
                                 od, os_nb * jcp.os_block, os_block);
                 }
             }
+
+            if (p.len() > 0) {
+                int depthwise_inj_idx = 0;
+                for (int i = 0; i < p.len(); i++) {
+                    auto &post_op = p.entry_[i];
+                    if (post_op.is_depthwise()) {
+                        auto depthwise_weights = post_op.depthwise.weights_data;
+                        auto depthwise_bias = post_op.depthwise.biases_data;
+                        parallel_nd(jcp.ic, [&](const int ic) {
+                            for (int id = 0; id < jcp.id; ++id) {
+                                acc_data_t *d_ = acc + ic * jcp.id * jcp.is + id * jcp.is;
+                                for (int iS = 0; iS < jcp.is; ++iS) {
+                                    d_[iS] = depthwise_injectors[depthwise_inj_idx]->compute_scalar(d_[iS],
+                                            depthwise_weights + g * jcp.ic + ic, depthwise_bias + g * jcp.ic + ic);
+                                }
+                            }
+                        });
+                        depthwise_inj_idx++;
+                    }
+                }
+            }
+
             if (diff_src_data_type == data_type::bf16) {
                 size_t spatial_size = (size_t)jcp.ih * jcp.iw * jcp.id;
                 store_bfloat16_in_parallel((bfloat16_t *)diff_src_local,

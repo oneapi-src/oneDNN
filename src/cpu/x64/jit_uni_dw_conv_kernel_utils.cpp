@@ -260,10 +260,28 @@ void jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_scratchpad(
 }
 
 template <cpu_isa_t isa, data_type_t kernel_dt>
+bool jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::post_ops_ok(const primitive_attr_t &attr) {
+    const auto &p = attr.post_ops_;
+    if (p.len() > 1)
+        return false;
+
+    auto all_post_ops_supported = [&]() {
+        bool ok = true;
+
+        for (int i = 0; i < p.len(); i++) {
+            ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::depthwise);
+        }
+        return ok;
+    };
+
+    return all_post_ops_supported();
+}
+
+template <cpu_isa_t isa, data_type_t kernel_dt>
 status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
         jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         memory_desc_t &diff_src_md, memory_desc_t &weights_md,
-        memory_desc_t &diff_dst_md) {
+        memory_desc_t &diff_dst_md, const primitive_attr_t &attr) {
     using namespace dnnl::impl::format_tag;
     using namespace dnnl::impl::utils;
 
@@ -359,6 +377,9 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     // note: sse41 uses 'ch_block = 8' where the value is derived
     // from: 'simd_w_ * reg_repeats_ = 4 * 2'
     jcp.ch_block = isa == avx512_core ? 16 : 8;
+
+    if (!post_ops_ok(attr))
+        return status::unimplemented;
 
     bool ok_to_pad_channels = !is_data_layout_nxc && jcp.oc == jcp.ngroups
             && jcp.ic == jcp.ngroups && one_of(isa, avx512_core, avx2);

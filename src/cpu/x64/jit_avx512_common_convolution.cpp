@@ -717,6 +717,9 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                 const int load_work = utils::this_block_size(icb * jcp.ic_block,
                         jcp.ic, jcp.nb_ic_blocking * jcp.ic_block);
                 int reduce_work = ocb_step * jcp.oc_block;
+
+                int ic_off = ic_off_idx * (is_dsrc_layout_nxc ? 1 : jcp.ic_block) * sizeof(float);
+
                 for (int ocb = ocb_l2; ocb < ocb_end; ocb += ocb_step) {
                     int curr_nb_oc = nstl::min(ocb_step, ocb_end - ocb);
                     if (ocb + curr_nb_oc >= jcp.nb_oc) {
@@ -726,7 +729,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
                     jit_conv_ker_pipeline_iw_thr(jit_ker, par_conv, diff_src_w,
                             diff_dst_w, wht_w, nullptr, ocb, 1, iwb,
-                            reduce_work, load_work, 0);
+                            reduce_work, load_work, ic_off);
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;
                 }
@@ -885,11 +888,13 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                             oj = (ij + jcp.t_pad - k_lo) / jcp.stride_h;
                         }
 
+                        int ic_off = ic_off_idx * (is_dsrc_layout_nxc ? 1 : jcp.ic_block) * sizeof(float);
+
                         jit_conv_ker_pipeline_iw_thr(jit_ker, par_conv,
                                 diff_src_w + ij * diff_src_h_stride,
                                 diff_dst_w + oj * diff_dst_h_stride,
                                 wht_w + k_lo * wht_h_stride, nullptr, ocb,
-                                k_len, iwb, reduce_work, load_work, 0);
+                                k_len, iwb, reduce_work, load_work, ic_off);
                     }
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;
@@ -1092,11 +1097,13 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                         }
                         assert(k_len >= 0);
 
+                        int ic_off = ic_off_idx * (is_dsrc_layout_nxc ? 1 : jcp.ic_block) * sizeof(float);
+
                         jit_conv_3d_ker_pipeline(jit_ker, par_conv,
                                 diff_src_w + ij * diff_src_h_stride,
                                 diff_dst_w + oj * diff_dst_h_stride,
                                 wht_w + k_lo * wht_h_stride, nullptr, ocb,
-                                k_len, d_len, reduce_work, load_work, 0);
+                                k_len, d_len, reduce_work, load_work, ic_off);
                     }
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;
