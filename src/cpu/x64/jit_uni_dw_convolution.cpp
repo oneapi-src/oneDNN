@@ -208,6 +208,8 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
 
         par_conv.ch_blocks = nstl::min(ch + ch_num, jcp.nb_ch) - ch;
 
+        par_conv.ic_off = ch * jcp.ch_block * sizeof(float);
+
         return par_conv;
     };
 

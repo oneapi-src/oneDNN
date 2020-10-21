@@ -332,6 +332,8 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
                             par_conv.flags |= FLAG_IC_LAST;
                     }
 
+                    par_conv.ic_off = (g * jcp.nb_ic + jcp.nb_ic_blocking * icbb) * jcp.ic_block * sizeof(float);
+
                     (*kernel_)(&par_conv);
                 }
             }

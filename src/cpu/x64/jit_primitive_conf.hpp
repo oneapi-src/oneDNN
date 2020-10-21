@@ -436,6 +436,7 @@ struct jit_conv_call_s {
     int oc_flag;
 
     size_t oc_off;
+    size_t ic_off;
     size_t oc_off_prf;
 };
 

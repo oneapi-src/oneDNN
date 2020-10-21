@@ -120,14 +120,14 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, diff_dst_type,
                             data_type::undef, diff_dst_type, data_type::f32)
-                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && !has_zero_dim_memory()
                     && set_default_formats();
 
             if (!ok) return status::unimplemented;
 
             status_t status = jit_uni_dw_conv_bwd_data_kernel<isa,
                     diff_dst_type>::init_conf(jcp_, *desc(), *diff_src_md(),
-                    *weights_md(), *diff_dst_md());
+                    *weights_md(), *diff_dst_md(), *attr());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -163,7 +163,7 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
                 new jit_uni_dw_conv_bwd_data_kernel<isa, diff_dst_type>(
-                        pd()->jcp_)));
+                        pd()->jcp_, *pd()->attr())));
         return kernel_->create_kernel();
     }
 

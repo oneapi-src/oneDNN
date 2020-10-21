@@ -276,18 +276,20 @@ template struct jit_uni_dw_conv_fwd_kernel<sse41, data_type::f32>;
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_bwd_data_kernel {
 
-    jit_uni_dw_conv_bwd_data_kernel(const jit_conv_conf_t &ajcp)
+    jit_uni_dw_conv_bwd_data_kernel(const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : ker_(nullptr) {
-        ker_ = new jit_kernel_t(ajcp);
+        ker_ = new jit_kernel_t(ajcp, attr);
     }
 
     status_t create_kernel() { return ker_->create_kernel(); }
     ~jit_uni_dw_conv_bwd_data_kernel() { delete ker_; }
 
+    static bool post_ops_ok(const primitive_attr_t &attr);
+
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
             const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &diff_dst_d);
+            const memory_desc_wrapper &diff_dst_d, const primitive_attr_t &attr);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
@@ -305,11 +307,29 @@ private:
 };
 
 template <cpu_isa_t isa, data_type_t kernel_dt>
+bool jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::post_ops_ok(const primitive_attr_t &attr) {
+    const auto &p = attr.post_ops_;
+    if (p.len() > 1)
+        return false;
+
+    auto all_post_ops_supported = [&]() {
+        bool ok = true;
+
+        for (int i = 0; i < p.len(); i++) {
+            ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::depthwise);
+        }
+        return ok;
+    };
+
+    return all_post_ops_supported();
+}
+
+template <cpu_isa_t isa, data_type_t kernel_dt>
 status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
         jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &diff_src_d,
         const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &diff_dst_d) {
+        const memory_desc_wrapper &diff_dst_d, const primitive_attr_t &attr) {
     using namespace dnnl::impl::format_tag;
     using namespace dnnl::impl::utils;
 
@@ -353,6 +373,9 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
 
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
+
+    if (!post_ops_ok(attr))
+        return status::unimplemented;
 
     bool ok_to_pad_channels = true && jcp.oc == jcp.ngroups
             && jcp.ic == jcp.ngroups
