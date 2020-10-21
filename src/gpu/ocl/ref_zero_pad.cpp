@@ -54,9 +54,21 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
         blk_size[blocking_desc.inner_idxs[i]] *= blocking_desc.inner_blks[i];
     }
 
+    // This constant needs to be the same as DEFAULT_NELEMS_BLOCK in
+    // ref_zero_pad.cl
+    const int default_nelems_block = 8;
+
+    // This divisibility condition cannot be changed without some modifications
+    // to use of DEFAULT_NELEMS_BLOCK in ref_zero_pad.cl
+    size_t nelems_block = 1;
+    while (nelems_block < default_nelems_block
+            && step_nelems % (nelems_block * 2) == 0)
+        nelems_block *= 2;
+
     arg_list.set(0, *mem_storage);
     arg_list.set(1, mdw.data_type_size());
     arg_list.set(2, step_nelems);
+    arg_list.set(3, nelems_block);
 
     for (int i = 0; i < ndims; i++) {
         if (dims[i] == pdims[i]) continue;
@@ -69,7 +81,8 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
 
         // Balance work unit size with parallelism
         cl_ulong step_block = 1;
-        while (step_nelems * step_block < 4096 && npsteps / step_block % 2 == 0
+        while (step_nelems / nelems_block * step_block < 4 * 1024
+                && step_count / (step_block * 2) % 2 == 0
                 && npsteps / step_block > 2 * hw_threads) {
             step_block *= 2;
         }
@@ -102,13 +115,14 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
             }
         }
 
-        arg_list.set(3, step_block);
-        arg_list.set(4, step_count);
-        arg_list.set(5, stride);
-        arg_list.set(6, bitmask);
+        arg_list.set(4, step_block);
+        arg_list.set(5, step_count);
+        arg_list.set(6, stride);
+        arg_list.set(7, bitmask);
 
-        const size_t gws[1] = {npsteps / step_block};
-        const compute::nd_range_t nd_range = compute::nd_range_t(1, gws);
+        const size_t gws[3]
+                = {nelems_block, step_count / step_block, npsteps / step_count};
+        const compute::nd_range_t nd_range = compute::nd_range_t(3, gws);
         status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
         if (status != status::success) return status;
     }
