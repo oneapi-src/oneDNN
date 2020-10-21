@@ -14,17 +14,17 @@ set architecture.
 
 Each subsequent line of verbose information is formatted as a comma-separated list
 containing:
-- `dnnl_verbose` marker string
-- operation: `create:<cache_hit|cache_miss>` or `exec`
-- engine kind: `cpu` or `gpu`
-- primitive name: `convolution`, `reorder`, `sum`, etc
-- primitive implementation
-- propagation: `forward_training`, `forward_inference`, or `backward`
-- information about input and output data types and formats
-- primitive attributes
-- auxiliary information like algorithm name or number of inputs
-- a problem description in [benchdnn format](@ref dev_guide_benchdnn)
-- execution time in milliseconds
+1. `dnnl_verbose` marker string
+2. operation: `create:<cache_hit|cache_miss>` or `exec`
+3. engine kind: `cpu` or `gpu`
+4. primitive name: `convolution`, `reorder`, `sum`, etc
+5. primitive implementation
+6. propagation: `forward_training`, `forward_inference`, or `backward`
+7. information about input and output data types and formats
+8. primitive attributes
+9. auxiliary information like algorithm name or number of inputs
+10. a problem description in [benchdnn format](@ref dev_guide_benchdnn)
+11. execution time in milliseconds
 
 ## Build-time Controls
 
