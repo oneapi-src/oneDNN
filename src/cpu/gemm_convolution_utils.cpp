@@ -1524,8 +1524,9 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                         + ic_disb_k + reg_osb_disb_k + thr_mem_eff_k
                         + gemm_eff_k + gemm_calc_eff_k;
 
-                auto calc_max_icb = [=](int nthr_oc, int ocb, int osb,
-                                            int oc_per_thr, int os_per_thr) {
+                auto calc_max_icb = [=](int nthr_oc, int ocb, int osb) {
+                    int oc_per_thr = div_up(jcp.oc, nthr_oc);
+                    int os_per_thr = div_up(jcp.os, max_threads / nthr_oc);
                     const int block_out_size = ocb * osb;
                     // TODO: need more precise calculation if stride more than
                     // kernel size
@@ -1568,16 +1569,13 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     return max_icb;
                 };
 
-                auto est_eff = [=](int nthr_oc, int ocb, int osb, int &icb,
-                                       int max_oc_per_thr, int max_os_per_thr) {
+                auto est_eff = [=](int nthr_oc, int ocb, int osb, int &icb) {
                     // for given nthr_oc, oc block:
                     // 1. find ic block to fit into cache
                     // 2. estimate efficiency basing on rules and heuristic:
                     // - Minimize im2col cost
                     // - ratio of FMA number to data size
                     // - gemm works better if M divided by 48 and N divided by 8
-                    if (osb > max_os_per_thr || ocb > max_oc_per_thr)
-                        return 0.f;
 
                     int sp_start {0}, sp_end {0}, oc_start {0}, oc_end {0};
                     int max_y {0}, max_oc {0};
@@ -1605,8 +1603,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     osb = nstl::min(os_max, osb);
 
                     // -- selecting icb ---------------------
-                    int max_ic_block = calc_max_icb(
-                            nthr_oc, ocb, osb, oc_per_thr, os_per_thr);
+                    int max_ic_block = calc_max_icb(nthr_oc, ocb, osb);
                     // if we don't fit into cache then access to memory is
                     // expensive
                     int mem_access_cost
@@ -1663,14 +1660,17 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                             / (osb_caligned * kb + ocb * kb_caligned
                                     + ocb * osb_caligned);
 
+                    // remove pow, when corresponding weight is 1
                     const float res_eff = pow(pow(thr_disb, thr_disb_k)
-                                    * pow(oc_disb, oc_disb_k)
-                                    * pow(os_disb, os_disb_k)
-                                    * pow(ic_disb, ic_disb)
-                                    * pow(reg_osb_disb, reg_osb_disb_k)
-                                    * pow(thr_mem_eff, thr_mem_eff_k)
-                                    * pow(gemm_eff, gemm_eff_k)
-                                    * pow(gemm_calc_eff, gemm_calc_eff_k),
+                                    * oc_disb // pow(oc_disb, oc_disb_k)
+                                    * os_disb // pow(os_disb, os_disb_k)
+                                    * ic_disb // pow(ic_disb, ic_disb_k)
+                                    // pow(reg_osb_disb, reg_osb_disb_k)
+                                    * reg_osb_disb
+                                    //pow(thr_mem_eff, thr_mem_eff_k)
+                                    * thr_mem_eff
+                                    //pow(gemm_calc_eff, gemm_calc_eff_k)
+                                    * pow(gemm_eff, gemm_eff_k) * gemm_calc_eff,
                             1.f / k_sum);
                     return res_eff;
                 };
@@ -1679,8 +1679,8 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                  * efficiency */
                 int best_nthr_oc {1}, best_ocb {jcp.oc}, best_osb {jcp.os},
                         best_icb {jcp.ic};
-                float best_thr_eff = est_eff(best_nthr_oc, best_ocb, best_osb,
-                        best_icb, jcp.oc, jcp.os);
+                float best_thr_eff
+                        = est_eff(best_nthr_oc, best_ocb, best_osb, best_icb);
 
                 int icb {best_icb};
                 const int nthr_oc_max = max_threads;
@@ -1701,8 +1701,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                                 osb += nstl::max(1,
                                         nstl::min(min_os_block,
                                                 max_os_per_thr - osb))) {
-                            float thr_eff = est_eff(nthr_oc, ocb, osb, icb,
-                                    max_oc_per_thr, max_os_per_thr);
+                            float thr_eff = est_eff(nthr_oc, ocb, osb, icb);
                             if (thr_eff > best_thr_eff) {
                                 best_thr_eff = thr_eff;
                                 best_nthr_oc = nthr_oc;
