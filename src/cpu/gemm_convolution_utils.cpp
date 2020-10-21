@@ -1495,9 +1495,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             // There is some heuristics in the definition of
             // inner/outer threading cross point due to the nature of the
             // gemm implementation which we cannot control
-            bool is_blocking_applicable = true
-                    && DNNL_X64 // FIXME: workaround to avoid exhaustive search
-                    && !is_3d
+            bool is_blocking_applicable = true && !is_3d
                     && (!jcp.im2col_sz
                             // spatial is small
                             || spatial >= max_threads * simd_w
