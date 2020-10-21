@@ -27,6 +27,8 @@
 #include "cpu/cpu_convolution_pd.hpp"
 #include "cpu/primitive_attr_postops.hpp"
 
+#include "ref_depthwise_injector.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -118,7 +120,9 @@ struct ref_convolution_bwd_data_t : public primitive_t {
                     && utils::one_of(diff_dst_type, f32, bf16, f16)
                     && wei_type == diff_dst_type
                     && utils::one_of(diff_src_type, f32, diff_dst_type)
-                    && set_default_formats() && attr()->has_default_values();
+                    && set_default_formats()
+                    && attr()->has_default_values(primitive_attr_t::skip_mask_t::post_ops)
+                    && is_supported_post_ops();
 
             return ok ? status::success : status::unimplemented;
         }
@@ -132,9 +136,41 @@ struct ref_convolution_bwd_data_t : public primitive_t {
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
+
+        bool is_supported_post_ops() const {
+            const auto &p = this->attr()->post_ops_;
+            if (p.len() > 1)
+                return false;
+
+            auto all_post_ops_supported = [&]() {
+                bool ok = true;
+
+                for (int i = 0; i < p.len(); i++) {
+                    ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::depthwise);
+                }
+                return ok;
+            };
+
+            return all_post_ops_supported();
+        }
     };
 
-    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {
+        const auto &post_ops = pd()->attr()->post_ops_;
+
+        for (int i = 0; i < post_ops.len(); i++) {
+            auto &post_op = post_ops.entry_[i];
+            if (post_op.is_depthwise()) {
+                depthwise_injectors.push_back(new ref_depthwise_scalar_fwd_t(post_op.depthwise.alg));
+            }
+        }
+    }
+
+    ~ref_convolution_bwd_data_t() {
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -143,6 +179,8 @@ struct ref_convolution_bwd_data_t : public primitive_t {
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+
+    nstl::vector<ref_depthwise_scalar_fwd_t*> depthwise_injectors;
 };
 
 struct ref_convolution_bwd_weights_t : public primitive_t {

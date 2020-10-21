@@ -137,8 +137,8 @@ private:
 struct jit_avx512_dw_conv_bwd_data_kernel_bf16 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_bwd_data_kernel_bf16)
 
-    jit_avx512_dw_conv_bwd_data_kernel_bf16(const jit_conv_conf_t &ajcp)
-        : jit_generator(jit_name()), jcp(ajcp), bf16_emu_(nullptr) {
+    jit_avx512_dw_conv_bwd_data_kernel_bf16(const jit_conv_conf_t &ajcp, const primitive_attr_t& attr)
+        : jit_generator(jit_name()), jcp(ajcp), attr_(attr), bf16_emu_(nullptr) {
 
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
@@ -146,9 +146,17 @@ struct jit_avx512_dw_conv_bwd_data_kernel_bf16 : public jit_generator {
                     bf16_emu_reserv_5, bf16_emu_reserv_6);
     }
 
-    ~jit_avx512_dw_conv_bwd_data_kernel_bf16() { delete bf16_emu_; }
+    ~jit_avx512_dw_conv_bwd_data_kernel_bf16() {
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+
+        delete bf16_emu_;
+    }
 
     jit_conv_conf_t jcp;
+
+    const primitive_attr_t& attr_;
 
 private:
     using reg64_t = const Xbyak::Reg64;
@@ -184,6 +192,9 @@ private:
     reg64_t reg_tmp = r15;
     Xbyak::Opmask k_ch_tail_mask = Xbyak::Opmask(1);
 
+    reg64_t reg_d_weights = r15;
+    reg64_t reg_d_bias = iter_kh;
+
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);
     Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(27);
     Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(28);
@@ -193,10 +204,13 @@ private:
 
     bf16_emulation_t *bf16_emu_;
 
+    nstl::vector<jit_uni_depthwise_injector_f32<avx512_core>*> depthwise_injectors;
+
     inline void ch_loop_body(int ur_ch_blocks, int unroll_w);
     inline void unroll_width_body(int ur_ch_blocks);
     inline void load_ddst(int ur_ch_blocks, int ur_str_w);
     inline void apply_filter(int ur_ch_blocks, int ur_str_w, bool is_last_ch);
+    inline void apply_postprocess(int ur_ch_blocks, int ur_str_w);
     inline void store_dsrc(int ur_ch_blocks, int ur_str_w, bool is_last_ch);
 
     void generate() override;

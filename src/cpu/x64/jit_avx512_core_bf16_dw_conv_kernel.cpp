@@ -714,6 +714,34 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::apply_filter(
     L(iter_exit_label);
 }
 
+void jit_avx512_dw_conv_bwd_data_kernel_bf16::apply_postprocess(int ur_ch_blocks, int ur_str_) {
+    const auto& p = attr_.post_ops_;
+    int depthwise_inj_idx = 0;
+    for (int i = 0; i < p.len(); i++) {
+        auto& post_op = p.entry_[i];
+        if (post_op.is_depthwise()) {
+            mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
+            mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
+
+            add(reg_d_weights, ptr[this->param1 + GET_OFF(ic_off)]);
+            add(reg_d_bias, ptr[this->param1 + GET_OFF(ic_off)]);
+
+            for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                int start_idx = get_acc_reg(ur_str_ * ch).getIdx();
+                int end_idx = get_acc_reg(ur_str_ * ch + ur_str_).getIdx();
+
+                depthwise_injectors[depthwise_inj_idx]->compute_vector_range(
+                    start_idx, end_idx, reg_d_weights, reg_d_bias);
+
+                add(reg_d_weights, jcp.ch_block * sizeof(float));
+                add(reg_d_bias, jcp.ch_block * sizeof(float));
+            }
+
+            depthwise_inj_idx++;
+        }
+    }
+}
+
 inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::store_dsrc(
         int ur_ch_blocks, int ur_str_w, bool last_ch_block_flag) {
     int ch_blk = jcp.ch_block;
@@ -771,6 +799,7 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::ch_loop_body(
 
                   load_ddst(ur_ch_blocks, unroll_w);
                   apply_filter(ur_ch_blocks, unroll_w, is_last_ch);
+                  apply_postprocess(ur_ch_blocks, unroll_w);
                   store_dsrc(ur_ch_blocks, unroll_w, is_last_ch);
               };
 
@@ -861,6 +890,17 @@ inline void jit_avx512_dw_conv_bwd_data_kernel_bf16::unroll_width_body(
 
 void jit_avx512_dw_conv_bwd_data_kernel_bf16::generate() {
     assert(is_dsrc_layout_nxc() == is_ddst_layout_nxc());
+
+    const auto& p = attr_.post_ops_;
+    for (int i = 0; i < p.len(); i++) {
+        auto& post_op = p.entry_[i];
+        if (post_op.is_depthwise()) {
+            depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<avx512_core>(
+                this,
+                post_op.depthwise.alg
+                ));
+        }
+    }
 
     preamble();
     mov(reg_dsrc, ptr[this->param1 + GET_OFF(src)]);
