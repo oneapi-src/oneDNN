@@ -718,7 +718,7 @@ void test_fwd_pd_attr_scales(
     attr_scales.set_scales(DNNL_ARG_SRC, 0, {2.f});
 
     pd_t new_pd(op_desc, eng);
-    const auto dt = new_pd.src_desc().data.data_type;
+    const auto dt = new_pd.dst_desc().data.data_type;
     const bool dt_is_integral
             = dt == dt_t::s32 || dt == dt_t::s8 || dt == dt_t::u8;
 

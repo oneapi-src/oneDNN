@@ -43,7 +43,7 @@
 ## post_ops + scales
 --alg=ADD,MUL,MAX,MIN,SUB
 --inplace=true,false
---ddt=s8 --sdt=s8:u8
+--ddt=s8 --sdt=s8:u8,s8:f32
 --attr-scales=,src:common:16_src1:common:2
 --attr-post-ops='','sum:0.5;abs'
 --batch=option_set_all
@@ -55,12 +55,3 @@
 # check for proper saturation
 --attr-scales=src:common:4.29497e+09_src1:common:4.29497e+09
 --batch=option_set_all
-
-## bnorm u8 binary post-op impl
-## TODO: Enable different src data types, different src0 and dst
-## data types and not default scale for i8.
-# --alg=SUB
-# --ddt=u8,s8 --sdt=u8:f32
-# --attr-scales=src1:per_dim_1:2 # to simulate proper mean subtract
-# --attr-post-ops='div:f32:per_oc;mul:f32:per_oc;add:f32:per_oc'
-# --batch=option_set_all

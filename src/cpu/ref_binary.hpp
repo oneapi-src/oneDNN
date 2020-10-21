@@ -52,9 +52,9 @@ struct ref_binary_t : public primitive_t {
                     && platform::has_data_type_support(src1_type)
                     && platform::has_data_type_support(dst_type)
                     && set_default_params() == status::success
-                    && IMPLICATION(utils::one_of(src0_type, f32, bf16),
+                    && IMPLICATION(utils::one_of(dst_type, f32, bf16),
                             attr()->has_default_values(sm::post_ops))
-                    && IMPLICATION(utils::one_of(src0_type, s8, u8),
+                    && IMPLICATION(utils::one_of(dst_type, s8, u8),
                             attr()->has_default_values(
                                     sm::post_ops | sm::scales))
                     && IMPLICATION(!attr()->scales_.has_default_values(),

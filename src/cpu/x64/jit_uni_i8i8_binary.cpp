@@ -164,6 +164,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
     const Reg64 reg_offt_src0 = r11;
     const Reg64 reg_offt_src0_count = r12;
     const Reg64 reg_offt_src1 = rax;
+    const Reg64 reg_offt_dst = rdx;
     const Reg64 reg_reverse_spat_offt = r13;
     const Reg64 reg_tmp = r14;
     const Reg64 reg_elt_inj_table = r15;
@@ -185,7 +186,8 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
     const Vmm vreg_saturation_ubound = Vmm(isa == avx512_common ? 21 : 13);
     const Vmm vreg_bcast_src1 = Vmm(isa == avx512_common ? 22 : 14);
     const Xmm xreg_bcast_src1 = Xmm(14);
-    const Xmm xreg_tmp = Xmm(0);
+    const Xmm xreg_tmp_store = Xmm(0);
+    const Ymm ymm_tail_mask = Ymm(0);
     const Opmask elt_inj_opmask_ = Opmask(1);
     const Opmask tail_opmask_ = Opmask(2);
 
@@ -277,7 +279,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
     }
 
     Address dst_ptr(size_t offt = 0) {
-        return vmmword[reg_dst + reg_offt_src0 + offt];
+        return vmmword[reg_dst + reg_offt_dst + offt];
     }
 
     void perform_op(const Vmm &v0, const Vmm &v1, const Vmm &s_src0,
@@ -307,9 +309,10 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
         switch (idt) {
             case data_type::u8: uni_vpmovzxbd(vmm, op); break;
             case data_type::s8: uni_vpmovsxbd(vmm, op); break;
+            case data_type::f32: uni_vmovups(vmm, op); break;
             default: assert(!"unreachable");
         }
-        uni_vcvtdq2ps(vmm, vmm);
+        if (idt != data_type::f32) uni_vcvtdq2ps(vmm, vmm);
     }
 
     void accumulate_tail(const Xmm &xmm, int arg_num) {
@@ -327,6 +330,10 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
         }
     }
 
+    virtual void load_f32_tail(
+            const Vmm &vmm, const Address &addr, int arg_num, data_type_t idt)
+            = 0;
+
     void load(const Vmm &vmm, const Address &addr, int arg_num, data_type_t idt,
             bool tail) {
         // i8 -> f32
@@ -335,9 +342,13 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
             load_and_convert(vmm, addr, idt);
         } else {
             UNUSED(addr);
-            Xbyak::Xmm xreg_tmp = Xbyak::Xmm(vmm.getIdx());
-            accumulate_tail(xreg_tmp, arg_num);
-            load_and_convert(vmm, xreg_tmp, idt);
+            if (idt == f32)
+                load_f32_tail(vmm, addr, arg_num, idt);
+            else {
+                const Xbyak::Xmm xreg_tmp = Xbyak::Xmm(vmm.getIdx());
+                accumulate_tail(xreg_tmp, arg_num);
+                load_and_convert(vmm, xreg_tmp, idt);
+            }
         }
     }
 
@@ -358,7 +369,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
                         vmm_idx, ptr[param1 + PARAM_OFF(oc_l_off)]);
             } else if (postops_per_oc_bcast_ == op_t::bcast_n_spatial_c) {
                 rhs_arg_params.vmm_idx_to_oc_off_oprnd.emplace(
-                        vmm_idx, reg_offt_src0);
+                        vmm_idx, reg_offt_dst);
                 rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(vmm_idx,
                         (vmm_idx - vmm_start_idx_) * static_cast<int>(simd_w_));
             }
@@ -369,7 +380,11 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
     }
 
     void forward() {
+        auto src0_type = pd_->src_md(0)->data_type;
+        auto src1_type = pd_->src_md(1)->data_type;
         auto dst_type = pd_->dst_md(0)->data_type;
+        const auto src0_type_size = types::data_type_size(src0_type);
+        const auto src1_type_size = types::data_type_size(src1_type);
         uni_vpxor(vreg_zero, vreg_zero, vreg_zero);
         init_saturate_f32(
                 vreg_zero, vreg_saturation_ubound, reg_tmp, f32, dst_type);
@@ -386,12 +401,19 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
         mov(reg_reverse_spat_offt, reg_offt_src0_count);
         xor_(reg_offt_src0, reg_offt_src0); // offt_src0 to get addr of src0/dst
         xor_(reg_offt_src1, reg_offt_src1); // offt_src1 to get addr of src1
+        xor_(reg_offt_dst, reg_offt_dst); // offt_dst to get addr of dst
 
         // bcast vreg just one time per kernel call
         if (broadcast_src1_value_) {
             uni_vpxor(xreg_bcast_src1, xreg_bcast_src1, xreg_bcast_src1);
-            uni_vpinsrb(xreg_bcast_src1, xreg_bcast_src1, src1_ptr(0), 0);
-            uni_vcvtdq2ps(xreg_bcast_src1, xreg_bcast_src1);
+            if (src1_type_size != types::data_type_size(f32)) {
+                uni_vpinsrb(xreg_bcast_src1, xreg_bcast_src1, src1_ptr(0), 0);
+                // on avx512 xreg_bcast_src1 and vreg_bcast_src1 are not the same
+                load_and_convert(Vmm(xreg_bcast_src1.getIdx()), xreg_bcast_src1,
+                        src1_type);
+            } else
+                uni_vpinsrd(xreg_bcast_src1, xreg_bcast_src1, src1_ptr(0), 0);
+
             uni_vbroadcastss(vreg_bcast_src1, xreg_bcast_src1);
         }
 
@@ -403,8 +425,10 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
 
             compute_dst(unroll_regs_, false);
             sub(reg_reverse_spat_offt, offt);
-            add(reg_offt_src0, offt);
-            if (!broadcast_src1_value_) add(reg_offt_src1, offt);
+            add(reg_offt_src0, offt * src0_type_size);
+            if (!broadcast_src1_value_)
+                add(reg_offt_src1, offt * src1_type_size);
+            add(reg_offt_dst, offt);
             jmp(unroll_loop);
         }
 
@@ -415,8 +439,10 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
 
             compute_dst(1, false);
             sub(reg_reverse_spat_offt, simd_w_);
-            add(reg_offt_src0, simd_w_);
-            if (!broadcast_src1_value_) add(reg_offt_src1, simd_w_);
+            add(reg_offt_src0, simd_w_ * src0_type_size);
+            if (!broadcast_src1_value_)
+                add(reg_offt_src1, simd_w_ * src1_type_size);
+            add(reg_offt_dst, simd_w_);
             jmp(unroll_loop_tail);
         }
 
@@ -482,14 +508,19 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type,
         }
     }
 
+    void load_f32_tail(const Vmm &vmm, const Address &addr, int arg_num,
+            data_type_t idt) override {
+        uni_vmovups_tail(Xbyak::Zmm(vmm.getIdx()), tail_opmask_, addr);
+    }
+
     void store(const Operand &dst, const Vmm &src, data_type_t odt, bool tail) {
         // f32 -> i8 and store
         if (!tail) {
             cvt2odt(dst, src, odt);
         } else {
             UNUSED(dst);
-            cvt2odt(xreg_tmp, src, odt);
-            store_tail(xreg_tmp);
+            cvt2odt(xreg_tmp_store, src, odt);
+            store_tail(xreg_tmp_store);
         }
     }
 
@@ -500,12 +531,13 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type,
             const Vmm vreg_tmp_src1
                     = !broadcast_src1_value_ ? vreg_tmp : vreg_bcast_src1;
             const int offt = simd_w_ * i;
-            load(vreg_tmp_src0, src0_ptr(offt), DNNL_ARG_SRC_0, src0_type,
-                    tail);
-            if (!broadcast_src1_value_) {
-                load(vreg_tmp_src1, src1_ptr(offt), DNNL_ARG_SRC_1, src1_type,
-                        tail);
-            }
+            load(vreg_tmp_src0,
+                    src0_ptr(offt * types::data_type_size(src0_type)),
+                    DNNL_ARG_SRC_0, src0_type, tail);
+            if (!broadcast_src1_value_)
+                load(vreg_tmp_src1,
+                        src1_ptr(offt * types::data_type_size(src1_type)),
+                        DNNL_ARG_SRC_1, src1_type, tail);
 
             // avoid multiple multiplication on input scale for broadcasted vreg
             uni_vmovups(vreg_tmp, vreg_tmp_src1);
@@ -534,6 +566,17 @@ template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
 struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type, dst_type>
     : public jit_uni_i8i8_binary_kernel_t<avx2> {
 
+    void prepare_tail_mask() override {
+        if (!tail_size_) return;
+
+        static constexpr uint32_t mask_f32[14]
+                = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+                        0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0, 0};
+
+        mov(reg_tmp, reinterpret_cast<size_t>(&mask_f32[7 - tail_size_]));
+        vmovups(ymm_tail_mask, ptr[reg_tmp]);
+    }
+
     void cvt2odt(const Vmm &v, data_type_t odt) {
         // f32 -> s32
         // properly saturate in f32
@@ -551,6 +594,11 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type, dst_type>
             default: assert(!"unreachable");
         }
         // v = { 8x8, 0 }
+    }
+
+    void load_f32_tail(const Vmm &vmm, const Address &addr, int arg_num,
+            data_type_t idt) override {
+        uni_vmovups_tail(Xbyak::Ymm(vmm.getIdx()), ymm_tail_mask, addr);
     }
 
     void store(const Address &dst, const Vmm &src, data_type_t odt, bool tail) {
@@ -571,12 +619,13 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type, dst_type>
             const Vmm vreg_tmp_src1
                     = !broadcast_src1_value_ ? vreg_tmp : vreg_bcast_src1;
             const int offt = simd_w_ * i;
-            load(vreg_tmp_src0, src0_ptr(offt), DNNL_ARG_SRC_0, src0_type,
-                    tail);
-            if (!broadcast_src1_value_) {
-                load(vreg_tmp_src1, src1_ptr(offt), DNNL_ARG_SRC_1, src1_type,
-                        tail);
-            }
+            load(vreg_tmp_src0,
+                    src0_ptr(offt * types::data_type_size(src0_type)),
+                    DNNL_ARG_SRC_0, src0_type, tail);
+            if (!broadcast_src1_value_)
+                load(vreg_tmp_src1,
+                        src1_ptr(offt * types::data_type_size(src1_type)),
+                        DNNL_ARG_SRC_1, src1_type, tail);
 
             // avoid multiple multiplication on input scale for broadcasted vreg
             uni_vmovups(vreg_tmp, vreg_tmp_src1);
@@ -622,6 +671,24 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type, dst_type>
         // v = { 4x8, 0 }
     }
 
+    void load_f32_tail(const Vmm &vmm, const Address &addr, int arg_num,
+            data_type_t idt) override {
+        const Xbyak::Xmm xreg_tmp = Xbyak::Xmm(vmm.getIdx());
+        switch (arg_num) {
+            case DNNL_ARG_SRC_0:
+                for (size_t i = 0; i < tail_size_; i++)
+                    uni_vpinsrd(xreg_tmp, xreg_tmp,
+                            src0_ptr(i * types::data_type_size(f32)), i);
+                break;
+            case DNNL_ARG_SRC_1:
+                for (size_t i = 0; i < tail_size_; i++)
+                    uni_vpinsrd(xreg_tmp, xreg_tmp,
+                            src1_ptr(i * types::data_type_size(f32)), i);
+                break;
+            default: assert(!"unsupported arg_num"); break;
+        }
+    }
+
     void store(const Address &dst, const Vmm &src, data_type_t odt, bool tail) {
         // f32 -> i8 and store
         cvt2odt(src, odt);
@@ -640,12 +707,13 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type, dst_type>
             const Vmm vreg_tmp_src1
                     = !broadcast_src1_value_ ? vreg_tmp : vreg_bcast_src1;
             const int offt = simd_w_ * i;
-            load(vreg_tmp_src0, src0_ptr(offt), DNNL_ARG_SRC_0, src0_type,
-                    tail);
-            if (!broadcast_src1_value_) {
-                load(vreg_tmp_src1, src1_ptr(offt), DNNL_ARG_SRC_1, src1_type,
-                        tail);
-            }
+            load(vreg_tmp_src0,
+                    src0_ptr(offt * types::data_type_size(src0_type)),
+                    DNNL_ARG_SRC_0, src0_type, tail);
+            if (!broadcast_src1_value_)
+                load(vreg_tmp_src1,
+                        src1_ptr(offt * types::data_type_size(src1_type)),
+                        DNNL_ARG_SRC_1, src1_type, tail);
 
             // avoid multiple multiplication on input scale for broadcasted vreg
             movups(vreg_tmp, vreg_tmp_src1);
@@ -718,6 +786,8 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
             = binary_injector::prepare_binary_args(post_ops, ctx);
     const memory_desc_wrapper src0_d(pd()->src_md(0));
     const memory_desc_wrapper src1_d(pd()->src_md(1));
+    const int src0_type_size = types::data_type_size(src0_d.data_type());
+    const int src1_type_size = types::data_type_size(src1_d.data_type());
 
     static constexpr int nargs = 2;
     scales_t scales[nargs];
@@ -756,8 +826,8 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
 
             i8i8_binary_kernel_t::call_params_t p;
             p.spat_offt_count = (n_simd_to_do + tail_to_do) * sizeof(int8_t);
-            p.src0 = src0 + start * simd_w;
-            p.src1 = src1 + start * simd_w;
+            p.src0 = src0 + start * simd_w * src0_type_size;
+            p.src1 = src1 + start * simd_w * src1_type_size;
             p.dst = dst + start * simd_w;
             p.scales_src0 = scales[0].scales_;
             p.scales_src1 = scales[1].scales_;
@@ -784,8 +854,8 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
                 p.spat_offt_count = SP * simd_w * sizeof(int8_t);
                 const auto off = mb * nelems_slice_src0 + C_blk * SP * simd_w;
                 p.dst = dst + off;
-                p.src0 = src0 + off;
-                p.src1 = src1 + off;
+                p.src0 = src0 + off * src0_type_size;
+                p.src1 = src1 + off * src1_type_size;
                 p.oc_l_off = C_blk * simd_w;
                 p.scales_src0 = scales[0].scales_;
                 p.scales_src1 = scales[1].scales_;
@@ -800,8 +870,8 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
                 p.spat_offt_count = SP * sizeof(int8_t);
                 const auto off = mb * nelems_slice_src0 + c * SP;
                 p.dst = dst + off;
-                p.src0 = src0 + off;
-                p.src1 = src1 + off;
+                p.src0 = src0 + off * src0_type_size;
+                p.src1 = src1 + off * src1_type_size;
                 p.scales_src0 = scales[0].scales_;
                 p.scales_src1 = scales[1].scales_;
                 p.oc_l_off = c;
@@ -817,10 +887,10 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
                 p.spat_offt_count = C * sizeof(int8_t);
                 const auto offset = mb * nelems_slice_src0 + sp * C;
                 p.dst = dst + offset;
-                p.src0 = src0 + offset;
+                p.src0 = src0 + offset * src0_type_size;
                 const auto offset_src1
                         = no_broadcast ? offset : mb * nelems_slice_src1;
-                p.src1 = src1 + offset_src1;
+                p.src1 = src1 + offset_src1 * src1_type_size;
                 p.scales_src0 = scales[0].scales_;
                 p.scales_src1 = scales[1].scales_;
                 p.post_ops_binary_rhs_arg_vec
@@ -843,6 +913,16 @@ template struct jit_uni_i8i8_binary_t<s8, s8, u8>;
 template struct jit_uni_i8i8_binary_t<s8, u8, u8>;
 template struct jit_uni_i8i8_binary_t<u8, s8, u8>;
 template struct jit_uni_i8i8_binary_t<u8, u8, u8>;
+template struct jit_uni_i8i8_binary_t<s8, f32, s8>;
+template struct jit_uni_i8i8_binary_t<s8, f32, u8>;
+template struct jit_uni_i8i8_binary_t<u8, f32, s8>;
+template struct jit_uni_i8i8_binary_t<u8, f32, u8>;
+template struct jit_uni_i8i8_binary_t<f32, s8, s8>;
+template struct jit_uni_i8i8_binary_t<f32, s8, u8>;
+template struct jit_uni_i8i8_binary_t<f32, u8, s8>;
+template struct jit_uni_i8i8_binary_t<f32, u8, u8>;
+template struct jit_uni_i8i8_binary_t<f32, f32, s8>;
+template struct jit_uni_i8i8_binary_t<f32, f32, u8>;
 
 } // namespace x64
 } // namespace cpu

@@ -53,7 +53,7 @@ argument index as specified by the following table.
  * The binary primitive supports in-place operations, meaning that source 0
    tensor may be used as the destination, in which case its data will
    be overwritten. In-place mode requires the \dst and source 0 data types to be
-   either the same. 
+   the same. Different data types will unavoidably lead to correctness issues.
 
 ### Post-ops and Attributes
 
@@ -69,7 +69,14 @@ The following attributes are supported:
 ### Data Types Support
 
 The source and destination tensors may have `f32`, `bf16`, or `int8` data types.
-See @ref dev_guide_data_types page for more details.
+The binary primitive supports the following combinations of data types:
+
+| Source 0 / 1         | Destination
+| :--                  | :--
+| f32                  | f32
+| bf16                 | bf16
+| s8, u8, f32          | s8, u8
+| s8, u8, f32          | s8, u8
 
 ### Data Representation
 
@@ -82,10 +89,6 @@ meaning associated with any of tensors dimensions.
 
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
-
-2. **CPU**
-    - Destination memory descriptor should completely match source 0 memory
-      descriptor (except when using integer data type).
 
 ## Performance Tips
 
