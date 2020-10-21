@@ -218,7 +218,14 @@ struct _ref_rnn_common_t : public primitive_t {
         void init_scratchpad(size_t scratchpad_sz) {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
-            scratchpad.template book<float>(key_rnn_space, scratchpad_sz, 4096);
+
+            {
+                size_t data_size = 1; // "true" data size already incorporated
+                size_t data_align = alignof(float); // "worst" case scenario
+                size_t perf_align = 4096;
+                scratchpad.book(key_rnn_space, scratchpad_sz, data_size,
+                        data_align, perf_align);
+            }
 
             int max_nparts = this->cell_kind() == alg_kind::vanilla_gru ? 2 : 1;
             int ptr_wei_sz = rnn_.n_layer * rnn_.n_dir * max_nparts;
