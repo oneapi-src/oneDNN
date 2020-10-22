@@ -25,6 +25,5 @@
 * **1**: Tensor of the same type as the 1st input tensor and `shape[i] = shapeOf(input1)[i]` for all `i` that is not in the list of axes from the 2nd input. For dimensions from the 2nd input tensor, `shape[i] == 1` if `keep_dims == True`, or `i`-th dimension is removed from the output otherwise.
 
 **Detailed Description**
-Corner cases:
-    1. When the 2nd input is an empty list, then this operation does nothing, it is an identity. 
-    2. When the 2nd input contains all dimensions of the 1st input, this means that a single reduction value is calculated for entire input tensor. 
+
+Corner cases: 1. When the 2nd input is an empty list, then this operation does nothing, it is an identity. 2. When the 2nd input contains all dimensions of the 1st input, this means that a single reduction value is calculated for entire input tensor.
