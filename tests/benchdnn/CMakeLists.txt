@@ -61,7 +61,7 @@ function(register_benchdnn_test engine driver test_file)
 
     if(DNNL_BUILD_FOR_CI)
         string(REPLACE " " ";" cmd "benchdnn ${cmd}")
-        add_test(${benchdnn_target} ${cmd})
+        add_dnnl_test(${benchdnn_target} ${cmd})
     else()
         string(REPLACE " " ";" cmd "$<TARGET_FILE:benchdnn> ${cmd}")
 
