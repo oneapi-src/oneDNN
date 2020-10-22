@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <atomic>
 #include <cstring>
 #include <mutex>
 
@@ -29,54 +28,6 @@ namespace x64 {
 
 namespace {
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
-
-// A setting (basically a value) that can be set() multiple times until the
-// time first time the get() method is called. The set() method is expected to
-// be as expensive as a busy-waiting spinlock. The get() method is expected to
-// be asymptotically as expensive as a single lock-prefixed memory read. The
-// get() method also has a 'soft' mode when the setting is not locked for
-// re-setting. This is used for testing purposes.
-template <typename T>
-struct set_before_first_get_setting_t {
-private:
-    T value_;
-    bool initialized_;
-    std::atomic<unsigned> state_;
-    enum : unsigned { idle = 0, busy_setting = 1, locked_after_a_get = 2 };
-
-public:
-    set_before_first_get_setting_t(T init = T(0))
-        : value_ {init}, initialized_ {false}, state_ {0} {}
-
-    bool set(T new_value) {
-        if (state_.load() == locked_after_a_get) return false;
-
-        while (true) {
-            unsigned expected = idle;
-            if (state_.compare_exchange_weak(expected, busy_setting)) break;
-            if (expected == locked_after_a_get) return false;
-        }
-
-        value_ = new_value;
-        initialized_ = true;
-        state_.store(idle);
-        return true;
-    }
-
-    bool initialized() { return initialized_; }
-
-    T get(bool soft = false) {
-        if (!soft && state_.load() != locked_after_a_get) {
-            while (true) {
-                unsigned expected = idle;
-                if (state_.compare_exchange_weak(expected, locked_after_a_get))
-                    break;
-                if (expected == locked_after_a_get) break;
-            }
-        }
-        return value_;
-    }
-};
 
 set_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
     static set_before_first_get_setting_t<cpu_isa_t> max_cpu_isa_setting;
