@@ -139,7 +139,6 @@ protected:
             uni_vmovups(tmp1_vmm, B_addr(1));
             uni_vaddps(G1, G1, tmp1_vmm);
             sigmoid_injector_->compute_vector(G1.getIdx());
-            uni_vmovups(sg_addr(1), G1);
             // if training we write back the gates
             if (is_training) to_src<src_data_t>(wg_addr(1), G1, vlen);
 
