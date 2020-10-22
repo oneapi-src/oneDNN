@@ -29,6 +29,12 @@ inline void write_vect_c_block(int idx, __global DATA_T *ptr, int c,
 inline void write_vect_c_block_int(int idx, __global int *ptr, int c,
         int blocks_stride, int chunks_per_block, VECT_INT_T block);
 
+#if DT_BF16
+#define USE_FLOATS true
+#else
+#define USE_FLOATS (ALG_AVG_NP || ALG_AVG_P)
+#endif
+
 #if IS_FWD
 KERNEL_ATTR
 __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
@@ -60,14 +66,13 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         const int id = od * SD - PD;
         const int ih = oh * SH - PH;
         const int iw = ow * SW - PW;
-
-#if ALG_AVG_P || ALG_AVG_NP
-        VECT_FLOAT_T D0 = DATA_ZERO;
-        VECT_FLOAT_T D1 = DATA_ZERO;
-#else // ALG_AVG_P || ALG_AVG_NP
-        VECT_DATA_T D0 = DATA_MIN;
-        VECT_DATA_T D1 = DATA_MIN;
-#endif // ALG_AVG_P || ALG_AVG_NP
+#if USE_FLOATS
+        VECT_FLOAT_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+        VECT_FLOAT_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+#else // USE_FLOATS
+        VECT_DATA_T D0 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+        VECT_DATA_T D1 = ALG_MAX ? DATA_MIN : DATA_ZERO;
+#endif // USE_FLOATS
         VECT_INT_T WS0 = 0, WS1 = 0;
 
         for (int kd = 0; kd < KD; ++kd)
@@ -78,19 +83,19 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
                     if (iw + kw < 0 || iw + kw >= IW) continue;
 
                     int src_off = SRC_OFF(mb, c, id + kd, ih + kh, iw + kw);
-#if ALG_AVG_P || ALG_AVG_NP
+#if USE_FLOATS
                     VECT_FLOAT_T S0 = CONVERT_VECT_FLOAT_T(
                             read_vect_c_block(0, &src[src_off], c, src_stride,
                                     src_chunks_per_c_block));
                     VECT_FLOAT_T S1 = CONVERT_VECT_FLOAT_T(
                             read_vect_c_block(1, &src[src_off], c, src_stride,
                                     src_chunks_per_c_block));
-#else // ALG_AVG_P || ALG_AVG_NP
+#else // USE_FLOATS
                     VECT_DATA_T S0 = read_vect_c_block(0, &src[src_off], c,
                             src_stride, src_chunks_per_c_block);
                     VECT_DATA_T S1 = read_vect_c_block(1, &src[src_off], c,
                             src_stride, src_chunks_per_c_block);
-#endif // ALG_AVG_P || ALG_AVG_NP
+#endif // USE_FLOATS
 
 #if ALG_MAX
 #if IS_TRAINING
@@ -148,16 +153,16 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         const int po_mb = mb;
         const int po_oc = c + local_id;
         POST_OP_DATA_T po_sum0 = DATA_TO_REF(sum0);
-        float po_D0 = CONVERT_FLOAT_T(D0);
+        float po_D0 = USE_FLOATS ? D0 : CONVERT_FLOAT_T(D0);
         APPLY_POST_OPS_SERIAL(
                 po_D0, float, po_sum0, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-        D0 = CONVERT_DATA_T(po_D0);
+        D0 = USE_FLOATS ? po_D0 : CONVERT_DATA_T(po_D0);
 
         POST_OP_DATA_T po_sum1 = DATA_TO_REF(sum1);
-        float po_D1 = CONVERT_FLOAT_T(D1);
-        APPLY_POST_OPS_SERIAL(po_D1, POST_OP_DATA_T, po_sum1, POST_OP_DATA_T,
-                po_mb, 1, po_oc, 1);
-        D1 = CONVERT_DATA_T(po_D1);
+        float po_D1 = USE_FLOATS ? D1 : CONVERT_FLOAT_T(D1);
+        APPLY_POST_OPS_SERIAL(
+                po_D1, float, po_sum1, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+        D1 = USE_FLOATS ? po_D0 : CONVERT_DATA_T(po_D1);
 #else
         for (int idx = 0; idx < VECT_DT_N; ++idx) {
 #if USE_MB_C_BLOCK
@@ -170,24 +175,31 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
             int po_mb = mb;
 #endif // USE_MB_C_BLOCK
 
-            float d0_i = CONVERT_FLOAT_T(D0[idx]);
+            float d0_i = USE_FLOATS ? D0[idx] : CONVERT_FLOAT_T(D0[idx]);
             POST_OP_DATA_T sum0_i = DATA_TO_REF(sum0[idx]);
             APPLY_POST_OPS_SERIAL(
                     d0_i, float, sum0_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-            D0[idx] = CONVERT_DATA_T(d0_i);
+            D0[idx] = USE_FLOATS ? d0_i : CONVERT_DATA_T(d0_i);
 
-            float d1_i = CONVERT_FLOAT_T(D1[idx]);
+            float d1_i = USE_FLOATS ? D1[idx] : CONVERT_FLOAT_T(D1[idx]);
             POST_OP_DATA_T sum1_i = DATA_TO_REF(sum1[idx]);
             po_mb += VECT_DT_N;
             APPLY_POST_OPS_SERIAL(
                     d1_i, float, sum1_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-            D1[idx] = CONVERT_DATA_T(d1_i);
+            D1[idx] = USE_FLOATS ? d1_i : CONVERT_DATA_T(d1_i);
         }
 #endif // #if VECT_DT_N == 1
-        write_vect_c_block(0, &dst[dst_off], c, dst_stride,
-                dst_chunks_per_c_block, CONVERT_VECTOR_DATA_T(D0));
-        write_vect_c_block(1, &dst[dst_off], c, dst_stride,
-                dst_chunks_per_c_block, CONVERT_VECTOR_DATA_T(D1));
+#if USE_FLOATS
+        VECT_DATA_T res0 = CONVERT_VECTOR_DATA_T(D0);
+        VECT_DATA_T res1 = CONVERT_VECTOR_DATA_T(D1);
+#else
+        VECT_DATA_T res0 = D0;
+        VECT_DATA_T res1 = D1;
+#endif
+        write_vect_c_block(
+                0, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block, res0);
+        write_vect_c_block(
+                1, &dst[dst_off], c, dst_stride, dst_chunks_per_c_block, res1);
 
 #if ALG_MAX && IS_TRAINING
         int ws_off = dst_off;
@@ -229,7 +241,7 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
     const int ws_stride = dst_stride;
     const int ws_chunks_per_c_block = dst_chunks_per_c_block;
 
-    VECT_DATA_T S0 = 0, S1 = 0;
+    VECT_FLOAT_T S0 = 0, S1 = 0;
     for (int kd = 0; kd < KD; kd++) {
         for (int kh = 0; kh < KH; kh++) {
             for (int kw = 0; kw < KW; kw++) {
@@ -245,10 +257,12 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                 if (ow < 0 || ow >= OW) continue;
 
                 const int dst_off = DST_OFF(mb, c, od, oh, ow);
-                VECT_DATA_T D0 = read_vect_c_block(0, &diff_dst[dst_off], c,
-                        dst_stride, dst_chunks_per_c_block);
-                VECT_DATA_T D1 = read_vect_c_block(1, &diff_dst[dst_off], c,
-                        dst_stride, dst_chunks_per_c_block);
+                VECT_FLOAT_T D0 = CONVERT_VECT_FLOAT_T(
+                        read_vect_c_block(0, &diff_dst[dst_off], c, dst_stride,
+                                dst_chunks_per_c_block));
+                VECT_FLOAT_T D1 = CONVERT_VECT_FLOAT_T(
+                        read_vect_c_block(1, &diff_dst[dst_off], c, dst_stride,
+                                dst_chunks_per_c_block));
 
 #if ALG_MAX
                 VECT_INT_T WS0 = read_vect_c_block_int(
@@ -257,14 +271,14 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                         1, &ws[dst_off], c, ws_stride, ws_chunks_per_c_block);
 
                 VECT_INT_T CMP0 = isnotequal(
-                        AS_VECT_DATA_T(WS0 - kd * KH * KW - kh * KW - kw),
-                        (VECT_DATA_T)0);
-                D0 = select(D0, (VECT_DATA_T)0, CMP0);
+                        AS_VECT_FLOAT_T(WS0 - kd * KH * KW - kh * KW - kw),
+                        (VECT_FLOAT_T)0);
+                D0 = select(D0, (VECT_FLOAT_T)0, CMP0);
 
                 VECT_INT_T CMP1 = isnotequal(
-                        AS_VECT_DATA_T(WS1 - kd * KH * KW - kh * KW - kw),
-                        (VECT_DATA_T)0);
-                D1 = select(D1, (VECT_DATA_T)0, CMP1);
+                        AS_VECT_FLOAT_T(WS1 - kd * KH * KW - kh * KW - kw),
+                        (VECT_FLOAT_T)0);
+                D1 = select(D1, (VECT_FLOAT_T)0, CMP1);
 #endif
 #if ALG_AVG_NP
                 const int id_start = max(id - kd, 0);
@@ -273,7 +287,7 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                 const int id_end = min(id - kd + KD, ID);
                 const int ih_end = min(ih - kh + KH, IH);
                 const int iw_end = min(iw - kw + KW, IW);
-                const DATA_T num_summands = (ih_end - ih_start)
+                const float num_summands = (ih_end - ih_start)
                         * (iw_end - iw_start) * (id_end - id_start);
                 D0 /= num_summands;
                 D1 /= num_summands;
@@ -289,10 +303,10 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
 #endif
 
     int src_off = SRC_OFF(mb, c, id, ih, iw);
-    write_vect_c_block(
-            0, &diff_src[src_off], c, src_stride, src_chunks_per_c_block, S0);
-    write_vect_c_block(
-            1, &diff_src[src_off], c, src_stride, src_chunks_per_c_block, S1);
+    write_vect_c_block(0, &diff_src[src_off], c, src_stride,
+            src_chunks_per_c_block, CONVERT_VECTOR_DATA_T(S0));
+    write_vect_c_block(1, &diff_src[src_off], c, src_stride,
+            src_chunks_per_c_block, CONVERT_VECTOR_DATA_T(S1));
 }
 #endif
 

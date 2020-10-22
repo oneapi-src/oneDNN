@@ -47,6 +47,18 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
             && !is_c_dense(dst_mdw))
         return status::unimplemented;
 
+    int c_block_size = 1, n_block_size = 1;
+    auto &src_blk = src_mdw.blocking_desc();
+    if (src_blk.inner_nblks > 0) {
+        // C is the last blocked dimension as it was checked in is_c_blocked_by
+        c_block_size = src_blk.inner_blks[src_blk.inner_nblks - 1];
+        // if there is NC blocking (N is the blocked dimension before C) use N blocks as well
+        if (src_blk.inner_nblks > 1
+                && src_blk.inner_idxs[src_blk.inner_nblks - 2] == 0) {
+            n_block_size = src_blk.inner_blks[src_blk.inner_nblks - 2];
+        }
+    }
+
     set_default_pool_conf(conf, *pd->desc(), *pd->invariant_src_md(),
             *pd->invariant_dst_md(), *pd->attr());
 
@@ -58,22 +70,15 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
     conf.use_only_c_block = false;
     int c_padded = utils::rnd_up(conf.c, conf.sub_group_size);
 
-    if (src_mdw.matches_one_of_tag(NCw16n16c, NChw16n16c, NCdhw16n16c)) {
-        conf.use_mb_c_block = true;
-        conf.vect_dt_n = 8;
-        conf.nvect = 2;
-        conf.chunks_per_c_block = 16 / conf.sub_group_size;
-        conf.chunks_per_mb_block
-                = conf.vect_dt_n * conf.nvect / conf.chunks_per_c_block;
-    } else if (src_mdw.matches_one_of_tag(NCw32n32c, NChw32n32c, NCdhw32n32c)) {
-        c_padded = utils::rnd_up(conf.c, 32);
+    if (c_block_size >= 16 && n_block_size >= 16) {
+        c_padded = utils::rnd_up(conf.c, c_block_size);
         conf.use_mb_c_block = true;
         conf.vect_dt_n = 8;
         conf.nvect = 1;
-        conf.chunks_per_c_block = 32 / conf.sub_group_size;
+        conf.chunks_per_c_block = c_block_size / conf.sub_group_size;
         conf.chunks_per_mb_block
                 = conf.vect_dt_n * conf.nvect / conf.chunks_per_c_block;
-    } else if (src_mdw.matches_tag(nChw16c)) {
+    } else if (c_block_size == 16 && n_block_size == 1) {
         conf.use_only_c_block = true;
         conf.vect_dt_n = 1;
         conf.nvect = 1;

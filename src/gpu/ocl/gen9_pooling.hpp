@@ -57,8 +57,8 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
                             pooling_avg_exclude_padding)
                     && (utils::everyone_is(
                                 f32, src_data_t, dst_data_t, acc_data_t)
-                            || utils::everyone_is(
-                                    f16, src_data_t, dst_data_t, acc_data_t)
+                            || utils::everyone_is(f16, src_data_t, dst_data_t)
+                            || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(u8, src_data_t, dst_data_t)
                             || utils::everyone_is(s8, src_data_t, dst_data_t))
                     && IMPLICATION(utils::one_of(src_data_t, f16, s8, u8),
@@ -131,8 +131,12 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding)
-                    && utils::everyone_is(data_type::f32,
-                            diff_dst_md()->data_type, diff_src_md()->data_type)
+                    && (utils::everyone_is(data_type::f32,
+                                diff_dst_md()->data_type,
+                                diff_src_md()->data_type)
+                            || utils::everyone_is(data_type::bf16,
+                                    diff_dst_md()->data_type,
+                                    diff_src_md()->data_type))
                     && attr()->has_default_values() && !is_dilated()
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups);
