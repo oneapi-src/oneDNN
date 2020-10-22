@@ -1273,11 +1273,13 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
             return status::unimplemented;
     }
 
+    const auto &post_ops = attr.post_ops_;
+
     using namespace injector;
-    const bool post_ops_ok_ = post_ops_ok<isa>({eltwise, binary}, attr, dst_d);
+    const bool post_ops_ok_
+            = post_ops_ok<isa>({eltwise, binary}, post_ops, dst_d);
     if (!post_ops_ok_) return status::unimplemented;
 
-    const auto &post_ops = attr.post_ops_;
     const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
 
