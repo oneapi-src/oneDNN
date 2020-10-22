@@ -61,8 +61,14 @@ static inline int float2int(float x) {
 
 static inline void tc_configure_tile(
         palette_config_t *tc, int t, int rows, int cols) {
-    tc->rows[t] = rows;
-    tc->cols[t] = cols;
+    const bool rows_ok = (size_t)t < sizeof(tc->rows) / sizeof(tc->rows[0]);
+    const bool cols_ok = (size_t)t < sizeof(tc->cols) / sizeof(tc->cols[0]);
+    if (rows_ok && cols_ok) {
+        tc->rows[t] = rows;
+        tc->cols[t] = cols;
+    } else {
+        assert(!"out of range");
+    }
 }
 
 // TODO: A GPR class that hides ABI details from the JIT kernels and allows
