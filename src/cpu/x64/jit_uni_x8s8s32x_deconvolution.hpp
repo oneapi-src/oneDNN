@@ -221,7 +221,10 @@ struct _jit_uni_x8s8s32x_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_uni_deconv:", isa, ""),
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_uni_deconv:",
+                        isa == avx2 && jcp_.ver == ver_vnni ? avx2_vnni : isa,
+                        ""),
                 _jit_uni_x8s8s32x_deconvolution_fwd_t);
 
         status_t init(engine_t *engine) {
