@@ -60,12 +60,12 @@ foreach(src ${sources})
         register_exe(${example_name} ${src} "" ${LIBM})
 
         # Adding test for CPU
-        add_test("cpu-${example_name}" "${example_name}" cpu)
+        add_dnnl_test("cpu-${example_name}" "${example_name}" cpu)
         maybe_configure_windows_test("cpu-${example_name}" TEST)
 
         # Adding test for GPU
         if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
-           add_test("gpu-${example_name}" "${example_name}" gpu)
+           add_dnnl_test("gpu-${example_name}" "${example_name}" gpu)
            maybe_configure_windows_test("gpu-${example_name}" TEST)
         endif()
     endif()
