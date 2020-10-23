@@ -72,7 +72,7 @@ endif()
 
 set(PROJECT_NAME "oneDNN")
 set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library (oneDNN)")
-set(PROJECT_VERSION "1.6.4")
+set(PROJECT_VERSION "1.6.5")
 
 set(LIB_NAME dnnl)
 
