@@ -164,10 +164,11 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
                     primitive_kind::sum, sum_injector);
 
         const auto iterate =
-                [=](std::function<void(const int i_ur, const int i_load)> foo) {
+                [=](const std::function<void(const int i_ur, const int i_load)>
+                                &f) {
                     for (int i_ur = 0; i_ur < ur; ++i_ur)
                         for (int i_load = 0; i_load < load_loop_blk; ++i_load)
-                            foo(i_ur, i_load);
+                            f(i_ur, i_load);
                 };
 
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;

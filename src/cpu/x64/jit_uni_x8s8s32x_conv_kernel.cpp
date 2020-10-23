@@ -133,29 +133,32 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(
                     primitive_kind::sum, sum_injector);
 
         vmm_index_set_t vmm_idxs;
+        const auto iterate
+                = [=](const std::function<void(const int k, const int j)> &f) {
+                      for (int k = 0; k < nb_oc_block; k++)
+                          for (int j = 0; j < ur_w; j++)
+                              f(k, j);
+                  };
         if (jcp.with_binary) {
             constexpr static auto vmm_len
                     = cpu_isa_traits<isa>::vlen / sizeof(float);
-            for (int k = 0; k < nb_oc_block; k++) {
-                for (int j = 0; j < ur_w; j++) {
-                    const int aux_output_offset = jcp.typesize_out
-                            * (k * oc_block
-                                    + j * jcp.oc_without_padding * jcp.ngroups);
-                    const auto vmm_idx = vmm_out_idx(j, k);
-                    vmm_idxs.emplace(vmm_idx);
-                    rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                            vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
-                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                            vmm_idx, k * vmm_len);
-                    rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
-                            vmm_idx, aux_output_offset);
-                }
-            }
-        } else {
-            for (int k = 0; k < nb_oc_block; k++)
-                for (int j = 0; j < ur_w; j++)
-                    vmm_idxs.emplace(vmm_out_idx(j, k));
-        }
+            iterate([&](const int k, const int j) {
+                const int aux_output_offset = jcp.typesize_out
+                        * (k * oc_block
+                                + j * jcp.oc_without_padding * jcp.ngroups);
+                const auto vmm_idx = vmm_out_idx(j, k);
+                vmm_idxs.emplace(vmm_idx);
+                rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
+                        vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
+                rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                        vmm_idx, k * vmm_len);
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        vmm_idx, aux_output_offset);
+            });
+        } else
+            iterate([&](const int k, const int j) {
+                vmm_idxs.emplace(vmm_out_idx(j, k));
+            });
 
         postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
     }
