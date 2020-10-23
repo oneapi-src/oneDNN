@@ -39,10 +39,14 @@ struct jit_uni_gru_cell_postgemm_part1_fwd : public jit_uni_rnn_postgemm {
 
     status_t init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
+        // no need to save state of registers
+        // (unless emulating bf16 support)
+        const bool save_state
+                = src_data_t == data_type::bf16 && !mayiuse(avx512_core_bf16);
         // we use rax for both constant tables as they use the same table
         CHECK(safe_ptr_assign(sigmoid_injector_,
                 new injector_t(this, alg_kind::eltwise_logistic, 0.0f, 0.0f,
-                        1.0f, true, rax)));
+                        1.0f, save_state, rax)));
         return create_kernel();
     }
 
