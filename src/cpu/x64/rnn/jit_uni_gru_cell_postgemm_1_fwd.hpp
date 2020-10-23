@@ -123,28 +123,38 @@ protected:
 
         L(vector_loop_start_label);
         {
-            // Compute gate 0: G0 = sigmoid(G0 + b0)
+            // batch these operations in order to combine calls to injector:
+            //      Compute gate 0: G0 = sigmoid(G0 + b0)
+            //      Compute gate 1: G1 = sigmoid(G1 + b1)
+
+            // load gates from scratchpad
             uni_vmovups(G0, sg_addr(0));
-            // dequantize gate from s32 to f32 if needed
-            if (src_data_t == data_type::u8)
+            uni_vmovups(G1, sg_addr(1));
+
+            // dequantize gates from s32 to f32 if needed
+            if (src_data_t == data_type::u8) {
                 deq_w(G0, tmp1_vmm, tmp2_vmm, 0, true);
+                deq_w(G1, tmp1_vmm, tmp2_vmm, 1, true);
+            }
+
+            // apply bias
             uni_vmovups(tmp1_vmm, B_addr(0));
             uni_vaddps(G0, G0, tmp1_vmm);
-            sigmoid_injector_->compute_vector(G0.getIdx());
-            // we store it for use in postgemm_part2
-            uni_vmovups(sg_addr(0), G0);
-            if (is_training) to_src<src_data_t>(wg_addr(0), G0, vlen);
+            uni_vmovups(tmp2_vmm, B_addr(1));
+            uni_vaddps(G1, G1, tmp2_vmm);
 
-            // Compute gate 1:  G1 = sigmoid(G1 + b1)
-            uni_vmovups(G1, sg_addr(1));
-            // dequantize gate from s32 to f32 if needed
-            if (src_data_t == data_type::u8)
-                deq_w(G1, tmp1_vmm, tmp2_vmm, 1, true);
-            uni_vmovups(tmp1_vmm, B_addr(1));
-            uni_vaddps(G1, G1, tmp1_vmm);
-            sigmoid_injector_->compute_vector(G1.getIdx());
+            // compute sigmoid of G0 and G1 together
+            assert(G0.getIdx() < G1.getIdx());
+            sigmoid_injector_->compute_vector_range(G0.getIdx(), G1.getIdx() + 1);
+
+            // store G0 for use in postgemm_part2
+            uni_vmovups(sg_addr(0), G0);
+
             // if training we write back the gates
-            if (is_training) to_src<src_data_t>(wg_addr(1), G1, vlen);
+            if (is_training) {
+                to_src<src_data_t>(wg_addr(0), G0, vlen);
+                to_src<src_data_t>(wg_addr(1), G1, vlen);
+            }
 
             // states_t_l = states_tm1_l * G1
             to_float<src_data_t>(tmp1_vmm, ptr[addr_states_tm1_l_reg], vlen);
