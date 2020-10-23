@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2020 Intel Corporation
+* Copyright 2020 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +19,8 @@
 
 #if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
+#elif DNNL_AARCH64
+#include "cpu/aarch64/cpu_isa_traits.hpp"
 #endif
 
 namespace dnnl {
@@ -28,6 +31,8 @@ namespace platform {
 const char *get_isa_info() {
 #if DNNL_X64
     return x64::get_isa_info();
+#elif DNNL_AARCH64
+    return aarch64::get_isa_info();
 #else
     return "Generic";
 #endif
@@ -36,6 +41,8 @@ const char *get_isa_info() {
 dnnl_cpu_isa_t get_effective_cpu_isa() {
 #if DNNL_X64
     return x64::get_effective_cpu_isa();
+#elif DNNL_AARCH64
+    return aarch64::get_effective_cpu_isa();
 #else
     return dnnl_cpu_isa_all;
 #endif
@@ -108,6 +115,10 @@ int get_vector_register_size() {
     if (mayiuse(avx512_common)) return cpu_isa_traits<avx512_common>::vlen;
     if (mayiuse(avx)) return cpu_isa_traits<avx>::vlen;
     if (mayiuse(sse41)) return cpu_isa_traits<sse41>::vlen;
+#elif DNNL_AARCH64
+    using namespace aarch64;
+    if (mayiuse(asimd)) return cpu_isa_traits<asimd>::vlen;
+    if (mayiuse(sve_512)) return cpu_isa_traits<sve_512>::vlen;
 #endif
     return 0;
 }
