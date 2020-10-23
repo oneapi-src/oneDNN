@@ -179,8 +179,9 @@ private:
 
     void cvt2ps(data_type_t type_in, const Vmm &vmm_in, const Xbyak::Reg64 &reg,
             int offset, int load_size);
-    void apply_postops(int nb_oc_block, int ur_w, bool last_oc_block_flag,
-            int oc_block, const float *p_sum_scale);
+    void apply_postops(const int nb_oc_block, const int ur_w,
+            const bool last_oc_block_flag, const int oc_block,
+            const float *p_sum_scale);
 };
 
 template <cpu_isa_t isa>

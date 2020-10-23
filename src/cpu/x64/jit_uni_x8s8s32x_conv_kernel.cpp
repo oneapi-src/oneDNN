@@ -100,13 +100,15 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::cvt2ps(data_type_t type_in,
     load_data(type_in, vmm_in, reg, offset, load_size);
     if (type_in != data_type::f32) uni_vcvtdq2ps(vmm_in, vmm_in);
 }
+
 template <cpu_isa_t isa, typename Vmm>
-void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(int nb_oc_block,
-        int ur_w, bool last_oc_block_flag, int oc_block,
-        const float *p_sum_scale) {
+void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(
+        const int nb_oc_block, const int ur_w, const bool last_oc_block_flag,
+        const int oc_block, const float *p_sum_scale) {
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-        const auto sum_injector = [&]() {
+        const float sum_scale = p_sum_scale ? *p_sum_scale : 0;
+        const auto sum_injector = [=]() {
             for (int k = 0; k < nb_oc_block; ++k) {
                 const bool mask_flag
                         = last_oc_block_flag && k == nb_oc_block - 1;
@@ -117,7 +119,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(int nb_oc_block,
                     cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
                             mask_flag ? get_tail_size() : get_blocking_size());
                     const Vmm vmm = vmm_out(j, k);
-                    if (*p_sum_scale == 1.f)
+                    if (sum_scale == 1.f)
                         uni_vaddps(vmm, vmm_prev_dst);
                     else {
                         uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);

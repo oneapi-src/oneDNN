@@ -103,7 +103,13 @@ private:
     constexpr static int reg_binary_post_op_acc_off = 9 * reg64_size;
     constexpr static int stack_space_needed = 10 * reg64_size;
 
+    int vreg_accum_idx(
+            const int load_loop_blk, const int i_load, const int i_ur);
+    Vmm vreg_accum(const int load_loop_blk, const int i_load, const int i_ur);
+    int output_ptr(const int i_load, const int i_ur);
     void bcast_loop(int load_loop_blk);
+    void apply_postops(const int ur, const int load_loop_blk,
+            const bool mask_flag_in, const float *p_sum_scale);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
     void generate() override;
