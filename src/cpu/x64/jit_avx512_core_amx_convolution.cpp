@@ -87,9 +87,10 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     auto tcfg = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_tilecfg);
 
-    int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
-    int oh_chunks = utils::div_up(jcp.oh, jcp.oh_blk_size);
-    int work_amount = jcp.mb * jcp.ngroups * oh_chunks * jcp.nb_ow * oc_chunks;
+    const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+    const int oh_chunks = utils::div_up(jcp.oh, jcp.oh_blk_size);
+    const int work_amount
+            = jcp.mb * jcp.ngroups * oh_chunks * jcp.nb_ow * oc_chunks;
 
     // reorder weights from (g)Owhi16o to (g)OR16r16o4r, where r := whi
     auto p = jit_conv_call_s();
@@ -266,9 +267,10 @@ void jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     auto tcfg = ctx.get_scratchpad_grantor().template get<char>(
             key_conv_amx_tilecfg);
 
-    int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
-    int oh_chunks = utils::div_up(jcp.oh, jcp.oh_blk_size);
-    int work_amount = jcp.mb * jcp.ngroups * oh_chunks * jcp.nb_ow * oc_chunks;
+    const int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
+    const int oh_chunks = utils::div_up(jcp.oh, jcp.oh_blk_size);
+    const int work_amount
+            = jcp.mb * jcp.ngroups * oh_chunks * jcp.nb_ow * oc_chunks;
 
     kernel_->tile_configure(tcfg);
     const bool is_1d = pd()->ndims() == 3;
