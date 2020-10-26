@@ -506,12 +506,10 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
     auto inner_ker = [&](const int ic, const int oc, const int groups,
                              const int od, const int spatial,
                              const src_data_t *src, const wei_data_t *weights,
-                             src_data_t *col, dst_data_t *dst,
-                             acc_data_t *acc) {
+                             src_data_t *col, dst_data_t *dst, acc_data_t *acc,
+                             int ic_block, int oc_block) {
         const dim_t os_block = nstl::min(
                 (dim_t)jcp.os_block, (dim_t)jcp.os - spatial * jcp.os_block);
-        const int ic_block = nstl::min(jcp.ic_block, jcp.ic - ic);
-        const int oc_block = nstl::min(jcp.oc_block, jcp.oc - oc);
 
         if (jcp.im2col_sz) {
             if (!is_problem_3d) {
@@ -586,8 +584,11 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
                                                 sizeof_cacheline_float)
                                                : (acc_data_t *)dst_local;
 
+                const int ic_block = nstl::min(jcp.ic - ic, jcp.ic_block);
+                const int oc_block = nstl::min(int(oc_end) - oc, jcp.oc_block);
+
                 inner_ker(ic, oc, g, od, nb_os, _src, _weights, _col, _dst_im,
-                        _acc);
+                        _acc, ic_block, oc_block);
             }
             nd_iterator_step(g, jcp.ngroups, n, jcp.mb, od, jcp.od, nb_os,
                     jcp.os_nb_block);
