@@ -45,7 +45,7 @@ static inline bool is_mem_debug() {
 // Static inline for optimization purposes when memory_debug is disabled
 static inline bool is_mem_debug_overflow() {
     if (is_mem_debug())
-#if (DNNL_ENABLE_MEM_DEBUG == DNNL_MEM_DEBUG_UNDERFLOW)
+#if (defined(DNNL_ENABLE_MEM_DEBUG) && DNNL_ENABLE_MEM_DEBUG == DNNL_MEM_DEBUG_UNDERFLOW)
         return false;
 #else
         // Default to DNNL_MEM_DEBUG_OVERFLOW as buffer overflows are a
