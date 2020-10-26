@@ -596,6 +596,12 @@ enum class algorithm {
     reduction_norm_lp_power_p_max = dnnl_reduction_norm_lp_power_p_max,
     /// Reduction using norm_lp_power_p_sum operation
     reduction_norm_lp_power_p_sum = dnnl_reduction_norm_lp_power_p_sum,
+
+    depthwise_scale_shift = dnnl_depthwise_scale_shift,
+    depthwise_prelu = dnnl_depthwise_prelu,
+
+    quantization_quantize_dequantize = dnnl_quantization_quantize_dequantize,
+    quantization_quantize = dnnl_quantization_quantize,
 };
 
 /// Converts algorithm kind enum value from C++ API to C API type.
