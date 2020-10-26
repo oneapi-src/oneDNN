@@ -28,7 +28,7 @@
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_uni_softmax.hpp"
 
-#if __INTEL_COMPILER && __INTEL_COMPILER < 1900
+#if defined(__INTEL_COMPILER) && __INTEL_COMPILER < 1900
 // Intel Compilers 17.x and 18.x do not like that diff_src_ptr() is only used
 // in a single descendant class and marks it as unused. This breaks builds
 // with DNNL_WERROR=on. Disabling the warning for this file seems to be less
