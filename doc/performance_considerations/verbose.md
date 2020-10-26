@@ -76,6 +76,12 @@ Please see the profiling example [here](@ref performance_profiling_cpp), as it u
 DNNL_VERBOSE output to tune oneDNN code to align with
 [best practices](@ref dev_guide_inference).
 
+@note
+When oneDNN verbose mode is enabled with GPU engines, oneDNN adds extra stream
+synchronization on entry and on exit in the dnnl::primitive::execute() call.
+The execution time is calculated based on wall time measured before and after
+primitive execution.
+
 @warning
-Verbose mode has non-negligible performance impact especially if the output
-rate is high.
+Verbose mode has non-negligible performance impact especially on GPU or if the
+output rate is high.
