@@ -69,10 +69,6 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     const int padR = pd()->padR();
     const int padBack = pd()->padBack();
 
-    auto apply_offset = [=](int index, int offset) {
-        return (index > offset) ? index - offset : 0;
-    };
-
     auto set_ws = [=](int mb, int c, int od, int oh, int ow, int value) {
         if (ws) {
             assert(ws_dt == data_type::u8 || ws_dt == data_type::s32);

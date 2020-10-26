@@ -492,7 +492,6 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_thr_nspc(
                     parallel_nd(static_cast<size_t>(jcp.is) * jcp.id, [&](size_t is) {
                         data_t *__restrict diff_src_arr
                                 = diff_src + is * diff_src_os_stride;
-                        const data_t *__restrict acc_arr = acc + is * jcp.ic;
                         PRAGMA_OMP_SIMD()
                         for (int ic = 0; ic < jcp.ic; ic++) {
                             diff_src_arr[ic] = depthwise_injectors[depthwise_inj_idx]->compute_scalar(diff_src_arr[ic],
