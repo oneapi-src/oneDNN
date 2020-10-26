@@ -113,9 +113,9 @@ Convolution
 
 **Inputs**:
 
-* **1**: ``input`` - the input tensor. The format is specified by *data_format*. The layout is determined by the value of layout in logical tensor. **Required.**
-* **2**: ``filter`` - convolution kernel tensor. The format is specified by *filter_format*. The layout is determined by the value of layout in logical tensor. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
-* **3**: ``bias`` - a 1-D tensor adds to dimension of input. Broadcasting is supported. **Optional.**
+* **1**: ``input`` - the input tensor. The format is specified by *data_format*. **Required.**
+* **2**: ``filter`` - convolution kernel tensor. The format is specified by *filter_format*. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
+* **3**: ``bias`` - a 1-D tensor adds to channel dimension of input. Broadcasting is supported. **Optional.**
 
 **Outputs**:
 
