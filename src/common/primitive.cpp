@@ -109,6 +109,7 @@ status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
     exec_ctx_t ctx(stream, std::move(args));
 
     if (get_verbose()) {
+        stream->wait();
         double ms = get_msec();
         status = primitive_iface->execute(ctx);
         stream->wait();
