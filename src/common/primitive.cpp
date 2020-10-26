@@ -103,6 +103,7 @@ status_t primitive_execute(
     stream->before_exec_hook();
 
     if (get_verbose()) {
+        stream->wait();
         double ms = get_msec();
         status = stream->enqueue_primitive(primitive_iface, ctx);
         stream->wait();

@@ -67,6 +67,7 @@ status_t compute_stream_t::zero_pad(
         dnnl_md2fmt_str(md_fmt, str_size, memory->md());
         dnnl_md2dim_str(md_dim, str_size, memory->md());
 
+        this->wait();
         double ms = get_msec();
         CHECK(zero_pad_primitive->execute(zero_pad_ctx));
         status_t status = this->wait();
