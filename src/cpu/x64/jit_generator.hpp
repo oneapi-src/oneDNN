@@ -1052,6 +1052,17 @@ public:
         vpextrq(op, x, imm);
     }
 
+    void uni_vcmpgtps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+                      const Xbyak::Operand &op) {
+        assert(x1.getIdx() == x2.getIdx());
+        cmpps(x1, op, _cmp_nle_us);
+    }
+
+    void uni_vcmpgtps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+                      const Xbyak::Operand &op) {
+        vcmpgtps(x1, x2, op);
+    }
+
     void mul_by_const(
             const Xbyak::Reg &out, const Xbyak::Reg64 &tmp, int value) {
         // Generates a shift + add sequence for multiplicating contents of the
