@@ -32,15 +32,14 @@ void print_verbose_header(
         cl::sycl::info::device_type dev_type, const char *dev_type_str) {
     auto devices = get_intel_sycl_devices(dev_type);
     for (size_t i = 0; i < devices.size(); ++i) {
-        sycl_device_info_t dev_info(devices[i]);
-        status_t status = dev_info.init();
-        auto &name = dev_info.name();
-        auto &ver = dev_info.runtime_version();
+        auto name = devices[i].get_info<cl::sycl::info::device::name>();
+        auto ver
+                = devices[i].get_info<cl::sycl::info::device::driver_version>();
         auto s_backend = to_string(get_sycl_backend(devices[i]));
         printf("dnnl_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
                "version:%s\n",
                 dev_type_str, (int)i, s_backend.c_str(), name.c_str(),
-                ver.str().c_str());
+                ver.c_str());
     }
 }
 
