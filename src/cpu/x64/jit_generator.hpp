@@ -1412,6 +1412,16 @@ public:
         vcmpps(x1, x2, op, cmp_predicate);
     }
 
+    void uni_cmpneqps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        if (is_valid_isa(avx))
+            vcmpneqps(x1, x2, op);
+        else {
+            if (x1.getIdx() != x2.getIdx()) uni_vmovups(x1, x2);
+            cmpneqps(x1, op);
+        }
+    }
+
     void uni_vtestps(const Xbyak::Xmm &x1, const Xbyak::Operand &op) {
         if (is_valid_isa(avx))
             vtestps(x1, op);
@@ -1853,6 +1863,10 @@ public:
         }
     }
 
+    void uni_vpminsd(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2, const Xbyak::Operand &op) {
+        vpminsd(x1, x2, op);
+    }
+
     void uni_movshdup(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
         if (is_valid_isa(avx))
             vmovshdup(x, op);
@@ -1878,6 +1892,17 @@ public:
     }
 
     // End of custom instructions section.
+
+    void uni_vcmpgtps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+                      const Xbyak::Operand &op) {
+        assert(x1.getIdx() == x2.getIdx());
+        cmpps(x1, op, _cmp_nle_us);
+    }
+
+    void uni_vcmpgtps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+                      const Xbyak::Operand &op) {
+        vcmpgtps(x1, x2, op);
+    }
 
     void mul_by_const(
             const Xbyak::Reg &out, const Xbyak::Reg64 &tmp, int value) {
