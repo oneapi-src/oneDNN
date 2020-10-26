@@ -28,7 +28,7 @@ BatchNormInference
 
 **Inputs**
 
-* **1**: ``input`` - input tensor with data for normalization. The format is specified by *data_format*. The layout is determined by the value of layout in logical tensor.**Required.**
+* **1**: ``input`` - input tensor with data for normalization. The format is specified by *data_format*. **Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T with the same span as input's channel axis. **Required.**
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor of type T with the same span as input's channel axis.. **Required.**
 * **4**: ``mean`` - value for mean normalization. A 1D tensor of type T with the same span as input's channel axis.. **Required.**
