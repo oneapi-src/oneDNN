@@ -181,7 +181,7 @@ jit_uni_prelu_forward_kernel_t<Xbyak::Zmm>::get_number_reserved_vmms() const
 template <typename Vmm>
 size_t jit_uni_prelu_forward_kernel_t<Vmm>::calc_unrolling_factor() const
         noexcept {
-    static const auto n_vregs = prelu::get_n_vregs(isa_);
+    const auto n_vregs = prelu::get_n_vregs(isa_);
     const size_t number_of_available_regs
             = n_vregs - get_number_reserved_vmms();
     const size_t max_unrolling_factor
@@ -266,6 +266,13 @@ jit_uni_prelu_forward_kernel_t<Xbyak::Xmm>::get_or_load_weights(
 template <typename Vmm>
 void jit_uni_prelu_forward_kernel_t<Vmm>::uni_vfmadd132ps(
         const Vmm &x1, const Vmm &x2, const Xbyak::Operand &op, bool tail) {
+    uni_vfmadd132ps(x1, x2, op);
+}
+
+template <>
+void jit_uni_prelu_forward_kernel_t<Xbyak::Zmm>::uni_vfmadd132ps(
+        const Xbyak::Zmm &x1, const Xbyak::Zmm &x2, const Xbyak::Operand &op,
+        bool tail) {
     if (tail && op.isMEM())
         uni_vfmadd132ps(x1 | tail_opmask_, x2, op);
     else
