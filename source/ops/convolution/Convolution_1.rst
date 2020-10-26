@@ -119,4 +119,4 @@ Convolution
 
 **Outputs**:
 
-* **1**: ``output`` -- output tensor. The dimension order is determined by the value of layout in logical tensor.
+* **1**: ``output`` -- output tensor. The format is specified by *data_format*.
