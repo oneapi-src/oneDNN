@@ -12,7 +12,7 @@ variables. This section describes these conventions.
 +-------------------+----------------------------------------------+
 | ``output``        | Output tensor                                |
 +-------------------+----------------------------------------------+
-| ``filter``        | Weight tensor used in convolution            |                                                                                                   |
+| ``filter``        | Weight tensor used in convolution            |
 +-------------------+----------------------------------------------+
 | ``bias``          | Bias tensor used in convolution              |
 +-------------------+----------------------------------------------+
