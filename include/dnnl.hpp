@@ -1083,7 +1083,7 @@ struct stream : public handle<dnnl_stream_t> {
         /// on the engine runtime.
         default_order = dnnl_stream_default_order,
         /// In-order execution.
-        in_order = dnnl_stream_default_order,
+        in_order = dnnl_stream_in_order,
         /// Out-of-order execution.
         out_of_order = dnnl_stream_out_of_order,
         /// Default stream configuration.
