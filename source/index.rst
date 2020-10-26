@@ -7,8 +7,9 @@ oneDNN Graph Library
 .. toctree::
    :maxdepth: 4
 
-   general.rst
-   architecture.rst
+   introduction.rst
+   conventions.rst
    programming_model.rst
+   data_model.rst
    ops/index.rst
-   appendix.rst
+
