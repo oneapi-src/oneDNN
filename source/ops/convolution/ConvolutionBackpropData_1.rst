@@ -129,5 +129,5 @@ If ``output_shape`` is specified, ``pads_begin`` and ``pads_end`` are ignored, a
 
 **Outputs**:
 
-* **1**: ``output`` -- output tensor of the same rank as input ``data`` tensor and shape.
+* **1**: ``output`` -- output tensor of the same rank as input ``data`` tensor.
 
