@@ -24,7 +24,7 @@
 
 static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
         ulong step_nelems, ulong nelems_block, ulong step_block, ulong nsteps,
-        ulong step_size, zero_pad_mask_t step_bitmask) {
+        ulong step_size, zero_pad_mask_t step_bitmask, ulong mode) {
     const int i0 = get_global_id(0);
     const int istep = get_global_id(1) * step_block;
     const int iblock = get_global_id(2);
@@ -40,62 +40,88 @@ static inline void typed_ref_zero_pad(__global void *a, ulong type_size,
     __global short *a2 = (__global short *)a;
     __global char *a1 = (__global char *)a;
 
-    for (int k = 0; k < step_block; k++) {
-        __attribute__((opencl_unroll_hint)) // attr:no-format
-        for (int i = i0; i < step_nelems; i += nelems_block) {
-            if (step_bitmask.mask[i / step] & (1 << (i % step))) {
-                switch (type_size) {
-                    case 4: a4[offset + i] = 0; break;
-                    case 2: a2[offset + i] = 0; break;
-                    case 1: a1[offset + i] = 0; break;
+    if (mode == ZERO_PAD_BIT_MODE) {
+        // Use a bit mask to determine which elements to zero in a block
+
+        // This allows for handling larger blocks than the lookup mode without
+        // increasing the size of zero_pad_mask_t. There is a disadvantage as
+        // more time is spent checking if a given piece of memory needs zeroed
+
+        for (int k = 0; k < step_block; k++) {
+            __attribute__((opencl_unroll_hint)) // attr:no-format
+            for (int i = i0; i < step_nelems; i += nelems_block) {
+                if (step_bitmask.mask[i / step] & (1 << (i % step))) {
+                    switch (type_size) {
+                        case 4: a4[offset + i] = 0; break;
+                        case 2: a2[offset + i] = 0; break;
+                        case 1: a1[offset + i] = 0; break;
+                    }
                 }
             }
-        }
 
-        offset += step_nelems;
+            offset += step_nelems;
+        }
+    } else {
+        // mode == ZERO_PAD_LOOKUP_MODE
+        // Use a lookup table to determine which elements to zero in a block
+        // Implementation requires global_work_size(0) is equal to the number of
+        // elements to zero in a given block
+
+        int i = step_bitmask.mask[i0];
+        for (int k = 0; k < step_block; k++) {
+            switch (type_size) {
+                case 4: a4[offset + i] = 0; break;
+                case 2: a2[offset + i] = 0; break;
+                case 1: a1[offset + i] = 0; break;
+            }
+            offset += step_nelems;
+        }
     }
 }
 
 static inline void sized_ref_zero_pad(__global void *a, ulong type_size,
         ulong step_nelems, ulong nelems_block, ulong step_block, ulong nsteps,
-        ulong step_size, zero_pad_mask_t step_bitmask) {
+        ulong step_size, zero_pad_mask_t step_bitmask, ulong mode) {
     switch (type_size) {
         case 4:
             typed_ref_zero_pad((__global float *)a, 4, step_nelems,
-                    nelems_block, step_block, nsteps, step_size, step_bitmask);
+                    nelems_block, step_block, nsteps, step_size, step_bitmask,
+                    mode);
             break;
         case 2:
             typed_ref_zero_pad((__global float *)a, 2, step_nelems,
-                    nelems_block, step_block, nsteps, step_size, step_bitmask);
+                    nelems_block, step_block, nsteps, step_size, step_bitmask,
+                    mode);
             break;
         case 1:
             typed_ref_zero_pad((__global float *)a, 1, step_nelems,
-                    nelems_block, step_block, nsteps, step_size, step_bitmask);
+                    nelems_block, step_block, nsteps, step_size, step_bitmask,
+                    mode);
             break;
     }
 }
 
 __kernel void ref_zero_pad(__global void *a, ulong type_size, ulong step_nelems,
         ulong nelems_block, ulong step_block, ulong nsteps, ulong step_size,
-        zero_pad_mask_t step_bitmask) {
+        zero_pad_mask_t step_bitmask, ulong mode) {
     // Use a switch statement here to allow constant propagation optimizations to
     // remove switch statement from loop in typed_ref_zero_pad.
     switch (step_nelems) {
         case 16:
             sized_ref_zero_pad(a, type_size, 16, DEFAULT_NELEMS_BLOCK,
-                    step_block, nsteps, step_size, step_bitmask);
+                    step_block, nsteps, step_size, step_bitmask, mode);
             break;
         case 32:
             sized_ref_zero_pad(a, type_size, 32, DEFAULT_NELEMS_BLOCK,
-                    step_block, nsteps, step_size, step_bitmask);
+                    step_block, nsteps, step_size, step_bitmask, mode);
             break;
         case 64:
             sized_ref_zero_pad(a, type_size, 64, DEFAULT_NELEMS_BLOCK,
-                    step_block, nsteps, step_size, step_bitmask);
+                    step_block, nsteps, step_size, step_bitmask, mode);
             break;
         default:
             sized_ref_zero_pad(a, type_size, step_nelems, nelems_block,
-                    step_block, nsteps, step_size, step_bitmask);
+                    step_block, nsteps, step_size, step_bitmask, mode);
             break;
     }
 }

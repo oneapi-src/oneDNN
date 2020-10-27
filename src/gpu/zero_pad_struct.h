@@ -27,6 +27,9 @@
 
 #define ZERO_PAD_MASK_SIZE \
     (ZERO_PAD_MAX_STEP_SIZE / (8 * sizeof(ZERO_PAD_MASK_DATA_TYPE)))
+#define ZERO_PAD_BIT_MODE 0
+#define ZERO_PAD_LOOKUP_MODE 1
+
 typedef struct {
     ZERO_PAD_MASK_DATA_TYPE mask[ZERO_PAD_MASK_SIZE];
 } zero_pad_mask_t;
