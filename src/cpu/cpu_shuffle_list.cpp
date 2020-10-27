@@ -30,7 +30,6 @@ namespace cpu {
 
 using pd_create_f = engine_t::primitive_desc_create_f;
 
-static constexpr int i8_size_bytes = sizeof(int8_t);
 static constexpr int bf16_size_bytes = sizeof(bfloat16_t);
 static constexpr int f32_size_bytes = sizeof(float);
 
@@ -41,9 +40,7 @@ using namespace dnnl::impl::data_type;
 const pd_create_f impl_list[] = {
         CPU_INSTANCE_X64(jit_uni_shuffle_t<f32_size_bytes>) /* f32 */
         CPU_INSTANCE_X64(jit_uni_shuffle_t<bf16_size_bytes>)   /* bf16 */
-        CPU_INSTANCE(ref_shuffle_t<f32_size_bytes>) /* f32 or s32 */
-        CPU_INSTANCE(ref_shuffle_t<bf16_size_bytes>) /* bf16 */
-        CPU_INSTANCE(ref_shuffle_t<i8_size_bytes>) /* s8 or u8 */
+        CPU_INSTANCE(ref_shuffle_t)
         /* eol */
         nullptr,
 };

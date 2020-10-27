@@ -30,10 +30,10 @@ namespace cpu {
 using namespace format_tag;
 
 template <int data_type_size>
-template <dnnl_format_tag_t tag>
-void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
+void ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
+    using data_t = typename typesize_traits<data_type_size>::type;
 
     const memory_desc_wrapper data_d(pd()->data_md());
 
@@ -57,10 +57,8 @@ void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
         SP = D * HW;
     }
     const size_t stride_mb = data_d.blocking_desc().strides[0];
-    constexpr int blksize = false ? 0
-                                  : utils::one_of(tag, nChw16c, nCdhw16c)
-                    ? 16
-                    : utils::one_of(tag, nChw8c, nCdhw8c) ? 8 : 4;
+    const int blksize = data_d.blocking_desc().strides[pd()->ndims() - 1];
+    const format_tag_t tag = pd()->dat_tag_;
 
     if (axis == 1
             && one_of(
@@ -130,41 +128,12 @@ void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
     }
 }
 
-template void ref_shuffle_t<4>::execute_<nCdhw16c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<4>::execute_<nChw16c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<4>::execute_<nCdhw8c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<4>::execute_<nChw8c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<4>::execute_<nCdhw4c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<4>::execute_<nChw4c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<4>::execute_<ncdhw>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<4>::execute_<nchw>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<4>::execute_<ndhwc>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<4>::execute_<nhwc>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<4>::execute_<any>(const exec_ctx_t &ctx) const;
-
-template void ref_shuffle_t<2>::execute_<nCdhw16c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<2>::execute_<nChw16c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<2>::execute_<nCdhw8c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<2>::execute_<nChw8c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<2>::execute_<nCdhw4c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<2>::execute_<nChw4c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<2>::execute_<ncdhw>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<2>::execute_<nchw>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<2>::execute_<ndhwc>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<2>::execute_<nhwc>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<2>::execute_<any>(const exec_ctx_t &ctx) const;
-
-template void ref_shuffle_t<1>::execute_<nCdhw16c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<1>::execute_<nChw16c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<1>::execute_<nCdhw8c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<1>::execute_<nChw8c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<1>::execute_<nCdhw4c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<1>::execute_<nChw4c>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<1>::execute_<ncdhw>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<1>::execute_<nchw>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<1>::execute_<ndhwc>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<1>::execute_<nhwc>(const exec_ctx_t &ctx) const;
-template void ref_shuffle_t<1>::execute_<any>(const exec_ctx_t &ctx) const;
+template void ref_shuffle_t::execute_<sizeof(float)>(
+        const exec_ctx_t &ctx) const;
+template void ref_shuffle_t::execute_<sizeof(bfloat16_t)>(
+        const exec_ctx_t &ctx) const;
+template void ref_shuffle_t::execute_<sizeof(int8_t)>(
+        const exec_ctx_t &ctx) const;
 
 } // namespace cpu
 } // namespace impl
