@@ -47,6 +47,7 @@
 #include "shuffle/shuffle.hpp"
 #include "softmax/softmax.hpp"
 #include "sum/sum.hpp"
+#include "zeropad/zeropad.hpp"
 
 int verbose {0};
 bool canonical {false};
@@ -119,6 +120,8 @@ int main(int argc, char **argv) {
         resampling::bench(--argc, ++argv);
     } else if (!strcmp("--reduction", argv[0])) {
         reduction::bench(--argc, ++argv);
+    } else if (!strcmp("--zeropad", argv[0])) {
+        zeropad::bench(--argc, ++argv);
     } else {
         fprintf(stderr, "err: unknown driver\n");
     }

@@ -22,6 +22,8 @@
 int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
         dnnl_data_type_t data_type, const std::string &tag);
 
+#define dnnl_mem_default_value 0xFF
+
 struct dnn_mem_t {
     dnn_mem_t() { map(); }
 
@@ -185,6 +187,7 @@ struct dnn_mem_t {
         mapped_ptr_ = NULL;
     }
 
+    static int check_mem_size(const dnnl_memory_desc_t &md);
     static int check_mem_size(const_dnnl_primitive_desc_t const_pd);
 
     /* fields */
@@ -234,7 +237,7 @@ private:
             // Fill memory with a magic number (NAN for fp data types) to catch
             // possible uninitialized access.
             map();
-            memset(mapped_ptr_, 0xFF, sz);
+            memset(mapped_ptr_, dnnl_mem_default_value, sz);
             unmap();
 
             // Set own data handle to trigger zero padding
@@ -282,7 +285,8 @@ private:
 };
 
 // Check that zero padding is preserved.
-int check_zero_padding(const dnn_mem_t &mem, int arg);
+int check_zero_padding(
+        const dnn_mem_t &mem, int arg, int *error_count = nullptr);
 
 // Returns physical offset by logical one. Logical offset is represented by an
 // array pos. If is_pos_padded is true pos represents the position in already
