@@ -69,20 +69,20 @@ int lru_primitive_cache_t::get_size() const {
 }
 
 lru_primitive_cache_t::value_t lru_primitive_cache_t::get_or_add(
-        const key_t &key, const value_t &value, bool need_lock) {
+        const key_t &key, const value_t &value) {
     // Cache is disabled
-    lock_read(need_lock);
+    lock_read();
     if (capacity_ == 0) {
-        unlock_read(need_lock);
+        unlock_read();
         return value_t();
     }
 
-    unlock_read(need_lock);
-    lock_write(need_lock);
+    unlock_read();
+    lock_write();
 
     // Double check the capacity due to possible race condition
-    if (need_lock && capacity_ == 0) {
-        unlock_write(need_lock);
+    if (capacity_ == 0) {
+        unlock_write();
         return value_t();
     }
 
@@ -92,7 +92,7 @@ lru_primitive_cache_t::value_t lru_primitive_cache_t::get_or_add(
         // If the entry is missing in the cache then add it
         add(key, value);
     }
-    unlock_write(need_lock);
+    unlock_write();
     return e;
 }
 
@@ -116,20 +116,19 @@ lru_primitive_cache_t::value_t lru_primitive_cache_t::get(const key_t &key) {
     return cache_list_.front().second;
 }
 
-void lru_primitive_cache_t::remove_if_invalidated(
-        const key_t &key, bool need_lock) {
-    lock_write(need_lock);
+void lru_primitive_cache_t::remove_if_invalidated(const key_t &key) {
+    lock_write();
     auto it = cache_mapper_.find(key);
     if (it == cache_mapper_.end()) {
         // The entry has been already evicted at this point
-        unlock_write(need_lock);
+        unlock_write();
         return;
     }
 
     const auto &value = it->second->second;
     if (value.get().primitive) {
         // If the entry is not invalidated
-        unlock_write(need_lock);
+        unlock_write();
         return;
     }
 
@@ -137,7 +136,7 @@ void lru_primitive_cache_t::remove_if_invalidated(
     cache_list_.erase(it->second);
     cache_mapper_.erase(it);
     assert(cache_list_.size() == cache_mapper_.size());
-    unlock_write(need_lock);
+    unlock_write();
 }
 
 // Evicts n the least recently used entries
