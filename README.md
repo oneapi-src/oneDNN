@@ -321,6 +321,7 @@ terms.
 Apache License Version 2.0:
 * [Font Roboto](https://fonts.google.com/specimen/Roboto)
 * [MathJax](https://github.com/mathjax/MathJax)
+* [Xbyak_aarch64](https://github.com/fujitsu/xbyak_aarch64)
 
 Boost Software License, Version 1.0:
 * [Boost C++ Libraries](https://www.boost.org/)
