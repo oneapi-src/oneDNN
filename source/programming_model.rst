@@ -118,8 +118,8 @@ tensors with the same id should be identical at the graph construction time.
 
 The order of OP being added to graph is considered as the order of OP being
 executed. The returned partitions should not contain OP not supported by the
-LLGA API implementation. The partitions should not contain wild-card OP. Each
-partition should not form cyclic dependence with other partitions and OPs
+oneDNN Graph API implementation. The partitions should not contain wild-card OP.
+Each partition should not form cyclic dependence with other partitions and OPs
 outside partitions.
 
 The logical tensor passed at the graph construction stage might contain
@@ -137,8 +137,8 @@ Partition
 
 Partition represents a collection of OPS identified by oneDNN Graph
 implementation as the basic unit for compilation and execution. It contains
-a list of LLGA OPs and their input and output logical tensors. If an input 
-logical tensor is produced by an OP outside its partition, it becomes
+a list of oneDNN Graph OPs and their input and output logical tensors. If an
+input logical tensor is produced by an OP outside its partition, it becomes
 partition’s input logical tensor. If an output logical tensor is used by an OP
 outside its partition, it becomes partition’s output logical tensor. User can
 not directly access parition’s logical tensors
@@ -150,8 +150,8 @@ the parameter logical tensor, and users may get the shape information from the
 output logical tensor.
 
 .. note::
-   Users manage the lifecycle of LLGA partitions. After a LLGA partition is
-   created, users must  and should keep it alive before it is compiled to be
+   Users manage the lifecycle of oneDNN Graph partitions. After a partition is
+   created, users must and should keep it alive before it is compiled to be
    compiled_partition.
 
 Compile() generates hardware ISA level binary code specialized for the metadata
@@ -189,7 +189,7 @@ the execution of a compiled partition. A tensor contains a logical tensor and
 a data buffer.
 
 Framework integration code is responsible for managing the tensor’s lifecycle,
-e.g. free the resource allocated, when it is not used any more. The LLGA
+e.g. free the resource allocated, when it is not used any more. The oneDNN Graph
 compiled partition execution may allocate a new tensor with various life cycle
 scope, which may need framework’s help to free the tensor at the end of the life
 cycle, refer the APIs in allocator.
@@ -267,8 +267,9 @@ Stream
 ------
 
 Stream is the logical abstraction for execution units. It is created on top of
-LLGA engine and typically contains an opencl queue. One LLGA engine may have
-multiple streams. The compiled partition is submitted to stream for execution.
+oneDNN Graph engine and typically contains an opencl queue. Each oneDNN Graph
+engine may have multiple streams. The compiled partition is submitted to stream
+for execution.
 
 .. doxygenclass:: llga::api::stream
    :project: oneDNN Graph Library
@@ -279,6 +280,7 @@ General API notes
 -----------------
 
 There are certain assumptions on how oneDNN Graph objects behave:
+
 * Logical tensor behave similarly to trivial types.
 * All other objects behave like shared pointers. Copying is always shallow.
 
