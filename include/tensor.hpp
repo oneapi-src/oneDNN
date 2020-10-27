@@ -35,121 +35,145 @@ namespace api {
 
 class logical_tensor {
 public:
+    llga_logical_tensor_t data;
+
+public:
     using dims_t = std::vector<llga_dim_t>;
 
-    /// Constructs a logical tensor object
-    ///
-    /// @param in_type Data type
-    /// @param layout_id Memory layout
-    logical_tensor(llga_data_type_t in_type = llga_data_type_undef,
-            llga_layout_id_t layout_id = llga_any);
+    /// Data Type
+    enum class data_type {
+        undef = llga_data_type_undef,
+        /// 16-bit/half-precision floating point.
+        f16 = llga_f16,
+        /// non-standard 16-bit (bfloat16 w/ 7 bit mantissa) floating point.
+        bf16 = llga_bf16,
+        /// 32-bit/single-precision floating point.
+        f32 = llga_f32,
+        /// 32-bit signed integer.
+        s32 = llga_s32,
+        /// 8-bit signed integer.
+        s8 = llga_s8,
+        /// 8-bit unsigned integer.
+        u8 = llga_u8,
+    };
+
+    /// Layout type
+    enum class layout_type {
+        undef = llga_layout_type_undef,
+        any = llga_layout_type_any,
+        strided = llga_layout_type_strided,
+        opaque = llga_layout_type_opaque,
+    };
 
     /// Constructs a logical tensor object
     ///
-    /// @param ndims Number of tensor dimensions
-    /// @param in_type Data type
-    /// @param layout_id Memory layout
-    logical_tensor(int ndims, llga_data_type_t in_type = llga_data_type_undef,
-            llga_layout_id_t layout_id = llga_any);
+    /// @param c_data A C API handle of logical tensor
+    explicit logical_tensor(const llga_logical_tensor_t &c_data);
+
+    /// Copy constructor
+    logical_tensor(const logical_tensor &other) = default;
+
+    /// Assignment operator
+    logical_tensor &operator=(const logical_tensor &other) = default;
 
     /// Constructs a logical tensor object
     ///
-    /// @param adims Tensor dimensions
-    /// @param in_type Data type
-    /// @param layout_id Memory layout
-    logical_tensor(const dims_t &adims,
-            llga_data_type_t in_type = llga_data_type_undef,
-            llga_layout_id_t layout_id = llga_any);
+    /// @param tid Tensor id
+    /// @param dtype Data type
+    /// @param ndims Number of dimension, -1 means it's unknown, 0 means scalar
+    /// @param ltype Layout type
+    logical_tensor(
+            size_t tid, data_type dtype, int32_t ndims, layout_type ltype);
+
+    /// Delegated construtor
+    ///
+    /// @param tid Tensor id
+    /// @param dtype Data type
+    /// @param ltype Layout type
+    logical_tensor(
+            size_t tid, data_type dtype, layout_type ltype = layout_type::undef);
 
     /// Constructs a logical tensor object
     ///
-    /// @param adims Tensor dimensions
+    /// @param tid Tensor id
+    /// @param adims Tensor dimensions, -1 means a particular axis of dims is
+    ///        unknown, or the axis can be deduced by its size and other axis.
+    /// @param dtype Data type
+    /// @param ltype Layout type
+    logical_tensor(size_t tid, const dims_t &adims, data_type dtype,
+            layout_type ltype);
+
+    /// Constructs a logical tensor object
+    ///
+    /// @note The layout_type for this constructor will always be strided
+    ///
+    /// @param tid Tensor id
+    /// @param adims Tensor dimensions, -1 means a particular axis of dims is
     /// @param strides Tensor strides
-    /// @param in_type Data type
-    /// @param layout_id Memory layout
-    logical_tensor(const dims_t &adims, const dims_t &strides,
-            llga_data_type_t in_type = llga_data_type_undef,
-            llga_layout_id_t layout_id = llga_any);
+    /// @param dtype Data type
+    logical_tensor(size_t tid, const dims_t &adims, const dims_t &strides,
+            data_type dtype);
 
-    /// Returns dimensions of the tensor
+    /// Constructs an opaque logical tensor object which accepts layout id
     ///
-    /// @returns A copy of the dimensions vector
+    /// @param tid Tensor id
+    /// @param adims Tensor dimensions, -1 means a particular axis of dims is
+    ///        unknown, or the axis can be deduced by its size and other axis.
+    /// @param lid Layout id
+    /// @param dtype Data type
+    logical_tensor(size_t tid, const dims_t &adims, size_t lid,
+            data_type dtype);
+
+    /// Returns dimensions of the logical tensor
+    ///
+    /// @returns A the dimensions vector
     dims_t get_dims() const;
 
-    /// Set dimensions to this logical tensor
-    ///
-    /// @param dim New tensor dimensions
-    void set_dims(dims_t dim);
-
-    /// Returns unique id of the tensor
+    /// Returns unique id of the logical tensor
     ///
     /// @returns Id number
-    uint64_t get_id() const;
+    size_t get_id() const;
 
-    /// Returns data type of the tensor
+    /// Returns data type of the logical tensor
     ///
     /// @returns The data type
-    llga_data_type_t get_type() const;
+    data_type get_data_type() const;
+
+    /// Returns layout type of the logical tensor
+    ///
+    /// @returns The layout type
+    layout_type get_layout_type() const;
+
+    /// Returns the layout of the tensor
+    ///
+    /// @returns Layout id
+    size_t get_layout_id() const;
 
     /// Returns strides of this logical tensor
     ///
     /// @returns A copy of strides vector
     dims_t get_strides() const;
 
-    /// Set strides of this logical tensor
+    /// Get memory size required by this logical tensor
     ///
-    /// @param strides New tensor strides
-    void set_strides(dims_t strides);
-
-    /// Returns a flag indicates whether the tensor is using strided format
-    ///
-    /// @returns @c true if the strided format is used
-    ///     @c false if opaque format is used
-    bool is_valid_stride() const;
-
-    /// Return a flag that indicates whether an logical tensor is presented
-    ///
-    /// @returns @c true if an optional logical tensor is presented
-    bool is_avaliable() const;
-
-    /// Returns a flag that indicates whether the logical tensor is constant for an OP
-    ///
-    /// @returns @c true if this logical tensor is constant for an OP
-    bool is_constant() const;
-
-    /// Returns size of tensor in bytes
-    ///
-    /// @returns The number of bytes required to allocate a tensor buffer
-    ///     for the tensor object described by this logical tensor including
-    ///     the padding size
-    size_t get_size() const;
-
-    /// Returns the layout of the tensor
-    ///
-    /// @returns Layout id
-    llga_layout_id_t get_layout_id() const;
-
-    /// Set the layout to the tensor described by this logical tensor
-    ///
-    /// @param layout_id New layout id
-    void set_layout_id(llga_layout_id_t layout_id);
+    /// @returns The memory size in bytes
+    size_t get_mem_size() const;
 };
 
 class tensor {
+    llga_logical_tensor_t data;
 public:
     using dims_t = std::vector<llga_dim_t>;
 
-    /// Constructs a tensor object with data type
-    ///
-    /// @param data_type Data type
-    tensor(llga_data_type_t data_type = llga_data_type_undef);
+    /// Default constructor. Constructs an empty object.
+    tensor() = default;
 
-    /// Constructs a tensor object with data type, dims and data handle
+    /// Constructs a tensor object according to the given logical tensor
     ///
-    /// @param sizes Tensor dimensions
-    /// @param handle Handle of memroy buffer to use as an underlying storage
-    /// @param data_type Data type
-    tensor(const dims_t &sizes, void *handle, llga_data_type_t data_type);
+    /// @param lt The given logical tensor
+    /// @param handle Handle of memory buffer to use as an underlying storage,
+    ///     if the ndims in the logical tensor is 0, data handle holds a scalar
+    tensor(const logical_tensor &lt, void *handle);
 
     /// Returns the underlying memory buffer with the specific type
     ///
@@ -164,20 +188,10 @@ public:
     ///     is a pointer to the actual data.
     void set_data_handle(void *handle);
 
-    /// Returns the number of tensor's elements
+    /// Returns the number of elements in the tensor
     ///
-    /// @returns Number of elements
-    int64_t get_nelem() const;
-
-    /// Returns the underlying logical tensor
-    ///
-    /// @returns A copy of logical tensor object
-    logical_tensor get_logical_tensor();
-
-    /// Returns unique id of this tensor
-    ///
-    /// @returns Unique id
-    uint64_t get_id() const;
+    /// @returns Number of element
+    int64_t get_element_num() const;
 };
 
 } // namespace api

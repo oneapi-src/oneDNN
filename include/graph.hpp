@@ -31,31 +31,25 @@ namespace api {
 /// A graph session to start analysis of computational DAG
 class graph {
 public:
-    /// Constructs a graph session using the engine context
-    ///
-    /// @param aengine The engine context of this session
-    graph(const engine &aengine);
-
     /// Constructs a graph session using device information
     ///
-    /// @param engine_kind The device type of this session, can be cpu, gpu
-    ///     or any supported device.
+    /// @param engine_kind Can be cpu, gpu or any supported engine.
     /// @param device_id The device id
     graph(engine::kind engine_kind, int32_t device_id);
 
-    /// Selects an op to the graph session to construct DAG for analysis
+    /// Add an op to the graph session to construct DAG for analysis
     ///
-    /// @param aop An operator/node that represents the entry of frameworks'
+    /// @param op An operator/node that represents the entry of frameworks'
     ///    graph
-    bool select(const op &aop);
+    bool add_op(const op &op);
 
     /// Vector to store the partitions
-    using partition_vec = std::vector<std::unique_ptr<partition>>;
-    /// Filter each partitions to apply some pass
+    using partition_vec = std::vector<partition>;
+    /// Get filtered partitions
     ///
     /// @param policy Partition policy
     /// @return partition_vec A vector storing the partitions
-    partition_vec filter_partitions(llga_partition_policy policy);
+    partition_vec get_partitions(llga_partition_policy policy);
 };
 } // namespace api
 } // namespace llga

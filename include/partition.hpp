@@ -29,32 +29,69 @@
 namespace llga {
 namespace api {
 
-class compiled_partition;
+class compiled_partition {
+public:
+    /// Default constructor. Constructs an empty object.
+    compiled_partition() = default;
+
+    /// Constructs a compiled partition object
+    ///
+    /// @param compiled_partition A raw pointer of C API handle
+    compiled_partition(llga_compiled_partition_t *compiled_partition);
+
+    /// Returns the logical tensor according to tensor id
+    ///
+    /// @param tid The unique id of required tensor
+    /// @returns The logical tensor
+    logical_tensor query_logical_tensor(uint64_t tid);
+
+    /// Execute a compiled partition.
+    ///
+    /// @param astream The stream used for execution
+    /// @param inputs A list of input tensors
+    /// @param outputs A list of output tensors
+    void execute(stream &astream, const std::vector<tensor> &inputs, 
+        const std::vector<tensor> &outputs);
+
+    /// Execute a compiled partition
+    ///
+    /// @param astream Stream object to run over
+    /// @param inputs A list of input tensors in the partition
+    /// @param outputs A list of output tensors in the partition
+    /// @param deps Optional vector with `cl::sycl::event` dependencies.
+    /// @returns event Output event
+    cl::sycl::event execute_sycl(stream &astream,
+            const std::vector<tensor> &inputs, std::vector<tensor> &outputs,
+            const std::vector<cl::sycl::event> &deps = {}) const;
+};
 
 class partition {
 public:
+    /// Default constructor for partition
+    partition() = default;
+
     /// Constructs a partition object
+    ///
+    /// @param p A raw pointer to the C API handle
     partition(llga_partition_t *p);
 
-    /// Returns the number of nodes in the partition
+    /// Returns the number of llga ops in the partition
     ///
-    /// @returns Number of nodes
-    uint64_t get_nodes_num() const;
+    /// @returns Number of ops
+    uint64_t get_ops_num() const;
 
-    /// Returns all node's id of the partition
+    /// Returns all op’s id of the partition
     ///
-    /// @returns An unordered set of node ids
-    std::vector<uint64_t> get_nodes();
+    /// @returns An unordered set of op ids
+    std::vector<uint64_t> get_ops();
 
-    /// Returns a list of input logical tensor in the partition
+    /// Sets layout id to the specified tensor in the partition
     ///
-    /// @returns A list of logical tensor
-    std::vector<logical_tensor> get_inputs() const;
-
-    /// Returns a list of output logical tensor in the partition
-    ///
-    /// @returns A list of logical tensor
-    std::vector<logical_tensor> get_outputs() const;
+    /// @param tensor_id The unique id of tensor
+    /// @param layout_id The layout id
+    /// @returns @c true if the specified tensor is found
+    ///     @c false if the specified tensor is not found
+    void set_layout_id(uint64_t tid, uint64_t lid);
 
     /// Returns the unique id of the partition
     ///
@@ -67,25 +104,19 @@ public:
     ///
     /// @param inputs A list of input logical tensors
     /// @param outputs A list of output logical tensors
+    /// @param e The engine used to compile the partition
     /// @returns A compiled partition
-    compiled_partition compile(std::vector<logical_tensor> &inputs,
-            std::vector<logical_tensor> &outputs);
-};
+    compiled_partition compile(const std::vector<logical_tensor> &inputs,
+            const std::vector<logical_tensor> &outputs, const engine &e);
 
-class compiled_partition {
-public:
-    /// Constructs a compiled partition object
-    compiled_partition(llga_compiled_partition_t *compiled_partition);
-
-    /// Returns the source partition from a compiled partition
+    /// Infer the shape of outputs
     ///
-    /// @returns A copy of partition object
-    partition get_partition();
-
-    /// Returns the underlying execution kernel's handle of the compiled partition
-    ///
-    /// @returns Handle of the kernel function
-    void *get_handle();
+    /// @param inputs A list of input logical tensors
+    /// @param outputs A list of output logical tensors
+    /// @returns @c true if the shape is inferred successfully
+    ///          @c false if the shape is not inferred 
+    bool infer_shape(const std::vector<logical_tensor> &inputs,
+            std::vector<logical_tensor> &outputs) const;
 };
 
 } // namespace api
