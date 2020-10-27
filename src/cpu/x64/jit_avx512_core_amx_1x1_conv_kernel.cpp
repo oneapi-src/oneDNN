@@ -325,9 +325,11 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output(
     Label label_oc_store, label_done;
 
     if (check_last_sb_) {
+        mov(reg_last_h, ptr[param1 + GET_OFF(last_h)]);
         cmp(reg_last_h, 1);
         je(label_oc_store, T_NEAR);
     }
+
     store_output_block(jcp.nb_os_blocking);
     jmp(label_done, T_NEAR);
 
@@ -451,6 +453,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
     prepare_output();
     { // Compute
         if (check_last_sb_) {
+            mov(reg_last_h, ptr[param1 + GET_OFF(last_h)]);
             cmp(reg_last_h, 1);
             je(label_last_os, T_NEAR);
         }
@@ -527,7 +530,6 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::generate() {
     mov(out_ptr, ptr[param1 + GET_OFF(dst)]);
     mov(wsp_ptr, ptr[param1 + GET_OFF(acc_s32)]);
 
-    mov(reg_last_h, ptr[param1 + GET_OFF(last_h)]);
     mov(reg_is_osb, ptr[param1 + GET_OFF(is_osb)]);
 
     constexpr int tile_mem_stride_in_bytes = 64;
