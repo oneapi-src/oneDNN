@@ -188,18 +188,44 @@ static size_t get_gpu_ram_size() {
     return 0;
 }
 
-int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
-    if (!mem_check) return OK;
-
+static int validate_mem_size(size_t total_mem_size) {
     static uint64_t cpu_device_capacity = get_cpu_ram_size();
     static uint64_t gpu_device_capacity = get_gpu_ram_size();
 
     const uint64_t devices_max_capacity = engine_tgt_kind == dnnl_cpu
             ? cpu_device_capacity
             : MIN2(cpu_device_capacity, gpu_device_capacity);
-    // 0.75f is taken randomly. A subject to change in future.
-    const double benchdnn_limit = 0.75f * devices_max_capacity;
+
+    // 0.75f is taken randomly and is subject to change in future.
+    const double capacity_factor = 0.75;
+    const double benchdnn_limit = capacity_factor * devices_max_capacity;
     assert(benchdnn_limit > 0);
+
+    const bool fits_device_ram = total_mem_size <= benchdnn_limit;
+    if (!fits_device_ram) {
+        auto GB = [](double bytes) { return bytes / powf(2, 30); };
+
+        BENCHDNN_PRINT(2,
+                "benchdnn: not enough RAM for a problem.\nRequested: %g GB, "
+                "benchdnn limit: %g GB, CPU RAM capacity: %g GB, GPU RAM "
+                "capacity: %g GB\n",
+                GB(total_mem_size), GB(benchdnn_limit), GB(cpu_device_capacity),
+                GB(gpu_device_capacity));
+    }
+
+    return fits_device_ram ? OK : FAIL;
+}
+
+int dnn_mem_t::check_mem_size(const dnnl_memory_desc_t &md) {
+    if (!mem_check) return OK;
+
+    size_t total_mem_size = dnnl_memory_desc_get_size(&md);
+
+    return validate_mem_size(total_mem_size);
+}
+
+int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
+    if (!mem_check) return OK;
 
     // get all amount of memories to collect mem_size over all of them
     const int n_memories = dnnl_primitive_desc_query_s32(
@@ -219,7 +245,7 @@ int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
         return (1 + ref_mem_factor) * mem_size;
     };
 
-    double total_mem_size = 0;
+    size_t total_mem_size = 0;
 
 #define MD(name) dnnl_query_##name##_md
     for (auto query : {MD(src), MD(diff_src), MD(weights), MD(diff_weights),
@@ -237,19 +263,7 @@ int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
             &library_internal_mem_size);
     total_mem_size += library_internal_mem_size;
 
-    const bool fits_device_ram = total_mem_size <= benchdnn_limit;
-    if (!fits_device_ram) {
-        auto GB = [](double bytes) { return bytes / powf(2, 30); };
-
-        BENCHDNN_PRINT(2,
-                "benchdnn: not enough RAM for a problem.\nRequested: %g GB, "
-                "benchdnn limit: %g GB, CPU RAM capacity: %g GB, GPU RAM "
-                "capacity: %g GB\n",
-                GB(total_mem_size), GB(benchdnn_limit), GB(cpu_device_capacity),
-                GB(gpu_device_capacity));
-    }
-
-    return fits_device_ram ? OK : FAIL;
+    return validate_mem_size(total_mem_size);
 }
 
 // Returns physical offset by logical one. Logical offset is represented by an
@@ -305,7 +319,7 @@ dnnl_dim_t md_off_l(dnnl_dims_t _pos, const dnnl_memory_desc_t &md,
 }
 
 template <typename T>
-int check_zero_padding_impl(const dnn_mem_t &mem, int arg) {
+int check_zero_padding_impl(const dnn_mem_t &mem, int arg, int *error_count) {
     const int ndims = mem.md_.ndims;
     const auto *dims = mem.md_.dims;
     const auto *pdims = mem.md_.padded_dims;
@@ -368,12 +382,14 @@ int check_zero_padding_impl(const dnn_mem_t &mem, int arg) {
         BENCHDNN_PRINT(0, "@@@ [arg:%d] check_zero_padding failed\n", arg);
     }
 
+    if (error_count != nullptr) *error_count = errors;
+
     return ok ? OK : FAIL;
 }
 
-int check_zero_padding(const dnn_mem_t &mem, int arg) {
+int check_zero_padding(const dnn_mem_t &mem, int arg, int *error_count) {
 #define CASE(dt, type) \
-    case dt: return check_zero_padding_impl<type>(mem, arg);
+    case dt: return check_zero_padding_impl<type>(mem, arg, error_count);
 
     switch (mem.md_.data_type) {
         case dnnl_data_type_undef:
