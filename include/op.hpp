@@ -124,7 +124,7 @@ public:
 
     /// Adds output logical tensors to the op
     ///
-    /// @param t The list of output logical tensors
+    /// @param ts The list of output logical tensors
     void add_outputs(const std::vector<logical_tensor> &ts);
 
     /// Returns the number of input logical tensor in the Op
