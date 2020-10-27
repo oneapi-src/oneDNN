@@ -197,6 +197,13 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
         auto bias_addr = EVEX_compress_addr(reg_bias, bias_offset);
         cvt2ps(jcp.bia_dt, zmm_bias, bias_addr, mask_flag);
     }
+    if (jcp.src_zero_point) {
+        const int zp_offset = sizeof(int32_t) * ocb * jcp.oc_block;
+        const Zmm zmm_zp_m = zmm_mask(zmm_zp, mask_flag);
+        vpmulld(zmm_zp_m, zmm_src_zp,
+                EVEX_compress_addr(reg_zp_compensation, zp_offset));
+        vpaddd(zmm_out, zmm_out, zmm_zp_m);
+    }
     /* add to zmm_accum: compensation, bias and permute */
     vcvtdq2ps(zmm_out, zmm_out);
 
@@ -215,6 +222,8 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output_vector_int8(
             vfmadd231ps(zmm_out, zmm_prev_dst, zword_b[reg_ptr_sum_scale]);
     }
     if (maybe_eltwise(1)) eltwise_injector_->compute_vector(zmm_out.getIdx());
+
+    if (jcp.dst_zero_point) { vaddps(zmm_out, zmm_out, zmm_dst_zp); }
 
     // Properly saturate the accumulators for integer datatypes
     if (one_of(jcp.dst_dt, u8, s8, s32)) {
@@ -318,6 +327,16 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output(
     };
 
     auto store_output_block = [=](int os_b = 1) {
+        if (jcp.src_zero_point) {
+            mov(reg_src_zero_point, ptr[param1 + GET_OFF(src_zero_point)]);
+            mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
+            vpbroadcastd(zmm_src_zp, EVEX_compress_addr(reg_src_zero_point, 0));
+        }
+        if (jcp.dst_zero_point) {
+            mov(reg_dst_zero_point, ptr[param1 + GET_OFF(dst_zero_point)]);
+            vcvtdq2ps(zmm_dst_zp,
+                    EVEX_compress_addr(reg_dst_zero_point, 0, true));
+        }
         for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++)
             for (int osb = 0; osb < os_b; osb++)
                 store_output_subblock(ocb, osb);
@@ -434,6 +453,18 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
     auto compute_icb_loop = [=](int os_b = 1) {
         int shift = (get_ic_tail() && os_b == 1) ? 1 : 0;
         int nb_ic_int = jcp.nb_ic_int - shift;
+
+        if (jcp.src_zero_point) {
+            mov(reg_zp_compensation, ptr[param1 + GET_OFF(zp_compensation)]);
+            mov(reg_src_zero_point, ptr[param1 + GET_OFF(src_zero_point)]);
+            vpbroadcastd(zmm_src_zp, EVEX_compress_addr(reg_src_zero_point, 0));
+        }
+        if (jcp.dst_zero_point) {
+            mov(reg_dst_zero_point, ptr[param1 + GET_OFF(dst_zero_point)]);
+            vcvtdq2ps(zmm_dst_zp,
+                    EVEX_compress_addr(reg_dst_zero_point, 0, true));
+        }
+
         for (int icb = 0; icb < nb_ic_int; icb++)
             compute_block(icb, os_b);
 
@@ -703,6 +734,16 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     jcp.src_dt = cd.src_desc.data_type;
     jcp.wei_dt = cd.weights_desc.data_type;
 
+    const auto zp = attr.zero_points_;
+    jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);
+    jcp.src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);
+    jcp.zp_src_is_common = zp.common(
+            DNNL_ARG_SRC); // otherwise, it's per-channel (not supported)
+    if (!IMPLICATION(jcp.src_zero_point, jcp.zp_src_is_common)
+            || !IMPLICATION(jcp.dst_zero_point || jcp.src_zero_point,
+                    is_int8_convolution))
+        return status::unimplemented;
+
     jcp.nthr = nthreads;
 
     jcp.ic_block = 16;
@@ -728,6 +769,7 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
 
     auto set_or_check_wei_format = [&]() {
         using namespace format_tag;
+        using namespace memory_extra_flags;
         format_tag_t wei_tag;
         wei_tag = (is_bf16_convolution)
                 ? pick(with_groups + 2 * (ndims - 3), OIw16i16o2i, gOIw16i16o2i,
@@ -737,6 +779,11 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);
 
+        if (jcp.src_zero_point) {
+            want_wei_md.extra.flags |= compensation_conv_asymmetric_src;
+            want_wei_md.extra.asymm_compensation_mask = (1 << 0)
+                    + (with_groups && !jcp.is_depthwise ? (1 << 1) : 0);
+        }
         if (weights_md.format_kind == format_kind::any) {
             weights_md = want_wei_md;
             return true;

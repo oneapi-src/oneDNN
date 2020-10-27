@@ -19,6 +19,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 #include "cpu/x64/jit_avx512_core_amx_1x1_convolution.hpp"
 
 namespace dnnl {
@@ -53,7 +55,7 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
 }
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
+status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
         dst_type>::execute_forward(const exec_ctx_t &ctx) const {
 
     auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
@@ -61,8 +63,12 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
+    DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
+    const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper bias_d(pd()->weights_md(1));
 
     const size_t bia_dt_size = pd()->with_bias()
@@ -79,6 +85,11 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
 
     const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
+
+    const size_t offset = weights_d.size() - weights_d.additional_buffer_size();
+    const int32_t *zp_compensation = jcp.src_zero_point
+            ? reinterpret_cast<const int32_t *>(&weights[offset])
+            : nullptr;
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
 
@@ -137,6 +148,11 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
             p.scales = &oscales[jcp.is_oc_scale * oc];
             p.oc_blocks = ocb;
 
+            p.zp_compensation
+                    = jcp.src_zero_point ? zp_compensation + oc : nullptr;
+            p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
+            p.dst_zero_point = jcp.dst_zero_point ? dst_zero_point : nullptr;
+
             const bool check_last_sp = is_ic_tail && !(nb_os % 2);
             const bool is_overflow = (osb + os_step >= nb_os);
             if (is_overflow
@@ -185,6 +201,7 @@ void jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
                     oc_chunks);
         }
     });
+    return status::success;
 }
 
 template struct jit_avx512_core_amx_1x1_convolution_fwd_t<data_type::s8,

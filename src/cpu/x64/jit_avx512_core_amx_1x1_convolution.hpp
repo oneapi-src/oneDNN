@@ -45,6 +45,7 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
                 jit_avx512_core_amx_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
+            using smask_t = primitive_attr_t::skip_mask_t;
             bool is_bf16_convolution = true
                     && (src_md_.data_type == data_type::bf16
                             && weights_md_.data_type == data_type::bf16
@@ -53,8 +54,7 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(bias_md_.data_type, data_type::f32,
                                     data_type::bf16))
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops);
+                    && attr()->has_default_values(smask_t::post_ops);
             bool is_int8_convolution = true
                     && expect_data_types(src_type, data_type::s8,
                             data_type::undef, dst_type, data_type::s32)
@@ -62,13 +62,12 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
                             utils::one_of(bias_md_.data_type, data_type::f32,
                                     data_type::s32, data_type::s8,
                                     data_type::u8))
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
-                            | primitive_attr_t::skip_mask_t::post_ops);
+                    && attr()->has_default_values(smask_t::oscale
+                            | smask_t::post_ops | smask_t::zero_points_runtime);
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && (is_bf16_convolution || is_int8_convolution)
-                    && !has_zero_dim_memory();
+                    && !has_zero_dim_memory() && zero_points_ok();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(
@@ -83,6 +82,19 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
         }
 
         jit_conv_conf_t jcp_;
+
+    protected:
+        bool zero_points_ok() const {
+            using namespace data_type;
+            int mask_src = 0, mask_dst = 0;
+            const int c_mask = 0x1,
+                      g_mask = 0x3; // mask for i/o-channel and ngroups
+            attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, &mask_src, nullptr);
+            attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &mask_dst, nullptr);
+            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
+                    && utils::one_of(mask_src, 0, c_mask, g_mask)
+                    && utils::one_of(mask_dst, 0, c_mask, g_mask);
+        }
     };
 
     jit_avx512_core_amx_1x1_convolution_fwd_t(const pd_t *apd)
@@ -105,13 +117,11 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
             return status::unimplemented;
         else if (_pd->jcp_.is_depthwise)
             return status::unimplemented;
-        else
-            execute_forward(ctx);
-        return status::success;
+        return execute_forward(ctx);
     }
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
+    status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void prepare_padded_bias(const char *&bias,
             const memory_tracking::grantor_t &scratchpad) const;

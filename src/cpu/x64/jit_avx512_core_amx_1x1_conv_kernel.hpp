@@ -66,7 +66,7 @@ private:
 
     enum {
         zmm_idx_limit_bf16 = 29,
-        zmm_idx_limit_int8 = 29,
+        zmm_idx_limit_int8 = 27,
     };
 
     int row_count_;
@@ -97,11 +97,19 @@ private:
     Xbyak::Reg64 reg_postop = abi_not_param1;
     Xbyak::Reg64 reg_scratch = reg_bias;
     Xbyak::Reg64 reg_tilebuff = reg_ptr_scales;
+    /* zero-point */
+    Xbyak::Reg64 reg_zp_compensation = reg_last_h;
+    Xbyak::Reg64 reg_src_zero_point = reg_oc_blocks;
+    Xbyak::Reg64 reg_dst_zero_point = rax;
 
     Xbyak::Zmm zmm_bias = Xbyak::Zmm(31);
     Xbyak::Zmm zmm_saturation = zmm_bias;
     Xbyak::Zmm zmm_zero = Xbyak::Zmm(30);
     Xbyak::Zmm zmm_prev_dst = Xbyak::Zmm(29);
+    /* zero-point */
+    Xbyak::Zmm zmm_zp = Xbyak::Zmm(29);
+    Xbyak::Zmm zmm_src_zp = Xbyak::Zmm(28);
+    Xbyak::Zmm zmm_dst_zp = Xbyak::Zmm(27);
 
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
 
