@@ -12,7 +12,7 @@ LayerNormBackprop
 
 * *begin_norm_axis*
 
-  * **Description**: *begin_norm_axis* is used to indicate which axis to perform layer normalization. Negative values means indexing from right to left. 
+  * **Description**: *begin_norm_axis* is used to indicate which axis to perform layer normalization. The normalization is from *begin_norm_axis* to last dimension. Negative values means indexing from right to left. The default is last dimension.
   * **Range of values**: integer values
   * **Type**: int
   * **Default value**: -1
@@ -42,9 +42,10 @@ LayerNormBackprop
   * **Default value**: true
   * **Required**: *no*
 
+
 **Inputs**
 
-* **1**: ``input`` - input tensor . **Required.**
+* **1**: ``input_forward`` - input tensor. **Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T with the same span as input's channel axis. Required by attributs ``use_affine``. **Optional.**
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor of type T with the same span as input's channel axis.Required by attributs ``use_affine``. **Optional.**
 * **4**: ``mean`` - mean of input. Required by attributs ``use_stats``. **Optional.**

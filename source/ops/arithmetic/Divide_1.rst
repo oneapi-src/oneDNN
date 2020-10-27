@@ -1,12 +1,12 @@
----
-Pow
----
+--------
+Divide
+--------
 
-**Versioned name**: *Pow-1*
+**Versioned name**: *Divide-1*
 
 **Category**: *Arithmetic*
 
-**Short description**: *Pow* performs element-wise power operation with two given tensors applying multi-directional broadcast rules.
+**Short description**: *Divide* performs element-wise division  operation with two given tensors applying multi-directional broadcast rules.
 
 **Attributes**:
 
@@ -29,7 +29,7 @@ Pow
 
 **Outputs**
 
-* **1**: The result of element-wise power operation. A tensor of type T. **Required.**
+* **1**: The result of element-wise division  operation. A tensor of type T.
 
 **Types**
 
@@ -38,10 +38,4 @@ Pow
 **Detailed description:**
 
 Before performing arithmetic operation, input tensors *a* and *b* are broadcasted if their shapes are different and ``auto_broadcast`` attributes is not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
-
-After broadcasting *Pow* does the following with the input tensors *a* and *b*:
-
-\f[
-o_{i} = {a_{i} ^ b}_{i}
-\f]
 

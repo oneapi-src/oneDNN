@@ -58,4 +58,8 @@ List of all operators supported in LLGA can be found `here <https://gitlab.devto
    activation/Tanh_1.rst
    activation/TanhBackprop_1.rst
    movement/Transpose_1.rst
-
+   arithmetic/BiasAdd_1.rst
+   reduction/ReduceSum_1.rst
+   arithmetic/Divide_1.rst
+   arithmetic/Erf_1.rst
+   arithmetic/PowBackpropExponent_1.rst

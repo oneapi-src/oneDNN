@@ -24,7 +24,15 @@ BatchNormTrainingBackprop
   * **Range of values**: true or false
   * **Type**: ``bool``
   * **Default value**: true
-  * **Required**: *yes*
+  * **Required**: *no*
+
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input, output_delta and input_delta.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D, DHW for 3D)
+  * **Type**: string
+  * **Default value**: *NXC*
+  * **Required**: *no*
 
 **Inputs**
 

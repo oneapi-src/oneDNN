@@ -20,7 +20,7 @@ LayerNorm
 
 * *begin_norm_axis*
 
-  * **Description**: *begin_norm_axis* is used to indicate which axis to perform layer normalization. Negative values means indexing from right to left. 
+  * **Description**: *begin_norm_axis* is used to indicate which axis to start layer normalization. The normalization is from *begin_norm_axis* to last dimension. Negative values means indexing from right to left. This op normalizes over the last dimension by default, e.g. C in TNC for 3D and LDNC for 4D.
   * **Range of values**: integer values
   * **Type**: int
   * **Default value**: -1
@@ -42,6 +42,7 @@ LayerNorm
   * **Default value**: 1e-5
   * **Required**: *no*
 
+
 **Inputs**
 
 * **1**: ``input`` - input tensor with data for normalization. **Required.**
@@ -51,7 +52,7 @@ LayerNorm
 
 **Outputs**
 
-* **1**: The result of normalization. A tensor of the same type and shape with 1st input tensor. **Required.**
+* **1**: ``output``  The result of normalization. A tensor of the same type and shape with 1st input tensor. **Required.**
 * **2**: ``mean`` Output the mean calculated along the given axis. **Optional.**
 * **3**: ``variance`` Output the std calculated along the given axis. **Optional.**
 
