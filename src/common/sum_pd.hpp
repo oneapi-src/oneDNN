@@ -159,9 +159,9 @@ protected:
         return safe_ptr_assign<sum_pd_t>(*sum_pd, _pd); \
     } \
     status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
-            engine_t *engine, bool is_primitive_nested) const override { \
+            engine_t *engine) const override { \
         return primitive_t::create_primitive_common<__VA_ARGS__, pd_t>( \
-                primitive, this, engine, false, is_primitive_nested); \
+                primitive, this, engine, false); \
     } \
     pd_t *clone() const override { \
         auto new_pd = utils::make_unique<pd_t>(*this); \

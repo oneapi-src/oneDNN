@@ -177,7 +177,7 @@ struct primitive_desc_t : public c_compatible {
     virtual int n_outputs() const { return 0; }
 
     virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive,
-            engine_t *engine, bool is_primitive_nested = true) const = 0;
+            engine_t *engine) const = 0;
 
     virtual const char *name() const = 0;
 
@@ -286,10 +286,9 @@ protected:
         return new_pd.release(); \
     } \
     status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
-            engine_t *engine, bool is_primitive_nested) const override { \
+            engine_t *engine) const override { \
         return primitive_t::create_primitive_common<impl_type, pd_t>( \
-                primitive, this, engine, use_global_scratchpad, \
-                is_primitive_nested); \
+                primitive, this, engine, use_global_scratchpad); \
     } \
     const char *name() const override { return impl_name; } \
     std::type_index impl_id() const override { return typeid(pd_t); }
