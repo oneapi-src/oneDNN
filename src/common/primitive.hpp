@@ -66,8 +66,7 @@ protected:
     template <typename impl_type, typename pd_t>
     static status_t create_primitive_common(
             std::shared_ptr<primitive_t> &primitive, const pd_t *pd,
-            engine_t *engine, bool use_global_scratchpad,
-            bool is_primitive_nested) {
+            engine_t *engine, bool use_global_scratchpad) {
         const auto print_verbose = [&](bool cache_hit, double time) {
             if (get_verbose() >= 2) {
                 const char *str = cache_hit ? "dnnl_verbose,create:cache_hit"
@@ -81,13 +80,12 @@ protected:
         primitive_hashing::key_t key(pd, engine, dnnl_get_max_threads());
 
         std::promise<primitive_cache_t::cache_value_t> p_promise;
-        const bool need_lock = !is_primitive_nested;
         // Try to get the shared future from the cache, if it's missing then
         // a shared future with no shared state is returned and the passed
         // shared future is added, otherwise a valid shared future is returned
         // and no insertion is performed.
         auto p_future = global_primitive_cache.get_or_add(
-                key, p_promise.get_future(), need_lock);
+                key, p_promise.get_future());
 
         bool cache_hit = p_future.valid();
 
@@ -111,7 +109,7 @@ protected:
                 // Remove the shared future from the cache because it's
                 // invalidated. An invalidated shared future is the one that
                 // stores a nullptr.
-                global_primitive_cache.remove_if_invalidated(key, need_lock);
+                global_primitive_cache.remove_if_invalidated(key);
                 return status;
             } else {
                 // Store the created primitive in the shared future and notify
