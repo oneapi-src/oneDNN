@@ -82,7 +82,6 @@ private:
     Xbyak::Reg64 reg_ptr_sum_scale = r9;
     Xbyak::Reg64 aux_reg_saturation = reg_ptr_sum_scale;
     Xbyak::Reg64 reg_last_h = r8;
-    Xbyak::Reg64 reg_tail = rax;
 
     Xbyak::Reg64 stride_seq = rbx;
     Xbyak::Reg64 stride_nhwc = rsi;
