@@ -11,9 +11,8 @@ Erf
 **Detailed description:**
 
 For each element from the input tensor calculates corresponding element in the output tensor with the following formula:
-\f[
-erf(x) = \pi^{-1} \int_{-x}^{x} e^{-t^2} dt
-\f]
+.. math::
+   erf(x) = \pi^{-1} \int_{-x}^{x} e^{-t^2} dt
 
 **Attributes**:
 
