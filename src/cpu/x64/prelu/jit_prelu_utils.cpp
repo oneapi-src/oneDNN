@@ -103,6 +103,11 @@ bcast get_bcast_type(
     return bcast::unsupported;
 }
 
+dim_t align(dim_t value, dim_t alignment) {
+    const auto rest = value % alignment;
+    return rest ? value + (alignment - rest) : value;
+}
+
 template <typename Vmm>
 jit_prelu_io_helper<Vmm>::jit_prelu_io_helper(jit_generator *host,
         const cpu_isa_t &isa, const data_type_t &data_type,

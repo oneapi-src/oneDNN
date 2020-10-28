@@ -20,6 +20,7 @@
 #include <memory>
 #include "common/primitive.hpp"
 #include "cpu/cpu_prelu_pd.hpp"
+#include "cpu/x64/prelu/jit_prelu_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,6 +28,7 @@ namespace cpu {
 namespace x64 {
 
 class jit_prelu_backward_kernel_t;
+class jit_prelu_reduction_kernel_t;
 
 class jit_prelu_backward_t : public primitive_t {
 public:
@@ -40,7 +42,8 @@ public:
                 const memory_desc_wrapper &src_diff_d,
                 const memory_desc_wrapper &weights_diff_d,
                 const memory_desc_wrapper &dst_diff_d) const noexcept;
-        bool bcast_supported(const memory_desc_wrapper &src_diff_d,
+        bool bcast_supported(const prelu::bcast &bcast,
+                const memory_desc_wrapper &src_diff_d,
                 const memory_desc_wrapper &weights_diff_d) const;
     };
 
@@ -50,8 +53,15 @@ public:
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
+    using byte = unsigned char;
+    void fill_scratchpad_zeros(
+            float *scratchpad, size_t thread_scratchpad_size) const;
+    void scratchpad_to_diff_weights_reduction(float *scratchpad,
+            byte *weights_diff, size_t weights_diff_dt, dim_t C,
+            size_t reduction_blocks) const;
     const pd_t *pd() const;
     std::unique_ptr<jit_prelu_backward_kernel_t> kernel_;
+    std::unique_ptr<jit_prelu_reduction_kernel_t> reduction_kernel_;
 };
 
 } // namespace x64
