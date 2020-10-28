@@ -226,8 +226,8 @@ partition’s internal logical tensors. The layout type must be “STRIDED” or
 If users place a tensor with data buffer pointer in outputs, the backend shall
 use the data buffer provided by users.
 
-Users may use prepack() to convert the parameter tensor with public layout to
-the target specific layout expected by the compiled partition. A common
+Users may use ``prepack()`` to convert the parameter tensor with public layout
+to the target specific layout expected by the compiled partition. A common
 optimization in deep learning inference is that users may prepack the weight in
 the target specific layout required by the compiled partition and cache the
 reordered weight for late use.
@@ -240,7 +240,7 @@ reordered weight for late use.
 Engine
 ------
 
-`dnnl::graph::engine` represents a device and its context. Compiled partitions
+``dnnl::graph::engine`` represents a device and its context. Compiled partitions
 are associated with engines. A compiled partition should only access the tensor
 which is associated to the same device and context, no matter the tensor is
 produced by a compiled partition or created directly by the user.
@@ -269,7 +269,7 @@ Stream
 ------
 
 Stream is the logical abstraction for execution units. It is created on top of
-oneDNN Graph engine and typically contains an opencl queue. Each oneDNN Graph
+oneDNN Graph engine and typically contains an opencl queue. One oneDNN Graph
 engine may have multiple streams. The compiled partition is submitted to stream
 for execution.
 
