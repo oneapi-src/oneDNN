@@ -75,11 +75,11 @@ Logical tensor describes the meta data of the input or output tensor, like
 element data type, number of dimensions, size for each dimension (shape),
 layout, and the total size of data.
 
-The “STRIDED” layout_type means that the layout is determined by the strided
-field, and “OPAQUE” means that the layout is a private layout decided by oneDNN
-Graph implementation.  User may specify layout_type as “ANY” when a parameter
-logical tensor is passed in the partition compilation stage to allow oneDNN
-Graph implementation to decide the layout for the compiled partition.
+The “STRIDED” |lt_layout_type| means that the layout is determined by the
+strided field, and “OPAQUE” means that the layout is a private layout decided by
+oneDNN Graph implementation. User may specify |lt_layout_type| as “ANY” when a
+parameter logical tensor is passed in the partition compilation stage to allow
+oneDNN Graph implementation to decide the layout for the compiled partition.
 
 .. doxygenclass:: llga::api::logical_tensor
    :project: oneDNN Graph Library
@@ -106,15 +106,17 @@ used for the last example.
 Graph
 -----
 
-Graph is a set of OPs and logical tensors. Add_op() adds an OP and its logical
-tensors to a graph.  oneDNN Graph implementation accumulates the OPs and logical
-tensors and constructs and validates the graph as internal state. At the end of
-graph construction, users may call get_partitions() which returns a set of
-partitions. After get_partition(), users shall not add ops to the graph.
+Graph is a set of OPs and logical tensors. |graph_add_op| adds an OP and its
+logical tensors to a graph. oneDNN Graph implementation accumulates the OPs and
+logical tensors and constructs and validates the graph as internal state. At the
+end of graph construction, users may call |graph_get_partitions| which returns a
+set of partitions. After |graph_get_partitions|, users shall not add ops to the
+graph.
 
-A same logical tensor may appear more than twice in add_op() call, since it is
-passed with the producer OP and consumer OPs. oneDNN Graph validates logical
-tensors with the same id should be identical at the graph construction time.
+A same logical tensor may appear more than twice in |graph_add_op| call, since
+it is passed with the producer OP and consumer OPs. oneDNN Graph validates
+logical tensors with the same id should be identical at the graph construction
+time.
 
 The order of OP being added to graph is considered as the order of OP being
 executed. The returned partitions should not contain OP not supported by the
@@ -152,14 +154,14 @@ output logical tensor.
 .. note::
    Users manage the lifecycle of oneDNN Graph partitions. After a partition is
    created, users must and should keep it alive before it is compiled to be
-   compiled_partition.
+   |compiled_partition|.
 
-Compile() generates hardware ISA level binary code specialized for the metadata
-of input and output like tensor shape. Users may also want to build a partition
-without shape information so that it won't cause a significant delay when an
-unknown shape is fed after the model is deployed. The API supports partition
-compilation with or without the tensor shape information, but dynamic shape
-compilation is implementation dependent.
+|partition_compile| generates hardware ISA level binary code specialized for the
+metadata of input and output like tensor shape. Users may also want to build a
+partition without shape information so that it won't cause a significant delay
+when an unknown shape is fed after the model is deployed. The API supports
+partition compilation with or without the tensor shape information, but dynamic
+shape compilation is implementation dependent.
 
 The parameter logical tensors must match the id of the logical tensors of the
 graph partition captured in the graph construction. Users must specify
@@ -170,7 +172,7 @@ use the public data layout described by the logical tensor. For “OPAQUE”, th
 parameter logical tensor contains a target specific layout, and oneDNN Graph may
 or may not use the target specific layout.
 
-User must pass input/output data type using logical_tensor, the backend shall
+User must pass input/output data type using |logical_tensor|, the backend shall
 check whether the data type is supported.
 
 User constructs inputs/outputs list based on the order in the modified framework
@@ -218,8 +220,8 @@ for execution. Execution API binds the tensor buffers with the parition’s
 internal input/output logical tensor and submits it to device runtime for
 execution. The parameter logical tensors must be in the same order when they are
 passed in the compilation API, and their ids must match with the compiled
-partition’s internal logical tensors. The layout type must be “strided” or
-“opaque”, can’t be “ANY”.
+partition’s internal logical tensors. The layout type must be “STRIDED” or
+“OPAQUE”, can’t be “ANY”.
 
 If users place a tensor with data buffer pointer in outputs, the backend shall
 use the data buffer provided by users.
@@ -238,8 +240,8 @@ reordered weight for late use.
 Engine
 ------
 
-Dnnl::graph::engine represents a device and its context. Compiled partitions are
-associated with engines. A compiled partition should only access the tensor
+`dnnl::graph::engine` represents a device and its context. Compiled partitions
+are associated with engines. A compiled partition should only access the tensor
 which is associated to the same device and context, no matter the tensor is
 produced by a compiled partition or created directly by the user.
 
