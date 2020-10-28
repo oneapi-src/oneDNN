@@ -75,6 +75,7 @@ struct prb_t {
         , beta(beta)
         , inplace(inplace)
         , attr(attr)
+        , user_mb(mb)
         , ndims((int)dims.size()) {
         if (mb) this->dims[0] = mb;
     }
@@ -88,6 +89,7 @@ struct prb_t {
     float alpha, beta;
     bool inplace;
     attr_t attr;
+    int64_t user_mb;
     int ndims;
 
     bool use_dst() const {
@@ -115,6 +117,7 @@ struct perf_report_t : public base_perf_report_t {
 
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }
+    const int64_t *user_mb() const override { return &p_->user_mb; }
     const std::string *tag() const override { return &tag_; }
 
 private:

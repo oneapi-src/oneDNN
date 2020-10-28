@@ -76,6 +76,7 @@ struct prb_t {
         , axis(axis)
         , inplace(inplace)
         , attr(attr)
+        , user_mb(mb)
         , ndims((int)dims.size()) {
         if (mb) this->dims[0] = mb;
     }
@@ -89,6 +90,7 @@ struct prb_t {
     int axis;
     bool inplace;
     attr_t attr;
+    int64_t user_mb;
     int ndims;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -111,6 +113,7 @@ struct perf_report_t : public base_perf_report_t {
     const int *axis() const override { return &p_->axis; }
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }
+    const int64_t *user_mb() const override { return &p_->user_mb; }
     const std::string *tag() const override { return &tag_; }
 
 private:
