@@ -79,7 +79,13 @@ struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, alg_t alg, const attr_t &attr,
             int64_t mb = 0)
-        : desc_t(desc), dir(dir), dt(dt), tag(tag), alg(alg), attr(attr) {
+        : desc_t(desc)
+        , dir(dir)
+        , dt(dt)
+        , tag(tag)
+        , alg(alg)
+        , attr(attr)
+        , user_mb(mb) {
         if (mb) this->mb = mb;
     }
     ~prb_t() {}
@@ -89,6 +95,7 @@ struct prb_t : public desc_t {
     std::string tag;
     alg_t alg;
     attr_t attr;
+    int64_t user_mb;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };
@@ -117,6 +124,7 @@ struct perf_report_t : public base_perf_report_t {
           << p_->od << ',' << p_->oh << ',' << p_->ow;
     }
 
+    const int64_t *user_mb() const override { return &p_->user_mb; }
     const char *name() const override { return p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }

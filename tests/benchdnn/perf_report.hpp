@@ -27,8 +27,6 @@
 #include "dnnl_memory.hpp"
 #include "oneapi/dnnl/dnnl.h"
 
-// Please update doc/knobs_perf_report.md in case of any changes!
-
 struct base_perf_report_t {
     base_perf_report_t(const char *perf_template) : pt_(perf_template) {}
     virtual ~base_perf_report_t() {}
@@ -70,6 +68,9 @@ struct base_perf_report_t {
             return t.ticks(mode) / t.sec(mode) / unit;
         };
 
+        // Please update doc/knobs_perf_report.md in case of any new options!
+
+        // Options operating on driver specific types, e.g. alg_t.
         HANDLE("alg", dump_alg(s));
         HANDLE("cfg", dump_cfg(s));
         HANDLE("desc", dump_desc(s));
@@ -78,7 +79,7 @@ struct base_perf_report_t {
         HANDLE("flags", dump_flags(s));
         HANDLE("activation", dump_rnn_activation(s));
         HANDLE("direction", dump_rnn_direction(s));
-
+        // Options operating on common types, e.g. attr_t.
         HANDLE("attr", if (attr() && !attr()->is_def()) s << *attr());
         HANDLE("axis", if (axis()) s << *axis());
         HANDLE("dir", if (dir()) s << *dir());
@@ -86,6 +87,7 @@ struct base_perf_report_t {
         HANDLE("group", if (group()) s << *group());
         HANDLE("sdt", if (sdt()) s << *sdt());
         HANDLE("stag", if (stag()) s << *stag());
+        HANDLE("mb", if (user_mb()) s << *user_mb());
         HANDLE("name", if (name()) s << name());
         HANDLE("ddt", if (ddt()) s << *ddt());
         HANDLE("dtag", if (dtag()) s << *dtag());
@@ -93,7 +95,7 @@ struct base_perf_report_t {
         HANDLE("tag", if (tag()) s << *tag());
         HANDLE("stat_tag", if (stat_tag()) s << *stat_tag());
         HANDLE("wtag", if (wtag()) s << *wtag());
-
+        // Options operating on driver independent objects, e.g. timer values.
         HANDLE("bw", s << get_bw());
         HANDLE("flops", s << get_flops());
         HANDLE("clocks", s << t.ticks(mode) / unit);
@@ -143,6 +145,7 @@ struct base_perf_report_t {
     virtual const std::string *dtag() const { return nullptr; }
     virtual const std::string *wtag() const { return nullptr; }
     virtual const dnnl_prop_kind_t *prop() const { return nullptr; }
+    virtual const int64_t *user_mb() const { return nullptr; }
 
     /* designed to be overloaded in reorder only to match verbose output */
     virtual void dump_engine(std::ostream &s) const { s << engine_tgt_kind; }

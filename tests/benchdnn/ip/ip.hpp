@@ -90,6 +90,7 @@ struct prb_t : public desc_t {
         , wtag(wtag)
         , dtag(dtag)
         , attr(attr)
+        , user_mb(mb)
         , ops(0)
         , scales(NULL) {
         if (mb) this->mb = mb;
@@ -104,6 +105,7 @@ struct prb_t : public desc_t {
     const dt_conf_t *cfg;
     std::string stag, wtag, dtag;
     attr_t attr;
+    int64_t user_mb;
 
     double ops;
     float *scales;
@@ -146,6 +148,7 @@ struct perf_report_t : public base_perf_report_t {
 
     double ops() const override { return p_->ops; }
     const attr_t *attr() const override { return &p_->attr; }
+    const int64_t *user_mb() const override { return &p_->user_mb; }
     const char *name() const override { return p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
     const std::vector<std::string> *stag() const override { return &stag_; }

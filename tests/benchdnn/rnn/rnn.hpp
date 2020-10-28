@@ -259,6 +259,7 @@ struct prb_t : public desc_t {
         , flags(flags)
         , activation(activation)
         , attr(attr)
+        , user_mb(mb)
         , alpha(alpha)
         , beta(beta)
         , skip_nonlinear(skip_nonlinear)
@@ -374,6 +375,7 @@ struct prb_t : public desc_t {
     unsigned int flags;
     activation_t activation;
     attr_t attr;
+    int64_t user_mb;
     float alpha;
     float beta;
 
@@ -432,6 +434,7 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     double ops() const override { return p_->ops; }
+    const int64_t *user_mb() const override { return &p_->user_mb; }
     const char *name() const override { return p_->name; }
     const dnnl_prop_kind_t *prop() const override { return &p_->prop; }
 
