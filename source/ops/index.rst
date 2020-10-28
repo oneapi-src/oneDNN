@@ -29,7 +29,7 @@ List of all operators supported in LLGA can be found `here <https://gitlab.devto
    activation/GELUBackprop_2.rst
    activation/HardTanh_1.rst
    activation/HardTanhBackprop_1.rst
-   movement/index_1.rst
+   movement/Index_1.rst
    image/Interpolate_1.rst
    image/InterpolateBackprop_1.rst
    normalization/LayerNorm_1.rst

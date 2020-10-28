@@ -6,7 +6,7 @@ Index
 
 **Category**: *Movement*
 
-**Short description**: *Index* Select input tensor according to indices .
+**Short description**: *Index* Select input tensor according to indices.
 
 **Inputs**:
 

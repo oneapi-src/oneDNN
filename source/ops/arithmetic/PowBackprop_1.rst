@@ -17,4 +17,3 @@ PowBackprop
 **Outputs**
 
 * **1**: ``input_delta`` - the gradient tensor w.r.t. the input of Pow.
-

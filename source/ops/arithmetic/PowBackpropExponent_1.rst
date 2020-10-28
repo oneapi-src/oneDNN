@@ -18,4 +18,3 @@ PowBackpropExponent
 **Outputs**
 
 * **1**: ``exponent_delta`` - the gradient tensor w.r.t. the exponent of Pow.
-

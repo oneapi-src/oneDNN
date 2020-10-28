@@ -6,11 +6,14 @@ Erf
 
 **Category**: *Arithmetic*
 
-**Short description**: *Erf* calculates the Gauss error function element-wise with given tensor.
+**Short description**: *Erf* calculates the Gauss error function element-wise
+with given tensor.
 
 **Detailed description:**
 
-For each element from the input tensor calculates corresponding element in the output tensor with the following formula:
+For each element from the input tensor calculates corresponding element in the
+output tensor with the following formula:
+
 .. math::
    erf(x) = \pi^{-1} \int_{-x}^{x} e^{-t^2} dt
 

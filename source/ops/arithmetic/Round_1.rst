@@ -6,7 +6,8 @@ Round
 
 **Category**: *Arithmetic*
 
-**Short description**: *Round* rounds the values of a tensor to the nearest integer, element-wise.
+**Short description**: *Round* rounds the values of a tensor to the nearest
+integer, element-wise.
 
 **Inputs**
 
@@ -14,7 +15,8 @@ Round
 
 **Outputs**
 
-* **1**: The result of element-wise round operation. A tensor of type T. **Required.**
+* **1**: The result of element-wise round operation. A tensor of type T.
+  **Required.**
 
 **Types**
 

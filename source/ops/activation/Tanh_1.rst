@@ -14,4 +14,5 @@ Tanh
 
 **Outputs**
 
-* **1**: Result of Tanh function applied to the input tensor x. Floating point tensor with shape and type matching the input tensor. **Required.**
+* **1**: Result of Tanh function applied to the input tensor x. Floating point
+  tensor with shape and type matching the input tensor. **Required.**

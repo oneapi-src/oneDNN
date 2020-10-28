@@ -6,17 +6,21 @@ Pow
 
 **Category**: *Arithmetic*
 
-**Short description**: *Pow* performs element-wise power operation with two given tensors applying multi-directional broadcast rules.
+**Short description**: *Pow* performs element-wise power operation with two
+given tensors applying multi-directional broadcast rules.
 
 **Attributes**:
 
 * *auto_broadcast*
 
-  * **Description**: specifies rules used for auto-broadcasting of input tensors.
+  * **Description**: specifies rules used for auto-broadcasting of input
+    tensors.
   * **Range of values**:
 
     * *none* - no auto-broadcasting is allowed, all input shapes should match
-    * *numpy* - numpy broadcasting rules, aligned with ONNX Broadcasting. Description is available in `ONNX docs <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`__.
+    * *numpy* - numpy broadcasting rules, aligned with ONNX Broadcasting.
+      Description is available in `ONNX docs
+      <https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md>`__.
 
   * **Type**: string
   * **Default value**: "numpy"
@@ -29,7 +33,8 @@ Pow
 
 **Outputs**
 
-* **1**: The result of element-wise power operation. A tensor of type T. **Required.**
+* **1**: The result of element-wise power operation. A tensor of type T.
+  **Required.**
 
 **Types**
 
@@ -37,9 +42,11 @@ Pow
 
 **Detailed description:**
 
-Before performing arithmetic operation, input tensors *a* and *b* are broadcasted if their shapes are different and ``auto_broadcast`` attributes is not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
+Before performing arithmetic operation, input tensors *a* and *b* are
+broadcasted if their shapes are different and ``auto_broadcast`` attributes is
+not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
 
 After broadcasting *Pow* does the following with the input tensors *a* and *b*:
-.. math::
-   o_{i} = {a_{i} ^ b}_{i}
 
+.. math::
+   o_{i} = {a_{i} ^ {b_{i}}}

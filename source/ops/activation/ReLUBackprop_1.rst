@@ -6,9 +6,11 @@ ReLUBackprop
 
 **Category**: *Activation*
 
-**Short description**: `Reference <http://caffe.berkeleyvision.org/tutorial/layers/relu.html>`__
+**Short description**:
+`Reference <http://caffe.berkeleyvision.org/tutorial/layers/relu.html>`__
 
-**Detailed description**: `Reference <https://github.com/Kulbear/deep-learning-nano-foundation/wiki/ReLUBackprop-and-Softmax-Activation-Functions#rectified-linear-units>`__
+**Detailed description**:
+`Reference <https://github.com/Kulbear/deep-learning-nano-foundation/wiki/ReLUBackprop-and-Softmax-Activation-Functions#rectified-linear-units>`__
 
 **Attributes**: *ReLUBackprop* operation has no attributes.
 
