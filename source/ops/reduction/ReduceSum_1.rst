@@ -1,3 +1,7 @@
+---------
+ReduceSum
+---------
+
 **Versioned name**: *ReduceSum-1*
 
 **Category**: *Reduction*
