@@ -69,9 +69,8 @@ protected:
         auto is_training
                 = pd_->desc()->prop_kind == prop_kind::forward_training;
         // Labels declaration
-        Label vector_loop_start_label, vector_loop_inc_regs,
-                vector_loop_end_label;
-        Label rem_loop_start_label, rem_loop_inc_regs, rem_loop_end_label;
+        Label vector_loop_start_label, vector_loop_inc_regs;
+        Label rem_loop_start_label, rem_loop_inc_regs;
 
         // Register map
         Reg64 loop_cnt(rbx); // loop counter
@@ -117,133 +116,137 @@ protected:
         // both sigmoid and tanh use the same table so load address just once in rax
         sigmoid_injector_->load_table_addr();
 
-        mov(loop_cnt, rnn_.dhc * scratch_dt_size);
-        cmp(loop_cnt, vlen);
-        jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
+        const size_t loop_len = rnn_.dhc * scratch_dt_size;
+        mov(loop_cnt, loop_len);
 
-        L(vector_loop_start_label);
-        {
-            // batch these operations in order to combine calls to injector:
-            //      Compute gate 0: G0 = sigmoid(G0 + b0)
-            //      Compute gate 1: G1 = sigmoid(G1 + b1)
+        // vector processing
+        if (loop_len >= vlen) {
+            L(vector_loop_start_label);
+            {
+                // batch these operations in order to combine calls to injector:
+                //      Compute gate 0: G0 = sigmoid(G0 + b0)
+                //      Compute gate 1: G1 = sigmoid(G1 + b1)
 
-            // load gates from scratchpad
-            uni_vmovups(G0, sg_addr(0));
-            uni_vmovups(G1, sg_addr(1));
+                // load gates from scratchpad
+                uni_vmovups(G0, sg_addr(0));
+                uni_vmovups(G1, sg_addr(1));
 
-            // dequantize gates from s32 to f32 if needed
-            if (src_data_t == data_type::u8) {
-                deq_w(G0, tmp1_vmm, tmp2_vmm, 0, true);
-                deq_w(G1, tmp1_vmm, tmp2_vmm, 1, true);
+                // dequantize gates from s32 to f32 if needed
+                if (src_data_t == data_type::u8) {
+                    deq_w(G0, tmp1_vmm, tmp2_vmm, 0, true);
+                    deq_w(G1, tmp1_vmm, tmp2_vmm, 1, true);
+                }
+
+                // apply bias
+                uni_vmovups(tmp1_vmm, B_addr(0));
+                uni_vaddps(G0, G0, tmp1_vmm);
+                uni_vmovups(tmp2_vmm, B_addr(1));
+                uni_vaddps(G1, G1, tmp2_vmm);
+
+                // compute sigmoid of G0 and G1 together
+                assert(G0.getIdx() < G1.getIdx());
+                sigmoid_injector_->compute_vector_range(G0.getIdx(), G1.getIdx() + 1);
+
+                // store G0 for use in postgemm_part2
+                uni_vmovups(sg_addr(0), G0);
+
+                // if training we write back the gates
+                if (is_training) {
+                    to_src<src_data_t>(wg_addr(0), G0, vlen);
+                    to_src<src_data_t>(wg_addr(1), G1, vlen);
+                }
+
+                // states_t_l = states_tm1_l * G1
+                to_float<src_data_t>(
+                        tmp1_vmm, ptr[addr_states_tm1_l_reg], vlen);
+                uni_vmulps(G1, G1, tmp1_vmm);
+                to_src<src_data_t>(ptr[addr_states_t_l_reg], G1, vlen);
+                // if states_t_l_copy is a non null ptr, we write the output to it too
+                cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
+                jle(vector_loop_inc_regs);
+                to_src<src_data_t>(
+                        ptr[addr_states_t_l_copy_reg], tmp1_vmm, vlen, true);
+
+                // increment address pointers
+                L(vector_loop_inc_regs);
+                add(addr_scratch_gates_reg, vlen);
+                add(addr_bias_reg, vlen);
+                add(addr_states_t_l_reg, vlen_dst);
+                add(addr_states_t_l_copy_reg, vlen_dst);
+                add(addr_states_tm1_l_reg, vlen_dst);
+                if (is_training) add(addr_ws_gates_reg, vlen_dst);
+                inc_regs(mask, vlen);
+
+                // increment loop counter
+                sub(loop_cnt, vlen);
+                cmp(loop_cnt, vlen);
+                jge(vector_loop_start_label);
             }
+        }
 
-            // apply bias
-            uni_vmovups(tmp1_vmm, B_addr(0));
-            uni_vaddps(G0, G0, tmp1_vmm);
-            uni_vmovups(tmp2_vmm, B_addr(1));
-            uni_vaddps(G1, G1, tmp2_vmm);
+        // tail processing
+        if (loop_len % vlen != 0) {
+            // Same code as above, we just use movss for accessing inputs
+            // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
+            L(rem_loop_start_label);
+            {
+                // remaping registers to Xmms
+                Xmm G0s(G0.getIdx()), G1s(G1.getIdx()),
+                        tmp1s_vmm(tmp1_vmm.getIdx()),
+                        tmp2s_vmm(tmp2_vmm.getIdx());
 
-            // compute sigmoid of G0 and G1 together
-            assert(G0.getIdx() < G1.getIdx());
-            sigmoid_injector_->compute_vector_range(G0.getIdx(), G1.getIdx() + 1);
+                // Compute gate 0:  G0 = sigmoid(G0 + b0)
+                uni_vmovss(G0s, sg_addr(0));
+                // dequantize gate from s32 to f32 if needed
+                if (src_data_t == data_type::u8)
+                    deq_w(G0s, tmp1s_vmm, tmp2s_vmm, 0, false);
+                uni_vaddss(G0s, G0s, B_addr(0));
+                sigmoid_injector_->compute_vector(G0s.getIdx());
+                // we store it for use in postgemm_part2
+                uni_vmovss(sg_addr(0), G0s);
+                if (is_training)
+                    to_src<src_data_t>(wg_addr(0), G0s, scratch_dt_size);
 
-            // store G0 for use in postgemm_part2
-            uni_vmovups(sg_addr(0), G0);
+                // Compute gate 1: G1 = sigmoid(G1 + b1)
+                uni_vmovss(G1s, sg_addr(1));
+                // dequantize gate from s32 to f32 if needed
+                if (src_data_t == data_type::u8)
+                    deq_w(G1s, tmp1s_vmm, tmp2s_vmm, 1, false);
+                uni_vaddss(G1s, G1s, B_addr(1));
+                sigmoid_injector_->compute_vector(G1s.getIdx());
+                uni_vmovss(sg_addr(1), G1s);
+                // if training we write back the gates
+                if (is_training)
+                    to_src<src_data_t>(wg_addr(1), G1s, scratch_dt_size);
 
-            // if training we write back the gates
-            if (is_training) {
-                to_src<src_data_t>(wg_addr(0), G0, vlen);
-                to_src<src_data_t>(wg_addr(1), G1, vlen);
+                // states_t_l = states_tm1_l * G1
+                to_float<src_data_t>(
+                        tmp1s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
+                uni_vmulss(G1s, G1s, tmp1s_vmm);
+                to_src<src_data_t>(
+                        ptr[addr_states_t_l_reg], G1s, scratch_dt_size);
+                // if states_t_l_copy is a non null ptr, we write the output to it too
+                cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
+                jle(rem_loop_inc_regs);
+                to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G1s,
+                        scratch_dt_size, true);
+
+                // increment address pointers
+                L(rem_loop_inc_regs);
+                add(addr_scratch_gates_reg, scratch_dt_size);
+                add(addr_bias_reg, bias_dt_size);
+                add(addr_states_t_l_reg, hstate_dt_size);
+                add(addr_states_t_l_copy_reg, hstate_dt_size);
+                add(addr_states_tm1_l_reg, hstate_dt_size);
+                if (is_training) add(addr_ws_gates_reg, gate_dt_size);
+                inc_regs(mask, qscale_dt_size);
+
+                // increment loop counter
+                sub(loop_cnt, scratch_dt_size);
+                cmp(loop_cnt, 0);
+                jg(rem_loop_start_label);
             }
-
-            // states_t_l = states_tm1_l * G1
-            to_float<src_data_t>(tmp1_vmm, ptr[addr_states_tm1_l_reg], vlen);
-            uni_vmulps(G1, G1, tmp1_vmm);
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], G1, vlen);
-            // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
-            jle(vector_loop_inc_regs);
-            to_src<src_data_t>(
-                    ptr[addr_states_t_l_copy_reg], tmp1_vmm, vlen, true);
-
-            // increment address pointers
-            L(vector_loop_inc_regs);
-            add(addr_scratch_gates_reg, vlen);
-            add(addr_bias_reg, vlen);
-            add(addr_states_t_l_reg, vlen_dst);
-            add(addr_states_t_l_copy_reg, vlen_dst);
-            add(addr_states_tm1_l_reg, vlen_dst);
-            if (is_training) add(addr_ws_gates_reg, vlen_dst);
-            inc_regs(vlen);
-
-            // increment loop counter
-            sub(loop_cnt, vlen);
-            cmp(loop_cnt, vlen);
-            jge(vector_loop_start_label);
         }
-        L(vector_loop_end_label);
-
-        cmp(loop_cnt, 0);
-        je(rem_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
-        // Same code as above, we just use movss for accessing inputs
-        // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
-        L(rem_loop_start_label);
-        {
-            // remaping registers to Xmms
-            Xmm G0s(G0.getIdx()), G1s(G1.getIdx()),
-                    tmp1s_vmm(tmp1_vmm.getIdx()), tmp2s_vmm(tmp2_vmm.getIdx());
-
-            // Compute gate 0:  G0 = sigmoid(G0 + b0)
-            uni_vmovss(G0s, sg_addr(0));
-            // dequantize gate from s32 to f32 if needed
-            if (src_data_t == data_type::u8)
-                deq_w(G0s, tmp1s_vmm, tmp2s_vmm, 0, false);
-            uni_vaddss(G0s, G0s, B_addr(0));
-            sigmoid_injector_->compute_vector(G0s.getIdx());
-            // we store it for use in postgemm_part2
-            uni_vmovss(sg_addr(0), G0s);
-            if (is_training)
-                to_src<src_data_t>(wg_addr(0), G0s, scratch_dt_size);
-
-            // Compute gate 1: G1 = sigmoid(G1 + b1)
-            uni_vmovss(G1s, sg_addr(1));
-            // dequantize gate from s32 to f32 if needed
-            if (src_data_t == data_type::u8)
-                deq_w(G1s, tmp1s_vmm, tmp2s_vmm, 1, false);
-            uni_vaddss(G1s, G1s, B_addr(1));
-            sigmoid_injector_->compute_vector(G1s.getIdx());
-            uni_vmovss(sg_addr(1), G1s);
-            // if training we write back the gates
-            if (is_training)
-                to_src<src_data_t>(wg_addr(1), G1s, scratch_dt_size);
-
-            // states_t_l = states_tm1_l * G1
-            to_float<src_data_t>(
-                    tmp1s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
-            uni_vmulss(G1s, G1s, tmp1s_vmm);
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], G1s, scratch_dt_size);
-            // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
-            jle(rem_loop_inc_regs);
-            to_src<src_data_t>(
-                    ptr[addr_states_t_l_copy_reg], G1s, scratch_dt_size, true);
-
-            // increment address pointers
-            L(rem_loop_inc_regs);
-            add(addr_scratch_gates_reg, scratch_dt_size);
-            add(addr_bias_reg, bias_dt_size);
-            add(addr_states_t_l_reg, hstate_dt_size);
-            add(addr_states_t_l_copy_reg, hstate_dt_size);
-            add(addr_states_tm1_l_reg, hstate_dt_size);
-            if (is_training) add(addr_ws_gates_reg, gate_dt_size);
-            inc_regs(qscale_dt_size);
-
-            // increment loop counter
-            sub(loop_cnt, scratch_dt_size);
-            cmp(loop_cnt, 0);
-            jg(rem_loop_start_label);
-        }
-        L(rem_loop_end_label);
 
         postamble();
 
