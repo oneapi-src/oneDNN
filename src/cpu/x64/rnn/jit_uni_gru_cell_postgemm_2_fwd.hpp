@@ -74,9 +74,8 @@ protected:
         float *weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
 
         // Labels declaration
-        Label vector_loop_start_label, vector_loop_inc_regs,
-                vector_loop_end_label;
-        Label rem_loop_start_label, rem_loop_inc_regs, rem_loop_end_label;
+        Label vector_loop_start_label, vector_loop_inc_regs;
+        Label rem_loop_start_label, rem_loop_inc_regs;
         Label table_label;
 
         // Register map
@@ -127,105 +126,110 @@ protected:
         tanh_injector_->load_table_addr();
         init_regs(weights_scales, vlen);
 
-        mov(loop_cnt, rnn_.dhc * scratch_dt_size);
-        cmp(loop_cnt, vlen);
-        jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
+        const size_t loop_len = rnn_.dhc * scratch_dt_size;
+        mov(loop_cnt, loop_len);
 
-        L(vector_loop_start_label);
-        {
-            // Compute gate 2: G2 = tanh(G2 + b2)
-            uni_vmovups(G2, sg_addr(2));
-            // dequantize gate from s32 to f32 if needed
-            deq_w(src_data_t, G2, tmp1_vmm, tmp2_vmm, 2 * rnn_.dhc, mask, true);
-            uni_vmovups(tmp1_vmm, B_addr(2));
-            uni_vaddps(G2, G2, tmp1_vmm);
-            tanh_injector_->compute_vector(G2.getIdx());
-            // if training we write back the gates
-            if (is_training) to_src<src_data_t>(wg_addr(2), G2, vlen);
+        // vector processing
+        if (loop_len >= vlen) {
+            L(vector_loop_start_label);
+            {
+                // Compute gate 2: G2 = tanh(G2 + b2)
+                uni_vmovups(G2, sg_addr(2));
+                // dequantize gate from s32 to f32 if needed
+                deq_w(src_data_t, G2, tmp1_vmm, tmp2_vmm, 2 * rnn_.dhc, mask,
+                        true);
+                uni_vmovups(tmp1_vmm, B_addr(2));
+                uni_vaddps(G2, G2, tmp1_vmm);
+                tanh_injector_->compute_vector(G2.getIdx());
+                // if training we write back the gates
+                if (is_training) to_src<src_data_t>(wg_addr(2), G2, vlen);
 
-            // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
-            uni_vmovups(G0, sg_addr(0));
-            uni_vmovups(tmp1_vmm, one_addr);
-            uni_vsubps(tmp1_vmm, tmp1_vmm, G0);
-            to_float<src_data_t>(tmp2_vmm, ptr[addr_states_tm1_l_reg], vlen);
-            uni_vmulps(G0, G0, tmp2_vmm);
-            uni_vfmadd231ps(G0, tmp1_vmm, G2);
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], G0, vlen);
-            // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
-            jle(vector_loop_inc_regs);
-            to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G0, vlen, true);
+                // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
+                uni_vmovups(G0, sg_addr(0));
+                uni_vmovups(tmp1_vmm, one_addr);
+                uni_vsubps(tmp1_vmm, tmp1_vmm, G0);
+                to_float<src_data_t>(
+                        tmp2_vmm, ptr[addr_states_tm1_l_reg], vlen);
+                uni_vmulps(G0, G0, tmp2_vmm);
+                uni_vfmadd231ps(G0, tmp1_vmm, G2);
+                to_src<src_data_t>(ptr[addr_states_t_l_reg], G0, vlen);
+                // if states_t_l_copy is a non null ptr, we write the output to it too
+                cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
+                jle(vector_loop_inc_regs);
+                to_src<src_data_t>(
+                        ptr[addr_states_t_l_copy_reg], G0, vlen, true);
 
-            // increment address pointers
-            L(vector_loop_inc_regs);
-            add(addr_scratch_gates_reg, vlen);
-            add(addr_bias_reg, vlen);
-            add(addr_states_t_l_reg, vlen_dst);
-            add(addr_states_t_l_copy_reg, vlen_dst);
-            add(addr_states_tm1_l_reg, vlen_dst);
-            if (is_training) add(addr_ws_gates_reg, vlen_dst);
-            inc_regs(mask, vlen);
+                // increment address pointers
+                L(vector_loop_inc_regs);
+                add(addr_scratch_gates_reg, vlen);
+                add(addr_bias_reg, vlen);
+                add(addr_states_t_l_reg, vlen_dst);
+                add(addr_states_t_l_copy_reg, vlen_dst);
+                add(addr_states_tm1_l_reg, vlen_dst);
+                if (is_training) add(addr_ws_gates_reg, vlen_dst);
+                inc_regs(mask, vlen);
 
-            // increment loop counter
-            sub(loop_cnt, vlen);
-            cmp(loop_cnt, vlen);
-            jge(vector_loop_start_label);
+                // increment loop counter
+                sub(loop_cnt, vlen);
+                cmp(loop_cnt, vlen);
+                jge(vector_loop_start_label);
+            }
         }
-        L(vector_loop_end_label);
 
-        cmp(loop_cnt, 0);
-        je(rem_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
-        // Same code as above, we just use movss for accessing inputs
-        // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
-        L(rem_loop_start_label);
-        {
-            // remaping registers to Xmms
-            Xmm G0s(G0.getIdx()), G2s(G2.getIdx());
-            Xmm tmp1s_vmm(tmp1_vmm.getIdx());
-            Xmm tmp2s_vmm(tmp2_vmm.getIdx());
+        // tail processing
+        if (loop_len % vlen != 0) {
+            // Same code as above, we just use movss for accessing inputs
+            // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
+            L(rem_loop_start_label);
+            {
+                // remaping registers to Xmms
+                Xmm G0s(G0.getIdx()), G2s(G2.getIdx());
+                Xmm tmp1s_vmm(tmp1_vmm.getIdx());
+                Xmm tmp2s_vmm(tmp2_vmm.getIdx());
 
-            // Compute gate 2: G2 = tanh(G2 + b2)
-            uni_vmovss(G2s, sg_addr(2));
-            // dequantize gate from s32 to f32 if needed
-            deq_w(src_data_t, G2s, tmp1s_vmm, tmp2s_vmm, 2 * rnn_.dhc, mask,
-                    false);
-            uni_vaddss(G2s, G2s, B_addr(2));
-            tanh_injector_->compute_vector(G2s.getIdx());
-            // if training we write back the gates
-            if (is_training)
-                to_src<src_data_t>(wg_addr(2), G2s, scratch_dt_size);
+                // Compute gate 2: G2 = tanh(G2 + b2)
+                uni_vmovss(G2s, sg_addr(2));
+                // dequantize gate from s32 to f32 if needed
+                deq_w(src_data_t, G2s, tmp1s_vmm, tmp2s_vmm, 2 * rnn_.dhc, mask,
+                        false);
+                uni_vaddss(G2s, G2s, B_addr(2));
+                tanh_injector_->compute_vector(G2s.getIdx());
+                // if training we write back the gates
+                if (is_training)
+                    to_src<src_data_t>(wg_addr(2), G2s, scratch_dt_size);
 
-            // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
-            uni_vmovss(G0s, sg_addr(0));
-            uni_vmovss(tmp1s_vmm, one_addr);
-            uni_vsubss(tmp1s_vmm, tmp1s_vmm, G0s);
-            to_float<src_data_t>(
-                    tmp2s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
-            uni_vmulss(G0s, G0s, tmp2s_vmm);
-            uni_vfmadd231ss(G0s, tmp1s_vmm, G2s);
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], G0s, scratch_dt_size);
-            // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
-            jle(rem_loop_inc_regs);
-            to_src<src_data_t>(
-                    ptr[addr_states_t_l_copy_reg], G0s, scratch_dt_size, true);
+                // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
+                uni_vmovss(G0s, sg_addr(0));
+                uni_vmovss(tmp1s_vmm, one_addr);
+                uni_vsubss(tmp1s_vmm, tmp1s_vmm, G0s);
+                to_float<src_data_t>(
+                        tmp2s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
+                uni_vmulss(G0s, G0s, tmp2s_vmm);
+                uni_vfmadd231ss(G0s, tmp1s_vmm, G2s);
+                to_src<src_data_t>(
+                        ptr[addr_states_t_l_reg], G0s, scratch_dt_size);
+                // if states_t_l_copy is a non null ptr, we write the output to it too
+                cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
+                jle(rem_loop_inc_regs);
+                to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G0s,
+                        scratch_dt_size, true);
 
-            // increment address pointers
-            L(rem_loop_inc_regs);
-            add(addr_scratch_gates_reg, scratch_dt_size);
-            add(addr_bias_reg, bias_dt_size);
-            add(addr_states_t_l_reg, hstate_dt_size);
-            add(addr_states_t_l_copy_reg, hstate_dt_size);
-            add(addr_states_tm1_l_reg, hstate_dt_size);
-            if (is_training) add(addr_ws_gates_reg, gate_dt_size);
-            inc_regs(mask, qscale_dt_size);
+                // increment address pointers
+                L(rem_loop_inc_regs);
+                add(addr_scratch_gates_reg, scratch_dt_size);
+                add(addr_bias_reg, bias_dt_size);
+                add(addr_states_t_l_reg, hstate_dt_size);
+                add(addr_states_t_l_copy_reg, hstate_dt_size);
+                add(addr_states_tm1_l_reg, hstate_dt_size);
+                if (is_training) add(addr_ws_gates_reg, gate_dt_size);
+                inc_regs(mask, qscale_dt_size);
 
-            // increment loop counter
-            sub(loop_cnt, scratch_dt_size);
-            cmp(loop_cnt, 0);
-            jg(rem_loop_start_label);
+                // increment loop counter
+                sub(loop_cnt, scratch_dt_size);
+                cmp(loop_cnt, 0);
+                jg(rem_loop_start_label);
+            }
         }
-        L(rem_loop_end_label);
 
         postamble();
 
