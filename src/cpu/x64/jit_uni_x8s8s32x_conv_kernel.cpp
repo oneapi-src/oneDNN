@@ -510,9 +510,11 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker(int ur_w, int pad_l,
         if (compute_kernel) {
             for (int ic = 0; ic < icb; ++ic) {
                 if (h_padded) {
-                    /* fill padded area with shifted values */
-                    const Vmm inp = vmm_inp(0, nb_oc_block);
-                    uni_vmovups(inp, vmm_shift);
+                    // fill padded area with shifted value in first iteration
+                    if (ic == 0) {
+                        const Vmm inp = vmm_inp(0, nb_oc_block);
+                        uni_vmovups(inp, vmm_shift);
+                    }
                 } else {
                     for (int jj = _start; jj < _end; ++jj) {
                         int aux_input_offset = input_offset(jj, ic, ki);
@@ -539,8 +541,9 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker(int ur_w, int pad_l,
                                 uni_vpaddb(vmm_inp(jj, nb_oc_block),
                                         vmm_inp(jj, nb_oc_block), vmm_shift);
                         } else {
-                            /* fill padded area with shifted values */
-                            if (jcp.signed_input) {
+                            // fill padded area with shifted value in
+                            // first iteration
+                            if (jcp.signed_input && ic == 0) {
                                 const Vmm inp = vmm_inp(jj, nb_oc_block);
                                 uni_vmovups(inp, vmm_shift);
                             }
