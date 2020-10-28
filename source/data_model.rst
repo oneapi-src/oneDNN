@@ -10,8 +10,8 @@ could be set as unknown.
 oneDNN Graph supports both public layout and opaque layout. When the layout_type
 of logical tensor is “STRIDED”, it means that the tensor layout is public which
 the user can identify each tensor element in the physical memory. For example,
-for dims[][][] = {x, y, z}, strides[][][] = {s0, s1, s2}, the physical memory
-location should be in s0*x+s1*y+s2*z.
+for :math:`dims[][][] = {x, y, z}`, :math:`strides[][][] = {s0, s1, s2}`, the
+physical memory location should be in :math:`s0*x+s1*y+s2*z`.
 
 When the layout_type of logical tensor is “OPAQUE”, users are not supposed to
 interpret the memory buffer directly. A “OPAQUE” tensor can only be output from
