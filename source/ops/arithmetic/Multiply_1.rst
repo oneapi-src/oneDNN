@@ -1,12 +1,12 @@
----
-Add
----
+--------
+Multiply
+--------
 
-**Versioned name**: *Add-1*
+**Versioned name**: *Multiply-1*
 
 **Category**: *Arithmetic*
 
-**Short description**: *Add* performs element-wise addition operation with two given tensors applying multi-directional broadcast rules.
+**Short description**: *Multiply* performs element-wise multiplication operation with two given tensors applying multi-directional broadcast rules.
 
 **Attributes**:
 
@@ -29,7 +29,7 @@ Add
 
 **Outputs**
 
-* **1**: The result of element-wise addition operation. A tensor of type T.
+* **1**: The result of element-wise multiplication operation. A tensor of type T.
 
 **Types**
 

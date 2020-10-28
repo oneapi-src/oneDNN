@@ -67,6 +67,14 @@ AvgPoolBackprop
   * **Required**: *no*
   * **Note**: *pads_begin* and *pads_end* attributes are ignored when *auto_pad* is specified.
 
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the output_delta and input_delta.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D, DHW for 3D)
+  * **Type**: string
+  * **Default value**: *NXC*
+  * **Required**: *no*
+
 **Inputs**:
 
 * **1**: ``input_shape`` - the dimensions of original input. **Required.**

@@ -21,10 +21,18 @@ BatchNormTrainingBackprop
 * *is_training*
 
   * **Description**: *is_training* is used to indicate the operation is for training.
-  * **Range of values**: a positive floating-point number
+  * **Range of values**: true or false
   * **Type**: ``bool``
   * **Default value**: true
-  * **Required**: *yes*
+  * **Required**: *no*
+
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input, output_delta and input_delta.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D, DHW for 3D)
+  * **Type**: string
+  * **Default value**: *NXC*
+  * **Required**: *no*
 
 **Inputs**
 
@@ -32,8 +40,8 @@ BatchNormTrainingBackprop
 * **2**: ``output_delta`` - the gradient with respect to output. **Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor with the same span as input's channel axis. **Optional.**
 * **3**: ``beta`` - beta added to the scaled normalized value. A 1D tensor with the same span as input's channel axis. **Optional.**
-* **4**: ``mean`` - if is_traiing is true, pass batch mean, otherwise running mean. **Required.**
-* **5**: ``variance`` - if is_traiing is false, pass batch variance, otherwise running variance. **Required.**
+* **4**: ``mean`` - if is_training is true, pass batch mean, otherwise running mean. **Required.**
+* **5**: ``variance`` - if is_training is true, pass batch variance, otherwise running variance. **Required.**
 
 **Outputs**
 

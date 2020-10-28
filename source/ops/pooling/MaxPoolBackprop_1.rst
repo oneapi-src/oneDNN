@@ -64,8 +64,16 @@ MaxPoolBackprop
   * **Description**: *dilations* denotes the distance in width and height between elements in the filter. For example, *dilation* equal *1,1* means that all the elements in the filter are neighbors, so it is the same as for the usual pooling. *dilation* equal *2,2* means that all the elements in the filter are matched not to adjacent elements in the input matrix, but to those that are adjacent with distance 1.
   * **Range of values**: integer value starting from 0
   * **Type**: int[]
-  * **Default value**: None
-  * **Required**: *yes*
+  * **Default value**: list of 1(no dilation)
+  * **Required**: *no*
+
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input, output_delta and input_delta.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D, DHW for 3D)
+  * **Type**: string
+  * **Default value**: *NXC*
+  * **Required**: *no*
 
 **Inputs**:
 

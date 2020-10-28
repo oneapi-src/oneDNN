@@ -91,11 +91,29 @@ In either case,
   * **Default value**: 1
   * **Required**: *no*
 
+* *data_format*
+
+  * **Description**: *data_format* denotes the data format of the input and output data.
+  * **Range of values**: *NXC* or *NCX* (X means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *NXC*
+  * **Required**: *no*
+
+* *filter_format*
+
+  * **Description**: *filter_format* denotes the data format of the filter.
+  * **Range of values**: *XIO* or *OIX* (X means HW for 2D convolution, DHW for 3D convolution)
+  * **Type**: string
+  * **Default value**: *XIO*
+  * **Required**: *no*
+
 **Inputs**:
 
-* **1**: Input tensor. The shape is :math:`N,I,S_I^r` in input format order. **Required.**
-* **2**: Convolution kernel tensor. The shape is :math:`I,O,S_K^r` in kernel format order. **Required.**
+* **1**: ``input`` - the input tensor. The shape is :math:`N,I,S_I^r` in input format order. The format is specified by *data_format*. **Required.**
+* **2**: ``filter`` - convolution kernel tensor. The shape is :math:`I,O,S_K^r` in kernel format order. The format is specified by *filter_format*. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
+* **3**: ``bias`` - a 1-D tensor adds to channel dimension of input. Broadcasting is supported. **Optional.**
 
 **Outputs**:
 
-* **1**: ``output`` -- output tensor. The shape is `N,O,S_O^r` in input format order.
+* **1**: ``output`` -- output tensor. The shape is `N,O,S_O^r` and he format is specified by *data_format*.
+
