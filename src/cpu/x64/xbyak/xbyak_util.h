@@ -45,6 +45,17 @@
 
 #ifndef XBYAK_XBYAK_UTIL_H_
 #define XBYAK_XBYAK_UTIL_H_
+
+#ifdef XBYAK_ONLY_CLASS_CPU
+#include <stdint.h>
+#include <stdlib.h>
+#include <algorithm>
+#include <assert.h>
+#ifndef XBYAK_THROW
+	#define XBYAK_THROW(x) ;
+	#define XBYAK_THROW_RET(x, y) return y;
+#endif
+#else
 #include <string.h>
 
 /**
@@ -54,6 +65,7 @@
 	@note this header is UNDER CONSTRUCTION!
 */
 #include "xbyak.h"
+#endif // XBYAK_ONLY_CLASS_CPU
 
 #if defined(__i386__) || defined(__x86_64__) || defined(_M_IX86) || defined(_M_X64)
 	#define XBYAK_INTEL_CPU_SPECIFIC
@@ -125,7 +137,7 @@ typedef enum {
 	CPU detection class
 */
 class Cpu {
-	uint64 type_;
+	uint64_t type_;
 	//system topology
 	bool x2APIC_supported_;
 	static const size_t maxTopologyLevels = 2;
@@ -315,7 +327,7 @@ public:
 		(void)data;
 #endif
 	}
-	static inline uint64 getXfeature()
+	static inline uint64_t getXfeature()
 	{
 #ifdef XBYAK_INTEL_CPU_SPECIFIC
 	#ifdef _MSC_VER
@@ -325,13 +337,13 @@ public:
 		// xgetvb is not support on gcc 4.2
 //		__asm__ volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0));
 		__asm__ volatile(".byte 0x0f, 0x01, 0xd0" : "=a"(eax), "=d"(edx) : "c"(0));
-		return ((uint64)edx << 32) | eax;
+		return ((uint64_t)edx << 32) | eax;
 	#endif
 #else
 		return 0;
 #endif
 	}
-	typedef uint64 Type;
+	typedef uint64_t Type;
 
 	static const Type NONE = 0;
 	static const Type tMMX = 1 << 0;
@@ -368,39 +380,40 @@ public:
 	static const Type tADX = 1 << 28; // adcx, adox
 	static const Type tRDSEED = 1 << 29; // rdseed
 	static const Type tSMAP = 1 << 30; // stac
-	static const Type tHLE = uint64(1) << 31; // xacquire, xrelease, xtest
-	static const Type tRTM = uint64(1) << 32; // xbegin, xend, xabort
-	static const Type tF16C = uint64(1) << 33; // vcvtph2ps, vcvtps2ph
-	static const Type tMOVBE = uint64(1) << 34; // mobve
-	static const Type tAVX512F = uint64(1) << 35;
-	static const Type tAVX512DQ = uint64(1) << 36;
-	static const Type tAVX512_IFMA = uint64(1) << 37;
+	static const Type tHLE = uint64_t(1) << 31; // xacquire, xrelease, xtest
+	static const Type tRTM = uint64_t(1) << 32; // xbegin, xend, xabort
+	static const Type tF16C = uint64_t(1) << 33; // vcvtph2ps, vcvtps2ph
+	static const Type tMOVBE = uint64_t(1) << 34; // mobve
+	static const Type tAVX512F = uint64_t(1) << 35;
+	static const Type tAVX512DQ = uint64_t(1) << 36;
+	static const Type tAVX512_IFMA = uint64_t(1) << 37;
 	static const Type tAVX512IFMA = tAVX512_IFMA;
-	static const Type tAVX512PF = uint64(1) << 38;
-	static const Type tAVX512ER = uint64(1) << 39;
-	static const Type tAVX512CD = uint64(1) << 40;
-	static const Type tAVX512BW = uint64(1) << 41;
-	static const Type tAVX512VL = uint64(1) << 42;
-	static const Type tAVX512_VBMI = uint64(1) << 43;
+	static const Type tAVX512PF = uint64_t(1) << 38;
+	static const Type tAVX512ER = uint64_t(1) << 39;
+	static const Type tAVX512CD = uint64_t(1) << 40;
+	static const Type tAVX512BW = uint64_t(1) << 41;
+	static const Type tAVX512VL = uint64_t(1) << 42;
+	static const Type tAVX512_VBMI = uint64_t(1) << 43;
 	static const Type tAVX512VBMI = tAVX512_VBMI; // changed by Intel's manual
-	static const Type tAVX512_4VNNIW = uint64(1) << 44;
-	static const Type tAVX512_4FMAPS = uint64(1) << 45;
-	static const Type tPREFETCHWT1 = uint64(1) << 46;
-	static const Type tPREFETCHW = uint64(1) << 47;
-	static const Type tSHA = uint64(1) << 48;
-	static const Type tMPX = uint64(1) << 49;
-	static const Type tAVX512_VBMI2 = uint64(1) << 50;
-	static const Type tGFNI = uint64(1) << 51;
-	static const Type tVAES = uint64(1) << 52;
-	static const Type tVPCLMULQDQ = uint64(1) << 53;
-	static const Type tAVX512_VNNI = uint64(1) << 54;
-	static const Type tAVX512_BITALG = uint64(1) << 55;
-	static const Type tAVX512_VPOPCNTDQ = uint64(1) << 56;
-	static const Type tAVX512_BF16 = uint64(1) << 57;
-	static const Type tAVX512_VP2INTERSECT = uint64(1) << 58;
-	static const Type tAMX_TILE = uint64(1) << 59;
-	static const Type tAMX_INT8 = uint64(1) << 60;
-	static const Type tAMX_BF16 = uint64(1) << 61;
+	static const Type tAVX512_4VNNIW = uint64_t(1) << 44;
+	static const Type tAVX512_4FMAPS = uint64_t(1) << 45;
+	static const Type tPREFETCHWT1 = uint64_t(1) << 46;
+	static const Type tPREFETCHW = uint64_t(1) << 47;
+	static const Type tSHA = uint64_t(1) << 48;
+	static const Type tMPX = uint64_t(1) << 49;
+	static const Type tAVX512_VBMI2 = uint64_t(1) << 50;
+	static const Type tGFNI = uint64_t(1) << 51;
+	static const Type tVAES = uint64_t(1) << 52;
+	static const Type tVPCLMULQDQ = uint64_t(1) << 53;
+	static const Type tAVX512_VNNI = uint64_t(1) << 54;
+	static const Type tAVX512_BITALG = uint64_t(1) << 55;
+	static const Type tAVX512_VPOPCNTDQ = uint64_t(1) << 56;
+	static const Type tAVX512_BF16 = uint64_t(1) << 57;
+	static const Type tAVX512_VP2INTERSECT = uint64_t(1) << 58;
+	static const Type tAMX_TILE = uint64_t(1) << 59;
+	static const Type tAMX_INT8 = uint64_t(1) << 60;
+	static const Type tAMX_BF16 = uint64_t(1) << 61;
+	static const Type tAVX_VNNI = uint64_t(1) << 62;
 
 	Cpu()
 		: type_(NONE)
@@ -422,19 +435,35 @@ public:
 		if (ECX == get32bitAsBE(amd)) {
 			type_ |= tAMD;
 			getCpuid(0x80000001, data);
-			if (EDX & (1U << 31)) type_ |= t3DN;
-			if (EDX & (1U << 15)) type_ |= tCMOV;
-			if (EDX & (1U << 30)) type_ |= tE3DN;
-			if (EDX & (1U << 22)) type_ |= tMMX2;
-			if (EDX & (1U << 27)) type_ |= tRDTSCP;
+			if (EDX & (1U << 31)) {
+				type_ |= t3DN;
+				// 3DNow! implies support for PREFETCHW on AMD
+				type_ |= tPREFETCHW;
+			}
+
+			if (EDX & (1U << 29)) {
+				// Long mode implies support for PREFETCHW on AMD
+				type_ |= tPREFETCHW;
+			}
 		}
 		if (ECX == get32bitAsBE(intel)) {
 			type_ |= tINTEL;
+		}
+
+		// Extended flags information
+		getCpuid(0x80000000, data);
+		if (EAX >= 0x80000001) {
 			getCpuid(0x80000001, data);
+
+			if (EDX & (1U << 31)) type_ |= t3DN;
+			if (EDX & (1U << 30)) type_ |= tE3DN;
 			if (EDX & (1U << 27)) type_ |= tRDTSCP;
+			if (EDX & (1U << 22)) type_ |= tMMX2;
+			if (EDX & (1U << 15)) type_ |= tCMOV;
 			if (ECX & (1U << 5)) type_ |= tLZCNT;
 			if (ECX & (1U << 8)) type_ |= tPREFETCHW;
 		}
+
 		getCpuid(1, data);
 		if (ECX & (1U << 0)) type_ |= tSSE3;
 		if (ECX & (1U << 9)) type_ |= tSSSE3;
@@ -455,11 +484,15 @@ public:
 
 		if (type_ & tOSXSAVE) {
 			// check XFEATURE_ENABLED_MASK[2:1] = '11b'
-			uint64 bv = getXfeature();
+			uint64_t bv = getXfeature();
 			if ((bv & 6) == 6) {
 				if (ECX & (1U << 28)) type_ |= tAVX;
 				if (ECX & (1U << 12)) type_ |= tFMA;
-				if (((bv >> 5) & 7) == 7) {
+				// do *not* check AVX-512 state on macOS because it has on-demand AVX-512 support
+#if !defined(__APPLE__)
+				if (((bv >> 5) & 7) == 7)
+#endif
+				{
 					getCpuidEx(7, 0, data);
 					if (EBX & (1U << 16)) type_ |= tAVX512F;
 					if (type_ & tAVX512F) {
@@ -482,16 +515,12 @@ public:
 						if (EDX & (1U << 3)) type_ |= tAVX512_4FMAPS;
 						if (EDX & (1U << 8)) type_ |= tAVX512_VP2INTERSECT;
 					}
-					// EAX=07H, ECX=1
-					getCpuidEx(7, 1, data);
-					if (type_ & tAVX512F) {
-						if (EAX & (1U << 5)) type_ |= tAVX512_BF16;
-					}
 				}
 			}
 		}
 		if (maxNum >= 7) {
 			getCpuidEx(7, 0, data);
+			const uint32_t maxNumSubLeaves = EAX;
 			if (type_ & tAVX && (EBX & (1U << 5))) type_ |= tAVX2;
 			if (EBX & (1U << 3)) type_ |= tBMI1;
 			if (EBX & (1U << 8)) type_ |= tBMI2;
@@ -507,6 +536,13 @@ public:
 			if (EDX & (1U << 24)) type_ |= tAMX_TILE;
 			if (EDX & (1U << 25)) type_ |= tAMX_INT8;
 			if (EDX & (1U << 22)) type_ |= tAMX_BF16;
+			if (maxNumSubLeaves >= 1) {
+				getCpuidEx(7, 1, data);
+				if (EAX & (1U << 4)) type_ |= tAVX_VNNI;
+				if (type_ & tAVX512F) {
+					if (EAX & (1U << 5)) type_ |= tAVX512_BF16;
+				}
+			}
 		}
 		setFamily();
 		setNumCores();
@@ -514,9 +550,11 @@ public:
 	}
 	void putFamily() const
 	{
+#ifndef XBYAK_ONLY_CLASS_CPU
 		printf("family=%d, model=%X, stepping=%d, extFamily=%d, extModel=%X\n",
 			family, model, stepping, extFamily, extModel);
 		printf("display:family=%X, model=%X\n", displayFamily, displayModel);
+#endif
 	}
 	bool has(Type type) const
 	{
@@ -524,9 +562,10 @@ public:
 	}
 };
 
+#ifndef XBYAK_ONLY_CLASS_CPU
 class Clock {
 public:
-	static inline uint64 getRdtsc()
+	static inline uint64_t getRdtsc()
 	{
 #ifdef XBYAK_INTEL_CPU_SPECIFIC
 	#ifdef _MSC_VER
@@ -534,7 +573,7 @@ public:
 	#else
 		unsigned int eax, edx;
 		__asm__ volatile("rdtsc" : "=a"(eax), "=d"(edx));
-		return ((uint64)edx << 32) | eax;
+		return ((uint64_t)edx << 32) | eax;
 	#endif
 #else
 		// TODO: Need another impl of Clock or rdtsc-equivalent for non-x86 cpu
@@ -556,10 +595,10 @@ public:
 		count_++;
 	}
 	int getCount() const { return count_; }
-	uint64 getClock() const { return clock_; }
+	uint64_t getClock() const { return clock_; }
 	void clear() { count_ = 0; clock_ = 0; }
 private:
-	uint64 clock_;
+	uint64_t clock_;
 	int count_;
 };
 
@@ -925,6 +964,8 @@ public:
 		startAddr_ = endAddr;
 	}
 };
+#endif // XBYAK_ONLY_CLASS_CPU
 
 } } // end of util
+
 #endif
