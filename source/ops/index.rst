@@ -63,3 +63,4 @@ List of all operators supported in LLGA can be found `here <https://gitlab.devto
    activation/Tanh_1.rst
    activation/TanhBackprop_1.rst
    movement/Transpose_1.rst
+   misc/Wildcard_1.rst
