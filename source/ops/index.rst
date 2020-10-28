@@ -12,6 +12,7 @@ List of all operators supported in LLGA can be found `here <https://gitlab.devto
    normalization/BatchNormForwardTraining_1.rst
    normalization/BatchNormInference_1.rst
    normalization/BatchNormTrainingBackprop_1.rst
+   arithmetic/BiasAdd_1.rst   
    arithmetic/BiasAddBackprop_1.rst
    activation/Clamp_1.rst
    activation/ClampBackprop_1.rst
@@ -19,8 +20,10 @@ List of all operators supported in LLGA can be found `here <https://gitlab.devto
    convolution/Convolution_1.rst
    convolution/ConvolutionBackpropData_1.rst
    convolution/ConvolutionBackpropFilters_1.rst
+   arithmetic/Divide_1.rst   
    activation/Elu_1.rst
    activation/EluBackprop_1.rst
+   arithmetic/Erf_1.rst   
    activation/Exp_1.rst
    activation/GELU_2.rst
    activation/GELUBackprop_2.rst
@@ -42,6 +45,8 @@ List of all operators supported in LLGA can be found `here <https://gitlab.devto
    arithmetic/Multiply_1.rst
    arithmetic/Pow_1.rst
    arithmetic/PowBackprop_1.rst
+   arithmetic/PowBackpropExponent_1.rst      
+   reduction/ReduceSum_1.rst   
    activation/ReLU_1.rst
    activation/ReLUBackprop_1.rst
    shape/Reshape_1.rst
@@ -58,8 +63,3 @@ List of all operators supported in LLGA can be found `here <https://gitlab.devto
    activation/Tanh_1.rst
    activation/TanhBackprop_1.rst
    movement/Transpose_1.rst
-   arithmetic/BiasAdd_1.rst
-   reduction/ReduceSum_1.rst
-   arithmetic/Divide_1.rst
-   arithmetic/Erf_1.rst
-   arithmetic/PowBackpropExponent_1.rst
