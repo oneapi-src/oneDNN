@@ -56,6 +56,7 @@ Options supported:
 | %@freq%       | All                                                | Effective cpu frequency computed as clocks[@] / time[@]
 | %group%       | Shuffle                                            | Shuffle group
 | %impl%        | All                                                | Library implementation name for a given problem
+| %mb%          | Problem desc based, Eltwise, Softmax               | Mini-batch value from user input. Prints `0` in case of input `--mb=0`.
 | %name%        | Problem desc based                                 | Problem name
 | %@ops%        | Ops based                                          | Number of ops required (padding is not taken into account)
 | %prb%         | All                                                | Canonical problem (options and descriptor in REPRO style)

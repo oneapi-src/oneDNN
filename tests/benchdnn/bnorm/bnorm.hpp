@@ -100,7 +100,8 @@ struct prb_t : public desc_t {
         , tag(tag)
         , flags(flags)
         , inplace(inplace)
-        , attr(attr) {
+        , attr(attr)
+        , user_mb(mb) {
         if (mb) this->mb = mb;
     }
     ~prb_t() {}
@@ -114,6 +115,7 @@ struct prb_t : public desc_t {
     flags_t flags;
     bool inplace;
     attr_t attr;
+    int64_t user_mb;
 
     bool need_ws() const {
         return (flags & FUSE_NORM_RELU) && !(dir & FLAG_INF);
@@ -144,6 +146,7 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     const attr_t *attr() const override { return &p_->attr; }
+    const int64_t *user_mb() const override { return &p_->user_mb; }
     const char *name() const override { return p_->name; }
     const dir_t *dir() const override { return &p_->dir; }
     const dnnl_data_type_t *dt() const override { return &p_->dt; }
