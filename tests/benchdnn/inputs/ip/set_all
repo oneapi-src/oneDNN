@@ -6,3 +6,4 @@
 --batch=shapes_3d
 --batch=shapes_wd
 --batch=shapes_maskrcnn
+--batch=shapes_rnn_t

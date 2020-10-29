@@ -1,3 +1,4 @@
 --batch=shapes_dlrm
 --batch=shapes_ncf
 --batch=shapes_resnet_50
+--batch=shapes_rnn_t

@@ -12,3 +12,4 @@
 --batch=shapes_vgg16
 --batch=shapes_ncf
 --batch=shapes_alexnet
+--batch=shapes_rnn_t

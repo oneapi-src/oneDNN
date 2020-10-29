@@ -13,3 +13,4 @@
 --mb=1024 --batch=shapes_alexnet
 --mb=512 --batch=shapes_maskrcnn
 --mb=2048 --batch=shapes_dlrm
+--mb=128 --batch=shapes_rnn_t
