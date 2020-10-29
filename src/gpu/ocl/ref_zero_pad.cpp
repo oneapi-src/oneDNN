@@ -82,7 +82,7 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
         // Balance work unit size with parallelism
         cl_ulong step_block = 1;
         while (step_nelems / nelems_block * step_block < 4 * 1024
-                && step_count / (step_block * 2) % 2 == 0
+                && step_count % (step_block * 2) == 0
                 && npsteps / step_block > 2 * hw_threads) {
             step_block *= 2;
         }
