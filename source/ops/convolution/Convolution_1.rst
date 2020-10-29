@@ -109,11 +109,10 @@ In either case,
 
 **Inputs**:
 
-* **1**: ``input`` - the input tensor. The shape is :math:`N,I,X_I^r` in input format order. The format is specified by *data_format*. **Required.**
-* **2**: ``filter`` - convolution kernel tensor. The shape is :math:`I,O,X_K^r` in kernel format order. The format is specified by *filter_format*. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
+* **1**: ``input`` - the input tensor. The format is specified by *data_format*. **Required.**
+* **2**: ``filter`` - convolution kernel tensor. The format is specified by *filter_format*. The size of the kernel is derived from the shape of this input and not specified by any attribute. **Required.**
 * **3**: ``bias`` - a 1-D tensor adds to channel dimension of input. Broadcasting is supported. **Optional.**
 
 **Outputs**:
 
-* **1**: ``output`` -- output tensor. The shape is `N,O,X_O^r` and he format is specified by *data_format*.
-
+* **1**: ``output`` -- output tensor. The format is specified by *data_format*.
