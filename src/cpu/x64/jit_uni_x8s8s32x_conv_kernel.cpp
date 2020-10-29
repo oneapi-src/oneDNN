@@ -102,40 +102,44 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::cvt2ps(data_type_t type_in,
 }
 
 template <cpu_isa_t isa, typename Vmm>
+void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_sum(const int nb_oc_block,
+        const int ur_w, const bool last_oc_block_flag, const int oc_block,
+        const float *p_sum_scale) {
+    if (jcp.with_sum) {
+        assert(p_sum_scale != nullptr && "p_sum_scale = nullptr");
+        const float sum_scale = *p_sum_scale;
+        const auto sum_injector = [=]() {
+            for (int k = 0; k < nb_oc_block; ++k) {
+                const bool mask_flag
+                        = last_oc_block_flag && k == nb_oc_block - 1;
+                for (int j = 0; j < ur_w; ++j) {
+                    const int aux_output_offset = jcp.typesize_out
+                            * (k * oc_block
+                                    + j * jcp.oc_without_padding * jcp.ngroups);
+                    cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
+                            mask_flag ? get_tail_size() : get_blocking_size());
+                    const Vmm vmm = vmm_out(j, k);
+                    if (sum_scale == 1.f)
+                        uni_vaddps(vmm, vmm_prev_dst);
+                    else {
+                        uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
+                        uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
+                    }
+                }
+            }
+        };
+        if (*p_sum_scale != 1.f) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+        postops_injector_->set_lambda_injector(
+                primitive_kind::sum, sum_injector);
+    }
+}
+
+template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(
         const int nb_oc_block, const int ur_w, const bool last_oc_block_flag,
         const int oc_block, const float *p_sum_scale) {
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
-        if (jcp.with_sum) {
-            const float sum_scale = p_sum_scale ? *p_sum_scale : 0;
-            const auto sum_injector = [=]() {
-                for (int k = 0; k < nb_oc_block; ++k) {
-                    const bool mask_flag
-                            = last_oc_block_flag && k == nb_oc_block - 1;
-                    for (int j = 0; j < ur_w; ++j) {
-                        const int aux_output_offset = jcp.typesize_out
-                                * (k * oc_block
-                                        + j * jcp.oc_without_padding
-                                                * jcp.ngroups);
-                        cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out,
-                                aux_output_offset,
-                                mask_flag ? get_tail_size()
-                                          : get_blocking_size());
-                        const Vmm vmm = vmm_out(j, k);
-                        if (sum_scale == 1.f)
-                            uni_vaddps(vmm, vmm_prev_dst);
-                        else {
-                            uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
-                            uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
-                        }
-                    }
-                }
-            };
-            if (*p_sum_scale != 1.f)
-                mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
-            postops_injector_->set_lambda_injector(
-                    primitive_kind::sum, sum_injector);
-        }
+        apply_sum(nb_oc_block, ur_w, last_oc_block_flag, oc_block, p_sum_scale);
 
         const auto iterate
                 = [=](const std::function<void(const int k, const int j)> &f) {
