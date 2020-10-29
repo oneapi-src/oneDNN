@@ -91,8 +91,6 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
                     submit_cpu_primitive(this, prim_iface, exec_ctx, cgh);
                 });
                 set_deps({event});
-                // XXX: wait() to workaround a hang happening in DPC++ RT.
-                this->wait();
 #else
                 assert(!"not expected");
                 return status::runtime_error;
