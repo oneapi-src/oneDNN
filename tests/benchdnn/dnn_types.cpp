@@ -727,6 +727,21 @@ int attr_args_t::prepare_binary_post_op_mds(
     return OK;
 }
 
+void attr_args_t::prepare_dw_post_op(const attr_t &attr,
+        dnnl_data_type_t wei_dt, dnnl_data_type_t bia_dt, const void *vals,
+        int64_t count, int mask) {
+    const int dw_idx = attr.post_ops.convolution_index();
+    if (dw_idx == -1) return;
+
+    const auto &dw = attr.post_ops.entry[dw_idx].convolution;
+    // insert output scale which applies in fused convolution
+    insert(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_OUTPUT_SCALES, vals, count,
+            mask, dw.oscale.runtime);
+
+    dw_entry.wei_dt = wei_dt;
+    dw_entry.bia_dt = bia_dt;
+}
+
 dnnl_primitive_attr_t create_dnnl_attr(
         const attr_t &attr, const attr_args_t &attr_args) {
     dnnl_primitive_attr_t dnnl_attr = nullptr;
@@ -787,6 +802,23 @@ dnnl_primitive_attr_t create_dnnl_attr(
             if (e.is_sum_kind()) {
                 DNN_SAFE_V(dnnl_post_ops_append_sum_v2(
                         ops, e.sum.scale, e.sum.dt));
+            } else if (e.is_convolution_kind()) {
+                const auto wei_dt = attr_args.get_dw_arg(DNNL_ARG_WEIGHTS);
+                const auto bia_dt = attr_args.get_dw_arg(DNNL_ARG_BIAS);
+
+                const auto &os_args = attr_args.get(
+                        DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_OUTPUT_SCALES);
+                const auto scales = os_args.get_float_ptr();
+                const auto &policy = e.convolution.oscale.policy;
+                // API expects count=0 if output_scale was not set
+                const auto count = scales ? os_args.get_count(policy) : 0;
+                const auto mask = os_args.get_mask(policy);
+
+                const auto dnnl_post_ops_append_dw = e.convolution.stride == 1
+                        ? dnnl_post_ops_append_dw_k3s1p1
+                        : dnnl_post_ops_append_dw_k3s2p1;
+                DNN_SAFE_V(dnnl_post_ops_append_dw(ops, wei_dt, bia_dt,
+                        e.convolution.dst_dt, count, mask, scales));
             } else if (e.is_eltwise_kind()) {
                 DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops, e.eltwise.scale,
                         e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
@@ -1067,10 +1099,10 @@ void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
 
 float compute_eltwise_fwd(
         pk_t kind, float src, float scale, float alpha, float beta) {
-    using namespace dnnl::impl::math;
-
     // don't compute on nan, propagate it
-    if (std::isnan(src)) return src;
+    if (std::isnan(src)) return NAN;
+
+    using namespace dnnl::impl::math;
 
     switch (kind) {
         case pk_t::RELU: return scale * relu_fwd(src, alpha);

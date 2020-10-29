@@ -26,7 +26,6 @@ using namespace alg_kind;
 using namespace math;
 
 float compute_binary_scalar(alg_kind_t alg, float x, float y) {
-    if (std::isnan(x) || std::isnan(y)) return NAN;
     switch (alg) {
         case binary_add: return x + y;
         case binary_div: return x / y;
@@ -40,10 +39,7 @@ float compute_binary_scalar(alg_kind_t alg, float x, float y) {
 
 float compute_eltwise_scalar_fwd(
         const alg_kind_t alg, float s, float alpha, float beta) {
-    // don't compute on nan, propagate it
-    if (std::isnan(s)) return s;
-
-    float d = NAN;
+    float d = 0.f;
     switch (alg) {
         case eltwise_relu: d = relu_fwd(s, alpha); break;
         case eltwise_tanh: d = tanh_fwd(s); break;
@@ -202,7 +198,7 @@ status_t ref_post_ops_t::execute(float &res, const args_t &args) const {
                 float val_po = types::get_float_value(
                         src1_binary_po_d.data_type(), src1_binary_po, off);
                 res = it_binary_po->compute_scalar(res, val_po);
-                it_binary_po++;
+                ++it_binary_po;
             } break;
             default: assert(!"unsupported post op primitive kind!");
         }

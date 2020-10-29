@@ -52,7 +52,10 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             if (copy(other) != status::success) is_initialized_ = false;
         }
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_uni_int8_1x1:", isa, ""),
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_uni_int8_1x1:",
+                        isa == avx2 && jcp_.ver == ver_vnni ? avx2_vnni : isa,
+                        ""),
                 jit_uni_x8s8s32x_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
@@ -117,9 +120,11 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         }
 
         arg_usage_t arg_usage(int arg) const override {
+            if (arg == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS))
+                return arg_usage_t::input;
 
-            if (utils::one_of(arg, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS,
-                        DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS))
+            if (arg == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS)
+                    && attr_post_op_dw_inputs() > 1)
                 return arg_usage_t::input;
 
             return convolution_fwd_pd_t::arg_usage(arg);
@@ -225,7 +230,8 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                         = 0 | compensation_conv_s8s8 | scale_adjust;
                 want_wei_md.extra.compensation_mask
                         = with_groups() ? g_mask : c_mask;
-                want_wei_md.extra.scale_adjust = 0.5f;
+                want_wei_md.extra.scale_adjust
+                        = mayiuse(avx2_vnni) ? 1.0f : 0.5f;
             }
             if (is_src_zero_point) {
                 want_wei_md.extra.flags |= compensation_conv_asymmetric_src;
@@ -379,13 +385,14 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
                 new jit_uni_x8s8s32x_1x1_conv_kernel<isa>(
-                        pd()->jcp_, *pd()->attr())));
+                        pd()->jcp_, *pd()->attr(), *pd()->dst_md())));
         CHECK(kernel_->create_kernel());
 
         if (pd()->jcp_.with_dw_conv) {
             CHECK(safe_ptr_assign(kernel_dw_,
-                    new dw_conv_kernel_t(
-                            *(pd()->jcp_dw_), *(pd()->dw_conv_pd_->attr()))));
+                    new dw_conv_kernel_t(*(pd()->jcp_dw_),
+                            *(pd()->dw_conv_pd_->attr()),
+                            *(pd()->dw_conv_pd_->dst_md()))));
             CHECK(kernel_dw_->create_kernel());
         }
 
@@ -403,7 +410,9 @@ private:
             const src_data_t *src, const wei_data_t *weights, const char *bias,
             const wei_data_t *weights_dw, const char *bias_dw, dst_data_t *dst,
             const int32_t *src_zero_point, const int32_t *dst_zero_point,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad,
+            const void *post_ops_binary_rhs_arg_vec,
+            const void *post_ops_binary_rhs_arg_vec_dw) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_uni_x8s8s32x_1x1_conv_kernel<isa>> kernel_;

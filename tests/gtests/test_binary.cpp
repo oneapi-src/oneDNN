@@ -234,6 +234,8 @@ using binary_test_s8 = binary_test_t<int8_t>;
 using binary_test_u8 = binary_test_t<uint8_t>;
 using binary_test_s8u8s8 = binary_test_t<int8_t, uint8_t, int8_t>;
 using binary_test_u8s8u8 = binary_test_t<uint8_t, int8_t, uint8_t>;
+using binary_test_u8s8s8 = binary_test_t<uint8_t, int8_t, int8_t>;
+using binary_test_s8u8u8 = binary_test_t<int8_t, uint8_t, uint8_t>;
 
 INST_TEST_CASE(binary_test_f32)
 INST_TEST_CASE(binary_test_bf16)
@@ -242,5 +244,7 @@ INST_TEST_CASE(binary_test_s8)
 INST_TEST_CASE(binary_test_u8)
 INST_TEST_CASE(binary_test_s8u8s8)
 INST_TEST_CASE(binary_test_u8s8u8)
+INST_TEST_CASE(binary_test_u8s8s8)
+INST_TEST_CASE(binary_test_s8u8u8)
 
 } // namespace dnnl

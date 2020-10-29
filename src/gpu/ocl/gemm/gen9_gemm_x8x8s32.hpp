@@ -56,6 +56,9 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
             const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops
                     | smask_t::zero_points_runtime;
 
+            bool ok = set_default_formats();
+            if (!ok) return status::unimplemented;
+
             const auto d = desc();
             // LIMITATIONS:
             // - batch is not supported
@@ -63,19 +66,19 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
             // - bias is not supported
             // - runtime zero points are supported for dst only
             // - attribute zero points are supported for src and weights only
-            bool limits_ok = d->batch == 1
-                    && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m, d->n, d->k,
-                            d->lda, d->ldb, d->ldc)
-                    && d->bias_type == data_type::undef;
+            bool limits_ok = d->batch() == 1
+                    && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
+                            d->k(), d->lda(), d->ldb(), d->ldc())
+                    && d->bias_type() == data_type::undef;
 
-            bool ok = limits_ok
-                    && utils::one_of(d->a_type, data_type::u8, data_type::s8)
-                    && utils::one_of(d->b_type, data_type::u8, data_type::s8)
-                    && utils::one_of(d->c_type, data_type::s32)
-                    && d->acc_type == d->c_type
+            ok = limits_ok
+                    && utils::one_of(d->a_type(), data_type::u8, data_type::s8)
+                    && utils::one_of(d->b_type(), data_type::u8, data_type::s8)
+                    && utils::one_of(d->c_type(), data_type::s32)
+                    && d->acc_type == d->c_type()
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(desc()->c_type == data_type::s32,
+                    && IMPLICATION(desc()->c_type() == data_type::s32,
                             true
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
@@ -93,6 +96,10 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
             init_scratchpad();
             attr_info = attr_info_t::create(attr());
             return status::success;
+        }
+
+        bool set_default_formats() {
+            return gpu_gemm_pd_t::set_default_formats();
         }
 
         bool zero_points_ok() const {
@@ -121,7 +128,8 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_gemm_int_c_in_acc_dt,
-                    desc()->m * desc()->n, sizeof(int), OCL_BUFFER_ALIGNMENT);
+                    desc()->m() * desc()->n(), sizeof(int),
+                    OCL_BUFFER_ALIGNMENT);
         }
     };
 
@@ -148,7 +156,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         const char *kernel_name = nullptr;
 
         //compute kernel
-        switch (pd()->desc()->c_type) {
+        switch (pd()->desc()->c_type()) {
             case data_type::s32:
                 kernel_name = "gen9_gemm_compute_x8x8s32";
                 break;
@@ -164,9 +172,9 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         bool row_c = (1 << 1 == cmask);
 
         auto status = gen9_gemm_x8x8s32_kernel_t::init_kernel_ctx(kernel_ctx,
-                pd()->desc()->transa, pd()->desc()->transb, fixed_c, column_c,
-                row_c, pd()->attr_info, pd()->desc()->a_type,
-                pd()->desc()->b_type, pd()->desc()->c_type);
+                pd()->desc()->transa(), pd()->desc()->transb(), fixed_c,
+                column_c, row_c, pd()->attr_info, pd()->desc()->a_type(),
+                pd()->desc()->b_type(), pd()->desc()->c_type());
         if (status != status::success) return status;
 
         create_kernel(
@@ -177,8 +185,8 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         kernel_name = "gen9_gemm_scale_x8x8s32";
 
         status = gen9_gemm_scale_x8x8s32_kernel_t::init_kernel_ctx(kernel_ctx,
-                pd()->attr_info, pd()->desc()->a_type, pd()->desc()->b_type,
-                pd()->desc()->c_type);
+                pd()->attr_info, pd()->desc()->a_type(), pd()->desc()->b_type(),
+                pd()->desc()->c_type());
         if (status != status::success) return status;
 
         create_kernel(engine, &scale_x8x8s32_kernel_, kernel_name, kernel_ctx);

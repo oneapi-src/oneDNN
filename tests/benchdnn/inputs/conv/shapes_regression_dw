@@ -23,6 +23,7 @@ mb1_g16ic16oc16_ih15oh8kh3sh2ph1_iw10ow10kw3
 mb1_g16ic16oc16_ih14oh8kh2sh2ph1_iw10ow10kw3
 
 # Tests for tail processing
+mb1_g7ic7oc7_ih32oh32kh5ph2
 mb1_g13ic13oc13_ih10oh10kh3ph1
 mb1_g20ic20oc20_ih10oh10kh3ph1
 mb1_g42ic42oc42_ih10oh10kh3ph1

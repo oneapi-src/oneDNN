@@ -73,6 +73,12 @@ static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
         conf.chunks_per_c_block = 32 / conf.sub_group_size;
         conf.chunks_per_mb_block
                 = conf.vect_dt_n * conf.nvect / conf.chunks_per_c_block;
+    } else if (src_mdw.matches_tag(nChw16c)) {
+        conf.use_only_c_block = true;
+        conf.vect_dt_n = 1;
+        conf.nvect = 1;
+        conf.chunks_per_c_block = conf.nvect * conf.vect_dt_n;
+        conf.chunks_per_mb_block = 1;
     } else {
         conf.use_only_c_block = true;
         const size_t num_c_blocks = c_padded / conf.sub_group_size;

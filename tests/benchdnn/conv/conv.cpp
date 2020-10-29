@@ -133,8 +133,8 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 
     const char *skind = data_kind2str(kind);
 
-    int in = 0, below = 0, above = 0;
-    int in_ok = 0, below_ok = 0, above_ok = 0;
+    int in = 0, not_a_num = 0, below = 0, above = 0;
+    int in_ok = 0, not_a_num_ok = 0, below_ok = 0, above_ok = 0;
     int non_zero = 0;
 
     // Update trh with the largest value from all eltwise post-ops
@@ -164,7 +164,12 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
 
         bool ok = true;
-        if (fp < f_min) {
+        if (std::isnan(fp0) && is_integral_dt(f_dt)) {
+            // XXX: if reference fp0 value is nan, allow to return anything from
+            // the library for integral target data types.
+            not_a_num += 1;
+            not_a_num_ok += true;
+        } else if (fp < f_min) {
             diff_norm.update(f_min, dt);
             ok = dt == f_min;
             if (!ok && has_eltwise)
@@ -273,11 +278,12 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         BENCHDNN_PRINT(0,
                 "@@@ [%s] %strust range:%.2f nz:%.2f "
                 "(level range:%.2f nz:%.2f). "
-                "in:%d (ok:%d) below:%d (ok:%d) above:%d (ok:%d) nz:%d "
-                "total:%lu\n",
+                "in:%d (ok:%d) nan:%d (ok:%d) below:%d (ok:%d) above:%d "
+                "(ok:%d) nz:%d total:%lu\n",
                 skind, final_compare ? "final: " : "", trust_rg, trust_nz,
-                trust_rg_level, trust_nz_level, in, in_ok, below, below_ok,
-                above, above_ok, non_zero, (unsigned long)res->total);
+                trust_rg_level, trust_nz_level, in, in_ok, not_a_num,
+                not_a_num_ok, below, below_ok, above, above_ok, non_zero,
+                (unsigned long)res->total);
     }
 
     if (no_trust) {
@@ -623,9 +629,12 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     // Winograd implementation limitations.
     if (prb->alg == WINO) {
         if (engine_tgt_kind == dnnl_cpu) {
+#ifdef DNNL_X64
             static auto isa = dnnl_get_effective_cpu_isa();
-            static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic;
-            static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core;
+            static bool has_avx512_common = isa >= dnnl_cpu_isa_avx512_mic
+                    && isa != dnnl_cpu_isa_avx2_vnni;
+            static bool has_avx512_bw = isa >= dnnl_cpu_isa_avx512_core
+                    && isa != dnnl_cpu_isa_avx2_vnni;
             bool is_int8 = prb->cfg[WEI].dt == dnnl_s8;
 
             bool pad_ok_f32 = prb->pw <= 1 && prb->ph <= 1 && prb->pw_r <= 1
@@ -669,6 +678,10 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
                 res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
                 return;
             }
+#else
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+#endif
         } else if (engine_tgt_kind == dnnl_gpu) {
             bool shape_ok = prb->ndims == 4 && prb->g == 1 && prb->kh == 3
                     && prb->kw == 3 && prb->sh == 1 && prb->sw == 1

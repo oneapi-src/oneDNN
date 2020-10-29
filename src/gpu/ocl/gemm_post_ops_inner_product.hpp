@@ -21,6 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/gemm_types.hpp"
+#include "common/gemm_utils.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_iterator.hpp"
 #include "gpu/compute/compute.hpp"
@@ -36,48 +37,6 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
-
-namespace {
-// XXX: Can be unified and used across all primitives
-inline status_t create_gemm_post_ops_pd(
-        std::unique_ptr<primitive_desc_t> &gemm_pd, engine_t *engine,
-        transpose_t transa, transpose_t transb, int m, int n, int k, int lda,
-        int ldb, int ldc, data_type_t a_dt, data_type_t b_dt, data_type_t c_dt,
-        const primitive_attr_t &attr) {
-    auto gemm_desc = gemm_desc_t();
-    gemm_desc.primitive_kind = primitive_kind::gemm;
-    gemm_desc.transa = transa;
-    gemm_desc.transb = transb;
-    gemm_desc.batch = 1;
-    gemm_desc.m = m;
-    gemm_desc.n = n;
-    gemm_desc.k = k;
-    gemm_desc.lda = lda;
-    gemm_desc.ldb = ldb;
-    gemm_desc.ldc = ldc;
-    gemm_desc.stride_a = lda;
-    gemm_desc.stride_b = ldb;
-    gemm_desc.stride_c = ldc;
-    gemm_desc.a_type = a_dt;
-    gemm_desc.b_type = b_dt;
-    gemm_desc.c_type = c_dt;
-    gemm_desc.acc_type = c_dt;
-
-    primitive_attr_t gemm_attr(attr);
-    if (!gemm_attr.is_initialized()) return status::out_of_memory;
-    gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
-    dnnl_primitive_desc_iterator it(
-            engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
-    if (!it.is_initialized()) return status::out_of_memory;
-    ++it;
-    gemm_pd.reset(it.fetch_once());
-    if (!gemm_pd) return status::unimplemented;
-    std::string impl_name(gemm_pd.get()->name());
-    if (impl_name.find("ref") != std::string::npos)
-        return status::unimplemented;
-    return status::success;
-}
-} // namespace
 
 struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
@@ -122,19 +81,12 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
                     = primitive_attr_t::skip_mask_t::oscale
                     | primitive_attr_t::skip_mask_t::post_ops;
             bool ok = is_fwd() && set_default_params() == success
-                    && ((one_of(src_md()->data_type, s8, u8)
-                                && weights_md()->data_type == s8
-                                && IMPLICATION(with_bias(),
-                                        one_of(weights_md(1)->data_type, s8, u8,
-                                                f32, s32))
-                                && one_of(
-                                        dst_md()->data_type, u8, s8, f32, s32))
-                            || (utils::one_of(true,
-                                    expect_data_types(f16, f16, f16, f16, f16),
-                                    expect_data_types(
-                                            f32, f32, f32, f32, f32))))
-                    && dense_consitency_check(src_md(), weights_md(), dst_md())
-                    && dense_gemm_consitency_check(
+                    && IMPLICATION(utils::one_of(bf16, src_md()->data_type,
+                                           weights_md()->data_type,
+                                           dst_md()->data_type),
+                            expect_data_types(bf16, bf16, undef, bf16, f32))
+                    && dense_consistency_check(src_md(), weights_md(), dst_md())
+                    && dense_gemm_consistency_check(
                             src_md(), weights_md(), dst_md())
                     && attr()->has_default_values(attr_skip_mask)
                     && post_ops_with_binary_ok(attr(), dst_md()->data_type)
@@ -153,22 +105,16 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             primitive_attr_t gemm_attr;
             is_int8_ = weights_md()->data_type == s8;
 
-            const auto &wmd = *this->weights_md();
-            bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
-
-            const int mb = this->MB();
-            const int oc = this->OC();
-            const int ic_total = this->IC_total_padded();
-
+            memory_desc_t a_md, b_md, c_md;
+            init_2d_desc(&a_md, src_md());
+            init_2d_desc(&b_md, weights_md());
+            init_2d_desc(&c_md, dst_md());
+            c_md.data_type
+                    = weights_md()->data_type == s8 ? s32 : c_md.data_type;
             bool gemm_ok = status::success
-                    == create_gemm_post_ops_pd(gemm_pd_, engine,
-                            wei_tr ? transpose::trans : transpose::notrans,
-                            transpose::notrans, oc, mb, ic_total,
-                            wei_tr ? ic_total : oc, ic_total, oc,
-                            weights_md()->data_type, src_md()->data_type,
-                            weights_md()->data_type == s8 ? s32
-                                                          : dst_md()->data_type,
-                            gemm_attr);
+                    == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
+                            &glob_zero_md, desc()->accum_data_type, attr(),
+                            true);
             if (!gemm_ok) return status::unimplemented;
 
             status_t scratchpad_status = init_ip_scratchpad_md();

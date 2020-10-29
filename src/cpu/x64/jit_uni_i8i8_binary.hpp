@@ -35,7 +35,7 @@ namespace x64 {
 
 struct i8i8_binary_kernel_t;
 
-template <data_type_t src0_type, data_type_t src1_type>
+template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
 struct jit_uni_i8i8_binary_t : public primitive_t {
     struct pd_t : public cpu_binary_pd_t {
         using cpu_binary_pd_t::cpu_binary_pd_t;
@@ -48,12 +48,10 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
 
             const bool ok = src_md(0)->data_type == src0_type
                     && src_md(1)->data_type == src1_type
-                    && dst_md(0)->data_type == src0_type
+                    && dst_md(0)->data_type == dst_type
                     && set_default_params()
                             == status::success /* should precede comparison */
                     && !has_zero_dim_memory() && is_applicable()
-                    && memory_desc_wrapper(src_md(0))
-                            == memory_desc_wrapper(dst_md(0))
                     && attr()->has_default_values(sm::post_ops | sm::scales)
                     && post_ops_ok(attr(), src_md(0))
                     && IMPLICATION(!attr()->scales_.has_default_values(),

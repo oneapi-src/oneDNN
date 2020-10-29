@@ -1955,12 +1955,14 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
             return status::unimplemented;
     }
 
+    const bool isa_supports_avx2 = is_superset(isa, avx2);
     if (is_training() && fuse_norm_relu()) {
-        if (isa < avx2) return status::unimplemented;
+        if (!isa_supports_avx2) return status::unimplemented;
         init_default_ws(1);
     }
 
-    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C() && isa < avx2)
+    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C()
+            && !isa_supports_avx2)
         return status::unimplemented;
 
     // Only IC % 16 == 0 is supported for now
@@ -2053,7 +2055,9 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
             && src_tag == diff_src_tag);
     if (!ok) return status::unimplemented;
 
-    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C() && isa < avx2)
+    const bool isa_supports_avx2 = is_superset(isa, avx2);
+    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C()
+            && !isa_supports_avx2)
         return status::unimplemented;
 
     // Only IC % 16 == 0 is supported for now
@@ -2063,7 +2067,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
     }
 
     if (fuse_norm_relu()) {
-        if (isa < avx2) return status::unimplemented;
+        if (!isa_supports_avx2) return status::unimplemented;
         init_default_ws(1);
         if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
     }

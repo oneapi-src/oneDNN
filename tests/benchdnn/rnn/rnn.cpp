@@ -72,7 +72,7 @@ int check_ldoi_s8_reorder(const prb_t &prb, data_kind_t kind,
         const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp,
         const_dnnl_primitive_attr_t attr = nullptr) {
     // TODO: enable for all cpu_kind when supported
-    if (engine_tgt_kind != dnnl_cpu) return FAIL;
+    if (engine_tgt_kind != dnnl_cpu) return OK;
 
     // we compare ldio_f32 -> ldio_s8 to ldio_f32 -> ldoi_f32 -> ldio_s8
     // fp is in ldio
@@ -106,7 +106,7 @@ int check_ldoi_s8_reorder(const prb_t &prb, data_kind_t kind,
 int check_s8s8_reorder(const prb_t &prb, data_kind_t kind,
         const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp) {
     // TODO: enable for all cpu_kind when supported
-    if (engine_tgt_kind != dnnl_cpu) return FAIL;
+    if (engine_tgt_kind != dnnl_cpu) return OK;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_DPCPP
     // DPC++ does not provide a simple way to access the underlying

@@ -15,9 +15,13 @@
 --ddt=f16 --sdt=f16:f16
 --batch=shapes_ci
 
+--inplace=true
 --ddt=s8 --sdt=s8:u8
 --attr-scales=, \
               src1:common:0.5, \
               src:common:0.125, \
               src:common:0.25_src1:common:0.5
+--batch=shapes_ci
+--inplace=false
+--ddt=s8,u8 --sdt=s8:u8,u8:s8
 --batch=shapes_ci

@@ -121,8 +121,26 @@ DECLARE_MMAD(mmad_tail1, IC_NBLOCKS_TAIL, 8, SRC_DATA_BLOCK_T1, int8,
     data = as_int8(intel_sub_group_block_read8((__global uint *)&wei[idx]));
 #endif
 
+#if OC % OC_BLOCK == 0
 #define BLOCK_READ_BIA(data, idx) \
     data = as_float4(intel_sub_group_block_read4((__global uint *)&bias[idx]));
+
+#else
+#define BLOCK_READ_BIA(data, idx) \
+    data = (float4)0; \
+    int i; \
+    for (i = idx; i < idx + OC_BLOCK && i < OC - (OC % SUB_GROUP_SIZE); \
+            i += SUB_GROUP_SIZE) { \
+        data[(i - idx) / SUB_GROUP_SIZE] = as_float( \
+                intel_sub_group_block_read((__global uint *)&bias[i])); \
+    } \
+    if ((get_sub_group_local_id() < OC % SUB_GROUP_SIZE) \
+            && (i == OC - OC % SUB_GROUP_SIZE)) { \
+        data[(i - idx) / SUB_GROUP_SIZE] \
+                = as_float(bias[i + get_sub_group_local_id()]); \
+    }
+
+#endif
 
 #define BLOCK_READ_SCALES(data, idx) \
     data = as_float4(intel_sub_group_block_read4( \
@@ -394,22 +412,16 @@ gen12lp_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
         for (int n_i = 0; n_i < n; n_i++) { \
             PACK(C0, C1, C2, C3, n_i); \
             QUANTIZE_ADD_BIAS(); \
-            for (int didx = 0; didx < 4; ++didx) { \
-                float tmp_i = tmp[didx]; \
-                float dni_i = convert_float(AS_SUM_DATA_T(D[n_i][didx])); \
-                int po_mb; \
-                if (MB_BLOCK == 32) \
-                    po_mb = (mb_group_id * MB_BLOCK / 2 + mb_stride * 8 + n_i) \
-                            % MB; \
-                else \
-                    po_mb = mb_group_id % MB; \
-                const int po_oc = (oc_group_id * OC_BLOCK + sg_local_id \
-                                          + didx * SUB_GROUP_SIZE) \
-                        % (OC * G); \
-                APPLY_POST_OPS(tmp_i, float, dni_i, float, po_mb, 1, po_oc, 1, \
-                        0, 1, 0, 1, 0, 1, 0, 1); \
-                tmp[didx] = tmp_i; \
-            } \
+            int po_mb; \
+            if (MB_BLOCK == 32) \
+                po_mb = (mb_group_id * MB_BLOCK / 2 + mb_stride * 8 + n_i) \
+                        % MB; \
+            else \
+                po_mb = mb_group_id % MB; \
+            const int po_oc = (oc_group_id * OC_BLOCK) % (OC * G); \
+            float4 dni = convert_float4(AS_SUM_DATA4_T(D[n_i])); \
+            APPLY_POST_OPS_TRY_BURST(tmp, float, dni, float, po_mb, 1, po_oc, \
+                    4 * SUB_GROUP_SIZE, sg_local_id); \
             ADD_DST_COMPENSATION(); \
             ZERO_PAD_DST(); \
             CONVERT_PACK(n_i); \

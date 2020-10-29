@@ -57,15 +57,15 @@ struct gen_gemm_t : public gpu_gemm_t {
 
             auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
 
+            ok = set_default_formats();
+            if (!ok) return status::unimplemented;
+
             const auto d = desc();
 
-            if (d->c_type == data_type::s32) {
-                ok = ok
-                        && utils::one_of(
-                                d->a_type, data_type::u8, data_type::s8)
-                        && utils::one_of(
-                                d->b_type, data_type::u8, data_type::s8)
-                        && d->acc_type == d->c_type
+            if (d->c_type() == s32) {
+                ok = ok && utils::one_of(d->a_type(), u8, s8)
+                        && utils::one_of(d->b_type(), u8, s8)
+                        && d->acc_type == d->c_type()
                         && attr()->zero_points_.defined(DNNL_ARG_SRC)
                         && attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)
                         && (attr()->zero_points_.has_default_values(
@@ -79,17 +79,21 @@ struct gen_gemm_t : public gpu_gemm_t {
 
                 attr_skip_mask |= smask_t::zero_points_runtime;
             } else {
-                ok = ok
-                        && utils::one_of(
-                                d->c_type, data_type::f32, data_type::f16)
-                        && d->a_type == d->c_type && d->b_type == d->c_type
-                        && d->acc_type == d->c_type;
+                ok = ok && utils::one_of(d->c_type(), f32, f16)
+                        && d->a_type() == d->c_type()
+                        && d->b_type() == d->c_type()
+                        && d->acc_type == d->c_type();
             }
 
             ok = ok
-                    && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m, d->n, d->k,
-                            d->lda, d->ldb, d->ldc, d->batch)
-                    && d->bias_type == data_type::undef
+                    && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
+                            d->k(), d->lda(), d->ldb(), d->ldc(), d->batch())
+                    && IMPLICATION(d->c_type() != f32,
+                            d->bias_type() == data_type::undef)
+                    && IMPLICATION(with_bias(),
+                            (d->bias_type() == d->c_type())
+                                    && utils::one_of(
+                                            bias_cmask(), 0, 1 << 0, 1 << 1))
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->output_scales_.mask_ == 0
@@ -116,6 +120,10 @@ struct gen_gemm_t : public gpu_gemm_t {
             return status::success;
         }
 
+        bool set_default_formats() {
+            return gpu_gemm_pd_t::set_default_formats();
+        }
+
         bool with_c_offset() const {
             return !attr()->zero_points_.has_default_values(DNNL_ARG_DST);
         }
@@ -134,6 +142,15 @@ struct gen_gemm_t : public gpu_gemm_t {
             using namespace primitive_kind;
             const auto &p = attr()->post_ops_;
             return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
+        }
+
+        bool with_bias() const {
+            return desc()->bias_type() != data_type::undef;
+        }
+
+        int bias_cmask() const {
+            unsigned char to_cmask[4] = {0, 2, 1, 3};
+            return with_bias() ? to_cmask[(desc()->bias_mask() >> 1) & 3] : -1;
         }
 
         size_t dyn_offset_a = 0;
@@ -155,17 +172,17 @@ struct gen_gemm_t : public gpu_gemm_t {
         using kernel_t = gen_gemm_nocopy_kernel_t;
 
         int unroll_m, unroll_n;
-        auto batch = pd()->desc()->batch;
+        auto batch = pd()->desc()->batch();
         bool batched = (batch > 1);
-        bool transa = (pd()->desc()->transa == dnnl_trans);
-        bool transb = (pd()->desc()->transb == dnnl_trans);
-        auto a_type = pd()->desc()->a_type;
-        auto b_type = pd()->desc()->b_type;
-        auto c_type = pd()->desc()->c_type;
+        bool transa = (pd()->desc()->transa() == dnnl_trans);
+        bool transb = (pd()->desc()->transb() == dnnl_trans);
+        auto a_type = pd()->desc()->a_type();
+        auto b_type = pd()->desc()->b_type();
+        auto c_type = pd()->desc()->c_type();
 
         kernel_t::choose_unrolls(pd()->arch_, pd()->hw_threads_, transa, transb,
-                a_type, b_type, c_type, pd()->desc()->m, pd()->desc()->n,
-                pd()->desc()->k, batch, unroll_m, unroll_n);
+                a_type, b_type, c_type, pd()->desc()->m(), pd()->desc()->n(),
+                pd()->desc()->k(), batch, unroll_m, unroll_n);
 
         kernel_t kernel;
 

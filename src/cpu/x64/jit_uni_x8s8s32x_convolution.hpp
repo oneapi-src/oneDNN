@@ -39,7 +39,10 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_uni_int8:", isa, ""),
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_uni_int8:",
+                        isa == avx2 && jcp_.ver == ver_vnni ? avx2_vnni : isa,
+                        ""),
                 jit_uni_x8s8s32x_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
@@ -96,7 +99,7 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
                 new jit_uni_x8s8s32x_fwd_kernel<isa>(
-                        pd()->jcp_, *pd()->attr())));
+                        pd()->jcp_, *pd()->attr(), *pd()->dst_md())));
         return kernel_->create_kernel();
     }
 

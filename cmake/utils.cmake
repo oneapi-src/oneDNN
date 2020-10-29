@@ -39,6 +39,11 @@ function(maybe_configure_windows_test name kind)
     endif()
 endfunction()
 
+# Add test (aka add_test), but possibly appends an emulator
+function(add_dnnl_test name command)
+    add_test(${name} ${DNNL_TARGET_EMULATOR} ${command} ${ARGN})
+endfunction()
+
 # Register new executable/test
 #   name -- name of the executable
 #   srcs -- list of source, if many must be enclosed with ""
@@ -48,7 +53,7 @@ function(register_exe name srcs test)
     add_executable(${name} ${srcs})
     target_link_libraries(${name} ${LIB_NAME} ${EXTRA_SHARED_LIBS} ${ARGV3})
     if("x${test}" STREQUAL "xtest")
-        add_test(${name} ${name})
+        add_dnnl_test(${name} ${name})
         maybe_configure_windows_test(${name} TEST)
     else()
         maybe_configure_windows_test(${name} TARGET)

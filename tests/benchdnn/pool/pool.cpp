@@ -46,8 +46,13 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+
         bool ok = false;
-        if (std::isinf(fp))
+        if (std::isnan(fp0) && is_integral_dt(prb->cfg[kind].dt))
+            // XXX: if reference fp0 value is nan, allow to return anything from
+            // the library for integral target data types.
+            ok = true;
+        else if (std::isinf(fp))
             ok = std::isinf(dt) && std::signbit(fp) == std::signbit(dt);
         else if (fp < prb->cfg[kind].min)
             ok = dt == prb->cfg[kind].min;

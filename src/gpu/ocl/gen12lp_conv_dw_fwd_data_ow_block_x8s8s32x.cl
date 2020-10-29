@@ -76,8 +76,12 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
     // change after fix from compiler
     // float2 B = as_float2(intel_sub_group_block_read_ul((const __global ulong *)&bias[g]));
     float2 B;
-    B.s0 = bias[g + 2 * get_sub_group_local_id()];
-    B.s1 = bias[g + 2 * get_sub_group_local_id() + 1];
+    if (g + 2 * get_sub_group_local_id() >= G) {
+        B = 0;
+    } else {
+        B.s0 = bias[g + 2 * get_sub_group_local_id()];
+        B.s1 = bias[g + 2 * get_sub_group_local_id() + 1];
+    }
     S0 = convert_int16(B.s0101010101010101);
     S1 = convert_int16(B.s0101010101010101);
 #endif
@@ -633,13 +637,15 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
 
 #define APPLY_POST_OPS_COMMON(accumulator, sum, offset) \
     { \
+        /*This kernel is using serial post op processing due to non-trivial \
+        data ordering in accumulator. */ \
         for (int didx = 0; didx < 16; ++didx) { \
             int po_mb = mb; \
             int po_oc = g * OC + 2 * get_sub_group_local_id() + (didx % 2); \
             ACC_DATA_TYPE accum = accumulator[didx]; \
             SUM_DATA_T sum_di = sum[didx]; \
-            APPLY_POST_OPS(accum, ACC_DATA_TYPE, sum_di, SUM_DATA_T, po_mb, 1, \
-                    po_oc, 1, 0, 1, 0, 1, 0, 1, 0, 1); \
+            APPLY_POST_OPS_SERIAL(accum, ACC_DATA_TYPE, sum_di, SUM_DATA_T, \
+                    po_mb, 1, po_oc, 1); \
             accumulator[didx] = accum; \
         } \
     }

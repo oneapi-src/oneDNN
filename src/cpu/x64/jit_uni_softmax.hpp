@@ -80,7 +80,8 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                             // the avx512_common version may reject a
                             // problem because it is blocked by 8
                             // instead of 16.
-                            isa >= avx512_common && mayiuse(avx512_core))
+                            is_superset(isa, avx512_common)
+                                    && mayiuse(avx512_core))
                     && is_dense() // not dense impl can be easily done
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -144,7 +145,8 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
                             // the avx512_common version may reject a
                             // problem because it is blocked by 8
                             // instead of 16.
-                            isa >= avx512_common && mayiuse(avx512_core))
+                            is_superset(isa, avx512_common)
+                                    && mayiuse(avx512_core))
                     && set_default_formats_common()
                     && is_dense() // not dense impl can be easily done
                     && attr()->has_default_values();

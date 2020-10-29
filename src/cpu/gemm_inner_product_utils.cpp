@@ -65,40 +65,47 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
     if (end <= start) return;
 
     const size_t OC = this->runtime_oc() ? runtime_oc : this->OC_;
-    const bool acc_is_dst = dst == (dst_data_t *)acc;
+
+    auto calculate_dst_value_and_increment_oc
+            = [&](const acc_data_t &acc_value, dst_data_t &dst_value,
+                      size_t &oc_value) {
+                  float d = (float)acc_value;
+                  if (this->do_bias())
+                      d += get_bias(bias, oc_value, this->bias_data_type_);
+                  if (this->do_scale_)
+                      d *= scales[oc_value * this->scale_idx_mult_];
+                  if (this->do_sum_) d += this->sum_scale_ * dst_value;
+                  if (this->do_eltwise_) d = ref_eltwise_->compute_scalar(d);
+                  if (this->do_dst_zero_points_) d += dst_zero_points[0];
+                  dst_value = qz_a1b0<float, dst_data_t>()(d);
+                  oc_value = (oc_value == OC - 1) ? 0 : oc_value + 1;
+              };
 
     size_t oc = start % OC;
     if (this->has_trivial_mb_stride()) {
-        dst = dst + start;
-        acc = acc + start;
+        // keep separate code path to avoid performance degradations
+        for (size_t i = start; i < end; i++) {
+            calculate_dst_value_and_increment_oc(acc[i], dst[i], oc);
+        }
     } else {
+        const bool acc_is_dst = dst == (dst_data_t *)acc;
         const dim_t offt = (start / OC) * dst_mb_stride + oc;
         dst = dst + offt;
         // if dst and acc point to same address (inplace), then strides
         // must be similar, else assume acc buffer is dense.
         acc = acc + (acc_is_dst ? offt : start);
-    }
-
-    while (start < end) {
-        float d = (float)*acc;
-        if (this->do_bias()) d += get_bias(bias, oc, this->bias_data_type_);
-        if (this->do_scale_) d *= scales[oc * this->scale_idx_mult_];
-        if (this->do_sum_) d += this->sum_scale_ * (*dst);
-        if (this->do_eltwise_) d = ref_eltwise_->compute_scalar(d);
-        if (this->do_dst_zero_points_) d += dst_zero_points[0];
-        *dst = qz_a1b0<float, dst_data_t>()(d);
-        oc = (oc == OC - 1) ? 0 : oc + 1;
-        if (oc == 0) {
-            if (!this->has_trivial_mb_stride()) {
+        while (start < end) {
+            calculate_dst_value_and_increment_oc(*acc, *dst, oc);
+            if (oc == 0) {
                 dst = dst + dst_mb_stride - OC;
                 // if dst and acc point to same address (inplace), then strides
                 // must be similar, else assume acc buffer is dense.
                 if (acc_is_dst) acc = acc + dst_mb_stride - OC;
             }
+            ++dst;
+            ++acc;
+            ++start;
         }
-        ++dst;
-        ++acc;
-        ++start;
     }
 }
 

@@ -32,37 +32,6 @@ namespace x64 {
 struct jit_avx512_common_resampling_kernel;
 
 template <impl::data_type_t d_type>
-struct jit_avx512_common_resampling_fwd_t : public primitive_t {
-    struct pd_t : public cpu_resampling_fwd_pd_t {
-        using cpu_resampling_fwd_pd_t::cpu_resampling_fwd_pd_t;
-
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("jit:",
-                        (d_type == data_type::bf16) ? (mayiuse(avx512_core_bf16)
-                                        ? avx512_core_bf16
-                                        : bf16_emulation_t::get_isa())
-                                                    : avx512_common,
-                        ""),
-                jit_avx512_common_resampling_fwd_t);
-
-        status_t init(engine_t *engine);
-    };
-
-    jit_avx512_common_resampling_fwd_t(const pd_t *apd);
-    virtual ~jit_avx512_common_resampling_fwd_t();
-
-    typedef typename prec_traits<d_type>::type data_t;
-
-    status_t init(engine_t *engine) override;
-
-    status_t execute(const exec_ctx_t &ctx) const override;
-
-private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    std::unique_ptr<jit_avx512_common_resampling_kernel> kernel_;
-};
-
-template <impl::data_type_t d_type>
 struct jit_avx512_common_resampling_bwd_t : public primitive_t {
     struct pd_t : public cpu_resampling_bwd_pd_t {
         using cpu_resampling_bwd_pd_t::cpu_resampling_bwd_pd_t;

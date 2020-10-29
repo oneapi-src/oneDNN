@@ -361,6 +361,11 @@ struct attr_args_t {
         bool runtime = false;
     };
 
+    struct dw_t {
+        dnnl_data_type_t wei_dt = dnnl_data_type_undef;
+        dnnl_data_type_t bia_dt = dnnl_data_type_undef;
+    };
+
     attr_args_t() = default;
 
     void prepare_output_scales(
@@ -368,6 +373,10 @@ struct attr_args_t {
 
     int prepare_binary_post_op_mds(
             const attr_t &attr, int ndims, const dnnl_dims_t dims);
+
+    void prepare_dw_post_op(const attr_t &attr, dnnl_data_type_t wei_dt,
+            dnnl_data_type_t bia_dt, const void *vals, int64_t count,
+            int mask = -1);
 
     entry_t get(int arg) const {
         const auto it = entries.find(arg);
@@ -379,6 +388,17 @@ struct attr_args_t {
         return it == mds.end() ? dnnl_memory_desc_t() : it->second;
     }
 
+    dnnl_data_type_t get_dw_arg(int arg) const {
+        if (arg == DNNL_ARG_WEIGHTS)
+            return dw_entry.wei_dt;
+        else if (arg == DNNL_ARG_BIAS)
+            return dw_entry.bia_dt;
+        else {
+            assert(!"unsupported_argument");
+            return dnnl_data_type_undef;
+        }
+    }
+
 private:
     void insert(
             int arg, const void *vals, int64_t count, int mask, bool runtime) {
@@ -388,6 +408,7 @@ private:
 
     std::map<int, entry_t> entries;
     std::map<int, dnnl_memory_desc_t> mds;
+    dw_t dw_entry; // only single dw fusion is supported
 };
 
 struct engine_t {

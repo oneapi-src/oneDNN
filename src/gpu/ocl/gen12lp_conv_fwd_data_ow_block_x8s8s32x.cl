@@ -60,8 +60,26 @@ DECLARE_MMAD(
 #define BLOCK_READ_WHT_8x32(data, idx) \
     data = as_int8(intel_sub_group_block_read8((__global uint *)&wei[idx]));
 
+#if OC % OC_BLOCK == 0
 #define BLOCK_READ_BIA(data, idx) \
     data = as_float4(intel_sub_group_block_read4((__global uint *)&bias[idx]));
+
+#else
+#define BLOCK_READ_BIA(data, idx) \
+    data = (float4)0; \
+    int i; \
+    for (i = idx; i < idx + OC_BLOCK && i < OC - (OC % SUB_GROUP_SIZE); \
+            i += SUB_GROUP_SIZE) { \
+        data[(i - idx) / SUB_GROUP_SIZE] = as_float( \
+                intel_sub_group_block_read((__global uint *)&bias[i])); \
+    } \
+    if ((get_sub_group_local_id() < OC % SUB_GROUP_SIZE) \
+            && (i == OC - OC % SUB_GROUP_SIZE)) { \
+        data[(i - idx) / SUB_GROUP_SIZE] \
+                = as_float(bias[i + get_sub_group_local_id()]); \
+    }
+
+#endif
 
 #define BLOCK_READ_SCALES(data, idx) \
     data = as_float4(intel_sub_group_block_read4( \
@@ -87,7 +105,7 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
     const int group_mb = get_group_id(2) * MB_GROUP;
     const int group_sp = get_group_id(1) * SP_GROUP;
     const int sub_group_id = get_sub_group_id();
-    const int ocl_local_id = get_local_id(0);
+    const int subg_local_id = get_sub_group_local_id();
     const int oc = (sub_group_id % OC_GROUP);
     const int sp = (sub_group_id / OC_GROUP);
     const int g = (group_oc + oc) / OC_NCHUNK;
@@ -418,21 +436,15 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
 
 #define PACK_DST(C0, C1, C2, C3, D) \
     do { \
-        for (int n_i = 0; n_i < OW_BLOCK; n_i++) { \
+        for (int n_i = 0; n_i < OW_BLOCK; ++n_i) { \
             PACK(C0, C1, C2, C3, n_i); \
             QUANTIZE_ADD_BIAS(); \
-            for (int didx = 0; didx < 4; ++didx) { \
-                float tmp_i = tmp[didx]; \
-                float d_i = convert_float(AS_SUM_DATA_T(D[n_i][didx])); \
-                const int po_mb = group_mb * MB_BLOCK; \
-                const int po_oc = (group_oc * OC_BLOCK + oc * OC_BLOCK \
-                                          + ((didx * SUB_GROUP_SIZE) % OC) \
-                                          + ocl_local_id % SUB_GROUP_SIZE) \
-                        % (OC * G); \
-                APPLY_POST_OPS(tmp_i, float, d_i, float, po_mb, 1, po_oc, 1, \
-                        0, 1, 0, 1, 0, 1, 0, 1); \
-                tmp[didx] = tmp_i; \
-            } \
+            const int po_mb = group_mb * MB_BLOCK; \
+            const int po_oc \
+                    = (group_oc * OC_BLOCK + oc * OC_BLOCK) % (OC * G); \
+            float4 dni = convert_float4(SUM_TO_REF(AS_SUM_DATA4_T(D[n_i]))); \
+            APPLY_POST_OPS_TRY_BURST(tmp, float, dni, float, po_mb, 1, po_oc, \
+                    4 * SUB_GROUP_SIZE, subg_local_id); \
             ADD_DST_COMPENSATION(); \
             ZERO_PAD_DST(); \
             CONVERT_PACK(n_i); \

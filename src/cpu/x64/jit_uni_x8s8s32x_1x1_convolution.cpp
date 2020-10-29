@@ -51,13 +51,19 @@ status_t jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa, src_type,
             const wei_data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
     auto bias_dw = CTX_IN_MEM(
             const char *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+    const auto post_ops_binary_rhs_arg_vec_dw = pd()->jcp_dw_
+            ? binary_injector::prepare_binary_args(pd()->jcp_dw_->post_ops, ctx,
+                    pd()->jcp_.post_ops.entry_.size() + 1)
+            : std::vector<const void *> {};
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    if (pd()->jcp_.signed_input) {
+    if (pd()->jcp_.signed_input && pd()->jcp_.ver != ver_vnni) {
         auto local_scales
                 = scratchpad.template get<float>(key_conv_adjusted_scales);
         auto scales = pd()->attr()->output_scales_.scales_;
@@ -94,7 +100,9 @@ status_t jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa, src_type,
     }
     parallel(0, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
-                dst, src_zero_point, dst_zero_point, scratchpad);
+                dst, src_zero_point, dst_zero_point, scratchpad,
+                post_ops_binary_rhs_arg_vec.data(),
+                post_ops_binary_rhs_arg_vec_dw.data());
     });
     return status::success;
 }
@@ -105,7 +113,9 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa, src_type,
         const src_data_t *src, const wei_data_t *weights, const char *bias,
         const wei_data_t *weights_dw, const char *bias_dw, dst_data_t *dst,
         const int32_t *src_zero_point, const int32_t *dst_zero_point,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad,
+        const void *post_ops_binary_rhs_arg_vec,
+        const void *post_ops_binary_rhs_arg_vec_dw) const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -258,7 +268,7 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa, src_type,
                 : nullptr;
         p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
         p.dst_zero_point = jcp.dst_zero_point ? dst_zero_point : nullptr;
-        p.scales = (jcp.signed_input)
+        p.scales = (jcp.signed_input && jcp.ver != ver_vnni)
                 ? &local_scales[jcp.is_oc_scale * _ocb * jcp.oc_block]
                 : &oscales[jcp.is_oc_scale * _ocb * jcp.oc_block];
         if (pd()->rtus_.reduce_src_) {
@@ -274,6 +284,10 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa, src_type,
         } else
             p.bcast_data = src
                     + data_blk_off(src_d, n, _icb * jcp.ic_block, id, ih, iw);
+
+        p.oc_l_off = g * nb_oc + ocb * jcp.oc_block;
+        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
+        p.dst_orig = dst;
 
         (*kernel_)(&p);
     };
@@ -397,6 +411,11 @@ void jit_uni_x8s8s32x_1x1_convolution_fwd_t<isa, src_type,
             par_conv_dw.scales = dw_oscales
                     ? &dw_oscales[jcp_dw->is_oc_scale * ocb * jcp_dw->ch_block]
                     : nullptr;
+
+            par_conv_dw.oc_l_off = ocb * jcp_dw->ch_block;
+            par_conv_dw.post_ops_binary_rhs_arg_vec
+                    = post_ops_binary_rhs_arg_vec_dw;
+            par_conv_dw.dst_orig = dst;
 
             (*kernel_dw_)(&par_conv_dw);
 

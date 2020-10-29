@@ -21,6 +21,20 @@
 #error "Kernel supports depth-wise convolutions only"
 #endif
 
+#define APPLY_POST_OPS_COMMON(nelems, accumulator, dest_data, mb_shift) \
+    { \
+        const int po_mb = mb_shift + mb; \
+        const int po_oc = g; \
+        int po_mb_count; \
+        if (VER_16MB16C == 1) { \
+            po_mb_count = nelems; \
+        } else { \
+            po_mb_count = 1; \
+        } \
+        APPLY_POST_OPS_TRY_BURST(accumulator, DATA_T, dest_data, DATA_T, \
+                po_mb, po_mb_count, po_oc, SUB_GROUP_SIZE, get_local_id(0)); \
+    }
+
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 #if SUB_GROUP_SIZE != 1
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
@@ -118,15 +132,7 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     }
 #endif
 
-    for (int didx = 0; didx < OW_BLOCK; ++didx) {
-        DATA_T accum = S00[didx];
-        DATA_T sum = D00[didx];
-        const int po_mb = mb;
-        const int po_oc = g + get_local_id(0);
-        APPLY_POST_OPS(accum, DATA_T, sum, DATA_T, po_mb, 1, po_oc, 1, 0, 1, 0,
-                1, 0, 1, 0, 1);
-        S00[didx] = accum;
-    }
+    APPLY_POST_OPS_COMMON(OW_BLOCK, S00, D00, 0);
 
     if (OW % OW_BLOCK == 0 || ow + OW_BLOCK <= OW) {
         __attribute__((opencl_unroll_hint)) // attr:no-format
@@ -220,24 +226,8 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
 #endif
 
-    for (int didx = 0; didx < 8; ++didx) {
-        DATA_T accum = S00[didx];
-        DATA_T sum = D00[didx];
-        const int po_mb = mb + didx;
-        const int po_oc = g + get_local_id(0);
-        APPLY_POST_OPS(accum, DATA_T, sum, DATA_T, po_mb, 1, po_oc, 1, 0, 1, 0,
-                1, 0, 1, 0, 1);
-        S00[didx] = accum;
-    }
-    for (int didx = 0; didx < 8; ++didx) {
-        DATA_T accum = S01[didx];
-        DATA_T sum = D01[didx];
-        const int po_mb = 8 + mb + didx;
-        const int po_oc = g + get_local_id(0);
-        APPLY_POST_OPS(accum, DATA_T, sum, DATA_T, po_mb, 1, po_oc, 1, 0, 1, 0,
-                1, 0, 1, 0, 1);
-        S01[didx] = accum;
-    }
+    APPLY_POST_OPS_COMMON(8, S00, D00, 0);
+    APPLY_POST_OPS_COMMON(8, S01, D01, 8);
 
     BLOCK_WRITE8((__global BLOCK_DATA_T *)&dst[0], AS_UINT8_T(S00));
     BLOCK_WRITE8((__global BLOCK_DATA_T *)&dst[8 * OC_BLOCK], AS_UINT8_T(S01));

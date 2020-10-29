@@ -58,6 +58,7 @@ enum cpu_isa_bit_t : unsigned {
     amx_tile_bit = 1u << 9,
     amx_int8_bit = 1u << 10,
     amx_bf16_bit = 1u << 11,
+    avx_vnni_bit = 1u << 12,
 };
 
 enum cpu_isa_t : unsigned {
@@ -65,6 +66,8 @@ enum cpu_isa_t : unsigned {
     sse41 = sse41_bit,
     avx = avx_bit | sse41,
     avx2 = avx2_bit | avx,
+    avx_vnni = avx_vnni_bit | avx_bit,
+    avx2_vnni = avx_vnni | avx2,
     avx512_common = avx512_common_bit | avx2,
     avx512_mic = avx512_mic_bit | avx512_common,
     avx512_mic_4ops = avx512_mic_4ops_bit | avx512_mic,
@@ -81,11 +84,50 @@ enum cpu_isa_t : unsigned {
     isa_all = ~0u & ~amx_tile_bit & ~amx_int8_bit & ~amx_bf16_bit,
 };
 
+enum class cpu_isa_cmp_t {
+    // List of infix comparison relations between two cpu_isa_t
+    // where we take isa_1 and isa_2 to be two cpu_isa_t instances.
+
+    // isa_1 SUBSET isa_2 if all feature flags supported by isa_1
+    // are supported by isa_2 as well (equality allowed)
+    SUBSET,
+
+    // isa_1 SUPERSET isa_2 if all feature flags supported by isa_2
+    // are supported by isa_1 as well (equality allowed)
+    SUPERSET,
+
+    // Few more options that (depending upon need) can be enabled in future
+
+    // 1. PROPER_SUBSET: isa_1 SUBSET isa_2 and isa_1 != isa_2
+    // 2. PROPER_SUPERSET: isa_1 SUPERSET isa_2 and isa_1 != isa_2
+};
+
 const char *get_isa_info();
 
 cpu_isa_t DNNL_API get_max_cpu_isa_mask(bool soft = false);
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
 dnnl_cpu_isa_t get_effective_cpu_isa();
+
+static inline bool compare_isa(
+        cpu_isa_t isa_1, cpu_isa_cmp_t cmp, cpu_isa_t isa_2) {
+    unsigned mask_1 = static_cast<unsigned>(isa_1);
+    unsigned mask_2 = static_cast<unsigned>(isa_2);
+    unsigned mask_min = mask_1 & mask_2;
+
+    switch (cmp) {
+        case cpu_isa_cmp_t::SUBSET: return mask_1 == mask_min;
+        case cpu_isa_cmp_t::SUPERSET: return mask_2 == mask_min;
+        default: assert(!"unsupported comparison of isa"); return false;
+    }
+}
+
+static inline bool is_subset(cpu_isa_t isa_1, cpu_isa_t isa_2) {
+    return compare_isa(isa_1, cpu_isa_cmp_t::SUBSET, isa_2);
+}
+
+static inline bool is_superset(cpu_isa_t isa_1, cpu_isa_t isa_2) {
+    return compare_isa(isa_1, cpu_isa_cmp_t::SUPERSET, isa_2);
+}
 
 template <cpu_isa_t>
 struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
@@ -131,6 +173,12 @@ template <>
 struct cpu_isa_traits<avx2> : public cpu_isa_traits<avx> {
     static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx2;
     static constexpr const char *user_option_env = "AVX2";
+};
+
+template <>
+struct cpu_isa_traits<avx2_vnni> : public cpu_isa_traits<avx2> {
+    static constexpr dnnl_cpu_isa_t user_option_val = dnnl_cpu_isa_avx2_vnni;
+    static constexpr const char *user_option_env = "AVX2_VNNI";
 };
 
 template <>
@@ -198,6 +246,8 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
         case sse41: return cpu().has(Cpu::tSSE41);
         case avx: return cpu().has(Cpu::tAVX);
         case avx2: return cpu().has(Cpu::tAVX2);
+        case avx_vnni: return cpu().has(Cpu::tAVX_VNNI);
+        case avx2_vnni: return mayiuse(avx2, soft) && mayiuse(avx_vnni, soft);
         case avx512_common: return cpu().has(Cpu::tAVX512F);
         case avx512_core:
             return cpu().has(Cpu::tAVX512F) && cpu().has(Cpu::tAVX512BW)
@@ -233,8 +283,8 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     return false;
 }
 
-inline bool isa_has_bf16(cpu_isa_t isa) {
-    return isa == avx512_core_bf16;
+static inline bool isa_has_bf16(cpu_isa_t isa) {
+    return is_superset(isa, avx512_core_bf16);
 }
 
 } // namespace
@@ -247,6 +297,7 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
     ((isa) == sse41 ? prefix STRINGIFY(sse41) : \
     ((isa) == avx ? prefix STRINGIFY(avx) : \
     ((isa) == avx2 ? prefix STRINGIFY(avx2) : \
+    ((isa) == avx2_vnni ? prefix STRINGIFY(avx2_vnni) : \
     ((isa) == avx512_common ? prefix STRINGIFY(avx512_common) : \
     ((isa) == avx512_mic ? prefix STRINGIFY(avx512_mic) : \
     ((isa) == avx512_mic_4ops ? prefix STRINGIFY(avx512_mic_4ops) : \
@@ -255,7 +306,7 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
     ((isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \
     ((isa) == avx512_core_bf16_amx_int8 ? prefix STRINGIFY(avx512_core_amx_int8) : \
     ((isa) == avx512_core_bf16_amx_bf16 ? prefix STRINGIFY(avx512_core_amx_bf16) : \
-    prefix suffix_if_any))))))))))))
+    prefix suffix_if_any)))))))))))))
 /* clang-format on */
 
 namespace amx {

@@ -69,5 +69,14 @@
 --tag=ABx32a32b
 --batch=shapes_2d_small
 
+# int8 axb tests
+--reset
+--cfg=u8,s8
+--dir=FWD_I
+--tag=axb
+--alg=MAX,AVG_NP,AVG_P
+--attr-post-ops='','add:f32;linear:-0.5:1.5'
+--batch=set_all_small
+
 # Test different src and dst datatypes
 --batch=harness_pooling_different_dt

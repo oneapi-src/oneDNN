@@ -243,8 +243,20 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
 #endif
 
 #if WITH_BIAS
+#if OC % OC_BLOCK == 0
     float2 B = as_float2(
             intel_sub_group_block_read2((const __global uint *)&bias[g]));
+#else
+    float2 B = 0;
+    int i = 0;
+    for (i = 0; i < (G - g) / SUB_GROUP_SIZE && i < 2; ++i) {
+        B[i] = as_float(intel_sub_group_block_read(
+                (const __global uint *)&bias[g + (i * SUB_GROUP_SIZE)]));
+    }
+    if (i < 2 && get_sub_group_local_id() < (G - g) % SUB_GROUP_SIZE) {
+        B[i] = bias[g + (i * SUB_GROUP_SIZE) + get_sub_group_local_id()];
+    }
+#endif
     B *= SCALE;
     float8 B0123 = B.s01010101;
     float8 B4567 = B.s01010101;
@@ -268,16 +280,10 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
 #endif // WITH_SUM
 
     float16 tmp_x16 = (float16)(tmp00, tmp01);
-
-    for (int didx = 0; didx < 16; ++didx) {
-        float tmp_i = tmp_x16[didx];
-        SUM_DATA_T d_i = D00[didx];
-        const int po_mb = mb /* * MB_BLOCK */ + didx / 2 + mb_half;
-        const int po_oc = g * OC + (didx % 2) * SUB_GROUP_SIZE + ocl_local_id;
-        APPLY_POST_OPS(tmp_i, float, d_i, SUM_DATA_T, po_mb, 1, po_oc, 1, 0, 1,
-                0, 1, 0, 1, 0, 1);
-        tmp_x16[didx] = tmp_i;
-    }
+    const int po_mb = mb + mb_half;
+    const int po_oc = g * OC;
+    APPLY_POST_OPS_TRY_BURST(tmp_x16, float, D00, SUM_DATA_T, po_mb, 8, po_oc,
+            2 * SUB_GROUP_SIZE, ocl_local_id);
 
 #if WITH_DST_ZPOINTS
     float2 dst_zp

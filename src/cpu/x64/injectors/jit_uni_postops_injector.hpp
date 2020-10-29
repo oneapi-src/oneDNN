@@ -119,11 +119,11 @@ private:
     lambda_jit_injectors_t lambda_jit_injectors_;
 };
 
-enum post_op_type { sum = 0, eltwise, binary, convolution };
+enum post_op_type { sum = 0, eltwise, binary };
 
 template <cpu_isa_t isa>
 bool post_ops_ok(std::initializer_list<post_op_type> accepted_post_op_types,
-        const primitive_attr_t &attr, const memory_desc_wrapper &dst_d,
+        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d,
         bool sum_first_only = true);
 
 } // namespace injector

@@ -16,6 +16,7 @@
 
 #include "cpu/cpu_engine.hpp"
 
+#include "common/bfloat16.hpp"
 #include "cpu/ref_shuffle.hpp"
 
 #if DNNL_X64
@@ -29,17 +30,20 @@ namespace cpu {
 
 using pd_create_f = engine_t::primitive_desc_create_f;
 
+static constexpr int i8_size_bytes = sizeof(int8_t);
+static constexpr int bf16_size_bytes = sizeof(bfloat16_t);
+static constexpr int f32_size_bytes = sizeof(float);
+
 namespace {
 using namespace dnnl::impl::data_type;
 
 // clang-format off
 const pd_create_f impl_list[] = {
-        CPU_INSTANCE_X64(jit_uni_shuffle_t<avx512_common, 4>)   /* f32 or s32 */
-        CPU_INSTANCE_X64(jit_uni_shuffle_t<avx, 4>)   /* f32 or s32 */
-        CPU_INSTANCE_X64(jit_uni_shuffle_t<sse41, 4>) /* f32 or s32 */
-        CPU_INSTANCE(ref_shuffle_t<4>) /* f32 or s32 */
-        CPU_INSTANCE(ref_shuffle_t<2>) /* bf16 */
-        CPU_INSTANCE(ref_shuffle_t<1>) /* s8 or u8 */
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<f32_size_bytes>) /* f32 */
+        CPU_INSTANCE_X64(jit_uni_shuffle_t<bf16_size_bytes>)   /* bf16 */
+        CPU_INSTANCE(ref_shuffle_t<f32_size_bytes>) /* f32 or s32 */
+        CPU_INSTANCE(ref_shuffle_t<bf16_size_bytes>) /* bf16 */
+        CPU_INSTANCE(ref_shuffle_t<i8_size_bytes>) /* s8 or u8 */
         /* eol */
         nullptr,
 };

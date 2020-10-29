@@ -237,12 +237,12 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
             } else if (mayiuse(avx2)) {
-                this->um = 16;
+                this->um = mayiuse(avx2_vnni) ? 24 : 16;
                 this->un = 4;
                 this->uk = 1;
                 this->bm = 9984;
-                this->bn = 384;
-                this->bk = 384;
+                this->bn = mayiuse(avx2_vnni) ? 192 : 384;
+                this->bk = mayiuse(avx2_vnni) ? 768 : 384;
 
                 this->bk_traditional = 256;
                 this->blocking_small_k = 48;
@@ -347,9 +347,12 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
             break;
     }
 
+    // Note: um is fixed for a given set of data types and ISA.
+    const int um = this->um;
+
     static std::once_flag initialized;
     dnnl_status_t st = dnnl_success;
-    std::call_once(initialized, [&] {
+    std::call_once(initialized, [&, um] {
         const bool b_is_s8 = data_traits<b_t>::data_type == data_type::s8;
         constexpr bool is_int8 = utils::one_of(
                 data_traits<a_t>::data_type, data_type::s8, data_type::u8);
@@ -383,6 +386,26 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                             = new jit_avx512_core_u8_copy_sum_bn_kern(b_is_s8);
                     copy_b[do_trans][do_sum]
                             = new jit_avx512_core_u8_copy_sum_bt_kern(b_is_s8);
+                } else if (mayiuse(avx2_vnni)) {
+                    copy_a[no_trans][no_sum]
+                            = new jit_avx2_vnni_u8_copy_an_kern();
+                    copy_a[do_trans][no_sum]
+                            = new jit_avx2_vnni_u8_copy_at_kern();
+
+                    copy_b[no_trans][no_sum]
+                            = new jit_avx2_vnni_u8_copy_bn_kern();
+                    copy_b[do_trans][no_sum]
+                            = new jit_avx2_vnni_u8_copy_bt_kern();
+
+                    copy_a[no_trans][do_sum]
+                            = new jit_avx2_vnni_u8_copy_sum_an_kern();
+                    copy_a[do_trans][do_sum]
+                            = new jit_avx2_vnni_u8_copy_sum_at_kern();
+
+                    copy_b[no_trans][do_sum]
+                            = new jit_avx2_vnni_u8_copy_sum_bn_kern();
+                    copy_b[do_trans][do_sum]
+                            = new jit_avx2_vnni_u8_copy_sum_bt_kern();
                 } else if (mayiuse(avx2)) {
                     copy_a[no_trans][no_sum] = new jit_avx2_u8_copy_an_kern();
                     copy_a[do_trans][no_sum] = new jit_avx2_u8_copy_at_kern();
@@ -520,7 +543,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                             for (int doRowSum : {no_sum, do_sum}) {
                                 kernel[isBeta0][do_alpha1][doColSum][doRowSum]
                                         = new jit_avx2_gemm_s8u8s32_kern(
-                                                isBeta0, doColSum, doRowSum);
+                                                isBeta0, doColSum, doRowSum,
+                                                um);
                             }
                 } else if (mayiuse(avx)) {
                     kernel[no_beta0][do_alpha1][no_sum][no_sum]

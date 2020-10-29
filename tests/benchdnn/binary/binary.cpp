@@ -195,26 +195,18 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
         bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+
+        // XXX: if reference fp0 value is nan, allow to return anything from the
+        // library for integral target data types.
+        if (!ok) ok = std::isnan(fp0) && is_integral_dt(prb->ddt);
+        // XXX: fp16 result can slightly mismatch for division due to difference
+        // in backends implementations
+        if (!ok && prb->alg == alg_t::DIV) ok = diff <= epsilon_dt(prb->ddt);
         if (!ok) ok = check_extreme_values(fp, dt, prb->alg);
         if (!ok && has_eltwise)
             ok = eltwise::check_extreme_values(fp, dt, alg_t::ELTWISE_END);
         if (!ok && has_binary)
             ok = check_extreme_values(fp, dt, alg_t::BINARY_END);
-
-        // XXX: CPU and OpenCL behavior of int8 saturation is not aligned for
-        // NaN. Accroding to OpenCL 2.0 specification NaN value is saturated to
-        // 0. On CPU library saturates:
-        //  * -NaN value into lowest value representable in destination data type
-        //  * +NaN value into lowest value representable in int data type
-        // TODO: Check CUDA specification.
-        if (!ok && std::isnan(fp0) && engine_tgt_kind == dnnl_gpu
-                && (prb->ddt == dnnl_s8 || prb->ddt == dnnl_s32)) {
-            if (std::signbit(fp0))
-                ok = diff == 128;
-            else
-                ok = diff
-                        == (float)dnnl::impl::nstl::numeric_limits<int>::max();
-        }
 
         res->errors += !ok;
 
@@ -249,13 +241,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         const bool is_src1_int_type
                 = prb->sdt[1] == dnnl_s8 || prb->sdt[1] == dnnl_u8;
 
-        const bool have_src0_and_src1_consistent_type
-                = prb->sdt[0] == prb->sdt[1]
+        const bool have_consistent_types
+                = ((prb->sdt[0] == prb->sdt[1]) && (prb->sdt[1] == prb->ddt))
                 || (is_src0_int_type && is_src1_int_type);
-        const bool have_src0_and_dst_consistent_type = prb->sdt[0] == prb->ddt;
 
-        if (!have_src0_and_src1_consistent_type
-                || !have_src0_and_dst_consistent_type) {
+        if (!have_consistent_types) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
@@ -320,6 +310,7 @@ int doit(const prb_t *prb, res_t *res) {
             SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
     }
     dnn_mem_t &dst_dt = prb->inplace ? src0_dt : placeholder_dst_dt;
+    dst_dt.md_.data_type = prb->ddt; // it may be different type for dst
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;

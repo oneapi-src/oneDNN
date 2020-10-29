@@ -154,6 +154,7 @@ struct prb_t : public desc_t {
         , attr(attr)
         , ops(0)
         , scales(NULL)
+        , scales_dw(NULL)
         , src_zp(NULL)
         , dst_zp(NULL)
         , is_deconv(is_deconv) {
@@ -162,9 +163,16 @@ struct prb_t : public desc_t {
         scales = generate_oscales(attr.oscale, oc);
         src_zp = generate_zero_points(DNNL_ARG_SRC, attr.zero_points, ic);
         dst_zp = generate_zero_points(DNNL_ARG_DST, attr.zero_points, oc);
+
+        const int dw_idx = this->attr.post_ops.convolution_index();
+        if (dw_idx != -1) {
+            const auto &e = this->attr.post_ops.entry[dw_idx];
+            scales_dw = generate_oscales(e.convolution.oscale, oc);
+        }
     }
     ~prb_t() {
         if (scales) zfree(scales);
+        if (scales_dw) zfree(scales_dw);
         if (src_zp) zfree(src_zp);
         if (dst_zp) zfree(dst_zp);
     }
@@ -176,9 +184,8 @@ struct prb_t : public desc_t {
     attr_t attr;
 
     double ops;
-    float *scales;
-    int32_t *src_zp;
-    int32_t *dst_zp;
+    float *scales, *scales_dw;
+    int32_t *src_zp, *dst_zp;
     bool is_deconv;
 
     void count_ops();

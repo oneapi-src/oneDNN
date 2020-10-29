@@ -1729,12 +1729,14 @@ status_t jit_uni_tbb_batch_normalization_fwd_t<isa>::pd_t::init(
             && (attr()->has_default_values() || this->with_relu_post_op());
     if (!ok) return status::unimplemented;
 
+    const bool isa_supports_avx2 = is_superset(isa, avx2);
     if (is_training() && fuse_norm_relu()) {
-        if (isa < avx2) return status::unimplemented;
+        if (!isa_supports_avx2) return status::unimplemented;
         init_default_ws(1);
     }
 
-    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C() && isa < avx2)
+    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C()
+            && !isa_supports_avx2)
         return status::unimplemented;
 
     auto scratchpad = scratchpad_registry().registrar();
@@ -1810,11 +1812,13 @@ status_t jit_uni_tbb_batch_normalization_bwd_t<isa>::pd_t::init(
             && attr()->has_default_values();
     if (!ok) return status::unimplemented;
 
-    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C() && isa < avx2)
+    const bool isa_supports_avx2 = is_superset(isa, avx2);
+    if (memory_desc_wrapper(src_md()).padded_dims()[1] != C()
+            && !isa_supports_avx2)
         return status::unimplemented;
 
     if (fuse_norm_relu()) {
-        if (isa < avx2) return status::unimplemented;
+        if (!isa_supports_avx2) return status::unimplemented;
         init_default_ws(1);
         if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
     }

@@ -75,27 +75,31 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
             const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
 
+            bool ok = set_default_formats();
+            if (!ok) return status::unimplemented;
+
             const auto d = desc();
 
             // LIMITATIONS:
             // - runtime dims are not supported
             // - bias is not supported
-            bool limits_ok = !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->batch,
-                                     d->m, d->n, d->k, d->lda, d->ldb, d->ldc)
-                    && d->bias_type == data_type::undef;
+            bool limits_ok
+                    = !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->batch(), d->m(),
+                              d->n(), d->k(), d->lda(), d->ldb(), d->ldc())
+                    && d->bias_type() == data_type::undef;
 
-            bool ok = limits_ok
-                    && utils::one_of(d->a_type, data_type::f32, data_type::bf16,
-                            data_type::f16)
-                    && utils::one_of(d->b_type, data_type::f32, data_type::bf16,
-                            data_type::f16)
-                    && utils::one_of(d->c_type, data_type::f32, data_type::bf16,
-                            data_type::f16)
+            ok = limits_ok
+                    && utils::one_of(d->a_type(), data_type::f32,
+                            data_type::bf16, data_type::f16)
+                    && utils::one_of(d->b_type(), data_type::f32,
+                            data_type::bf16, data_type::f16)
+                    && utils::one_of(d->c_type(), data_type::f32,
+                            data_type::bf16, data_type::f16)
                     && utils::one_of(
                             d->acc_type, data_type::f32, data_type::f16)
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(desc()->c_type == data_type::f16,
+                    && IMPLICATION(d->c_type() == data_type::f16,
                             true
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::khr_fp16)
@@ -122,12 +126,12 @@ struct gen9_gemm_t : public gpu_gemm_t {
             // The size of 32 elements for m, n, k turned out not to
             // introduce any performance regression for smaller sizes
             // but gave performance benefit for bigger matrices.
-            bool is_batched = d->batch > 1;
+            bool is_batched = d->batch() > 1;
             const int threshold_m = 32;
             const int threshold_n = 32;
             const int threshold_k = 32;
-            bool size_ok = d->m > threshold_m && d->n > threshold_n
-                    && d->k > threshold_k;
+            bool size_ok = d->m() > threshold_m && d->n() > threshold_n
+                    && d->k() > threshold_k;
             if (is_batched && !size_ok) return status::unimplemented;
 
             auto *dev_info = compute_engine->device_info();
@@ -143,6 +147,11 @@ struct gen9_gemm_t : public gpu_gemm_t {
             return status::success;
         }
 
+        bool set_default_formats() {
+            return gpu_gemm_pd_t::set_default_formats();
+        }
+
+        // TODO: return a status in case scratchpad allocation fails
         void init_scratchpad() {
             switch (gemm_type_) {
                 case type::copy_based: init_scratchpad_copy_based(); break;
@@ -161,13 +170,13 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         void init_scratchpad_nocopy() {
             int unroll_m, unroll_n, unroll_k;
-            bool transa = (desc()->transa == dnnl_trans);
-            bool transb = (desc()->transb == dnnl_trans);
+            bool transa = (desc()->transa() == dnnl_trans);
+            bool transb = (desc()->transb() == dnnl_trans);
 
             gen9_gemm_nocopy_kernel_t::get_unrolls(transa, transb, unroll_m,
-                    unroll_n, unroll_k, desc()->c_type);
-            auto m = desc()->m;
-            auto n = desc()->n;
+                    unroll_n, unroll_k, desc()->c_type());
+            auto m = desc()->m();
+            auto n = desc()->n();
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_gemm_flag,
                     ((m + unroll_m - 1) / unroll_m)
@@ -240,9 +249,9 @@ struct gen9_gemm_t : public gpu_gemm_t {
         bool use_superkernel(engine_t *engine) const {
             if (disable_superkernel) return false;
 
-            if (desc()->c_type != data_type::f32) return false;
-            if (desc()->a_type != desc()->c_type
-                    || desc()->b_type != desc()->c_type)
+            if (desc()->c_type() != data_type::f32) return false;
+            if (desc()->a_type() != desc()->c_type()
+                    || desc()->b_type() != desc()->c_type())
                 return false;
 
             // Older OpenCL runtimes spill registers very badly with superkernels
@@ -255,22 +264,22 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
             if (dev_info->runtime_version() < min_version) return false;
 
-            bool transa = (desc()->transa == dnnl_trans);
-            auto k = desc()->k;
+            bool transa = (desc()->transa() == dnnl_trans);
+            auto k = desc()->k();
 
             return !transa && (hw_threads_ > 0) && (k >= 384);
         }
 
         bool use_nocopy_k_unroll() const {
-            bool transa = (desc()->transa == dnnl_trans);
-            bool transb = (desc()->transb == dnnl_trans);
+            bool transa = (desc()->transa() == dnnl_trans);
+            bool transb = (desc()->transb() == dnnl_trans);
 
-            auto m = desc()->m;
-            auto n = desc()->n;
-            auto k = desc()->k;
-            auto lda = desc()->lda;
-            auto ldb = desc()->ldb;
-            auto c_type = desc()->c_type;
+            auto m = desc()->m();
+            auto n = desc()->n();
+            auto k = desc()->k();
+            auto lda = desc()->lda();
+            auto ldb = desc()->ldb();
+            auto c_type = desc()->c_type();
 
             if (!utils::one_of(c_type, data_type::f32, data_type::f16))
                 return false;
@@ -291,29 +300,30 @@ struct gen9_gemm_t : public gpu_gemm_t {
         }
 
         bool use_nocopy() const {
-            bool transa = (desc()->transa == dnnl_trans);
-            bool transb = (desc()->transb == dnnl_trans);
+            bool transa = (desc()->transa() == dnnl_trans);
+            bool transb = (desc()->transb() == dnnl_trans);
 
-            auto m = desc()->m;
-            auto n = desc()->n;
-            auto k = desc()->k;
-            auto lda = desc()->lda;
-            auto ldb = desc()->ldb;
+            auto m = desc()->m();
+            auto n = desc()->n();
+            auto k = desc()->k();
+            auto lda = desc()->lda();
+            auto ldb = desc()->ldb();
 
-            if (!utils::one_of(desc()->c_type, data_type::f32, data_type::f16))
+            if (!utils::one_of(
+                        desc()->c_type(), data_type::f32, data_type::f16))
                 return false;
-            if (desc()->a_type != desc()->c_type
-                    || desc()->b_type != desc()->c_type)
+            if (desc()->a_type() != desc()->c_type()
+                    || desc()->b_type() != desc()->c_type())
                 return false;
-            if (desc()->acc_type != desc()->c_type) return false;
+            if (desc()->acc_type != desc()->c_type()) return false;
 
             // f16 no-copy kernels require even lda, ldb, offset_a, and offset_b.
-            if (desc()->c_type == data_type::f16)
+            if (desc()->c_type() == data_type::f16)
                 if ((lda & 1) || (ldb & 1)) return false;
 
             if (transa && !transb) return (m < 1024 || n < 1024);
 
-            if (desc()->c_type == data_type::f16) {
+            if (desc()->c_type() == data_type::f16) {
                 if (!(lda & 0x3FF) && (n >= 256)) return false;
                 if (!transa && transb && (k <= 64)) return false;
             }
@@ -327,16 +337,16 @@ struct gen9_gemm_t : public gpu_gemm_t {
                     : !use_nocopy() ? type::copy_based
                                     : use_superkernel(engine)
                                     ? type::no_copy_superkernel
-                                    : (desc()->c_type == data_type::f16)
+                                    : (desc()->c_type() == data_type::f16)
                                             ? type::no_copy_if_even_off
                                             : type::no_copy;
         }
 
         size_t max_plan_size() const {
-            auto m = desc()->m;
-            auto n = desc()->n;
-            bool transa = (desc()->transa == dnnl_trans);
-            bool transb = (desc()->transb == dnnl_trans);
+            auto m = desc()->m();
+            auto n = desc()->n();
+            bool transa = (desc()->transa() == dnnl_trans);
+            bool transb = (desc()->transb() == dnnl_trans);
 
             int unroll_m[2], unroll_n;
             gen9_gemm_nocopy_superkernel_t::get_unrolls(
@@ -394,7 +404,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
             compute::kernel_ctx_t kernel_ctx;
             auto status = gen9_gemm_compute_kernel_t::init_kernel_ctx(
                     kernel_ctx, beta0, pd()->attr_info_, pd()->desc()->acc_type,
-                    pd()->desc()->c_type);
+                    pd()->desc()->c_type());
             if (status != status::success) return status;
 
             create_kernel(engine, &compute_kernel_[beta0], "gen9_gemm_compute",
@@ -404,13 +414,14 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         for (bool outer : {false, true}) {
             compute::kernel_ctx_t kernel_ctx;
-            auto trans = !outer ? !pd()->desc()->transa : pd()->desc()->transb;
+            auto trans
+                    = !outer ? !pd()->desc()->transa() : pd()->desc()->transb();
             auto status = !outer
                     ? gen9_gemm_copy_kernel_t::init_kernel_ctx(kernel_ctx,
-                            false, trans, pd()->desc()->a_type,
+                            false, trans, pd()->desc()->a_type(),
                             pd()->desc()->acc_type)
                     : gen9_gemm_copy_kernel_t::init_kernel_ctx(kernel_ctx, true,
-                            trans, pd()->desc()->b_type,
+                            trans, pd()->desc()->b_type(),
                             pd()->desc()->acc_type);
             if (status != status::success) return status;
 
@@ -421,7 +432,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         compute::kernel_ctx_t kernel_ctx;
         auto status = gen9_gemm_beta_kernel_t::init_kernel_ctx(
-                kernel_ctx, pd()->desc()->c_type, pd()->desc()->acc_type);
+                kernel_ctx, pd()->desc()->c_type(), pd()->desc()->acc_type);
         if (status != status::success) return status;
 
         create_kernel(engine, &beta_kernel_, "gen9_gemm_beta", kernel_ctx);
@@ -433,26 +444,26 @@ struct gen9_gemm_t : public gpu_gemm_t {
     status_t init_nocopy(engine_t *engine) {
         const char *kernel_name = nullptr;
 
-        switch (pd()->desc()->c_type) {
+        switch (pd()->desc()->c_type()) {
             case data_type::f32: kernel_name = "gen9_gemm_nocopy_f32"; break;
             case data_type::f16: kernel_name = "gen9_gemm_nocopy_f16"; break;
             default: return status::unimplemented;
         }
 
         int unroll_m, unroll_n, unroll_k;
-        bool transa = (pd()->desc()->transa == dnnl_trans);
-        bool transb = (pd()->desc()->transb == dnnl_trans);
+        bool transa = (pd()->desc()->transa() == dnnl_trans);
+        bool transb = (pd()->desc()->transb() == dnnl_trans);
 
         gen9_gemm_nocopy_kernel_t::get_unrolls(transa, transb, unroll_m,
-                unroll_n, unroll_k, pd()->desc()->c_type);
+                unroll_n, unroll_k, pd()->desc()->c_type());
 
         bool with_k_unroll = pd()->use_nocopy_k_unroll();
 
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = gen9_gemm_nocopy_kernel_t::init_kernel_ctx(kernel_ctx,
-                pd()->desc()->transa, pd()->desc()->transb, with_k_unroll,
-                unroll_k, pd()->attr_info_, pd()->desc()->c_type);
+                pd()->desc()->transa(), pd()->desc()->transb(), with_k_unroll,
+                unroll_k, pd()->attr_info_, pd()->desc()->c_type());
         if (status != status::success) return status;
 
         create_kernel(engine, &nocopy_kernel_, kernel_name, kernel_ctx);
@@ -462,14 +473,14 @@ struct gen9_gemm_t : public gpu_gemm_t {
     }
 
     status_t init_nocopy_superkernel(engine_t *engine) {
-        if (pd()->desc()->c_type != data_type::f32 || pd()->desc()->transa)
+        if (pd()->desc()->c_type() != data_type::f32 || pd()->desc()->transa())
             return status::unimplemented;
 
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = gen9_gemm_nocopy_superkernel_t::init_kernel_ctx(
-                kernel_ctx, pd()->desc()->transa, pd()->desc()->transb,
-                pd()->attr_info_, pd()->desc()->c_type);
+                kernel_ctx, pd()->desc()->transa(), pd()->desc()->transb(),
+                pd()->attr_info_, pd()->desc()->c_type());
         if (status != status::success) return status;
 
         create_kernel(engine, &nocopy_superkernel_,

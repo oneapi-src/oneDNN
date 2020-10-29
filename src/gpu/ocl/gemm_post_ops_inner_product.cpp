@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/gemm_post_ops_inner_product.hpp"
-
+#include "common/c_types_map.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 

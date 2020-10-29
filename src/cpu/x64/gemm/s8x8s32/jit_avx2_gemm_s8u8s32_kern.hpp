@@ -26,13 +26,15 @@ namespace x64 {
 
 class jit_avx2_gemm_s8u8s32_kern : public jit_generator {
 public:
-    jit_avx2_gemm_s8u8s32_kern(
-            bool beta_zero, bool enable_offset_c, bool enable_offset_r);
+    jit_avx2_gemm_s8u8s32_kern(bool beta_zero, bool enable_offset_c,
+            bool enable_offset_r, int unroll_m);
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_gemm_s8u8s32_kern);
 
 protected:
     bool beta_zero_;
     bool enable_offset_c_, enable_offset_r_;
+    bool vnni_;
+    int unroll_m_;
 
     void prefetch_a(const Xbyak::Address &src) { prefetcht0(src); }
     void prefetch_b(const Xbyak::Address &src) { prefetcht0(src); }
@@ -45,32 +47,32 @@ protected:
     void dot_product(const Xbyak::Xmm &dst, const Xbyak::Xmm &src1,
             const Xbyak::Xmm &src2);
     void kernel_loop(int unroll_m, int unroll_n, bool cfetch);
-    void remainder_kernel(int unroll_m, int unroll_n, int unroll_k, int bwidth);
+    void remainder_kernel(int unroll_m, int unroll_n, int bwidth);
     void innerloop(int unroll_m, int unroll_n);
     void outerloop(int unroll_x, int unroll_y, Xbyak::Label *&outerloop_label);
 
     void generate() override;
 
 private:
-    static const int IGEMM_UNROLL_M_ = 16;
     static const int IGEMM_UNROLL_N_ = 4;
 
-    static const int isize_ = 2;
     static const int size_ = 4;
+    static const int isize_ = 1;
 
     // Prefetch configuration
-    static const int prefetch_size_a_ = 256;
-    static const int prefetch_size_b_ = 256;
+    static const int prefetch_size_a_ = 128;
+    static const int prefetch_size_b_ = 64;
 
-    static const int offset_a_ = 32, offset_b_ = 32;
-    static const int max_unroll_m_ = 16, max_unroll_n_ = 4;
+    static const int offset_a_ = 128, offset_b_ = 128;
+    static const int max_unroll_m_ = 24, max_unroll_n_ = 4;
 
     // Integer register assignments
     Xbyak::Reg64 M_, N_, K_, A_, B_, C_, LDC_, I_, J_, LoopCount_;
     Xbyak::Reg64 AO_, BO_, CO1_, CO2_, AA_;
 
     // Vector register assignments
-    Xbyak::Ymm dp_scratch_, ones_, a_regs_[max_unroll_m_ >> 3], b_regs_[2];
+    Xbyak::Ymm dp_scratch_, ones_;
+    Xbyak::Ymm a_regs_[max_unroll_m_ >> 3], b_regs_[2];
     Xbyak::Ymm c_regs_[max_unroll_m_ >> 3][max_unroll_n_];
 
     // Stack variable assignments
@@ -78,6 +80,7 @@ private:
     Xbyak::Address arg_a_, arg_b_, arg_c_, arg_ldc_, arg_coffset_c_,
             arg_coffset_r_;
     Xbyak::Address coffset_cx_, coffset_cy_, coffset_rx_, coffset_ry_;
+    Xbyak::Address bcast_k2_, bcast_k1_;
 };
 
 } // namespace x64

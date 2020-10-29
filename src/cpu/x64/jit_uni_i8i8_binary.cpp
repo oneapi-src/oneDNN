@@ -36,8 +36,8 @@ namespace x64 {
 using namespace dnnl::impl::data_type;
 using namespace Xbyak;
 
-template <data_type_t src0_type, data_type_t src1_type>
-bool jit_uni_i8i8_binary_t<src0_type, src1_type>::post_ops_ok(
+template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
+bool jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::post_ops_ok(
         const primitive_attr_t *attr, const memory_desc_wrapper &dst_d) {
     using namespace primitive_kind;
 
@@ -52,6 +52,7 @@ bool jit_uni_i8i8_binary_t<src0_type, src1_type>::post_ops_ok(
     for (int i = 0; i < p.len(); i++) {
         if (p.contain(primitive_kind::sum, i)) {
             if (i > 0) return false;
+            if (src0_type != dst_type) return false;
         } else if (!(is_eltwise(i) || is_binary(i)) || is_binary_bf16(i))
             return false;
     }
@@ -449,12 +450,13 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
     ~jit_uni_i8i8_binary_kernel_t() override = default;
 };
 
-template <cpu_isa_t isa, data_type_t src0_type, data_type_t src1_type>
+template <cpu_isa_t isa, data_type_t src0_type, data_type_t src1_type,
+        data_type_t dst_type>
 struct jit_i8i8_binary_subkernel_t;
 
-template <data_type_t src0_type, data_type_t src1_type>
-struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
-    : public jit_uni_i8i8_binary_kernel_t<avx512_common> {
+template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
+struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type,
+        dst_type> : public jit_uni_i8i8_binary_kernel_t<avx512_common> {
 
     void prepare_tail_mask() override {
         if (!tail_size_) return;
@@ -510,7 +512,7 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
             perform_op(vreg_tmp_src0, vreg_tmp, vreg_scales_src0,
                     vreg_scales_src1);
             if (do_sum_) {
-                load(vreg_tmp, dst_ptr(offt), DNNL_ARG_DST, src0_type, tail);
+                load(vreg_tmp, dst_ptr(offt), DNNL_ARG_DST, dst_type, tail);
                 uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp, vreg_sum_scale);
             }
         }
@@ -520,7 +522,7 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
         for (int i = 0; i < unroll; i++) {
             const int offt = simd_w_ * i;
             const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
-            store(dst_ptr(offt), vreg_tmp_src0, src0_type, tail);
+            store(dst_ptr(offt), vreg_tmp_src0, dst_type, tail);
         }
     }
 
@@ -528,8 +530,8 @@ struct jit_i8i8_binary_subkernel_t<avx512_common, src0_type, src1_type>
         : jit_uni_i8i8_binary_kernel_t(pd) {}
 };
 
-template <data_type_t src0_type, data_type_t src1_type>
-struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>
+template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
+struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type, dst_type>
     : public jit_uni_i8i8_binary_kernel_t<avx2> {
 
     void cvt2odt(const Vmm &v, data_type_t odt) {
@@ -582,17 +584,16 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>
                     vreg_scales_src1);
 
             if (do_sum_) {
-                load(vreg_tmp, dst_ptr(offt), DNNL_ARG_DST, src0_type, tail);
+                load(vreg_tmp, dst_ptr(offt), DNNL_ARG_DST, dst_type, tail);
                 uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp, vreg_sum_scale);
             }
         }
-
         if (postops_injector_) apply_postops(unroll, tail);
 
         for (int i = 0; i < unroll; i++) {
             const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
             const int offt = simd_w_ * i;
-            store(dst_ptr(offt), vreg_tmp_src0, src0_type, tail);
+            store(dst_ptr(offt), vreg_tmp_src0, dst_type, tail);
         }
     }
 
@@ -600,14 +601,14 @@ struct jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>
         : jit_uni_i8i8_binary_kernel_t(pd) {}
 };
 
-template <data_type_t src0_type, data_type_t src1_type>
-struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>
+template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
+struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type, dst_type>
     : public jit_uni_i8i8_binary_kernel_t<sse41> {
 
-    void cvt2odt(const Vmm &v, const Vmm &v_tmp, data_type_t odt) {
+    void cvt2odt(const Vmm &v, data_type_t odt) {
         // f32 -> s32
         // properly saturate in f32
-        saturate_f32(v, vreg_zero, vreg_saturation_ubound, v_tmp, odt);
+        saturate_f32(v, vreg_zero, vreg_saturation_ubound, odt);
         cvtps2dq(v, v);
         // v = { 8x32 }
         packssdw(v, vreg_zero);
@@ -621,15 +622,14 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>
         // v = { 4x8, 0 }
     }
 
-    void store(const Address &dst, const Vmm &v_src, const Vmm &v_tmp,
-            data_type_t odt, bool tail) {
+    void store(const Address &dst, const Vmm &src, data_type_t odt, bool tail) {
         // f32 -> i8 and store
-        cvt2odt(v_src, v_tmp, odt);
+        cvt2odt(src, odt);
         if (!tail) {
-            movd(dst, Xmm(v_src.getIdx())); // store 32 bits
+            movd(dst, Xmm(src.getIdx())); // store 32 bits
         } else {
             UNUSED(dst);
-            store_tail(Xmm(v_src.getIdx()));
+            store_tail(Xmm(src.getIdx()));
         }
     }
 
@@ -652,7 +652,7 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>
             perform_op(vreg_tmp_src0, vreg_tmp, vreg_scales_src0,
                     vreg_scales_src1);
             if (do_sum_) {
-                load(vreg_tmp, dst_ptr(offt), DNNL_ARG_DST, src0_type, tail);
+                load(vreg_tmp, dst_ptr(offt), DNNL_ARG_DST, dst_type, tail);
                 mulps(vreg_tmp, vreg_sum_scale);
                 addps(vreg_tmp_src0, vreg_tmp);
             }
@@ -662,9 +662,8 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>
 
         for (int i = 0; i < unroll; i++) {
             const Vmm vreg_tmp_src0 = Vmm(i + vmm_start_idx_);
-            const Vmm vreg_tmp = Vmm(unroll + i + vmm_start_idx_);
             const int offt = simd_w_ * i;
-            store(dst_ptr(offt), vreg_tmp_src0, vreg_tmp, src0_type, tail);
+            store(dst_ptr(offt), vreg_tmp_src0, dst_type, tail);
         }
     }
 
@@ -674,40 +673,42 @@ struct jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>
 
 #undef PARAM_OFF
 
-template <data_type_t src0_type, data_type_t src1_type>
-std::unique_ptr<i8i8_binary_kernel_t> create_i8i8_binary_kernel(
-        const binary_pd_t *pd) {
+template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
+i8i8_binary_kernel_t *create_i8i8_binary_kernel(const binary_pd_t *pd) {
     if (mayiuse(avx512_common)) {
         using subkernel_t = jit_i8i8_binary_subkernel_t<avx512_common,
-                src0_type, src1_type>;
-        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+                src0_type, src1_type, dst_type>;
+        return new subkernel_t(pd);
     } else if (mayiuse(avx2)) {
-        using subkernel_t
-                = jit_i8i8_binary_subkernel_t<avx2, src0_type, src1_type>;
-        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+        using subkernel_t = jit_i8i8_binary_subkernel_t<avx2, src0_type,
+                src1_type, dst_type>;
+        return new subkernel_t(pd);
     } else {
-        using subkernel_t
-                = jit_i8i8_binary_subkernel_t<sse41, src0_type, src1_type>;
-        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+        using subkernel_t = jit_i8i8_binary_subkernel_t<sse41, src0_type,
+                src1_type, dst_type>;
+        return new subkernel_t(pd);
     }
 }
 
-template <data_type_t src0_type, data_type_t src1_type>
-jit_uni_i8i8_binary_t<src0_type, src1_type>::jit_uni_i8i8_binary_t(
+template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
+jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::jit_uni_i8i8_binary_t(
         const pd_t *apd)
     : primitive_t(apd) {}
 
-template <data_type_t src0_type, data_type_t src1_type>
-status_t jit_uni_i8i8_binary_t<src0_type, src1_type>::init(engine_t *engine) {
-    kernel_ = create_i8i8_binary_kernel<src0_type, src1_type>(pd());
+template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
+status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::init(
+        engine_t *engine) {
+    CHECK(safe_ptr_assign(kernel_,
+            create_i8i8_binary_kernel<src0_type, src1_type, dst_type>(pd())));
     return kernel_->create_kernel();
 }
 
-template <data_type_t src0_type, data_type_t src1_type>
-jit_uni_i8i8_binary_t<src0_type, src1_type>::~jit_uni_i8i8_binary_t() = default;
+template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
+jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::~jit_uni_i8i8_binary_t()
+        = default;
 
-template <data_type_t src0_type, data_type_t src1_type>
-status_t jit_uni_i8i8_binary_t<src0_type, src1_type>::execute(
+template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
+status_t jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::execute(
         const exec_ctx_t &ctx) const {
     const auto src0 = CTX_IN_MEM(const char *, DNNL_ARG_SRC_0);
     const auto src1 = CTX_IN_MEM(const char *, DNNL_ARG_SRC_1);
@@ -834,10 +835,14 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type>::execute(
 
 using namespace data_type;
 
-template struct jit_uni_i8i8_binary_t<u8, u8>;
-template struct jit_uni_i8i8_binary_t<u8, s8>;
-template struct jit_uni_i8i8_binary_t<s8, s8>;
-template struct jit_uni_i8i8_binary_t<s8, u8>;
+template struct jit_uni_i8i8_binary_t<s8, s8, s8>;
+template struct jit_uni_i8i8_binary_t<s8, u8, s8>;
+template struct jit_uni_i8i8_binary_t<u8, s8, s8>;
+template struct jit_uni_i8i8_binary_t<u8, u8, s8>;
+template struct jit_uni_i8i8_binary_t<s8, s8, u8>;
+template struct jit_uni_i8i8_binary_t<s8, u8, u8>;
+template struct jit_uni_i8i8_binary_t<u8, s8, u8>;
+template struct jit_uni_i8i8_binary_t<u8, u8, u8>;
 
 } // namespace x64
 } // namespace cpu

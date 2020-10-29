@@ -643,8 +643,8 @@ conv_nhwc_fwd_dw_ow_block_x8s8s32x(const __global uchar *src,
             int po_oc = g * OC + 2 * get_sub_group_local_id() + (didx % 2); \
             ACC_DATA_TYPE accum = accumulator[didx]; \
             SUM_DATA_T sum_di = sum[didx]; \
-            APPLY_POST_OPS(accum, ACC_DATA_TYPE, sum_di, SUM_DATA_T, po_mb, 1, \
-                    po_oc, 1, 0, 1, 0, 1, 0, 1, 0, 1); \
+            APPLY_POST_OPS_SERIAL(accum, ACC_DATA_TYPE, sum_di, SUM_DATA_T, \
+                    po_mb, 1, po_oc, 1); \
             accumulator[didx] = accum; \
         } \
     }

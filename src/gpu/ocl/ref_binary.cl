@@ -60,8 +60,8 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     dst_data = DATA_TO_REF(dst[off]);
 #endif
 
-    APPLY_POST_OPS(d, POST_OP_DATA_T, dst_data, POST_OP_DATA_T, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0);
+    APPLY_POST_OPS_SERIAL(
+            d, POST_OP_DATA_T, dst_data, POST_OP_DATA_T, 0, 0, 0, 0);
     dst[off] = TO_DST(d);
 }
 #else
@@ -141,9 +141,8 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 #if WITH_SUM
             dst_data = DATA_TO_REF(dst[dst_off]);
 #endif
-            APPLY_POST_OPS(d, POST_OP_DATA_T, dst_data, POST_OP_DATA_T,
-                    dims0_po[0], 1, dims0_po[1], 1, dims0_po[2], 1, dims0_po[3],
-                    1, dims0_po[4], 1, dims0_po[5], 1);
+            APPLY_POST_OPS_SERIAL(d, POST_OP_DATA_T, dst_data, POST_OP_DATA_T,
+                    dims0_po[0], 1, dims0_po[1], 1);
 
             dst[dst_off] = TO_DST(d);
         }

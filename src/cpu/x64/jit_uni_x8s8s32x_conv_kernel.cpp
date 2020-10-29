@@ -21,6 +21,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/x64/injectors/injector_utils.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_uni_x8s8s32x_conv_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
@@ -33,6 +36,7 @@ namespace x64 {
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 using namespace Xbyak;
+using namespace injector_utils;
 
 namespace {
 void pick_loop_order(jit_conv_conf_t &jcp) {
@@ -46,6 +50,28 @@ void pick_loop_order(jit_conv_conf_t &jcp) {
     }
 }
 } // namespace
+
+template <cpu_isa_t isa, typename Vmm>
+_jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::_jit_uni_x8s8s32x_fwd_kernel(
+        const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
+        const memory_desc_t &dst_md)
+    : jcp(ajcp), attr_(attr) {
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
+        using namespace binary_injector;
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = false;
+        const rhs_arg_static_params_t rhs_arg_static_params {15, r13, r14,
+                preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec),
+                memory_desc_wrapper(dst_md)};
+        const static_params_t static_params {
+                this->param1, rhs_arg_static_params};
+
+        postops_injector_
+                = utils::make_unique<injector::jit_uni_postops_injector_t<isa>>(
+                        this, jcp.post_ops, static_params);
+    }
+}
 
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::prepare_output(int ur_w) {
@@ -74,12 +100,78 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::cvt2ps(data_type_t type_in,
     load_data(type_in, vmm_in, reg, offset, load_size);
     if (type_in != data_type::f32) uni_vcvtdq2ps(vmm_in, vmm_in);
 }
+
 template <cpu_isa_t isa, typename Vmm>
-void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_eltwise(int ur_w) {
-    int nb_oc_block
-            = jcp.is_depthwise ? jcp.nb_ch_blocking : jcp.nb_oc_blocking;
-    // avoid passing xmm0 to eltwise injector for sse41
-    eltwise_injector_->compute_vector_range(16 - nb_oc_block * ur_w, 16);
+void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_sum(const int nb_oc_block,
+        const int ur_w, const bool last_oc_block_flag, const int oc_block,
+        const float *p_sum_scale) {
+    if (jcp.with_sum) {
+        assert(p_sum_scale != nullptr && "p_sum_scale = nullptr");
+        const float sum_scale = *p_sum_scale;
+        const auto sum_injector = [=]() {
+            for (int k = 0; k < nb_oc_block; ++k) {
+                const bool mask_flag
+                        = last_oc_block_flag && k == nb_oc_block - 1;
+                for (int j = 0; j < ur_w; ++j) {
+                    const int aux_output_offset = jcp.typesize_out
+                            * (k * oc_block
+                                    + j * jcp.oc_without_padding * jcp.ngroups);
+                    cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
+                            mask_flag ? get_tail_size() : get_blocking_size());
+                    const Vmm vmm = vmm_out(j, k);
+                    if (sum_scale == 1.f)
+                        uni_vaddps(vmm, vmm_prev_dst);
+                    else {
+                        uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
+                        uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
+                    }
+                }
+            }
+        };
+        if (*p_sum_scale != 1.f) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
+        postops_injector_->set_lambda_injector(
+                primitive_kind::sum, sum_injector);
+    }
+}
+
+template <cpu_isa_t isa, typename Vmm>
+void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(
+        const int nb_oc_block, const int ur_w, const bool last_oc_block_flag,
+        const int oc_block, const float *p_sum_scale) {
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
+        apply_sum(nb_oc_block, ur_w, last_oc_block_flag, oc_block, p_sum_scale);
+
+        const auto iterate
+                = [=](const std::function<void(const int k, const int j)> &f) {
+                      for (int k = 0; k < nb_oc_block; k++)
+                          for (int j = 0; j < ur_w; j++)
+                              f(k, j);
+                  };
+        vmm_index_set_t vmm_idxs;
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+        if (jcp.with_binary) {
+            constexpr static auto vmm_len
+                    = cpu_isa_traits<isa>::vlen / sizeof(float);
+            iterate([&](const int k, const int j) {
+                const int aux_output_offset = jcp.typesize_out
+                        * (k * oc_block
+                                + j * jcp.oc_without_padding * jcp.ngroups);
+                const auto vmm_idx = vmm_out_idx(j, k);
+                vmm_idxs.emplace(vmm_idx);
+                rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
+                        vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
+                rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                        vmm_idx, k * vmm_len);
+                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                        vmm_idx, aux_output_offset);
+            });
+        } else
+            iterate([&](const int k, const int j) {
+                vmm_idxs.emplace(vmm_out_idx(j, k));
+            });
+
+        postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+    }
 }
 
 template <cpu_isa_t isa, typename Vmm>
@@ -107,7 +199,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
         const auto &p_entry = p.entry_[sum_idx];
         p_sum_scale = &p_entry.sum.scale;
     }
-    if (jcp.signed_input) {
+    if (jcp.signed_input && jcp.ver != ver_vnni) {
         /* put 'wei_adj_scale = 0.5' for bias calculation */
         mov(reg_bias_alpha, float2int(jcp.wei_adj_scale));
         uni_vmovq(xmm_bias_alpha(), reg_bias_alpha);
@@ -122,7 +214,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
 
             int bias_offset = jcp.typesize_bia * k * oc_block;
             cvt2ps(jcp.bia_dt, vmm_bias, reg_bias, bias_offset, load_size);
-            if (jcp.signed_input) /* bias *= 0.5 */
+            if (jcp.signed_input && jcp.ver != ver_vnni) /* bias *= 0.5 */
                 uni_vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
         }
         if (jcp.signed_input) {
@@ -158,30 +250,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
         }
     }
 
-    /* Do post-ops */
-    if (p_sum_scale && *p_sum_scale != 1.f)
-        mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
-    if (maybe_eltwise(0)) compute_eltwise(ur_w);
-    if (p_sum_scale) { // post_op: sum
-        for (int k = 0; k < nb_oc_block; ++k) {
-            const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
-            for (int j = 0; j < ur_w; ++j) {
-                int aux_output_offset = jcp.typesize_out
-                        * (k * oc_block
-                                + j * jcp.oc_without_padding * jcp.ngroups);
-                cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
-                        mask_flag ? get_tail_size() : get_blocking_size());
-                Vmm vmm = vmm_out(j, k);
-                if (*p_sum_scale == 1.f)
-                    uni_vaddps(vmm, vmm, vmm_prev_dst);
-                else {
-                    uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
-                    uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
-                }
-            }
-        }
-    }
-    if (maybe_eltwise(1)) compute_eltwise(ur_w);
+    apply_postops(nb_oc_block, ur_w, last_oc_block_flag, oc_block, p_sum_scale);
 
     if (jcp.dst_zero_point) {
         mov(reg_dst_zero_point, ptr[param1 + GET_OFF(dst_zero_point)]);
@@ -286,9 +355,13 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
     };
 
     auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
-        // okay for depthwise since src is zero-extended
-        uni_vpmaddwd(vmm_dw_tmp, vreg_src, vreg_wei);
-        uni_vpaddd(vreg_acc, vreg_acc, vmm_dw_tmp);
+        if (jcp.ver == ver_vnni) {
+            vpdpbusd(vreg_acc, vreg_src, vreg_wei, VexEncoding);
+        } else {
+            // okay for depthwise since src is zero-extended
+            uni_vpmaddwd(vmm_dw_tmp, vreg_src, vreg_wei);
+            uni_vpaddd(vreg_acc, vreg_acc, vmm_dw_tmp);
+        }
     };
 
     int ii_start = 0;
@@ -307,8 +380,6 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
             }
         }
     }
-
-    if (jcp.signed_input) uni_vmovups(vmm_dw_shifted_zero, vmm_shift);
 
     for (int ci = 0; ci < jcp.nb_ch_blocking; ++ci) {
         const bool mask_flag = last_ic_block_flag != no_last_block
@@ -333,12 +404,11 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
             int oi_end = get_ow_end(ur_w, ki, pad_r);
 
             if (compute_kernel) {
-                uni_vpmovsxbd(vmm_dw_wei, ptr[aux_reg_ker + aux_kernel_offset]);
+                uni_vpmovsxbd(vmm_wei, ptr[aux_reg_ker + aux_kernel_offset]);
                 if (h_padded) {
                     assert(jcp.signed_input);
                     for (int oi = 0; oi < ur_w; ++oi)
-                        compute(vmm_out(oi, ci), vmm_dw_wei,
-                                vmm_dw_shifted_zero);
+                        compute(vmm_out(oi, ci), vmm_wei, vmm_shift);
                 } else {
                     int start = jcp.signed_input ? 0 : oi_start;
                     int end = jcp.signed_input ? ur_w : oi_end;
@@ -358,11 +428,10 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
                                     uni_vpaddb(
                                             vmm_dw_src, vmm_dw_src, vmm_shift);
                             }
-                            compute(vmm_out(oi, ci), vmm_dw_wei, vmm_dw_src);
+                            compute(vmm_out(oi, ci), vmm_wei, vmm_dw_src);
                         } else {
                             assert(jcp.signed_input);
-                            compute(vmm_out(oi, ci), vmm_dw_wei,
-                                    vmm_dw_shifted_zero);
+                            compute(vmm_out(oi, ci), vmm_wei, vmm_shift);
                         }
                     }
                 }
@@ -373,11 +442,11 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker_dw(int ur_w, int pad_l,
                 *           src_zero_point_s32 * conv(1, wei_s32) : 0) */
                 if (!compute_kernel) {
                     uni_vpmovsxbd(
-                            vmm_dw_wei, ptr[aux_reg_ker + aux_kernel_offset]);
+                            vmm_wei, ptr[aux_reg_ker + aux_kernel_offset]);
                 } // else: already loaded weights from previous block
                 for (int oi = 0; oi < ur_w; oi++) {
                     if (oi < oi_start || oi >= oi_end || h_padded) {
-                        uni_vpmulld(vmm_zp_dw_tmp, vmm_dw_wei, vmm_zp);
+                        uni_vpmulld(vmm_zp_dw_tmp, vmm_wei, vmm_zp);
                         uni_vpaddd(vmm_out(oi, ci), vmm_out(oi, ci),
                                 vmm_zp_dw_tmp);
                     }
@@ -425,9 +494,13 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker(int ur_w, int pad_l,
                         + ic_sub_step * ic * oc_block);
     };
     auto compute = [=](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
-        uni_vpmaddubsw(vmm_tmp, vreg_src, vreg_wei);
-        uni_vpmaddwd(vmm_tmp, vmm_tmp, vmm_one);
-        uni_vpaddd(vreg_acc, vreg_acc, vmm_tmp);
+        if (jcp.ver == ver_vnni) {
+            vpdpbusd(vreg_acc, vreg_src, vreg_wei, VexEncoding);
+        } else {
+            uni_vpmaddubsw(vmm_tmp, vreg_src, vreg_wei);
+            uni_vpmaddwd(vmm_tmp, vmm_tmp, vmm_one);
+            uni_vpaddd(vreg_acc, vreg_acc, vmm_tmp);
+        }
     };
 
     for (int ki = 0; ki < kw; ++ki) {
@@ -447,9 +520,11 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker(int ur_w, int pad_l,
         if (compute_kernel) {
             for (int ic = 0; ic < icb; ++ic) {
                 if (h_padded) {
-                    /* fill padded area with shifted values */
-                    const Vmm inp = vmm_inp(0, nb_oc_block);
-                    uni_vmovups(inp, vmm_shift);
+                    // fill padded area with shifted value in first iteration
+                    if (ic == 0) {
+                        const Vmm inp = vmm_inp(0, nb_oc_block);
+                        uni_vmovups(inp, vmm_shift);
+                    }
                 } else {
                     for (int jj = _start; jj < _end; ++jj) {
                         int aux_input_offset = input_offset(jj, ic, ki);
@@ -476,8 +551,9 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker(int ur_w, int pad_l,
                                 uni_vpaddb(vmm_inp(jj, nb_oc_block),
                                         vmm_inp(jj, nb_oc_block), vmm_shift);
                         } else {
-                            /* fill padded area with shifted values */
-                            if (jcp.signed_input) {
+                            // fill padded area with shifted value in
+                            // first iteration
+                            if (jcp.signed_input && ic == 0) {
                                 const Vmm inp = vmm_inp(jj, nb_oc_block);
                                 uni_vmovups(inp, vmm_shift);
                             }
@@ -506,10 +582,16 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker(int ur_w, int pad_l,
                         for (int ic = 0; ic < icb; ic++) {
                             const int aux_kernel_offset
                                     = kernel_offset(ii, ic, ki);
-                            uni_vpmaddubsw(vmm_wacc, vmm_zp_one,
-                                    ptr[aux_reg_ker + aux_kernel_offset]);
-                            uni_vpmaddwd(vmm_wacc, vmm_wacc, vmm_one);
-                            uni_vpaddd(vmm_tmp, vmm_tmp, vmm_wacc);
+                            if (jcp.ver == ver_vnni) {
+                                vpdpbusd(vmm_tmp, vmm_zp_one,
+                                        ptr[aux_reg_ker + aux_kernel_offset],
+                                        VexEncoding);
+                            } else {
+                                uni_vpmaddubsw(vmm_wacc, vmm_zp_one,
+                                        ptr[aux_reg_ker + aux_kernel_offset]);
+                                uni_vpmaddwd(vmm_wacc, vmm_wacc, vmm_one);
+                                uni_vpaddd(vmm_tmp, vmm_tmp, vmm_wacc);
+                            }
                         }
                         uni_vpmulld(vmm_tmp, vmm_tmp, vmm_zp);
                         uni_vpaddd(vmm_out(jj, ii), vmm_out(jj, ii), vmm_tmp);
@@ -768,16 +850,15 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
         const bool is_zero_point = jcp.src_zero_point || jcp.dst_zero_point;
         int idx = ker_max_reg + 1 - jcp.max_regs_ur - 2 * is_zero_point;
         if (!jcp.is_resrc_depthwise) vmm_dw_src = Vmm(--idx);
-        vmm_dw_tmp = Vmm(--idx);
+        if (jcp.ver != ver_vnni) vmm_dw_tmp = Vmm(--idx);
         if (jcp.signed_input) {
-            vmm_dw_shifted_zero = Vmm(--idx);
-            --idx; // due to extra register used for shifts and compensations
+            --idx; // due to extra register used for compensations
         }
         assert(IMPLICATION(
                 !is_zero_point, idx == ker_max_reg - ker_dw_reg_base_idx));
     }
 
-    if (!jcp.is_depthwise) {
+    if (!jcp.is_depthwise && jcp.ver != ver_vnni) {
         auto vmm_one_128 = Xbyak::Xmm(vmm_one.getIdx());
         mov(reg_scratch, 0x10001);
         uni_vmovq(vmm_one_128, reg_scratch);
@@ -1092,43 +1173,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::generate() {
 
     postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
-}
-
-template <cpu_isa_t isa>
-bool jit_uni_x8s8s32x_fwd_kernel<isa>::post_ops_ok(
-        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    using namespace primitive_kind;
-    const auto &p = attr.post_ops_;
-
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-
-    switch (p.len()) {
-        case 0: return true;
-        case 1: return is_eltwise(0) || p.contain(sum, 0);
-        case 2:
-            return (p.contain(sum, 0) && is_eltwise(1))
-                    || (p.contain(sum, 1) && is_eltwise(0));
-        default: return false;
-    }
-
-    return false;
-}
-
-template <cpu_isa_t isa, typename Vmm>
-bool _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::maybe_eltwise(int position) {
-    using namespace primitive_kind;
-    const auto &p = attr_.post_ops_;
-
-    if (position == 0) {
-        /* eltwise before sum */
-        return p.contain(eltwise, 0);
-    } else if (position == 1) {
-        /* eltwise after sum */
-        return p.contain(sum, 0) && p.contain(eltwise, 1);
-    }
-
-    return false;
+    if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
 template <cpu_isa_t isa>
@@ -1201,6 +1246,8 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
     jcp.back_pad = calculate_end_padding(
             jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, ext_kd);
 
+    jcp.ver = mayiuse(avx2_vnni) ? ver_vnni : ver_unused;
+
     jcp.signed_input = src_d.data_type() == data_type::s8;
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
 
@@ -1242,20 +1289,30 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
             return status::unimplemented;
     }
 
-    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
+    const auto &post_ops = attr.post_ops_;
 
-    const auto &p = attr.post_ops_;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
-    if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+    const int binary_ind = post_ops.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+    const int sum_ind = post_ops.find(primitive_kind::sum);
+    jcp.with_sum = sum_ind != -1;
+
+    jcp.post_ops = post_ops;
+
+    using namespace injector;
+    const bool post_ops_ok_
+            = post_ops_ok<isa>({eltwise, binary}, jcp.post_ops, dst_d);
+    if (!post_ops_ok_) return status::unimplemented;
 
     jcp.is_resrc_depthwise = true && jcp.is_depthwise && jcp.stride_w < jcp.kw
             && jcp.kw < 4 && jcp.dilate_w == 0;
 
     if (jcp.is_depthwise) {
-        jcp.max_regs_ur = 14 - !jcp.is_resrc_depthwise - 2 * jcp.signed_input;
+        jcp.max_regs_ur = 14 - !jcp.is_resrc_depthwise - jcp.signed_input
+                + (jcp.ver == ver_vnni);
     } else {
-        jcp.max_regs_ur = 12;
+        jcp.max_regs_ur = jcp.ver == ver_vnni ? 15 - jcp.signed_input : 12;
     }
 
     if (jcp.src_zero_point || jcp.dst_zero_point) jcp.max_regs_ur = 9;
@@ -1302,7 +1359,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
                     | memory_extra_flags::scale_adjust;
             want_wei_md.extra.compensation_mask
                     = (with_groups && !jcp.is_depthwise) ? g_mask : c_mask;
-            want_wei_md.extra.scale_adjust = 0.5f;
+            want_wei_md.extra.scale_adjust = (jcp.ver == ver_vnni) ? 1.f : 0.5f;
         }
         if (jcp.src_zero_point) {
             want_wei_md.extra.flags |= compensation_conv_asymmetric_src;
@@ -1443,7 +1500,7 @@ void jit_uni_x8s8s32x_fwd_kernel<isa>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
 
-    if (jcp.signed_input) {
+    if (jcp.signed_input && jcp.ver != ver_vnni) {
         dim_t count = attr.output_scales_.count_ == 1
                 ? (dim_t)8
                 : attr.output_scales_.count_;

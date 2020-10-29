@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <atomic>
 #include <cstring>
 #include <mutex>
 
@@ -29,54 +28,6 @@ namespace x64 {
 
 namespace {
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
-
-// A setting (basically a value) that can be set() multiple times until the
-// time first time the get() method is called. The set() method is expected to
-// be as expensive as a busy-waiting spinlock. The get() method is expected to
-// be asymptotically as expensive as a single lock-prefixed memory read. The
-// get() method also has a 'soft' mode when the setting is not locked for
-// re-setting. This is used for testing purposes.
-template <typename T>
-struct set_before_first_get_setting_t {
-private:
-    T value_;
-    bool initialized_;
-    std::atomic<unsigned> state_;
-    enum : unsigned { idle = 0, busy_setting = 1, locked_after_a_get = 2 };
-
-public:
-    set_before_first_get_setting_t(T init = T(0))
-        : value_ {init}, initialized_ {false}, state_ {0} {}
-
-    bool set(T new_value) {
-        if (state_.load() == locked_after_a_get) return false;
-
-        while (true) {
-            unsigned expected = idle;
-            if (state_.compare_exchange_weak(expected, busy_setting)) break;
-            if (expected == locked_after_a_get) return false;
-        }
-
-        value_ = new_value;
-        initialized_ = true;
-        state_.store(idle);
-        return true;
-    }
-
-    bool initialized() { return initialized_; }
-
-    T get(bool soft = false) {
-        if (!soft && state_.load() != locked_after_a_get) {
-            while (true) {
-                unsigned expected = idle;
-                if (state_.compare_exchange_weak(expected, locked_after_a_get))
-                    break;
-                if (expected == locked_after_a_get) break;
-            }
-        }
-        return value_;
-    }
-};
 
 set_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
     static set_before_first_get_setting_t<cpu_isa_t> max_cpu_isa_setting;
@@ -99,6 +50,7 @@ bool init_max_cpu_isa() {
         ELSEIF_HANDLE_CASE(sse41);
         ELSEIF_HANDLE_CASE(avx);
         ELSEIF_HANDLE_CASE(avx2);
+        ELSEIF_HANDLE_CASE(avx2_vnni);
         ELSEIF_HANDLE_CASE(avx512_mic);
         ELSEIF_HANDLE_CASE(avx512_mic_4ops);
         ELSEIF_HANDLE_CASE(avx512_core);
@@ -131,6 +83,7 @@ struct isa_info_t {
             case avx512_core: return dnnl_cpu_isa_avx512_core;
             case avx512_mic_4ops: return dnnl_cpu_isa_avx512_mic_4ops;
             case avx512_mic: return dnnl_cpu_isa_avx512_mic;
+            case avx2_vnni: return dnnl_cpu_isa_avx2_vnni;
             case avx2: return dnnl_cpu_isa_avx2;
             case avx: return dnnl_cpu_isa_avx;
             case sse41: return dnnl_cpu_isa_sse41;
@@ -162,6 +115,7 @@ struct isa_info_t {
                 return "Intel AVX-512 with AVX512CD, AVX512ER, and AVX512PF "
                        "extensions";
             case avx512_common: return "Intel AVX-512";
+            case avx2_vnni: return "Intel AVX2 with Intel DL Boost";
             case avx2: return "Intel AVX2";
             case avx: return "Intel AVX";
             case sse41: return "Intel SSE4.1";
@@ -220,6 +174,7 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
         HANDLE_CASE(sse41);
         HANDLE_CASE(avx);
         HANDLE_CASE(avx2);
+        HANDLE_CASE(avx2_vnni);
         HANDLE_CASE(avx512_mic);
         HANDLE_CASE(avx512_mic_4ops);
         HANDLE_CASE(avx512_core);

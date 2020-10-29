@@ -487,9 +487,11 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
         if (compute_kernel) {
             for (int ic = 0; ic < icb; ic++) {
                 if (h_padded) {
-                    /* fill padded area with shifted values */
-                    Vmm inp = vmm_inp(0, nb_oc_block);
-                    vmovups(inp, vmm_shift); // bcast(128)
+                    // fill padded area with shifted value in first iteration
+                    if (ic == 0) {
+                        Vmm inp = vmm_inp(0, nb_oc_block);
+                        vmovups(inp, vmm_shift); // bcast(128)
+                    }
                 } else {
                     for (int jj = _start; jj < _end; jj++) {
                         int aux_input_offset = input_offset(jj, ic, ki);
@@ -510,8 +512,9 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
                                 vpaddb(vmm_inp(jj, nb_oc_block),
                                         vmm_inp(jj, nb_oc_block), vmm_shift);
                         } else {
-                            /* fill padded area with shifted values */
-                            if (jcp.signed_input) {
+                            // fill padded area with shifted value in
+                            // first iteration
+                            if (jcp.signed_input && ic == 0) {
                                 Vmm inp = vmm_inp(jj, nb_oc_block);
                                 vmovups(inp, vmm_shift);
                             }

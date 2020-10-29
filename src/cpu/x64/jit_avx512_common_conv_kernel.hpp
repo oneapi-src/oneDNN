@@ -489,11 +489,11 @@ private:
     inline ptrdiff_t get_full_src_offset(
             int i_iw, int i_ic, ptrdiff_t input_offset) {
         const bool is_nxc_layout = is_src_layout_nxc();
-        const size_t w_shift_st
-                = (jcp.is_hw_transp ? jcp.iw : 1) * jcp.ic_block;
+        const size_t w_shift_st = (jcp.is_hw_transp ? jcp.iw : 1)
+                * (jcp.is_1stconv ? 1 : jcp.ic_block);
         ptrdiff_t w_shift = is_nxc_layout
                 ? jcp.ngroups * jcp.ic
-                : (jcp.ver == ver_4fma || jcp.is_1stconv ? 1 : w_shift_st);
+                : jcp.ver == ver_4fma ? 1 : w_shift_st;
         ptrdiff_t ic_shift = jcp.ver == ver_4fma
                 ? jcp.tr_iw
                 : (jcp.is_1stconv && !is_nxc_layout

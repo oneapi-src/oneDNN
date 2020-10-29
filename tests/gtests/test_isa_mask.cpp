@@ -59,11 +59,12 @@ static std::map<cpu_isa, isa_compat_info_t> isa_compatibility_table = {
                         {sse41, avx, avx2, avx512_core, avx512_core_vnni,
                                 avx512_core_bf16, avx512_core_bf16_amx_int8,
                                 avx512_core_bf16_amx_bf16, avx512_core_amx}}},
+        {cpu_isa::avx2_vnni, {avx2_vnni, {sse41, avx, avx2, avx2_vnni}}},
         {cpu_isa::all,
                 {isa_all,
                         {sse41, avx, avx2, avx512_mic, avx512_mic_4ops,
                                 avx512_core, avx512_core_vnni, avx512_core_bf16,
-                                isa_all}}},
+                                avx2_vnni, isa_all}}},
 };
 
 class isa_test_t : public ::testing::TestWithParam<cpu_isa> {
@@ -98,6 +99,6 @@ INSTANTIATE_TEST_SUITE_P(TestISACompatibility, isa_test_t,
                 cpu_isa::avx512_mic, cpu_isa::avx512_mic_4ops,
                 cpu_isa::avx512_core, cpu_isa::avx512_core_vnni,
                 cpu_isa::avx512_core_bf16, cpu_isa::avx512_core_amx,
-                cpu_isa::all));
+                cpu_isa::avx2_vnni, cpu_isa::all));
 
 } // namespace dnnl

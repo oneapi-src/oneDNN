@@ -6,6 +6,7 @@
 --batch=shapes_densnet
 --batch=shapes_dilated
 --batch=shapes_dilated_rfcn
+--batch=shapes_efficientdet
 --batch=shapes_googlenet_v1
 --batch=shapes_googlenet_v2
 --batch=shapes_googlenet_v3

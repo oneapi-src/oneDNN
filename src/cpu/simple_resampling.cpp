@@ -15,8 +15,6 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include <float.h>
-#include <math.h>
 
 #include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
@@ -32,18 +30,23 @@ namespace cpu {
 
 using namespace format_tag;
 using namespace resampling_utils;
+using namespace std::placeholders;
 
 template <impl::data_type_t data_type>
 status_t simple_resampling_fwd_t<data_type>::init(engine_t *engine) {
     if (pd()->desc()->alg_kind == alg_kind::resampling_nearest)
-        interpolate = &simple_resampling_fwd_t::nearest;
+        interpolate_fn_ = std::bind(
+                &simple_resampling_fwd_t::nearest, this, _1, _2, _3, _4, _5);
     else {
         if (pd()->ndims() == 5)
-            interpolate = &simple_resampling_fwd_t::trilinear;
+            interpolate_fn_ = std::bind(&simple_resampling_fwd_t::trilinear,
+                    this, _1, _2, _3, _4, _5);
         else if (pd()->ndims() == 4)
-            interpolate = &simple_resampling_fwd_t::bilinear;
+            interpolate_fn_ = std::bind(&simple_resampling_fwd_t::bilinear,
+                    this, _1, _2, _3, _4, _5);
         else
-            interpolate = &simple_resampling_fwd_t::linear;
+            interpolate_fn_ = std::bind(
+                    &simple_resampling_fwd_t::linear, this, _1, _2, _3, _4, _5);
 
         fill_coeffs();
     }
@@ -150,15 +153,15 @@ void simple_resampling_fwd_t<data_type>::execute_forward(
     const int IH = pd()->IH();
     const int IW = pd()->IW();
 
-    parallel_nd(nsp_outer_, OD, OH, OW,
-            [&](dim_t nsp0, dim_t od, dim_t oh, dim_t ow) {
-                dim_t src_off = nsp0 * ID * IH * IW * inner_stride_;
-                dim_t dst_off
-                        = (nsp0 * OD * OH * OW + od * OH * OW + oh * OW + ow)
-                        * inner_stride_;
-                (this->*(interpolate))(
-                        src + src_off, dst + dst_off, od, oh, ow);
-            });
+    parallel_nd(nsp_outer_, OD, OH, [&](dim_t nsp0, dim_t od, dim_t oh) {
+        for (dim_t ow = 0; ow < OW; ow++) {
+            const dim_t src_off = nsp0 * ID * IH * IW * inner_stride_;
+            const dim_t dst_off
+                    = (nsp0 * OD * OH * OW + od * OH * OW + oh * OW + ow)
+                    * inner_stride_;
+            interpolate_fn_(src + src_off, dst + dst_off, od, oh, ow);
+        }
+    });
 }
 
 template struct simple_resampling_fwd_t<data_type::f32>;
@@ -167,14 +170,18 @@ template struct simple_resampling_fwd_t<data_type::bf16>;
 template <impl::data_type_t data_type>
 status_t simple_resampling_bwd_t<data_type>::init(engine_t *engine) {
     if (pd()->desc()->alg_kind == alg_kind::resampling_nearest)
-        interpolate = &simple_resampling_bwd_t::nearest;
+        interpolate_fn_ = std::bind(
+                &simple_resampling_bwd_t::nearest, this, _1, _2, _3, _4, _5);
     else {
         if (pd()->ndims() == 5)
-            interpolate = &simple_resampling_bwd_t::trilinear;
+            interpolate_fn_ = std::bind(&simple_resampling_bwd_t::trilinear,
+                    this, _1, _2, _3, _4, _5);
         else if (pd()->ndims() == 4)
-            interpolate = &simple_resampling_bwd_t::bilinear;
+            interpolate_fn_ = std::bind(&simple_resampling_bwd_t::bilinear,
+                    this, _1, _2, _3, _4, _5);
         else
-            interpolate = &simple_resampling_bwd_t::linear;
+            interpolate_fn_ = std::bind(
+                    &simple_resampling_bwd_t::linear, this, _1, _2, _3, _4, _5);
 
         fill_coeffs();
         fill_weights();
@@ -337,11 +344,11 @@ void simple_resampling_bwd_t<data_type>::execute_backward(
 
     parallel_nd(nsp_outer_, ID, IH, IW,
             [&](dim_t nsp, dim_t id, dim_t ih, dim_t iw) {
-                dim_t diff_dst_off = nsp * OD * OH * OW * inner_stride_;
-                dim_t diff_src_off
+                const dim_t diff_dst_off = nsp * OD * OH * OW * inner_stride_;
+                const dim_t diff_src_off
                         = (nsp * ID * IH * IW + id * IH * IW + ih * IW + iw)
                         * inner_stride_;
-                (this->*(interpolate))(diff_src + diff_src_off,
+                interpolate_fn_(diff_src + diff_src_off,
                         diff_dst + diff_dst_off, id, ih, iw);
             });
 }

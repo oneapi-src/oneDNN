@@ -222,6 +222,9 @@ static int compare(const prb_t *prb, const dnn_mem_t &mem_arg_fp,
 
         bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
 
+        // XXX: if reference fp0 value is nan, allow to return anything from the
+        // library for integral target data types.
+        if (!ok) ok = std::isnan(fp0) && is_integral_dt(prb->dt);
         if (!ok) ok = check_extreme_values(fp, dt, prb->alg);
 
         if (!ok && check_abs_err(prb, src, trh)) ok = diff <= trh;

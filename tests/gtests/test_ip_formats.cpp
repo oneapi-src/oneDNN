@@ -47,7 +47,8 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(ip_formats_test, TestChecksAllFormats) {
     SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
             "GPU takes a lot of time to complete this test.");
     static auto isa = get_effective_cpu_isa();
-    bool supports_bf16 = isa >= cpu_isa::avx512_core;
+    bool supports_bf16
+            = isa >= cpu_isa::avx512_core && isa != cpu_isa::avx2_vnni;
 
     bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
 

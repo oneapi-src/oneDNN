@@ -52,8 +52,7 @@ __kernel void gemm_post_ops_inner_product(__global SRC_DATA_T *src,
 #endif
 
     float accumulator = acc;
-    APPLY_POST_OPS(accumulator, float, sum_src, float, mb, 1, oc, 1, 0, 1, 0, 1,
-            0, 1, 0, 1);
+    APPLY_POST_OPS_SERIAL(accumulator, float, sum_src, float, mb, 1, oc, 1);
 
     dst[data_idx] = TO_DST(accumulator);
 }

@@ -21,6 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
+#include "common/primitive_iterator.hpp"
 #include "common/utils.hpp"
 
 namespace dnnl {
@@ -54,29 +55,78 @@ static inline status_t check_gemm_x8x8s32_input(char offsetc, char transa,
             transa, transb, m, n, k, lda, ldb, ldc, alpha, beta);
 }
 
-static inline status_t create_gemm_memory_desc(memory_desc_t *m_desc,
-        const gemm_desc_t *desc, int index, data_type_t data_type) {
-    using namespace status;
-    int dims[2] = {0};
-    switch (index) {
-        case 0:
-            dims[0] = desc->m;
-            dims[1] = desc->k;
-            dims[desc->transa] = desc->lda;
-            break;
-        case 1:
-            dims[0] = desc->k;
-            dims[1] = desc->n;
-            dims[desc->transb] = desc->ldb;
-            break;
-        case 2:
-            dims[0] = desc->m;
-            dims[1] = desc->n;
-            break;
+// This function makes a 2d tensor from an nd tensor.
+// the 2d tensor just collapes dims[1...ndims-1] from the nd tensor
+// The only reason we do not use reshape here is that we want to allow
+// fusing blocked dimensions and padded dimensions.
+static inline void init_2d_desc(memory_desc_t *md_2d,
+        const memory_desc_t *md_nd, bool transpose_dims = false) {
+    auto p_dims = md_nd->padded_dims;
+    auto blk = md_nd->format_desc.blocking;
+    auto strides = blk.strides;
+
+    // we assume that the innermost dimension always has stride 1
+    assert(IMPLICATION(blk.inner_nblks == 0,
+            utils::array_min(strides, md_nd->ndims) == 1));
+
+    // TODO: add checks to see if the memory descriptor can be 2d-fied
+    // TODO: change signature to specifiy at which dimension shall we 2d-fy (currently 1st)
+    auto p_dim1 = utils::array_product(p_dims + 1, md_nd->ndims - 1);
+    auto stride1 = blk.inner_nblks == 0
+            ? utils::array_min(strides + 1, md_nd->ndims - 1)
+            : 1;
+
+    if (transpose_dims) {
+        dnnl_dims_t dims_2d = {p_dim1, p_dims[0]};
+        dnnl_dims_t strides_2d = {stride1, strides[0]};
+        dnnl_memory_desc_init_by_strides(
+                md_2d, 2, dims_2d, md_nd->data_type, strides_2d);
+    } else {
+        dnnl_dims_t dims_2d = {p_dims[0], p_dim1};
+        dnnl_dims_t strides_2d = {strides[0], stride1};
+        dnnl_memory_desc_init_by_strides(
+                md_2d, 2, dims_2d, md_nd->data_type, strides_2d);
     }
-    dims_t dims_flat = {dims[0] * dims[1]};
-    return dnnl_memory_desc_init_by_tag(
-            m_desc, 1, dims_flat, data_type, format_tag::x);
+}
+
+static inline void create_2d_desc(memory_desc_t *md_2d, int d0, int d1,
+        data_type_t dt, transpose_t trans, int ld) {
+    dnnl_dims_t dims_2d = {d0, d1};
+    if (trans == transpose::notrans) {
+        dnnl_dims_t strides_2d = {ld, 1};
+        dnnl_memory_desc_init_by_strides(md_2d, 2, dims_2d, dt, strides_2d);
+    } else {
+        dnnl_dims_t strides_2d = {1, ld};
+        dnnl_memory_desc_init_by_strides(md_2d, 2, dims_2d, dt, strides_2d);
+    }
+}
+
+static inline status_t create_gemm_pd(
+        std::unique_ptr<primitive_desc_t> &gemm_pd_, engine_t *engine,
+        const memory_desc_t *a_md, const memory_desc_t *b_md,
+        const memory_desc_t *c_md, const memory_desc_t *bias_md,
+        data_type_t acc_dt, const primitive_attr_t *attr,
+        bool skip_ref = false) {
+    auto gemm_desc = gemm_desc_t();
+    gemm_desc.primitive_kind = primitive_kind::gemm;
+    gemm_desc.a_desc = *a_md;
+    gemm_desc.b_desc = *b_md;
+    gemm_desc.c_desc = *c_md;
+    gemm_desc.bias_desc = *bias_md;
+    gemm_desc.acc_type = acc_dt;
+
+    primitive_attr_t gemm_attr = *attr;
+    gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
+
+    dnnl_primitive_desc_iterator it(
+            engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
+    ++it;
+    gemm_pd_.reset(it.fetch_once());
+    if (!gemm_pd_) return status::unimplemented;
+    if (skip_ref && strstr(gemm_pd_.get()->name(), "ref") == NULL)
+        return status::unimplemented;
+
+    return status::success;
 }
 
 } // namespace impl

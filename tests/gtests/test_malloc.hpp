@@ -46,12 +46,12 @@ cl_mem DNNL_STRONG clCreateBuffer_wrapper(cl_context context,
 } // namespace dnnl
 #endif
 
-void reset_malloc_counter();
-void increment_malloc_counter();
+void reset_failed_malloc_counter();
+void increment_failed_malloc_counter();
 bool test_out_of_memory();
 #else
-static inline void reset_malloc_counter() {}
-static inline void increment_malloc_counter() {}
+static inline void reset_failed_malloc_counter() {}
+static inline void increment_failed_malloc_counter() {}
 static inline bool test_out_of_memory() {
     return false;
 }

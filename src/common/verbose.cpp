@@ -262,6 +262,20 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
                     else
                         DPRINT(str, len, written, "sum:%g;", e.sum.scale);
                 } break;
+                case primitive_kind::convolution: {
+                    using namespace data_type;
+                    const auto &c = e.depthwise_conv;
+                    DPRINT(str, len, written, "dw_k3s%dp1", c.stride);
+                    if (c.wei_dt == s8) {
+                        DPRINT(str, len, written, ":%s:%d",
+                                dnnl_dt2str(c.dst_dt), c.mask);
+                        if (c.mask == 0)
+                            DPRINT(str, len, written, ":%g", c.scales[0]);
+                    } else if (c.dst_dt != f32) {
+                        DPRINT(str, len, written, ":%s", dnnl_dt2str(c.dst_dt));
+                    }
+                    DPRINT(str, len, written, ";");
+                } break;
                 case primitive_kind::eltwise: {
                     const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
                     const char *alg_str = dnnl_alg_kind2str(ew.alg);
@@ -544,16 +558,16 @@ static void init_info_gemm(const engine_t *e, pd_t *s, char *buffer) {
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
 
     const char *s_transa
-            = (s->desc()->transa == transpose::notrans ? "N" : "T");
+            = (s->desc()->transa() == transpose::notrans ? "N" : "T");
     const char *s_transb
-            = (s->desc()->transb == transpose::notrans ? "N" : "T");
+            = (s->desc()->transb() == transpose::notrans ? "N" : "T");
     DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, dat_written,
             "m" DFMT "n" DFMT "k" DFMT "_lda" DFMT "ldb" DFMT "ldc" DFMT
             " trans:%s%s a_dt:%s b_dt:%s c_dt:%s acc_dt:%s",
-            s->desc()->m, s->desc()->n, s->desc()->k, s->desc()->lda,
-            s->desc()->ldb, s->desc()->ldc, s_transa, s_transb,
-            dnnl_dt2str(s->desc()->a_type), dnnl_dt2str(s->desc()->b_type),
-            dnnl_dt2str(s->desc()->c_type), dnnl_dt2str(s->desc()->acc_type));
+            s->desc()->m(), s->desc()->n(), s->desc()->k(), s->desc()->lda(),
+            s->desc()->ldb(), s->desc()->ldc(), s_transa, s_transb,
+            dnnl_dt2str(s->desc()->a_type()), dnnl_dt2str(s->desc()->b_type()),
+            dnnl_dt2str(s->desc()->c_type()), dnnl_dt2str(s->desc()->acc_type));
 
     verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
             attr_str, aux_str, prb_str);

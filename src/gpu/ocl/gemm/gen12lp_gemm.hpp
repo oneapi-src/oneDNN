@@ -58,6 +58,9 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
             const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops
                     | smask_t::zero_points_runtime;
 
+            bool ok = set_default_formats();
+            if (!ok) return status::unimplemented;
+
             const auto d = desc();
             // LIMITATIONS:
             // - batch is not supported
@@ -65,14 +68,14 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
             // - bias is not supported
             // - runtime zero points are supported for dst only
             // - attribute zero points are supported for src and weights only
-            bool limits_ok = d->batch == 1
-                    && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m, d->n, d->k,
-                            d->lda, d->ldb, d->ldc)
-                    && d->bias_type == data_type::undef;
-            bool ok = true && limits_ok
-                    && utils::one_of(d->a_type, data_type::u8, data_type::s8)
-                    && utils::one_of(d->b_type, data_type::u8, data_type::s8)
-                    && utils::one_of(d->c_type, data_type::s32)
+            bool limits_ok = d->batch() == 1
+                    && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
+                            d->k(), d->lda(), d->ldb(), d->ldc())
+                    && d->bias_type() == data_type::undef;
+            ok = true && limits_ok
+                    && utils::one_of(d->a_type(), data_type::u8, data_type::s8)
+                    && utils::one_of(d->b_type(), data_type::u8, data_type::s8)
+                    && utils::one_of(d->c_type(), data_type::s32)
                     && attr()->has_default_values(attr_skip_mask)
                     && zero_points_ok() && attr()->output_scales_.mask_ == 0
                     && IMPLICATION(attr()->post_ops_.len() == 1,
@@ -92,20 +95,24 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
             return status::success;
         }
 
+        bool set_default_formats() {
+            return gpu_gemm_pd_t::set_default_formats();
+        }
+
         void init_scratchpad() {
             if (!do_compute() || !do_scale()) return;
             auto scratchpad = scratchpad_registry().registrar();
-            size_t tmp_buf_size = desc()->m * desc()->n * sizeof(int);
+            size_t tmp_buf_size = desc()->m() * desc()->n() * sizeof(int);
             scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer,
                     tmp_buf_size, 1, OCL_BUFFER_ALIGNMENT);
         }
 
         bool do_compute() const {
-            return ((desc()->k > 0) && (alpha() != 0.0f));
+            return ((desc()->k() > 0) && (alpha() != 0.0f));
         }
 
         bool do_scale() const {
-            return !((desc()->k > 0) && (alpha() == 1.0f)
+            return !((desc()->k() > 0) && (alpha() == 1.0f)
                     && ((beta() == 0.0f) || (beta() == 1.0f)));
         }
 
@@ -188,7 +195,7 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
         const char *kernel_name = nullptr;
 
         //compute kernel
-        switch (pd()->desc()->c_type) {
+        switch (pd()->desc()->c_type()) {
             case data_type::s32:
                 kernel_name = "gen12lp_gemm_compute_x8x8s32";
                 break;
@@ -212,10 +219,10 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
             compute::kernel_ctx_t kernel_ctx;
 
             auto status = gen12lp_gemm_x8x8s32_kernel_t::init_kernel_ctx(
-                    kernel_ctx, pd()->desc()->transa, pd()->desc()->transb,
+                    kernel_ctx, pd()->desc()->transa(), pd()->desc()->transb(),
                     fixed_c, column_c, row_c, pd()->attr_info_, aligned,
-                    a_off_non_zero, b_off_non_zero, pd()->desc()->a_type,
-                    pd()->desc()->b_type, pd()->desc()->c_type);
+                    a_off_non_zero, b_off_non_zero, pd()->desc()->a_type(),
+                    pd()->desc()->b_type(), pd()->desc()->c_type());
             if (status != status::success) return status;
 
             create_kernel(compute_engine, &compute_x8x8s32_kernel_[aligned],
@@ -228,8 +235,8 @@ struct gen12lp_gemm_t : public gpu_gemm_t {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = gen12lp_gemm_scale_x8x8s32_kernel_t::init_kernel_ctx(
-                kernel_ctx, pd()->attr_info_, pd()->desc()->a_type,
-                pd()->desc()->b_type, pd()->desc()->c_type);
+                kernel_ctx, pd()->attr_info_, pd()->desc()->a_type(),
+                pd()->desc()->b_type(), pd()->desc()->c_type());
         if (status != status::success) return status;
 
         create_kernel(compute_engine, &scale_x8x8s32_kernel_, kernel_name,

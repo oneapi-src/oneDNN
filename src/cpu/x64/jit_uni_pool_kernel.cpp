@@ -49,13 +49,19 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = true;
         static constexpr bool use_exact_tail_scalar_bcast = false;
+        static constexpr int sse41_single_block_size
+                = cpu_isa_traits<sse41>::vlen / sizeof(float);
+        size_t postop_tail = static_cast<size_t>(jpp.c_tail);
+        const bool high_half_block_empty = isa == sse41
+                && static_cast<size_t>(jpp.c_tail) > sse41_single_block_size;
+        if (high_half_block_empty) postop_tail -= sse41_single_block_size;
 
         const binary_injector::rhs_arg_static_params_t rhs_sp {
                 static_cast<std::size_t>(this->xmm4.getIdx()), this->rax,
                 this->rdx, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec),
-                memory_desc_wrapper(*dst_md), static_cast<size_t>(jpp.c_tail),
-                k_c_tail_mask, use_exact_tail_scalar_bcast};
+                memory_desc_wrapper(*dst_md), postop_tail, k_c_tail_mask,
+                use_exact_tail_scalar_bcast};
 
         const binary_injector::static_params_t bsp {
                 reg_param, use_per_oc_spatial_strategy, rhs_sp};
@@ -143,12 +149,14 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
         // plain output
         jpp.is_bf16 = false;
         jpp.dt_size = types::data_type_size(data_type::f32);
-        jpp.tag_kind = jptg_ncsp;
+        jpp.tag_kind = jit_memory_tag_kind_t::ncsp;
     } else {
         jpp.is_bf16 = (src_d.data_type() == data_type::bf16
                 && dst_d.data_type() == data_type::bf16);
         jpp.dt_size = types::data_type_size(src_d.data_type());
-        jpp.tag_kind = (fmt_tag == nspc_fmt_tag) ? jptg_nspc : jptg_blocked;
+        jpp.tag_kind = (fmt_tag == nspc_fmt_tag)
+                ? jit_memory_tag_kind_t::nspc
+                : jit_memory_tag_kind_t::blocked;
     }
 
     jpp.isa = (jpp.is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16
@@ -160,13 +168,14 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                     pooling_avg_include_padding, pooling_avg_exclude_padding);
     if (!args_ok) return status::unimplemented;
 
-    jpp.c = jpp.tag_kind == jptg_blocked
+    jpp.c = jpp.tag_kind == jit_memory_tag_kind_t::blocked
             ? utils::rnd_up(jpp.c_without_padding, jpp.c_block)
             : jpp.c_without_padding;
-    if (jpp.tag_kind == jptg_blocked) assert(src_d.padded_dims()[1] == jpp.c);
+    if (jpp.tag_kind == jit_memory_tag_kind_t::blocked)
+        assert(src_d.padded_dims()[1] == jpp.c);
     jpp.nb_c = utils::div_up(jpp.c, jpp.c_block);
     jpp.c_tail = jpp.c_without_padding % jpp.c_block;
-    jpp.is_c_padded = jpp.tag_kind == jptg_blocked
+    jpp.is_c_padded = jpp.tag_kind == jit_memory_tag_kind_t::blocked
             && src_d.padded_dims()[1] != jpp.c_without_padding;
 
     jpp.stride_d = (ndims == 5) ? pd.strides[0] : 1;
@@ -223,7 +232,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     }
 
     // select jpp.ur_bc
-    if (jpp.tag_kind == jptg_nspc) {
+    if (jpp.tag_kind == jit_memory_tag_kind_t::nspc) {
         auto min_ur_w = nstl::max(1, utils::div_up(jpp.l_pad, jpp.stride_w));
         int min_ur_w1 = utils::div_up(right_pad, jpp.stride_w);
         if (min_ur_w < min_ur_w1) { min_ur_w = min_ur_w1; }
@@ -268,7 +277,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     // scratchpad for c_block slice of input and/or output
     using namespace memory_tracking::names;
     const int nscr = nstl::min(dnnl_get_max_threads(), jpp.mb * jpp.nb_c);
-    if (jpp.tag_kind == jptg_ncsp) {
+    if (jpp.tag_kind == jit_memory_tag_kind_t::ncsp) {
         scratchpad.book(key_pool_src_plain2blocked_cvt,
                 jpp.c_block * jpp.id * jpp.ih * jpp.iw * nscr, jpp.dt_size);
         scratchpad.book(key_pool_dst_plain2blocked_cvt,
@@ -291,7 +300,7 @@ static int reg_ind(int shift, int bc, int j, int ur_bc, int ur_w) noexcept {
 
 template <cpu_isa_t isa>
 inline void jit_uni_pool_kernel<isa>::prepare_tail_mask() {
-    if (isa >= avx512_common) {
+    if (is_superset(isa, avx512_common)) {
         size_t c_tail_mask = (1ULL << jpp.c_tail) - 1ULL;
         mov(tmp_gpr.cvt32(), c_tail_mask);
         kmovw(k_c_tail_mask, tmp_gpr.cvt32());
@@ -490,7 +499,8 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
     auto stride_w = jpp.stride_w;
     auto c_block = jpp.c_block;
     auto dt_size = jpp.dt_size;
-    const int c_off = (jpp.tag_kind == jptg_nspc) ? jpp.c : c_block;
+    const int c_off
+            = (jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c : c_block;
     Label kd_label, kh_label;
 
     const auto is_tail_processing = [&](int bc) {
@@ -635,7 +645,8 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
     int kw = jpp.kw;
     int stride_w = jpp.stride_w;
     int c_block = jpp.c_block;
-    const int c_off = (jpp.tag_kind == jptg_nspc) ? jpp.c : c_block;
+    const int c_off
+            = (jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c : c_block;
     Label kd_label, kh_label;
 
     auto is_tail_processing = [&](int bc) {
@@ -888,7 +899,8 @@ inline void jit_uni_pool_kernel<isa>::max_step_bwd(int ur_w, int ur_bc,
     int kw = jpp.kw;
     int stride_w = jpp.stride_w;
     int c_block = jpp.c_block;
-    const int c_off = (jpp.tag_kind == jptg_nspc) ? jpp.c : c_block;
+    const int c_off
+            = (jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c : c_block;
     Label kd_label, kh_label;
 
     const auto is_tail_processing = [&](int bc) {
@@ -1086,7 +1098,9 @@ inline void jit_uni_pool_kernel<isa>::max_step_bwd(int ur_w, int ur_bc,
 template <cpu_isa_t isa>
 void jit_uni_pool_kernel<isa>::zero_diff_src(
         int ur_bc, bool with_c_tail_proccessing) {
-    const int c_off = (jpp.tag_kind == jptg_nspc) ? jpp.c : jpp.c_block;
+    const int c_off = (jpp.tag_kind == jit_memory_tag_kind_t::nspc)
+            ? jpp.c
+            : jpp.c_block;
 
     Label l_skip, l_ih_loop, l_id_loop;
 
@@ -1172,7 +1186,8 @@ void jit_uni_pool_kernel<isa>::generate() {
     int c_block = jpp.c_block;
     int stride_w = jpp.stride_w;
     int l_pad = jpp.l_pad;
-    const int c_off = (jpp.tag_kind == jptg_nspc) ? jpp.c : c_block;
+    const int c_off
+            = (jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c : c_block;
 
     int vlen = cpu_isa_traits<isa>::vlen;
 
@@ -1225,7 +1240,7 @@ void jit_uni_pool_kernel<isa>::generate() {
                  * postops arg1 tensor (nchw format) in per_oc bcast strategy.
                  */
                 disable_postops_when_sse_high_half_processed_
-                        = jpp.tag_kind == jptg_blocked;
+                        = jpp.tag_kind == jit_memory_tag_kind_t::blocked;
             }
             sse_high_half = true;
             step_high_half(ur_w, ur_bc, lpad, rpad, with_c_tail_proccessing);

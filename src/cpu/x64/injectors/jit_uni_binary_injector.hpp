@@ -43,9 +43,12 @@ namespace binary_injector {
  * arguments (arg1 from binary postop) from execution context. Those pointers are placed
  * in vector in order of binary post-op appearance inside post_ops_t structure. Returned vector
  * usually is passed to kernel during execution phase in runtime params.
+ * @param first_arg_idx_offset - offset for indexation of binary postop arguments
+ * (used for fusions with dw convolutions)
  */
-std::vector<const void *> prepare_binary_args(
-        const post_ops_t &post_ops, const dnnl::impl::exec_ctx_t &ctx);
+std::vector<const void *> prepare_binary_args(const post_ops_t &post_ops,
+        const dnnl::impl::exec_ctx_t &ctx,
+        const unsigned first_arg_idx_offset = 0);
 bool binary_args_matches_tag(format_tag_t tag, const post_ops_t &post_ops);
 
 enum class broadcasting_strategy_t {

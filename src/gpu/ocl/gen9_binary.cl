@@ -355,14 +355,12 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     const int po_mb = dims0[0];
     const int po_oc = dims0[1] + get_sub_group_local_id();
 #if NVECT == 1
-    APPLY_POST_OPS(d, float, dst_data, float, po_mb, 1, po_oc, 1, 0, 1, 0, 1, 0,
-            1, 0, 1);
+    APPLY_POST_OPS_SERIAL(d, float, dst_data, float, po_mb, 1, po_oc, 1);
 #else
     for (int vidx = 0; vidx < NVECT; ++vidx) {
         float d_i = d[vidx];
         float dst_i = dst_data[vidx];
-        APPLY_POST_OPS(d_i, float, dst_i, float, po_mb, 1, po_oc, 1, 0, 1, 0, 1,
-                0, 1, 0, 1);
+        APPLY_POST_OPS_SERIAL(d_i, float, dst_i, float, po_mb, 1, po_oc, 1);
         d[vidx] = d_i;
     }
 #endif
@@ -486,8 +484,8 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #if WITH_SUM
     READ_DATA(NVECT, DST, (&dst[0]), (&dst_data[0]), 1);
 #endif
-    APPLY_POST_OPS(tmp, float, dst_data, float, dims0[0], 1, dims0[1], 1,
-            dims0[2], 1, dims0[3], 1, dims0[4], 1, dims0[5], 1);
+    APPLY_POST_OPS_SERIAL(
+            tmp, float, dst_data, float, dims0[0], 1, dims0[1], 1);
 
 #define WRITE_DATA(size, name, source_ptr, dest_ptr) \
     { \

@@ -22,18 +22,18 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
-    const auto &a = GEMM_CTX_ARG_STORAGE(a);
-    const auto &b = GEMM_CTX_ARG_STORAGE(b);
+    const auto &a = GEMM_CTX_ARG_STORAGE(b);
+    const auto &b = GEMM_CTX_ARG_STORAGE(a);
     const auto &bias = GEMM_CTX_ARG_STORAGE(bias);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
 
     const auto exec_d = ctx.desc() ? ctx.desc() : pd()->desc();
 
-    dim_t off_a0 = a.offset() / types::data_type_size(exec_d->a_type);
-    dim_t off_b0 = b.offset() / types::data_type_size(exec_d->b_type);
-    dim_t off_c0 = c.offset() / types::data_type_size(exec_d->c_type);
+    dim_t off_a0 = a.offset() / types::data_type_size(exec_d->a_type());
+    dim_t off_b0 = b.offset() / types::data_type_size(exec_d->b_type());
+    dim_t off_c0 = c.offset() / types::data_type_size(exec_d->c_type());
     dim_t off_bias0 = pd()->with_bias()
-            ? bias.offset() / types::data_type_size(exec_d->bias_type)
+            ? bias.offset() / types::data_type_size(exec_d->bias_type())
             : 0;
 
     const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
@@ -54,26 +54,26 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     int c0_mask = 0;
     pd()->attr()->zero_points_.get(DNNL_ARG_C, nullptr, &c0_mask, nullptr);
 
-    const dim_t MB = exec_d->batch;
-    const dim_t M = exec_d->m;
-    const dim_t N = exec_d->n;
-    const dim_t K = exec_d->k;
-    const dim_t stride_a = exec_d->stride_a;
-    const dim_t stride_b = exec_d->stride_b;
-    const dim_t stride_c = exec_d->stride_c;
-    const dim_t lda = exec_d->lda;
-    const dim_t ldb = exec_d->ldb;
-    const dim_t ldc = exec_d->ldc;
+    const dim_t MB = exec_d->batch();
+    const dim_t M = exec_d->m();
+    const dim_t N = exec_d->n();
+    const dim_t K = exec_d->k();
+    const dim_t stride_a = exec_d->stride_a();
+    const dim_t stride_b = exec_d->stride_b();
+    const dim_t stride_c = exec_d->stride_c();
+    const dim_t lda = exec_d->lda();
+    const dim_t ldb = exec_d->ldb();
+    const dim_t ldc = exec_d->ldc();
 
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
     const float eltwise_alpha = pd()->attr_info.eltwise_alpha;
     const float eltwise_beta = pd()->attr_info.eltwise_beta;
     const float eltwise_scale = pd()->attr_info.eltwise_scale;
-    const int bias_mask = exec_d->bias_mask;
+    const int bias_mask = exec_d->bias_mask();
     const float beta = pd()->attr_info.sum_scale;
 
-    const int tra = exec_d->transa == transpose::trans;
-    const int trb = exec_d->transb == transpose::trans;
+    const int tra = exec_d->transa() == transpose::trans;
+    const int trb = exec_d->transb() == transpose::trans;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, a);
