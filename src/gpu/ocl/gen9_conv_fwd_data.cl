@@ -641,6 +641,7 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         const __global DATA_T *bia, __global DATA_T *dst POST_OP_ARGS) {
 
     int local_id = get_local_id(0);
+    int sglid = get_sub_group_local_id();
     int g_ocb = get_group_id(0);
     int g = g_ocb / (OCB / OC_BLOCK);
     int ocb = g_ocb % (OCB / OC_BLOCK) * OC_BLOCK;
@@ -702,16 +703,34 @@ gen9_conv_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
     if (WITH_SUM) { read_dst_block(S, dst, ow); }
 
-    for (int didx = 0; didx < MB_BLOCK * OC_OUTER * OW_BLOCK; ++didx) {
-        float accum = CONVERT_FLOAT_T(C[didx]);
-        float sum = CONVERT_FLOAT_T(S[didx]);
-        const int po_mb = (mb + didx / (OC_OUTER * OW_BLOCK)) % MB;
-        const int po_oc = (g * OC + oc + local_id
-                                  + (((didx / OW_BLOCK) % OC_OUTER) * 16))
-                % (OC * G);
-        APPLY_POST_OPS(accum, float, sum, float, po_mb, 1, po_oc, 1, od, 1, oh,
-                1, ow, 1, 0, 1);
-        C[didx] = TO_DATA_T(accum);
+    if (OW_BLOCK == 1) {
+        const int po_mb = mb;
+        const int po_oc = (g * OC + oc) % (OC * G);
+        APPLY_POST_OPS_TRY_BURST(C, DATA_T, S, DATA_T, po_mb, MB_BLOCK, po_oc,
+                OC_OUTER * SUB_GROUP_SIZE, sglid);
+    } else {
+        unroll_for(int mb_idx = 0; mb_idx < MB_BLOCK; ++mb_idx) {
+            unroll_for(int oc_idx = 0; oc_idx < OC_OUTER; ++oc_idx) {
+                const int po_mb = (mb + mb_idx) % MB;
+                const int po_oc = (g * OC + oc + (oc_idx * 16)) % (OC * G);
+                float acc_ow[OW_BLOCK];
+                float sum_ow[OW_BLOCK];
+                unroll_for(int ow_idx = 0; ow_idx < OW_BLOCK; ++ow_idx) {
+                    acc_ow[ow_idx]
+                            = CONVERT_FLOAT_T(C[mb_idx * OC_OUTER * OW_BLOCK
+                                    + oc_idx * OW_BLOCK + ow_idx]);
+                    sum_ow[ow_idx]
+                            = CONVERT_FLOAT_T(S[mb_idx * OC_OUTER * OW_BLOCK
+                                    + oc_idx * OW_BLOCK + ow_idx]);
+                }
+                APPLY_POST_OPS_TRY_BURST(acc_ow, float, sum_ow, float, po_mb, 1,
+                        po_oc, SUB_GROUP_SIZE, sglid);
+                unroll_for(int ow_idx = 0; ow_idx < OW_BLOCK; ++ow_idx) {
+                    C[mb_idx * OC_OUTER * OW_BLOCK + oc_idx * OW_BLOCK + ow_idx]
+                            = acc_ow[ow_idx];
+                }
+            }
+        }
     }
 
     write_dst_block((DATA_T *)(&C), dst, ow);

@@ -644,41 +644,24 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
 
 #if WITH_POST_OP
 
+#define POST_OP_COMMON(accumulator, dest_data, dest_data_type, oc_block, i) \
+    const int po_mb = group_mb % MB; \
+    const int po_oc = (oc * OC_BLOCK) % (OC * G); \
+    APPLY_POST_OPS_TRY_BURST(accumulator, float, dest_data, dest_data_type, \
+            po_mb, 1, po_oc, oc_block *SUB_GROUP_SIZE, sub_local_id);
+
 #define DO_POST_OP(i) \
     { \
         SUM_DATA4_T d; \
         if (WITH_SUM) d = AS_SUM_DATA4_T(BLOCK_READ_DST4(dst)); \
-        for (int didx = 0; didx < 4; ++didx) { \
-            float tmp_i = tmp[didx]; \
-            SUM_DATA_T d_i = d[didx]; \
-            const int po_mb = group_mb % MB; \
-            const int po_oc \
-                    = (oc * OC_BLOCK + ((didx * SUB_GROUP_SIZE) % OC_BLOCK) \
-                              + sub_local_id) \
-                    % (OC * G); \
-            APPLY_POST_OPS(tmp_i, float, d_i, SUM_DATA_T, po_mb, 1, po_oc, 1, \
-                    0, 1, 0, 1, 0, 1, 0, 1); \
-            tmp[didx] = tmp_i; \
-        } \
+        POST_OP_COMMON(tmp, d, SUM_DATA_T, 4, i); \
     }
-
 #define DO_POST_OP_4(i) \
     { \
         SUM_DATA16_T d; \
         if (WITH_SUM) d = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst)); \
         float16 tmp_x16 = (float16)(tmp0, tmp1); \
-        for (int didx = 0; didx < 16; ++didx) { \
-            float tmp_i = tmp_x16[didx]; \
-            SUM_DATA_T d_i = d[didx]; \
-            const int po_mb = group_mb % MB; \
-            const int po_oc \
-                    = (oc * OC_BLOCK + ((didx * SUB_GROUP_SIZE) % OC_BLOCK) \
-                              + sub_local_id) \
-                    % (OC * G); \
-            APPLY_POST_OPS(tmp_i, float, d_i, SUM_DATA_T, po_mb, 1, po_oc, 1, \
-                    0, 1, 0, 1, 0, 1, 0, 1); \
-            tmp_x16[didx] = tmp_i; \
-        } \
+        POST_OP_COMMON(tmp_x16, d, SUM_DATA_T, 4, i); \
         tmp0 = tmp_x16.s01234567; \
         tmp1 = tmp_x16.s89abcdef; \
     }

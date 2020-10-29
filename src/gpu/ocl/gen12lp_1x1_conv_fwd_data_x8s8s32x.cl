@@ -412,22 +412,16 @@ gen12lp_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
         for (int n_i = 0; n_i < n; n_i++) { \
             PACK(C0, C1, C2, C3, n_i); \
             QUANTIZE_ADD_BIAS(); \
-            for (int didx = 0; didx < 4; ++didx) { \
-                float tmp_i = tmp[didx]; \
-                float dni_i = convert_float(AS_SUM_DATA_T(D[n_i][didx])); \
-                int po_mb; \
-                if (MB_BLOCK == 32) \
-                    po_mb = (mb_group_id * MB_BLOCK / 2 + mb_stride * 8 + n_i) \
-                            % MB; \
-                else \
-                    po_mb = mb_group_id % MB; \
-                const int po_oc = (oc_group_id * OC_BLOCK + sg_local_id \
-                                          + didx * SUB_GROUP_SIZE) \
-                        % (OC * G); \
-                APPLY_POST_OPS(tmp_i, float, dni_i, float, po_mb, 1, po_oc, 1, \
-                        0, 1, 0, 1, 0, 1, 0, 1); \
-                tmp[didx] = tmp_i; \
-            } \
+            int po_mb; \
+            if (MB_BLOCK == 32) \
+                po_mb = (mb_group_id * MB_BLOCK / 2 + mb_stride * 8 + n_i) \
+                        % MB; \
+            else \
+                po_mb = mb_group_id % MB; \
+            const int po_oc = (oc_group_id * OC_BLOCK) % (OC * G); \
+            float4 dni = convert_float4(AS_SUM_DATA4_T(D[n_i])); \
+            APPLY_POST_OPS_TRY_BURST(tmp, float, dni, float, po_mb, 1, po_oc, \
+                    4 * SUB_GROUP_SIZE, sg_local_id); \
             ADD_DST_COMPENSATION(); \
             ZERO_PAD_DST(); \
             CONVERT_PACK(n_i); \

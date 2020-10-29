@@ -130,8 +130,8 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 #if WITH_SUM
                 sum_src = DATA_TO_REF(dst[dst_off]);
 #endif
-                APPLY_POST_OPS(tmp, POST_OP_DATA_T, sum_src, POST_OP_DATA_T, mb,
-                        1, oc, 1, od, 1, oh, 1, ow, 1, 0, 1);
+                APPLY_POST_OPS_SERIAL(tmp, POST_OP_DATA_T, sum_src,
+                        POST_OP_DATA_T, mb, 1, oc, 1);
 
                 // store result
                 dst[dst_off] = TO_DST(tmp);
