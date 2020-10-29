@@ -95,7 +95,7 @@ private:
             if (ptr) clSVMFree(context_, ptr);
         }
     };
-    std::unique_ptr<void, svm_deleter> dbg_memory_ = nullptr;
+    std::unique_ptr<void, svm_deleter> dbg_memory_;
 #endif
 
 public:
