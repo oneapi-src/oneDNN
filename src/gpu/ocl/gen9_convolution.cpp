@@ -883,7 +883,7 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
             conf.mb_block = 1;
             conf.oc_block = 16;
             conf.ic_block = is_1stconv ? 1 : 16;
-            conf.ow_block = is_1stconv && !is_nhwc ? 16 : 8;
+            conf.ow_block = 8;
             break;
         case ver_16mb16c:
             conf.mb_block = 16;
@@ -906,7 +906,9 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
         conf.gws_d[0] = is_1stconv ? conf.ocb * conf.ngroups
                                    : conf.ocb * (conf.icb / 16) * conf.ngroups;
     }
-    conf.gws_d[1] = conf.kh * conf.kw * conf.kd;
+    conf.gws_d[1] = is_1stconv && !is_nhwc
+            ? utils::div_up(conf.kh * conf.kw * conf.kd * conf.ic, 16)
+            : conf.kh * conf.kw * conf.kd;
     conf.gws_d[2] = conf.nchunk * utils::div_up(conf.ic, conf.icb)
             * utils::div_up(conf.oc, conf.ocb);
 
@@ -989,6 +991,53 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
     conf.is_src_nchw = utils::one_of(src_tag, ncw, nchw, ncdhw);
     conf.is_src_nhwc = utils::one_of(src_tag, nwc, nhwc, ndhwc);
 
+    bool ok = set_default_formats_common(
+            conf.src_tag, conf.wei_tag, conf.dst_tag);
+    if (!ok) return status::unimplemented;
+    if (is_1stconv && !is_nhwc) {
+        if (data_type::bf16 == conf.weights_data_type) {
+            conf.reorder_wei = true;
+            auto temp_wei_md = *diff_weights_md();
+            temp_wei_md.data_type = data_type::f32;
+            auto r_impls = engine->get_reorder_implementation_list(
+                    &temp_wei_md, diff_weights_md());
+            primitive_attr_t r_attr(default_attr());
+            if (!r_attr.is_initialized()) return status::out_of_memory;
+            r_attr.set_scratchpad_mode(scratchpad_mode::user);
+            for (auto r = r_impls; *r; ++r) {
+                reorder_pd_t *r_pd = nullptr;
+                if ((*r)(&r_pd, engine, &r_attr, engine, &temp_wei_md, engine,
+                            diff_weights_md())
+                        == status::success) {
+                    rpd_wei_.reset((primitive_desc_t *)r_pd);
+                    break;
+                }
+            }
+            if (!rpd_wei_) return status::unimplemented;
+        }
+
+        if (conf.with_bias && data_type::bf16 == conf.bias_data_type) {
+            conf.reorder_bias = true;
+            auto temp_bias_md = *diff_weights_md(1);
+            temp_bias_md.data_type = data_type::f32;
+            auto r_impls = engine->get_reorder_implementation_list(
+                    &temp_bias_md, diff_weights_md(1));
+            primitive_attr_t r_attr(default_attr());
+            if (!r_attr.is_initialized()) return status::out_of_memory;
+            r_attr.set_scratchpad_mode(scratchpad_mode::user);
+            for (auto r = r_impls; *r; ++r) {
+                reorder_pd_t *r_pd = nullptr;
+                if ((*r)(&r_pd, engine, &r_attr, engine, &temp_bias_md, engine,
+                            diff_weights_md(1))
+                        == status::success) {
+                    rpd_bia_.reset((primitive_desc_t *)r_pd);
+                    break;
+                }
+            }
+            if (!rpd_bia_) return status::unimplemented;
+        }
+    }
+
     return status::success;
 }
 
@@ -1050,12 +1099,46 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_kernel_ctx(
 
     kernel_ctx.add_option("-cl-std=CL2.0");
 
+    kernel_ctx.set_data_type(data_type::f32);
+    def_data_type(kernel_ctx, src_md()->data_type, "SRC");
+
+    def_data_type(kernel_ctx, diff_dst_md()->data_type, "DST");
+
+    def_data_type(kernel_ctx,
+            diff_weights_md(conf.with_bias ? 1 : 0)->data_type, "BIA");
+
+    def_data_type(kernel_ctx, data_type::f32, "WEI");
+
     switch (conf.ver) {
         case ver_16mb16c: kernel_ctx.define_int("VER_16MB16C", 1); break;
         case ver_1stconv:
         case ver_8ow16c: kernel_ctx.define_int("VER_8OW16C", 1); break;
         default: break;
     }
+
+    return status::success;
+}
+
+status_t gen9_convolution_bwd_weights_t::pd_t::init_scratchpad() {
+    auto scratchpad = scratchpad_registry().registrar();
+    if (!conf.reorder_wei && !conf.reorder_bias) return status::success;
+    if (conf.reorder_wei) {
+        auto temp_wei_md = *diff_weights_md();
+        temp_wei_md.data_type = data_type::f32;
+        memory_desc_wrapper wei_md_d(temp_wei_md);
+        scratchpad.book(memory_tracking::names::key_conv_bwd_w_1st_wei_reorder,
+                wei_md_d.size(), 1, OCL_BUFFER_ALIGNMENT);
+        scratchpad.book(memory_tracking::names::key_nested_multiple,
+                rpd_wei_->scratchpad_registry());
+    }
+    if (!conf.reorder_bias) return status::success;
+    auto temp_bias_md = *diff_weights_md(1);
+    temp_bias_md.data_type = data_type::f32;
+    memory_desc_wrapper bia_md_d(temp_bias_md);
+    scratchpad.book(memory_tracking::names::key_conv_bwd_w_1st_bia_reorder,
+            bia_md_d.size(), 1, OCL_BUFFER_ALIGNMENT);
+    scratchpad.book(memory_tracking::names::key_nested_multiple + 1,
+            rpd_bia_->scratchpad_registry());
 
     return status::success;
 }
@@ -1100,22 +1183,76 @@ status_t gen9_convolution_bwd_weights_t::execute_backward_weights(
     const auto &conf = pd()->conf;
 
     const uint8_t zero = 0;
-    memory_desc_wrapper wei_mdw(pd()->diff_weights_md());
-    CHECK(compute_stream->fill(diff_weights, zero, wei_mdw.size()));
+    std::unique_ptr<memory_t> wspace_wei;
+    std::unique_ptr<memory_t> wspace_bia;
+    auto temp_wei_md = *pd()->diff_weights_md();
+    auto temp_bia_md = *pd()->diff_weights_md(1);
+    std::unique_ptr<memory_storage_t> wspace_ptr_wei;
+    std::unique_ptr<memory_storage_t> wspace_ptr_bia;
+    if (conf.reorder_wei) {
+        wspace_ptr_wei = ctx.get_scratchpad_grantor().get_memory_storage(
+                memory_tracking::names::key_conv_bwd_w_1st_wei_reorder);
+
+        temp_wei_md.data_type = data_type::f32;
+    }
+    if (conf.reorder_bias) {
+        wspace_ptr_bia = ctx.get_scratchpad_grantor().get_memory_storage(
+                memory_tracking::names::key_conv_bwd_w_1st_bia_reorder);
+
+        temp_bia_md.data_type = data_type::f32;
+    }
+
+    memory_desc_wrapper wei_mdw(temp_wei_md);
+    CHECK(compute_stream->fill(
+            conf.reorder_wei ? *wspace_ptr_wei : diff_weights, zero,
+            wei_mdw.size()));
     if (conf.with_bias) {
-        memory_desc_wrapper bia_mdw(pd()->diff_weights_md(1));
-        CHECK(compute_stream->fill(diff_bias, zero, bia_mdw.size()));
+        memory_desc_wrapper bia_mdw(temp_bia_md);
+        CHECK(compute_stream->fill(
+                conf.reorder_bias ? *wspace_ptr_bia : diff_bias, zero,
+                bia_mdw.size()));
     }
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
-    arg_list.set(1, diff_weights);
-    arg_list.set(2, diff_bias);
+    arg_list.set(1, conf.reorder_wei ? *wspace_ptr_wei : diff_weights);
+    arg_list.set(2, conf.reorder_bias ? *wspace_ptr_bia : diff_bias);
     arg_list.set(3, diff_dst);
 
     status_t status = parallel_for(ctx,
             compute::nd_range_t(conf.gws_d, conf.lws_d), kernel_, arg_list);
     if (status != status::success) return status;
+    auto exec_reorder = [&](memory_t *in, memory_t *out,
+                                const std::shared_ptr<primitive_t> &prim,
+                                int r_num) -> status_t {
+        exec_args_t r_args;
+        r_args[DNNL_ARG_FROM] = memory_arg_t {in, true};
+        r_args[DNNL_ARG_TO] = memory_arg_t {out, false};
+        exec_ctx_t r_ctx(ctx, std::move(r_args));
+        nested_scratchpad_t ns(
+                ctx, memory_tracking::names::key_nested_multiple + r_num, prim);
+        r_ctx.set_scratchpad_grantor(ns.grantor());
+        return prim->execute(r_ctx);
+    };
+
+    if (conf.reorder_wei) {
+
+        CHECK(safe_ptr_assign(wspace_wei,
+                new memory_t(ctx.stream()->engine(), &temp_wei_md,
+                        memory_flags_t::use_runtime_ptr,
+                        wspace_ptr_wei->data_handle())));
+        CHECK(exec_reorder(wspace_wei.get(), ctx.output(DNNL_ARG_DIFF_WEIGHTS),
+                wei_reorder_, 0));
+    }
+    if (conf.reorder_bias) {
+
+        CHECK(safe_ptr_assign(wspace_bia,
+                new memory_t(ctx.stream()->engine(), &temp_bia_md,
+                        memory_flags_t::use_runtime_ptr,
+                        wspace_ptr_bia->data_handle())));
+        CHECK(exec_reorder(wspace_bia.get(), ctx.output(DNNL_ARG_DIFF_BIAS),
+                bia_reorder_, 1));
+    }
 
     return status::success;
 }

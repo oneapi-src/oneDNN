@@ -182,6 +182,8 @@ enum {
     key_conv_cudnn_filter,
     key_conv_cudnn_temp,
     key_conv_dst_bf16_convert_wsp,
+    key_conv_bwd_w_1st_bia_reorder,
+    key_conv_bwd_w_1st_wei_reorder,
     key_conv_gemm_acc,
     key_conv_gemm_col,
     key_conv_gemm_imtr,

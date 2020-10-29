@@ -219,6 +219,12 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : gpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
 
+        pd_t(const pd_t &rhs)
+            : gpu_convolution_bwd_weights_pd_t(rhs), conf(rhs.conf) {
+            if (rhs.rpd_wei_) rpd_wei_.reset(rhs.rpd_wei_->clone());
+            if (rhs.rpd_bia_) rpd_bia_.reset(rhs.rpd_bia_->clone());
+        }
+
         DECLARE_COMMON_PD_T("ocl:ncsp:any", gen9_convolution_bwd_weights_t);
 
         status_t init(engine_t *engine) {
@@ -231,7 +237,12 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && this->desc()->prop_kind == backward_weights
                     && this->desc()->alg_kind == alg_kind::convolution_direct
-                    && expect_data_types(f32, f32, f32, f32, f32)
+                    && utils::one_of(this->desc()->diff_weights_desc.data_type,
+                            f32, bf16)
+                    && utils::one_of(
+                            this->desc()->src_desc.data_type, f32, bf16)
+                    && utils::one_of(
+                            this->desc()->diff_dst_desc.data_type, f32, bf16)
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && compute_engine->mayiuse(
@@ -241,17 +252,26 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
 
             status_t status = init_conf(engine);
             if (status != status::success) return status;
+            if (!IMPLICATION(utils::one_of(bf16,
+                                     this->desc()->diff_weights_desc.data_type,
+                                     this->desc()->src_desc.data_type,
+                                     this->desc()->diff_dst_desc.data_type),
+                        conf.ver == ver_1stconv))
+                return status::unimplemented;
 
-            ok = set_default_formats_common(
-                    conf.src_tag, conf.wei_tag, conf.dst_tag);
-
-            return ok ? status::success : status::unimplemented;
+            init_scratchpad();
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
+        std::unique_ptr<primitive_desc_t> rpd_wei_;
+        std::unique_ptr<primitive_desc_t> rpd_bia_;
+
+    private:
+        status_t init_scratchpad();
     };
 
     gen9_convolution_bwd_weights_t(const pd_t *apd) : gpu_primitive_t(apd) {}
@@ -263,7 +283,12 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
         } else {
             kernel_name = "gen9_conv_bwd_weights";
         }
-
+        if (pd()->conf.reorder_wei) {
+            CHECK(pd()->rpd_wei_->create_primitive(wei_reorder_, engine));
+        }
+        if (pd()->conf.reorder_bias) {
+            CHECK(pd()->rpd_bia_->create_primitive(bia_reorder_, engine));
+        }
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
@@ -271,6 +296,16 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
         create_kernel(engine, &kernel_, kernel_name, kernel_ctx);
         if (!kernel_) return status::runtime_error;
         return status::success;
+    }
+
+    primitive_list_t nested_primitives() const override {
+        primitive_list_t prim_list;
+        if (pd()->conf.reorder_wei)
+            prim_list.emplace(prim_list.begin(), wei_reorder_.get());
+        if (pd()->conf.reorder_bias)
+            prim_list.emplace(prim_list.begin(), bia_reorder_.get());
+
+        return prim_list;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
@@ -281,6 +316,8 @@ private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
+    std::shared_ptr<primitive_t> wei_reorder_;
+    std::shared_ptr<primitive_t> bia_reorder_;
 };
 
 } // namespace ocl
