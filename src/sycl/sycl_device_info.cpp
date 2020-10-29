@@ -46,13 +46,11 @@ status_t sycl_device_info_t::init_arch() {
         cl_int err = CL_SUCCESS;
 
         cl_device_id device = device_.get();
-        cl_context context
-                = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
+        auto context = gpu::ocl::make_ocl_wrapper(
+                clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err));
         OCL_CHECK(err);
 
         gpu_arch_ = gpu::ocl::detect_gpu_arch(device, context);
-        err = clReleaseContext(context);
-        OCL_CHECK(err);
     } else if (be == backend_t::level0) {
         // TODO: add support for L0 binary ngen check
         // XXX: query from ocl_engine for now
