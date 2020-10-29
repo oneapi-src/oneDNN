@@ -10,7 +10,7 @@
               per_dim_0:2*, \
               per_dim_1:0.5*, \
               per_dim_01:0.25*
---attr-zero-points=,src:common:1_dst:common:-2,src:common:1*_dst:common:-2*
+--attr-zero-points=,src:common:-1_dst:common:2,src:common:-1*_dst:common:2*
 --attr-post-ops='','sum:0.5'
 --runtime-dim-mask=0,63
 --stag=abx
