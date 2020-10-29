@@ -46,15 +46,14 @@
 --cfg=u8s8s32
 --stag=any,axb
 --dtag=any,axb
---attr-post-ops='','sum:0.5','linear:2:1','add:f32',\
-                'mul:s8:per_oc;sum:0.25;relu:0.5:0:0.75'
+--attr-post-ops='','sum:0.5','linear:2:1','add:f32','sum:0.5;add:f32:per_oc'
 --batch=shapes_basic
 ### Signed input
 --cfg=s8s8s8
 --stag=any
 --dtag=any
---attr-post-ops=''
 --batch=shapes_basic
+--attr-post-ops=''
 ## Wino
 --alg=wino
 --cfg=u8s8s32_wino
