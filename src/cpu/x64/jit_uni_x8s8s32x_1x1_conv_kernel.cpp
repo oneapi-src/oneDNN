@@ -137,11 +137,19 @@ template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
         const int load_loop_blk, const bool mask_flag_in,
         const float *p_sum_scale) {
-    if (jcp.with_eltwise || jcp.with_binary) {
-        const float sum_scale = p_sum_scale ? *p_sum_scale : 0;
-        const auto sum_injector = [=]() {
-            for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
+    if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
+        const auto iterate =
+                [=](const std::function<void(const int i_ur, const int i_load)>
+                                &f) {
+                    for (int i_ur = 0; i_ur < ur; ++i_ur)
+                        for (int i_load = 0; i_load < load_loop_blk; ++i_load)
+                            f(i_ur, i_load);
+                };
+
+        if (jcp.with_sum) {
+            const float sum_scale = p_sum_scale ? *p_sum_scale : 0;
+            const auto sum_injector = [=]() {
+                iterate([&](const int i_ur, const int i_load) {
                     const bool mask_flag
                             = mask_flag_in && i_load == load_loop_blk - 1;
                     const auto ymm_prev_dst = vmm_zero;
@@ -157,20 +165,11 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_postops(const int ur,
                         vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
                         vfmadd231ps(r, ymm_prev_dst, vmm_tmp);
                     }
-                }
-            }
-        };
-        if (jcp.with_sum)
+                });
+            };
             postops_injector_->set_lambda_injector(
                     primitive_kind::sum, sum_injector);
-
-        const auto iterate =
-                [=](const std::function<void(const int i_ur, const int i_load)>
-                                &f) {
-                    for (int i_ur = 0; i_ur < ur; ++i_ur)
-                        for (int i_load = 0; i_load < load_loop_blk; ++i_load)
-                            f(i_ur, i_load);
-                };
+        }
 
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         vmm_index_set_t vmm_idxs;

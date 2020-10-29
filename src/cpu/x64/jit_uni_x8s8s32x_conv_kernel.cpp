@@ -106,39 +106,45 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(
         const int nb_oc_block, const int ur_w, const bool last_oc_block_flag,
         const int oc_block, const float *p_sum_scale) {
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
-        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
-        const float sum_scale = p_sum_scale ? *p_sum_scale : 0;
-        const auto sum_injector = [=]() {
-            for (int k = 0; k < nb_oc_block; ++k) {
-                const bool mask_flag
-                        = last_oc_block_flag && k == nb_oc_block - 1;
-                for (int j = 0; j < ur_w; ++j) {
-                    const int aux_output_offset = jcp.typesize_out
-                            * (k * oc_block
-                                    + j * jcp.oc_without_padding * jcp.ngroups);
-                    cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
-                            mask_flag ? get_tail_size() : get_blocking_size());
-                    const Vmm vmm = vmm_out(j, k);
-                    if (sum_scale == 1.f)
-                        uni_vaddps(vmm, vmm_prev_dst);
-                    else {
-                        uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
-                        uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
+        if (jcp.with_sum) {
+            const float sum_scale = p_sum_scale ? *p_sum_scale : 0;
+            const auto sum_injector = [=]() {
+                for (int k = 0; k < nb_oc_block; ++k) {
+                    const bool mask_flag
+                            = last_oc_block_flag && k == nb_oc_block - 1;
+                    for (int j = 0; j < ur_w; ++j) {
+                        const int aux_output_offset = jcp.typesize_out
+                                * (k * oc_block
+                                        + j * jcp.oc_without_padding
+                                                * jcp.ngroups);
+                        cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out,
+                                aux_output_offset,
+                                mask_flag ? get_tail_size()
+                                          : get_blocking_size());
+                        const Vmm vmm = vmm_out(j, k);
+                        if (sum_scale == 1.f)
+                            uni_vaddps(vmm, vmm_prev_dst);
+                        else {
+                            uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
+                            uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
+                        }
                     }
                 }
-            }
-        };
-        if (jcp.with_sum)
+            };
+            if (*p_sum_scale != 1.f)
+                mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
             postops_injector_->set_lambda_injector(
                     primitive_kind::sum, sum_injector);
+        }
 
-        vmm_index_set_t vmm_idxs;
         const auto iterate
                 = [=](const std::function<void(const int k, const int j)> &f) {
                       for (int k = 0; k < nb_oc_block; k++)
                           for (int j = 0; j < ur_w; j++)
                               f(k, j);
                   };
+        vmm_index_set_t vmm_idxs;
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         if (jcp.with_binary) {
             constexpr static auto vmm_len
                     = cpu_isa_traits<isa>::vlen / sizeof(float);
@@ -1281,21 +1287,19 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
 
     const auto &post_ops = attr.post_ops_;
 
-    using namespace injector;
-    const bool post_ops_ok_
-            = post_ops_ok<isa>({eltwise, binary}, post_ops, dst_d);
-    if (!post_ops_ok_) return status::unimplemented;
-
     const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
-
     const int binary_ind = post_ops.find(primitive_kind::binary);
     jcp.with_binary = binary_ind != -1;
-
     const int sum_ind = post_ops.find(primitive_kind::sum);
     jcp.with_sum = sum_ind != -1;
 
     jcp.post_ops = post_ops;
+
+    using namespace injector;
+    const bool post_ops_ok_
+            = post_ops_ok<isa>({eltwise, binary}, jcp.post_ops, dst_d);
+    if (!post_ops_ok_) return status::unimplemented;
 
     jcp.is_resrc_depthwise = true && jcp.is_depthwise && jcp.stride_w < jcp.kw
             && jcp.kw < 4 && jcp.dilate_w == 0;

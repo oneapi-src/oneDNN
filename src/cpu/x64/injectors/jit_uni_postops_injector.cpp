@@ -152,8 +152,7 @@ bool post_ops_ok(std::initializer_list<post_op_type> accepted_post_op_types,
     for (int i = 0; i < post_ops.len(); i++) {
         const auto &entry = post_ops.entry_[i];
         if (post_ops.contain(primitive_kind::sum, i)) {
-            if (sum_first_only && (i > 0 || entry.sum.scale != 1.0))
-                return false;
+            if (sum_first_only && i > 0) return false;
         } else if (!is_accepted_postop(i)
                 || (!utils::one_of(isa, avx512_core_bf16, avx512_core)
                         && entry.is_binary()
