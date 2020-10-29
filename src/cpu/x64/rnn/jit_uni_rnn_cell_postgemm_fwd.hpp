@@ -76,7 +76,7 @@ protected:
 
         // Here we do no unrolling, loop overhead should not be that dramatic
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        Vmm G(1), tmp1_vmm(5), tmp2_vmm(6), zero_vmm(7);
+        Vmm G(1), tmp1_vmm(5), tmp2_vmm(6);
 
         auto is_training
                 = pd_->desc()->prop_kind == prop_kind::forward_training;

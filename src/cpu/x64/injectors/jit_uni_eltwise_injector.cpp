@@ -320,8 +320,6 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
         vmm_pol = vmm_aux2, vmm_indices = vmm_aux3, vmm_src_original = vmm_aux4,
         vmm_sign = vmm_aux4;
     Reg64 gpr_idx[XMM_float_lanes_count];
-    // tmp_reg to save the state of regs64 (for avx only).
-    Reg64 tmp_reg;
 
     if (isa == sse41 || isa == avx) {
         assert(aux_gprs_count() >= XMM_float_lanes_count);

@@ -84,7 +84,7 @@ protected:
         // Register map
         Reg64 loop_cnt(rbx); // loop counter
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        Vmm G0(1), G1(2), G2(3), G3(4), tmp1_vmm(5), tmp2_vmm(6), zero_vmm(7);
+        Vmm G0(1), G1(2), G2(3), G3(4), tmp1_vmm(5), tmp2_vmm(6);
 
         // We start code generations here
         preamble();
