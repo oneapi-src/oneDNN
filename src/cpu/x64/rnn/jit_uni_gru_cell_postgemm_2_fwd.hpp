@@ -56,15 +56,15 @@ protected:
 
     // register size in bytes
     using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
-    size_t vlen = cpu_isa_traits<isa>::vlen;
-    size_t vlen_dst
+    const size_t vlen = cpu_isa_traits<isa>::vlen;
+    const size_t vlen_dst
             = vlen / (sizeof(float) / types::data_type_size(src_data_t));
-    size_t hstate_dt_size = types::data_type_size(src_data_t);
-    size_t gate_dt_size = types::data_type_size(src_data_t);
-    size_t scratch_dt_size = types::data_type_size(scratch_data_t);
-    size_t bias_dt_size = sizeof(float);
-    size_t qscale_dt_size = sizeof(float);
-    size_t vlen_qscale = vlen / qscale_dt_size;
+    const size_t hstate_dt_size = types::data_type_size(src_data_t);
+    const size_t gate_dt_size = types::data_type_size(src_data_t);
+    const size_t scratch_dt_size = types::data_type_size(scratch_data_t);
+    const size_t bias_dt_size = sizeof(float);
+    const size_t qscale_dt_size = sizeof(float);
+    const size_t vlen_qscale = vlen / qscale_dt_size;
 
     const int loop_ur_max = 4;
     // We skip vmm0 as it can be used by the injector for masks on sse4.1
@@ -78,8 +78,8 @@ protected:
         assert(idx < 2 * loop_ur_max + 1);
         return Vmm(idx); // max of vmm8
     }
-    Vmm tmp1_vmm = Vmm(9);
-    Vmm tmp2_vmm = Vmm(10);
+    const Vmm tmp1_vmm = Vmm(9);
+    const Vmm tmp2_vmm = Vmm(10);
 
     void generate() override {
         using namespace Xbyak;
