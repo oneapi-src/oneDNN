@@ -588,7 +588,8 @@ struct dnnl_gemm<float, float, float> {
         auto B = map_memory<float>(b_mem);
         auto C = map_memory<float>(c_mem);
 
-        throw error(dnnl_runtime_error, "unknown gemm");
+        return dnnl_sgemm(p.transA, p.transB, p.M, p.N, p.K, p.alpha, A, p.lda,
+                B, p.ldb, p.beta, C, p.ldc);
     }
 };
 
