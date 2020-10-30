@@ -29,7 +29,7 @@
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "sycl/sycl_device_info.hpp"
-#include "sycl/sycl_ocl_gpu_kernel.hpp"
+#include "sycl/sycl_interop_gpu_kernel.hpp"
 #include "sycl/sycl_utils.hpp"
 
 #include <CL/sycl.hpp>
@@ -89,7 +89,7 @@ public:
         auto kernel_name = jitter.kernel_name();
 
         *kernel = gpu::compute::kernel_t(
-                new sycl_ocl_gpu_kernel_t(binary, kernel_name));
+                new sycl_interop_gpu_kernel_t(binary, kernel_name));
         return status::success;
     }
 
@@ -97,7 +97,7 @@ public:
             const std::vector<const char *> &kernel_names,
             const gpu::compute::kernel_ctx_t &kernel_ctx) const override {
         if (kind() != engine_kind::gpu) {
-            assert("not expected");
+            assert(!"not expected");
             return status::invalid_arguments;
         }
 
@@ -114,7 +114,7 @@ public:
             auto *k = utils::downcast<gpu::ocl::ocl_gpu_kernel_t *>(
                     ocl_kernels[i].impl());
             (*kernels)[i] = gpu::compute::kernel_t(
-                    new sycl_ocl_gpu_kernel_t(k->binary(), k->name()));
+                    new sycl_interop_gpu_kernel_t(k->binary(), k->name()));
         }
         return status::success;
     }
@@ -125,10 +125,18 @@ public:
     backend_t backend() const { return backend_; }
 
     cl_device_id ocl_device() const {
+        if (backend() != backend_t::opencl) {
+            assert(!"not expected");
+            return nullptr;
+        }
         assert(device_.is_cpu() || device_.is_gpu());
         return gpu::ocl::make_ocl_wrapper(device().get());
     }
     cl_context ocl_context() const {
+        if (backend() != backend_t::opencl) {
+            assert(!"not expected");
+            return nullptr;
+        }
         assert(device_.is_cpu() || device_.is_gpu());
         return gpu::ocl::make_ocl_wrapper(context().get());
     }

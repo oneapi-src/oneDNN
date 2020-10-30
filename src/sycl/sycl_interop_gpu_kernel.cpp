@@ -20,7 +20,7 @@
 #include "gpu/zero_pad_struct.h"
 #include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_c_types_map.hpp"
-#include "sycl/sycl_ocl_gpu_kernel.hpp"
+#include "sycl/sycl_interop_gpu_kernel.hpp"
 #include "sycl/sycl_stream.hpp"
 #include "sycl/sycl_utils.hpp"
 
@@ -52,109 +52,126 @@ static void set_scalar_arg(
     }
 }
 
-status_t sycl_ocl_gpu_kernel_t::realize(
+static status_t create_ocl_kernel(cl_kernel *ocl_kernel, cl_device_id dev,
+        cl_context ctx, const std::vector<unsigned char> &binary,
+        const std::string &kernel_name) {
+    cl_int err;
+    const unsigned char *binary_buffer = binary.data();
+    size_t binary_size = binary.size();
+    assert(binary_size > 0);
+
+    auto program = clCreateProgramWithBinary(
+            ctx, 1, &dev, &binary_size, &binary_buffer, nullptr, &err);
+    OCL_CHECK(err);
+    err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
+    if (err != CL_SUCCESS) {
+        OCL_CHECK(clReleaseProgram(program));
+        return gpu::ocl::convert_to_dnnl(err);
+    }
+
+    cl_kernel _ocl_kernel = clCreateKernel(program, kernel_name.c_str(), &err);
+    if (err != CL_SUCCESS) {
+        OCL_CHECK(clReleaseProgram(program));
+        return gpu::ocl::convert_to_dnnl(err);
+    }
+
+    *ocl_kernel = _ocl_kernel;
+
+    OCL_CHECK(clReleaseProgram(program));
+
+    return status::success;
+}
+
+static status_t get_kernel_arg_types(
+        std::vector<gpu::compute::scalar_type_t> &arg_types,
+        cl_kernel ocl_kernel) {
+    cl_uint nargs;
+    OCL_CHECK(clGetKernelInfo(
+            ocl_kernel, CL_KERNEL_NUM_ARGS, sizeof(nargs), &nargs, nullptr));
+
+    arg_types.resize(nargs);
+
+    for (int i = 0; i < nargs; i++) {
+        gpu::compute::scalar_type_t type;
+        CHECK(gpu::ocl::get_ocl_kernel_arg_type(
+                &type, ocl_kernel, i, /*allow_undef=*/true));
+        arg_types[i] = type;
+    }
+
+    return status::success;
+}
+
+status_t sycl_interop_gpu_kernel_t::realize(
         gpu::compute::kernel_t *kernel, engine_t *engine) const {
     assert(state_ == state_t::binary);
     if (binary_.empty()) return status::success;
-    auto *compute_engine = utils::downcast<sycl_gpu_engine_t *>(engine);
+    auto *sycl_engine = utils::downcast<sycl_gpu_engine_t *>(engine);
 
-    cl_device_id ocl_device;
-    cl_context ocl_context;
-    std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> ocl_engine;
+    std::unique_ptr<cl::sycl::kernel> sycl_kernel;
+    std::vector<gpu::compute::scalar_type_t> arg_types;
 
-    if (compute_engine->backend() == backend_t::opencl) {
-        ocl_device = compute_engine->ocl_device();
-        ocl_context = compute_engine->ocl_context();
-    } else if (compute_engine->backend() == backend_t::level0) {
+    if (sycl_engine->backend() == backend_t::opencl) {
+        cl_kernel ocl_kernel;
+        CHECK(create_ocl_kernel(&ocl_kernel, sycl_engine->ocl_device(),
+                sycl_engine->ocl_context(), binary_, binary_name_));
+        CHECK(get_kernel_arg_types(arg_types, ocl_kernel));
+
+        cl_program ocl_program;
+        OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_PROGRAM,
+                sizeof(ocl_program), &ocl_program, nullptr));
+
+        cl::sycl::program sycl_program(sycl_engine->context(), ocl_program);
+        OCL_CHECK(clReleaseKernel(ocl_kernel));
+
+        sycl_kernel.reset(
+                new cl::sycl::kernel(sycl_program.get_kernel(binary_name_)));
+    } else if (sycl_engine->backend() == backend_t::level0) {
+#ifdef DNNL_WITH_LEVEL_ZERO
         // FIXME: This does not work for multi-GPU systems. OpenCL engine
-        // should be created based on the Level0 device to ensure that the
-        // program is created for the same physical device that was used
-        // to create the binary. However, OpenCL does not provide any API to
-        // match its devices with Level0.
+        // should be created based on the L0 device to ensure that the program
+        // is created for the same physical device that was used to create the
+        // binary. However, OpenCL does not provide any API to match its
+        // devices with L0.
         //
         // Currently we always create an OpenCL engine for the 0th device at
         // binary creation time and here.
         gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
         engine_t *ocl_engine_ptr;
         CHECK(f.engine_create(&ocl_engine_ptr, 0));
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> ocl_engine;
         ocl_engine.reset(
                 utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(ocl_engine_ptr));
-        ocl_device = ocl_engine->device();
-        ocl_context = ocl_engine->context();
+
+        cl_kernel ocl_kernel;
+        CHECK(create_ocl_kernel(&ocl_kernel, ocl_engine->device(),
+                ocl_engine->context(), binary_, binary_name_));
+        CHECK(get_kernel_arg_types(arg_types, ocl_kernel));
+
+        CHECK(sycl_create_kernel_with_level_zero(
+                sycl_kernel, sycl_engine, binary_, binary_name_));
+#else
+        assert(!"not expected");
+        return status::invalid_arguments;
+#endif
     } else {
         assert(!"not expected");
         return status::invalid_arguments;
     }
 
-    cl_int err;
-    const unsigned char *binary_buffer = binary_.data();
-    size_t binary_size = binary_.size();
-    assert(binary_size > 0);
-
-    auto program = clCreateProgramWithBinary(ocl_context, 1, &ocl_device,
-            &binary_size, &binary_buffer, nullptr, &err);
-    OCL_CHECK(err);
-    err = clBuildProgram(program, 1, &ocl_device, nullptr, nullptr, nullptr);
-    OCL_CHECK(err);
-    cl_kernel ocl_kernel = clCreateKernel(program, name(), &err);
-    OCL_CHECK(err);
-    (*kernel) = gpu::compute::kernel_t(new sycl_ocl_gpu_kernel_t(ocl_kernel));
-    OCL_CHECK(clReleaseProgram(program));
+    (*kernel) = gpu::compute::kernel_t(
+            new sycl_interop_gpu_kernel_t(*sycl_kernel, arg_types));
 
     return status::success;
 }
 
-status_t sycl_create_kernel(std::unique_ptr<cl::sycl::kernel> &sycl_kernel,
-        const sycl_gpu_engine_t *sycl_engine, cl_kernel ocl_kernel,
-        void **handle_to_destroy) {
-    cl_program ocl_program;
-    OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_PROGRAM,
-            sizeof(ocl_program), &ocl_program, nullptr));
-
-    std::string kernel_name(128, '\0');
-    OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_FUNCTION_NAME,
-            kernel_name.size(), &kernel_name[0], nullptr));
-
-    if (sycl_engine->backend() == backend_t::opencl) {
-        cl::sycl::program sycl_program(sycl_engine->context(), ocl_program);
-        sycl_kernel.reset(
-                new cl::sycl::kernel(sycl_program.get_kernel(kernel_name)));
-        return status::success;
-    }
-
-#if defined(DNNL_SYCL_DPCPP) && defined(DNNL_WITH_LEVEL_ZERO)
-    if (sycl_engine->backend() != backend_t::level0)
-        return status::invalid_arguments;
-
-    size_t binary_size = 0;
-    OCL_CHECK(clGetProgramInfo(ocl_program, CL_PROGRAM_BINARY_SIZES,
-            sizeof(size_t), &binary_size, nullptr));
-
-    std::vector<unsigned char> binary(binary_size);
-    auto *binary_ptr = binary.data();
-    OCL_CHECK(clGetProgramInfo(ocl_program, CL_PROGRAM_BINARIES, binary_size,
-            &binary_ptr, nullptr));
-
-    return sycl_create_kernel_with_level_zero(
-            sycl_kernel, sycl_engine, binary, kernel_name, handle_to_destroy);
-#else
-    return status::invalid_arguments;
-#endif
-}
-
-status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
+status_t sycl_interop_gpu_kernel_t::parallel_for(stream_t &stream,
         const gpu::compute::nd_range_t &range,
         const gpu::compute::kernel_arg_list_t &arg_list) const {
+    assert(state_ == state_t::kernel);
+
     if (range.is_zero()) return status::success;
     auto *sycl_stream = utils::downcast<sycl::sycl_stream_t *>(&stream);
-    auto *sycl_engine
-            = utils::downcast<sycl::sycl_gpu_engine_t *>(sycl_stream->engine());
     auto &queue = sycl_stream->queue();
-
-    std::unique_ptr<cl::sycl::kernel> sycl_kernel;
-    void *handle_to_destroy = nullptr;
-    CHECK(sycl_create_kernel(
-            sycl_kernel, sycl_engine, ocl_kernel_, &handle_to_destroy));
 
     auto event = queue.submit([&](cl::sycl::handler &cgh) {
 #ifdef DNNL_SYCL_DPCPP
@@ -201,31 +218,25 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                         cl::sycl::range<1>(arg.size()), cgh);
                 cgh.set_arg((int)i, acc);
             } else {
-                gpu::compute::scalar_type_t real_arg_type;
-                gpu::ocl::get_ocl_kernel_arg_type(
-                        &real_arg_type, ocl_kernel_, i);
+                if (arg_types_[i] == gpu::compute::scalar_type_t::undef) {
+                    assert(!"not expected");
+                }
                 typename std::aligned_storage<sizeof(float),
                         sizeof(float)>::type tmp_storage;
                 void *cast_storage = &tmp_storage;
                 auto cvt_arg = gpu::compute::kernel_arg_t::cast(
-                        real_arg_type, arg, cast_storage);
+                        arg_types_[i], arg, cast_storage);
                 set_scalar_arg(cgh, (int)i, cvt_arg.size(), cvt_arg.value());
             }
         }
         if (range.local_range()) {
             auto sycl_nd_range = to_sycl_nd_range(range);
-            cgh.parallel_for(sycl_nd_range, *sycl_kernel);
+            cgh.parallel_for(sycl_nd_range, *sycl_kernel_);
         } else {
             auto sycl_range = to_sycl_range(range);
-            cgh.parallel_for(sycl_range, *sycl_kernel);
+            cgh.parallel_for(sycl_range, *sycl_kernel_);
         }
     });
-
-#if defined(DNNL_SYCL_DPCPP) && defined(DNNL_WITH_LEVEL_ZERO)
-    if (sycl_engine->backend() == backend_t::level0)
-        CHECK(sycl_destroy_kernel_with_level_zero(
-                sycl_kernel, handle_to_destroy));
-#endif
 
     sycl_stream->set_deps({event});
     return status::success;
