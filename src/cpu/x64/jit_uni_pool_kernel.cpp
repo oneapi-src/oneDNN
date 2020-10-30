@@ -20,6 +20,7 @@
 #include "common/utils.hpp"
 #include "cpu/cpu_pooling_pd.hpp"
 
+#include <iostream>
 #include "cpu/x64/jit_uni_pool_kernel.hpp"
 
 namespace dnnl {
@@ -433,7 +434,7 @@ bool jit_uni_pool_kernel<isa>::post_ops_ok(jit_pool_conf_t &jpp,
 
 template <cpu_isa_t isa>
 void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block,
-        const std::function<bool(int)> &is_tail_predicate) {
+        const std::function<bool(int, bool)> &is_tail_predicate) {
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
     const int end_idx = vmm_idx_upper_bound() + 1;
     const int start_idx = end_idx - (ur_bc * ur_w);
@@ -445,6 +446,7 @@ void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block,
         static constexpr int sse41_simd_w
                 = cpu_isa_traits<sse41>::vlen / sizeof(float);
         const int sse_elem_off = sse_high_half ? sse41_simd_w : 0;
+
         for (int jj = 0; jj < ur_w; jj++) {
             for (int bci = 0; bci < ur_bc; bci++) {
                 const auto vmm_idx
@@ -453,8 +455,11 @@ void jit_uni_pool_kernel<isa>::apply_postops(int ur_bc, int ur_w, int c_block,
                         vmm_idx, ptr[reg_param + GET_OFF(c_elem_off)]);
                 rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
                         vmm_idx, bci * c_block + sse_elem_off);
-                if (is_tail_predicate && is_tail_predicate(bci))
+                if (is_tail_predicate
+                        && is_tail_predicate(
+                                bci, true /*process_with_postops*/)) {
                     rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
+                }
             }
         }
     }
@@ -503,8 +508,9 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
             = (jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c : c_block;
     Label kd_label, kh_label;
 
-    const auto is_tail_processing = [&](int bc) {
-        if (isa == sse41 && !jpp.is_c_padded) {
+    const auto is_tail_processing = [&](int bc,
+                                            bool process_with_postops = false) {
+        if (isa == sse41 && (!jpp.is_c_padded || process_with_postops)) {
             return with_c_tail_proccessing && bc == (ur_bc - 1)
                     && ((jpp.c_tail > (jpp.c_block / 2) && sse_high_half)
                             || (jpp.c_tail < (jpp.c_block / 2)
@@ -649,8 +655,8 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
             = (jpp.tag_kind == jit_memory_tag_kind_t::nspc) ? jpp.c : c_block;
     Label kd_label, kh_label;
 
-    auto is_tail_processing = [&](int bc) {
-        if (isa == sse41 && !jpp.is_c_padded) {
+    auto is_tail_processing = [&](int bc, bool process_with_postops = false) {
+        if (isa == sse41 && (!jpp.is_c_padded || process_with_postops)) {
             return with_c_tail_proccessing && bc == (ur_bc - 1)
                     && ((jpp.c_tail > (jpp.c_block / 2) && sse_high_half)
                             || (jpp.c_tail < (jpp.c_block / 2)
