@@ -44,6 +44,7 @@
 #include "gpu/ocl/ref_lrn.hpp"
 #include "gpu/ocl/ref_matmul.hpp"
 #include "gpu/ocl/ref_pooling.hpp"
+#include "gpu/ocl/ref_prelu.hpp"
 #include "gpu/ocl/ref_reduction.hpp"
 #include "gpu/ocl/ref_resampling.hpp"
 #include "gpu/ocl/ref_shuffle.hpp"
@@ -95,6 +96,10 @@ const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::gen9_pooling_bwd_t),
         INSTANCE(ocl::ref_pooling_fwd_t),
         INSTANCE(ocl::ref_pooling_bwd_t),
+
+        // Prelu
+        INSTANCE(ocl::ref_prelu_fwd_t),
+        INSTANCE(ocl::ref_prelu_bwd_t),
 
         // LRN
         INSTANCE(ocl::ref_lrn_fwd_t),

@@ -335,6 +335,20 @@ struct pool_conf_t {
     memory_desc_info_t dst_md_info;
 };
 
+// Prelu
+struct prelu_conf_t {
+    bool is_forward;
+    bool reduce_diff_weights;
+    compute::dispatch_t dispatch;
+
+    attr_info_t attr_info;
+    memory_desc_info_t src_md_info;
+    memory_desc_info_t wei_md_info;
+    memory_desc_info_t dst_md_info;
+    memory_desc_info_t diff_src_md_info;
+    memory_desc_info_t diff_wei_md_info;
+};
+
 // Inner Product
 struct inner_product_conf_t {
     int ndims;

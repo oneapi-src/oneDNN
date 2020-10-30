@@ -518,6 +518,27 @@
 #endif
 #endif
 
+#ifdef DIFF_WEI_DATA_T
+#if DIFF_WEI_DT_BF16
+#define DIFF_WEI_TO_REF(x) cvt_bf16_to_f32(x)
+#define REF_TO_DIFF_WEI(x) cvt_f32_to_bf16(x)
+#else
+#define DIFF_WEI_TO_REF(x) (x)
+#define REF_TO_DIFF_WEI(x) (x)
+#endif
+#if DIFF_WEI_DT_BF16
+#define TO_DIFF_WEI(x) cvt_f32_to_bf16(x)
+#elif DIFF_WEI_DT_U8
+#define TO_DIFF_WEI(x) convert_uchar_sat_rte(x)
+#elif DIFF_WEI_DT_S8
+#define TO_DIFF_WEI(x) convert_char_sat_rte(x)
+#elif DIFF_WEI_DT_S32
+#define TO_DIFF_WEI(x) convert_int_sat_rte(x)
+#else
+#define TO_DIFF_WEI(x) (x)
+#endif
+#endif
+
 #ifdef B_DATA_T
 #if B_DT_BF16
 #define B_TO_REF(x) cvt_bf16_to_f32(x)
