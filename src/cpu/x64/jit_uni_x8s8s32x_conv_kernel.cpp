@@ -120,7 +120,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_sum(const int nb_oc_block,
                             mask_flag ? get_tail_size() : get_blocking_size());
                     const Vmm vmm = vmm_out(j, k);
                     if (sum_scale == 1.f)
-                        uni_vaddps(vmm, vmm_prev_dst);
+                        uni_vaddps(vmm, vmm, vmm_prev_dst);
                     else {
                         uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
                         uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
