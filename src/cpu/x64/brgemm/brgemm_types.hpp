@@ -95,6 +95,7 @@ struct brgemm_t {
     float sum_scale;
     bool with_eltwise;
     bool with_scales;
+    bool req_s8s8_compensation;
     int is_oc_scale;
 
     const primitive_attr_t *attr;

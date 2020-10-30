@@ -78,6 +78,7 @@ private:
     const reg64_t reg_stride_lda = reg_bdb_loop;
     const reg64_t reg_stride_ldb = reg_ldb_loop;
     const reg64_t reg_stride_ld_block = reg_ldb_loop;
+    const reg64_t reg_s8_input_shift = reg_bdb_loop;
 
     const reg64_t reg_BS_loop = rax;
     const reg64_t reg_rdb_loop = rbx;
@@ -101,6 +102,8 @@ private:
     const reg64_t reg_ptr_sum_scale = reg_rdb_loop;
 
     const reg64_t reg_buf = reg_rdb_loop;
+    const reg64_t reg_compensation = reg_bias;
+    const reg64_t reg_aux_compensation = reg_aux_bias;
 
     const reg64_t reg_D = reg_aux_A;
     const reg64_t reg_aux_D = reg_BS_loop;
@@ -117,6 +120,8 @@ private:
     constexpr static int reg_bdb_loop_offs_ = 72;
     constexpr static int reg_ldb_loop_offs_ = 80;
     constexpr static int reg_buf_offs_ = 88;
+    constexpr static int reg_comp_offs_ = reg_buf_offs_;
+    constexpr static int reg_aux_comp_offs_ = 96;
     constexpr static int stack_space_needed_ = 128;
 
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
@@ -142,6 +147,7 @@ private:
     Xbyak::Zmm zmm_tmp_1() { return Xbyak::Zmm(0); }
     Xbyak::Zmm zmm_tmp_2() { return Xbyak::Zmm(1); }
     Xbyak::Zmm zmm_tmp_3() { return Xbyak::Zmm(2); }
+    Xbyak::Zmm zmm_inp_shift() { return Xbyak::Zmm(1); }
 
     Xbyak::Zmm zmm_mask(const Xbyak::Zmm zmm_in, bool mask_flag, bool store,
             Xbyak::Opmask ktail_mask);
@@ -198,6 +204,7 @@ private:
     int bdb_D_offset(int bd_block2);
 
     int bias_offset(int ld, bool is_tail = false);
+    int compensations_offset(int ld, bool is_tail = false);
     int scales_offset(int ld, bool is_tail = false);
 };
 
@@ -251,6 +258,12 @@ int jit_brgemm_kernel_base_t::bias_offset(int ld, bool is_tail) {
     return (is_tail) ? brg.typesize_bias * brg.ldb_tail
                      : brg.typesize_bias * ld * brg.ld_block;
 }
+
+int jit_brgemm_kernel_base_t::compensations_offset(int ld, bool is_tail) {
+    return (is_tail) ? sizeof(int32_t) * brg.ldb_tail
+                     : sizeof(int32_t) * ld * brg.ld_block;
+}
+
 int jit_brgemm_kernel_base_t::scales_offset(int ld, bool is_tail) {
     return (is_tail) ? brg.is_oc_scale * sizeof(float) * brg.ldb_tail
                      : brg.is_oc_scale * sizeof(float) * ld * brg.ld_block;
@@ -303,7 +316,9 @@ void jit_brgemm_kernel_base_t::read_params() {
     mov(reg_D, ptr[param1 + GET_OFF(ptr_D)]);
     mov(reg_BS, ptr[param1 + GET_OFF(BS)]);
 
-    if (brg.is_int8_amx || brg.is_bf16_amx) {
+    // ptr_buf is re-used for passing compensations for
+    // brg.req_s8s8_compensation case
+    if (brg.is_int8_amx || brg.is_bf16_amx || brg.req_s8s8_compensation) {
         mov(reg_buf, ptr[param1 + GET_OFF(ptr_buf)]);
         mov(ptr[rsp + reg_buf_offs_], reg_buf);
     }
@@ -403,6 +418,22 @@ void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(
                         ptr[reg_aux_bias + bias_offset(ld)], true, false,
                         k_mask);
                 vaddps(zmm, zmm, zmm_bias);
+            }
+        }
+    }
+
+    if (brg.req_s8s8_compensation) {
+        mov(reg_aux_compensation, ptr[rsp + reg_aux_comp_offs_]);
+        for (int ld = 0; ld < ld_block2; ld++) {
+            auto zmm_comp = zmm_tmp_1();
+            int comp_offset = compensations_offset(ld);
+            auto comp_addr
+                    = EVEX_compress_addr(reg_aux_compensation, comp_offset);
+            cvt2ps(data_type::s32, zmm_comp, comp_addr, true, false, k_mask);
+
+            for (int bd = 0; bd < bd_block; bd++) {
+                auto zmm = accm(ld_block2, bd, ld);
+                vaddps(zmm, zmm, zmm_comp);
             }
         }
     }
@@ -541,8 +572,10 @@ void jit_brgemm_kernel_base_t::store_accumulators(
         if (brg.beta != 0.f && brg.alpha != 0) {
             apply_beta(bd_block, ld_block2, is_ld_tail);
         }
+
         if (one_of(true, brg.with_eltwise, brg.with_scales, brg.with_bias,
-                    brg.with_sum, brg.dt_d != brg.dt_c)) {
+                    brg.with_sum, brg.dt_d != brg.dt_c,
+                    brg.req_s8s8_compensation)) {
             Label label_done, label_store_without_post_ops;
 
             mov(reg_do_post_ops, ptr[rsp + reg_do_post_ops_offs_]);
@@ -657,12 +690,6 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
         else if (brg.is_int8)
             vpdpbusd(z1, z3, z2);
     };
-    auto broadcast = [=](Zmm z1, size_t offset) {
-        if (brg.is_f32)
-            vbroadcastss(z1, ptr[reg_aux_A + offset]);
-        else if (brg.is_bf16 || brg.is_int8)
-            vpbroadcastd(z1, ptr[reg_aux_A + offset]);
-    };
 
     int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
     bool is_emdbd = brg.embd_bcst;
@@ -679,18 +706,30 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
     } else
         rd_loop = brg.rd_block;
 
+    auto broadcast = [=](Zmm z1, size_t offset, bool is_tail) {
+        if (is_tail) {
+            vpxord(z1, z1, z1);
+            Xmm xmm_tmp = Xmm(z1.getIdx());
+            load_bytes(
+                    xmm_tmp, reg_aux_A, offset, rd_tail_size * brg.typesize_A);
+            vpbroadcastd(z1, xmm_tmp);
+        } else {
+            if (brg.is_f32)
+                vbroadcastss(z1, ptr[reg_aux_A + offset]);
+            else if (brg.is_bf16 || brg.is_int8)
+                vpbroadcastd(z1, ptr[reg_aux_A + offset]);
+        }
+
+        if (brg.req_s8s8_compensation) vpaddb(z1, z1, zmm_inp_shift());
+    };
+
 #if defined(_N_BCST_1_LOAD)
     for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
         for (int bd = 0; bd < bd_block && !is_emdbd; bd++) {
-            if (is_rd_tail && rd_tail_size != 0 && (rd == rd_loop - brg.rd_step)
-                    && (brg.is_bf16 || brg.is_int8)) {
-                vpxord(bcst(bd), bcst(bd), bcst(bd));
-                Xmm xmm_tmp = Xmm(bcst(bd).getIdx());
-                load_bytes(xmm_tmp, reg_aux_A, A_offset(bd, rd),
-                        rd_tail_size * brg.typesize_A);
-                vpbroadcastd(bcst(bd), xmm_tmp);
-            } else
-                broadcast(bcst(bd), A_offset(bd, rd));
+            bool is_tail_bcast = is_rd_tail && rd_tail_size != 0
+                    && (rd == rd_loop - brg.rd_step)
+                    && (brg.is_bf16 || brg.is_int8);
+            broadcast(bcst(bd), A_offset(bd, rd), is_tail_bcast);
         }
         for (int ld = 0; ld < ld_block2; ld++) {
             if (is_ld_tail) {
@@ -722,16 +761,10 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
         }
         for (int bd = 0; bd < bd_block; bd++) {
             if (!is_emdbd) {
-                if (is_rd_tail && rd_tail_size != 0
+                bool is_tail_bcast = is_rd_tail && rd_tail_size != 0
                         && (rd == rd_loop - brg.rd_step)
-                        && (brg.is_bf16 || brg.is_int8)) {
-                    vpxord(bcst(), bcst(), bcst());
-                    Xmm xmm_tmp = Xmm(bcst().getIdx());
-                    load_bytes(xmm_tmp, reg_aux_A, A_offset(bd, rd),
-                            rd_tail_size * brg.typesize_A);
-                    vpbroadcastd(bcst(), xmm_tmp);
-                } else
-                    broadcast(bcst(), A_offset(bd, rd));
+                        && (brg.is_bf16 || brg.is_int8);
+                broadcast(bcst(), A_offset(bd, rd), is_tail_bcast);
             }
             if (prefetch_count_B < ld_block2) {
                 prefetcht0(ptr[reg_aux_B + B_offset(prefetch_count_B++, rd)
@@ -781,6 +814,13 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
                     (is_tail) ? bias_offset(1, true) : bias_offset(ld_block2));
             mov(ptr[rsp + reg_aux_bias_offs_], reg_aux_bias);
         }
+        if (brg.req_s8s8_compensation) {
+            mov(reg_aux_compensation, ptr[rsp + reg_aux_comp_offs_]);
+            add(reg_aux_compensation,
+                    (is_tail) ? compensations_offset(1, true)
+                              : compensations_offset(ld_block2));
+            mov(ptr[rsp + reg_aux_comp_offs_], reg_aux_compensation);
+        }
         if (brg.with_scales) {
             mov(reg_aux_scales, ptr[rsp + reg_aux_scales_offs_]);
             add(reg_aux_scales,
@@ -802,6 +842,10 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
             mov(reg_bias, ptr[rsp + reg_bias_offs_]);
             mov(ptr[rsp + reg_aux_bias_offs_], reg_bias);
         }
+        if (brg.req_s8s8_compensation) {
+            mov(reg_compensation, ptr[rsp + reg_comp_offs_]);
+            mov(ptr[rsp + reg_aux_comp_offs_], reg_compensation);
+        }
         if (brg.with_scales) {
             mov(reg_scales, ptr[rsp + reg_scales_offs_]);
             mov(ptr[rsp + reg_aux_scales_offs_], reg_scales);
@@ -818,6 +862,13 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
 
         restore_offsets();
         restore_A_B_matrices();
+
+        if (brg.req_s8s8_compensation) {
+            mov(ptr[rsp + reg_bdb_loop_offs_], reg_bdb_loop);
+            mov(reg_s8_input_shift, 128);
+            vpbroadcastb(zmm_inp_shift(), reg_s8_input_shift.cvt8());
+            mov(reg_bdb_loop, ptr[rsp + reg_bdb_loop_offs_]);
+        }
 
         if (brg.alpha != 0.f) {
             mov(reg_BS_loop, reg_BS);

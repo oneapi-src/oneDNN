@@ -170,7 +170,8 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     brg->dt_a = (is_row_major()) ? dt_a : dt_b;
     brg->dt_b = (is_row_major()) ? dt_b : dt_a;
 
-    brg->is_int8 = (brg->dt_a == data_type::u8 && brg->dt_b == data_type::s8);
+    brg->is_int8 = (one_of(brg->dt_a, data_type::u8, data_type::s8)
+            && brg->dt_b == data_type::s8);
     brg->is_bf16
             = (brg->dt_a == data_type::bf16 && brg->dt_b == data_type::bf16);
     brg->is_f32 = (brg->dt_a == data_type::f32 && brg->dt_b == data_type::f32);
@@ -204,6 +205,8 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
         brg->is_int8_amx = brg->is_int8 && mayiuse(amx_int8);
         brg->is_bf16_amx = brg->is_bf16 && mayiuse(amx_bf16);
     }
+    brg->req_s8s8_compensation
+            = brg->is_int8 && !brg->is_int8_amx && brg->dt_a == data_type::s8;
     brg->LDA = (is_row_major()) ? (int)LDA : (int)LDB;
     brg->LDB = (is_row_major()) ? (int)LDB : (int)LDA;
 
@@ -249,11 +252,11 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
                 && (brg->ldb2_tail <= 1 && brg->ldb2 == 0);
 
         int ld_block = (brg->ldb2 != 0) ? brg->ld_block2 : brg->ldb2_tail;
-        int max_regs = (brg->embd_bcst ? 28
-                                       : ((brg->beta == 1.f || brg->beta == 0.f)
-                                                       ? 30
-                                                       : 29))
-                / (ld_block + 1);
+        int max_regs = (brg->embd_bcst
+                        ? 28
+                        : ((brg->beta == 1.f || brg->beta == 0.f) ? 30 : 29));
+        max_regs -= brg->req_s8s8_compensation;
+        max_regs /= ld_block + 1;
         int min_block = 6;
 
         brg->bd_block = 1;
