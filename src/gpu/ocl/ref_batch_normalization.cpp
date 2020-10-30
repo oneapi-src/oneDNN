@@ -165,8 +165,8 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
             if (conf.is_forward && conf.reduce_dim % 16 == 0
                     && reduce_dim_stride == 1) {
                 // Calculations over reduce dimension will be splitted
-                // between execution units in the single subgroup.
-                // Each unit will read vector_size of elements at once.
+                // between work items in the single subgroup.
+                // Each item will read vector_size of elements at once.
                 conf.vectorize_calc_stats = true;
                 conf.sub_group_size = 16;
 
@@ -179,7 +179,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
                 calc_dims_blocks[reduce_dim_idx]
                         = conf.reduce_dim / conf.sub_group_size;
             } else {
-                // Whole reduce dimension will be handled by single execution unit.
+                // Whole reduce dimension will be handled by single work item.
                 calc_dims[reduce_dim_idx] = 1;
             }
 
