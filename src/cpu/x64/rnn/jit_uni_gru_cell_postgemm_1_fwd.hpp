@@ -174,7 +174,7 @@ protected:
 
         cmp(loop_cnt, 0);
         je(rem_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
-        // Same code as above, we just use movuss for accessing inputs
+        // Same code as above, we just use movss for accessing inputs
         // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
         L(rem_loop_start_label);
         {
@@ -192,7 +192,7 @@ protected:
             // we store it for use in postgemm_part2
             uni_vmovss(sg_addr(0), G0s);
             if (is_training)
-                to_src<src_data_t>(wg_addr(0), G0, scratch_dt_size);
+                to_src<src_data_t>(wg_addr(0), G0s, scratch_dt_size);
 
             // Compute gate 1: G1 = sigmoid(G1 + b1)
             uni_vmovss(G1s, sg_addr(1));
@@ -201,10 +201,10 @@ protected:
                     false);
             uni_vaddss(G1s, G1s, B_addr(1));
             sigmoid_injector_->compute_vector(G1s.getIdx());
-            uni_vmovss(sg_addr(1), G1);
+            uni_vmovss(sg_addr(1), G1s);
             // if training we write back the gates
             if (is_training)
-                to_src<src_data_t>(wg_addr(1), G1, scratch_dt_size);
+                to_src<src_data_t>(wg_addr(1), G1s, scratch_dt_size);
 
             // states_t_l = states_tm1_l * G1
             to_float<src_data_t>(

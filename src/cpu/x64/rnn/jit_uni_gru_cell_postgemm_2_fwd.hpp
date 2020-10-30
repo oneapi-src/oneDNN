@@ -170,7 +170,7 @@ protected:
 
         cmp(loop_cnt, 0);
         je(rem_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
-        // Same code as above, we just use movuss for accessing inputs
+        // Same code as above, we just use movss for accessing inputs
         // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
         L(rem_loop_start_label);
         {
@@ -188,7 +188,7 @@ protected:
             tanh_injector_->compute_vector(G2s.getIdx());
             // if training we write back the gates
             if (is_training)
-                to_src<src_data_t>(wg_addr(2), G2, scratch_dt_size);
+                to_src<src_data_t>(wg_addr(2), G2s, scratch_dt_size);
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovss(G0s, sg_addr(0));
