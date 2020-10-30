@@ -9,3 +9,4 @@
                 'relu:-0.01;sum:2','add:f32:per_oc', \
                 'add:bf16:per_oc;linear:2:1','mul:s8;add:f32:common;sum:0.5;abs'
 --batch=option_set_all
+--batch=shapes_src0_bcast

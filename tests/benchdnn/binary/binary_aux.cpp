@@ -29,6 +29,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
     if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
     if (canonical || prb.ddt != def.ddt[0]) s << "--ddt=" << prb.ddt << " ";
     if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
+    if (canonical || prb.dtag != def.dtag[0]) s << "--dtag=" << prb.dtag << " ";
     if (canonical || prb.alg != def.alg[0]) s << "--alg=" << prb.alg << " ";
     if (canonical || prb.inplace != def.inplace[0])
         s << "--inplace=" << bool2str(prb.inplace) << " ";

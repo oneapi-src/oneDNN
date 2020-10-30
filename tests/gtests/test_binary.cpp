@@ -178,10 +178,6 @@ protected:
 
 static auto expected_failures = []() {
     return ::testing::Values(
-            // different src0 and dst format_tags
-            binary_test_params_t {{tag::nchw, tag::nchw}, tag::nhwc,
-                    algorithm::binary_add, {1, 8, 4, 4}, true,
-                    dnnl_invalid_arguments},
             // not supported alg_kind
             binary_test_params_t {{tag::nchw, tag::nchw}, tag::nchw,
                     algorithm::eltwise_relu, {1, 8, 4, 4}, true,

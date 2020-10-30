@@ -30,7 +30,7 @@
 
 namespace binary {
 
-int fill_src(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
@@ -80,7 +80,7 @@ int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,
         mem_dt.emplace_back(*po_md, get_test_engine());
         args.push_back((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
 
-        fill_src((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
+        fill_mem((DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1),
                 mem_dt.back(), mem_fp.back());
     }
     return OK;
@@ -100,10 +100,12 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                 CRIT);
     }
 
+    dnnl_dims_t dst_dims;
+    for (int d = 0; d < prb->ndims[0]; ++d)
+        dst_dims[d] = std::max(prb->sdims[0][d], prb->sdims[1][d]);
+
     dnnl_memory_desc_t dst_d;
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, prb->ndims[0],
-                     prb->sdims[0].data(), prb->ddt, dnnl_format_tag_any),
-            WARN);
+    SAFE(init_md(&dst_d, prb->ndims[0], dst_dims, prb->ddt, prb->dtag), WARN);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(prb->alg);
 
@@ -111,8 +113,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
             WARN);
 
     attr_args_t attr_args;
-    attr_args.prepare_binary_post_op_mds(
-            prb->attr, prb->ndims[0], prb->sdims[0].data());
+    attr_args.prepare_binary_post_op_mds(prb->attr, prb->ndims[0], dst_dims);
     auto dnnl_attr = create_dnnl_attr(prb->attr, attr_args);
 
     dnnl_status_t init_status
@@ -174,6 +175,9 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
 
     const bool has_binary = po.binary_index() != -1;
 
+    dims_t ddims(dt_mem.md_.ndims);
+    ddims = dt_mem.md_.dims;
+
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
         const float fp0 = fp_mem.get_elem(i);
@@ -201,7 +205,7 @@ static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
                 || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
-            dims_t dims_idx = off2dims_idx(prb->sdims[0], i);
+            dims_t dims_idx = off2dims_idx(ddims, i);
             ss << dims_idx;
             std::string ind_str = ss.str();
 
@@ -234,6 +238,20 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+    }
+
+    const bool is_sum = prb->attr.post_ops.find(alg_t::SUM) >= 0;
+    bool bcast_src0 = false;
+    for (int d = 0; d < prb->ndims[0]; ++d)
+        if (prb->sdims[0][d] != prb->sdims[1][d] && prb->sdims[0][d] == 1) {
+            bcast_src0 = true;
+            break;
+        }
+
+    if ((bcast_src0 && (prb->inplace || is_sum || engine_tgt_kind != dnnl_cpu))
+            || (prb->inplace && prb->sdt[0] != prb->ddt)) {
+        res->state = SKIPPED, res->reason = INVALID_CASE;
+        return;
     }
 
     if (prb->inplace && prb->sdt[0] != prb->ddt) {
@@ -275,6 +293,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     const auto &src0_md = q(DNNL_ARG_SRC_0);
     const auto &src1_md = q(DNNL_ARG_SRC_1);
+    const auto &dst_md = q(DNNL_ARG_DST);
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
@@ -284,23 +303,16 @@ int doit(const prb_t *prb, res_t *res) {
 
     dnn_mem_t src0_fp(src0_md, fp, tag, test_engine);
     dnn_mem_t src0_dt(src0_md, test_engine);
-    SAFE(fill_src(0, src0_dt, src0_fp), WARN);
+    SAFE(fill_mem(0, src0_dt, src0_fp), WARN);
 
     dnn_mem_t src1_fp(src1_md, fp, tag, test_engine);
     dnn_mem_t src1_dt(src1_md, test_engine);
-    SAFE(fill_src(1, src1_dt, src1_fp), WARN);
+    SAFE(fill_mem(1, src1_dt, src1_fp), WARN);
 
-    dnn_mem_t &dst_fp = src0_fp; // in-place in ref code
-    dnn_mem_t placeholder_dst_dt;
-    if (!prb->inplace) {
-        const auto &dst_md = q(DNNL_ARG_DST);
-        placeholder_dst_dt = dnn_mem_t(dst_md, test_engine);
-
-        if (prb->attr.post_ops.find(alg_t::SUM) >= 0)
-            SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
-    }
-    dnn_mem_t &dst_dt = prb->inplace ? src0_dt : placeholder_dst_dt;
-    dst_dt.md_.data_type = prb->ddt; // it may be different type for dst
+    dnn_mem_t dst_fp(dst_md, fp, tag, test_engine);
+    dnn_mem_t dst_dt(dst_md, test_engine);
+    if (prb->attr.post_ops.find(alg_t::SUM) >= 0)
+        SAFE(fill_mem(2, dst_dt, dst_fp), WARN);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
     std::vector<dnn_mem_t> binary_po_fp, binary_po_dt;

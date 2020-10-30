@@ -40,15 +40,21 @@ argument index as specified by the following table.
  * The binary primitive requires all source and destination tensors to have the
    same number of dimensions.
 
- * The binary primitive supports implicit broadcast semantics for source 1. It
-   means that if some dimension has value of one, this value will be used to
-   compute an operation with each point of source 0 for this dimension.
+ * The binary primitive supports implicit broadcast semantics for source 0 and 
+   source 1. It means that if some dimension has value of one, this value will
+   be used to compute an operation with each point of source 0 / source 1 for 
+   this dimension. It is recommended to use broadcast for source 1 to get 
+   better performance. Generally it should match the syntax below:
+   `{N,1}x{C,1}x{D,1}x{H,1}x{W,1}:{N,1}x{C,1}x{D,1}x{H,1}x{W,1} -> NxCxDxHxW`.
+   It is consistent with [PyTorch broadcast semantic]
+   (https://pytorch.org/docs/stable/notes/broadcasting.html).
+   
 
  * The \dst memory format can be either specified explicitly or by
    #dnnl::memory::format_tag::any (recommended), in which case the primitive
    will derive the most appropriate memory format based on the format of the
    source 0 tensor. The \dst tensor dimensions must match the ones of the
-   source 0 tensor.
+   source 0 and source 1 tensors (except for broadcast dimensions).
 
  * The binary primitive supports in-place operations, meaning that source 0
    tensor may be used as the destination, in which case its data will

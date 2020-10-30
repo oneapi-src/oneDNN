@@ -50,25 +50,22 @@ status_t dnnl_binary_desc_init(binary_desc_t *binary_desc, alg_kind_t alg_kind,
     bod.src_desc[1] = *src1_md;
     bod.dst_desc = *dst_md;
 
-    const int ndims = src0_md->ndims;
-    const dims_t &dims = src0_md->dims;
+    const int ndims = dst_md->ndims;
+    const dims_t &dims = dst_md->dims;
 
-    if (src1_md->ndims != ndims) return invalid_arguments;
+    if (!(src0_md->ndims == ndims && src1_md->ndims == ndims))
+        return invalid_arguments;
     for (int d = 0; d < ndims; ++d) {
-        if (!(src1_md->dims[d] == dims[d] || src1_md->dims[d] == 1))
-            return invalid_arguments;
-    }
+        const bool is_any_common_dim
+                = one_of(dims[d], src0_md->dims[d], src1_md->dims[d]);
+        const bool are_common_dims
+                = everyone_is(dims[d], src0_md->dims[d], src1_md->dims[d]);
+        const bool is_bcasted_dim = !utils::everyone_is(
+                dims[d], src0_md->dims[d], src1_md->dims[d]);
 
-    // check dst
-    if (dst_md->format_kind == format_kind::blocked) {
-        if (!memory_desc_wrapper(dst_md).similar_to(
-                    memory_desc_wrapper(src0_md), true, false))
+        if (!(is_any_common_dim
+                    && IMPLICATION(!are_common_dims, is_bcasted_dim)))
             return invalid_arguments;
-    } else {
-        if (dst_md->ndims != ndims) return invalid_arguments;
-        for (int d = 0; d < ndims; ++d) {
-            if (dst_md->dims[d] != dims[d]) return invalid_arguments;
-        }
     }
 
     *binary_desc = bod;

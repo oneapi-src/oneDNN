@@ -72,9 +72,12 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
         bool is_applicable() {
             const memory_desc_wrapper src0_d(src_md(0));
             const memory_desc_wrapper src1_d(src_md(1));
+            const memory_desc_wrapper dst_d(dst_md());
+
             // full tensor operation
             if (src0_d.similar_to(src1_d, true, false, 0)) return true;
-
+            // source0 broadcast not supported
+            if (!src0_d.similar_to(dst_d, true, false, 0)) return false;
             // broadcast operation
             const auto ndims = src0_d.ndims();
             bool ok = ndims >= 2;

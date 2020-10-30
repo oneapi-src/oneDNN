@@ -44,6 +44,7 @@ struct settings_t {
     std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
     std::vector<dnnl_data_type_t> ddt {dnnl_f32};
     std::vector<std::vector<std::string>> stag {{tag::abx, tag::abx}};
+    std::vector<std::string> dtag {tag::any};
     std::vector<alg_t> alg {alg_t::ADD};
     std::vector<bool> inplace {false};
     std::vector<attr_t::arg_scales_t> scales {attr_t::arg_scales_t()};
@@ -53,8 +54,8 @@ struct settings_t {
     attr_t attr = {};
 
     const char *perf_template_csv
-            = "perf,%engine%,%impl%,%sdt%,%ddt%,%stag%,%alg%,%attr%,%DESC%,%-"
-              "time%,%0time%";
+            = "perf,%engine%,%impl%,%sdt%,%ddt%,%stag%,%dtag%,%alg%,%attr%,"
+              "%DESC%,%-time%,%0time%";
     const char *perf_template_def
             = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
@@ -65,12 +66,13 @@ struct settings_t {
 struct prb_t {
     prb_t(const std::vector<dims_t> &sdims,
             const std::vector<dnnl_data_type_t> &sdt, dnnl_data_type_t ddt,
-            const std::vector<std::string> &stag, alg_t alg, bool inplace,
-            const attr_t &attr)
+            const std::vector<std::string> &stag, std::string dtag, alg_t alg,
+            bool inplace, const attr_t &attr)
         : sdims(sdims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
+        , dtag(dtag)
         , alg(alg)
         , inplace(inplace)
         , attr(attr)
@@ -81,6 +83,7 @@ struct prb_t {
     std::vector<dnnl_data_type_t> sdt;
     dnnl_data_type_t ddt;
     std::vector<std::string> stag;
+    std::string dtag;
     alg_t alg;
     bool inplace;
     attr_t attr;
@@ -88,16 +91,12 @@ struct prb_t {
 
     int n_inputs() const { return 2; }
 
-    int get_broadcast_mask() const {
-        const dims_t &dims_A = this->sdims[0];
-        const dims_t &dims_B = this->sdims[1];
+    int get_broadcast_mask(const dims_t &dims_B, int source_num) const {
+        const dims_t &dims_A = this->sdims[source_num];
 
         int broadcast_mask = 0;
-        for (int d = 0; d < ndims[1]; ++d)
+        for (int d = 0; d < ndims[source_num]; ++d)
             broadcast_mask += dims_A[d] == dims_B[d] ? (1 << d) : 0;
-        // in case driver interface will support less dimensions for src1
-        for (int d = ndims[1] + 1; d < ndims[0]; ++d)
-            broadcast_mask += (1 << d);
         return broadcast_mask;
     }
 };
@@ -110,6 +109,7 @@ struct perf_report_t : public base_perf_report_t {
         p_ = prb;
         for (size_t d = 0; d < p_->stag.size(); d++)
             stag_.push_back(normalize_tag(p_->stag[d], p_->ndims[d]));
+        dtag_ = normalize_tag(p_->dtag, p_->ndims[0]);
         base_report(res, prb_str);
     }
 
@@ -125,10 +125,12 @@ struct perf_report_t : public base_perf_report_t {
     const attr_t *attr() const override { return &p_->attr; }
     const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
     const std::vector<std::string> *stag() const override { return &stag_; }
+    const std::string *dtag() const override { return &dtag_; }
 
 private:
     const prb_t *p_ = NULL;
     std::vector<std::string> stag_;
+    std::string dtag_;
 };
 
 int setup_binary_po(const_dnnl_primitive_desc_t pd, std::vector<int> &args,

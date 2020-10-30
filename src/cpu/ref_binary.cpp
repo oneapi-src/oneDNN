@@ -58,18 +58,23 @@ status_t ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
     bool do_scale_src0 = !scales[0].has_default_values();
     bool do_scale_src1 = !scales[1].has_default_values();
 
-    const auto nelems_A = src0_d.nelems();
+    const auto nelems = dst_d.nelems();
     const auto ndims = pd()->ndims();
 
-    parallel_nd(nelems_A, [&](dim_t i) {
-        dims_t l_dims; // single decomposition for all physical offsets
-        utils::l_dims_by_l_offset(l_dims, i, src0_d.dims(), ndims);
-        auto off_A = src0_d.off_v(l_dims);
-        auto off_C = dst_d.off_v(l_dims);
+    parallel_nd(nelems, [&](dim_t i) {
+        dims_t dims_src0, dims_src1; // decomposition for physical offsets
+        utils::l_dims_by_l_offset(dims_src0, i, dst_d.dims(), ndims);
+        utils::l_dims_by_l_offset(dims_src1, i, dst_d.dims(), ndims);
+        auto off_C = dst_d.off_v(dims_src0);
 
-        int mask = utils::get_dims_mask(src0_d.dims(), src1_d.dims(), ndims);
-        utils::apply_mask_on_dims(l_dims, ndims, mask);
-        auto off_B = src1_d.off_v(l_dims);
+        int mask_src0
+                = utils::get_dims_mask(dst_d.dims(), src0_d.dims(), ndims);
+        utils::apply_mask_on_dims(dims_src0, ndims, mask_src0);
+        const auto off_A = src0_d.off_v(dims_src0);
+        int mask_src1
+                = utils::get_dims_mask(dst_d.dims(), src1_d.dims(), ndims);
+        utils::apply_mask_on_dims(dims_src1, ndims, mask_src1);
+        const auto off_B = src1_d.off_v(dims_src1);
 
         float x_f = (float)src0[off_A];
         float y_f = (float)src1[off_B];
