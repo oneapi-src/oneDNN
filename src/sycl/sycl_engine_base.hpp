@@ -45,8 +45,7 @@ public:
         : gpu::compute::compute_engine_t(
                 kind, runtime_kind::sycl, new sycl_device_info_t(dev))
         , device_(dev)
-        , context_(ctx)
-        , enable_ngen_kernels_(false) {}
+        , context_(ctx) {}
 
     status_t init() {
         CHECK(gpu::compute::compute_engine_t::init());
@@ -55,14 +54,6 @@ public:
         if (!utils::one_of(backend_, backend_t::host, backend_t::opencl,
                     backend_t::level0, backend_t::nvidia))
             return status::invalid_arguments;
-
-        status_t status = gpu::jit::gpu_supports_binary_format(
-                &enable_ngen_kernels_, this);
-        if (status != status::success) return status;
-
-        if (get_verbose())
-            printf("dnnl_verbose,info,gpu,binary_kernels:%s\n",
-                    enable_ngen_kernels_ ? "enabled" : "disabled");
 
         return status::success;
     }
@@ -143,12 +134,12 @@ public:
 
     device_id_t device_id() const override { return sycl_device_id(device_); }
 
-    bool mayiuse_ngen_kernels() override { return enable_ngen_kernels_; }
+protected:
+    bool check_mayiuse_ngen_kernels() override;
 
 private:
     cl::sycl::device device_;
     cl::sycl::context context_;
-    bool enable_ngen_kernels_;
 
     backend_t backend_;
 

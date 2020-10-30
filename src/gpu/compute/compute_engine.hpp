@@ -24,6 +24,7 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/primitive_iterator.hpp"
+#include "common/verbose.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "gpu/compute/dispatch.hpp"
 #include "gpu/compute/kernel.hpp"
@@ -92,7 +93,16 @@ public:
         return dispatch_t(this, md);
     }
 
-    virtual bool mayiuse_ngen_kernels() { return false; }
+    bool mayiuse_ngen_kernels() {
+        if (!checked_ngen_kernels_) {
+            enable_ngen_kernels_ = check_mayiuse_ngen_kernels();
+            checked_ngen_kernels_ = true;
+            if (get_verbose())
+                printf("dnnl_verbose,info,gpu,binary_kernels:%s\n",
+                        enable_ngen_kernels_ ? "enabled" : "disabled");
+        }
+        return enable_ngen_kernels_;
+    }
 
     status_t get_service_stream(stream_t *&stream) override {
         status_t status = status::success;
@@ -113,7 +123,13 @@ public:
     // non-blocking query to check if service stream is already created
     bool is_service_stream_created() const { return (bool)service_stream_; }
 
+protected:
+    virtual bool check_mayiuse_ngen_kernels() = 0;
+
 private:
+    bool checked_ngen_kernels_ = false;
+    bool enable_ngen_kernels_ = false;
+
     std::unique_ptr<device_info_t> device_info_;
     std::shared_ptr<primitive_t> zero_pad_primitive_;
     std::unique_ptr<stream_t> service_stream_;

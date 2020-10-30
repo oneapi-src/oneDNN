@@ -41,17 +41,13 @@ public:
                 new ocl_gpu_device_info_t(adevice))
         , device_(adevice)
         , context_(nullptr)
-        , is_user_context_(false)
-        , enable_ngen_kernels_(false)
-        , checked_ngen_kernels_(false) {}
+        , is_user_context_(false) {}
     ocl_gpu_engine_t(cl_device_id adevice, cl_context acontext)
         : compute::compute_engine_t(engine_kind::gpu, runtime_kind::ocl,
                 new ocl_gpu_device_info_t(adevice))
         , device_(adevice)
         , context_(acontext)
-        , is_user_context_(true)
-        , enable_ngen_kernels_(false)
-        , checked_ngen_kernels_(false) {}
+        , is_user_context_(true) {}
     ~ocl_gpu_engine_t() override {
         if (device_) { clReleaseDevice(device_); }
         if (context_) { clReleaseContext(context_); }
@@ -107,19 +103,12 @@ public:
         return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
     }
 
-    bool mayiuse_ngen_kernels() override {
-        check_mayiuse_ngen_kernels();
-        return enable_ngen_kernels_;
-    }
-
 private:
+    bool check_mayiuse_ngen_kernels() override;
+
     cl_device_id device_;
     cl_context context_;
     bool is_user_context_;
-    bool enable_ngen_kernels_;
-    bool checked_ngen_kernels_;
-
-    void check_mayiuse_ngen_kernels();
 };
 
 } // namespace ocl
