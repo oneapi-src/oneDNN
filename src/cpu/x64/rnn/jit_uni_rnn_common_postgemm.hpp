@@ -418,7 +418,11 @@ protected:
 
     // dequantize from s32 to float
     template <typename Vmm>
-    void deq_w(Vmm s, Vmm tmp1, Vmm tmp2, int gate, bool packed) {
+    void deq_w(data_type_t src_data_t, Vmm s, Vmm tmp1, Vmm tmp2,
+            dim_t scale_off, bool packed) {
+        // nothing to do if not int8
+        if (src_data_t != data_type::u8) return;
+
         const primitive_attr_t *attr = pd_->attr();
         int mask = attr->rnn_weights_qparams_.mask_;
         size_t qscale_dt_size = sizeof(float);
@@ -427,8 +431,8 @@ protected:
         if (mask == 0)
             uni_vbroadcastss(tmp1, ptr[weights_scales_reg]);
         else {
-            auto scales_ptr = ptr[weights_scales_reg
-                    + gate * rnn_.dhc * qscale_dt_size];
+            auto scales_ptr
+                    = ptr[weights_scales_reg + scale_off * qscale_dt_size];
             if (packed)
                 uni_vmovups(tmp1, scales_ptr);
             else
@@ -442,6 +446,11 @@ protected:
 #else
         uni_vdivps(s, s, tmp1);
 #endif
+    }
+    // alternate form (non-gru post-gemm kernels)
+    template <typename Vmm>
+    void deq_w(Vmm s, Vmm tmp1, Vmm tmp2, int gate, bool packed) {
+        return deq_w(data_type::u8, s, tmp1, tmp2, gate * rnn_.dhc, packed);
     }
 
     // dequantize from u8 to float
