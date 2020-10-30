@@ -466,6 +466,17 @@ const impl_list_map_t regular_impl_list_map {
 /* conv reorders w/ compensation */
 const impl_list_map_t comp_s8s8_impl_list_map {
     // f32 -> s8
+    {{f32, s8, 2}, {
+        REG_SR(f32, oi, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(f32, io, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(f32, oi, s8, OI4i32o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(f32, io, s8, OI4i32o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(f32, oi, s8, OI4i64o4i, fmt_order::keep, spec::conv_req_comp),
+        REG_SR(f32, io, s8, OI4i64o4i, fmt_order::keep, spec::conv_req_comp),
+
+        nullptr,
+    }},
+    // f32 -> s8
     {{f32, s8, 3}, {
         REG_SR(f32, any, s8, wio, fmt_order::keep, spec::conv_req_comp),
         REG_SR(f32, oiw, s8, OIw4i16o4i, fmt_order::keep, spec::conv_req_comp),

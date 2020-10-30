@@ -247,6 +247,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 (utils::one_of(tag_i, format_tag::oiw, format_tag::wio)
                         && utils::one_of(tag_o, format_tag::OIw4i16o4i,
                                 format_tag::OIw2i8o4i, format_tag::OIw4o4i))
+                        || (utils::one_of(tag_i, format_tag::oi, format_tag::io)
+                                && utils::one_of(tag_o, format_tag::OI4i16o4i,
+                                        format_tag::OI4i32o4i,
+                                        format_tag::OI4i64o4i))
                         || (utils::one_of(
                                     tag_i, format_tag::goiw, format_tag::wigo)
                                 && utils::one_of(tag_o, format_tag::gOIw4i16o4i,
@@ -286,7 +290,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
         const bool w_groups = !one_of(tag_o, OIw4i16o4i, OIw2i8o4i, OIw4o4i,
                 OIhw4i16o4i, OIhw2i8o4i, OIhw4o4i, OIdhw4i16o4i, OIdhw2i8o4i,
-                OIdhw4o4i);
+                OIdhw4o4i, OI4i16o4i, OI4i32o4i, OI4i64o4i);
         const int oc = (input_d.dims()[w_groups ? 1 : 0]);
         const int g = w_groups ? input_d.dims()[0] : 1;
 
@@ -319,19 +323,26 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         static constexpr bool w_groups = !utils::one_of(tag_o, OIw4o4i,
                 OIw4i16o4i, OIhw4i16o4i, OIdhw4i16o4i, OIhw4o4i, OIw2i8o4i,
-                OIhw2i8o4i, OIdhw2i8o4i, OIdhw4o4i);
+                OIhw2i8o4i, OIdhw2i8o4i, OIdhw4o4i, OI4i16o4i, OI4i32o4i,
+                OI4i64o4i);
 
+        constexpr int is_0d
+                = utils::one_of(tag_o, OI4i16o4i, OI4i32o4i, OI4i64o4i);
         constexpr int is_1d = utils::one_of(tag_o, gOIw4i16o4i, OIw4i16o4i,
                 gOIw2i8o4i, OIw2i8o4i, gOIw4o4i, OIw4o4i);
         constexpr int is_3d = utils::one_of(tag_o, gOIdhw4i16o4i, OIdhw4i16o4i,
                 gOIdhw2i8o4i, OIdhw2i8o4i, gOIdhw4o4i, OIdhw4o4i);
-        constexpr int blksize = utils::one_of(tag_traits<tag_o>::inner_blks,
-                                        ib::_4a4b, ib::_4b4c)
+        constexpr int icblksize = utils::one_of(tag_traits<tag_o>::inner_blks,
+                                          ib::_4a4b, ib::_4b4c)
                 ? 4
                 : utils::one_of(tag_traits<tag_o>::inner_blks, ib::_2c8b4c,
                           ib::_2b8a4b)
                         ? 8
                         : 16;
+        constexpr int ocblksize = tag_traits<tag_o>::inner_blks == ib::_4b32a4b
+                ? 32
+                : tag_traits<tag_o>::inner_blks == ib::_4b64a4b ? 64
+                                                                : icblksize;
 
         const auto &plain_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
@@ -340,12 +351,12 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const int G = w_groups ? dims[0] : 1;
         const int OC = dims[w_groups + 0];
-        const int NB_OC = pdims[w_groups + 0] / blksize;
+        const int NB_OC = pdims[w_groups + 0] / ocblksize;
         const int IC = dims[w_groups + 1];
-        const int NB_IC = pdims[w_groups + 1] / blksize;
+        const int NB_IC = pdims[w_groups + 1] / icblksize;
         const int D = is_3d ? dims[2 + w_groups] : 1;
-        const int H = is_1d ? 1 : dims[2 + w_groups + is_3d];
-        const int W = dims[w_groups + is_3d + 3 - is_1d];
+        const int H = is_1d || is_0d ? 1 : dims[2 + w_groups + is_3d];
+        const int W = is_0d ? 1 : dims[w_groups + is_3d + 3 - is_1d];
 
         const float *scales = pd->attr()->output_scales_.scales_;
         const size_t D_mask = utils::array_product(input_d.dims(),
@@ -361,6 +372,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 = (output_d.extra().flags & memory_extra_flags::scale_adjust)
                 ? output_d.extra().scale_adjust
                 : 1.f;
+        const bool broadcast_scales = (D_mask == 1);
 
         auto ker = [&](const data_t<type_i> *inp, data_t<type_o> *out,
                            int32_t *c, int32_t *zp, const float *s,
@@ -372,7 +384,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         = oc * plain_d.blocking_desc().strides[w_groups + 0]
                         + ic * plain_d.blocking_desc().strides[w_groups + 1];
                 out[index(oc, ic)] = qz_b0<data_t<type_i>, data_t<type_o>>()(
-                        inp[plain_off], s[oc] * adj_scale);
+                        inp[plain_off],
+                        s[broadcast_scales ? 0 : oc] * adj_scale);
                 if (req_comp) c[oc] -= (128 * (int32_t)(out[index(oc, ic)]));
                 if (has_asymmetric_comp)
                     zp[oc] -= (int32_t)(out[index(oc, ic)]);
@@ -380,7 +393,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 #undef index
         };
 
-        constexpr int i_mult = blksize;
+        constexpr int i_mult_ic = icblksize;
+        constexpr int i_mult_oc = ocblksize;
         constexpr int o_mult = 1;
 
         size_t offset
@@ -392,33 +406,32 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         int32_t *zp = has_asymmetric_comp
                 ? reinterpret_cast<int32_t *>(output + zp_offset)
                 : nullptr;
-        parallel_nd(G * NB_OC * blksize, [&](int i) {
+        parallel_nd(G * NB_OC * ocblksize, [&](int i) {
             if (req_comp) cp[i] = 0;
             if (has_asymmetric_comp) zp[i] = 0;
         });
 
 #define wei_blk_off(md, g, o, i, d, h, w) \
-    (is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
-           : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
-                   : (md).blk_off<!w_groups>(g, o, i, h, w))
-
+    (is_0d ? (md).blk_off<!w_groups>(g, o, i) \
+           : is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
+                   : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                           : (md).blk_off<!w_groups>(g, o, i, h, w))
         parallel_nd(G, NB_OC, [&](int g, int O) {
             for_(int I = 0; I < NB_IC; I++)
             for_(int d = 0; d < D; d++)
             for_(int h = 0; h < H; h++)
             for (int w = 0; w < W; w++) {
                 auto i = &input[wei_blk_off(
-                        input_d, g, i_mult * O, i_mult * I, d, h, w)];
+                        input_d, g, i_mult_oc * O, i_mult_ic * I, d, h, w)];
                 auto o = &output[wei_blk_off(
                         output_d, g, o_mult * O, o_mult * I, d, h, w)];
-                const int oc_block = nstl::min(blksize, OC - O * blksize);
-                const int ic_block = nstl::min(blksize, IC - I * blksize);
-
-                int _offset = (g * NB_OC + O) * blksize;
+                const int oc_block = nstl::min(ocblksize, OC - O * ocblksize);
+                const int ic_block = nstl::min(icblksize, IC - I * icblksize);
+                int _offset = (g * NB_OC + O) * ocblksize;
                 ker(i, o, (order_keep && req_comp) ? &cp[_offset] : nullptr,
                         (order_keep && has_asymmetric_comp) ? &zp[_offset]
                                                             : nullptr,
-                        &scales[(D_mask == 1) ? 0 : _offset], oc_block,
+                        &scales[broadcast_scales ? 0 : _offset], oc_block,
                         ic_block);
             }
         });
