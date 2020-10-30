@@ -189,7 +189,7 @@ and specific versions are defined by the build environment.
 
 Common dependencies:
 * GNU C Library (`libc.so`)
-* GNU Standard C++ Library v3 (`libstd++.so`)
+* GNU Standard C++ Library v3 (`libstdc++.so`)
 * Dynamic Linking Library (`libdl.so`)
 * C Math Library (`libm.so`)
 * POSIX Threads Library (`libpthread.so`)
