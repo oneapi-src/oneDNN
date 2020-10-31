@@ -497,12 +497,12 @@ public:
     }
 
     void uni_vdivps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         assert(x.isEqualIfNotInherited(op1));
         divps(x, op2);
     }
     void uni_vdivps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         vdivps(x, op1, op2);
     }
 
@@ -519,21 +519,21 @@ public:
     }
 
     void uni_vaddps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         assert(x.getIdx() == op1.getIdx());
         addps(x, op2);
     }
     void uni_vaddps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         vaddps(x, op1, op2);
     }
     void uni_vaddss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         assert(x.isEqualIfNotInherited(op1));
         addss(x, op2);
     }
     void uni_vaddss(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         vaddss(x, op1, op2);
     }
 
@@ -548,42 +548,42 @@ public:
     }
 
     void uni_vpsubd(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         assert(x1.getIdx() == x2.getIdx());
         psubd(x1, op);
     }
     void uni_vpsubd(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         vpsubd(x1, x2, op);
     }
 
     void uni_vpsubb(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         assert(x1.getIdx() == x2.getIdx());
         psubb(x1, op);
     }
     void uni_vpsubb(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         vpsubb(x1, x2, op);
     }
 
     void uni_vsubss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         assert(x.isEqualIfNotInherited(op1));
         subps(x, op2);
     }
     void uni_vsubss(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         vsubss(x, Xbyak::Xmm(op1.getIdx()), Xbyak::Xmm(op2.getIdx()));
     }
 
     void uni_vsubps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         assert(x.isEqualIfNotInherited(op1));
         subps(x, op2);
     }
     void uni_vsubps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         vsubps(x, op1, op2);
     }
 
@@ -600,7 +600,7 @@ public:
     }
 
     void uni_vpmulld(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         if (mayiuse(avx)) {
             vpmulld(x1, x2, op);
         } else {
@@ -609,12 +609,12 @@ public:
         }
     }
     void uni_vpmulld(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         vpmulld(x1, x2, op);
     }
 
     void uni_vmulps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         if (mayiuse(avx))
             vmulps(x, op1, op2);
         else {
@@ -623,12 +623,12 @@ public:
         }
     }
     void uni_vmulps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         vmulps(x, op1, op2);
     }
 
     void uni_vmulss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         assert(x.isEqualIfNotInherited(op1));
         mulss(x, op2);
     }
@@ -852,12 +852,12 @@ public:
     }
 
     void uni_vandps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         assert(x1.getIdx() == x2.getIdx());
         andps(x1, op);
     }
     void uni_vandps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         if (!mayiuse(avx512_common) || x1.getBit() < 512)
             vandps(x1, x2, op);
         else
@@ -865,12 +865,12 @@ public:
     }
 
     void uni_vorps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         assert(x1.getIdx() == x2.getIdx());
         orps(x1, op);
     }
     void uni_vorps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         if (!mayiuse(avx512_common) || x1.getBit() < 512)
             vorps(x1, x2, op);
         else
@@ -878,12 +878,12 @@ public:
     }
 
     void uni_vxorps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         if (x1.getIdx() != x2.getIdx()) { uni_vmovups(x1, x2); }
         xorps(x1, op);
     }
     void uni_vxorps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
-            const Xbyak::Operand &op = Xbyak::Operand()) {
+            const Xbyak::Operand &op) {
         if (!mayiuse(avx512_common) || x1.getBit() < 512)
             vxorps(x1, x2, op);
         else
@@ -911,22 +911,22 @@ public:
     }
 
     void uni_vmaxps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         assert(x.isEqualIfNotInherited(op1));
         maxps(x, op2);
     }
     void uni_vmaxps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         vmaxps(x, op1, op2);
     }
 
     void uni_vminps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         assert(x.isEqualIfNotInherited(op1));
         minps(x, op2);
     }
     void uni_vminps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
-            const Xbyak::Operand &op2 = Xbyak::Operand()) {
+            const Xbyak::Operand &op2) {
         vminps(x, op1, op2);
     }
 
