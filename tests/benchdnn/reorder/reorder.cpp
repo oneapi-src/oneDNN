@@ -58,7 +58,7 @@ int fill_memory(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem) {
                 (float)c_src->min, /* saturate to min of output data type */
                 (float)1.6 / scale, /* rounding check */
                 (float)0.2 / scale, /* saturate to 0 */
-                (float)1.0,
+                (float)1.0 / scale, /* exact multiplication check */
                 (float)2.0,
                 (float)scale,
         };
