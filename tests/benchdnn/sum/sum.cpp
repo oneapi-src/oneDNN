@@ -25,6 +25,7 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
@@ -67,47 +68,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", res->impl_name.c_str());
 
     return OK;
-}
-
-static int compare(const prb_t *prb, const dnnl_data_type_t dst_data_type,
-        const dnn_mem_t &fp_mem, const dnn_mem_t &dt_mem, res_t *res) {
-    const auto nelems = dt_mem.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    float trh = epsilon_dt(dst_data_type) * prb->n_inputs();
-
-    for (int64_t i = 0; i < nelems; i++) {
-        const float dt = dt_mem.get_elem(i);
-        const float fp0 = fp_mem.get_elem(i);
-        const float fp = round_to_nearest_representable(dst_data_type, fp0);
-
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
-
-        res->errors += !ok;
-
-        const bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            std::stringstream ss;
-            dims_t dims_idx = off2dims_idx(prb->dims, i);
-            ss << dims_idx;
-            std::string ind_str = ss.str();
-
-            BENCHDNN_PRINT(0,
-                    "[%4ld][%s] fp0:%8g fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, ind_str.c_str(), fp0, fp, dt, diff, rel_diff);
-        }
-    }
-
-    if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    return res->state == FAILED ? FAIL : OK;
 }
 
 int fill_src(int input_idx, int n_inputs, dnnl_data_type_t dt,
@@ -206,8 +166,9 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (bench_mode & CORR) {
         compute_ref(prb, src_fp, dst_fp);
-        dnn_mem_t dst(dst_dt, dnnl_f32, tag::abx, test_engine);
-        SAFE(compare(prb, dst_md.data_type, dst_fp, dst, res), WARN);
+        compare::compare_t cmp;
+        cmp.set_threshold(epsilon_dt(dst_md.data_type) * prb->n_inputs());
+        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
     measure_perf(res->timer, s, args);

@@ -132,39 +132,9 @@ inline int64_t src_off_f(const prb_t *prb, int64_t mb, int64_t ic, int64_t id,
     return (((mb * prb->ic + ic) * prb->id + id) * prb->ih + ih) * prb->iw + iw;
 }
 
-inline void inv_src_off_f(const prb_t *prb, int64_t off, int64_t &mb,
-        int64_t &ic, int64_t &id, int64_t &ih, int64_t &iw) {
-    iw = off % prb->iw;
-    off /= prb->iw;
-    ih = off % prb->ih;
-    off /= prb->ih;
-    id = off % prb->id;
-    off /= prb->id;
-    ic = off % prb->ic;
-    off /= prb->ic;
-    mb = off % prb->mb;
-    off /= prb->mb;
-    assert(off == 0);
-}
-
 inline int64_t dst_off_f(const prb_t *prb, int64_t mb, int64_t ic, int64_t od,
         int64_t oh, int64_t ow) {
     return (((mb * prb->ic + ic) * prb->od + od) * prb->oh + oh) * prb->ow + ow;
-}
-
-inline void inv_dst_off_f(const prb_t *prb, int64_t off, int64_t &mb,
-        int64_t &ic, int64_t &od, int64_t &oh, int64_t &ow) {
-    ow = off % prb->ow;
-    off /= prb->ow;
-    oh = off % prb->oh;
-    off /= prb->oh;
-    od = off % prb->od;
-    off /= prb->od;
-    ic = off % prb->ic;
-    off /= prb->ic;
-    mb = off % prb->mb;
-    off /= prb->mb;
-    assert(off == 0);
 }
 
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src, dnn_mem_t &dst);

@@ -20,6 +20,7 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
@@ -119,59 +120,6 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-int compare(const prb_t *prb, const dnn_mem_t &fp_mem, const dnn_mem_t &dt_mem,
-        res_t *res) {
-    const auto nelems = dt_mem.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    int non_zero = 0;
-    const double trust_nz_level = 0.5;
-
-    // `5` is a temporary magic const for GPU to pass norm algs. TODO: consider
-    // change the filling with power-of-two values for better answer precision.
-    const float trh = 5 * epsilon_dt(prb->ddt);
-
-    for (int64_t i = 0; i < nelems; i++) {
-        const float dt = dt_mem.get_elem(i);
-        const float fp0 = fp_mem.get_elem(i);
-        const float fp = round_to_nearest_representable(prb->ddt, fp0);
-
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
-
-        res->errors += !ok;
-
-        const bool dump = (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            std::stringstream ss;
-            dims_t dims_idx = off2dims_idx(prb->dst_dims, i);
-            ss << dims_idx;
-            std::string ind_str = ss.str();
-
-            BENCHDNN_PRINT(0,
-                    "[%4ld][%s] fp0:%8g fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, ind_str.c_str(), fp0, fp, dt, diff, rel_diff);
-        }
-
-        non_zero += fp != 0.0f;
-    }
-
-    if (res->errors) res->state = FAILED;
-
-    const double trust_nz = (double)non_zero / res->total;
-    if (trust_nz < trust_nz_level) {
-        if (res->state != FAILED) res->state = MISTRUSTED;
-    }
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    return res->state == FAILED ? FAIL : OK;
-}
-
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common({prb->sdt, prb->ddt}, FWD_D, res);
     if (res->state == SKIPPED) return;
@@ -243,8 +191,12 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (bench_mode & CORR) {
         compute_ref(prb, src_fp, dst_fp);
-        dnn_mem_t dst(dst_dt, fp_dt, abx_tag, test_engine);
-        SAFE(compare(prb, dst_fp, dst, res), WARN);
+        compare::compare_t cmp;
+        // `5` is a temporary magic const for GPU to pass norm algs.
+        // TODO: consider change the filling with power-of-two values for better
+        // answer precision.
+        cmp.set_threshold(5 * epsilon_dt(prb->ddt));
+        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
     measure_perf(res->timer, reduction, args);

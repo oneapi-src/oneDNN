@@ -23,6 +23,7 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
@@ -86,32 +87,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     }
 
     return OK;
-}
-
-// Check that on a given input specific alg may return NaN or inf.
-// Used in other drivers supporting eltwise post_ops.
-bool check_extreme_values(const float &a, const float &b, alg_t alg) {
-    switch (alg) {
-        case alg_t::EXP:
-        case alg_t::EXP_DST:
-        case alg_t::LOG:
-        case alg_t::POW:
-        case alg_t::SQRT:
-        case alg_t::SQRT_DST:
-        case alg_t::SQUARE:
-        // It is impossible to reliably test against reference in eltwise
-        // post-op chain since some algs may produce inf or NaN in the middle
-        // which is not expected for a standalone testing. Thus, when passing
-        // alg == ELTWISE_END, accept this fact. This alg to be used when
-        // comparing results with eltwise post-op chain.
-        case alg_t::ELTWISE_END:
-            if (std::isnan(a) && std::isnan(b)) return true;
-            if (std::isinf(a) && std::isinf(b)
-                    && std::signbit(a) == std::signbit(b))
-                return true;
-        default: break;
-    }
-    return false;
 }
 
 static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
@@ -205,56 +180,31 @@ float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd) {
     return trh;
 }
 
-static int compare(const prb_t *prb, const dnn_mem_t &mem_arg_fp,
-        const dnn_mem_t &mem_fp, const dnn_mem_t &mem_dt, res_t *res) {
-    const auto nelems = mem_dt.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    const float trh
-            = get_eltwise_threshold(prb->dt, prb->alg, prb->dir & FLAG_FWD);
-
-    for (int64_t i = 0; i < nelems; i++) {
-        const float dt = mem_dt.get_elem(i);
-        const float src = mem_arg_fp.get_elem(i);
-        const float fp0 = mem_fp.get_elem(i);
-        const float fp = round_to_nearest_representable(prb->dt, fp0);
-
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-
-        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
-
-        // XXX: if reference fp0 value is nan, allow to return anything from the
-        // library for integral target data types.
-        if (!ok) ok = std::isnan(fp0) && is_integral_dt(prb->dt);
-        if (!ok) ok = check_extreme_values(fp, dt, prb->alg);
-
-        if (!ok && check_abs_err(prb, src, trh)) ok = diff <= trh;
-
-        res->errors += !ok;
-
-        const bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            std::stringstream ss;
-            dims_t dims_idx = off2dims_idx(prb->dims, i);
-            ss << dims_idx;
-            std::string ind_str = ss.str();
-
-            BENCHDNN_PRINT(0,
-                    "[%4ld][%s] src:% 9.6g fp0:% 9.6g fp:% 9.6g dt:% 9.6g "
-                    "diff:%8.3g rdiff:%8.3g\n",
-                    (long)i, ind_str.c_str(), src, fp0, fp, dt, diff, rel_diff);
-        }
+static float get_eltwise_zero_trust_percent(const prb_t *prb) {
+    float ztp = 60.f; // default for eltwise due to filling.
+    switch (prb->alg) {
+        case alg_t::LINEAR:
+            if (prb->alpha == 0) ztp = 100.f;
+            break;
+        case alg_t::BRELU:
+            if ((prb->alpha == 0) || (prb->dir & FLAG_BWD)) ztp = 100.f;
+            break;
+        case alg_t::CLIP:
+        case alg_t::CLIP_V2:
+        case alg_t::CLIP_V2_DST:
+            if ((prb->alpha == 0 && prb->beta == 0) || (prb->dir & FLAG_BWD))
+                ztp = 100.f;
+            break;
+        case alg_t::POW:
+            if (prb->alpha == 0 || ((prb->dir & FLAG_BWD) && prb->beta == 0))
+                ztp = 100.f;
+            break;
+        default: break;
     }
-
-    if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    return res->state == FAILED ? FAIL : OK;
+    // Integral data types with small float values will produce most zeros.
+    // u8 with negative alpha will produce only zeros.
+    if (is_integral_dt(prb->dt)) ztp = 100.f;
+    return ztp;
 }
 
 int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
@@ -376,17 +326,13 @@ int doit(const prb_t *prb, res_t *res) {
 
     const auto &data_md = q(DNNL_ARG_SRC);
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
-
-    const auto fp = dnnl_f32;
-    const auto tag = tag::abx;
-
     const auto &test_engine = get_test_engine();
 
-    dnn_mem_t src_fp(data_md, fp, tag, test_engine);
+    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, test_engine);
     dnn_mem_t src_dt(data_md, test_engine);
 
     // we need src_fp for proper comparison, => no in-place reference
-    dnn_mem_t dst_fp(data_md, fp, tag, test_engine);
+    dnn_mem_t dst_fp(data_md, dnnl_f32, tag::abx, test_engine);
     dnn_mem_t placeholder_dst_dt;
     if (!prb->inplace) { placeholder_dst_dt = dnn_mem_t(data_md, test_engine); }
     dnn_mem_t &dst_dt = prb->inplace ? src_dt : placeholder_dst_dt;
@@ -404,6 +350,27 @@ int doit(const prb_t *prb, res_t *res) {
 
     args_t args;
 
+    const bool is_fwd = prb->dir & FLAG_FWD;
+    dnn_mem_t &arg_fp = !is_fwd && prb->use_dst() ? dst_fp : src_fp;
+
+    // Shouldn't be defined inside since not available when `eltwise_add_check`
+    // is invoked due to removed from stack.
+    const float trh = get_eltwise_threshold(prb->dt, prb->alg, is_fwd);
+    compare::compare_t cmp;
+    if (bench_mode & CORR) {
+        cmp.set_threshold(trh);
+        cmp.set_zero_trust_percent(get_eltwise_zero_trust_percent(prb));
+
+        const auto eltwise_add_check = [&](int64_t i, float got, float diff) {
+            // Some algorithms require absolute value comparison for inputs
+            // where catastrophic cancellation may happen.
+            const float src = arg_fp.get_elem(i);
+            if (check_abs_err(prb, src, trh)) return diff <= trh;
+            return false;
+        };
+        cmp.set_driver_check_function(eltwise_add_check);
+    }
+
     if (prb->dir & FLAG_FWD) {
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DST, dst_dt);
@@ -414,13 +381,13 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (bench_mode & CORR) {
             compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp);
-            dnn_mem_t dst(dst_dt, fp, tag, test_engine);
-            SAFE(compare(prb, src_fp, dst_fp, dst, res), WARN);
+            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
     } else {
         const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
 
-        dnn_mem_t d_dst_fp = dnn_mem_t(d_data_md, fp, tag, test_engine);
+        dnn_mem_t d_dst_fp
+                = dnn_mem_t(d_data_md, dnnl_f32, tag::abx, test_engine);
         d_dst_dt = dnn_mem_t(d_data_md, test_engine);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
@@ -450,10 +417,8 @@ int doit(const prb_t *prb, res_t *res) {
         SAFE(execute_and_wait(e, args), WARN);
 
         if (bench_mode & CORR) {
-            dnn_mem_t &arg_fp = prb->use_dst() ? dst_fp : src_fp;
             compute_ref_bwd(prb, arg_fp, d_dst_fp, d_src_fp);
-            dnn_mem_t d_src(d_src_dt, fp, tag, test_engine);
-            SAFE(compare(prb, arg_fp, d_src_fp, d_src, res), WARN);
+            SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
         }
     }
 

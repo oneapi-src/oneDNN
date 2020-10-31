@@ -22,6 +22,7 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
@@ -53,44 +54,6 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
     return OK;
-}
-
-static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
-        const dnn_mem_t &dt_mem, res_t *res) {
-    const float trh = 0;
-    const auto nelems = dt_mem.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    for (int64_t i = 0; i < nelems; i++) {
-        const float dt = dt_mem.get_elem(i);
-        const float fp = fp_mem.get_elem(i);
-
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
-
-        res->errors += !ok;
-
-        const bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            std::stringstream ss;
-            dims_t dims_idx = off2dims_idx(prb->dims, i);
-            ss << dims_idx;
-            std::string ind_str = ss.str();
-
-            BENCHDNN_PRINT(0, "[%4ld][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, ind_str.c_str(), fp, dt, diff, rel_diff);
-        }
-    }
-
-    if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    return res->state == FAILED ? FAIL : OK;
 }
 
 static int init_pd(dnnl_engine_t engine, const prb_t *prb,
@@ -180,16 +143,12 @@ int doit(const prb_t *prb, res_t *res) {
     const auto &data_md
             = prb->dir & FLAG_FWD ? q(DNNL_ARG_SRC) : q(DNNL_ARG_DIFF_SRC);
     const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
-
-    const auto fp = dnnl_f32;
-    const auto tag = tag::abx;
-
     const auto &test_engine = get_test_engine();
 
-    dnn_mem_t src_fp(data_md, fp, tag, test_engine);
+    dnn_mem_t src_fp(data_md, dnnl_f32, tag::abx, test_engine);
     dnn_mem_t src_dt(data_md, test_engine);
 
-    dnn_mem_t dst_fp(data_md, fp, tag, test_engine);
+    dnn_mem_t dst_fp(data_md, dnnl_f32, tag::abx, test_engine);
     dnn_mem_t dst_dt(data_md, test_engine);
 
     dnn_mem_t scratchpad_dt(scratchpad_md, test_engine);
@@ -209,8 +168,8 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (bench_mode & CORR) {
         compute_shuffle(prb, src_fp, dst_fp);
-        dnn_mem_t data(dst_dt, fp, tag, test_engine);
-        SAFE(compare(prb, dst_fp, data, res), WARN);
+        compare::compare_t cmp;
+        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
     measure_perf(res->timer, s, args);

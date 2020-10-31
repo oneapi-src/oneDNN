@@ -23,82 +23,14 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "norm.hpp"
 
 #include "binary/binary.hpp"
 #include "pool/pool.hpp"
 
 namespace pool {
-
-inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
-    const auto nelems = mem_dt.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    for (int64_t i = 0; i < nelems; ++i) {
-        const float dt = mem_dt.get_elem(i);
-        const float fp0 = mem_fp.get_elem(i);
-        const float fp = round_to_nearest_representable(prb->cfg[kind].dt, fp0);
-
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-
-        bool ok = false;
-        if (std::isnan(fp0) && is_integral_dt(prb->cfg[kind].dt))
-            // XXX: if reference fp0 value is nan, allow to return anything from
-            // the library for integral target data types.
-            ok = true;
-        else if (std::isinf(fp))
-            ok = std::isinf(dt) && std::signbit(fp) == std::signbit(dt);
-        else if (fp < prb->cfg[kind].min)
-            ok = dt == prb->cfg[kind].min;
-        else
-            ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= prb->cfg[kind].eps;
-
-        // XXX: bug in cuDNN: it spits fp16 min value as -inf, not -65504
-        if (!ok && is_nvidia_gpu() && prb->cfg[kind].dt == dnnl_f16) {
-            ok = fp == lowest_dt(prb->cfg[kind].dt) && std::isinf(dt)
-                    && std::signbit(dt);
-        }
-
-        res->errors += !ok;
-
-        bool dump = (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            int64_t mb = 0, ic = 0, d = 0, h = 0, w = 0;
-            switch (kind) {
-                case SRC: inv_src_off_f(prb, i, mb, ic, d, h, w); break;
-                case DST: inv_dst_off_f(prb, i, mb, ic, d, h, w); break;
-            }
-            BENCHDNN_PRINT(0,
-                    "[%4ld][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
-                    "] "
-                    "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, mb, ic, d, h, w, fp, fp0, dt, diff, rel_diff);
-        }
-    }
-
-    if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    return res->state == FAILED ? FAIL : OK;
-}
-
-int compare_src(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    return compare_dat(prb, SRC, mem_dt, mem_fp, res);
-}
-
-int compare_dst(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    return compare_dat(prb, DST, mem_dt, mem_fp, res);
-}
 
 int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *res) {
@@ -351,8 +283,26 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode & CORR) {
         compute_ref_fwd(prb, src_fp, binary_po_fp, dst_fp, ws_fp);
         if (prb->dir & FLAG_FWD) {
-            dnn_mem_t dst(dst_dt, fp, tag, test_engine);
-            SAFE(compare_dst(prb, dst, dst_fp, res), WARN);
+            compare::compare_t cmp;
+            cmp.set_threshold(prb->cfg[DST].eps);
+            cmp.set_data_kind(DST);
+            cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
+
+            const auto pooling_add_check
+                    = [&](int64_t i, float got, float diff) {
+                          // cuDNN bug: it spits fp16 min value as -inf,
+                          // not -65504.
+                          if (is_nvidia_gpu() && prb->cfg[DST].dt == dnnl_f16) {
+                              const float exp = round_to_nearest_representable(
+                                      prb->cfg[DST].dt, dst_fp.get_elem(i));
+                              return exp == lowest_dt(prb->cfg[DST].dt)
+                                      && std::isinf(got) && std::signbit(got);
+                          }
+                          return false;
+                      };
+            cmp.set_driver_check_function(pooling_add_check);
+
+            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
     }
 
@@ -396,8 +346,11 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd(prb, d_src_fp, d_dst_fp, ws_fp);
-            dnn_mem_t diff_src(d_src_dt, fp, tag, test_engine);
-            SAFE(compare_src(prb, diff_src, d_src_fp, res), WARN);
+            compare::compare_t cmp;
+            cmp.set_threshold(prb->cfg[SRC].eps);
+            cmp.set_data_kind(SRC);
+            cmp.set_zero_trust_percent(100.f); // TODO: consider enabling
+            SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
         }
     }
 

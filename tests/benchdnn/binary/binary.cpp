@@ -21,6 +21,7 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -133,96 +134,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     return OK;
 }
 
-// Check that on a given input specific alg may return NaN or inf.
-bool check_extreme_values(float a, float b, alg_t alg) {
-    switch (alg) {
-        case alg_t::DIV:
-        // It is impossible to reliably test against reference in binary
-        // post-op chain since some algs may produce inf or NaN in the middle
-        // which is not expected for a standalone testing. Thus, when passing
-        // alg == BINARY_END, accept this fact. This alg to be used when
-        // comparing results with binary post-op chain.
-        case alg_t::BINARY_END:
-            if (std::isnan(a) && std::isnan(b)) return true;
-            if (std::isinf(a) && std::isinf(b)
-                    && std::signbit(a) == std::signbit(b))
-                return true;
-        default: break;
-    }
-    return false;
-}
-
-static int compare(const prb_t *prb, const dnn_mem_t &fp_mem,
-        const dnn_mem_t &dt_mem, res_t *res) {
-    const auto nelems = dt_mem.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    float trh = epsilon_dt(prb->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32)
-            * prb->n_inputs();
-
-    // Update trh with the largest value from all eltwise post-ops
-    const auto &po = prb->attr.post_ops;
-    bool has_eltwise = po.eltwise_index() != -1;
-    if (has_eltwise) {
-        for (int i = 0; i < po.len(); ++i) {
-            const auto &e = po.entry[i];
-            if (e.is_eltwise_kind())
-                trh = MAX2(
-                        trh, eltwise::get_eltwise_threshold(prb->ddt, e.kind));
-        }
-    }
-
-    const bool has_binary = po.binary_index() != -1;
-
-    dims_t ddims(dt_mem.md_.ndims);
-    ddims = dt_mem.md_.dims;
-
-    for (int64_t i = 0; i < nelems; i++) {
-        const float dt = dt_mem.get_elem(i);
-        const float fp0 = fp_mem.get_elem(i);
-        const float fp = round_to_nearest_representable(prb->ddt, fp0);
-
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
-
-        // XXX: if reference fp0 value is nan, allow to return anything from the
-        // library for integral target data types.
-        if (!ok) ok = std::isnan(fp0) && is_integral_dt(prb->ddt);
-        // XXX: fp16 result can slightly mismatch for division due to difference
-        // in backends implementations
-        if (!ok && prb->alg == alg_t::DIV) ok = diff <= epsilon_dt(prb->ddt);
-        if (!ok) ok = check_extreme_values(fp, dt, prb->alg);
-        if (!ok && has_eltwise)
-            ok = eltwise::check_extreme_values(fp, dt, alg_t::ELTWISE_END);
-        if (!ok && has_binary)
-            ok = check_extreme_values(fp, dt, alg_t::BINARY_END);
-
-        res->errors += !ok;
-
-        const bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            std::stringstream ss;
-            dims_t dims_idx = off2dims_idx(ddims, i);
-            ss << dims_idx;
-            std::string ind_str = ss.str();
-
-            BENCHDNN_PRINT(0,
-                    "[%4ld][%s] fp0:%8g fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, ind_str.c_str(), fp0, fp, dt, diff, rel_diff);
-        }
-    }
-
-    if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    return res->state == FAILED ? FAIL : OK;
-}
-
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(prb->sdt, FWD_D, res);
     if (res->state == SKIPPED) return;
@@ -332,8 +243,17 @@ int doit(const prb_t *prb, res_t *res) {
 
     if (bench_mode & CORR) {
         compute_ref(prb, src0_fp, src1_fp, binary_po_fp, dst_fp);
-        dnn_mem_t dst(dst_dt, fp, tag, test_engine);
-        SAFE(compare(prb, dst_fp, dst, res), WARN);
+
+        compare::compare_t cmp;
+        cmp.set_threshold(epsilon_dt(dst_dt.dt()));
+        const auto binary_add_check = [&](int64_t i, float got, float diff) {
+            // fp16 result can slightly mismatch for division due to difference
+            // in backends implementations.
+            return prb->alg == alg_t::DIV ? diff < epsilon_dt(prb->ddt) : false;
+        };
+        cmp.set_driver_check_function(binary_add_check);
+
+        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
     measure_perf(res->timer, b, args);

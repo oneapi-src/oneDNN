@@ -24,6 +24,7 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
@@ -120,60 +121,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     }
 
     return OK;
-}
-
-int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
-    const auto nelems = mem_dt.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    int64_t non_zero = 0;
-    const char *skind = data_kind2str(kind);
-
-    for (int64_t i = 0; i < nelems; ++i) {
-        const float dt = mem_dt.get_elem(i);
-        const float fp0 = mem_fp.get_elem(i);
-        const float fp = round_to_nearest_representable(prb->cfg[kind].dt, fp0);
-
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= prb->cfg[kind].eps;
-
-        // XXX: if reference fp0 value is nan, allow to return anything from the
-        // library for integral target data types.
-        if (!ok) ok = std::isnan(fp0) && is_integral_dt(prb->cfg[kind].dt);
-
-        res->errors += !ok;
-
-        const bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            BENCHDNN_PRINT(0,
-                    "[%4ld][%s]"
-                    "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, skind, fp, fp0, dt, diff, rel_diff);
-        }
-        non_zero += fp != 0;
-    }
-
-    const double trust_nz = (double)non_zero / res->total;
-    bool no_trust = trust_nz < 0.1;
-    if (no_trust) {
-        res->state = MISTRUSTED;
-        const char *skind = data_kind2str(kind);
-        BENCHDNN_PRINT(0,
-                "@@@ [%s] test-bug: trust is too low."
-                " Nonzeros in output: %.2f\n",
-                skind, trust_nz);
-    }
-
-    if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    return res->state == FAILED ? FAIL : OK;
 }
 
 int fill_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
@@ -441,8 +388,11 @@ int doit(const prb_t *prb, res_t *res) {
     if (bench_mode & CORR) {
         compute_ref(
                 test_engine, prb, src_fp, wei_fp, bia_fp, binary_po_fp, dst_fp);
-        dnn_mem_t c(dst_dt, fp, tag::abx, test_engine);
-        SAFE(compare_dat(prb, DST, c, dst_fp, res), WARN);
+        compare::compare_t cmp;
+        cmp.set_threshold(prb->cfg[DST].eps);
+        cmp.set_data_kind(DST);
+        cmp.set_zero_trust_percent(90.f); // TODO: why so bad filling?
+        SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
     }
 
     measure_perf(res->timer, m, args);

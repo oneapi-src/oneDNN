@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <cmath>
 #include <stdlib.h>
 
 #include "oneapi/dnnl/dnnl.h"
 
+#include "compare.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -130,99 +130,6 @@ int compare_bootstrap(dnn_mem_t &mem_ref, dnn_mem_t &mem_got, res_t *res) {
     res->errors = !ok;
     res->state = ok ? PASSED : FAILED;
     res->total = 1;
-
-    return res->state == FAILED ? FAIL : OK;
-}
-
-static int compare(const prb_t *prb, const dnn_mem_t &mem_ref,
-        const dnn_mem_t &mem_got, res_t *res) {
-    const auto nelems = mem_got.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    int64_t inf_p = 0, inf_n = 0, zeros = 0, reg = 0;
-
-    const auto dt_out = mem_ref.dt();
-    const size_t width = mem_ref.sizeof_dt() * 8;
-    const float dt_out_min
-            = dt_out == dnnl_u8 ? 0.f : -(float)(1l << (width - 1));
-    const float dt_out_max
-            = dt_out == dnnl_u8 ? 255.f : (float)((1l << (width - 1)) - 1);
-    const float trh = 0.f;
-
-    for (int64_t i = 0; i < nelems; i++) {
-        const float dt = mem_got.get_elem(i);
-        const float fp0 = mem_ref.get_elem(i);
-        const float fp = round_to_nearest_representable(dt_out, fp0);
-
-        if (fp == dt_out_max)
-            inf_p++;
-        else if (fp == dt_out_min)
-            inf_n++;
-        else if (fp == 0.0)
-            zeros++;
-        else
-            reg++;
-
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        bool ok = rel_diff <= trh;
-
-        // f32->f16 results in inf for FLT_MAX input
-        if (!ok) ok = std::isinf(fp) && std::isinf(dt);
-
-        res->errors += !ok;
-
-        const bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            std::stringstream ss;
-            dims_t dims_idx = off2dims_idx(prb->reorder.dims, i);
-            ss << dims_idx;
-            std::string ind_str = ss.str();
-
-            BENCHDNN_PRINT(0,
-                    "[%4ld][%s] fp:% 12.6g dt:% 12.6g diff:%8.3g rdiff:%8.3g\n",
-                    (long)i, ind_str.c_str(), fp, dt, diff, rel_diff);
-        }
-    }
-
-    if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    if (res->state != FAILED) {
-        float max_scale = prb->scales[0];
-        for (int i = 1; i < get_n_scales(prb); ++i)
-            max_scale = MAX2(max_scale, prb->scales[i]);
-
-        dt_conf_t c_src = prb->conf_in;
-        dt_conf_t c_dst = prb->conf_out;
-        const int c_src_max = c_src->min + c_src->range - 1;
-        const int c_dst_max = c_dst->min + c_dst->range - 1;
-
-        bool check_int_overflow = (dt_out != dnnl_f32 && dt_out != dnnl_f16
-                && dt_out != dnnl_bf16);
-        bool check_inf_p = (check_int_overflow && dt_out != dnnl_s32)
-                && (c_src_max * max_scale > c_dst_max);
-        bool check_inf_n = (check_int_overflow && dt_out != dnnl_s32)
-                && (c_src->min * max_scale < c_dst->min);
-        bool check_zeros = (check_int_overflow)
-                && (dt_out_min != 0 && dt_out_max != 0)
-                && IMPLICATION(prb->src_zp, prb->src_zp[0] == 0)
-                && IMPLICATION(prb->dst_zp, prb->dst_zp[0] == 0)
-                && prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM)
-                        == -1;
-
-        bool mistrusted = (check_inf_p && inf_p == 0)
-                || (check_inf_n && inf_n == 0) || (check_zeros && zeros == 0);
-
-        bool expect_regular = max_scale < 2e9 || dt_out == dnnl_f32;
-        if (expect_regular) mistrusted = mistrusted || reg == 0;
-
-        if (mistrusted) res->state = MISTRUSTED;
-    }
 
     return res->state == FAILED ? FAIL : OK;
 }
@@ -469,9 +376,27 @@ int doit(const prb_t *prb, res_t *res) {
             SAFE(ref_reorder(prb, dst_dt_out_fmt_ref, src_dt_in_fmt_ref), WARN);
 
             /* Step 5c: compare benchdnn and oneDNN output */
-            dnn_mem_t dst_dt_out(dst_md, dst_dt, tag, dst_engine);
-            SAFE(dst_dt_out.reorder(dst_dt_out_fmt_out), WARN);
-            SAFE(compare(prb, dst_dt_out_fmt_ref, dst_dt_out, res), WARN);
+            compare::compare_t cmp;
+            const bool has_s32 = src_md.data_type == dnnl_s32
+                    || dst_md.data_type == dnnl_s32;
+            const bool has_s8 = src_md.data_type == dnnl_s8
+                    || dst_md.data_type == dnnl_s8;
+            const bool has_u8 = src_md.data_type == dnnl_u8
+                    || dst_md.data_type == dnnl_u8;
+            if (has_u8)
+                cmp.set_zero_trust_percent(58.f); // 4/7 inputs becomes 0
+            else if (has_s32 || has_s8)
+                cmp.set_zero_trust_percent(43.f); // 3/7 inputs becomes 0
+
+            // FIXME: when s32 -> u8 due to incorrect saturation for values
+            // greater than INT_MAX, 5 out of 7 inputs becomes 0.
+            if (has_s32 && has_u8)
+                cmp.set_zero_trust_percent(72.f); // 5/7 inputs becomes 0
+
+            // TODO: enable additional checks for border values validity.
+            SAFE(cmp.compare(dst_dt_out_fmt_ref, dst_dt_out_fmt_out, prb->attr,
+                         res, dst_engine),
+                    WARN);
         }
     }
 

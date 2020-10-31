@@ -23,6 +23,7 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
@@ -82,59 +83,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     return OK;
 }
 
-// Check that on a given input specific alg may return NaN or inf.
-static bool check_extreme_values(float a, float b) {
-    if (std::isnan(a) && std::isnan(b)) return true;
-    if (std::isinf(a) && std::isinf(b) && std::signbit(a) == std::signbit(b))
-        return true;
-    return false;
-}
-
-static int compare(const prb_t *prb, data_kind_t kind, const dnn_mem_t &mem_fp,
-        const dnn_mem_t &mem_dt, res_t *res) {
-    const auto nelems = mem_dt.nelems();
-    const auto trh = 2 * epsilon_dt(prb->sdt[0]);
-
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    for (int64_t i = 0; i < nelems; i++) {
-        const float dt = mem_dt.get_elem(i);
-        const float fp0 = mem_fp.get_elem(i);
-        const float fp = round_to_nearest_representable(prb->sdt[0], fp0);
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-
-        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
-        if (!ok) ok = check_extreme_values(fp, dt);
-
-        res->errors += !ok;
-
-        const bool dump = (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            std::stringstream ss;
-            dims_t dims_idx = (kind == WEI) ? off2dims_idx(prb->sdims[1], i)
-                                            : off2dims_idx(prb->sdims[0], i);
-            ss << dims_idx;
-            std::string ind_str = ss.str();
-
-            BENCHDNN_PRINT(0,
-                    "[%4ld][%s][%s] fp0:% 9.6g fp:% 9.6g dt:% 9.6g "
-                    "diff:%8.3g rdiff:%8.3g\n",
-                    (long)i, data_kind2str(kind), ind_str.c_str(), fp0, fp, dt,
-                    diff, rel_diff);
-        }
-    }
-
-    if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    return res->state == FAILED ? FAIL : OK;
-}
-
 int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
@@ -168,7 +116,7 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             float value = kind == SRC
                     ? igen(msr)
-                    : kind == WEI ? fgen(msr) : igen(msr) / 8.f;
+                    : kind == WEI ? fgen(msr) : igen(msr) / 16.f;
             // TODO: amount of negative values should depend on number of points
             // to reduce as summation becomes inaccurate.
             float sign = flip_coin(idx, 0.1f) ? -1.f : 1.f;
@@ -249,8 +197,11 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (bench_mode & CORR) {
             compute_ref_fwd(prb, src_fp, weights_fp, dst_fp);
-            dnn_mem_t dst(dst_dt, dnnl_f32, tag::abx, test_engine);
-            SAFE(compare(prb, SRC, dst_fp, dst, res), WARN);
+            compare::compare_t cmp;
+            cmp.set_threshold(2 * epsilon_dt(prb->sdt[0]));
+            cmp.set_zero_trust_percent(50.f); // Due to filling
+            cmp.set_data_kind(DST);
+            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
     } else {
         const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
@@ -275,11 +226,19 @@ int doit(const prb_t *prb, res_t *res) {
             compute_ref_bwd(
                     prb, src_fp, weights_fp, d_src_fp, d_dst_fp, d_weights_fp);
 
-            dnn_mem_t d_src(d_src_dt, dnnl_f32, tag::abx, test_engine);
-            SAFE(compare(prb, SRC, d_src_fp, d_src, res), WARN);
+            compare::compare_t cmp_src;
+            cmp_src.set_threshold(2 * epsilon_dt(prb->sdt[0]));
+            cmp_src.set_zero_trust_percent(50.f); // Due to filling
+            cmp_src.set_data_kind(SRC);
+            SAFE(cmp_src.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
 
-            dnn_mem_t d_weights(d_weights_dt, dnnl_f32, tag::abx, test_engine);
-            SAFE(compare(prb, WEI, d_weights_fp, d_weights, res), WARN);
+            compare::compare_t cmp_wei;
+            cmp_wei.set_threshold(2 * epsilon_dt(prb->sdt[1]));
+            // Weights are very sparse, no sense to test for trust.
+            cmp_wei.set_zero_trust_percent(100.f);
+            cmp_wei.set_data_kind(WEI);
+            SAFE(cmp_wei.compare(d_weights_fp, d_weights_dt, prb->attr, res),
+                    WARN);
         }
     }
 

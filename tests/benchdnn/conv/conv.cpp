@@ -23,6 +23,7 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "norm.hpp"
@@ -140,7 +141,6 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
     // Update trh with the largest value from all eltwise post-ops
     const auto &po = prb->attr.post_ops;
     bool has_eltwise = po.eltwise_index() != -1;
-    const bool has_binary = po.binary_index() != -1;
     using pk_t = attr_t::post_ops_t::kind_t;
 
     int sum_ind = po.find(pk_t::SUM);
@@ -172,19 +172,13 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         } else if (fp < f_min) {
             diff_norm.update(f_min, dt);
             ok = dt == f_min;
-            if (!ok && has_eltwise)
-                ok = eltwise::check_extreme_values(fp, dt, pk_t::ELTWISE_END);
-            if (!ok && has_binary)
-                ok = binary::check_extreme_values(fp, dt, pk_t::BINARY_END);
+            if (!ok) ok = compare::compare_extreme_values(fp, dt);
             below += 1;
             below_ok += ok;
         } else if (fp > f_max) {
             diff_norm.update(f_max, dt);
             ok = dt == f_max;
-            if (!ok && has_eltwise)
-                ok = eltwise::check_extreme_values(fp, dt, pk_t::ELTWISE_END);
-            if (!ok && has_binary)
-                ok = binary::check_extreme_values(fp, dt, pk_t::BINARY_END);
+            if (!ok) ok = compare::compare_extreme_values(fp, dt);
             above += 1;
             above_ok += ok;
         } else {
@@ -200,10 +194,7 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
                 }
             }
             ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= trh;
-            if (!ok && has_eltwise)
-                ok = eltwise::check_extreme_values(fp, dt, pk_t::ELTWISE_END);
-            if (!ok && has_binary)
-                ok = binary::check_extreme_values(fp, dt, pk_t::BINARY_END);
+            if (!ok) ok = compare::compare_extreme_values(fp, dt);
             in += 1;
             in_ok += ok;
         }

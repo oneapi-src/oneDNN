@@ -23,89 +23,13 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "norm.hpp"
 
 #include "resampling/resampling.hpp"
 
 namespace resampling {
-
-inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *res) {
-    const auto nelems = mem_dt.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    float trh = 0;
-    float eps = 1e-5;
-    if (prb->alg == nearest) {
-        // On forward, `dst` consists of exact `src` elements, hence the result
-        // shall be exact (no matter what data type is). On backward, the
-        // diff_src might be a result of accumulation of multiple diff_dst.
-        // However, we rely on the fact that benchdnn reference implementation
-        // does absolutely the same as the library implementations. We only need
-        // to take into account the conversion from accumulation data type
-        // (which is float) to the resulting data type.
-        if (prb->dir & FLAG_FWD)
-            trh = 0;
-        else
-            trh = prb->dt != dnnl_f32 ? epsilon_dt(prb->dt) : 0;
-    } else {
-        assert(prb->alg == linear);
-        trh = prb->dt == dnnl_f32 ? 1e-6 : 1e-2;
-        if (is_nvidia_gpu()) {
-            // cuDNN precision is different from ref one due to different
-            // computation algorithm used for resampling.
-            trh = prb->dt == dnnl_f16 ? 4e-1 : 8e-4;
-            eps = prb->dt == dnnl_f16 ? 1e-1 : 8e-5;
-        }
-    }
-
-    for (int64_t i = 0; i < nelems; ++i) {
-        const float dt = mem_dt.get_elem(i);
-        const float fp0 = mem_fp.get_elem(i);
-        const float fp = round_to_nearest_representable(prb->dt, fp0);
-
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const bool ok = (fabsf(fp) > eps ? rel_diff : diff) <= trh;
-
-        res->errors += !ok;
-
-        const bool dump = (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            int64_t mb = 0, ic = 0, d = 0, h = 0, w = 0;
-            switch (kind) {
-                case SRC: inv_src_off_f(prb, i, mb, ic, d, h, w); break;
-                case DST: inv_dst_off_f(prb, i, mb, ic, d, h, w); break;
-            }
-            BENCHDNN_PRINT(0,
-                    "[%4ld][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
-                    "] "
-                    "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, mb, ic, d, h, w, fp, fp0, dt, diff, rel_diff);
-        }
-    }
-
-    if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    return res->state == FAILED ? FAIL : OK;
-}
-
-int compare_src(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    return compare_dat(prb, SRC, mem_dt, mem_fp, res);
-}
-
-int compare_dst(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    return compare_dat(prb, DST, mem_dt, mem_fp, res);
-}
 
 int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *res) {
@@ -290,8 +214,19 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (bench_mode & CORR) {
             compute_ref_fwd(prb, src_fp, dst_fp);
-            dnn_mem_t dst(dst_dt, fp, tag, test_engine);
-            SAFE(compare_dst(prb, dst, dst_fp, res), WARN);
+            float trh = prb->alg == nearest ? 0.f : 3 * epsilon_dt(prb->dt);
+            if (is_nvidia_gpu()) {
+                // cuDNN precision is different from ref one due to different
+                // computation algorithm used for resampling.
+                trh = prb->dt == dnnl_f16 ? 4e-2 : 2e-5;
+            }
+            compare::compare_t cmp;
+            cmp.set_threshold(trh);
+            // No sense to test zero trust for upsampling since it produces
+            // valid zeros.
+            // TODO: validate this once again.
+            cmp.set_zero_trust_percent(100.f);
+            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
     } else {
         SAFE(fill_dst(prb, dst_dt, dst_fp, res), WARN);
@@ -303,8 +238,18 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd(prb, src_fp, dst_fp);
-            dnn_mem_t diff_src(src_dt, fp, tag, test_engine);
-            SAFE(compare_src(prb, diff_src, src_fp, res), WARN);
+            float trh = prb->alg == nearest ? 0.f : 6 * epsilon_dt(prb->dt);
+            // cuDNN precision is different from ref one due to different
+            // computation algorithm used for resampling.
+            if (is_nvidia_gpu()) trh = 2e-5;
+
+            compare::compare_t cmp;
+            cmp.set_threshold(trh);
+            // No sense to test zero trust for upsampling since it produces
+            // valid zeros.
+            // TODO: validate this once again.
+            cmp.set_zero_trust_percent(100.f);
+            SAFE(cmp.compare(src_fp, src_dt, prb->attr, res), WARN);
         }
     }
 

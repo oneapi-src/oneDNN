@@ -123,7 +123,6 @@ private:
     std::string tag_;
 };
 
-bool check_extreme_values(const float &a, const float &b, alg_t alg);
 float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd = true);
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,
         const std::vector<dnn_mem_t> &binary_po, dnn_mem_t &dst);

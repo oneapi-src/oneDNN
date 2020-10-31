@@ -24,57 +24,13 @@
 
 #include "tests/test_thread.hpp"
 
+#include "compare.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
-#include "norm.hpp"
 
 #include "lrn/lrn.hpp"
 
 namespace lrn {
-
-int compare(
-        const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *res) {
-    const auto nelems = mem_dt.nelems();
-    if (nelems == 0) return res->state = PASSED, OK;
-
-    res->total = nelems;
-
-    const int summands = compute_n_summands(prb);
-    float trh = 1e-6 * summands;
-    if (prb->dt == dnnl_f16) trh = 1e-3 * summands;
-    if (prb->dt == dnnl_bf16) trh = 1e-2 * summands;
-
-    for (int64_t i = 0; i < nelems; ++i) {
-        const float dt = mem_dt.get_elem(i);
-        const float fp0 = mem_fp.get_elem(i);
-        const float fp = round_to_nearest_representable(prb->dt, fp0);
-
-        const float diff = fabsf(fp - dt);
-        const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const bool ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= trh;
-
-        res->errors += !ok;
-
-        const bool dump = false || (!ok && (res->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30) || (verbose >= 99);
-        if (dump) {
-            int64_t mb = 0, ic = 0, d = 0, h = 0, w = 0;
-            inv_data_off(prb, i, mb, ic, d, h, w);
-
-            BENCHDNN_PRINT(0,
-                    "[%4ld][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
-                    "] "
-                    "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, mb, ic, d, h, w, fp, fp0, dt, diff, rel_diff);
-        }
-    }
-
-    if (res->errors) res->state = FAILED;
-
-    if (res->state == UNTESTED) res->state = PASSED; /* optimism */
-
-    return res->state == FAILED ? FAIL : OK;
-}
 
 int fill_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
@@ -235,8 +191,11 @@ int doit(const prb_t *prb, res_t *res) {
     if (prb->dir & FLAG_FWD) {
         if (bench_mode & CORR) {
             compute_ref_fwd(prb, src_fp, dst_fp);
-            dnn_mem_t dst(dst_dt, fp, tag, test_engine);
-            SAFE(compare(prb, dst, dst_fp, res), WARN);
+            compare::compare_t cmp;
+            // `3` is a const needed to adjust division error
+            cmp.set_threshold(compute_n_summands(prb) * 3
+                    * epsilon_dt(dst_dt.md_.data_type));
+            SAFE(cmp.compare(dst_fp, dst_dt, prb->attr, res), WARN);
         }
     }
 
@@ -280,8 +239,11 @@ int doit(const prb_t *prb, res_t *res) {
 
         if (bench_mode & CORR) {
             compute_ref_bwd(prb, src_fp, d_dst_fp, d_src_fp);
-            dnn_mem_t d_src(d_src_dt, fp, tag, test_engine);
-            SAFE(compare(prb, d_src, d_src_fp, res), WARN);
+            compare::compare_t cmp;
+            // `3` is a const needed to adjust division error
+            cmp.set_threshold(compute_n_summands(prb) * 3
+                    * epsilon_dt(d_src_dt.md_.data_type));
+            SAFE(cmp.compare(d_src_fp, d_src_dt, prb->attr, res), WARN);
         }
     }
     measure_perf(res->timer, l, args);
