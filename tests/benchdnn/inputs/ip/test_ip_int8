@@ -1,11 +1,20 @@
 # int8
 --reset
 --dir=FWD_B,FWD_D
---cfg=s8s8f32,s8s8s32,s8s8s8,s8s8u8,u8s8f32,u8s8s32,u8s8s8,u8s8u8
---mb=0                    --batch=shapes_0d
+--cfg=s8s8f32,s8s8u8,u8s8s32,u8s8s8
+--mb=0 --batch=shapes_0d
 
---attr-oscale=per_oc:2.25,common:0.025
---attr-post-ops='mul:s8;sum:0.5;relu:0.5','square:0:0:10'
+## s8 binary-po for non-u8 dst dt
+--cfg=s8s8s32,s8s8s8
+--attr-oscale=per_oc:2.25,common:4
+--attr-post-ops='mul:s8;sum:0.5;relu:0.5','linear:2:1:10'
+--mb=2 --batch=set_all
+--mb=0 --batch=shapes_0d
+
+## u8 binary-po for non-s8 dst dt
+--cfg=u8s8f32,u8s8u8
+--attr-oscale=per_oc:2.25,common:4
+--attr-post-ops='sum:0.5;mul:u8;relu:0.5','sum'
 --mb=2 --batch=set_all
 --mb=0 --batch=shapes_0d
 
