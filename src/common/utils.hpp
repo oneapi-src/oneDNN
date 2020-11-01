@@ -578,6 +578,15 @@ public:
     DNNL_DISALLOW_COPY_AND_ASSIGN(setting_t);
 };
 
+// The following code is derived from Boost C++ library
+// Copyright 2005-2014 Daniel James.
+// Distributed under the Boost Software License, Version 1.0. (See accompanying
+// file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
+template <typename T>
+static size_t hash_combine(size_t seed, const T &v) {
+    return seed ^= std::hash<T> {}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
 // XXX: Currently SYCL doesn't provide an API to get device UUID but
 // we need to be able to distinguish OpenCL device from Level0 device.
 // As a temporary solution the compound ID will be used for that.
@@ -593,6 +602,16 @@ public:
 //  Pure CPU     | <0, 0, 0>
 //  Pure GPU     | <0, cl_device, 0>
 using device_id_t = std::tuple<int, uint64_t, uint64_t>;
+
+struct device_id_hash_t {
+    size_t operator()(const device_id_t &id) const {
+        size_t result = 0;
+        result = hash_combine(result, std::get<0>(id));
+        result = hash_combine(result, std::get<1>(id));
+        result = hash_combine(result, std::get<2>(id));
+        return result;
+    }
+};
 
 // A setting (basically a value) that can be set() multiple times until the
 // time first time the get() method is called. The set() method is expected to
