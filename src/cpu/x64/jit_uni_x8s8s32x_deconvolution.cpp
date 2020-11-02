@@ -443,7 +443,7 @@ void _jit_uni_x8s8s32x_deconv_fwd_kernel<isa, Vmm>::compute_ker(int ur_w,
                             auto vmm_inp_tmp = Xmm(
                                     vmm_inp(jj, jcp.nb_oc_blocking).getIdx());
                             load_bytes(vmm_inp_tmp, aux_reg_src, aux_src_off,
-                                    tail_size, isa == sse41);
+                                    tail_size);
                             uni_vpbroadcastd(vmm_inp(jj, jcp.nb_oc_blocking),
                                     vmm_inp_tmp);
                         } else {

@@ -563,8 +563,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::compute_ker(int ur_w, int pad_l,
                                 const auto inp_bcastd
                                         = Xmm(inp_bcastd_vmm.getIdx());
                                 load_bytes(inp_bcastd_vmm, aux_reg_inp,
-                                        aux_input_offset, ic_tail_size,
-                                        isa == sse41);
+                                        aux_input_offset, ic_tail_size);
                                 uni_vpbroadcastd(
                                         vmm_inp(jj, nb_oc_block), inp_bcastd);
                             } else {

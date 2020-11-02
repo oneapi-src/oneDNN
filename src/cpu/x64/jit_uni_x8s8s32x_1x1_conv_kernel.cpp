@@ -423,7 +423,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
                         && i_reduce == loop_unroll - reduce_step) {
                     load_bytes(vmm_bcast, aux_reg_bcast_data,
                             jcp.ic_without_padding * i_ur + i_reduce,
-                            ic_tail_size, isa == sse41);
+                            ic_tail_size);
                     uni_vpbroadcastd(vmm_bcast, Xmm(vmm_bcast.getIdx()));
                 } else {
                     uni_vpbroadcastd(vmm_bcast, bcast_ptr(i_reduce, i_ur));
