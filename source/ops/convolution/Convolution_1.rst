@@ -10,67 +10,56 @@ Convolution
 
 **Detailed description**: `Reference <http://cs231n.github.io/convolutional-networks/#conv>`__
 
+In this description, :math:`r` denotes the spatial rank. We describe the convolution for each sample in a batch of :math:`N` inputs; the results are combined into an output batch of size :math:`N`.
 
-* For the convolutional layer, the number of output features in each dimension is calculated using the formula:
+The convolution is implemented as if each sample input first has :math:`p_b` zeros inserted before and `p_e` zeros inserted for the channels on the spatial axes, giving a padded input size of :math:`p_b+p_e+X_I`.
 
-    .. math::
-       n_{out} = \left ( \frac{n_{in} + 2p - k}{s} \right ) + 1
+The kernel is stretched by a factor of `d` on each of its spatial dimensions. The last index of the stretched kernel is then :math:`d(X_K-1)` so the shape is :math:`d(X_K-1)+1`.
 
-* The receptive field in each layer is calculated using the formulas:
+The padded input and the dilated kernel are then ungrouped into `g` equal-sized input and kernel segments; padded input segment :math:`i` and dilated kernel segment :math:`i` are convolved.
+The convolution is only peformed where there is complete spatial overlap between the shifted kernel and the padded input, so there will be :math:`p_b+p_e+X_I-d(X_K-1)` outputs.
+The output segments are then regrouped along the output channel axis. Finally, all but the results on a multiple of :math:`d` spatial axis are removed, so the output will have size
 
-  * Jump in the output feature map:
-
-    .. math:: 
-       j_{out} = j_{in} * s
-
-  * Size of the receptive field of output feature:
-
-    .. math::
-       r_{out} = r_{in} + ( k - 1 ) * j_{in}
-
-  * Center position of the receptive field of the first output feature:
-
-    .. math::
-       start_{out} = start_{in} + ( \frac{k - 1}{2} - p ) * j_{in}
-
-  * Output is calculated using the following formula:
-
-    .. math::
-       out = \sum_{i = 0}^{n}w_{i}x_{i} + b
+  .. math::
+    \left\lfloor \frac{p_b+p_e+X_I-d(X_K-1)-1}{s} \right\rfloor +1
 
 **Attributes**
 
 * *strides*
 
-  * **Description**: *strides* is a distance (in pixels) to slide the filter on the feature map over the (z, y, x) axes for 3D convolutions and (y, x) axes for 2D convolutions. For example, *strides* equal *4,2,1* means sliding the filter 4 pixel at a time over depth dimension, 2 over height dimension and 1 over width dimension.
-  * **Range of values**: integer values starting from 0
-  * **Type**: int[]
+  * **Description**: *strides* is how much the convolution output is down-sampled to produce the output.
+  * **Range of values**: Non-negative integer values.
+  * **Type**: int[r]
+  * **Variable**: :math:`s`
   * **Default value**: None
   * **Required**: *yes*
 
 * *pads_begin*
 
-  * **Description**: *pads_begin* is a number of pixels to add to the beginning along each axis. For example, *pads_begin* equal *1,2* means adding 1 pixel to the top of the input and 2 to the left of the input.
-  * **Range of values**: integer values starting from 0
-  * **Type**: int[]
+  * **Description**: *pads_begin* is a number of zeros to add to the beginning of each spatial axis.
+  * **Range of values**: Non-negative integers.
+  * **Type**: int[r]
+  * **Variable**: :math:`p_b`
   * **Default value**: None
   * **Required**: *yes*
   * **Note**: the attribute is ignored when *auto_pad* attribute is specified.
 
 * *pads_end*
 
-  * **Description**: *pads_end* is a number of pixels to add to the ending along each axis. For example, *pads_end* equal *1,2* means adding 1 pixel to the bottom of the input and 2 to the right of the input.
-  * **Range of values**: integer values starting from 0
-  * **Type**: int[]
+  * **Description**: *pads_end* is a number of zeros to add to the end of each spatial axis.
+  * **Range of values**: Non-negative integers.
+  * **Type**: int[r]
+  * **Variable**: :math:`p_e`
   * **Default value**: None
   * **Required**: *yes*
   * **Note**: the attribute is ignored when *auto_pad* attribute is specified.
 
 * *dilations*
 
-  * **Description**: *dilations* denotes the distance in width and height between elements (weights) in the filter. For example, *dilation* equal *1,1* means that all the elements in the filter are neighbors, so it is the same as for the usual convolution. *dilation* equal *2,2* means that all the elements in the filter are matched not to adjacent elements in the input matrix, but to those that are adjacent with distance 1.
-  * **Range of values**: integer value starting from 0
-  * **Type**: int[]
+  * **Description**: *dilations* denotes the amount to stretch the kernel before convolving.
+  * **Range of values**: positive integers.
+  * **Type**: int[r]
+  * **Variable**: :math:`d`
   * **Default value**: None
   * **Required**: *yes*
 
@@ -80,18 +69,25 @@ Convolution
 
     * None (not specified): use explicit padding values.
     * *same_upper (same_lower)* the input is padded to match the output size. In case of odd padding value an extra padding is added at the end (at the beginning).
-    * *valid* - do not use padding.
+    * *valid* - No padding (:math:`p_b=p_e=0`).
 
   * **Type**: string
   * **Default value**: None
   * **Required**: *no*
   * **Note**: *pads_begin* and *pads_end* attributes are ignored when *auto_pad* is specified.
 
+With *same_upper* and *same_lower* the padding is chosen to make the pre-stride output spatial shape the same as the input shape. When pssible, :math:`p_b=p_e`. If the total padding needed is odd, *same_upper* makes :math:`p_e=p_b+1`, *same_lower* makes `p_b=p_e+1`.
+In either case,
+
+  .. math::
+    p_b+p_e=d(X_I-1).
+
 * *groups*
 
-  * **Description**: *groups* denotes the number of groups input channels and output channels are divided into.
+  * **Description**: *groups* denotes the number of groups input and output channels are divided into.
   * **Range of values**: integer value greater than 0
   * **Type**: int
+  * **Variable**: `g`
   * **Default value**: 1
   * **Required**: *no*
 
