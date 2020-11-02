@@ -75,6 +75,7 @@ The binary primitive supports the following combinations of data types:
 | :--                  | :--
 | f32                  | f32
 | bf16                 | bf16
+| f16                  | f16
 | s8, u8, f32          | s8, u8
 | s8, u8, f32          | s8, u8
 
