@@ -113,9 +113,7 @@ public:
     ///
     /// @param inputs A list of input logical tensors
     /// @param outputs A list of output logical tensors
-    /// @returns @c true if the shape is inferred successfully
-    ///          @c false if the shape is not inferred 
-    bool infer_shape(const std::vector<logical_tensor> &inputs,
+    void infer_shape(const std::vector<logical_tensor> &inputs,
             std::vector<logical_tensor> &outputs) const;
 };
 

@@ -41,7 +41,7 @@ public:
     ///
     /// @param op An operator/node that represents the entry of frameworks'
     ///    graph
-    bool add_op(const op &op);
+    void add_op(const op &op);
 
     /// Vector to store the partitions
     using partition_vec = std::vector<partition>;
