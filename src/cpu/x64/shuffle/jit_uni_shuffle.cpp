@@ -41,7 +41,7 @@ static constexpr int gp_regs = 4; // number of used gp regs
 struct jit_shuffle_args_t {
     const void *src = nullptr;
     void *dst = nullptr;
-    const int32_t *input_off_ptr = nullptr;
+    const dim_t *input_off_ptr = nullptr;
 };
 
 template <int data_type_size>
@@ -77,7 +77,7 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
 
     void uni_pinsr(int reg_num, Reg64 load_reg, int data_size, int xmm_off);
 
-    void store(int dst_off, int reg_num);
+    void store(dim_t dst_off, int reg_num);
 
     template <typename T>
     T get_reg(int i) {
@@ -89,16 +89,16 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
         preamble();
 
         static constexpr int offset_data_type_size
-                = 4; // input_off_ array data type size
+                = sizeof(dim_t); // input_off_ array data type size
         static constexpr int step_size
                 = 4; // loop increment and offset calculations constant
         // equal to number of f32 elements in Xmm
-        const int blk_size = pd_->blk_size_;
-        const int steps_in_block = blk_size / step_size;
-        const int group_size = pd_->group_size();
-        const size_t C = pd_->C();
-        const auto C_over_grps = utils::div_up(C, group_size);
-        const auto stride = C_over_grps * data_type_size;
+        const dim_t blk_size = pd_->blk_size_;
+        const dim_t steps_in_block = blk_size / step_size;
+        const dim_t group_size = pd_->group_size();
+        const dim_t C = pd_->C();
+        const dim_t C_over_grps = utils::div_up(C, group_size);
+        const dim_t stride = C_over_grps * data_type_size;
 
         for (int i = 0; i < gp_regs; i++)
             xor_(get_reg<Reg64>(i), get_reg<Reg64>(i));
@@ -108,33 +108,34 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
         mov(src_reg, ptr[abi_param1 + GET_OFF(src)]);
         mov(dst_reg, ptr[abi_param1 + GET_OFF(dst)]);
 
-        const int SP = pd_->SP_;
+        const dim_t SP = pd_->SP_;
 
         static constexpr int xmm_id = 0;
-        const int group_elems = C / group_size;
-        const auto stride_mod = SP - 1;
+        const dim_t group_elems = C / group_size;
+        const dim_t stride_mod = SP - 1;
 
-        const auto calculate_output_off = [&](int elem, int elem_blks, int gr) {
-            const auto current_4_elems = (elem - gr * group_elems) / step_size;
-            const auto current_blk = current_4_elems / steps_in_block;
-            const auto current_blk_rem = current_4_elems % steps_in_block;
+        const auto calculate_output_off
+                = [&](dim_t elem, dim_t elem_blks, dim_t gr) -> dim_t {
+            const dim_t current_4_elems = (elem - gr * group_elems) / step_size;
+            const dim_t current_blk = current_4_elems / steps_in_block;
+            const dim_t current_blk_rem = current_4_elems % steps_in_block;
             return (current_blk * blk_size + current_blk_rem * step_size
                            + elem_blks * stride_mod * blk_size)
                     * data_type_size
                     + gr * stride;
         };
 
-        const auto shuffle_one_by_one = [&](int elem, int gr,
-                                                int num_elements) {
-            const auto elem_blks = elem / blk_size;
-            const auto output_off = calculate_output_off(elem, elem_blks, gr);
-            for (int s = 0; s < num_elements; s++) {
+        const auto shuffle_one_by_one = [&](dim_t elem, dim_t gr,
+                                                dim_t num_elements) {
+            const dim_t elem_blks = elem / blk_size;
+            const dim_t output_off = calculate_output_off(elem, elem_blks, gr);
+            for (dim_t s = 0; s < num_elements; s++) {
                 mov(get_reg<Reg32>(0),
                         ptr[input_off_reg
                                 + (elem + s) * offset_data_type_size]);
                 mov(get_reg<data_reg_type_t>(1),
                         ptr[src_reg + get_reg<Reg64>(0) * data_type_size]);
-                const auto elem_blks_mod = (elem + s) / blk_size - elem_blks;
+                const dim_t elem_blks_mod = (elem + s) / blk_size - elem_blks;
                 mov(ptr[dst_reg + output_off + s * data_type_size
                             + elem_blks_mod * stride_mod * blk_size
                                     * data_type_size],
@@ -142,9 +143,9 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
             }
         };
 
-        const auto shuffle_vectorized = [&](int elem, int gr) {
-            const auto elem_blks = elem / blk_size;
-            const auto output_off = calculate_output_off(elem, elem_blks, gr);
+        const auto shuffle_vectorized = [&](dim_t elem, dim_t gr) {
+            const dim_t elem_blks = elem / blk_size;
+            const dim_t output_off = calculate_output_off(elem, elem_blks, gr);
             for (int i = 0; i < step_size; i++)
                 mov(get_reg<Reg32>(i),
                         ptr[input_off_reg
@@ -155,9 +156,9 @@ struct jit_uni_shuffle_kernel_t : public jit_generator {
             store(output_off, xmm_id);
         };
 
-        for (int gr = 0; gr < group_size; ++gr)
+        for (dim_t gr = 0; gr < group_size; ++gr)
             // iterate over output elements
-            for (int elem = gr * group_elems; elem < group_elems * (gr + 1);
+            for (dim_t elem = gr * group_elems; elem < group_elems * (gr + 1);
                     elem += step_size) {
                 // tail check
                 if (group_elems * (gr + 1) - elem < step_size) {
@@ -197,14 +198,19 @@ void jit_uni_shuffle_kernel_t<bf16_size_bytes>::uni_pinsr(
 }
 
 template <int data_type_size>
-void jit_uni_shuffle_kernel_t<data_type_size>::store(int dst_off, int reg_num) {
-    uni_vmovups(ptr[dst_reg + dst_off], Xmm(reg_num));
+void jit_uni_shuffle_kernel_t<data_type_size>::store(
+        dim_t dst_off, int reg_num) {
+    const auto src_xmm = Xmm(reg_num);
+    mov(get_reg<Reg64>(0), dst_off);
+    uni_vmovups(ptr[dst_reg + get_reg<Reg64>(0)], src_xmm);
 }
 
 template <>
 void jit_uni_shuffle_kernel_t<bf16_size_bytes>::store(
-        int dst_off, int reg_num) {
-    vmovsd(ptr[dst_reg + dst_off], Xmm(reg_num));
+        dim_t dst_off, int reg_num) {
+    const auto src_xmm = Xmm(reg_num);
+    mov(get_reg<Reg64>(0), dst_off);
+    vmovsd(ptr[dst_reg + get_reg<Reg64>(0)], src_xmm);
 }
 
 template struct jit_uni_shuffle_kernel_t<f32_size_bytes>;
@@ -227,21 +233,21 @@ status_t jit_uni_shuffle_t<data_type_size>::precompute_offsets() {
         rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
     });
 
-    const int C = pd()->C();
-    const int blk_size = pd()->blk_size_;
+    const dim_t C = pd()->C();
+    const dim_t blk_size = pd()->blk_size_;
     const dim_t CB = utils::div_up(C, blk_size);
-    const int SP = pd()->SP_;
-    input_off_
-            = (int *)malloc(C * sizeof(int), platform::get_cache_line_size());
+    const dim_t SP = pd()->SP_;
+    input_off_ = (dim_t *)malloc(
+            C * sizeof(dim_t), platform::get_cache_line_size());
     if (input_off_ == nullptr) return dnnl_out_of_memory;
 
     // Precompute input offsets using transposed axis
-    parallel_nd(CB, [&](int cb) {
-        const int blk_end = nstl::min(blk_size, C - cb * blk_size);
+    parallel_nd(CB, [&](dim_t cb) {
+        const dim_t blk_end = nstl::min(blk_size, C - cb * blk_size);
         PRAGMA_OMP_SIMD()
-        for (int cc = 0; cc < blk_end; ++cc) {
-            const int off = cb * blk_size + cc;
-            const int &input_c = rev_transposed_[off];
+        for (dim_t cc = 0; cc < blk_end; ++cc) {
+            const dim_t off = cb * blk_size + cc;
+            const dim_t &input_c = rev_transposed_[off];
             input_off_[off]
                     = input_c / blk_size * SP * blk_size + input_c % blk_size;
         }
@@ -280,12 +286,12 @@ status_t jit_uni_shuffle_t<data_type_size>::execute(
     auto input = CTX_IN_MEM(const data_t *, i_arg);
     auto output = CTX_OUT_MEM(data_t *, o_arg);
 
-    const int MB = pd()->MB();
-    const int SP = pd()->SP_;
-    const int blk_size = pd()->blk_size_;
-    const size_t stride_mb = data_d.blocking_desc().strides[0];
-    parallel_nd(MB, SP, [&](int mb, int sp) {
-        const int off = mb * stride_mb + sp * blk_size;
+    const dim_t MB = pd()->MB();
+    const dim_t SP = pd()->SP_;
+    const dim_t blk_size = pd()->blk_size_;
+    const dim_t stride_mb = data_d.blocking_desc().strides[0];
+    parallel_nd(MB, SP, [&](dim_t mb, dim_t sp) {
+        const dim_t off = mb * stride_mb + sp * blk_size;
 
         jit_shuffle_args_t args;
         args.src = input + off;

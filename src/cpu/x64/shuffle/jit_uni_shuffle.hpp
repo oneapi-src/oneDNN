@@ -74,14 +74,14 @@ struct jit_uni_shuffle_t : public primitive_t {
             blk_size_ = data_d.blocking_desc().strides[ndims() - 1];
 
             const bool has_spatial = utils::one_of(ndims(), 3, 4, 5);
-            const int HW = H() * W();
+            const dim_t HW = H() * W();
             SP_ = has_spatial ? D() * HW : HW;
 
             return status::success;
         }
 
-        int blk_size_;
-        int SP_;
+        dim_t blk_size_;
+        dim_t SP_;
     };
 
     jit_uni_shuffle_t(const pd_t *apd);
@@ -98,7 +98,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t precompute_offsets();
     std::unique_ptr<jit_uni_shuffle_kernel_t<data_type_size>> kernel_;
-    int *input_off_;
+    dim_t *input_off_;
 };
 
 } // namespace x64
