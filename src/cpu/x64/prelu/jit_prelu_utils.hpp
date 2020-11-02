@@ -44,7 +44,6 @@ bcast get_bcast_type(
 cpu_isa_t get_supported_isa();
 int get_vlen(const cpu_isa_t &isa) noexcept;
 int get_n_vregs(const cpu_isa_t &isa) noexcept;
-dim_t align(dim_t value, dim_t alignment);
 
 template <typename Vmm>
 class jit_prelu_io_helper {

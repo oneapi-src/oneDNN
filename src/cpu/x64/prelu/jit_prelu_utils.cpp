@@ -103,11 +103,6 @@ bcast get_bcast_type(
     return bcast::unsupported;
 }
 
-dim_t align(dim_t value, dim_t alignment) {
-    const auto rest = value % alignment;
-    return rest ? value + (alignment - rest) : value;
-}
-
 template <typename Vmm>
 jit_prelu_io_helper<Vmm>::jit_prelu_io_helper(jit_generator *host,
         const cpu_isa_t &isa, const data_type_t &data_type,
@@ -121,7 +116,7 @@ jit_prelu_io_helper<Vmm>::jit_prelu_io_helper(jit_generator *host,
     , tail_vmm_mask_(tail_vmm_mask)
     , reg_tmp_(reg_tmp)
     , bf16_supported_(utils::one_of(isa, avx512_core, avx512_core_bf16))
-    , bf16_emu_(data_type_ == data_type::bf16 && bf16_supported_
+    , bf16_emu_(data_type_ == data_type::bf16 && isa == avx512_core
                       ? utils::make_unique<bf16_emulation_t>(host_,
                               host_->zmm28, host_->zmm29, host_->zmm30,
                               host_->rax, host_->zmm31)
@@ -265,7 +260,7 @@ void jit_prelu_io_helper<Xbyak::Zmm>::store(
                         bf16_emu_->vcvtneps2bf16(src_ymm, src_vmm);
                     else
                         host_->vcvtneps2bf16(src_ymm, src_vmm);
-                    host_->vmovdqu16(dst_addr, src_vmm);
+                    host_->vmovdqu16(dst_addr, src_ymm);
                     break;
                 }
             }

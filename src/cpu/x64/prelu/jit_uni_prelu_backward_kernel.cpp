@@ -13,8 +13,9 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#include "cpu/x64/prelu/jit_uni_prelu_backward_kernel.hpp"
 #include <type_traits>
+
+#include "cpu/x64/prelu/jit_uni_prelu_backward_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -22,83 +23,13 @@ namespace cpu {
 namespace x64 {
 
 jit_prelu_backward_kernel_t::jit_prelu_backward_kernel_t(
-        const cpu_prelu_bwd_pd_t *pd, int vlen)
-    : pd_(pd)
-    , simd_w_(vlen / sizeof(float))
-    , bcast_(prelu::get_bcast_type(memory_desc_wrapper(pd_->diff_src_md()),
-              memory_desc_wrapper(pd_->diff_weights_md())))
-    , tail_size_(calc_tail_size())
-    , data_type_(pd_->src_md()->data_type) {}
-
-size_t jit_prelu_backward_kernel_t::simd_w() const noexcept {
-    return simd_w_;
-}
-
-prelu::bcast jit_prelu_backward_kernel_t::get_bcast() const noexcept {
-    return bcast_;
-}
-
-size_t jit_prelu_backward_kernel_t::calc_tail_size() const noexcept {
-
-    const auto src_diff_d = memory_desc_wrapper(pd_->diff_src_md());
-    const auto &ndims = src_diff_d.ndims();
-    dim_t nelems = 0;
-    if (bcast_ == prelu::bcast::full) nelems = src_diff_d.nelems();
-    else if (bcast_ == prelu::bcast::per_oc_n_spatial_c)
-        return src_diff_d.dims()[1];
-    else if (bcast_ == prelu::bcast::per_oc_n_c_spatial && ndims >= 3)
-        nelems = utils::array_product(src_diff_d.dims() + 2, ndims - 2);
-
-    return nelems % simd_w_;
-}
-
-void jit_prelu_backward_kernel_t::generate() {
-    Xbyak::Label unroll_loop, unroll_loop_tail, nelems_tail, end;
-    const auto dt_size = types::data_type_size(data_type_);
-    const auto dt_vec_size = simd_w_ * dt_size;
-    const auto unrolling_factor = get_unrolling_factor();
-    preamble();
-    load_kernel_call_params();
-    prepare_kernel_const_vars();
-
-    xor_(reg_offset_, reg_offset_);
-    L(unroll_loop);
-    {
-        const size_t offt = unrolling_factor * dt_vec_size;
-        cmp(reg_data_size_, offt);
-        jl(unroll_loop_tail, T_NEAR);
-
-        compute_dst(unrolling_factor, false /*tail*/);
-        sub(reg_data_size_, offt);
-        add(reg_offset_, offt);
-        jmp(unroll_loop);
-    }
-
-    static constexpr size_t single_unrolling = 1u;
-    L(unroll_loop_tail);
-    {
-        cmp(reg_data_size_, dt_vec_size);
-        jl(nelems_tail, T_NEAR);
-
-        compute_dst(single_unrolling, false /*tail*/);
-        sub(reg_data_size_, dt_vec_size);
-        add(reg_offset_, dt_vec_size);
-        jmp(unroll_loop_tail);
-    }
-
-    L(nelems_tail);
-    {
-        cmp(reg_data_size_, 1);
-        jl(end, T_NEAR);
-
-        compute_dst(single_unrolling, true /*tail*/);
-    }
-
-    L(end);
-    finalize();
-
-    postamble();
-}
+        const cpu_prelu_bwd_pd_t *pd, const cpu_isa_t &isa,
+        size_t number_vmm_single_compute)
+    : jit_prelu_base_kernel_t(isa,
+            prelu::get_bcast_type(memory_desc_wrapper(pd->diff_src_md(0)),
+                    memory_desc_wrapper(pd->diff_weights_md(0))),
+            memory_desc_wrapper(pd->diff_src_md(0)), number_vmm_single_compute)
+    , pd_(pd) {}
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
 
@@ -119,7 +50,7 @@ Xbyak::Address jit_prelu_backward_kernel_t::data_ptr(int arg_num, size_t offt) {
         case DNNL_ARG_WEIGHTS: return ptr[reg_weights_ + reg_offset_ + offt];
         case DNNL_ARG_DIFF_SRC: return ptr[reg_src_diff_ + reg_offset_ + offt];
         case DNNL_ARG_DIFF_WEIGHTS:
-            if (bcast_ == prelu::bcast::per_oc_n_spatial_c) {
+            if (bcast_ != prelu::bcast::full) {
                 const auto dt_size = types::data_type_size(data_type_);
                 const int scale_factor = sizeof(float) / dt_size;
                 return ptr[reg_weights_diff_ + reg_offset_ * scale_factor
@@ -136,23 +67,21 @@ Xbyak::Address jit_prelu_backward_kernel_t::data_ptr(int arg_num, size_t offt) {
 template <typename Vmm>
 jit_uni_prelu_backward_kernel_t<Vmm>::jit_uni_prelu_backward_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, const cpu_isa_t &isa)
-    : jit_prelu_backward_kernel_t(pd, prelu::get_vlen(isa))
-    , isa_(isa)
-    , number_vmms_reserved_const_vars_(0)
+    : jit_prelu_backward_kernel_t(
+            pd, isa, std::is_same<Vmm, Xbyak::Zmm>::value ? 4u : 6u)
     , vmm_zeros_(reserve_vmm())
-    , tail_vmm_mask_(tail_size_ && utils::one_of(isa, avx, avx2) ? reserve_vmm()
-                                                                 : Vmm(0))
+    , tail_vmm_mask_(
+              tail_size_ && utils::one_of(isa, avx, avx2) ? reserve_vmm() : 0)
     , vmm_ones_(reserve_vmm())
     , weights_const_vmm_(utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
                                  prelu::bcast::per_oc_blocked)
                       ? reserve_vmm()
-                      : Vmm(0))
+                      : 0)
     , weights_diff_acc_vmm_(
               utils::one_of(bcast_, prelu::bcast::per_oc_n_c_spatial,
                       prelu::bcast::per_oc_blocked)
                       ? reserve_vmm()
-                      : Vmm(0))
-    , unrolling_factor_(calc_unrolling_factor())
+                      : 0)
     , io_(this, isa, data_type_, tail_size_, tail_opmask_, tail_vmm_mask_,
               reg_tmp_) {}
 
@@ -183,73 +112,8 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::prepare_kernel_const_vars() {
 }
 
 template <typename Vmm>
-size_t jit_uni_prelu_backward_kernel_t<Vmm>::get_unrolling_factor() const {
-    return unrolling_factor_;
-}
-
-template <typename Vmm>
-Vmm jit_uni_prelu_backward_kernel_t<Vmm>::reserve_vmm() {
-    return Vmm(number_vmms_reserved_const_vars_++);
-}
-
-template <typename Vmm>
-size_t jit_uni_prelu_backward_kernel_t<Vmm>::get_number_reserved_vmms() const
-        noexcept {
-    return number_vmms_reserved_const_vars_;
-}
-
-template <>
-size_t
-jit_uni_prelu_backward_kernel_t<Xbyak::Zmm>::get_number_reserved_vmms() const
-        noexcept {
-    static constexpr size_t number_vmm_reserved_bf16_process = 4u;
-    const bool process_bf16_with_emu
-            = data_type_ == data_type::bf16 && isa_ == avx512_core;
-
-    return number_vmms_reserved_const_vars_
-            + (process_bf16_with_emu ? number_vmm_reserved_bf16_process : 0);
-}
-
-template <typename Vmm>
-size_t jit_uni_prelu_backward_kernel_t<Vmm>::calc_unrolling_factor() const
-        noexcept {
-    const auto n_vregs = prelu::get_n_vregs(isa_);
-    const size_t number_of_available_regs
-            = n_vregs - get_number_reserved_vmms();
-    const size_t max_unrolling_factor
-            = number_of_available_regs / number_vmm_single_compute_;
-
-    const auto src_d = memory_desc_wrapper(pd_->diff_src_md());
-    size_t single_thread_estimated_elems = 0;
-    const auto &dims = src_d.dims();
-    const auto &ndims = src_d.ndims();
-    const dim_t D = ndims >= 5 ? dims[ndims - 3] : 1;
-    const dim_t H = ndims >= 4 ? dims[ndims - 2] : 1;
-    const dim_t W = ndims >= 3 ? dims[ndims - 1] : 1;
-    const dim_t SP = D * H * W;
-
-    if (bcast_ == prelu::bcast::full) {
-        const size_t nelems = src_d.nelems();
-        single_thread_estimated_elems = nelems / dnnl_get_max_threads();
-    } else if (bcast_ == prelu::bcast::per_oc_n_spatial_c) {
-        single_thread_estimated_elems = src_d.dims()[1];
-    } else if (bcast_ == prelu::bcast::per_oc_blocked) {
-        single_thread_estimated_elems = SP * simd_w_;
-    } else if (bcast_ == prelu::bcast::per_oc_n_c_spatial) {
-        single_thread_estimated_elems = SP;
-    }
-
-    const size_t estimated_vectors_used = nstl::max(
-            static_cast<size_t>(
-                    std::floor(single_thread_estimated_elems / simd_w_)),
-            static_cast<size_t>(1));
-
-    return nstl::min(max_unrolling_factor, estimated_vectors_used);
-}
-
-template <typename Vmm>
 void jit_uni_prelu_backward_kernel_t<Vmm>::compute_dst(
-        int unrolling_factor, bool tail) {
+        size_t unrolling_factor, bool tail) {
 
     static constexpr size_t dst_diff_idx = 0;
     static constexpr size_t src_idx = 1;
@@ -258,20 +122,21 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::compute_dst(
     static constexpr size_t weights_diff_idx = 4;
     static constexpr size_t weights_idx = 5;
     const auto dt_size = types::data_type_size(data_type_);
-    const int scale_factor = sizeof(float) / dt_size;
+    const int scale_factor
+            = bcast_ != prelu::bcast::full ? sizeof(float) / dt_size : 1u;
 
     for (size_t unroll_group = 0; unroll_group < unrolling_factor;
             ++unroll_group) {
 
-        const Vmm dst_diff_vmm = get_compute_vmm(dst_diff_idx, unroll_group);
-        const Vmm src_vmm = get_compute_vmm(src_idx, unroll_group);
-        const Vmm src_le_zero_vmm
-                = get_compute_vmm(src_le_zero_idx, unroll_group);
-        const Vmm src_gt_zero_vmm
-                = get_compute_vmm(src_gt_zero_idx, unroll_group);
-        const Vmm weights_diff_vmm
-                = get_compute_vmm(weights_diff_idx, unroll_group);
-        const Vmm weights_vmm = get_compute_vmm(weights_idx, unroll_group);
+        const Vmm dst_diff_vmm {get_compute_vmm(dst_diff_idx, unroll_group)};
+        const Vmm src_vmm {get_compute_vmm(src_idx, unroll_group)};
+        const Vmm src_le_zero_vmm {
+                get_compute_vmm(src_le_zero_idx, unroll_group)};
+        const Vmm src_gt_zero_vmm {
+                get_compute_vmm(src_gt_zero_idx, unroll_group)};
+        const Vmm weights_diff_vmm {
+                get_compute_vmm(weights_diff_idx, unroll_group)};
+        const Vmm weights_vmm {get_compute_vmm(weights_idx, unroll_group)};
 
         const auto offset = unroll_group * simd_w_ * dt_size;
         io_.load(data_ptr(DNNL_ARG_DIFF_DST, offset), dst_diff_vmm, tail);
@@ -302,7 +167,7 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::compute_dst(
 
 template <>
 void jit_uni_prelu_backward_kernel_t<Xbyak::Zmm>::compute_dst(
-        int unrolling_factor, bool tail) {
+        size_t unrolling_factor, bool tail) {
 
     size_t opmask_counter = 2;
     auto get_next_opmask = [opmask_counter]() mutable {
@@ -320,15 +185,16 @@ void jit_uni_prelu_backward_kernel_t<Xbyak::Zmm>::compute_dst(
     static constexpr size_t weights_idx = 3;
 
     const auto dt_size = types::data_type_size(data_type_);
-    const int scale_factor = sizeof(float) / dt_size;
+    const int scale_factor
+            = bcast_ != prelu::bcast::full ? sizeof(float) / dt_size : 1u;
 
     for (size_t unroll_group = 0; unroll_group < unrolling_factor;
             ++unroll_group) {
 
         const auto offset = unroll_group * simd_w_ * dt_size;
-        const Xbyak::Zmm dst_diff_vmm
-                = get_compute_vmm(dst_diff_idx, unroll_group);
-        const Xbyak::Zmm src_vmm = get_compute_vmm(src_idx, unroll_group);
+        const Xbyak::Zmm dst_diff_vmm {
+                get_compute_vmm(dst_diff_idx, unroll_group)};
+        const Xbyak::Zmm src_vmm {get_compute_vmm(src_idx, unroll_group)};
 
         io_.load(data_ptr(DNNL_ARG_DIFF_DST, offset), dst_diff_vmm, tail);
         io_.load(data_ptr(DNNL_ARG_SRC, offset), src_vmm, tail);
@@ -341,16 +207,16 @@ void jit_uni_prelu_backward_kernel_t<Xbyak::Zmm>::compute_dst(
         vcmpps(src_gt_zero_vmm_opmask, src_vmm, vmm_zeros_, VCMPGTPS);
 
         // //weights_diff_calculations
-        const Xbyak::Zmm weights_diff_vmm
-                = get_compute_vmm(weights_diff_idx, unroll_group);
+        const Xbyak::Zmm weights_diff_vmm {
+                get_compute_vmm(weights_diff_idx, unroll_group)};
         vmulps(weights_diff_vmm | src_le_zero_opmask | T_z, dst_diff_vmm,
                 src_vmm);
         accumulate_weights_diff(weights_diff_vmm, weights_diff_acc_vmm_,
                 data_ptr(DNNL_ARG_DIFF_WEIGHTS, offset * scale_factor), tail);
 
         //src_diff calculations
-        const Xbyak::Zmm weights_vmm
-                = get_compute_vmm(weights_idx, unroll_group);
+        const Xbyak::Zmm weights_vmm {
+                get_compute_vmm(weights_idx, unroll_group)};
         const auto &src_diff_vmm = weights_vmm;
         const auto weights_operand = get_or_load_weights(
                 data_ptr(DNNL_ARG_WEIGHTS, offset), weights_vmm, tail);
@@ -393,13 +259,6 @@ const Xbyak::Operand &jit_uni_prelu_backward_kernel_t<Vmm>::get_or_load_weights(
 
     io_.load(src_addr, weights_vmm, tail);
     return weights_vmm;
-}
-
-template <typename Vmm>
-Vmm jit_uni_prelu_backward_kernel_t<Vmm>::get_compute_vmm(
-        size_t base_idx, size_t unroll_group) {
-    return Vmm(number_vmms_reserved_const_vars_ + base_idx
-            + unroll_group * number_vmm_single_compute_);
 }
 
 static void reduce(jit_generator *host, const Xbyak::Xmm &src,
@@ -449,9 +308,9 @@ jit_prelu_backward_kernel_t *jit_prelu_backward_kernel_t::create(
 
     const auto isa = prelu::get_supported_isa();
 
-    if (utils::one_of(isa, avx512_core_bf16, avx512_core, avx512_common))
+    if (is_superset(isa, avx512_common))
         return new jit_uni_prelu_backward_kernel_t<Xbyak::Zmm>(pd, isa);
-    else if (utils::one_of(isa, avx, avx2))
+    else if (is_superset(isa, avx))
         return new jit_uni_prelu_backward_kernel_t<Xbyak::Ymm>(pd, isa);
     else if (isa == sse41)
         return new jit_uni_prelu_backward_kernel_t<Xbyak::Xmm>(pd, isa);

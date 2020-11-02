@@ -21,9 +21,10 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-static constexpr dim_t alignment = 16;
+static constexpr dim_t alignment
+        = platform::get_cache_line_size() / sizeof(float);
 static dim_t get_C(const cpu_prelu_bwd_pd_t *pd) {
-    const memory_desc_wrapper src_diff_d {pd->diff_src_md()};
+    const memory_desc_wrapper src_diff_d {pd->diff_src_md(0)};
     return src_diff_d.ndims() >= 2 ? src_diff_d.dims()[1] : 1;
 }
 
@@ -31,8 +32,8 @@ jit_prelu_reduction_kernel_t::jit_prelu_reduction_kernel_t(
         const cpu_prelu_bwd_pd_t *pd, int simd_w)
     : simd_w_(simd_w)
     , scratchpad_c_block_offset_(
-              prelu::align(get_C(pd), alignment) * sizeof(float))
-    , data_type_(pd->diff_weights_md()->data_type)
+              utils::rnd_up(get_C(pd), alignment) * sizeof(float))
+    , data_type_(pd->diff_weights_md(0)->data_type)
     , tail_size_(get_C(pd) % simd_w_) {}
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
@@ -104,7 +105,7 @@ void jit_prelu_reduction_kernel_t::generate(bool tail) {
 }
 
 Xbyak::Address jit_prelu_reduction_kernel_t::diff_scratch_ptr(
-        int unrolling_group) {
+        int unrolling_group) const {
     return ptr[reg_weights_diff_scratch_ + reg_offset_
             + unrolling_group * scratchpad_c_block_offset_];
 }
@@ -164,9 +165,9 @@ jit_prelu_reduction_kernel_t *jit_prelu_reduction_kernel_t::create(
 
     const auto isa = prelu::get_supported_isa();
 
-    if (utils::one_of(isa, avx512_core_bf16, avx512_core, avx512_common))
+    if (is_superset(isa, avx512_common))
         return new jit_uni_prelu_reduction_kernel_t<Xbyak::Zmm>(pd, isa);
-    else if (utils::one_of(isa, avx, avx2))
+    else if (is_superset(isa, avx))
         return new jit_uni_prelu_reduction_kernel_t<Xbyak::Ymm>(pd, isa);
     else if (isa == sse41)
         return new jit_uni_prelu_reduction_kernel_t<Xbyak::Xmm>(pd, isa);

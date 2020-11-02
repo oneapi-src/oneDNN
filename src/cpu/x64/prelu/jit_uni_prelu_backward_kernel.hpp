@@ -18,9 +18,10 @@
 #define CPU_X64_PRELU_JIT_PRELU_BACKWARD_KERNEL_HPP
 
 #include <memory>
+
 #include "cpu/cpu_prelu_pd.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
-#include "cpu/x64/jit_generator.hpp"
+#include "cpu/x64/prelu/jit_prelu_base_kernel.hpp"
 #include "cpu/x64/prelu/jit_prelu_utils.hpp"
 
 namespace dnnl {
@@ -28,7 +29,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-class jit_prelu_backward_kernel_t : public jit_generator {
+class jit_prelu_backward_kernel_t : public jit_prelu_base_kernel_t {
 public:
     static jit_prelu_backward_kernel_t *create(const cpu_prelu_bwd_pd_t *pd);
 
@@ -43,34 +44,21 @@ public:
     void operator()(jit_prelu_backward_kernel_t::call_params_t *params) {
         jit_generator::operator()(params);
     }
-    size_t simd_w() const noexcept;
-    prelu::bcast get_bcast() const noexcept;
 
 protected:
-    jit_prelu_backward_kernel_t(const cpu_prelu_bwd_pd_t *pd, int vlen);
+    jit_prelu_backward_kernel_t(const cpu_prelu_bwd_pd_t *pd,
+            const cpu_isa_t &isa, size_t number_vmm_single_compute);
     Xbyak::Address data_ptr(int arg_num, size_t offt = 0);
 
     const cpu_prelu_bwd_pd_t *pd_;
-    const size_t simd_w_ = 0;
-    const prelu::bcast bcast_;
-    const size_t tail_size_ = 0u;
-    const data_type_t data_type_;
-    const Xbyak::Reg64 &reg_weights_ = r11;
-    const Xbyak::Reg64 &reg_weights_diff_ = r13;
+    const Xbyak::Reg64 &reg_weights_ = r10;
+    const Xbyak::Reg64 &reg_weights_diff_ = r11;
 
 private:
-    void generate() override;
-    void load_kernel_call_params();
-    virtual void prepare_kernel_const_vars() = 0;
-    virtual void compute_dst(int unrolling_factor, bool tail) = 0;
-    virtual size_t get_unrolling_factor() const = 0;
-    virtual void finalize() = 0;
-    size_t calc_tail_size() const noexcept;
+    void load_kernel_call_params() override;
 
-    const Xbyak::Reg64 &reg_data_size_ = r8;
-    const Xbyak::Reg64 &reg_offset_ = r9;
-    const Xbyak::Reg64 &reg_src_ = r10;
-    const Xbyak::Reg64 &reg_src_diff_ = r12;
+    const Xbyak::Reg64 &reg_src_ = r12;
+    const Xbyak::Reg64 &reg_src_diff_ = r13;
     const Xbyak::Reg64 &reg_dst_diff_ = r14;
 };
 
@@ -83,20 +71,13 @@ public:
 
 private:
     void prepare_kernel_const_vars() override;
-    void compute_dst(int unrolling_factor, bool tail) override;
-    size_t get_unrolling_factor() const override;
-    Vmm reserve_vmm();
-    size_t get_number_reserved_vmms() const noexcept;
-    size_t calc_unrolling_factor() const noexcept;
-    Vmm get_compute_vmm(size_t base_idx, size_t unroll_group);
+    void compute_dst(size_t unrolling_factor, bool tail) override;
     const Xbyak::Operand &get_or_load_weights(
             const Xbyak::Address &src_addr, const Vmm &dst_vmm, bool tail);
     void accumulate_weights_diff(const Vmm &partial_sum_vmm, const Vmm &tmp_vmm,
             const Xbyak::Address &dst_addr, bool tail);
     void finalize() override;
 
-    const cpu_isa_t isa_;
-    size_t number_vmms_reserved_const_vars_ = 0;
     const Vmm vmm_zeros_;
     const Vmm tail_vmm_mask_;
     const Vmm vmm_ones_;
@@ -105,9 +86,6 @@ private:
 
     const Xbyak::Opmask &tail_opmask_ = k1;
     const Xbyak::Reg64 &reg_tmp_ = r15;
-    static constexpr size_t number_vmm_single_compute_
-            = std::is_same<Vmm, Xbyak::Zmm>::value ? 4 : 6u;
-    const size_t unrolling_factor_ = 0;
 
     prelu::jit_prelu_io_helper<Vmm> io_;
 };

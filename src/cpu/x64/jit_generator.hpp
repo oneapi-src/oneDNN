@@ -953,7 +953,7 @@ public:
 
     void uni_vmaxps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
-        if (mayiuse(avx))
+        if (is_valid_isa(avx))
             vmaxps(x, op1, op2);
         else {
             if (!x.isEqualIfNotInherited(op1)) movups(x, op1);
@@ -968,7 +968,7 @@ public:
     void uni_vminps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
 
-        if (mayiuse(avx))
+        if (is_valid_isa(avx))
             vminps(x, op1, op2);
         else {
             if (!x.isEqualIfNotInherited(op1)) movups(x, op1);

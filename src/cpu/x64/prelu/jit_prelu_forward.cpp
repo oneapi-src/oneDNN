@@ -14,8 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 #include <cmath>
+
 #include "common/memory_desc_wrapper.hpp"
 #include "common/type_helpers.hpp"
+
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/prelu/jit_prelu_forward.hpp"
 #include "cpu/x64/prelu/jit_prelu_utils.hpp"
@@ -26,9 +28,9 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-status_t jit_prelu_forward_t::pd_t::init(engine_t *engine) {
-    const memory_desc_wrapper src_d {src_md()};
-    const memory_desc_wrapper weights_d {weights_md()};
+status_t jit_prelu_fwd_t::pd_t::init(engine_t *engine) {
+    const memory_desc_wrapper src_d {src_md(0)};
+    const memory_desc_wrapper weights_d {weights_md(0)};
 
     const bool ok = is_fwd() && dt_supported(src_d, weights_d)
             && set_default_formats() && bcast_supported(src_d, weights_d)
@@ -40,7 +42,7 @@ status_t jit_prelu_forward_t::pd_t::init(engine_t *engine) {
     return ok ? status::success : status::unimplemented;
 }
 
-bool jit_prelu_forward_t::pd_t::dt_supported(const memory_desc_wrapper &src_d,
+bool jit_prelu_fwd_t::pd_t::dt_supported(const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d) const noexcept {
     const auto &src_dt = src_d.data_type();
     const auto &weights_dt = weights_d.data_type();
@@ -50,8 +52,7 @@ bool jit_prelu_forward_t::pd_t::dt_supported(const memory_desc_wrapper &src_d,
             && IMPLICATION(src_dt == data_type::bf16, mayiuse(avx512_core));
 }
 
-bool jit_prelu_forward_t::pd_t::bcast_supported(
-        const memory_desc_wrapper &src_d,
+bool jit_prelu_fwd_t::pd_t::bcast_supported(const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d) const {
 
     const auto bcast = prelu::get_bcast_type(src_d, weights_d);
@@ -85,24 +86,24 @@ bool jit_prelu_forward_t::pd_t::bcast_supported(
     return true;
 }
 
-const jit_prelu_forward_t::pd_t *jit_prelu_forward_t::pd() const {
+const jit_prelu_fwd_t::pd_t *jit_prelu_fwd_t::pd() const {
     return static_cast<const pd_t *>(primitive_t::pd().get());
 }
 
-jit_prelu_forward_t::jit_prelu_forward_t(const pd_t *apd) : primitive_t(apd) {}
-jit_prelu_forward_t::~jit_prelu_forward_t() = default;
+jit_prelu_fwd_t::jit_prelu_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+jit_prelu_fwd_t::~jit_prelu_fwd_t() = default;
 
-status_t jit_prelu_forward_t::init(engine_t *engine) {
+status_t jit_prelu_fwd_t::init(engine_t *engine) {
     CHECK(safe_ptr_assign(kernel_, jit_prelu_forward_kernel_t::create(pd())));
     return kernel_->create_kernel();
 }
 
-status_t jit_prelu_forward_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_prelu_fwd_t::execute(const exec_ctx_t &ctx) const {
     using byte = unsigned char;
     const byte *const src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
     const byte *const weights = CTX_IN_MEM(const byte *, DNNL_ARG_WEIGHTS);
     byte *const dst = CTX_OUT_MEM(byte *, DNNL_ARG_DST);
-    const memory_desc_wrapper src_d {pd()->src_md()};
+    const memory_desc_wrapper src_d {pd()->src_md(0)};
     const auto dt_size = types::data_type_size(src_d.data_type());
     const auto kernel = kernel_.get();
     const auto bcast = kernel->get_bcast();

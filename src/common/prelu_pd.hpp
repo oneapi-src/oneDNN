@@ -50,9 +50,9 @@ struct prelu_pd_t : public primitive_desc_t {
     int ndims() const;
     bool has_zero_dim_memory() const;
     bool is_fwd() const;
-    const memory_desc_t *weights_md(int index = 0) const override;
-    const memory_desc_t *src_md(int index = 0) const override;
-    const memory_desc_t *dst_md(int index = 0) const override;
+    const memory_desc_t *weights_md(int index) const override;
+    const memory_desc_t *src_md(int index) const override;
+    const memory_desc_t *dst_md(int index) const override;
     size_t dtype_size() const;
 
 protected:
@@ -90,9 +90,9 @@ struct prelu_bwd_pd_t : public prelu_pd_t {
 
     arg_usage_t arg_usage(int arg) const override;
     const memory_desc_t *arg_md(int arg) const override;
-    const memory_desc_t *diff_src_md(int index = 0) const override;
-    const memory_desc_t *diff_dst_md(int index = 0) const override;
-    const memory_desc_t *diff_weights_md(int index = 0) const override;
+    const memory_desc_t *diff_src_md(int index) const override;
+    const memory_desc_t *diff_dst_md(int index) const override;
+    const memory_desc_t *diff_weights_md(int index) const override;
     int n_inputs() const override;
     int n_outputs() const override;
 

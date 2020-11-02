@@ -14,8 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 #include <cmath>
+
 #include "common/memory_desc_wrapper.hpp"
 #include "common/type_helpers.hpp"
+
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/prelu/jit_prelu_backward.hpp"
 #include "cpu/x64/prelu/jit_prelu_reduction_kernel.hpp"
@@ -26,12 +28,15 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-status_t jit_prelu_backward_t::pd_t::init(engine_t *engine) {
-    const memory_desc_wrapper src_d {src_md()};
-    const memory_desc_wrapper weights_d {weights_md()};
-    const memory_desc_wrapper src_diff_d {diff_src_md()};
-    const memory_desc_wrapper weights_diff_d {diff_weights_md()};
-    const memory_desc_wrapper dst_diff_d {diff_dst_md()};
+static constexpr dim_t alignment = platform::get_cache_line_size()
+        / sizeof(float); // align to cache line size to avoid false sharing
+
+status_t jit_prelu_bwd_t::pd_t::init(engine_t *engine) {
+    const memory_desc_wrapper src_d {src_md(0)};
+    const memory_desc_wrapper weights_d {weights_md(0)};
+    const memory_desc_wrapper src_diff_d {diff_src_md(0)};
+    const memory_desc_wrapper weights_diff_d {diff_weights_md(0)};
+    const memory_desc_wrapper dst_diff_d {diff_dst_md(0)};
 
     bool ok = !is_fwd() && !has_zero_dim_memory()
             && dt_supported(
@@ -39,7 +44,10 @@ status_t jit_prelu_backward_t::pd_t::init(engine_t *engine) {
             && set_default_formats() && src_d.is_dense(true)
             && weights_d.is_dense(true) && src_diff_d.is_dense(true)
             && weights_diff_d.is_dense(true) && dst_diff_d.is_dense(true)
-            && !has_zero_dim_memory();
+            && !has_zero_dim_memory()
+            && utils::one_of(prelu::get_supported_isa(), avx512_core_bf16,
+                    avx512_core, avx512_common, avx2, avx, sse41);
+    ;
 
     const auto bcast = prelu::get_bcast_type(src_diff_d, weights_diff_d);
 
@@ -52,10 +60,8 @@ status_t jit_prelu_backward_t::pd_t::init(engine_t *engine) {
             auto scratchpad = scratchpad_registry().registrar();
             const auto max_num_threads = dnnl_get_max_threads();
             const dim_t C = src_diff_d.ndims() >= 2 ? src_diff_d.dims()[1] : 1;
-            static constexpr dim_t alignment
-                    = 16; // align to cache line size to avoid false sharing
             scratchpad.book<float>(memory_tracking::names::key_prelu_reduction,
-                    max_num_threads * prelu::align(C, alignment));
+                    max_num_threads * utils::rnd_up(C, alignment));
         }
 
         return status::success;
@@ -64,7 +70,7 @@ status_t jit_prelu_backward_t::pd_t::init(engine_t *engine) {
     return status::unimplemented;
 }
 
-bool jit_prelu_backward_t::pd_t::dt_supported(const memory_desc_wrapper &src_d,
+bool jit_prelu_bwd_t::pd_t::dt_supported(const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &src_diff_d,
         const memory_desc_wrapper &weights_diff_d,
@@ -82,7 +88,7 @@ bool jit_prelu_backward_t::pd_t::dt_supported(const memory_desc_wrapper &src_d,
             && IMPLICATION(src_dt == data_type::bf16, mayiuse(avx512_core));
 }
 
-bool jit_prelu_backward_t::pd_t::bcast_supported(const prelu::bcast &bcast,
+bool jit_prelu_bwd_t::pd_t::bcast_supported(const prelu::bcast &bcast,
         const memory_desc_wrapper &src_diff_d,
         const memory_desc_wrapper &weights_diff_d) const {
 
@@ -91,7 +97,8 @@ bool jit_prelu_backward_t::pd_t::bcast_supported(const prelu::bcast &bcast,
     else if (bcast == prelu::bcast::unsupported)
         return false;
     else if (bcast == prelu::bcast::per_oc_blocked) {
-        const int simd_w = mayiuse(avx512_common) ? 16 : (mayiuse(avx) ? 8 : 4);
+        const int simd_w
+                = prelu::get_vlen(prelu::get_supported_isa()) / sizeof(float);
         const auto check_block_consistency
                 = [&](const memory_desc_wrapper &mdw) {
                       const auto &bd = mdw.blocking_desc();
@@ -116,17 +123,16 @@ bool jit_prelu_backward_t::pd_t::bcast_supported(const prelu::bcast &bcast,
     return true;
 }
 
-const jit_prelu_backward_t::pd_t *jit_prelu_backward_t::pd() const {
+const jit_prelu_bwd_t::pd_t *jit_prelu_bwd_t::pd() const {
     return static_cast<const pd_t *>(primitive_t::pd().get());
 }
 
-jit_prelu_backward_t::jit_prelu_backward_t(const pd_t *apd)
-    : primitive_t(apd) {}
-jit_prelu_backward_t::~jit_prelu_backward_t() = default;
+jit_prelu_bwd_t::jit_prelu_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+jit_prelu_bwd_t::~jit_prelu_bwd_t() = default;
 
-status_t jit_prelu_backward_t::init(engine_t *engine) {
-    const memory_desc_wrapper weights_diff_d {pd()->diff_weights_md()};
-    const memory_desc_wrapper src_diff_d {pd()->diff_src_md()};
+status_t jit_prelu_bwd_t::init(engine_t *engine) {
+    const memory_desc_wrapper weights_diff_d {pd()->diff_weights_md(0)};
+    const memory_desc_wrapper src_diff_d {pd()->diff_src_md(0)};
 
     const auto bcast = prelu::get_bcast_type(src_diff_d, weights_diff_d);
 
@@ -143,13 +149,13 @@ status_t jit_prelu_backward_t::init(engine_t *engine) {
     return kernel_->create_kernel();
 }
 
-status_t jit_prelu_backward_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_prelu_bwd_t::execute(const exec_ctx_t &ctx) const {
     const byte *const src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
     const byte *const weights = CTX_IN_MEM(const byte *, DNNL_ARG_WEIGHTS);
     const byte *const dst_diff = CTX_IN_MEM(const byte *, DNNL_ARG_DIFF_DST);
     byte *const weights_diff = CTX_OUT_MEM(const byte *, DNNL_ARG_DIFF_WEIGHTS);
     byte *const src_diff = CTX_OUT_MEM(byte *, DNNL_ARG_DIFF_SRC);
-    const memory_desc_wrapper src_d {pd()->src_md()};
+    const memory_desc_wrapper src_d {pd()->src_md(0)};
     const auto dt_size = types::data_type_size(src_d.data_type());
     const auto kernel = kernel_.get();
     const auto &bcast = kernel->get_bcast();
@@ -196,12 +202,12 @@ status_t jit_prelu_backward_t::execute(const exec_ctx_t &ctx) const {
                 = utils::array_product(src_d.padded_dims() + 1, ndims - 1);
 
         auto scratchpad = ctx.get_scratchpad_grantor();
-        float *weights_diff_scratchpad = scratchpad.template get<float>(
+        float *const weights_diff_scratchpad = scratchpad.template get<float>(
                 memory_tracking::names::key_prelu_reduction);
-        const auto C_16_aligned = prelu::align(C, 16);
+        const auto C_cache_line_aligned = utils::rnd_up(C, alignment);
         size_t work_amount = 0;
 
-        fill_scratchpad_zeros(weights_diff_scratchpad, C_16_aligned);
+        fill_scratchpad_zeros(weights_diff_scratchpad, C_cache_line_aligned);
 
         if (bcast == prelu::bcast::per_oc_blocked) {
             const dim_t C_blocks = std::ceil(static_cast<float>(C) / simd_w);
@@ -218,8 +224,8 @@ status_t jit_prelu_backward_t::execute(const exec_ctx_t &ctx) const {
                         params.src_diff = src_diff + offset;
                         params.weights = weights + c_blk * simd_w * dt_size;
                         params.weights_diff = reinterpret_cast<void *>(
-                                weights_diff_scratchpad + ithr * C_16_aligned
-                                + c_blk * simd_w);
+                                weights_diff_scratchpad
+                                + ithr * C_cache_line_aligned + c_blk * simd_w);
 
                         (*kernel)(&params);
                     });
@@ -234,8 +240,9 @@ status_t jit_prelu_backward_t::execute(const exec_ctx_t &ctx) const {
                 params.dst_diff = dst_diff + offset;
                 params.src_diff = src_diff + offset;
                 params.weights = weights + c * dt_size;
-                params.weights_diff = reinterpret_cast<void *>(
-                        weights_diff_scratchpad + ithr * C_16_aligned + c);
+                params.weights_diff
+                        = reinterpret_cast<void *>(weights_diff_scratchpad
+                                + ithr * C_cache_line_aligned + c);
                 (*kernel)(&params);
             });
         } else if (bcast == prelu::bcast::per_oc_n_spatial_c) {
@@ -250,7 +257,7 @@ status_t jit_prelu_backward_t::execute(const exec_ctx_t &ctx) const {
                 params.src_diff = src_diff + offset;
                 params.weights = weights;
                 params.weights_diff = reinterpret_cast<void *>(
-                        weights_diff_scratchpad + ithr * C_16_aligned);
+                        weights_diff_scratchpad + ithr * C_cache_line_aligned);
                 (*kernel)(&params);
             });
         }
@@ -264,8 +271,8 @@ status_t jit_prelu_backward_t::execute(const exec_ctx_t &ctx) const {
     return status::success;
 }
 
-void jit_prelu_backward_t::scratchpad_to_diff_weights_reduction(
-        float *scratchpad, byte *weights_diff, size_t weights_diff_dt, dim_t C,
+void jit_prelu_bwd_t::scratchpad_to_diff_weights_reduction(float *scratchpad,
+        byte *weights_diff, size_t weights_diff_dt, dim_t C,
         size_t reduction_blocks) const {
     const auto reduction_kernel = reduction_kernel_.get();
     const auto &simd_w = kernel_->simd_w();
@@ -284,8 +291,8 @@ void jit_prelu_backward_t::scratchpad_to_diff_weights_reduction(
     });
 }
 
-void jit_prelu_backward_t::fill_scratchpad_zeros(
-        float *scratchpad, size_t thread_scratchpad_size) const {
+void jit_prelu_bwd_t::fill_scratchpad_zeros(
+        float *const scratchpad, size_t thread_scratchpad_size) const {
 
     parallel(0, [&](std::size_t ithr, std::size_t) {
         float *scratchpad_ithr = scratchpad + ithr * thread_scratchpad_size;

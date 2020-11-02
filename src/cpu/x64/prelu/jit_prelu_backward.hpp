@@ -18,8 +18,10 @@
 #define CPU_X64_PRELU_JIT_PRELU_BACKWARD_HPP
 
 #include <memory>
+
 #include "common/primitive.hpp"
 #include "cpu/cpu_prelu_pd.hpp"
+
 #include "cpu/x64/prelu/jit_prelu_utils.hpp"
 
 namespace dnnl {
@@ -30,13 +32,15 @@ namespace x64 {
 class jit_prelu_backward_kernel_t;
 class jit_prelu_reduction_kernel_t;
 
-class jit_prelu_backward_t : public primitive_t {
+class jit_prelu_bwd_t : public primitive_t {
 public:
     struct pd_t : public cpu_prelu_bwd_pd_t {
     public:
         using cpu_prelu_bwd_pd_t::cpu_prelu_bwd_pd_t;
-        DECLARE_COMMON_PD_T("jit_prelu_backward", jit_prelu_backward_t);
+        DECLARE_COMMON_PD_T("jit_uni", jit_prelu_bwd_t);
         status_t init(engine_t *engine);
+
+    private:
         bool dt_supported(const memory_desc_wrapper &src_d,
                 const memory_desc_wrapper &weights_d,
                 const memory_desc_wrapper &src_diff_d,
@@ -47,15 +51,15 @@ public:
                 const memory_desc_wrapper &weights_diff_d) const;
     };
 
-    jit_prelu_backward_t(const pd_t *apd);
-    ~jit_prelu_backward_t();
+    jit_prelu_bwd_t(const pd_t *apd);
+    ~jit_prelu_bwd_t();
     status_t init(engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     using byte = unsigned char;
     void fill_scratchpad_zeros(
-            float *scratchpad, size_t thread_scratchpad_size) const;
+            float *const scratchpad, size_t thread_scratchpad_size) const;
     void scratchpad_to_diff_weights_reduction(float *scratchpad,
             byte *weights_diff, size_t weights_diff_dt, dim_t C,
             size_t reduction_blocks) const;

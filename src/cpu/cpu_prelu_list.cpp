@@ -35,8 +35,8 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 const pd_create_f impl_list[] = {
-        CPU_INSTANCE_X64(jit_prelu_forward_t)
-        CPU_INSTANCE_X64(jit_prelu_backward_t)
+        CPU_INSTANCE_X64(jit_prelu_fwd_t)
+        CPU_INSTANCE_X64(jit_prelu_bwd_t)
         CPU_INSTANCE(ref_prelu_fwd_t<f32>)
         CPU_INSTANCE(ref_prelu_bwd_t<f32>)
         CPU_INSTANCE(ref_prelu_fwd_t<bf16>)

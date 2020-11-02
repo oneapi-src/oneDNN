@@ -18,6 +18,7 @@
 #define CPU_X64_PRELU_JIT_PRELU_REDUCTION_HPP
 
 #include <memory>
+
 #include "cpu/cpu_prelu_pd.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_generator.hpp"
@@ -64,7 +65,7 @@ private:
 
 protected:
     jit_prelu_reduction_kernel_t(const cpu_prelu_bwd_pd_t *pd, int simd_w);
-    Xbyak::Address diff_scratch_ptr(int unrolling_group);
+    Xbyak::Address diff_scratch_ptr(int unrolling_group) const;
 
     const data_type_t data_type_;
     const size_t tail_size_ = 0;
