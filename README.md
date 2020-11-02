@@ -26,23 +26,19 @@ See the [System Requirements](#system-requirements) section below.
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance
 on Intel CPUs and GPUs. Deep learning practitioners should use one of the
-applications enabled with oneDNN:
-* [Apache\* MXNet](https://mxnet.apache.org)
-* [Apache\* SINGA](https://singa.apache.org)
-* [BigDL](https://github.com/intel-analytics/BigDL)
-* [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
-* [Chainer\*](https://chainer.org)
-* [DeepLearning4J\*](https://deeplearning4j.org)
-* [Korali](https://github.com/cselab/korali)
-* [MATLAB\* Deep Learning Toolbox](https://www.mathworks.com/help/deeplearning/)
-* [Menoh\*](https://github.com/pfnet-research/menoh)
-* [Microsoft\* Cognitive Toolkit (CNTK)](https://docs.microsoft.com/en-us/cognitive-toolkit)
-* [nGraph](https://ngraph.ai)
-* [ONNX Runtime](https://github.com/microsoft/onnxruntime)
-* [OpenVINO(TM) toolkit](https://01.org/openvinotoolkit)
-* [PaddlePaddle\*](http://www.paddlepaddle.org)
-* [PyTorch\*](https://pytorch.org/)
-* [Tensorflow\*](https://www.tensorflow.org)
+[applications enabled with oneDNN](#applications-enabled-with-onednn).
+
+# Table of Contents
+
+- [Documentation](#documentation)
+- [Installation](#installation)
+- [System Requirements](#system-requirements)
+- [Applications Enabled with oneDNN](#applications-enabled-with-onednn)
+- [Support](#support)
+- [Contributing](#contributing)
+- [License](#license)
+- [Security](#security)
+- [Trademark Information](#trademark-information)
 
 # Documentation
 
@@ -267,7 +263,26 @@ on Windows Server 2019 with
 
 ## Requirements for Pre-built Binaries
 
-See README included into corresponding binary package.
+See the README included in the corresponding binary package.
+
+# Applications Enabled with oneDNN
+
+* [Apache\* MXNet](https://mxnet.apache.org)
+* [Apache\* SINGA](https://singa.apache.org)
+* [BigDL](https://github.com/intel-analytics/BigDL)
+* [Caffe\* Optimized for Intel Architecture](https://github.com/intel/caffe)
+* [Chainer\*](https://chainer.org)
+* [DeepLearning4J\*](https://deeplearning4j.org)
+* [Korali](https://github.com/cselab/korali)
+* [MATLAB\* Deep Learning Toolbox](https://www.mathworks.com/help/deeplearning/)
+* [Menoh\*](https://github.com/pfnet-research/menoh)
+* [Microsoft\* Cognitive Toolkit (CNTK)](https://docs.microsoft.com/en-us/cognitive-toolkit)
+* [nGraph](https://ngraph.ai)
+* [ONNX Runtime](https://github.com/microsoft/onnxruntime)
+* [OpenVINO(TM) toolkit](https://01.org/openvinotoolkit)
+* [PaddlePaddle\*](http://www.paddlepaddle.org)
+* [PyTorch\*](https://pytorch.org/)
+* [Tensorflow\*](https://www.tensorflow.org)
 
 # Support
 
@@ -340,6 +355,13 @@ without limitation, third party license terms, other Intel software license
 terms, and open source software license terms. These separate license terms
 govern your use of the third party programs as set forth in the
 "[THIRD-PARTY-PROGRAMS](THIRD-PARTY-PROGRAMS)" file.
+
+# Security
+
+See Intel's [Security Center](https://www.intel.com/content/www/us/en/security-center/default.html)
+for information on how to report a potential security issue or vulnerability.
+
+See also: [Security Policy](SECURITY.md)
 
 # Trademark Information
 

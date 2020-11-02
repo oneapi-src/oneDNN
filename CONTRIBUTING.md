@@ -1,10 +1,16 @@
 # Contributing guidelines
 
 If you have improvements to the oneDNN code, please send us your pull
-requests! For getting started, see GitHub
+requests! To get started, see the GitHub
 [howto](https://help.github.com/en/articles/about-pull-requests).
 
-The current guidelines are work in progress.
+You can:
+
+- Submit your changes directly with a
+  [pull request](https://github.com/oneapi-src/oneDNN/pulls)
+- Log a bug or feedback with an [issue](https://github.com/oneapi-src/oneDNN/issues)
+
+**See also:** [Contributor Covenant](CODE_OF_CONDUCT.md) code of conduct.
 
 ## Pull request checklist
 
