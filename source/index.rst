@@ -1,8 +1,8 @@
 .. _llga-section:
 
-====================
-oneDNN Graph Library
-====================
+===========================
+oneDNN Graph API definition
+===========================
 
 .. toctree::
    :maxdepth: 4

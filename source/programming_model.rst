@@ -1,188 +1,212 @@
-.. include:: replacements.inc.rst
-
 =================
 Programming Model
 =================
 
-oneDNN Graph main concepts are *graph* and *partition*. User constructs a graph
-with *operations* and *logical tensors*, passes it to oneDNN Graph
-implementation to get partitions. OP is an abstraction of compute logic, and it
-accepts logical tensors as its input or output data. OP’s kind, attribute, and
-its input and output logical tensor defines its semantics. Logical tensor
-describes the meta data of the input or output data, like data type, shape, and
-layout. A logical tensor must be produced by a single OP and may be consumed by
-multiple OPs. oneDNN Graph defines an OP set. oneDNN Graph implementation may
-support a subset of the OP set.
+oneDNN Graph programming model allows users to pass a computation graph and get
+partitions. Users then compile partitions, bind tensor data, and execute
+compiled partitions. Partitions are decided by oneDNN Graph implementation,
+which is the key concept to satisfy the different needs of AI hardware classes
+using a unified API.
 
-*Graph* is a set of OPs and logical tensors. The order of OP being added to the
-graph is considered as the order of OP being executed. Partition is a portion
-of the graph, which consists of a set of OP and input and output logical tensors
-of each OP. If an input logical tensor is produced by an OP outside its
-partition, it becomes partition’s input logical tensor. If an output logical
-tensor is used by an OP outside its partition, it becomes partition’s output
-logical tensor. oneDNN Graph implementation analyzes a  graph and returns a
-number of partitions. The partitions returned don’t contain unsupported OP.
+The programming model assumes that the main usage is to support deep learning
+(DL) frameworks or inference engines. DL frameworks have their own
+representation for the computation graph. oneDNN Graph API is used to offload
+or accelerate graph partitions from a framework graph. In the description below,
+graph refers to the graph built by oneDNN Graph implementation, and framework
+graph refers to the graph built by the DL framework.
 
-Users may add a wild-card OP to a graph. The wild-card OP represents any compute
-logic and its input and output logical tensors contribute to the graph building.
-The wild-card OP should not be in any partition. It enables the oneDNN Graph
-implementation to analyze a full graph, for example, whether a partition forms
-a circular dependence with OPs outside the partition.
+A deep learning computation graph consists of deep neural network (DNN)
+operations. A DNN operation is a function that takes input data and returns
+output data. The input and output data are multi-dimension arrays called
+tensors. A DNN operation may consume multiple tensors and produce multiple
+tensors. A tensor must be produced by a single operation and may be consumed by
+multiple operations.
 
-A *partition* needs to be compiled before being used for execution. The
-compilation typically lowers down the compute logic to hardware ISA level and
-generates binary code. The generated code is specialized for the input data’s
-metadata. Typically at the compilation time, users may know more information
-like tensor shape. User needs to create parameter logical tensors, corresponding
-to partition’s input and output logical tensors, and pass them along with the
-compilation API. The oneDNN Graph implementation may decide to use a target
-specific layout for the output tensor, and the user may query the logical output
-tensor of the compiled partition to know the output tensor’s size.
+oneDNN Graph API uses logical tensor, OP, and graph to represent a computation
+graph. Logical tensor represents tensor’s metadata, like element data type,
+shape, and layout. OP represents an operation on a computation graph. OP has
+kind, attribute, and input and output logical tensors. OPs are added to a graph.
+Both OP and logical tensor contains a unique ID, so that the graph knows how to
+connect a producer OP to a consumer OP through a logical tensor. The graph
+constructed is immutable. The sole purpose of the graph is to partition the
+graph. Once users get partitions, users should not add OP to the graph. The
+order of OPs being added to the graph is considered as the order of OP being
+executed.
 
-A *compiled partition* represents the generated code specialized for target
-hardware and meta data described by parameter logical tensors. User needs to
-cache the compiled partition to amortize the compilation cost among many
-iterations. If parameter tensors’ metadata is identical, a compiled partition
-generated in previous iterations may be reused. Alternatively, implementations
-may reduce the partition compilation cost by caching the compiled partition
-internally. This optimization falls outside of the scope of this specification.
+oneDNN Graph defines operation set. Users should convert their DNN operation
+definition to oneDNN Graph operation for graph construction. For operation
+outside oneDNN Graph operation set, users may use wild-card OP. The wild-card
+OP represents any OP. With its input and output logical tensors, it enables the
+oneDNN Graph implementation to receive a full graph and conduct a complete
+analysis. Users must pass data type for each logical tensor. If the tensor shape
+and layout are known, users must pass them along with the logical tensor.
 
-To execute a compiled partition, users need to attach input data buffers to
-logical tensors to create input tensors. Users may prepare the output data
-buffers with the queried output tensor sizes and create output tensors. The
-execution API takes a compiled partition, input tensors, and return output
-tensors with the modified data. The partition execution may need to allocate
-scratch pad, and it may call a user provided allocator to get the memory.
+A partition is a connected subgraph in a graph. oneDNN Graph implementation
+analyzes a graph and returns a number of partitions. The returned partitions
+must not form a dependence cycle. For example, a graph contains 3 OPs: A, B, and
+C. If C consumes A’s output and produces B’s input, A and B must not belong to
+one partition. If C is not added to the graph, the return partition may include
+A and B, since C is not visible to oneDNN Graph implementation. In this case, it
+is the user’s responsibility to detect the dependence cycle. Once C is added to
+the graph as a wild-card OP, oneDNN Graph implementation is responsible to avoid
+the dependence cycle and not put A and B to one partition.
 
-*Engine* represents a target device and context in the system. It needs to be
-passed as a parameter for partition compilation. Stream is an abstraction for
-hardware execution resources of a target device. It is required to execute
-a compiled partition.
+oneDNN Graph implementation may not support every OP in the oneDNN Graph
+operation set. The returned partitions don’t contain unsupported OP and
+wild-card OP.
+
+A partition needs to be compiled before execution. The compilation lowers down
+the compute logic to hardware ISA level and generates binary code. The generated
+code is specialized for the input and output tensor’s metadata. Users should
+pass as much information about tensor layout as possible in order to get the
+best performant compiled code. Users may collect profiling information for
+tensor shape or conduct online-compilation when executing the framework graph.
+Users must specify the layout for each logical tensor during compilation. Users
+must create new logical tensors to pass the enriched metadata with the
+compilation API. The new logical tensors must have the same IDs as the logical
+tensors passed at the graph construction time.
+
+For the output logical tensors, users must either specify a public layout using
+size and stride for each tensor dimension or request oneDNN Graph implementation
+to decide a target-specific layout. For the input logical tensors, users must
+either specify a public layout or using a target-specific layout produced by
+predecessor partition compilation. For the logical tensor with target-specific
+layout, it must be produced by a partition and used only by partitions.
+
+A compiled partition represents the generated code specialized for target
+hardware and tensor metadata passed with compilation API. Users may cache the
+compiled partition to amortize the compilation cost among many iterations. If
+tensor metadata is identical, a compiled partition generated in previous
+iterations may be reused. Alternatively, implementations may reduce the
+partition compilation cost by caching the compiled partition internally. This
+optimization falls outside of the scope of this specification.
+
+To execute a compiled partition, users must pass input and output tensors. Input
+tensors must bind input data buffers to logical tensors. Users may query the
+compiled partition for output data buffer sizes. If the sizes are known, users
+may allocate the output data buffers and bind to output tensors. If the sizes
+are unknown, users must provide an allocator for oneDNN Graph implementation to
+allocate the output tensor buffer. The execution API takes a compiled partition,
+input tensors, and return output tensors with the data buffer updated.
+
+An engine represents a target device and context in the system. It needs to be
+passed as a parameter for partition compilation. A stream abstracts hardware
+execution resources of a target device. It is required to execute a compiled
+partition.
 
 .. image:: resources/programming_concepts.png
 
-The diagram above describes the key programming concepts, and how they interact
+The diagram above summarizes the key programming concepts, and how they interact
 with each other. The arrow indicates the destination object contains or uses the
-source object. For example op contains logical tensor, and compiled partition
+source object. For example, OP contains logical tensor, and compiled partition
 uses partition.
-
 
 --------------
 Logical Tensor
 --------------
 
-*Logical tensor* describes the meta data of the input or output tensor, like
-element data type, number of dimensions, size for each dimension (shape),
-layout, and the total size of data.
+*Logical tensor* describes the metadata of the input or output tensor, like
+element data type, number of dimensions, size for each dimension, layout.
 
-The |lt_strided_layout| |lt_layout_type| means that the layout is determined by
-the strided field, and |lt_opaque_layout| means that the layout is a private
-layout decided by oneDNN Graph implementation. User may specify |lt_layout_type|
-as |lt_any_layout| when a parameter logical tensor is passed in the partition
-compilation stage to allow oneDNN Graph implementation to decide the layout for
-the compiled partition.
+Besides helping oneDNN Graph implementation to build the graph, Logical tensor
+plays a critical role to exchange tensor metadata information between users and
+oneDNN Graph implementation. Users pass input tensor shape information and get
+the inferred shape for output tensors from a partition. Users pass logical
+tensors to compilation API for specifying shape and layout information. Users
+also use a special logical tensor to allow oneDNN Graph implementation to decide
+the layout for output tensors. After compilation, users can query the compiled
+partition for output tensors’ shape, layout, and sizes.
 
-.. doxygenclass:: llga::api::logical_tensor
-   :project: oneDNN Graph Library
-   :members:
+Each logical tensor has an ID. The tensor metadata may be enriched in the
+framework graph as it progresses toward final execution. Logical tensor is not
+mutable. Users must create a new logical tensor with the same ID to pass any new
+additional information to oneDNN Graph implementation.
+
+.. literalinclude:: code_snippets/logical_tensor.hpp
+   :language: cpp
 
 --
 OP
 --
 
-*OP* is an abstraction of compute logic for deep neural network operation. OP’s
-kind, attribute, and its input and output logical tensor defines its semantics.
+*OP* describes a deep neural network operation. OP contains kind, attribute, and
+input and output logical tensor.
 
 Conv op contains format attributes for both activation and weight tensor, to
 indicate the semantics of each dimension of tensors. For example, the 2D conv
-may specify the dimension order is either ``NHWC`` or ``NCHW``. oneDNN Graph uses
-one letter ``X`` to generalize all the spatial dimensions so ``NXC`` or ``NCX``
-are used for the last example.
+may specify the dimension order is either ``NHWC`` or ``NCHW``. oneDNN Graph
+uses one letter ``X`` to generalize all the spatial dimensions so ``NXC`` or
+``NCX`` are used for the last example.
 
-.. doxygenclass:: llga::api::op
-   :project: oneDNN Graph Library
-   :members:
+.. literalinclude:: code_snippets/op.hpp
+   :language: cpp
 
 -----
 Graph
 -----
 
-*Graph* is a set of OPs and logical tensors. |graph_add_op| adds an OP and its
-logical tensors to a graph. oneDNN Graph implementation accumulates the OPs and
-logical tensors and constructs and validates the graph as internal state. At the
-end of graph construction, users may call |graph_get_partitions| which returns a
-set of partitions. After |graph_get_partitions|, users shall not add ops to the
-graph.
+*Graph* contains a set of OPs. ``add_op()`` adds an OP and its logical tensors
+to a graph. oneDNN Graph implementation accumulates the OPs and logical tensors
+and constructs and validates the graph as internal state. At the end of graph
+construction, users may call ``get_partitions()`` which returns a set of
+partitions. After ``get_partitions()``, users shall not add ops to the graph.
+The graph doesn't hold any meaning role to user after partitioning. User should
+free the graph.
 
-A same logical tensor may appear more than twice in |graph_add_op| call, since
-it is passed with the producer OP and consumer OPs. oneDNN Graph validates
-logical tensors with the same id should be identical at the graph construction
-time.
+A same logical tensor may appear more than twice in ``add_op()`` call, since it
+is passed with the producer OP and consumer OPs. oneDNN Graph validates logical
+tensors with the same id should be identical at the graph construction time.
 
 The order of OP being added to graph is considered as the order of OP being
 executed. The returned partitions should not contain OP not supported by the
 oneDNN Graph API implementation. The partitions should not contain wild-card OP.
-Each partition should not form cyclic dependence with other partitions and OPs
-outside partitions.
+Partitions should not form cyclic dependence within the graph. It is user’s
+responsibility to detect any dependence cycle between the partitions and
+operations not passing to oneDNN Graph implementation.
 
 The logical tensor passed at the graph construction stage might contain
 incomplete information, for example, dimension and shape information are
 spatially known. Complete information is not required but helps the oneDNN
 Graph to form better partition decisions.
 
-.. doxygenclass:: llga::api::graph
-   :project: oneDNN Graph Library
-   :members:
+.. literalinclude:: code_snippets/graph.hpp
+   :language: cpp
 
 ---------
 Partition
 ---------
 
 *Partition* represents a collection of OPS identified by oneDNN Graph
-implementation as the basic unit for compilation and execution. It contains
-a list of oneDNN Graph OPs and their input and output logical tensors. If an
-input logical tensor is produced by an OP outside its partition, it becomes
-partition’s input logical tensor. If an output logical tensor is used by an OP
-outside its partition, it becomes partition’s output logical tensor. User can
-not directly access parition’s logical tensors
+implementation as the basic unit for compilation and execution. It contains a
+list of OP IDs.
 
 Partition can infer the output logical tensor’s shape according to the input
 logical tensor shape. Users may create input and output logical tensors and pass
-them as parameters in the shape inference API. The shape inference API modifies
-the parameter logical tensor, and users may get the shape information from the
-output logical tensor.
+them as parameters of the shape inference API. After calling the shape inference
+API, users can get the shape information from the output logical tensor.
 
-.. note::
-   Users manage the lifecycle of oneDNN Graph partitions. After a partition is
-   created, users must and should keep it alive before it is compiled to be
-   |compiled_partition|.
+Partition can be compiled to generates hardware ISA level binary code
+specialized for input and output tensors’ metadata. Users must pass as much
+tensor metadata as possible to get the best performant compiled code. When users
+pass partition shape information, it is implementation-dependent to decide
+whether to support the compilation.
 
-|partition_compile| generates hardware ISA level binary code specialized for the
-metadata of input and output like tensor shape. Users may also want to build a
-partition without shape information so that it won't cause a significant delay
-when an unknown shape is fed after the model is deployed. The API supports
-partition compilation with or without the tensor shape information, but dynamic
-shape compilation is implementation dependent.
+User must create an input logical tensor list and an output logical tensor list
+to pass the additional tensor metadata as parameters to the compilation API. The
+parameter logical tensors must match the id of the logical tensors of the graph
+partition captured in the graph construction.
 
-The parameter logical tensors must match the id of the logical tensors of the
-graph partition captured in the graph construction. Users must specify
-|lt_strided_layout|, |lt_any_layout|, or |lt_opaque_layout| as the layout_type
-for the parameter logical tensors. When users specifies |lt_any_layout|, oneDNN
-Graph implementation decides the best performant layout for the compiled
-partition. If it is |lt_strided_layout|, it must use the public data layout
-described by the logical tensor. For |lt_opaque_layout|, the parameter logical
-tensor contains a target specific layout, and oneDNN Graph may or may not use
-the target specific layout.
+Users must specify ``strided``, ``any``, or ``opaque`` as the ``layout_type``
+for the parameter logical tensors. When users specify ``any``  for a logical
+tensor, the tensor must be an output tensor, and oneDNN Graph implementation
+decides the best performant layout for the compiled partition. If it is
+``strided``, it must use the public data layout described by the logical tensor.
+For ``opaque``, the parameter logical tensor contains a target-specific layout,
+which must be determined by the compilation of preceding partitions producing
+the tensor.
 
-User must pass input/output data type using |logical_tensor|, the backend shall
-check whether the data type is supported.
-
-User constructs inputs/outputs list based on the order in the modified framework
-graph. The backend shall follow this order to get inputs and return outputs.
-
-.. doxygenclass:: llga::api::partition
-   :project: oneDNN Graph Library
-   :members:
+.. literalinclude:: code_snippets/partition.hpp
+   :language: cpp
 
 ------
 Tensor
@@ -193,14 +217,10 @@ the execution of a compiled partition. A tensor contains a logical tensor and
 a data buffer.
 
 Framework integration code is responsible for managing the tensor’s lifecycle,
-e.g. free the resource allocated, when it is not used any more. The oneDNN Graph
-compiled partition execution may allocate a new tensor with various life cycle
-scope, which may need framework’s help to free the tensor at the end of the life
-cycle, refer the APIs in allocator.
+e.g. free the resource allocated, when it is not used anymore.
 
-.. doxygenclass:: llga::api::tensor
-   :project: oneDNN Graph Library
-   :members:
+.. literalinclude:: code_snippets/tensor.hpp
+   :language: cpp
 
 ------------------
 Compiled Partition
@@ -211,19 +231,18 @@ hardware and meta data described by parameter logical tensors. Compiled
 partition contains a partition and a handle representing the target specific
 compiled object.
 
-Users may query the logical tensor from a compiled partition to get the target
-specific layout. Users may pass the layout information for next partition
-compilation so that it can be optimized expecting a specific input layout.
-Users may query the memory size information for the output logical tensor, so
-that it can prepare the memory buffer for the output tensor.
+After the compilation API is invoked, users must query the logical output tensor
+of the compiled partition to know the output tensor’s layout id and size. The
+layout id is an opaque identifier for the target-specific layout. Users may pass
+the layout id for the next partition compilation so that it can be optimized to
+expect a specific input layout.  Users may use the size to allocate the memory
+buffer of the output tensors for execution.
 
-Framework passes the parameter tensors and compiled partition to execution API
-for execution. Execution API binds the tensor buffers with the parition’s
-internal input/output logical tensor and submits it to device runtime for
-execution. The parameter logical tensors must be in the same order when they are
+Framework passes the tensors and compiled partition as parameters to execution
+API. The parameter logical tensors must be in the same order when they are
 passed in the compilation API, and their ids must match with the compiled
-partition’s internal logical tensors. The layout type must be
-|lt_strided_layout| or |lt_opaque_layout|, can’t be |lt_any_layout|.
+partition’s internal logical tensors. The layout type of each tensor must be
+``strided`` or ``opaque``.
 
 If users place a tensor with data buffer pointer in outputs, the backend shall
 use the data buffer provided by users.
@@ -231,53 +250,48 @@ use the data buffer provided by users.
 Users may use ``prepack()`` to convert the parameter tensor with public layout
 to the target specific layout expected by the compiled partition. A common
 optimization in deep learning inference is that users may prepack the weight in
-the target specific layout required by the compiled partition and cache the
+the target-specific layout required by the compiled partition and cache the
 reordered weight for late use.
 
-.. doxygenclass:: llga::api::compiled_partition
-   :project: oneDNN Graph Library
-   :members:
+.. literalinclude:: code_snippets/compiled_partition.hpp
+   :language: cpp
 
 ------
 Engine
 ------
 
-*Engine* (``dnnl::graph::engine``) represents a device and its context. Compiled
-partitions are associated with engines. A compiled partition should only access
-the tensor which is associated to the same device and context, no matter the
-tensor is produced by a compiled partition or created directly by the user.
+*Engine* represents a device and its context. Compiled partitions are associated
+with engines. A compiled partition should only access the tensor which is
+associated with the same device and context, no matter the tensor is produced by
+a compiled partition or created directly by the user.
 
-Engine contains a device id, device name, and device handle. Since the engine
-serves as the context for oneDNN Graph implementation to store persistent
-information, like the compiled partition and its associated persistent memory
-cache created on the device, the device id ensures that there is a unique engine
-being created for each device. From the device kind, the engine knows how to
-generate code for the target device and what kind of device object to be
-expected. The device handle passed from framework allows oneDNN Graph
-implementation to work on the device specified by framework.
+Engine contains device kind, and a device id or device handle. From the device
+kind, the engine knows how to generate code for the target device and what kind
+of device object to be expected. The device id ensures that there is a unique
+engine being created for each device. The device handle passed from framework
+allows oneDNN Graph implementation to work on the device specified by the
+framework.
 
-User program may access the device directly and interoperates with oneDNN Graph
-to perform a task on the device. Typically user program manages the device,
-which creates the device handle and uses that to create a oneDNN Graph engine.
-User program can generate a tensor on a device and pass it to a compiled
+User programs may access the device directly and interoperates with oneDNN Graph
+to perform a task on the device. Typically user programs manage the device,
+which create the device handle and use that to create a oneDNN Graph engine.
+User programs can generate a tensor on a device and pass it to a compiled
 partition associated with that engine.
 
-.. doxygenclass:: llga::api::engine
-   :project: oneDNN Graph Library
-   :members:
+.. literalinclude:: code_snippets/engine.hpp
+   :language: cpp
 
 ------
 Stream
 ------
 
 *Stream* is the logical abstraction for execution units. It is created on top of
-oneDNN Graph engine and typically contains an opencl queue. One oneDNN Graph
-engine may have multiple streams. The compiled partition is submitted to stream
+oneDNN Graph engine. For SYCL device, it contains an opencl queue. oneDNN Graph
+engine may have multiple streams. A compiled partition is submitted to a stream
 for execution.
 
-.. doxygenclass:: llga::api::stream
-   :project: oneDNN Graph Library
-   :members:
+.. literalinclude:: code_snippets/stream.hpp
+   :language: cpp
 
 -----------------
 General API notes

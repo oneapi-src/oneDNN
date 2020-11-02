@@ -1,8 +1,9 @@
-##############
-OP definitions
-##############
+#############
+Operation Set
+#############
 
-List of all operators supported in LLGA can be found `here <https://gitlab.devtools.intel.com/llga/llga/-/blob/dev/include/llga/buildin_ops.h>`__.
+oneDNN Graph defines an operation set. oneDNN Graph implementation may support a
+subset of the operation set.
 
 .. toctree::
 
