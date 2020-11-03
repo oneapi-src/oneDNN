@@ -118,7 +118,7 @@ output_dims_t make_output_dims(const memory_desc_wrapper &dst_d) {
 
     switch (n_dims) {
         case 1: return output_dims_t {{mb, 0, 0, 0, 0}};
-        case 2: return output_dims_t {{mb, 0, 0, 0, 0}};
+        case 2: return output_dims_t {{mb, oc, 0, 0, 0}};
         case 3: return output_dims_t {{mb, oc, ow, 0, 0}};
         case 4: return output_dims_t {{mb, oc, oh, ow, 0}};
         case 5: return output_dims_t {{mb, oc, od, oh, ow}};
