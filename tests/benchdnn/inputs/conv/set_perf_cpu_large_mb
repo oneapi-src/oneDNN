@@ -11,6 +11,7 @@
 --batch=shapes_resnet_50
 --batch=shapes_resnet_50_sparse
 --batch=shapes_ssd_300_voc0712
+--batch=shapes_ssd_resnet34_training
 --batch=shapes_unet
 --batch=shapes_vgg_19
 --batch=shapes_yolov2
