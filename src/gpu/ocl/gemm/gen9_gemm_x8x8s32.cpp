@@ -195,8 +195,8 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     auto eltwise_beta = pd()->attr_info.eltwise_beta;
     auto eltwise_scale = pd()->attr_info.eltwise_scale;
 
-    auto &a = GEMM_CTX_ARG_STORAGE(a);
-    auto &b = GEMM_CTX_ARG_STORAGE(b);
+    auto &a = GEMM_CTX_ARG_STORAGE(b);
+    auto &b = GEMM_CTX_ARG_STORAGE(a);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
     auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
 
