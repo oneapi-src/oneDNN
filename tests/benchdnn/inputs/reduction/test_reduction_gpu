@@ -1,0 +1,5 @@
+--reset
+--batch=harness_reduction_f32
+--batch=harness_reduction_bf16
+--batch=harness_reduction_f16
+--batch=harness_reduction_i8
