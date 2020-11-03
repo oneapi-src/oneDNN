@@ -1,0 +1,5 @@
+# f16
+--reset
+
+--sdt=f16 --ddt=f16,f32
+--batch=option_set_all_algs

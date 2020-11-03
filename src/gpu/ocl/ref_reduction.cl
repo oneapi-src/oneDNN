@@ -57,6 +57,7 @@
 #define DST_OFF(n, c, d, h, w) (n)
 #endif
 
+KERNEL_ATTR
 __kernel void ref_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
     int n = GWS_GET_IN();
     int c = GWS_GET_IC();
@@ -72,7 +73,7 @@ __kernel void ref_reduce(__global SRC_DATA_T *src, __global DST_DATA_T *dst) {
     for_(int w_off = 0; w_off < REDUCTION_IW; w_off++)
     {
         acc = ACCUMULATE(acc,
-                DATA_TO_REF(src[SRC_OFF(n + n_off, c + c_off, d + d_off,
+                CONVERT_FLOAT_T(src[SRC_OFF(n + n_off, c + c_off, d + d_off,
                         h + h_off, w + w_off)]));
     }
 
