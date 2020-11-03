@@ -163,7 +163,7 @@ public:
         if (xmm_to_preserve) {
             sub(rsp, xmm_to_preserve * xmm_len);
             for (size_t i = 0; i < xmm_to_preserve; ++i)
-                movdqu(ptr[rsp + i * xmm_len],
+                uni_vmovdqu(ptr[rsp + i * xmm_len],
                         Xbyak::Xmm(xmm_to_preserve_start + i));
         }
         for (size_t i = 0; i < num_abi_save_gpr_regs; ++i)
@@ -216,7 +216,7 @@ public:
             pop(Xbyak::Reg64(abi_save_gpr_regs[num_abi_save_gpr_regs - 1 - i]));
         if (xmm_to_preserve) {
             for (size_t i = 0; i < xmm_to_preserve; ++i)
-                movdqu(Xbyak::Xmm(xmm_to_preserve_start + i),
+                uni_vmovdqu(Xbyak::Xmm(xmm_to_preserve_start + i),
                         ptr[rsp + i * xmm_len]);
             add(rsp, xmm_to_preserve * xmm_len);
         }
@@ -370,7 +370,10 @@ public:
     }
 
     void uni_vmovdqu(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
-        movdqu(addr, x);
+        if (is_valid_isa(avx))
+            vmovdqu(addr, x);
+        else
+            movdqu(addr, x);
     }
     void uni_vmovdqu(const Xbyak::Address &addr, const Xbyak::Ymm &x) {
         vmovdqu(addr, x);
@@ -380,7 +383,10 @@ public:
     }
 
     void uni_vmovdqu(const Xbyak::Xmm &x, const Xbyak::Address &addr) {
-        movdqu(x, addr);
+        if (is_valid_isa(avx))
+            vmovdqu(x, addr);
+        else
+            movdqu(x, addr);
     }
     void uni_vmovdqu(const Xbyak::Ymm &x, const Xbyak::Address &addr) {
         vmovdqu(x, addr);
