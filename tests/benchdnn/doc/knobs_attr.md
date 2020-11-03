@@ -68,6 +68,10 @@ post operations kind, the syntax differs, but regardless the kind, single quotes
 are used in the beginning and in the end in a string literal, even when empty
 post operations are passed.
 
+Note that from shell command line, double quotes are required in front of and
+behind single quotes. This is caused by shell interpretator messing with
+delimiters used inside post-ops content. Refer to examples below.
+
 `SUM` post operation kind appends operation result to the output. It supports
 optional arguments `SCALE` parsed as a real number, which scales the operation
 result before appending, and `DATA_TYPE` argument which defines sum data type
