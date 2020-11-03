@@ -112,6 +112,7 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `log`
       - `logistic`
       - `logistic_dst`
+      - `logsigmoid`
       - `round`
       - `sqrt`
       - `sqrt_dst`
