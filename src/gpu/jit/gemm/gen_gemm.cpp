@@ -177,8 +177,7 @@ status_t gen_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto block_k
             = utils::rnd_up(nocopy_info_.blocking[2], nocopy_info_.unroll[2]);
 
-    if (pd()->with_bias() || (pd()->desc()->acc_type != pd()->desc()->c_type()))
-        block_k = k;
+    if (pd()->desc()->acc_type != pd()->desc()->c_type()) block_k = k;
 
     for (int64_t Bk = 0; Bk < k; Bk += block_k) {
         int64_t size_k = k - Bk;
