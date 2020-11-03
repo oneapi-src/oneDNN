@@ -168,6 +168,12 @@ static bool check_abs_err(const prb_t *prb, const float &s, const float &trh) {
             // (10.f is magic scale for bf16)
             return (prb->dir & FLAG_FWD) && std::signbit(s)
                     && log1pf(expf(s)) <= 10.f * comp_err;
+        case alg_t::LOGSIGMOID:
+            // same situation like in SRELU
+            // in logsigmoid when s is positive
+            // results -> 0
+            return (prb->dir & FLAG_FWD) && !std::signbit(s)
+                    && log1pf(expf(-s)) <= 10.f * comp_err;
         case alg_t::LOGISTIC:
             // when s >= 4, logistic(s) -> 0 rapidly, which leads to high
             // relative error of logistic(s) * (1 - logistic(s)) due to
@@ -193,10 +199,11 @@ float get_eltwise_threshold(dnnl_data_type_t dt, alg_t alg, bool is_fwd) {
     // Tolerate only rounding error (1 ulp) for other than fp32 precisions.
     float trh = dt == dnnl_f32 ? 4e-6 : epsilon_dt(dt);
     // Tolerate bigger compute errors for complex algorithms.
-    bool alg_has_higher_tolerance = alg == alg_t::GELU_TANH || alg == alg_t::ELU
-            || alg == alg_t::SWISH || alg == alg_t::TANH || alg == alg_t::SRELU
-            || alg == alg_t::LOG || IMPLICATION(alg == alg_t::ELU_DST, is_fwd)
-            || IMPLICATION(alg == alg_t::TANH_DST, is_fwd);
+    const bool alg_has_higher_tolerance = alg == alg_t::GELU_TANH
+            || alg == alg_t::ELU || alg == alg_t::SWISH || alg == alg_t::TANH
+            || alg == alg_t::SRELU || alg == alg_t::LOGSIGMOID
+            || alg == alg_t::LOG
+            || ((alg == alg_t::ELU_DST || alg == alg_t::TANH_DST) && is_fwd);
     if (dt == dnnl_f32 && alg_has_higher_tolerance) trh = 4e-5;
     return trh;
 }

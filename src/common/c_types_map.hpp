@@ -79,6 +79,7 @@ const alg_kind_t eltwise_linear = dnnl_eltwise_linear;
 const alg_kind_t eltwise_bounded_relu = dnnl_eltwise_bounded_relu;
 const alg_kind_t eltwise_soft_relu = dnnl_eltwise_soft_relu;
 const alg_kind_t eltwise_logistic = dnnl_eltwise_logistic;
+const alg_kind_t eltwise_logsigmoid = dnnl_eltwise_logsigmoid;
 const alg_kind_t eltwise_exp = dnnl_eltwise_exp;
 const alg_kind_t eltwise_gelu = dnnl_eltwise_gelu;
 const alg_kind_t eltwise_log = dnnl_eltwise_log;

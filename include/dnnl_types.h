@@ -949,6 +949,8 @@ typedef enum {
     dnnl_eltwise_gelu_erf = 0x30,
     /// Eltwise: round
     dnnl_eltwise_round = 0x40,
+    /// Eltwise: logsigmoid
+    dnnl_eltwise_logsigmoid = 0x50,
     /// Eltwise: ReLU (dst for backward)
     dnnl_eltwise_relu_use_dst_for_bwd = 0x100,
     /// Eltwise: hyperbolic tangent non-linearity (tanh) (dst for backward)
@@ -1405,7 +1407,8 @@ typedef struct {
     /// #dnnl_eltwise_bounded_relu, #dnnl_eltwise_soft_relu,
     /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu_tanh,
     /// #dnnl_eltwise_swish, #dnnl_eltwise_log, #dnnl_eltwise_clip,
-    /// #dnnl_eltwise_pow, #dnnl_eltwise_gelu_erf, #dnnl_eltwise_round.
+    /// #dnnl_eltwise_pow, #dnnl_eltwise_gelu_erf, #dnnl_eltwise_round,
+    /// #dnnl_eltwise_logsigmoid.
     /// Possible values for passing destination memory on backward:
     /// #dnnl_eltwise_relu_use_dst_for_bwd, #dnnl_eltwise_tanh_use_dst_for_bwd,
     /// #dnnl_eltwise_elu_use_dst_for_bwd, #dnnl_eltwise_sqrt_use_dst_for_bwd,
@@ -1436,6 +1439,7 @@ typedef struct {
     ///  - #dnnl_eltwise_pow: @p alpha -- scale, @p beta -- exponent
     ///  - #dnnl_eltwise_gelu_erf: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_round: @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_logsigmoid @p alpha and @p beta ignored
     float alpha, beta;
 } dnnl_eltwise_desc_t;
 

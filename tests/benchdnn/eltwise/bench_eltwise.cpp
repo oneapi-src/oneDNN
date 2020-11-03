@@ -51,6 +51,7 @@ void check_correctness(const settings_t &s) {
             case alg_t::LOG:
             case alg_t::LOGISTIC:
             case alg_t::LOGISTIC_DST:
+            case alg_t::LOGSIGMOID:
             case alg_t::SQRT:
             case alg_t::SQRT_DST:
             case alg_t::SQUARE:

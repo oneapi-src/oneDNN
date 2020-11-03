@@ -249,6 +249,15 @@ inline U soft_relu_bwd(T dd, T s) {
     return (U)(dd * logistic_fwd<float>(s));
 }
 
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U logsigmoid_fwd(T s) {
+    return -soft_relu_fwd(-s);
+}
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U logsigmoid_bwd(T dd, T s) {
+    return soft_relu_bwd(dd, -s);
+}
+
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline U swish_fwd(T s, A alpha) {
@@ -350,9 +359,10 @@ inline bool is_eltwise_ok(
     const bool eltwise_use_src
             = one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
                       eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                      eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                      eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
-                      eltwise_log, eltwise_clip, eltwise_pow, eltwise_gelu_erf,
+                      eltwise_bounded_relu, eltwise_soft_relu,
+                      eltwise_logsigmoid, eltwise_logistic, eltwise_exp,
+                      eltwise_gelu_tanh, eltwise_swish, eltwise_log,
+                      eltwise_clip, eltwise_pow, eltwise_gelu_erf,
                       eltwise_round)
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(alg == eltwise_clip, beta >= alpha)

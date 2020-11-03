@@ -59,7 +59,7 @@ float compute_eltwise_scalar_fwd(
         case eltwise_pow: d = pow_fwd(s, alpha, beta); break;
         case eltwise_gelu_erf: d = gelu_erf_fwd(s); break;
         case eltwise_round: d = round_fwd(s); break;
-
+        case eltwise_logsigmoid: d = logsigmoid_fwd(s); break;
         case eltwise_relu_use_dst_for_bwd: d = relu_fwd(s, alpha); break;
         case eltwise_tanh_use_dst_for_bwd: d = tanh_fwd(s); break;
         case eltwise_elu_use_dst_for_bwd: d = elu_fwd(s, alpha); break;
@@ -93,7 +93,7 @@ float compute_eltwise_scalar_bwd(
         case eltwise_clip: ds = clip_bwd(dd, s, alpha, beta); break;
         case eltwise_pow: ds = pow_bwd(dd, s, alpha, beta); break;
         case eltwise_gelu_erf: ds = gelu_erf_bwd(dd, s); break;
-
+        case eltwise_logsigmoid: ds = logsigmoid_bwd(dd, s); break;
         case eltwise_relu_use_dst_for_bwd:
             ds = relu_bwd_use_dst(dd, s, alpha);
             break;

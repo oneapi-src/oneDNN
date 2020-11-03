@@ -209,6 +209,7 @@ struct attr_t {
             LOG,
             LOGISTIC,
             LOGISTIC_DST,
+            LOGSIGMOID,
             POW,
             RELU,
             RELU_DST,
