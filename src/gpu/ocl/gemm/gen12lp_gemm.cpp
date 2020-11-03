@@ -198,8 +198,8 @@ status_t gen12lp_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     auto eltwise_beta = pd()->eltwise_beta();
     auto eltwise_scale = pd()->eltwise_scale();
 
-    auto &a = GEMM_CTX_ARG_STORAGE(a);
-    auto &b = GEMM_CTX_ARG_STORAGE(b);
+    auto &a = GEMM_CTX_ARG_STORAGE(b);
+    auto &b = GEMM_CTX_ARG_STORAGE(a);
     auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
 
