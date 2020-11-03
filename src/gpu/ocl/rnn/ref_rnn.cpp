@@ -585,6 +585,9 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     status_t status = init_conf<aprop>(conf, rnn_conf, this, this->off);
     if (status != status::success) { return status; }
 
+    // The inputs of create_gemm_pd describe a gemm in column major.
+    // Below, we have to transpose the a and b descriptor to describe
+    // the GEMM as a row major problem.
     auto create_gemm_pd
             = [&](std::unique_ptr<primitive_desc_t> &gemm_pd, int m, int n,
                       int k, int lda, int ldb, int ldc, data_type_t a_dt,
@@ -592,10 +595,10 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                       float beta) -> status_t {
         auto gemm_desc = gemm_desc_t();
         memory_desc_t a_md, b_md, c_md;
-        create_2d_desc(&a_md, m, k, a_dt, transpose::notrans, lda);
-        create_2d_desc(&b_md, k, n, b_dt,
+        create_2d_desc(&b_md, k, m, a_dt, transpose::notrans, lda);
+        create_2d_desc(&a_md, n, k, b_dt,
                 is_B_trans ? transpose::trans : transpose::notrans, ldb);
-        create_2d_desc(&c_md, m, n, c_dt, transpose::notrans, ldc);
+        create_2d_desc(&c_md, n, m, c_dt, transpose::notrans, ldc);
         gemm_desc.primitive_kind = primitive_kind::gemm;
         gemm_desc.a_desc = a_md;
         gemm_desc.b_desc = b_md;
@@ -980,9 +983,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     gemm_B_->set_offset(off_b);
     gemm_C_->set_offset(off_c);
 
+    // We flip A and B here since the GEMM API is row major but the
+    // RNN code describes GEMM in column major fashion
     gemm_exec_args_t gemm_args;
-    gemm_args.a = gemm_A_;
-    gemm_args.b = gemm_B_;
+    gemm_args.a = gemm_B_;
+    gemm_args.b = gemm_A_;
     gemm_args.c = gemm_C_;
 
     auto gemm_ctx = gemm_exec_ctx_t(ctx, gemm_args);
