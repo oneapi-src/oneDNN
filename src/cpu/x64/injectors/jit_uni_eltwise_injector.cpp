@@ -42,9 +42,10 @@ void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
     // For avx we need a register to save the upper part of Ymm
     preserve_vec_for_avx = isa == avx
             && utils::one_of(alg_, eltwise_tanh, eltwise_elu, eltwise_abs,
-                    eltwise_soft_relu, eltwise_logistic, eltwise_exp,
-                    eltwise_gelu_tanh, eltwise_swish, eltwise_gelu_erf,
-                    eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
+                    eltwise_soft_relu, eltwise_logsigmoid, eltwise_logistic,
+                    eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
+                    eltwise_gelu_erf, eltwise_tanh_use_dst_for_bwd,
+                    eltwise_elu_use_dst_for_bwd,
                     eltwise_logistic_use_dst_for_bwd,
                     eltwise_exp_use_dst_for_bwd);
     if (preserve_vec_for_avx) vecs_to_preserve++;
@@ -570,6 +571,14 @@ void jit_uni_eltwise_injector_f32<isa>::clip_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmaxps(vmm_src, vmm_src, table_val(alpha));
     h->uni_vminps(vmm_src, vmm_src, table_val(beta));
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::logsigmoid_compute_vector_fwd(
+        const Vmm &vmm_src) {
+    h->uni_vmulps(vmm_src, vmm_src, table_val(minus_one));
+    soft_relu_compute_vector_fwd(vmm_src);
+    h->uni_vmulps(vmm_src, vmm_src, table_val(minus_one));
 }
 
 template <cpu_isa_t isa>
@@ -1190,6 +1199,13 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_bwd(
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::logsigmoid_compute_vector_bwd(
+        const Vmm &vmm_src) {
+    h->uni_vmulps(vmm_src, vmm_src, table_val(minus_one));
+    soft_relu_compute_vector_bwd(vmm_src);
+}
+
+template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector_bwd(
         const Vmm &vmm_src) {
     // res = d * (1 - d) = d - d * d; d = logistic(s)
@@ -1383,7 +1399,8 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_sqrt: return 0;
             case eltwise_linear: return 1;
             case eltwise_bounded_relu: return 0;
-            case eltwise_soft_relu: return 4;
+            case eltwise_soft_relu:
+            case eltwise_logsigmoid: return 4;
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic: return 4;
             case eltwise_exp_use_dst_for_bwd:
@@ -1411,7 +1428,8 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_sqrt: return 1;
             case eltwise_linear: return 0;
             case eltwise_bounded_relu: return 1;
-            case eltwise_soft_relu: return 4;
+            case eltwise_soft_relu:
+            case eltwise_logsigmoid: return 4;
             case eltwise_logistic_use_dst_for_bwd: return 1;
             case eltwise_logistic: return 4;
             case eltwise_exp_use_dst_for_bwd: return 0;
@@ -1460,6 +1478,9 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 case eltwise_soft_relu:
                     soft_relu_compute_vector_fwd(Vmm(idx));
                     break;
+                case eltwise_logsigmoid:
+                    logsigmoid_compute_vector_fwd(Vmm(idx));
+                    break;
                 case eltwise_logistic_use_dst_for_bwd:
                 case eltwise_logistic:
                     logistic_compute_vector_fwd(Vmm(idx));
@@ -1496,6 +1517,9 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                     break;
                 case eltwise_soft_relu:
                     soft_relu_compute_vector_bwd(Vmm(idx));
+                    break;
+                case eltwise_logsigmoid:
+                    logsigmoid_compute_vector_bwd(Vmm(idx));
                     break;
                 case eltwise_logistic_use_dst_for_bwd:
                 case eltwise_logistic:
@@ -2037,6 +2061,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
                 case eltwise_gelu_tanh: gelu_tanh_ = true; break;
                 case eltwise_log: log_ = true; break;
                 case eltwise_soft_relu: soft_relu_ = true; break;
+                case eltwise_logsigmoid: soft_relu_ = true; break;
                 case eltwise_tanh_use_dst_for_bwd:
                 case eltwise_tanh: tanh_ = true; break;
                 default: break;
