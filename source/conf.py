@@ -52,7 +52,7 @@ html_context = {
 
 pygments_style = None
 
-exclude_patterns = []
+exclude_patterns = ['*.inc.rst']
 
 latex_documents = []
 

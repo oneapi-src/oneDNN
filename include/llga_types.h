@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "buildin_symbols.h"
+#include "buildin_ops.h"
 
 #if defined _WIN32 || defined __CYGWIN__
 #define LLGA_HELPER_DLL_IMPORT __declspec(dllimport)
@@ -55,44 +55,6 @@ typedef int64_t llga_dim_t;
 /// A type to describe tensor dimensions.
 typedef llga_dim_t llga_dims_t[LLGA_MAX_NDIMS];
 
-/// These layouts are aligned with the definition of oneDNN format tags
-typedef enum llga_layout_id {
-    llga_any = 1,
-
-    // Plain formats
-    llga_a, ///< plain 1D tensor
-    llga_ab, ///< plain 2D tensor
-    llga_abc, ///< plain 3D tensor
-    llga_abcd, ///< plain 4D tensor
-    llga_abcde, ///< plain 5D tensor
-    llga_abcdef, ///< plain 6D tensor
-
-    // Permuted plain formats
-    llga_abdc, ///< permuted 4D tensor
-    llga_abdec, ///< permuted 5D tensor
-    llga_acb, ///< permuted 3D tensor
-    llga_acbde, ///< permuted 5D tensor
-    llga_acbdef, ///< permuted 6D tensor
-    llga_acdb, ///< permuted 4D tensor
-    llga_acdeb, ///< permuted 5D tensor
-    llga_ba, ///< permuted 2D tensor
-    llga_bac, ///< permuted 3D tensor
-    llga_bacd, ///< permuted 4D tensor
-    llga_bacde, ///< permuted 5D tensor
-    llga_bca, ///< permuted 3D tensor
-    llga_bcda, ///< permuted 4D tensor
-    llga_bcdea, ///< permuted 5D tensor
-    llga_cba, ///< permuted 3D tensor
-    llga_cdba, ///< permuted 4D tensor
-    llga_dcab, ///< permuted 4D tensor
-    llga_cdeba, ///< permuted 5D tensor
-    llga_decab, ///< permuted 5D tensor
-    llga_defcab, ///< permuted 6D tensor
-
-    /// where we start to count for non-plain layout
-    llga_first_non_plain_layout
-} llga_layout_id_t;
-
 typedef enum llga_data_type {
     llga_data_type_undef = 0,
     /// 16-bit/half-precision floating point.
@@ -110,9 +72,9 @@ typedef enum llga_data_type {
 } llga_data_type_t;
 
 typedef enum llga_partition_policy {
-    llga_partition_policy_max = 0,  /**< Best optimization possible, minimum control to framework */
-    llga_partition_policy_fusion,   /**< Must-to-have fusion, give framework executor more control */
-    llga_partition_policy_debug,    /**< No optimization, maximum control to framework */
+    llga_partition_policy_max = 0,
+    llga_partition_policy_fusion,
+    llga_partition_policy_debug,
 } llga_partition_policy_t;
 
 typedef enum llga_result {
@@ -135,7 +97,7 @@ typedef enum llga_engine_kind {
 
 typedef enum llga_op_kind {
 #define DEFINE_SYMBOL(s) k##s,
-    LLGA_FORALL_BUILTIN_SYMBOLS(DEFINE_SYMBOL)
+    LLGA_FORALL_BUILDIN_OPS(DEFINE_SYMBOL)
 #undef DEFINE_SYMBOL
             kLastSymbol, // where we start counting for new symbols
     kLastOp = 10000,
@@ -146,19 +108,68 @@ typedef enum llga_attribute_kind {
     llga_attribute_kind_fs,
     llga_attribute_kind_i,
     llga_attribute_kind_is,
+    llga_attribute_kind_s,
+    llga_attribute_kind_b,
 } llga_attribute_kind_t;
+
+/// @brief An enumeration to express the lifetime management of the allocator
+typedef enum {
+    llga_allocator_persistent = 0,
+    llga_allocator_output,
+    llga_allocator_temp,
+} llga_allocator_lifetime_t;
+
+/// @brief An attribute struct associated with allocator.
+typedef struct llga_allocator_attr {
+    llga_allocator_lifetime_t type;
+    size_t alignment;
+} llga_allocator_attr_t;
 
 /// @brief A allocator handle
 typedef struct llga_allocator llga_allocator_t;
+/// Regarding the allocator call-back function, we also provide a hint/attribute
+/// to integration, which indicates that which type of memory is being requested
+/// (persistent/output/temp) and the expected alignment of memory allocation.
+typedef void *(*llga_cpu_allocate_f)(size_t, llga_allocator_attr_t);
+typedef void (*llga_cpu_deallocate_f)(void *);
+typedef void *(*llga_sycl_allocate_f)(
+        size_t, const void *, const void *, llga_allocator_attr_t);
+typedef void (*llga_sycl_deallocate_f)(void *, const void *);
 
-typedef void *(*llga_allocate_persistent)(void *allocator, size_t mem_size);
-typedef void (*llga_deallocate_persistent)(void *allocator, void *mem);
-typedef void *(*llga_allocate_output)(void *allocator, size_t mem_size);
-typedef void *(*llga_allocate_temp)(void *allocator, size_t mem_size);
+/// Layout type specification
+typedef enum {
+    llga_layout_type_undef = 0,
+    llga_layout_type_any = 1,
+    llga_layout_type_strided = 2,
+    llga_layout_type_opaque = 3,
+} llga_layout_type_t;
 
-/// @brief A logical tensor handle
-struct llga_logical_tensor;
-typedef struct llga_logical_tensor llga_logical_tensor_t;
+/// @brief logical tensor definition
+typedef struct {
+    /// Unique id of each logical tensor. Provided by framework.
+    size_t id;
+
+    /// Number of dimension. Default -1 means not initialized.
+    int32_t ndims;
+
+    /// Size of each dimension. -1 means the size is unknown on the axis.
+    llga_dims_t dims;
+
+    /// Data type of the tensor elements.
+    llga_data_type_t data_type;
+
+    /// Layout type of the tensor: any, strided, or opaque.
+    llga_layout_type_t layout_type;
+    union {
+        /// Valid when layout_type is `llga_strided`.
+        /// -1 means the stride is unknown on the axis.
+        llga_dims_t strides;
+
+        /// Valid when layout_type is `llga_opaque`.
+        /// `layout_id` is generated and managed by backend.
+        size_t layout_id;
+    } layout;
+} llga_logical_tensor_t;
 
 /// @brief A tensor handle
 struct llga_tensor;

@@ -1,285 +1,309 @@
-.. include:: replacements.inc.rst
+=================
+Programming Model
+=================
 
-=========================
-Programming Model and API
-=========================
+oneDNN Graph programming model allows users to pass a computation graph and get
+partitions. Users then compile partitions, bind tensor data, and execute
+compiled partitions. Partitions are decided by oneDNN Graph implementation,
+which is the key concept to satisfy the different needs of AI hardware classes
+using a unified API.
 
---
-OP
---
+The programming model assumes that the main usage is to support deep learning
+(DL) frameworks or inference engines. DL frameworks have their own
+representation for the computation graph. oneDNN Graph API is used to offload
+or accelerate graph partitions from a framework graph. In the description below,
+graph refers to the graph built by oneDNN Graph implementation, and framework
+graph refers to the graph built by the DL framework.
 
-LLGA OP describes pure logical description of deep learning operators. It contains inputs, and outputs and attributes. The inputs and outputs tensors are logical tensors without concrete tensor data. At the graph partition time, it may not have dimension and shape information until the graph execution time.
+A deep learning computation graph consists of deep neural network (DNN)
+operations. A DNN operation is a function that takes input data and returns
+output data. The input and output data are multi-dimension arrays called
+tensors. A DNN operation may consume multiple tensors and produce multiple
+tensors. A tensor must be produced by a single operation and may be consumed by
+multiple operations.
 
-LLGA OP is created when the corresponding framework op is visited, once the information is extracted and converted to LLGA OP, it is then passed over to LLGA backend.
+oneDNN Graph API uses logical tensor, OP, and graph to represent a computation
+graph. Logical tensor represents tensor’s metadata, like element data type,
+shape, and layout. OP represents an operation on a computation graph. OP has
+kind, attribute, and input and output logical tensors. OPs are added to a graph.
+Both OP and logical tensor contains a unique ID, so that the graph knows how to
+connect a producer OP to a consumer OP through a logical tensor. The graph
+constructed is immutable. The sole purpose of the graph is to partition the
+graph. Once users get partitions, users should not add OP to the graph. The
+order of OPs being added to the graph is considered as the order of OP being
+executed.
 
-The integration shall follow below rules to convert framework OP to LLGA OP:
+oneDNN Graph defines operation set. Users should convert their DNN operation
+definition to oneDNN Graph operation for graph construction. For operation
+outside oneDNN Graph operation set, users may use wild-card OP. The wild-card
+OP represents any OP. With its input and output logical tensors, it enables the
+oneDNN Graph implementation to receive a full graph and conduct a complete
+analysis. Users must pass data type for each logical tensor. If the tensor shape
+and layout are known, users must pass them along with the logical tensor.
 
-1. Convert to LLGA OP if it’s supported in LLGA OP set. Some tweak may be necessary like a convolution with bias in framework shall be splitted to a LLGA convolution and LLGA add.
-2. For the OP that is not in LLGA OP set, if the integration wants to pass it to the backend, a Wildcard OP can be used.
-3. There’s also special options like custom OP and contraction OP, refer to the related section.
+A partition is a connected subgraph in a graph. oneDNN Graph implementation
+analyzes a graph and returns a number of partitions. The returned partitions
+must not form a dependence cycle. For example, a graph contains 3 OPs: A, B, and
+C. If C consumes A’s output and produces B’s input, A and B must not belong to
+one partition. If C is not added to the graph, the return partition may include
+A and B, since C is not visible to oneDNN Graph implementation. In this case, it
+is the user’s responsibility to detect the dependence cycle. Once C is added to
+the graph as a wild-card OP, oneDNN Graph implementation is responsible to avoid
+the dependence cycle and not put A and B to one partition.
 
-The integration layer manages the OP’s lifecycle, e.g., it frees LLGA OP after it is passed to backend. The LLGA backend should not assume that LLGA OP is alive after it receives a LLGA OP.
+oneDNN Graph implementation may not support every OP in the oneDNN Graph
+operation set. The returned partitions don’t contain unsupported OP and
+wild-card OP.
 
-  **OP Kind**
-    The OP kind specifies which computation is represented by the OP, such as conv2d and relu.
-  **Inputs**
-    Describes the list of input tensors. Its data type is logical tensor.
-  **Outputs**
-    Describes the list of output tensors. Its data type is logical tensor.
-  **Attribute**
-    The attributes contain constant information known to the operation at the time of operation creation, like the stride and padding information in conv OP. Some frameworks may define these attributes as input tensors (with constant value), the integration shall translate input to attributes based on op definition.
-  **ID**
-    Each OP has a unique id to identify itself.
+A partition needs to be compiled before execution. The compilation lowers down
+the compute logic to hardware ISA level and generates binary code. The generated
+code is specialized for the input and output tensor’s metadata. Users should
+pass as much information about tensor layout as possible in order to get the
+best performant compiled code. Users may collect profiling information for
+tensor shape or conduct online-compilation when executing the framework graph.
+Users must specify the layout for each logical tensor during compilation. Users
+must create new logical tensors to pass the enriched metadata with the
+compilation API. The new logical tensors must have the same IDs as the logical
+tensors passed at the graph construction time.
 
-.. doxygenclass:: llga::api::op
-   :project: oneDNN Graph Library
-   :members:
+For the output logical tensors, users must either specify a public layout using
+size and stride for each tensor dimension or request oneDNN Graph implementation
+to decide a target-specific layout. For the input logical tensors, users must
+either specify a public layout or using a target-specific layout produced by
+predecessor partition compilation. For the logical tensor with target-specific
+layout, it must be produced by a partition and used only by partitions.
 
------
-Graph
------
+A compiled partition represents the generated code specialized for target
+hardware and tensor metadata passed with compilation API. Users may cache the
+compiled partition to amortize the compilation cost among many iterations. If
+tensor metadata is identical, a compiled partition generated in previous
+iterations may be reused. Alternatively, implementations may reduce the
+partition compilation cost by caching the compiled partition internally. This
+optimization falls outside of the scope of this specification.
 
-Graph serves as the context for the LLGA backend to grow graphs and generate partitions. A graph is created with an engine, and |graph_select| API binds the OP to a graph. When the construction of a graph is completed, the |graph_filter_partitions| API shall be used to generate a list of partitions. If the framework processes two subgraphs simultaneously, it needs to create two separate LLGA graph so that they won’t conflict with each other.
+To execute a compiled partition, users must pass input and output tensors. Input
+tensors must bind input data buffers to logical tensors. Users may query the
+compiled partition for output data buffer sizes. If the sizes are known, users
+may allocate the output data buffers and bind to output tensors. If the sizes
+are unknown, users must provide an allocator for oneDNN Graph implementation to
+allocate the output tensor buffer. The execution API takes a compiled partition,
+input tensors, and return output tensors with the data buffer updated.
 
-If a framework OP is not in LLGA op set, integration has 2 options:
+An engine represents a target device and context in the system. It needs to be
+passed as a parameter for partition compilation. A stream abstracts hardware
+execution resources of a target device. It is required to execute a compiled
+partition.
 
-1. Do not pass this OP to the backend.
-2. Pass this OP to the backend with a Wildcard OP.
+.. image:: resources/programming_concepts.png
 
-It’s not mandatory that all OPs binded by |graph_select| must be in a partition, the backend can decide an OP is not supported and doesn’t include it in any partition.
-
-.. doxygenclass:: llga::api::graph
-   :project: oneDNN Graph Library
-   :members:
+The diagram above summarizes the key programming concepts, and how they interact
+with each other. The arrow indicates the destination object contains or uses the
+source object. For example, OP contains logical tensor, and compiled partition
+uses partition.
 
 --------------
 Logical Tensor
 --------------
 
-Logical tensor represents the input and output of DNN operations. Together with LLGA OP, LLGA logical tensors are used to support passing the framework graph information during graph partition.  During the partition compilation, logical tensor is used to specify the partition input and output. It contains element data type, number of dimensions, size and stride for each dimension (shape), the date layout, and the total size of data. The dimension and shape information may be incomplete at the graph partitioning time. Usually these information are complete at the partition compilation time. The LLGA integration layer shall set the shape information in logical_tensor if it can get shape information from the framework.
+*Logical tensor* describes the metadata of the input or output tensor, like
+element data type, number of dimensions, size for each dimension, layout.
 
-There are two types of data layout: Public, or "ANY". Public data layout refers to the layout used by the framework. During the graph partition stage, all the logical tensor is created with the information from the framework graph, so the layout is public data layout. For example, for 2D conv the dimension order is either “NHWC” or “NCHW”. During the partition compilation stage, the logical tensor may be assigned with "ANY" data layout, so that the LLGA backend has the freedom to choose whatever data layout works the best.
+Besides helping oneDNN Graph implementation to build the graph, Logical tensor
+plays a critical role to exchange tensor metadata information between users and
+oneDNN Graph implementation. Users pass input tensor shape information and get
+the inferred shape for output tensors from a partition. Users pass logical
+tensors to compilation API for specifying shape and layout information. Users
+also use a special logical tensor to allow oneDNN Graph implementation to decide
+the layout for output tensors. After compilation, users can query the compiled
+partition for output tensors’ shape, layout, and sizes.
 
-For the framework which is able to represent platform dependent tensor, there is a common optimization pass to avoid converting between the private data layout and public upon entry and exit of the compiled partition. The tensor stays in a private layout between two compiled partitions. This is enabled to set the logical tensor layout to "ANY" layout, so the partition compilation understands the freedom and generates optimized code version. This works for the activation tensors which are passed between compiled partitions.
+Each logical tensor has an ID. The tensor metadata may be enriched in the
+framework graph as it progresses toward final execution. Logical tensor is not
+mutable. Users must create a new logical tensor with the same ID to pass any new
+additional information to oneDNN Graph implementation.
 
-Besides the activation tensors, which have a limited life cycle within one iteration, there are persistent weight tensors. Weight tensors may not be presented as an output of OP in the Framework graph. But the integration layer typically has a way to prepack the weight tensor before the execution or at the first iteration of the execution. As long as the integration layer makes sure the input weight tensor is prepared in private layout, it can also set the weight tensor's layout as "ANY".
+.. literalinclude:: code_snippets/logical_tensor.hpp
+   :language: cpp
 
-.. doxygenclass:: llga::api::logical_tensor
-   :project: oneDNN Graph Library
-   :members:
+--
+OP
+--
 
-------
-Tensor
-------
+*OP* describes a deep neural network operation. OP contains kind, attribute, and
+input and output logical tensor.
 
-LLGA Tensor binds memory buffers to a logical tensor. Correspondingly, there are two types of tensors: public layout tensor and opaque tensor. Public layout tensor refers to the tensor with public data layout, and the opaque tensor doesn’t describe the layout, instead it contains a handle to LLGA backend’s private tensor representation. The opaque tensor allows the tensor data to remain in a private data layout between two LLGA partitions, so there is no need for the tensor data to convert back and forth. The handle points to platform dependent tensor implementation and doesn't tell the specific data layout and location. Not every framework integration can accept opaque tensor design, for those which don't,  framework integration needs to make sure the LLGA backend always input and output the public layout tensor.
+Conv op contains format attributes for both activation and weight tensor, to
+indicate the semantics of each dimension of tensors. For example, the 2D conv
+may specify the dimension order is either ``NHWC`` or ``NCHW``. oneDNN Graph
+uses one letter ``X`` to generalize all the spatial dimensions so ``NXC`` or
+``NCX`` are used for the last example.
 
-LLGA Tensor is used as the input and output of the compiled partition during execution. For the compiled partition outputs "ANY" data layout, the LLGA backend returns the tensor with a handle to the backend specific tensor. For the compiled partition inputs "ANY" data layout, the LLGA backend expects an opaque tensor and receives the backend specific tensor through the handle.
+.. literalinclude:: code_snippets/op.hpp
+   :language: cpp
 
-.. doxygenclass:: llga::api::tensor
-   :project: oneDNN Graph Library
-   :members:
+-----
+Graph
+-----
 
-LLGA integration layer is responsible for managing the tensor’s lifecycle, e.g. free the resource allocated, when it is not used any more. The LLGA compiled partition execution may allocate a new tensor with various life cycle scope, which may need framework’s help to free the tensor at the end of the life cycle, refer the APIs in allocator.
+*Graph* contains a set of OPs. ``add_op()`` adds an OP and its logical tensors
+to a graph. oneDNN Graph implementation accumulates the OPs and logical tensors
+and constructs and validates the graph as internal state. At the end of graph
+construction, users may call ``get_partitions()`` which returns a set of
+partitions. After ``get_partitions()``, users shall not add ops to the graph.
+The graph doesn't hold any meaning role to user after partitioning. User should
+free the graph.
 
-------
-Policy
-------
+A same logical tensor may appear more than twice in ``add_op()`` call, since it
+is passed with the producer OP and consumer OPs. oneDNN Graph validates logical
+tensors with the same id should be identical at the graph construction time.
 
-The policy allows frameworks to control the size of partitioning.
+The order of OP being added to graph is considered as the order of OP being
+executed. The returned partitions should not contain OP not supported by the
+oneDNN Graph API implementation. The partitions should not contain wild-card OP.
+Partitions should not form cyclic dependence within the graph. It is user’s
+responsibility to detect any dependence cycle between the partitions and
+operations not passing to oneDNN Graph implementation.
 
-.. doxygenenum:: llga_partition_policy
-   :project: oneDNN Graph Library
+The logical tensor passed at the graph construction stage might contain
+incomplete information, for example, dimension and shape information are
+spatially known. Complete information is not required but helps the oneDNN
+Graph to form better partition decisions.
 
-.. note::
-  Discussion: The other potential policy is to pass the max OP number contained within a partition.
+.. literalinclude:: code_snippets/graph.hpp
+   :language: cpp
 
 ---------
 Partition
 ---------
 
-LLGA partition represents a collection of LLGA OPS identified by LLGA backend as the basic unit for compilation and execution. It contains a list of LLGA OPS, input and output values.
+*Partition* represents a collection of OPS identified by oneDNN Graph
+implementation as the basic unit for compilation and execution. It contains a
+list of OP IDs.
 
-LLGA integration layer converts the framework op and uses partition API to LLGA backend, which builds its own graph and decides the partition. The LLGA backend manages the lifecycle of LLGA partition. It creates an LLGA partition and should keep it alive before it is compiled to be  compiled_partition.
+Partition can infer the output logical tensor’s shape according to the input
+logical tensor shape. Users may create input and output logical tensors and pass
+them as parameters of the shape inference API. After calling the shape inference
+API, users can get the shape information from the output logical tensor.
 
-.. doxygenclass:: llga::api::partition
-   :project: oneDNN Graph Library
-   :members:
+Partition can be compiled to generates hardware ISA level binary code
+specialized for input and output tensors’ metadata. Users must pass as much
+tensor metadata as possible to get the best performant compiled code. When users
+pass partition shape information, it is implementation-dependent to decide
+whether to support the compilation.
+
+User must create an input logical tensor list and an output logical tensor list
+to pass the additional tensor metadata as parameters to the compilation API. The
+parameter logical tensors must match the id of the logical tensors of the graph
+partition captured in the graph construction.
+
+Users must specify ``strided``, ``any``, or ``opaque`` as the ``layout_type``
+for the parameter logical tensors. When users specify ``any``  for a logical
+tensor, the tensor must be an output tensor, and oneDNN Graph implementation
+decides the best performant layout for the compiled partition. If it is
+``strided``, it must use the public data layout described by the logical tensor.
+For ``opaque``, the parameter logical tensor contains a target-specific layout,
+which must be determined by the compilation of preceding partitions producing
+the tensor.
+
+.. literalinclude:: code_snippets/partition.hpp
+   :language: cpp
+
+------
+Tensor
+------
+
+*Tensor* is an abstraction for multidimensional input and output data needed in
+the execution of a compiled partition. A tensor contains a logical tensor and
+a data buffer.
+
+Framework integration code is responsible for managing the tensor’s lifecycle,
+e.g. free the resource allocated, when it is not used anymore.
+
+.. literalinclude:: code_snippets/tensor.hpp
+   :language: cpp
 
 ------------------
 Compiled Partition
 ------------------
 
-LLGA compiled partition represents the compiled object that LLGA backend built for future execution. It has a similar structure as a partition . Other than a list of LLGA OPs, it contains a handle to the internal representation of compiled object.
+A *compiled partition* represents the generated code specialized for target
+hardware and meta data described by parameter logical tensors. Compiled
+partition contains a partition and a handle representing the target specific
+compiled object.
 
-.. doxygenclass:: llga::api::compiled_partition
-   :project: oneDNN Graph Library
-   :members:
+After the compilation API is invoked, users must query the logical output tensor
+of the compiled partition to know the output tensor’s layout id and size. The
+layout id is an opaque identifier for the target-specific layout. Users may pass
+the layout id for the next partition compilation so that it can be optimized to
+expect a specific input layout.  Users may use the size to allocate the memory
+buffer of the output tensors for execution.
 
-------------
-Device Model
-------------
+Framework passes the tensors and compiled partition as parameters to execution
+API. The parameter logical tensors must be in the same order when they are
+passed in the compilation API, and their ids must match with the compiled
+partition’s internal logical tensors. The layout type of each tensor must be
+``strided`` or ``opaque``.
 
-Device model refers to a set of device interface through which the device resource can be managed. For example, you can create a device, device context, stream, and allocate memory. Most device vendor provides their device interface. For example, The oneAPI Level Zero (Level Zero) provides low-level direct-to-metal interfaces for devices in a oneAPI platform, and DPC++ runtime provides a high level interface for device management.  Some Framework abstract their own device interface, so that it can optimize the deep learning program for different devices.
+If users place a tensor with data buffer pointer in outputs, the backend shall
+use the data buffer provided by users.
 
-LLGA doesn't define device model. As the LLGA is part of vendor provided library, LLGA can use the vendor's device interface directly to access device resource. However, as framework is managing the device resources, directly accessing device resource may oversubscribe the resource if both framework and LLGA assume they are exclusive owner of the device. LLGA defines Engine, Stream, and allocator call back API so that LLGA uses framework managed device resources. These API is a wrapper on top of vendor provided handles associated with device resources.  The LLGA backend needs a “device” representing a HW device containing compute and memory resources, a “stream” that schedules computation and memory accesses, and a set of allocator API to allocate memory.  LLGA supports both DPC++ device and non-DPC++ device.  Below is an example on how the DPC++ handles are wrapped first by framework since framework need to access the device, and how LLGA interacts with framework by converting Framework wrapper to LLGA wrapper on top of DPC++ handles.
+Users may use ``prepack()`` to convert the parameter tensor with public layout
+to the target specific layout expected by the compiled partition. A common
+optimization in deep learning inference is that users may prepack the weight in
+the target-specific layout required by the compiled partition and cache the
+reordered weight for late use.
 
-.. image:: resources/device_model.png
+.. literalinclude:: code_snippets/compiled_partition.hpp
+   :language: cpp
 
 ------
 Engine
 ------
 
-Engine represents hardware resources including the processing units and memory reserved to support the computation dispatched to the Engine.  It typically contains a device id, device name, and device handle.  Since the engine serves as the context for LLGA backend to store persistent information, like the compiled partition and its associated persistent memory cache created on the device, the device id ensures that there is a unique  engine being created for each device.  From the device name, the engine knows how to generate code for the target device and what kind of device object to be expected.  The device handle passed from framework allows LLGA backend to work on the device specified by framework.
+*Engine* represents a device and its context. Compiled partitions are associated
+with engines. A compiled partition should only access the tensor which is
+associated with the same device and context, no matter the tensor is produced by
+a compiled partition or created directly by the user.
 
-LLGA engine supports two scenarios of how a device is integrated into the framework:
+Engine contains device kind, and a device id or device handle. From the device
+kind, the engine knows how to generate code for the target device and what kind
+of device object to be expected. The device id ensures that there is a unique
+engine being created for each device. The device handle passed from framework
+allows oneDNN Graph implementation to work on the device specified by the
+framework.
 
-1. framework manages the device with its device model and owns its handle;
-2. LLGA backend manages the device and owns its handle.
+User programs may access the device directly and interoperates with oneDNN Graph
+to perform a task on the device. Typically user programs manage the device,
+which create the device handle and use that to create a oneDNN Graph engine.
+User programs can generate a tensor on a device and pass it to a compiled
+partition associated with that engine.
 
-For the former case, framework creates the device handle and passes it to the LLGA backend via LLGA engine which is actually a wrapper on the handle. The latter case is suitable for the situation in which the HW device vendor does not integrate the device into the framework device model, and the user uses LLGA directly to interact with the underlying device. In this case, the framework creates the device handle via the LLGA engine by only passing “device_id” without associating with a "device handle".
-
-The device name consists of two parts: device type and runtime. For example, the engine_name “LLGA_GPU_DPCPP” indicates the target device is a GPU and the device handle can be casted to a pointer to sycl::device. "LLGA_CPU" indicates the target is CPU.
-
-"LLGA_XPU_DPCPP" means that device runtime is DPC++ but the device are a combination of CPU and GPU device. If the engine_kind is “LLGA_ACCLERATOR”,  the device handle is opaque to the framework and only interpretable by the LLGA backend.
-
-.. doxygenclass:: llga::api::engine
-   :project: oneDNN Graph Library
-   :members:
+.. literalinclude:: code_snippets/engine.hpp
+   :language: cpp
 
 ------
 Stream
 ------
 
-Stream is the logical abstraction for processing units. It is created on top of LLGA engine and typically contains an opencl queue. One LLGA engine may have multiple streams. The compiled partition is submitted to stream for execution.
+*Stream* is the logical abstraction for execution units. It is created on top of
+oneDNN Graph engine. For SYCL device, it contains an opencl queue. oneDNN Graph
+engine may have multiple streams. A compiled partition is submitted to a stream
+for execution.
 
+.. literalinclude:: code_snippets/stream.hpp
+   :language: cpp
 
-.. doxygenclass:: llga::thread_pool
-   :project: oneDNN Graph Library
-   :members:
+-----------------
+General API notes
+-----------------
 
-.. doxygenclass:: llga::api::stream_attr
-   :project: oneDNN Graph Library
-   :members:
+There are certain assumptions on how oneDNN Graph objects behave:
 
-.. doxygenclass:: llga::api::stream
-   :project: oneDNN Graph Library
-   :members:
+* Logical tensor behave similarly to trivial types.
+* All other objects behave like shared pointers. Copying is always shallow.
 
--------------
-Partition API
--------------
+--------------
+Error Handling
+--------------
 
-The partition API is used to select subgraph candidate nodes and filter out final partitions. The |graph_select| is used to add an OP and its edges to a graph. The |graph_filter_partitions| decides how to partition the subgraph from selected OP candidates and edges. The backend shall not assume the calling sequence of |graph_select|.
-
-If a Framework OP is not in LLGA OP set, a Wildcard OP can be used by integration layer to pass the info to the backend. The integration layer can also choose not to call |graph_select| for this OP.
-
-After partitions are generated by backend through |graph_filter_partitions|, the integration layer shall modify the framework graph based on nodes in partition, which means replacing all corresponding nodes in the framework graph to a single node.
-
-The backend shall guarantee there’s no cyclic dependency between all the nodes obtained from the integration layer and generated partitions.
-
-If the integration layer doesn’t pass all nodes to the backend, it shall guarantee there’s no cyclic dependency between partitions from the backend and these unselected nodes.
-
-See |graph| for details.
-
-**Framework Integration Pseudo Code**
-
-.. code::
-
-   All_partitions = {}
-   for each node “s” in framework graph with topology order
-     s’ = create_llga_op(s)
-     If (s’ creation failed) || (s already visited) || (Select(s’) failed) then continue;
-     G = new vector [] with initial (s,s’) OP pair
-     while G changed
-       for all unvisited OP “n” in G with DFS order
-         for each input node “i” of n
-           i’ = create_llga_op(i)
-           if (select_input(i’, i_o_ind, n’, n_i_ind)) add (i, i’) to G
-         for each output node “o” of n
-           i’ = create_llga_op(i)
-           if (select_output(o’, o_i_ind, n, n_o_ind)) add (o,o’) to G
-     mark (n, n’) visited
-     G = remove_cyclic_dependency(G)
-     All_partitions = filter(G)
-   for each partition P in All_partitions
-     Create a new node P_NODE for P
-     for each LLGA OP op’ inside P,
-       If op’ input and output is in the P’s input/output list
-   Find op from the OP pair (op, op’)
-   Modify the framework graph to connect op’s input/output to the new node
-
-.. note::
-  Discussion: The select API doesn’t construct the LLGA graph, instead it passes the LLGA op and edge to help the LLGA backend to contruct the graph. The select API fits a graph with dataflow relationship. When the graph becomes big and it may contain control flow graph, we will need to extend the select API to pass the control flow information.
-
----------------
-Compilation API
----------------
-
-Conceptually the compilation API is the same as the DNNL primitive building, where DNNL’s primitive building API compiles one op, LLGA compilation API compiles a graph partition. The compiled object includes a handle to the compiled object and input/output placeholders.
-
-The Compilation API compiles the partition with or without the tensor shape information, depending on the LLGA’s backend capability. Some backend may want to build a partition without shape information so that it won't cause a significant delay when an unknown shape is fed after the model is deployed.
-
-The integration can pass input/output data type by data type in logical_tensor of inputs/outputs, the backend shall check data type from logical_tensor.
-
-The integration constructs inputs/outputs list based on the order in the modified framework graph. The backend shall follow this order to get inputs and return outputs.
-
-The integration shall set the layout of each input/output logical_tensor.
-
-LLGA compilation API returns an indication for compilation failure.
-
-See |partition_compile| for details.
-
--------------
-Execution API
--------------
-
-Framework passes the parameter tensors and compiled partition to Execution API for execution. The Execution API binds the tensor buffers with the input/output placeholders, submit it to device runtime for execution. Framework manages tensor allocation and execution submission. Framework may want to submit compiled partitions to different device execution abstraction to exploit the parallelism.
-
-If the integration places a tensor with data buffer pointer in outputs, the backend shall use this buffer allocated by integration.
-
-See |stream_submit| for details.
-
------------------------
-Allocator call back API
------------------------
-
-The compiled partitions may allocate memory during the execution, like scratchpad and workspace in the DNNL primitives. The allocated memory may have a different lifetime span, so some memory allocated is only used within the compiled partition execution, some may live until the end of the iteration, and some may persist across iterations. For framework which would like to manage the device memory, LLGA backend can call back the framework memory manager through allocator call back API, so that it can manage all the device memory. These three APIs are:
-
-1. |base_allocator_allocate_persistent| for persistent buffer which can be freed explicitly with |base_allocator_deallocate_persistent| or framework will free all persistent buffers on its exit;
-2. |base_allocator_allocate_output| for buffer live during one iteration, typically used by allocating output tensor buffer;
-3. |base_allocator_allocate_temp| for scratch pad live only within op.
-
-The allocator call back is to get access to device memory. It shall be used at runtime to allocate tensor, buffer, and scratchpad. Host memory can be allocated by backend itself like graph, node, and edges.
-
-.. doxygenclass:: llga::base_allocator
-   :project: oneDNN Graph Library
-   :members:
-
--------------------
-Profiling API - TBD
--------------------
-
-User knows the performance breakdown associated with operation within the sub-graph
-
--------------------
-Debugging API - TBD
--------------------
-
-A more advanced API might involve specifying the partition policy for different OP id through OP id lists, for the OPs in the lists backend shall not fuse them. This supports users (framework developers)  to perform binary search to debug a potential issue in the compiled partition.
-
-Another issue is the location after compilation, add a location string to llga OP, e.g. line number and location of source code. Backend can decide how to use it, the most common case is to report error origin.
-
-User knows the error information associated with operation within the sub-graph.
-
----------
-Custom OP
----------
-
-LLGA extension supports custom op description and so that the bridge can fill the information of framework custom op and pass to LLGA backend.  The LLGA custom op may have a variable number of input/output tensors and attributes and a string describing the logic using language like PlaidML Tile.
-
------------
-Wildcard OP
------------
-
-Placeholder for wildcard OP.
+The C++ API throws exceptions for error handling.

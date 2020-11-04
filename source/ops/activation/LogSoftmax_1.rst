@@ -10,7 +10,8 @@ LogSoftmax
 
 * *axis*
 
-  * **Description**: *axis* represents the axis of which the LogSoftmax is calculated. 
+  * **Description**: *axis* represents the axis of which the LogSoftmax is
+    calculated. 
   * **Range of values**: integer values
   * **Type**: int
   * **Default value**: -1
@@ -18,7 +19,8 @@ LogSoftmax
 
 **Inputs**:
 
-* **1**: Input tensor with enough number of dimension to be compatible with axis attribute. **Required.**
+* **1**: Input tensor with enough number of dimension to be compatible with
+  axis attribute. **Required.**
 
 **Outputs**
 

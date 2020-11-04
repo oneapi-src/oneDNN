@@ -20,7 +20,8 @@ SigmoidBackprop
 
 **Inputs**:
 
-* **1**: ``input`` - If *use_dst* is true, input is result of forward. Else, input is src of forward. **Required.**
+* **1**: ``input`` - If *use_dst* is true, input is result of forward. Else,
+  input is src of forward. **Required.**
 * **2**: ``output_delta`` - gradients tensor w.r.t. the output. **Required.**
 
 **Outputs**

@@ -22,7 +22,8 @@ This is an Add with bias restricted to be 1-D. Broadcasting is supported.
 
 * *data_format*
 
-  * **Description**: *data_format* denotes the data format of the input and output data.
+  * **Description**: *data_format* denotes the data format of the input and
+    output data.
   * **Range of values**: *NXC* or *NCX* (X means HW for 2D, DHW for 3D)
   * **Type**: string
   * **Default value**: *NXC*

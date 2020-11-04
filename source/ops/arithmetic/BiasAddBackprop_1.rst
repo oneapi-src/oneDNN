@@ -6,11 +6,13 @@ BiasAddBackprop
 
 **Category**: *Arithmetic*
 
-**Short description**: Computes the gradients on the "bias" tensor for add bias operator.
+**Short description**: Computes the gradients on the "bias" tensor for add bias
+operator.
 
 **Detailed description**:
 
-This op accumulates all the values from output_delta into the channel dimension, the axis depends on the layout of input tensor.
+This op accumulates all the values from output_delta into the channel dimension,
+the axis depends on the layout of input tensor.
 
 **Inputs**:
 

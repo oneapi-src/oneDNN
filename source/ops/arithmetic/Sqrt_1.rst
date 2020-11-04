@@ -6,7 +6,8 @@ Sqrt
 
 **Category**: *Arithmetic*
 
-**Short description**: *Sqrt* performs element-wise square root operation with given tensor.
+**Short description**: *Sqrt* performs element-wise square root operation with
+given tensor.
 
 **Inputs**:
 
@@ -14,9 +15,9 @@ Sqrt
 
 **Outputs**
 
-* **1**: The result of element-wise sqrt operation. A tensor of type T. **Required.**
+* **1**: The result of element-wise sqrt operation. A tensor of type T.
+  **Required.**
 
 **Types**
 
 * **T**: any numeric type. **Required.**
-

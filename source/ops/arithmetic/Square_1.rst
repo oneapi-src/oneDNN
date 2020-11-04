@@ -6,7 +6,8 @@ Square
 
 **Category**: *Arithmetic*
 
-**Short description**: *Square* performs element-wise square operation with given tensor.
+**Short description**: *Square* performs element-wise square operation with
+given tensor.
 
 **Inputs**:
 
@@ -14,7 +15,8 @@ Square
 
 **Outputs**
 
-* **1**: The result of element-wise square operation. A tensor of type T. **Required.**
+* **1**: The result of element-wise square operation. A tensor of type T.
+  **Required.**
 
 **Types**
 

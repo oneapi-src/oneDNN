@@ -21,9 +21,9 @@ SqrtBackprop
 **Inputs**:
 
 * **1**: ``output_delta`` - gradients tensor w.r.t. the output. **Required.**
-* **2**:  ``input`` - If *use_dst* is true, input is result of forward. Else, input is src of forward. **Required.**
+* **2**:  ``input`` - If *use_dst* is true, input is result of forward. Else,
+  input is src of forward. **Required.**
 
 **Outputs**
 
 * **1**: ``input_delta`` - the gradient tensor w.r.t. the input of Sqrt.
-

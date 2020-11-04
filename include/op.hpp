@@ -32,38 +32,110 @@ namespace api {
 
 class op {
 public:
+    /// enumeration for Op kind
+    enum class kind {
+        Abs = kAbs,
+        Add = kAdd,
+        AvgPool = kAvgPool,
+        AvgPoolBackprop = kAvgPoolBackprop,
+        BatchNormInference = kBatchNormInference,
+        BatchNormForwardTraining = kBatchNormForwardTraining,
+        BatchNormTrainingBackprop = kBatchNormTrainingBackprop,
+        BiasAddBackprop = kBiasAddBackprop,
+        Clamp = kClamp,
+        ClampBackprop = kClampBackprop,
+        Concat = kConcat,
+        Convolution = kConvolution,
+        ConvolutionBackpropData = kConvolutionBackpropData,
+        ConvolutionBackpropFilters = kConvolutionBackpropFilters,
+        Elu = kElu,
+        EluBackprop = kEluBackprop,
+        Exp = kExp,
+        GELU = kGELU,
+        GELUBackprop = kGELUBackprop,
+        HardTanh = kHardTanh,
+        LayerNorm = kLayerNorm,
+        LayerNormBackprop = kLayerNormBackprop,
+        Log = kLog,
+        LogSoftmax = kLogSoftmax,
+        LogSoftmaxBackprop = kLogSoftmaxBackprop,
+        MatMul = kMatMul,
+        Maximum = kMaximum,
+        MaxPool = kMaxPool,
+        MaxPoolBackprop = kMaxPoolBackprop,
+        Minimum = kMinimum,
+        Multiply = kMultiply,
+        Pow = kPow,
+        PowBackprop = kPowBackprop,
+        ReLU = kReLU,
+        ReLUBackprop = kReLUBackprop,
+        Reshape = kReshape,
+        Round = kRound,
+        Sigmoid = kSigmoid,
+        SigmoidBackprop = kSigmoidBackprop,
+        SoftMax = kSoftMax,
+        SoftMaxBackprop = kSoftMaxBackprop,
+        SoftPlus = kSoftPlus,
+        SoftPlusBackprop = kSoftPlusBackprop,
+        Sqrt = kSqrt,
+        SqrtBackprop = kSqrtBackprop,
+        Square = kSquare,
+        Tanh = kTanh,
+        TanhBackprop = kTanhBackprop,
+        Wildcard = kWildcard,
+        BiasAdd = kBiasAdd,
+        LastSymbol = kLastSymbol,
+    };
+
+    /// Constructs an OP object
+    ///
+    /// @param id The unique id of this op
+    /// @param akind The op kind specifies which computation is represented by
+    ///     the op, such as Convolution and ReLU.
+    /// @param debug_string The string added for debug
+    op(size_t id, kind akind, const std::string &debug_string);
+
     /// Contructs an Op object based on input/output tensors and attributes
     ///
-    /// @param kind Op Kind
-    /// @param inputs Input logical tensor to be bound to this op
+    /// @param id The unique id of this op.
+    /// @param akind The op kind specifies which computation is represented by
+    ///     this op, such as Convolution and ReLU.
+    /// @param inputs Input logical tensor to be bound to this op.
     /// @param outputs Output logical tensor to be bound to this op
-    /// @param attr Attributes to be bound to this op
-    /// @param debug_string
-    op(llga_op_kind_t kind, std::vector<logical_tensor> &inputs,
-            std::vector<logical_tensor> &outputs,
-            std::map<std::string, llga_attribute_kind> &attr, const std::string &debug_string);
+    /// @param debug_string The string added for debug
+    op(size_t id, kind akind, const std::vector<logical_tensor> &inputs,
+            const std::vector<logical_tensor> &outputs,
+            const std::string &debug_string);
+
+    /// Adds input logical tensor to the op
+    ///
+    /// @param t Input logical tensor
+    void add_input(const logical_tensor &t);
+
+    /// Adds input logical tensors to the op
+    ///
+    /// @param ts The list of input logical tensors
+    void add_inputs(const std::vector<logical_tensor> &ts);
+
+    /// Adds output logical tensor to the op
+    ///
+    /// @param t Output logical tensor
+    void add_output(const logical_tensor &t);
+
+    /// Adds output logical tensors to the op
+    ///
+    /// @param ts The list of output logical tensors
+    void add_outputs(const std::vector<logical_tensor> &ts);
 
     /// Returns the number of input logical tensor in the Op
     ///
     /// @returns Number of inputs
-    uint64_t get_num_inputs() const;
+    uint64_t get_inputs_num() const;
 
     /// Returns the number of output logical tensor in the Op
     ///
     /// @returns Number of outputs
-    uint64_t get_num_outputs() const;
-
-    /// Returns the specified input logical tensor
-    ///
-    /// @param index Index of the request logical tensor
-    /// @returns A copy of logical tensor object
-    logical_tensor get_input(uint64_t index);
-
-    /// Returns the specified output logical tensor
-    ///
-    /// @param index Index of the request logical tensor
-    /// @returns A copy of logical tensor object
-    logical_tensor get_output(uint64_t index);
+    uint64_t get_outputs_num() const;
 
     /// Returns the kind of specified attribute in the Op
     ///
@@ -71,101 +143,133 @@ public:
     /// @returns Attribute kind
     llga_attribute_kind get_attr_kind(const std::string &name) const;
 
-    /// Returns the attribute's kind according to the specified Type (int32_t)
+    /// Returns the attribute's according to the name and type (int64_t)
     ///
-    /// @tparam Attr Attribute's type
-    /// @returns The llga attribute kind
-    template <typename Attr,
-            requires<std::is_same<Attr, int32_t>::value> = true>
-    constexpr static llga_attribute_kind attr_kind() noexcept;
-
-    /// Returns the attribute's kind according to the specified Type (std::vector<int32_t>)
-    ///
-    /// @tparam Attr Attribute's type
-    /// @returns The llga attribute kind
-    template <typename Attr,
-            requires<std::is_same<Attr, std::vector<int32_t>>::value> = true>
-    constexpr static llga_attribute_kind attr_kind() noexcept;
-
-    /// Returns the attribute's kind according to the specified Type (float)
-    ///
-    /// @tparam Attr Attribute's type
-    /// @returns The llga attribute kind
-    template <typename Attr, requires<std::is_same<Attr, float>::value> = true>
-    constexpr static llga_attribute_kind attr_kind() noexcept;
-
-    /// Returns the attribute's kind according to the specified Type (std::vector<float>)
-    ///
-    /// @tparam Attr Attribute's type
-    /// @returns The llga attribute kind
-    template <typename Attr,
-            requires<std::is_same<Attr, std::vector<float>>::value> = true>
-    constexpr static llga_attribute_kind attr_kind() noexcept;
-
-    /// Returns the attribute's according to the name and type (int32_t)
-    ///
-    /// @tparam Attr Attribute's type
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
     /// @returns A copy of attribute object
-    template <typename Attr,
-            requires<std::is_same<Attr, int32_t>::value> = true>
-    Attr get_attr(const std::string &name) const;
+    template <typename Type,
+            requires<std::is_same<Type, int64_t>::value> = true>
+    Type get_attr(const std::string &name) const;
 
-    /// Returns the attribute according to the name and type (std::vector<int32_t>)
+    /// Returns the attribute according to the name and type
+    /// (std::vector<int64_t>)
     ///
-    /// @tparam Attr Attribute's type
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
     /// @returns A copy of attribute object
-    template <typename Attr,
-            requires<std::is_same<Attr, std::vector<int32_t>>::value> = true>
-    Attr get_attr(const std::string &name) const;
+    template <typename Type,
+            requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
+    Type get_attr(const std::string &name) const;
 
     /// Returns the attribute according to the name and type (float)
     ///
-    /// @tparam Attr Attribute's type
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
     /// @returns A copy of attribute object
-    template <typename Attr, requires<std::is_same<Attr, float>::value> = true>
-    Attr get_attr(const std::string &name) const;
+    template <typename Type, requires<std::is_same<Type, float>::value> = true>
+    Type get_attr(const std::string &name) const;
 
-    /// Returns the attribute according to the name and type (std::vector<float>)
+    /// Returns the attribute according to the name and type
+    /// (std::vector<float>)
     ///
-    /// @tparam Attr Attribute's type
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
     /// @returns A copy of attribute object
-    template <typename Attr,
-            requires<std::is_same<Attr, std::vector<float>>::value> = true>
-    Attr get_attr(const std::string &name) const;
+    template <typename Type,
+            requires<std::is_same<Type, std::vector<float>>::value> = true>
+    Type get_attr(const std::string &name) const;
 
-    /// Sets the attribute according to the name and type,
-    ///     currently for int32_t and float type.
+    /// Returns the attribute according to the name and type (std::string)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @returns A copy of attribute object
+    template <typename Type,
+            requires<std::is_same<Type, std::string>::value> = true>
+    Type get_attr(const std::string &name) const;
+
+    /// Returns the attribute according to the name and type (bool)
     ///
     /// @tparam Attr Attribute's type
     /// @param name Attribute's name
+    /// @returns A copy of attribute object
+    template <typename Attr, requires<std::is_same<Attr, bool>::value> = true>
+    Attr get_attr(const std::string &name) const;
+
+    /// Sets the attribute according to the name and type (int64_t)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
     /// @param a The attribute's value
     /// @returns The Op self
-    template <typename Attr, requires<std::is_fundamental<Attr>::value> = true>
-    op &set_attr(const std::string &name, const Attr &a);
+    template <typename Type,
+            requires<std::is_same<Type, int64_t>::value> = true>
+    op &set_attr(const std::string &name, const Type &a);
+
+    /// Sets the attribute according to the name and type (float)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @param a The attribute's value
+    /// @returns The Op self
+    template <typename Type, requires<std::is_same<Type, float>::value> = true>
+    op &set_attr(const std::string &name, const Type &a);
+
+    /// Sets the attribute according to the name and type (bool)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @param a The attribute's value
+    /// @returns The Op self
+    template <typename Type, requires<std::is_same<Type, bool>::value> = true>
+    op &set_attr(const std::string &name, const Type &a);
+
+    /// Sets the attribute according to the name and type (string)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @param a The attribute's value
+    /// @returns The Op self
+    template <typename Type,
+            requires<std::is_same<Type, std::string>::value> = true>
+    op &set_attr(const std::string &name, const Type &a);
 
     /// Sets the attribute according to the name and type
-    ///     currently for std::vector<int32_t> and std::vector<float> type.
+    /// (std::vector<int64_t>)
     ///
-    /// @tparam Attr Attribute's type
+    /// @tparam Type Attribute's type
     /// @param name Attribute's name
     /// @param a The attribute's value
     /// @returns The Op self
-    template <typename Attr, requires<!std::is_fundamental<Attr>::value> = true>
-    op &set_attr(const std::string &name, const Attr &a);
+    template <typename Type,
+            requires<std::is_same<Type, std::vector<int64_t>>::value> = true>
+    op &set_attr(const std::string &name, const Type &a);
 
-    /// Return the unique id of the Op
+    /// Sets the attribute according to the name and type
+    /// (std::vector<float>)
+    ///
+    /// @tparam Type Attribute's type
+    /// @param name Attribute's name
+    /// @param a The attribute's value
+    /// @returns The Op self
+    template <typename Type,
+            requires<std::is_same<Type, std::vector<float>>::value> = true>
+    op &set_attr(const std::string &name, const Type &a);
+
+    /// Returns the unique id of the Op
     ///
     /// @returns Unique id
     uint64_t get_id() const;
 
-    /// Returns the Op kind
+    /// Returns the concrete kind of this op
     ///
-    /// @returns Op kind
-    llga_op_kind_t get_kind() const;
+    /// @returns kind The op kind
+    kind get_kind() const;
 
-    /// Returns the string format of the Op kind
+    /// Returns the string format of the Op id and kind
     ///
-    /// @returns Ok kind in string format
+    /// @returns Op kind in string format
     std::string to_string() const;
 };
 } // namespace api

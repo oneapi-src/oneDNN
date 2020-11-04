@@ -21,75 +21,46 @@
 
 namespace llga {
 namespace api {
-class allocator {
-public:
-    /// Constructs an allocator with specified allcation/deallcation function
-    ///
-    /// @param fw_allocator A framework allocator passed to backend
-    /// @param allocate_persistent Allocation function for persistent buffer
-    /// @param deallocate_persistent Deallocation function for persistent buffer
-    /// @param allocate_output Allocation function for output buffer
-    /// @param allocate_temp Allocation function for temporary buffer
-    allocator(void *fw_allocator, llga_allocate_persistent allocate_persistent,
-            llga_deallocate_persistent deallocate_persistent,
-            llga_allocate_output allocate_output,
-            llga_allocate_temp allocate_temp);
-
-    /// Constructs an empty allocator
-    ///
-    allocator() : allocator(nullptr, nullptr, nullptr, nullptr, nullptr) {}
-};
 
 class engine {
 public:
     /// engine kind
     enum class kind {
-        cpu = dnnl_graph_cpu,
-        dpcpp = dnnl_graph_dpcpp,
-        accelerator = dnnl_graph_accelerator,
-        xpu_dpcpp = dnnl_graph_xpu_dpcpp
+        /// An unspecified engine
+        any = llga_any_engine,
+        /// CPU engine
+        cpu = llga_cpu,
+        /// GPU engine
+        gpu = llga_gpu,
     };
 
-    /// Constructs an engine with a device handle passed by framework
+    /// Constructs an engine with specified kind and device_id
     ///
-    /// @param akind Engine kind
-    /// @param device_id Specify which device to be used
-    /// @param device_handle A handle of the specified device
-    /// @param alloc The memory allocator bound with engine
-    engine(kind akind, int device_id, void *device_handle, allocator &alloc);
-
-    /// Constructs an engine with specified kind and device id
-    ///
-    /// @param akind Engine kind
+    /// @param akind The kind of engine to construct
     /// @param device_id Specify which device to be used
     engine(kind akind, int device_id);
 
-    /// Constructs an engine with proviced allocator
-    ///
-    /// @param akind Engine kind
-    /// @param device_id Specify which device to be used
-    /// @param alloc The memory allocator bound with engine
-    engine(kind akind, int device_id, allocator &alloc);
+    /// Create an engine from SYCL device and context
+    /// @param akind The kind of engine to construct
+    /// @param dev The SYCL device that this engine will encapsulate
+    /// @param ctx The SYCL context that this engine will use
+    engine(kind akind, const cl::sycl::device &dev,
+            const cl::sycl::context &ctx);
 
-    /// Set allocator to an engine
-    ///
-    /// @param alloc The memory allocator bound with engine
-    void set_allocator(allocator &alloc);
-
-    /// Get device handle of the current engine
+    /// Returns device handle of the current engine
     ///
     /// @returns Device handle
     void *get_device_handle() const;
 
-    /// Get device id of the current engine
+    /// Returns device id of the current engine
     ///
     /// @returns Device id
     int get_device_id() const;
 
-    /// Get concrete kind of the current engine
+    /// Returns concrete kind of the current engine
     ///
     ///@returns Kind of engine
-    llga_engine_kind_t get_engine_kind() const;
+    kind get_kind() const;
 };
 
 } // namespace api

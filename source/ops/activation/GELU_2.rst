@@ -6,7 +6,8 @@ GELU
 
 **Category**: *Activation*
 
-**Short description**: `Reference <https://pytorch.org/docs/stable/nn.functional.html#gelu>`__
+**Short description**:
+`Reference <https://pytorch.org/docs/stable/nn.functional.html#gelu>`__
 
 **Inputs**:
 
