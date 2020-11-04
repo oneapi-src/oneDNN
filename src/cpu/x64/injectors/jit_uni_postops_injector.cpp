@@ -125,22 +125,64 @@ void jit_uni_postops_injector_t<isa>::set_lambda_injector(
     lambda_jit_injectors_[kind] = jit_injector;
 }
 
-template <cpu_isa_t isa>
-bool post_ops_ok(std::initializer_list<post_op_type> accepted_post_op_types,
-        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d,
-        bool sum_first_only) {
+post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
+        const std::vector<post_op_type> &accepted_post_op_types,
+        const post_ops_t &post_ops)
+    : isa(isa)
+    , accepted_post_op_types(accepted_post_op_types)
+    , post_ops(post_ops) {}
 
-    bool binary_postop_present = false;
-    const auto is_accepted_postop = [&](int idx) {
+post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
+        const std::vector<post_op_type> &accepted_post_op_types,
+        const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,
+        bool sum_at_pos_0_only, const bool sum_requires_scale_one)
+    : isa(isa)
+    , accepted_post_op_types(accepted_post_op_types)
+    , post_ops(post_ops)
+    , dst_d(dst_d)
+    , sum_at_pos_0_only(sum_at_pos_0_only)
+    , sum_requires_scale_one(sum_requires_scale_one) {};
+
+post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
+        const std::vector<post_op_type> &accepted_post_op_types,
+        const post_ops_t &post_ops, const memory_desc_wrapper *dst_d)
+    : isa(isa)
+    , accepted_post_op_types(accepted_post_op_types)
+    , post_ops(post_ops)
+    , dst_d(dst_d) {}
+
+bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
+    const cpu_isa_t isa = post_ops_ok_args.isa;
+    const std::vector<post_op_type> &accepted_post_op_types
+            = post_ops_ok_args.accepted_post_op_types;
+    const post_ops_t &post_ops = post_ops_ok_args.post_ops;
+    const memory_desc_wrapper *dst_d = post_ops_ok_args.dst_d;
+    const bool sum_at_pos_0_only = post_ops_ok_args.sum_at_pos_0_only;
+    const bool sum_requires_scale_one = post_ops_ok_args.sum_requires_scale_one;
+
+    const auto is_accepted_postop = [&](const int idx) {
         for (const auto &post_op : accepted_post_op_types) {
+            const auto &entry = post_ops.entry_[idx];
             switch (post_op) {
+                case sum:
+                    if (entry.is_sum(sum_requires_scale_one))
+                        return IMPLICATION(sum_at_pos_0_only, idx > 0);
+                    break;
                 case eltwise:
-                    if (post_ops.entry_[idx].is_eltwise()) return true;
+                    if (entry.is_eltwise()) return true;
                     break;
                 case binary:
-                    if (post_ops.entry_[idx].is_binary()) {
-                        binary_postop_present = true;
-                        return true;
+                    if (entry.is_binary()) {
+                        assert(dst_d != nullptr && "dst_d is null");
+
+                        bool res = IMPLICATION(entry.binary.src1_desc.data_type
+                                        == data_type::bf16,
+                                utils::one_of(
+                                        isa, avx512_core_bf16, avx512_core));
+                        res &= binary_injector::binary_args_broadcast_supported(
+                                post_ops, *dst_d);
+
+                        return res;
                     }
                     break;
                 default: assert(false && "Unhandled post_op type");
@@ -150,35 +192,11 @@ bool post_ops_ok(std::initializer_list<post_op_type> accepted_post_op_types,
     };
 
     for (int i = 0; i < post_ops.len(); i++) {
-        const auto &entry = post_ops.entry_[i];
-        if (post_ops.contain(primitive_kind::sum, i)) {
-            if (sum_first_only && i > 0) return false;
-        } else if (!is_accepted_postop(i)
-                || (!utils::one_of(isa, avx512_core_bf16, avx512_core)
-                        && entry.is_binary()
-                        && entry.binary.src1_desc.data_type == data_type::bf16))
-            return false;
+        if (!is_accepted_postop(i)) return false;
     }
 
-    return binary_postop_present
-            ? binary_injector::binary_args_broadcast_supported(post_ops, dst_d)
-                    && binary_injector::binary_args_tail_supported(
-                            post_ops, dst_d, cpu_isa_traits<isa>::vlen)
-            : true;
+    return true;
 }
-
-template bool post_ops_ok<avx512_core_bf16>(std::initializer_list<post_op_type>,
-        const post_ops_t &, const memory_desc_wrapper &, bool);
-template bool post_ops_ok<avx512_core>(std::initializer_list<post_op_type>,
-        const post_ops_t &, const memory_desc_wrapper &, bool);
-template bool post_ops_ok<avx512_common>(std::initializer_list<post_op_type>,
-        const post_ops_t &, const memory_desc_wrapper &, bool);
-template bool post_ops_ok<avx2>(std::initializer_list<post_op_type>,
-        const post_ops_t &, const memory_desc_wrapper &, bool);
-template bool post_ops_ok<avx>(std::initializer_list<post_op_type>,
-        const post_ops_t &, const memory_desc_wrapper &, bool);
-template bool post_ops_ok<sse41>(std::initializer_list<post_op_type>,
-        const post_ops_t &, const memory_desc_wrapper &, bool);
 
 template class jit_uni_postops_injector_t<avx512_core_bf16>;
 template class jit_uni_postops_injector_t<avx512_core>;

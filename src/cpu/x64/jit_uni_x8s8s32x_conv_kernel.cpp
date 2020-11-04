@@ -1326,7 +1326,7 @@ status_t jit_uni_x8s8s32x_fwd_kernel<isa>::init_conf(jit_conv_conf_t &jcp,
 
     using namespace injector;
     const bool post_ops_ok_
-            = post_ops_ok<isa>({eltwise, binary}, jcp.post_ops, dst_d);
+            = post_ops_ok({isa, {eltwise, binary, sum}, jcp.post_ops, &dst_d});
     if (!post_ops_ok_) return status::unimplemented;
 
     jcp.is_resrc_depthwise = true && jcp.is_depthwise && jcp.stride_w < jcp.kw
