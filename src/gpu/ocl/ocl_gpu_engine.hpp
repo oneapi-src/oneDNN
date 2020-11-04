@@ -25,7 +25,6 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_impl_list.hpp"
-#include "gpu/ocl/ocl_gpu_device_info.hpp"
 #include "gpu/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -37,14 +36,12 @@ namespace ocl {
 class ocl_gpu_engine_t : public compute::compute_engine_t {
 public:
     ocl_gpu_engine_t(cl_device_id adevice)
-        : compute::compute_engine_t(engine_kind::gpu, runtime_kind::ocl,
-                new ocl_gpu_device_info_t(adevice))
+        : compute::compute_engine_t(engine_kind::gpu, runtime_kind::ocl)
         , device_(adevice)
         , context_(nullptr)
         , is_user_context_(false) {}
     ocl_gpu_engine_t(cl_device_id adevice, cl_context acontext)
-        : compute::compute_engine_t(engine_kind::gpu, runtime_kind::ocl,
-                new ocl_gpu_device_info_t(adevice))
+        : compute::compute_engine_t(engine_kind::gpu, runtime_kind::ocl)
         , device_(adevice)
         , context_(acontext)
         , is_user_context_(true) {}
@@ -53,7 +50,7 @@ public:
         if (context_) { clReleaseContext(context_); }
     }
 
-    status_t init();
+    status_t init() override;
 
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
             size_t size, void *handle) override;
@@ -103,9 +100,10 @@ public:
         return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
     }
 
-private:
-    bool check_mayiuse_ngen_kernels() override;
+protected:
+    status_t init_device_info() override;
 
+private:
     cl_device_id device_;
     cl_context context_;
     bool is_user_context_;

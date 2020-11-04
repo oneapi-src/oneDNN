@@ -17,7 +17,6 @@
 #ifndef SYCL_DEVICE_INFO_HPP
 #define SYCL_DEVICE_INFO_HPP
 
-#include <vector>
 #include <CL/sycl.hpp>
 
 #include "gpu/compute/device_info.hpp"
@@ -27,34 +26,12 @@ namespace impl {
 namespace sycl {
 
 class sycl_device_info_t : public gpu::compute::device_info_t {
-public:
-    sycl_device_info_t(const cl::sycl::device &device) : device_(device) {}
-
-    bool has(gpu::compute::device_ext_t ext) const override {
-        return this->extensions_ & (uint64_t)ext;
-    }
-
-    gpu::compute::gpu_arch_t gpu_arch() const override { return gpu_arch_; }
-
-    int eu_count() const override { return eu_count_; }
-    int hw_threads() const override { return hw_threads_; }
-    size_t llc_cache_size() const override { return llc_cache_size_; }
-
-private:
-    status_t init_arch() override;
-    status_t init_device_name() override;
-    status_t init_runtime_version() override;
-    status_t init_extensions() override;
-    status_t init_attributes() override;
-
-    cl::sycl::device device_;
-
-    int32_t hw_threads_ = 0;
-    int32_t eu_count_ = 0;
-    size_t llc_cache_size_ = 0;
-
-    uint64_t extensions_ = 0;
-    gpu::compute::gpu_arch_t gpu_arch_ = gpu::compute::gpu_arch_t::unknown;
+protected:
+    status_t init_device_name(engine_t *engine) override;
+    status_t init_arch(engine_t *engine) override;
+    status_t init_runtime_version(engine_t *engine) override;
+    status_t init_extensions(engine_t *engine) override;
+    status_t init_attributes(engine_t *engine) override;
 };
 
 } // namespace sycl

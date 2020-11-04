@@ -24,11 +24,9 @@
 #include "common/memory_storage.hpp"
 #include "common/stream.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/jit/binary_format.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_interop_gpu_kernel.hpp"
 #include "sycl/sycl_utils.hpp"
 
@@ -42,18 +40,17 @@ class sycl_engine_base_t : public gpu::compute::compute_engine_t {
 public:
     sycl_engine_base_t(engine_kind_t kind, const cl::sycl::device &dev,
             const cl::sycl::context &ctx)
-        : gpu::compute::compute_engine_t(
-                kind, runtime_kind::sycl, new sycl_device_info_t(dev))
+        : gpu::compute::compute_engine_t(kind, runtime_kind::sycl)
         , device_(dev)
         , context_(ctx) {}
 
-    status_t init() {
-        CHECK(gpu::compute::compute_engine_t::init());
-
+    status_t init() override {
         backend_ = get_sycl_backend(device_);
         if (!utils::one_of(backend_, backend_t::host, backend_t::opencl,
                     backend_t::level0, backend_t::nvidia))
             return status::invalid_arguments;
+
+        CHECK(gpu::compute::compute_engine_t::init());
 
         return status::success;
     }
@@ -135,7 +132,7 @@ public:
     device_id_t device_id() const override { return sycl_device_id(device_); }
 
 protected:
-    bool check_mayiuse_ngen_kernels() override;
+    status_t init_device_info() override;
 
 private:
     cl::sycl::device device_;

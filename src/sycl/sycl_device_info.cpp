@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "sycl/sycl_device_info.hpp"
+#include "sycl/sycl_gpu_engine.hpp"
 #include "sycl/sycl_utils.hpp"
 
 #include "gpu/ocl/ocl_engine.hpp"
@@ -27,13 +28,16 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-status_t sycl_device_info_t::init_arch() {
+status_t sycl_device_info_t::init_arch(engine_t *engine) {
+    auto &device
+            = utils::downcast<const sycl_engine_base_t *>(engine)->device();
+
     // skip cpu engines
-    if (!device_.is_gpu()) return status::success;
+    if (!device.is_gpu()) return status::success;
 
     // skip other vendors
     const int intel_vendor_id = 0x8086;
-    auto vendor_id = device_.get_info<cl::sycl::info::device::vendor_id>();
+    auto vendor_id = device.get_info<cl::sycl::info::device::vendor_id>();
     if (vendor_id != intel_vendor_id) return status::success;
 
     // try to detect gpu by device name first
@@ -41,16 +45,16 @@ status_t sycl_device_info_t::init_arch() {
     if (gpu_arch_ != gpu::compute::gpu_arch_t::unknown) return status::success;
 
     // if failed, use slower method
-    backend_t be = get_sycl_backend(device_);
+    backend_t be = get_sycl_backend(device);
     if (be == backend_t::opencl) {
         cl_int err = CL_SUCCESS;
 
-        cl_device_id device = device_.get();
-        auto context = gpu::ocl::make_ocl_wrapper(
-                clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err));
+        cl_device_id ocl_device = device.get();
+        auto context = gpu::ocl::make_ocl_wrapper(clCreateContext(
+                nullptr, 1, &ocl_device, nullptr, nullptr, &err));
         OCL_CHECK(err);
 
-        gpu_arch_ = gpu::ocl::detect_gpu_arch(device, context);
+        gpu_arch_ = gpu::ocl::detect_gpu_arch(ocl_device, context);
     } else if (be == backend_t::level0) {
         // TODO: add support for L0 binary ngen check
         // XXX: query from ocl_engine for now
@@ -71,63 +75,54 @@ status_t sycl_device_info_t::init_arch() {
     return status::success;
 }
 
-status_t sycl_device_info_t::init_device_name() {
-    auto device_name = device_.get_info<cl::sycl::info::device::name>();
-    set_name(device_name);
+status_t sycl_device_info_t::init_device_name(engine_t *engine) {
+    auto &device
+            = utils::downcast<const sycl_engine_base_t *>(engine)->device();
+    name_ = device.get_info<cl::sycl::info::device::name>();
     return status::success;
 }
 
-status_t sycl_device_info_t::init_runtime_version() {
+status_t sycl_device_info_t::init_runtime_version(engine_t *engine) {
+    auto &device
+            = utils::downcast<const sycl_engine_base_t *>(engine)->device();
     auto driver_version
-            = device_.get_info<cl::sycl::info::device::driver_version>();
+            = device.get_info<cl::sycl::info::device::driver_version>();
 
-    gpu::compute::runtime_version_t runtime_version;
-    if (runtime_version.set_from_string(driver_version.c_str())
+    if (runtime_version_.set_from_string(driver_version.c_str())
             != status::success) {
-        runtime_version.major = 0;
-        runtime_version.minor = 0;
-        runtime_version.build = 0;
+        runtime_version_.major = 0;
+        runtime_version_.minor = 0;
+        runtime_version_.build = 0;
     }
 
-    set_runtime_version(runtime_version);
     return status::success;
 }
 
-status_t sycl_device_info_t::init_extensions() {
+status_t sycl_device_info_t::init_extensions(engine_t *engine) {
     using namespace gpu::compute;
 
+    auto &device
+            = utils::downcast<const sycl_engine_base_t *>(engine)->device();
     std::string extension_string;
     for (uint64_t i_ext = 1; i_ext < (uint64_t)device_ext_t::last;
             i_ext <<= 1) {
         const char *s_ext = ext2cl_str((device_ext_t)i_ext);
-        if (s_ext && device_.has_extension(s_ext)) {
+        if (s_ext && device.has_extension(s_ext)) {
             extension_string += std::string(s_ext) + " ";
             extensions_ |= i_ext;
         }
     }
 
+    // Handle future extensions, not yet supported by the DPC++ API
+    extensions_ |= (uint64_t)get_future_extensions(gpu_arch());
+
     return status::success;
 }
 
-status_t sycl_device_info_t::init_attributes() {
-    eu_count_ = device_.get_info<cl::sycl::info::device::max_compute_units>();
-
-    // Assume 7 threads by default
-    int32_t threads_per_eu = 7;
-    switch (gpu_arch_) {
-        case gpu::compute::gpu_arch_t::gen9: threads_per_eu = 7; break;
-        case gpu::compute::gpu_arch_t::gen12lp: threads_per_eu = 7; break;
-        default: break;
-    }
-
-    hw_threads_ = eu_count_ * threads_per_eu;
-
-    // TODO: Fix for discrete GPUs. The code below is written for
-    // integrated GPUs assuming that last-level cache for GPU is shared
-    // with CPU.
-    llc_cache_size_ = cpu::platform::get_per_core_cache_size(3)
-            * cpu::platform::get_num_cores();
-
+status_t sycl_device_info_t::init_attributes(engine_t *engine) {
+    auto &device
+            = utils::downcast<const sycl_engine_base_t *>(engine)->device();
+    eu_count_ = device.get_info<cl::sycl::info::device::max_compute_units>();
     return status::success;
 }
 

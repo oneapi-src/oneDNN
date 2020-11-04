@@ -18,13 +18,9 @@
 #define GPU_OCL_VERBOSE_HPP
 
 #include <cstdio>
-#include <string>
-#include <vector>
-#include <CL/cl.h>
 
 #include "gpu/compute/device_info.hpp"
-#include "gpu/ocl/ocl_gpu_device_info.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/ocl_engine.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,21 +28,19 @@ namespace gpu {
 namespace ocl {
 
 void print_verbose_header() {
-    std::vector<cl_device_id> ocl_devices;
-    auto status = get_ocl_devices(&ocl_devices, CL_DEVICE_TYPE_GPU);
-    OCL_CHECK_V(status);
+    ocl_engine_factory_t factory(engine_kind::gpu);
+    for (size_t i = 0; i < factory.count(); ++i) {
+        engine_t *eng_ptr = nullptr;
+        factory.engine_create(&eng_ptr, i);
+        std::unique_ptr<ocl_gpu_engine_t> eng;
+        eng.reset(utils::downcast<ocl_gpu_engine_t *>(eng_ptr));
+        auto *dev_info = eng ? eng->device_info() : nullptr;
 
-    for (size_t i = 0; i < ocl_devices.size(); ++i) {
-        ocl_gpu_device_info_t dev_info(ocl_devices[i]);
-        status_t status = dev_info.init();
-        std::string name = "unknown";
-        compute::runtime_version_t ver;
-        if (status == status::success) {
-            name = dev_info.name();
-            ver = dev_info.runtime_version();
-        }
+        auto s_name = dev_info ? dev_info->name() : "unknown";
+        auto s_ver = dev_info ? dev_info->runtime_version().str() : "unknown";
+
         printf("dnnl_verbose,info,gpu,engine,%d,name:%s,driver_version:%s\n",
-                (int)i, name.c_str(), ver.str().c_str());
+                (int)i, s_name.c_str(), s_ver.c_str());
     }
 }
 

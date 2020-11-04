@@ -14,9 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <mutex>
-#include <unordered_map>
-
 #include "gpu/jit/binary_format.hpp"
 
 #include "common/utils.hpp"
@@ -31,6 +28,7 @@
 #define MAGIC4 0x0123456789ABCDEFull
 #define MAGIC5 0xFEDCBA9876543210ull
 #define MAGICPTR 0xABADFEEDu
+
 #define MAGICSIZEX 4
 #define MAGICSIZEY 2
 #define MAGICSIZEZ 1
@@ -160,53 +158,14 @@ public:
     }
 };
 
-// Cache for the binary format check. Reuse the result of the previous check if
-// available to save time on kernel compilation and execution.
-using binary_format_cache_t
-        = std::unordered_map<device_id_t, bool, device_id_hash_t>;
-
-std::mutex &binary_format_cache_mutex() {
-    static std::mutex m;
-    return m;
-}
-
-binary_format_cache_t &binary_format_cache() {
-    static binary_format_cache_t cache;
-    return cache;
-}
-
-// Returns true if found, false otherwise.
-bool binary_format_cache_get(bool *result, engine_t *engine) {
-    std::lock_guard<std::mutex> guard(binary_format_cache_mutex());
-
-    auto it = binary_format_cache().find(engine->device_id());
-    if (it == binary_format_cache().end()) return false;
-    if (result) *result = it->second;
-    return true;
-}
-
-void binary_format_cache_set(engine_t *engine, bool value) {
-    std::lock_guard<std::mutex> guard(binary_format_cache_mutex());
-
-    // Clear the cache to avoid hypothetically large growth.
-    const int cache_size_threshold = 1024;
-    if (binary_format_cache().size() > cache_size_threshold)
-        binary_format_cache().clear();
-
-    binary_format_cache().insert({engine->device_id(), value});
-}
-
 status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
-    if (binary_format_cache_get(ok, engine)) return status::success;
-
     *ok = false;
-    status_t status = status::success;
 
     auto gpu_engine = utils::downcast<compute::compute_engine_t *>(engine);
     if (!gpu_engine) return status::invalid_arguments;
 
     stream_t *stream_generic;
-    status = gpu_engine->get_service_stream(stream_generic);
+    auto status = gpu_engine->get_service_stream(stream_generic);
     if (status != status::success) return status::runtime_error;
 
     auto stream = utils::downcast<compute::compute_stream_t *>(stream_generic);
@@ -242,7 +201,6 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     result_buf.reset(storage);
 
     void *magic_host = nullptr;
-
     magic_buf->map_data(&magic_host, nullptr, sizeof(int32_t));
     if (!magic_host) return status::runtime_error;
 
@@ -269,7 +227,9 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     arg_list.set(7, *result_buf.get());
 
     auto nd_range = compute::nd_range_t(gws, lws);
+
     status = stream->parallel_for(nd_range, realized_kernel, arg_list);
+
     if (status != status::success) return status::runtime_error;
 
     status = stream->wait();
@@ -284,7 +244,6 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     result_buf->unmap_data(result_host, nullptr);
 
     *ok = (result != 0);
-    binary_format_cache_set(engine, *ok);
 
     return status::success;
 }

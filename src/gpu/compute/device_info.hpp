@@ -24,6 +24,7 @@
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
+#include "cpu/platform.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -60,29 +61,6 @@ enum class device_ext_t : uint64_t {
     last
     // clang-format on
 };
-
-inline gpu_arch_t str2gpu_arch(const char *str) {
-#define CASE(_case) \
-    if (!strcmp(STRINGIFY(_case), str)) return gpu_arch_t::_case
-
-    CASE(gen9);
-    CASE(gen12lp);
-    return gpu_arch_t::unknown;
-#undef CASE
-}
-
-inline const char *gpu_arch2str(gpu_arch_t arch) {
-#define CASE(_case) \
-    case gpu_arch_t::_case: return STRINGIFY(_case)
-
-    switch (arch) {
-        CASE(gen9);
-        CASE(gen12lp);
-        CASE(unknown);
-    }
-    return "unknown";
-#undef CASE
-}
 
 static inline const char *ext2cl_str(device_ext_t ext) {
 #define CASE(x) \
@@ -174,48 +152,68 @@ struct runtime_version_t {
     }
 };
 
+// Needed workaround for future HW extensions
+uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch);
+
 struct device_info_t {
 public:
     virtual ~device_info_t() = default;
 
-    status_t init() {
-        CHECK(init_device_name());
-        CHECK(init_arch());
-        CHECK(init_runtime_version());
-        CHECK(init_extensions());
-        CHECK(init_attributes());
+    status_t init(engine_t *engine) {
+        CHECK(init_device_name(engine));
+        CHECK(init_arch(engine));
+        CHECK(init_runtime_version(engine));
+        CHECK(init_extensions(engine));
+        CHECK(init_attributes(engine));
 
+        CHECK(init_attributes_common(engine));
         return status::success;
     }
 
-    virtual bool has(device_ext_t ext) const = 0;
-
-    virtual gpu_arch_t gpu_arch() const = 0;
-    virtual int eu_count() const = 0;
-    virtual int hw_threads() const = 0;
-    virtual size_t llc_cache_size() const = 0;
+    bool has(device_ext_t ext) const { return extensions_ & (uint64_t)ext; }
+    gpu_arch_t gpu_arch() const { return gpu_arch_; }
+    int eu_count() const { return eu_count_; }
+    int hw_threads() const { return hw_threads_; }
+    size_t llc_cache_size() const { return llc_cache_size_; }
 
     const runtime_version_t &runtime_version() const {
         return runtime_version_;
     }
     const std::string &name() const { return name_; }
 
-protected:
-    void set_runtime_version(const runtime_version_t &runtime_version) {
-        runtime_version_ = runtime_version;
+    bool mayiuse_ngen_kernels(engine_t *engine);
+
+    bool mayiuse_non_uniform_work_groups() const {
+        return mayiuse_non_uniform_work_groups_;
     }
 
-    void set_name(const std::string &name) { name_ = name; }
+protected:
+    virtual status_t init_device_name(engine_t *engine) = 0;
+    virtual status_t init_arch(engine_t *engine) = 0;
+    virtual status_t init_runtime_version(engine_t *engine) = 0;
+    virtual status_t init_extensions(engine_t *engine) = 0;
+    virtual status_t init_attributes(engine_t *engine) = 0;
+
+    compute::gpu_arch_t gpu_arch_ = compute::gpu_arch_t::unknown;
+
+    std::string name_;
+    runtime_version_t runtime_version_;
+
+    // total number of hardware threads:
+    int32_t hw_threads_;
+    int32_t eu_count_ = 0;
+    size_t llc_cache_size_ = 0;
+
+    // extensions_ and gpu_arch_ describe effective extensions and GPU architecture.
+    uint64_t extensions_ = 0;
 
 private:
-    virtual status_t init_arch() = 0;
-    virtual status_t init_device_name() = 0;
-    virtual status_t init_runtime_version() = 0;
-    virtual status_t init_extensions() = 0;
-    virtual status_t init_attributes() = 0;
+    status_t init_attributes_common(engine_t *engine);
 
-    runtime_version_t runtime_version_;
-    std::string name_;
+    bool mayiuse_ngen_kernels_ = false;
+    bool checked_ngen_kernels_ = false;
+
+    bool mayiuse_non_uniform_work_groups_ = false;
 };
 
 } // namespace compute

@@ -18,37 +18,41 @@
 #define SYCL_VERBOSE_HPP
 
 #include <cstdio>
-#include <CL/sycl.hpp>
 
-#include "sycl/sycl_device_info.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "sycl/sycl_engine.hpp"
-#include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace sycl {
 
-void print_verbose_header(
-        cl::sycl::info::device_type dev_type, const char *dev_type_str) {
-    auto devices = get_sycl_devices(dev_type);
-    for (size_t i = 0; i < devices.size(); ++i) {
-        auto name = devices[i].get_info<cl::sycl::info::device::name>();
-        auto ver
-                = devices[i].get_info<cl::sycl::info::device::driver_version>();
-        auto s_backend = to_string(get_sycl_backend(devices[i]));
+void print_verbose_header(engine_kind_t kind) {
+    sycl_engine_factory_t factory(kind);
+    for (size_t i = 0; i < factory.count(); ++i) {
+        engine_t *eng_ptr = nullptr;
+        factory.engine_create(&eng_ptr, i);
+        std::unique_ptr<sycl_engine_base_t> eng;
+        eng.reset(utils::downcast<sycl_engine_base_t *>(eng_ptr));
+        auto *dev_info = eng ? eng->device_info() : nullptr;
+
+        auto s_engine_kind = (kind == engine_kind::cpu ? "cpu" : "gpu");
+        auto s_backend = eng ? to_string(eng->backend()) : "unknown";
+        auto s_name = dev_info ? dev_info->name() : "unknown";
+        auto s_ver = dev_info ? dev_info->runtime_version().str() : "unknown";
+
         printf("dnnl_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
                "version:%s\n",
-                dev_type_str, (int)i, s_backend.c_str(), name.c_str(),
-                ver.c_str());
+                s_engine_kind, (int)i, s_backend.c_str(), s_name.c_str(),
+                s_ver.c_str());
     }
 }
 
 void print_verbose_header() {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-    print_verbose_header(cl::sycl::info::device_type::cpu, "cpu");
+    print_verbose_header(engine_kind::cpu);
 #endif
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    print_verbose_header(cl::sycl::info::device_type::gpu, "gpu");
+    print_verbose_header(engine_kind::gpu);
 #endif
 }
 

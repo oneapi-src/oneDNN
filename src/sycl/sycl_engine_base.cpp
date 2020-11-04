@@ -18,7 +18,7 @@
 
 #include "common/memory.hpp"
 #include "common/memory_storage.hpp"
-#include "gpu/jit/binary_format.hpp"
+#include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 #include "sycl/sycl_stream.hpp"
 
@@ -47,13 +47,10 @@ status_t sycl_engine_base_t::create_stream(
     return sycl_stream_t::create_stream(stream, this, queue);
 }
 
-bool sycl_engine_base_t::check_mayiuse_ngen_kernels() {
-    if (kind() != engine_kind::gpu) return false;
-
-    bool result = false;
-    auto status = gpu::jit::gpu_supports_binary_format(&result, this);
-    if (status != status::success) return false;
-    return result;
+status_t sycl_engine_base_t::init_device_info() {
+    device_info_.reset(new sycl_device_info_t());
+    CHECK(device_info_->init(this));
+    return status::success;
 }
 
 } // namespace sycl
