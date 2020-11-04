@@ -7,9 +7,10 @@
 
 where *binary-knobs* are:
 
- - `--sdt={f32 [default], bf16}` -- src data type.
+ - `--sdt={f32:f32 [default], ...}` -- src data type.
+            Refer to ``Inputs`` below.
             Refer to [data types](knobs_dt.md) for details.
- - `--ddt={f32 [default], bf16}` -- dst data type.
+ - `--ddt={f32 [default], ...}` -- dst data type.
             Refer to [data types](knobs_dt.md) for details.
  - `--stag={nchw:nchw [default], ...}` -- physical src memory layout.
             Refer to ``Inputs`` below.
