@@ -60,7 +60,7 @@ _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::_jit_uni_x8s8s32x_fwd_kernel(
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
-        static constexpr int helper_vmm_idx = 15;
+        static constexpr size_t helper_vmm_idx = 15;
         const size_t tail_size = jcp.oc_block % isa_simd_width_;
 
         const rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx,
