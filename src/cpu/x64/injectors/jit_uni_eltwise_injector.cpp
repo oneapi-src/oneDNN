@@ -1262,10 +1262,13 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_bwd(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::clip_compute_vector_bwd(
         const Vmm &vmm_src) {
+    using namespace alg_kind;
+
     // set result with 1.f
     h->uni_vmovups(vmm_aux1, table_val(one));
-    // get mask of values > beta and blend with 0.f
-    compute_cmp_mask(vmm_src, table_val(beta), _cmp_gt_os);
+    const auto cmp_flag = alg_ == eltwise_clip ? _cmp_gt_os : _cmp_ge_os;
+    // get mask of values > beta (or >= beta) and blend with 0.f
+    compute_cmp_mask(vmm_src, table_val(beta), cmp_flag);
     blend_with_mask(vmm_aux1, table_val(zero));
     // get mask of values <= alpha and blend with 0.f
     compute_cmp_mask(vmm_src, table_val(alpha), _cmp_le_os);
@@ -1408,7 +1411,9 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_gelu_tanh: return 5;
             case eltwise_swish: return 4;
             case eltwise_log: return 5;
-            case eltwise_clip: return 0;
+            case eltwise_clip:
+            case eltwise_clip_v2_use_dst_for_bwd:
+            case eltwise_clip_v2: return 0;
             case eltwise_pow: return 2;
             case eltwise_gelu_erf: return 5;
             case eltwise_round: return 0;
@@ -1437,7 +1442,9 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
             case eltwise_gelu_tanh: return 5;
             case eltwise_swish: return 4;
             case eltwise_log: return 1;
-            case eltwise_clip: return 2;
+            case eltwise_clip:
+            case eltwise_clip_v2_use_dst_for_bwd:
+            case eltwise_clip_v2: return 2;
             case eltwise_pow: return 2;
             case eltwise_gelu_erf: return 5;
             default: assert(!"unsupported eltwise algorithm");
@@ -1491,7 +1498,9 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                     gelu_tanh_compute_vector_fwd(Vmm(idx));
                     break;
                 case eltwise_log: log_compute_vector_fwd(Vmm(idx)); break;
-                case eltwise_clip: clip_compute_vector_fwd(Vmm(idx)); break;
+                case eltwise_clip:
+                case eltwise_clip_v2_use_dst_for_bwd:
+                case eltwise_clip_v2: clip_compute_vector_fwd(Vmm(idx)); break;
                 case eltwise_pow: pow_compute_vector_fwd(Vmm(idx)); break;
                 case eltwise_gelu_erf:
                     gelu_erf_compute_vector_fwd(Vmm(idx));
@@ -1532,7 +1541,9 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                     break;
                 case eltwise_swish: swish_compute_vector_bwd(Vmm(idx)); break;
                 case eltwise_log: log_compute_vector_bwd(Vmm(idx)); break;
-                case eltwise_clip: clip_compute_vector_bwd(Vmm(idx)); break;
+                case eltwise_clip:
+                case eltwise_clip_v2_use_dst_for_bwd:
+                case eltwise_clip_v2: clip_compute_vector_bwd(Vmm(idx)); break;
                 case eltwise_pow: pow_compute_vector_bwd(Vmm(idx)); break;
                 case eltwise_gelu_erf:
                     gelu_erf_compute_vector_bwd(Vmm(idx));
