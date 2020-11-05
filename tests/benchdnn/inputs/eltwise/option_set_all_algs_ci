@@ -17,7 +17,7 @@
 
 ## algs which support alpha and beta
 --alpha=-2 --beta=3
---alg=clip,linear
+--alg=clip,clip_v2,clip_v2_dst,linear
 --batch=shapes_ci
 
 ## special pow alg branches

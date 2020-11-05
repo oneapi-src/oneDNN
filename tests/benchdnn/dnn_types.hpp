@@ -199,6 +199,8 @@ struct attr_t {
             ABS,
             BRELU,
             CLIP,
+            CLIP_V2,
+            CLIP_V2_DST,
             ELU,
             ELU_DST,
             EXP,

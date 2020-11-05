@@ -288,7 +288,7 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
         std::uniform_real_distribution<> fgen(0.f, 0.09f);
 
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            static constexpr int64_t num_of_generation_variants = 10;
+            static constexpr int64_t num_of_generation_variants = 11;
             float value = FLT_MAX;
             switch (idx % num_of_generation_variants) {
                 case 0: value = (float)igen(msr); break; // [0-10] pos
@@ -303,6 +303,7 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
                     value = 88.f + 10.f * fgen(msr);
                     break; // values close to logf(FLT_MAX) for exp alg testing
                 case 9: value = prb->alpha; break; // `x = alpha` corner cases
+                case 10: value = prb->beta; break; // `x = beta` corner cases
             }
             value = round_to_nearest_representable(prb->dt, value);
 
@@ -325,7 +326,9 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     bool is_invalid = false;
     switch (prb->alg) {
-        case alg_t::CLIP: is_invalid = prb->beta < prb->alpha; break;
+        case alg_t::CLIP:
+        case alg_t::CLIP_V2:
+        case alg_t::CLIP_V2_DST: is_invalid = prb->beta < prb->alpha; break;
         case alg_t::BRELU:
         case alg_t::ELU_DST:
         case alg_t::RELU_DST: is_invalid = prb->alpha < 0; break;

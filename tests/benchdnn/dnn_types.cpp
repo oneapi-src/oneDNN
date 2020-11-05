@@ -297,6 +297,9 @@ static po_table_entry_t kind_table[] = {
         {pk_t::BRELU, "bounded_relu", dnnl_eltwise_bounded_relu},
         {pk_t::BRELU, "brelu", dnnl_eltwise_bounded_relu},
         {pk_t::CLIP, "clip", dnnl_eltwise_clip},
+        {pk_t::CLIP_V2, "clip_v2", dnnl_eltwise_clip_v2},
+        {pk_t::CLIP_V2_DST, "clip_v2_dst",
+                dnnl_eltwise_clip_v2_use_dst_for_bwd},
         {pk_t::ELU, "elu", dnnl_eltwise_elu},
         {pk_t::ELU_DST, "elu_dst", dnnl_eltwise_elu_use_dst_for_bwd},
         {pk_t::EXP, "exp", dnnl_eltwise_exp},
@@ -1124,6 +1127,7 @@ float compute_eltwise_fwd(
         case pk_t::SWISH: return scale * swish_fwd(src, alpha);
         case pk_t::LOG: return scale * log_fwd(src);
         case pk_t::CLIP: return scale * clip_fwd(src, alpha, beta);
+        case pk_t::CLIP_V2: return scale * clip_v2_fwd(src, alpha, beta);
         case pk_t::POW: return scale * pow_fwd(src, alpha, beta);
         case pk_t::GELU_ERF: return scale * gelu_erf_fwd(src);
         case pk_t::ROUND: return scale * round_fwd(src);
@@ -1133,6 +1137,7 @@ float compute_eltwise_fwd(
         case pk_t::SQRT_DST: return scale * sqrt_fwd(src);
         case pk_t::LOGISTIC_DST: return scale * logistic_fwd(src);
         case pk_t::EXP_DST: return scale * exp_fwd(src);
+        case pk_t::CLIP_V2_DST: return scale * clip_v2_fwd(src, alpha, beta);
 
         default: assert(!"unknown attr::post_ops::kind");
     };
@@ -1160,6 +1165,7 @@ float compute_eltwise_bwd(
         case pk_t::SWISH: return swish_bwd(d_dst, src, alpha);
         case pk_t::LOG: return log_bwd(d_dst, src);
         case pk_t::CLIP: return clip_bwd(d_dst, src, alpha, beta);
+        case pk_t::CLIP_V2: return clip_v2_bwd(d_dst, src, alpha, beta);
         case pk_t::POW: return pow_bwd(d_dst, src, alpha, beta);
         case pk_t::GELU_ERF: return gelu_erf_bwd(d_dst, src);
 
@@ -1169,6 +1175,8 @@ float compute_eltwise_bwd(
         case pk_t::SQRT_DST: return sqrt_bwd_use_dst(d_dst, src);
         case pk_t::LOGISTIC_DST: return logistic_bwd_use_dst(d_dst, src);
         case pk_t::EXP_DST: return exp_bwd_use_dst(d_dst, src);
+        case pk_t::CLIP_V2_DST:
+            return clip_v2_bwd_use_dst(d_dst, src, alpha, beta);
 
         default: assert(!"unknown attr::post_ops::kind");
     }

@@ -8,7 +8,7 @@
 --batch=shapes_eltwise
 
 --alpha= --beta=
---alg=clip,linear
+--alg=clip,clip_v2,clip_v2_dst,linear
 --batch=shapes_eltwise
 
 --alpha= --beta=-1,0,0.5,1,1.5,2
