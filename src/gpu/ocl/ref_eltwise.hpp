@@ -45,7 +45,7 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
             using namespace alg_kind;
-            bool ok = true
+            const bool ok = true
                     && utils::one_of(desc()->prop_kind,
                             prop_kind::forward_training,
                             prop_kind::forward_inference)
@@ -53,9 +53,9 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
                             eltwise_linear, eltwise_bounded_relu, eltwise_abs,
                             eltwise_tanh, eltwise_elu, eltwise_square,
                             eltwise_sqrt, eltwise_soft_relu, eltwise_logistic,
-                            eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
-                            eltwise_log, eltwise_clip, eltwise_pow,
-                            eltwise_gelu_erf, eltwise_round,
+                            eltwise_logsigmoid, eltwise_exp, eltwise_gelu_tanh,
+                            eltwise_swish, eltwise_log, eltwise_clip,
+                            eltwise_pow, eltwise_gelu_erf, eltwise_round,
                             eltwise_relu_use_dst_for_bwd,
                             eltwise_logistic_use_dst_for_bwd,
                             eltwise_tanh_use_dst_for_bwd,
@@ -121,14 +121,15 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
             assert(engine->kind() == engine_kind::gpu);
 
             using namespace alg_kind;
-            bool ok = desc()->prop_kind == backward_data
+            const bool ok = desc()->prop_kind == backward_data
                     && utils::one_of(desc()->alg_kind, eltwise_relu,
                             eltwise_linear, eltwise_bounded_relu, eltwise_abs,
                             eltwise_tanh, eltwise_elu, eltwise_square,
-                            eltwise_sqrt, eltwise_soft_relu, eltwise_logistic,
-                            eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
-                            eltwise_log, eltwise_clip, eltwise_pow,
-                            eltwise_gelu_erf, eltwise_relu_use_dst_for_bwd,
+                            eltwise_sqrt, eltwise_soft_relu, eltwise_logsigmoid,
+                            eltwise_logistic, eltwise_exp, eltwise_gelu_tanh,
+                            eltwise_swish, eltwise_log, eltwise_clip,
+                            eltwise_pow, eltwise_gelu_erf,
+                            eltwise_relu_use_dst_for_bwd,
                             eltwise_logistic_use_dst_for_bwd,
                             eltwise_tanh_use_dst_for_bwd,
                             eltwise_elu_use_dst_for_bwd,
