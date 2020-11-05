@@ -9,6 +9,7 @@ Examples {#dev_guide_examples}
 |                | CPU/GPU  | @ref cross_engine_reorder_cpp          | @ref cross_engine_reorder_c  |
 |                | CPU/GPU  | @ref sycl_interop_buffer_cpp           |                              |
 |                | GPU      | @ref gpu_opencl_interop_cpp            |                              |
+|                | CPU/GPU  | @ref bnorm_u8_via_binary_postops_cpp   |                              |
 | f32 inference  | CPU/GPU  | @ref cnn_inference_f32_cpp             | @ref cnn_inference_f32_c     |
 |                | CPU      | @ref cpu_rnn_inference_f32_cpp         |                              |
 | int8 inference | CPU/GPU  | @ref cnn_inference_int8_cpp            |                              |
