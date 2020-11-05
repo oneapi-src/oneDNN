@@ -183,6 +183,17 @@ float clip_bwd(float dd, float s, float alpha, float beta) {
     return dd * (alpha < s && s <= beta ? 1 : 0);
 }
 
+float clip_v2_fwd(float s, float alpha, float beta) {
+    s = s > alpha ? s : alpha;
+    return s < beta ? s : beta;
+}
+float clip_v2_bwd(float dd, float s, float alpha, float beta) {
+    return dd * (alpha < s && s < beta ? 1 : 0);
+}
+float clip_v2_bwd_use_dst(float dd, float d, float alpha, float beta) {
+    return dd * (alpha < d && d < beta ? 1 : 0);
+}
+
 float pow_fwd(float s, float alpha, float beta) {
     return alpha * pow(s, beta);
 }
@@ -229,6 +240,7 @@ float fwd_eltwise_common(
         case SWISH: return scale_ * swish_fwd(x, alpha_); break;
         case LOG: return scale_ * log_fwd(x); break;
         case CLIP: return scale_ * clip_fwd(x, alpha_, beta_); break;
+        case CLIP_V2: return scale_ * clip_v2_fwd(x, alpha_, beta_); break;
         case POW: return scale_ * pow_fwd(x, alpha_, beta_); break;
         case GELU_ERF: return scale_ * gelu_erf_fwd(x); break;
         case ROUND: return scale_ * round_fwd(x); break;
@@ -239,6 +251,7 @@ float fwd_eltwise_common(
         case ELU_DST: return scale_ * elu_fwd(x, alpha_); break;
         case SQRT_DST: return scale_ * sqrt_fwd(x); break;
         case EXP_DST: return scale_ * exp_fwd(x); break;
+        case CLIP_V2_DST: return scale_ * clip_v2_fwd(x, alpha_, beta_); break;
 
         default: return x; break;
     }
@@ -271,6 +284,7 @@ float bwd_eltwise(float x, float y, float alpha_, float beta_) {
         case SWISH: return swish_bwd(x, y, alpha_); break;
         case LOG: return log_bwd(x, y); break;
         case CLIP: return clip_bwd(x, y, alpha_, beta_); break;
+        case CLIP_V2: return clip_v2_bwd(x, y, alpha_, beta_); break;
         case POW: return pow_bwd(x, y, alpha_, beta_); break;
         case GELU_ERF: return gelu_erf_bwd(x, y); break;
 
@@ -280,6 +294,9 @@ float bwd_eltwise(float x, float y, float alpha_, float beta_) {
         case ELU_DST: return elu_bwd_use_dst(x, y, alpha_); break;
         case SQRT_DST: return sqrt_bwd_use_dst(x, y); break;
         case EXP_DST: return exp_bwd_use_dst(x, y); break;
+        case CLIP_V2_DST:
+            return clip_v2_bwd_use_dst(x, y, alpha_, beta_);
+            break;
 
         default: return x; break;
     }

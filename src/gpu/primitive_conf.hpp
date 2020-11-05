@@ -856,6 +856,7 @@ inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("SWISH", alg_kind::eltwise_swish);
     kernel_ctx.define_int("LOG", alg_kind::eltwise_log);
     kernel_ctx.define_int("CLIP", alg_kind::eltwise_clip);
+    kernel_ctx.define_int("CLIP_V2", alg_kind::eltwise_clip_v2);
     kernel_ctx.define_int("POW", alg_kind::eltwise_pow);
     kernel_ctx.define_int("GELU_ERF", alg_kind::eltwise_gelu_erf);
     kernel_ctx.define_int("ROUND", alg_kind::eltwise_round);
@@ -867,6 +868,8 @@ inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
     kernel_ctx.define_int("ELU_DST", alg_kind::eltwise_elu_use_dst_for_bwd);
     kernel_ctx.define_int("SQRT_DST", alg_kind::eltwise_sqrt_use_dst_for_bwd);
     kernel_ctx.define_int("EXP_DST", alg_kind::eltwise_exp_use_dst_for_bwd);
+    kernel_ctx.define_int(
+            "CLIP_V2_DST", alg_kind::eltwise_clip_v2_use_dst_for_bwd);
 }
 
 inline bool post_ops_with_binary_ok(
