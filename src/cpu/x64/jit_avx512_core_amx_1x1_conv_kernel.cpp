@@ -80,6 +80,7 @@ size_t jit_avx512_core_amx_1x1_fwd_kernel_t::out_row_offset(
                     + w * jcp.ngroups * jcp.oc_without_padding
                     + ocb * jcp.oc_block);
 }
+
 void jit_avx512_core_amx_1x1_fwd_kernel_t::update_buffer_pointers() {
     auto buffer_offset = [=](bool shift) { return ((buf_count_ + shift) % 2); };
     int wsp_shift = jcp.typesize_acc * (jcp.wsp_buffer_size / 2);
@@ -357,6 +358,21 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
         }
     };
 
+    auto tileloadd_nt = [=](const Tmm &t1, int offset) {
+        int ab_size = jcp.nb_os2_blocking * jcp.nb_os_blocking * jcp.tile_width
+                * (jcp.nb_ic_int * jcp.ic_block_int
+                        + jcp.nb_oc_blocking * jcp.oc_block);
+        int c_size = (jcp.nb_ic_int * jcp.ic_block_int * jcp.nb_oc_blocking
+                * jcp.oc_block);
+        // If the size of  src + wei used in the kernel cannot fit into L1 cache,
+        // use non-temporal load of weights to help keep src in L1 cache
+        if (jcp.typesize_in * (ab_size + c_size)
+                >= platform::get_per_core_cache_size(1))
+            tileloaddt1(t1, ptr[wei_ptr + offset + stride_seq]);
+        else
+            tileloadd(t1, ptr[wei_ptr + offset + stride_seq]);
+    };
+
     auto compute_block = [=](int icb, int os_b) {
         for (int osb = 0; osb < os_b; osb++) {
             int ih = ((osb * jcp.tile_width) / jcp.ow) * jcp.stride_h;
@@ -368,8 +384,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
             const int wei_offset = jcp.typesize_in
                     * (ocb * jcp.nb_ic_int * jcp.ic_block_int * jcp.oc_block
                             + icb * jcp.ic_block_int * jcp.oc_block);
-            tileloadd(Tmm(get_wei_tensor(ocb)),
-                    ptr[wei_ptr + wei_offset + stride_seq]);
+            tileloadd_nt(Tmm(get_wei_tensor(ocb)), wei_offset);
             for (int osb = 0; osb < os_b; osb++) {
                 tdpbxxd(Tmm(get_out_tensor(osb, ocb)), Tmm(get_inp_tensor(osb)),
                         Tmm(get_wei_tensor(ocb)));
@@ -457,8 +472,8 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
 
 void jit_avx512_core_amx_1x1_fwd_kernel_t::osb_loop(int nb_os) {
     for (int osi = 0; osi < nb_os; osi++) {
-        bool do_store = (osi == nb_os - 1);
-        check_last_sb_ = (do_store) ? true : false;
+        bool do_store = IMPLICATION(jcp.per_one_pstore, (osi == nb_os - 1));
+        check_last_sb_ = do_store;
 
         icb_loop(do_store);
 
@@ -820,6 +835,7 @@ status_t jit_avx512_core_amx_1x1_fwd_kernel_t::init_conf(jit_conv_conf_t &jcp,
     int avaliable_ops = jcp.nb_ic_int * jcp.nb_oc_blocking * jcp.nb_os_blocking;
     jcp.per_one_pstore
             = (avaliable_ops) ? ops_tile_store / avaliable_ops + 1 : 0;
+    if (jcp.per_one_pstore > 12) jcp.per_one_pstore = 0;
     const auto &oscales = attr.output_scales_;
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;
 
