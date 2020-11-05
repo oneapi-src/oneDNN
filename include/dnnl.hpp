@@ -525,6 +525,8 @@ enum class algorithm {
     eltwise_log = dnnl_eltwise_log,
     /// Elementwise: clip
     eltwise_clip = dnnl_eltwise_clip,
+    /// Eltwise: clip version 2
+    eltwise_clip_v2 = dnnl_eltwise_clip_v2,
     /// Elementwise: pow
     eltwise_pow = dnnl_eltwise_pow,
     /// Elementwise: round
@@ -541,6 +543,8 @@ enum class algorithm {
     eltwise_logistic_use_dst_for_bwd = dnnl_eltwise_logistic_use_dst_for_bwd,
     /// Elementwise: exponent (dst for backward)
     eltwise_exp_use_dst_for_bwd = dnnl_eltwise_exp_use_dst_for_bwd,
+    /// Elementwise: clip version 2 (dst for backward)
+    eltwise_clip_v2_use_dst_for_bwd = dnnl_eltwise_clip_v2_use_dst_for_bwd,
     /// Local response normalization (LRN) across multiple channels
     lrn_across_channels = dnnl_lrn_across_channels,
     /// LRN within a single channel

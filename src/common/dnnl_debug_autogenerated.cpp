@@ -654,6 +654,7 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_eltwise_swish) return "eltwise_swish";
     if (v == dnnl_eltwise_log) return "eltwise_log";
     if (v == dnnl_eltwise_clip) return "eltwise_clip";
+    if (v == dnnl_eltwise_clip_v2) return "eltwise_clip_v2";
     if (v == dnnl_eltwise_pow) return "eltwise_pow";
     if (v == dnnl_eltwise_gelu_erf) return "eltwise_gelu_erf";
     if (v == dnnl_eltwise_round) return "eltwise_round";
@@ -664,6 +665,7 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_eltwise_sqrt_use_dst_for_bwd) return "eltwise_sqrt_use_dst_for_bwd";
     if (v == dnnl_eltwise_logistic_use_dst_for_bwd) return "eltwise_logistic_use_dst_for_bwd";
     if (v == dnnl_eltwise_exp_use_dst_for_bwd) return "eltwise_exp_use_dst_for_bwd";
+    if (v == dnnl_eltwise_clip_v2_use_dst_for_bwd) return "eltwise_clip_v2_use_dst_for_bwd";
     if (v == dnnl_pooling_max) return "pooling_max";
     if (v == dnnl_pooling_avg_include_padding) return "pooling_avg_include_padding";
     if (v == dnnl_pooling_avg_exclude_padding) return "pooling_avg_exclude_padding";

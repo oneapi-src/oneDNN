@@ -979,6 +979,8 @@ typedef enum {
     dnnl_eltwise_log = 0xef,
     /// Eltwise: clip
     dnnl_eltwise_clip = 0xff,
+    /// Eltwise: clip version 2
+    dnnl_eltwise_clip_v2 = 0x10,
     /// Eltwise: pow
     dnnl_eltwise_pow = 0x20,
     /// Eltwise: erf-based gelu
@@ -999,6 +1001,8 @@ typedef enum {
     dnnl_eltwise_logistic_use_dst_for_bwd = 0x104,
     /// Eltwise: exp (dst for backward)
     dnnl_eltwise_exp_use_dst_for_bwd = 0x105,
+    /// Eltwise: clip version 2 (dst for backward)
+    dnnl_eltwise_clip_v2_use_dst_for_bwd = 0x106,
     /// Max pooling
     dnnl_pooling_max = 0x1ff,
     /// Average pooling include padding
@@ -1443,13 +1447,14 @@ typedef struct {
     /// #dnnl_eltwise_bounded_relu, #dnnl_eltwise_soft_relu,
     /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu_tanh,
     /// #dnnl_eltwise_swish, #dnnl_eltwise_log, #dnnl_eltwise_clip,
-    /// #dnnl_eltwise_pow, #dnnl_eltwise_gelu_erf, #dnnl_eltwise_round,
-    /// #dnnl_eltwise_logsigmoid.
+    /// #dnnl_eltwise_clip_v2, #dnnl_eltwise_pow, #dnnl_eltwise_gelu_erf,
+    /// #dnnl_eltwise_round, #dnnl_eltwise_logsigmoid.
     /// Possible values for passing destination memory on backward:
     /// #dnnl_eltwise_relu_use_dst_for_bwd, #dnnl_eltwise_tanh_use_dst_for_bwd,
     /// #dnnl_eltwise_elu_use_dst_for_bwd, #dnnl_eltwise_sqrt_use_dst_for_bwd,
     /// #dnnl_eltwise_logistic_use_dst_for_bwd,
-    /// #dnnl_eltwise_exp_use_dst_for_bwd.
+    /// #dnnl_eltwise_exp_use_dst_for_bwd,
+    /// #dnnl_eltwise_clip_v2_use_dst_for_bwd.
     dnnl_alg_kind_t alg_kind;
     /// Source and destination memory descriptor.
     dnnl_memory_desc_t data_desc;
@@ -1472,6 +1477,7 @@ typedef struct {
     ///  - #dnnl_eltwise_swish: @p alpha -- sigmoid arg scaling, @p beta ignored
     ///  - #dnnl_eltwise_log: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_clip: @p alpha -- lower bound, @p beta -- upper bound
+    ///  - #dnnl_eltwise_clip_v2: @p alpha -- lower bound, @p beta -- upper bound
     ///  - #dnnl_eltwise_pow: @p alpha -- scale, @p beta -- exponent
     ///  - #dnnl_eltwise_gelu_erf: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_round: @p alpha and @p beta ignored
