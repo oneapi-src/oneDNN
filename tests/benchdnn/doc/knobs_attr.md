@@ -129,6 +129,8 @@ Operations may be called in any order, e.g. apply `SUM` at first and then apply
       - `swish`
   - Eltwise operations that support both alpha and beta:
       - `clip`
+      - `clip_v2`
+      - `clip_v2_dst`
       - `linear`
       - `pow`
 
