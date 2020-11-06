@@ -14,10 +14,21 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <CL/cl_ext.h>
 
+#include "gpu/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+
+#ifndef DNNL_ENABLE_JIT_DUMP
+#define DNNL_ENABLE_JIT_DUMP 1
+#endif
+
+#ifndef CL_KERNEL_BINARY_PROGRAM_INTEL
+#define CL_KERNEL_BINARY_PROGRAM_INTEL 0x407D
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -98,6 +109,60 @@ cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
         size_t size, void *host_ptr, cl_int *errcode_ret) {
     return clCreateBuffer(context, flags, size, host_ptr, errcode_ret);
 }
+
+#if DNNL_ENABLE_JIT_DUMP
+void dump_kernel_binary(
+        const engine_t *engine, const compute::kernel_t &binary_kernel) {
+    if (!get_jit_dump()) return;
+
+    static std::mutex m;
+    std::lock_guard<std::mutex> guard(m);
+
+    static int counter = 0;
+    compute::kernel_t realized_kernel;
+    auto status = binary_kernel.realize(&realized_kernel, engine);
+
+    // Ignore error.
+    if (status != status::success) return;
+
+    auto *kernel
+            = utils::downcast<const ocl_gpu_kernel_t *>(realized_kernel.impl());
+
+    cl_int err;
+
+    size_t binary_size;
+    err = clGetKernelInfo(kernel->ocl_kernel(), CL_KERNEL_BINARY_PROGRAM_INTEL,
+            0, nullptr, &binary_size);
+
+    // Ignore error.
+    if (err != CL_SUCCESS) return;
+
+    std::vector<uint8_t> binary(binary_size);
+    err = clGetKernelInfo(kernel->ocl_kernel(), CL_KERNEL_BINARY_PROGRAM_INTEL,
+            binary.size(), binary.data(), nullptr);
+
+    // Ignore error.
+    if (err != CL_SUCCESS) return;
+
+    std::ostringstream fname;
+    auto *kernel_name
+            = utils::downcast<const ocl_gpu_kernel_t *>(binary_kernel.impl())
+                      ->name();
+    fname << "dnnl_dump_gpu_" << kernel_name << "." << counter << ".bin";
+
+    FILE *fp = fopen(fname.str().c_str(), "w+");
+
+    // Ignore error.
+    if (!fp) return;
+
+    fwrite(binary.data(), binary.size(), 1, fp);
+    fclose(fp);
+
+    counter++;
+}
+#else
+void dump_kernel_binary(const engine_t *, const compute::kernel_t &) {}
+#endif
 
 } // namespace ocl
 } // namespace gpu

@@ -38,6 +38,11 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
+
+namespace compute {
+class kernel_t;
+}
+
 namespace ocl {
 
 inline status_t convert_to_dnnl(cl_int cl_status) {
@@ -261,6 +266,9 @@ cl_mem DNNL_WEAK clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
 cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
         size_t size, void *host_ptr, cl_int *errcode_ret);
 #endif
+
+void dump_kernel_binary(
+        const engine_t *engine, const compute::kernel_t &binary_kernel);
 
 } // namespace ocl
 } // namespace gpu
