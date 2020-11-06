@@ -64,6 +64,11 @@ struct jit_avx512_core_amx_1x1_fwd_kernel_t : public jit_generator {
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
 
+    enum {
+        zmm_idx_limit_bf16 = 29,
+        zmm_idx_limit_int8 = 29,
+    };
+
     int row_count_;
     int buf_count_;
     bool is_store_done_;
@@ -119,6 +124,13 @@ private:
     bool maybe_eltwise(int position);
     void cvt2ps(data_type_t type_in, Xbyak::Zmm ymm_in,
             const Xbyak::Operand &op, bool mask_flag);
+    Xbyak::Zmm zmm_out(const int idx) {
+        const int upper_limit
+                = is_bf16() ? zmm_idx_limit_bf16 : zmm_idx_limit_int8;
+        assert(upper_limit > idx);
+        MAYBE_UNUSED(upper_limit);
+        return Xbyak::Zmm(idx);
+    }
     Xbyak::Zmm zmm_mask(
             const Xbyak::Zmm zmm_in, bool mask_flag, bool store = false);
     Xbyak::Ymm ymm_mask(

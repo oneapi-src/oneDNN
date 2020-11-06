@@ -103,7 +103,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::interleave_store() {
         int osb = (row_count_ % scnd_dim) / jcp.tile_width;
         int row = (row_count_ % scnd_dim) % jcp.tile_width;
 
-        Zmm zmm_r = Zmm(row);
+        const Zmm zmm_r = zmm_out(row);
 
         int oh = ((osb * jcp.tile_width + row) / jcp.ow);
         int ow = ((osb * jcp.tile_width + row) % jcp.ow);
@@ -311,8 +311,9 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::store_output(
 
             auto addr = ptr[wsp_ptr + jcp.typesize_acc * (j * jcp.oc_block)
                     + wsp_offset];
-            vmovups(Zmm(j), addr);
-            store_output_vector(Zmm(j), ocb, oh_, ow_);
+            const Zmm zmm_r = zmm_out(j);
+            vmovups(zmm_r, addr);
+            store_output_vector(zmm_r, ocb, oh_, ow_);
         }
     };
 
