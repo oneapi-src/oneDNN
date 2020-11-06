@@ -148,25 +148,26 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_sum(const int ur,
     if (jcp.with_sum) {
         assert(p_sum_scale != nullptr && "p_sum_scale = nullptr");
         const float sum_scale = *p_sum_scale;
-        const auto sum_injector = [=]() {
-            iterate(ur, load_loop_blk, [&](const int i_ur, const int i_load) {
-                const bool mask_flag
-                        = mask_flag_in && i_load == load_loop_blk - 1;
-                const auto ymm_prev_dst = vmm_zero;
+        const auto sum_injector_lam = [this, mask_flag_in, load_loop_blk,
+                                              sum_scale](const int i_ur,
+                                              const int i_load) {
+            const bool mask_flag = mask_flag_in && i_load == load_loop_blk - 1;
+            const auto ymm_prev_dst = vmm_zero;
 
-                const auto r = vreg_accum(load_loop_blk, i_load, i_ur);
-                cvt2ps(jcp.dst_dt, ymm_prev_dst, aux_reg_output_data,
-                        output_ptr(i_load, i_ur),
-                        mask_flag ? get_tail_size() : simd_w);
+            const auto r = vreg_accum(load_loop_blk, i_load, i_ur);
+            cvt2ps(jcp.dst_dt, ymm_prev_dst, aux_reg_output_data,
+                    output_ptr(i_load, i_ur),
+                    mask_flag ? get_tail_size() : simd_w);
 
-                if (sum_scale == 1.f)
-                    vaddps(r, ymm_prev_dst);
-                else {
-                    vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
-                    vfmadd231ps(r, ymm_prev_dst, vmm_tmp);
-                }
-            });
+            if (sum_scale == 1.f)
+                vaddps(r, ymm_prev_dst);
+            else {
+                vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
+                vfmadd231ps(r, ymm_prev_dst, vmm_tmp);
+            }
         };
+        const auto sum_injector
+                = [=]() { iterate(ur, load_loop_blk, sum_injector_lam); };
         postops_injector_->set_lambda_injector(
                 primitive_kind::sum, sum_injector);
     }

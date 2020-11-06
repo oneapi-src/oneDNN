@@ -131,25 +131,23 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_sum(const int nb_oc_block,
     if (jcp.with_sum) {
         assert(p_sum_scale != nullptr && "p_sum_scale = nullptr");
         const float sum_scale = *p_sum_scale;
+        const auto sum_injector_lam = [this, oc_block, sum_scale](
+                                              const bool mask_flag, const int k,
+                                              const int j) {
+            const int aux_output_offset = jcp.typesize_out
+                    * (k * oc_block + j * jcp.oc_without_padding * jcp.ngroups);
+            cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
+                    mask_flag ? get_tail_size() : get_blocking_size());
+            const Vmm vmm = vmm_out(j, k);
+            if (sum_scale == 1.f)
+                uni_vaddps(vmm, vmm, vmm_prev_dst);
+            else {
+                uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
+                uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
+            }
+        };
         const auto sum_injector = [=]() {
-            iterate(nb_oc_block, ur_w, last_oc_block_flag,
-                    [&](const bool mask_flag, const int k, const int j) {
-                        const int aux_output_offset = jcp.typesize_out
-                                * (k * oc_block
-                                        + j * jcp.oc_without_padding
-                                                * jcp.ngroups);
-                        cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out,
-                                aux_output_offset,
-                                mask_flag ? get_tail_size()
-                                          : get_blocking_size());
-                        const Vmm vmm = vmm_out(j, k);
-                        if (sum_scale == 1.f)
-                            uni_vaddps(vmm, vmm, vmm_prev_dst);
-                        else {
-                            uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
-                            uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
-                        }
-                    });
+            iterate(nb_oc_block, ur_w, last_oc_block_flag, sum_injector_lam);
         };
         if (*p_sum_scale != 1.f) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
         postops_injector_->set_lambda_injector(
