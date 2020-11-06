@@ -22,25 +22,10 @@ namespace dnnl {
 namespace impl {
 
 output_dims_t make_output_dims(const memory_desc_wrapper &dst_d) {
-
-    const dim_t n_dims = dst_d.ndims();
-    const auto dims = dst_d.dims();
-    const dim_t &mb = dims[0];
-    const dim_t &oc = n_dims >= 2 ? dims[1] : 1;
-    const dim_t &ow = n_dims >= 3 ? dims[n_dims - 1] : 1;
-    const dim_t &oh = n_dims >= 4 ? dims[n_dims - 2] : 1;
-    const dim_t &od = n_dims >= 5 ? dims[n_dims - 3] : 1;
-
-    switch (n_dims) {
-        case 1: return output_dims_t {{mb, 0, 0, 0, 0}};
-        case 2: return output_dims_t {{mb, oc, 0, 0, 0}};
-        case 3: return output_dims_t {{mb, oc, ow, 0, 0}};
-        case 4: return output_dims_t {{mb, oc, oh, ow, 0}};
-        case 5: return output_dims_t {{mb, oc, od, oh, ow}};
-        default: assert(!"dimension count error"); break;
-    }
-
-    return output_dims_t();
+    output_dims_t od {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
+    for (int i = 0; i < dst_d.ndims(); ++i)
+        od[i] = dst_d.dims()[i];
+    return od;
 }
 
 broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
@@ -50,7 +35,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
     const auto output_dims = make_output_dims(dst_d);
 
     bool all_ones = true;
-    std::bitset<5> mask(0);
+    std::bitset<DNNL_MAX_NDIMS> mask(0);
     for (int d = 0; d < ndims; d++) {
         const auto &rhs_arg_dim = rhs_arg_md.dims[d];
 

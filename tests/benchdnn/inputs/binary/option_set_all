@@ -4,8 +4,8 @@
                            4x4x4x4:4x4x1x4
                            32x17x2x3:32x17x1x1
                            32x17x2x3:1x17x1x1
-                           16x12x2x2:16x1x1x1
-                           16x12x2x2:1x1x1x1
+                           16x12x2x2x2x2:16x1x1x1x1x1
+                           16x12x2x2x3:1x1x1x1x1
                            8x16x7:8x16x1
                            12x12:1x12
                            1024:1024
@@ -16,8 +16,8 @@
 --stag=axb:axb             3x5x6x9:3x5x6x9
                            5x48x2x9:5x1x2x9
                            4x4x4x4:4x4x4x1
-                           32x65x2x3:32x65x1x1
-                           32x64x2x3:1x64x1x1
+                           32x65x2x3x2x3:32x65x1x1x1x1
+                           32x64x2x3x2:1x64x1x1x1
                            16x12x2x2:1x1x1x1
                            8x16x7:8x16x1
                            12x12:1x12

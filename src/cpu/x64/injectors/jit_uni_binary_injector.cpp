@@ -62,7 +62,7 @@ bool binary_args_broadcast_supported(
 
 bool binary_args_tail_supported(const post_ops_t &post_ops,
         const memory_desc_wrapper &dst_d, int vlen) {
-    const auto dims = make_output_dims(dst_d);
+    const auto channels = dst_d.dims()[1];
     const int vmm_l_len = vlen / 4;
 
     return std::none_of(post_ops.entry_.cbegin(), post_ops.entry_.cend(),
@@ -73,7 +73,7 @@ bool binary_args_tail_supported(const post_ops_t &post_ops,
                     return utils::one_of(bcast_type,
                                    broadcasting_strategy_t::per_oc,
                                    broadcasting_strategy_t::per_oc_spatial)
-                            && (dims[1] % vmm_l_len != 0);
+                            && (channels % vmm_l_len != 0);
                 }
                 return false;
             });

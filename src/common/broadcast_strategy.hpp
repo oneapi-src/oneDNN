@@ -25,7 +25,7 @@
 namespace dnnl {
 namespace impl {
 
-using output_dims_t = std::array<dim_t, 5>;
+using output_dims_t = std::array<dim_t, DNNL_MAX_NDIMS>;
 
 enum class broadcasting_strategy_t {
     // [n, c, d, h, w]

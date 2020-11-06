@@ -902,10 +902,10 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
     const auto &dims = src0_d.dims();
     const dim_t MB = dims[0];
     const dim_t C = ndims >= 2 ? dims[1] : 1;
-    const dim_t D = ndims >= 5 ? dims[ndims - 3] : 1;
-    const dim_t H = ndims >= 4 ? dims[ndims - 2] : 1;
-    const dim_t W = ndims >= 3 ? dims[ndims - 1] : 1;
-    const dim_t SP = D * H * W;
+    dim_t SP = 1;
+    for (int d = 2; d < ndims; d++)
+        SP *= dims[d];
+
     const bool postops_per_oc_broadcast_exists
             = binary_injector::any_binary_postop_rhs_per_oc_broadcast(
                     post_ops, src0_d);
