@@ -172,7 +172,7 @@ private:
 
     enum {
         zmm_idx_limit_bf16 = 29,
-        zmm_idx_limit_int8 = 29,
+        zmm_idx_limit_int8 = 27,
     };
 
     int prv_width_;
@@ -193,6 +193,10 @@ private:
 
     const Xbyak::Reg64 reg_inp_stride = rbx;
     const Xbyak::Reg64 reg_wei_stride = rdx;
+    // zero-point computation
+    const Xbyak::Reg64 reg_zp_compensation = rax;
+    const Xbyak::Reg64 reg_src_zero_point = r8;
+    const Xbyak::Reg64 reg_dst_zero_point = abi_not_param1;
 
     // rsi - free and available
     // rbp - reserved for EVEX compression
@@ -208,6 +212,10 @@ private:
     const Xbyak::Zmm zmm_saturation = zmm_bias;
     const Xbyak::Zmm zmm_zero = Xbyak::Zmm(30);
     const Xbyak::Zmm zmm_prev_dst = Xbyak::Zmm(29);
+    /* zero-point */
+    const Xbyak::Zmm zmm_zp = Xbyak::Zmm(29);
+    const Xbyak::Zmm zmm_src_zp = Xbyak::Zmm(28);
+    const Xbyak::Zmm zmm_dst_zp = Xbyak::Zmm(27);
 
     // AUX: Steps, shifts and offsets
     size_t get_inp_icb_step() const;
