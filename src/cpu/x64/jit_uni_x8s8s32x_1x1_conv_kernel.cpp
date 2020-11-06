@@ -160,10 +160,10 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::apply_sum(const int ur,
                     mask_flag ? get_tail_size() : simd_w);
 
             if (sum_scale == 1.f)
-                vaddps(r, ymm_prev_dst);
+                uni_vaddps(r, r, ymm_prev_dst);
             else {
-                vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
-                vfmadd231ps(r, ymm_prev_dst, vmm_tmp);
+                uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
+                uni_vfmadd231ps(r, ymm_prev_dst, vmm_tmp);
             }
         };
         const auto sum_injector
