@@ -8,3 +8,6 @@
 --skip-impl="ref"
 --stag=axb --dtag=axb
 --dir=FWD_B,BWD_D,BWD_WB  --batch=shapes_tails
+
+# bf16
+--batch=test_conv_bfloat16_nxc
