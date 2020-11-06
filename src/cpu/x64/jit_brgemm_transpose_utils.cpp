@@ -1038,9 +1038,21 @@ void jit_brgemm_trans_wei_f32_t::generate() {
     int fwd_oc_block = 0;
     switch (conf_->wei_tag) {
         case OI16i64o:
-        case OI8i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
+        case OIw16i64o:
+        case OIhw16i64o:
+        case OIdhw16i64o:
+        case OI8i64o2i:
+        case OIw8i64o2i:
+        case OIhw8i64o2i:
+        case OIdhw8i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
         case OI16i32o:
-        case OI8i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
+        case OIw16i32o:
+        case OIhw16i32o:
+        case OIdhw16i32o:
+        case OI8i32o2i:
+        case OIw8i32o2i:
+        case OIhw8i32o2i:
+        case OIdhw8i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
         default: fwd_oc_block = conf_->simd_w;
     };
 
@@ -1246,9 +1258,21 @@ void jit_brgemm_trans_wei_bf16_t::generate() {
     int fwd_oc_block = 0;
     switch (conf_->wei_tag) {
         case OI16i64o:
-        case OI8i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
+        case OIw16i64o:
+        case OIhw16i64o:
+        case OIdhw16i64o:
+        case OI8i64o2i:
+        case OIw8i64o2i:
+        case OIhw8i64o2i:
+        case OIdhw8i64o2i: fwd_oc_block = 4 * conf_->simd_w; break;
         case OI16i32o:
-        case OI8i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
+        case OIw16i32o:
+        case OIhw16i32o:
+        case OIdhw16i32o:
+        case OI8i32o2i:
+        case OIw8i32o2i:
+        case OIhw8i32o2i:
+        case OIdhw8i32o2i: fwd_oc_block = 2 * conf_->simd_w; break;
         default: fwd_oc_block = conf_->simd_w;
     };
 

@@ -35,32 +35,6 @@ namespace x64 {
 
 namespace brgemm_inner_product_utils {
 
-inline format_tag_t get_brgemm_ip_weights_tag(dim_t oc, data_type_t wei_dt) {
-    using namespace format_tag;
-    if (oc >= 64) {
-        switch (wei_dt) {
-            case data_type::f32: return OI16i64o;
-            case data_type::bf16: return OI8i64o2i;
-            case data_type::s8: return OI4i64o4i;
-            default: return undef;
-        }
-    } else if (oc >= 32) {
-        switch (wei_dt) {
-            case data_type::f32: return OI16i32o;
-            case data_type::bf16: return OI8i32o2i;
-            case data_type::s8: return OI4i32o4i;
-            default: return undef;
-        }
-    } else {
-        switch (wei_dt) {
-            case data_type::f32: return OI16i16o;
-            case data_type::bf16: return OI8i16o2i;
-            case data_type::s8: return OI4i16o4i;
-            default: return undef;
-        }
-    }
-}
-
 status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
         const inner_product_desc_t &ipd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
