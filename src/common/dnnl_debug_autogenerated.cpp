@@ -344,6 +344,11 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_ldio) return "ldio";
     if (v == dnnl_ldoi) return "ldoi";
     if (v == dnnl_ldgo) return "ldgo";
+    if (v == dnnl_ldOi32o) return "ldOi32o";
+    if (v == dnnl_ldOI32o4i) return "ldOI32o4i";
+    if (v == dnnl_ldgOi32o) return "ldgOi32o";
+    if (v == dnnl_ldgOI32o2i) return "ldgOI32o2i";
+    if (v == dnnl_ldgOI32o4i) return "ldgOI32o4i";
     if (v == dnnl_nCdhw32c) return "nCdhw32c";
     if (v == dnnl_nCdhw16c) return "nCdhw16c";
     if (v == dnnl_nCdhw4c) return "nCdhw4c";
@@ -543,11 +548,6 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_gOIdhw4i8o2i) return "gOIdhw4i8o2i";
     if (v == dnnl_gOIdhw2o4i2o) return "gOIdhw2o4i2o";
     if (v == dnnl_gOIdhw4o8i2o) return "gOIdhw4o8i2o";
-    if (v == dnnl_ldOi32o) return "ldOi32o";
-    if (v == dnnl_ldOI32o4i) return "ldOI32o4i";
-    if (v == dnnl_ldgOi32o) return "ldgOi32o";
-    if (v == dnnl_ldgOI32o2i) return "ldgOI32o2i";
-    if (v == dnnl_ldgOI32o4i) return "ldgOI32o4i";
     assert(!"unknown fmt_tag");
     return "unknown fmt_tag";
 }
@@ -577,7 +577,6 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_eltwise) return "eltwise";
     if (v == dnnl_softmax) return "softmax";
     if (v == dnnl_pooling) return "pooling";
-    if (v == dnnl_prelu) return "prelu";
     if (v == dnnl_lrn) return "lrn";
     if (v == dnnl_batch_normalization) return "batch_normalization";
     if (v == dnnl_layer_normalization) return "layer_normalization";
@@ -590,6 +589,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_resampling) return "resampling";
     if (v == dnnl_pooling_v2) return "pooling_v2";
     if (v == dnnl_reduction) return "reduction";
+    if (v == dnnl_prelu) return "prelu";
     if (v == dnnl_primitive_kind_max) return "primitive_kind_max";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
@@ -700,6 +700,7 @@ const char *dnnl_cpu_isa2str(dnnl_cpu_isa_t v) {
     if (v == dnnl_cpu_isa_avx512_core_vnni) return "cpu_isa_avx512_core_vnni";
     if (v == dnnl_cpu_isa_avx512_core_bf16) return "cpu_isa_avx512_core_bf16";
     if (v == dnnl_cpu_isa_avx512_core_amx) return "cpu_isa_avx512_core_amx";
+    if (v == dnnl_cpu_isa_avx2_vnni) return "cpu_isa_avx2_vnni";
     assert(!"unknown cpu_isa");
     return "unknown cpu_isa";
 }

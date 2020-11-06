@@ -334,6 +334,11 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(ldio);
     CASE(ldoi);
     CASE(ldgo);
+    CASE(ldOi32o);
+    CASE(ldOI32o4i);
+    CASE(ldgOi32o);
+    CASE(ldgOI32o2i);
+    CASE(ldgOI32o4i);
     CASE(nCdhw32c);
     CASE(nCdhw16c);
     CASE(nCdhw4c);
@@ -533,11 +538,6 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gOIdhw4i8o2i);
     CASE(gOIdhw2o4i2o);
     CASE(gOIdhw4o8i2o);
-    CASE(ldOi32o);
-    CASE(ldOI32o4i);
-    CASE(ldgOi32o);
-    CASE(ldgOI32o2i);
-    CASE(ldgOI32o4i);
 #undef CASE
     if (!strcmp("undef", str) || !strcmp("dnnl_format_tag_undef", str))
         return dnnl_format_tag_undef;
