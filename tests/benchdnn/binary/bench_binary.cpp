@@ -44,13 +44,21 @@ void check_correctness(const settings_t &s) {
         ok = i_alg > alg_t::BINARY_START && i_alg < alg_t::BINARY_END;
         if (!ok) SAFE_V(FAIL);
 
+        // If src1 was provided shortened, fill the rest dimensions with `1` to
+        // match ndims for source 0 and 1, e.g. 8x3x5:8
+        auto sdims = s.sdims;
+        if (s.sdims[0].size() > s.sdims[1].size()) {
+            for (size_t d = s.sdims[1].size(); d < s.sdims[0].size(); ++d)
+                sdims[1].push_back(1);
+        }
+
         attr_t attr;
         attr.insert(i_scales);
         attr.insert(i_post_ops);
         attr.insert(i_scratchpad_mode);
         handle_legacy_attr(attr, s.attr);
 
-        const prb_t prb(s.sdims, i_sdt, i_ddt, i_stag, i_alg, i_inplace, attr);
+        const prb_t prb(sdims, i_sdt, i_ddt, i_stag, i_alg, i_inplace, attr);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();

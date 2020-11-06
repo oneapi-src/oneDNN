@@ -102,17 +102,6 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                 CRIT);
     }
 
-    if (prb->ndims[1] < prb->ndims[0]) { // need to reshape B
-        dnnl_dims_t dims;
-        for (int d = 0; d < prb->ndims[1]; ++d)
-            dims[d] = prb->sdims[1][d];
-        for (int d = prb->ndims[1]; d < prb->ndims[0]; ++d)
-            dims[d] = 1;
-        DNN_SAFE(dnnl_memory_desc_reshape(
-                         &src_d[1], &src_d[1], prb->ndims[0], dims),
-                WARN);
-    }
-
     dnnl_memory_desc_t dst_d;
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, prb->ndims[0],
                      prb->sdims[0].data(), prb->ddt, dnnl_format_tag_any),
