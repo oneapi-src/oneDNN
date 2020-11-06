@@ -366,7 +366,7 @@ void jit_avx512_core_amx_1x1_fwd_kernel_t::icb_loop(bool do_store) {
                 * jcp.oc_block);
         // If the size of  src + wei used in the kernel cannot fit into L1 cache,
         // use non-temporal load of weights to help keep src in L1 cache
-        if (jcp.typesize_in * (ab_size + c_size)
+        if (static_cast<size_t>(jcp.typesize_in * (ab_size + c_size))
                 >= platform::get_per_core_cache_size(1))
             tileloaddt1(t1, ptr[wei_ptr + offset + stride_seq]);
         else
