@@ -101,8 +101,8 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), acp_() {}
 
-        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, acl_gemm_convolution_fwd_t,
-                USE_GLOBAL_SCRATCHPAD);
+        DECLARE_COMMON_PD_T(
+                "gemm:acl", acl_gemm_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
