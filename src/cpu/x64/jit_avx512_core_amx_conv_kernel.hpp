@@ -235,8 +235,9 @@ private:
     void cvt2ps(data_type_t type_in, Xbyak::Zmm ymm_in,
             const Xbyak::Operand &op, bool mask_flag);
     Xbyak::Zmm zmm_out(const int idx) {
-        const int upper_limit
-                = is_bf16() ? zmm_idx_limit_bf16 : zmm_idx_limit_int8;
+        const int upper_limit = jcp.src_dt == data_type::bf16
+                ? zmm_idx_limit_bf16
+                : zmm_idx_limit_int8;
         assert(upper_limit > idx);
         MAYBE_UNUSED(upper_limit);
         return Xbyak::Zmm(idx);

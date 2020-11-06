@@ -939,11 +939,11 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output(
                     assert(IMPLICATION(jcp.oh_per_tile == 1,
                             ohb == oh_index && tw == ow_index));
                     if (oh_index < h_tail && ow_index < jcp.ow) {
-                        Zmm zmm_out = zmm_out(tw);
-                        vmovups(zmm_out,
+                        Zmm zmm_r = zmm_out(tw);
+                        vmovups(zmm_r,
                                 ptr[wsp_ptr
                                         + get_wsp_row_offset(ohb, ocb, tw)]);
-                        store_output_vector(zmm_out, ocb, oh_index, ow_index);
+                        store_output_vector(zmm_r, ocb, oh_index, ow_index);
                     }
                 }
             }
@@ -956,6 +956,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output(
         store_output_block(width, tail, do_store);
     } else {
         Label label_oh_oc_store, label_done;
+        mov(reg_last_h, ptr[param1 + GET_OFF(last_h)]);
         cmp(reg_last_h, 0);
         jne(label_oh_oc_store, T_NEAR);
         store_output_block(width, tail, do_store, true); // last h
@@ -976,9 +977,9 @@ void jit_avx512_core_amx_fwd_kernel_t::interleave_store(int width) {
         int ocb = (row_count_ / prv_width_) % jcp.nb_oc_blocking;
         int ohb = (row_count_ / prv_width_) / jcp.nb_oc_blocking;
 
-        Zmm zmm_out = zmm_out(tw);
-        vmovups(zmm_out, ptr[wsp_ptr + get_wsp_row_offset(ohb, ocb, tw)]);
-        store_output_vector(zmm_out, ocb, ohb, tw);
+        Zmm zmm_r = zmm_out(tw);
+        vmovups(zmm_r, ptr[wsp_ptr + get_wsp_row_offset(ohb, ocb, tw)]);
+        store_output_vector(zmm_r, ocb, ohb, tw);
         row_count_++;
 
         if (row_count_
@@ -1136,8 +1137,6 @@ void jit_avx512_core_amx_fwd_kernel_t::generate() {
 
     mov(reg_bias, ptr[param1 + GET_OFF(bias)]);
     mov(reg_ptr_scales, ptr[param1 + GET_OFF(scales)]);
-
-    mov(reg_last_h, ptr[param1 + GET_OFF(last_h)]);
 
     const int fac = jcp.is_relo ? jcp.stride_w * jcp.kh
                                 : jcp.is_pbuffer_strided ? 1 : jcp.stride_w;
