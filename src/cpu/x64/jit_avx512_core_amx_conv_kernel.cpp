@@ -1017,18 +1017,16 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
     if (jcp.is_relo) {
         const int nreduce = jcp.nreduce;
         const int stride = jcp.ic_block_int; // ie 64 (32) for int8 (bf16)
-        mov(aux_inp_ptr, inp_ptr);
-        mov(aux_wei_ptr, wei_ptr);
+        push(inp_ptr);
+        push(wei_ptr);
         for (int ireduce = 0; ireduce < nreduce; ireduce += stride) {
             for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
                 tileloadd(Tmm(get_inp_tensor(ohb, tail)),
-                        ptr[aux_inp_ptr + get_inp_offset(ohb, 0)
-                                + reg_inp_stride]);
+                        ptr[inp_ptr + get_inp_offset(ohb, 0) + reg_inp_stride]);
             }
             for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
                 tileloadd(Tmm(get_wei_tensor(ocb)),
-                        ptr[aux_wei_ptr + get_wei_offset(ocb, 0)
-                                + reg_wei_stride]);
+                        ptr[wei_ptr + get_wei_offset(ocb, 0) + reg_wei_stride]);
                 for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
                     tdpbxxd(Tmm(get_out_tensor(ohb, ocb, tail)),
                             Tmm(get_inp_tensor(ohb, tail)),
@@ -1037,10 +1035,12 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
                 }
             }
             if (ireduce + stride < nreduce) {
-                add(aux_inp_ptr, stride * jcp.typesize_in);
-                add(aux_wei_ptr, stride * jcp.oc_block * jcp.typesize_in);
+                add(inp_ptr, stride * jcp.typesize_in);
+                add(wei_ptr, stride * jcp.oc_block * jcp.typesize_in);
             }
         }
+        pop(wei_ptr);
+        pop(inp_ptr);
         store_output(width, tail, do_store);
 
         add(inp_ptr, get_inp_shift());

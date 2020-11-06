@@ -186,8 +186,6 @@ private:
     const Xbyak::Reg64 reg_ptr_sum_scale = r9;
     const Xbyak::Reg64 aux_reg_saturation = reg_ptr_sum_scale;
 
-    const Xbyak::Reg64 aux_inp_ptr = r8;
-    const Xbyak::Reg64 aux_wei_ptr = rax;
     const Xbyak::Reg64 reg_inp_stride = rbx;
     const Xbyak::Reg64 reg_wei_stride = rdx;
 
@@ -196,8 +194,8 @@ private:
     const Xbyak::Reg64 reg_last_h = abi_not_param1;
 
     // temporary, used in generate() function only
-    const Xbyak::Reg64 reg_oc_blocks = aux_wei_ptr;
-    const Xbyak::Reg64 reg_tmp = aux_inp_ptr;
+    const Xbyak::Reg64 reg_oc_blocks = rax;
+    const Xbyak::Reg64 reg_tmp = r8;
 
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
 
