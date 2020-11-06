@@ -8,6 +8,9 @@ MatMul
 
 **Short description**: Generalized matrix multiplication
 
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_matrix_MatMul_1.html>`__
+
 **Detailed description**
 
 *MatMul* operation takes two tensors and performs usual matrix-matrix

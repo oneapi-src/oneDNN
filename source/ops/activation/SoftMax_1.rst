@@ -9,6 +9,9 @@ SoftMax
 **Short description**:
 `Reference <http://caffe.berkeleyvision.org/tutorial/layers/softmax.html>`__
 
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_activation_SoftMax_1.html>`__
+
 **Detailed description**:
 `Reference <https://github.com/Kulbear/deep-learning-nano-foundation/wiki/ReLU-and-Softmax-Activation-Functions#softmax>`__
 

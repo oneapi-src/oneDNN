@@ -9,6 +9,9 @@ Transpose
 **Short description**: *Transpose* operation reorders the input tensor
 dimensions.
 
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_movement_Transpose_1.html>`__
+
 **Inputs**:
 
 * **1**:  ``arg`` - the tensor to be transposed. A tensor of type T1.

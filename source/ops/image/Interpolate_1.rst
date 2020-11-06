@@ -9,6 +9,9 @@ Interpolate
 **Short description**: Interpolate layer performs interpolation of independent
 slices in input tensor by specified dimensions and attributes.
 
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_image_Interpolate_1.html>`__
+
 **Attributes**:
 
 * *axes*

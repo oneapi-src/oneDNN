@@ -9,6 +9,9 @@ ReduceSum
 **Short description**: *ReduceSum* operation performs reduction with addition of
 the 1st input tensor in slices specified by the second input.
 
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_reduction_ReduceSum_1.html>`__
+
 **Attributes**
 
 * *keep_dims*

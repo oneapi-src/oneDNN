@@ -8,6 +8,9 @@ Tanh
 
 **Short description**: *Tanh* element-wise activation function.
 
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_arithmetic_Tanh_1.html>`__
+
 **Inputs**:
 
 * **1**: Input tensor x of any floating point type. **Required.**
