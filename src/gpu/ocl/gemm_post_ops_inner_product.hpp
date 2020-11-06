@@ -81,10 +81,6 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
                     = primitive_attr_t::skip_mask_t::oscale
                     | primitive_attr_t::skip_mask_t::post_ops;
             bool ok = is_fwd() && set_default_params() == success
-                    && IMPLICATION(utils::one_of(bf16, src_md()->data_type,
-                                           weights_md()->data_type,
-                                           dst_md()->data_type),
-                            expect_data_types(bf16, bf16, undef, bf16, f32))
                     && dense_consistency_check(src_md(), weights_md(), dst_md())
                     && dense_gemm_consistency_check(
                             src_md(), weights_md(), dst_md())
@@ -107,13 +103,12 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
 
             memory_desc_t a_md, b_md, c_md;
             init_2d_desc(&a_md, src_md());
-            init_2d_desc(&b_md, weights_md());
+            init_2d_desc(&b_md, weights_md(), true);
             init_2d_desc(&c_md, dst_md());
-            c_md.data_type
-                    = weights_md()->data_type == s8 ? s32 : c_md.data_type;
+            c_md.data_type = desc()->accum_data_type;
             bool gemm_ok = status::success
                     == create_gemm_pd(gemm_pd_, engine, &a_md, &b_md, &c_md,
-                            &glob_zero_md, desc()->accum_data_type, attr(),
+                            &glob_zero_md, desc()->accum_data_type, &gemm_attr,
                             true);
             if (!gemm_ok) return status::unimplemented;
 
@@ -128,9 +123,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
         }
 
         bool with_post_process() const {
-            return use_scratchpad()
-                    || (is_int8_ && dst_md()->data_type != data_type::s32)
-                    || with_bias() || attr_info_.with_oscales
+            return use_scratchpad() || with_bias() || attr_info_.with_oscales
                     || attr_info_.with_eltwise || attr_info_.with_binary
                     || attr_info_.with_sum;
         }
@@ -139,7 +132,8 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
         bool use_temp_dst() const {
             using namespace data_type;
             return (is_int8_ && !utils::one_of(dst_md()->data_type, s32, f32))
-                    || attr_info_.with_sum;
+                    || attr_info_.with_sum
+                    || desc()->accum_data_type != dst_md()->data_type;
         }
         const memory_desc_t *ip_scratchpad_md() const {
             return &ip_scratchpad_md_;
@@ -148,8 +142,7 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
 
         status_t init_ip_scratchpad_md() {
             if (use_scratchpad()) {
-                ip_scratchpad_md_.data_type
-                        = is_int8_ ? data_type::s32 : dst_md()->data_type;
+                ip_scratchpad_md_.data_type = desc()->accum_data_type;
                 ip_scratchpad_md_.ndims = 1;
                 ip_scratchpad_md_.dims[0] = 0;
 
@@ -216,18 +209,18 @@ struct gemm_post_ops_inner_product_fwd_t : public gpu_primitive_t {
             kernel_ctx.define_int("OC", oc);
             bool int8 = pd()->is_int8_;
             kernel_ctx.set_data_type(
-                    int8 ? data_type::f32 : pd()->src_md()->data_type);
+                    int8 ? data_type::f32 : pd()->dst_md()->data_type);
+            //here SRC is output tensor of gemm call
+            def_data_type(kernel_ctx, pd()->desc()->accum_data_type, "SRC");
             def_data_type(kernel_ctx,
-                    int8 ? data_type::s32 : pd()->dst_md()->data_type, "SRC");
-            def_data_type(kernel_ctx,
-                    int8 ? data_type::f32 : pd()->dst_md()->data_type, "ACC");
+                    int8 ? data_type::f32 : pd()->desc()->accum_data_type,
+                    "ACC");
             def_data_type(kernel_ctx,
                     pd()->with_bias()
-                            ? pd()->weights_md(int8 ? 1 : 0)->data_type
+                            ? pd()->weights_md(1)->data_type
                             : int8 ? data_type::f32 : pd()->dst_md()->data_type,
                     "BIAS");
-            def_data_type(kernel_ctx,
-                    int8 ? data_type::s32 : pd()->dst_md()->data_type, "SPAD");
+            def_data_type(kernel_ctx, pd()->desc()->accum_data_type, "SPAD");
             def_data_type(kernel_ctx, pd()->dst_md()->data_type, "DST");
 
             kernel_ctx.define_int("USE_TEMP_DST", pd()->use_temp_dst());
