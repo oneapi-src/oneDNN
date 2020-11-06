@@ -125,26 +125,23 @@ status_t init_conf(acl_conv_gemm_conf_t &acp, memory_desc_t &src_md,
             CHECK(memory_desc_init_by_tag(src_md, desired_src_tag));
             src_tag = desired_src_tag;
         } else {
-            src_tag = memory_desc_matches_one_of_tag(
-                    src_md, nwc, nhwc, ncw, nchw);
+            src_tag = memory_desc_matches_one_of_tag(src_md, nhwc, nchw);
         }
 
         if (dst_d.format_kind() == format_kind::any) {
             CHECK(memory_desc_init_by_tag(dst_md, desired_dst_tag));
             dst_tag = desired_dst_tag;
         } else {
-            dst_tag = memory_desc_matches_one_of_tag(
-                    dst_md, nwc, nhwc, ncw, nchw);
+            dst_tag = memory_desc_matches_one_of_tag(dst_md, nhwc, nchw);
         }
 
         if (acp.with_bias && bias_md.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
 
-        is_nspc = utils::one_of(src_tag, nwc, nhwc);
+        is_nspc = utils::one_of(src_tag, nhwc);
 
         memory_desc_t want_wei_md = weights_md;
-        auto wei_tag = is_nspc ? utils::pick(ndims - 3, wio, hwio)
-                               : utils::pick(ndims - 3, oiw, oihw);
+        auto wei_tag = is_nspc ? ohwi : oihw;
         CHECK(memory_desc_init_by_tag(want_wei_md, wei_tag));
 
         // Compute Library does not support mismatching layouts
@@ -158,9 +155,7 @@ status_t init_conf(acl_conv_gemm_conf_t &acp, memory_desc_t &src_md,
                                            : status::unimplemented;
     };
 
-    // TODO: look into changing default tag to the Compute Library default NHWC
-    auto default_dat_tag
-            = utils::pick(ndims - 3, format_tag::ncw, format_tag::nchw);
+    auto default_dat_tag = format_tag::nhwc;
     if (set_or_check_tags(default_dat_tag, default_dat_tag) != status::success)
         return status::unimplemented;
 
@@ -169,18 +164,21 @@ status_t init_conf(acl_conv_gemm_conf_t &acp, memory_desc_t &src_md,
 
     // clang-format off
     acp.src_info = arm_compute::TensorInfo(
+            is_nspc ? arm_compute::TensorShape(ic, iw, ih, mb) :
             arm_compute::TensorShape(iw, ih, ic, mb),
             1,
             arm_compute::DataType::F32,
             acl_layout);
 
     acp.wei_info = arm_compute::TensorInfo(
+            is_nspc ? arm_compute::TensorShape(ic, kw, kh, oc) :
             arm_compute::TensorShape(kw, kh, ic, oc),
             1,
             arm_compute::DataType::F32,
             acl_layout);
 
     acp.dst_info = arm_compute::TensorInfo(
+            is_nspc ? arm_compute::TensorShape(oc, ow, oh, mb) :
             arm_compute::TensorShape(ow, oh, oc, mb),
             1,
             arm_compute::DataType::F32,
