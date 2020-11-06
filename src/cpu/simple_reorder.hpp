@@ -246,6 +246,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<
                 (utils::one_of(tag_i, format_tag::oiw, format_tag::wio)
                         && utils::one_of(tag_o, format_tag::OIw4i16o4i,
+                                format_tag::OIw4i32o4i, format_tag::OIw4i64o4i,
                                 format_tag::OIw2i8o4i, format_tag::OIw4o4i))
                         || (utils::one_of(tag_i, format_tag::oi, format_tag::io)
                                 && utils::one_of(tag_o, format_tag::OI4i16o4i,
@@ -259,12 +260,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                         || (utils::one_of(
                                     tag_i, format_tag::hwio, format_tag::oihw)
                                 && utils::one_of(tag_o, format_tag::OIhw4i16o4i,
+                                        format_tag::OIhw4i32o4i,
+                                        format_tag::OIhw4i64o4i,
                                         format_tag::OIhw2i8o4i,
                                         format_tag::OIhw4o4i))
                         || (utils::one_of(
                                     tag_i, format_tag::dhwio, format_tag::oidhw)
                                 && utils::one_of(tag_o,
                                         format_tag::OIdhw4i16o4i,
+                                        format_tag::OIdhw4i32o4i,
+                                        format_tag::OIdhw4i64o4i,
                                         format_tag::OIdhw2i8o4i,
                                         format_tag::OIdhw4o4i))
                         || (utils::one_of(
@@ -290,7 +295,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
         const bool w_groups = !one_of(tag_o, OIw4i16o4i, OIw2i8o4i, OIw4o4i,
                 OIhw4i16o4i, OIhw2i8o4i, OIhw4o4i, OIdhw4i16o4i, OIdhw2i8o4i,
-                OIdhw4o4i, OI4i16o4i, OI4i32o4i, OI4i64o4i);
+                OIdhw4o4i, OI4i16o4i, OI4i32o4i, OI4i64o4i, OIw4i32o4i,
+                OIw4i64o4i, OIhw4i32o4i, OIhw4i64o4i, OIdhw4i32o4i,
+                OIdhw4i64o4i);
         const int oc = (input_d.dims()[w_groups ? 1 : 0]);
         const int g = w_groups ? input_d.dims()[0] : 1;
 
@@ -324,14 +331,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         static constexpr bool w_groups = !utils::one_of(tag_o, OIw4o4i,
                 OIw4i16o4i, OIhw4i16o4i, OIdhw4i16o4i, OIhw4o4i, OIw2i8o4i,
                 OIhw2i8o4i, OIdhw2i8o4i, OIdhw4o4i, OI4i16o4i, OI4i32o4i,
-                OI4i64o4i);
+                OI4i64o4i, OIw4i32o4i, OIw4i64o4i, OIhw4i32o4i, OIhw4i64o4i,
+                OIdhw4i32o4i, OIdhw4i64o4i);
 
         constexpr int is_0d
                 = utils::one_of(tag_o, OI4i16o4i, OI4i32o4i, OI4i64o4i);
-        constexpr int is_1d = utils::one_of(tag_o, gOIw4i16o4i, OIw4i16o4i,
-                gOIw2i8o4i, OIw2i8o4i, gOIw4o4i, OIw4o4i);
+        constexpr int is_1d
+                = utils::one_of(tag_o, gOIw4i16o4i, OIw4i16o4i, gOIw2i8o4i,
+                        OIw2i8o4i, gOIw4o4i, OIw4o4i, OIw4i32o4i, OIw4i64o4i);
         constexpr int is_3d = utils::one_of(tag_o, gOIdhw4i16o4i, OIdhw4i16o4i,
-                gOIdhw2i8o4i, OIdhw2i8o4i, gOIdhw4o4i, OIdhw4o4i);
+                gOIdhw2i8o4i, OIdhw2i8o4i, gOIdhw4o4i, OIdhw4o4i, OIdhw4i32o4i,
+                OIdhw4i64o4i);
         constexpr int icblksize = utils::one_of(tag_traits<tag_o>::inner_blks,
                                           ib::_4a4b, ib::_4b4c)
                 ? 4
