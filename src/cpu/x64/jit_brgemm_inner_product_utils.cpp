@@ -43,6 +43,51 @@ using namespace data_type;
 
 namespace brgemm_inner_product_utils {
 
+format_tag_t get_brgemm_ip_weights_tag(
+        dim_t oc, data_type_t wei_dt, int n_sp_dims) {
+    using namespace format_tag;
+    if (oc >= 64) {
+        switch (wei_dt) {
+            case data_type::f32:
+                return utils::pick(n_sp_dims, OI16i64o, OIw16i64o, OIhw16i64o,
+                        OIdhw16i64o);
+            case data_type::bf16:
+                return utils::pick(n_sp_dims, OI8i64o2i, OIw8i64o2i,
+                        OIhw8i64o2i, OIdhw8i64o2i);
+            case data_type::s8:
+                return utils::pick(n_sp_dims, OI4i64o4i, OIw4i64o4i,
+                        OIhw4i64o4i, OIdhw4i64o4i);
+            default: return format_tag::undef;
+        }
+    } else if (oc >= 32) {
+        switch (wei_dt) {
+            case data_type::f32:
+                return utils::pick(n_sp_dims, OI16i32o, OIw16i32o, OIhw16i32o,
+                        OIdhw16i32o);
+            case data_type::bf16:
+                return utils::pick(n_sp_dims, OI8i32o2i, OIw8i32o2i,
+                        OIhw8i32o2i, OIdhw8i32o2i);
+            case data_type::s8:
+                return utils::pick(n_sp_dims, OI4i32o4i, OIw4i32o4i,
+                        OIhw4i32o4i, OIdhw4i32o4i);
+            default: return format_tag::undef;
+        }
+    } else {
+        switch (wei_dt) {
+            case data_type::f32:
+                return utils::pick(n_sp_dims, OI16i16o, OIw16i16o, OIhw16i16o,
+                        OIdhw16i16o);
+            case data_type::bf16:
+                return utils::pick(n_sp_dims, OI8i16o2i, OIw8i16o2i,
+                        OIhw8i16o2i, OIdhw8i16o2i);
+            case data_type::s8:
+                return utils::pick(n_sp_dims, OI4i16o4i, OIw4i16o4i,
+                        OIhw4i16o4i, OIdhw4i16o4i);
+            default: return format_tag::undef;
+        }
+    }
+}
+
 // TODO: add support of post-ops with multiple binary and eltwise execution
 bool post_ops_ok(
         jit_brgemm_primitive_conf_t &jbgp, const primitive_attr_t &attr) {
@@ -369,8 +414,8 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
     if (!mayiuse(avx512_common)) return status::unimplemented;
 
     int ndims = src_d.ndims();
-    int dst_ndims = dst_d.ndims();
-    if (dst_ndims != 2) return status::unimplemented;
+    if (weights_d.ndims() != ndims || dst_d.ndims() != 2)
+        return status::unimplemented;
 
     jbgp = zero<decltype(jbgp)>();
     jbgp.ndims = ndims;
@@ -396,7 +441,6 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
         return status::unimplemented;
     if (!utils::everyone_is(1, jbgp.kw, jbgp.kh, jbgp.kd))
         return status::unimplemented;
-    if (ndims != 2) return status::unimplemented;
 
     const int full_simd_w = 16;
     jbgp.simd_w = full_simd_w;
@@ -430,14 +474,16 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
 
     auto set_or_check_tags = [&]() -> status_t {
         using namespace format_tag;
-        format_tag_t desired_src_tag = nc;
+        format_tag_t desired_src_tag
+                = utils::pick(ndims - 2, nc, ncw, nchw, ncdhw);
         format_tag_t desired_dst_tag = nc;
 
         if (src_d.format_kind() == format_kind::any) {
             CHECK(memory_desc_init_by_tag(src_md, desired_src_tag));
             jbgp.src_tag = desired_src_tag;
         } else {
-            jbgp.src_tag = memory_desc_matches_one_of_tag(src_md, nc);
+            jbgp.src_tag
+                    = memory_desc_matches_one_of_tag(src_md, desired_src_tag);
         }
 
         if (dst_d.format_kind() == format_kind::any) {
@@ -447,16 +493,15 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
             jbgp.dst_tag = memory_desc_matches_one_of_tag(dst_md, nc);
         }
 
-        if (jbgp.src_tag == format_tag::undef
-                || jbgp.dst_tag == format_tag::undef
-                || jbgp.src_tag != jbgp.dst_tag)
+        if (utils::one_of(format_tag::undef, jbgp.src_tag, jbgp.dst_tag))
             return status::unimplemented;
 
         if (jbgp.with_bias && bias_md.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md, x));
 
         memory_desc_t want_wei_md = weights_md;
-        jbgp.wei_tag = get_brgemm_ip_weights_tag((dim_t)jbgp.oc, jbgp.wei_dt);
+        jbgp.wei_tag = get_brgemm_ip_weights_tag(
+                (dim_t)jbgp.oc, jbgp.wei_dt, ndims - 2);
         CHECK(memory_desc_init_by_tag(want_wei_md, jbgp.wei_tag));
 
         if (jbgp.signed_input) {
