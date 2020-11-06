@@ -1,16 +1,12 @@
 # This is the minimal set of components required and using the latest
 #  versions
 
-
-aws-shell # Only needed for deploying the site
 breathe
-gitpython
-Sphinx>=2.4.0
-sphinx-notfound-page
-sphinx-rtd-theme
+Sphinx
 sphinx-prompt
 sphinx_substitution_extensions
 sphinx_tabs
+sphinx-book-theme
 sphinxcontrib-spelling
 graphviz
 lxml

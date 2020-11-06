@@ -1,5 +1,4 @@
 extensions = [
-    'notfound.extension',
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
     'sphinx.ext.todo',
