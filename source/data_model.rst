@@ -3,7 +3,7 @@ Data Model
 ==========
 
 oneDNN Graph uses logical tensor to describe data type, shape, and layout. The
-data type could be fp32, int8, bf16, fp16, and future extension. The shape
+data type could be FP32, INT8, BF16, FP16, and future extension. The shape
 contains multiple dimensions, and the total dimension and the size of the
 dimension could be set as unknown.
 

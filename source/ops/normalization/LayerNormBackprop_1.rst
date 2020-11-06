@@ -27,7 +27,7 @@ LayerNormBackprop
   * **Description**: *use_affine* when set to True, this module has learnable
     per-element affine parameters.
   * **Range of values**: False or True
-  * **Type**: boolen
+  * **Type**: boolean
   * **Default value**: True
   * **Required**: *no*
 
@@ -53,24 +53,24 @@ LayerNormBackprop
 
 * **1**: ``input_forward`` - input tensor. **Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T
-  with the same span as input's channel axis. Required by attributs
+  with the same span as input's channel axis. Required by attribute
   ``use_affine``. **Optional.**
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor of
-  type T with the same span as input's channel axis.Required by attributs
+  type T with the same span as input's channel axis.Required by attribute
   ``use_affine``. **Optional.**
-* **4**: ``mean`` - mean of input. Required by attributs ``use_stats``.
+* **4**: ``mean`` - mean of input. Required by attribute ``use_stats``.
   **Optional.**
-* **5**: ``variance`` - variance of input. Required by attributs ``use_stats``.
+* **5**: ``variance`` - variance of input. Required by attribute ``use_stats``.
   **Optional.**
 
 **Outputs**
 
 * **1**: ``input_delta`` - the the gradient tensor w.r.t. the output of the
-  layer normolization. **Required.**
+  layer normalization. **Required.**
 * **2**: ``gamma_delta`` - the the gradient tensor w.r.t. the gamma of the layer
-  normolization. **Optional.**
+  normalization. **Optional.**
 * **3**: ``beta_delta`` - the the gradient tensor w.r.t. the beta of the layer
-  normolization. **Optional.**
+  normalization. **Optional.**
 
 **Types**
 

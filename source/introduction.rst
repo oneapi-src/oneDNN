@@ -4,7 +4,7 @@ Introduction
 
 oneDNN Graph API extends oneDNN with a unified high-level graph API for multiple
 AI hardware classes (CPU, GPU, accelerators). With a flexible graph interface,
-it maximizes the optimization opportunity for generating efficientcode across a
+it maximizes the optimization opportunity for generating efficient code across a
 variety of Intel and non-Intel HW, and can be closely integrated with ecosystem
 framework and inference engines. oneDNN Graph API accepts a deep learning
 computation graph as input and performs graph partitioning, where nodes that are
@@ -27,7 +27,7 @@ different types of AI hardware classes. User construct a graph with operations
 and logical tensors and pass it to oneDNN Graph implementation to get
 partitions. oneDNN Graph implementation has a chance to receive a full graph and
 decides the best way to partition, with the consideration of maximizing
-performance and co-ordinating with the application’s control of hardware
+performance and coordinating with the application’s control of hardware
 resources. As the partition size can range from single op to the full graph, it
 satisfies the different needs of graph size for compilation and execution on
 different AI hardware.

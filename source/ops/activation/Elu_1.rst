@@ -24,6 +24,6 @@ Elu
 
 **Outputs**
 
-* **1**: Result of Elu function applied to the input tensor x. Floating point
+* **1**: Result of ELU function applied to the input tensor x. Floating point
   tensor with shape and type matching the input tensor. **Required.**
 

@@ -60,3 +60,6 @@ breathe_projects = {
     "oneDNN Graph Library": "../doxygen/xml"
 }
 breathe_default_project = "oneDNN Graph Library"
+
+# -- Options for spelling extension-------------------------------------------
+spelling_warning = True

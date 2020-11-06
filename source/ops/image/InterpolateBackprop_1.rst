@@ -15,7 +15,7 @@ InterpolateBackprop
   * **Description**: *axes* specify spatial dimension indices where
     interpolation is applied. Other dimensions are treated as batch dimensions.
     The order of elements in axes attribute matters and mapped directly to
-    elements with the same indices in the 2nd input target_spatial_shape.
+    elements with the same indices in the second input target_spatial_shape.
   * **Range of values**: list of non-negative integer numbers
   * **Type**: ``int[]``
   * **Default value**: None
@@ -75,7 +75,7 @@ InterpolateBackprop
 * **2**: ``target_spatial_shape`` - 1D tensor describing output shape for
   spatial axes. Number of elements matches the number of indices in axes
   attribute, the order matches as well. **Required.**
-* **3**: ``src_spatial_shape`` - 1D tensor describing src shape for spatial
+* **3**: ``src_spatial_shape`` - 1D tensor describing *src* shape for spatial
   axes. Number of elements matches the number of indices in axes attribute, the
   order matches as well. **Required.**
 

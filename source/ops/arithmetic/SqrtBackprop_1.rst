@@ -12,9 +12,9 @@ SqrtBackprop
 
 * *use_dst*
 
-  * **Description**: If true, use dst to calculate gradient; else use src.
+  * **Description**: If true, use *dst* to calculate gradient; else use *src*.
   * **Range of values**: True or False
-  * **Type**: Boolen
+  * **Type**: Boolean
   * **Default value**: True
   * **Required**: *no*
 
@@ -22,7 +22,7 @@ SqrtBackprop
 
 * **1**: ``output_delta`` - gradients tensor w.r.t. the output. **Required.**
 * **2**:  ``input`` - If *use_dst* is true, input is result of forward. Else,
-  input is src of forward. **Required.**
+  input is *src* of forward. **Required.**
 
 **Outputs**
 

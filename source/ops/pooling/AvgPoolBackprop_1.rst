@@ -101,6 +101,6 @@ AvgPoolBackprop
 
 **Outputs**
 
-* **1**: ``input_delta`` - the the gradient tensot w.r.t. the input of avg pool.
+* **1**: ``input_delta`` - the the gradient tensor w.r.t. the input of avg pool.
 
 

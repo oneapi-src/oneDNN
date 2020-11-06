@@ -286,7 +286,7 @@ Stream
 ------
 
 *Stream* is the logical abstraction for execution units. It is created on top of
-oneDNN Graph engine. For SYCL device, it contains an opencl queue. oneDNN Graph
+oneDNN Graph engine. For SYCL device, it contains an openCL queue. oneDNN Graph
 engine may have multiple streams. A compiled partition is submitted to a stream
 for execution.
 

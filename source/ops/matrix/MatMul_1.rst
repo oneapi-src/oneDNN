@@ -57,7 +57,7 @@ attributes.
 * *transpose_b*
 
   * **Description**: transposes dimensions ROW_INDEX_DIM and COL_INDEX_DIM of
-    the 2nd input; 0 means no transpose, 1 means transpose
+    the second input; 0 means no transpose, 1 means transpose
   * **Range of values**: False or True
   * **Type**: boolean
   * **Default value**: False

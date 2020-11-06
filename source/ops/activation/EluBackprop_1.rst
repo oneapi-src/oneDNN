@@ -6,7 +6,7 @@ EluBackprop
 
 **Category**: *Activation*
 
-**Short description**: *EluBackprop* computes gradient for Elu
+**Short description**: *EluBackprop* computes gradient for ELU
 
 **Attributes**:
 
@@ -25,5 +25,5 @@ EluBackprop
 
 **Outputs**
 
-* **1**: ``input_delta`` - the gradient tensor w.r.t. the input of Elu.
+* **1**: ``input_delta`` - the gradient tensor w.r.t. the input of ELU.
 

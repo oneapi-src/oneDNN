@@ -120,7 +120,7 @@ https://github.com/onnx/onnx/blob/master/docs/Operators.md#convtranspose):
 
 * *output_padding*
 
-  * **Description**: *output_padding* adds additional amount of paddings per
+  * **Description**: *output_padding* adds additional amount of padding per
     each spatial axis in the ``output`` tensor. It unlocks more elements in the
     output allowing them to be computed. Elements are added at the higher
     coordinate indices for the spatial dimensions. Number of elements in

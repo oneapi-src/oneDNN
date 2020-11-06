@@ -27,7 +27,7 @@ The last index of the stretched kernel is then :math:`d(X_K-1)` so the shape is
 The padded input and the dilated kernel are then ungrouped into `g` equal-sized
 input and kernel segments; padded input segment :math:`i` and dilated kernel
 segment :math:`i` are convolved.
-The convolution is only peformed where there is complete spatial overlap between
+The convolution is only performed where there is complete spatial overlap between
 the shifted kernel and the padded input, so there will be
 :math:`p_b+p_e+X_I-d(X_K-1)` outputs. The output segments are then regrouped
 along the output channel axis. Finally, all but the results on a multiple of
@@ -97,7 +97,7 @@ along the output channel axis. Finally, all but the results on a multiple of
     is specified.
 
 With *same_upper* and *same_lower* the padding is chosen to make the pre-stride
-output spatial shape the same as the input shape. When pssible, :math:`p_b=p_e`.
+output spatial shape the same as the input shape. When possible, :math:`p_b=p_e`.
 If the total padding needed is odd, *same_upper* makes :math:`p_e=p_b+1`,
 *same_lower* makes `p_b=p_e+1`. In either case,
 
