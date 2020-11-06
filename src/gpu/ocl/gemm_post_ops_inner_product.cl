@@ -16,6 +16,21 @@
 
 #include "gpu/ocl/ocl_post_ops.h"
 #include "gpu/ocl/ocl_types.h"
+#ifdef DST_DT_F32
+#define DST_TO_ACC(x) (x)
+#else
+#define DST_TO_ACC(x) TO_DEF_ACC_DATA_T(x)
+#endif
+#ifdef BIAS_DT_F32
+#define BIAS_TO_ACC(x) (x)
+#else
+#define BIAS_TO_ACC(x) TO_DEF_ACC_DATA_T(x)
+#endif
+#ifdef SRC_DT_F32
+#define SRC_TO_ACC(x) (x)
+#else
+#define SRC_TO_ACC(x) TO_DEF_ACC_DATA_T(x)
+#endif
 
 __kernel void gemm_post_ops_inner_product(__global SRC_DATA_T *src,
         __global BIAS_DATA_T *bias, __global DST_DATA_T *dst POST_OP_ARGS,
@@ -25,13 +40,13 @@ __kernel void gemm_post_ops_inner_product(__global SRC_DATA_T *src,
 
     const size_t data_idx = mb * OC + oc;
 #if USE_TEMP_DST == 1
-    ACC_DATA_T acc = TO_ACC(scratchpad[data_idx]);
+    ACC_DATA_T acc = SRC_TO_ACC(scratchpad[data_idx]);
 #else
-    ACC_DATA_T acc = TO_ACC(src[data_idx]);
+    ACC_DATA_T acc = SRC_TO_ACC(src[data_idx]);
 #endif
 
 #if WITH_BIAS == 1
-    acc += TO_ACC(bias[oc]);
+    acc += BIAS_TO_ACC(bias[oc]);
 #endif
 
 #if WITH_SCALES
@@ -48,7 +63,7 @@ __kernel void gemm_post_ops_inner_product(__global SRC_DATA_T *src,
     // Apply postops
     float sum_src;
 #if WITH_SUM
-    sum_src = TO_ACC(dst[data_idx]);
+    sum_src = DST_TO_ACC(dst[data_idx]);
 #endif
 
     float accumulator = acc;

@@ -30,8 +30,8 @@ status_t gemm_post_ops_inner_product_fwd_t::execute_forward(
     using namespace gemm_utils;
 
     gemm_exec_args_t gemm_args;
-    gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
-    gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC);
+    gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_SRC);
+    gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
 
     std::unique_ptr<memory_storage_t> acc;
     if (pd()->use_scratchpad() || pd()->use_temp_dst())
