@@ -44,8 +44,8 @@ public:
             const gpu::compute::nd_range_t &range,
             const gpu::compute::kernel_arg_list_t &arg_list) const override;
 
-    status_t realize(
-            gpu::compute::kernel_t *kernel, engine_t *engine) const override;
+    status_t realize(gpu::compute::kernel_t *kernel,
+            const engine_t *engine) const override;
 
     const char *name() const {
         assert(state_ == state_t::binary);

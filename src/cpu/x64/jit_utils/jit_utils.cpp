@@ -51,7 +51,7 @@ void dump_jit_code(const void *code, size_t code_size, const char *code_name) {
 #define MAX_FNAME_LEN 256
         char fname[MAX_FNAME_LEN + 1];
         // TODO (Roma): support prefix for code / linux perf dumps
-        snprintf(fname, MAX_FNAME_LEN, "dnnl_dump_%s.%d.bin", code_name,
+        snprintf(fname, MAX_FNAME_LEN, "dnnl_dump_cpu_%s.%d.bin", code_name,
                 counter);
         counter++;
 

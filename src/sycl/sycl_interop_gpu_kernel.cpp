@@ -94,10 +94,10 @@ static status_t get_kernel_arg_types(
 }
 
 status_t sycl_interop_gpu_kernel_t::realize(
-        gpu::compute::kernel_t *kernel, engine_t *engine) const {
+        gpu::compute::kernel_t *kernel, const engine_t *engine) const {
     assert(state_ == state_t::binary);
     if (binary_.empty()) return status::success;
-    auto *sycl_engine = utils::downcast<sycl_gpu_engine_t *>(engine);
+    auto *sycl_engine = utils::downcast<const sycl_gpu_engine_t *>(engine);
 
     std::unique_ptr<cl::sycl::kernel> sycl_kernel;
     std::vector<gpu::compute::scalar_type_t> arg_types;

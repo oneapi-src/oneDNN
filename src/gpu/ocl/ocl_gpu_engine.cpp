@@ -97,6 +97,8 @@ status_t ocl_gpu_engine_t::create_kernel(
     auto kernel_name = jitter.kernel_name();
 
     *kernel = compute::kernel_t(new ocl_gpu_kernel_t(binary, kernel_name));
+    dump_kernel_binary(this, *kernel);
+
     return status::success;
 }
 
@@ -182,6 +184,7 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
     for (size_t i = 0; i < kernel_names.size(); ++i) {
         (*kernels)[i] = compute::kernel_t(
                 new ocl_gpu_kernel_t(binary, kernel_names[i]));
+        dump_kernel_binary(this, (*kernels)[i]);
     }
 
     OCL_CHECK(clReleaseProgram(program));

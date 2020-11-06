@@ -107,10 +107,10 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
 }
 
 status_t ocl_gpu_kernel_t::realize(
-        compute::kernel_t *kernel, engine_t *engine) const {
+        compute::kernel_t *kernel, const engine_t *engine) const {
     assert(state_ == state_t::binary);
     if (binary_.empty()) return status::success;
-    auto *compute_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
+    auto *compute_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
 
     cl_int err;
     cl_device_id dev = compute_engine->device();
