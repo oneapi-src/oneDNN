@@ -9,7 +9,7 @@ debugging purposes or for performance exploration.
 ## Build-time Controls
 
 At build-time, support for this feature is controlled via cmake option
-`DNNL_ENABLE_JIT_PROFILING`.
+`DNNL_ENABLE_MAX_CPU_ISA`.
 
 | CMake Option                | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
