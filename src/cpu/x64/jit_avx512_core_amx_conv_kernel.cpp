@@ -939,7 +939,7 @@ void jit_avx512_core_amx_fwd_kernel_t::store_output(
                     assert(IMPLICATION(jcp.oh_per_tile == 1,
                             ohb == oh_index && tw == ow_index));
                     if (oh_index < h_tail && ow_index < jcp.ow) {
-                        Zmm zmm_out = Zmm(tw);
+                        Zmm zmm_out = zmm_out(tw);
                         vmovups(zmm_out,
                                 ptr[wsp_ptr
                                         + get_wsp_row_offset(ohb, ocb, tw)]);
@@ -976,7 +976,7 @@ void jit_avx512_core_amx_fwd_kernel_t::interleave_store(int width) {
         int ocb = (row_count_ / prv_width_) % jcp.nb_oc_blocking;
         int ohb = (row_count_ / prv_width_) / jcp.nb_oc_blocking;
 
-        Zmm zmm_out = Zmm(tw);
+        Zmm zmm_out = zmm_out(tw);
         vmovups(zmm_out, ptr[wsp_ptr + get_wsp_row_offset(ohb, ocb, tw)]);
         store_output_vector(zmm_out, ocb, ohb, tw);
         row_count_++;
