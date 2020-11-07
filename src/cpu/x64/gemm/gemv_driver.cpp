@@ -335,7 +335,7 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
     // Quick return if possible.
     if (m <= 0 || n <= 0) return;
 
-    auto nthr_max = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
+    auto nthr_max = dnnl_get_current_num_threads();
     auto nthr_goal = thread_checker<a_t>(nthr_max, m, n, trans);
 
     if (nthr_goal == 1) {

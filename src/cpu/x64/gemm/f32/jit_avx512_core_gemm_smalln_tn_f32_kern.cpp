@@ -800,7 +800,7 @@ dnnl_status_t jit_avx512_core_gemm_smalln_tn_f32(const char *transa,
         const float *p_beta, float *C, const dim_t *p_ldc) {
     using namespace avx512_core_gemm_smalln_tn_f32;
 
-    int max_num_threads = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
+    int max_num_threads = dnnl_get_current_num_threads();
 
     dim_t m = *p_m;
     dim_t n = *p_n;

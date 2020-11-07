@@ -189,7 +189,7 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_,
     const dim_t lda = *lda_, ldb = *ldb_, ldc = *ldc_;
     const data_t alpha = *alpha_, beta = *beta_;
 
-    int max_nthr = dnnl_in_parallel() ? 1 : dnnl_get_max_threads();
+    int max_nthr = dnnl_get_current_num_threads();
     int nthr_m, nthr_n, nthr_k;
     dim_t MB, NB, KB;
     // thread balancing over M, N, K & size of blocking dimensions

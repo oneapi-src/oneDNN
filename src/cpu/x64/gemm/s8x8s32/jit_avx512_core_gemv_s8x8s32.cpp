@@ -63,7 +63,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, b_type, int32_t> *arg) {
     dim_t BLOCKM = 192, BLOCKN = 3072;
     dim_t i;
 
-    dim_t nthr = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
+    dim_t nthr = dnnl_get_current_num_threads();
 
     b_type *new_x = nullptr;
     int32_t *tmp_y = nullptr, *new_y = nullptr;

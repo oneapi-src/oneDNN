@@ -1894,7 +1894,7 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
         return ref_gemm(transa, transb, p_m, p_n, p_k, p_alpha, A, p_lda, B,
                 p_lda, p_beta, C, p_ldc, bias);
 
-    int nthr_to_use = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
+    int nthr_to_use = dnnl_get_current_num_threads();
 
     dim_t m = *p_m;
     dim_t n = *p_n;

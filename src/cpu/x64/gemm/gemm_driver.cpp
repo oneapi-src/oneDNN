@@ -1647,7 +1647,7 @@ static dnnl_status_t gemm_threading_driver(
     if (is_b_packed && arg->ao != 0)
         if (!arg->b_packed->has_col_sums()) return dnnl_invalid_arguments;
 
-    auto nthr_max = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
+    auto nthr_max = dnnl_get_current_num_threads();
     int nthr_goal = nthr_max;
 
     adjust_thread_count<c_type>(arg->m, arg->n, arg->k, &nthr_goal);
