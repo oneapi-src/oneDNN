@@ -744,6 +744,16 @@ struct rnn_brgemm_weights_reorder_s8_t : public primitive_t {
                             attr->rnn_weights_projection_qparams_.mask_, 0, 8))
                 return unimplemented;
 
+            const bool req_comp = od.extra().flags
+                    & memory_extra_flags::rnn_u8s8_compensation;
+            auto mask_ok = [&](int mask) {
+                return mask
+                        == ((id.ndims() == 5) ? 27 /* 11011 */
+                                              : 13 /* 1101 */);
+            };
+            if (!req_comp || !mask_ok(od.extra().compensation_mask))
+                return invalid_arguments;
+
             auto _pd = new pd_t(attr, src_engine->kind(), src_md,
                     dst_engine->kind(), dst_md);
             if (_pd == nullptr) return out_of_memory;
