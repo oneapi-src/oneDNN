@@ -109,6 +109,34 @@ inline void dnnl_thr_barrier() {
 }
 #endif
 
+/* The purpose of this function is to provide the number of threads the library
+ * is aware of when this function is invoked. Since oneDNN does not allow nested
+ * parallelism, inside a parallel region the number of available threads is 1.
+ * Otherwise, the number of current threads varies between threading runtimes:
+ * - for OpenMP and TBB, return the max number of threads since the number of
+ *   threads is held in a global object throughout the entire execution.
+ * - for Threadpool, since the global object in oneDNN changes throughout
+ *   execution, two situations can occur:
+ *   a) if the library *is* aware of a threadpool when this function is invoked,
+ *   return the number of available threads in the threadpool;
+ *   b) if the library *is not* aware of a threadpool when this function is
+ *   invoked, return 1 since the main thread will do the work.
+ */
+inline int dnnl_get_current_num_threads() {
+    if (dnnl_in_parallel()) return 1;
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+    return omp_get_max_threads();
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
+    return tbb::this_task_arena::max_concurrency();
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    using namespace dnnl::impl::threadpool_utils;
+    dnnl::threadpool_iface *tp = get_active_threadpool();
+    return (tp) ? dnnl_get_max_threads() : 1;
+#else
+    return 1;
+#endif
+}
+
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
 #define PRAGMA_OMP(...) PRAGMA_MACRO(CHAIN2(omp, __VA_ARGS__))
 #define OMP_GET_THREAD_NUM() omp_get_thread_num()
