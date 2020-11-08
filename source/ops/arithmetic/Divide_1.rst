@@ -36,14 +36,20 @@ two given tensors applying multi-directional broadcast rules.
 
 **Outputs**
 
-* **1**: The result of element-wise division  operation. A tensor of type T.
+* **1**: The result of element-wise division operation. A tensor of type T.
 
 **Types**
 
 * *T*: any numeric type.
 
-**Detailed description:**
+**Detailed description**:
 
 Before performing arithmetic operation, input tensors *a* and *b* are
 broadcast if their shapes are different and ``auto_broadcast`` attributes is
 not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
+
+After broadcasting *Divide* does the following with the input tensors *a* and
+*b*:
+
+.. math::
+   o_{i} = a_{i} / b_{i}

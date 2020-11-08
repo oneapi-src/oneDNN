@@ -40,7 +40,7 @@ two given tensors applying multi-directional broadcast rules.
 
 **Types**
 
-* *T*: any numeric type.
+* *T*: arbitrary type, which supports less/greater comparison.
 
 **Detailed description:**
 
@@ -48,3 +48,8 @@ Before performing arithmetic operation, input tensors *a* and *b* are
 broadcast if their shapes are different and ``auto_broadcast`` attributes is
 not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
 
+After broadcasting *Maximum* does the following with the input tensors *a* and
+*b*:
+
+.. math::
+   o_{i} = max(a_{i}, b_{i})

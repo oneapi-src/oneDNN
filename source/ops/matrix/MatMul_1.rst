@@ -27,31 +27,28 @@ Before matrix multiplication, there is an implicit shape alignment for input
 arguments. It consists of the following steps:
 
 1. If rank of an input less than 2 it is unsqueezed to 2D tensor by adding axes
-with size 1 to the left of the shape. For example, if input has shape ``[S]`` it
-will be reshaped to ``[1, S]``. It is applied for each input
-independently.
-
+   with size 1 to the left of the shape. For example, if input has shape ``[S]``
+   it will be reshaped to ``[1, S]``. It is applied for each input
+   independently.
 2. Applied transpositions specified by optional ``transpose_a`` and
-``transpose_b`` attributes.
-
+   ``transpose_b`` attributes.
 3. If ranks of input arguments are different after steps 1 and 2, each is
-unsqueezed from the left side of the shape by necessary number of axes to make
-both shapes of the same rank.
-
+   unsqueezed from the left side of the shape by necessary number of axes to
+   make both shapes of the same rank.
 4. Usual rules of the broadcasting are applied for batch dimensions.
 
-Two attributes, transpose_a and transpose_b specifies embedded transposition for
-two right-most dimension for the first and the second input tensors
-correspondingly. It implies swapping of ROW_INDEX_DIM and COL_INDEX_DIM in the
-corresponding input tensor. Batch dimensions are not affected by these
-attributes.
+Two attributes, ``transpose_a`` and ``transpose_b`` specifies embedded
+transposition for two right-most dimension for the first and the second input
+tensors correspondingly. It implies swapping of *ROW_INDEX_DIM* and
+*COL_INDEX_DIM* in the corresponding input tensor. Batch dimensions are not
+affected by these attributes.
 
 **Attributes**
 
 * *transpose_a*
 
-  * **Description**: transposes dimensions ROW_INDEX_DIM and COL_INDEX_DIM of
-    the 1st input; 0 means no transpose, 1 means transpose
+  * **Description**: transposes dimensions *ROW_INDEX_DIM* and *COL_INDEX_DIM*
+    of the 1st input; 0 means no transpose, 1 means transpose
   * **Range of values**: False or True
   * **Type**: boolean
   * **Default value**: False
@@ -59,8 +56,8 @@ attributes.
 
 * *transpose_b*
 
-  * **Description**: transposes dimensions ROW_INDEX_DIM and COL_INDEX_DIM of
-    the second input; 0 means no transpose, 1 means transpose
+  * **Description**: transposes dimensions *ROW_INDEX_DIM* and *COL_INDEX_DIM*
+    of the second input; 0 means no transpose, 1 means transpose
   * **Range of values**: False or True
   * **Type**: boolean
   * **Default value**: False
