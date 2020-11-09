@@ -35,34 +35,38 @@ namespace api {
 
 class logical_tensor {
 public:
-    llga_logical_tensor_t data;
-
-public:
     using dims_t = std::vector<llga_dim_t>;
 
     /// Data Type
     enum class data_type {
-        undef = llga_data_type_undef,
+        /// undefined data type
+        undef = dnnl_graph_data_type_undef,
         /// 16-bit/half-precision floating point.
-        f16 = llga_f16,
+        f16 = dnnl_graph_f16,
         /// non-standard 16-bit (bfloat16 w/ 7 bit mantissa) floating point.
-        bf16 = llga_bf16,
+        bf16 = dnnl_graph_bf16,
         /// 32-bit/single-precision floating point.
-        f32 = llga_f32,
+        f32 = dnnl_graph_f32,
         /// 32-bit signed integer.
-        s32 = llga_s32,
+        s32 = dnnl_graph_s32,
         /// 8-bit signed integer.
-        s8 = llga_s8,
+        s8 = dnnl_graph_s8,
         /// 8-bit unsigned integer.
-        u8 = llga_u8,
+        u8 = dnnl_graph_u8,
     };
 
     /// Layout type
     enum class layout_type {
-        undef = llga_layout_type_undef,
-        any = llga_layout_type_any,
-        strided = llga_layout_type_strided,
-        opaque = llga_layout_type_opaque,
+        /// undefined layout type
+        undef = dnnl_graph_layout_type_undef,
+        /// "any" means that oneDNN Graph implementation to decide the layout for
+        /// the compiled partition
+        any = dnnl_graph_layout_type_any,
+        /// "strided" means that the layout is determined by the strided field.
+        strided = dnnl_graph_layout_type_strided,
+        /// “opaque” means that the layout is a target-specific layout decided
+        /// by oneDNN Graph implementation.
+        opaque = dnnl_graph_layout_type_opaque,
     };
 
     /// Constructs a logical tensor object
@@ -96,11 +100,11 @@ public:
     /// Constructs a logical tensor object
     ///
     /// @param tid Tensor id
+    /// @param dtype Data type
     /// @param adims Tensor dimensions, -1 means a particular axis of dims is
     ///        unknown, or the axis can be deduced by its size and other axis.
-    /// @param dtype Data type
     /// @param ltype Layout type
-    logical_tensor(size_t tid, const dims_t &adims, data_type dtype,
+    logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
             layout_type ltype);
 
     /// Constructs a logical tensor object
@@ -108,21 +112,21 @@ public:
     /// @note The layout_type for this constructor will always be strided
     ///
     /// @param tid Tensor id
+    /// @param dtype Data type
     /// @param adims Tensor dimensions, -1 means a particular axis of dims is
     /// @param strides Tensor strides
-    /// @param dtype Data type
-    logical_tensor(size_t tid, const dims_t &adims, const dims_t &strides,
-            data_type dtype);
+    logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
+            const dims_t &strides);
 
     /// Constructs an opaque logical tensor object which accepts layout id
     ///
     /// @param tid Tensor id
+    /// @param dtype Data type
     /// @param adims Tensor dimensions, -1 means a particular axis of dims is
     ///        unknown, or the axis can be deduced by its size and other axis.
     /// @param lid Layout id
-    /// @param dtype Data type
-    logical_tensor(size_t tid, const dims_t &adims, size_t lid,
-            data_type dtype);
+    logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
+            size_t lid);
 
     /// Returns dimensions of the logical tensor
     ///

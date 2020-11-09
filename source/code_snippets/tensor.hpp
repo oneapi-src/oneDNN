@@ -7,7 +7,7 @@ public:
 /// @param handle Handle of memory buffer to use as an underlying storage,
 ///    if the ndims in the logical tensor is 0, data handle holds a scalar
 tensor(const logical_tensor &lt, void *handle) 
- 
+
 /// Returns the underlying memory buffer with the specific type
 ///
 /// @tparam T Type of the request buffer

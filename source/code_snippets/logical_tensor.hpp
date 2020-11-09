@@ -8,10 +8,10 @@
 /// decided by oneDNN Graph implementation. 
 
 enum class layout_type {
-        undef = llga_layout_type_undef,
-        any = llga_layout_type_any,
-        strided = llga_layout_type_strided,
-        opaque = llga_layout_type_opaque,
+        undef = dnnl_graph_layout_type_undef,
+        any = dnnl_graph_layout_type_any,
+        strided = dnnl_graph_layout_type_strided,
+        opaque = dnnl_graph_layout_type_opaque,
 };
 
 class logical_tensor {
@@ -26,33 +26,32 @@ logical_tensor(size_t tid, data_type dtype, int32_t ndims, layout_type ltype)
 /// Constructs a logical tensor object
 ///
 /// @param tid Tensor id
+/// @param dtype Data type
 /// @param adims Tensor dimensions, -1 means a particular axis of dims is
 ///        unknown, or the axis can be deduced by its size and other axis.
-/// @param dtype Data type
 /// @param ltype Layout type
-logical_tensor(size_t tid, const dims_t &adims, data_type dtype,
-        layout_type ltype)
+logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
+                layout_type ltype)
  
 /// Constructs a strided logical tensor object which accepts strides
 ///
 /// @param tid Tensor id
+/// @param dtype Data type
 /// @param adims Tensor dimensions, -1 means a particular axis of dims is
 ///        unknown, or the axis can be deduced by its size and other axis.
 /// @param strides Tensor strides
-/// @param dtype Data type
-logical_tensor(size_t tid, const dims_t &adims, const dims_t &strides,
-        data_type dtype)
+logical_tensor(size_t tid, data_type dtype, const dims_t &adims,
+                const dims_t &strides)
  
 /// Constructs an opaque logical tensor object which accepts layout id
 ///
 /// @param tid Tensor id
+/// @param dtype Data type
 /// @param adims Tensor dimensions, -1 means a particular axis of dims is
 ///        unknown, or the axis can be deduced by its size and other axis.
 /// @param lid Layout id
-/// @param dtype Data type
-logical_tensor(size_t tid, const dims_t &adims, size_t lid,
-        data_type dtype)
- 
+logical_tensor(size_t tid, data_type dtype, const dims_t &adims, size_t lid)
+
 /// Returns dimensions of the logical tensor
 ///
 /// @returns A the dimensions vector

@@ -32,61 +32,6 @@ namespace api {
 
 class op {
 public:
-    /// enumeration for Op kind
-    enum class kind {
-        Abs = kAbs,
-        Add = kAdd,
-        AvgPool = kAvgPool,
-        AvgPoolBackprop = kAvgPoolBackprop,
-        BatchNormInference = kBatchNormInference,
-        BatchNormForwardTraining = kBatchNormForwardTraining,
-        BatchNormTrainingBackprop = kBatchNormTrainingBackprop,
-        BiasAddBackprop = kBiasAddBackprop,
-        Clamp = kClamp,
-        ClampBackprop = kClampBackprop,
-        Concat = kConcat,
-        Convolution = kConvolution,
-        ConvolutionBackpropData = kConvolutionBackpropData,
-        ConvolutionBackpropFilters = kConvolutionBackpropFilters,
-        Elu = kElu,
-        EluBackprop = kEluBackprop,
-        Exp = kExp,
-        GELU = kGELU,
-        GELUBackprop = kGELUBackprop,
-        HardTanh = kHardTanh,
-        LayerNorm = kLayerNorm,
-        LayerNormBackprop = kLayerNormBackprop,
-        Log = kLog,
-        LogSoftmax = kLogSoftmax,
-        LogSoftmaxBackprop = kLogSoftmaxBackprop,
-        MatMul = kMatMul,
-        Maximum = kMaximum,
-        MaxPool = kMaxPool,
-        MaxPoolBackprop = kMaxPoolBackprop,
-        Minimum = kMinimum,
-        Multiply = kMultiply,
-        Pow = kPow,
-        PowBackprop = kPowBackprop,
-        ReLU = kReLU,
-        ReLUBackprop = kReLUBackprop,
-        Reshape = kReshape,
-        Round = kRound,
-        Sigmoid = kSigmoid,
-        SigmoidBackprop = kSigmoidBackprop,
-        SoftMax = kSoftMax,
-        SoftMaxBackprop = kSoftMaxBackprop,
-        SoftPlus = kSoftPlus,
-        SoftPlusBackprop = kSoftPlusBackprop,
-        Sqrt = kSqrt,
-        SqrtBackprop = kSqrtBackprop,
-        Square = kSquare,
-        Tanh = kTanh,
-        TanhBackprop = kTanhBackprop,
-        Wildcard = kWildcard,
-        BiasAdd = kBiasAdd,
-        LastSymbol = kLastSymbol,
-    };
-
     /// Constructs an OP object
     ///
     /// @param id The unique id of this op
@@ -126,16 +71,6 @@ public:
     ///
     /// @param ts The list of output logical tensors
     void add_outputs(const std::vector<logical_tensor> &ts);
-
-    /// Returns the number of input logical tensor in the Op
-    ///
-    /// @returns Number of inputs
-    uint64_t get_inputs_num() const;
-
-    /// Returns the number of output logical tensor in the Op
-    ///
-    /// @returns Number of outputs
-    uint64_t get_outputs_num() const;
 
     /// Returns the kind of specified attribute in the Op
     ///
