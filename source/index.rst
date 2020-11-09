@@ -1,15 +1,18 @@
 .. _llga-section:
 
-===========================
-oneDNN Graph API definition
-===========================
+==============================
+oneDNN Graph API specification
+==============================
+
+Welcome to oneDNN Graph API specification.
 
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 1
 
    introduction.rst
    conventions.rst
    programming_model.rst
    data_model.rst
    ops/index.rst
+   notices
 
