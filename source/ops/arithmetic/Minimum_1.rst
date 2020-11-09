@@ -9,6 +9,9 @@ Minimum
 **Short description**: *Minimum* performs element-wise minimum operation with
 two given tensors applying multi-directional broadcast rules.
 
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_arithmetic_Minimum_1.html>`__
+
 **Attributes**:
 
 * *auto_broadcast*
@@ -37,10 +40,16 @@ two given tensors applying multi-directional broadcast rules.
 
 **Types**
 
-* *T*: any numeric type.
+* *T*: arbitrary type, which supports less/greater comparison.
 
 **Detailed description:**
 
 Before performing arithmetic operation, input tensors *a* and *b* are
 broadcast if their shapes are different and ``auto_broadcast`` attributes is
 not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
+
+After broadcasting *Minimum* does the following with the input tensors *a* and
+*b*:
+
+.. math::
+   o_{i} = min(a_{i}, b_{i})

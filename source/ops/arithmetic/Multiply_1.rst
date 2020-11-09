@@ -9,6 +9,9 @@ Multiply
 **Short description**: *Multiply* performs element-wise multiplication operation
 with two given tensors applying multi-directional broadcast rules.
 
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_arithmetic_Multiply_1.html>`__
+
 **Attributes**:
 
 * *auto_broadcast*
@@ -45,3 +48,9 @@ with two given tensors applying multi-directional broadcast rules.
 Before performing arithmetic operation, input tensors *a* and *b* are
 broadcast if their shapes are different and ``auto_broadcast`` attributes is
 not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
+
+After broadcasting *Multiply* does the following with the input tensors *a* and
+*b*:
+
+.. math::
+   o_{i} = a_{i} * b_{i}

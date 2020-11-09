@@ -9,6 +9,9 @@ Erf
 **Short description**: *Erf* calculates the Gauss error function element-wise
 with given tensor.
 
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_arithmetic_Erf_1.html>`__
+
 **Detailed description:**
 
 For each element from the input tensor calculates corresponding element in the

@@ -31,8 +31,8 @@ subset of the operation set.
    activation/HardTanh_1.rst
    activation/HardTanhBackprop_1.rst
    movement/Index_1.rst
-   image/Interpolate_1.rst
-   image/InterpolateBackprop_1.rst
+   image/Interpolate_4.rst
+   image/InterpolateBackprop_4.rst
    normalization/LayerNorm_1.rst
    normalization/LayerNormBackprop_1.rst
    arithmetic/Log_1.rst

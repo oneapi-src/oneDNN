@@ -10,6 +10,9 @@ Reshape
 tensor according to the specified order. Input tensor volume is equal to output
 tensor volume, where volume is the product of dimensions.
 
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_shape_Reshape_1.html>`__
+
 **Detailed description**:
 
 *Reshape* layer takes two input tensors: the tensor to be resized and the output
@@ -40,11 +43,18 @@ integer number. The two special values -1 and 0:
 
 **Inputs**:
 
-* **1**: ``data`` -- multidimensional input tensor. **Required.**
+* **1**: ``data`` -- multidimensional input tensor of type *T*. **Required.**
 
-* **2**: ``shape`` -- 1D tensor describing output shape. **Required.**
+* **2**: ``shape`` -- 1D tensor of type *T_SHAPE* describing output shape.
+  **Required.**
 
 **Outputs**:
 
 * **1**: Output tensor with the same content as a tensor at input ``data`` but
   with shape defined by input ``shape``.
+
+**Types**
+
+* *T*: supported type.
+
+* *T_SHAPE*: supported integer type.
