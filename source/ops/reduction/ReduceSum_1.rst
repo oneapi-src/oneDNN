@@ -48,13 +48,13 @@ the 1st input tensor in slices specified by the second input.
 **Detailed Description**
 
 Each element in the output is the result of reduction with addition operation
-along dimensions specified by the 2nd input:
+along dimensions specified by the second input:
 
 *output[i0, i1, ..., iN] = sum[j0,..., jN](x[j0, ..., jN]))*
 
 Where indices i0, ..., iN run through all valid indices for the 1st input and
 summation ``sum[j0, ..., jN]`` have ``jk = ik`` for those dimensions ``k`` that
-are not in the set of indices specified by the 2nd input of the operation. 
+are not in the set of indices specified by the second input of the operation. 
 Corner cases:
 
 1. When the second input is an empty list, then this operation does nothing, it

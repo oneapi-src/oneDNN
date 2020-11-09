@@ -1,42 +1,46 @@
--------------------
-InterpolateBackprop
--------------------
+-----------
+Interpolate
+-----------
 
-**Versioned name**: *InterpolateBackprop-4*
+**Versioned name**: *Interpolate-4*
 
-**Category**: *image processing*
+**Category**: *Image processing*
 
-**Short description**: Computes the gradients of Interpolate operation.
+**Short description**: *Interpolate* layer performs interpolation of independent
+slices in input tensor by specified dimensions and attributes.
 
-**Attributes**:
+**OpenVINO description**: This OP is as same as `OpenVINO OP
+<https://docs.openvinotoolkit.org/2021.1/openvino_docs_ops_image_Interpolate_4.html>`__
+
+**Attributes**
 
 * *mode*
 
-  * **Description**: *mode* specifies type of interpolation.
+  * **Description**: specifies type of interpolation
   * **Range of values**: one of ``nearest``, ``linear``, ``linear_onnx``,
     ``cubic``
   * **Type**: string
-  * **Default value**: None
+  * **Default value**: none
   * **Required**: *yes*
 
 * *shape_calculation_mode*
 
-  * **Description**: specifies which input, sizes or scales, is used to
-    calculate an forward output shape.
+  * **Description**: specifies which input, ``sizes`` or ``scales``, is used to
+    calculate an output shape.
   * **Range of values**: name of a shape calculation mode in string format:
 
     * ``sizes`` - an output shape is calculated as ``output_shape[axes[i]] =
-      sizes[i]`` for all ``i in range(0, len(axes))`` and ``output_shape[j] = 
+      sizes[i]`` for all ``i in range(0, len(axes))`` and ``output_shape[j] =
       input_shape[j] + pads_begin[j] + pads_end[j]`` for ``j not in axes``,
       ``j in range(0, rank(data))``.
-    * ``scales`` - an output shape is calculated as ``output_shape[axes[i]] = 
+    * ``scales`` - an output shape is calculated as ``output_shape[axes[i]] =
       floor(scales[i] * (input_shape[axes[i]] + pads_begin[axes[i]] +
       pads_end[axes[i]]))`` for all ``i in range(0, len(axes))`` and
-      ``output_shape[j] = input_shape[j] + pads_begin[j] + pads_end[j]``
-      for ``j not in axes``, ``j in range(0, rank(data))``
+      ``output_shape[j] = input_shape[j] + pads_begin[j] + pads_end[j]`` for
+      ``j not in axes``, ``j in range(0, rank(data))``
 
   * **Type**: string
-  * **Default value**: None
+  * **Default value**: none
   * **Required**: *yes*
 
 * *coordinate_transformation_mode*
@@ -47,18 +51,18 @@ InterpolateBackprop
     ``scale[x]`` is ``output_shape[x] / input_shape[x]`` and ``x_resized`` is a
     coordinate in axis ``x``, for any axis ``x`` from the input ``axes``):
 
-    * ``half_pixel`` -  the coordinate in the original tensor axis ``x`` is
+    * ``half_pixel`` - the coordinate in the original tensor axis ``x`` is
       calculated as ``((x_resized + 0.5) / scale[x]) - 0.5``.
     * ``pytorch_half_pixel`` -  the coordinate in the original tensor axis ``x``
       is calculated by ``(x_resized + 0.5) / scale[x] - 0.5 if
       output_shape[x] > 1 else 0.0``.
-    * ``asymmetric`` -  the coordinate in the original tensor axis ``x`` is
+    * ``asymmetric`` - the coordinate in the original tensor axis ``x`` is
       calculated according to the formula ``x_resized / scale[x]``.
     * ``tf_half_pixel_for_nn`` - the coordinate in the original tensor axis
       ``x`` is ``(x_resized + 0.5) / scale[x]``.
     * ``align_corners`` - the coordinate in the original tensor axis ``x`` is
-      calculated as ``0 if output_shape[x] == 1 else x_resized *
-      (input_shape[x] - 1) / (output_shape[x] - 1)``
+      calculated as ``0 if output_shape[x] == 1 else  x_resized *
+      (input_shape[x] - 1) / (output_shape[x] - 1)``.
 
   * **Type**: string
   * **Default value**: ``half_pixel``
@@ -67,7 +71,7 @@ InterpolateBackprop
 * *nearest_mode*
 
   * **Description**: specifies round mode when ``mode == nearest`` and is used
-    only ``when mode == nearest``.
+    only when ``mode == nearest``.
   * **Range of values**: name of the round mode in string format:
 
     * ``round_prefer_floor`` - this mode is known as round half down.
@@ -109,8 +113,8 @@ InterpolateBackprop
 * *pads_end*
 
   * **Description**: *pads_end* specifies the number of pixels to add to the end
-    of the image being interpolated. This addition of pixels is done
-    before interpolation calculation.
+    of the image being interpolated. This addition of pixels is done before
+    interpolation calculation.
   * **Range of values**: list of non-negative integer numbers
   * **Type**: ``int[]``
   * **Default value**: ``[0]``
@@ -130,30 +134,34 @@ InterpolateBackprop
 **Inputs**
 
 * **1**: ``data`` - Input tensor with data for interpolation. Type of elements
-  is any supported floating point type. **Required.**
+  is any supported floating point type or ``int8`` type. **Required**.
 
-* **2**: ``output_delta`` - the gradient with respect to the output.
-  **Required.**
+* **2**: ``sizes`` - 1D tensor describing output shape for spatial axes. Number
+  of elements matches the number of indices in ``axes`` input, the order matches
+  as well. **Required**.
 
-* **3**: ``sizes`` - 1D tensor describing output shape for spatial axes.
-  Number of elements matches the number of indices in ``axes`` input, the order
-  matches as well. **Required.**
-
-* **4**: ``scales`` - 1D tensor describing scales for spatial axes. Type of
+* **3**: ``scales`` - 1D tensor describing scales for spatial axes. Type of
   elements is any supported floating point type. Number and order of elements
-  match the number and order of indices in ``axes`` input. **Required.**
+  match the number and order of indices in ``axes`` input. **Required**.
 
-* **5**: ``axes`` - 1D tensor specifying dimension indices where interpolation
+* **4**: ``axes`` - 1D tensor specifying dimension indices where interpolation
   is applied, and ``axes`` is any unordered list of indices of different
   dimensions of input tensor, e.g. ``[0, 4]``, ``[4, 0]``, ``[4, 2, 1]``,
   ``[1, 2, 3]``. These indices should be non-negative integers from ``0`` to
   ``rank(data) - 1`` inclusively. Other dimensions do not change. The order of
   elements in ``axes`` attribute matters, and mapped directly to elements in the
   second input ``sizes``. **Optional** with default value
-  ``[0,...,rank(data) - 1]``. 
+  ``[0,...,rank(data) - 1]``.
 
 **Outputs**
 
-* **1**: ``input_delta`` - the gradient tensor w.r.t. the input of Interpolate.
-* **2**: ``scales_delta`` - the gradient tensor w.r.t. the input scales of
-  Interpolate. **Required** only when ``shape_calculation_mode`` is ``scales``.
+* **1**: Resulting interpolated tensor with elements of the same type as input
+  ``data`` tensor. The shape of the output matches input ``data`` shape except
+  spatial dimensions mentioned in ``axes`` attribute. For other dimensions shape
+  matches sizes from ``sizes`` in order specified in ``axes``.
+
+**Detailed description**
+Calculations are performed according to the following rules.
+
+.. literalinclude:: ../../code_snippets/interpolate.py
+   :language: python
