@@ -43,7 +43,7 @@ given tensors applying multi-directional broadcast rules.
 **Detailed description:**
 
 Before performing arithmetic operation, input tensors *a* and *b* are
-broadcasted if their shapes are different and ``auto_broadcast`` attributes is
+broadcast if their shapes are different and ``auto_broadcast`` attributes is
 not ``none``. Broadcasting is performed according to ``auto_broadcast`` value.
 
 After broadcasting *Pow* does the following with the input tensors *a* and *b*:

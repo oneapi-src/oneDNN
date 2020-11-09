@@ -14,9 +14,9 @@ LayerNorm
 * *keep_stats*
 
   * **Description**: *keep_stats* is used to indicate whether to output
-    mean&&var. One typical usage is to pass mean&&var to backword op.
+    mean&&var. One typical usage is to pass mean&&var to backwords op.
   * **Range of values**: False or True
-  * **Type**: boolen
+  * **Type**: boolean
   * **Default value**: True
   * **Required**: *no*
 
@@ -37,7 +37,7 @@ LayerNorm
   * **Description**: when set to True, this module has learnable per-element
     affine parameters. 
   * **Range of values**: False or True
-  * **Type**: boolen
+  * **Type**: boolean
   * **Default value**: True
   * **Required**: *no*
 
@@ -54,10 +54,10 @@ LayerNorm
 
 * **1**: ``input`` - input tensor with data for normalization. **Required.**
 * **2**: ``gamma`` - gamma scaling for normalized value. A 1D tensor of type T
-  with the same span as input's channel axis. Required by attributs
+  with the same span as input's channel axis. Required by attribute
   ``use_affine``. **Optional.**
 * **3**: ``beta`` - bias added to the scaled normalized value. A 1D tensor of
-  type T with the same span as input's channel axis.Required by attributs
+  type T with the same span as input's channel axis.Required by attribute
   ``use_affine``. **Optional.**
 
 
