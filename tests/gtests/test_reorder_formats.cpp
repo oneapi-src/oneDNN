@@ -149,19 +149,25 @@ protected:
 
                         out_md.data.extra = i_extra;
 
-                        auto src = memory(in_md, e);
-                        auto dst = memory(out_md, e);
-                        reorder::primitive_desc r_pd(
-                                e, in_md, e, out_md, primitive_attr(), true);
-                        if (r_pd) {
-                            auto r = reorder(r_pd);
-                            auto strm = make_stream(r_pd.get_engine());
-                            r.execute(strm, src, dst);
-                            strm.wait();
-                        }
+                        catch_expected_failures(
+                                [=]() { TestFormat(in_md, out_md); }, false,
+                                dnnl_success);
                     }
                 }
             }
+        }
+    }
+
+    void TestFormat(const md &in_md, const md &out_md) {
+        auto src = memory(in_md, e);
+        auto dst = memory(out_md, e);
+        reorder::primitive_desc r_pd(
+                e, in_md, e, out_md, primitive_attr(), true);
+        if (r_pd) {
+            auto r = reorder(r_pd);
+            auto strm = make_stream(r_pd.get_engine());
+            r.execute(strm, src, dst);
+            strm.wait();
         }
     }
 };
