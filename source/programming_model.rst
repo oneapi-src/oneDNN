@@ -17,7 +17,7 @@ accelerate graph partitions from a framework graph. In the description below,
 
 A deep learning computation graph consists of deep neural network (DNN)
 operations. A DNN operation is a function that takes input data and returns
-output data. The input and output data are multi-dimension arrays called
+output data. The input and output data are multi-dimensional arrays called
 tensors. A DNN operation may consume multiple tensors and produce multiple
 tensors. A tensor must be produced by a single operation and may be consumed by
 multiple operations.
