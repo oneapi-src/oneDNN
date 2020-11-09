@@ -117,59 +117,64 @@ protected:
                     dst_md = md(SP2D, i_cfg[2], dst_tag);
                     ASSERT_TRUE(dst_md);
 
-                    ip_fwd::desc ip_fwd_desc(prop_kind::forward_training,
-                            src_md, wei_md, dst_md);
-                    ip_fwd::primitive_desc ip_fwd_pd(ip_fwd_desc, e, true);
-                    if (ip_fwd_pd) {
-                        auto ip_fwd_prim = ip_fwd(ip_fwd_pd);
-                        auto strm = make_stream(ip_fwd_pd.get_engine());
-                        auto src = memory(ip_fwd_pd.src_desc(), e);
-                        auto wei = memory(ip_fwd_pd.weights_desc(), e);
-                        auto dst = memory(ip_fwd_pd.dst_desc(), e);
-                        ip_fwd_prim.execute(strm,
-                                {{DNNL_ARG_SRC, src}, {DNNL_ARG_WEIGHTS, wei},
-                                        {DNNL_ARG_DST, dst}});
-                        strm.wait();
-                    }
-
-                    // no sense to test backward if forward was not created
-                    if (!ip_fwd_pd) continue;
-                    // int8 is not supported on backward;
-                    if (i_cfg[1] == dt::s8) continue;
-
-                    ip_bwd_d::desc ip_bwd_d_desc(src_md, wei_md, dst_md);
-                    ip_bwd_d::primitive_desc ip_bwd_d_pd(
-                            ip_bwd_d_desc, e, ip_fwd_pd, true);
-                    if (ip_bwd_d_pd) {
-                        auto ip_bwd_d_prim = ip_bwd_d(ip_bwd_d_pd);
-                        auto strm = make_stream(ip_bwd_d_pd.get_engine());
-                        auto d_src = memory(ip_bwd_d_pd.diff_src_desc(), e);
-                        auto d_wei = memory(ip_bwd_d_pd.weights_desc(), e);
-                        auto d_dst = memory(ip_bwd_d_pd.diff_dst_desc(), e);
-                        ip_bwd_d_prim.execute(strm,
-                                {{DNNL_ARG_DIFF_SRC, d_src},
-                                        {DNNL_ARG_WEIGHTS, d_wei},
-                                        {DNNL_ARG_DIFF_DST, d_dst}});
-                        strm.wait();
-                    }
-
-                    ip_bwd_w::desc ip_bwd_w_desc(src_md, wei_md, dst_md);
-                    ip_bwd_w::primitive_desc ip_bwd_w_pd(
-                            ip_bwd_w_desc, e, ip_fwd_pd, true);
-                    if (ip_bwd_w_pd) {
-                        auto ip_bwd_w_prim = ip_bwd_w(ip_bwd_w_pd);
-                        auto strm = make_stream(ip_bwd_w_pd.get_engine());
-                        auto src = memory(ip_bwd_w_pd.src_desc(), e);
-                        auto d_wei = memory(ip_bwd_w_pd.diff_weights_desc(), e);
-                        auto d_dst = memory(ip_bwd_w_pd.diff_dst_desc(), e);
-                        ip_bwd_w_prim.execute(strm,
-                                {{DNNL_ARG_SRC, src},
-                                        {DNNL_ARG_DIFF_WEIGHTS, d_wei},
-                                        {DNNL_ARG_DIFF_DST, d_dst}});
-                        strm.wait();
-                    }
+                    catch_expected_failures(
+                            [=]() {
+                                TestFormat(src_md, wei_md, dst_md, i_cfg);
+                            },
+                            false, dnnl_success);
                 }
             }
+        }
+    }
+
+    void TestFormat(const md &src_md, const md &wei_md, const md &dst_md,
+            const std::vector<dt> &i_cfg) {
+        ip_fwd::desc ip_fwd_desc(
+                prop_kind::forward_training, src_md, wei_md, dst_md);
+        ip_fwd::primitive_desc ip_fwd_pd(ip_fwd_desc, e, true);
+        if (ip_fwd_pd) {
+            auto ip_fwd_prim = ip_fwd(ip_fwd_pd);
+            auto strm = make_stream(ip_fwd_pd.get_engine());
+            auto src = memory(ip_fwd_pd.src_desc(), e);
+            auto wei = memory(ip_fwd_pd.weights_desc(), e);
+            auto dst = memory(ip_fwd_pd.dst_desc(), e);
+            ip_fwd_prim.execute(strm,
+                    {{DNNL_ARG_SRC, src}, {DNNL_ARG_WEIGHTS, wei},
+                            {DNNL_ARG_DST, dst}});
+            strm.wait();
+        }
+
+        // no sense to test backward if forward was not created
+        if (!ip_fwd_pd) return;
+        // int8 is not supported on backward;
+        if (i_cfg[1] == dt::s8) return;
+
+        ip_bwd_d::desc ip_bwd_d_desc(src_md, wei_md, dst_md);
+        ip_bwd_d::primitive_desc ip_bwd_d_pd(ip_bwd_d_desc, e, ip_fwd_pd, true);
+        if (ip_bwd_d_pd) {
+            auto ip_bwd_d_prim = ip_bwd_d(ip_bwd_d_pd);
+            auto strm = make_stream(ip_bwd_d_pd.get_engine());
+            auto d_src = memory(ip_bwd_d_pd.diff_src_desc(), e);
+            auto d_wei = memory(ip_bwd_d_pd.weights_desc(), e);
+            auto d_dst = memory(ip_bwd_d_pd.diff_dst_desc(), e);
+            ip_bwd_d_prim.execute(strm,
+                    {{DNNL_ARG_DIFF_SRC, d_src}, {DNNL_ARG_WEIGHTS, d_wei},
+                            {DNNL_ARG_DIFF_DST, d_dst}});
+            strm.wait();
+        }
+
+        ip_bwd_w::desc ip_bwd_w_desc(src_md, wei_md, dst_md);
+        ip_bwd_w::primitive_desc ip_bwd_w_pd(ip_bwd_w_desc, e, ip_fwd_pd, true);
+        if (ip_bwd_w_pd) {
+            auto ip_bwd_w_prim = ip_bwd_w(ip_bwd_w_pd);
+            auto strm = make_stream(ip_bwd_w_pd.get_engine());
+            auto src = memory(ip_bwd_w_pd.src_desc(), e);
+            auto d_wei = memory(ip_bwd_w_pd.diff_weights_desc(), e);
+            auto d_dst = memory(ip_bwd_w_pd.diff_dst_desc(), e);
+            ip_bwd_w_prim.execute(strm,
+                    {{DNNL_ARG_SRC, src}, {DNNL_ARG_DIFF_WEIGHTS, d_wei},
+                            {DNNL_ARG_DIFF_DST, d_dst}});
+            strm.wait();
         }
     }
 };
