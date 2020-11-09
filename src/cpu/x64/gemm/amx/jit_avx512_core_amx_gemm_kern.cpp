@@ -457,7 +457,7 @@ void jit_avx512_core_amx_gemm_kern::generate() {
 
 jit_avx512_core_amx_gemm_kern::jit_avx512_core_amx_gemm_kern(
         int typea, int typeb, int typec, int betaZero)
-    : jit_generator(nullptr, 1024)
+    : jit_generator(nullptr, 2 * 1024)
     , typea(typea)
     , typeb(typeb)
     , typec(typec)
