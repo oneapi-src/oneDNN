@@ -363,6 +363,8 @@ void jit_avx2_conv_fwd_kernel_f32::width_blk_step(
         }
     }
 
+    L(regular_store);
+
     auto store_output = [=](bool is_tail) {
         for (int ii = 0; ii < oc_blocks; ii++)
             for (int jj = 0; jj < ur_w; jj++) {
