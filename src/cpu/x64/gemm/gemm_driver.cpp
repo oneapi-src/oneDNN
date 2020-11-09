@@ -392,11 +392,8 @@ void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
 
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
-    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
     constexpr bool is_f32 = data_traits<a_type>::data_type == data_type::f32;
     bool is_int8_amx = is_int8 && mayiuse(avx512_core_bf16_amx_int8);
-    bool is_bf16_amx = is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
-    bool is_amx = is_int8_amx || is_bf16_amx;
 
     if (is_int8) {
         c_type ao = arg->ao;
@@ -471,46 +468,13 @@ void gemm_kernel(dim_t m, dim_t n, const dim_t k, const float alpha,
 
     bool isBeta0 = beta == 0.0f;
 
-    dim_t align_m = 0;
-    dim_t align_n = 0;
-    dim_t align_k = k;
-    if (is_amx) {
-        align_m = m - utils::rnd_dn(m, arg->um);
-        align_n = n - utils::rnd_dn(n, arg->un);
-        align_k = utils::rnd_up(k, arg->uk);
-    }
-    m -= align_m;
-    n -= align_n;
-
     /* Column and row offsets are ignored by non-integer compute kernels.
      * Scaling is done only for bfloat16 kernels.
      */
-    if (m > 0) {
-        if (n > 0) {
-            arg->kernel[isBeta0][col_req][row_req](&m, &n, &align_k, &alpha, a,
-                    b, c, ldc, col_offset, row_offset);
-        }
-        if (align_n > 0) {
-            arg->kernel[isBeta0][col_req][row_req](&m, &align_n, &align_k,
-                    &alpha, a, b + n * align_k, c + n * ldc, ldc, col_offset,
-                    row_offset + n);
-        }
-    }
-    if (align_m > 0) {
-        if (n > 0) {
-            arg->kernel[isBeta0][col_req][row_req](&align_m, &n, &align_k,
-                    &alpha, a + m * align_k, b, c + m, ldc, col_offset + m,
-                    row_offset);
-        }
-        if (align_n > 0) {
-            arg->kernel[isBeta0][col_req][row_req](&align_m, &align_n, &align_k,
-                    &alpha, a + m * align_k, b + n * align_k, c + m + n * ldc,
-                    ldc, col_offset + m, row_offset + n);
-        }
-    }
+    if (m > 0 && n > 0)
+        arg->kernel[isBeta0][col_req][row_req](
+                &m, &n, &k, &alpha, a, b, c, ldc, col_offset, row_offset);
 
-    m += align_m;
-    n += align_n;
     msan_unpoison_matrix(c, m, n, ldc, sizeof(*c));
 
     // sgemm kernels don't support bias yet.

@@ -27,7 +27,7 @@
 
 #include "cpu/x64/gemm/gemm_info.hpp"
 
-#include "cpu/x64/gemm/amx/igemm_k.hpp"
+#include "cpu/x64/gemm/amx/jit_avx512_core_amx_copy_kern.hpp"
 #include "cpu/x64/gemm/amx/jit_avx512_core_amx_gemm_kern.hpp"
 
 #include "cpu/x64/gemm/bf16/common_s16.hpp"
@@ -162,52 +162,45 @@ gemm_info_t<a_t, b_t, c_t>::gemm_info_t(const char *transA, const char *transB,
     if (!this->force_nocopy || is_gemv) { this->jit_init(); }
 }
 
+// copyA[trans][sum]
+template <typename a_t, typename b_t, typename c_t>
+typename gemm_info_t<a_t, b_t, c_t>::copy_a_fptr_t
+        gemm_info_t<a_t, b_t, c_t>::copy_a_kern[2][2]
+        = {{nullptr}};
+
+// copyB[trans][sum]
+template <typename a_t, typename b_t, typename c_t>
+typename gemm_info_t<a_t, b_t, c_t>::copy_b_fptr_t
+        gemm_info_t<a_t, b_t, c_t>::copy_b_kern[2][2]
+        = {{nullptr}};
+
+// kern[beta0][alpha1][col_off][row_off]
+template <typename a_t, typename b_t, typename c_t>
+typename gemm_info_t<a_t, b_t, c_t>::gemm_fptr_t
+        gemm_info_t<a_t, b_t, c_t>::kern[2][2][2][2]
+        = {{{{nullptr}}}};
+
+// gemv_kern[trans]
+template <typename a_t, typename b_t, typename c_t>
+typename gemm_info_t<a_t, b_t, c_t>::gemv_fptr_t
+        gemm_info_t<a_t, b_t, c_t>::gemv_kern[2]
+        = {nullptr};
+
+template <typename a_t, typename b_t, typename c_t>
+typename gemm_info_t<a_t, b_t, c_t>::gemv_s8s8s32_fptr_t
+        gemm_info_t<a_t, b_t, c_t>::gemv_s8s8s32_kern
+        = nullptr;
+template <typename a_t, typename b_t, typename c_t>
+typename gemm_info_t<a_t, b_t, c_t>::gemv_s8u8s32_fptr_t
+        gemm_info_t<a_t, b_t, c_t>::gemv_s8u8s32_kern
+        = nullptr;
+template <typename a_t, typename b_t, typename c_t>
+typename gemm_info_t<a_t, b_t, c_t>::gemv_u8s8s32_fptr_t
+        gemm_info_t<a_t, b_t, c_t>::gemv_u8s8s32_kern
+        = nullptr;
+
 template <typename a_t, typename b_t, typename c_t>
 void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
-
-    using copy_a_fptr_t = void (*)(const dim_t *m, const dim_t *n,
-            const a_t *src, const dim_t *ldsrc, const float *alpha, a_t *dst,
-            const dim_t *dummy1, const dim_t *dummy2, c_t *row_col_sum);
-
-    using copy_b_fptr_t = void (*)(const dim_t *m, const dim_t *n,
-            const b_t *src, const dim_t *ldsrc, const float *alpha, b_t *dst,
-            const dim_t *dummy1, const dim_t *dummy2, c_t *row_col_sum);
-
-    using gemm_fptr_t = void (*)(const dim_t *, const dim_t *, const dim_t *,
-            const float *, const a_t *, const b_t *, c_t *, const dim_t,
-            const c_t *, const c_t *);
-
-    using gemv_fptr_t = void (*)(const dim_t *, const dim_t *, const float *,
-            const a_t *, const dim_t *, const b_t *, const dim_t *, c_t *,
-            const dim_t *);
-
-    using gemv_s8s8s32_fptr_t
-            = void (*)(const dim_t, const dim_t, const float, const int8_t *,
-                    const dim_t, const int8_t *, const float, int32_t *);
-
-    using gemv_s8u8s32_fptr_t
-            = void (*)(const dim_t, const dim_t, const float, const int8_t *,
-                    const dim_t, const uint8_t *, const float, int32_t *);
-
-    using gemv_u8s8s32_fptr_t
-            = void (*)(const dim_t, const dim_t, const float, const uint8_t *,
-                    const dim_t, const int8_t *, const float, int32_t *);
-
-    // copyA[trans][sum]
-    static copy_a_fptr_t copyA[2][2] = {{nullptr}};
-
-    // copyB[trans][sum]
-    static copy_b_fptr_t copyB[2][2] = {{nullptr}};
-
-    // kern[beta0][alpha1][col_off][row_off]
-    static gemm_fptr_t kern[2][2][2][2] = {{{{nullptr}}}};
-
-    // gemv_kern[trans]
-    static gemv_fptr_t gemv_kern[2] = {nullptr};
-
-    static gemv_s8s8s32_fptr_t gemv_s8s8s32_kern = nullptr;
-    static gemv_s8u8s32_fptr_t gemv_s8u8s32_kern = nullptr;
-    static gemv_u8s8s32_fptr_t gemv_u8s8s32_kern = nullptr;
 
     // TODO: Add dispatching for 1-fma SKUs with support to bf16 instructions.
     bool use_bf16_ymm = false;
@@ -215,12 +208,12 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     switch (data_traits<a_t>::data_type) {
         case data_type::s8:
             if (mayiuse(avx512_core_bf16_amx_int8)) {
-                this->um = gemm_amx_traits<a_t>::UNROLL_MM;
-                this->un = gemm_amx_traits<a_t>::UNROLL_NN;
-                this->uk = gemm_amx_traits<a_t>::UNROLL_KK;
-                this->bm = this->um * 400;
-                this->bn = this->un * 400;
-                this->bk = this->uk * 24;
+                this->um = 32;
+                this->un = 32;
+                this->uk = 64;
+                this->bm = 9984;
+                this->bn = 384;
+                this->bk = 1536;
 
                 this->bk_traditional = 0;
                 this->blocking_small_k = 0;
@@ -274,12 +267,12 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
         case data_type::bf16:
             if (mayiuse(avx512_core_bf16_amx_bf16)) {
-                this->um = gemm_amx_traits<a_t>::UNROLL_MM;
-                this->un = gemm_amx_traits<a_t>::UNROLL_NN;
-                this->uk = gemm_amx_traits<a_t>::UNROLL_KK;
-                this->bm = this->um * 400;
-                this->bn = this->un * 400;
-                this->bk = this->uk * 24;
+                this->um = 32;
+                this->un = 32;
+                this->uk = 32;
+                this->bm = 9984;
+                this->bn = 384;
+                this->bk = 768;
 
                 this->bk_traditional = 0;
                 this->blocking_small_k = 0;
@@ -366,7 +359,17 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
         switch (data_traits<a_t>::data_type) {
             case data_type::s8:
-                if (mayiuse(avx512_core)) {
+                if (mayiuse(amx_int8)) {
+                    for (int isTrans : {no_trans, do_trans}) {
+                        copy_a[isTrans][no_sum]
+                                = new jit_avx512_core_amx_copy_kern(
+                                        true, !isTrans, sizeof(a_t));
+
+                        copy_b[isTrans][no_sum]
+                                = new jit_avx512_core_amx_copy_kern(
+                                        false, isTrans, sizeof(b_t));
+                    }
+                } else if (mayiuse(avx512_core)) {
                     copy_a[no_trans][no_sum]
                             = new jit_avx512_core_u8_copy_an_kern();
                     copy_a[do_trans][no_sum]
@@ -458,7 +461,17 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 break;
 
             case data_type::bf16:
-                if (mayiuse(avx512_core) && !use_bf16_ymm) {
+                if (mayiuse(amx_bf16)) {
+                    for (int isTrans : {no_trans, do_trans}) {
+                        copy_a[isTrans][no_sum]
+                                = new jit_avx512_core_amx_copy_kern(
+                                        true, !isTrans, sizeof(a_t));
+
+                        copy_b[isTrans][no_sum]
+                                = new jit_avx512_core_amx_copy_kern(
+                                        false, isTrans, sizeof(b_t));
+                    }
+                } else if (mayiuse(avx512_core) && !use_bf16_ymm) {
                     copy_a[no_trans][no_sum]
                             = new jit_avx512_core_s16_48x8_copy_an_kern();
                     copy_a[do_trans][no_sum]
@@ -665,30 +678,24 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 if (p_copy_a != nullptr) {
                     st = p_copy_a->create_kernel();
                     if (st != dnnl_success) return;
-                    copyA[isTrans][isSum] = (copy_a_fptr_t)p_copy_a->jit_ker();
+                    copy_a_kern[isTrans][isSum]
+                            = (copy_a_fptr_t)p_copy_a->jit_ker();
                 }
                 auto *p_copy_b = copy_b[isTrans][isSum];
                 if (p_copy_b != nullptr) {
                     st = p_copy_b->create_kernel();
                     if (st != dnnl_success) return;
-                    copyB[isTrans][isSum] = (copy_b_fptr_t)p_copy_b->jit_ker();
+                    copy_b_kern[isTrans][isSum]
+                            = (copy_b_fptr_t)p_copy_b->jit_ker();
                 }
             }
 
-        // Override copy kernel table with AMX copy kernels
-        if (is_amx) {
-            copyA[no_trans][no_sum] = &amx_gemm<a_t, b_t, c_t>::packAT_amx;
-            copyA[do_trans][no_sum] = &amx_gemm<a_t, b_t, c_t>::packAN_amx;
-            copyB[no_trans][no_sum] = &amx_gemm<a_t, b_t, c_t>::packBN_amx;
-            copyB[do_trans][no_sum] = &amx_gemm<a_t, b_t, c_t>::packBT_amx;
-
-            // AMX packing functions always support column or row sum.
-            if (is_int8) {
-                copyA[no_trans][do_sum] = &amx_gemm<a_t, b_t, c_t>::packAT_amx;
-                copyA[do_trans][do_sum] = &amx_gemm<a_t, b_t, c_t>::packAN_amx;
-                copyB[no_trans][do_sum] = &amx_gemm<a_t, b_t, c_t>::packBN_amx;
-                copyB[do_trans][do_sum] = &amx_gemm<a_t, b_t, c_t>::packBT_amx;
-            }
+        // AMX copy kernels don't support row/column sum. Use wrappers for now.
+        if (is_int8_amx) {
+            copy_a_kern[no_trans][do_sum] = &copy_a_sum_ref<no_trans>;
+            copy_a_kern[do_trans][do_sum] = &copy_a_sum_ref<do_trans>;
+            copy_b_kern[no_trans][do_sum] = &copy_b_sum_ref<no_trans>;
+            copy_b_kern[do_trans][do_sum] = &copy_b_sum_ref<do_trans>;
         }
 
         // Set compute kernel function pointer table
@@ -705,7 +712,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                     = (gemm_fptr_t)p_kernel->jit_ker();
                         }
                     }
-        // Override compute kernel table with AMX copy kernels
+        // Override compute kernel table with AMX kernels
         if (is_amx) {
             // AMX compute kernels don't support alpha scaling, row-offset or
             // col-offset.
@@ -764,8 +771,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
     int copy_trans_a = (this->transa == do_trans) ? do_trans : no_trans;
     int copy_trans_b = (this->transb == do_trans) ? do_trans : no_trans;
 
-    this->copyA = copyA[copy_trans_a][doSumA];
-    this->copyB = copyB[copy_trans_b][doSumB];
+    this->copyA = copy_a_kern[copy_trans_a][doSumA];
+    this->copyB = copy_b_kern[copy_trans_b][doSumB];
 
     constexpr bool is_bf16 = data_traits<a_t>::data_type == data_type::bf16;
 
