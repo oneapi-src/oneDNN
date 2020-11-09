@@ -192,16 +192,6 @@ public:
             requires<std::is_same<Type, std::vector<float>>::value> = true>
     op &set_attr(const std::string &name, const Type &a);
 
-    /// Returns the unique id of the Op
-    ///
-    /// @returns Unique id
-    uint64_t get_id() const;
-
-    /// Returns the concrete kind of this op
-    ///
-    /// @returns kind The op kind
-    kind get_kind() const;
-
     /// Returns the string format of the Op id and kind
     ///
     /// @returns Op kind in string format
