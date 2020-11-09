@@ -45,7 +45,8 @@ integer number. The two special values -1 and 0:
 
 * **1**: ``data`` -- multidimensional input tensor of type *T*. **Required.**
 
-* **2**: ``shape`` -- 1D tensor describing output shape. **Required.**
+* **2**: ``shape`` -- 1D tensor of type *T_SHAPE* describing output shape.
+  **Required.**
 
 **Outputs**:
 
@@ -55,3 +56,5 @@ integer number. The two special values -1 and 0:
 **Types**
 
 * *T*: supported type.
+
+* *T_SHAPE*: supported integer type.
