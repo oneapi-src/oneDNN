@@ -146,7 +146,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     matmul_helper_t helper(src_d, weights_d, dst_d);
     const int ndims = pd()->ndims();
     const int batch_ndims = ndims - 2;
-    const dim_t M = helper.M();
+    dim_t M = helper.M();
     const dim_t N = helper.N();
     const dim_t K = helper.K();
     const dim_t batch = helper.batch();
@@ -179,7 +179,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const dim_t acc_ldc = dst_is_acc ? ldc : N;
 
     std::atomic<status_t> st(status::success);
-    const bool parallel_over_batch = batch > 1;
+    const bool parallel_over_batch
+            = batch > 1 && !helper.can_fuse_src_batch_dims();
     if (parallel_over_batch) {
         const int src_mask
                 = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
@@ -231,6 +232,9 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             }
         });
     } else {
+        // collapse batch into M, if weights batch dimensions are broadcasted.
+        M = M * batch;
+
         st = gemm_bf16bf16f32(&transB, &transA, &N, &M, &K, &alpha, weights,
                 &ldb, src, &lda, &beta, acc, &acc_ldc);
         if (st != status::success) return st;
