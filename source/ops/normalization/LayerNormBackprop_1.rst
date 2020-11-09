@@ -7,7 +7,7 @@ LayerNormBackprop
 **Category**: *Normalization*
 
 **Short description**: `Reference
-<https://caffe.berkeleyvision.org/tutorial/layers/lrn.html>`__
+<https://arxiv.org/abs/1607.06450>`__
 
 **Attributes**:
 
