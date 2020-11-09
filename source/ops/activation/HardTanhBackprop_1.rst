@@ -29,6 +29,7 @@ HardTanhBackprop
 **Inputs**:
 
 * **1**: ``output_delta`` - gradients tensor w.r.t. the output. **Required.**
+* **2**: ``input_forward`` - input of forward. **Required.**
 
 **Outputs**
 
