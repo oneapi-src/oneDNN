@@ -10,14 +10,6 @@ uint64_t get_ops_num() const
 /// @returns An unordered set of op ids
 std::vector<uint64_t> get_ops()
  
-/// Sets layout id to the specified tensor in the partition
-///
-/// @param tensor_id The unique id of tensor
-/// @param layout_id The layout id
-/// @returns @c true if the specified tensor is found
-///     @c false if the specified tensor is not found
-void set_layout_id(uint64_t tid, uint64_t lid)
- 
 /// Returns the unique id of the partition
 ///
 /// @returns Unique id

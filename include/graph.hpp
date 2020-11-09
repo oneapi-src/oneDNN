@@ -34,8 +34,7 @@ public:
     /// Constructs a graph session using device information
     ///
     /// @param engine_kind Can be cpu, gpu or any supported engine.
-    /// @param device_id The device id
-    graph(engine::kind engine_kind, int32_t device_id);
+    graph(engine::kind engine_kind);
 
     /// Add an op to the graph session to construct DAG for analysis
     ///

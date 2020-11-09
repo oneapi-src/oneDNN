@@ -3,13 +3,13 @@ public:
 /// engine kind
 enum class kind {
     /// An unspecified engine
-    any = llga_any_engine,
+    any = dnnl_graph_any_engine,
     /// CPU engine
-    cpu = llga_cpu,
+    cpu = dnnl_graph_cpu,
     /// GPU engine
-    gpu = llga_gpu,
+    gpu = dnnl_graph_gpu,
 };
- 
+
 /// Constructs an engine with specified kind and device_id
 ///
 /// @param akind The kind of engine to construct
