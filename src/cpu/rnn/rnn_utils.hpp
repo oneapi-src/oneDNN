@@ -41,7 +41,8 @@
             gemm_acc_t *diff_dst_layer_, gemm_acc_t *diff_dst_iter_, \
             gemm_acc_t *diff_dst_iter_c_, const float *weights_peephole_, \
             float *bias_, gates_t *ws_grid_, scratch_t *scratch_cell_, \
-            dst_iter_t *dst_iter_) const
+            dst_iter_t *dst_iter_, float *weights_scales_, int block_step) \
+            const
 
 #define rnn_cell_execution_sig(f) \
     dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
@@ -58,7 +59,9 @@
             float *diff_weights_projection_, float *diff_weights_peephole_, \
             float *diff_bias_, gates_t *ws_gates_, scratch_t *scratch_gates_, \
             ht_t *proj_ht_, gemm_acc_t *scratch_diff_ht_, gates_t *ws_grid_, \
-            scratch_t *scratch_cell_, dst_iter_t *dst_iter_) const
+            scratch_t *scratch_cell_, dst_iter_t *dst_iter_, \
+            gemm_acc_t *amx_scratchpad, const src_iter_t **A_addr_global, \
+            weights_t **B_addr_global) const
 
 #define rnn_grid_execution_sig(f) \
     dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
@@ -76,7 +79,9 @@
             ht_t *scratch_ht_, gemm_acc_t *scratch_diff_ht_, \
             scratch_t *scratch_cell_, gemm_acc_t *diff_weights_layer_, \
             gemm_acc_t *diff_weights_iter_, float *diff_weights_projection_, \
-            float *diff_weights_peephole_, float *diff_bias_) const
+            float *diff_weights_peephole_, float *diff_bias_, \
+            gemm_acc_t *amx_scratchpad, const src_iter_t **A_addr_global, \
+            weights_t **B_addr_global) const
 
 #define rnn_gemm_sig(f) \
     dnnl_status_t f(const char transA, const char transB, dim_t m, dim_t n, \
@@ -236,6 +241,22 @@ struct rnn_conf_t {
         return utils::one_of(
                 dt_conf, u8u8u8f32, f32u8f32f32, u8u8u8u8, f32u8f32u8);
     }
+    inline bool is_int8_amx() const {
+#if DNNL_X64
+        return brgemm_isa == x64::amx_int8 && is_int8();
+#else
+        return false;
+#endif
+    }
+    inline bool is_bf16() const { return dt_conf == all_bf16; }
+    inline bool is_bf16_amx() const {
+#if DNNL_X64
+        return brgemm_isa == x64::amx_bf16 && is_bf16();
+#else
+        return false;
+#endif
+    }
+    inline bool is_f32() const { return dt_conf == all_f32; }
 
     inline bool skip_src_layer_copy() const {
         // Note: this currently always returns true
@@ -276,6 +297,21 @@ struct rnn_conf_t {
                                 : ws_states_iter_ld);
     }
 
+    inline dim_t layer_brgemm_desc(cell_position_t cell_position) const {
+        return ((cell_position & first_layer) && skip_src_layer_copy())
+                ? 0
+                : ((cell_position & last_iter) && skip_dst_iter_copy()) ? 1 : 2;
+    }
+
+    inline dim_t iter_brgemm_desc(cell_position_t cell_position) const {
+        return ((cell_position & first_iter) && skip_src_iter_copy())
+                ? 0
+                : ((cell_position & last_layer) && skip_dst_layer_copy()
+                          && !(cell_position & first_iter))
+                        ? 1
+                        : 2;
+    }
+
     inline dim_t src_iter_c_ld(cell_position_t cell_position) const {
         return (cell_position & c_state_first_iter) ? src_iter_c_ld_
                                                     : ws_states_iter_c_ld;
@@ -291,6 +327,16 @@ struct rnn_conf_t {
                 : (cell_position & last_iter) && skip_dst_iter_copy()
                         ? dst_iter_ld_
                         : ws_states_layer_ld;
+    }
+
+    inline dim_t dst_brgemm_desc(
+            cell_position_t cell_position, bool after_proj = false) const {
+        // We use scratch_ht and not dst_layer for lstmp
+        if (is_lstm_projection && !after_proj) return 0;
+
+        return (cell_position & last_layer) && skip_dst_layer_copy()
+                ? 1
+                : (cell_position & last_iter) && skip_dst_iter_copy() ? 2 : 3;
     }
 
     inline dim_t dst_iter_ld(cell_position_t cell_position) const {
@@ -324,12 +370,41 @@ struct rnn_conf_t {
                 skip_dst_iter_copy() && (cell_position & last_iter)
                         && !(cell_position & first_layer));
     }
+    bool is_brgemm;
+
+    dim_t M, N, K1, K2;
+
+    dim_t LDB1, LDB2;
+    dim_t LDA1[3];
+    dim_t LDA2[3];
+    dim_t LDC;
+
+    dim_t m_block, M_blocks;
+    dim_t n_block, N_blocks, n_tail;
+
+    dim_t k2_block, k1_block, k1_tail, k2_tail;
+    dim_t KB1_blocks, KB2_blocks;
+    dim_t K1padded, K2padded;
+
+    dim_t Kproj, Kprojpadded;
+    dim_t kproj_block, KBproj_blocks, kproj_tail;
+
+    dim_t Nproj, Nproj_blocks, nproj_tail;
+    dim_t LDAproj, LDBproj, LDCproj[4];
+
+    dim_t nthr;
+#if DNNL_X64
+    x64::cpu_isa_t brgemm_isa;
+#endif
+    bool unfused_post_gemm;
 };
 
 bool is_ldigo(const memory_desc_wrapper &md);
 bool is_ldgoi(const memory_desc_wrapper &md);
 bool is_ldio(const memory_desc_wrapper &md);
 bool is_ldoi(const memory_desc_wrapper &md);
+bool is_ldigo_blocked(const memory_desc_wrapper &md);
+bool is_ldio_blocked(const memory_desc_wrapper &md);
 
 int get_good_ld(int dim, int sizeof_dt);
 
@@ -509,12 +584,16 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     auto dst_layer_is_trivial_stride = dst_layer_d.blocking_desc().strides[0]
             == (rnn.dst_layer_ld_ * rnn.mb);
 
-    rnn.merge_gemm_layer = ((rnn.is_fwd && src_layer_is_trivial_stride)
-                                   || ((rd.prop_kind == prop_kind::backward)
-                                           && dst_layer_is_trivial_stride))
-            && (((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd) || rnn.is_int8());
-    rnn.merge_gemm_iter
-            = dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru);
+    rnn.merge_gemm_layer = (!rnn.is_brgemm)
+            ? ((rnn.is_fwd && src_layer_is_trivial_stride)
+                      || ((rd.prop_kind == prop_kind::backward)
+                              && dst_layer_is_trivial_stride))
+                    && (((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd)
+                            || rnn.is_int8())
+            : false;
+    rnn.merge_gemm_iter = (!rnn.is_brgemm)
+            ? dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru)
+            : false;
     rnn.force_nocopy = false;
 #if DNNL_X64
     rnn.force_nocopy = !x64::mayiuse(x64::avx512_mic) && x64::mayiuse(x64::avx)
@@ -525,24 +604,27 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     /* Decide to copy bias */
     rnn.copy_bias = rnn.is_int8();
 
-    rnn.use_layer_packed_gemm
-            = utils::one_of(weights_layer_d.format_kind(), format_kind::any,
+    rnn.use_layer_packed_gemm = !rnn.is_brgemm
+            ? utils::one_of(weights_layer_d.format_kind(), format_kind::any,
                       format_kind::rnn_packed)
-            && is_inference
-            && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
-                    || rnn.is_int8() || is_bf16);
-    rnn.use_iter_packed_gemm
-            = utils::one_of(weights_iter_d.format_kind(), format_kind::any,
+                    && is_inference
+                    && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
+                            || rnn.is_int8() || is_bf16)
+            : false;
+    rnn.use_iter_packed_gemm = !rnn.is_brgemm
+            ? utils::one_of(weights_iter_d.format_kind(), format_kind::any,
                       format_kind::rnn_packed)
-            && is_inference
-            && ((is_f32 && pack_sgemm_supported() && rnn.mb >= 16)
-                    || rnn.is_int8() || is_bf16);
-    rnn.use_projection_packed_gemm
-            = utils::one_of(weights_projection_d.format_kind(),
+                    && is_inference
+                    && ((is_f32 && pack_sgemm_supported() && rnn.mb >= 16)
+                            || rnn.is_int8() || is_bf16)
+            : false;
+    rnn.use_projection_packed_gemm = !rnn.is_brgemm
+            ? utils::one_of(weights_projection_d.format_kind(),
                       format_kind::any, format_kind::rnn_packed)
-            && is_inference
-            && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
-                    || rnn.is_int8() || is_bf16);
+                    && is_inference
+                    && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
+                            || rnn.is_int8() || is_bf16)
+            : false;
 
     /* Set packed gemm sizes */
     /* TODO: investigate the benefit of mixing packed and non-packed weights parts */

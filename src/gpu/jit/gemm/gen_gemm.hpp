@@ -88,12 +88,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             ok = ok
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(),
                             d->k(), d->lda(), d->ldb(), d->ldc(), d->batch())
-                    && IMPLICATION(d->c_type() != f32,
-                            d->bias_type() == data_type::undef)
-                    && IMPLICATION(with_bias(),
-                            (d->bias_type() == d->c_type())
-                                    && utils::one_of(
-                                            bias_cmask(), 0, 1 << 0, 1 << 1))
+                    && d->bias_type() == data_type::undef
                     && compute_engine->mayiuse_ngen_kernels()
                     && attr()->has_default_values(attr_skip_mask)
                     && attr()->output_scales_.mask_ == 0
@@ -142,15 +137,6 @@ struct gen_gemm_t : public gpu_gemm_t {
             using namespace primitive_kind;
             const auto &p = attr()->post_ops_;
             return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
-        }
-
-        bool with_bias() const {
-            return desc()->bias_type() != data_type::undef;
-        }
-
-        int bias_cmask() const {
-            unsigned char to_cmask[4] = {0, 2, 1, 3};
-            return with_bias() ? to_cmask[(desc()->bias_mask() >> 1) & 3] : -1;
         }
 
         size_t dyn_offset_a = 0;

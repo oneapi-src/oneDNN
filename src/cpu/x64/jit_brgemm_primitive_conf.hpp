@@ -45,6 +45,7 @@ struct jit_brgemm_primitive_conf_t {
     bool with_sum;
     bool with_eltwise;
     bool with_scales;
+    bool signed_input;
     post_ops_t::entry_t::eltwise_t eltwise;
     int nb_ic, ic_block;
     int nb_oc, oc_block;

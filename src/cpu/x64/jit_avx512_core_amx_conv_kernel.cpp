@@ -1047,22 +1047,30 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
         return;
     }
 
+    auto wei_offset = [&](int icb, int ocb, int kh, int kw) {
+        return icb * get_wei_icb_step() + kh * get_wei_h_step()
+                + get_wei_offset(ocb, kw);
+    };
+
+    auto inp_offset = [&](int icb, int ohb, int kh, int kw) {
+        return icb * get_inp_icb_step() + kh * get_inp_h_step()
+                + get_inp_offset(ohb, kw);
+    };
+
     // normal and k-remainders path
     for (int icb = 0; icb < jcp.nb_ic_int; icb++) {
-        mov(aux_inp_ptr, inp_ptr);
-        mov(aux_wei_ptr, wei_ptr);
         for (int kh = 0; kh < jcp.kh; kh++) {
             for (int set_idx = 0; set_idx < jcp.n_stride_sets;
                     set_idx++) { // used to optimize input memory reuse in L1$
                 for (int kw = set_idx; kw < jcp.kw; kw += jcp.kw_step) {
                     for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
                         tileloadd(Tmm(get_inp_tensor(ohb, tail)),
-                                ptr[aux_inp_ptr + get_inp_offset(ohb, kw)
+                                ptr[inp_ptr + inp_offset(icb, ohb, kh, kw)
                                         + reg_inp_stride]);
                     }
                     for (int ocb = 0; ocb < jcp.nb_oc_blocking; ocb++) {
                         tileloadd(Tmm(get_wei_tensor(ocb)),
-                                ptr[aux_wei_ptr + get_wei_offset(ocb, kw)
+                                ptr[wei_ptr + wei_offset(icb, ocb, kh, kw)
                                         + reg_wei_stride]);
                         for (int ohb = 0; ohb < jcp.nb_oh_blocking; ohb++) {
                             tdpbxxd(Tmm(get_out_tensor(ohb, ocb, tail)),
@@ -1073,14 +1081,8 @@ void jit_avx512_core_amx_fwd_kernel_t::compute_icb_loop(
                     }
                 }
             }
-            add(aux_inp_ptr, get_inp_h_step());
-            add(aux_wei_ptr, get_wei_h_step());
         }
-        add(inp_ptr, get_inp_icb_step());
-        add(wei_ptr, get_wei_icb_step());
     }
-    sub(inp_ptr, get_inp_icb_step() * jcp.nb_ic_int);
-    sub(wei_ptr, get_wei_icb_step() * jcp.nb_ic_int);
 
     store_output(width, tail, do_store);
 

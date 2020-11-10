@@ -25,6 +25,7 @@
 #include <vector>
 #include <unordered_set>
 
+#include "common/broadcast_strategy.hpp"
 #include "common/c_types_map.hpp"
 #include "common/primitive_attr.hpp"
 #include "common/primitive_exec_types.hpp"
@@ -50,15 +51,6 @@ std::vector<const void *> prepare_binary_args(const post_ops_t &post_ops,
         const dnnl::impl::exec_ctx_t &ctx,
         const unsigned first_arg_idx_offset = 0);
 bool binary_args_matches_tag(format_tag_t tag, const post_ops_t &post_ops);
-
-enum class broadcasting_strategy_t {
-    // [n, c, d, h, w]
-    scalar, // [1, 1, 1, 1, 1]
-    per_oc, // [1, c, 1, 1, 1]
-    per_oc_spatial, // [1, c, 1, 1, 1] specific case for binary kernel nchw format
-    no_broadcast, // [n, c, d, h, w]
-    unsupported
-};
 
 bool binary_args_broadcast_supported(
         const post_ops_t &post_ops, const memory_desc_wrapper &dst_d);

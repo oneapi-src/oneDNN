@@ -557,9 +557,7 @@ GPU_INST_TEST_CASE(SimpleSmall_NCHW,
         PARAMS(nhwc, hwio, x, nhwc, 2, 1, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
         PARAMS(nhwc, hwio, x, nhwc, 2, 1, 6, 2, 2, 4, 4, 4, 3, 3, 0, 0, 1, 1),
         PARAMS(nhwc, goihw, x, nhwc, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 0, 0, 1, 1),
-        PARAMS(nhwc, hwigo, x, nhwc, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)
-
-);
+        PARAMS(nhwc, hwigo, x, nhwc, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1));
 
 GPU_INST_TEST_CASE(SimpleSmall_NHWC,
         PARAMS(nchw, oihw, x, nhwc, 2, 1, 6, 2, 2, 4, 4, 4, 3, 3, 0, 0, 1, 1),
@@ -567,8 +565,5 @@ GPU_INST_TEST_CASE(SimpleSmall_NHWC,
         PARAMS(nhwc, ohwi, x, nhwc, 2, 1, 6, 2, 2, 4, 4, 4, 3, 3, 0, 0, 1, 1),
         PARAMS(nchw, goihw, x, nchw, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
         PARAMS(nchw, goihw, x, nhwc, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
-        PARAMS(nhwc, gohwi, x, nhwc, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)
-
-);
-
+        PARAMS(nhwc, gohwi, x, nhwc, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1));
 } // namespace dnnl

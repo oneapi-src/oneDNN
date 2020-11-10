@@ -1999,6 +1999,53 @@ dnnl_status_t DNNL_API dnnl_pooling_v2_backward_desc_init(
 
 /// @} dnnl_api_pooling
 
+/// @addtogroup dnnl_api_prelu
+/// @{
+
+/// Initializes a descriptor for PReLU
+/// (leaky ReLU with trainable alpha parameter)
+/// forward propagation primitive.
+///
+/// @note
+///     weights descriptor is allowed to be initialized with
+///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
+///
+/// @param prelu_desc Output descriptor for a prelu primitive.
+/// @param prop_kind Propagation kind. Possible values are
+///     #dnnl_forward_training and #dnnl_forward_inference.
+/// @param data_desc Source and destination memory descriptor.
+/// @param weights_desc Alpha parameters memory descriptor.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_prelu_forward_desc_init(
+        dnnl_prelu_desc_t *prelu_desc, dnnl_prop_kind_t prop_kind,
+        const dnnl_memory_desc_t *data_desc,
+        const dnnl_memory_desc_t *weights_desc);
+
+/// Initializes a descriptor for PReLU
+/// (leaky ReLU with trainable alpha parameter)
+/// backward propagation primitive.
+///
+/// @note
+///     weights descriptor and diff_weights descriptor are allowed
+///     to be initialized with #dnnl_format_tag_any or with format_kind
+///     set to #dnnl_format_kind_any.
+///
+/// @param prelu_desc Output descriptor for a prelu primitive.
+/// @param data_desc Source and destination memory descriptor.
+/// @param weights_desc Alpha parameters memory descriptor.
+/// @param diff_data_desc Diff source and destination memory descriptor.
+/// @param diff_weights_desc Diff alpha parameters memory descriptor.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_prelu_backward_desc_init(
+        dnnl_prelu_desc_t *prelu_desc, const dnnl_memory_desc_t *data_desc,
+        const dnnl_memory_desc_t *weights_desc,
+        const dnnl_memory_desc_t *diff_data_desc,
+        const dnnl_memory_desc_t *diff_weights_desc);
+
+/// @} dnnl_api_prelu
+
 /// @addtogroup dnnl_api_lrn
 /// @{
 
@@ -2676,10 +2723,10 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v3(dnnl_rnn_desc_t *rnn_desc,
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
-/// - @p src_iter_desc together with @p src_iter_c_desc, diff_src_iter_desc,
+/// - @p src_iter_desc together with @p src_iter_c_desc, @p diff_src_iter_desc,
 ///   and @p diff_src_iter_c_desc,
 /// - @p bias_desc together with @p diff_bias_desc,
-/// - @p dst_iter_desc together with @p dst_iter_c_desc, diff_dst_iter_desc,
+/// - @p dst_iter_desc together with @p dst_iter_c_desc, @p diff_dst_iter_desc,
 ///   and @p diff_dst_iter_c_desc.
 ///
 /// This would then indicate that the LSTM backward propagation primitive
@@ -2758,11 +2805,11 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
-/// - @p src_iter_desc together with @p src_iter_c_desc, diff_src_iter_desc,
+/// - @p src_iter_desc together with @p src_iter_c_desc, @p diff_src_iter_desc,
 ///   and @p diff_src_iter_c_desc,
 /// - @p weights_peephole_desc together with @p diff_weights_peephole_desc,
 /// - @p bias_desc together with @p diff_bias_desc,
-/// - @p dst_iter_desc together with @p dst_iter_c_desc, diff_dst_iter_desc,
+/// - @p dst_iter_desc together with @p dst_iter_c_desc, @p diff_dst_iter_desc,
 ///   and @p diff_dst_iter_c_desc.
 ///
 /// This would then indicate that the LSTM backward propagation primitive
@@ -2846,11 +2893,11 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v2(
 ///
 /// The following arguments may either be @c NULL or point to a zero memory
 /// descriptor:
-/// - @p src_iter_desc together with @p src_iter_c_desc, diff_src_iter_desc,
+/// - @p src_iter_desc together with @p src_iter_c_desc, @p diff_src_iter_desc,
 ///   and @p diff_src_iter_c_desc,
 /// - @p weights_peephole_desc together with @p diff_weights_peephole_desc,
 /// - @p bias_desc together with @p diff_bias_desc,
-/// - @p dst_iter_desc together with @p dst_iter_c_desc, diff_dst_iter_desc,
+/// - @p dst_iter_desc together with @p dst_iter_c_desc, @p diff_dst_iter_desc,
 ///   and @p diff_dst_iter_c_desc.
 ///
 /// This would then indicate that the LSTM backward propagation primitive
@@ -3455,7 +3502,8 @@ dnnl_status_t DNNL_API dnnl_set_jit_profiling_jitdumpdir(const char *dir);
 ///         - SSE41 < AVX < AVX2,
 ///         - AVX2 < AVX512_MIC < AVX512_MIC_4OPS,
 ///         - AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16
-///           < AVX512_CORE_AMX.
+///           < AVX512_CORE_AMX,
+///         - AVX2 < AVX2_VNNI.
 ///
 /// @sa @ref dev_guide_cpu_dispatcher_control for more details
 ///
@@ -3673,4 +3721,4 @@ dnnl_status_t DNNL_API dnnl_gemm_s8s8s32(char transa, char transb, char offsetc,
 }
 #endif
 
-#endif
+#endif /* ONEAPI_DNNL_DNNL_H */

@@ -24,6 +24,7 @@ where `DRIVER` is one of:
 * [lrn](doc/driver_lrn.md)
 * [matmul](doc/driver_matmul.md)
 * [pool](doc/driver_pool.md)
+* [prelu](doc/driver_prelu.md)
 * [reorder](doc/driver_reorder.md)
 * [resampling](doc/driver_resampling.md)
 * [rnn](doc/driver_rnn.md)

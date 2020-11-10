@@ -87,10 +87,12 @@ protected:
         // Register map
         Reg64 loop_cnt(rbx); // loop counter
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        Vmm G0(1), G1(2), G2(3), G3(4), tmp1_vmm(5), tmp2_vmm(6), zero_vmm(7);
+        Vmm G0(1), G1(2), G2(3), G3(4), tmp1_vmm(5), tmp2_vmm(6);
 
         // We start code generations here
         preamble();
+
+        Reg64 n_step_reg(rbp);
 
         // extract addresses passed as parameter
         auto addr_ws_gates_reg = abi_param1;
@@ -110,6 +112,7 @@ protected:
         mov(addr_c_states_tm1_l_reg, ptr[base_args + 8]);
         mov(addr_c_states_t_l_reg, ptr[base_args + 16]);
         mov(addr_weights_peephole_reg, ptr[base_args + 24]);
+        mov(n_step_reg, ptr[base_args + 40]);
 #else
         auto addr_states_t_l_copy_reg = abi_param5;
         auto addr_c_states_tm1_l_reg = abi_param6;
@@ -117,6 +120,7 @@ protected:
         auto base_args = get_stack_params_address();
         mov(addr_c_states_t_l_reg, ptr[base_args]);
         mov(addr_weights_peephole_reg, ptr[base_args + 8]);
+        mov(n_step_reg, ptr[base_args + 24]);
 #endif
 
         // helper lambda to address the gates and biases
@@ -140,12 +144,14 @@ protected:
 
         sigmoid_injector_->load_table_addr();
         tanh_injector_->load_table_addr();
-
-        mov(loop_cnt, rnn_.dhc * scratch_dt_size);
+        if (rnn_.is_brgemm && !rnn_.unfused_post_gemm)
+            mov(loop_cnt, n_step_reg);
+        else
+            mov(loop_cnt, rnn_.dhc * scratch_dt_size);
         cmp(loop_cnt, vlen);
         jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
 
-        L(vector_loop_start_label);
+        L_aligned(vector_loop_start_label, 64);
         {
             // load G0 G1 G2 G3
             uni_vmovups(G0, sg_addr(0));
@@ -227,7 +233,7 @@ protected:
             add(addr_states_t_l_copy_reg, vlen_dst);
 
             // increment address pointers
-            L(vector_loop_inc_regs);
+            L_aligned(vector_loop_inc_regs);
             add(addr_scratch_gates_reg, vlen);
             if (rnn_.is_lstm_peephole) add(addr_weights_peephole_reg, vlen);
             add(addr_bias_reg, vlen);
@@ -242,12 +248,12 @@ protected:
             cmp(loop_cnt, vlen);
             jge(vector_loop_start_label);
         }
-        L(vector_loop_end_label);
+        L_aligned(vector_loop_end_label);
 
         cmp(loop_cnt, 0);
         je(rem_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
         // Same code as above, we just use vmovss for accessing inputs
-        L(rem_loop_start_label);
+        L_aligned(rem_loop_start_label, 64);
         {
             // load G0 G1 G2 G3
             uni_vmovss(G0, sg_addr(0));
@@ -337,7 +343,7 @@ protected:
             add(addr_states_t_l_copy_reg, hstate_dt_size);
 
             // increment address pointers
-            L(rem_loop_inc_regs);
+            L_aligned(rem_loop_inc_regs);
             add(addr_scratch_gates_reg, scratch_dt_size);
             if (rnn_.is_lstm_peephole)
                 add(addr_weights_peephole_reg, weights_peephole_dt_size);
@@ -353,7 +359,7 @@ protected:
             cmp(loop_cnt, 0);
             jg(rem_loop_start_label);
         }
-        L(rem_loop_end_label);
+        L_aligned(rem_loop_end_label);
 
         postamble();
 

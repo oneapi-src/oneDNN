@@ -240,15 +240,18 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
                 = prb->sdt[0] == dnnl_s8 || prb->sdt[0] == dnnl_u8;
         const bool is_src1_int_type
                 = prb->sdt[1] == dnnl_s8 || prb->sdt[1] == dnnl_u8;
+        const bool is_dst_int_type = prb->ddt == dnnl_s8 || prb->ddt == dnnl_u8;
 
-        const bool have_consistent_types
-                = ((prb->sdt[0] == prb->sdt[1]) && (prb->sdt[1] == prb->ddt))
-                || (is_src0_int_type && is_src1_int_type);
-
-        if (!have_consistent_types) {
+        if (!IMPLICATION(
+                    is_src0_int_type || is_src1_int_type, is_dst_int_type)) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
+    }
+
+    if (prb->inplace && prb->sdt[0] != prb->ddt) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
     }
 
     if (is_nvidia_gpu()) {

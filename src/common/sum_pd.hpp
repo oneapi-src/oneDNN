@@ -97,9 +97,8 @@ protected:
     std::vector<float> scales_;
     memory_desc_t dst_md_, dst_acc_md_;
     std::vector<memory_desc_t> src_mds_;
-
-protected:
     sum_desc_t desc_;
+
     // backends could redefine the accumulation tensor if required
     virtual void define_dst_acc_md() {
         dst_acc_md_ = dst_md_;
@@ -161,9 +160,9 @@ protected:
         return safe_ptr_assign(*sum_pd, _pd); \
     } \
     status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
-            engine_t *engine, bool is_primitive_nested) const override { \
+            engine_t *engine) const override { \
         return primitive_t::create_primitive_common<__VA_ARGS__, pd_t>( \
-                primitive, this, engine, false, is_primitive_nested); \
+                primitive, this, engine, false); \
     } \
     pd_t *clone() const override { \
         auto new_pd = utils::make_unique<pd_t>(*this); \

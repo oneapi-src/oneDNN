@@ -220,6 +220,7 @@ enum {
     key_pool_ind_plain2blocked_cvt,
     key_pool_src_bf16cvt,
     key_pool_src_plain2blocked_cvt,
+    key_prelu_reduction,
     key_reducer_space,
     key_reducer_space_bctx,
     key_reorder_cross_space,

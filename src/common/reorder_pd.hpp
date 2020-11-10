@@ -71,7 +71,7 @@ struct reorder_primitive_desc_iface_t : public dnnl_primitive_desc {
             primitive_iface_t **primitive_iface) const override {
         // Step 1: create impl::primitive_t or get it from primitive cache
         std::shared_ptr<primitive_t> p;
-        auto status = pd_->create_primitive(p, engine(), false);
+        auto status = pd_->create_primitive(p, engine());
         if (status != status::success) return status;
         // Step 2: create primitive_iface_t, init and return it to user
         primitive_iface_t *p_iface = nullptr;

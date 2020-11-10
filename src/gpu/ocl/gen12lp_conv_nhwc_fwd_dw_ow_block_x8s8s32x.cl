@@ -727,7 +727,7 @@ void block_read_src(int n, ushort *s, const __global ushort *src, const int g) {
     int sglid = get_sub_group_local_id();
 #if G % 2 == 0
     for (int i = 0; i < n; i++) {
-        if (sglid < (g + IC_BLOCK) <= G ? 16 : (G % IC_BLOCK) / 2) {
+        if (sglid < ((g + IC_BLOCK) <= G ? 16 : (G % IC_BLOCK) / 2)) {
             s[i] = src[i * G / 2 + sglid];
         } else
             s[i] = 0;

@@ -44,6 +44,7 @@
       <tab type="user" title="Local Response Normalization" url="@ref dev_guide_lrn"/>
       <tab type="user" title="Logsoftmax" url="@ref dev_guide_logsoftmax"/>
       <tab type="user" title="Pooling" url="@ref dev_guide_pooling"/>
+      <tab type="user" title="Prelu" url="@ref dev_guide_prelu"/>
       <tab type="user" title="Resampling" url="@ref dev_guide_resampling"/>
       <tab type="user" title="Shuffle" url="@ref dev_guide_shuffle"/>
       <tab type="user" title="Softmax" url="@ref dev_guide_softmax"/>

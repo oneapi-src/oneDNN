@@ -358,9 +358,12 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
 }
 
 status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
-        const inner_product_desc_t &ipd, const memory_desc_wrapper &src_d,
-        const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
-        const primitive_attr_t &attr, int nthreads) {
+        const inner_product_desc_t &ipd, memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
+    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper weights_d(&weights_md);
+    const memory_desc_wrapper dst_d(&dst_md);
 
     using namespace prop_kind;
     if (!mayiuse(avx512_common)) return status::unimplemented;
@@ -410,6 +413,7 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
             ? pick_by_prop_kind(jbgp.prop_kind, ipd.bias_desc.data_type,
                     data_type::undef, ipd.diff_bias_desc.data_type)
             : data_type::undef;
+    jbgp.signed_input = jbgp.src_dt == s8;
 
     if (!IMPLICATION(jbgp.wei_dt == s8, mayiuse(avx512_core_vnni)))
         return status::unimplemented;
@@ -424,17 +428,54 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
     } else
         return status::unimplemented;
 
-    format_tag_t dat_tag = nc;
-    format_tag_t wei_tag
-            = get_brgemm_ip_weights_tag((dim_t)jbgp.oc, jbgp.wei_dt);
-    if (wei_tag == format_tag::undef) return status::unimplemented;
+    auto set_or_check_tags = [&]() -> status_t {
+        using namespace format_tag;
+        format_tag_t desired_src_tag = nc;
+        format_tag_t desired_dst_tag = nc;
 
-    jbgp.src_tag = src_d.matches_one_of_tag(dat_tag);
-    jbgp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
-    jbgp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
-    if (jbgp.src_tag != dat_tag || jbgp.dst_tag != dat_tag
-            || jbgp.wei_tag != wei_tag)
-        return status::unimplemented;
+        if (src_d.format_kind() == format_kind::any) {
+            CHECK(memory_desc_init_by_tag(src_md, desired_src_tag));
+            jbgp.src_tag = desired_src_tag;
+        } else {
+            jbgp.src_tag = memory_desc_matches_one_of_tag(src_md, nc);
+        }
+
+        if (dst_d.format_kind() == format_kind::any) {
+            CHECK(memory_desc_init_by_tag(dst_md, desired_dst_tag));
+            jbgp.dst_tag = desired_dst_tag;
+        } else {
+            jbgp.dst_tag = memory_desc_matches_one_of_tag(dst_md, nc);
+        }
+
+        if (jbgp.src_tag == format_tag::undef
+                || jbgp.dst_tag == format_tag::undef
+                || jbgp.src_tag != jbgp.dst_tag)
+            return status::unimplemented;
+
+        if (jbgp.with_bias && bias_md.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(bias_md, x));
+
+        memory_desc_t want_wei_md = weights_md;
+        jbgp.wei_tag = get_brgemm_ip_weights_tag((dim_t)jbgp.oc, jbgp.wei_dt);
+        CHECK(memory_desc_init_by_tag(want_wei_md, jbgp.wei_tag));
+
+        if (jbgp.signed_input) {
+            want_wei_md.extra.flags = 0
+                    | memory_extra_flags::compensation_conv_s8s8
+                    | memory_extra_flags::scale_adjust;
+            want_wei_md.extra.compensation_mask = (1 << 0);
+            want_wei_md.extra.scale_adjust
+                    = platform::s8s8_weights_scale_factor();
+        }
+        if (weights_md.format_kind == format_kind::any) {
+            weights_md = want_wei_md;
+            return status::success;
+        }
+        return (want_wei_md == weights_md) ? status::success
+                                           : status::unimplemented;
+    };
+
+    CHECK(set_or_check_tags());
 
     jbgp.brg_type = brgemm_addr;
     jbgp.nthr = nthreads;

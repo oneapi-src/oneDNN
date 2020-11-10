@@ -2440,7 +2440,7 @@ template <ngen::HW hw>
 void gemm_kernel_generator_t<hw>::makeUnbackedRegLayout(Type T,
         vector<RegisterBlock> &layout, int r, int c, bool colMajor,
         int crosspack) {
-    RegisterBlock block {};
+    auto block = RegisterBlock();
 
     if ((colMajor ? c : r) % crosspack) stub();
 

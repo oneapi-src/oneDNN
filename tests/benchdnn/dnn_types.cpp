@@ -382,12 +382,18 @@ std::vector<int> attr_t::post_ops_t::get_binary_po_masks() const {
 
 int attr_t::post_ops_t::from_str(const std::string &s) {
     *this = post_ops_t();
+
+    auto s_no_quotes = s;
+    // strip double quotes to allow command line style work from a batch file
+    if (s.front() == '\"' && s.back() == '\"')
+        s_no_quotes = s.substr(1, s.size() - 2);
+
     // "'" is mandatory as long as ";" is used as alg delimiter
-    if (s.front() != '\'' || s.back() != '\'') return FAIL;
-    if (s.size() == 2) return OK; // empty input
+    if (s_no_quotes.front() != '\'' || s_no_quotes.back() != '\'') return FAIL;
+    if (s_no_quotes.size() == 2) return OK; // empty input
 
     // strip quotes to simplify further logic
-    auto s_no_quotes = s.substr(1, s.size() - 2);
+    s_no_quotes = s_no_quotes.substr(1, s_no_quotes.size() - 2);
 
     // operate over substrings separated by ';' represeting a single post op
     // with further parsing of specific kind

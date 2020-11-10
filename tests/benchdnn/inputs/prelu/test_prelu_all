@@ -1,0 +1,6 @@
+--reset
+
+--dir=FWD_D,BWD_DW
+--dt=f32,bf16
+--tag=abx
+--batch=shapes_all

@@ -402,6 +402,11 @@ const format_tag_t AB32a32b8a4b = dnnl_AB32a32b8a4b;
 const format_tag_t AB8a4b = dnnl_AB8a4b;
 const format_tag_t AB32a32b8a2b = dnnl_AB32a32b8a2b;
 const format_tag_t AB8a2b = dnnl_AB8a2b;
+const format_tag_t abDc32d = dnnl_abDc32d;
+const format_tag_t abDC32d4c = dnnl_abDC32d4c;
+const format_tag_t abdEc32e = dnnl_abdEc32e;
+const format_tag_t abdEC32e2c = dnnl_abdEC32e2c;
+const format_tag_t abdEC32e4c = dnnl_abdEC32e4c;
 
 const format_tag_t last = dnnl_format_tag_last;
 
@@ -439,6 +444,9 @@ const format_tag_t dhwigo = dnnl_dhwigo;
 const format_tag_t giohw = dnnl_giohw;
 const format_tag_t goidhw = dnnl_goidhw;
 const format_tag_t giodhw = dnnl_giodhw;
+const format_tag_t gowi = dnnl_gowi;
+const format_tag_t gohwi = dnnl_gohwi;
+const format_tag_t godhwi = dnnl_godhwi;
 const format_tag_t tnc = dnnl_tnc;
 const format_tag_t ntc = dnnl_ntc;
 const format_tag_t ldnc = dnnl_ldnc;
@@ -646,9 +654,11 @@ const format_tag_t gOIdhw4i8o2i = dnnl_gOIdhw4i8o2i;
 const format_tag_t gOIw4o8i2o = dnnl_gOIw4o8i2o;
 const format_tag_t gOIhw4o8i2o = dnnl_gOIhw4o8i2o;
 const format_tag_t gOIdhw4o8i2o = dnnl_gOIdhw4o8i2o;
-const format_tag_t gowi = dnnl_gowi;
-const format_tag_t gohwi = dnnl_gohwi;
-const format_tag_t godhwi = dnnl_godhwi;
+const format_tag_t ldOi32o = dnnl_ldOi32o;
+const format_tag_t ldOI32o4i = dnnl_ldOI32o4i;
+const format_tag_t ldgOi32o = dnnl_ldgOi32o;
+const format_tag_t ldgOI32o2i = dnnl_ldgOI32o2i;
+const format_tag_t ldgOI32o4i = dnnl_ldgOI32o4i;
 } // namespace format_tag
 
 using memory_extra_flags_t = dnnl_memory_extra_flags_t;
@@ -657,8 +667,8 @@ const memory_extra_flags_t none = dnnl_memory_extra_flag_none;
 const memory_extra_flags_t compensation_conv_s8s8
         = dnnl_memory_extra_flag_compensation_conv_s8s8;
 const memory_extra_flags_t scale_adjust = dnnl_memory_extra_flag_scale_adjust;
-const memory_extra_flags_t gpu_rnn_u8s8_compensation
-        = dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation;
+const memory_extra_flags_t rnn_u8s8_compensation
+        = dnnl_memory_extra_flag_rnn_u8s8_compensation;
 const memory_extra_flags_t compensation_conv_asymmetric_src
         = dnnl_memory_extra_flag_compensation_conv_asymmetric_src;
 } // namespace memory_extra_flags
@@ -703,6 +713,7 @@ const primitive_kind_t eltwise = dnnl_eltwise;
 const primitive_kind_t softmax = dnnl_softmax;
 const primitive_kind_t pooling = dnnl_pooling;
 const primitive_kind_t pooling_v2 = dnnl_pooling_v2;
+const primitive_kind_t prelu = dnnl_prelu;
 const primitive_kind_t lrn = dnnl_lrn;
 const primitive_kind_t batch_normalization = dnnl_batch_normalization;
 const primitive_kind_t layer_normalization = dnnl_layer_normalization;
@@ -751,6 +762,7 @@ const query_t eltwise_d = dnnl_query_eltwise_d;
 const query_t softmax_d = dnnl_query_softmax_d;
 const query_t pooling_d = dnnl_query_pooling_d;
 const query_t pooling_v2_d = dnnl_query_pooling_v2_d;
+const query_t prelu_d = dnnl_query_prelu_d;
 const query_t lrn_d = dnnl_query_lrn_d;
 const query_t batch_normalization_d = dnnl_query_batch_normalization_d;
 const query_t layer_normalization_d = dnnl_query_layer_normalization_d;
@@ -790,6 +802,7 @@ using deconvolution_desc_t = dnnl_deconvolution_desc_t;
 using shuffle_desc_t = dnnl_shuffle_desc_t;
 using pooling_desc_t = dnnl_pooling_desc_t;
 using pooling_v2_desc_t = dnnl_pooling_v2_desc_t;
+using prelu_desc_t = dnnl_prelu_desc_t;
 using eltwise_desc_t = dnnl_eltwise_desc_t;
 using softmax_desc_t = dnnl_softmax_desc_t;
 using lrn_desc_t = dnnl_lrn_desc_t;
@@ -826,6 +839,7 @@ struct op_desc_t {
         shuffle_desc_t shuffle;
         pooling_desc_t pooling;
         pooling_v2_desc_t pooling_v2;
+        prelu_desc_t prelu;
         eltwise_desc_t eltwise;
         softmax_desc_t softmax;
         lrn_desc_t lrn;
@@ -857,6 +871,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(shuffle_desc_t);
     DECL_CTOR_AND_CONVERTERS(pooling_desc_t);
     DECL_CTOR_AND_CONVERTERS(pooling_v2_desc_t);
+    DECL_CTOR_AND_CONVERTERS(prelu_desc_t);
     DECL_CTOR_AND_CONVERTERS(eltwise_desc_t);
     DECL_CTOR_AND_CONVERTERS(softmax_desc_t);
     DECL_CTOR_AND_CONVERTERS(lrn_desc_t);
@@ -931,6 +946,7 @@ struct matmul_pd_t;
 struct pooling_bwd_pd_t;
 struct pooling_fwd_pd_t;
 struct pooling_pd_t;
+struct prelu_pd_t;
 struct reduction_pd_t;
 struct reorder_pd_t;
 struct resampling_pd_t;

@@ -1,0 +1,13 @@
+# int8
+--reset
+--dir=FWD_B,FWD_D
+--cfg=s8s8f32,s8s8s32,s8s8s8,s8s8u8,u8s8f32,u8s8s32,u8s8s8,u8s8u8
+--mb=0                    --batch=shapes_0d
+
+--attr-oscale=per_oc:2.25,common:0.025
+--attr-post-ops='mul:s8;sum:0.5;relu:0.5','square:0:0:10'
+--mb=2 --batch=set_all
+--mb=0 --batch=shapes_0d
+
+# Test saturation
+--batch=harness_ip_saturation

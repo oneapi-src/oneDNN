@@ -530,7 +530,7 @@ status_t rnn_utils::set_expected_desc(
 
     // set we need extra memory
     if (rnn.is_fwd && !one_of(rnn.dt_conf, all_f32, all_f16, all_bf16)) {
-        weights_md.extra.flags = memory_extra_flags::gpu_rnn_u8s8_compensation;
+        weights_md.extra.flags = memory_extra_flags::rnn_u8s8_compensation;
         weights_md.extra.compensation_mask = 27; // ldigo 11011;
     }
     return status::success;

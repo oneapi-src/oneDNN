@@ -232,7 +232,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             const auto &end = po.len();
 
             unsigned int fusion_ops = 0;
-            // Loop through the post-ops untill we reach the end
+            // Loop through the post-ops until we reach the end
             // (if we have more than one op to fuse later)
             while (po_op_iter < end) {
                 if (fusion_ops++ > max_fusions_) return status::unimplemented;

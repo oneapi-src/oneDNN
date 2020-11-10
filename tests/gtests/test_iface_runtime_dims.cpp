@@ -168,6 +168,23 @@ TEST_F(runtime_dim_test_t, TestPool) {
             {2, 2}, {2, 2}, {0, 0}, {0, 0}));
 }
 
+TEST_F(runtime_dim_test_t, TestPReLU) {
+    memory::desc data_md {
+            {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
+    memory::desc weights_md {
+            {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
+
+    CHECK_UNIMPL(prelu_forward::desc(prop_kind::forward, data_md, weights_md));
+
+    memory::desc diff_data_desc {
+            {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
+    memory::desc diff_weights_desc {
+            {DNNL_RUNTIME_DIM_VAL, 16, 3, 3}, data_type::f32, tag::abcd};
+
+    CHECK_UNIMPL(prelu_backward::desc(
+            data_md, weights_md, diff_data_desc, diff_weights_desc));
+}
+
 CPU_TEST_F(runtime_dim_test_t, TestReorder) {
     memory::desc src_md {
             {DNNL_RUNTIME_DIM_VAL, 16, 8, 8}, data_type::f32, tag::abcd};

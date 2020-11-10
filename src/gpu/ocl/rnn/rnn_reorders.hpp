@@ -44,7 +44,7 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
         status_t init(
                 engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
             if (!(dst_md()->extra.flags
-                        & memory_extra_flags::gpu_rnn_u8s8_compensation))
+                        & memory_extra_flags::rnn_u8s8_compensation))
                 return status::unimplemented;
 
             bool args_ok = true

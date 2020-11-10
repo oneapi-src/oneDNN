@@ -162,12 +162,13 @@ struct rnn_postgemm_dispatcher {
                     src_iter_c_, diff_src_layer_, diff_src_iter_,
                     diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
                     diff_dst_iter_c_, weights_peephole_, bias_, ws_grid_,
-                    scratch_cell_, dst_iter_);
+                    scratch_cell_, dst_iter_, weights_scales_, block_step);
             unpoison(rnn, cell_position, ws_gates_, scratch_gates_, dst_layer_,
                     dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
                     diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
                     diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
-                    ws_grid_, scratch_cell_, dst_iter_);
+                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                    block_step);
             return;
         }
 #endif
@@ -175,7 +176,8 @@ struct rnn_postgemm_dispatcher {
                 dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
                 diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
                 diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                weights_peephole_, bias_, ws_grid_, scratch_cell_, dst_iter_);
+                weights_peephole_, bias_, ws_grid_, scratch_cell_, dst_iter_,
+                weights_scales_, block_step);
     }
 
     // template <typename src_data_t, typename acc_data_t>
@@ -187,12 +189,13 @@ struct rnn_postgemm_dispatcher {
                     src_iter_c_, diff_src_layer_, diff_src_iter_,
                     diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
                     diff_dst_iter_c_, weights_peephole_, bias_, ws_grid_,
-                    scratch_cell_, dst_iter_);
+                    scratch_cell_, dst_iter_, weights_scales_, block_step);
             unpoison(rnn, cell_position, ws_gates_, scratch_gates_, dst_layer_,
                     dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
                     diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
                     diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
-                    ws_grid_, scratch_cell_, dst_iter_);
+                    ws_grid_, scratch_cell_, dst_iter_, weights_scales_,
+                    block_step);
             return;
         }
 #endif
@@ -200,7 +203,8 @@ struct rnn_postgemm_dispatcher {
                 scratch_gates_, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
                 diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
                 diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                weights_peephole_, bias_, ws_grid_, scratch_cell_, dst_iter_);
+                weights_peephole_, bias_, ws_grid_, scratch_cell_, dst_iter_,
+                weights_scales_, block_step);
     }
 
 private:

@@ -97,12 +97,11 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                                                     data_type::bf16))
                                     || utils::everyone_is(data_type::f32,
                                             src_type, bias_md_.data_type)))
-                    && check_attr() && !has_zero_dim_memory()
-                    && set_default_formats();
+                    && check_attr() && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             CHECK(brgemm_inner_product_utils::init_ip_conf(jbgp_, *desc(),
-                    *src_md(), *weights_md(), *dst_md(), *attr(),
+                    src_md_, weights_md_, dst_md_, bias_md_, *attr(),
                     dnnl_get_max_threads()));
 
             const float alpha = 1.0;
@@ -144,18 +143,6 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
 
         brgemm_t brg_descs_[max_num_brg_kernels_ip];
         jit_brgemm_primitive_conf_t jbgp_;
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-
-            auto dat_tag = nc;
-            auto wei_tag
-                    = brgemm_inner_product_utils::get_brgemm_ip_weights_tag(
-                            OC(), invariant_wei_md()->data_type);
-
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
     };
 
     brgemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -212,13 +199,13 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                     && expect_data_types(diff_src_type, wei_type,
                             data_type::undef, diff_dst_type, data_type::undef)
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
-                    && set_default_formats();
+                            primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
 
+            memory_desc_t dummy_bias_md;
             CHECK(brgemm_inner_product_utils::init_ip_conf(jbgp_, *desc(),
-                    *diff_src_md(), *weights_md(), *diff_dst_md(), *attr(),
-                    dnnl_get_max_threads()));
+                    diff_src_md_, weights_md_, diff_dst_md_, dummy_bias_md,
+                    *attr(), dnnl_get_max_threads()));
 
             const float alpha = 1.0;
             const float beta = 1.0;
@@ -262,18 +249,6 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
         brgemm_t brg_descs_[max_num_brg_kernels_ip];
         jit_brgemm_primitive_conf_t jbgp_;
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-
-            auto dat_tag = nc;
-            auto wei_tag
-                    = brgemm_inner_product_utils::get_brgemm_ip_weights_tag(
-                            OC(), invariant_wei_md()->data_type);
-
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
     };
 
     brgemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
@@ -333,13 +308,12 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                     && expect_data_types(src_type, diff_wei_type,
                             data_type::undef, diff_dst_type, data_type::undef)
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
-                    && set_default_formats();
+                            primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
 
             CHECK(brgemm_inner_product_utils::init_ip_conf(jbgp_, *desc(),
-                    *src_md(), *diff_weights_md(), *diff_dst_md(), *attr(),
-                    dnnl_get_max_threads()));
+                    src_md_, diff_weights_md_, diff_dst_md_, diff_bias_md_,
+                    *attr(), dnnl_get_max_threads()));
 
             const float alpha = 1.0;
             const float beta = 1.0;
@@ -375,18 +349,6 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
 
         brgemm_t brg_descs_[max_num_brg_kernels_ip];
         jit_brgemm_primitive_conf_t jbgp_;
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-
-            auto dat_tag = nc;
-            auto wei_tag
-                    = brgemm_inner_product_utils::get_brgemm_ip_weights_tag(
-                            OC(), invariant_wei_md()->data_type);
-
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
     };
 
     brgemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}

@@ -127,6 +127,7 @@ protected:
                                 || supported_blocking(prec_o, p.fmt_o))),
                 "Unsupported cuda format tag/ data type");
 #endif
+
         catch_expected_failures([&]() { RunTest(eng_i, eng_o); },
                 p.expect_to_fail, p.expected_status);
     }

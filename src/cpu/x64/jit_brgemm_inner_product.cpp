@@ -70,7 +70,14 @@ void brgemm_inner_product_fwd_t<src_type, wei_type, dst_type>::execute_forward(
 
     int ic_chunks = jbgp.nb_ic / jbgp.nb_ic_blocking;
     bool are_post_ops_applicable = one_of(true, jbgp.with_sum, jbgp.with_bias,
-            jbgp.with_scales, jbgp.with_eltwise, jbgp.acc_dt != jbgp.dst_dt);
+            jbgp.with_scales, jbgp.with_eltwise, jbgp.acc_dt != jbgp.dst_dt,
+            jbgp.signed_input);
+
+    size_t offset = weights_d.size() - weights_d.additional_buffer_size();
+    auto w = const_cast<wei_data_t *>(weights);
+    int32_t *compensation = (jbgp.signed_input)
+            ? reinterpret_cast<int32_t *>(&w[offset])
+            : nullptr;
 
     const auto ker = [&](const int ithr, int n, int ocb, int icc) {
         src_data_t **addr_A = addr_A_global + ithr * 16 * jbgp.gemm_batch_size;
@@ -116,7 +123,8 @@ void brgemm_inner_product_fwd_t<src_type, wei_type, dst_type>::execute_forward(
                 brgemm_kernel_execute_postops(brg_kernel, nb_ic_b,
                         (void **)addr_A, (void **)addr_B, (void *)ptr_C,
                         (void *)ptr_D, (void *)bias_w,
-                        &oscales[jbgp.is_oc_scale * oc]);
+                        &oscales[jbgp.is_oc_scale * oc],
+                        jbgp.signed_input ? &compensation[oc] : nullptr);
             } else {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
                                                 : (char *)dst
@@ -147,7 +155,8 @@ void brgemm_inner_product_fwd_t<src_type, wei_type, dst_type>::execute_forward(
                 brgemm_kernel_execute_postops(brg_kernel_ic_tail, 1,
                         (void **)addr_A, (void **)addr_B, (void *)ptr_C,
                         (void *)ptr_D, (void *)bias_w,
-                        &oscales[jbgp.is_oc_scale * oc]);
+                        &oscales[jbgp.is_oc_scale * oc],
+                        jbgp.signed_input ? &compensation[oc] : nullptr);
             } else {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
                                                 : (char *)dst

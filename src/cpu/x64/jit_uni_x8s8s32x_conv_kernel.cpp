@@ -60,10 +60,16 @@ _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::_jit_uni_x8s8s32x_fwd_kernel(
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
-        const rhs_arg_static_params_t rhs_arg_static_params {15, r13, r14,
-                preserve_gpr, preserve_vmm,
+        static constexpr size_t helper_vmm_idx = 15;
+        const size_t oc_block_tail = jcp.oc_block % isa_simd_width_;
+        const size_t tail_size = oc_block_tail
+                ? oc_block_tail
+                : jcp.oc_without_padding % isa_simd_width_;
+
+        const rhs_arg_static_params_t rhs_arg_static_params {helper_vmm_idx,
+                r13, r14, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec),
-                memory_desc_wrapper(dst_md)};
+                memory_desc_wrapper(dst_md), tail_size, true};
         const static_params_t static_params {
                 this->param1, rhs_arg_static_params};
 
@@ -101,6 +107,26 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::cvt2ps(data_type_t type_in,
     if (type_in != data_type::f32) uni_vcvtdq2ps(vmm_in, vmm_in);
 }
 
+template <typename F>
+void iterate(const int nb_oc_block, const int ur_w,
+        const bool last_oc_block_flag, const bool force_masking, const F &f) {
+    for (int k = 0; k < nb_oc_block; k++) {
+        const bool mask_flag
+                = force_masking || (last_oc_block_flag && k == nb_oc_block - 1);
+        for (int j = 0; j < ur_w; j++)
+            f(mask_flag, k, j);
+    }
+}
+template <typename F>
+void iterate(const int nb_oc_block, const int ur_w,
+        const bool last_oc_block_flag, const F &f) {
+    iterate(nb_oc_block, ur_w, last_oc_block_flag, false, f);
+}
+template <typename F>
+void iterate(const int nb_oc_block, const int ur_w, const F &f) {
+    iterate(nb_oc_block, ur_w, false, false, f);
+}
+
 template <cpu_isa_t isa, typename Vmm>
 void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_sum(const int nb_oc_block,
         const int ur_w, const bool last_oc_block_flag, const int oc_block,
@@ -108,25 +134,23 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_sum(const int nb_oc_block,
     if (jcp.with_sum) {
         assert(p_sum_scale != nullptr && "p_sum_scale = nullptr");
         const float sum_scale = *p_sum_scale;
-        const auto sum_injector = [=]() {
-            for (int k = 0; k < nb_oc_block; ++k) {
-                const bool mask_flag
-                        = last_oc_block_flag && k == nb_oc_block - 1;
-                for (int j = 0; j < ur_w; ++j) {
-                    const int aux_output_offset = jcp.typesize_out
-                            * (k * oc_block
-                                    + j * jcp.oc_without_padding * jcp.ngroups);
-                    cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
-                            mask_flag ? get_tail_size() : get_blocking_size());
-                    const Vmm vmm = vmm_out(j, k);
-                    if (sum_scale == 1.f)
-                        uni_vaddps(vmm, vmm_prev_dst);
-                    else {
-                        uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
-                        uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
-                    }
-                }
+        const auto sum_injector_lam = [this, oc_block, sum_scale](
+                                              const bool mask_flag, const int k,
+                                              const int j) {
+            const int aux_output_offset = jcp.typesize_out
+                    * (k * oc_block + j * jcp.oc_without_padding * jcp.ngroups);
+            cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
+                    mask_flag ? get_tail_size() : get_blocking_size());
+            const Vmm vmm = vmm_out(j, k);
+            if (sum_scale == 1.f)
+                uni_vaddps(vmm, vmm, vmm_prev_dst);
+            else {
+                uni_vbroadcastss(vmm_tmp, ptr[reg_ptr_sum_scale]);
+                uni_vfmadd231ps(vmm, vmm_prev_dst, vmm_tmp);
             }
+        };
+        const auto sum_injector = [=]() {
+            iterate(nb_oc_block, ur_w, last_oc_block_flag, sum_injector_lam);
         };
         if (*p_sum_scale != 1.f) mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
         postops_injector_->set_lambda_injector(
@@ -141,34 +165,34 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::apply_postops(
     if (jcp.with_eltwise || jcp.with_binary || jcp.with_sum) {
         apply_sum(nb_oc_block, ur_w, last_oc_block_flag, oc_block, p_sum_scale);
 
-        const auto iterate
-                = [=](const std::function<void(const int k, const int j)> &f) {
-                      for (int k = 0; k < nb_oc_block; k++)
-                          for (int j = 0; j < ur_w; j++)
-                              f(k, j);
-                  };
         vmm_index_set_t vmm_idxs;
         binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
         if (jcp.with_binary) {
-            constexpr static auto vmm_len
-                    = cpu_isa_traits<isa>::vlen / sizeof(float);
-            iterate([&](const int k, const int j) {
-                const int aux_output_offset = jcp.typesize_out
-                        * (k * oc_block
-                                + j * jcp.oc_without_padding * jcp.ngroups);
-                const auto vmm_idx = vmm_out_idx(j, k);
-                vmm_idxs.emplace(vmm_idx);
-                rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
-                        vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
-                rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
-                        vmm_idx, k * vmm_len);
-                rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
-                        vmm_idx, aux_output_offset);
-            });
+            const bool oc_blk_is_smaller_than_vmm = oc_block < isa_simd_width_;
+            iterate(nb_oc_block, ur_w, last_oc_block_flag,
+                    oc_blk_is_smaller_than_vmm,
+                    [&](const bool mask_flag, const int k, const int j) {
+                        const int aux_output_offset = jcp.typesize_out
+                                * (k * oc_block
+                                        + j * jcp.oc_without_padding
+                                                * jcp.ngroups);
+                        const auto vmm_idx = vmm_out_idx(j, k);
+                        vmm_idxs.emplace(vmm_idx);
+
+                        rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
+                                vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
+                        rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                                vmm_idx, k * oc_block);
+                        rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                                vmm_idx, aux_output_offset);
+                        if (mask_flag)
+                            rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
+                    });
         } else
-            iterate([&](const int k, const int j) {
-                vmm_idxs.emplace(vmm_out_idx(j, k));
-            });
+            iterate(nb_oc_block, ur_w,
+                    [&](const bool, const int k, const int j) {
+                        vmm_idxs.emplace(vmm_out_idx(j, k));
+                    });
 
         postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
     }

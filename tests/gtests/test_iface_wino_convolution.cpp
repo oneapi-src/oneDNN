@@ -50,17 +50,17 @@ protected:
         input_int8.dat_dt = data_type::u8;
         input_int8.wei_dt = data_type::s8;
 
+#if DNNL_X64
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
         static const auto isa = get_effective_cpu_isa();
-        input_f32.wino_supported = (is_cpu && isa >= cpu_isa::avx512_mic)
-                || is_gpu || is_nvidia_gpu(eng);
-        input_f16.wino_supported = is_gpu || is_nvidia_gpu(eng);
-        input_int8.wino_supported = (is_cpu && isa >= cpu_isa::avx512_core);
-#if DNNL_X64
-        input_f32.backward_supported
-                = get_test_engine_kind() == engine::kind::cpu
-                && impl::dnnl_thr_syncable();
+        input_f32.wino_supported = is_gpu
+                || (is_cpu && isa >= cpu_isa::avx512_mic
+                        && isa != cpu_isa::avx2_vnni);
+        input_f16.wino_supported = is_gpu;
+        input_int8.wino_supported = is_cpu && isa >= cpu_isa::avx512_core
+                && isa != cpu_isa::avx2_vnni;
+        input_f32.backward_supported = is_cpu && impl::dnnl_thr_syncable();
 #endif // DNNL_X64
     }
 };

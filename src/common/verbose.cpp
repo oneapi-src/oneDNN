@@ -40,6 +40,7 @@
 #include "lrn_pd.hpp"
 #include "matmul_pd.hpp"
 #include "pooling_pd.hpp"
+#include "prelu_pd.hpp"
 #include "reduction_pd.hpp"
 #include "reorder_pd.hpp"
 #include "resampling_pd.hpp"
@@ -820,6 +821,43 @@ static void init_info_pooling(engine_t *e, pd_t *s, char *buffer) {
 }
 
 template <typename pd_t>
+static void init_info_prelu(const engine_t *e, pd_t *s, char *buffer) {
+    DECL_DAT_AUX_PRB_STRS();
+    { // data
+        const auto md = s->src_md(0);
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "data_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+    }
+    { // weights
+        const auto md = s->weights_md(0);
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " weights_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+    }
+    { // diff data
+        const auto md = s->diff_src_md(0);
+        if (md) {
+            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " diff_");
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+        }
+    }
+    { // diff weights
+        const auto md = s->diff_weights_md(0);
+        if (md) {
+            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written,
+                    " diff_weights_");
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+        }
+    }
+
+    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
+
+    dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->src_md(0));
+
+    verbose_templ(buffer, e, s->kind(), s->name(), s->desc()->prop_kind,
+            dat_str, attr_str, aux_str, prb_str);
+}
+
+template <typename pd_t>
 static void init_info_softmax(const engine_t *e, pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
@@ -1108,6 +1146,7 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             CASE(matmul);
             case primitive_kind::pooling_v2:
             CASE(pooling);
+            CASE(prelu);
             CASE(reduction);
             CASE(reorder);
             CASE(resampling);

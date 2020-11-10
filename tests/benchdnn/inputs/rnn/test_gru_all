@@ -2,6 +2,6 @@
 
 --batch=harness_gru_f32
 
---batch=harness_gru_int8
+--batch=test_gru_int8
 
 --batch=test_gru_bfloat16

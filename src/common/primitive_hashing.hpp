@@ -53,6 +53,7 @@ struct cached_op_desc_t {
             CASE(matmul)
             case primitive_kind::pooling_v2:
             CASE(pooling)
+            CASE(prelu)
             CASE(reduction)
             CASE(reorder)
             CASE(resampling)
@@ -95,6 +96,7 @@ struct cached_op_desc_t {
             CASE(matmul)
             case primitive_kind::pooling_v2:
             CASE(pooling)
+            CASE(prelu)
             CASE(reduction)
             CASE(reorder)
             CASE(resampling)
@@ -129,6 +131,7 @@ struct cached_op_desc_t {
     DECLARE_CONVERSION_OPERATOR(matmul)
     DECLARE_CONVERSION_OPERATOR(pooling)
     DECLARE_CONVERSION_OPERATOR(pooling_v2)
+    DECLARE_CONVERSION_OPERATOR(prelu)
     DECLARE_CONVERSION_OPERATOR(reduction)
     DECLARE_CONVERSION_OPERATOR(reorder)
     DECLARE_CONVERSION_OPERATOR(resampling)
@@ -160,6 +163,7 @@ struct cached_op_desc_t {
             CASE(matmul)
             case primitive_kind::pooling_v2:
             CASE(pooling)
+            CASE(prelu)
             CASE(reduction)
             CASE(reorder)
             CASE(resampling)
@@ -234,6 +238,7 @@ size_t get_desc_hash(const lrn_desc_t &desc);
 size_t get_desc_hash(const matmul_desc_t &desc);
 size_t get_desc_hash(const pooling_desc_t &desc);
 size_t get_desc_hash(const pooling_v2_desc_t &desc);
+size_t get_desc_hash(const prelu_desc_t &desc);
 size_t get_desc_hash(const reduction_desc_t &desc);
 size_t get_desc_hash(const reorder_desc_t &desc);
 size_t get_desc_hash(const resampling_desc_t &desc);
@@ -310,6 +315,7 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
             CASE(matmul)
             case primitive_kind::pooling_v2:
             CASE(pooling)
+            CASE(prelu)
             CASE(reduction)
             CASE(reorder)
             CASE(resampling)

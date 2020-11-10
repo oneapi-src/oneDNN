@@ -150,7 +150,7 @@ inline bool memory_extra_desc_is_equal(
     return true && lhs.flags == rhs.flags
             && IMPLICATION(lhs.flags & compensation_conv_s8s8,
                     lhs.compensation_mask == rhs.compensation_mask)
-            && IMPLICATION(lhs.flags & gpu_rnn_u8s8_compensation,
+            && IMPLICATION(lhs.flags & rnn_u8s8_compensation,
                     lhs.compensation_mask == rhs.compensation_mask)
             && IMPLICATION(lhs.flags & scale_adjust,
                     lhs.scale_adjust == rhs.scale_adjust)
@@ -451,6 +451,15 @@ inline bool operator==(const pooling_v2_desc_t &lhs, const pooling_v2_desc_t &rh
             && COMPARE_DESC_ARRAY_MEMBERS(padding[1], DNNL_MAX_NDIMS)
             && COMPARE_DESC_ARRAY_MEMBERS(dilation, DNNL_MAX_NDIMS)
             && COMPARE_DESC_MEMBERS(accum_data_type);
+    return ret;
+}
+
+inline bool operator==(const prelu_desc_t &lhs, const prelu_desc_t &rhs) {
+    const bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(prop_kind)
+            && COMPARE_DESC_MEMBERS(data_desc)
+            && COMPARE_DESC_MEMBERS(diff_data_desc)
+            && COMPARE_DESC_MEMBERS(diff_weights_desc);
     return ret;
 }
 

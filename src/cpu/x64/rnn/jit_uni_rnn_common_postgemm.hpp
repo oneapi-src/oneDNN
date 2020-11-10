@@ -84,20 +84,48 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
                     diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
                     weights_peephole_, bias_, ws_grid_, scratch_cell_,
-                    dst_iter_);
+                    dst_iter_, weights_scales_, block_step);
         else
             execute_fwd(rnn, cell_position, ws_gates_, scratch_gates_,
                     dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
                     diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
                     diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
                     weights_peephole_, bias_, ws_grid_, scratch_cell_,
-                    dst_iter_);
+                    dst_iter_, weights_scales_, block_step);
     }
 
     template <typename dst_layer_t, typename dst_iter_t, typename src_iter_t,
             typename gemm_acc_t, typename gates_t, typename scratch_t>
     rnn_postgemm_sig(execute_fwd) {
         using namespace rnn_utils;
+        if (rnn.is_brgemm && !rnn_.unfused_post_gemm) {
+            for (int i = 0; i < rnn.m_block; i++)
+                postgemm_fwd_call(i, rnn, cell_position, ws_gates_,
+                        scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
+                        src_iter_c_, weights_peephole_, bias_, ws_grid_,
+                        scratch_cell_, dst_iter_, weights_scales_, block_step);
+        } else {
+            // Todo: add parallelization on dhc for the batch 1 case
+            // Assumption: the kernel runs a loop on dhc elements
+            parallel_nd(rnn.mb, [&](int i) {
+                postgemm_fwd_call(i, rnn, cell_position, ws_gates_,
+                        scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
+                        src_iter_c_, weights_peephole_, bias_, ws_grid_,
+                        scratch_cell_, dst_iter_, weights_scales_, 0);
+            });
+        }
+    }
+
+    template <typename dst_layer_t, typename dst_iter_t, typename src_iter_t,
+            typename gates_t, typename scratch_t>
+    inline void postgemm_fwd_call(int m, const rnn_utils::rnn_conf_t &rnn,
+            rnn_utils::cell_position_t cell_position, gates_t *ws_gates_,
+            scratch_t *scratch_gates_, dst_layer_t *dst_layer_,
+            float *dst_iter_c_, const src_iter_t *src_iter_,
+            const float *src_iter_c_, const float *weights_peephole_,
+            float *bias_, gates_t *ws_grid_, scratch_t *scratch_cell_,
+            dst_iter_t *dst_iter_, float *weights_scales_,
+            int block_step) const {
         rnn_utils::ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
         rnn_utils::scratch_gates_aoc<scratch_t> scratch_gates(
                 rnn, scratch_gates_);
@@ -125,43 +153,41 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         utils::array_offset_calculator<gates_t, 2> ws_Wh_b(
                 ws_grid_, rnn.mb, rnn.dhc);
 
-        // Todo: add parallelization on dhc for the batch 1 case
-        // Assumption: the kernel runs a loop on dhc elements
-        parallel_nd(rnn.mb, [&](int i) {
-            void *param1_ = &ws_gates(i, 0, 0); // RNN, LSTM, GRU
-            void *param2_ = &scratch_gates(i, 0, 0); // RNN, LSTM, GRU
-            const void *param3_ = &bias(0, 0); // RNN, LSTM, GRU
-            void *param4_ = &dst_layer(i, 0); // RNN, LSTM, GRU
-            void *param5_
-                    = dst_iter_ ? &dst_iter(i, 0) : dst_iter_; // RNN, LSTM, GRU
-            const void *param6_;
-            void *param7_, *param8_;
-            void *param9_ = nullptr;
-            switch (pd_->cell_kind()) {
-                case alg_kind::vanilla_lstm:
-                    param6_ = is_projection() ? src_iter_c_ : &src_iter_c(i, 0);
-                    param7_ = &dst_iter_c(i, 0);
-                    param8_ = (void *)&weights_peephole(0, 0);
-                    break;
-                case alg_kind::lbr_gru:
-                    param6_ = &src_iter(i, 0);
-                    param7_ = &scratch_cell(i, 0, 0);
-                    param8_ = &ws_Wh_b(i, 0);
-                    break;
-                case alg_kind::vanilla_gru:
-                    param6_ = &src_iter(i, 0);
-                    param7_ = nullptr;
-                    param8_ = nullptr;
-                    break;
-                default:
-                    param6_ = nullptr;
-                    param7_ = nullptr;
-                    param8_ = nullptr;
-                    break;
-            }
-            this->operator()(param1_, param2_, param3_, param4_, param5_,
-                    param6_, param7_, param8_, param9_);
-        });
+        void *param1_ = &ws_gates(m, 0, 0); // RNN, LSTM, GRU
+        void *param2_ = &scratch_gates(m, 0, 0); // RNN, LSTM, GRU
+        const void *param3_ = &bias(0, 0); // RNN, LSTM, GRU
+        void *param4_ = &dst_layer(m, 0); // RNN, LSTM, GRU
+        void *param5_
+                = dst_iter_ ? &dst_iter(m, 0) : dst_iter_; // RNN, LSTM, GRU
+        const void *param6_;
+        void *param7_, *param8_;
+        void *param9_ = (void *)weights_scales_;
+        size_t param10_ = block_step;
+
+        switch (pd_->cell_kind()) {
+            case alg_kind::vanilla_lstm:
+                param6_ = is_projection() ? src_iter_c_ : &src_iter_c(m, 0);
+                param7_ = &dst_iter_c(m, 0);
+                param8_ = (void *)&weights_peephole(0, 0);
+                break;
+            case alg_kind::lbr_gru:
+                param6_ = &src_iter(m, 0);
+                param7_ = &scratch_cell(m, 0, 0);
+                param8_ = &ws_Wh_b(m, 0);
+                break;
+            case alg_kind::vanilla_gru:
+                param6_ = &src_iter(m, 0);
+                param7_ = nullptr;
+                param8_ = nullptr;
+                break;
+            default:
+                param6_ = nullptr;
+                param7_ = nullptr;
+                param8_ = nullptr;
+                break;
+        }
+        this->operator()(param1_, param2_, param3_, param4_, param5_, param6_,
+                param7_, param8_, param9_, param10_);
     }
 
     template <typename dst_layer_t, typename dst_iter_t, typename src_iter_t,
@@ -207,6 +233,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
             void *param1_, *param2_, *param4_, *param5_, *param7_, *param8_,
                     *param9_;
             const void *param3_, *param6_;
+            size_t param10_ = 0;
             switch (pd_->cell_kind()) {
                 case alg_kind::vanilla_lstm:
                     param1_ = &ws_gates(i, 0, 0);
@@ -267,7 +294,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     break;
             }
             this->operator()(param1_, param2_, param3_, param4_, param5_,
-                    param6_, param7_, param8_, param9_);
+                    param6_, param7_, param8_, param9_, param10_);
         });
     }
 
@@ -285,7 +312,19 @@ protected:
             case data_type::s8: {
                 /* int8 (de)quantization init*/
                 mov(qtable, qlabel);
-                mov(weights_scales_reg, size_t(weights_scales));
+                if (rnn_.is_brgemm && !rnn_.unfused_post_gemm) {
+                    auto base_args = get_stack_params_address();
+                    // Read param #9
+#ifdef _WIN32
+                    mov(weights_scales_reg, ptr[base_args + 32]);
+#else
+                    mov(weights_scales_reg, ptr[base_args + 16]);
+#endif
+                } else {
+                    float *weights_scales
+                            = pd_->attr()->rnn_weights_qparams_.scales_;
+                    mov(weights_scales_reg, size_t(weights_scales));
+                }
 
                 zero_addr = ptr[qtable];
                 u8_saturation_addr = ptr[qtable + vlen];

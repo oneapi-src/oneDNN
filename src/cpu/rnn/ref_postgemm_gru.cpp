@@ -68,7 +68,6 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, T3 acc_to_float,
                                     + bias(1, j));
             /* TODO: Can be optimized for fwd_training by using ws_gates instead of scratch_gates in p2 */
             scratch_gates(i, 0, j) = reinterpret_as_acc(G0);
-            scratch_gates(i, 1, j) = reinterpret_as_acc(G1);
             auto t = to_src(src_to_float(src_iter(i, j)) * G1);
             if (dst_layer_) dst_layer(i, j) = t;
             if (dst_iter_) dst_iter(i, j) = t;

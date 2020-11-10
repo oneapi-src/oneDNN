@@ -33,7 +33,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <int data_type_size>
 struct ref_shuffle_t : public primitive_t {
     struct pd_t : public cpu_shuffle_pd_t {
         using cpu_shuffle_pd_t::cpu_shuffle_pd_t;
@@ -44,8 +43,7 @@ struct ref_shuffle_t : public primitive_t {
             using namespace format_tag;
 
             const data_type_t data_type = data_md()->data_type;
-            bool ok = data_type_size == types::data_type_size(data_type)
-                    && platform::has_data_type_support(data_type)
+            bool ok = platform::has_data_type_support(data_type)
                     && attr()->has_default_values()
                     && IMPLICATION(!is_fwd(), set_default_formats_common());
             if (!ok) return status::unimplemented;
@@ -85,28 +83,19 @@ struct ref_shuffle_t : public primitive_t {
 
     ~ref_shuffle_t() { free(rev_transposed_); }
 
-    typedef typename typesize_traits<data_type_size>::type data_t;
-
     status_t execute(const exec_ctx_t &ctx) const override {
-        using namespace format_tag;
-        switch (pd()->dat_tag_) {
-            case nCdhw16c: execute_<nCdhw16c>(ctx); break;
-            case nChw16c: execute_<nChw16c>(ctx); break;
-            case nCdhw8c: execute_<nCdhw8c>(ctx); break;
-            case nChw8c: execute_<nChw8c>(ctx); break;
-            case nCdhw4c: execute_<nCdhw4c>(ctx); break;
-            case nChw4c: execute_<nChw4c>(ctx); break;
-            case ncdhw: execute_<ncdhw>(ctx); break;
-            case nchw: execute_<nchw>(ctx); break;
-            case ndhwc: execute_<ndhwc>(ctx); break;
-            case nhwc: execute_<nhwc>(ctx); break;
-            default: execute_<any>(ctx); break;
+        const data_type_t data_type = pd()->data_md()->data_type;
+        switch (types::data_type_size(data_type)) {
+            case sizeof(float): execute_<sizeof(float)>(ctx); break;
+            case sizeof(bfloat16_t): execute_<sizeof(bfloat16_t)>(ctx); break;
+            case sizeof(int8_t): execute_<sizeof(int8_t)>(ctx); break;
+            default: assert(!"unsupported data type size");
         }
         return status::success;
     }
 
 private:
-    template <format_tag_t tag>
+    template <int data_type_size>
     void execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     int *rev_transposed_ = nullptr;

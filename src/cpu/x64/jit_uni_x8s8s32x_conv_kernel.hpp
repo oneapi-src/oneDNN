@@ -40,6 +40,8 @@ struct _jit_uni_x8s8s32x_fwd_kernel : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
+    constexpr static int isa_simd_width_
+            = cpu_isa_traits<isa>::vlen / sizeof(float);
     std::unique_ptr<injector::jit_uni_postops_injector_t<isa>>
             postops_injector_;
     enum {

@@ -39,10 +39,15 @@ struct jit_uni_gru_cell_postgemm_part2_fwd : public jit_uni_rnn_postgemm {
 
     status_t init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
+        // no need to save state of registers
+        // (unless emulating bf16 support or using pre-avx2 isa)
+        const bool save_state = (isa == sse41 || isa == avx)
+                || (src_data_t == data_type::bf16
+                        && !mayiuse(avx512_core_bf16));
         // we use rax for both constant tables as they use the same table
         CHECK(safe_ptr_assign(tanh_injector_,
                 new injector_t(this, alg_kind::eltwise_tanh, 0.0f, 0.0f, 1.0f,
-                        true, rax)));
+                        save_state, rax)));
         return create_kernel();
     }
 
@@ -51,14 +56,30 @@ protected:
 
     // register size in bytes
     using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
-    size_t vlen = cpu_isa_traits<isa>::vlen;
-    size_t vlen_dst
+    const size_t vlen = cpu_isa_traits<isa>::vlen;
+    const size_t vlen_dst
             = vlen / (sizeof(float) / types::data_type_size(src_data_t));
-    size_t hstate_dt_size = types::data_type_size(src_data_t);
-    size_t gate_dt_size = types::data_type_size(src_data_t);
-    size_t scratch_dt_size = types::data_type_size(scratch_data_t);
-    size_t bias_dt_size = sizeof(float);
-    size_t qscale_dt_size = sizeof(float);
+    const size_t hstate_dt_size = types::data_type_size(src_data_t);
+    const size_t gate_dt_size = types::data_type_size(src_data_t);
+    const size_t scratch_dt_size = types::data_type_size(scratch_data_t);
+    const size_t bias_dt_size = sizeof(float);
+    const size_t qscale_dt_size = sizeof(float);
+    const size_t vlen_qscale = vlen / qscale_dt_size;
+
+    const int loop_ur_max = 4;
+    // We skip vmm0 as it can be used by the injector for masks on sse4.1
+    Vmm G0(int i) {
+        const int idx = 1 + i;
+        assert(idx < loop_ur_max + 1);
+        return Vmm(idx); // max of vmm4
+    }
+    Vmm G2(int i) {
+        const int idx = loop_ur_max + 1 + i;
+        assert(idx < 2 * loop_ur_max + 1);
+        return Vmm(idx); // max of vmm8
+    }
+    const Vmm tmp1_vmm = Vmm(9);
+    const Vmm tmp2_vmm = Vmm(10);
 
     void generate() override {
         using namespace Xbyak;
@@ -69,17 +90,13 @@ protected:
         float *weights_scales = pd_->attr()->rnn_weights_qparams_.scales_;
 
         // Labels declaration
-        Label vector_loop_start_label, vector_loop_inc_regs,
-                vector_loop_end_label;
-        Label rem_loop_start_label, rem_loop_inc_regs, rem_loop_end_label;
+        Label vector_loop_start_label;
+        Label rem_loop_start_label, rem_loop_inc_regs;
         Label table_label;
 
         // Register map
         Reg64 loop_cnt(r10); // loop counter
         Reg64 table_reg(rbx); // table is used for data scale and shifts
-
-        // We skip vmm0 as it can be used by the injector for masks on sse4.1
-        Vmm G0(1), G2(2), tmp1_vmm(3), tmp2_vmm(4);
 
         // constant table map
         Address one_addr = ptr[table_reg];
@@ -107,14 +124,16 @@ protected:
 #endif
 
         // helper lambda to address the gates and biases
-        auto sg_addr = [&](int i) {
-            return ptr[addr_scratch_gates_reg + i * rnn_.dhc * scratch_dt_size];
+        auto sg_addr = [&](int i, int j) {
+            return ptr[addr_scratch_gates_reg + i * rnn_.dhc * scratch_dt_size
+                    + j * vlen];
         };
-        auto wg_addr = [&](int i) {
-            return ptr[addr_ws_gates_reg + i * rnn_.dhc * gate_dt_size];
+        auto wg_addr = [&](int i, int j) {
+            return ptr[addr_ws_gates_reg + i * rnn_.dhc * gate_dt_size
+                    + j * vlen_dst];
         };
-        auto B_addr = [&](int i) {
-            return ptr[addr_bias_reg + i * rnn_.dhc * bias_dt_size];
+        auto B_addr = [&](int i, int j) {
+            return ptr[addr_bias_reg + i * rnn_.dhc * bias_dt_size + j * vlen];
         };
 
         // initialize registers with addresses and constants
@@ -122,105 +141,138 @@ protected:
         tanh_injector_->load_table_addr();
         init_regs(weights_scales, vlen);
 
-        mov(loop_cnt, rnn_.dhc * scratch_dt_size);
-        cmp(loop_cnt, vlen);
-        jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
+        const size_t loop_len = rnn_.dhc * scratch_dt_size;
+        const size_t nb_loop_len = loop_len / vlen;
+        size_t loop_ur_val = 1;
+        for (loop_ur_val = loop_ur_max; loop_ur_val > 1; --loop_ur_val)
+            if (nb_loop_len % loop_ur_val == 0) break;
+        const size_t loop_ur = loop_ur_val;
+        mov(loop_cnt, loop_len);
 
-        L(vector_loop_start_label);
-        {
-            // Compute gate 2: G2 = tanh(G2 + b2)
-            uni_vmovups(G2, sg_addr(2));
-            // dequantize gate from s32 to f32 if needed
-            deq_w(src_data_t, G2, tmp1_vmm, tmp2_vmm, 2 * rnn_.dhc, mask, true);
-            uni_vmovups(tmp1_vmm, B_addr(2));
-            uni_vaddps(G2, G2, tmp1_vmm);
-            tanh_injector_->compute_vector(G2.getIdx());
-            // if training we write back the gates
-            if (is_training) to_src<src_data_t>(wg_addr(2), G2, vlen);
+        // vector processing
+        if (loop_len >= vlen) {
+            L(vector_loop_start_label);
+            {
+                for (size_t loop_ur_idx = 0; loop_ur_idx < loop_ur;
+                        ++loop_ur_idx) {
+                    // Compute gate 2: G2 = tanh(G2 + b2)
+                    uni_vmovups(G2(loop_ur_idx), sg_addr(2, loop_ur_idx));
+                    // dequantize gate from s32 to f32 if needed
+                    deq_w(src_data_t, G2(loop_ur_idx), tmp1_vmm, tmp2_vmm,
+                            2 * rnn_.dhc + loop_ur_idx * vlen_qscale, mask,
+                            true);
+                    uni_vmovups(tmp1_vmm, B_addr(2, loop_ur_idx));
+                    uni_vaddps(G2(loop_ur_idx), G2(loop_ur_idx), tmp1_vmm);
+                }
 
-            // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
-            uni_vmovups(G0, sg_addr(0));
-            uni_vmovups(tmp1_vmm, one_addr);
-            uni_vsubps(tmp1_vmm, tmp1_vmm, G0);
-            to_float<src_data_t>(tmp2_vmm, ptr[addr_states_tm1_l_reg], vlen);
-            uni_vmulps(G0, G0, tmp2_vmm);
-            uni_vfmadd231ps(G0, tmp1_vmm, G2);
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], G0, vlen);
-            // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
-            jle(vector_loop_inc_regs);
-            to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G0, vlen, true);
+                // Compute tanh of unrolled G2 regs together
+                // (this allows to not save any registers during eltwise)
+                injector_utils::vmm_index_set_t vmm_idxs;
+                for (size_t loop_ur_idx = 0; loop_ur_idx < loop_ur;
+                        ++loop_ur_idx) {
+                    vmm_idxs.emplace(G2(loop_ur_idx).getIdx());
+                }
+                tanh_injector_->compute_vector_range(vmm_idxs);
 
-            // increment address pointers
-            L(vector_loop_inc_regs);
-            add(addr_scratch_gates_reg, vlen);
-            add(addr_bias_reg, vlen);
-            add(addr_states_t_l_reg, vlen_dst);
-            add(addr_states_t_l_copy_reg, vlen_dst);
-            add(addr_states_tm1_l_reg, vlen_dst);
-            if (is_training) add(addr_ws_gates_reg, vlen_dst);
-            inc_regs(mask, vlen);
+                for (size_t loop_ur_idx = 0; loop_ur_idx < loop_ur;
+                        ++loop_ur_idx) {
+                    // if training we write back the gates
+                    if (is_training)
+                        to_src<src_data_t>(
+                                wg_addr(2, loop_ur_idx), G2(loop_ur_idx), vlen);
 
-            // increment loop counter
-            sub(loop_cnt, vlen);
-            cmp(loop_cnt, vlen);
-            jge(vector_loop_start_label);
+                    // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
+                    uni_vmovups(G0(loop_ur_idx), sg_addr(0, loop_ur_idx));
+                    uni_vmovups(tmp1_vmm, one_addr);
+                    uni_vsubps(tmp1_vmm, tmp1_vmm, G0(loop_ur_idx));
+                    to_float<src_data_t>(tmp2_vmm,
+                            ptr[addr_states_tm1_l_reg + loop_ur_idx * vlen_dst],
+                            vlen);
+                    uni_vmulps(G0(loop_ur_idx), G0(loop_ur_idx), tmp2_vmm);
+                    uni_vfmadd231ps(G0(loop_ur_idx), tmp1_vmm, G2(loop_ur_idx));
+                    to_src<src_data_t>(
+                            ptr[addr_states_t_l_reg + loop_ur_idx * vlen_dst],
+                            G0(loop_ur_idx), vlen);
+                    // if states_t_l_copy is a non null ptr, we write the output to it too
+                    Label vector_loop_inc_regs;
+                    cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
+                    jle(vector_loop_inc_regs);
+                    to_src<src_data_t>(ptr[addr_states_t_l_copy_reg
+                                               + loop_ur_idx * vlen_dst],
+                            G0(loop_ur_idx), vlen, true);
+                    L(vector_loop_inc_regs);
+                }
+
+                // increment address pointers
+                add(addr_scratch_gates_reg, vlen * loop_ur);
+                add(addr_bias_reg, vlen * loop_ur);
+                add(addr_states_t_l_reg, vlen_dst * loop_ur);
+                add(addr_states_t_l_copy_reg, vlen_dst * loop_ur);
+                add(addr_states_tm1_l_reg, vlen_dst * loop_ur);
+                if (is_training) add(addr_ws_gates_reg, vlen_dst * loop_ur);
+                inc_regs(mask, vlen * loop_ur);
+
+                // increment loop counter
+                sub(loop_cnt, vlen * loop_ur);
+                cmp(loop_cnt, vlen * loop_ur);
+                jge(vector_loop_start_label);
+            }
         }
-        L(vector_loop_end_label);
 
-        cmp(loop_cnt, 0);
-        je(rem_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
-        // Same code as above, we just use movuss for accessing inputs
-        // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
-        L(rem_loop_start_label);
-        {
-            // remaping registers to Xmms
-            Xmm G0s(G0.getIdx()), G2s(G2.getIdx());
-            Xmm tmp1s_vmm(tmp1_vmm.getIdx());
-            Xmm tmp2s_vmm(tmp2_vmm.getIdx());
+        // tail processing
+        if (loop_len % vlen != 0) {
+            // Same code as above, we just use movss for accessing inputs
+            // TODO: smarter handling of tails with Zmm -> Ymm -> Xmm -> scalar
+            L(rem_loop_start_label);
+            {
+                // remaping registers to Xmms
+                Xmm G0s(G0(0).getIdx()), G2s(G2(0).getIdx());
+                Xmm tmp1s_vmm(tmp1_vmm.getIdx());
+                Xmm tmp2s_vmm(tmp2_vmm.getIdx());
 
-            // Compute gate 2: G2 = tanh(G2 + b2)
-            uni_vmovss(G2s, sg_addr(2));
-            // dequantize gate from s32 to f32 if needed
-            deq_w(src_data_t, G2s, tmp1s_vmm, tmp2s_vmm, 2 * rnn_.dhc, mask,
-                    false);
-            uni_vaddss(G2s, G2s, B_addr(2));
-            tanh_injector_->compute_vector(G2s.getIdx());
-            // if training we write back the gates
-            if (is_training)
-                to_src<src_data_t>(wg_addr(2), G2, scratch_dt_size);
+                // Compute gate 2: G2 = tanh(G2 + b2)
+                uni_vmovss(G2s, sg_addr(2, 0));
+                // dequantize gate from s32 to f32 if needed
+                deq_w(src_data_t, G2s, tmp1s_vmm, tmp2s_vmm, 2 * rnn_.dhc, mask,
+                        false);
+                uni_vaddss(G2s, G2s, B_addr(2, 0));
+                tanh_injector_->compute_vector(G2s.getIdx());
+                // if training we write back the gates
+                if (is_training)
+                    to_src<src_data_t>(wg_addr(2, 0), G2s, scratch_dt_size);
 
-            // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
-            uni_vmovss(G0s, sg_addr(0));
-            uni_vmovss(tmp1s_vmm, one_addr);
-            uni_vsubss(tmp1s_vmm, tmp1s_vmm, G0s);
-            to_float<src_data_t>(
-                    tmp2s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
-            uni_vmulss(G0s, G0s, tmp2s_vmm);
-            uni_vfmadd231ss(G0s, tmp1s_vmm, G2s);
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], G0s, scratch_dt_size);
-            // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
-            jle(rem_loop_inc_regs);
-            to_src<src_data_t>(
-                    ptr[addr_states_t_l_copy_reg], G0s, scratch_dt_size, true);
+                // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
+                uni_vmovss(G0s, sg_addr(0, 0));
+                uni_vmovss(tmp1s_vmm, one_addr);
+                uni_vsubss(tmp1s_vmm, tmp1s_vmm, G0s);
+                to_float<src_data_t>(
+                        tmp2s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
+                uni_vmulss(G0s, G0s, tmp2s_vmm);
+                uni_vfmadd231ss(G0s, tmp1s_vmm, G2s);
+                to_src<src_data_t>(
+                        ptr[addr_states_t_l_reg], G0s, scratch_dt_size);
+                // if states_t_l_copy is a non null ptr, we write the output to it too
+                cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
+                jle(rem_loop_inc_regs);
+                to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G0s,
+                        scratch_dt_size, true);
 
-            // increment address pointers
-            L(rem_loop_inc_regs);
-            add(addr_scratch_gates_reg, scratch_dt_size);
-            add(addr_bias_reg, bias_dt_size);
-            add(addr_states_t_l_reg, hstate_dt_size);
-            add(addr_states_t_l_copy_reg, hstate_dt_size);
-            add(addr_states_tm1_l_reg, hstate_dt_size);
-            if (is_training) add(addr_ws_gates_reg, gate_dt_size);
-            inc_regs(mask, qscale_dt_size);
+                // increment address pointers
+                L(rem_loop_inc_regs);
+                add(addr_scratch_gates_reg, scratch_dt_size);
+                add(addr_bias_reg, bias_dt_size);
+                add(addr_states_t_l_reg, hstate_dt_size);
+                add(addr_states_t_l_copy_reg, hstate_dt_size);
+                add(addr_states_tm1_l_reg, hstate_dt_size);
+                if (is_training) add(addr_ws_gates_reg, gate_dt_size);
+                inc_regs(mask, qscale_dt_size);
 
-            // increment loop counter
-            sub(loop_cnt, scratch_dt_size);
-            cmp(loop_cnt, 0);
-            jg(rem_loop_start_label);
+                // increment loop counter
+                sub(loop_cnt, scratch_dt_size);
+                cmp(loop_cnt, 0);
+                jg(rem_loop_start_label);
+            }
         }
-        L(rem_loop_end_label);
 
         postamble();
 

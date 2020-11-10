@@ -113,8 +113,7 @@ int compare(const prb_t *prb, const dnn_mem_t &fp_mem, const dnn_mem_t &dt_mem,
 
     // `5` is a temporary magic const for GPU to pass norm algs. TODO: consider
     // change the filling with power-of-two values for better answer precision.
-    const float trh
-            = 5 * epsilon_dt(prb->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32);
+    const float trh = 5 * epsilon_dt(prb->ddt);
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);

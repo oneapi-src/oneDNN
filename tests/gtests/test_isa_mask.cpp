@@ -26,10 +26,10 @@ namespace dnnl {
 
 using namespace impl::cpu::x64;
 
-const std::set<cpu_isa_t> cpu_isa_all
-        = {sse41, avx, avx2, avx512_mic, avx512_mic_4ops, avx512_core,
-                avx512_core_vnni, avx512_core_bf16, avx512_core_bf16_amx_int8,
-                avx512_core_bf16_amx_bf16, avx512_core_amx, isa_all};
+const std::set<cpu_isa_t> cpu_isa_all = {sse41, avx, avx2, avx2_vnni,
+        avx512_mic, avx512_mic_4ops, avx512_core, avx512_core_vnni,
+        avx512_core_bf16, avx512_core_bf16_amx_int8, avx512_core_bf16_amx_bf16,
+        avx512_core_amx, isa_all};
 
 struct isa_compat_info_t {
     cpu_isa_t this_isa;
