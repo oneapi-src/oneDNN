@@ -947,7 +947,6 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
         add_imm(x_ptr_out_off, x_ptr_out_off, o_step * otype_sz, X_TMP_0);
 
         if (prb_.scale_type == scale_type_t::MANY) {
-            std::cout << "scale" << std::endl;
             add_imm(reg_off_scale, reg_off_scale, s_step * stype_sz, X_TMP_0);
             add_imm(x_ptr_scale_off, x_ptr_scale_off, s_step * stype_sz,
                     X_TMP_0);

@@ -89,8 +89,6 @@ public:
       sveLen_ = static_cast<sveLen_t>(prctl(51));
 #endif
     }
-
-    std::cout << type_ << std::endl;
   }
 #undef SYS_REG_FIELD
 
