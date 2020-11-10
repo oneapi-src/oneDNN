@@ -19,14 +19,6 @@
 namespace dnnl {
 namespace impl {
 
-void set_reduction_buffers(
-        const dim_t work_amount, dim_t &group_size, dim_t &buf_size) {
-    float sqrt = std::sqrt(work_amount);
-    group_size = std::ceil(sqrt);
-    buf_size = std::floor(sqrt);
-    if (group_size * buf_size < work_amount) group_size++;
-}
-
 prelu_pd_t::prelu_pd_t(const prelu_desc_t *adesc, const primitive_attr_t *attr,
         const prelu_fwd_pd_t *hint_fwd_pd)
     : primitive_desc_t(attr, base_pkind)

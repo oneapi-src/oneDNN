@@ -104,20 +104,6 @@ void ref_prelu_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     });
 }
 
-static dim_t get_scalar_scratchpad_offset(const std::size_t ithr,
-        const std::size_t nthr, const dim_t work_amount) {
-    dim_t offset {0}, group_size, buf_size;
-    for (std::size_t i = 0; i < ithr; i++) {
-        dim_t start {0}, end {0};
-        balance211(work_amount, nthr, i, start, end);
-        const dim_t workload = end - start;
-        set_reduction_buffers(workload, group_size, buf_size);
-        offset += buf_size;
-        offset += group_size;
-    }
-    return offset;
-}
-
 static float reduce(float *mem, dim_t size) {
     bool tail = size % 2;
     const auto reduce_iteration = [&](float *mem) {
@@ -142,6 +128,28 @@ static float reduce(float *mem, dim_t size) {
         reduce_iteration(mem);
     }
     return mem[0];
+}
+
+void set_reduction_buffers(
+        const dim_t work_amount, dim_t &group_size, dim_t &buf_size) {
+    float sqrt = std::sqrt(work_amount);
+    group_size = std::ceil(sqrt);
+    buf_size = std::floor(sqrt);
+    if (group_size * buf_size < work_amount) group_size++;
+}
+
+dim_t get_scalar_scratchpad_offset(const std::size_t ithr,
+        const std::size_t nthr, const dim_t work_amount) {
+    dim_t offset {0}, group_size, buf_size;
+    for (std::size_t i = 0; i < ithr; i++) {
+        dim_t start {0}, end {0};
+        balance211(work_amount, nthr, i, start, end);
+        const dim_t workload = end - start;
+        set_reduction_buffers(workload, group_size, buf_size);
+        offset += buf_size;
+        offset += group_size;
+    }
+    return offset;
 }
 
 template <typename data_t>

@@ -28,8 +28,6 @@ namespace dnnl {
 namespace impl {
 
 struct prelu_fwd_pd_t;
-void set_reduction_buffers(
-        const dim_t work_amount, dim_t &group_size, dim_t &buf_size);
 
 struct prelu_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::prelu;
