@@ -18,6 +18,7 @@
 #include <math.h>
 
 #include "common/c_types_map.hpp"
+#include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
 #include "common/nstl.hpp"
@@ -33,10 +34,13 @@ namespace cpu {
 
 // Intel's LLVM-based compiler on Windows generates incorrect code with
 // PRAGMA_OMP_SIMD in some particular cases.
+// TODO: The issue above seems to be an additional one to the issue mentioned
+//       in `CLANG_WA_01_SAFE_TO_USE_OMP_SIMD`. Once the later is resolved,
+//       check specifically the former one, maybe it will go away as well.
 #if ((defined _WIN32) && (defined __INTEL_CLANG_COMPILER))
-#define SAFE_TO_USE_OMP_SIMD 0
+#define SAFE_TO_USE_OMP_SIMD (0 && CLANG_WA_01_SAFE_TO_USE_OMP_SIMD)
 #else
-#define SAFE_TO_USE_OMP_SIMD 1
+#define SAFE_TO_USE_OMP_SIMD (1 && CLANG_WA_01_SAFE_TO_USE_OMP_SIMD)
 #endif
 
 #define MEM_D(name) name##_d
