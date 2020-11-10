@@ -33,4 +33,14 @@
 #define CLANG_WA_01_SAFE_TO_USE_OMP_SIMD 1
 #endif
 
+// Workaround 02: clang.
+//
+// Clang 6+ generates incorrect code with OMP_SIMD in some particular cases.
+// Unlike CLANG_WA_01_SAFE_TO_USE_OMP_SIMD, the issue happens even with -O3.
+#if (defined __clang_major__) && (__clang_major__ >= 6)
+#define CLANG_WA_02_SAFE_TO_USE_OMP_SIMD 0
+#else
+#define CLANG_WA_02_SAFE_TO_USE_OMP_SIMD 1
+#endif
+
 #endif // COMPILER_WORKAROUNDS_HPP

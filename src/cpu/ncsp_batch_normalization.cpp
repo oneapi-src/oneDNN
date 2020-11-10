@@ -18,6 +18,7 @@
 #include <math.h>
 
 #include "common/c_types_map.hpp"
+#include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
@@ -25,13 +26,6 @@
 #include "cpu/platform.hpp"
 
 #include "cpu/ncsp_batch_normalization.hpp"
-
-// clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
-#if (defined __clang_major__) && (__clang_major__ >= 6)
-#define SAFE_TO_USE_OMP_SIMD 0
-#else
-#define SAFE_TO_USE_OMP_SIMD 1
-#endif
 
 namespace dnnl {
 namespace impl {
@@ -263,7 +257,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                         _src = reinterpret_cast<const acc_data_t *>(
                                 src + s_off);
                     }
-#if SAFE_TO_USE_OMP_SIMD
+#if CLANG_WA_02_SAFE_TO_USE_OMP_SIMD
                     PRAGMA_OMP_SIMD()
 #endif
                     for (dim_t sp = S_s; sp < S_e; ++sp) {
@@ -411,7 +405,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                         _src = reinterpret_cast<const acc_data_t *>(
                                 src + s_off);
                     }
-#if SAFE_TO_USE_OMP_SIMD
+#if CLANG_WA_02_SAFE_TO_USE_OMP_SIMD
                     PRAGMA_OMP_SIMD(reduction(+ : diff_gamma, diff_beta))
 #endif
                     for (dim_t sp = S_s; sp < S_e; ++sp) {
@@ -489,7 +483,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                         _src = reinterpret_cast<const acc_data_t *>(
                                 src + s_off);
                     }
-#if SAFE_TO_USE_OMP_SIMD
+#if CLANG_WA_02_SAFE_TO_USE_OMP_SIMD
                     PRAGMA_OMP_SIMD()
 #endif
                     for (dim_t sp = S_s; sp < S_e; ++sp) {

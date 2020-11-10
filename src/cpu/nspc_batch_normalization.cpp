@@ -20,6 +20,7 @@
 #include <algorithm>
 
 #include "common/c_types_map.hpp"
+#include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
@@ -28,13 +29,6 @@
 #include "cpu/cpu_batch_normalization_utils.hpp"
 
 #include "cpu/nspc_batch_normalization.hpp"
-
-// clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
-#if (defined __clang_major__) && (__clang_major__ >= 6)
-#define SAFE_TO_USE_OMP_SIMD 0
-#else
-#define SAFE_TO_USE_OMP_SIMD 1
-#endif
 
 namespace dnnl {
 namespace impl {
@@ -205,7 +199,7 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                     _dst = reinterpret_cast<acc_data_t *>(dst + s_off);
                     _src = reinterpret_cast<const acc_data_t *>(src + s_off);
                 }
-#if SAFE_TO_USE_OMP_SIMD
+#if CLANG_WA_02_SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
 #endif
                 for (int c = 0; c < C; c++) {
@@ -315,7 +309,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
                             diff_dst + s_off);
                     _src = reinterpret_cast<const acc_data_t *>(src + s_off);
                 }
-#if SAFE_TO_USE_OMP_SIMD
+#if CLANG_WA_02_SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD()
 #endif
                 for (dim_t c = 0; c < C; c++) {
@@ -387,7 +381,7 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
                     _src = reinterpret_cast<const acc_data_t *>(src + s_off);
                 }
 
-#if SAFE_TO_USE_OMP_SIMD
+#if CLANG_WA_02_SAFE_TO_USE_OMP_SIMD
                 PRAGMA_OMP_SIMD(simdlen(16))
 #endif
                 for (dim_t c = 0; c < nb_c_blk * c_blk; c++) {
