@@ -152,15 +152,14 @@ struct gen9_convolution_bwd_data_t : public gpu_primitive_t {
                                     f32, f32, data_type::undef, f32, f32),
                             expect_data_types(
                                     f16, f16, data_type::undef, f16, f16))
-                    && (IMPLICATION(this->with_bias()
-                                        && this->desc()->diff_dst_desc.data_type
-                                                != f16,
-                                this->desc()->bias_desc.data_type == f32)
-                            || IMPLICATION(this->with_bias()
-                                            && this->desc()->diff_dst_desc
-                                                            .data_type
-                                                    == f16,
-                                    this->desc()->bias_desc.data_type == f16))
+                    && IMPLICATION(this->with_bias()
+                                    && this->desc()->diff_dst_desc.data_type
+                                            != f16,
+                            this->desc()->bias_desc.data_type == f32)
+                    && IMPLICATION(this->with_bias()
+                                    && this->desc()->diff_dst_desc.data_type
+                                            == f16,
+                            this->desc()->bias_desc.data_type == f16)
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
                     && !has_zero_dim_memory() && attr()->has_default_values();
