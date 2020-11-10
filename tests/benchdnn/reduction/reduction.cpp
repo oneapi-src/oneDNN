@@ -71,6 +71,13 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
             : 16;
     const int f_min = dt == dnnl_u8 ? 1 : -range / 2;
 
+    int nelems_to_reduce = 1;
+    for (int dim = 0; dim < prb->ndims; dim++) {
+        if (prb->src_dims.at(dim) != prb->dst_dims.at(dim)) {
+            nelems_to_reduce *= prb->src_dims.at(dim);
+        }
+    }
+
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((97 * i) + 101) % (range + 1);
         float value = 0.0f;
@@ -88,6 +95,17 @@ int fill_src(const prb_t *prb, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
                     value = 1.0f;
                 }
             }
+        } else if (prb->alg == alg_t::MEAN && dt == dnnl_f16
+                && nelems_to_reduce <= 2e6) {
+            // Shift the mean to value different than 0 as results equal
+            // to 0 may be treated as mistrusted.
+            // This shift is done only up to some numbers of reduced
+            // elements, so nelems_to_reduce * mean_shift (expected
+            // value of linear sum) has to have sufficient precision on
+            // float (used in ref calculation) to represent the sum
+            // without precision issues.
+            float mean_shift = 0.5;
+            value = (f_min + gen) / range + mean_shift;
         } else {
             value = (dt == dnnl_bf16 || dt == dnnl_f16)
                     ? (f_min + gen) / range
