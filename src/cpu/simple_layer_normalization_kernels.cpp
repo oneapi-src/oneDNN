@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "common/compiler_workarounds.hpp"
+
 #include "cpu/platform.hpp"
 
 #if DNNL_X64
@@ -55,11 +57,23 @@ template <>
 void data_kernel_t<f32>::operator()(const float *src, float *dst,
         const float *ss, const float *mean, const float *var) const {
     const float inv_sqrtvar = 1. / sqrtf(*var + eps_);
-    PRAGMA_OMP_SIMD()
-    for (dim_t c = 0; c < C_; ++c) {
-        const float sm = (use_scaleshift_ ? ss[c] : 1.0f) * inv_sqrtvar;
-        const float sv = use_scaleshift_ ? ss[C_ + c] : 0;
-        dst[c] = sm * (src[c] - *mean) + sv;
+
+    // XXX: manual unrolling for use_scaleshift_ due to clang issue.
+    //      see: CLANG_WA_01_SAFE_TO_USE_OMP_SIMD
+    if (use_scaleshift_) {
+        PRAGMA_OMP_SIMD()
+        for (dim_t c = 0; c < C_; ++c) {
+            const float sm = ss[c] * inv_sqrtvar;
+            const float sv = ss[C_ + c];
+            dst[c] = sm * (src[c] - *mean) + sv;
+        }
+    } else {
+        PRAGMA_OMP_SIMD()
+        for (dim_t c = 0; c < C_; ++c) {
+            const float sm = 1.0f * inv_sqrtvar;
+            const float sv = 0;
+            dst[c] = sm * (src[c] - *mean) + sv;
+        }
     }
 }
 
@@ -82,24 +96,46 @@ void diff_data_kernel_t<f32>::operator()(const float *src,
         const float *mean, const float *var) const {
     const float inv_sqrtvar = 1.f / sqrtf(*var + eps_);
     float dd_gamma = 0, dd_gamma_x = 0;
+
+    // XXX: manual unrolling for use_scaleshift_ due to clang issue.
+    //      see: CLANG_WA_01_SAFE_TO_USE_OMP_SIMD
     if (calculate_diff_stats_) {
-        PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
-        for (dim_t c = 0; c < C_; c++) {
-            float gamma = use_scaleshift_ ? ss[c] : 1;
-            dd_gamma += diff_dst[c] * gamma;
-            dd_gamma_x += diff_dst[c] * gamma * (src[c] - *mean);
+        if (use_scaleshift_) {
+            PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
+            for (dim_t c = 0; c < C_; c++) {
+                dd_gamma += diff_dst[c] * ss[c];
+                dd_gamma_x += diff_dst[c] * ss[c] * (src[c] - *mean);
+            }
+        } else {
+            PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
+            for (dim_t c = 0; c < C_; c++) {
+                dd_gamma += diff_dst[c];
+                dd_gamma_x += diff_dst[c] * (src[c] - *mean);
+            }
         }
         dd_gamma_x *= inv_sqrtvar;
     }
-    PRAGMA_OMP_SIMD()
-    for (dim_t c = 0; c < C_; c++) {
-        const float gamma = use_scaleshift_ ? ss[c] : 1;
-        float v_diff_src = diff_dst[c] * gamma;
-        if (calculate_diff_stats_)
-            v_diff_src -= dd_gamma / C_
-                    + (src[c] - *mean) * dd_gamma_x * inv_sqrtvar / C_;
-        v_diff_src *= inv_sqrtvar;
-        diff_src[c] = v_diff_src;
+
+    if (use_scaleshift_) {
+        PRAGMA_OMP_SIMD()
+        for (dim_t c = 0; c < C_; c++) {
+            float v_diff_src = diff_dst[c] * ss[c];
+            if (calculate_diff_stats_)
+                v_diff_src -= dd_gamma / C_
+                        + (src[c] - *mean) * dd_gamma_x * inv_sqrtvar / C_;
+            v_diff_src *= inv_sqrtvar;
+            diff_src[c] = v_diff_src;
+        }
+    } else {
+        PRAGMA_OMP_SIMD()
+        for (dim_t c = 0; c < C_; c++) {
+            float v_diff_src = diff_dst[c];
+            if (calculate_diff_stats_)
+                v_diff_src -= dd_gamma / C_
+                        + (src[c] - *mean) * dd_gamma_x * inv_sqrtvar / C_;
+            v_diff_src *= inv_sqrtvar;
+            diff_src[c] = v_diff_src;
+        }
     }
 }
 
