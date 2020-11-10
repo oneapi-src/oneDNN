@@ -35,7 +35,7 @@ struct cpu_rnn_fwd_pd_t : public rnn_fwd_pd_t {
     using rnn_fwd_pd_t::rnn_fwd_pd_t;
 
 protected:
-    status_t set_default_params(bool skip_brgemm_format = false) {
+    status_t set_default_params() {
         using namespace format_tag;
         if (src_layer_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
@@ -50,9 +50,6 @@ protected:
         if (is_lstm_peephole()
                 && weights_peephole_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(weights_peephole_md_, ldgo));
-        if (!skip_brgemm_format && is_lstm_projection()
-                && weights_projection_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(weights_projection_md_, ldio));
         if (with_bias() && bias_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md_, ldgo));
         if (with_dst_iter() && dst_iter_md_.format_kind == format_kind::any)
@@ -148,7 +145,7 @@ struct cpu_rnn_bwd_pd_t : public rnn_bwd_pd_t {
     using rnn_bwd_pd_t::rnn_bwd_pd_t;
 
 protected:
-    status_t set_default_params(bool skip_brgemm_format = false) {
+    status_t set_default_params() {
         using namespace format_tag;
         if (src_layer_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
@@ -176,7 +173,7 @@ protected:
         if (is_lstm_peephole()
                 && weights_peephole_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(weights_peephole_md_, ldgo));
-        if (!skip_brgemm_format && is_lstm_projection()
+        if (is_lstm_projection()
                 && weights_projection_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(weights_projection_md_, ldoi));
         if (with_bias() && bias_md_.format_kind == format_kind::any)

@@ -406,7 +406,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     && src_layer_dt == src_type
                     && everyone_is(
                             weights_type, weights_iter_dt, weights_layer_dt)
-                    && this->set_default_params(true) == status::success
+                    && this->set_default_params() == status::success
                     && this->with_bias();
             if (!ok) return status::unimplemented;
 
