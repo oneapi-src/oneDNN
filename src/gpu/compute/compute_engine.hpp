@@ -73,24 +73,27 @@ public:
 
     status_t get_zero_pad_primitive(
             primitive_t *&result, const resource_mapper_t *&resources) {
-        status_t status = status::success;
-        if (zero_pad_primitive_ == nullptr) {
+        std::call_once(zero_pad_init_, [&]() -> void {
             zero_pad_desc_t desc;
             desc.primitive_kind = primitive_kind::zero_pad;
             dnnl_primitive_desc_iterator it(
                     this, (op_desc_t *)&desc, nullptr, nullptr);
             ++it;
             std::unique_ptr<primitive_desc_t> zero_pad_pd(it.fetch_once());
-            if (zero_pad_pd == nullptr) return status::unimplemented;
-            status = zero_pad_pd->create_primitive(zero_pad_primitive_, this);
-            if (status != status::success) return status;
+            if (zero_pad_pd == nullptr) return;
 
-            status = zero_pad_primitive_->create_resource(
-                    this, zero_pad_resources_);
-        }
+            status_t status
+                    = zero_pad_pd->create_primitive(zero_pad_primitive_, this);
+            if (status == status::success) {
+                status = zero_pad_primitive_->create_resource(
+                        this, zero_pad_resources_);
+            }
+            if (status != status::success) { zero_pad_primitive_.reset(); }
+        });
+
         result = zero_pad_primitive_.get();
         resources = &zero_pad_resources_;
-        return status;
+        return result != nullptr ? status::success : status::unimplemented;
     };
 
     bool mayiuse(device_ext_t ext) const { return device_info_->has(ext); }
@@ -137,8 +140,13 @@ protected:
     std::shared_ptr<device_info_t> device_info_;
 
 private:
+    // Implement a zero_pad_primitive shared across the engine. The purpose is
+    // to prevent extra overhead associated with creating zero_pad_primitives
+    // for different inputs as ideally the zero_pad operations fast relative to
+    // the time to create the primitive.
     std::shared_ptr<primitive_t> zero_pad_primitive_;
     resource_mapper_t zero_pad_resources_;
+    std::once_flag zero_pad_init_;
     std::unique_ptr<stream_t> service_stream_;
     std::mutex service_stream_mutex_;
 };
