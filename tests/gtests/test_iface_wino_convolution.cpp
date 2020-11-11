@@ -62,6 +62,13 @@ protected:
                 && isa != cpu_isa::avx2_vnni;
         input_f32.backward_supported = is_cpu && impl::dnnl_thr_syncable();
 #endif // DNNL_X64
+#if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
+        input_f32.wino_supported
+                = (get_test_engine_kind() == engine::kind::cpu);
+        input_f32.backward_supported = false;
+        input_f16.wino_supported = false;
+        input_int8.wino_supported = false;
+#endif // DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
     }
 };
 

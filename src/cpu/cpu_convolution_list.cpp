@@ -30,6 +30,7 @@
 
 #if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
 #include "cpu/aarch64/acl_gemm_convolution.hpp"
+#include "cpu/aarch64/acl_winograd_convolution.hpp"
 using namespace dnnl::impl::cpu::aarch64;
 #endif
 
@@ -95,6 +96,7 @@ const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         CPU_INSTANCE_X64(jit_avx512_core_f32_wino_conv_4x3_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_common_convolution_winograd_fwd_t)
         CPU_INSTANCE_X64(jit_avx512_common_convolution_fwd_t<f32>)
+        CPU_INSTANCE_AARCH64_ACL(acl_wino_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx2_dw_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_avx2_1x1_convolution_fwd_t)
         CPU_INSTANCE_X64(jit_sse41_dw_convolution_fwd_t)

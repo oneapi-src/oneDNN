@@ -22,23 +22,25 @@
 #include "common/utils.hpp"
 
 #include "common/bfloat16.hpp"
-#include "cpu/aarch64/acl_gemm_convolution_utils.hpp"
+#include "cpu/aarch64/acl_convolution_utils.hpp"
 
 #include "cpu/platform.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace aarch64 {
 
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::alg_kind;
 using namespace prop_kind;
 using namespace data_type;
+using uint = unsigned int;
 
-namespace acl_gemm_convolution_utils {
+namespace acl_convolution_utils {
 
-status_t init_conf(acl_conv_gemm_conf_t &acp, memory_desc_t &src_md,
+status_t acl_init_conf(acl_conv_conf_t &acp, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const convolution_desc_t &cd,
         const primitive_attr_t &attr) {
@@ -49,9 +51,8 @@ status_t init_conf(acl_conv_gemm_conf_t &acp, memory_desc_t &src_md,
 
     // Compute Library currently supports forward propagation only
     const prop_kind_t prop_kind = cd.prop_kind;
-    const bool is_bwd_d = prop_kind == backward_data;
-    const bool is_bwd_w = prop_kind == backward_weights;
-    const bool is_fwd = !(is_bwd_d || is_bwd_w);
+    const bool is_fwd = (prop_kind == dnnl_forward_training)
+            || (prop_kind == dnnl_forward_inference);
     if (!is_fwd) return status::unimplemented;
 
     // Current implementation does not support int8 or bf16
@@ -193,7 +194,80 @@ status_t init_conf(acl_conv_gemm_conf_t &acp, memory_desc_t &src_md,
     // clang-format on
 
     // Post-op activations
-    acp.act_info = acl_gemm_convolution_utils::get_acl_act(attr);
+    acp.act_info = acl_convolution_utils::get_acl_act(attr);
+
+    return status::success;
+}
+
+status_t init_conf_gemm(acl_conv_conf_t &acp, memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, const convolution_desc_t &cd,
+        const primitive_attr_t &attr) {
+
+    // General Compute Library checks, memory tags are also set there
+    CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
+
+    // clang-format off
+    // Validate convolution manually to check for return status
+    arm_compute::NEGEMMConvolutionLayer acl_gemm_conv;
+    auto acl_st = acl_gemm_conv.validate(
+        &acp.src_info,
+        &acp.wei_info,
+        acp.with_bias ? &acp.bia_info : nullptr,
+        &acp.dst_info,
+        acp.padstride_info,
+        acp.weights_info,
+        acp.dilation_info,
+        acp.act_info);
+    // clang-format on
+    if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
+        return status::unimplemented;
+    }
+
+    return status::success;
+}
+
+status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
+        memory_desc_t &weights_md, memory_desc_t &dst_md,
+        memory_desc_t &bias_md, const convolution_desc_t &cd,
+        const primitive_attr_t &attr) {
+
+    // Under these conditions, fallback to faster GEMM-based convolution
+    // unless the user explicitly specifies Winograd algorithm
+    // clang-format off
+    if (one_of(true, src_md.dims[2] > 112, // ih
+                src_md.dims[3] > 112, // iw
+                src_md.dims[1] < 64, // ic
+                dst_md.dims[1] < 64, // oc
+                dnnl_get_max_threads() > 28)
+            && cd.alg_kind == alg_kind::convolution_auto) {
+        return status::unimplemented;
+    }
+    // clang-format on
+
+    // General Compute Library checks, memory tags are also set there
+    CHECK(acl_init_conf(acp, src_md, weights_md, dst_md, bias_md, cd, attr));
+
+    const bool wino_shape_ok // unit strides only, no dilations
+            = (acp.padstride_info.stride() == std::pair<uint, uint> {1, 1})
+            && (acp.dilation_info == arm_compute::Size2D(1, 1));
+    if (!wino_shape_ok) return status::unimplemented;
+
+    // clang-format off
+    // Validate convolution manually to check for return status
+    arm_compute::NEWinogradConvolutionLayer acl_wino_conv;
+    auto acl_st = acl_wino_conv.validate(
+        &acp.src_info,
+        &acp.wei_info,
+        acp.with_bias ? &acp.bia_info : nullptr,
+        &acp.dst_info,
+        acp.padstride_info,
+        acp.act_info,
+        true); // enable_fast_math flag in ACL Winograd
+    // clang-format on
+    if (acl_st.error_code() != arm_compute::ErrorCode::OK) {
+        return status::unimplemented;
+    }
 
     return status::success;
 }
@@ -249,8 +323,9 @@ bool acl_act_ok(alg_kind_t eltwise_activation) {
             eltwise_logistic);
 }
 
-} // namespace acl_gemm_convolution_utils
+} // namespace acl_convolution_utils
 
+} // namespace aarch64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
