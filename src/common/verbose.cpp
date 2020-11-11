@@ -998,11 +998,17 @@ static void init_info_matmul(const engine_t *e, pd_t *s, char *buffer) {
         auto md = s->src_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
     }
     { // src1
         auto md = s->weights_md(0);
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, ":");
     }
     { // bia
         if (s->with_bias()) {
@@ -1023,23 +1029,11 @@ static void init_info_matmul(const engine_t *e, pd_t *s, char *buffer) {
         auto md = s->dst_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
     }
 
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
-
-#define DPRINT_RT(str, val) \
-    do { \
-        if (is_runtime_value(val)) \
-            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, str "*"); \
-        else \
-            DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, str DFMT, val); \
-    } while (0)
-
-    if (s->batched()) DPRINT_RT("b", s->batch());
-    DPRINT_RT("m", s->M());
-    DPRINT_RT("n", s->N());
-    DPRINT_RT("k", s->K());
-#undef DPRINT_RT
 
     verbose_templ(buffer, e, s->kind(), s->name(), prop_kind::undef, dat_str,
             attr_str, aux_str, prb_str);
