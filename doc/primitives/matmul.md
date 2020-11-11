@@ -81,6 +81,9 @@ argument index as specified by the following table.
    #DNNL_RUNTIME_DIM_VAL. It is user responsibility to make sure the dimensions
    for the tensors are valid.
 
+4. Currently multiple batch dimensions and broadcasting of batch dimensions of
+   `src` and `weights` is only supported for CPU engine.
+
    @sa Please check tutorials below to see #DNNL_RUNTIME_DIM_VAL support in use.
 
 ### Data Types
