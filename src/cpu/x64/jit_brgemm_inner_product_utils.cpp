@@ -44,8 +44,13 @@ using namespace data_type;
 namespace brgemm_inner_product_utils {
 
 format_tag_t get_brgemm_ip_weights_tag(
-        dim_t oc, data_type_t wei_dt, int n_sp_dims) {
+        cpu_isa_t isa, dim_t oc, data_type_t wei_dt, int n_sp_dims) {
     using namespace format_tag;
+
+    if (isa == avx512_core_bf16_amx_int8)
+        return pick(n_sp_dims, OI16i16o4i, OIw16i16o4i, OIhw16i16o4i,
+                OIdhw16i16o4i);
+
     if (oc >= 64) {
         switch (wei_dt) {
             case data_type::f32:
@@ -111,6 +116,7 @@ bool post_ops_ok(
 
 status_t init_ip_conf_fwd(
         jit_brgemm_primitive_conf_t &jbgp, const primitive_attr_t &attr) {
+    const bool is_amx = jbgp.isa == avx512_core_bf16_amx_int8;
     const auto &p = attr.post_ops_;
     jbgp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
@@ -127,14 +133,18 @@ status_t init_ip_conf_fwd(
     }
 
     jbgp.use_buffer = IMPLICATION(jbgp.dst_dt == jbgp.acc_dt, jbgp.with_sum);
-
-    jbgp.ic_block = jbgp.simd_w;
-    if (jbgp.oc >= 4 * jbgp.simd_w) {
-        jbgp.oc_block = 4 * jbgp.simd_w;
-    } else if (jbgp.oc >= 2 * jbgp.simd_w) {
-        jbgp.oc_block = 2 * jbgp.simd_w;
-    } else {
+    if (is_amx) {
+        jbgp.ic_block = 4 * jbgp.simd_w;
         jbgp.oc_block = jbgp.simd_w;
+    } else {
+        jbgp.ic_block = jbgp.simd_w;
+        if (jbgp.oc >= 4 * jbgp.simd_w) {
+            jbgp.oc_block = 4 * jbgp.simd_w;
+        } else if (jbgp.oc >= 2 * jbgp.simd_w) {
+            jbgp.oc_block = 2 * jbgp.simd_w;
+        } else {
+            jbgp.oc_block = jbgp.simd_w;
+        }
     }
 
     jbgp.nb_ic = div_up(jbgp.ic, jbgp.ic_block);
@@ -142,7 +152,7 @@ status_t init_ip_conf_fwd(
     jbgp.os = jbgp.mb;
 
     // Configure matrix sizes
-    const int max_M = 64, min_M = 6;
+    const int max_M = 64, min_M = is_amx ? 16 : 6;
     jbgp.os_block = 1;
     for (int m_ = max_M; m_ >= min_M; m_--) {
         if (jbgp.os % m_ == 0) {
@@ -456,7 +466,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
             ? pick_by_prop_kind(jbgp.prop_kind, ipd.bias_desc.data_type,
                     data_type::undef, ipd.diff_bias_desc.data_type)
             : data_type::undef;
-    jbgp.signed_input = jbgp.src_dt == s8;
+    jbgp.signed_input = isa == avx512_core_vnni && jbgp.src_dt == s8;
     const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
     const bool is_bf16
             = everyone_is(bf16, jbgp.src_dt, jbgp.wei_dt, jbgp.dst_dt)
@@ -468,7 +478,8 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
                     everyone_is(bf16, jbgp.src_dt, jbgp.dst_dt)
                             && jbgp.wei_dt == f32);
 
-    if (!IMPLICATION(is_int8, isa == avx512_core_vnni))
+    if (!IMPLICATION(is_int8,
+                one_of(isa, avx512_core_vnni, avx512_core_bf16_amx_int8)))
         return status::unimplemented;
     if (!IMPLICATION(is_bf16, isa == avx512_core_bf16))
         return status::unimplemented;
@@ -509,7 +520,7 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
 
         memory_desc_t want_wei_md = weights_md;
         jbgp.wei_tag = get_brgemm_ip_weights_tag(
-                (dim_t)jbgp.oc, jbgp.wei_dt, ndims - 2);
+                isa, (dim_t)jbgp.oc, jbgp.wei_dt, ndims - 2);
         CHECK(memory_desc_init_by_tag(want_wei_md, jbgp.wei_tag));
 
         if (jbgp.signed_input) {
@@ -604,6 +615,10 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     if (dnnl_thr_syncable() && jbgp.prop_kind == dnnl_backward_weights)
         scratchpad.book<simple_barrier::ctx_t>(
                 key_conv_wei_bia_reduction_bctx, 1);
+
+    if (jbgp.isa == avx512_core_bf16_amx_int8)
+        scratchpad.book(
+                key_conv_amx_tile_buffer, jbgp.nthr * 1024, sizeof(char));
 }
 
 } // namespace brgemm_inner_product_utils

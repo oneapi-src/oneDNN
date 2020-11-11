@@ -19,6 +19,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/x64/amx_tile_configure.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/jit_brgemm_inner_product.hpp"
 
@@ -68,6 +69,11 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
     char *c_buffer_global = (jbgp.use_buffer)
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
             : nullptr;
+    const bool is_amx = jbgp.isa == avx512_core_bf16_amx_int8;
+    char *wsp_tile_base = is_amx
+            ? ctx.get_scratchpad_grantor().template get<char>(
+                    key_conv_amx_tile_buffer)
+            : nullptr;
 
     int ic_chunks = jbgp.nb_ic / jbgp.nb_ic_blocking;
     bool are_post_ops_applicable = one_of(true, jbgp.with_sum, jbgp.with_bias,
@@ -88,7 +94,7 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
                         + ithr * types::data_type_size(jbgp.acc_dt) * jbgp.LDC
                                 * jbgp.M
                                            : nullptr;
-
+        char *wsp_tile = is_amx ? wsp_tile_base + ithr * 1024 : nullptr;
         int oc = ocb * jbgp.oc_block;
         int icb = icc * jbgp.nb_ic_blocking;
         int ic = icb * jbgp.ic_block;
@@ -101,11 +107,13 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
         auto nb_ic_b = is_ic_tail ? (jbgp.ic - ic) / jbgp.ic_block
                                   : jbgp.nb_ic_blocking;
 
-        auto brg_kernel = brg_kernels_[pd()->get_brg_kernel_idx(kernel_init,
-                                               is_os_tail, is_oc_tail, false)]
-                                  .get();
+        int brg_ker_idx = pd()->get_brg_kernel_idx(
+                kernel_init, is_os_tail, is_oc_tail, false);
+        auto brg_kernel = brg_kernels_[brg_ker_idx].get();
 
         if (nb_ic_b > 0 && brg_kernel != nullptr) {
+            if (is_amx)
+                amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             for (int ic_block = 0; ic_block < nb_ic_b; ic_block++) {
                 addr_A[ic_block]
                         = src + src_d.blk_off(n, ic + ic_block * jbgp.ic_block);
@@ -125,13 +133,16 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
                         (void **)addr_A, (void **)addr_B, (void *)ptr_C,
                         (void *)ptr_D, (void *)bias_w,
                         &oscales[jbgp.is_oc_scale * oc],
-                        jbgp.signed_input ? &compensation[oc] : nullptr);
+                        is_amx ? (void *)wsp_tile
+                               : (jbgp.signed_input ? &compensation[oc]
+                                                    : nullptr));
             } else {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
                                                 : (char *)dst
                                 + sizeof(dst_data_t) * dst_d.blk_off(n, oc);
                 brgemm_kernel_execute(brg_kernel, nb_ic_b, (void **)addr_A,
-                        (void **)addr_B, (void *)ptr_C);
+                        (void **)addr_B, (void *)ptr_C,
+                        is_amx ? (void *)wsp_tile : nullptr);
             }
         }
 
@@ -141,11 +152,11 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
             addr_B[0] = weights + weights_d.blk_off(ocb, icb + ic_block);
 
             auto use_init_ker = (kernel_init && nb_ic_b == 0);
-            auto brg_kernel_ic_tail
-                    = brg_kernels_[pd()->get_brg_kernel_idx(use_init_ker,
-                                           is_os_tail, is_oc_tail, true)]
-                              .get();
-
+            int brg_ker_idx = pd()->get_brg_kernel_idx(
+                    use_init_ker, is_os_tail, is_oc_tail, true);
+            auto brg_kernel_ic_tail = brg_kernels_[brg_ker_idx].get();
+            if (is_amx)
+                amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             if (are_post_ops_applicable && icc == ic_chunks - 1) {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
                                                 : (char *)dst
@@ -157,13 +168,16 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
                         (void **)addr_A, (void **)addr_B, (void *)ptr_C,
                         (void *)ptr_D, (void *)bias_w,
                         &oscales[jbgp.is_oc_scale * oc],
-                        jbgp.signed_input ? &compensation[oc] : nullptr);
+                        is_amx ? (void *)wsp_tile
+                               : (jbgp.signed_input ? &compensation[oc]
+                                                    : nullptr));
             } else {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
                                                 : (char *)dst
                                 + sizeof(dst_data_t) * dst_d.blk_off(n, oc);
                 brgemm_kernel_execute(brg_kernel_ic_tail, 1, (void **)addr_A,
-                        (void **)addr_B, (void *)ptr_C);
+                        (void **)addr_B, (void *)ptr_C,
+                        is_amx ? (void *)wsp_tile : nullptr);
             }
         }
     };
@@ -202,6 +216,22 @@ template struct brgemm_inner_product_fwd_t<avx512_core_vnni, s8, s8, f32>;
 template struct brgemm_inner_product_fwd_t<avx512_core_vnni, s8, s8, s32>;
 template struct brgemm_inner_product_fwd_t<avx512_core_vnni, s8, s8, u8>;
 template struct brgemm_inner_product_fwd_t<avx512_core_vnni, s8, s8, s8>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8, u8, s8,
+        f32>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8, u8, s8,
+        s32>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8, u8, s8,
+        u8>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8, u8, s8,
+        s8>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8, s8, s8,
+        f32>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8, s8, s8,
+        s32>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8, s8, s8,
+        u8>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16_amx_int8, s8, s8,
+        s8>;
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
         data_type_t dst_type>

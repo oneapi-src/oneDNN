@@ -159,6 +159,9 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
             brgemm_kernel_t *ker = nullptr;
             CHECK(brgemm_kernel_create(&ker, pd()->brg_descs_[idx]));
             CHECK(safe_ptr_assign(brg_kernels_[idx], ker));
+            if (isa == avx512_core_bf16_amx_int8)
+                CHECK(brgemm_init_tiles(
+                        pd()->brg_descs_[idx], &brg_kernel_palettes_[idx][0]));
         }
 
         return status::success;
@@ -178,6 +181,7 @@ private:
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
+    char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
 };
 
 template <cpu_isa_t isa, impl::data_type_t diff_src_type,
