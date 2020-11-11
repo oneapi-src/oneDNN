@@ -47,16 +47,15 @@ status_t compute_stream_t::zero_pad(const memory_t *memory) {
     engine_t *engine = this->engine();
 
     primitive_t *zero_pad_primitive;
+    const resource_mapper_t *mapper;
     CHECK(utils::downcast<compute_engine_t *>(engine)->get_zero_pad_primitive(
-            zero_pad_primitive));
+            zero_pad_primitive, mapper));
 
-    resource_mapper_t mapper;
-    CHECK(zero_pad_primitive->create_resource(engine, mapper));
     exec_args_t zero_pad_args;
     memory_arg_t arg = {const_cast<memory_t *>(memory), true};
     zero_pad_args[DNNL_ARG_SRC] = arg;
     exec_ctx_t zero_pad_ctx(this, std::move(zero_pad_args));
-    zero_pad_ctx.set_resource_mapper(&mapper);
+    zero_pad_ctx.set_resource_mapper(mapper);
     if (get_verbose()) {
         const int str_size = 64;
         char md_fmt[str_size];

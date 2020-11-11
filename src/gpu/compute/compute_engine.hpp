@@ -23,6 +23,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
+#include "common/primitive.hpp"
 #include "common/primitive_iterator.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "gpu/compute/dispatch.hpp"
@@ -67,7 +68,8 @@ public:
             const char **source_strings,
             const compute::kernel_ctx_t &kernel_ctx) const = 0;
 
-    status_t get_zero_pad_primitive(primitive_t *&result) {
+    status_t get_zero_pad_primitive(
+            primitive_t *&result, const resource_mapper_t *&resources) {
         status_t status = status::success;
         if (zero_pad_primitive_ == nullptr) {
             zero_pad_desc_t desc;
@@ -78,8 +80,13 @@ public:
             std::unique_ptr<primitive_desc_t> zero_pad_pd(it.fetch_once());
             if (zero_pad_pd == nullptr) return status::unimplemented;
             status = zero_pad_pd->create_primitive(zero_pad_primitive_, this);
+            if (status != status::success) return status;
+
+            status = zero_pad_primitive_->create_resource(
+                    this, zero_pad_resources_);
         }
         result = zero_pad_primitive_.get();
+        resources = &zero_pad_resources_;
         return status;
     };
 
@@ -110,6 +117,7 @@ public:
 private:
     std::unique_ptr<device_info_t> device_info_;
     std::shared_ptr<primitive_t> zero_pad_primitive_;
+    resource_mapper_t zero_pad_resources_;
     std::unique_ptr<stream_t> service_stream_;
     std::mutex service_stream_mutex_;
 };
