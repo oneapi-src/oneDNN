@@ -532,53 +532,86 @@ void jit_brgemm_kernel_base_t::store_accumulators_without_post_ops(
 
 void jit_brgemm_kernel_base_t::store_accumulators(
         int bd_block2, bool is_bdb_tail, int ld_block2, bool is_ld_tail) {
+    const bool are_post_ops_applicable = one_of(true, brg.with_eltwise,
+            brg.with_scales, brg.with_bias, brg.with_sum, brg.dt_d != brg.dt_c,
+            brg.req_s8s8_compensation);
+    const bool need_to_apply_beta = brg.beta != 0.f && brg.alpha != 0;
+
     if (brg.is_int8_amx || brg.is_bf16_amx) {
         mov(ptr[rsp + reg_ldb_loop_offs_], reg_ldb_loop);
-        if (brg.beta != 0.f && brg.alpha != 0)
+        if (need_to_apply_beta || are_post_ops_applicable)
             mov(reg_stride_ld_block, brg.ld_block * brg.typesize_C);
         else
             mov(reg_stride_ld_block, brg.LDC * brg.typesize_C);
 
-        mov(reg_buf, ptr[rsp + reg_buf_offs_]);
-        for (int bdb = 0; bdb < bd_block2; bdb++) {
-            for (int ldb = 0; ldb < ld_block2; ldb++) {
-                int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
-                if (brg.beta != 0.f && brg.alpha != 0) {
-                    tilestored(ptr[reg_buf + reg_stride_ld_block],
-                            Tmm(brgemm_amx::get_C_tensor(bdb, idx)));
-                    for (int bd = 0; bd < brg.bd_block; bd++) {
-                        size_t buf_offset
-                                = (bd * brg.ld_block) * brg.typesize_C;
-                        if (is_ld_tail)
-                            vmovups(accm(1, bd, 0) | ld_tail_mask | T_z,
-                                    ptr[reg_buf + buf_offset]);
-                        else
-                            vmovups(accm(1, bd, 0), ptr[reg_buf + buf_offset]);
+        auto store_accumulators_amx = [=](const bool apply_post_ops) {
+            mov(reg_buf, ptr[rsp + reg_buf_offs_]);
+            for (int bdb = 0; bdb < bd_block2; bdb++) {
+                for (int ldb = 0; ldb < ld_block2; ldb++) {
+                    int idx = (is_ld_tail) ? brg.ld_block2 : ldb;
+                    if (need_to_apply_beta || are_post_ops_applicable) {
+                        tilestored(ptr[reg_buf + reg_stride_ld_block],
+                                Tmm(brgemm_amx::get_C_tensor(bdb, idx)));
+                        for (int bd = 0; bd < brg.bd_block; bd++) {
+                            size_t buf_offset
+                                    = (bd * brg.ld_block) * brg.typesize_C;
+                            auto vreg_acc = is_ld_tail
+                                    ? accm(1, bd, 0) | ld_tail_mask | T_z
+                                    : accm(1, bd, 0);
+                            vmovups(vreg_acc, ptr[reg_buf + buf_offset]);
+                        }
+                        if (need_to_apply_beta)
+                            apply_beta(brg.bd_block, 1, is_ld_tail);
+
+                        if (apply_post_ops) {
+                            store_accumulators_apply_post_ops(
+                                    brg.bd_block, 1, is_ld_tail);
+                            mov(reg_buf, ptr[rsp + reg_buf_offs_]);
+                            add(reg_aux_D, ldb_D_offset(1));
+                        } else {
+                            store_accumulators_without_post_ops(
+                                    brg.bd_block, 1, is_ld_tail);
+                        }
+                    } else {
+                        tilestored(ptr[reg_aux_C + reg_stride_ld_block],
+                                Tmm(brgemm_amx::get_C_tensor(bdb, idx)));
                     }
-                    apply_beta(brg.bd_block, 1, is_ld_tail);
-                    store_accumulators_without_post_ops(
-                            brg.bd_block, 1, is_ld_tail);
-                } else {
-                    tilestored(ptr[reg_aux_C + reg_stride_ld_block],
-                            Tmm(brgemm_amx::get_C_tensor(bdb, idx)));
+                    add(reg_aux_C, ldb_C_offset(1));
                 }
-                add(reg_aux_C, ldb_C_offset(1));
+                sub(reg_aux_C, ldb_C_offset(ld_block2));
+                add(reg_aux_C, bdb_C_offset(1));
+                if (apply_post_ops) {
+                    sub(reg_aux_D, ldb_D_offset(ld_block2));
+                    add(reg_aux_D, bdb_D_offset(1));
+                }
             }
-            sub(reg_aux_C, ldb_C_offset(ld_block2));
-            add(reg_aux_C, bdb_C_offset(1));
+            sub(reg_aux_C, bdb_C_offset(bd_block2));
+            if (apply_post_ops) sub(reg_aux_D, bdb_D_offset(bd_block2));
+        };
+
+        Label label_done;
+        if (are_post_ops_applicable) {
+            Label label_store_without_post_ops;
+            mov(reg_do_post_ops, ptr[rsp + reg_do_post_ops_offs_]);
+            cmp(reg_do_post_ops, 0);
+            jz(label_store_without_post_ops, T_NEAR);
+
+            store_accumulators_amx(true);
+            jmp(label_done, T_NEAR);
+
+            L_aligned(label_store_without_post_ops);
         }
-        sub(reg_aux_C, bdb_C_offset(bd_block2));
+        store_accumulators_amx(false);
+        L_aligned(label_done);
+
         mov(reg_ldb_loop, ptr[rsp + reg_ldb_loop_offs_]);
     } else {
         int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
-        if (brg.beta != 0.f && brg.alpha != 0) {
-            apply_beta(bd_block, ld_block2, is_ld_tail);
-        }
+        if (need_to_apply_beta) apply_beta(bd_block, ld_block2, is_ld_tail);
 
-        if (one_of(true, brg.with_eltwise, brg.with_scales, brg.with_bias,
-                    brg.with_sum, brg.dt_d != brg.dt_c,
-                    brg.req_s8s8_compensation)) {
-            Label label_done, label_store_without_post_ops;
+        Label label_done;
+        if (are_post_ops_applicable) {
+            Label label_store_without_post_ops;
 
             mov(reg_do_post_ops, ptr[rsp + reg_do_post_ops_offs_]);
             cmp(reg_do_post_ops, 0);
@@ -588,14 +621,9 @@ void jit_brgemm_kernel_base_t::store_accumulators(
             jmp(label_done, T_NEAR);
 
             L_aligned(label_store_without_post_ops);
-            store_accumulators_without_post_ops(
-                    bd_block, ld_block2, is_ld_tail);
-
-            L_aligned(label_done);
-        } else {
-            store_accumulators_without_post_ops(
-                    bd_block, ld_block2, is_ld_tail);
         }
+        store_accumulators_without_post_ops(bd_block, ld_block2, is_ld_tail);
+        L_aligned(label_done);
     }
 }
 

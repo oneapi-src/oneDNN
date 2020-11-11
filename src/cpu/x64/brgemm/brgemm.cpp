@@ -181,29 +181,32 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     brg->dt_d = brg->dt_c;
     brg->dt_bias = brg->dt_c;
 
-    if (brg->is_f32 && !mayiuse(avx512_core)) return status::unimplemented;
-    if (brg->is_bf16 && (!mayiuse(avx512_core_bf16) && !mayiuse(amx_bf16)))
+    if (!IMPLICATION(brg->is_f32, mayiuse(avx512_core)))
         return status::unimplemented;
-    if (brg->is_int8 && (!mayiuse(avx512_core_vnni) && !mayiuse(amx_int8)))
+    if (!IMPLICATION(brg->is_bf16, mayiuse(avx512_core_bf16)))
+        return status::unimplemented;
+    if (!IMPLICATION(brg->is_int8, mayiuse(avx512_core_vnni)))
         return status::unimplemented;
 
     if (isa != isa_any) {
         if (!one_of(isa, avx512_core, avx512_core_bf16, avx512_core_vnni,
-                    amx_bf16, amx_int8)) {
+                    avx512_core_bf16_amx_bf16, avx512_core_bf16_amx_int8)) {
             return status::invalid_arguments;
         }
         brg->is_int8_amx = brg->is_bf16_amx = false;
-        if (brg->is_int8 && isa == amx_int8) {
-            if (!mayiuse(amx_int8)) return status::invalid_arguments;
+        if (brg->is_int8 && isa == avx512_core_bf16_amx_int8) {
+            if (!mayiuse(avx512_core_bf16_amx_int8))
+                return status::invalid_arguments;
             brg->is_int8_amx = true;
         }
-        if (brg->is_bf16 && isa == amx_bf16) {
-            if (!mayiuse(amx_bf16)) return status::invalid_arguments;
+        if (brg->is_bf16 && isa == avx512_core_bf16_amx_bf16) {
+            if (!mayiuse(avx512_core_bf16_amx_bf16))
+                return status::invalid_arguments;
             brg->is_bf16_amx = true;
         }
     } else {
-        brg->is_int8_amx = brg->is_int8 && mayiuse(amx_int8);
-        brg->is_bf16_amx = brg->is_bf16 && mayiuse(amx_bf16);
+        brg->is_int8_amx = brg->is_int8 && mayiuse(avx512_core_bf16_amx_int8);
+        brg->is_bf16_amx = brg->is_bf16 && mayiuse(avx512_core_bf16_amx_bf16);
     }
     brg->req_s8s8_compensation
             = brg->is_int8 && !brg->is_int8_amx && brg->dt_a == data_type::s8;
@@ -346,9 +349,6 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 status_t brgemm_desc_add_postops(brgemm_t *brg, const primitive_attr_t *attr,
         impl::data_type_t dt_d, int LDD, impl::data_type_t dt_bias) {
     if (brg == nullptr) return status::invalid_arguments;
-
-    // TODO: Add AMX support
-    if (brg->is_int8_amx || brg->is_bf16_amx) return status::unimplemented;
 
     brg->attr = attr;
 
