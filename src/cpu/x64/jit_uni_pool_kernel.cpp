@@ -145,11 +145,17 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.f_pad = (ndims == 5) ? pd.padding[0][0] : 0;
     jpp.t_pad = (ndims == 3) ? 0 : pd.padding[0][ndims - 4];
     jpp.l_pad = pd.padding[0][ndims - 3];
-    jpp.b_pad = pd.padding[1][ndims-4];
-    jpp.r_pad = pd.padding[1][ndims-3];
-    jpp.back_pad = pd.padding[1][ndims-2];
 
-    if (jpp.f_pad >= jpp.kd || jpp.back_pad >= jpp.kd)
+    const int back_pad = calculate_end_padding(
+            jpp.f_pad, jpp.od, jpp.id, jpp.stride_d, jpp.kd);
+    const int bottom_pad = calculate_end_padding(
+            jpp.t_pad, jpp.oh, jpp.ih, jpp.stride_h, jpp.kh);
+    const int right_pad = calculate_end_padding(
+            jpp.l_pad, jpp.ow, jpp.iw, jpp.stride_w, jpp.kw);
+
+    if (jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
+            || back_pad >= jpp.kd || bottom_pad >= jpp.kh
+            || right_pad >= jpp.kw)
         return status::unimplemented;
 
     jpp.ind_dt = ppd->workspace_md() ? ppd->workspace_md()->data_type
@@ -185,7 +191,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     // select jpp.ur_bc
     if (jpp.tag_kind == jptg_nspc) {
         auto min_ur_w = nstl::max(1, utils::div_up(jpp.l_pad, jpp.stride_w));
-        int min_ur_w1 = utils::div_up(jpp.r_pad, jpp.stride_w);
+        int min_ur_w1 = utils::div_up(right_pad, jpp.stride_w);
         if (min_ur_w < min_ur_w1) { min_ur_w = min_ur_w1; }
         jpp.ur_bc = nstl::min(jpp.nb_c, nstl::max(1, jpp.ur / min_ur_w));
         //take into account threading - to have enough work for parallelization
@@ -222,7 +228,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     auto ur_w = nstl::min(jpp.ow, jpp.ur / jpp.ur_bc);
     if (utils::div_up(jpp.l_pad, jpp.stride_w) > ur_w)
         return status::unimplemented;
-    if (utils::div_up(jpp.r_pad, jpp.stride_w) > ur_w)
+    if (utils::div_up(right_pad, jpp.stride_w) > ur_w)
         return status::unimplemented;
 
     // scratchpad for c_block slice of input and/or output
@@ -347,18 +353,14 @@ inline void jit_uni_pool_kernel<isa>::store(const int idx,
 
 template <cpu_isa_t isa>
 inline void jit_uni_pool_kernel<isa>::maybe_recalculate_divisor(
-        int jj, int ur_w, int pad_l, int pad_r, int pad_r_logic, bool with_c_tail_proccessing) {
+        int jj, int ur_w, int pad_l, int pad_r, bool with_c_tail_proccessing) {
     if (jpp.alg == pooling_avg_exclude_padding) {
         int kw = jpp.kw;
         int stride_w = jpp.stride_w;
 
         int non_zero_kw = kw;
-        if (jpp.alg == pooling_avg_exclude_padding) {
-            non_zero_kw -= nstl::max(0, pad_l - jj * stride_w);
-            non_zero_kw -= nstl::max(0, pad_r - (ur_w - 1 - jj) * stride_w);
-        } else { //  jpp.alg == pooling_avg_include_padding
-            non_zero_kw -= nstl::max(0, pad_r_logic - (ur_w - 1 - jj) * stride_w);
-        }
+        non_zero_kw -= nstl::max(0, pad_l - jj * stride_w);
+        non_zero_kw -= nstl::max(0, pad_r - (ur_w - 1 - jj) * stride_w);
 
         if (non_zero_kw != prev_kw) {
             mov(tmp_gpr, float2int((float)non_zero_kw));
@@ -380,7 +382,7 @@ inline void jit_uni_pool_kernel<isa>::maybe_recalculate_divisor(
 
 template <cpu_isa_t isa>
 inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
-        int pad_r, int pad_r_logic, bool with_c_tail_proccessing) {
+        int pad_r, bool with_c_tail_proccessing) {
 
     auto iw = jpp.iw;
     auto kw = jpp.kw;
@@ -406,7 +408,7 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
     for (int jj = 0; jj < ur_w; jj++) {
         if (jpp.is_backward)
             maybe_recalculate_divisor(
-                    jj, ur_w, pad_l, pad_r, pad_r_logic, with_c_tail_proccessing);
+                    jj, ur_w, pad_l, pad_r, with_c_tail_proccessing);
         for (int bci = 0; bci < ur_bc; bci++) {
             auto accr_i = reg_ind(0, bci, jj);
             auto accvr = vreg(accr_i);
@@ -496,7 +498,7 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
     if (!jpp.is_backward) {
         for (int jj = 0; jj < ur_w; jj++) {
             maybe_recalculate_divisor(
-                    jj, ur_w, pad_l, pad_r, with_c_tail_proccessing, pad_r_logic);
+                    jj, ur_w, pad_l, pad_r, with_c_tail_proccessing);
             for (int bci = 0; bci < ur_bc; bci++) {
                 auto accr_i = reg_ind(0, bci, jj);
                 auto accvr = vreg(accr_i);
@@ -1096,12 +1098,11 @@ void jit_uni_pool_kernel<isa>::generate() {
 
     int r_pad
             = nstl::max(0, calculate_end_padding(l_pad, ow, iw, stride_w, kw));
-    int r_pad_log = nstl::max(0, calculate_end_padding_log(l_pad, ow, iw, stride_w, kw, jpp.r_pad));
 
-    auto process_oi = [&](int ur_w, int ur_bc, int lpad, int rpad, int rpad_log,
+    auto process_oi = [&](int ur_w, int ur_bc, int lpad, int rpad,
                               bool with_c_tail_proccessing,
                               bool inc_reg = true) {
-        step(ur_w, ur_bc, lpad, rpad, rpad_log, with_c_tail_proccessing);
+        step(ur_w, ur_bc, lpad, rpad, with_c_tail_proccessing);
 
         if (isa == sse41) {
             if (with_c_tail_proccessing && !jpp.is_c_padded
@@ -1112,7 +1113,7 @@ void jit_uni_pool_kernel<isa>::generate() {
                 ur_bc -= 1;
             }
             sse_high_half = true;
-            step_high_half(ur_w, ur_bc, lpad, rpad, rpad_log, with_c_tail_proccessing);
+            step_high_half(ur_w, ur_bc, lpad, rpad, with_c_tail_proccessing);
             sse_high_half = false;
         }
 
@@ -1167,15 +1168,14 @@ void jit_uni_pool_kernel<isa>::generate() {
 
         int r_pad1
                 = calculate_end_padding(l_pad, ur_w * n_oi, iw, stride_w, kw);
-        int r_pad1_log = nstl::max(0, r_pad1 - jpp.r_pad);
         if (r_pad1 > 0) n_oi--;
 
         if (l_pad > 0) {
             n_oi--;
             if (n_oi < 0 && r_pad1 > 0)
-                process_oi(ur_w, ur_bc, l_pad, r_pad1, r_pad1_log, with_c_tail_processing);
+                process_oi(ur_w, ur_bc, l_pad, r_pad1, with_c_tail_processing);
             else
-                process_oi(ur_w, ur_bc, l_pad, 0, 0, with_c_tail_processing);
+                process_oi(ur_w, ur_bc, l_pad, 0, with_c_tail_processing);
         }
 
         xor_(oi_iter, oi_iter);
@@ -1183,7 +1183,7 @@ void jit_uni_pool_kernel<isa>::generate() {
             Label ow_loop;
             L(ow_loop);
             {
-                process_oi(ur_w, ur_bc, 0, 0, 0, with_c_tail_processing);
+                process_oi(ur_w, ur_bc, 0, 0, with_c_tail_processing);
 
                 inc(oi_iter);
                 cmp(oi_iter, n_oi);
@@ -1192,11 +1192,11 @@ void jit_uni_pool_kernel<isa>::generate() {
         }
 
         if (r_pad1 > 0 && n_oi >= 0)
-            process_oi(ur_w, ur_bc, 0, r_pad1, r_pad1_log, with_c_tail_processing);
+            process_oi(ur_w, ur_bc, 0, r_pad1, with_c_tail_processing);
 
         if (ur_w_tail != 0)
             process_oi(
-                    ur_w_tail, ur_bc, 0, r_pad, r_pad_log, with_c_tail_processing, false);
+                    ur_w_tail, ur_bc, 0, r_pad, with_c_tail_processing, false);
     };
     Label ur_bc_tail_label, c_tail_processing_label, finish_label;
 

@@ -158,9 +158,9 @@ private:
     void store(const int idx, const reg64_t &reg_ptr, const int offset,
             const bool is_c_tail_proccessing);
 
-    void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r, int pad_r_logic,
+    void maybe_recalculate_divisor(int jj, int ur_w, int pad_l, int pad_r,
             bool with_c_tail_proccessing);
-    void avg_step(int ur_w, int ur_bc, int pad_l, int pad_r, int pad_r_logic,
+    void avg_step(int ur_w, int ur_bc, int pad_l, int pad_r,
             bool with_c_tail_proccessing);
     void max_step_fwd(int ur_w, int ur_bc, int pad_l, int pad_r,
             bool with_c_tail_proccessing);
@@ -169,7 +169,7 @@ private:
 
     void zero_diff_src(int ur_bc, bool with_c_tail_proccessing);
 
-    void step(int ur_w, int ur_bc, int pad_l, int pad_r, int pad_r_logic,
+    void step(int ur_w, int ur_bc, int pad_l, int pad_r,
             bool with_c_tail_proccessing) {
         if (jpp.alg == alg_kind::pooling_max) {
             if (jpp.is_backward)
@@ -179,19 +179,18 @@ private:
                 max_step_fwd(
                         ur_w, ur_bc, pad_l, pad_r, with_c_tail_proccessing);
         } else
-            avg_step(ur_w, ur_bc, pad_l, pad_r, pad_r_logic, with_c_tail_proccessing);
+            avg_step(ur_w, ur_bc, pad_l, pad_r, with_c_tail_proccessing);
     }
 
-    void step_high_half(int ur_w, int ur_bc, int pad_l, int pad_r, int pad_r_logic,
+    void step_high_half(int ur_w, int ur_bc, int pad_l, int pad_r,
             bool with_c_tail_processing) {
-
         add(reg_input, sizeof(float) * 4);
         add(reg_output, sizeof(float) * 4);
         if (jpp.alg == alg_kind::pooling_max
                 && (jpp.is_training || jpp.is_backward))
             add(reg_index, types::data_type_size(jpp.ind_dt) * 4);
 
-        step(ur_w, ur_bc, pad_l, pad_r, pad_r_logic, with_c_tail_processing);
+        step(ur_w, ur_bc, pad_l, pad_r, with_c_tail_processing);
     }
 
     void generate() override;
