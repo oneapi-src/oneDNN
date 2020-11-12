@@ -919,7 +919,13 @@ public:
 	const Reg& getIndex() const { return index_; }
 	int getScale() const { return scale_; }
 	size_t getDisp() const { return disp_; }
-	XBYAK_CONSTEXPR void verify() const
+
+#if (__cplusplus >= 201402L) && !defined(__clang__) && defined(__GNUC__) && __GNUC__ <= 5
+	// workaround g++<=5 issue with c++14: "calling to non-constexpr function from constexpr function"
+#else
+	XBYAK_CONSTEXPR
+#endif
+	void verify() const
 	{
 		if (base_.getBit() >= 128) XBYAK_THROW(ERR_BAD_SIZE_OF_REGISTER)
 		if (index_.getBit() && index_.getBit() <= 64) {
