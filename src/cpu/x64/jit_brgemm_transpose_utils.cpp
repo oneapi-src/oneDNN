@@ -49,7 +49,7 @@ private:
     using opmask_t = const Xbyak::Opmask;
 
     enum { typesize = sizeof(float), transpose_size = 16 };
-    dim_t src_stride, tr_src_stride;
+    dim_t src_stride = 0, tr_src_stride = 0;
 
     opmask_t k3333 = k1;
     opmask_t k5555 = k2;
@@ -311,7 +311,7 @@ private:
         typesize = sizeof(int16_t),
         transpose_size = 16,
     };
-    dim_t src_stride, tr_src_stride;
+    dim_t src_stride = 0, tr_src_stride = 0;
 
     opmask_t kFFFF = k1;
     opmask_t k5555 = k2;
@@ -647,10 +647,10 @@ private:
         transpose_size = 16,
     };
 
-    int last_row_block_tail, col_tail;
-    dim_t src_stride, tr_src_stride;
-    dim_t src_col_shift, tr_src_col_shift;
-    dim_t src_batch_shift, tr_src_batch_shift;
+    int last_row_block_tail = 0, col_tail = 0;
+    dim_t src_stride = 0, tr_src_stride = 0;
+    dim_t src_col_shift = 0, tr_src_col_shift = 0;
+    dim_t src_batch_shift = 0, tr_src_batch_shift = 0;
 
     opmask_t kFFFF = k1;
     opmask_t mask_tail = k2;
@@ -873,7 +873,7 @@ private:
     using opmask_t = const Xbyak::Opmask;
 
     enum { typesize = sizeof(float), transpose_size = 16 };
-    dim_t src_stride, tr_src_stride;
+    dim_t src_stride = 0, tr_src_stride = 0;
 
     opmask_t k3333 = k1;
     opmask_t k5555 = k2;
@@ -1146,7 +1146,7 @@ private:
     using zmm = const Xbyak::Zmm;
 
     enum { typesize = sizeof(int16_t), transpose_size = 16 };
-    dim_t src_stride, tr_src_stride;
+    dim_t src_stride = 0, tr_src_stride = 0;
 
     opmask_t kTail = k7;
 
