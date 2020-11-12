@@ -43,11 +43,13 @@ struct ref_prelu_fwd_t : public primitive_t {
     struct pd_t : public cpu_prelu_fwd_pd_t {
         using cpu_prelu_fwd_pd_t::cpu_prelu_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("prelu_ref:any", ref_prelu_fwd_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_prelu_fwd_t);
 
         status_t init(engine_t *engine) {
             bool ok = is_fwd() && set_default_formats()
-                    && src_md(0)->data_type == d_type
+                    && utils::everyone_is(d_type, src_md(0)->data_type,
+                            weights_md(0)->data_type)
+                    && src_md(0)->ndims >= 3
                     && platform::has_data_type_support(d_type)
                     && attr()->has_default_values();
 
@@ -75,13 +77,14 @@ struct ref_prelu_bwd_t : public primitive_t {
     struct pd_t : public cpu_prelu_bwd_pd_t {
         using cpu_prelu_bwd_pd_t::cpu_prelu_bwd_pd_t;
 
-        DECLARE_COMMON_PD_T("prelu_ref:any", ref_prelu_bwd_t);
+        DECLARE_COMMON_PD_T("ref:any", ref_prelu_bwd_t);
 
         status_t init(engine_t *engine) {
             bool ok = !is_fwd() && set_default_formats()
                     && utils::everyone_is(d_type, src_md(0)->data_type,
                             weights_md(0)->data_type, diff_src_md(0)->data_type,
                             diff_weights_md(0)->data_type)
+                    && src_md(0)->ndims >= 3
                     && platform::has_data_type_support(d_type)
                     && attr()->has_default_values();
 
