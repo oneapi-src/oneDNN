@@ -34,16 +34,17 @@ struct settings_t {
     settings_t(const char *perf_template) : settings_t() {
         this->perf_template = perf_template;
     }
-    std::vector<dims_t> dims;
+
+    std::vector<dims_t> sdims;
+
     std::vector<dir_t> dir {FWD_D};
-    std::vector<dnnl_data_type_t> dt {dnnl_f32};
-    std::vector<std::string> tag {tag::abx};
+    std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
+    std::vector<std::vector<std::string>> stag {{tag::abx, tag::any}};
     std::vector<dnnl_scratchpad_mode_t> scratchpad_mode {
             dnnl_scratchpad_mode_library};
 
     const char *perf_template_csv
-            = "perf,%engine%,%impl%,%dir%,%dt%,%tag%,%DESC%,%-time%,%"
-              "0time%";
+            = "perf,%engine%,%impl%,%dir%,%sdt%,%stag%,%DESC%,%-time%,%0time%";
     const char *perf_template_def
             = "perf,%engine%,%impl%,%prb%,%-time%,%0time%";
     const char *perf_template = perf_template_def;
@@ -52,24 +53,33 @@ struct settings_t {
 };
 
 struct prb_t {
-    prb_t(const std::vector<dims_t> &dims, dir_t dir, dnnl_data_type_t dt,
-            const std::string &tag, const attr_t &attr, int64_t mb = 0)
-        : dims(dims)
+    prb_t(const std::vector<dims_t> &sdims, dir_t dir,
+            const std::vector<dnnl_data_type_t> &sdt,
+            const std::vector<std::string> &stag, const attr_t &attr)
+        : sdims(sdims)
         , dir(dir)
-        , dt(dt)
-        , tag(tag)
+        , sdt(sdt)
+        , stag(stag)
         , attr(attr)
-        , ndims((int)dims[0].size()) {
-        if (mb) this->dims[0][0] = mb;
-    }
+        , ndims((int)sdims[0].size()) {}
     ~prb_t() {}
 
-    std::vector<dims_t> dims;
+    std::vector<dims_t> sdims;
     dir_t dir;
-    dnnl_data_type_t dt;
-    std::string tag;
+    std::vector<dnnl_data_type_t> sdt;
+    std::vector<std::string> stag;
     attr_t attr;
     int ndims;
+
+    int get_broadcast_mask() const {
+        const dims_t &src = this->sdims[0];
+        const dims_t &wei = this->sdims[1];
+
+        int broadcast_mask = 0;
+        for (int d = 0; d < ndims; ++d)
+            broadcast_mask += src[d] == wei[d] ? (1 << d) : 0;
+        return broadcast_mask;
+    }
 };
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb);
@@ -79,20 +89,24 @@ struct perf_report_t : public base_perf_report_t {
 
     void report(const prb_t *prb, const res_t *res, const char *prb_str) {
         prb_ = prb;
-        tag_ = normalize_tag(prb_->tag, prb_->ndims);
+        for (size_t d = 0; d < prb_->stag.size(); d++)
+            stag_.push_back(normalize_tag(prb_->stag[d], prb_->ndims));
         base_report(res, prb_str);
     }
-    void dump_desc(std::ostream &s) const override { s << prb_->dims; }
 
-    void dump_desc_csv(std::ostream &s) const override { s << prb_->dims; }
+    void dump_desc(std::ostream &s) const override { s << prb_->sdims; }
+
+    void dump_desc_csv(std::ostream &s) const override { s << prb_->sdims; }
 
     const dir_t *dir() const override { return &prb_->dir; }
-    const dnnl_data_type_t *dt() const override { return &prb_->dt; }
-    const std::string *tag() const override { return &tag_; }
+    const std::vector<dnnl_data_type_t> *sdt() const override {
+        return &prb_->sdt;
+    }
+    const std::vector<std::string> *stag() const override { return &stag_; }
 
 private:
     const prb_t *prb_ = NULL;
-    std::string tag_;
+    std::vector<std::string> stag_;
 };
 
 void compute_ref_fwd(const prb_t *prb, const dnn_mem_t &src,

@@ -22,14 +22,16 @@
 namespace prelu {
 
 std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
+    using ::operator<<;
+
     dump_global_params(s);
     settings_t def;
 
     if (canonical || prb.dir != def.dir[0]) s << "--dir=" << prb.dir << " ";
-    if (canonical || prb.dt != def.dt[0]) s << "--dt=" << prb.dt << " ";
-    if (canonical || prb.tag != def.tag[0]) s << "--tag=" << prb.tag << " ";
+    if (canonical || prb.sdt != def.sdt[0]) s << "--sdt=" << prb.sdt << " ";
+    if (canonical || prb.stag != def.stag[0]) s << "--stag=" << prb.stag << " ";
     s << prb.attr;
-    s << prb.dims[0] << ":" << prb.dims[1];
+    s << prb.sdims;
 
     return s;
 }

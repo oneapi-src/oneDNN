@@ -1,0 +1,10 @@
+# basic shapes
+3x64x8:3x64x8
+3x64x8:1x64x1
+3x64x8:1x1x1
+4x16x3x4:4x16x3x4
+4x16x3x4:1x16x1x1
+4x16x3x4:1x1x1x1
+2x7x5x3x2:2x7x5x3x2
+2x7x5x3x2:1x7x1x1x1
+2x7x5x3x2:1x1x1x1x1
