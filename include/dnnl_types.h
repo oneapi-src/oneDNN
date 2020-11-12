@@ -979,6 +979,7 @@ typedef enum {
 
     dnnl_quantization_quantize_dequantize = 0x4fff0,
     dnnl_quantization_quantize = 0x4fff1,
+    dnnl_binarization_depthwise = 0x4fff2,
 } dnnl_alg_kind_t;
 
 /// Flags for normalization primitives.

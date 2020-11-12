@@ -602,6 +602,7 @@ enum class algorithm {
 
     quantization_quantize_dequantize = dnnl_quantization_quantize_dequantize,
     quantization_quantize = dnnl_quantization_quantize,
+    binarization_depthwise = dnnl_binarization_depthwise,
 };
 
 /// Converts algorithm kind enum value from C++ API to C API type.
