@@ -239,6 +239,19 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         return;
     }
 
+    // ignore bcast_mask on GeMM axis
+    const int batch_mask = (1 << (prb->ndims - 2)) - 1;
+    const int src_bcast_mask = prb->src_broadcast_mask() & batch_mask;
+    const int wei_bcast_mask = prb->weights_broadcast_mask() & batch_mask;
+    const int batch_dim_full_bcast_mask = (1 << (prb->ndims - 2)) - 1;
+    // multi-batch dims and its broadcasting only supported on cpu
+    if (!(IMPLICATION(engine_tgt_kind != dnnl_cpu,
+                prb->ndims < 4 && src_bcast_mask == batch_dim_full_bcast_mask
+                        && wei_bcast_mask == batch_dim_full_bcast_mask))) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     auto src_rt_mask = prb->src_runtime_dim_mask();
     auto wei_rt_mask = prb->weights_runtime_dim_mask();
     auto dst_rt_mask = prb->dst_runtime_dim_mask();
