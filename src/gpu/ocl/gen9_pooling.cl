@@ -164,7 +164,7 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         float po_D1 = USE_FLOATS ? D1 : CONVERT_FLOAT_T(D1);
         APPLY_POST_OPS_SERIAL(
                 po_D1, float, po_sum1, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-        D1 = USE_FLOATS ? po_D0 : CONVERT_DATA_T(po_D1);
+        D1 = USE_FLOATS ? po_D1 : CONVERT_DATA_T(po_D1);
 #else
         for (int idx = 0; idx < VECT_DT_N; ++idx) {
 #if USE_MB_C_BLOCK
