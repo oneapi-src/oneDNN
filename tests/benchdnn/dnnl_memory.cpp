@@ -52,6 +52,7 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
     // Parse dimensions and their block sizes starting from the innermost one.
     std::vector<std::pair<int, int>> dim_blocks;
     int pos = (int)tag.size() - 1;
+    int ndims_from_tag = -1;
     while (pos >= 0) {
         int pos0 = pos;
 
@@ -61,12 +62,14 @@ int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
 
         int dim_idx = std::tolower(tag[pos0]) - 'a';
         if (dim_idx >= ndims) return FAIL;
+        ndims_from_tag = MAX2(dim_idx + 1, ndims_from_tag);
         int block_str_len = pos0 - pos - 1;
         int block = (block_str_len == 0)
                 ? 1
                 : std::stoi(tag.substr(pos + 1, block_str_len));
         dim_blocks.emplace_back(dim_idx, block);
     }
+    if (ndims_from_tag != ndims) return FAIL;
 
     auto &blk = md->format_desc.blocking;
 
