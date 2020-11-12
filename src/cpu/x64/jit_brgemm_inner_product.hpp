@@ -59,7 +59,8 @@ inline int get_brg_kernel_index(const jit_brgemm_primitive_conf_t &jbgp,
 
 } // namespace
 
-template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
+template <cpu_isa_t isa, impl::data_type_t src_type,
+        impl::data_type_t wei_type = src_type,
         impl::data_type_t dst_type = src_type>
 struct brgemm_inner_product_fwd_t : public primitive_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
@@ -67,7 +68,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 const typename pd_t::base_class *hint_fwd_pd)
             : cpu_inner_product_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgemm:", avx512_core, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgemm:", isa, ""),
                 brgemm_inner_product_fwd_t);
 
         status_t init(engine_t *engine) {
@@ -82,7 +83,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 }
             };
 
-            bool ok = true && mayiuse(avx512_core) && is_fwd()
+            bool ok = true && mayiuse(isa) && is_fwd()
                     && expect_data_types(src_type, wei_type, data_type::undef,
                             dst_type, data_type::undef)
                     && IMPLICATION(with_bias(),
@@ -100,7 +101,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                     && check_attr() && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            CHECK(brgemm_inner_product_utils::init_ip_conf(jbgp_, *desc(),
+            CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
                     src_md_, weights_md_, dst_md_, bias_md_, *attr(),
                     dnnl_get_max_threads()));
 
@@ -119,7 +120,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 int idx = get_brg_kernel_idx(i_init, i_M, i_N, i_K);
                 if (idx < 0) continue;
                 brgemm_t &brg = brg_descs_[idx];
-                CHECK(brgemm_desc_init(&brg, isa_any, jbgp_.brg_type, src_type,
+                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, src_type,
                         wei_type, false, false, brgemm_row_major, alpha, vbeta,
                         jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
 
@@ -179,7 +180,7 @@ private:
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
 };
 
-template <impl::data_type_t diff_src_type,
+template <cpu_isa_t isa, impl::data_type_t diff_src_type,
         impl::data_type_t wei_type = diff_src_type,
         impl::data_type_t diff_dst_type = diff_src_type>
 struct brgemm_inner_product_bwd_data_t : public primitive_t {
@@ -188,14 +189,13 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : cpu_inner_product_bwd_data_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("brgemm_bwd_d:", avx512_core, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgemm_bwd_d:", isa, ""),
                 brgemm_inner_product_bwd_data_t);
 
         status_t init(engine_t *engine) {
 
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && !has_zero_dim_memory() && mayiuse(avx512_core)
+                    && !has_zero_dim_memory() && mayiuse(isa)
                     && expect_data_types(diff_src_type, wei_type,
                             data_type::undef, diff_dst_type, data_type::undef)
                     && attr()->has_default_values(
@@ -203,7 +203,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             memory_desc_t dummy_bias_md;
-            CHECK(brgemm_inner_product_utils::init_ip_conf(jbgp_, *desc(),
+            CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
                     diff_src_md_, weights_md_, diff_dst_md_, dummy_bias_md,
                     *attr(), dnnl_get_max_threads()));
 
@@ -224,10 +224,9 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
                 if (idx < 0) continue;
 
                 brgemm_t &brg = brg_descs_[idx];
-                CHECK(brgemm_desc_init(&brg, isa_any, jbgp_.brg_type,
-                        diff_dst_type, wei_type, false, false, brgemm_row_major,
-                        alpha, vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN,
-                        vK));
+                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, diff_dst_type,
+                        wei_type, false, false, brgemm_row_major, alpha, vbeta,
+                        jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
 
                 auto dt_d = diff_src_type;
                 auto LDD = jbgp_.ic_without_padding;
@@ -289,7 +288,7 @@ private:
     std::unique_ptr<jit_brgemm_trans_wei_t> trans_B_kernel_;
 };
 
-template <impl::data_type_t src_type,
+template <cpu_isa_t isa, impl::data_type_t src_type,
         impl::data_type_t diff_wei_type = src_type,
         impl::data_type_t diff_dst_type = src_type>
 struct brgemm_inner_product_bwd_weights_t : public primitive_t {
@@ -298,20 +297,19 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : cpu_inner_product_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(
-                JIT_IMPL_NAME_HELPER("brgemm_bwd_w:", avx512_core, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("brgemm_bwd_w:", isa, ""),
                 brgemm_inner_product_bwd_weights_t);
 
         status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
-                    && !has_zero_dim_memory() && mayiuse(avx512_core)
+                    && !has_zero_dim_memory() && mayiuse(isa)
                     && expect_data_types(src_type, diff_wei_type,
                             data_type::undef, diff_dst_type, data_type::undef)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
 
-            CHECK(brgemm_inner_product_utils::init_ip_conf(jbgp_, *desc(),
+            CHECK(brgemm_inner_product_utils::init_ip_conf(isa, jbgp_, *desc(),
                     src_md_, diff_weights_md_, diff_dst_md_, diff_bias_md_,
                     *attr(), dnnl_get_max_threads()));
 
@@ -330,7 +328,7 @@ struct brgemm_inner_product_bwd_weights_t : public primitive_t {
                 int idx = get_brg_kernel_idx(i_init, i_M, i_N, i_K);
                 if (idx < 0) continue;
                 brgemm_t &brg = brg_descs_[idx];
-                CHECK(brgemm_desc_init(&brg, isa_any, jbgp_.brg_type, src_type,
+                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, src_type,
                         diff_dst_type, false, false, brgemm_row_major, alpha,
                         vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
             }

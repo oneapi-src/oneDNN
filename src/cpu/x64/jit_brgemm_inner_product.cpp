@@ -35,9 +35,10 @@ using namespace dnnl::impl::utils;
 
 using namespace nstl;
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void brgemm_inner_product_fwd_t<src_type, wei_type, dst_type>::execute_forward(
-        const exec_ctx_t &ctx) const {
+template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
+        data_type_t dst_type>
+void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
+        dst_type>::execute_forward(const exec_ctx_t &ctx) const {
     auto src_ = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights_ = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
@@ -191,19 +192,20 @@ void brgemm_inner_product_fwd_t<src_type, wei_type, dst_type>::execute_forward(
     });
 }
 
-template struct brgemm_inner_product_fwd_t<bf16>;
-template struct brgemm_inner_product_fwd_t<bf16, bf16, f32>;
-template struct brgemm_inner_product_fwd_t<u8, s8, f32>;
-template struct brgemm_inner_product_fwd_t<u8, s8, s32>;
-template struct brgemm_inner_product_fwd_t<u8, s8, u8>;
-template struct brgemm_inner_product_fwd_t<u8, s8, s8>;
-template struct brgemm_inner_product_fwd_t<s8, s8, f32>;
-template struct brgemm_inner_product_fwd_t<s8, s8, s32>;
-template struct brgemm_inner_product_fwd_t<s8, s8, u8>;
-template struct brgemm_inner_product_fwd_t<s8, s8, s8>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16, bf16>;
+template struct brgemm_inner_product_fwd_t<avx512_core_bf16, bf16, bf16, f32>;
+template struct brgemm_inner_product_fwd_t<avx512_core_vnni, u8, s8, f32>;
+template struct brgemm_inner_product_fwd_t<avx512_core_vnni, u8, s8, s32>;
+template struct brgemm_inner_product_fwd_t<avx512_core_vnni, u8, s8, u8>;
+template struct brgemm_inner_product_fwd_t<avx512_core_vnni, u8, s8, s8>;
+template struct brgemm_inner_product_fwd_t<avx512_core_vnni, s8, s8, f32>;
+template struct brgemm_inner_product_fwd_t<avx512_core_vnni, s8, s8, s32>;
+template struct brgemm_inner_product_fwd_t<avx512_core_vnni, s8, s8, u8>;
+template struct brgemm_inner_product_fwd_t<avx512_core_vnni, s8, s8, s8>;
 
-template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
-void brgemm_inner_product_bwd_data_t<src_type, wei_type,
+template <cpu_isa_t isa, data_type_t src_type, data_type_t wei_type,
+        data_type_t dst_type>
+void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
         dst_type>::execute_backward_data(const exec_ctx_t &ctx) const {
 
     auto diff_dst_ = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
@@ -446,12 +448,13 @@ void brgemm_inner_product_bwd_data_t<src_type, wei_type,
     });
 }
 
-template struct brgemm_inner_product_bwd_data_t<bf16>;
-template struct brgemm_inner_product_bwd_data_t<f32, bf16, bf16>;
+template struct brgemm_inner_product_bwd_data_t<avx512_core_bf16, bf16>;
+template struct brgemm_inner_product_bwd_data_t<avx512_core_bf16, f32, bf16,
+        bf16>;
 
-template <data_type_t src_type, data_type_t diff_wei_type,
+template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
         data_type_t diff_dst_type>
-struct brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
+struct brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
         diff_dst_type>::thread_info_t {
     const src_data_t *src;
     const diff_dst_data_t *diff_dst;
@@ -529,9 +532,9 @@ struct brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
     }
 };
 
-template <data_type_t src_type, data_type_t diff_wei_type,
+template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
         data_type_t diff_dst_type>
-void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
+void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
         diff_dst_type>::transform_matrix_a_chunk(src_data_t *tr_src,
         const src_data_t *src, int trans_batch, int current_m,
         int current_k) const {
@@ -544,9 +547,9 @@ void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
     (*trans_A_kernel_)(&ctx);
 }
 
-template <data_type_t src_type, data_type_t diff_wei_type,
+template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
         data_type_t diff_dst_type>
-void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
+void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
         diff_dst_type>::transform_matrix_b_chunk(diff_dst_data_t *tr_diff_dst,
         const diff_dst_data_t *diff_dst, int trans_batch, int current_col_size,
         int current_row_size) const {
@@ -559,9 +562,9 @@ void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
     (*trans_B_kernel_)(&ctx);
 }
 
-template <data_type_t src_type, data_type_t diff_wei_type,
+template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
         data_type_t diff_dst_type>
-void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
+void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
         diff_dst_type>::compute_diff_weights_and_bias(const thread_info_t *ti)
         const {
     auto diff_dst = const_cast<diff_dst_data_t *>(ti->diff_dst);
@@ -798,9 +801,9 @@ void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
     }
 }
 
-template <data_type_t src_type, data_type_t diff_wei_type,
+template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
         data_type_t diff_dst_type>
-void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
+void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
         diff_dst_type>::
         reduce_and_convert_diff_weights_and_bias(
                 const thread_info_t *ti) const {
@@ -889,9 +892,9 @@ void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
     }
 }
 
-template <data_type_t src_type, data_type_t diff_wei_type,
+template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_wei_type,
         data_type_t diff_dst_type>
-void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
+void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
         diff_dst_type>::execute_backward_weights(const exec_ctx_t &ctx) const {
     const auto &jbgp = pd()->jbgp_;
     if (dnnl_thr_syncable() && jbgp.nthr > 1) {
@@ -917,8 +920,9 @@ void brgemm_inner_product_bwd_weights_t<src_type, diff_wei_type,
     }
 }
 
-template struct brgemm_inner_product_bwd_weights_t<bf16>;
-template struct brgemm_inner_product_bwd_weights_t<bf16, f32, bf16>;
+template struct brgemm_inner_product_bwd_weights_t<avx512_core_bf16, bf16>;
+template struct brgemm_inner_product_bwd_weights_t<avx512_core_bf16, bf16, f32,
+        bf16>;
 
 } // namespace x64
 } // namespace cpu

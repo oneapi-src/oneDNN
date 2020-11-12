@@ -400,7 +400,7 @@ status_t init_ip_conf_bwd_w(jit_brgemm_primitive_conf_t &jbgp) {
     return status::success;
 }
 
-status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
+status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
         const inner_product_desc_t &ipd, memory_desc_t &src_md,
         memory_desc_t &weights_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads) {
@@ -417,6 +417,7 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
 
     jbgp = zero<decltype(jbgp)>();
     jbgp.ndims = ndims;
+    jbgp.isa = isa;
     jbgp.prop_kind = ipd.prop_kind;
     jbgp.ngroups = 1;
     jbgp.mb = src_d.dims()[0];
@@ -467,9 +468,9 @@ status_t init_ip_conf(jit_brgemm_primitive_conf_t &jbgp,
                     everyone_is(bf16, jbgp.src_dt, jbgp.dst_dt)
                             && jbgp.wei_dt == f32);
 
-    if (!IMPLICATION(is_int8, mayiuse(avx512_core_vnni)))
+    if (!IMPLICATION(is_int8, isa == avx512_core_vnni))
         return status::unimplemented;
-    if (!IMPLICATION(is_bf16, mayiuse(avx512_core_bf16)))
+    if (!IMPLICATION(is_bf16, isa == avx512_core_bf16))
         return status::unimplemented;
 
     if (is_int8) {
