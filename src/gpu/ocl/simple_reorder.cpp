@@ -193,8 +193,13 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             && padded_dims[last] % 16 == 0
             && dim_is_div_by_16_or_less_than_16(dst_mdw, 1);
 
+    conf.unaligned_sizes = !conf.transpose16x16
+            && src_mdw.matches_one_of_tag(nhwc)
+            && dst_mdw.matches_one_of_tag(nchw) && !conf.nchw
+            && dim_is_div_by_16_or_less_than_16(dst_mdw, 1);
+
     const bool allow_unroll = !has_padding_or_scale_quant && !type_s8_u8
-            && !conf.transpose16x16 && !conf.nchw;
+            && !conf.transpose16x16 && !conf.nchw && !conf.unaligned_sizes;
 
     const bool use_unroll_16a16b = allow_unroll
             && (src_mdw.matches_one_of_tag(ABc16a16b, ABc16b16a, ABcd16a16b,
@@ -226,14 +231,15 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     bool use_unroll = use_unroll_16b || use_unroll_16b16c || use_unroll_16a16b;
 
     conf.use_dense_vect = !conf.transpose16x16 && !conf.scale_quant
-            && !conf.nchw && (conf.nelems % 256 == 0)
+            && !conf.nchw && !conf.unaligned_sizes && (conf.nelems % 256 == 0)
             && src_mdw.similar_to(dst_mdw, true, false, 0)
             && !has_padding_or_scale_quant && !use_unroll;
 
     // This kernel will be used where last dimension is not reordered.
     // It will vectorize that dimension.
     conf.vectorize_last_dim = !conf.transpose16x16 && !conf.use_dense_vect
-            && !conf.nchw && !has_padding_or_scale_quant && src_mdw.is_dense()
+            && !conf.nchw && !conf.unaligned_sizes
+            && !has_padding_or_scale_quant && src_mdw.is_dense()
             && dst_mdw.is_dense() && last_dim % 8 == 0
             && dst_mdw.md_->format_desc.blocking.strides[last] == 1
             && src_mdw.md_->format_desc.blocking.strides[last] == 1
@@ -242,7 +248,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     // This kernel supports 2D reorders into blocked formats that
     // end in 8a4b or 8a2b, no matter how many block layers, but no padding.
     conf.plain_to_ABxx8ayb = !conf.transpose16x16 && !conf.use_dense_vect
-            && !conf.nchw && !has_padding_or_scale_quant
+            && conf.nchw && !conf.unaligned_sizes && !has_padding_or_scale_quant
             && !conf.vectorize_last_dim && src_mdw.matches_one_of_tag(ab)
             && matches_ABxxxx8ayb_layout(
                     dst_mdw.md_->format_desc.blocking, conf.ndims)
@@ -296,6 +302,10 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
         blocks[1] = nstl::min(padded_dims[1], dnnl_dim_t(16));
     }
 
+    if (conf.unaligned_sizes) {
+        conf.use_ref_impl = false;
+        blocks[1] = padded_dims[1];
+    }
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
     for (int i = 0; i < 6; ++i) {
@@ -348,6 +358,7 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     if (conf.nelems == 0) return status::success;
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
+    kernel_ctx.add_option("-cl-std=CL2.0");
 
     if (conf.with_sum_a)
         kernel_ctx.define_int("WITH_SUM_A", 1);
@@ -362,7 +373,10 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
-    kernel_ctx.define_int("REF_REORDER", conf.use_ref_impl);
+    // the 'unaligned_sizes' kernel uses the same implementation in .cl
+    // the difference is in sizes of blocks[]
+    kernel_ctx.define_int(
+            "REF_REORDER", conf.use_ref_impl || conf.unaligned_sizes);
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
 
     kernel_ctx.define_int("PAD_FILL_ZERO", conf.has_padding);

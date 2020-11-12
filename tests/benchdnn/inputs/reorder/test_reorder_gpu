@@ -58,6 +58,11 @@
 --dtag=aBcd16b
 1x64x1x1
 
+# test unaligned nhwc->nchw kernel
+--stag=nhwc
+--dtag=nchw
+128x3x230x230 99x3x231x231 33x33x33x33 33x1x33x33
+
 ### test types
 --reset
 --sdt=f32,s32,s8,u8,f16,bf16
