@@ -51,3 +51,12 @@
 --attr-post-ops='','sum:2;relu;mul:f32:per_oc'
 --batch=shapes_2d
 
+# data-tags or non-trivial strides
+--reset
+--skip-impl=ref
+--allow-enum-tags-only=0
+--cfg=bf16bf16bf16
+--stag=acbde,bacde,cabde,abced,abdce
+--dtag=acbde,bacde,cabde,abced,abdce
+--wtag=abcde,acbde
+3x5x7x11x13:1x1x1x13x13
