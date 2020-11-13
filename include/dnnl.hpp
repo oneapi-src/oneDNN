@@ -47,7 +47,7 @@
 // gcc < 5 does not define __cpp_exceptions but __EXCEPTIONS,
 // Microsoft C++ Compiler does not provide an option to disable exceptions
 #ifndef DNNL_ENABLE_EXCEPTIONS
-#if __cpp_exceptions || __EXCEPTIONS \
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) \
         || (defined(_MSC_VER) && !defined(__clang__))
 #define DNNL_ENABLE_EXCEPTIONS 1
 #else
