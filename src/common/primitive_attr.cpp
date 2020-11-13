@@ -351,6 +351,10 @@ bool post_ops_t::defined() const {
             if (c.scales && is_runtime_value(*(c.scales))) return false;
         } else if (kind == primitive_kind::binary) {
             // binary is always defined
+        } else if (kind == primitive_kind::depthwise) {
+            // is always defined
+        } else if (kind == primitive_kind::quantization) {
+            // is always defined
         } else {
             assert(!"unreachable");
         }
