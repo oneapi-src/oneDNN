@@ -26,7 +26,10 @@ struct jit_amx_tilecfg_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_amx_tilecfg_t)
 
     // TODO: Need to check status
-    jit_amx_tilecfg_t() { create_kernel(); }
+    jit_amx_tilecfg_t()
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx) {
+        create_kernel();
+    }
 
     void tile_configure(const char *palette) const { (*this)(palette); }
 

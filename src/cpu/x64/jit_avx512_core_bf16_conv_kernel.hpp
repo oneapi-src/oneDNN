@@ -35,7 +35,7 @@ struct _jit_avx512_core_bf16_fwd_kernel : public jit_generator {
 
     _jit_avx512_core_bf16_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jit_generator(nullptr, ker_code_size)
+        : jit_generator(nullptr, ker_code_size, true, avx512_core_bf16)
         , jcp(ajcp)
         , attr_(attr)
         , eltwise_injector_(nullptr)
@@ -267,7 +267,9 @@ template <typename Vmm>
 struct _jit_avx512_core_bf16_bwd_data_kernel : public jit_generator {
 
     _jit_avx512_core_bf16_bwd_data_kernel(const jit_conv_conf_t &ajcp)
-        : jit_generator(nullptr, ker_code_size), jcp(ajcp), bf16_emu_(nullptr) {
+        : jit_generator(nullptr, ker_code_size, true, avx512_core_bf16)
+        , jcp(ajcp)
+        , bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
                     bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
@@ -475,7 +477,9 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
 
     jit_avx512_core_bf16_conv_bwd_weights_kernel_f32(
             const jit_conv_conf_t &ajcp)
-        : jit_generator(nullptr, ker_code_size), jcp(ajcp), bf16_emu_(nullptr) {
+        : jit_generator(nullptr, ker_code_size, true, avx512_core_bf16)
+        , jcp(ajcp)
+        , bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa)) {
             bf16_emu_ = new bf16_emulation_t(
                     this, one, even, selector, scratch, tmp0, tmp1);

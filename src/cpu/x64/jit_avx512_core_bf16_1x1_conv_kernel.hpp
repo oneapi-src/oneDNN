@@ -31,7 +31,7 @@ namespace x64 {
 struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
     jit_avx512_core_bf16_1x1_conv_kernel(
             const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jit_generator(nullptr, ker_code_size)
+        : jit_generator(nullptr, ker_code_size, true, avx512_core_bf16)
         , jcp(ajcp)
         , attr_(attr)
         , eltwise_injector_(nullptr)

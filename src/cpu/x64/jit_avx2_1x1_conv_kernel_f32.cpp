@@ -46,7 +46,9 @@ using namespace Xbyak;
 jit_avx2_1x1_conv_kernel_f32::jit_avx2_1x1_conv_kernel_f32(
         const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr,
         const memory_desc_t &dst_md)
-    : jcp(ajcp), attr_(attr) {
+    : jit_generator(nullptr, MAX_CODE_SIZE, true, avx2)
+    , jcp(ajcp)
+    , attr_(attr) {
     if (jcp.with_eltwise || jcp.with_binary) {
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;

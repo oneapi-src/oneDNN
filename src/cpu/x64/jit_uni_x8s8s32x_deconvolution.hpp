@@ -44,7 +44,10 @@ struct _jit_uni_x8s8s32x_deconv_fwd_kernel : public jit_generator {
 
     _jit_uni_x8s8s32x_deconv_fwd_kernel(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+        , jcp(ajcp)
+        , attr_(attr)
+        , eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_
                     = new jit_uni_eltwise_injector_f32<isa>(this, jcp.eltwise);

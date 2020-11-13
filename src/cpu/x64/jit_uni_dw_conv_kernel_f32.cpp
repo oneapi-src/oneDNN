@@ -38,7 +38,7 @@ using namespace Xbyak;
 template <cpu_isa_t isa>
 jit_uni_dw_conv_fwd_kernel_f32<isa>::jit_uni_dw_conv_fwd_kernel_f32(
         const jit_conv_conf_t &ajcp, const memory_desc_t &dst_md)
-    : jcp(ajcp) {
+    : jit_generator(nullptr, MAX_CODE_SIZE, true, isa), jcp(ajcp) {
     if (jcp.with_eltwise || jcp.with_binary) {
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;

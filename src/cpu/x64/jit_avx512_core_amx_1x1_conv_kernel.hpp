@@ -34,7 +34,10 @@ struct jit_avx512_core_amx_1x1_fwd_kernel_t : public jit_generator {
 
     jit_avx512_core_amx_1x1_fwd_kernel_t(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , jcp(ajcp)
+        , attr_(attr)
+        , eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
                     this, jcp.eltwise);

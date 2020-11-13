@@ -37,7 +37,9 @@ using namespace Xbyak;
 
 struct jit_brgemm_kernel_base_t : public jit_generator {
     jit_brgemm_kernel_base_t(const brgemm_t &abrg)
-        : brg(abrg), eltwise_injector_(nullptr) {
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_common)
+        , brg(abrg)
+        , eltwise_injector_(nullptr) {
         if (brg.with_eltwise) {
             const auto &p = brg.attr->post_ops_;
             const int eltwise_ind = p.find(primitive_kind::eltwise);

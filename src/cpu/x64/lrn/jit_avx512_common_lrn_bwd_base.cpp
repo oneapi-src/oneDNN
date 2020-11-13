@@ -172,7 +172,7 @@ template <data_type_t d_type>
 jit_avx512_common_lrn_kernel_bwd_t<d_type>::jit_avx512_common_lrn_kernel_bwd_t(
         float alpha, float beta, int local_size, void *code_ptr,
         size_t code_size)
-    : jit_generator(code_ptr, code_size)
+    : jit_generator(code_ptr, code_size, true, avx512_core_bf16)
     , local_size_ {local_size - !(local_size % 2)}
     , z_prev_ {[this]() {
         std::vector<int> v(this->local_size_ / 2);

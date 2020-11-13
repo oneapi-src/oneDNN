@@ -251,7 +251,9 @@ struct jit_softmax_base_t : public jit_generator {
     }
 
     jit_softmax_base_t(const softmax_pd_t *pd)
-        : pd_(pd), data_d_(pd_->dst_md()) {
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+        , pd_(pd)
+        , data_d_(pd_->dst_md()) {
         is_bf16_ = data_d_.data_type() == data_type::bf16;
         data_type_size_ = is_bf16_ ? sizeof(bfloat16_t) : sizeof(float);
         simd_w_ = vlen / sizeof(float); // bf16 works on ymms

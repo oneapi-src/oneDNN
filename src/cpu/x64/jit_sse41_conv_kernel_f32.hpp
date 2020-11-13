@@ -31,7 +31,10 @@ namespace x64 {
 struct jit_sse41_conv_fwd_kernel_f32 : public jit_generator {
     jit_sse41_conv_fwd_kernel_f32(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
+        : jit_generator(nullptr, MAX_CODE_SIZE, sse41)
+        , jcp(ajcp)
+        , attr_(attr)
+        , eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<sse41>(
                     this, jcp.eltwise);

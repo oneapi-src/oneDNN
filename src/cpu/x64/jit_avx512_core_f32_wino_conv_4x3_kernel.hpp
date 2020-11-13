@@ -32,7 +32,8 @@ namespace x64 {
 struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel : public jit_generator {
     _jit_avx512_core_f32_wino_conv_4x3_data_kernel(
             const jit_conv_winograd_conf_t &ajcp)
-        : jit_generator(nullptr, MAX_CODE_SIZE, false), jcp(ajcp) {}
+        : jit_generator(nullptr, MAX_CODE_SIZE, false, avx512_core)
+        , jcp(ajcp) {}
 
     void generate() override {
         {
@@ -189,7 +190,8 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel
 
     jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel(
             const jit_conv_winograd_conf_t &ajcp)
-        : jit_generator(nullptr, MAX_CODE_SIZE, false), jcp(ajcp) {}
+        : jit_generator(nullptr, MAX_CODE_SIZE, false, avx512_core)
+        , jcp(ajcp) {}
 
     void generate() override {
         //******************* First iter kernel ********************//

@@ -33,7 +33,7 @@ using namespace format_tag;
 template <cpu_isa_t isa>
 jit_uni_resampling_kernel<isa>::jit_uni_resampling_kernel(
         const jit_resampling_conf_t conf)
-    : conf_(conf) {
+    : jit_generator(nullptr, MAX_CODE_SIZE, true, isa), conf_(conf) {
     const bool use_bf16_emulation = conf_.data_type == data_type::bf16
             && conf_.isa != avx512_core_bf16;
     bf16_emulation_ = use_bf16_emulation

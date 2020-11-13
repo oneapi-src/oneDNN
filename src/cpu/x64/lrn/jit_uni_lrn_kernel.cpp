@@ -49,7 +49,7 @@ template <template <cpu_isa_t isa, data_type_t d_type> class Derived,
         cpu_isa_t isa, data_type_t d_type>
 jit_uni_lrn_kernel_t<Derived<isa, d_type>>::jit_uni_lrn_kernel_t(
         void *code_ptr, size_t code_size)
-    : jit_generator(code_ptr, code_size)
+    : jit_generator(code_ptr, code_size, true, isa)
     , emulate_bfloat_(isa == avx512_common
               && d_type == dnnl::impl::data_type::bf16
               && !mayiuse(avx512_core_bf16))

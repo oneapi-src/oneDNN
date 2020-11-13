@@ -208,7 +208,9 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
 
     jit_uni_i8i8_pooling_fwd_ker_t(
             const jit_pool_conf_t &jpp_, const memory_desc_t *dst_md)
-        : jpp(jpp_), postops_injector_(nullptr) {
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, isa)
+        , jpp(jpp_)
+        , postops_injector_(nullptr) {
 
         if (jpp.with_postops) {
 

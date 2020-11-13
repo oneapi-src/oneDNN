@@ -35,7 +35,8 @@ struct jit_avx512_core_amx_copy_to_wbuffer_t : public jit_generator {
     using reg64_t = const Xbyak::Reg64;
 
     jit_avx512_core_amx_copy_to_wbuffer_t(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp) {}
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , jcp(ajcp) {}
 
 private:
     jit_conv_conf_t jcp;
@@ -60,7 +61,8 @@ struct jit_avx512_core_amx_copy_to_pbuffer_t : public jit_generator {
     using reg64_t = const Xbyak::Reg64;
 
     jit_avx512_core_amx_copy_to_pbuffer_t(const jit_conv_conf_t &ajcp)
-        : jcp(ajcp) {}
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , jcp(ajcp) {}
 
 private:
     jit_conv_conf_t jcp;
@@ -117,7 +119,8 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
 
     jit_avx512_core_amx_fwd_kernel_t(
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp)
+        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
+        , jcp(ajcp)
         , attr_(attr)
         , eltwise_injector_(nullptr)
         , copy_to_wbuffer_(nullptr) {
