@@ -23,8 +23,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
-
+status_t ref_zero_pad_t::execute_ref(const exec_ctx_t &ctx) const {
     compute::kernel_arg_list_t arg_list;
 
     const memory_t *memory = ctx.input(DNNL_ARG_SRC);
@@ -153,6 +152,156 @@ status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
     }
     return status::success;
 }
+
+status_t ref_zero_pad_t::execute_subg_16(const exec_ctx_t &ctx,
+        const memory_desc_wrapper &mdw,
+        const blocking_desc_t &blocking_desc) const {
+
+    const memory_t *memory = ctx.input(DNNL_ARG_SRC);
+    const memory_storage_t *mem_storage = memory->memory_storage();
+
+    const int ndims = mdw.ndims();
+    const auto &dims = mdw.dims();
+    const auto &pdims = mdw.padded_dims();
+
+    const auto most_inner_nblk = blocking_desc.inner_nblks - 1;
+
+    const unsigned mem_dt_size = static_cast<unsigned>(mdw.data_type_size());
+
+    const cl_ulong most_inner_block_size
+            = mem_dt_size * blocking_desc.inner_blks[most_inner_nblk];
+
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, *mem_storage);
+    arg_list.set(1, mem_dt_size);
+    arg_list.set(3, most_inner_block_size);
+
+    int arg_idx = 0;
+    size_t gws2 = 1;
+    const size_t lws[3] = {16, 1, 1};
+
+    for (int j = 0; j < MAX_NDIMS; ++j) {
+        if (j != blocking_desc.inner_idxs[most_inner_nblk]
+                && j != blocking_desc.inner_idxs[most_inner_nblk - 1]) {
+            assert(arg_idx < 4);
+            if (j < ndims) {
+                arg_list.set(5 + arg_idx,
+                        mem_dt_size * (cl_ulong)blocking_desc.strides[j]);
+                arg_list.set(9 + arg_idx++, (unsigned)dims[j]);
+                gws2 *= dims[j];
+            } else {
+                arg_list.set(5 + arg_idx, cl_ulong(0));
+                arg_list.set(9 + arg_idx++, unsigned(1));
+            }
+        }
+    }
+
+    status_t status;
+    dims_t coordinates;
+
+    if (pdims[blocking_desc.inner_idxs[most_inner_nblk]]
+            != dims[blocking_desc.inner_idxs[most_inner_nblk]]) {
+        for (int j = 0; j < ndims; ++j) {
+            coordinates[j] = 0;
+        }
+        coordinates[blocking_desc.inner_idxs[most_inner_nblk]]
+                = dims[blocking_desc.inner_idxs[most_inner_nblk]];
+        const cl_ulong most_inner_block_base_offset
+                = mem_dt_size * mdw.off_v(coordinates, true);
+
+        const cl_ulong s2most_inner_block_stride = mem_dt_size
+                * blocking_desc.strides[blocking_desc.inner_idxs[most_inner_nblk
+                        - 1]];
+        const unsigned most_inner_block_write_multiplier
+                = (pdims[blocking_desc.inner_idxs[most_inner_nblk]]
+                          - dims[blocking_desc.inner_idxs[most_inner_nblk]])
+                / 16;
+
+        arg_list.set(2, most_inner_block_base_offset);
+        arg_list.set(4, s2most_inner_block_stride);
+        arg_list.set(13, most_inner_block_write_multiplier);
+
+        const size_t gws0 = 16
+                * nstl::min<dnnl_dim_t>(
+                        dims[blocking_desc.inner_idxs[most_inner_nblk - 1]],
+                        blocking_desc.inner_blks[most_inner_nblk - 1]);
+        const size_t gws1 = nstl::max<dnnl_dim_t>(
+                dims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
+                        / blocking_desc.inner_blks[most_inner_nblk - 1],
+                1);
+        const size_t gws[3] = {gws0, gws1, gws2};
+        const compute::nd_range_t zp_nd_range
+                = compute::nd_range_t(3, gws, lws);
+
+        status = parallel_for(ctx, zp_nd_range, kernel_subg16_, arg_list);
+        CHECK(status);
+
+        if (dims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
+                != pdims[blocking_desc.inner_idxs[most_inner_nblk - 1]]) {
+            const cl_ulong base_offset_b2 = most_inner_block_base_offset
+                    + s2most_inner_block_stride * gws1;
+            arg_list.set(2, base_offset_b2);
+
+            const size_t gws_10 = 16
+                    * (dims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
+                            % blocking_desc.inner_blks[most_inner_nblk - 1]);
+            const size_t gws_1[3] = {gws_10, 1, gws2};
+            const compute::nd_range_t zp_nd_range1
+                    = compute::nd_range_t(3, gws_1, lws);
+            status = parallel_for(ctx, zp_nd_range1, kernel_subg16_, arg_list);
+            CHECK(status);
+        }
+    }
+
+    for (int j = 0; j < ndims; ++j) {
+        coordinates[j] = 0;
+    }
+    coordinates[blocking_desc.inner_idxs[most_inner_nblk - 1]]
+            = dims[blocking_desc.inner_idxs[most_inner_nblk - 1]];
+    const cl_ulong s2most_inner_block_base_offset
+            = mem_dt_size * mdw.off_v(coordinates, true);
+
+    const cl_ulong most_inner_block_offset = mem_dt_size
+            * blocking_desc.strides[blocking_desc.inner_idxs[most_inner_nblk]];
+
+    const unsigned most_inner_block_write_multiplier = nstl::max<dnnl_dim_t>(
+            blocking_desc.inner_blks[most_inner_nblk] / 16, 1);
+
+    arg_list.set(2, s2most_inner_block_base_offset);
+    arg_list.set(4, most_inner_block_offset);
+    arg_list.set(13, most_inner_block_write_multiplier);
+
+    const size_t gws0
+            = ((pdims[blocking_desc.inner_idxs[most_inner_nblk - 1]]
+                       - dims[blocking_desc.inner_idxs[most_inner_nblk - 1]])
+                      * blocking_desc.inner_blks[most_inner_nblk])
+            / most_inner_block_write_multiplier;
+    const size_t gws1 = nstl::max<dnnl_dim_t>(
+            pdims[blocking_desc.inner_idxs[most_inner_nblk]]
+                    / blocking_desc.inner_blks[most_inner_nblk],
+            1);
+    const size_t gws[3] = {gws0, gws1, gws2};
+
+    const compute::nd_range_t zp_nd_range = compute::nd_range_t(3, gws, lws);
+    status = parallel_for(ctx, zp_nd_range, kernel_subg16_, arg_list);
+
+    return status;
+}
+
+status_t ref_zero_pad_t::execute(const exec_ctx_t &ctx) const {
+    const memory_t *memory = ctx.input(DNNL_ARG_SRC);
+    const memory_desc_wrapper mdw(memory->md());
+    const blocking_desc_t &blocking_desc = mdw.blocking_desc();
+
+    using namespace format_tag;
+    if (blocking_desc.inner_nblks == 2
+            && mdw.dims()[blocking_desc.inner_idxs[1]] % 16 == 0
+            && blocking_desc.inner_blks[1] % 16 == 0) {
+        return execute_subg_16(ctx, mdw, blocking_desc);
+    } else {
+        return execute_ref(ctx);
+    }
+} // namespace ocl
 
 } // namespace ocl
 } // namespace gpu

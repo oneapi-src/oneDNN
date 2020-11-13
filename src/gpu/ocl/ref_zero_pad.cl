@@ -125,3 +125,46 @@ __kernel void ref_zero_pad(__global void *a, ulong type_size, ulong step_nelems,
             break;
     }
 }
+
+__attribute__((intel_reqd_sub_group_size(16))) __kernel void
+ref_zero_pad_subg_16(__global void *a, const uint type_size,
+        const ulong base_offset, const ulong b_block_size,
+        const ulong b_block_offset, const ulong d0_stride,
+        const ulong d1_stride, const ulong d2_stride, const ulong d3_stride,
+        const unsigned d0_size, const unsigned d1_size, const unsigned d2_size,
+        const unsigned d3_size, const uint b_multiplier) {
+    const unsigned a_block_id = get_global_id(0) / 16;
+    const unsigned b_block_id = get_global_id(1);
+    unsigned mixed_dims = get_global_id(2);
+
+    const unsigned d3_dim = mixed_dims % d3_size;
+    mixed_dims /= d3_size;
+    const unsigned d2_dim = mixed_dims % d2_size;
+    mixed_dims /= d2_size;
+    const unsigned d1_dim = mixed_dims % d1_size;
+    const unsigned d0_dim = mixed_dims / d1_size;
+
+    __global void *p = a + base_offset;
+    p += a_block_id * b_block_size;
+    p += b_block_id * b_block_offset;
+    p += d0_dim * d0_stride;
+    p += d1_dim * d1_stride;
+    p += d2_dim * d2_stride;
+    p += d3_dim * d3_stride;
+
+    const unsigned stride = 16 * type_size;
+
+    for (unsigned b_midx = 0; b_midx < b_multiplier; ++b_midx) {
+        switch (type_size) {
+            case 4: intel_sub_group_block_write((__global uint *)p, 0); break;
+            case 2:
+                intel_sub_group_block_write_us((__global ushort *)p, 0);
+                break;
+            case 1:
+                intel_sub_group_block_write_uc((__global uchar *)p, 0);
+                break;
+        }
+
+        p += stride;
+    }
+}

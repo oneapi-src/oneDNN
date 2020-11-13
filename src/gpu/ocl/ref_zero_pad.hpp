@@ -41,14 +41,21 @@ struct ref_zero_pad_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
         create_kernel(engine, &kernel_, "ref_zero_pad", kernel_ctx);
-        if (!kernel_) return status::runtime_error;
+        create_kernel(
+                engine, &kernel_subg16_, "ref_zero_pad_subg_16", kernel_ctx);
+        if (!kernel_ || !kernel_subg16_) return status::runtime_error;
         return status::success;
     }
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    status_t execute_ref(const exec_ctx_t &ctx) const;
+    status_t execute_subg_16(const exec_ctx_t &ctx,
+            const memory_desc_wrapper &mdw,
+            const blocking_desc_t &blocking_desc) const;
     compute::kernel_t kernel_;
+    compute::kernel_t kernel_subg16_;
 };
 
 } // namespace ocl
