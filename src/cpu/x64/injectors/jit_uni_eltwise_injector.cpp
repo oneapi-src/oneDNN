@@ -224,12 +224,17 @@ void jit_uni_eltwise_injector_f32<isa>::test_mask() {
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
         const Vmm &vmm_src) {
+    // exp(x) =
+    // = exp(n * ln(2) + r) // divide x by ln(2) and get quot and rem
+    // = 2^n * exp(r) // simplify the exp(n*ln(2)) expression
+
     // get mask of values lower than log(FLT_MIN) to zero them in the output
     compute_cmp_mask(vmm_src, table_val(exp_ln_flt_min_f), _cmp_lt_os);
 
     h->uni_vminps(vmm_src, vmm_src, table_val(exp_ln_flt_max_f));
     h->uni_vmaxps(vmm_src, vmm_src, table_val(exp_ln_flt_min_f));
     h->uni_vmovups(vmm_aux1, vmm_src);
+
     // calculate exp(x)
     // fx = x * log2ef + 0.5
     h->uni_vmulps(vmm_src, vmm_src, table_val(exp_log2ef));
@@ -244,7 +249,13 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
     // x = x - fx * ln2
     h->uni_vfnmadd231ps(vmm_aux1, vmm_aux2, table_val(ln2f));
 
-    // compute 2^n
+    // We do not count 2^n here, because n can reach 128 and 2^128 is not
+    // representable by fp32, so to get around this problem, instead of computing
+    // 2^n * exp(r) will be counted 2*2^(n-1)*exp(r), because 2^127
+    // and 2 are numbers representable in fp32.
+
+    // compute 2^(n-1)
+    h->uni_vsubps(vmm_src, vmm_src, table_val(one));
     h->uni_vcvtps2dq(vmm_aux2, vmm_src);
     if (isa != avx)
         h->uni_vpaddd(vmm_aux2, vmm_aux2, table_val(exponent_bias));
@@ -256,7 +267,7 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
         h->vpaddd(xmm_aux2, xmm_aux2, table_val(exponent_bias));
         h->vinsertf128(ymm_aux2, ymm_aux2, xmm_tmp, 1);
     }
-    vec_shift(vmm_aux2, vmm_aux2, true, n_mantissa_bits); //Vmm(6) = 2^-fx
+    vec_shift(vmm_aux2, vmm_aux2, true /*shift_left*/, n_mantissa_bits);
     // use vmm_src as tmp vmm_zero when applying mask
     h->uni_vxorps(vmm_src, vmm_src, vmm_src);
     // set zeroes at those points which were < log(FLT_MIN)
@@ -271,6 +282,7 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
     h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(one));
     // y = y * 2^n
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux2);
+    h->uni_vmulps(vmm_src, vmm_src, table_val(two));
 }
 
 template <cpu_isa_t isa>
@@ -580,12 +592,21 @@ void jit_uni_eltwise_injector_f32<isa>::logsigmoid_compute_vector_fwd(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
         const Vmm &vmm_src) {
+    // ln(1 + exp(x)) =
+    // = ln(1 + exp(n * ln(2) + r)) // divide x by ln(2) and get quot and rem
+    // = ln(1 + 2^n * exp(r)) // simplify the exp(n*ln(2)) expression
+    // = ln(2 ^ 0 + 2^n * exp(r)) // note 1 = 2^0
+    // = ln(2 ^ (n - n) + 2^n * exp(r)) // 2^0 = 2^(n-n)
+    // = ln(2 ^ n * (2^-n + exp(r))) // factorize with 2^n
+    // = n * ln(2) + ln(2^-n + exp(r)) // take the 2^n factor out of the ln
+
     // keep src for further computations
     h->uni_vmovups(vmm_aux2, vmm_src);
 
     h->uni_vminps(vmm_src, vmm_src, table_val(exp_ln_flt_max_f));
     h->uni_vmaxps(vmm_src, vmm_src, table_val(exp_ln_flt_min_f));
     h->uni_vmovups(vmm_aux1, vmm_src);
+
     // calculate exp(x)
     // fx = x * log2ef + 0.5
     h->uni_vmulps(vmm_src, vmm_src, table_val(exp_log2ef));
@@ -608,7 +629,14 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
     h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(exp_pol, 0));
     h->uni_vfmadd213ps(vmm_aux3, vmm_aux1, table_val(one));
 
-    // compute 2^(-n)
+    // We do not count 2^-n here, because n can reach 128 and 2^(-128) is not
+    // representable by fp32, so to get around this problem, instead of computing
+    // 2^-n + exp(r) will be counted (2^-(n-1) + 2*exp(r))/2, because 2^(-127)
+    // and 2 are numbers representable in fp32.
+
+    // compute 2^-(n-1)
+    // vmm_src now represents n-1
+    h->uni_vsubps(vmm_src, vmm_src, table_val(one));
     if (has_avx512()) {
         h->vmulps(vmm_aux1, vmm_src, table_val(minus_one));
         h->vcvtps2dq(vmm_aux1, vmm_aux1);
@@ -619,6 +647,8 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
         h->uni_vcvtps2dq(vmm_aux1, vmm_src);
         h->uni_vpsignd(vmm_aux1, vmm_aux1, table_val(minus_one));
     }
+    // restore vmm_src to n
+    h->uni_vaddps(vmm_src, vmm_src, table_val(one));
 
     if (isa != avx)
         h->uni_vpaddd(vmm_aux1, vmm_aux1, table_val(exponent_bias));
@@ -630,11 +660,14 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
         h->vpaddd(xmm_aux1, xmm_aux1, table_val(exponent_bias));
         h->vinsertf128(ymm_aux1, ymm_aux1, xmm_tmp, 1);
     }
-    vec_shift(vmm_aux1, vmm_aux1, true, n_mantissa_bits); //vmm_aux1 = 2^-fx
+    vec_shift(vmm_aux1, vmm_aux1, true /*shift_left*/, n_mantissa_bits);
     // calculate ln(1 + y)
-    h->uni_vaddps(vmm_aux3, vmm_aux3, vmm_aux1);
+    h->uni_vmulps(vmm_aux3, vmm_aux3, table_val(two)); // 2*exp(r)
+    h->uni_vaddps(vmm_aux3, vmm_aux3, vmm_aux1); // 2^-(n-1) + 2*exp(r)
+    h->uni_vdivps(
+            vmm_aux3, vmm_aux3, table_val(two)); // (2^-(n-1) + 2*exp(r))/2
     // frexp()
-    vec_shift(vmm_src, vmm_aux3, false, n_mantissa_bits);
+    vec_shift(vmm_src, vmm_aux3, false /*shift_left*/, n_mantissa_bits);
     h->uni_vcvtdq2ps(vmm_src, vmm_src);
     // got n. where n is x = 2^n * y. y = 0.5 .. 1
     h->uni_vsubps(vmm_src, vmm_src, table_val(soft_relu_one_twenty_six));
@@ -1635,6 +1668,7 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
 
     // exp(x) polynomial approximation
     static const table_t exp_polynomial {
+            // p0 = 1.0f
             {exp_pol, {0x3f7ffffb, true}}, // p1 = 0.999999701f
             {exp_pol, {0x3efffee3, true}}, // p2 = 0.499991506f
             {exp_pol, {0x3e2aad40, true}}, // p3 = 0.166676521f
