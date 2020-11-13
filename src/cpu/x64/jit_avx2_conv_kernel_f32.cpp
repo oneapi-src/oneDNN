@@ -911,8 +911,6 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
         cmp(reg_channel, 0);
         je(no_update_label, T_NEAR);
 
-        jmp(skip_post_ops, T_NEAR);
-
         for (int ii = 0; ii < nb_ic_block; ii++)
             for (int jj = 0; jj < ur_w; jj++) {
                 if (is_tail && ii == nb_ic_block - 1)
@@ -924,6 +922,7 @@ void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
                                     reg_long_offt));
                 vaddps(Ymm(ur_w * ii + jj), Ymm(ur_w * ii + jj), Ymm(15));
             }
+        jmp(skip_post_ops, T_NEAR);
 
         L(no_update_label);
 
