@@ -224,20 +224,16 @@ void jit_uni_eltwise_injector_f32<isa>::test_mask() {
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
         const Vmm &vmm_src) {
-    // exp(x) =
-    // = exp(n * ln(2) + r) // divide x by ln(2) and get quot and rem
-    // = 2 ^ n * exp(r) // simplify the exp(n*ln(2)) expression
-
     // get mask of values lower than log(FLT_MIN) to zero them in the output
     compute_cmp_mask(vmm_src, table_val(exp_ln_flt_min_f), _cmp_lt_os);
 
     h->uni_vminps(vmm_src, vmm_src, table_val(exp_ln_flt_max_f));
     h->uni_vmaxps(vmm_src, vmm_src, table_val(exp_ln_flt_min_f));
     h->uni_vmovups(vmm_aux1, vmm_src);
-
     // calculate exp(x)
-    // fx = x * log2ef
+    // fx = x * log2ef + 0.5
     h->uni_vmulps(vmm_src, vmm_src, table_val(exp_log2ef));
+    h->uni_vaddps(vmm_src, vmm_src, table_val(half));
 
     // tmp = floorf(fx)
     h->uni_vroundps(vmm_aux2, vmm_src, _op_floor);
@@ -260,7 +256,7 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
         h->vpaddd(xmm_aux2, xmm_aux2, table_val(exponent_bias));
         h->vinsertf128(ymm_aux2, ymm_aux2, xmm_tmp, 1);
     }
-    vec_shift(vmm_aux2, vmm_aux2, true /*shift_left*/, n_mantissa_bits);
+    vec_shift(vmm_aux2, vmm_aux2, true, n_mantissa_bits); //Vmm(6) = 2^-fx
     // use vmm_src as tmp vmm_zero when applying mask
     h->uni_vxorps(vmm_src, vmm_src, vmm_src);
     // set zeroes at those points which were < log(FLT_MIN)
@@ -584,24 +580,16 @@ void jit_uni_eltwise_injector_f32<isa>::logsigmoid_compute_vector_fwd(
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
         const Vmm &vmm_src) {
-    // ln(1 + exp(x)) =
-    // = ln(1 + exp(n * ln(2) + r)) // divide x by ln(2) and get quot and rem
-    // = ln(1 + 2 ^ n * exp(r)) // simplify the exp(n*ln(2)) expression
-    // = ln(2 ^ 0 + 2 ^ n * exp(r)) // note 1 = 2^0
-    // = ln(2 ^ (n - n) + 2 ^ n * exp(r)) // 2^0 = 2^(n-n)
-    // = ln(2 ^ n * (2 ^ -n + exp(r))) // factorize with 2^n
-    // = n * ln(2) + ln(2 ^ -n + exp(r)) // take the 2^n factor out of the ln
-
     // keep src for further computations
     h->uni_vmovups(vmm_aux2, vmm_src);
 
     h->uni_vminps(vmm_src, vmm_src, table_val(exp_ln_flt_max_f));
     h->uni_vmaxps(vmm_src, vmm_src, table_val(exp_ln_flt_min_f));
     h->uni_vmovups(vmm_aux1, vmm_src);
-
     // calculate exp(x)
-    // fx = x * log2ef
+    // fx = x * log2ef + 0.5
     h->uni_vmulps(vmm_src, vmm_src, table_val(exp_log2ef));
+    h->uni_vaddps(vmm_src, vmm_src, table_val(half));
 
     // tmp = floorf(fx)
     h->uni_vroundps(vmm_aux0, vmm_src, _op_floor);
@@ -674,8 +662,8 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
     h->uni_vaddps(vmm_src, vmm_src, vmm_aux0);
 
     // get vmm_mask = src > max logf
-    // y = (x <= max log f) ? soft_relu(x) : x
-    compute_cmp_mask(vmm_aux2, table_val(exp_ln_flt_max_f), _cmp_ge_os);
+    // y = (x < max log f) ? soft_relu(x) : x
+    compute_cmp_mask(vmm_aux2, table_val(exp_ln_flt_max_f), _cmp_gt_os);
     blend_with_mask(vmm_src, vmm_aux2);
 }
 
@@ -1642,17 +1630,16 @@ void jit_uni_eltwise_injector_f32<isa>::register_table_entries() {
 
     // exp(x) constants
     static const table_t exp_consts {{exp_log2ef, {0x3fb8aa3b, true}},
-            {exp_ln_flt_max_f, {0x42b17219, true}},
+            {exp_ln_flt_max_f, {0x42b17218, true}},
             {exp_ln_flt_min_f, {0xc2aeac50, true}}};
 
     // exp(x) polynomial approximation
     static const table_t exp_polynomial {
-            // p0 = 1.0f
-            {exp_pol, {0x3f800004, true}}, // p1 = 1.000000476837158203f
-            {exp_pol, {0x3efffb35, true}}, // p2 = 0.4999634325504302979f
-            {exp_pol, {0x3e2b1c1f, true}}, // p3 = 0.1670994609594345093f
-            {exp_pol, {0x3d237d52, true}}, // p4 = 0.03991443663835525513f
-            {exp_pol, {0x3c36637d, true}} // p5 = 0.01113211829215288162f
+            {exp_pol, {0x3f7ffffb, true}}, // p1 = 0.999999701f
+            {exp_pol, {0x3efffee3, true}}, // p2 = 0.499991506f
+            {exp_pol, {0x3e2aad40, true}}, // p3 = 0.166676521f
+            {exp_pol, {0x3d2b9d0d, true}}, // p4 = 0.0418978221f
+            {exp_pol, {0x3c07cfce, true}} // p5 = 0.00828929059f
     };
 
     // tanh(x) constants for four interval approximation
