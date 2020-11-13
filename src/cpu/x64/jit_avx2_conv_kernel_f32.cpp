@@ -607,9 +607,9 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
                                     : pick(ndims - 3, Owi8o, Ohwi8o, Odhwi8o);
 
     jcp.src_tag
-            = src_d.matches_one_of_tag(dat_tag_ncx, dat_tag_nxc, dat_tag_nCx8c);
+            = src_d.mb_stride_relaxed_match(dat_tag_ncx, dat_tag_nxc, dat_tag_nCx8c);
     jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag_OIxio, wei_tag_Oxio);
-    jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
+    jcp.dst_tag = dst_d.mb_stride_relaxed_match(dat_tag_nxc, dat_tag_nCx8c);
 
     bool is_data_layout_nxc
             = everyone_is(dat_tag_nxc, jcp.src_tag, jcp.dst_tag);
@@ -1151,8 +1151,8 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
             ? pick(ndims - 3, gOIw8o8i, gOIhw8o8i, gOIdhw8o8i)
             : pick(ndims - 3, OIw8o8i, OIhw8o8i, OIdhw8o8i);
 
-    jcp.src_tag = diff_src_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
-    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag_nxc, dat_tag_nCx8c);
+    jcp.src_tag = diff_src_d.mb_stride_relaxed_match(dat_tag_nxc, dat_tag_nCx8c);
+    jcp.dst_tag = diff_dst_d.mb_stride_relaxed_match(dat_tag_nxc, dat_tag_nCx8c);
     jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
 
     bool is_data_layout_nxc

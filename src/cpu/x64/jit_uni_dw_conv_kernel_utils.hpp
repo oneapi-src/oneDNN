@@ -118,7 +118,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         CHECK(memory_desc_init_by_tag(src_md, blocked_tag));
         jcp.src_tag = blocked_tag;
     } else {
-        jcp.src_tag = src_d.matches_one_of_tag(blocked_tag, nxc_tag);
+        jcp.src_tag = src_d.mb_stride_relaxed_match(blocked_tag, nxc_tag);
     }
 
     if (weights_d.format_kind() == format_kind::any) {
@@ -132,7 +132,7 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
         CHECK(memory_desc_init_by_tag(dst_md, blocked_tag));
         jcp.dst_tag = blocked_tag;
     } else {
-        jcp.dst_tag = dst_d.matches_one_of_tag(blocked_tag, nxc_tag);
+        jcp.dst_tag = dst_d.mb_stride_relaxed_match(blocked_tag, nxc_tag);
     }
 
     if (jcp.with_bias) {
@@ -389,9 +389,9 @@ status_t jit_uni_dw_conv_bwd_data_kernel<isa, kernel_dt>::init_conf(
     auto dat_tag = one_of(isa, avx512_common, avx512_core) ? nChw16c : nChw8c;
     auto wei_tag = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
 
-    jcp.src_tag = diff_src_d.matches_one_of_tag(dat_tag);
+    jcp.src_tag = diff_src_d.mb_stride_relaxed_match(dat_tag);
     jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
-    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
+    jcp.dst_tag = diff_dst_d.mb_stride_relaxed_match(dat_tag);
 
     bool args_ok = true && jcp.oc == jcp.ngroups && jcp.ic == jcp.ngroups
             && jcp.ngroups % simd_w == 0 && jcp.dilate_h == 0

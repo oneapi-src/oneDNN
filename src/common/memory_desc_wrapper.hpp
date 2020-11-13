@@ -276,6 +276,21 @@ struct memory_desc_wrapper : public c_compatible {
         return format_tag::undef;
     }
 
+    /** returns matching tag (or undef if match is not found) with taking into
+     *  account strides specified outside */
+    template<typename ...Tags>
+    dnnl_format_tag_t stride_relaxed_matches_any_of(const dims_t &strides, Tags... tags) const {
+        for (const auto &tag : {tags...})
+            if (matches_tag(tag, strides)) return tag;
+        return format_tag::undef;
+    }
+
+    template<typename ...Tags>
+    dnnl_format_tag_t mb_stride_relaxed_match(Tags... tags) const {
+        const dims_t skip_mb_stride{-1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        return stride_relaxed_matches_any_of(skip_mb_stride, tags...);
+    }
+
     /* offset section */
 
     /** returns physical offset by logical one. logical offset is represented by
