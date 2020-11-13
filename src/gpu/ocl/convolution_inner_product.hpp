@@ -119,11 +119,12 @@ struct convolution_inner_product_fwd_t : public primitive_t {
     convolution_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        pd()->cpd_->create_primitive(conv_, engine);
+        CHECK(pd()->cpd_->create_primitive(conv_, engine));
         if (pd()->conf.reorder_dst) {
             if (pd()->rpd_postop_)
-                pd()->rpd_postop_->create_primitive(postop_reorder_, engine);
-            pd()->rpd_dst_->create_primitive(dst_reorder_, engine);
+                CHECK(pd()->rpd_postop_->create_primitive(
+                        postop_reorder_, engine));
+            CHECK(pd()->rpd_dst_->create_primitive(dst_reorder_, engine));
         }
         return status::success;
     }
