@@ -223,7 +223,7 @@ gen9_conv_nhwc_bwd_weights(__global float *src,
 #else
                     __attribute__((opencl_unroll_hint(8))) // attr:no-format
                     for (int i = 0; i < OW_BLOCK; i++) {
-                        if (iw + i < 0 || iw + i * SW >= IW) {
+                        if (iw + i * SW < 0 || iw + i * SW >= IW) {
                             blockA[i] = 0;
                         } else {
                             blockA[i] = read_ic_block(
