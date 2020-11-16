@@ -551,7 +551,6 @@ struct jit_1x1_conv_conf_t {
     bool with_dw_conv;
 
     post_ops_t post_ops;
-    post_ops_t::entry_t::eltwise_t eltwise;
 
     int is, os;
     int ic_block, oc_block;

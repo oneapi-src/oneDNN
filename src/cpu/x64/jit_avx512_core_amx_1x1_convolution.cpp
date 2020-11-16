@@ -67,6 +67,8 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
     auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -158,6 +160,10 @@ status_t jit_avx512_core_amx_1x1_convolution_fwd_t<src_type, wei_type,
                     = jcp.src_zero_point ? zp_compensation + oc : nullptr;
             p.src_zero_point = jcp.src_zero_point ? src_zero_point : nullptr;
             p.dst_zero_point = jcp.dst_zero_point ? dst_zero_point : nullptr;
+
+            p.oc_l_off = oc;
+            p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec.data();
+            p.dst_orig = dst;
 
             const bool check_last_sp = is_ic_tail && !(nb_os % 2);
             const bool is_overflow = (osb + os_step >= nb_os);
