@@ -63,11 +63,13 @@ template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
         dst_type>::execute_forward_reduced_lowering(const exec_ctx_t &ctx)
         const {
-
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -83,7 +85,6 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
-    const auto &jcp = pd()->jcp_;
     assert(jcp.is_relo);
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
@@ -234,6 +235,11 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                 p.owb = owb;
                 p.oc_blocks = occ * jcp.nb_oc_blocking;
 
+                p.oc_l_off = oc;
+                p.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
+                p.dst_orig = dst;
+
                 (*kernel_)(&p);
             }
             last_copied_mb = mb;
@@ -256,6 +262,8 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
     auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -438,6 +446,11 @@ status_t jit_avx512_core_amx_convolution_fwd_t<src_type, wei_type,
                 p.last_h = (oh + oh_step <= oh_e);
                 p.owb = owb;
                 p.oc_blocks = occ * jcp.nb_oc_blocking;
+
+                p.oc_l_off = oc;
+                p.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
+                p.dst_orig = dst;
 
                 (*kernel_)(&p);
             }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -32,19 +32,8 @@ namespace x64 {
 struct jit_avx512_core_amx_1x1_fwd_kernel_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_1x1_fwd_kernel_t)
 
-    jit_avx512_core_amx_1x1_fwd_kernel_t(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
-        , jcp(ajcp)
-        , attr_(attr)
-        , eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
-                    this, jcp.eltwise);
-    }
-    ~jit_avx512_core_amx_1x1_fwd_kernel_t() { delete eltwise_injector_; }
-
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
+    jit_avx512_core_amx_1x1_fwd_kernel_t(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_pd,
@@ -62,7 +51,10 @@ struct jit_avx512_core_amx_1x1_fwd_kernel_t : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    constexpr static int isa_simd_width_
+            = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
+            postops_injector_;
 
     enum {
         zmm_idx_limit_bf16 = 29,
@@ -102,16 +94,19 @@ private:
     Xbyak::Reg64 reg_src_zero_point = reg_oc_blocks;
     Xbyak::Reg64 reg_dst_zero_point = rax;
 
-    Xbyak::Zmm zmm_bias = Xbyak::Zmm(31);
+    Xbyak::Zmm zmm_bias = zmm31;
     Xbyak::Zmm zmm_saturation = zmm_bias;
-    Xbyak::Zmm zmm_zero = Xbyak::Zmm(30);
-    Xbyak::Zmm zmm_prev_dst = Xbyak::Zmm(29);
+    Xbyak::Zmm zmm_zero = zmm30;
+    Xbyak::Zmm zmm_prev_dst = zmm29;
     /* zero-point */
-    Xbyak::Zmm zmm_zp = Xbyak::Zmm(29);
-    Xbyak::Zmm zmm_src_zp = Xbyak::Zmm(28);
-    Xbyak::Zmm zmm_dst_zp = Xbyak::Zmm(27);
+    Xbyak::Zmm zmm_zp = zmm29;
+    Xbyak::Zmm zmm_src_zp = zmm28;
+    Xbyak::Zmm zmm_dst_zp = zmm27;
 
-    const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
+    const Xbyak::Reg64 &bin_injector_helper_reg_1 = r14;
+    const Xbyak::Reg64 &bin_injector_helper_reg_2 = r15;
+
+    Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
 
     bool is_bf16() const;
 
@@ -129,7 +124,6 @@ private:
 
     void prepare_output();
 
-    bool maybe_eltwise(int position);
     void cvt2ps(data_type_t type_in, Xbyak::Zmm ymm_in,
             const Xbyak::Operand &op, bool mask_flag);
     Xbyak::Zmm zmm_out(const int idx) {
@@ -139,13 +133,16 @@ private:
         MAYBE_UNUSED(upper_limit);
         return Xbyak::Zmm(idx);
     }
-    Xbyak::Zmm zmm_mask(
-            const Xbyak::Zmm zmm_in, bool mask_flag, bool store = false);
-    Xbyak::Ymm ymm_mask(
-            const Xbyak::Ymm ymm_in, bool mask_flag, bool store = false);
+    Xbyak::Zmm zmm_mask(Xbyak::Zmm zmm_in, bool mask_flag, bool store = false);
+    Xbyak::Ymm ymm_mask(Xbyak::Ymm ymm_in, bool mask_flag, bool store = false);
 
     void update_buffer_pointers();
     void interleave_store();
+    void apply_sum(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
+            const Xbyak::Address &addr, const bool mask_flag);
+    void apply_postops(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
+            const Xbyak::Address &addr, const bool mask_flag, const size_t off,
+            const int ocb);
     void store_output_vector_int8(
             const Xbyak::Zmm zmm_out, int ocb, int h, int w);
     void store_output_vector_bf16(

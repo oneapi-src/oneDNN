@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -72,6 +72,15 @@ private:
     std::stack<Xbyak::Reg64> reg64_stack_;
     std::stack<Xbyak::Xmm> vmm_stack_;
     size_t vmm_to_preserve_size_bytes_;
+};
+
+class conditional_register_preserve_guard_t : public register_preserve_guard_t {
+public:
+    conditional_register_preserve_guard_t(bool condition_to_be_met,
+            jit_generator *host,
+            std::initializer_list<Xbyak::Reg64> reg64_to_preserve,
+            std::initializer_list<Xbyak::Xmm> vmm_to_preserve = {});
+    DNNL_DISALLOW_COPY_AND_ASSIGN(conditional_register_preserve_guard_t);
 };
 
 } // namespace injector_utils

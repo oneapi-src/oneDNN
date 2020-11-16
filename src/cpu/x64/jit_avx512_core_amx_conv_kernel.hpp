@@ -20,8 +20,8 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -92,8 +92,6 @@ private:
     const reg64_t reg_kdc = rbp;
     const reg64_t reg_khc = r11;
 
-    const reg64_t reg_icb = r9;
-
     const reg64_t reg_kh_over = r8;
     const reg64_t reg_tover = rax;
     const reg64_t reg_bover = rbx;
@@ -104,8 +102,6 @@ private:
     const reg64_t reg_tmp = rsi;
 
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
-    const Xbyak::Opmask ktail_load = Xbyak::Opmask(3);
-    const Xbyak::Opmask ktail_stor = Xbyak::Opmask(4);
 
     const Xbyak::Ymm ymm_tmp = Xbyak::Ymm(0);
     const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(0);
@@ -120,20 +116,8 @@ private:
 struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_amx_fwd_kernel_t)
 
-    jit_avx512_core_amx_fwd_kernel_t(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_core_amx)
-        , jcp(ajcp)
-        , attr_(attr)
-        , eltwise_injector_(nullptr)
-        , copy_to_wbuffer_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
-                    this, jcp.eltwise);
-        copy_to_pbuffer_ = new jit_avx512_core_amx_copy_to_pbuffer_t(jcp);
-        if (jcp.is_relo)
-            copy_to_wbuffer_ = new jit_avx512_core_amx_copy_to_wbuffer_t(jcp);
-    }
+    jit_avx512_core_amx_fwd_kernel_t(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     status_t create_kernel() override {
         CHECK(jit_generator::create_kernel());
@@ -141,14 +125,6 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
         if (jcp.is_relo) CHECK(copy_to_wbuffer_->create_kernel());
         return status::success;
     }
-    ~jit_avx512_core_amx_fwd_kernel_t() {
-        delete eltwise_injector_;
-        delete copy_to_pbuffer_;
-        delete copy_to_wbuffer_;
-    }
-
-    static bool post_ops_ok(
-            const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_pd,
@@ -170,9 +146,12 @@ struct jit_avx512_core_amx_fwd_kernel_t : public jit_generator {
     }
 
 private:
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
-    jit_avx512_core_amx_copy_to_pbuffer_t *copy_to_pbuffer_;
-    jit_avx512_core_amx_copy_to_wbuffer_t *copy_to_wbuffer_;
+    constexpr static int isa_simd_width_
+            = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
+            postops_injector_;
+    std::unique_ptr<jit_avx512_core_amx_copy_to_pbuffer_t> copy_to_pbuffer_;
+    std::unique_ptr<jit_avx512_core_amx_copy_to_wbuffer_t> copy_to_wbuffer_;
 
     enum {
         zmm_idx_limit_bf16 = 29,
@@ -211,7 +190,7 @@ private:
     const Xbyak::Reg64 reg_oc_blocks = rax;
     const Xbyak::Reg64 reg_tmp = r8;
 
-    const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
+    const Xbyak::Opmask ktail_mask = k2;
 
     const Xbyak::Zmm zmm_bias = Xbyak::Zmm(31);
     const Xbyak::Zmm zmm_saturation = zmm_bias;
@@ -221,6 +200,9 @@ private:
     const Xbyak::Zmm zmm_zp = Xbyak::Zmm(29);
     const Xbyak::Zmm zmm_src_zp = Xbyak::Zmm(28);
     const Xbyak::Zmm zmm_dst_zp = Xbyak::Zmm(27);
+
+    const Xbyak::Reg64 &bin_injector_helper_reg_1 = r14;
+    const Xbyak::Reg64 &bin_injector_helper_reg_2 = r15;
 
     // AUX: Steps, shifts and offsets
     size_t get_inp_icb_step() const;
@@ -245,10 +227,8 @@ private:
 
     void prepare_output(int tail);
     void init_runtime_counters(bool start_with_last_tile_block);
-
-    bool maybe_eltwise(int position);
     void cvt2ps(data_type_t type_in, Xbyak::Zmm ymm_in,
-            const Xbyak::Operand &op, bool mask_flag);
+            const Xbyak::Operand &op, bool mask_flag = false);
     Xbyak::Zmm zmm_out(const int idx) {
         const int upper_limit = jcp.src_dt == data_type::bf16
                 ? zmm_idx_limit_bf16
@@ -257,11 +237,13 @@ private:
         MAYBE_UNUSED(upper_limit);
         return Xbyak::Zmm(idx);
     }
-    Xbyak::Ymm ymm_mask(
-            const Xbyak::Ymm zmm_in, bool mask_flag, bool store = false);
-    Xbyak::Zmm zmm_mask(
-            const Xbyak::Zmm zmm_in, bool mask_flag, bool store = false);
-
+    Xbyak::Ymm ymm_mask(Xbyak::Ymm zmm_in, bool mask_flag, bool store = false);
+    Xbyak::Zmm zmm_mask(Xbyak::Zmm zmm_in, bool mask_flag, bool store = false);
+    void apply_sum(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
+            const Xbyak::Address &addr, const bool mask_flag);
+    void apply_postops(const Xbyak::Zmm &zmm_out, const float *p_sum_scale,
+            const Xbyak::Address &addr, const bool mask_flag, const size_t off,
+            const int ocb);
     void store_output_vector_bf16(
             const Xbyak::Zmm zmm_out, int ocb, int h, int w);
     void store_output_vector_int8(
@@ -311,7 +293,7 @@ private:
 
     const reg64_t reg_tmp = reg_cnt_tmp;
 
-    const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
+    Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
 
     const Xbyak::Zmm zmm_tmp = Xbyak::Zmm(1);
     const Xbyak::Zmm zmm_zero = Xbyak::Zmm(0);
@@ -399,10 +381,10 @@ private:
 
     const Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
 
-    const Xbyak::Zmm zmm_bias = Xbyak::Zmm(31);
+    const Xbyak::Zmm zmm_bias = zmm31;
     const Xbyak::Zmm zmm_saturation = zmm_bias;
-    const Xbyak::Zmm zmm_zero = Xbyak::Zmm(30);
-    const Xbyak::Zmm zmm_prev_dst = Xbyak::Zmm(29);
+    const Xbyak::Zmm zmm_zero = zmm30;
+    const Xbyak::Zmm zmm_prev_dst = zmm29;
 
     // AUX: Steps, shifts and offsets
     size_t get_inp_kh_step() const;
@@ -428,7 +410,7 @@ private:
 
     bool maybe_eltwise(int position);
     void cvt2ps(data_type_t type_in, Xbyak::Zmm ymm_in,
-            const Xbyak::Operand &op, bool mask_flag);
+            const Xbyak::Operand &op, bool mask_flag = false);
     Xbyak::Ymm ymm_mask(
             const Xbyak::Ymm zmm_in, bool mask_flag, bool store = false);
     Xbyak::Zmm zmm_mask(

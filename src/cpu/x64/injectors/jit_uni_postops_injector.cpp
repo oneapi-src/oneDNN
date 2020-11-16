@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -184,8 +184,11 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
             const auto &entry = post_ops.entry_[idx];
             switch (post_op) {
                 case sum:
-                    if (entry.is_sum(sum_requires_scale_one))
+                    if (entry.is_sum(false)) {
+                        if (sum_requires_scale_one && entry.sum.scale != 1)
+                            return false;
                         return IMPLICATION(sum_at_pos_0_only, idx == 0);
+                    }
                     break;
                 case eltwise:
                     if (entry.is_eltwise()) return true;

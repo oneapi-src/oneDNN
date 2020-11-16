@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
                 new jit_avx512_core_amx_1x1_fwd_kernel_t(
-                        pd()->jcp_, *pd()->attr())));
+                        pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
         return kernel_->create_kernel();
     }
 
