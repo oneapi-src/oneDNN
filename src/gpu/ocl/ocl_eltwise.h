@@ -219,6 +219,7 @@ float gelu_erf_fwd(float s) {
     float v = s * sqrt_2_over_2;
     return 0.5f * s * (1.f + erf(v));
 }
+
 float gelu_erf_bwd(float dd, float s) {
     const float two_over_sqrt_pi = 1.12837922573089599609375f;
     const float sqrt_2_over_2 = 0.707106769084930419921875f;
@@ -227,7 +228,7 @@ float gelu_erf_bwd(float dd, float s) {
 }
 
 float round_fwd(float s) {
-    return rint(s);
+    return (float)rint((float)s);
 }
 
 float hardswish_fwd(float s) {
