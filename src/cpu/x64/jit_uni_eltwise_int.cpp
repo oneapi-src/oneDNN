@@ -30,7 +30,7 @@ namespace x64 {
 
 using namespace Xbyak;
 
-struct jit_args_int8_t {
+struct jit_args_int_t {
     const void *from;
     const void *for_comparison;
     const void *to;
@@ -41,7 +41,7 @@ struct jit_uni_eltwise_int_kernel : public jit_generator {
     jit_uni_eltwise_int_kernel(const eltwise_pd_t *pd, const char *name)
         : jit_generator(name), pd_(pd) {}
 
-    void operator()(jit_args_int8_t *p) { jit_generator::operator()(p); }
+    void operator()(jit_args_int_t *p) { jit_generator::operator()(p); }
 
 protected:
     data_type_t data_type() const { return pd_->src_md()->data_type; }
@@ -84,7 +84,7 @@ struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel {
 
         preamble();
 
-#define GET_OFF(field) offsetof(jit_args_int8_t, field)
+#define GET_OFF(field) offsetof(jit_args_int_t, field)
         mov(reg_from, ptr[param + GET_OFF(from)]);
         mov(reg_to, ptr[param + GET_OFF(to)]);
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
@@ -451,7 +451,7 @@ status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::execute_forward(
         start = nstl::min(nelems, start * cache_line);
         end = nstl::min(nelems, end * cache_line);
 
-        auto arg = jit_args_int8_t();
+        auto arg = jit_args_int_t();
         arg.from = (const void *)&src[start];
         arg.for_comparison = (const void *)&src[start];
         arg.to = (const void *)&dst[start];
