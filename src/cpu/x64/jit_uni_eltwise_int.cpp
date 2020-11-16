@@ -30,7 +30,7 @@ namespace x64 {
 
 using namespace Xbyak;
 
-struct jit_args_t {
+struct jit_args_int_t {
     const void *from;
     const void *for_comparison;
     const void *to;
@@ -41,7 +41,7 @@ struct jit_uni_eltwise_int_kernel : public c_compatible {
     jit_uni_eltwise_int_kernel(const eltwise_desc_t &desc) : desc_(desc) {}
     virtual ~jit_uni_eltwise_int_kernel() = default;
 
-    virtual void operator()(jit_args_t *p) = 0;
+    virtual void operator()(jit_args_int_t *p) = 0;
     virtual status_t create_kernel() = 0;
 
 protected:
@@ -76,7 +76,7 @@ struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel,
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
-    void operator()(jit_args_t *p) override {
+    void operator()(jit_args_int_t *p) override {
         return jit_generator::operator()(p);
     }
 
@@ -92,7 +92,7 @@ struct jit_uni_subkernel_int_t : public jit_uni_eltwise_int_kernel,
 
         preamble();
 
-#define GET_OFF(field) offsetof(jit_args_t, field)
+#define GET_OFF(field) offsetof(jit_args_int_t, field)
         mov(reg_from, ptr[param + GET_OFF(from)]);
         mov(reg_to, ptr[param + GET_OFF(to)]);
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
@@ -457,7 +457,7 @@ void jit_uni_eltwise_int_fwd_t<isa, d_type>::execute_forward(
         start = nstl::min(nelems, start * cache_line);
         end = nstl::min(nelems, end * cache_line);
 
-        auto arg = jit_args_t();
+        auto arg = jit_args_int_t();
         arg.from = (const void *)&src[start];
         arg.for_comparison = (const void *)&src[start];
         arg.to = (const void *)&dst[start];
