@@ -24,7 +24,7 @@ the end to specify fewer dimensions.
 
 Run the zeropad set from an input file with the default settings:
 ``` sh
-    ./benchdnn --zeropad --batch=inputs/zeropad/test_zeropad_all
+    ./benchdnn --zeropad --batch=inputs/zeropad/test_zeropad_ci
 ```
 
 Run a specific zeropad problem with the f32 data type and iterating
