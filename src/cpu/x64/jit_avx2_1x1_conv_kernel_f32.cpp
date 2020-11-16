@@ -16,6 +16,7 @@
 *******************************************************************************/
 
 #include <assert.h>
+#include <iterator>
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
