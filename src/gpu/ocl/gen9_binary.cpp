@@ -51,9 +51,13 @@ status_t gen9_binary_t::pd_t::init_conf(engine_t *engine) {
         conf.bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
     }
 
-    conf.nvect = 8;
-    while (dst_d.dims()[ndims - 1] % conf.nvect != 0) {
-        conf.nvect /= 2;
+    if (conf.bcast_dims[1] && !conf.bcast_dims[ndims - 1]) {
+        conf.nvect = 1;
+    } else {
+        conf.nvect = 8;
+        while (dst_d.dims()[ndims - 1] % conf.nvect != 0) {
+            conf.nvect /= 2;
+        }
     }
 
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);

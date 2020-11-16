@@ -283,7 +283,7 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
     dims0[3] = GWS_GET_D3();
     dims0[4] = GWS_GET_D4();
     dims0[5] = GWS_GET_D5();
-    int d1_block = GWS_GET_D1_BLOCK();
+
     int src0_off = SRC0_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
     src0 += src0_off;
@@ -316,7 +316,15 @@ __kernel void gen9_binary(__global SRC0_DATA_T *src0,
 #if BCAST_DIM1
     float tmp_src1 = CONVERT_FLOAT_T(src1[0]);
 #else
+#if BCAST_AT_INNERMOST_DIM == 1 || NVECT == 1
     float tmp_src1 = CONVERT_FLOAT_T(SRC1_BLOCK_READ(&src1[0]));
+#elif NVECT == 2
+    float2 tmp_src1 = CONVERT_FLOAT2_T(SRC1_BLOCK_READ2(&src1[0]));
+#elif NVECT == 4
+    float4 tmp_src1 = CONVERT_FLOAT4_T(SRC1_BLOCK_READ4(&src1[0]));
+#elif NVECT == 8
+    float8 tmp_src1 = CONVERT_FLOAT8_T(SRC1_BLOCK_READ8(&src1[0]));
+#endif
 #endif
 
 #if WITH_SRC0_SCALE
