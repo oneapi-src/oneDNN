@@ -243,7 +243,7 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
         }
         if (jcp.signed_input) {
             const int comp_offset = sizeof(int32_t) * k * oc_block;
-            cvt2ps(data_type::s32, vmm_comp, reg_compensation, comp_offset,
+            load_data(data_type::s32, vmm_comp, reg_compensation, comp_offset,
                     load_size);
         }
         if (jcp.src_zero_point) {
@@ -265,8 +265,12 @@ void _jit_uni_x8s8s32x_fwd_kernel<isa, Vmm>::store_output(
         for (int j = 0; j < ur_w; ++j) {
             const Vmm vmm = vmm_out(j, k);
 
+            /* add comp in s32 to avoid loss of precision
+               when convert s32 to f32 in integer (2^24)
+               TODO: do the same to zero_point and bias */
+            if (jcp.signed_input) uni_vpaddd(vmm, vmm, vmm_comp);
             uni_vcvtdq2ps(vmm, vmm);
-            if (jcp.signed_input) uni_vaddps(vmm, vmm, vmm_comp);
+
             if (jcp.src_zero_point) uni_vaddps(vmm, vmm, vmm_zp_comp);
             if (jcp.with_bias) uni_vaddps(vmm, vmm, vmm_bias);
 
