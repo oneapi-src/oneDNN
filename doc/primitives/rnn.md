@@ -286,6 +286,12 @@ both the forward pass and the backward pass. Note that after executing the
 backward pass, the workspace is no more valid and should be populated
 once again by another forward pass.
 
+The RNN primitive backward pass accumulates gradients to its weight
+outputs (namely \diffweightslayer, \diffweightsiter,
+\diffweightspeephole, \diffweightsprojection, \diffbias). Hence, these
+tensors should be properly initialized to zero before their first use,
+and can be reused across calls to accumulate gradients if need be.
+
 @anchor dg_rnn_impl_limits
 
 ## Execution Arguments
