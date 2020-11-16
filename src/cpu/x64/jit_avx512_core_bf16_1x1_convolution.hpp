@@ -290,7 +290,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
                 new jit_avx512_core_bf16_1x1_conv_kernel(
-                        pd()->jcp_, *pd()->attr())));
+                        pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
         CHECK(kernel_->create_kernel());
 
         if (pd()->jcp_.with_dw_conv) {
@@ -313,8 +313,9 @@ private:
     void execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src, const wei_data_t *weights, const char *bias,
             const dw_wei_data_t *weights_dw, const float *bias_dw,
-            const char *dst,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const char *dst, const memory_tracking::grantor_t &scratchpad,
+            const void *post_ops_binary_rhs_arg_vec,
+            const void *post_ops_binary_rhs_arg_vec_dw) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_avx512_core_bf16_1x1_conv_kernel> kernel_;
@@ -393,7 +394,7 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
                 new jit_avx512_core_bf16_1x1_conv_kernel(
-                        pd()->jcp_, *pd()->attr())));
+                        pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
         CHECK(kernel_->create_kernel());
         CHECK(init_rtus_driver<avx512_common>(this));
         return status::success;

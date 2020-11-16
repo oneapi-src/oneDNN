@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "cpu/x64/jit_avx512_common_convolution.hpp"
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-
-#include "cpu/x64/jit_avx512_common_convolution.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -56,16 +56,6 @@ inline void jit_conv_ker_pipeline(const jit_conv_ker_t ker, jit_conv_call_s &p,
 
     if (p.src) ker(&p);
 }
-// The special case for the driver with ow-parallelization (FWD)
-inline void jit_conv_ker_pipeline_ow_thr(const jit_conv_ker_t ker,
-        jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
-        const void *bias, int channel, int kh_padding, int owb, int reduce_work,
-        int load_work, int flags) {
-    PIPELINE(owb);
-    PIPELINE(flags);
-    jit_conv_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding,
-            reduce_work, load_work);
-}
 // The special case for the driver with iw-parallelization (BWD)
 inline void jit_conv_ker_pipeline_iw_thr(const jit_conv_ker_t ker,
         jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
@@ -96,6 +86,22 @@ inline void jit_conv_3d_ker_pipeline(const jit_conv_ker_t ker,
     if (p.src) ker(&p);
 }
 // The special case for the driver with ow-parallelization (FWD)
+inline void jit_conv_ker_pipeline_ow_thr(jit_conv_ker_t ker, jit_conv_call_s &p,
+        const void *src, const void *dst, const void *filt, const void *bias,
+        int channel, int kh_padding, int owb, int reduce_work, int load_work,
+        const void *post_ops_binary_rhs_arg_vec, int oc_l_off,
+        const void *dst_orig, int flags) {
+    PIPELINE(owb);
+    PIPELINE(flags);
+
+    PIPELINE(oc_l_off);
+    PIPELINE(dst_orig);
+    p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
+
+    jit_conv_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding,
+            reduce_work, load_work);
+}
+// The special case for the driver with ow-parallelization (FWD)
 // TODO: implement it for BWD_D and BWD_W too
 inline void jit_conv_3d_ker_pipeline_ow_thr(const jit_conv_ker_t ker,
         jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
@@ -106,6 +112,22 @@ inline void jit_conv_3d_ker_pipeline_ow_thr(const jit_conv_ker_t ker,
 
     jit_conv_3d_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding,
             kd_padding, reduce_work, load_work);
+}
+
+// The special case for the driver with ow-parallelization (FWD)
+// TODO: implement it for BWD_D and BWD_W too
+inline void jit_conv_3d_ker_pipeline_ow_thr(const jit_conv_ker_t ker,
+        jit_conv_call_s &p, const void *src, const void *dst, const void *filt,
+        const void *bias, int channel, int kh_padding, int kd_padding, int owb,
+        int reduce_work, int load_work, const void *post_ops_binary_rhs_arg_vec,
+        int oc_l_off, const void *dst_orig, int flags) {
+
+    PIPELINE(oc_l_off);
+    PIPELINE(dst_orig);
+    p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
+
+    jit_conv_3d_ker_pipeline_ow_thr(ker, p, src, dst, filt, bias, channel,
+            kh_padding, kd_padding, owb, reduce_work, load_work, flags);
 }
 
 inline void jit_conv_ker_pipeline_bwd_w(const jit_conv_ker_t ker,
@@ -180,10 +202,14 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
         dst_type>::execute_forward_1d(const exec_ctx_t &ctx) const {
+    const auto &jcp = pd()->jcp_;
+
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const dst_data_t *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
@@ -191,7 +217,6 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = pd()->jcp_;
     const jit_conv_ker_t jit_ker = (decltype(jit_ker))kernel_->jit_ker();
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
@@ -256,8 +281,13 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                 int icb_step = is_src_layout_nxc ? jcp.nb_ic_L2 : 1;
                 int icb_end = min(jcp.nb_ic, icb_l2 + jcp.nb_ic_L2);
                 const int oc_work = utils::this_block_size(ocb * jcp.oc_block,
-                        jcp.oc, jcp.nb_oc_blocking * jcp.oc_block);
+                        jcp.oc_without_padding,
+                        jcp.nb_oc_blocking * jcp.oc_block);
+
                 int ic_work = icb_step * jcp.ic_block;
+                const int oc_l_off
+                        = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
+
                 for (int icb = icb_l2; icb < icb_end; icb += icb_step) {
                     int curr_nb_ic = nstl::min(icb_step, icb_end - icb);
                     int flags = 0;
@@ -269,6 +299,7 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                     }
                     jit_conv_ker_pipeline_ow_thr(jit_ker, par_conv, src_w,
                             dst_w, wht_w, bias_w, icb, 1, owb, ic_work, oc_work,
+                            post_ops_binary_rhs_arg_vec.data(), oc_l_off, dst,
                             flags);
 
                     src_w += src_c_stride;
@@ -296,18 +327,23 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
         // on the last iteration of loop above. Only valid pointers make sense
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
-        jit_conv_ker_pipeline_ow_thr(
-                jit_ker, par_conv, src, dst, weights, bias, 0, 0, 0, 0, 0, 0);
+        jit_conv_ker_pipeline_ow_thr(jit_ker, par_conv, src, dst, weights, bias,
+                0, 0, 0, 0, 0, post_ops_binary_rhs_arg_vec.data(), 0, nullptr,
+                0);
     });
 }
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
         dst_type>::execute_forward_2d(const exec_ctx_t &ctx) const {
+
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const dst_data_t *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
@@ -315,7 +351,6 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = pd()->jcp_;
     const jit_conv_ker_t jit_ker = (decltype(jit_ker))kernel_->jit_ker();
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
@@ -391,9 +426,11 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                                             * (is_dst_layout_nxc ? 1
                                                                  : jcp.oc_block)
                                        : nullptr;
-                    const int oc_work
-                            = utils::this_block_size(ocb * jcp.oc_block, jcp.oc,
-                                    jcp.nb_oc_blocking * jcp.oc_block);
+                    const int oc_work = utils::this_block_size(
+                            ocb * jcp.oc_block, jcp.oc_without_padding,
+                            jcp.nb_oc_blocking * jcp.oc_block);
+                    const int oc_l_off = oc_off_idx
+                            * (is_dst_layout_nxc ? 1 : jcp.oc_block);
                     int ic_work = icb_step * jcp.ic_block;
                     for (int icb = icb_l2; icb < icb_end; icb += icb_step) {
                         int curr_nb_ic = nstl::min(icb_step, icb_end - icb);
@@ -426,7 +463,9 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
 
                             jit_conv_ker_pipeline_ow_thr(jit_ker, par_conv,
                                     aux_src, dst_c, aux_wht, bias_w, icb,
-                                    kh_padding, owb, ic_work, oc_work, flags);
+                                    kh_padding, owb, ic_work, oc_work,
+                                    post_ops_binary_rhs_arg_vec.data(),
+                                    oc_l_off, dst, flags);
 
                             src_c += src_h_stride * jcp.stride_h;
                             dst_c += dst_h_stride;
@@ -455,18 +494,22 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
         // on the last iteration of loop above. Only valid pointers make sense
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
-        jit_conv_ker_pipeline_ow_thr(
-                jit_ker, par_conv, src, dst, weights, bias, 0, 0, 0, 0, 0, 0);
+        jit_conv_ker_pipeline_ow_thr(jit_ker, par_conv, src, dst, weights, bias,
+                0, 0, 0, 0, 0, post_ops_binary_rhs_arg_vec.data(), 0, nullptr,
+                0);
     });
 }
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
         dst_type>::execute_forward_3d(const exec_ctx_t &ctx) const {
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const dst_data_t *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
@@ -474,7 +517,6 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = pd()->jcp_;
     const jit_conv_ker_t jit_ker = (decltype(jit_ker))kernel_->jit_ker();
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
@@ -561,7 +603,11 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                 const int icb_step = is_src_layout_nxc ? jcp.nb_ic_L2 : 1;
                 int icb_end = min(jcp.nb_ic, icb_l2 + jcp.nb_ic_L2);
                 const int oc_work = utils::this_block_size(ocb * jcp.oc_block,
-                        jcp.oc, jcp.nb_oc_blocking * jcp.oc_block);
+                        jcp.oc_without_padding,
+                        jcp.nb_oc_blocking * jcp.oc_block);
+
+                const int oc_l_off
+                        = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
                 int ic_work = icb_step * jcp.ic_block;
                 for (int icb = icb_l2; icb < icb_end; icb += icb_step) {
                     int curr_nb_ic = nstl::min(icb_step, icb_end - icb);
@@ -589,7 +635,9 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                                 src_c + i_t_overflow * dilate_h * src_h_stride,
                                 dst_c, wht_w + i_t_overflow * wht_h_stride,
                                 bias_w, icb, kh_padding, kd_padding, owb,
-                                ic_work, oc_work, flags);
+                                ic_work, oc_work,
+                                post_ops_binary_rhs_arg_vec.data(), oc_l_off,
+                                dst, flags);
 
                         src_c += src_h_stride * jcp.stride_h;
                         dst_c += dst_h_stride;
@@ -620,7 +668,8 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
         jit_conv_3d_ker_pipeline_ow_thr(jit_ker, par_conv, src, dst, weights,
-                bias, 0, 0, 0, 0, 0, 0, 0);
+                bias, 0, 0, 0, 0, 0, 0, post_ops_binary_rhs_arg_vec.data(), 0,
+                nullptr, 0);
     });
 }
 

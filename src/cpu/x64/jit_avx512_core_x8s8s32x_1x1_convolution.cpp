@@ -46,6 +46,12 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
             const wei_data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
     auto bias_dw = CTX_IN_MEM(
             const char *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+    const auto post_ops_binary_rhs_arg_vec_dw = pd()->jcp_dw_
+            ? binary_injector::prepare_binary_args(pd()->jcp_dw_->post_ops, ctx,
+                    pd()->jcp_.post_ops.entry_.size() + 1)
+            : std::vector<const void *> {};
 
     DEFINE_ZERO_POINTS_BUFFER(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(dst_zero_point, DNNL_ARG_DST);
@@ -90,7 +96,9 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
     }
     parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
-                dst, src_zero_point, dst_zero_point, scratchpad);
+                dst, src_zero_point, dst_zero_point, scratchpad,
+                post_ops_binary_rhs_arg_vec.data(),
+                post_ops_binary_rhs_arg_vec_dw.data());
     });
     return status::success;
 }
@@ -101,7 +109,9 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
         const src_data_t *src, const wei_data_t *weights, const char *bias,
         const wei_data_t *weights_dw, const char *bias_dw, dst_data_t *dst,
         const int32_t *src_zero_point, const int32_t *dst_zero_point,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad,
+        const void *post_ops_binary_rhs_arg_vec,
+        const void *post_ops_binary_rhs_arg_vec_dw) const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -279,6 +289,11 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
         } else
             p.bcast_data = src + src_off;
 
+        p.dst_l_off = dst_off;
+        p.oc_l_off = _ocb * jcp.oc_block;
+        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
+        p.dst_orig = dst;
+
         (*kernel_)(&p);
     };
 
@@ -397,6 +412,11 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
             par_conv_dw.scales = dw_oscales
                     ? &dw_oscales[jcp_dw->is_oc_scale * ocb * jcp_dw->ch_block]
                     : nullptr;
+
+            par_conv_dw.oc_l_off = ocb * jcp_dw->ch_block;
+            par_conv_dw.post_ops_binary_rhs_arg_vec
+                    = post_ops_binary_rhs_arg_vec_dw;
+            par_conv_dw.dst_orig = dst;
 
             (*kernel_dw_)(&par_conv_dw);
 

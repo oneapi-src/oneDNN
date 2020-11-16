@@ -40,7 +40,7 @@ jit_avx512_dw_conv_fwd_kernel_bf16::jit_avx512_dw_conv_fwd_kernel_bf16(
         using namespace binary_injector;
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = false;
-        static constexpr unsigned helper_vmm_idx = 31;
+        static constexpr size_t helper_vmm_idx = 31;
         static constexpr bool use_exact_tail_scalar_bcast = true;
         const size_t tail_size = jcp.oc_without_padding
                 % (cpu_isa_traits<avx512_core>::vlen / sizeof(float));
@@ -173,17 +173,16 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
 }
 
 template <typename F>
-void iterate(const int ur_ch_blocks, const int ur_w, const bool mask_tail,
-        const F &f) {
+static void iterate(const int ur_ch_blocks, const int ur_w,
+        const bool mask_tail, const F &f) {
     for (int ch = 0; ch < ur_ch_blocks; ch++) {
         const bool mask_flag = mask_tail && ch + 1 == ur_ch_blocks;
         for (int ow = 0; ow < ur_w; ow++)
             f(ch, ow, mask_flag);
     }
 }
-
 template <typename F>
-void iterate(const int ur_ch_blocks, const int ur_w, const F &f) {
+static void iterate(const int ur_ch_blocks, const int ur_w, const F &f) {
     iterate(ur_ch_blocks, ur_w, false, f);
 }
 
@@ -204,8 +203,8 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
             const auto ow_stride = dst_layout_nxc ? jcp.ngroups : ch_blk;
             iterate(ur_ch_blocks, ur_w, mask_tail,
                     [&](int ch, int ow, int mask_flag) {
-                        const int o_off = (ch * ocb_stride + ow * ow_stride)
-                                * jcp.typesize_out;
+                        const int aux_output_l_off
+                                = (ch * ocb_stride + ow * ow_stride);
                         const auto vmm_idx = get_acc_reg_idx(ch * ur_w + ow);
                         vmm_idxs.emplace(vmm_idx);
 
@@ -216,9 +215,9 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
                         rhs_arg_params_tail.vmm_idx_to_oc_off_oprnd.emplace(
                                 vmm_idx, temp_offset_reg);
                         rhs_arg_params_tail.vmm_idx_to_out_elem_off_val.emplace(
-                                vmm_idx, o_off);
-                        // rhs_arg_params_tail.vmm_idx_to_out_off_oprnd.emplace(
-                        //         vmm_idx, temp_offset_reg);
+                                vmm_idx, aux_output_l_off);
+                        rhs_arg_params_tail.vmm_idx_to_out_off_oprnd.emplace(
+                                vmm_idx, temp_offset_reg);
                         if (mask_flag)
                             rhs_arg_params_tail.vmm_tail_idx_.emplace(vmm_idx);
                     });
@@ -229,6 +228,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_postops(
                     this, {temp_offset_reg});
             mov(temp_offset_reg, reg_output);
             sub(temp_offset_reg, ptr[param1 + GET_OFF(dst_orig)]);
+            shr(temp_offset_reg, std::log2(sizeof(float)));
 
             Label postops_done;
             if (mask_tail) {

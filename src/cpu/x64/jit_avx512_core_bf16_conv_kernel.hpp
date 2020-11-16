@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
@@ -32,27 +32,8 @@ namespace x64 {
 
 template <typename Vmm>
 struct _jit_avx512_core_bf16_fwd_kernel : public jit_generator {
-
-    _jit_avx512_core_bf16_fwd_kernel(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jit_generator(nullptr, ker_code_size, true, avx512_core_bf16)
-        , jcp(ajcp)
-        , attr_(attr)
-        , eltwise_injector_(nullptr)
-        , bf16_emu_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
-                    this, jcp.eltwise);
-        if (!isa_has_bf16(jcp.isa))
-            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
-                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
-                    bf16_emu_reserv_4, bf16_emu_reserv_5);
-    }
-
-    ~_jit_avx512_core_bf16_fwd_kernel() {
-        delete bf16_emu_;
-        delete eltwise_injector_;
-    }
+    _jit_avx512_core_bf16_fwd_kernel(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_core_bf16_fwd_kernel)
 
@@ -60,6 +41,8 @@ struct _jit_avx512_core_bf16_fwd_kernel : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
+    constexpr static int isa_simd_width_
+            = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     using Vmm_down_t =
             typename utils::conditional<std::is_same<Vmm, Xbyak::Zmm>::value,
                     Xbyak::Ymm, Xbyak::Xmm>::type;
@@ -93,11 +76,8 @@ private:
 
     reg64_t reg_dst_long_offt = r14;
 
-    Vmm vmm_dst(int i_ur, int i_oc) {
-        int idx = i_ur * jcp.nb_oc_blocking + i_oc;
-        assert(idx < ker_reg_base_idx);
-        return Vmm(idx);
-    }
+    int vmm_dst_idx(const int i_ur, const int i_oc) const;
+    Vmm vmm_dst(const int i_ur, const int i_oc) const;
 
     Vmm vmm_src(int i_ic, int nb_x_blocking) {
         int idx = i_ic + nb_x_blocking * jcp.ur_w;
@@ -141,11 +121,14 @@ private:
     Xbyak::Opmask even_load_mask = Xbyak::Opmask(3);
     Xbyak::Opmask k_oc_tail_mask = Xbyak::Opmask(4);
     Xbyak::Opmask k_oc_tail_mask_extended = Xbyak::Opmask(5);
+    const Xbyak::Opmask postops_mask = Xbyak::Opmask(6);
 
-    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
+            postops_injector_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     inline void prepare_dst(int ur_w);
+    void apply_postops(int ur_w);
     inline void store_dst(int ur_w);
     inline void compute_loop(int ur_w, int pad_l, int pad_r);
 
@@ -223,21 +206,21 @@ private:
 };
 
 struct jit_avx512_core_bf16_fwd_kernel {
-    jit_avx512_core_bf16_fwd_kernel(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
+    jit_avx512_core_bf16_fwd_kernel(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md)
         : kernel_(nullptr) {
         switch (ajcp.oc_block) {
             case 16:
                 kernel_ = new _jit_avx512_core_bf16_fwd_kernel<Xbyak::Zmm>(
-                        ajcp, attr);
+                        ajcp, attr, dst_md);
                 return;
             case 8:
                 kernel_ = new _jit_avx512_core_bf16_fwd_kernel<Xbyak::Ymm>(
-                        ajcp, attr);
+                        ajcp, attr, dst_md);
                 return;
             case 4:
                 kernel_ = new _jit_avx512_core_bf16_fwd_kernel<Xbyak::Xmm>(
-                        ajcp, attr);
+                        ajcp, attr, dst_md);
                 return;
             default: assert(!"invalid channel blocking");
         }
@@ -247,7 +230,6 @@ struct jit_avx512_core_bf16_fwd_kernel {
 
     ~jit_avx512_core_bf16_fwd_kernel() { delete kernel_; }
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_pd,
             memory_desc_t &weights_pd, memory_desc_t &dst_pd,
@@ -271,12 +253,10 @@ struct _jit_avx512_core_bf16_bwd_data_kernel : public jit_generator {
         , jcp(ajcp)
         , bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa))
-            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
-                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
-                    bf16_emu_reserv_4, bf16_emu_reserv_5);
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(this,
+                    bf16_emu_reserv_1, bf16_emu_reserv_2, bf16_emu_reserv_3,
+                    bf16_emu_scratch, bf16_emu_reserv_4, bf16_emu_reserv_5);
     }
-
-    ~_jit_avx512_core_bf16_bwd_data_kernel() { delete bf16_emu_; }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_core_bf16_bwd_data_kernel_f32)
 
@@ -357,7 +337,7 @@ private:
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(30);
 
     Vmm vmm_wei = Vmm(31);
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     inline void prepare_output(int ur_w);
     inline void store_output(int ur_w);
@@ -481,12 +461,12 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
         , jcp(ajcp)
         , bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa)) {
-            bf16_emu_ = new bf16_emulation_t(
+            bf16_emu_ = utils::make_unique<bf16_emulation_t>(
                     this, one, even, selector, scratch, tmp0, tmp1);
         }
     }
 
-    ~jit_avx512_core_bf16_conv_bwd_weights_kernel_f32() { delete bf16_emu_; }
+    ~jit_avx512_core_bf16_conv_bwd_weights_kernel_f32() = default;
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
             jit_avx512_core_bf16_conv_bwd_weights_kernel_f32)
@@ -711,7 +691,7 @@ private:
                 : ((!isa_has_bf16(jcp.isa)) ? 26 : 31);
         return Xbyak::Zmm(idx);
     }
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 
     inline int interleave_w_reorder_size(int ur_w);
     inline int interleave_w_reorder_bytes(int ur_w);

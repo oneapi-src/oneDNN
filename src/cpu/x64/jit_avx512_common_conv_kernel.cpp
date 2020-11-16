@@ -21,7 +21,9 @@
 
 #include "cpu/platform.hpp"
 #include "cpu/x64/cpu_barrier.hpp"
-
+#include "cpu/x64/injectors/injector_utils.hpp"
+#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
 #include "cpu/x64/jit_avx512_common_conv_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
@@ -93,6 +95,33 @@ inline bool is_owb_prefetching(const jit_conv_conf_t &jcp) {
 } // namespace
 
 template <typename Vmm>
+_jit_avx512_common_conv_fwd_kernel<Vmm>::_jit_avx512_common_conv_fwd_kernel(
+        const jit_conv_conf_t &ajcp, const primitive_attr_t &attr,
+        const memory_desc_t &dst_md)
+    : jcp(ajcp), attr_(attr) {
+    if (jcp.with_eltwise || jcp.with_binary) {
+        using namespace binary_injector;
+        static constexpr bool preserve_gpr = true;
+        static constexpr bool preserve_vmm = false;
+        static constexpr size_t helper_vmm_idx = 31;
+        const size_t tail_size = jcp.oc_without_padding % isa_simd_width_;
+        static constexpr bool use_exact_tail_scalar_bcast = false;
+
+        const binary_injector::rhs_arg_static_params_t rhs_args_static_params {
+                helper_vmm_idx, reg_tmp, r15, preserve_gpr, preserve_vmm,
+                GET_OFF(post_ops_binary_rhs_arg_vec),
+                memory_desc_wrapper(dst_md), tail_size, postops_mask,
+                use_exact_tail_scalar_bcast};
+        const binary_injector::static_params_t static_params {
+                this->param1, rhs_args_static_params};
+
+        postops_injector_ = utils::make_unique<
+                injector::jit_uni_postops_injector_t<avx512_common>>(
+                this, jcp.post_ops, static_params);
+    }
+}
+
+template <typename Vmm>
 void _jit_avx512_common_conv_fwd_kernel<Vmm>::prepare_output(int ur_w) {
     for (int k = 0; k < jcp.nb_oc_blocking; k++)
         for (int j = 0; j < ur_w; j++) {
@@ -106,9 +135,69 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::prepare_output(int ur_w) {
         }
 }
 
+template <typename F>
+static void iterate(const int nb_oc_blocking, const int ur_w,
+        const bool oc_tail, const bool force_masking, const F &fun) {
+    for (int i_load = 0; i_load < nb_oc_blocking; i_load++) {
+        const auto mask_flag
+                = force_masking || (oc_tail && i_load + 1 == nb_oc_blocking);
+        for (int i_ur = 0; i_ur < ur_w; i_ur++)
+            fun(mask_flag, i_load, i_ur);
+    }
+}
+template <typename F>
+static void iterate(const int nb_oc_blocking, const int ur_w, const F &fun) {
+    iterate(nb_oc_blocking, ur_w, false, false, fun);
+}
+
+template <typename Vmm>
+void _jit_avx512_common_conv_fwd_kernel<Vmm>::apply_postops(int ur_w) {
+    injector_utils::vmm_index_set_t vmm_idxs;
+    if (jcp.with_binary) {
+        binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+        const auto temp_offset_reg = this->r12;
+        const bool mask_tail = jcp.oc_without_padding % jcp.simd_w;
+        const bool oc_blk_is_smaller_than_vmm = jcp.oc_block < isa_simd_width_;
+        iterate(jcp.nb_oc_blocking, ur_w, mask_tail, oc_blk_is_smaller_than_vmm,
+                [&](const bool mask_flag, const int i_load, const int i_ur) {
+                    const int aux_output_l_off = get_output_offset(i_ur, i_load)
+                            / jcp.typesize_out;
+                    const auto vmm_idx = vmm_out_idx(i_ur, i_load);
+                    vmm_idxs.emplace(vmm_idx);
+
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_addr.emplace(
+                            vmm_idx, ptr[param1 + GET_OFF(oc_l_off)]);
+                    rhs_arg_params.vmm_idx_to_oc_elem_off_val.emplace(
+                            vmm_idx, i_load * jcp.oc_block);
+                    rhs_arg_params.vmm_idx_to_out_off_oprnd.emplace(
+                            vmm_idx, temp_offset_reg);
+                    rhs_arg_params.vmm_idx_to_out_elem_off_val.emplace(
+                            vmm_idx, aux_output_l_off);
+                    if (mask_flag) {
+                        rhs_arg_params.vmm_tail_idx_.emplace(vmm_idx);
+                    }
+                });
+
+        // get_rhs_arg_broadcasting_strategy
+        const injector_utils::register_preserve_guard_t register_guard(
+                this, {temp_offset_reg});
+        mov(temp_offset_reg, reg_out);
+        sub(temp_offset_reg, ptr[param1 + GET_OFF(dst_orig)]);
+        shr(temp_offset_reg, std::log2(sizeof(float)));
+
+        postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
+    } else {
+        iterate(jcp.nb_oc_blocking, ur_w,
+                [&](const bool, const int i_load, const int i_ur) {
+                    vmm_idxs.emplace(vmm_out_idx(i_ur, i_load));
+                });
+        postops_injector_->compute_vector_range(vmm_idxs);
+    }
+}
+
 template <typename Vmm>
 void _jit_avx512_common_conv_fwd_kernel<Vmm>::store_output(int ur_w) {
-    Label no_update_label, store_label, eltwise_label;
+    Label no_update_label, store_label, post_ops_label;
 
     // Note 1: the following code has conditions that fix a regression
     // in Densenet
@@ -154,7 +243,7 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::store_output(int ur_w) {
         }
 
     if (!jcp.with_sum) {
-        jmp(eltwise_label, T_NEAR);
+        jmp(post_ops_label, T_NEAR);
     } else {
         auto _jmp = [&](const Label &l) {
             return mayiuse(avx512_mic) ? jne(l, T_NEAR) : jz(l, T_NEAR);
@@ -162,7 +251,7 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::store_output(int ur_w) {
 
         // *Note 1
         _test(mayiuse(avx512_mic) ? 0 : FLAG_IC_FIRST);
-        _jmp(eltwise_label);
+        _jmp(post_ops_label);
     }
 
     L(no_update_label);
@@ -180,8 +269,9 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::store_output(int ur_w) {
         }
     }
 
-    L(eltwise_label);
-    if (jcp.with_eltwise) {
+    L(post_ops_label);
+
+    if (jcp.with_eltwise || jcp.with_binary) {
         auto _jmp = [&](const Label &l) {
             return mayiuse(avx512_mic) ? jl(l, T_NEAR) : jz(l, T_NEAR);
         };
@@ -190,10 +280,11 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::store_output(int ur_w) {
         _test(mayiuse(avx512_mic) ? jcp.nb_ic - 1 : FLAG_IC_LAST);
         _jmp(store_label);
 
-        eltwise_injector_->compute_vector_range(0, jcp.nb_oc_blocking * ur_w);
+        apply_postops(ur_w);
     }
 
     L(store_label);
+
     for (int k = 0; k < jcp.nb_oc_blocking; k++)
         for (int j = 0; j < ur_w; j++) {
             Vmm vmm = vmm_out(j, k);
@@ -607,7 +698,7 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::compute_loop_fma(
     const bool is_source_layout_nxc = is_src_layout_nxc();
     const bool icb_loop_in_compute_function = is_source_layout_nxc;
     const int ic_tail = jcp.ic_tail;
-    const int oc_tail = jcp.oc_tail;
+    const int oc_tail = jcp.oc == jcp.oc_without_padding ? jcp.oc_tail : 0;
     // reg_channel in icb loop is the same as aux_reg_inp_prf
     assert(IMPLICATION(prf_inp, !icb_loop_in_compute_function));
     int ih = jcp.ih;
@@ -1039,7 +1130,14 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::generate() {
         mov(reg_tail_32, (1 << oc_tail) - 1);
         kmovw(k_oc_tail_mask, reg_tail_32);
         L(done);
-    }
+        kmovw(postops_mask, k_oc_tail_mask);
+    } else if (jcp.with_binary)
+        if (jcp.oc_block != isa_simd_width_) {
+            const int mask = (1 << jcp.oc_block) - 1;
+            const Reg32 reg_tail_32 = reg_tail.cvt32();
+            mov(reg_tail_32, mask);
+            kmovw(postops_mask, reg_tail_32);
+        }
 
     int r_pad = nstl::max(0, jcp.r_pad);
     int n_oi = ow / ur_w;
@@ -1235,24 +1333,7 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::generate() {
     }
     postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
-}
-
-bool jit_avx512_common_conv_fwd_kernel::post_ops_ok(
-        jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
-    const auto &p = attr.post_ops_;
-
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
-
-    switch (p.len()) {
-        case 0: return true; // no post_ops
-        case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-        case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-        default: return false;
-    }
-
-    return false;
+    if (jcp.with_eltwise) postops_injector_->prepare_table();
 }
 
 status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
@@ -1364,19 +1445,32 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (!IMPLICATION(!is_data_layout_nxc,
                 jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0))
         return status::unimplemented;
-    jcp.ic_tail = is_data_layout_nxc ? jcp.ic % jcp.simd_w : 0;
-    jcp.oc_tail = is_data_layout_nxc ? jcp.oc % jcp.simd_w : 0;
 
-    if (!post_ops_ok(jcp, attr)) return status::unimplemented;
-
-    const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    const auto &post_ops = attr.post_ops_;
+    jcp.with_sum = post_ops.find(primitive_kind::sum) != -1;
+    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) {
-        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
     }
+    const int binary_ind = post_ops.find(primitive_kind::binary);
+    jcp.with_binary = binary_ind != -1;
+
+    jcp.post_ops = post_ops;
+
+    using namespace injector;
+    static constexpr bool sum_at_pos_0_only = true;
+    static constexpr bool sum_requires_scale_one = true;
+    const bool post_ops_ok_
+            = post_ops_ok({avx512_common, {eltwise, binary, sum}, jcp.post_ops,
+                    &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
+    if (!post_ops_ok_) return status::unimplemented;
+
+    jcp.ic_tail = is_data_layout_nxc ? jcp.ic % jcp.simd_w : 0;
+    if (is_data_layout_nxc)
+        jcp.oc_tail = jcp.oc % jcp.simd_w;
+    else
+        jcp.oc_tail = jcp.with_binary ? jcp.oc_without_padding % jcp.simd_w : 0;
 
     format_tag_t src_tag, dst_tag, wei_tag;
 

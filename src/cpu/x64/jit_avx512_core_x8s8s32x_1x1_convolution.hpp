@@ -326,13 +326,13 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,
                 new jit_avx512_core_x8s8s32x_1x1_conv_kernel(
-                        pd()->jcp_, *pd()->attr())));
+                        pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
         CHECK(kernel_->create_kernel());
 
         if (pd()->jcp_.with_dw_conv) {
             CHECK(safe_ptr_assign(kernel_dw_,
-                    new dw_conv_kernel_t(
-                            *(pd()->jcp_dw_), *(pd()->dw_conv_pd_->attr()))));
+                    new dw_conv_kernel_t(*(pd()->jcp_dw_),
+                            *(pd()->dw_conv_pd_->attr()), *pd()->dst_md(0))));
             CHECK(kernel_dw_->create_kernel());
         }
 
@@ -350,7 +350,9 @@ private:
             const src_data_t *src, const wei_data_t *weights, const char *bias,
             const wei_data_t *weights_dw, const char *bias_dw, dst_data_t *dst,
             const int32_t *src_zero_point, const int32_t *dst_zero_point,
-            const memory_tracking::grantor_t &scratchpad) const;
+            const memory_tracking::grantor_t &scratchpad,
+            const void *post_ops_binary_rhs_arg_vec,
+            const void *post_ops_binary_rhs_arg_vec_dw) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<jit_avx512_core_x8s8s32x_1x1_conv_kernel> kernel_;
     std::unique_ptr<rtus_driver_t<avx512_common>> rtus_driver_;

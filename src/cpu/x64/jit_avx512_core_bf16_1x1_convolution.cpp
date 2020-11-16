@@ -73,6 +73,12 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward(
     auto dst = CTX_OUT_MEM(const char *, DNNL_ARG_DST);
     auto weights_dw = CTX_IN_MEM(
             const dw_wei_data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+    const auto post_ops_binary_rhs_arg_vec_dw = pd()->jcp_dw_ != nullptr
+            ? binary_injector::prepare_binary_args(pd()->jcp_dw_->post_ops, ctx,
+                    pd()->jcp_.post_ops.entry_.size() + 1)
+            : std::vector<const void *> {};
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -108,7 +114,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward(
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
-                dst, scratchpad);
+                dst, scratchpad, post_ops_binary_rhs_arg_vec.data(),
+                post_ops_binary_rhs_arg_vec_dw.data());
     });
 
     if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);
@@ -119,7 +126,9 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         const int ithr, const int nthr, const src_data_t *src,
         const wei_data_t *weights, const char *bias,
         const dw_wei_data_t *weights_dw, const float *bias_dw, const char *dst,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad,
+        const void *post_ops_binary_rhs_arg_vec,
+        const void *post_ops_binary_rhs_arg_vec_dw) const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -196,7 +205,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
 
     auto init_load = [&](int ocb, int ocb_end, int &load_step) {
         load_step = step(nb_load_blocking, ocb_end - ocb, nb_load_blocking_max);
-        const auto max_oc = nstl::min(ocb_end * jcp.oc_block, jcp.oc);
+        const auto max_oc
+                = nstl::min(ocb_end * jcp.oc_block, jcp.oc_without_padding);
         p.load_dim = this_block_size(
                 ocb * jcp.oc_block, max_oc, load_step * jcp.oc_block);
     };
@@ -257,6 +267,11 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         const size_t str_size = jcp.bcast_dim * max_load_per_thread;
         p.store_buffer = store_buffer + ithr * str_size
                 + data_blk_off(dst_d, 0, 0, od, oh, ow);
+
+        p.dst_l_off = dst_off;
+        p.oc_l_off = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
+        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
+        p.dst_orig = dst;
 
         (*kernel_)(&p);
     };
@@ -354,6 +369,11 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             par_conv_dw.kh_padding = (size_t)nstl::max(0, kh_padding);
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw->nb_ch) - ch;
+
+            par_conv_dw.oc_l_off = ch * jcp_dw->ch_block;
+            par_conv_dw.post_ops_binary_rhs_arg_vec
+                    = post_ops_binary_rhs_arg_vec_dw;
+            par_conv_dw.dst_orig = dst;
 
             (*kernel_dw_)(&par_conv_dw);
 
@@ -604,7 +624,7 @@ jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::init(
         engine_t *engine) {
     CHECK(safe_ptr_assign(kernel_,
             new jit_avx512_core_bf16_1x1_conv_kernel(
-                    pd()->jcp_, *pd()->attr())));
+                    pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
 
     CHECK(safe_ptr_assign(
             acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));

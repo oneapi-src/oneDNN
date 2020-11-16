@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -32,15 +32,8 @@ namespace x64 {
 template <typename Vmm>
 struct _jit_avx512_common_conv_fwd_kernel : public jit_generator {
 
-    _jit_avx512_common_conv_fwd_kernel(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
-                    this, jcp.eltwise);
-    }
-
-    ~_jit_avx512_common_conv_fwd_kernel() { delete eltwise_injector_; }
+    _jit_avx512_common_conv_fwd_kernel(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_common_conv_fwd_kernel)
 
@@ -48,6 +41,8 @@ struct _jit_avx512_common_conv_fwd_kernel : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
+    constexpr static int isa_simd_width_
+            = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
     using reg64_t = const Xbyak::Reg64;
     enum {
         typesize = sizeof(float),
@@ -92,16 +87,21 @@ private:
     reg64_t reg_tail = aux_reg_ker;
     reg64_t reg_load_work = reg_tail;
     Xbyak::Opmask k_oc_tail_mask = Xbyak::Opmask(2);
+    const Xbyak::Opmask postops_mask = Xbyak::Opmask(3);
 
     inline Vmm vmm_ker(int i_ic) {
         assert(i_ic < 4);
         return Vmm(ker_reg_base_idx + i_ic);
     }
 
-    inline Vmm vmm_out(int i_ur, int i_oc) {
-        int idx = i_ur * jcp.nb_oc_blocking + i_oc;
+    inline int vmm_out_idx(int i_ur, int i_oc) {
+        const int idx = i_ur * jcp.nb_oc_blocking + i_oc;
         assert(idx < ker_reg_base_idx);
-        return Vmm(idx);
+        return idx;
+    }
+
+    inline Vmm vmm_out(int i_ur, int i_oc) {
+        return Vmm(vmm_out_idx(i_ur, i_oc));
     }
 
     inline Vmm vmm_inp(int i_ic, int nb_x_blocking) {
@@ -113,9 +113,11 @@ private:
     Xbyak::Reg64 imm_addr64 = r15;
     Vmm vmm_wei = Vmm(31);
 
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_common>>
+            postops_injector_;
 
     inline void prepare_output(int ur_w);
+    inline void apply_postops(int ur_w);
     inline void store_output(int ur_w);
     inline void compute_loop_fma(int ur_w, int pad_l, int pad_r);
     inline void compute_loop_fma_core(int ur_w, int pad_l, int pad_r);
@@ -179,21 +181,21 @@ private:
 
 struct jit_avx512_common_conv_fwd_kernel {
 
-    jit_avx512_common_conv_fwd_kernel(
-            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
+    jit_avx512_common_conv_fwd_kernel(const jit_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md)
         : kernel_(nullptr) {
         switch (ajcp.oc_block) {
             case 16:
                 kernel_ = new _jit_avx512_common_conv_fwd_kernel<Xbyak::Zmm>(
-                        ajcp, attr);
+                        ajcp, attr, dst_md);
                 return;
             case 8:
                 kernel_ = new _jit_avx512_common_conv_fwd_kernel<Xbyak::Ymm>(
-                        ajcp, attr);
+                        ajcp, attr, dst_md);
                 return;
             case 4:
                 kernel_ = new _jit_avx512_common_conv_fwd_kernel<Xbyak::Xmm>(
-                        ajcp, attr);
+                        ajcp, attr, dst_md);
                 return;
             default: assert(!"invalid channel blocking");
         }
@@ -205,7 +207,6 @@ struct jit_avx512_common_conv_fwd_kernel {
 
     enum { typesize = sizeof(float) };
 
-    static bool post_ops_ok(jit_conv_conf_t &jcp, const primitive_attr_t &attr);
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_pd,
             memory_desc_t &weights_pd, memory_desc_t &dst_pd,

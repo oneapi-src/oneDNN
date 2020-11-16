@@ -592,7 +592,10 @@ struct jit_1x1_conv_call_s {
     // logical (# of elems) offset to the processed output channel
     // (for broadcasting [1,OC,1,1])
     size_t oc_l_off;
-    const void *dst_orig; // pointer to dst memory (not offseted)
+    // logical (# of elems) offset to the processed pixel
+    // (for non-broadcasting policy)
+    size_t dst_l_off;
+    const void *dst_orig; // pointer to dst memory (no offset)
 
     size_t load_dim;
     size_t bcast_dim;

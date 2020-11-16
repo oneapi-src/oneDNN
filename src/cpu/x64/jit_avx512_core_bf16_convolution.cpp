@@ -53,10 +53,13 @@ void jit_avx512_core_bf16_convolution_fwd_t::prepare_padded_bias(
 
 void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
         const exec_ctx_t &ctx) const {
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
@@ -66,7 +69,6 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
@@ -118,13 +120,18 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
             auto src_w = src + src_d.blk_off(n, ic_idx, iw_s);
             auto wht_w = weights + wht_blk_off(weights_d, g, ocb);
 
-            par_conv.load_work = this_block_size(ocb * jcp.oc_block, jcp.oc,
-                    jcp.nb_oc_blocking * jcp.oc_block);
+            par_conv.load_work = this_block_size(ocb * jcp.oc_block,
+                    jcp.oc_without_padding, jcp.nb_oc_blocking * jcp.oc_block);
             par_conv.src = src_w;
             par_conv.dst = dst_w;
             par_conv.filt = wht_w;
             par_conv.bias = bias_w;
             par_conv.owb = owb;
+
+            par_conv.oc_l_off = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
+            par_conv.dst_orig = dst;
+            par_conv.post_ops_binary_rhs_arg_vec
+                    = post_ops_binary_rhs_arg_vec.data();
             (*kernel_)(&par_conv);
 
             if (jcp.loop_order == loop_cwgn) {
@@ -147,10 +154,13 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
 
 void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
         const exec_ctx_t &ctx) const {
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
@@ -160,7 +170,6 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
@@ -233,13 +242,20 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
                 auto aux_wht = wht_w + i_t_overflow * wht_h_stride;
 
                 par_conv.load_work = utils::this_block_size(ocb * jcp.oc_block,
-                        jcp.oc, jcp.nb_oc_blocking * jcp.oc_block);
+                        jcp.oc_without_padding,
+                        jcp.nb_oc_blocking * jcp.oc_block);
                 par_conv.src = aux_src;
                 par_conv.dst = dst_w;
                 par_conv.filt = aux_wht;
                 par_conv.bias = bias_w;
                 par_conv.kh_padding = kh_padding;
                 par_conv.owb = owb;
+
+                par_conv.oc_l_off
+                        = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
+                par_conv.dst_orig = dst;
+                par_conv.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
                 (*kernel_)(&par_conv);
 
                 src_w += src_h_stride * jcp.stride_h;
@@ -263,10 +279,13 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
 
 void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
         const exec_ctx_t &ctx) const {
+    const auto &jcp = pd()->jcp_;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(jcp.post_ops, ctx);
 
     prepare_padded_bias(bias, ctx.get_scratchpad_grantor());
 
@@ -276,7 +295,6 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
@@ -362,7 +380,8 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
                 auto aux_wht = wht_w + i_t_overflow * wht_h_stride;
 
                 par_conv.load_work = utils::this_block_size(ocb * jcp.oc_block,
-                        jcp.oc, jcp.nb_oc_blocking * jcp.oc_block);
+                        jcp.oc_without_padding,
+                        jcp.nb_oc_blocking * jcp.oc_block);
                 par_conv.src = aux_src;
                 par_conv.dst = dst_w;
                 par_conv.filt = aux_wht;
@@ -370,6 +389,12 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
                 par_conv.kh_padding = kh_padding;
                 par_conv.kd_padding = kd_padding;
                 par_conv.owb = owb;
+
+                par_conv.oc_l_off
+                        = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
+                par_conv.dst_orig = dst;
+                par_conv.post_ops_binary_rhs_arg_vec
+                        = post_ops_binary_rhs_arg_vec.data();
                 (*kernel_)(&par_conv);
 
                 src_w += src_h_stride * jcp.stride_h;

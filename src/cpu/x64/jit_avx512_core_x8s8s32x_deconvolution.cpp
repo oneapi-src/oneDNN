@@ -51,7 +51,7 @@ jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::
         static constexpr bool use_exact_tail_scalar_bcast = false;
 
         const binary_injector::rhs_arg_static_params_t rhs_sp {
-                static_cast<std::size_t>(Xbyak::Xmm(31).getIdx()), this->rdx,
+                static_cast<size_t>(Xbyak::Xmm(31).getIdx()), this->rdx,
                 this->r14, preserve_gpr, preserve_vmm,
                 GET_OFF(post_ops_binary_rhs_arg_vec),
                 memory_desc_wrapper(dst_md), tail_size, ktail_mask,
@@ -213,7 +213,7 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
                         || (jcp.oc % jcp.oc_block != 0))) {
             /* For grouped deconvolutions, oneDNN doesn't support padding.
                 When channels per group is not multiple of 16:
-                - Use Ymm when channels per group is multiple of 8, 
+                - Use Ymm when channels per group is multiple of 8,
                 - Use Xmm when channels per group is multiple of 4,
                 - Otherwise return unimplemented. */
             jcp.ic_block = (jcp.ic % 8 == 0) && (jcp.oc % 8 == 0) ? 8 : 4;

@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
@@ -30,20 +30,10 @@ namespace cpu {
 namespace x64 {
 
 struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
-    jit_avx512_common_1x1_conv_kernel(
-            const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
-                    this, jcp.eltwise);
-    }
-
-    ~jit_avx512_common_1x1_conv_kernel() { delete eltwise_injector_; }
+    jit_avx512_common_1x1_conv_kernel(const jit_1x1_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_common_1x1_conv_kernel)
-
-    static bool post_ops_ok(
-            jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -58,6 +48,11 @@ struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_common>>
+            postops_injector_;
+
+    constexpr static int isa_simd_width_
+            = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
     using reg64_t = const Xbyak::Reg64;
     using zmm_t = const Xbyak::Zmm;
 
@@ -84,14 +79,19 @@ private:
     Xbyak::Opmask k_load_dim_mask = Xbyak::Opmask(2);
     Xbyak::Opmask k_load_dim_tail_mask = Xbyak::Opmask(3);
 
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
-
-    int bcast_loop_work_offt = 0;
-    int stack_space_needed = 16;
+    constexpr static int reg64_size_ = sizeof(int64_t);
+    constexpr static int reg_bcast_loop_work_offt = 0;
+    constexpr static int reg_binary_post_op_acc_off = 1 * reg64_size_;
+    constexpr static int reg_abi_param1_backup = 2 * reg64_size_;
+    constexpr static int stack_space_needed = 3 * reg64_size_;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
+    Xbyak::Address output_ptr(
+            const bool out_layout_nxc, const int i_load, const int i_ur);
+    void apply_postops(const bool is_out_layout_nxc, const int load_loop_blk,
+            const int ur);
     void generate() override;
     static void balance(jit_1x1_conv_conf_t &jcp);
 };

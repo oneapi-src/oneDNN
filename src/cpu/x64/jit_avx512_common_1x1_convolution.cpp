@@ -41,6 +41,7 @@ using namespace dnnl::impl::utils;
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>
 void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         dst_type>::execute_forward(const exec_ctx_t &ctx) const {
+    const auto &jcp = kernel_->jcp;
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const dst_data_t *, DNNL_ARG_BIAS);
@@ -49,10 +50,16 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
             const wei_data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
     auto bias_dw = CTX_IN_MEM(
             const dst_data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
+    const auto post_ops_binary_rhs_arg_vec_dw = pd()->dw_conv_pd_
+            ? binary_injector::prepare_binary_args(
+                    pd()->dw_conv_pd_->jcp_.post_ops, ctx,
+                    pd()->jcp_.post_ops.entry_.size() + 1)
+            : std::vector<const void *> {};
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    const auto &jcp = kernel_->jcp;
     if (pd()->wants_padded_bias()) {
         auto padded_bias
                 = scratchpad.template get<dst_data_t>(key_conv_padded_bias);
@@ -64,7 +71,8 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
-                dst, scratchpad);
+                dst, scratchpad, post_ops_binary_rhs_arg_vec.data(),
+                post_ops_binary_rhs_arg_vec_dw.data());
     });
 
     if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);
@@ -76,7 +84,9 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         const src_data_t *src, const wei_data_t *weights,
         const dst_data_t *bias, const wei_data_t *weights_dw,
         const dst_data_t *bias_dw, dst_data_t *dst,
-        const memory_tracking::grantor_t &scratchpad) const {
+        const memory_tracking::grantor_t &scratchpad,
+        const void *post_ops_binary_rhs_arg_vec,
+        const void *post_ops_binary_rhs_arg_vec_dw) const {
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -155,7 +165,8 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
 
     auto init_load = [&](int ocb, int ocb_end, int &load_step) {
         load_step = step(nb_load_blocking, ocb_end - ocb, nb_load_blocking_max);
-        const auto max_oc = nstl::min(ocb_end * jcp.oc_block, jcp.oc);
+        const auto max_oc
+                = nstl::min(ocb_end * jcp.oc_block, jcp.oc_without_padding);
         p.load_dim = this_block_size(
                 ocb * jcp.oc_block, max_oc, load_step * jcp.oc_block);
     };
@@ -205,8 +216,14 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         } else
             p.bcast_data = src + data_blk_off(src_d, n, ic_off_idx, id, ih, iw);
 
+        p.dst_l_off = dst_off;
+        p.oc_l_off = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block);
+        p.post_ops_binary_rhs_arg_vec = post_ops_binary_rhs_arg_vec;
+        p.dst_orig = dst;
+
         (*kernel_)(&p);
     };
+
     auto conv_1x1 = [&](int bcast_start, int bcast_end, int ocb_start,
                             int ocb_end) {
         if (bcast_start >= bcast_end || ocb_start >= ocb_end) return;
@@ -340,6 +357,11 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
             par_conv_dw.kh_padding = (size_t)nstl::max(0, kh_padding);
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw.nb_ch) - ch;
+
+            par_conv_dw.oc_l_off = ch * jcp_dw.ch_block;
+            par_conv_dw.post_ops_binary_rhs_arg_vec
+                    = post_ops_binary_rhs_arg_vec_dw;
+            par_conv_dw.dst_orig = dst;
 
             (*kernel_dw_)(&par_conv_dw);
 
@@ -573,7 +595,8 @@ template struct jit_avx512_common_1x1_convolution_bwd_data_t<data_type::f32>;
 status_t jit_avx512_common_1x1_convolution_bwd_weights_t ::init(
         engine_t *engine) {
     CHECK(safe_ptr_assign(kernel_,
-            new jit_avx512_common_1x1_conv_kernel(pd()->jcp_, *pd()->attr())));
+            new jit_avx512_common_1x1_conv_kernel(
+                    pd()->jcp_, *pd()->attr(), *pd()->dst_md(0))));
     CHECK(safe_ptr_assign(
             acc_ker_, new cpu_accumulator_1d_t<data_type::f32>()));
     CHECK(safe_ptr_assign(reducer_bias_,

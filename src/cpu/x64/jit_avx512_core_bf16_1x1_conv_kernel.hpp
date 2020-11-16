@@ -18,7 +18,8 @@
 #define CPU_X64_JIT_AVX512_CORE_BF16_1X1_CONV_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
-#include "cpu/x64/injectors/jit_uni_eltwise_injector.hpp"
+
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
@@ -29,32 +30,10 @@ namespace cpu {
 namespace x64 {
 
 struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
-    jit_avx512_core_bf16_1x1_conv_kernel(
-            const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
-        : jit_generator(nullptr, ker_code_size, true, avx512_core_bf16)
-        , jcp(ajcp)
-        , attr_(attr)
-        , eltwise_injector_(nullptr)
-        , bf16_emu_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
-                    this, jcp.eltwise);
-
-        if (!isa_has_bf16(jcp.isa))
-            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
-                    bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
-                    bf16_emu_reserv_5, bf16_emu_reserv_6);
-    }
-
-    ~jit_avx512_core_bf16_1x1_conv_kernel() {
-        delete eltwise_injector_;
-        delete bf16_emu_;
-    }
+    jit_avx512_core_bf16_1x1_conv_kernel(const jit_1x1_conv_conf_t &ajcp,
+            const primitive_attr_t &attr, const memory_desc_t &dst_md);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_bf16_1x1_conv_kernel)
-
-    static bool post_ops_ok(
-            jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
@@ -69,6 +48,11 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
     const primitive_attr_t &attr_;
 
 private:
+    constexpr static int isa_simd_width_
+            = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
+    std::unique_ptr<injector::jit_uni_postops_injector_t<avx512_core>>
+            postops_injector_;
+
     using reg64_t = const Xbyak::Reg64;
     using zmm_t = const Xbyak::Zmm;
     using mask_t = const Xbyak::Opmask;
@@ -127,18 +111,22 @@ private:
     Xbyak::Opmask half_mask_hi = Xbyak::Opmask(5);
     Xbyak::Label dst_prm_table;
 
-    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
-
-    int bcast_loop_work_offt = 0;
-    int reg_load_loop_work_off = 8;
-    int perm_reg_offset = 16;
-    int broadcast_space = 32;
-    int stack_space_needed = 360;
+    constexpr static int reg64_size_ = sizeof(int64_t);
+    constexpr static int bcast_loop_work_offt = 0;
+    constexpr static int reg_load_loop_work_off = 1 * reg64_size_;
+    constexpr static int perm_reg_offset = 2 * reg64_size_;
+    constexpr static int broadcast_space = 3 * reg64_size_;
+    constexpr static int reg_binary_post_op_acc_off = 4 * reg64_size_;
+    constexpr static int reg_abi_param1_backup = 5 * reg64_size_;
+    constexpr static int stack_space_needed = 376;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
     void compute_diff_bias(int load_loop_blk);
 
+    Xbyak::Address output_ptr(
+            const int i_load, const int i_ur, const int scale = 1);
+    void apply_postops(const int load_loop_blk, const int ur);
     void generate() override;
     static void balance(jit_1x1_conv_conf_t &jcp, int nthreads);
     inline bool is_bcast_layout_nxc() {
@@ -188,11 +176,16 @@ private:
         return zmm;
     }
 
-    inline Xbyak::Ymm may_be_mask_ymm(Xbyak::Ymm ymm, bool mask_flag) {
-        return mask_flag ? ymm | k_load_dim_mask : ymm;
+    inline Xbyak::Ymm may_be_mask_ymm(
+            Xbyak::Ymm ymm, bool mask_flag, bool zero_mask = false) {
+        if (mask_flag) {
+            ymm = ymm | k_load_dim_mask;
+            if (zero_mask) ymm = ymm | T_z;
+        }
+        return ymm;
     }
 
-    bf16_emulation_t *bf16_emu_;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_;
 };
 } // namespace x64
 } // namespace cpu
