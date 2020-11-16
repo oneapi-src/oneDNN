@@ -437,8 +437,10 @@ status_t primitive_attr_t::set_fpmath_mode(fpmath_mode_t fpmath_mode) {
 
 status_t primitive_attr_t::set_scratchpad_mode(
         scratchpad_mode_t scratchpad_mode) {
-    const bool ok = one_of(
-            scratchpad_mode, scratchpad_mode::library, scratchpad_mode::user);
+    /* workaround for the name conflict with system struct 'user' in llvm-android toolchain */
+    using namespace dnnl::impl::scratchpad_mode;
+
+    const bool ok = one_of(scratchpad_mode, scratchpad_mode::library, scratchpad_mode::user);
     if (!ok) return invalid_arguments;
 
     scratchpad_mode_ = scratchpad_mode;
