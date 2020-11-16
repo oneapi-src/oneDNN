@@ -76,25 +76,6 @@ nested_scratchpad_t::~nested_scratchpad_t() {
 nested_scratchpad_t::~nested_scratchpad_t() = default;
 #endif
 
-} // namespace impl
-} // namespace dnnl
-
-// API
-status_t dnnl_primitive_desc_destroy(
-        primitive_desc_iface_t *primitive_desc_iface) {
-    delete primitive_desc_iface;
-    return success;
-}
-
-status_t dnnl_primitive_create(primitive_iface_t **primitive_iface,
-        const primitive_desc_iface_t *primitive_desc_iface) {
-    if (utils::any_null(primitive_iface, primitive_desc_iface))
-        return invalid_arguments;
-    return primitive_desc_iface->create_primitive_iface(primitive_iface);
-}
-
-namespace dnnl {
-namespace impl {
 status_t primitive_execute(
         const primitive_iface_t *primitive_iface, exec_ctx_t &ctx) {
     auto stream = ctx.stream();
@@ -123,6 +104,20 @@ status_t primitive_execute(
 
 } // namespace impl
 } // namespace dnnl
+
+// API
+status_t dnnl_primitive_desc_destroy(
+        primitive_desc_iface_t *primitive_desc_iface) {
+    delete primitive_desc_iface;
+    return success;
+}
+
+status_t dnnl_primitive_create(primitive_iface_t **primitive_iface,
+        const primitive_desc_iface_t *primitive_desc_iface) {
+    if (utils::any_null(primitive_iface, primitive_desc_iface))
+        return invalid_arguments;
+    return primitive_desc_iface->create_primitive_iface(primitive_iface);
+}
 
 status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
         stream_t *stream, int nargs, const dnnl_exec_arg_t *c_args) {
