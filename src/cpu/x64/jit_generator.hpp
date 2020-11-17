@@ -792,7 +792,7 @@ public:
             paddd(x1, op);
         }
     }
-    void uni_vpaddd(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
+    void uni_vpaddd(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
         vpaddd(x1, x2, op);
     }
@@ -806,7 +806,7 @@ public:
             paddb(x1, op);
         }
     }
-    void uni_vpaddb(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
+    void uni_vpaddb(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
         vpaddb(x1, x2, op);
     }
@@ -820,7 +820,7 @@ public:
             pmaddwd(x1, op);
         }
     }
-    void uni_vpmaddwd(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
+    void uni_vpmaddwd(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
         vpmaddwd(x1, x2, op);
     }
@@ -834,7 +834,7 @@ public:
             pmaddubsw(x1, op);
         }
     }
-    void uni_vpmaddubsw(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
+    void uni_vpmaddubsw(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
         vpmaddubsw(x1, x2, op);
     }
