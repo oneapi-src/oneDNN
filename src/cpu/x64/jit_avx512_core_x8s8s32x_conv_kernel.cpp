@@ -162,8 +162,9 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
         }
         if (jcp.signed_input) {
             int comp_offset = sizeof(int32_t) * k * oc_block;
-            auto comp_addr = EVEX_compress_addr(reg_compensation, comp_offset);
-            cvt2ps(data_type::s32, vmm_comp, comp_addr, mask_flag);
+            Vmm vmm_comp_ = vmm_mask(vmm_comp, mask_flag);
+            vmovups(vmm_comp_,
+                    EVEX_compress_addr(reg_compensation, comp_offset));
         }
         if (jcp.src_zero_point) {
             // zero_point: conv(src_x8, wei_s8) - src_shift_s32 * compensation_s32
@@ -181,8 +182,12 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
             Vmm vmm = vmm_out(j, k);
             if (jcp.is_fast_depthwise)
                 vpermd(zmm_out(j, k), zmm_permute, zmm_out(j, k));
+            /* add comp in s32 to avoid loss of precision
+               when convert s32 to f32 in integer(2^24)
+               TODO: do the same to zero_point and  bias */
+            if (jcp.signed_input) vpaddd(vmm, vmm, vmm_comp);
             vcvtdq2ps(vmm, vmm);
-            if (jcp.signed_input) vaddps(vmm, vmm, vmm_comp);
+
             if (jcp.src_zero_point) vaddps(vmm, vmm, vmm_zp);
 
             if (jcp.with_bias) vaddps(vmm, vmm, vmm_bias);
