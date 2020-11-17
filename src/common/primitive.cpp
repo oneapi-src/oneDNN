@@ -76,6 +76,28 @@ nested_scratchpad_t::~nested_scratchpad_t() {
 nested_scratchpad_t::~nested_scratchpad_t() = default;
 #endif
 
+status_t primitive_create(primitive_iface_t **primitive_iface,
+        const primitive_desc_iface_t *primitive_desc_iface) {
+
+    status_t status = status::success;
+    std::pair<primitive_iface_t *, bool> p_iface;
+
+    if (get_verbose() >= 2) {
+        double ms = get_msec();
+        status = primitive_desc_iface->create_primitive_iface(p_iface);
+
+        const char *str = p_iface.second ? "cache_hit" : "cache_miss";
+        ms = get_msec() - ms;
+        printf("dnnl_verbose,create:%s,%s,%g\n", str,
+                p_iface.first->pd()->info(), ms);
+        fflush(stdout);
+    } else {
+        status = primitive_desc_iface->create_primitive_iface(p_iface);
+    }
+    if (status == status::success) (*primitive_iface) = p_iface.first;
+    return status;
+}
+
 status_t primitive_execute(
         const primitive_iface_t *primitive_iface, exec_ctx_t &ctx) {
     auto stream = ctx.stream();
@@ -116,7 +138,7 @@ status_t dnnl_primitive_create(primitive_iface_t **primitive_iface,
         const primitive_desc_iface_t *primitive_desc_iface) {
     if (utils::any_null(primitive_iface, primitive_desc_iface))
         return invalid_arguments;
-    return primitive_desc_iface->create_primitive_iface(primitive_iface);
+    return dnnl::impl::primitive_create(primitive_iface, primitive_desc_iface);
 }
 
 status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,

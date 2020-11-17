@@ -66,18 +66,10 @@ struct primitive_t : public c_compatible {
 protected:
     template <typename impl_type, typename pd_t>
     static status_t create_primitive_common(
-            std::shared_ptr<primitive_t> &primitive, const pd_t *pd,
-            engine_t *engine, bool use_global_scratchpad) {
-        const auto print_verbose = [&](bool cache_hit, double time) {
-            if (get_verbose() >= 2) {
-                const char *str = cache_hit ? "dnnl_verbose,create:cache_hit"
-                                            : "dnnl_verbose,create:cache_miss";
-                printf("%s,%s,%g\n", str, primitive->pd()->info(engine), time);
-                fflush(0);
-            }
-        };
+            std::pair<std::shared_ptr<primitive_t>, bool> &primitive,
+            const pd_t *pd, engine_t *engine, bool use_global_scratchpad) {
+
         auto &global_primitive_cache = primitive_cache();
-        double ms = get_msec();
         primitive_hashing::key_t key(pd, engine, dnnl_get_max_threads());
 
         std::promise<primitive_cache_t::cache_value_t> p_promise;
@@ -88,12 +80,12 @@ protected:
         auto p_future = global_primitive_cache.get_or_add(
                 key, p_promise.get_future());
 
-        bool cache_hit = p_future.valid();
+        bool is_from_cache = p_future.valid();
 
         auto status = status::success;
         std::shared_ptr<primitive_t> p;
 
-        if (cache_hit) {
+        if (is_from_cache) {
             // The requested primitive is present in the cache or is being
             // created by another thread.
             p = p_future.get().primitive;
@@ -118,9 +110,7 @@ protected:
                 p_promise.set_value({p, status});
             }
         }
-        primitive = p;
-        ms = get_msec() - ms;
-        print_verbose(cache_hit, ms);
+        primitive = std::make_pair(p, is_from_cache);
         return status;
     }
 
