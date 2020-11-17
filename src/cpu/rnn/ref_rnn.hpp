@@ -217,11 +217,15 @@ struct _ref_rnn_common_t : public primitive_t {
             int padding = (rnn_.is_int8()) ? 4 : (rnn_.is_bf16()) ? 2 : 1;
             rnn_.K1padded = utils::rnd_up(rnn_.K1, padding);
             rnn_.K2padded = utils::rnd_up(rnn_.K2, padding);
-            if ((rnn_.is_int8() && x64::mayiuse(x64::amx_int8))
-                    || (rnn_.is_bf16() && x64::mayiuse(x64::amx_bf16))) {
+            if ((rnn_.is_int8() && x64::mayiuse(x64::avx512_core_bf16_amx_int8))
+                    || (rnn_.is_bf16()
+                            && x64::mayiuse(x64::avx512_core_bf16_amx_bf16))) {
                 const dim_t max_row_width
-                        = (rnn_.is_int8() && x64::mayiuse(x64::amx_int8)) ? 64
-                                                                          : 32;
+                        = (rnn_.is_int8()
+                                  && x64::mayiuse(
+                                          x64::avx512_core_bf16_amx_int8))
+                        ? 64
+                        : 32;
                 rnn_.k1_block = nstl::min(rnn_.K1, (dim_t)max_row_width);
                 rnn_.k2_block = nstl::min(rnn_.K2, (dim_t)max_row_width);
                 if (rnn_.k1_block <= rnn_.K1 || rnn_.k2_block <= rnn_.K2) {
@@ -242,8 +246,9 @@ struct _ref_rnn_common_t : public primitive_t {
                     rnn_.brgemm_isa = rnn_.is_int8() ? x64::avx512_core_vnni
                                                      : x64::avx512_core_bf16;
                 } else {
-                    rnn_.brgemm_isa
-                            = rnn_.is_int8() ? x64::amx_int8 : x64::amx_bf16;
+                    rnn_.brgemm_isa = rnn_.is_int8()
+                            ? x64::avx512_core_bf16_amx_int8
+                            : x64::avx512_core_bf16_amx_bf16;
                 }
             } else {
                 rnn_.k1_block = rnn_.K1;
@@ -344,8 +349,9 @@ struct _ref_rnn_common_t : public primitive_t {
                                 ? x64::avx512_core_vnni
                                 : x64::avx512_core_bf16;
                     } else {
-                        rnn_.brgemm_isa = rnn_.is_int8() ? x64::amx_int8
-                                                         : x64::amx_bf16;
+                        rnn_.brgemm_isa = rnn_.is_int8()
+                                ? x64::avx512_core_bf16_amx_int8
+                                : x64::avx512_core_bf16_amx_bf16;
                     }
                 } else {
                     rnn_.kproj_block = rnn_.Kproj;
@@ -418,11 +424,9 @@ struct _ref_rnn_common_t : public primitive_t {
                     this->dst_md(1), this->dst_md(2));
             if (!ok) return status::unimplemented;
 
-            if (rnn_.is_bf16()
-                    && (!mayiuse(avx512_core_bf16) && !mayiuse(amx_bf16)))
+            if (rnn_.is_bf16() && !mayiuse(avx512_core_bf16))
                 return status::unimplemented;
-            if (rnn_.is_int8()
-                    && (!mayiuse(avx512_core_vnni) && !mayiuse(amx_int8)))
+            if (rnn_.is_int8() && !mayiuse(avx512_core_vnni))
                 return status::unimplemented;
             if (rnn_.is_f32() && !mayiuse(avx512_core))
                 return status::unimplemented;

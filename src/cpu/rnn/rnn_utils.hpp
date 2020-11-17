@@ -243,7 +243,7 @@ struct rnn_conf_t {
     }
     inline bool is_int8_amx() const {
 #if DNNL_X64
-        return brgemm_isa == x64::amx_int8 && is_int8();
+        return brgemm_isa == x64::avx512_core_bf16_amx_int8 && is_int8();
 #else
         return false;
 #endif
@@ -251,7 +251,7 @@ struct rnn_conf_t {
     inline bool is_bf16() const { return dt_conf == all_bf16; }
     inline bool is_bf16_amx() const {
 #if DNNL_X64
-        return brgemm_isa == x64::amx_bf16 && is_bf16();
+        return brgemm_isa == x64::avx512_core_bf16_amx_bf16 && is_bf16();
 #else
         return false;
 #endif
