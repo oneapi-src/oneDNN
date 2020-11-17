@@ -243,7 +243,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
             && dst_mdw.is_dense() && last_dim % 8 == 0
             && dst_mdw.md_->format_desc.blocking.strides[last] == 1
             && src_mdw.md_->format_desc.blocking.strides[last] == 1
-            && conf.ndims <= 6;
+            && conf.ndims <= MAX_NDIMS;
 
     // This kernel supports 2D reorders into blocked formats that
     // end in 8a4b or 8a2b, no matter how many block layers, but no padding.
@@ -254,7 +254,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
                     dst_mdw.md_->format_desc.blocking, conf.ndims)
             && padded_dims[last] % 16 == 0;
 
-    dim_t blocks[6] = {1, 1, 1, 1, 1, 1};
+    dim_t blocks[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
     if (use_unroll_16a16b) {
         blocks[0] = 16;
     } else if (use_unroll_16b) {
@@ -273,7 +273,7 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
 
     if (conf.vectorize_last_dim) {
         conf.use_ref_impl = false;
-        for (int dim = last - 1; dim >= 0; dim--) {
+        for (int dim = last - 1; dim >= 0 && dim < MAX_NDIMS; dim--) {
             if (padded_dims[dim] % 4 == 0) { blocks[dim] = 4; }
             if (padded_dims[dim] % 8 == 0) { blocks[dim] = 8; }
             if (padded_dims[dim] % 16 == 0) { blocks[dim] = 16; }
