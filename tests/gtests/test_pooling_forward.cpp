@@ -19,7 +19,12 @@
 
 #include "dnnl.hpp"
 
+#include <limits>
+
 namespace dnnl {
+
+static constexpr memory::dim undef_padding
+        = std::numeric_limits<memory::dim>::max();
 
 struct test_pool_desc_t {
     memory::dim mb, c;
@@ -28,7 +33,23 @@ struct test_pool_desc_t {
     memory::dim kd, kh, kw;
     memory::dim dd, dh, dw;
     memory::dim padf, padt, padl;
+    memory::dim pad_back, pad_bottom, pad_right;
     memory::dim strd, strh, strw;
+
+    memory::dim get_pad_back() const {
+        if (pad_back != undef_padding) return pad_back;
+        return right_padding(id, od, kd, padf, strd, dd);
+    }
+
+    memory::dim get_pad_bottom() const {
+        if (pad_bottom != undef_padding) return pad_bottom;
+        return right_padding(ih, oh, kh, padt, strh, dh);
+    }
+
+    memory::dim get_pad_right() const {
+        if (pad_right != undef_padding) return pad_right;
+        return right_padding(iw, ow, kw, padl, strw, dw);
+    }
 };
 
 struct pool_test_params_t {
@@ -216,20 +237,14 @@ protected:
             ker = memory::dims({pd.kd, pd.kh, pd.kw});
             dilation = memory::dims({pd.dd, pd.dh, pd.dw});
             pad_l = memory::dims({pd.padf, pd.padt, pd.padl});
-            pad_r = memory::dims({right_padding(pd.id, pd.od, pd.kd, pd.padf,
-                                          pd.strd, pd.dd),
-                    right_padding(pd.ih, pd.oh, pd.kh, pd.padt, pd.strh, pd.dh),
-                    right_padding(
-                            pd.iw, pd.ow, pd.kw, pd.padl, pd.strw, pd.dw)});
+            pad_r = memory::dims({pd.get_pad_back(), pd.get_pad_bottom(),
+                    pd.get_pad_right()});
         } else {
             strides = memory::dims({pd.strh, pd.strw});
             ker = memory::dims({pd.kh, pd.kw});
             dilation = memory::dims({pd.dh, pd.dw});
             pad_l = memory::dims({pd.padt, pd.padl});
-            pad_r = memory::dims({right_padding(pd.ih, pd.oh, pd.kh, pd.padt,
-                                          pd.strh, pd.dh),
-                    right_padding(
-                            pd.iw, pd.ow, pd.kw, pd.padl, pd.strw, pd.dw)});
+            pad_r = memory::dims({pd.get_pad_bottom(), pd.get_pad_right()});
         }
 
         memory workspace;
@@ -285,15 +300,30 @@ using pooling_test_u8 = pooling_test_t<uint8_t>;
 using pooling_test_s32 = pooling_test_t<int32_t>;
 using pool_test_params_float = pool_test_params_t;
 
-//#define EXPAND_NDIMS(ndims, ...) ndims, {__VA_ARGS__}
-
-#define EXPAND_SIZES_3D(...) \
+// sizes with explicit opposite side paddings
+#define EXPAND_SIZES_3D_XPADD(...) \
     5, { __VA_ARGS__ }
+
+#define EXPAND_SIZES_3D(mb, ic, id, ih, iw, od, oh, ow, kd, kh, kw, dd, dh, \
+        dw, padf, padt, padl, strd, strh, strw) \
+    5, { \
+        mb, ic, id, ih, iw, od, oh, ow, kd, kh, kw, dd, dh, dw, padf, padt, \
+                padl, undef_padding, undef_padding, undef_padding, strd, strh, \
+                strw \
+    }
+
+// sizes with explicit opposite side paddings
+#define EXPAND_SIZES_2D_XPADD(mb, ic, ih, iw, oh, ow, kh, kw, dh, dw, padt, \
+        padl, pad_bottom, pad_right, strh, strw) \
+    4, { \
+        mb, ic, 1, ih, iw, 1, oh, ow, 1, kh, kw, 0, dh, dw, 0, padt, padl, 0, \
+                pad_bottom, pad_right, 1, strh, strw \
+    }
 #define EXPAND_SIZES_2D( \
         mb, ic, ih, iw, oh, ow, kh, kw, dh, dw, padt, padl, strh, strw) \
     4, { \
-        mb, ic, 1, ih, iw, 1, oh, ow, 1, kh, kw, 0, dh, dw, 0, padt, padl, 1, \
-                strh, strw \
+        mb, ic, 1, ih, iw, 1, oh, ow, 1, kh, kw, 0, dh, dw, 0, padt, padl, 0, \
+                undef_padding, undef_padding, 1, strh, strw \
     }
 
 #define GPU_INST_TEST_CASE(test, ...) \
@@ -809,6 +839,15 @@ INSTANTIATE_TEST_SUITE_P(TestPoolingForwardMaxKernelSlipsToPadding,
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestPooling3D_nCdhw16c, pooling_test_float,
         ::testing::Values(
+                // try using padding different from what is expected
+                // padding_back == 2
+                pool_test_params_t {prop_kind::forward_training,
+                        algorithm::pooling_max, memory::format_tag::nCdhw16c,
+                        memory::format_tag::nCdhw16c,
+                        EXPAND_SIZES_3D_XPADD(2, 32, 60, 60, 60, 31, 31, 31, 2,
+                                3, 4, 0, 0, 0, 1, 1, 1, 2, undef_padding,
+                                undef_padding, 2, 2, 2)},
+
                 pool_test_params_t {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nCdhw16c,
                         memory::format_tag::nCdhw16c,
