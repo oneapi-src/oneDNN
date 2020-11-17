@@ -40,6 +40,18 @@ namespace gemm_utils {
 void calc_nthr_nocopy_avx(dim_t m, dim_t n, dim_t k, int nthrs, int *nthrs_m,
         int *nthrs_n, int *nthrs_k, dim_t *BM, dim_t *BN, dim_t *BK) {
 
+    // Quick exit for single thread.
+    if (nthrs == 1) {
+        *nthrs_m = 1;
+        *nthrs_n = 1;
+        *nthrs_k = 1;
+
+        *BM = m;
+        *BN = n;
+        *BK = k;
+        return;
+    }
+
     int nthr, nthr_m, nthr_n, nthr_k;
     dim_t MB, NB, KB;
 
@@ -145,6 +157,18 @@ void calc_nthr_nocopy_avx(dim_t m, dim_t n, dim_t k, int nthrs, int *nthrs_m,
 void calc_nthr_nocopy_avx512_common(dim_t m, dim_t n, dim_t k, int nthrs,
         int *nthrs_m, int *nthrs_n, int *nthrs_k, dim_t *BM, dim_t *BN,
         dim_t *BK) {
+
+    // Quick exit for single thread.
+    if (nthrs == 1) {
+        *nthrs_m = 1;
+        *nthrs_n = 1;
+        *nthrs_k = 1;
+
+        *BM = m;
+        *BN = n;
+        *BK = k;
+        return;
+    }
 
     int nthr, nthr_m, nthr_n, nthr_k = 1;
     dim_t MB, NB, KB;

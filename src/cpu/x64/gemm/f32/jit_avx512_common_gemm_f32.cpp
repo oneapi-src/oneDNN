@@ -1880,11 +1880,11 @@ dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
 
 } // namespace avx512_common_gemm_f32
 
-dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
-        const dim_t *p_m, const dim_t *p_n, const dim_t *p_k,
-        const float *p_alpha, const float *A, const dim_t *p_lda,
-        const float *B, const dim_t *p_ldb, const float *p_beta, float *C,
-        const dim_t *p_ldc, const float *bias) {
+dnnl_status_t jit_avx512_common_gemm_f32(int nthrs, const char *transa,
+        const char *transb, const dim_t *p_m, const dim_t *p_n,
+        const dim_t *p_k, const float *p_alpha, const float *A,
+        const dim_t *p_lda, const float *B, const dim_t *p_ldb,
+        const float *p_beta, float *C, const dim_t *p_ldc, const float *bias) {
 
     using namespace dnnl::impl::utils;
     using namespace avx512_common_gemm_f32;
@@ -1894,7 +1894,8 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
         return ref_gemm(transa, transb, p_m, p_n, p_k, p_alpha, A, p_lda, B,
                 p_lda, p_beta, C, p_ldc, bias);
 
-    int nthr_to_use = dnnl_get_current_num_threads();
+    int nthr_max = dnnl_get_current_num_threads();
+    int nthr_to_use = nstl::min(nthrs, nthr_max);
 
     dim_t m = *p_m;
     dim_t n = *p_n;
@@ -1955,9 +1956,12 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
         }
     }
 
+    if (nthr_to_use == 1)
+        return sgemm_nocopy_driver(transa, transb, m, n, k, p_alpha, A, lda, B,
+                ldb, p_beta, C, ldc, bias, ws_buffers);
+
     // Always use the maximum number of threads to avoid OMP overhead that can
     // occur due to change thread counts.
-    int nthr_max = dnnl_get_current_num_threads();
     int nthr_spawn = dnnl_thr_syncable() ? nthr_max : nthr_to_use;
 
     std::atomic<dnnl_status_t> st(dnnl_success);

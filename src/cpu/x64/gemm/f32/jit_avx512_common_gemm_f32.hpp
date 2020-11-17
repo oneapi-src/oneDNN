@@ -26,10 +26,10 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
-        const dim_t *M, const dim_t *N, const dim_t *K, const float *alpha,
-        const float *A, const dim_t *lda, const float *B, const dim_t *ldb,
-        const float *beta, float *C, const dim_t *ldc,
+dnnl_status_t jit_avx512_common_gemm_f32(int nthrs, const char *transa,
+        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
+        const float *alpha, const float *A, const dim_t *lda, const float *B,
+        const dim_t *ldb, const float *beta, float *C, const dim_t *ldc,
         const float *bias = nullptr);
 
 namespace avx512_common_gemm_f32 {
