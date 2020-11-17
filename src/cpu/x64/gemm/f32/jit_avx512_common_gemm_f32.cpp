@@ -1912,9 +1912,7 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
             m, n, k, nthr_to_use, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
     assert(IMPLICATION(!dnnl_thr_syncable(), nthr_k == 1));
 
-    // May not happen, but just in case
-    if (nthr_to_use < nthr_m * nthr_n * nthr_k)
-        nthr_to_use = nthr_m * nthr_n * nthr_k;
+    nthr_to_use = nthr_m * nthr_n * nthr_k;
 
     nthr_mn = nthr_m * nthr_n;
 
