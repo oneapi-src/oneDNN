@@ -150,7 +150,7 @@ void dump_kernel_binary(
                       ->name();
     fname << "dnnl_dump_gpu_" << kernel_name << "." << counter << ".bin";
 
-    FILE *fp = fopen(fname.str().c_str(), "w+");
+    FILE *fp = fopen(fname.str().c_str(), "wb+");
 
     // Ignore error.
     if (!fp) return;

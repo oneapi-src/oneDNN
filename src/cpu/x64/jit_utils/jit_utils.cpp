@@ -55,7 +55,7 @@ void dump_jit_code(const void *code, size_t code_size, const char *code_name) {
                 counter);
         counter++;
 
-        FILE *fp = fopen(fname, "w+");
+        FILE *fp = fopen(fname, "wb+");
         // Failure to dump code is not fatal
         if (fp) {
             size_t unused = fwrite(code, code_size, 1, fp);
