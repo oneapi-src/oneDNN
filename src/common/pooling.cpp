@@ -89,40 +89,35 @@ status_t pooling_desc_init(pooling_desc_type *pool_desc, prop_kind_t prop_kind,
         pd.accum_data_type = dst_desc->data_type;
     }
 
-    bool consistency = true && utils::one_of(src_desc->ndims, 3, 4, 5)
-            && utils::one_of(dst_desc->ndims, 3, 4, 5)
-            && src_desc->dims[0] == dst_desc->dims[0]
-            && src_desc->dims[1] == dst_desc->dims[1];
+    if (!utils::one_of(src_desc->ndims, 3, 4, 5)
+            || !utils::one_of(dst_desc->ndims, 3, 4, 5)
+            || src_desc->dims[0] != dst_desc->dims[0]
+            || src_desc->dims[1] != dst_desc->dims[1])
+        return invalid_arguments;
 
     for (int i = 2; i < src_desc->ndims; ++i) {
-        const int dilated_kernel = dilation
-                ? (kernel[i - 2] - 1) * dilation[i - 2] + kernel[i - 2]
-                : kernel[i - 2];
-        consistency = consistency
-                && ((src_desc->dims[i] - dilated_kernel + padding_l[i - 2]
-                            + padding_r[i - 2])
-                                        / strides[i - 2]
-                                + 1
-                        == dst_desc->dims[i]);
+        const int src = src_desc->dims[i];
+        const int dst = dst_desc->dims[i];
+        const int ker = kernel[i - 2];
+        const int dil = dilation ? dilation[i - 2] : 0;
+        const int pad_l = padding_l[i - 2];
+        const int pad_r = padding_r[i - 2];
+        const int str = strides[i - 2];
+        const int ker_range = 1 + (ker - 1) * (dil + 1);
 
-        if (alg_kind == pooling_avg_exclude_padding) {
-            // It's not allowed for pooling window to be totally placed outside
-            // of real source domain for pooling_avg_exclude_padding algorithm
-            // due to 0 / 0 ambiguity
-            consistency = consistency && padding_l[i - 2] < dilated_kernel
-                    && padding_r[i - 2] < dilated_kernel;
+        if (str < 1 || dil < 0 || pad_l < 0 || pad_r + str < 0)
+            return invalid_arguments;
 
-            if (dilation)
-                consistency
-                        = consistency && dilation[i - 2] < src_desc->dims[i];
-        }
-        // Dilated kernel should fit in source.
-        consistency = consistency
-                && dilated_kernel <= src_desc->dims[i] + padding_l[i - 2]
-                                + padding_r[i - 2];
+        if ((src - ker_range + pad_l + pad_r) / str + 1 != dst)
+            return invalid_arguments;
+
+        // It's not allowed for pooling window to be totally placed outside
+        // of real source domain for pooling_avg_exclude_padding algorithm
+        // due to 0 / 0 ambiguity
+        if (alg_kind == pooling_avg_exclude_padding
+                && !(pad_l < ker_range && pad_r < ker_range && dil < src))
+            return invalid_arguments;
     }
-
-    if (!consistency) return invalid_arguments;
 
     *pool_desc = pd;
     return success;
