@@ -31,6 +31,7 @@
 #include "cpu/gemm_x8s8s32x_convolution_utils.hpp"
 
 #include "cpu/gemm/gemm.hpp"
+#include "cpu/zero_point_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -59,9 +60,13 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
+                                    | primitive_attr_t::skip_mask_t::
+                                            zero_points_runtime
                                     | primitive_attr_t::skip_mask_t::post_ops,
                             dst_type)
-                    && output_scales_mask_ok() && post_ops_ok();
+                    && output_scales_mask_ok() && post_ops_ok()
+                    && zero_points_valid(attr());
+
             if (!ok) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -117,7 +122,8 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     status_t execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
-            const char *bia_base, dst_data_t *dst_base,
+            const char *bia_base, const int32_t *zp_src, const int32_t *zp_dst,
+            dst_data_t *dst_base,
             const memory_tracking::grantor_t &scratchpad) const;
 
     int nthr_ = 0;

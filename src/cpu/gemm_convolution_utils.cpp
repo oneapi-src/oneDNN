@@ -1043,7 +1043,12 @@ status_t init_conf(conv_gemm_conf_t &jcp,
 
     jcp.outer_threading = false;
 
-    auto set_or_check_tags
+    jcp.zp = zero_point_config_t(attr);
+
+    if (jcp.zp.src_exists && (jcp.f_pad || jcp.t_pad || jcp.l_pad))
+        return status::unimplemented;
+
+    const auto set_or_check_tags
             = [&](format_tag_t desired_src_tag, format_tag_t desired_dst_tag,
                       bool is_src_s8) -> status_t {
         using namespace format_tag;
@@ -1092,6 +1097,9 @@ status_t init_conf(conv_gemm_conf_t &jcp,
             want_wei_md.extra.scale_adjust
                     = platform::s8s8_weights_scale_factor();
         }
+
+        if (jcp.zp.src_exists) set_zp_src_comp_flags(want_wei_md, with_groups);
+
         if (weights_md.format_kind == format_kind::any) {
             weights_md = want_wei_md;
             return status::success;
@@ -1747,12 +1755,12 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                             continue;
                         }
 
-                        /* 
+                        /*
                           memory eq from calc_max_icb():
                             max_icb = (L2 - block_out_size)
                                     / (inp_row_size + col_row_size
                                             + wei_col_size);
-                            icb*sh*sw*osb + icb*jcp.ks*osb + 
+                            icb*sh*sw*osb + icb*jcp.ks*osb +
                                 jcp.ks*max_oc_per_thr*icb + osb *ocb = L2
 
                             a_k*icb*osb + b_k*icb + osb*ocb = L2
@@ -1762,7 +1770,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                             a single solution. So, based on experiments we try
                             few scenarios.
                             1. icb = jcp.ic
-                            2. Solving the constraint eq we get 
+                            2. Solving the constraint eq we get
                               osb = (L2 - 2*b_k*icb)/(2*a_k*icb) >= min_oc_block
                               => icb <= (L2)/(2* min_oc_block * a_k + 2 * b_k)
                             3. Maximize channel compute:

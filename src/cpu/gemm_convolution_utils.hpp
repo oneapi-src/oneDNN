@@ -23,6 +23,7 @@
 
 #include "cpu/cpu_convolution_pd.hpp"
 #include "cpu/cpu_engine.hpp"
+#include "cpu/zero_point_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -55,6 +56,8 @@ struct conv_gemm_conf_t {
     bool outer_threading;
     conv_gemm_loop_order_t loop_order;
     int nthr_oc;
+
+    zero_point_config_t zp;
 };
 
 namespace jit_gemm_convolution_utils {

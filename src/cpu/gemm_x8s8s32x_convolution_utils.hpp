@@ -34,7 +34,9 @@ struct pp_ker_t {
 
     virtual void operator()(void *dst, const acc_data_t *acc, const char *bias,
             const float *scales, float nslope, float sum_scale,
-            float signed_scale, int g, size_t start, size_t end) const = 0;
+            float signed_scale, int g, size_t start, size_t end,
+            const int32_t *zp_src, const int32_t *zp_dst,
+            const int32_t *zp_src_comp) const = 0;
 
     size_t dst_os_stride_;
 

@@ -44,7 +44,9 @@ struct ref_pp_ker_t : pp_ker_t {
 
     void operator()(void *dst, const acc_data_t *acc, const char *bias,
             const float *scales, float nslope, float sum_scale,
-            float signed_scale, int g, size_t start, size_t end) const override;
+            float signed_scale, int g, size_t start, size_t end,
+            const int32_t *zp_src, const int32_t *zp_dst,
+            const int32_t *zp_src_comp) const override;
 
 private:
     std::unique_ptr<ref_eltwise_scalar_fwd_t> ref_eltwise_;
@@ -53,7 +55,9 @@ private:
 template <typename dst_data_t>
 void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
         const char *bias, const float *scales, float nslope, float sum_scale,
-        float signed_scale, int g, size_t start, size_t end) const {
+        float signed_scale, int g, size_t start, size_t end,
+        const int32_t *zp_src, const int32_t *zp_dst,
+        const int32_t *zp_src_comp) const {
     if (end <= start) return;
 
     assert(data_traits<dst_data_t>::data_type == dst_data_type_);
@@ -63,6 +67,8 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
     const size_t last_oc = (end - 1) % OC_;
     const size_t first_os = start / OC_;
     const size_t last_os = (end - 1) / OC_;
+    const int32_t zp_dst_val = jcp_.zp.dst_exists ? *zp_dst : 0;
+
     for (size_t os = first_os; os <= last_os; os++) {
         const size_t start_oc = (os == first_os) ? first_oc : 0;
         const size_t end_oc = (os == last_os) ? last_oc : OC_ - 1;
@@ -71,6 +77,14 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
             const size_t dst_off = os * dst_os_stride_ + oc;
 
             float d = (float)(acc[acc_off]);
+            if (jcp_.zp.src_exists) {
+                const auto oc_offset = g * jcp_.oc + oc;
+                const int32_t &zp_src_val
+                        = jcp_.zp.src_is_common ? *zp_src : zp_src[oc_offset];
+                const int32_t &zp_src_comp_val = zp_src_comp[oc_offset];
+                d += static_cast<float>(zp_src_val * zp_src_comp_val);
+            }
+
             if (jcp_.signed_input) d *= signed_scale;
 
             if (do_bias_)
@@ -79,6 +93,7 @@ void ref_pp_ker_t<dst_data_t>::operator()(void *void_dst, const acc_data_t *acc,
             d *= scales[(g * jcp_.oc + oc) * scale_idx_mult_];
             if (do_sum_) d += sum_scale * dst[dst_off];
             if (do_eltwise_) d = ref_eltwise_->compute_scalar(d);
+            if (jcp_.zp.dst_exists) d += zp_dst_val;
             dst[dst_off] = qz_a1b0<float, dst_data_t>()(d);
         }
     }

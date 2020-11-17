@@ -22,10 +22,10 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/simple_q10n.hpp"
-
+#include "cpu/cpu_primitive.hpp"
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm_x8s8s32x_convolution.hpp"
+#include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -43,17 +43,19 @@ status_t _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
     auto bia_base = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst_base = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
+    DEFINE_ZERO_POINTS_BUFFER(zp_src, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINTS_BUFFER(zp_dst, DNNL_ARG_DST);
+
     auto scratchpad = ctx.get_scratchpad_grantor();
 
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
-
     std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
-        status_t st_thr = execute_forward_thr(
-                ithr, nthr, src_base, wei_base, bia_base, dst_base, scratchpad);
+        status_t st_thr = execute_forward_thr(ithr, nthr, src_base, wei_base,
+                bia_base, zp_src, zp_dst, dst_base, scratchpad);
 
         if (st_thr != status::success) st = st_thr;
     });
@@ -61,11 +63,19 @@ status_t _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
     return st;
 }
 
+static const int32_t *get_wei_comp(
+        const int8_t *weights, const memory_desc_wrapper &weights_md) {
+    const size_t comp_off
+            = weights_md.size() - weights_md.additional_buffer_size();
+    return reinterpret_cast<const int32_t *>(&weights[comp_off]);
+}
+
 template <data_type_t src_type, data_type_t dst_type>
 status_t
 _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         const int ithr, const int nthr, const src_data_t *src_base,
-        const wei_data_t *wei_base, const char *bia_base, dst_data_t *dst_base,
+        const wei_data_t *wei_base, const char *bia_base, const int32_t *zp_src,
+        const int32_t *zp_dst, dst_data_t *dst_base,
         const memory_tracking::grantor_t &scratchpad) const {
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
@@ -103,8 +113,12 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
             = scratchpad.get<acc_data_t>(key_conv_int_dat_in_acc_dt)
             + (ptrdiff_t)ithr * jcp.oh_block * jcp.ow_block * jcp.oc;
 
-    const ptrdiff_t offset = (ptrdiff_t)jcp.ngroups * jcp.ks * jcp.ic * jcp.oc;
-    const int32_t *_wei_comp = (const int32_t *)(wei_base + offset);
+    const int32_t *_wei_comp
+            = jcp.signed_input ? get_wei_comp(wei_base, wei_md) : nullptr;
+    const int32_t *zp_src_comp = jcp.zp.src_exists
+            ? get_src_zp_comp(
+                    wei_base, wei_md, jcp.signed_input, jcp.ngroups, jcp.oc)
+            : nullptr;
 
     int g {0}, n {0}, ohb {0}, owb {0};
     size_t start = 0, end = 0;
@@ -125,8 +139,8 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
     status_t st = status::success;
 
     for (size_t iwork = start; iwork < end; ++iwork) {
-        int oh = ohb * jcp.oh_block;
-        int ow = owb * jcp.ow_block;
+        const int oh = ohb * jcp.oh_block;
+        const int ow = owb * jcp.ow_block;
         const src_data_t *__restrict src
                 = src_base + n * src_mb_stride + g * src_g_stride;
         const wei_data_t *__restrict wei = wei_base + g * wei_g_stride;
@@ -170,7 +184,7 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
 
             if (st != status::success) return st;
 
-            auto wei_adj_scale
+            const auto wei_adj_scale
                     = (wei_md.extra().flags & memory_extra_flags::scale_adjust)
                     ? wei_md.extra().scale_adjust
                     : 1.f;
@@ -179,7 +193,8 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
                 size_t start, end;
                 balance211((size_t)N * jcp.oc, nthr, ithr, start, end);
                 (*pp_ker_)(dst, acc, bia_base, scales, nslope, sum_scale,
-                        1.f / wei_adj_scale, g, start, end);
+                        1.f / wei_adj_scale, g, start, end, zp_src, zp_dst,
+                        zp_src_comp);
             });
         }
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ohb, nb_oh, owb, nb_ow);

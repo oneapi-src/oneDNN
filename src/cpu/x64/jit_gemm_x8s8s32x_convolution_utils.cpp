@@ -48,8 +48,9 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
 
     void operator()(void *void_dst, const acc_data_t *acc, const char *bias,
             const float *scales, float nslope, float sum_scale,
-            float signed_scale, int g, size_t start,
-            size_t end) const override {
+            float signed_scale, int g, size_t start, size_t end,
+            const int32_t *zp_src, const int32_t *zp_dst,
+            const int32_t *zp_src_comp) const override {
 
         if (end <= start) return;
 
@@ -62,8 +63,14 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
         args.dst = dst
                 + (os_offset * dst_os_stride_ + oc_offset)
                         * dst_data_type_size_;
-        args.bias = bias + (g * jcp_.oc + oc_offset) * bias_data_type_size_;
-        args.scales = scales + scale_idx_mult_ * (g * jcp_.oc + oc_offset);
+
+        const ptrdiff_t g_oc_offset = g * jcp_.oc + oc_offset;
+
+        args.bias = bias + g_oc_offset * bias_data_type_size_;
+        args.zp_src = zp_src + (jcp_.zp.src_is_common ? 0 : g_oc_offset);
+        args.zp_src_comp = zp_src_comp + g_oc_offset;
+        args.zp_dst = zp_dst;
+        args.scales = scales + scale_idx_mult_ * g_oc_offset;
         args.nslope = nslope;
         args.sum_scale = sum_scale;
         args.signed_scale = signed_scale;
@@ -74,7 +81,12 @@ struct jit_pp_ker_t : pp_ker_t, public jit_generator {
 
 private:
     void generate() override;
-
+    void append_zp_src_comp(size_t offset, int idx, bool apply_mask);
+    Xbyak::Zmm vreg_dst(int idx) const;
+    Xbyak::Zmm vreg_bias(int idx) const;
+    Xbyak::Zmm vreg_prev_dst(int idx) const;
+    Xbyak::Zmm vreg_zp_comp_src(int idx) const;
+    Xbyak::Zmm get_masked_vreg_dst(int idx, bool apply_mask) const;
     struct ker_args_t {
         char *dst;
         const acc_data_t *acc;
@@ -85,6 +97,9 @@ private:
         float signed_scale;
         size_t len;
         size_t oc_offset;
+        const int32_t *zp_src;
+        const int32_t *zp_dst;
+        const int32_t *zp_src_comp;
     };
 
     std::unique_ptr<jit_uni_eltwise_injector_f32<avx512_common>>
@@ -92,7 +107,57 @@ private:
 
     size_t bias_data_type_size_ = 0;
     size_t dst_data_type_size_ = 0;
+    const Xbyak::Reg64 &reg_zp_src_ = this->r13;
+    const Xbyak::Reg64 &reg_zp_src_comp_ = this->r14;
+    const Xbyak::Reg64 &reg_zp_dst_ = this->r15;
+    const Xbyak::Opmask &kreg_rem_mask_short = k1;
+    const Xbyak::Opmask &kreg_rem_mask_vlen = k3;
+    static constexpr size_t def_unroll = 4u;
+    size_t max_unroll = 12u;
+    size_t zmm_step = 2u;
 };
+
+Xbyak::Zmm jit_pp_ker_t::vreg_dst(int idx) const {
+    return Xbyak::Zmm(6 + idx * zmm_step + 0);
+}
+
+Xbyak::Zmm jit_pp_ker_t::vreg_bias(int idx) const {
+    return Xbyak::Zmm(6 + idx * zmm_step + 1);
+}
+
+Xbyak::Zmm jit_pp_ker_t::vreg_zp_comp_src(int idx) const {
+    return vreg_bias(idx);
+}
+
+Xbyak::Zmm jit_pp_ker_t::vreg_prev_dst(int idx) const {
+    return Xbyak::Zmm(6 + idx * zmm_step + 2);
+}
+
+Xbyak::Zmm jit_pp_ker_t::get_masked_vreg_dst(int idx, bool apply_mask) const {
+    auto vreg_dst = this->vreg_dst(idx);
+    if (apply_mask)
+        vreg_dst = vreg_dst | kreg_rem_mask_short;
+    else
+        vreg_dst = vreg_dst | kreg_rem_mask_vlen;
+    return vreg_dst;
+}
+
+void jit_pp_ker_t::append_zp_src_comp(size_t offset, int idx, bool apply_mask) {
+    const auto vreg_dst_masked_ = get_masked_vreg_dst(idx, apply_mask);
+    const auto zp_src_comp_offset = offset * sizeof(int32_t);
+    const auto zp_src_offset = jcp_.zp.src_is_common ? 0 : zp_src_comp_offset;
+    const auto zp_src_comp_addr = ptr[reg_zp_src_comp_ + zp_src_comp_offset];
+    const auto vreg_zp_src_comp = vreg_zp_comp_src(idx);
+    const auto vreg_zp_src_comp_masked = vreg_zp_src_comp
+            | (apply_mask ? kreg_rem_mask_short : kreg_rem_mask_vlen);
+
+    vmovups(vreg_zp_src_comp_masked, zp_src_comp_addr);
+    vpmulld(vreg_zp_src_comp_masked, vreg_zp_src_comp,
+            EVEX_compress_addr(
+                    reg_zp_src_, zp_src_offset, jcp_.zp.src_is_common));
+    vcvtdq2ps(vreg_zp_src_comp, vreg_zp_src_comp);
+    vaddps(vreg_dst_masked_, vreg_dst(idx), vreg_zp_src_comp);
+}
 
 void jit_pp_ker_t::generate() {
     using namespace Xbyak;
@@ -111,8 +176,6 @@ void jit_pp_ker_t::generate() {
     Reg64 reg_rem_mask_short = r10;
     Reg64 reg_rem_mask_vlen = r11;
     Reg64 reg_tmp_comp = r12; // used to broadcast scalar values to vreg
-    Opmask kreg_rem_mask_short = k1;
-    Opmask kreg_rem_mask_vlen = k3;
 
     size_t vlen = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     for (; vlen >= 1 && (OC_ % vlen != 0); --vlen) {}
@@ -124,17 +187,10 @@ void jit_pp_ker_t::generate() {
     Zmm vreg_signed_scale = Zmm(4);
     Zmm vreg_saturation_ubound = Zmm(5);
 
-    size_t def_unroll = 4;
-    size_t max_unroll = 12;
-    size_t zmm_step = 2;
     if (do_sum_) {
         max_unroll = 8;
         zmm_step = 3;
     }
-
-    auto vreg_dst = [&](int idx) { return Zmm(6 + idx * zmm_step + 0); };
-    auto vreg_bias = [&](int idx) { return Zmm(6 + idx * zmm_step + 1); };
-    auto vreg_prev_dst = [&](int idx) { return Zmm(6 + idx * zmm_step + 2); };
 
     preamble();
 
@@ -145,6 +201,14 @@ void jit_pp_ker_t::generate() {
     mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
     mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
     mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
+
+    if (jcp_.zp.src_exists) {
+        mov(reg_zp_src_, ptr[reg_param + PARAM_OFF(zp_src)]);
+        mov(reg_zp_src_comp_, ptr[reg_param + PARAM_OFF(zp_src_comp)]);
+    }
+    if (jcp_.zp.dst_exists)
+        mov(reg_zp_dst_, ptr[reg_param + PARAM_OFF(zp_dst)]);
+
     vbroadcastss(vreg_nslope, ptr[reg_param + PARAM_OFF(nslope)]);
     vbroadcastss(vreg_sum_scale, ptr[reg_param + PARAM_OFF(sum_scale)]);
     vbroadcastss(vreg_signed_scale, ptr[reg_param + PARAM_OFF(signed_scale)]);
@@ -178,12 +242,10 @@ void jit_pp_ker_t::generate() {
             vmovups(vreg_scale_, scale_addr);
         }
 
-        auto vreg_dst_ = vreg_dst(idx);
-        if (apply_mask)
-            vreg_dst_ = vreg_dst_ | kreg_rem_mask_short;
-        else
-            vreg_dst_ = vreg_dst_ | kreg_rem_mask_vlen;
+        const auto vreg_dst_ = get_masked_vreg_dst(idx, apply_mask);
         vcvtdq2ps(vreg_dst_, acc_addr);
+
+        if (jcp_.zp.src_exists) append_zp_src_comp(offset, idx, apply_mask);
 
         if (do_signed_scaling_)
             vmulps(vreg_dst(idx), vreg_dst(idx), vreg_signed_scale);
@@ -235,6 +297,13 @@ void jit_pp_ker_t::generate() {
         if (do_eltwise_)
             eltwise_injector_->compute_vector(vreg_dst(idx).getIdx());
 
+        if (jcp_.zp.dst_exists) {
+            const auto vreg_zp_dst_ = vreg_bias(idx);
+            vbroadcastss(vreg_zp_dst_, ptr[reg_zp_dst_]);
+            vcvtdq2ps(vreg_zp_dst_, vreg_zp_dst_);
+            vaddps(vreg_dst_, vreg_dst_, vreg_zp_dst_);
+        }
+
         if (one_of(dst_data_type_, data_type::u8, data_type::s8,
                     data_type::s32)) {
             saturate_f32(vreg_dst(idx), vreg_zero, vreg_saturation_ubound,
@@ -260,6 +329,11 @@ void jit_pp_ker_t::generate() {
             add(reg_scales, offset * sizeof(float));
         }
         if (do_bias_) add(reg_bias, offset * bias_data_type_size_);
+        if (jcp_.zp.src_exists) {
+            add(reg_zp_src_comp_, offset * sizeof(int32_t));
+            if (!jcp_.zp.src_is_common)
+                add(reg_zp_src_, offset * sizeof(int32_t));
+        }
     };
 
     // Advance all pointers by a value stored in a register
@@ -272,12 +346,26 @@ void jit_pp_ker_t::generate() {
         }
         if (do_bias_)
             lea(reg_bias, ptr[reg_bias + offset * bias_data_type_size_]);
+
+        if (jcp_.zp.src_exists) {
+            lea(reg_zp_src_comp_,
+                    ptr[reg_zp_src_comp_ + offset * sizeof(int32_t)]);
+            if (!jcp_.zp.src_is_common) {
+                lea(reg_zp_src_, ptr[reg_zp_src_ + offset * sizeof(int32_t)]);
+            }
+        }
     };
 
     // Rewind pointers that point to data that is indexed by output channel
     // (bias or per-oc scaling factors)
     auto rewind_ptrs = [&]() {
         if (do_bias_) sub(reg_bias, OC_ * bias_data_type_size_);
+        if (jcp_.zp.src_exists) {
+            const auto offset = OC_ * sizeof(int32_t);
+            sub(reg_zp_src_comp_, offset);
+            if (!jcp_.zp.src_is_common) { sub(reg_zp_src_, offset); }
+        }
+
         if (scale_idx_mult_) {
             assert(scale_idx_mult_ == 1);
             sub(reg_scales, OC_ * sizeof(float));
