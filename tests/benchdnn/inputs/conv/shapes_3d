@@ -22,3 +22,5 @@ g6_ic24oc24_id21kd3_n"3d_gconv_channel-block-4"
 g4_ic24oc24_id21kd3_n"3d_gconv_non-block"
 g2_ic10oc20_id16kd1_n"3d_gconv_non-block_1x1"
 g3_ic6oc6_id56kd3sd2_n"3d_gconv_non-block_s2"
+
+g1_ic16oc1_id33kd33_n"3d_conv_large_shape:1"
