@@ -16,7 +16,6 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include <iterator>
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
@@ -750,10 +749,8 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     if (dw_conv_ind >= 0) {
         // dw_conv and post_ops after it are handled externally, so skip them
-        jcp.post_ops.entry_.reserve(dw_conv_ind);
-        std::copy(post_ops.entry_.cbegin(),
-                post_ops.entry_.cbegin() + dw_conv_ind,
-                std::back_inserter(jcp.post_ops.entry_));
+        jcp.post_ops.entry_.assign(post_ops.entry_.cbegin(),
+                post_ops.entry_.cbegin() + dw_conv_ind);
     } else {
         jcp.post_ops = post_ops;
     }
