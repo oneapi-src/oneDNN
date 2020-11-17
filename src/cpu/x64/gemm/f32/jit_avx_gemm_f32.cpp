@@ -2535,10 +2535,14 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
         }
     }
 
-    std::atomic<dnnl_status_t> st(dnnl_success);
+    // Always use the maximum number of threads to avoid OMP overhead that can
+    // occur due to change thread counts.
+    int nthr_max = dnnl_get_current_num_threads();
+    int nthr_spawn = dnnl_thr_syncable() ? nthr_max : nthr_to_use;
 
-    parallel(nthr_to_use, [&](int ithr, int nthr) {
-        assert(nthr_to_use == nthr);
+    std::atomic<dnnl_status_t> st(dnnl_success);
+    parallel(nthr_spawn, [&](int ithr, int nthr) {
+        assert(nthr_spawn == nthr);
         MAYBE_UNUSED(nthr);
 
         int ithr_m, ithr_n, ithr_k, ithr_mn;
@@ -2660,8 +2664,8 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
     // handle C summation later
     if (nthr_k > 1 && ompstatus[0] == 0) {
 
-        parallel(nthr_to_use, [&](int ithr, int nthr) {
-            assert(nthr_to_use == nthr);
+        parallel(nthr_spawn, [&](int ithr, int nthr) {
+            assert(nthr_spawn == nthr);
             MAYBE_UNUSED(nthr);
 
             int ithr_m, ithr_n, ithr_k, ithr_mn;
