@@ -181,6 +181,14 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::store_output(int ur_w) {
     }
 
     L(postproc_label);
+    auto _jmp = [&](const Label &l) {
+        return mayiuse(avx512_mic) ? jl(l, T_NEAR) : jz(l, T_NEAR);
+    };
+
+    // *Note 1
+    _test(mayiuse(avx512_mic) ? jcp.nb_ic - 1 : FLAG_IC_LAST);
+    _jmp(store_label);
+
     int eltwise_inj_idx = 0;
     int depthwise_inj_idx = 0;
     int quantization_inj_idx = 0;

@@ -426,7 +426,7 @@ void jit_avx512_common_convolution_fwd_t<src_type, wei_type,
                                     + i_t_overflow * dilate_h * src_h_stride;
                             auto aux_wht = wht_w + i_t_overflow * wht_h_stride;
 
-                            int oc_off = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(dst_data_t);
+                            int oc_off = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
                             jit_conv_ker_pipeline_ow_thr(jit_ker, par_conv,
                                     aux_src, dst_c, aux_wht, bias_w, icb,
                                     kh_padding, owb, ic_work, oc_work, flags, oc_off);

@@ -610,7 +610,6 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
         if (load_dim_tail)
             kxnorw(k_load_dim_mask, k_load_dim_mask, k_load_dim_mask);
         sub(reg_load_loop_work, load_loop_blk * jcp.load_loop_iter_step);
-        add(reg_oc_off, load_loop_blk * jcp.oc_block * jcp.typesize_out);
         if (load_dim_tail) {
             Label no_update_mask;
             jge(no_update_mask, T_NEAR);
@@ -619,6 +618,7 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
         }
         bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
+        add(reg_oc_off, load_loop_blk * jcp.oc_block * sizeof(float));
         switch (jcp.prop_kind) {
             case forward_training:
             case forward_inference:
