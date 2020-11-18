@@ -83,14 +83,12 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             return status::runtime_error; // SVM is not supported
 #endif // CL_VERSION_2_0
         } else {
-            compute::scalar_type_t real_arg_type;
-            CHECK(get_ocl_kernel_arg_type(&real_arg_type, ocl_kernel_, i));
             // Convert if types do not match.
             typename std::aligned_storage<sizeof(float), sizeof(float)>::type
                     tmp_storage;
             void *cast_storage = &tmp_storage;
             auto cvt_arg = compute::kernel_arg_t::cast(
-                    real_arg_type, arg, cast_storage);
+                    arg_types_[i], arg, cast_storage);
             set_err = clSetKernelArg(
                     ocl_kernel_, i, cvt_arg.size(), cvt_arg.value());
         }
@@ -125,7 +123,7 @@ status_t ocl_gpu_kernel_t::realize(
     OCL_CHECK(err);
     cl_kernel ocl_kernel = clCreateKernel(program, name(), &err);
     OCL_CHECK(err);
-    (*kernel) = compute::kernel_t(new ocl_gpu_kernel_t(ocl_kernel));
+    (*kernel) = compute::kernel_t(new ocl_gpu_kernel_t(ocl_kernel, arg_types_));
     OCL_CHECK(clReleaseProgram(program));
 
     return status::success;

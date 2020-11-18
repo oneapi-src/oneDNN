@@ -30,8 +30,12 @@ namespace sycl {
 class sycl_interop_gpu_kernel_t : public gpu::compute::kernel_impl_t {
 public:
     sycl_interop_gpu_kernel_t(const std::vector<unsigned char> &binary,
-            const std::string &binary_name)
-        : state_(state_t::binary), binary_(binary), binary_name_(binary_name) {
+            const std::string &binary_name,
+            const std::vector<gpu::compute::scalar_type_t> &arg_types)
+        : state_(state_t::binary)
+        , binary_(binary)
+        , binary_name_(binary_name)
+        , arg_types_(arg_types) {
         MAYBE_UNUSED(state_);
     }
 

@@ -243,8 +243,8 @@ struct ocl_wrapper_t {
     operator T() const { return t_; }
     T get() const { return t_; }
 
-    cl_kernel release() {
-        cl_kernel t = t_;
+    T release() {
+        T t = t_;
         t_ = nullptr;
         return t;
     }
@@ -280,6 +280,9 @@ cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
 
 void dump_kernel_binary(
         const engine_t *engine, const compute::kernel_t &binary_kernel);
+
+status_t get_kernel_arg_types(cl_kernel ocl_kernel,
+        std::vector<gpu::compute::scalar_type_t> *arg_types);
 
 } // namespace ocl
 } // namespace gpu

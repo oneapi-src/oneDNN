@@ -53,42 +53,19 @@ static void set_scalar_arg(
     }
 }
 
-static status_t create_ocl_kernel(
-        gpu::ocl::ocl_wrapper_t<cl_kernel> &ocl_kernel, cl_device_id dev,
-        cl_context ctx, const std::vector<unsigned char> &binary,
-        const std::string &kernel_name) {
+static status_t create_ocl_program(
+        gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program, cl_device_id dev,
+        cl_context ctx, const std::vector<unsigned char> &binary) {
     cl_int err;
     const unsigned char *binary_buffer = binary.data();
     size_t binary_size = binary.size();
     assert(binary_size > 0);
 
-    auto program = gpu::ocl::make_ocl_wrapper(clCreateProgramWithBinary(
-            ctx, 1, &dev, &binary_size, &binary_buffer, nullptr, &err));
+    ocl_program = clCreateProgramWithBinary(
+            ctx, 1, &dev, &binary_size, &binary_buffer, nullptr, &err);
     OCL_CHECK(err);
-    err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
+    err = clBuildProgram(ocl_program, 1, &dev, nullptr, nullptr, nullptr);
     OCL_CHECK(err);
-
-    ocl_kernel = clCreateKernel(program, kernel_name.c_str(), &err);
-    OCL_CHECK(err);
-
-    return status::success;
-}
-
-static status_t get_kernel_arg_types(
-        std::vector<gpu::compute::scalar_type_t> &arg_types,
-        cl_kernel ocl_kernel) {
-    cl_uint nargs;
-    OCL_CHECK(clGetKernelInfo(
-            ocl_kernel, CL_KERNEL_NUM_ARGS, sizeof(nargs), &nargs, nullptr));
-
-    arg_types.resize(nargs);
-
-    for (int i = 0; i < nargs; i++) {
-        gpu::compute::scalar_type_t type;
-        CHECK(gpu::ocl::get_ocl_kernel_arg_type(
-                &type, ocl_kernel, i, /*allow_undef=*/true));
-        arg_types[i] = type;
-    }
 
     return status::success;
 }
@@ -100,20 +77,13 @@ status_t sycl_interop_gpu_kernel_t::realize(
     auto *sycl_engine = utils::downcast<const sycl_gpu_engine_t *>(engine);
 
     std::unique_ptr<cl::sycl::kernel> sycl_kernel;
-    std::vector<gpu::compute::scalar_type_t> arg_types;
 
     if (sycl_engine->backend() == backend_t::opencl) {
-        gpu::ocl::ocl_wrapper_t<cl_kernel> ocl_kernel;
-        CHECK(create_ocl_kernel(ocl_kernel, sycl_engine->ocl_device(),
-                sycl_engine->ocl_context(), binary_, binary_name_));
-        CHECK(get_kernel_arg_types(arg_types, ocl_kernel));
-
-        cl_program ocl_program;
-        OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_PROGRAM,
-                sizeof(ocl_program), &ocl_program, nullptr));
+        gpu::ocl::ocl_wrapper_t<cl_program> ocl_program;
+        CHECK(create_ocl_program(ocl_program, sycl_engine->ocl_device(),
+                sycl_engine->ocl_context(), binary_));
 
         cl::sycl::program sycl_program(sycl_engine->context(), ocl_program);
-
         sycl_kernel.reset(
                 new cl::sycl::kernel(sycl_program.get_kernel(binary_name_)));
     } else if (sycl_engine->backend() == backend_t::level0) {
@@ -126,18 +96,6 @@ status_t sycl_interop_gpu_kernel_t::realize(
         //
         // Currently we always create an OpenCL engine for the 0th device at
         // binary creation time and here.
-        gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
-        engine_t *ocl_engine_ptr;
-        CHECK(f.engine_create(&ocl_engine_ptr, 0));
-        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> ocl_engine;
-        ocl_engine.reset(
-                utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(ocl_engine_ptr));
-
-        gpu::ocl::ocl_wrapper_t<cl_kernel> ocl_kernel;
-        CHECK(create_ocl_kernel(ocl_kernel, ocl_engine->device(),
-                ocl_engine->context(), binary_, binary_name_));
-        CHECK(get_kernel_arg_types(arg_types, ocl_kernel));
-
         CHECK(sycl_create_kernel_with_level_zero(
                 sycl_kernel, sycl_engine, binary_, binary_name_));
 #else
@@ -150,7 +108,7 @@ status_t sycl_interop_gpu_kernel_t::realize(
     }
 
     (*kernel) = gpu::compute::kernel_t(
-            new sycl_interop_gpu_kernel_t(*sycl_kernel, arg_types));
+            new sycl_interop_gpu_kernel_t(*sycl_kernel, arg_types_));
 
     return status::success;
 }

@@ -32,11 +32,13 @@ namespace ocl {
 class ocl_gpu_kernel_t : public compute::kernel_impl_t {
 public:
     ocl_gpu_kernel_t(const std::vector<unsigned char> &binary,
-            const std::string &binary_name)
+            const std::string &binary_name,
+            const std::vector<gpu::compute::scalar_type_t> &arg_types)
         : state_(state_t::binary)
         , ocl_kernel_(nullptr)
         , binary_(binary)
-        , binary_name_(binary_name) {
+        , binary_name_(binary_name)
+        , arg_types_(arg_types) {
         MAYBE_UNUSED(state_);
     }
 
@@ -63,16 +65,25 @@ public:
         return binary_;
     }
 
+    const std::vector<gpu::compute::scalar_type_t> &arg_types() const {
+        return arg_types_;
+    }
+
     enum class state_t { binary, kernel };
 
 protected:
-    ocl_gpu_kernel_t(cl_kernel ocl_kernel)
-        : state_(state_t::kernel), ocl_kernel_(ocl_kernel) {}
+    ocl_gpu_kernel_t(cl_kernel ocl_kernel,
+            const std::vector<gpu::compute::scalar_type_t> &arg_types)
+        : state_(state_t::kernel)
+        , ocl_kernel_(ocl_kernel)
+        , arg_types_(arg_types) {}
 
     state_t state_;
     cl_kernel ocl_kernel_;
     std::vector<unsigned char> binary_;
     std::string binary_name_;
+
+    std::vector<gpu::compute::scalar_type_t> arg_types_;
 };
 
 } // namespace ocl

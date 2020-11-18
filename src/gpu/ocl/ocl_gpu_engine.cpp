@@ -96,7 +96,13 @@ status_t ocl_gpu_engine_t::create_kernel(
     auto binary = jitter.get_binary(context(), device());
     auto kernel_name = jitter.kernel_name();
 
-    *kernel = compute::kernel_t(new ocl_gpu_kernel_t(binary, kernel_name));
+    ocl_wrapper_t<cl_kernel> ocl_kernel
+            = jitter.get_kernel(context(), device());
+    std::vector<gpu::compute::scalar_type_t> arg_types;
+    CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
+
+    *kernel = compute::kernel_t(
+            new ocl_gpu_kernel_t(binary, kernel_name, arg_types));
     dump_kernel_binary(this, *kernel);
 
     return status::success;
@@ -182,8 +188,15 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
 
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {
+        cl_int err;
+        ocl_wrapper_t<cl_kernel> ocl_kernel
+                = clCreateKernel(program, kernel_names[i], &err);
+        OCL_CHECK(err);
+        std::vector<gpu::compute::scalar_type_t> arg_types;
+        CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
+
         (*kernels)[i] = compute::kernel_t(
-                new ocl_gpu_kernel_t(binary, kernel_names[i]));
+                new ocl_gpu_kernel_t(binary, kernel_names[i], arg_types));
         dump_kernel_binary(this, (*kernels)[i]);
     }
 
