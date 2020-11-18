@@ -16,6 +16,7 @@
 
 #include "gpu/jit/gemm/gen_gemm_kernel.hpp"
 #include "gemm_recipes.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -347,6 +348,31 @@ std::vector<unsigned char> gen_gemm_kernel_t::get_binary(
     }
 
     return program_binary;
+}
+
+cl_kernel gen_gemm_kernel_t::get_kernel(
+        cl_context context, cl_device_id device) {
+    cl_int status;
+
+    auto binary = get_binary(context, device);
+
+    const auto *binary_ptr = binary.data();
+    size_t binary_size = binary.size();
+    auto program = gpu::ocl::make_ocl_wrapper(clCreateProgramWithBinary(
+            context, 1, &device, &binary_size, &binary_ptr, nullptr, &status));
+    if (status != CL_SUCCESS) return nullptr;
+    assert(status == CL_SUCCESS);
+
+    status = clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr);
+    if (status != CL_SUCCESS) return nullptr;
+    assert(status == CL_SUCCESS);
+
+    auto kernel = gpu::ocl::make_ocl_wrapper(
+            clCreateKernel(program, kernel_name(), &status));
+    if (status != CL_SUCCESS) return nullptr;
+    assert(status == CL_SUCCESS);
+
+    return kernel.release();
 }
 
 CommonDriverInfo gen_gemm_kernel_t::driver_info() const {

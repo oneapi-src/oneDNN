@@ -46,6 +46,7 @@ struct gen_gemm_kernel_t : public jit_generator_base {
     const char *kernel_name() const override { return "gemm_kernel"; }
     std::vector<unsigned char> get_binary(
             cl_context ctx, cl_device_id dev) override;
+    cl_kernel get_kernel(cl_context context, cl_device_id device) override;
 
     CommonDriverInfo driver_info() const;
 

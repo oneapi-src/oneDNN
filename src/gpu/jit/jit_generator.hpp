@@ -110,6 +110,10 @@ public:
         return ngen::OpenCLCodeGenerator<hw>::getExternalName().c_str();
     }
 
+    cl_kernel get_kernel(cl_context context, cl_device_id device) override {
+        return ngen::OpenCLCodeGenerator<hw>::getKernel(context, device);
+    }
+
 #ifdef CL_VERSION_2_0
     void dbg_alloc(cl_context context);
     void *dbg_memory() const { return dbg_memory_.get(); }

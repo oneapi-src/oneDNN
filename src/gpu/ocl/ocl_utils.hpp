@@ -243,6 +243,12 @@ struct ocl_wrapper_t {
     operator T() const { return t_; }
     T get() const { return t_; }
 
+    cl_kernel release() {
+        cl_kernel t = t_;
+        t_ = nullptr;
+        return t;
+    }
+
 private:
     T t_;
 

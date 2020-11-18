@@ -30,6 +30,7 @@ struct jit_generator_base {
             cl_context context, cl_device_id device)
             = 0;
     virtual const char *kernel_name() const = 0;
+    virtual cl_kernel get_kernel(cl_context context, cl_device_id device) = 0;
 };
 
 } // namespace jit
