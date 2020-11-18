@@ -676,7 +676,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     }
 
     if (jcp.with_eltwise || jcp.with_binary)
-        if (jcp.isa < avx2) return status::unimplemented;
+        if (!mayiuse(avx2)) return status::unimplemented;
 
     using namespace injector;
     static constexpr bool sum_at_pos_0_only = true;
