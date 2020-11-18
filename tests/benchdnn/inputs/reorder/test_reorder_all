@@ -55,6 +55,13 @@
 --sdt=f32,s8,bf16
 --ddt=s8
 
+--stag=abx,xba --dtag=ABx4b16a4b,ABx4b32a4b,ABx4b64a4b
+--oflag=,conv_s8s8
+80x24
+80x24x3
+80x24x3x5
+80x24x4x2x3
+
 --stag=oiw,wio --dtag=wio,OIw4i16o4i,OIw2i8o4i,OIw4o4i
 32x32x3
 --oflag=conv_s8s8,conv_zp_comp,conv_s8s8:conv_zp_comp 32x32x3
