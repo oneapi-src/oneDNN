@@ -16,3 +16,4 @@
 --mb=128 --batch=shapes_bert
 --mb=128 --batch=shapes_bert_large
 --mb=128 --batch=shapes_rnn_t
+--mb=2048 --batch=shapes_dlrm
