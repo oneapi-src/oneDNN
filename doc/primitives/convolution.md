@@ -154,7 +154,7 @@ source, destination, and weights memory objects:
 | Propagation        | Source    | Weights   | Destination       | Bias             |
 | :--                | :--       | :--       | :--               | :--              |
 | forward / backward | f32       | f32       | f32               | f32              |
-| forward            | f16       | f16       | f16               | f16              |
+| forward            | f16       | f16       | f16, f32          | f16, f32         |
 | forward            | u8, s8    | s8        | u8, s8, s32, f32  | u8, s8, s32, f32 |
 | forward            | bf16      | bf16      | f32, bf16         | f32, bf16        |
 | backward           | f32, bf16 | bf16      | bf16              |                  |

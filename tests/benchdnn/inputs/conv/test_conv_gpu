@@ -4,7 +4,7 @@
 --dir=FWD_B,BWD_D,BWD_WB --stag=any --batch=set_gpu
 
 # f16
---cfg=f16
+--cfg=f16,f16f16f32
 --mb=2,16
 --dir=FWD_B --batch=set_gpu
 
