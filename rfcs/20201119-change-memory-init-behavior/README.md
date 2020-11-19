@@ -199,7 +199,7 @@ approach to be effective very small.
 | Option 3 | primitive execution             | source        | n/2                            | almost none                             | none                                                        |
 | Option 4 | primitive execution / reorder   | any if needed | [0, n/2]                       | depend on how many zero-pad we want out | none                                                        |
 | Option 5 | memory creation/set data handle | any if needed | [0, n] (depends on user)       | almost none                             | important (need to track padded state for good performance) |
-|----------|---------------------------------|---------------|--------------------------------|-----------------------------------------|-------------------------------------------------------------|
+
 
 Overall, options 2, 4 and 5 potentially leak an implementation
 detail to the API (namely, that memory needs initialization in some
