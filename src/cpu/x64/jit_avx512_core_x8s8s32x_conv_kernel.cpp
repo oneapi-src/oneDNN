@@ -245,6 +245,19 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
         }
     }
 
+    // Properly saturate the accumulators for integer datatypes
+    if (one_of(jcp.dst_dt, u8, s8, s32)) {
+        init_saturate_f32(
+                vmm_zero, vmm_saturation, aux_reg_saturation, f32, jcp.dst_dt);
+        for (int k = 0; k < nb_oc_block; k++) {
+            for (int j = 0; j < ur_w; j++) {
+                Vmm vmm = vmm_out(j, k);
+                saturate_f32(vmm, vmm_zero, vmm_saturation, jcp.dst_dt);
+                vcvtps2dq(vmm, vmm);
+            }
+        }
+    }
+
     /* write out register to output_addr */
     for (int k = 0; k < nb_oc_block; k++) {
         const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
