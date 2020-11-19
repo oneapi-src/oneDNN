@@ -27,8 +27,9 @@
 #define CONCAT2(a, b) CONCAt2(a, b)
 #define CONCAT3(a, b, c) CONCAT2(CONCAT2(a, b), c)
 
-#if (DT_F16 == 1) || (SRC_DT_F16 == 1) || (DST_DT_F16 == 1) \
-        || (WEI_DT_F16 == 1) || (BIA_DT_F16 == 1) || (ACC_DT_F16 == 1)
+#if defined(DT_F16) || defined(SRC_DT_F16) || defined(SRC0_DT_F16) \
+        || defined(SRC1_DT_F16) || defined(DST_DT_F16) || defined(WEI_DT_F16) \
+        || defined(BIA_DT_F16) || defined(ACC_DT_F16)
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #endif
 

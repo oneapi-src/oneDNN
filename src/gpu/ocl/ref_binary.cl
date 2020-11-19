@@ -30,9 +30,9 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
         float src1_scale) {
     int off = GWS_GET_IDX();
 
-    POST_OP_DATA_T tmp_src0 = DATA_TO_REF(src0[off]);
-    POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[off]);
-    POST_OP_DATA_T d = 0;
+    float tmp_src0 = CONVERT_FLOAT_T(src0[off]);
+    float tmp_src1 = CONVERT_FLOAT_T(src1[off]);
+    float d = 0;
 
 #if WITH_SRC0_SCALE
     tmp_src0 = tmp_src0 * src0_scale;
@@ -55,13 +55,12 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     d = tmp_src0 - tmp_src1;
 #endif
 
-    POST_OP_DATA_T dst_data;
+    float dst_data;
 #if WITH_SUM
-    dst_data = DATA_TO_REF(dst[off]);
+    dst_data = CONVERT_FLOAT_T(dst[off]);
 #endif
 
-    APPLY_POST_OPS_SERIAL(
-            d, POST_OP_DATA_T, dst_data, POST_OP_DATA_T, 0, 0, 0, 0);
+    APPLY_POST_OPS_SERIAL(d, float, dst_data, float, 0, 0, 0, 0);
     dst[off] = TO_DST(d);
 }
 #else
@@ -110,10 +109,10 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 
     for (int ic = 0; ic < block_size; ++ic) {
         // using tmp vars to handle float calculations for bf16 datatypes
-        // DATA_TO_REF is a macro defined in ocl_types.h according to datatype
-        POST_OP_DATA_T tmp_src0 = DATA_TO_REF(src0[src0_off]);
-        POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[src1_off]);
-        POST_OP_DATA_T d = 0;
+        // CONVERT_FLOAT_T is a macro defined in ocl_types.h
+        float tmp_src0 = CONVERT_FLOAT_T(src0[src0_off]);
+        float tmp_src1 = CONVERT_FLOAT_T(src1[src1_off]);
+        float d = 0;
 
 #if WITH_SRC0_SCALE
         tmp_src0 = tmp_src0 * src0_scale;
@@ -136,13 +135,13 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         d = tmp_src0 - tmp_src1;
 #endif
 
-        POST_OP_DATA_T dst_data;
+        float dst_data;
         if (DST_D1 == DST_PD1 || d1_init + ic < DST_D1) {
 #if WITH_SUM
-            dst_data = DATA_TO_REF(dst[dst_off]);
+            dst_data = CONVERT_FLOAT_T(dst[dst_off]);
 #endif
-            APPLY_POST_OPS_SERIAL(d, POST_OP_DATA_T, dst_data, POST_OP_DATA_T,
-                    dims0_po[0], 1, dims0_po[1], 1);
+            APPLY_POST_OPS_SERIAL(
+                    d, float, dst_data, float, dims0_po[0], 1, dims0_po[1], 1);
 
             dst[dst_off] = TO_DST(d);
         }

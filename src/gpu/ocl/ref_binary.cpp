@@ -104,6 +104,8 @@ status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
 status_t ref_binary_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.set_data_type(conf.src0_data_type);
+    kernel_ctx.set_data_type(conf.src1_data_type);
+    kernel_ctx.set_data_type(conf.dst_data_type);
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("IS_MUL", conf.is_mul);
     kernel_ctx.define_int("IS_ADD", conf.is_add);
