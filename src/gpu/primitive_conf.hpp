@@ -579,6 +579,7 @@ struct concat_conf_t {
 // Elementwise
 struct eltwise_conf_t {
     int ndims;
+    int vector_size;
     bool with_zero_padding;
     data_type_t data_type;
     alg_kind_t alg;

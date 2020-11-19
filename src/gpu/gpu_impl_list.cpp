@@ -30,6 +30,7 @@
 #include "gpu/ocl/gen9_batch_normalization.hpp"
 #include "gpu/ocl/gen9_binary.hpp"
 #include "gpu/ocl/gen9_convolution.hpp"
+#include "gpu/ocl/gen9_eltwise.hpp"
 #include "gpu/ocl/gen9_pooling.hpp"
 #include "gpu/ocl/gen9_softmax.hpp"
 #include "gpu/ocl/gen9_wino_convolution.hpp"
@@ -61,6 +62,8 @@ namespace {
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 const pd_create_f gpu_impl_list[] = {
         // Elementwise
+        INSTANCE(ocl::gen9_eltwise_fwd_t),
+        INSTANCE(ocl::gen9_eltwise_bwd_t),
         INSTANCE(ocl::ref_eltwise_fwd_t),
         INSTANCE(ocl::ref_eltwise_bwd_t),
 

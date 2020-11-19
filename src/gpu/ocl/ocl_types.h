@@ -308,13 +308,51 @@
 #define AS_BLOCK_DATA8_T as_uchar8
 #elif DT_S32 == 1
 #define DATA_T int
+#define DATA2_T int2
 #define DATA4_T int4
+#define DATA8_T int8
+#define DATA16_T int16
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_int_sat_rte
+#define CONVERT_DATA2_T convert_int2_sat_rte
+#define CONVERT_DATA4_T convert_int4_sat_rte
+#define CONVERT_DATA8_T convert_int8_sat_rte
+#define CONVERT_FLOAT_T convert_float
+#define CONVERT_FLOAT2_T convert_float2
+#define CONVERT_FLOAT4_T convert_float4
+#define CONVERT_FLOAT8_T convert_float8
 #define POST_OP_DATA_T float
 #define DATA_MIN INT_MIN
 #define DATA_MAX INT_MAX
 #define ROUND
+
+#define BLOCK_READ intel_sub_group_block_read
+#define BLOCK_WRITE intel_sub_group_block_write
+#define BLOCK_READ2 intel_sub_group_block_read2
+#define BLOCK_READ4 intel_sub_group_block_read4
+#define BLOCK_READ8 intel_sub_group_block_read8
+#define BLOCK_WRITE2 intel_sub_group_block_write2
+#define BLOCK_WRITE4 intel_sub_group_block_write4
+#define BLOCK_WRITE8 intel_sub_group_block_write8
+
+#define AS_DATA_T as_int
+#define AS_DATA2_T as_int2
+#define AS_DATA4_T as_int4
+#define AS_DATA8_T as_int8
+
+#define AS_UINT_T as_uint
+#define AS_UINT2_T as_uint2
+#define AS_UINT4_T as_uint4
+#define AS_UINT8_T as_uint8
+
+#define BLOCK_DATA_T uint
+#define BLOCK_DATA2_T uint2
+#define BLOCK_DATA4_T uint4
+#define BLOCK_DATA8_T uint8
+#define AS_BLOCK_DATA_T as_uint
+#define AS_BLOCK_DATA2_T as_uint2
+#define AS_BLOCK_DATA4_T as_uint4
+#define AS_BLOCK_DATA8_T as_uint8
 #elif !defined(DT_UNDEF)
 #error "Unexpected data type"
 #endif
