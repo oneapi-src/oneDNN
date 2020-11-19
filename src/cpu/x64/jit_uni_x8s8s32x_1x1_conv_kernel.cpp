@@ -285,7 +285,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
                                 = mask_flag_in && i_load == load_loop_blk - 1;
 
                         auto r = vreg_accum(i_load, i_ur);
-                        cvt2ps(jcp.dst_dt, vmm_prev_dst, aux_reg_output_data,
+                        cvt2ps(post_op.sum.dt, vmm_prev_dst, aux_reg_output_data,
                                output_ptr(i_load, i_ur),
                                mask_flag ? get_tail_size() : simd_w);
 

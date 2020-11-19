@@ -53,7 +53,8 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
                                     data_type::u8))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
-                                    | primitive_attr_t::skip_mask_t::post_ops,
+                                    | primitive_attr_t::skip_mask_t::post_ops
+                                    | primitive_attr_t::skip_mask_t::sum_dt,
                             dst_type)
                     && !has_zero_dim_memory()
                     && !this->attr()->has_asymmetric_quantization();
