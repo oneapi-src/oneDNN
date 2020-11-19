@@ -146,7 +146,7 @@ const _dt_conf_t conf_bf16f32bf16 = {
 };
 
 const _dt_conf_t conf_u8s8f32 = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
@@ -154,7 +154,7 @@ const _dt_conf_t conf_u8s8f32 = {
 };
 
 const _dt_conf_t conf_u8s8s32 = {
-        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, UINT8_MAX, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
         {dnnl_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
