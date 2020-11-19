@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstring>
+
 #include <stdlib.h>
 
 #include "oneapi/dnnl/dnnl.h"
@@ -125,7 +127,7 @@ int compare_bootstrap(dnn_mem_t &mem_ref, dnn_mem_t &mem_got, res_t *res) {
     if (size_ref == 0) return res->state = PASSED, OK;
 
     if (size_ref == mem_got.size())
-        ok = !memcmp((void *)mem_ref, (void *)mem_got, size_ref);
+        ok = !std::memcmp((void *)mem_ref, (void *)mem_got, size_ref);
 
     res->errors = !ok;
     res->state = ok ? PASSED : FAILED;

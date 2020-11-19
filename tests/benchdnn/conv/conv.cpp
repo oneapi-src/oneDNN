@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstring>
+
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -383,6 +385,17 @@ int fill_wei(
     if (check_reorder) {
         SAFE(mem_fp.reorder(mem_dt), WARN);
         SAFE(compare_wei(prb, mem_fp, mem_00, res), WARN);
+    }
+    if ((s8_s8 || !is_def_zp) && is_cpu()) {
+        // Check that s8 -> s8_comp exists in the library since users may have
+        // already quantized data.
+        dnn_mem_t mem_fp_s8(mem_fp.md_, dnnl_s8, get_test_engine());
+        dnn_mem_t mem_dt_s8(mem_dt.md_, dnnl_s8, get_test_engine());
+        SAFE(mem_fp_s8.reorder(mem_fp), WARN);
+        SAFE(mem_dt_s8.reorder(mem_fp_s8), WARN);
+        SAFE(mem_dt.size() == mem_dt_s8.size() ? OK : FAIL, WARN);
+        int rc = std::memcmp((void *)mem_dt, (void *)mem_dt_s8, mem_dt.size());
+        SAFE(rc == 0 ? OK : FAIL, WARN);
     }
 
     return OK;
