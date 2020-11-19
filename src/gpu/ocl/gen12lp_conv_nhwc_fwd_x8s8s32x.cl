@@ -384,8 +384,7 @@ conv_nhwc_fwd_x8s8s32x(const __global SRC_DATA_T *src, const __global char *wei,
         float4 bia = {0, 0, 0, 0};
         bia = read_bias_scale_block4(
                 bias + (group_oc + oc) * OC_BLOCK, (group_oc + oc) * OC_BLOCK);
-        bia *= SCALE;
-#define QUANTIZE_ADD_BIAS() tmp = fma(tmp, (float4)SCALE, bia);
+#define QUANTIZE_ADD_BIAS() tmp = SCALE * fma(tmp, (float4)1, bia);
 #else
 #define QUANTIZE_ADD_BIAS() tmp *= SCALE;
 #endif

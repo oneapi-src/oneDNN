@@ -257,7 +257,6 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
         B[i] = bias[g + (i * SUB_GROUP_SIZE) + get_sub_group_local_id()];
     }
 #endif
-    B *= SCALE;
     float8 B0123 = B.s01010101;
     float8 B4567 = B.s01010101;
     if (MB % MB_BLOCK != 0) {
@@ -267,8 +266,8 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
         B0123 = select((float8)0, B0123, m0123);
         B4567 = select((float8)0, B4567, m4567);
     }
-    tmp00 = fma(tmp00, (float8)SCALE_VEC8, B0123);
-    tmp01 = fma(tmp01, (float8)SCALE_VEC8, B4567);
+    tmp00 = SCALE_VEC8 * fma(tmp00, (float8)1, B0123);
+    tmp01 = SCALE_VEC8 * fma(tmp01, (float8)1, B4567);
 #else
     tmp00 *= SCALE_VEC8;
     tmp01 *= SCALE_VEC8;

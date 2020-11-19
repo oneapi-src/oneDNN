@@ -73,8 +73,8 @@ DECLARE_MMAD(
         data[(i - idx) / SUB_GROUP_SIZE] = as_float( \
                 intel_sub_group_block_read((__global uint *)&bias[i])); \
     } \
-    if ((get_sub_group_local_id() < OC % SUB_GROUP_SIZE) \
-            && (i == OC - OC % SUB_GROUP_SIZE)) { \
+    if ((get_sub_group_local_id() < OC % SUB_GROUP_SIZE) && i < OC \
+            && (i - idx) / SUB_GROUP_SIZE < 4) { \
         data[(i - idx) / SUB_GROUP_SIZE] \
                 = as_float(bias[i + get_sub_group_local_id()]); \
     }
@@ -391,8 +391,7 @@ conv_fwd_ow_block_x8s8s32x(const __global SRC_DATA_T *src,
 #if WITH_BIAS
         float4 bia;
         BLOCK_READ_BIA(bia, (group_oc + oc) * OC_BLOCK);
-        bia *= SCALE;
-#define QUANTIZE_ADD_BIAS() tmp = fma(tmp, (float4)SCALE, bia);
+#define QUANTIZE_ADD_BIAS() tmp = SCALE * fma(tmp, (float4)1, bia);
 #else
 #define QUANTIZE_ADD_BIAS() tmp *= SCALE;
 #endif

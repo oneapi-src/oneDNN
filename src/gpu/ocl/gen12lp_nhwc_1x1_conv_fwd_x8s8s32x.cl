@@ -367,8 +367,7 @@ gen12lp_nhwc_1x1_conv_fwd_x8s8s32x(const __global SRC_DATA_T *src,
 #if WITH_BIAS
     float4 bia;
     BLOCK_READ_BIA(bia, oc_group_id * OC_BLOCK);
-    bia *= SCALE;
-#define QUANTIZE_ADD_BIAS() tmp = fma(tmp, (float4)SCALE, bia);
+#define QUANTIZE_ADD_BIAS() tmp = SCALE* fma(tmp, (float4)1, bia);
 #else
 #define QUANTIZE_ADD_BIAS() tmp *= SCALE;
 #endif

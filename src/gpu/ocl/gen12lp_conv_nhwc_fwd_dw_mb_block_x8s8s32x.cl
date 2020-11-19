@@ -226,9 +226,8 @@ conv_nhwc_fwd_dw_mb_block_x8s8s32x(const __global uchar *src,
 #if WITH_BIAS
     float2 B = as_float2(
             intel_sub_group_block_read2((const __global uint *)&bias[g]));
-    B *= SCALE;
-    tmp00 = fma(tmp00, (float8)SCALE_VEC8, B.s01010101);
-    tmp01 = fma(tmp01, (float8)SCALE_VEC8, B.s01010101);
+    tmp00 = SCALE_VEC8 * fma(tmp00, (float8)1, B.s01010101);
+    tmp01 = SCALE_VEC8 * fma(tmp01, (float8)1, B.s01010101);
 #else
     tmp00 *= SCALE_VEC8;
     tmp01 *= SCALE_VEC8;

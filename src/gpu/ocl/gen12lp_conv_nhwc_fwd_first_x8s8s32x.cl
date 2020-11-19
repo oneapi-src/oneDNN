@@ -632,11 +632,10 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
 #if WITH_BIAS
     float4 bia;
     BLOCK_READ_BIA(bia, (group_oc + oc) * OC_BLOCK);
-    bia *= SCALE;
-#define QUANTIZE_ADD_BIAS() tmp = fma(tmp, (float4)SCALE, bia);
+#define QUANTIZE_ADD_BIAS() tmp = SCALE * fma(tmp, (float4)1, bia);
 #define QUANTIZE_ADD_BIAS_4() \
-    tmp0 = fma(tmp0, (float8)SCALE_VEC4, bia.s01230123); \
-    tmp1 = fma(tmp1, (float8)SCALE_VEC4, bia.s01230123);
+    tmp0 = ((float8)SCALE_VEC4) * fma(tmp0, (float8)1, bia.s01230123); \
+    tmp1 = ((float8)SCALE_VEC4) * fma(tmp1, (float8)1, bia.s01230123);
 #else
 #define QUANTIZE_ADD_BIAS() tmp *= SCALE;
 #define QUANTIZE_ADD_BIAS_4() \
