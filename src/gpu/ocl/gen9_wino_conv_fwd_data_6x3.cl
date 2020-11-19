@@ -21,12 +21,15 @@
 
 #define WINO_D (WINO_M + WINO_R - 1)
 
+#define TO_TYPE(value) ((DATA_T)value)
+
 #define UTRANS_BLOCK 8
 #define UTRANS_DATA_T CONCAT2(DATA_T, UTRANS_BLOCK)
+#define AS_UTRANS_DATA_T CONCAT2(as_, COMP_DATA_T)
 #define UTRANS_BLOCK_READ(ptr) \
-    as_half8(intel_sub_group_block_read_us8((const __global ushort8 *)ptr))
+    AS_UTRANS_DATA_T(BLOCK_READ8((const __global BLOCK_DATA_T *)ptr))
 #define UTRANS_BLOCK_WRITE(data, ptr) \
-    intel_sub_group_block_write_us8((__global ushort8 *)ptr, as_ushort8(data))
+    BLOCK_WRITE8((__global BLOCK_DATA_T *)ptr, AS_BLOCK_DATA8_T(data))
 
 #define TRANS_BLOCK 4 // = (WINO_IC_BLOCK / (LWS_0 * LWS_1 / WINO_IW_BLOCK))
 #define TRANS_DATA_T CONCAT2(DATA_T, TRANS_BLOCK)
@@ -48,6 +51,9 @@
             (ptr)[_i] = result[_i]; \
         } \
     } while (0)
+
+#define UCOMP_BLOCK_READ(ptr) \
+    AS_COMP_DATA_T(BLOCK_READ8((const __global BLOCK_DATA_T *)ptr))
 
 static inline int off_nCdhw16c(
         int n, int c, int d, int h, int w, int C, int D, int H, int W) {
@@ -184,24 +190,24 @@ gen9_wino_wei_transform_6x3(
 
     UTRANS_BLOCK_WRITE(g0, &U[out_idx]);
     out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE((DATA_T)(-2.0 / 9) * (g0 + g1 + g2), &U[out_idx]);
+    UTRANS_BLOCK_WRITE(TO_TYPE(-2.0 / 9) * (g0 + g1 + g2), &U[out_idx]);
     out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE((DATA_T)(2.0 / 9) * (-g0 + g1 - g2), &U[out_idx]);
+    UTRANS_BLOCK_WRITE(TO_TYPE(2.0 / 9) * (-g0 + g1 - g2), &U[out_idx]);
     out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE((DATA_T)(1.0 / 90) * g0 + (DATA_T)(2.0 / 90) * g1
-                    + (DATA_T)(4.0 / 90) * g2,
+    UTRANS_BLOCK_WRITE(TO_TYPE(1.0 / 90) * g0 + TO_TYPE(2.0 / 90) * g1
+                    + TO_TYPE(4.0 / 90) * g2,
             &U[out_idx]);
     out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE((DATA_T)(1.0 / 90) * g0 - (DATA_T)(2.0 / 90) * g1
-                    + (DATA_T)(4.0 / 90) * g2,
+    UTRANS_BLOCK_WRITE(TO_TYPE(1.0 / 90) * g0 - TO_TYPE(2.0 / 90) * g1
+                    + TO_TYPE(4.0 / 90) * g2,
             &U[out_idx]);
     out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE((DATA_T)(64.0 / 90) * g0 + (DATA_T)(32.0 / 90) * g1
-                    + (DATA_T)(16.0 / 90) * g2,
+    UTRANS_BLOCK_WRITE(TO_TYPE(64.0 / 90) * g0 + TO_TYPE(32.0 / 90) * g1
+                    + TO_TYPE(16.0 / 90) * g2,
             &U[out_idx]);
     out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE((DATA_T)(64.0 / 90) * g0 - (DATA_T)(32.0 / 90) * g1
-                    + (DATA_T)(16.0 / 90) * g2,
+    UTRANS_BLOCK_WRITE(TO_TYPE(64.0 / 90) * g0 - TO_TYPE(32.0 / 90) * g1
+                    + TO_TYPE(16.0 / 90) * g2,
             &U[out_idx]);
     out_idx += U_off(0, 0, 1, 0);
     UTRANS_BLOCK_WRITE(g2, &U[out_idx]);
@@ -233,8 +239,8 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
     const uint slm_size = (WINO_IC_BLOCK * WINO_D * IW_BLOCK) / TRANS_BLOCK;
     __local TRANS_DATA_T V[slm_size]; // 8 KB
 
-    const DATA_T sc = 0.1h;
-    const DATA_T scl = 1.0h / sc;
+    const DATA_T sc = TO_TYPE(0.1);
+    const DATA_T scl = TO_TYPE(1.0) / sc;
     const TRANS_DATA_T scl_vec = (TRANS_DATA_T)(sc, sc, sc, sc);
 
     const int ow0 = get_group_id(0) * OW_BLOCK;
@@ -356,32 +362,32 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
 
             // Compute Winograd f6x3 data transform and store components in SLM.
             V_write[V_off(0, 0, 0, TRANS_BLOCK)]
-                    = src0 - 5.25h * src2 + 5.25h * src4 - src6;
+                    = src0 - TO_TYPE(5.25) * src2 + TO_TYPE(5.25) * src4 - src6;
 
-            TRANS_DATA_T x0 = src1 - 4.25h * src3 + src5;
-            TRANS_DATA_T x1 = src2 - 4.25h * src4 + src6;
+            TRANS_DATA_T x0 = src1 - TO_TYPE(4.25) * src3 + src5;
+            TRANS_DATA_T x1 = src2 - TO_TYPE(4.25) * src4 + src6;
 
             V_write[V_off(0, 1, 0, TRANS_BLOCK)] = x1 + x0;
             V_write[V_off(0, 2, 0, TRANS_BLOCK)] = x1 - x0;
 
-            TRANS_DATA_T x2 = -5.h * src3 + src1;
-            TRANS_DATA_T x3 = 4.h * src5 + x2;
-            TRANS_DATA_T x4 = 0.25h * src2 + src6;
-            TRANS_DATA_T x5 = -1.25h * src4 + x4;
+            TRANS_DATA_T x2 = TO_TYPE(-5) * src3 + src1;
+            TRANS_DATA_T x3 = TO_TYPE(4) * src5 + x2;
+            TRANS_DATA_T x4 = TO_TYPE(0.25) * src2 + src6;
+            TRANS_DATA_T x5 = TO_TYPE(-1.25) * src4 + x4;
 
-            V_write[V_off(0, 3, 0, TRANS_BLOCK)] = +0.5h * x3 + x5;
-            V_write[V_off(0, 4, 0, TRANS_BLOCK)] = -0.5h * x3 + x5;
+            V_write[V_off(0, 3, 0, TRANS_BLOCK)] = TO_TYPE(0.5) * x3 + x5;
+            V_write[V_off(0, 4, 0, TRANS_BLOCK)] = TO_TYPE(-0.5) * x3 + x5;
 
-            TRANS_DATA_T x6 = 4.h * src1 + src5;
-            TRANS_DATA_T x7 = -5.h * src3 + x6;
-            TRANS_DATA_T x8 = 4.h * src2 + src6;
-            TRANS_DATA_T x9 = -5.h * src4 + x8;
+            TRANS_DATA_T x6 = TO_TYPE(4) * src1 + src5;
+            TRANS_DATA_T x7 = TO_TYPE(-5) * src3 + x6;
+            TRANS_DATA_T x8 = TO_TYPE(4) * src2 + src6;
+            TRANS_DATA_T x9 = TO_TYPE(-5) * src4 + x8;
 
-            V_write[V_off(0, 5, 0, TRANS_BLOCK)] = +0.5h * x7 + x9;
-            V_write[V_off(0, 6, 0, TRANS_BLOCK)] = -0.5h * x7 + x9;
+            V_write[V_off(0, 5, 0, TRANS_BLOCK)] = TO_TYPE(+0.5) * x7 + x9;
+            V_write[V_off(0, 6, 0, TRANS_BLOCK)] = TO_TYPE(-0.5) * x7 + x9;
 
-            V_write[V_off(0, 7, 0, TRANS_BLOCK)]
-                    = -src1 + 5.25h * src3 - 5.25h * src5 + src7;
+            V_write[V_off(0, 7, 0, TRANS_BLOCK)] = -src1 + TO_TYPE(5.25) * src3
+                    - TO_TYPE(5.25) * src5 + src7;
         }
 
         src_load += src_off(0, WINO_IC_BLOCK, 0, 0, 0);
@@ -404,8 +410,8 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
                                         ++c_inner) {
                 // 2*14 * 3 * 4 = 336 MADs
                 // Fetch 8 channels of Winograd components from f(k,s)
-                const COMP_DATA_T f00 = AS_COMP_DATA_T(
-                        intel_sub_group_block_read_us8(&U[U_off(0, 0, 0, 0)]));
+                const COMP_DATA_T f00 = UCOMP_BLOCK_READ(
+                        (const __global ushort *)&U[U_off(0, 0, 0, 0)]);
 
                 // f0 x v[0 .. 14]
                 DOT8i_0(M0.s0, f00, V_block0, 0 + c_inner);
@@ -559,8 +565,8 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
                 DOT8i_7(M6.s0, f00, V_block1, 8 + c_inner);
                 DOT8i_7(M6.s1, f00, V_block1, 10 + c_inner);
 
-                const COMP_DATA_T f01 = AS_COMP_DATA_T(
-                        intel_sub_group_block_read_us8(&U[U_off(0, 0, 0, 1)]));
+                const COMP_DATA_T f01 = UCOMP_BLOCK_READ(
+                        (const __global ushort *)&U[U_off(0, 0, 0, 1)]);
 
                 // f1[c_inner] x v[1 .. 15]
                 DOT8i_0(M0.s0, f01, V_block0, 2 + c_inner);
@@ -714,8 +720,8 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
                 DOT8i_7(M6.s0, f01, V_block1, 10 + c_inner);
                 DOT8i_7(M6.s1, f01, V_block1, 12 + c_inner);
 
-                const COMP_DATA_T f02 = AS_COMP_DATA_T(
-                        intel_sub_group_block_read_us8(&U[U_off(0, 0, 0, 2)]));
+                const COMP_DATA_T f02 = UCOMP_BLOCK_READ(
+                        (const __global ushort *)&U[U_off(0, 0, 0, 2)]);
                 U += U_off(0, COMP_BLOCK, 0, 0);
 
                 // f2[c_inner] x v[2 .. 16]
@@ -920,12 +926,12 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         OUT_BLOCK_DATA_T x5 = M5 - M6;
 
         OUT_BLOCK_DATA_T C0 = M0 + x0 + x2 + x4;
-        OUT_BLOCK_DATA_T C1 = x1 + ((DATA_T)2.f) * x3 + ((DATA_T)0.5f) * x5;
-        OUT_BLOCK_DATA_T C2 = x0 + ((DATA_T)4.f) * x2 + ((DATA_T)0.25f) * x4;
-        OUT_BLOCK_DATA_T C3 = x1 + ((DATA_T)8.f) * x3 + ((DATA_T)0.125f) * x5;
-        OUT_BLOCK_DATA_T C4 = x0 + ((DATA_T)16.f) * x2 + ((DATA_T)0.0625f) * x4;
+        OUT_BLOCK_DATA_T C1 = x1 + TO_TYPE(2) * x3 + TO_TYPE(0.5f) * x5;
+        OUT_BLOCK_DATA_T C2 = x0 + TO_TYPE(4.f) * x2 + TO_TYPE(0.25f) * x4;
+        OUT_BLOCK_DATA_T C3 = x1 + TO_TYPE(8.f) * x3 + TO_TYPE(0.125f) * x5;
+        OUT_BLOCK_DATA_T C4 = x0 + TO_TYPE(16.f) * x2 + TO_TYPE(0.0625f) * x4;
         OUT_BLOCK_DATA_T C5
-                = x1 + ((DATA_T)32.f) * x3 + ((DATA_T)0.03125f) * x5 + M7;
+                = x1 + TO_TYPE(32.f) * x3 + TO_TYPE(0.03125f) * x5 + M7;
 
         C0 = C0 * scl;
         C1 = C1 * scl;
