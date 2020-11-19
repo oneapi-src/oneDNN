@@ -144,7 +144,7 @@ for problem decomposition.
 <summary>C API</summary>
 
 ~~~cpp
-dnnl_status_t DNNL_API dnnl_threadpool_interop_primitive_attr_create(dnnl_primitive_attr_t *attr, uint32_t num_threads);
+dnnl_status_t DNNL_API dnnl_threadpool_interop_primitive_attr_create(dnnl_primitive_attr_t *attr, uint32_t max_num_threads);
 ~~~
 
 </details>
@@ -156,9 +156,9 @@ dnnl_status_t DNNL_API dnnl_threadpool_interop_primitive_attr_create(dnnl_primit
 namespace dnnl {
 namespace threadpool_interop {
 
-inline dnnl::primitive_attr make_primitive_attr(uint32_t num_threads = DNNL_MAX_THREADS) {
+inline dnnl::primitive_attr make_primitive_attr(uint32_t max_num_threads = DNNL_MAX_THREADS) {
     dnnl_primitive_attr_t c_attr;
-    dnnl::error::wrap_c_api(dnnl_threadpool_interop_primitive_attr_create(&c_attr, num_threads));
+    dnnl::error::wrap_c_api(dnnl_threadpool_interop_primitive_attr_create(&c_attr, max_num_threads));
 }
 
 } // namespace threadpool_interop
@@ -167,7 +167,7 @@ inline dnnl::primitive_attr make_primitive_attr(uint32_t num_threads = DNNL_MAX_
 
 </details>
 
-The `num_threads` value in the primitive attributes will indicate the upper
+The `max_num_threads` value in the primitive attributes will indicate the upper
 limit for the number of threads used for decomposition in the primitive
 (descriptor). The default wildcard value `DNNL_MAX_THREADS` indicates that
 `dnnl_get_max_threads()` will be used internally as an upper limit.
@@ -184,11 +184,12 @@ threadpool.
 
 In the context of primitive cache, the number of threads passed by primitive
 attributes will be used to construct the cache key. In means that two primitives
-created using different `num_threads` will both be stored in the cache as
+created using different `max_num_threads` will both be stored in the cache as
 separate implementations.
 
 Since the implementation of this RFC can target oneDNN v2.1 at the least, it is
-proposed to introduce the new API into `dnnl_threadpool.hpp`, where Threadpool-specific API is introduced.
+proposed to introduce the new API into `dnnl_threadpool.hpp`, where
+Threadpool-specific API is introduced.
 
 Pros:
 - Ability to have different problem decompositions for different primitives;
@@ -209,9 +210,9 @@ the upper limit for thread count during primitive (descriptor) creation.
 <summary>C API</summary>
 
 ~~~cpp
-dnnl_primitive_attr_get_num_threads(dnnl_primitive_attr_t attr, uint32_t *num_threads);
+dnnl_primitive_attr_get_max_num_threads(const_dnnl_primitive_attr_t attr, uint32_t *max_num_threads);
 
-dnnl_primitive_attr_set_num_threads(dnnl_primitive_attr_t attr, uint32_t num_threads);
+dnnl_primitive_attr_set_max_num_threads(dnnl_primitive_attr_t attr, uint32_t max_num_threads);
 ~~~
 
 </details>
@@ -223,9 +224,9 @@ dnnl_primitive_attr_set_num_threads(dnnl_primitive_attr_t attr, uint32_t num_thr
 struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ...
 
-    uint32_t get_num_threads() const {}
+    uint32_t get_max_num_threads() const {}
 
-    void set_num_threads(uint32_t nthr) {}
+    void set_max_num_threads(uint32_t nthr) {}
 
     ...
 };
