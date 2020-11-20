@@ -47,6 +47,10 @@ struct params_t {
     // should be invoked after gemm
     bool has_pp_kernel_ = false;
 
+    // indicates if src batch dims can be fused into M, so that a single
+    // GeMM call can be made
+    bool can_fuse_src_batch_dims_ = false;
+
     // an attribute for post processing kernel
     primitive_attr_t pp_attr_;
 
@@ -90,15 +94,9 @@ inline bool check_gemm_compatible_formats(const matmul_pd_t &pd) {
 
 inline void book_acc_scratchpad(
         matmul_pd_t &pd, const params_t &params, size_t sizeof_acc_data) {
-    bool has_runtime_dims = false;
-    for (auto d : pd.dst_md()->dims) {
-        if (d == DNNL_RUNTIME_DIM_VAL) {
-            has_runtime_dims = true;
-            break;
-        }
-    }
 
-    if (!params.dst_is_acc_ && !has_runtime_dims) {
+    if (!params.dst_is_acc_
+            && !memory_desc_wrapper(pd.dst_md()).has_runtime_dims()) {
         auto scratchpad = pd.scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
                 nstl::min(pd.batch(), (dim_t)dnnl_get_max_threads()) * pd.M()
