@@ -134,14 +134,16 @@ private:
     }
 #if defined(_N_BCST_1_LOAD)
     Xbyak::Zmm bcst(int bd) {
-        assert(brg.ld_block2 * brg.bd_block < 31);
-        return Xbyak::Zmm(31 - (brg.ld_block2 * brg.bd_block) - bd);
+        int idx = 31 - (brg.ld_block2 * brg.bd_block) - bd;
+        assert(idx > 0);
+        return Xbyak::Zmm(idx);
     }
     Xbyak::Zmm load() { return Xbyak::Zmm(0); }
 #else
     Xbyak::Zmm load(int ld) {
-        assert(brg.ld_block2 * brg.bd_block < 31);
-        return Xbyak::Zmm(31 - (brg.ld_block2 * brg.bd_block) - ld);
+        int idx = 31 - (brg.ld_block2 * brg.bd_block) - ld;
+        assert(idx > 0);
+        return Xbyak::Zmm(idx);
     }
     Xbyak::Zmm bcst() { return Xbyak::Zmm(0); }
 #endif
@@ -412,20 +414,24 @@ void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(
         int bd_block, int ld_block2, bool is_ld_tail) {
     auto k_mask = (!is_ld_tail) ? ld_full_mask : ld_tail_mask;
 
+    // if (brg.is_int8 && alpha_or_beta_applicable && !beta_uses_vadd) ->
+    // accumulated values are already converted to ps in apply_alpha_beta()
+    const bool alpha_or_beta_applicable = brg.alpha != 1.0f || brg.beta != 0.f;
+    const bool beta_uses_vadd
+            = brg.beta == 1.f && IMPLICATION(brg.is_int8, brg.alpha == 1.0f);
+    const bool dq2ps_required = brg.is_int8
+            && IMPLICATION(alpha_or_beta_applicable, beta_uses_vadd);
+
     if (brg.with_bias) { mov(reg_aux_bias, ptr[rsp + reg_aux_bias_offs_]); }
-    for (int bd = 0; bd < bd_block; bd++) {
-        for (int ld = 0; ld < ld_block2; ld++) {
-            auto zmm = accm(ld_block2, bd, ld);
-            if (!brg.is_f32 && !brg.is_bf16
-                    && ((brg.beta != 0.f) || (brg.beta != 1.f)))
-                vcvtdq2ps(zmm, zmm);
-            if (brg.with_bias) {
-                auto zmm_bias = zmm_tmp_1();
-                cvt2ps(brg.dt_bias, zmm_bias,
-                        ptr[reg_aux_bias + bias_offset(ld)], true, false,
-                        k_mask);
-                vaddps(zmm, zmm, zmm_bias);
-            }
+    for_(int bd = 0; bd < bd_block; bd++)
+    for (int ld = 0; ld < ld_block2; ld++) {
+        auto zmm = accm(ld_block2, bd, ld);
+        if (dq2ps_required) vcvtdq2ps(zmm, zmm);
+        if (brg.with_bias) {
+            auto zmm_bias = zmm_tmp_1();
+            auto ptr_bias = ptr[reg_aux_bias + bias_offset(ld)];
+            cvt2ps(brg.dt_bias, zmm_bias, ptr_bias, true, false, k_mask);
+            vaddps(zmm, zmm, zmm_bias);
         }
     }
 
@@ -488,15 +494,22 @@ void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(
     if (brg.with_eltwise && sum_before_eltwise)
         eltwise_injector_->compute_vector_range(32 - bd_block * ld_block2, 32);
 
-    auto zmm_zero = zmm_tmp_1();
-    if (brg.dt_d == data_type::u8) vpxord(zmm_zero, zmm_zero, zmm_zero);
+    const bool dt_requires_saturation
+            = one_of(brg.dt_d, data_type::u8, data_type::s8, data_type::s32);
+    auto zmm_lbound = zmm_tmp_1();
+    auto zmm_ubound = zmm_tmp_2();
+    if (dt_requires_saturation) {
+        init_saturate_f32(
+                zmm_lbound, zmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
+    }
 
     for (int bd = 0; bd < bd_block; bd++) {
-        for (int ld = 0; ld < ld_block2; ld++) {
-            auto zmm = accm(ld_block2, bd, ld);
-            if (brg.dt_d == data_type::u8) vmaxps(zmm, zmm_zero, zmm);
-            if (!one_of(brg.dt_d, data_type::f32, data_type::bf16))
+        if (dt_requires_saturation) {
+            for (int ld = 0; ld < ld_block2; ld++) {
+                auto zmm = accm(ld_block2, bd, ld);
+                saturate_f32(zmm, zmm_lbound, zmm_ubound, brg.dt_d);
                 vcvtps2dq(zmm, zmm);
+            }
         }
         for (int ld = 0; ld < ld_block2; ld++) {
             auto addr = ptr[reg_aux_D + D_offset(bd, ld)];
@@ -521,11 +534,31 @@ void jit_brgemm_kernel_base_t::store_accumulators_apply_post_ops(
 
 void jit_brgemm_kernel_base_t::store_accumulators_without_post_ops(
         int bd_block, int ld_block2, bool is_ld_tail) {
+
+    // if (brg.is_int8 && alpha_or_beta_applicable && !beta_uses_vadd) ->
+    // accumulated values are converted to ps in apply_alpha_beta()
+    const bool alpha_or_beta_applicable = brg.alpha != 1.0f || brg.beta != 0.f;
+    const bool beta_uses_vadd
+            = brg.beta == 1.f && IMPLICATION(brg.is_int8, brg.alpha == 1.0f);
+    const bool dt_requires_saturation = brg.is_int8
+            && !IMPLICATION(alpha_or_beta_applicable, beta_uses_vadd);
+    auto zmm_lbound = zmm_tmp_1();
+    auto zmm_ubound = zmm_tmp_2();
+    if (dt_requires_saturation) {
+        init_saturate_f32(
+                zmm_lbound, zmm_ubound, reg_tmp_gpr, data_type::f32, brg.dt_d);
+    }
+
     for (int bd = 0; bd < bd_block; bd++) {
+        if (dt_requires_saturation) {
+            for (int ld = 0; ld < ld_block2; ld++) {
+                auto zmm = accm(ld_block2, bd, ld);
+                saturate_f32(zmm, zmm_lbound, zmm_ubound, brg.dt_d);
+                vcvtps2dq(zmm, zmm);
+            }
+        }
         for (int ld = 0; ld < ld_block2; ld++) {
             auto zmm = accm(ld_block2, bd, ld);
-            if (!one_of(brg.beta, 1.f, 0.f) && (!brg.is_f32 && !brg.is_bf16))
-                vcvtps2dq(zmm, zmm);
             if (is_ld_tail)
                 vmovups(ptr[reg_aux_C + C_offset(bd, ld)] | ld_tail_mask | T_z,
                         zmm);
