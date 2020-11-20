@@ -195,6 +195,9 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
             = &weights_d.blocking_desc().strides[ldx_dim_idx];
 
     const gemm_based::params_t &params = pd()->params();
+    const bool can_fuse_src_batch_dims = pd()->has_runtime_dims_or_strides()
+            ? helper.can_fuse_src_batch_dims()
+            : params.can_fuse_src_batch_dims_;
     bool dst_is_acc = params.dst_is_acc_;
     acc_data_t *acc = dst_is_acc
             ? (acc_data_t *)dst
@@ -216,8 +219,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     const dim_t acc_ldc = dst_is_acc ? ldc : N;
 
     std::atomic<status_t> st(status::success);
-    const bool parallel_over_batch
-            = batch > 1 && !helper.can_fuse_src_batch_dims();
+    const bool parallel_over_batch = batch > 1 && !can_fuse_src_batch_dims;
     if (parallel_over_batch) {
         const int src_mask
                 = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
