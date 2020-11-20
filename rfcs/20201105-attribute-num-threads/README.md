@@ -144,7 +144,7 @@ for problem decomposition.
 <summary>C API</summary>
 
 ~~~cpp
-dnnl_status_t DNNL_API dnnl_threadpool_interop_primitive_attr_create(dnnl_primitive_attr_t *attr, uint32_t max_num_threads);
+dnnl_status_t DNNL_API dnnl_threadpool_interop_primitive_attr_create(dnnl_primitive_attr_t *attr, int max_num_threads);
 ~~~
 
 </details>
@@ -156,7 +156,7 @@ dnnl_status_t DNNL_API dnnl_threadpool_interop_primitive_attr_create(dnnl_primit
 namespace dnnl {
 namespace threadpool_interop {
 
-inline dnnl::primitive_attr make_primitive_attr(uint32_t max_num_threads = DNNL_MAX_THREADS) {
+inline dnnl::primitive_attr make_primitive_attr(int max_num_threads = DNNL_MAX_THREADS) {
     dnnl_primitive_attr_t c_attr;
     dnnl::error::wrap_c_api(dnnl_threadpool_interop_primitive_attr_create(&c_attr, max_num_threads));
 }
@@ -210,9 +210,9 @@ the upper limit for thread count during primitive (descriptor) creation.
 <summary>C API</summary>
 
 ~~~cpp
-dnnl_primitive_attr_get_max_num_threads(const_dnnl_primitive_attr_t attr, uint32_t *max_num_threads);
+dnnl_primitive_attr_get_max_num_threads(const_dnnl_primitive_attr_t attr, int *max_num_threads);
 
-dnnl_primitive_attr_set_max_num_threads(dnnl_primitive_attr_t attr, uint32_t max_num_threads);
+dnnl_primitive_attr_set_max_num_threads(dnnl_primitive_attr_t attr, int max_num_threads);
 ~~~
 
 </details>
@@ -224,9 +224,9 @@ dnnl_primitive_attr_set_max_num_threads(dnnl_primitive_attr_t attr, uint32_t max
 struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ...
 
-    uint32_t get_max_num_threads() const {}
+    int get_max_num_threads() const {}
 
-    void set_max_num_threads(uint32_t nthr) {}
+    void set_max_num_threads(int nthr) {}
 
     ...
 };
