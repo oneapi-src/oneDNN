@@ -277,7 +277,7 @@ template void transpose_dt(const conv_gemm_conf_t &jcp,
 /* col[kd][kh][kw][g][ic][od][oh][ow] <-- im2col_dt_3d(im[id][ih][iw][g][ic]) */
 template <typename orig_im_dt, typename orig_col_dt>
 void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
-        orig_col_dt *__restrict _col, dim_t od) {
+        orig_col_dt *__restrict _col, dim_t od, const uint8_t *__restrict input_zp) {
     // For performance reasons, use uint16_t as a proxy for bfloat16_t
     using im_dt = typename utils::conditional<data_traits<orig_im_dt>::data_type
                     == bf16,
@@ -307,6 +307,8 @@ void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
     const dim_t IHW = jcp.ih * jcp.iw;
     const dim_t OHW = jcp.oh * jcp.ow;
 
+    bool with_input_zp = input_zp != nullptr;
+
     if (sd == 1 && sh == 1 && sw == 1 && dd == 1 && dh == 1 && dw == 1)
         parallel_nd(jcp.kd, jcp.kh, jcp.kw, jcp.ic,
                 [&](dim_t kd, dim_t kh, dim_t kw, dim_t ic) {
@@ -314,8 +316,9 @@ void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
                             + kh * col_kh_s + kw * col_kw_s + ic * col_ic_s;
                     const dim_t id = od - fp + kd;
                     if (id < 0 || id >= jcp.id) {
+                        col_dt izp = with_input_zp ? (col_dt)input_zp[ic] : shift;
                         for (ptrdiff_t i = 0; i < OHW; i++)
-                            col_loc[i] = shift;
+                            col_loc[i] = izp;
                         return;
                     }
                     const im_dt *__restrict imtr_loc
@@ -343,8 +346,9 @@ void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
                             + kh * col_kh_s + kw * col_kw_s + ic * col_ic_s;
                     const dim_t id = od * 2 - fp + kd;
                     if (id < 0 || id >= jcp.id) {
+                        col_dt izp = with_input_zp ? (col_dt)input_zp[ic] : shift;
                         for (ptrdiff_t i = 0; i < OHW; i++)
-                            col_loc[i] = shift;
+                            col_loc[i] = izp;
                         return;
                     }
                     const im_dt *__restrict imtr_loc
@@ -374,8 +378,9 @@ void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
                             + kh * col_kh_s + kw * col_kw_s + ic * col_ic_s;
                     const dim_t id = od * sd - fp + kd * dd;
                     if (id < 0 || id >= jcp.id) {
+                        col_dt izp = with_input_zp ? (col_dt)input_zp[ic] : shift;
                         for (ptrdiff_t i = 0; i < OHW; i++)
-                            col_loc[i] = shift;
+                            col_loc[i] = izp;
                         return;
                     }
                     const im_dt *__restrict imtr_loc
@@ -402,13 +407,13 @@ void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict _imtr,
 }
 
 template void im2col_dt_3d<int8_t, uint8_t>(const conv_gemm_conf_t &jcp,
-        const void *__restrict im, uint8_t *__restrict col, dim_t od);
+        const void *__restrict im, uint8_t *__restrict col, dim_t od, const uint8_t *__restrict input_zp);
 template void im2col_dt_3d<uint8_t, uint8_t>(const conv_gemm_conf_t &jcp,
-        const void *__restrict im, uint8_t *__restrict col, dim_t od);
+        const void *__restrict im, uint8_t *__restrict col, dim_t od, const uint8_t *__restrict input_zp);
 template void im2col_dt_3d<float, float>(const conv_gemm_conf_t &jcp,
-        const void *__restrict im, float *__restrict col, dim_t od);
+        const void *__restrict im, float *__restrict col, dim_t od, const uint8_t *__restrict input_zp);
 template void im2col_dt_3d<bfloat16_t, bfloat16_t>(const conv_gemm_conf_t &jcp,
-        const void *__restrict im, bfloat16_t *__restrict col, dim_t od);
+        const void *__restrict im, bfloat16_t *__restrict col, dim_t od, const uint8_t *__restrict input_zp);
 
 /* col[ic][kh][kw][oh][ow] <-- im2col(im[ic][ih][iw]) */
 template <typename data_type_t>
@@ -575,7 +580,7 @@ template void im2col(const conv_gemm_conf_t &jcp,
 template <typename orig_im_dt, typename orig_col_dt>
 void im2col_dt(const conv_gemm_conf_t &jcp, const void *__restrict _im,
         void *__restrict _imtr, orig_col_dt *__restrict _col, dim_t hs,
-        dim_t hb, dim_t ws, dim_t wb) {
+        dim_t hb, dim_t ws, dim_t wb, const uint8_t *__restrict input_zp) {
     // For performance reasons, use uint16_t as a proxy for bfloat16_t
     using im_dt = typename utils::conditional<data_traits<orig_im_dt>::data_type
                     == bf16,
@@ -597,6 +602,8 @@ void im2col_dt(const conv_gemm_conf_t &jcp, const void *__restrict _im,
     const dim_t im_ih_stride = jcp.iw * im_iw_stride;
     const dim_t tp = jcp.t_pad;
     const dim_t lp = jcp.l_pad;
+
+    bool with_input_zp = input_zp != nullptr;
 
     if (jcp.outer_threading && sh == 1 && sw == 1 && dh == 1 && dw == 1) {
         /* im[ih][iw][ic] --> imtr[ic][ih][iw] --> col[kh][kw][ic][oh][ow] */
@@ -641,28 +648,49 @@ void im2col_dt(const conv_gemm_conf_t &jcp, const void *__restrict _im,
                 const dim_t ow_start = saturate(dim_t(0), wb, ow_kw);
                 const dim_t ow_end = saturate(dim_t(0), wb, ow_kw + iwb);
                 for (dim_t ic = 0; ic < jcp.ic; ic++) {
+                    uint8_t izp = with_input_zp ? input_zp[ic] : (uint8_t) 0;
                     const ptrdiff_t col_idx_ic = col_idx_kw + ic * col_ic_str;
                     const dim_t imtr_idx_ic = ic * imtr_ic_stride - imtr_shift;
                     for (dim_t oh = 0; oh < oh_start; oh++) {
                         const ptrdiff_t col_idx_oh = col_idx_ic + oh * wb;
-                        for (dim_t ow = 0; ow < wb; ++ow)
-                            col[col_idx_oh + ow] = shift;
+                        if (with_input_zp) {
+                            for (dim_t ow = 0; ow < wb; ++ow)
+                                col[col_idx_oh + ow] = izp;
+                        } else {
+                            for (dim_t ow = 0; ow < wb; ++ow)
+                                col[col_idx_oh + ow] = shift;
+                        }
                     }
                     for (dim_t oh = oh_start; oh < oh_end; oh++) {
                         const ptrdiff_t col_idx_oh = col_idx_ic + oh * wb;
                         const ptrdiff_t imtr_idx_oh = imtr_idx_ic + oh * iwb;
-                        for (dim_t ow = 0; ow < ow_start; ++ow)
-                            col[col_idx_oh + ow] = shift;
-                        for (dim_t ow = ow_start; ow < ow_end; ++ow)
-                            col[col_idx_oh + ow]
-                                    = imtr[imtr_idx_oh + ow] + shift;
-                        for (dim_t ow = ow_end; ow < wb; ++ow)
-                            col[col_idx_oh + ow] = shift;
+                        if (with_input_zp) {
+                            for (dim_t ow = 0; ow < ow_start; ++ow)
+                                col[col_idx_oh + ow] = izp;
+                            for (dim_t ow = ow_start; ow < ow_end; ++ow)
+                                col[col_idx_oh + ow]
+                                        = imtr[imtr_idx_oh + ow];
+                            for (dim_t ow = ow_end; ow < wb; ++ow)
+                                col[col_idx_oh + ow] = izp;
+                        } else {
+                            for (dim_t ow = 0; ow < ow_start; ++ow)
+                                col[col_idx_oh + ow] = shift;
+                            for (dim_t ow = ow_start; ow < ow_end; ++ow)
+                                col[col_idx_oh + ow]
+                                        = imtr[imtr_idx_oh + ow] + shift;
+                            for (dim_t ow = ow_end; ow < wb; ++ow)
+                                col[col_idx_oh + ow] = shift;
+                        }
                     }
                     for (dim_t oh = oh_end; oh < hb; oh++) {
                         const ptrdiff_t col_idx_oh = col_idx_ic + oh * wb;
-                        for (dim_t ow = 0; ow < wb; ++ow)
-                            col[col_idx_oh + ow] = shift;
+                        if (with_input_zp) {
+                            for (dim_t ow = 0; ow < wb; ++ow)
+                                col[col_idx_oh + ow] = izp;
+                        } else {
+                            for (dim_t ow = 0; ow < wb; ++ow)
+                                col[col_idx_oh + ow] = shift;
+                        }
                     }
                 }
             }
@@ -675,27 +703,48 @@ void im2col_dt(const conv_gemm_conf_t &jcp, const void *__restrict _im,
                     const ptrdiff_t col_idx_base
                             = (((kh * jcp.kw + kw) * jcp.ic + ic) * hb + oh)
                             * wb;
+                    uint8_t izp = with_input_zp ? input_zp[ic] : (uint8_t) 0;
                     if (ih < 0 || ih >= jcp.ih)
-                        for (dim_t ow = 0; ow < wb; ow++)
-                            col[col_idx_base + ow] = shift;
+                        if (with_input_zp) {
+                            for (dim_t ow = 0; ow < wb; ow++)
+                                col[col_idx_base + ow] = izp;
+                        } else {
+                            for (dim_t ow = 0; ow < wb; ow++)
+                                col[col_idx_base + ow] = shift;
+                        }
                     else {
                         const dim_t wp = lp - kw * dw;
                         const dim_t ow_start
                                 = saturate(dim_t(0), wb, div_up(wp, sw) - ws);
                         const dim_t ow_end = saturate(
                                 dim_t(0), wb, div_up(jcp.iw + wp, sw) - ws);
-                        for (dim_t ow = 0; ow < ow_start; ow++)
-                            col[col_idx_base + ow] = shift;
-                        const dim_t iw_base = ws * sw - wp;
-                        const ptrdiff_t im_idx_base = ih * im_ih_stride + ic;
-                        for (dim_t ow = ow_start; ow < ow_end; ow++) {
-                            const dim_t iw = iw_base + ow * sw;
-                            const ptrdiff_t im_idx
-                                    = im_idx_base + iw * im_iw_stride;
-                            col[col_idx_base + ow] = im[im_idx] + shift;
+                        if (with_input_zp) {
+                            for (dim_t ow = 0; ow < ow_start; ow++)
+                                col[col_idx_base + ow] = izp;
+                            const dim_t iw_base = ws * sw - wp;
+                            const ptrdiff_t im_idx_base = ih * im_ih_stride + ic;
+                            for (dim_t ow = ow_start; ow < ow_end; ow++) {
+                                const dim_t iw = iw_base + ow * sw;
+                                const ptrdiff_t im_idx
+                                        = im_idx_base + iw * im_iw_stride;
+                                col[col_idx_base + ow] = im[im_idx];
+                            }
+                            for (dim_t ow = ow_end; ow < wb; ow++)
+                                col[col_idx_base + ow] = izp;
+                        } else {
+                            for (dim_t ow = 0; ow < ow_start; ow++)
+                                col[col_idx_base + ow] = shift;
+                            const dim_t iw_base = ws * sw - wp;
+                            const ptrdiff_t im_idx_base = ih * im_ih_stride + ic;
+                            for (dim_t ow = ow_start; ow < ow_end; ow++) {
+                                const dim_t iw = iw_base + ow * sw;
+                                const ptrdiff_t im_idx
+                                        = im_idx_base + iw * im_iw_stride;
+                                col[col_idx_base + ow] = im[im_idx] + shift;
+                            }
+                            for (dim_t ow = ow_end; ow < wb; ow++)
+                                col[col_idx_base + ow] = shift;
                         }
-                        for (dim_t ow = ow_end; ow < wb; ow++)
-                            col[col_idx_base + ow] = shift;
                     }
                 });
     }
@@ -703,17 +752,17 @@ void im2col_dt(const conv_gemm_conf_t &jcp, const void *__restrict _im,
 
 template void im2col_dt<int8_t, uint8_t>(const conv_gemm_conf_t &jcp,
         const void *__restrict im, void *__restrict imtr,
-        uint8_t *__restrict col, dim_t hs, dim_t hb, dim_t ws, dim_t wb);
+        uint8_t *__restrict col, dim_t hs, dim_t hb, dim_t ws, dim_t wb, const uint8_t *__restrict input_zp);
 template void im2col_dt<uint8_t, uint8_t>(const conv_gemm_conf_t &jcp,
         const void *__restrict im, void *__restrict imtr,
-        uint8_t *__restrict col, dim_t hs, dim_t hb, dim_t ws, dim_t wb);
+        uint8_t *__restrict col, dim_t hs, dim_t hb, dim_t ws, dim_t wb, const uint8_t *__restrict input_zp);
 template void im2col_dt<float, float>(const conv_gemm_conf_t &jcp,
         const void *__restrict im, void *__restrict imtr, float *__restrict col,
-        dim_t hs, dim_t hb, dim_t ws, dim_t wb);
+        dim_t hs, dim_t hb, dim_t ws, dim_t wb, const uint8_t *__restrict input_zp);
 
 template void im2col_dt<bfloat16_t, bfloat16_t>(const conv_gemm_conf_t &jcp,
         const void *__restrict im, void *__restrict imtr,
-        bfloat16_t *__restrict col, dim_t hs, dim_t hb, dim_t ws, dim_t wb);
+        bfloat16_t *__restrict col, dim_t hs, dim_t hb, dim_t ws, dim_t wb, const uint8_t *__restrict input_zp);
 
 /* im[id][ih][iw][ic] <-- col2im_dt_3d(col[od][oh][ow][kd][kh][kw][ic]) */
 template <typename orig_T>
@@ -1130,6 +1179,21 @@ status_t init_conf(conv_gemm_conf_t &jcp,
     const bool is_bwd_d = jcp.prop_kind == backward_data;
     const bool is_bwd_w = jcp.prop_kind == backward_weights;
     const bool is_fwd = !is_bwd_d && !is_bwd_w;
+
+    jcp.with_input_zp = !attr.input_zero_points_.has_default_values();
+    if (jcp.with_input_zp) {
+        if (attr.input_zero_points_.count_ != 1 && attr.input_zero_points_.count_ != jcp.ic * jcp.ngroups)
+            return status::unimplemented;
+
+        if (attr.output_compensations_.count_ != jcp.oc * jcp.ngroups)
+            return status::unimplemented;
+    }
+
+    jcp.with_weights_zp = !attr.weights_zero_points_.has_default_values();
+    if (jcp.with_weights_zp) {
+        if (attr.weights_zero_points_.count_ != 1 && attr.weights_zero_points_.count_ != jcp.oc * jcp.ngroups)
+            return status::unimplemented;
+    }
 
     bool is_int8_conv = (is_fwd ? utils::one_of(src_d.data_type(), s8, u8)
                                 : utils::one_of(dst_d.data_type(), s8, u8))

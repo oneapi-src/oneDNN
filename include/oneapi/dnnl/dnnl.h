@@ -354,6 +354,24 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_scales_mask(
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points_mask(
         dnnl_primitive_attr_t attr, int arg, int mask);
 
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_output_compensations(
+        const_dnnl_primitive_attr_t attr, int *count, int *mask, const int32_t **compensations);
+
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_compensations(
+        dnnl_primitive_attr_t attr, int count, int mask, const int32_t *compensations);
+
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_input_zero_points(
+        const_dnnl_primitive_attr_t attr, int *count, int *mask, const uint8_t **zero_points);
+
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_input_zero_points(
+        dnnl_primitive_attr_t attr, int count, int mask, const uint8_t *zero_points);
+
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_weights_zero_points(
+        const_dnnl_primitive_attr_t attr, int *count, int *mask, const float **zero_points);
+
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_weights_zero_points(
+        dnnl_primitive_attr_t attr, int count, int mask, const float *zero_points);
+
 /// Returns primitive attributes post-ops.
 ///
 /// @warning

@@ -58,13 +58,15 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
                     && desc()->accum_data_type == s32
                     && attr()->has_default_values(smask_t::scales_runtime
                                     | smask_t::zero_points_runtime
-                                    | smask_t::post_ops | smask_t::sum_dt,
+                                    | smask_t::post_ops
+                                    | smask_t::sum_dt
+                                    | smask_t::input_zero_points
+                                    | smask_t::output_compensations,
                             dst_md(0)->data_type)
                     && attr()->post_ops_.check_sum_consistency(
                             dst_md(0)->data_type, /* is_int8 */ true)
                     && !has_zero_dim_memory() && attr_scales_ok()
-                    && zero_points_ok()
-                    && !this->attr()->has_asymmetric_quantization();
+                    && zero_points_ok();
             if (!ok) return status::unimplemented;
 
             CHECK(jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jcp_, *desc(),

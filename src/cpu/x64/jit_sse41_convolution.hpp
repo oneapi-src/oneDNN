@@ -49,8 +49,7 @@ struct jit_sse41_convolution_fwd_t : public primitive_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, f32)
                     && !has_zero_dim_memory() && set_default_formats()
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && !this->attr()->has_asymmetric_quantization();
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             CHECK(jit_sse41_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),

@@ -52,8 +52,7 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
                                     data_type::f32, data_type::bf16))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, dst_type)
-                    && !has_zero_dim_memory()
-                    && !this->attr()->has_asymmetric_quantization();
+                    && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             auto status = jit_uni_dw_conv_fwd_kernel<isa, src_type>::init_conf(

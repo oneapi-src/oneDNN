@@ -69,6 +69,9 @@ struct conv_gemm_conf_t {
     size_t dst_os_stride;
     size_t scale_idx_mult;
     bool with_dst_scale;
+
+    bool with_input_zp;
+    bool with_weights_zp;
 };
 
 struct single_gemm_conv_chunk_desc_t {
@@ -116,7 +119,7 @@ void transpose_dt(const conv_gemm_conf_t &jcp, const T *__restrict im,
 
 template <typename im_dt, typename col_dt>
 void im2col_dt_3d(const conv_gemm_conf_t &jcp, const void *__restrict im,
-        col_dt *__restrict col, dim_t od);
+        col_dt *__restrict col, dim_t od, const uint8_t *__restrict input_zp = nullptr);
 
 template <typename data_type_t>
 void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
@@ -125,7 +128,7 @@ void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
 template <typename im_dt, typename col_dt>
 void im2col_dt(const conv_gemm_conf_t &jcp, const void *__restrict im,
         void *__restrict imtr, col_dt *__restrict col, dim_t hs, dim_t hb,
-        dim_t ws, dim_t wb);
+        dim_t ws, dim_t wb, const uint8_t *__restrict input_zp = nullptr);
 
 template <typename T>
 void col2im_dt(

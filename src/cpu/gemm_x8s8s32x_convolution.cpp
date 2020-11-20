@@ -187,8 +187,19 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
     int *__restrict acc = scratchpad.get<int>(key_conv_int_dat_in_acc_dt)
             + (ptrdiff_t)ithr * jcp.oh_block * jcp.ow_block * jcp.oc;
 
+    const uint8_t *input_zp_base = nullptr;
+    if (jcp.with_input_zp) {
+        input_zp_base = pd()->attr()->input_zero_points_.shifts_;
+    }
+
+    int32_t *output_compensation_base = nullptr;
+    if (jcp.with_input_zp) {
+        output_compensation_base = pd()->attr()->output_compensations_.shifts_;
+    }
+
     const int32_t *_wei_comp
-            = jcp.signed_input ? get_wei_comp(wei_base, wei_md) : nullptr;
+            = jcp.signed_input ? get_wei_comp(wei_base, wei_md) :
+              jcp.with_input_zp ? output_compensation_base : nullptr;
 
     const bool should_apply_zp_src_comp_pad = jcp.zp.src_exists
             && jit_gemm_convolution_utils::padding_exists(jcp);
@@ -235,6 +246,11 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
         for (int od = 0; od < jcp.od; od++) {
             const auto dst_off = n * dst_mb_stride + g * dst_g_stride
                     + ((od * jcp.oh + oh) * jcp.ow + ow) * jcp.dst_os_stride;
+
+            const uint8_t *__restrict input_zp = nullptr;
+            if (jcp.with_input_zp)
+                input_zp = input_zp_base + g * jcp.ic;
+
             char *__restrict dst = (char *)dst_base
                     + types::data_type_size(dst_md.data_type()) * dst_off;
             if (jcp.im2col_sz) {
@@ -242,20 +258,20 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
                     case data_type::s8: {
                         if (is_problem_3d)
                             jit_gemm_convolution_utils::im2col_dt_3d<int8_t,
-                                    uint8_t>(jcp, imtr, col, od);
+                                    uint8_t>(jcp, imtr, col, od, input_zp);
                         else
                             jit_gemm_convolution_utils::im2col_dt<int8_t,
                                     uint8_t>(jcp, src, imtr, col, oh, h_step,
-                                    ow, w_step);
+                                    ow, w_step, input_zp);
                     } break;
                     case data_type::u8: {
                         if (is_problem_3d)
                             jit_gemm_convolution_utils::im2col_dt_3d<uint8_t,
-                                    uint8_t>(jcp, imtr, col, od);
+                                    uint8_t>(jcp, imtr, col, od, input_zp);
                         else
                             jit_gemm_convolution_utils::im2col_dt<uint8_t,
                                     uint8_t>(jcp, src, imtr, col, oh, h_step,
-                                    ow, w_step);
+                                    ow, w_step, input_zp);
                     } break;
                     default: assert(!"unsupported data type"); break;
                 }
@@ -273,10 +289,10 @@ status_t gemm_x8s8s32x_convolution_fwd_t::execute_forward_thr(const int ithr,
             const float onef = 1.f, zerof = 0.f;
             const char *__restrict src_od
                     = src + od * jcp.oh * jcp.ow * jcp.ngroups * jcp.ic;
-            st = gemm_s8x8s32("N", BT, jcp.signed_input ? "C" : "F", &M, &N, &K,
+            st = gemm_s8x8s32("N", BT, (jcp.signed_input || jcp.with_input_zp) ? "C" : "F", &M, &N, &K,
                     &onef, wei, &LDA, &off_a,
                     jcp.im2col_sz ? col : (uint8_t *)src_od, &LDB, &off_b,
-                    &zerof, acc, &M, jcp.signed_input ? wei_comp : &off_c);
+                    &zerof, acc, &M, (jcp.signed_input || jcp.with_input_zp) ? wei_comp : &off_c);
 
             if (st != status::success) return st;
 
