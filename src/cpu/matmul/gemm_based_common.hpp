@@ -99,8 +99,11 @@ inline void book_acc_scratchpad(
             && !memory_desc_wrapper(pd.dst_md()).has_runtime_dims()) {
         auto scratchpad = pd.scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
-                nstl::min(pd.batch(), (dim_t)dnnl_get_max_threads()) * pd.M()
-                        * pd.N(),
+                (params.can_fuse_src_batch_dims_
+                                ? pd.batch()
+                                : nstl::min(pd.batch(),
+                                        (dim_t)dnnl_get_max_threads()))
+                        * pd.M() * pd.N(),
                 sizeof_acc_data);
     }
 }
