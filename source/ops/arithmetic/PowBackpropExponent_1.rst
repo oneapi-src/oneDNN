@@ -17,7 +17,7 @@ PowBackpropExponent
 * **1**: ``input_forward`` - input of forward. **Required.**
 * **2**: ``output_delta`` - gradients tensor w.r.t. the output. **Required.**
 * **3**: ``result_forward`` - original output of pow. **Required.**
-* **4**: ``exponent`` - exponent of input. **Optional.**
+* **4**: ``exponent`` - exponent of input. **Required.**
 
 **Outputs**
 
