@@ -53,8 +53,7 @@ struct jit_avx512_common_convolution_fwd_t : public primitive_t {
                             data_type::undef)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, dst_type)
-                    && !has_zero_dim_memory()
-                    && !this->attr()->has_asymmetric_quantization();
+                    && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             CHECK(jit_avx512_common_conv_fwd_kernel::init_conf(jcp_, *desc(),

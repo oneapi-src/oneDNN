@@ -180,18 +180,15 @@ struct shifts_t: public c_compatible {
     shifts_t(): count_(1), mask_(0), shifts_(shifts_buf_)
     { set(0); }
 
-    shifts_t(const shifts_t &rhs): shifts_t()
-    { set(rhs.count_, rhs.mask_, rhs.shifts_); }
-
     ~shifts_t() { cleanup(); }
 
-    shifts_t &operator=(const shifts_t &rhs) {
-        if (&rhs == this)
-            return *this;
-        status_t status = set(rhs.count_, rhs.mask_, rhs.shifts_);
-        assert(status == status::success);
-        (void)status;
-        return *this;
+    bool operator==(const shifts_t<T> &rhs) const {
+        bool ret = count_ == rhs.count_ && mask_ == rhs.mask_
+                   && !utils::any_null(shifts_, rhs.shifts_)
+                   && defined() == rhs.defined()
+                   && IMPLICATION(defined(),
+                                  utils::array_cmp(shifts_, rhs.shifts_, count_));
+        return ret;
     }
 
     bool has_default_values() const {
@@ -201,10 +198,16 @@ struct shifts_t: public c_compatible {
         return true;
     }
 
+    bool defined() const { return !is_runtime_value(shifts_[0]); }
+
     status_t set(int count, int mask, const T *zero_points);
     status_t set(T single_zero_point) { return this->set(1, 0, &single_zero_point); }
 
-    int count_;
+    status_t copy_from(const shifts_t &other) {
+        return set(other.count_, other.mask_, other.shifts_);
+    }
+
+    dim_t count_;
     int mask_;
     T *shifts_;
 
@@ -220,6 +223,8 @@ private:
         mask_ = 0;
         shifts_ = shifts_buf_;
     }
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(shifts_t);
 };
 
 struct arg_scales_t : public c_compatible {
@@ -744,6 +749,9 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
                 other.rnn_weights_projection_qparams_));
         CHECK(rnn_tparams_.copy_from(other.rnn_tparams_));
         if (other.gpu_attr_) gpu_attr_ = other.gpu_attr_->clone();
+        input_zero_points_.copy_from(other.input_zero_points_);
+        weights_zero_points_.copy_from(other.weights_zero_points_);
+        output_compensations_.copy_from(other.output_compensations_);
 
         return status::success;
     }
@@ -764,7 +772,10 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         rnn_tparams = 1u << 9,
         sum_dt = 1u << 10,
         rnn_weights_projection_qparams = 1u << 11,
-        gpu_attr = 1u << 12
+        gpu_attr = 1u << 12,
+        input_zero_points = 1 << 13,
+        weights_zero_points = 1 << 14,
+        output_compensations = 1 << 15,
     };
 
     /** Returns true if the attributes have default values.
@@ -772,8 +783,6 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
      * @note The scratchpad_mode_ is not take into account */
     bool has_default_values(skip_mask_t mask = skip_mask_t::none,
             dnnl::impl::data_type_t dst_dt = dnnl_data_type_undef) const;
-
-    bool has_asymmetric_quantization() const;
 
     /** Returns true if the attributes are fully defined. */
     bool defined(skip_mask_t mask = skip_mask_t::none) const;
@@ -791,7 +800,10 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
                 && rnn_tparams_ == rhs.rnn_tparams_
                 && ((gpu_attr_ && rhs.gpu_attr_
                             && gpu_attr_->is_equal(*rhs.gpu_attr_))
-                        || (!gpu_attr_ && !rhs.gpu_attr_));
+                        || (!gpu_attr_ && !rhs.gpu_attr_))
+                && input_zero_points_ == rhs.input_zero_points_
+                && weights_zero_points_ == rhs.weights_zero_points_
+                && output_compensations_ == rhs.output_compensations_;
         return ret;
     }
 

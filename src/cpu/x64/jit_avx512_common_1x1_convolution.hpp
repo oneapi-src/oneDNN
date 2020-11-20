@@ -65,8 +65,7 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops, dst_type)
                     && !has_zero_dim_memory() && set_default_formats()
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && !this->attr()->has_asymmetric_quantization();
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();

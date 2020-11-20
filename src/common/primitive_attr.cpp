@@ -156,6 +156,9 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
     CHECK_MASK(smask_t::oscale, output_scales_);
     CHECK_MASK(smask_t::scales, scales_);
     CHECK_MASK(smask_t::zero_points, zero_points_);
+    CHECK_MASK(smask_t::input_zero_points, input_zero_points_);
+    CHECK_MASK(smask_t::weights_zero_points, weights_zero_points_);
+    CHECK_MASK(smask_t::output_compensations, output_compensations_);
     CHECK_MASK(smask_t::post_ops, post_ops_);
     CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);
     CHECK_MASK(smask_t::rnn_weights_qparams, rnn_weights_qparams_);
@@ -170,14 +173,6 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
     return ok;
 #undef CHECK_MASK
 #undef CHECK_ARG
-}
-
-bool primitive_attr_t::has_asymmetric_quantization() const {
-    return true
-           && output_scales_.has_default_values()
-           && rnn_data_qparams_.has_default_values()
-           && rnn_weights_qparams_.has_default_values()
-           && (!input_zero_points_.has_default_values() || !weights_zero_points_.has_default_values());
 }
 
 bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
@@ -564,6 +559,69 @@ status_t dnnl_primitive_attr_set_zero_points(primitive_attr_t *attr, int arg,
             && IMPLICATION(is_runtime_value(*zero_points), count == 1);
     if (!ok) return invalid_arguments;
     return attr->zero_points_.set(arg, count, mask, zero_points);
+}
+
+status_t dnnl_primitive_attr_get_output_compensations(const primitive_attr_t *attr,
+        int *count, int *mask, const int32_t **compensations) {
+    if (any_null(attr, count, mask, compensations))
+        return invalid_arguments;
+
+    *count = attr->output_compensations_.count_;
+    *mask = attr->output_compensations_.mask_;
+    *compensations = attr->output_compensations_.shifts_;
+
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_output_compensations(primitive_attr_t *attr,
+        int count, int mask, const int32_t *compensations) {
+    bool ok = !any_null(attr, compensations) && count > 0 && mask >= 0;
+    if (!ok)
+        return invalid_arguments;
+
+    return attr->output_compensations_.set(count, mask, compensations);
+}
+
+status_t dnnl_primitive_attr_get_input_zero_points(const primitive_attr_t *attr,
+        int *count, int *mask, const uint8_t **zero_points) {
+    if (any_null(attr, count, mask, zero_points))
+        return invalid_arguments;
+
+    *count = attr->input_zero_points_.count_;
+    *mask = attr->input_zero_points_.mask_;
+    *zero_points = attr->input_zero_points_.shifts_;
+
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_input_zero_points(primitive_attr_t *attr,
+        int count, int mask, const uint8_t *zero_points) {
+    bool ok = !any_null(attr, zero_points) && count > 0 && mask >= 0;
+    if (!ok)
+        return invalid_arguments;
+
+    return attr->input_zero_points_.set(count, mask, zero_points);
+}
+
+status_t dnnl_primitive_attr_get_weights_zero_points(const primitive_attr_t *attr,
+        int *count, int *mask, const float **zero_points) {
+    if (any_null(attr, count, mask, zero_points))
+        return invalid_arguments;
+
+    *count = attr->weights_zero_points_.count_;
+    *mask = attr->weights_zero_points_.mask_;
+    *zero_points = attr->weights_zero_points_.shifts_;
+
+    return success;
+}
+
+status_t dnnl_primitive_attr_set_weights_zero_points(primitive_attr_t *attr,
+        int count, int mask, const float *zero_points) {
+    bool ok = !any_null(attr, zero_points) && count > 0 && mask >= 0;
+    if (!ok)
+        return invalid_arguments;
+
+    return attr->weights_zero_points_.set(count, mask, zero_points);
 }
 
 status_t dnnl_primitive_attr_get_post_ops(

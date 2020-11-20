@@ -96,6 +96,8 @@ private:
     /* binary post-ops operand */
     const Xbyak::Reg64 temp_offset_reg = r12;
 
+    const Xbyak::Reg64 reg_input_zp = reg_bias_alpha;
+
     const Xbyak::Reg64 reg_d_weights = r15;
     const Xbyak::Reg64 reg_d_bias = r13;
 

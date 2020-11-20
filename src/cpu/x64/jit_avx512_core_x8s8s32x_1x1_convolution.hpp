@@ -71,15 +71,17 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                     && desc()->accum_data_type == s32
                     && attr()->has_default_values(smask_t::oscale_runtime
                                     | smask_t::zero_points_runtime
-                                    | smask_t::post_ops | smask_t::sum_dt,
+                                    | smask_t::post_ops
+                                    | smask_t::sum_dt
+                                    | smask_t::input_zero_points
+                                    | smask_t::output_compensations,
                             dst_md(0)->data_type)
                     && attr()->post_ops_.check_sum_consistent_dt(
                             dst_md(0)->data_type)
                     && !has_zero_dim_memory() && zero_points_ok()
                     && set_default_formats_common(
                             dat_tag(), format_tag::any, dat_tag())
-                    && attr_.set_default_formats(dst_md(0)) == status::success
-                    && !this->attr()->has_asymmetric_quantization();
+                    && attr_.set_default_formats(dst_md(0)) == status::success;
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
