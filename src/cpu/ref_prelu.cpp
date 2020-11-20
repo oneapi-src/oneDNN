@@ -14,8 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <assert.h>
-#include <math.h>
+#include <array>
+#include <cassert>
+#include <cmath>
 
 #include "common/broadcast_strategy.hpp"
 #include "common/c_types_map.hpp"
@@ -32,74 +33,93 @@ namespace impl {
 namespace cpu {
 
 using namespace dnnl::impl::math;
-using namespace memory_tracking;
+using namespace data_type;
 
-static dim_t offset(const memory_desc_wrapper &mem, dim_t n, dim_t c, dim_t d,
-        dim_t h, dim_t w) {
+static float load(data_type_t src_dtype, const byte *base, dim_t offset) {
+    switch (src_dtype) {
+        case f32: return reinterpret_cast<const float *>(base)[offset];
+        case bf16:
+            return static_cast<float>(
+                    reinterpret_cast<const bfloat16_t *>(base)[offset]);
+        default: assert(!"Unsupported data type");
+    }
+    return -1;
+}
+
+static void store(data_type_t dst_dtype, float val, byte *base, dim_t offset) {
+    switch (dst_dtype) {
+        case f32:
+            *reinterpret_cast<float *>(base + sizeof(float) * offset) = val;
+            break;
+        case bf16:
+            *reinterpret_cast<bfloat16_t *>(base + sizeof(bfloat16_t) * offset)
+                    = cpu::saturate_and_round<bfloat16_t>(val);
+            break;
+        default: assert(!"Unsupported data type");
+    }
+}
+
+static dim_t offset(const memory_desc_wrapper &mem, dims_t dims) {
     const int ndims = mem.ndims();
     switch (ndims) {
-        case 3: return mem.off(n, c, w);
-        case 4: return mem.off(n, c, h, w);
-        case 5: return mem.off(n, c, d, h, w);
+        case 1: return mem.off(dims[0]);
+        case 2: return mem.off(dims[0], dims[1]);
+        case 3: return mem.off(dims[0], dims[1], dims[2]);
+        case 4: return mem.off(dims[0], dims[1], dims[2], dims[3]);
+        case 5: return mem.off(dims[0], dims[1], dims[2], dims[3], dims[4]);
         default: assert(!"Unsupported ndims count");
     }
     return -1;
 }
 
-static dim_t weights_offset(broadcasting_strategy_t bcast_type,
-        const memory_desc_wrapper mem, dim_t n, dim_t c, dim_t d, dim_t h,
-        dim_t w) {
-    switch (bcast_type) {
-        case broadcasting_strategy_t::no_broadcast:
-            return offset(mem, n, c, d, h, w);
-        case broadcasting_strategy_t::per_oc:
-        case broadcasting_strategy_t::per_oc_spatial:
-            return offset(mem, 0, c, 0, 0, 0);
-        case broadcasting_strategy_t::scalar: return offset(mem, 0, 0, 0, 0, 0);
-        default: assert(!"unsupported broadcast type");
-    }
-    return -1;
+static dim_t weights_offset(
+        const int mask, const memory_desc_wrapper &mem, dims_t &dims) {
+    dims_t wei_dims;
+    std::copy(dims, dims + max_supported_ndims, wei_dims);
+    utils::apply_mask_on_dims(wei_dims, mem.ndims(), mask);
+    return offset(mem, wei_dims);
 }
 
-template <data_type_t d_type>
-void ref_prelu_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
-    using data_t = typename prec_traits<d_type>::type;
-
+void ref_prelu_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     if (pd()->has_zero_dim_memory()) return;
 
-    const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    const auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
-    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    const auto src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
+    const auto weights = CTX_IN_MEM(const byte *, DNNL_ARG_WEIGHTS);
+    auto dst = CTX_OUT_MEM(byte *, DNNL_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_md(0));
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto bcast_type = dnnl::impl::get_rhs_arg_broadcasting_strategy(
-            *weights_d.md_, data_d);
-
-    const dim_t N = pd()->N();
-    const dim_t C = pd()->C();
-    const dim_t D = pd()->D();
-    const dim_t H = pd()->H();
-    const dim_t W = pd()->W();
-
+    const int mask = utils::get_dims_mask(
+            data_d.dims(), weights_d.dims(), data_d.ndims());
     const dim_t work_amount = data_d.nelems();
+
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
         dim_t start {0}, end {0};
-        dim_t n {0}, c {0}, d {0}, h {0}, w {0};
+        dims_t dims_d, off;
+        for (int i = 0; i < max_supported_ndims; i++) {
+            off[i] = 0;
+            dims_d[i] = (data_d.dims()[i] != 0) ? data_d.dims()[i] : 1;
+        }
 
         balance211(work_amount, nthr, ithr, start, end);
-        utils::nd_iterator_init(start, n, N, c, C, d, D, h, H, w, W);
+        utils::nd_iterator_init(start, off[0], dims_d[0], off[1], dims_d[1],
+                off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
 
         for (dim_t iwork = start; iwork < end; ++iwork) {
-            const auto data_off = offset(data_d, n, c, d, h, w);
-            const auto weight_off
-                    = weights_offset(bcast_type, weights_d, n, c, d, h, w);
-            float res = relu_fwd(src[data_off], weights[weight_off]);
-            dst[data_off] = cpu::saturate_and_round<data_t>(res);
-            utils::nd_iterator_step(n, N, c, C, d, D, h, H, w, W);
+            const auto data_off = offset(data_d, off);
+            const auto weight_off = weights_offset(mask, weights_d, off);
+            const float src_val = load(data_d.data_type(), src, data_off);
+            const float weights_val
+                    = load(weights_d.data_type(), weights, weight_off);
+
+            const float res = relu_fwd(src_val, weights_val);
+
+            store(data_d.data_type(), res, dst, data_off);
+            utils::nd_iterator_step(off[0], dims_d[0], off[1], dims_d[1],
+                    off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
         }
     });
 }
@@ -152,51 +172,53 @@ dim_t get_scalar_scratchpad_offset(const std::size_t ithr,
     return offset;
 }
 
-template <typename data_t>
-static float ker(const data_t *src, const data_t *weights,
-        const data_t *diff_dst, data_t *diff_src,
-        broadcasting_strategy_t bcast_type, dim_t data_off, dim_t weight_off,
-        dim_t diff_data_off) {
+float ref_prelu_bwd_t::ker(const byte *src, const byte *weights,
+        const byte *diff_dst, byte *diff_src, dim_t data_off, dim_t weight_off,
+        dim_t diff_data_off) const {
 
-    const float diff_src_res = relu_bwd_use_dst(
-            diff_dst[diff_data_off], src[data_off], weights[weight_off]);
-    const float diff_weight_res
-            = src[data_off] > 0 ? 0 : (diff_dst[diff_data_off] * src[data_off]);
-    diff_src[diff_data_off] = cpu::saturate_and_round<data_t>(diff_src_res);
+    const auto dtype = pd()->src_md(0)->data_type;
+    const auto wtype = pd()->weights_md(0)->data_type;
+    const float src_val = load(dtype, src, data_off);
+    const float diff_dst_val = load(dtype, diff_dst, diff_data_off);
+    const float weights_val = load(wtype, weights, weight_off);
+
+    const float diff_src_res
+            = relu_bwd_use_dst(diff_dst_val, src_val, weights_val);
+    const float diff_weight_res = src_val > 0 ? 0 : (diff_dst_val * src_val);
+
+    store(dtype, diff_src_res, diff_src, data_off);
+
     return diff_weight_res;
 }
 
-template <data_type_t d_type>
-void ref_prelu_bwd_t<d_type>::calculate_scalar(const data_t *src,
-        const data_t *weights, data_t *diff_weights, const data_t *diff_dst,
-        data_t *diff_src, float *scratchpad_buf) const {
-
-    const auto bcast_type = broadcasting_strategy_t::scalar;
+void ref_prelu_bwd_t::calculate_scalar(const byte *src, const byte *weights,
+        byte *diff_weights, const byte *diff_dst, byte *diff_src,
+        float *scratchpad_buf) const {
 
     const memory_desc_wrapper data_d(pd()->src_md(0));
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
-    const memory_desc_wrapper diff_data_d(pd()->diff_dst_md(0));
-
-    const dim_t N = pd()->N();
-    const dim_t C = pd()->C();
-    const dim_t D = pd()->D();
-    const dim_t H = pd()->H();
-    const dim_t W = pd()->W();
-
-    const int nscr = nstl::min(dnnl_get_max_threads(), (int)data_d.nelems());
-    std::vector<float> buf_nthr_partial_results(dnnl_get_max_threads());
 
     const dim_t work_amount = data_d.nelems();
+    const int thread_count
+            = nstl::min((dim_t)dnnl_get_max_threads(), work_amount);
+
+    std::vector<float> buf_nthr_partial_results(dnnl_get_max_threads());
+
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
         dim_t start {0}, end {0};
-        dim_t n {0}, c {0}, d {0}, h {0}, w {0};
+        dims_t dims_d, off;
+        for (int i = 0; i < max_supported_ndims; i++) {
+            off[i] = 0;
+            dims_d[i] = (data_d.dims()[i] != 0) ? data_d.dims()[i] : 1;
+        }
 
         balance211(work_amount, nthr, ithr, start, end);
         const dim_t workload = end - start;
 
-        utils::nd_iterator_init(start, n, N, c, C, d, D, h, H, w, W);
+        utils::nd_iterator_init(start, off[0], dims_d[0], off[1], dims_d[1],
+                off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
 
         dim_t group_size, buf_size;
         set_reduction_buffers(workload, group_size, buf_size);
@@ -204,148 +226,155 @@ void ref_prelu_bwd_t<d_type>::calculate_scalar(const data_t *src,
         const dim_t scratchpad_offset
                 = get_scalar_scratchpad_offset(ithr, nthr, work_amount);
         auto *buf = &scratchpad_buf[scratchpad_offset];
-        auto *buf_lvl2 = &scratchpad_buf[scratchpad_offset + buf_size];
+        auto *group_buf = &scratchpad_buf[scratchpad_offset + buf_size];
 
-        dim_t off {0}, group {0}, data_size {buf_size};
+        dim_t offset_buf {0}, group_off {0}, data_size {buf_size};
         for (dim_t iwork = start; iwork < end; ++iwork) {
-            const auto data_off = offset(data_d, n, c, d, h, w);
-            const auto weight_off
-                    = weights_offset(bcast_type, weights_d, n, c, d, h, w);
-            const auto diff_data_off = offset(diff_data_d, n, c, d, h, w);
-            buf[off] = ker(src, weights, diff_dst, diff_src, bcast_type,
-                    data_off, weight_off, diff_data_off);
-            if (++off == data_size) {
-                buf_lvl2[group++] = reduce(buf, off);
-                off = 0;
-                data_size = ((group + 1) * buf_size <= workload)
+            const auto data_off = offset(data_d, off);
+            const auto weight_off = 0;
+            const auto diff_data_off = data_off;
+            buf[offset_buf] = ker(src, weights, diff_dst, diff_src, data_off,
+                    weight_off, diff_data_off);
+            if (++offset_buf == data_size) {
+                group_buf[group_off++] = reduce(buf, offset_buf);
+                offset_buf = 0;
+                data_size = ((group_off + 1) * buf_size <= workload)
                         ? buf_size
-                        : workload - (group * buf_size);
+                        : workload - (group_off * buf_size);
             }
-            utils::nd_iterator_step(n, N, c, C, d, D, h, H, w, W);
+            utils::nd_iterator_step(off[0], dims_d[0], off[1], dims_d[1],
+                    off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
         }
-        buf_nthr_partial_results[ithr] = reduce(buf_lvl2, group_size);
+        buf_nthr_partial_results[ithr] = reduce(group_buf, group_size);
     });
-    diff_weights[0] = cpu::saturate_and_round<data_t>(
-            reduce(&buf_nthr_partial_results[0], nscr));
+    store(weights_d.data_type(),
+            reduce(&buf_nthr_partial_results[0], thread_count), diff_weights,
+            0);
 }
 
-template <data_type_t d_type>
-void ref_prelu_bwd_t<d_type>::calculate_no_broadcast(const data_t *src,
-        const data_t *weights, data_t *diff_weights, const data_t *diff_dst,
-        data_t *diff_src, float *scratchpad_buf) const {
-
-    const auto bcast_type = broadcasting_strategy_t::no_broadcast;
-
-    const dim_t N = pd()->N();
-    const dim_t C = pd()->C();
-    const dim_t D = pd()->D();
-    const dim_t H = pd()->H();
-    const dim_t W = pd()->W();
+void ref_prelu_bwd_t::calculate_no_broadcast(const byte *src,
+        const byte *weights, byte *diff_weights, const byte *diff_dst,
+        byte *diff_src, float *scratchpad_buf) const {
 
     const memory_desc_wrapper data_d(pd()->src_md(0));
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
-    const memory_desc_wrapper diff_data_d(pd()->diff_dst_md(0));
 
     const dim_t work_amount = data_d.nelems();
+    const int mask = utils::get_dims_mask(
+            data_d.dims(), weights_d.dims(), data_d.ndims());
+
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
 
         dim_t start {0}, end {0};
-        dim_t n {0}, c {0}, d {0}, h {0}, w {0};
+        dims_t dims_d, off;
+        for (int i = 0; i < max_supported_ndims; i++) {
+            off[i] = 0;
+            dims_d[i] = (data_d.dims()[i] != 0) ? data_d.dims()[i] : 1;
+        }
 
         balance211(work_amount, nthr, ithr, start, end);
-        utils::nd_iterator_init(start, n, N, c, C, d, D, h, H, w, W);
+        utils::nd_iterator_init(start, off[0], dims_d[0], off[1], dims_d[1],
+                off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
 
         for (dim_t iwork = start; iwork < end; ++iwork) {
-            const auto diff_weight_off
-                    = weights_offset(bcast_type, weights_d, n, c, d, h, w);
-            const auto data_off = offset(data_d, n, c, d, h, w);
-            const auto weight_off
-                    = weights_offset(bcast_type, weights_d, n, c, d, h, w);
-            const auto diff_data_off = offset(diff_data_d, n, c, d, h, w);
-            auto res = ker(src, weights, diff_dst, diff_src, bcast_type,
-                    data_off, weight_off, diff_data_off);
-            diff_weights[diff_weight_off]
-                    = cpu::saturate_and_round<data_t>(res);
-            utils::nd_iterator_step(n, N, c, C, d, D, h, H, w, W);
+            const auto data_off = offset(data_d, off);
+            const auto weight_off = weights_offset(mask, weights_d, off);
+            const auto diff_data_off = data_off;
+            const auto diff_weight_off = weight_off;
+            const auto res = ker(src, weights, diff_dst, diff_src, data_off,
+                    weight_off, diff_data_off);
+
+            store(weights_d.data_type(), res, diff_weights, diff_weight_off);
+            utils::nd_iterator_step(off[0], dims_d[0], off[1], dims_d[1],
+                    off[2], dims_d[2], off[3], dims_d[3], off[4], dims_d[4]);
         }
     });
 }
 
-template <data_type_t d_type>
-void ref_prelu_bwd_t<d_type>::calculate_per_oc(const data_t *src,
-        const data_t *weights, data_t *diff_weights, const data_t *diff_dst,
-        data_t *diff_src, float *scratchpad_buf) const {
-
-    const auto bcast_type = broadcasting_strategy_t::per_oc;
-
-    const dim_t N = pd()->N();
-    const dim_t C = pd()->C();
-    const dim_t D = pd()->D();
-    const dim_t H = pd()->H();
-    const dim_t W = pd()->W();
+void ref_prelu_bwd_t::calculate_shared_axes(const byte *src,
+        const byte *weights, byte *diff_weights, const byte *diff_dst,
+        byte *diff_src, float *scratchpad_buf) const {
 
     const memory_desc_wrapper data_d(pd()->src_md(0));
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
-    const memory_desc_wrapper diff_data_d(pd()->diff_dst_md(0));
 
-    const dim_t work_amount = C;
+    dims_t dims_d, dims_w;
+    for (int i = 0; i < max_supported_ndims; i++) {
+        dims_d[i] = (data_d.dims()[i] != 0) ? data_d.dims()[i] : 1;
+        dims_w[i] = (weights_d.dims()[i] != 0) ? weights_d.dims()[i] : 1;
+    }
+
+    const dim_t work_amount = weights_d.nelems();
+    const int mask = utils::get_dims_mask(
+            data_d.dims(), weights_d.dims(), data_d.ndims());
+
     parallel(0, [&](std::size_t ithr, std::size_t nthr) {
         if ((dim_t)ithr >= work_amount) return;
-        dim_t start {0}, end {0}, c {0};
+
+        dim_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
-        utils::nd_iterator_init(start, c, C);
-        const dim_t workload = N * D * H * W;
+
         dim_t group_size, buf_size;
+        const dim_t workload = data_d.nelems() / weights_d.nelems();
         set_reduction_buffers(workload, group_size, buf_size);
         dim_t scratchpad_offset = (buf_size + group_size) * ithr;
         auto *buf = &scratchpad_buf[scratchpad_offset];
-        auto *buf_lvl2 = &scratchpad_buf[scratchpad_offset + buf_size];
-        dim_t off {0}, group {0}, data_size {buf_size};
+        auto *group_buf = &scratchpad_buf[scratchpad_offset + buf_size];
+
+        dims_t off_w, off_d, dims_start, dims_end;
+        utils::nd_iterator_init(start, off_w[0], dims_w[0], off_w[1], dims_w[1],
+                off_w[2], dims_w[2], off_w[3], dims_w[3], off_w[4], dims_w[4]);
+
         for (dim_t iwork = start; iwork < end; ++iwork) {
-            for_(dim_t n = 0; n < N; ++n)
-            for_(dim_t d = 0; d < D; ++d)
-            for_(dim_t h = 0; h < H; ++h)
-            for (dim_t w = 0; w < W; ++w) {
-                const auto data_off = offset(data_d, n, c, d, h, w);
-                const auto weight_off
-                        = weights_offset(bcast_type, weights_d, n, c, d, h, w);
-                const auto diff_data_off = offset(diff_data_d, n, c, d, h, w);
-                buf[off] = ker(src, weights, diff_dst, diff_src, bcast_type,
+            for (int i = 0; i < max_supported_ndims; i++) {
+                dims_start[i] = (dims_d[i] == dims_w[i]) ? off_w[i] : 0;
+                dims_end[i]
+                        = (dims_d[i] == dims_w[i]) ? off_w[i] + 1 : dims_d[i];
+            }
+            dim_t buf_off {0}, group_off {0}, data_size {buf_size};
+            for_(off_d[0] = dims_start[0]; off_d[0] < dims_end[0]; ++off_d[0])
+            for_(off_d[1] = dims_start[1]; off_d[1] < dims_end[1]; ++off_d[1])
+            for_(off_d[2] = dims_start[2]; off_d[2] < dims_end[2]; ++off_d[2])
+            for_(off_d[3] = dims_start[3]; off_d[3] < dims_end[3]; ++off_d[3])
+            for (off_d[4] = dims_start[4]; off_d[4] < dims_end[4]; ++off_d[4]) {
+                const auto data_off = offset(data_d, off_d);
+                const auto weight_off = weights_offset(mask, weights_d, off_d);
+                const auto diff_data_off = data_off;
+                const auto diff_weight = ker(src, weights, diff_dst, diff_src,
                         data_off, weight_off, diff_data_off);
-                if (++off == data_size) {
-                    buf_lvl2[group++] = reduce(buf, off);
-                    off = 0;
-                    data_size = ((group + 1) * buf_size <= workload)
+                buf[buf_off] = diff_weight;
+                if (++buf_off == data_size) {
+                    group_buf[group_off++] = reduce(buf, buf_off);
+                    buf_off = 0;
+                    data_size = ((group_off + 1) * buf_size <= workload)
                             ? buf_size
-                            : workload - (group * buf_size);
+                            : workload - (group_off * buf_size);
                 }
             }
-            group = 0;
-            off = 0;
-            data_size = buf_size;
-            diff_weights[c] = cpu::saturate_and_round<data_t>(
-                    reduce(buf_lvl2, group_size));
-            utils::nd_iterator_step(c, C);
+            const auto diff_weight_off = offset(weights_d, off_w);
+            store(weights_d.data_type(), reduce(group_buf, group_size),
+                    diff_weights, diff_weight_off);
+            utils::nd_iterator_step(off_w[0], dims_w[0], off_w[1], dims_w[1],
+                    off_w[2], dims_w[2], off_w[3], dims_w[3], off_w[4],
+                    dims_w[4]);
         }
     });
 }
 
-template <data_type_t d_type>
-void ref_prelu_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
+void ref_prelu_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
     if (pd()->has_zero_dim_memory()) return;
 
     const auto scratchpad = ctx.get_scratchpad_grantor();
-    const auto scratchpad_buf
-            = scratchpad.template get<float>(names::key_prelu_reduction);
+    auto scratchpad_buf = scratchpad.template get<float>(
+            memory_tracking::names::key_prelu_reduction);
 
-    const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    const auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
-    const auto diff_weights
-            = CTX_OUT_MEM(const data_t *, DNNL_ARG_DIFF_WEIGHTS);
-    const auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
-    const auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    const auto src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
+    const auto weights = CTX_IN_MEM(const byte *, DNNL_ARG_WEIGHTS);
+    auto diff_weights = CTX_OUT_MEM(const byte *, DNNL_ARG_DIFF_WEIGHTS);
+    const auto diff_dst = CTX_IN_MEM(const byte *, DNNL_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(byte *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper data_d(pd()->src_md(0));
@@ -363,21 +392,13 @@ void ref_prelu_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
             break;
         case broadcasting_strategy_t::per_oc:
         case broadcasting_strategy_t::per_oc_spatial:
-            calculate_per_oc(src, weights, diff_weights, diff_dst, diff_src,
-                    scratchpad_buf);
+        case broadcasting_strategy_t::shared_axes:
+            calculate_shared_axes(src, weights, diff_weights, diff_dst,
+                    diff_src, scratchpad_buf);
             break;
         default: assert(!"unsupported broadcast type");
     }
 }
-
-template void ref_prelu_fwd_t<data_type::f32>::execute_forward(
-        const exec_ctx_t &ctx) const;
-template void ref_prelu_bwd_t<data_type::f32>::execute_backward(
-        const exec_ctx_t &ctx) const;
-template void ref_prelu_fwd_t<data_type::bf16>::execute_forward(
-        const exec_ctx_t &ctx) const;
-template void ref_prelu_bwd_t<data_type::bf16>::execute_backward(
-        const exec_ctx_t &ctx) const;
 
 } // namespace cpu
 } // namespace impl

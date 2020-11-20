@@ -39,7 +39,9 @@ void set_reduction_buffers(
 dim_t get_scalar_scratchpad_offset(const std::size_t ithr,
         const std::size_t nthr, const dim_t work_amount);
 
-template <data_type_t d_type>
+static constexpr int max_supported_ndims = 5;
+using byte = unsigned char;
+
 struct ref_prelu_fwd_t : public primitive_t {
     struct pd_t : public cpu_prelu_fwd_pd_t {
         using cpu_prelu_fwd_pd_t::cpu_prelu_fwd_pd_t;
@@ -47,11 +49,13 @@ struct ref_prelu_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_prelu_fwd_t);
 
         status_t init(engine_t *engine) {
+            using namespace data_type;
             bool ok = is_fwd() && set_default_formats()
-                    && utils::everyone_is(d_type, src_md(0)->data_type,
-                            weights_md(0)->data_type)
-                    && src_md(0)->ndims >= 3
-                    && platform::has_data_type_support(d_type)
+                    && utils::one_of(src_md(0)->data_type, f32, bf16)
+                    && utils::one_of(weights_md(0)->data_type, f32, bf16)
+                    && src_md(0)->ndims <= max_supported_ndims
+                    && platform::has_data_type_support(src_md(0)->data_type)
+                    && platform::has_data_type_support(weights_md(0)->data_type)
                     && attr()->has_default_values();
 
             if (!ok) return status::unimplemented;
@@ -63,7 +67,6 @@ struct ref_prelu_fwd_t : public primitive_t {
     ref_prelu_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        using namespace format_tag;
         execute_forward(ctx);
         return status::success;
     }
@@ -73,7 +76,6 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-template <data_type_t d_type>
 struct ref_prelu_bwd_t : public primitive_t {
     struct pd_t : public cpu_prelu_bwd_pd_t {
         using cpu_prelu_bwd_pd_t::cpu_prelu_bwd_pd_t;
@@ -81,12 +83,15 @@ struct ref_prelu_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_prelu_bwd_t);
 
         status_t init(engine_t *engine) {
+            using namespace data_type;
             bool ok = !is_fwd() && set_default_formats()
-                    && utils::everyone_is(d_type, src_md(0)->data_type,
-                            weights_md(0)->data_type, diff_src_md(0)->data_type,
-                            diff_weights_md(0)->data_type)
-                    && src_md(0)->ndims >= 3
-                    && platform::has_data_type_support(d_type)
+                    && utils::one_of(src_md(0)->data_type, f32, bf16)
+                    && utils::one_of(weights_md(0)->data_type, f32, bf16)
+                    && diff_src_md(0)->data_type == src_md(0)->data_type
+                    && diff_weights_md(0)->data_type == weights_md(0)->data_type
+                    && src_md(0)->ndims <= max_supported_ndims
+                    && platform::has_data_type_support(src_md(0)->data_type)
+                    && platform::has_data_type_support(weights_md(0)->data_type)
                     && attr()->has_default_values();
 
             if (!ok) return status::unimplemented;
@@ -99,13 +104,11 @@ struct ref_prelu_bwd_t : public primitive_t {
     private:
         void init_scratchpad() {
             auto scratchpad = this->scratchpad_registry().registrar();
+            dim_t scratchpad_size;
             const memory_desc_wrapper data_md_d(data_md_);
+            const memory_desc_wrapper weights_md_d(weights_md_);
             auto broadcast_strategy
                     = get_rhs_arg_broadcasting_strategy(weights_md_, data_md_d);
-            const size_t nscr = nstl::min(
-                    dnnl_get_max_threads(), (int)data_md_d.nelems());
-            size_t scratchpad_size, work_amount;
-
             // Scratchpad is needed to correctly reduce calculated diff_weights
             // in cases where broadcast is used.
             //
@@ -117,32 +120,29 @@ struct ref_prelu_bwd_t : public primitive_t {
             // results are first copied to buffer and reduced, result is then
             // stored in group buffer. Values in group buffer are then reduced
             // to obtain final value.
-            switch (broadcast_strategy) {
-                case broadcasting_strategy_t::no_broadcast: break;
-                case broadcasting_strategy_t::per_oc:
-                case broadcasting_strategy_t::per_oc_spatial:
-                    dim_t group_size, buf_size;
-                    work_amount = data_md_d.nelems() / C();
-                    set_reduction_buffers(work_amount, group_size, buf_size);
-                    scratchpad_size = nscr * (group_size + buf_size);
-                    scratchpad.book(memory_tracking::names::key_prelu_reduction,
-                            scratchpad_size, types::data_type_size(dnnl_f32));
-                    break;
-                case broadcasting_strategy_t::scalar:
-                    scratchpad_size = get_scalar_scratchpad_offset(
-                            nscr, nscr, data_md_d.nelems());
-                    scratchpad.book(memory_tracking::names::key_prelu_reduction,
-                            scratchpad_size, types::data_type_size(dnnl_f32));
-                    break;
-                default: assert(!"unsupported broadcast type");
+            if (broadcast_strategy == broadcasting_strategy_t::no_broadcast) {
+                return;
+            } else if (broadcast_strategy == broadcasting_strategy_t::scalar) {
+                size_t thread_count = nstl::min(dnnl_get_max_threads(),
+                        static_cast<int>(data_md_d.nelems()));
+                scratchpad_size = get_scalar_scratchpad_offset(
+                        thread_count, thread_count, data_md_d.nelems());
+            } else {
+                dim_t group_size, buf_size;
+                size_t thread_count = nstl::min(dnnl_get_max_threads(),
+                        static_cast<int>(weights_md_d.nelems()));
+                dim_t work_amount = data_md_d.nelems() / weights_md_d.nelems();
+                set_reduction_buffers(work_amount, group_size, buf_size);
+                scratchpad_size = thread_count * (group_size + buf_size);
             }
+            scratchpad.book(memory_tracking::names::key_prelu_reduction,
+                    scratchpad_size, types::data_type_size(dnnl_f32));
         }
     };
 
     ref_prelu_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
-        using namespace format_tag;
         execute_backward(ctx);
         return status::success;
     }
@@ -151,15 +151,17 @@ private:
     void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    using data_t = typename prec_traits<d_type>::type;
-    void calculate_scalar(const data_t *src, const data_t *weights,
-            data_t *diff_weights, const data_t *diff_dst, data_t *diff_src,
+    float ker(const byte *src, const byte *weights, const byte *diff_dst,
+            byte *diff_src, dim_t data_off, dim_t weight_off,
+            dim_t diff_data_off) const;
+    void calculate_scalar(const byte *src, const byte *weights,
+            byte *diff_weights, const byte *diff_dst, byte *diff_src,
             float *scratchpad_buf) const;
-    void calculate_no_broadcast(const data_t *src, const data_t *weights,
-            data_t *diff_weights, const data_t *diff_dst, data_t *diff_src,
+    void calculate_no_broadcast(const byte *src, const byte *weights,
+            byte *diff_weights, const byte *diff_dst, byte *diff_src,
             float *scratchpad_buf) const;
-    void calculate_per_oc(const data_t *src, const data_t *weights,
-            data_t *diff_weights, const data_t *diff_dst, data_t *diff_src,
+    void calculate_shared_axes(const byte *src, const byte *weights,
+            byte *diff_weights, const byte *diff_dst, byte *diff_src,
             float *scratchpad_buf) const;
 };
 

@@ -19,8 +19,9 @@ and *prelu-desc* is a problem descriptor. The canonical form is:
 ```
 where N and M are integer numbers.
 
-N describes source tensor dimensions and represents a 1D, 2D or 3D spatial
-problem with the following logical dimensions: N, C, D, H, W.
+N describes source tensor dimensions. This represents tensor with the
+following logical dimensions: N, C, D, H, W. Consider removing each `xN` from
+the end to specify fewer dimensions. PReLU supports 1D up to 5D tensors.
 
 M describes weights tensor dimensions containing alpha parameter for PReLU
 primitive and supports broadcast-semantics. Weights tensor can be used with

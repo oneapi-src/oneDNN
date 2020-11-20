@@ -33,6 +33,7 @@ enum class broadcasting_strategy_t {
     scalar, // [1, 1, 1, 1, 1] // Channel_shared
     per_oc, // [1, c, 1, 1, 1] // Channel-wise
     per_oc_spatial, // [1, c, 1, 1, 1] specific case for binary kernel nchw format
+    shared_axes, // [n, 1, d, h, 1] // General case broadcast (any combination)
     no_broadcast, // [n, c, d, h, w]
     unsupported
 };

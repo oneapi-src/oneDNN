@@ -8,17 +8,21 @@ PReLU {#dev_guide_prelu}
 ## General
 
 The PReLU primitive (Leaky ReLU with trainable alpha parameter) performs
-forward or backward operation on 1D, 2D, or 3D spatial data.
-Weights (alpha) tensor supports broadcast-semantics with 3 different
-configurations: Channel-wise, Channel-shared (scalar) and
-Whole-tensor (No broadcast). Broadcast type is assumed based on
-src and weights dimensions, according to following table:
+forward or backward operation on data tensor. Weights (alpha) tensor supports
+broadcast-semantics. Broadcast configuration is assumed based on src and
+weights dimensions.
+
+Example broadcasts:
 
 | broadcast type  | src dimensions       | weights dimensions   |
 | ---             | ---                  | ---                  |
 | Channel-shared  | \f$\{n, c, h ,w\}\f$ | \f$\{1, 1, 1 ,1\}\f$ |
 | Channel-wise    | \f$\{n, c, h ,w\}\f$ | \f$\{1, c, 1 ,1\}\f$ |
 | Whole-tensor    | \f$\{n, c, h ,w\}\f$ | \f$\{n, c, h ,w\}\f$ |
+| Shared-axes     | \f$\{n, c, h ,w\}\f$ | \f$\{n, 1, h ,1\}\f$ |
+
+note: Shared-axes indicates broadcast with any combination of shared
+dimensions.
 
 ### Forward
 
@@ -37,8 +41,8 @@ For no broadcast case, results are calculated using formula:
         \end{cases}
 \f]
 
-Depending on broadcast type, result is calculated taking into account shared
-dimensions of weights tensor.
+Depending on broadcast configuration, result is calculated taking into account
+shared dimensions of weights tensor.
 
 #### Difference Between Forward Training and Forward Inference
 
@@ -90,9 +94,9 @@ argument index as specified by the following table.
  * Prelu primitive requires all input/output tensors to have the
    same number of dimensions. Dimension sizes can differ however.
 
- * \weights tensor dimensions sizes must match any of broadcast types,
-   which is: Whole-tensor (No broadcast), Channel-wise
-   or Channel-shared (scalar).
+ * \weights tensor dimensions sizes must follow broadcast semantics.
+   Each dimension can either equal corresponding data dimension or
+   equal 1 - to indicate that dimension is shared.
 
  * Prelu primitive requires that \diffweights tensor has exact same dimensions
    sizes as \weights tensor, \diffsrc as src and \diffdst as dst.
@@ -115,7 +119,7 @@ meaning associated with any logical dimensions.
 
 ## Implementation Limitations
 
-Current implementation only supports 1D, 2D and 3D tensors.
+Current implementation supports all tensors up to 3D spatial (n, c, d, h, w).
 
 ## Performance Tips
 

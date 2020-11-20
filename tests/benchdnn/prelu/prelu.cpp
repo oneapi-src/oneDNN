@@ -58,7 +58,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
                      prb->stag[0]),
                 CRIT);
         SAFE(init_md(&diff_weights_d, prb->ndims, weight_dims.data(),
-                     prb->sdt[0], prb->stag[1]),
+                     prb->sdt[1], prb->stag[1]),
                 CRIT);
 
         DNN_SAFE(dnnl_prelu_backward_desc_init(&pd, &data_d, &weights_d,
@@ -133,13 +133,6 @@ int fill_data(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(prb->sdt, FWD_D, res);
     if (res->state == SKIPPED) return;
-
-    if (is_cpu()) {
-        if (prb->sdt[0] != prb->sdt[1]) {
-            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-            return;
-        }
-    }
 
     if (is_nvidia_gpu()) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;

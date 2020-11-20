@@ -34,6 +34,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
     static const bcast_set_t all_bcast_strategies {
             broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
             broadcasting_strategy_t::per_oc_spatial,
+            broadcasting_strategy_t::shared_axes,
             broadcasting_strategy_t::no_broadcast};
 
     return get_rhs_arg_broadcasting_strategy(
@@ -56,6 +57,8 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
     std::bitset<DNNL_MAX_NDIMS> mask(0);
     for (int d = 0; d < ndims; d++) {
         const auto &rhs_arg_dim = rhs_arg_md.dims[d];
+        if (rhs_arg_md.dims[d] != 1 && rhs_arg_md.dims[d] != output_dims[d])
+            return broadcasting_strategy_t::unsupported;
 
         if (rhs_arg_dim != 1) all_ones = false;
 
@@ -66,7 +69,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
             mask.set(d);
     }
 
-    broadcasting_strategy_t bcast = broadcasting_strategy_t::unsupported;
+    broadcasting_strategy_t bcast = broadcasting_strategy_t::shared_axes;
 
     const auto &mb_rhs = rhs_arg_md.dims[0];
     const bool broadcast_per_mb = !mask.test(0);
@@ -76,9 +79,7 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
         bcast = broadcasting_strategy_t::scalar;
     else if (mask.none())
         bcast = broadcasting_strategy_t::no_broadcast;
-    else if (broadcast_per_mb && broadcast_per_oc && mb_rhs != 1) {
-        return broadcasting_strategy_t::unsupported;
-    } else if (broadcast_per_oc) {
+    else if (broadcast_per_oc && !(broadcast_per_mb && mb_rhs != 1)) {
         const bool use_per_oc_spatial_strategy
                 = is_enabled(broadcasting_strategy_t::per_oc_spatial);
 

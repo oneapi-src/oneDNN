@@ -34,13 +34,13 @@ status_t prelu_desc_init(prelu_desc_t *prelu_desc, prop_kind_t prop_kind,
         const memory_desc_t *data_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *diff_data_desc,
         const memory_desc_t *diff_weights_desc) {
+    static constexpr int max_supported_ndims = 5;
     bool args_ok = true && !any_null(prelu_desc, data_desc, weights_desc)
             && one_of(prop_kind, forward_training, forward_inference, backward)
-            && utils::one_of(data_desc->ndims, 2, 3, 4, 5)
+            && data_desc->ndims <= max_supported_ndims
             && data_desc->ndims == weights_desc->ndims
             && IMPLICATION(prop_kind == backward,
                     !any_null(diff_data_desc, diff_weights_desc)
-                            && utils::one_of(diff_data_desc->ndims, 2, 3, 4, 5)
                             && diff_data_desc->ndims == data_desc->ndims
                             && diff_weights_desc->ndims == weights_desc->ndims);
 
