@@ -357,13 +357,19 @@ public:
     }
 
     void uni_vmovsd(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
-        movsd(addr, x);
+        if (is_valid_isa(avx))
+            vmovsd(addr, x);
+        else
+            movsd(addr, x);
     }
     void uni_vmovsd(const Xbyak::Address &addr, const Xbyak::Ymm &x) {
         vmovsd(addr, x);
     }
     void uni_vmovsd(const Xbyak::Xmm &x, const Xbyak::Address &addr) {
-        movsd(x, addr);
+        if (is_valid_isa(avx))
+            vmovsd(x, addr);
+        else
+            movsd(x, addr);
     }
     void uni_vmovsd(const Xbyak::Ymm &x, const Xbyak::Address &addr) {
         vmovsd(x, addr);
@@ -396,14 +402,20 @@ public:
     }
 
     void uni_vmovups(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
-        movups(addr, x);
+        if (is_valid_isa(avx))
+            vmovups(addr, x);
+        else
+            movups(addr, x);
     }
     void uni_vmovups(const Xbyak::Address &addr, const Xbyak::Ymm &x) {
         vmovups(addr, x);
     }
 
     void uni_vmovups(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
-        movups(x, op);
+        if (is_valid_isa(avx))
+            vmovups(x, op);
+        else
+            movups(x, op);
     }
     void uni_vmovups(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
         vmovups(x, op);
@@ -435,8 +447,15 @@ public:
     }
 
     void uni_vbroadcastss(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
-        movss(x, op);
-        shufps(x, x, 0x0);
+        if (is_valid_isa(avx2) || (is_valid_isa(avx) && op.isMEM()))
+            vbroadcastss(x, op);
+        else if (is_valid_isa(avx)) {
+            vmovss(x, x, op);
+            vshufps(x, x, x, 0x0);
+        } else {
+            movss(x, op);
+            shufps(x, x, 0x0);
+        }
     }
     void uni_vbroadcastss(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
         if (op.isMEM() || is_valid_isa(avx2)) {
@@ -526,8 +545,12 @@ public:
 
     void uni_vaddps(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
-        assert(x.getIdx() == op1.getIdx());
-        addps(x, op2);
+        if (is_valid_isa(avx))
+            vaddps(x, op1, op2);
+        else {
+            assert(x.getIdx() == op1.getIdx());
+            addps(x, op2);
+        }
     }
     void uni_vaddps(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
@@ -535,8 +558,12 @@ public:
     }
     void uni_vaddss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
-        assert(x.isEqualIfNotInherited(op1));
-        addss(x, op2);
+        if (is_valid_isa(avx))
+            vaddss(x, op1, op2);
+        else {
+            assert(x.isEqualIfNotInherited(op1));
+            addss(x, op2);
+        }
     }
     void uni_vaddss(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
@@ -635,8 +662,12 @@ public:
 
     void uni_vmulss(const Xbyak::Xmm &x, const Xbyak::Operand &op1,
             const Xbyak::Operand &op2) {
-        assert(x.isEqualIfNotInherited(op1));
-        mulss(x, op2);
+        if (is_valid_isa(avx))
+            vmulss(x, op1, op2);
+        else {
+            assert(x.isEqualIfNotInherited(op1));
+            mulss(x, op2);
+        }
     }
     void uni_vmulss(const Xbyak::Ymm &x, const Xbyak::Operand &op1,
             const Xbyak::Address &op2) {
@@ -885,8 +916,12 @@ public:
 
     void uni_vxorps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
-        if (x1.getIdx() != x2.getIdx()) { uni_vmovups(x1, x2); }
-        xorps(x1, op);
+        if (is_valid_isa(avx))
+            vxorps(x1, x2, op);
+        else {
+            if (x1.getIdx() != x2.getIdx()) { uni_vmovups(x1, x2); }
+            xorps(x1, op);
+        }
     }
     void uni_vxorps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
@@ -937,7 +972,10 @@ public:
     }
 
     void uni_vpmovsxbd(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
-        pmovsxbd(x, op);
+        if (is_valid_isa(avx))
+            vpmovsxbd(x, op);
+        else
+            pmovsxbd(x, op);
     }
 
     void uni_vpmovsxbd(const Xbyak::Ymm &y, const Xbyak::Operand &op) {
@@ -945,7 +983,10 @@ public:
     }
 
     void uni_vpmovzxbd(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
-        pmovzxbd(x, op);
+        if (is_valid_isa(avx))
+            vpmovzxbd(x, op);
+        else
+            pmovzxbd(x, op);
     }
 
     void uni_vpmovzxbd(const Xbyak::Ymm &y, const Xbyak::Operand &op) {
@@ -1031,8 +1072,12 @@ public:
 
     void uni_vpackssdw(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
-        assert(x1.getIdx() == x1.getIdx());
-        packssdw(x1, op);
+        if (is_valid_isa(avx))
+            vpackssdw(x1, x2, op);
+        else {
+            assert(x1.getIdx() == x2.getIdx());
+            packssdw(x1, op);
+        }
     }
     void uni_vpackssdw(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
@@ -1041,8 +1086,12 @@ public:
 
     void uni_vpackuswb(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
-        assert(x1.getIdx() == x1.getIdx());
-        packuswb(x1, op);
+        if (is_valid_isa(avx))
+            vpackuswb(x1, x2, op);
+        else {
+            assert(x1.getIdx() == x2.getIdx());
+            packuswb(x1, op);
+        }
     }
     void uni_vpackuswb(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
@@ -1051,8 +1100,12 @@ public:
 
     void uni_vpacksswb(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
-        assert(x1.getIdx() == x1.getIdx());
-        packsswb(x1, op);
+        if (is_valid_isa(avx))
+            vpacksswb(x1, x2, op);
+        else {
+            assert(x1.getIdx() == x2.getIdx());
+            packsswb(x1, op);
+        }
     }
     void uni_vpacksswb(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
             const Xbyak::Operand &op) {
@@ -1427,7 +1480,7 @@ public:
         // Ensure that vector register is compatible with the ISA in hand
         assert(IMPLICATION(is_ymm, is_valid_isa(avx)));
 
-        assert(mayiuse(sse41)
+        assert(is_valid_isa(sse41)
                 && "routine is not supported for the current isa");
 
         auto xmm = Xbyak::Xmm(vmm.getIdx());
@@ -1546,7 +1599,7 @@ public:
         // Ensure that vector register is compatible with the ISA in hand
         assert(IMPLICATION(is_ymm, is_valid_isa(avx)));
 
-        assert(mayiuse(sse41)
+        assert(is_valid_isa(sse41)
                 && "routine is not supported for the current isa");
 
         // For load_size == 8/4, do load/extension in one go
@@ -1584,7 +1637,7 @@ public:
     void store_data(data_type_t type_out, const Vmm &vmm,
             const Xbyak::Reg64 &reg, int64_t offset, int store_size) {
 
-        assert(mayiuse(sse41)
+        assert(is_valid_isa(sse41)
                 && "routine is not supported for the current isa");
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
 
@@ -1634,7 +1687,7 @@ public:
     void load_data(data_type_t type_in, const Vmm &vmm, const Xbyak::Reg64 &reg,
             int64_t offset, int load_size) {
 
-        assert(mayiuse(sse41)
+        assert(is_valid_isa(sse41)
                 && "routine is not supported for the current isa");
 
         switch (type_in) {
