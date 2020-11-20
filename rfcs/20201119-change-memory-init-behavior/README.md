@@ -11,8 +11,12 @@ b. the zero padding of the destination(s) should be preserved (either
 In order to guarantee a., we currently zero initialize the padded area
 of the memories when the handle is set (either during memory creation,
 or when `set_data_handle` is called). This approach has a few caveats:
-- setting the memory handle is blocking since setting a handle also
-  initializes the memory. This causes stalls on the GPU side.
+- since `set_data_handle` also initializes the memory it is currently
+  a blocking operation that cannot be done asynchronously. In
+  particular, this function  takes no stream as argument and does not
+  return an event. So on GPU, we have no other option than do the
+  memory initialization in a service stream (part of the engine) and
+  wait for it to complete.
 - we can have a large overhead of zero padding since framework
   integration cannot keep all memory objects alive, so they recreate
   them and set data handles frequently (see [Appendix A](#appendix-a)).
