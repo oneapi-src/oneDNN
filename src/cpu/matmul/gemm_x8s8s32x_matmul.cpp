@@ -206,9 +206,11 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     // case: dynamic sizes
     bool need_free_acc = false;
     if (acc == nullptr) {
-        acc = (acc_data_t *)malloc(sizeof(acc_data_t)
-                        * nstl::min(batch, (dim_t)dnnl_get_max_threads()) * M
-                        * N,
+        acc = (acc_data_t *)malloc(sizeof(acc_data_t) * M * N
+                        * (can_fuse_src_batch_dims
+                                        ? batch
+                                        : nstl::min(batch,
+                                                (dim_t)dnnl_get_max_threads())),
                 64);
         if (acc == nullptr) return status::out_of_memory;
         need_free_acc = true;
