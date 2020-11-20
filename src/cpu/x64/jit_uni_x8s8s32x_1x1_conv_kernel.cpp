@@ -191,7 +191,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
             const auto ptr_scales_offset
                     = jcp.is_oc_scale * (sizeof(float) * jcp.oc_block * i_load);
             if (jcp.with_bias) {
-                if (jcp.signed_input)
+                if (jcp.signed_input || jcp.with_input_zp)
                     mov(reg_bias_data, ptr[rsp + reg_bias_data_off]);
                 cvt2ps(jcp.bia_dt, vmm_bias, reg_bias_data,
                         jcp.typesize_bia * jcp.oc_block * i_load,
@@ -199,7 +199,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
                 if (jcp.signed_input)
                     uni_vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
             }
-            if (jcp.signed_input) {
+            if (jcp.signed_input || jcp.with_input_zp) {
                 mov(reg_comp_data, ptr[rsp + reg_comp_data_off]);
                 cvt2ps(data_type::s32, vmm_comp, reg_comp_data,
                         sizeof(int32_t) * jcp.oc_block * i_load,
@@ -217,7 +217,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 auto r = vreg_accum(i_load, i_ur);
                 uni_vcvtdq2ps(r, r);
-                if (jcp.signed_input) uni_vaddps(r, r, vmm_comp);
+                if (jcp.signed_input || jcp.with_input_zp) uni_vaddps(r, r, vmm_comp);
                 if (jcp.with_bias) uni_vaddps(r, r, vmm_bias);
 
                 uni_vmulps(r, r, vmm_scale);
@@ -455,7 +455,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
     sub(rsp, stack_space_needed);
 
     if (jcp.with_bias) mov(reg_bias_data, ptr[param1 + GET_OFF(bias_data)]);
-    if (jcp.signed_input) {
+    if (jcp.signed_input || jcp.with_input_zp) {
         mov(ptr[rsp + reg_bias_data_off], reg_bias_data);
         mov(reg_comp_data, ptr[param1 + GET_OFF(compensation)]);
         mov(ptr[rsp + reg_comp_data_off], reg_comp_data);
@@ -477,14 +477,14 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::generate() {
         bcast_loop(load_loop_blk);
         add(reg_load_data, load_loop_blk * jcp.load_loop_load_step);
         if (jcp.with_bias) {
-            if (jcp.signed_input)
+            if (jcp.signed_input || jcp.with_input_zp)
                 mov(reg_bias_data, ptr[rsp + reg_bias_data_off]);
             add(reg_bias_data,
                     load_loop_blk * jcp.load_block * jcp.typesize_bia);
-            if (jcp.signed_input)
+            if (jcp.signed_input || jcp.with_input_zp)
                 mov(ptr[rsp + reg_bias_data_off], reg_bias_data);
         }
-        if (jcp.signed_input) {
+        if (jcp.signed_input || jcp.with_input_zp) {
             mov(reg_comp_data, ptr[rsp + reg_comp_data_off]);
             add(reg_comp_data,
                     load_loop_blk * jcp.load_block * sizeof(int32_t));
@@ -616,6 +616,20 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     jcp.signed_input = (src_d.data_type() == data_type::s8);
+
+    jcp.with_input_zp = !attr.input_zero_points_.has_default_values();
+    jcp.with_weights_zp = !attr.weights_zero_points_.has_default_values();
+
+    if (jcp.with_input_zp) {
+        if (attr.input_zero_points_.count_ != 1 && attr.input_zero_points_.count_ != jcp.ic * jcp.ngroups)
+            return status::unimplemented;
+
+        if (attr.output_compensations_.count_ != jcp.oc * jcp.ngroups)
+            return status::unimplemented;
+    }
+
+    if (jcp.with_weights_zp)
+        return status::unimplemented;
 
     jcp.os = jcp.od * jcp.oh * jcp.ow;
     jcp.is = jcp.id * jcp.ih * jcp.iw;

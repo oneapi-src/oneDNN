@@ -103,6 +103,8 @@ private:
     const Xbyak::Reg64 aux_reg_inp_buffer_ptr = aux_reg_ker_d;
     const Xbyak::Reg64 reg_jmp_tbl_base = reg_kj;
 
+    const Xbyak::Reg64 reg_input_zp = reg_bias_alpha;
+
     const Xbyak::Reg64 reg_d_weights = r15;
     const Xbyak::Reg64 reg_d_bias = r13;
 

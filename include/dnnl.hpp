@@ -2864,6 +2864,69 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set zero points primitive attribute");
     }
 
+    void get_output_compensations(int &mask, std::vector<int32_t> &compensations) const
+    {
+        int count, c_mask;
+        const int32_t *c_compensations;
+        error::wrap_c_api(dnnl_primitive_attr_get_output_compensations(get(),
+                    &count, &c_mask, &c_compensations),
+                "could not get int output compensations");
+        compensations.resize(count);
+
+        mask = c_mask;
+        for (int c = 0; c < count; ++c)
+            compensations[c] = c_compensations[c];
+    }
+
+    void set_output_compensations(int mask, const std::vector<int32_t> &compensations)
+    {
+        error::wrap_c_api(dnnl_primitive_attr_set_output_compensations(get(),
+                    (int)compensations.size(), mask, &compensations[0]),
+                "could not set int output compensations");
+    }
+
+    void get_input_zero_points(int &mask, std::vector<uint8_t> &zero_points) const
+    {
+        int count, c_mask;
+        const uint8_t *c_zero_points;
+        error::wrap_c_api(dnnl_primitive_attr_get_input_zero_points(get(),
+                    &count, &c_mask, &c_zero_points),
+                "could not get int input zero_points");
+        zero_points.resize(count);
+
+        mask = c_mask;
+        for (int c = 0; c < count; ++c)
+            zero_points[c] = c_zero_points[c];
+    }
+
+    void set_input_zero_points(int mask, const std::vector<uint8_t> &zero_points)
+    {
+        error::wrap_c_api(dnnl_primitive_attr_set_input_zero_points(get(),
+                    (int)zero_points.size(), mask, &zero_points[0]),
+                "could not set int input zero_points");
+    }
+
+    void get_weights_zero_points(int &mask, std::vector<int8_t> &zero_points) const
+    {
+        int count, c_mask;
+        const float *c_zero_points;
+        error::wrap_c_api(dnnl_primitive_attr_get_weights_zero_points(get(),
+                    &count, &c_mask, &c_zero_points),
+                "could not get int weights zero_points");
+        zero_points.resize(count);
+
+        mask = c_mask;
+        for (int c = 0; c < count; ++c)
+            zero_points[c] = c_zero_points[c];
+    }
+
+    void set_weights_zero_points(int mask, const std::vector<float> &zero_points)
+    {
+        error::wrap_c_api(dnnl_primitive_attr_set_weights_zero_points(get(),
+                    (int)zero_points.size(), mask, &zero_points[0]),
+                "could not set int weights zero_points");
+    }
+
     /// Returns post-ops previously set via set_post_ops().
     ///
     /// @returns Post-ops.

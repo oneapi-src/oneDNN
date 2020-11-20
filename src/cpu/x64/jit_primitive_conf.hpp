@@ -224,6 +224,9 @@ struct jit_conv_conf_t {
     int os_tail;
     int os_blocked;
     int max_width;
+
+    bool with_input_zp;
+    bool with_weights_zp;
 };
 
 // calculates filter size taking into account dilation
@@ -438,6 +441,8 @@ struct jit_conv_call_s {
     size_t oc_off;
     size_t ic_off;
     size_t oc_off_prf;
+
+    const void *input_zp;
 };
 
 struct jit_deconv_call_s {
@@ -542,6 +547,9 @@ struct jit_1x1_conv_conf_t {
 
     cpu_isa_t isa;
     bool uses_permw_transposition;
+
+    bool with_input_zp;
+    bool with_weights_zp;
 };
 
 struct jit_1x1_conv_call_s {

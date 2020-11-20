@@ -57,16 +57,17 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
                                     | primitive_attr_t::skip_mask_t::post_ops
-                                    | primitive_attr_t::skip_mask_t::sum_dt,
+                                    | primitive_attr_t::skip_mask_t::sum_dt
+                                    | primitive_attr_t::skip_mask_t::input_zero_points
+                                    | primitive_attr_t::skip_mask_t::output_compensations,
                             dst_type)
-                    && !has_zero_dim_memory()
-                    && !this->attr()->has_asymmetric_quantization();
+                    && !has_zero_dim_memory();
 
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(
                     jcp_, *desc(), src_md_, weights_md_, dst_md_, bias_md_,
-                    *attr(), dnnl_get_max_threads());
+                    *attr(), 1);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();

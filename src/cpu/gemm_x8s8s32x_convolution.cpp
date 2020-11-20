@@ -103,8 +103,18 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
             = scratchpad.get<acc_data_t>(key_conv_int_dat_in_acc_dt)
             + (ptrdiff_t)ithr * jcp.oh_block * jcp.ow_block * jcp.oc;
 
+    const uint8_t *input_zp_base = nullptr;
+    if (jcp.with_input_zp) {
+        input_zp_base = pd()->attr()->input_zero_points_.shifts_;
+    }
+
+    int32_t *output_compensation_base = nullptr;
+    if (jcp.with_input_zp) {
+        output_compensation_base = pd()->attr()->output_compensations_.shifts_;
+    }
+
     const ptrdiff_t offset = (ptrdiff_t)jcp.ngroups * jcp.ks * jcp.ic * jcp.oc;
-    const int32_t *_wei_comp = (const int32_t *)(wei_base + offset);
+    const int32_t *_wei_comp = jcp.with_input_zp ? output_compensation_base : (const int32_t *)(wei_base + offset);
 
     int g {0}, n {0}, ohb {0}, owb {0};
     size_t start = 0, end = 0;
@@ -142,13 +152,18 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
                     + g * dst_g_stride
                     + ((od * jcp.oh + oh) * jcp.ow + ow)
                             * pp_ker_->dst_os_stride_;
+
+            const uint8_t *__restrict input_zp = nullptr;
+            if (jcp.with_input_zp)
+                input_zp = input_zp_base + g * jcp.ic;
+
             if (jcp.im2col_sz) {
                 if (is_problem_3d)
                     jit_gemm_convolution_utils::im2col_dt_3d<src_data_t,
-                            uint8_t>(jcp, imtr, col, od);
+                            uint8_t>(jcp, imtr, col, od, input_zp);
                 else
                     jit_gemm_convolution_utils::im2col_dt<src_data_t, uint8_t>(
-                            jcp, src, imtr, col, oh, h_step, ow, w_step);
+                            jcp, src, imtr, col, oh, h_step, ow, w_step, input_zp);
             }
 
             const dim_t M = jcp.oc;
@@ -163,10 +178,10 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
             const float onef = 1.f, zerof = 0.f;
             const src_data_t *__restrict src_od
                     = src + od * jcp.oh * jcp.ow * jcp.ngroups * jcp.ic;
-            st = gemm_s8x8s32("N", BT, jcp.signed_input ? "C" : "F", &M, &N, &K,
+            st = gemm_s8x8s32("N", BT, (jcp.signed_input || jcp.with_input_zp) ? "C" : "F", &M, &N, &K,
                     &onef, wei, &LDA, &off_a,
                     jcp.im2col_sz ? col : (uint8_t *)src_od, &LDB, &off_b,
-                    &zerof, acc, &M, jcp.signed_input ? wei_comp : &off_c);
+                    &zerof, acc, &M, (jcp.signed_input || jcp.with_input_zp) ? wei_comp : &off_c);
 
             if (st != status::success) return st;
 
