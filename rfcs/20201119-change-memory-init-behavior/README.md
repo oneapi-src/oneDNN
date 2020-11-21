@@ -6,7 +6,7 @@ In oneDNN, we support padded tensors (see padded dims in memory
 descriptor).  The implicit contract for primitives is that:
 a. they can assume their inputs/outputs are properly zero padded,
 b. the zero padding of the destination(s) should be preserved (either
-   by explicitly writting zeros or by not modifying the padded area).
+   by explicitly writing zeros or by not modifying the padded area).
 
 In order to guarantee a., we currently zero initialize the padded area
 of the memories when the handle is set (either during memory creation,
@@ -34,7 +34,7 @@ padding increases.
 
 ## Options
 
-### Option 1. Move destination zero-padding to primitive execution (prefered)
+### Option 1. Move destination zero-padding to primitive execution (preferred)
 
 Here we would change the assumptions that each primitive
 implementation can make:
@@ -73,8 +73,13 @@ There are two main impacts to this option.
 > primitives that call gemm functions might not propagate zero padding
 > properly since gemm functions have a proper tail handling.
 
-This achieves goals 1 and 2, but not 3. There is a mitigation for goal
-3 but it would not be transparent for performance.
+This option:
+- fully achieves goal 1, since all zero pad calls are eliminated
+- fully achieves goal 2, since no more initialization happens when
+  setting a memory handle
+- does not achieve goal 3, but provides a (not so good) workaround.
+  Note that if the users custom kernels properly propagate zeros from
+  their inputs, then no harm is done and we are all good.
 
 > **NOTE** we could later add a flag to allow primitives to assume
 > that their destination is already properly zero padded. This
@@ -88,13 +93,13 @@ Here it would be essentially the same as option 1. However, to
 simplify the transition for users that have custom computations on
 blocked buffers, we would expose a new primitive to initialize memory.
 There are two sub-options here:
-- option 2.a: introduce an "inplace" reorder. If the user calls
+- option 2.a: introduce an "in-place" reorder. If the user calls
   reorder with the same input and output, the only effect that should
   be expected is explicit zero padding. The bad side of this option is
   that it is somehow a "trick" since this reorder would break
   assumption a. But if this is aiming only advanced users writing
   kernels that compute on blocked buffers, then maybe we can live with
-  this docmented exception.
+  this documented exception.
 - option 2.b: introduce a new `memory_cleanup` primitive, that should
   be used after every custom computation done on a oneDNN memory
   handle. This one has the merit of being more explicit than calling a
@@ -103,13 +108,18 @@ There are two sub-options here:
 Both approaches try to simplify explicit zero padding from users that
 write custom kernels. However, it is unclear if they would indeed be
 useful, since they require that the component responsible for the
-custom kernel call also has access to the dnnl memory object. This is
+custom kernel call also has access to the oneDNN memory object. This is
 the case for iDeep, but it is not clear if other potential users are
 in the same situation.
 
-This achieves goals 1 and 2, but not 3. However, it provides a simple
-mitigation for goal 3 that should not impact performance too much
-(should still be better than what we currently have).
+This option:
+- fully achieves goal 1, since all zero pad calls are eliminated
+- fully achieves goal 2, since no more initialization happens when
+  setting a memory handle
+- does not achieve goal 3, but provides a provides a simple mitigation
+  that should not impact performance too much.  Note that if the users
+  custom kernels properly propagate zeros from their inputs, then no
+  harm is done and we are all good.
 
 ## Option 3. Move source zero-padding to primitive execution
 
@@ -124,18 +134,27 @@ This can reduce the number of calls to zero padding in two ways:
 - when the users pass handles between two primitive, it will result in
   one zero pad call instead of two.
 
-Achieves goal 2 and 3. However, goal 1 is only partially resolved
-since this mechanism avoids some explicit zero-padding but not all. In
-particular, we do not have many implementations that support tail
-computation, so removing the zero padding overhead completely could
-require a large implementation effort.
+This option:
+- partially achieves goal 1, since some zero padding calls will be
+  avoided (for example, the double zero padding described in [Appendix
+  A](#appendix-a)), but not fully since we will have to explicitly
+  call zero padding in our implementations (since most of them do not
+  currently support tail handling). How often this call will be needed
+  depends on how many implementation can return a dirty output.
+- fully achieves goal 2, since no more initialization happens when
+  setting a memory handle.
+- partially achieves goal 3: since source memories are always
+  initialized in primitive execution, custom kernels can freely spoil
+  the padding of their outputs. However, oneDNN primitives are allowed
+  to spoil their outputs, so custom kernels can no more assume their
+  inputs properly padded (should be fine for eltwise like functions).
 
-## Option 4. Move zero-padding to primitive execution, and add metadata to avoid spurious zero padding.
+## Option 4. Move zero-padding to primitive execution, and add meta-data to avoid spurious zero padding.
 This option uses no assumption on the zero-padding of its input/output
-tensors. Here, we would carry this information through metadata in the
-memory descriptors. That metadata can then be used by primitive
+tensors. Here, we would carry this information through meta-data in the
+memory descriptors. That meta-data can then be used by primitive
 implementations to skip some spurious zero-padding calls.  The
-metadata would be stored in the memory descriptor and would give the
+meta-data would be stored in the memory descriptor and would give the
 initialization status of the memory with 3 possible states, `clean`,
 `dirty` or `unknown`.
 
@@ -145,27 +164,39 @@ In case the user provides a memory which states does not match what
 the primitive expects, a reorder needs to be issued and a reorder will
 proceed with the proper memory initialization (namely zero padding).
 
-When a handle is attached to a memory descriptor the metadata would
-default to `clean` if not applicable, or `unknown` if the tensor is
-padded (we could extend the memory operators later to accept a state
-from the user).  When the memory descriptor is initialized by a
-primitive, it will use whatever state the primitive implementation
-expects (can be `unknown` if primitive accepts both `clean` or `dirty`
-memories).
+When a user initializes a memory descriptor (with `memory_desc_init`
+or with the memory constructor) the meta-data would default to `clean`
+if not applicable, or `unknown` if the tensor is padded (we could
+extend the operators that initialize a memory descriptor later to
+accept a state from the user).  When the memory descriptor is
+initialized by a primitive, it will use whatever state the primitive
+implementation expects (`clean` if primitive accepts only clean
+memories, `dirty` otherwise).
 
-The major downsides of this approach are:
-- as of now, most implementations expect properly zero padded inputs,
-  and these implementations will have to explicitly call zero padding
-  before running. So it will only partially solve goal 1.
-- because memory initialization could happen through reorder, the zero
-  padding could be more expansive and consume more memory than
-  today. This is not expected to happen often though, since our
-  current implementations almost always return a `clean` memory, and
-  could be mitigated by having all implementations support `unknown`
-  inputs and do the zero padding internally (not clear how the latency
-  of this would impact GPU kernels though).
+This option:
+- partially achieves goal 1, since some zero padding calls will be
+  avoided (for example, the double zero padding described in [Appendix
+  A](#appendix-a)), but not fully since we will have to explicitly
+  call zero padding in our implementations (since most of them do not
+  currently support tail handling). How often this call will be needed
+  depends on how many implementation can return a `dirty` output.
+  Another caveat is that zero padding could happen in reorder if some
+  implementation require a `clean` input but the previous layer
+  produces a `dirty` output. This zero pad will be more time and
+  memory consuming than today since it will copy the data to another
+  buffer.
+- fully achieves goal 2, since no more initialization happens when
+  setting a memory handle
+- partially achieves goal 3, since source memories are always
+  initialized in primitive execution, custom kernels can spoil the
+  padding of their outputs. However, oneDNN primitives are allowed to
+  spoil their outputs, so custom kernels can no more assume their
+  inputs properly padded. This could be worked around by calling a
+  reorder (as in option 1), or better by modifying all implementations
+  to return a `clean` memory (so same work as in option 1).
 
-## Option 5. Keep memory initialization when handle is set and defer
+
+## Option 5. Keep memory initialization when handle is set but give control to the user
 
 Here we would change the assumptions that each primitive
 implementation can make as in option 1:
@@ -174,15 +205,27 @@ b. Each primitive should guarantee its destination(s) are properly
 zero padded.
 
 However, we would keep the zero padding logic when a memory data
-handle is set.  To achieve goal 1 and 3, we would add a flag to
-set_data_handle and memory creation. This flag would be true if memory
-was already initialized (so if it was the output of a oneDNN
-primitive), and false otherwise (default value). So the default
-behavior would be similar as today's situation, but users could remove
-the spurious zero pad calls by providing these flags.
+handle is set. In order to make setting the handle of a memory
+asynchronous, `set_data_handle` would take a stream as input and
+return an event (not that for the memory constructor that takes a
+handle as input, we would still have to be synchronous since no event
+can be returned in this case). The `set_data_handle` operation would
+also take a boolean as input, that the user would set to `true` if
+memory was already initialized (so if it was the output of a oneDNN
+primitive), and false otherwise (default value).
 
-To achieve goal 2, we would add a new set data handle that accepts a
-stream and returns an event.
+This option:
+- partially achieves goal 1. If the user set each memory status
+  properly, then the number of calls to zero pad can be minimized (or
+  even zero if no custom kernel is called). However, it would require
+  a lot of effort on the user side to achieve this. If nothing is done
+  on the user side to reduce zero padding, then the situation remains
+  unchanged compared to today.
+- fully achieves goal 2, since now setting a handle can be done
+  asynchronously.
+- achieves goal 3. By default, all memories are zero padded, and the
+  user has full control to enforce zero padding when calling custom
+  kernels.
 
 This option seems tempting since it solves all the issues. But the
 very big downsides are that
@@ -195,32 +238,37 @@ approach to be effective very small.
 ## Overall
 
 
-| option   | who zero-pads                   | which tensor  | implicit zero-pad calls needed | library impl impact                     | user impact                                                 |
-|----------|---------------------------------|---------------|--------------------------------|-----------------------------------------|-------------------------------------------------------------|
-| current  | memory creation/set_data_handle | all           | n                              | none                                    | none                                                        |
-| Option 1 | primitive execution             | destination   | 0                              | almost none                             | only for custom blocked kernels                             |
-| Option 2 | primitive execution             | destination   | 0                              | almost none                             | only for custom blocked kernels                             |
-| Option 3 | primitive execution             | source        | n/2                            | almost none                             | none                                                        |
-| Option 4 | primitive execution / reorder   | any if needed | [0, n/2]                       | depend on how many zero-pad we want out | none                                                        |
-| Option 5 | memory creation/set data handle | any if needed | [0, n] (depends on user)       | almost none                             | important (need to track padded state for good performance) |
+| option   | who zero-pads                   | which tensor  | implicit zero-pad calls needed | library impl impact | user impact                                                 |
+|----------|---------------------------------|---------------|--------------------------------|---------------------|-------------------------------------------------------------|
+| current  | memory creation/set_data_handle | all           | n                              | none                | none                                                        |
+| Option 1 | primitive execution             | destination   | 0                              | almost none         | none if custom kernels produce clean outputs                |
+| Option 2 | primitive execution             | destination   | 0                              | almost none         | none if custom kernels produce clean outputs                |
+| Option 3 | primitive execution             | source        | n/2                            | almost none         | none if custom kernels accept dirty inputs                  |
+| Option 4 | primitive execution / reorder   | any if needed | [0, n/2]                       | depends             | none                                                        |
+| Option 5 | memory creation/set data handle | any if needed | [0, n] (depends on user)       | almost none         | important (need to track padded state for good performance) |
 
 
-Overall, options 2, 4 and 5 potentially leak an implementation
-detail to the API (namely, that memory needs initialization in some
+Overall, options 2, 4 and 5 potentially leak an implementation detail
+to the API (namely, that memory needs initialization in some
 situations).
 
-The recommendation would go to option 1 and option 2.a if users of
-custom blocked kernels ask for it. Option 1 is compatible with option
-2.a and 2.b, so there is no problem starting with option 1 and
-transition to option 2 if users with custom blocked kernel ask for it.
+The recommendation would go to option 1 since it is the only one that
+does not leak an implementation detail to the API. If users of custom
+kernels ask for it, we can transition to option 2, preferably 2.a
+since it would just be a documented exception vs a full primitive.
 
-Option 3 is a good middle ground, but it does not enable to completely
-get rid of zero-pad calls.
+Option 3 does not enable to completely get rid of zero padding.
 
-I would recommend to stay away from option 4 and 5. Option 4 requires
-more work to be effective and exposes us to extra reorder overheads.
-Option 5 is disruptive to the framework integration (basically we make
-them responsible to fix a performance issue in our library).
+Option 4 seems like a good middle ground since it is flexible, but it
+has the potential to create future performance issues if some
+primitives return dirty outputs, since zero padding would happen
+through reorder and not in-place.  However it could be a solid option
+if all the implementations return clean outputs (so same as option 1
+assumption on outputs), since it would solve all the goals.
+
+I would recommend to stay away from option 5 since it is disruptive to
+the framework integration (basically we make them responsible to fix a
+performance issue in our library).
 
 ## Appendix A. How framework developer pass data between oneDNN primitives
 In some frameworks, data between primitive execution is passed by
@@ -232,8 +280,10 @@ primitives one after the other (p0 and p1). We also assume that no
 reorder happens between the two primitive executions (so
 p1_pd.src_desc() matches p0_pd.dst_desc()).
 
-Before the execution of each oneDNN primitive, the framework code creates oneDNN memory objects.
-During the creation of these memory objects, zero padding can happen on all of them, including the destination tensors.
+Before the execution of each oneDNN primitive, the framework code
+creates oneDNN memory objects.  During the creation of these memory
+objects, zero padding can happen on all of them, including the
+destination tensors.
 
 ```c++
 ...
@@ -262,7 +312,7 @@ p1.execute(s, args);
 
 The notable things to remark here are:
 - zero-padding in (3) is redundant, since the p0 execution already
-  garentees that the memory in y_handle is properly zero padded,
+  guarantees that the memory in y_handle is properly zero padded,
 - the zero padding in (1) and (3) is not necessary for primitive
   implementations that support tail handling (e.g. GEMM based
   primitives).
