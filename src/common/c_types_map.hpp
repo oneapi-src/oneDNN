@@ -198,6 +198,7 @@ const format_tag_t abdfce = dnnl_abdfce;
 const format_tag_t acb = dnnl_acb;
 const format_tag_t acbde = dnnl_acbde;
 const format_tag_t acbdef = dnnl_acbdef;
+const format_tag_t abdefc = dnnl_abdefc;
 const format_tag_t acdb = dnnl_acdb;
 const format_tag_t acdeb = dnnl_acdeb;
 const format_tag_t ba = dnnl_ba;
@@ -467,6 +468,9 @@ const format_tag_t dhwigo = dnnl_dhwigo;
 const format_tag_t giohw = dnnl_giohw;
 const format_tag_t goidhw = dnnl_goidhw;
 const format_tag_t giodhw = dnnl_giodhw;
+const format_tag_t gowi = dnnl_gowi;
+const format_tag_t gohwi = dnnl_gohwi;
+const format_tag_t godhwi = dnnl_godhwi;
 const format_tag_t tnc = dnnl_tnc;
 const format_tag_t ntc = dnnl_ntc;
 const format_tag_t ldnc = dnnl_ldnc;
@@ -944,13 +948,13 @@ using memory_t = dnnl_memory;
 
 using stream_flags_t = dnnl_stream_flags_t;
 namespace stream_flags {
-const stream_flags_t default_order = dnnl_stream_default_order;
 const stream_flags_t in_order = dnnl_stream_in_order;
 const stream_flags_t out_of_order = dnnl_stream_out_of_order;
 const stream_flags_t default_flags = dnnl_stream_default_flags;
 } // namespace stream_flags
 using stream_t = dnnl_stream;
-using stream_attr_t = dnnl_stream_attr;
+
+struct memory_storage_t;
 
 /* forward declaration of the internal primitive_desc types */
 struct batch_normalization_bwd_pd_t;

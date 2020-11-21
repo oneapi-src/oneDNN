@@ -346,7 +346,6 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             op_pd->create_primitive(p, engine);
             primitives_.emplace_back(p);
         }
-
         return status::success;
     }
 
@@ -354,7 +353,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
         engine_t *engine = ctx.stream()->engine();
         const auto scratchpad = ctx.get_scratchpad_grantor();
 
-        const auto inout_buffer = scratchpad.get<char>(
+        const auto inout_buffer = scratchpad.get_memory_storage(
                 memory_tracking::names::key_fusion_inout_buffer);
 
         const auto &ctx_args = ctx.args();
@@ -372,14 +371,15 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                     exec_args[arg_info.op_arg] = ctx_args.at(arg_info.ctx_arg);
                 } else {
                     inout_memory.emplace_back(new memory_t(engine, &arg_info.md,
-                            memory_flags_t::use_runtime_ptr,
-                            inout_buffer + arg_info.offset));
+                            inout_buffer->get_sub_storage(arg_info.offset,
+                                    memory_desc_wrapper(arg_info.md).size()),
+                            false));
                     exec_args[arg_info.op_arg].mem = inout_memory.back().get();
                     exec_args[arg_info.op_arg].is_const = arg_info.is_const;
                 }
             }
 
-            exec_ctx_t op_ctx(ctx.stream(), std::move(exec_args));
+            exec_ctx_t op_ctx(ctx, std::move(exec_args));
 
             nested_scratchpad_t ns(ctx,
                     memory_tracking::names::key_fusion_forward_scratchpad, op);

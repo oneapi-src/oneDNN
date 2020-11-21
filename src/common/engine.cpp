@@ -20,6 +20,7 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+#include "memory.hpp"
 #include "nstl.hpp"
 #include "primitive.hpp"
 #include "utils.hpp"

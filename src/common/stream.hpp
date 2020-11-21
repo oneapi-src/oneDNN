@@ -40,13 +40,18 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
     /** returns stream's kind */
     unsigned flags() const { return flags_; }
 
+    virtual dnnl::impl::status_t enqueue_primitive(
+            const primitive_iface_t *primitive_iface,
+            dnnl::impl::exec_ctx_t &ctx);
+
     /** blocks until all submitted primitives to the stream are completed */
     virtual dnnl::impl::status_t wait() = 0;
 
     virtual void before_exec_hook() {}
     virtual void after_exec_hook() {}
 
-    virtual dnnl::impl::status_t zero_pad(const dnnl::impl::memory_t *memory);
+    virtual dnnl::impl::status_t zero_pad(const dnnl::impl::memory_t *memory,
+            const dnnl::impl::exec_ctx_t &ctx);
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     dnnl_stream(dnnl::impl::engine_t *engine,

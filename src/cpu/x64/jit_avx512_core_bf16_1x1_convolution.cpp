@@ -111,8 +111,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward(
                 dst, scratchpad);
     });
 
-    if (pd()->wants_zero_pad_dst())
-        ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
+    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);
 }
 
 template <data_type_t dst_type>

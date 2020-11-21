@@ -20,6 +20,7 @@
 #include "engine.hpp"
 #include "primitive.hpp"
 #include "primitive_desc.hpp"
+#include "primitive_exec_types.hpp"
 #include "reorder_pd.hpp"
 #include "scratchpad_debug.hpp"
 #include "stream.hpp"
@@ -55,7 +56,7 @@ nested_scratchpad_t::nested_scratchpad_t(const exec_ctx_t &master_ctx, int key,
     scratchpad_mem_storage_ = scratchpad.get_memory_storage(key);
     grantor_ = utils::make_unique<memory_tracking::grantor_t>(
             nested_p->pd()->scratchpad_registry().grantor(
-                    scratchpad_mem_storage_.get()));
+                    scratchpad_mem_storage_.get(), master_ctx));
 #ifdef DNNL_ENABLE_MEM_DEBUG
     if (scratchpad_debug::is_protect_scratchpad()) {
         scratchpad_debug::protect_scratchpad_buffer(
@@ -75,6 +76,54 @@ nested_scratchpad_t::~nested_scratchpad_t() {
 nested_scratchpad_t::~nested_scratchpad_t() = default;
 #endif
 
+status_t primitive_create(primitive_iface_t **primitive_iface,
+        const primitive_desc_iface_t *primitive_desc_iface) {
+
+    status_t status = status::success;
+    std::pair<primitive_iface_t *, bool> p_iface;
+
+    if (get_verbose() >= 2) {
+        double ms = get_msec();
+        status = primitive_desc_iface->create_primitive_iface(p_iface);
+
+        const char *str = p_iface.second ? "cache_hit" : "cache_miss";
+        ms = get_msec() - ms;
+        printf("dnnl_verbose,create:%s,%s,%g\n", str,
+                p_iface.first->pd()->info(), ms);
+        fflush(stdout);
+    } else {
+        status = primitive_desc_iface->create_primitive_iface(p_iface);
+    }
+    if (status == status::success) (*primitive_iface) = p_iface.first;
+    return status;
+}
+
+status_t primitive_execute(
+        const primitive_iface_t *primitive_iface, exec_ctx_t &ctx) {
+    auto stream = ctx.stream();
+    status_t status = success;
+
+    stream->before_exec_hook();
+
+    if (get_verbose()) {
+        stream->wait();
+        double ms = get_msec();
+        status = stream->enqueue_primitive(primitive_iface, ctx);
+        stream->wait();
+        ms = get_msec() - ms;
+        printf("dnnl_verbose,exec,%s,%g\n", primitive_iface->pd()->info(), ms);
+        fflush(stdout);
+    } else {
+        status = stream->enqueue_primitive(primitive_iface, ctx);
+    }
+
+    stream->after_exec_hook();
+
+    if (msan_enabled) unpoison_outputs(ctx.args());
+
+    return status;
+}
+
 } // namespace impl
 } // namespace dnnl
 
@@ -89,7 +138,7 @@ status_t dnnl_primitive_create(primitive_iface_t **primitive_iface,
         const primitive_desc_iface_t *primitive_desc_iface) {
     if (utils::any_null(primitive_iface, primitive_desc_iface))
         return invalid_arguments;
-    return primitive_desc_iface->create_primitive_iface(primitive_iface);
+    return dnnl::impl::primitive_create(primitive_iface, primitive_desc_iface);
 }
 
 status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
@@ -104,25 +153,8 @@ status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
             primitive_iface->pd()->impl().get(), nargs, c_args, args);
     if (status != status::success) return status;
 
-    stream->before_exec_hook();
-
     exec_ctx_t ctx(stream, std::move(args));
-
-    if (get_verbose()) {
-        stream->wait();
-        double ms = get_msec();
-        status = primitive_iface->execute(ctx);
-        stream->wait();
-        ms = get_msec() - ms;
-        printf("dnnl_verbose,exec,%s,%g\n", primitive_iface->pd()->info(), ms);
-        fflush(stdout);
-    } else {
-        status = primitive_iface->execute(ctx);
-    }
-
-    stream->after_exec_hook();
-
-    if (msan_enabled) unpoison_outputs(ctx.args());
+    status = dnnl::impl::primitive_execute(primitive_iface, ctx);
 
     return status;
 }
@@ -136,21 +168,23 @@ status_t dnnl_primitive_get_primitive_desc(
 }
 
 status_t dnnl_primitive_destroy(primitive_iface_t *primitive_iface) {
-    delete primitive_iface;
+    if (primitive_iface != nullptr) primitive_iface->release();
     return success;
 }
 
-// primitive_t implementation
+// primitive_iface_t implementation
 dnnl_primitive::dnnl_primitive(
         const std::shared_ptr<primitive_t> &primitive, engine_t *engine)
-    : primitive_(primitive)
+    : counter_(1)
+    , primitive_(primitive)
     , pd_(utils::make_unique<primitive_desc_iface_t>(
               primitive_->pd(), engine)) {}
 
 // reorder specialization
 dnnl_primitive::dnnl_primitive(const std::shared_ptr<primitive_t> &primitive,
         engine_t *engine, engine_t *src_engine, engine_t *dst_engine)
-    : primitive_(primitive)
+    : counter_(1)
+    , primitive_(primitive)
     , pd_(utils::make_unique<reorder_primitive_desc_iface_t>(
               primitive_->pd(), engine, src_engine, dst_engine)) {}
 
@@ -211,7 +245,7 @@ status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
     }
 
     auto scratchpad_grantor
-            = primitive_->pd()->scratchpad_registry().grantor(mem_storage);
+            = primitive_->pd()->scratchpad_registry().grantor(mem_storage, ctx);
     ctx.set_scratchpad_grantor(&scratchpad_grantor);
     ctx.set_resource_mapper(&resource_mapper_);
 

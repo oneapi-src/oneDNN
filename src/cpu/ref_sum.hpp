@@ -127,19 +127,20 @@ struct ref_sum_t : public primitive_t {
         const auto n = pd()->n_inputs();
         exec_args_t r_args;
 
-        auto scratchpad = ctx.get_scratchpad_grantor();
-        auto *sum_reduce = pd()->need_output_reorder()
-                ? scratchpad.get<float>(key_sum_reduction)
+        auto sum_reduce = pd()->need_output_reorder()
+                ? ctx.get_scratchpad_grantor().get_memory_storage(
+                        key_sum_reduction)
                 : nullptr;
         auto dst = ctx.args().at(DNNL_ARG_DST);
         memory_t acc(dst.mem->engine(), pd()->dst_acc_md(),
-                memory_flags_t::use_runtime_ptr, sum_reduce);
+                std::move(sum_reduce), true);
         memory_arg_t dst_acc = {&acc, false};
 
         for (int i = 0; i < n; ++i) {
             r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
             r_args[DNNL_ARG_DST] = pd()->need_output_reorder() ? dst_acc : dst;
-            exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+
+            exec_ctx_t r_ctx(ctx, std::move(r_args));
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + i, reorders_[i]);
             r_ctx.set_scratchpad_grantor(ns.grantor());
@@ -150,7 +151,7 @@ struct ref_sum_t : public primitive_t {
             dst_acc = {&acc, true};
             r_args[DNNL_ARG_SRC] = dst_acc;
             r_args[DNNL_ARG_DST] = dst;
-            exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+            exec_ctx_t r_ctx(ctx, std::move(r_args));
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + n, reorders_[n]);
             r_ctx.set_scratchpad_grantor(ns.grantor());

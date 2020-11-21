@@ -25,6 +25,7 @@
 #include "common/engine.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_iterator.hpp"
+#include "common/verbose.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "gpu/compute/dispatch.hpp"
 #include "gpu/compute/kernel.hpp"
@@ -38,11 +39,10 @@ namespace compute {
 
 class compute_engine_t : public engine_t {
 public:
-    compute_engine_t(engine_kind_t kind, runtime_kind_t runtime_kind,
-            device_info_t *device_info)
-        : engine_t(kind, runtime_kind), device_info_(device_info) {}
+    compute_engine_t(engine_kind_t kind, runtime_kind_t runtime_kind)
+        : engine_t(kind, runtime_kind) {}
 
-    status_t init() { return device_info_->init(); }
+    virtual status_t init();
 
     const device_info_t *device_info() const { return device_info_.get(); }
 
@@ -66,7 +66,10 @@ public:
             std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
             const char **source_strings,
-            const compute::kernel_ctx_t &kernel_ctx) const = 0;
+            const compute::kernel_ctx_t &kernel_ctx) const {
+        assert(!"unexpected");
+        return status::success;
+    };
 
     status_t get_zero_pad_primitive(
             primitive_t *&result, const resource_mapper_t *&resources) {
@@ -95,11 +98,22 @@ public:
 
     bool mayiuse(device_ext_t ext) const { return device_info_->has(ext); }
 
+    bool is_gen9() const {
+        return device_info_->gpu_arch() == gpu_arch_t::gen9;
+    }
+    bool is_gen12lp() const {
+        return device_info_->gpu_arch() == gpu_arch_t::gen12lp;
+    }
+    bool mayiuse_ngen_kernels() {
+        return device_info_->mayiuse_ngen_kernels(this);
+    }
+    bool mayiuse_non_uniform_work_groups() const {
+        return device_info_->mayiuse_non_uniform_work_groups();
+    }
+
     dispatch_t create_dispatch(const memory_desc_t *md = nullptr) const {
         return dispatch_t(this, md);
     }
-
-    virtual bool mayiuse_ngen_kernels() { return false; }
 
     status_t get_service_stream(stream_t *&stream) override {
         status_t status = status::success;
@@ -117,8 +131,15 @@ public:
         return status;
     }
 
+    // non-blocking query to check if service stream is already created
+    bool is_service_stream_created() const { return (bool)service_stream_; }
+
+protected:
+    virtual status_t init_device_info() = 0;
+
+    std::shared_ptr<device_info_t> device_info_;
+
 private:
-    std::unique_ptr<device_info_t> device_info_;
     // Implement a zero_pad_primitive shared across the engine. The purpose is
     // to prevent extra overhead associated with creating zero_pad_primitives
     // for different inputs as ideally the zero_pad operations fast relative to
@@ -134,5 +155,9 @@ private:
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+// Exported for testing purposes only.
+extern "C" bool DNNL_API dnnl_impl_gpu_mayiuse_ngen_kernels(
+        dnnl::impl::engine_t *engine);
 
 #endif

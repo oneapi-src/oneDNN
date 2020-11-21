@@ -144,40 +144,36 @@ struct ref_concat_t : public primitive_t {
             exec_args_t r_args;
             r_args[DNNL_ARG_SRC] = src;
             r_args[DNNL_ARG_DST] = dst;
-            exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+            exec_ctx_t r_ctx(ctx, std::move(r_args));
 
             nested_scratchpad_t ns(ctx, key_nested_multiple + r_num, reorder);
             r_ctx.set_scratchpad_grantor(ns.grantor());
             reorder->execute(r_ctx);
         };
 
-        const unsigned submemory_flags = memory_flags_t::use_runtime_ptr
-                | memory_flags_t::omit_zero_pad;
-
         if (pd()->use_tent_dst()) {
+            using namespace memory_tracking::names;
             auto scratchpad = ctx.get_scratchpad_grantor();
-            auto tent_dst_ptr = scratchpad.template get<void>(
-                    memory_tracking::names::key_concat_tent_dst);
+            auto tent_dst_storage
+                    = scratchpad.get_memory_storage(key_concat_tent_dst);
 
             for (int i = 0; i < n; ++i) {
                 memory_t tent_dst_i(engine, pd()->src_image_md(i),
-                        submemory_flags, tent_dst_ptr);
+                        tent_dst_storage->clone(), false);
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
                         {&tent_dst_i, false}, i);
             }
 
             memory_t tent_dst(engine, &pd()->tent_dst_md_,
-                    memory_flags_t::use_runtime_ptr, tent_dst_ptr);
-
+                    tent_dst_storage->clone(), false);
             execute_reorder(reorders_[n], {&tent_dst, true},
                     ctx.args().at(DNNL_ARG_DST), n);
         } else {
-            auto dst_ptr = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+            auto &dst_mem_storage = CTX_OUT_STORAGE(DNNL_ARG_DST);
             for (int i = 0; i < n; ++i) {
                 memory_t tent_dst_i(engine, pd()->src_image_md(i),
-                        submemory_flags, dst_ptr);
-
+                        dst_mem_storage.clone(), false);
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
                         {&tent_dst_i, false}, i);

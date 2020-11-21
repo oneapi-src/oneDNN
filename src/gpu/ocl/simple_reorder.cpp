@@ -515,7 +515,8 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
                 key_reorder_scales);
 
         void *tmp_ptr = nullptr;
-        status = scales->map_data(&tmp_ptr, ctx.stream());
+        status = scales->map_data(&tmp_ptr, ctx.stream(),
+                sizeof(float) * pd()->attr()->output_scales_.count_);
         if (status != status::success) return status;
         utils::array_copy((float *)tmp_ptr,
                 pd()->attr()->output_scales_.scales_,

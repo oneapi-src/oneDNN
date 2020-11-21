@@ -107,8 +107,8 @@ status_t ocl_stream_t::copy(
         void *src_mapped_ptr;
         void *dst_mapped_ptr;
 
-        CHECK(src.map_data(&src_mapped_ptr, this));
-        CHECK(dst.map_data(&dst_mapped_ptr, this));
+        CHECK(src.map_data(&src_mapped_ptr, this, size));
+        CHECK(dst.map_data(&dst_mapped_ptr, this, size));
 
         utils::array_copy(static_cast<uint8_t *>(dst_mapped_ptr),
                 static_cast<const uint8_t *>(src_mapped_ptr), size);
@@ -119,11 +119,11 @@ status_t ocl_stream_t::copy(
     return status::success;
 }
 
-status_t ocl_stream_t::fill(const memory_storage_t &dst, const void *pattern,
-        size_t pattern_size, size_t size) {
+status_t ocl_stream_t::fill(
+        const memory_storage_t &dst, uint8_t pattern, size_t size) {
     auto &ocl_dst = *utils::downcast<const ocl_memory_storage_t *>(&dst);
-    cl_int err = clEnqueueFillBuffer(queue(), ocl_dst.mem_object(), pattern,
-            pattern_size, dst.offset(), size, 0, nullptr, nullptr);
+    cl_int err = clEnqueueFillBuffer(queue(), ocl_dst.mem_object(), &pattern,
+            sizeof(uint8_t), dst.offset(), size, 0, nullptr, nullptr);
     OCL_CHECK(err);
     return status::success;
 }

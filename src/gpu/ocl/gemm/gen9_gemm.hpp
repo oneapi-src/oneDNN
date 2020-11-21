@@ -134,8 +134,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
                     && d->k() > threshold_k;
             if (is_batched && !size_ok) return status::unimplemented;
 
-            auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
-                    compute_engine->device_info());
+            auto *dev_info = compute_engine->device_info();
 
             eu_count_ = dev_info->eu_count();
             hw_threads_ = dev_info->hw_threads();
@@ -260,8 +259,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
             //  versions.
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
-                    compute_engine->device_info());
+            auto *dev_info = compute_engine->device_info();
             compute::runtime_version_t min_version = {19, 11, 12599};
 
             if (dev_info->runtime_version() < min_version) return false;

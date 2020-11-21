@@ -160,10 +160,9 @@ struct ref_concat_t : public gpu_primitive_t {
         if (pd()->use_tent_dst()) {
             auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                     memory_tracking::names::key_concat_tent_dst);
-            auto tent_dst_ptr = scratchpad->data_handle();
 
-            memory_t tent_dst(engine, &pd()->tent_dst_md_,
-                    memory_flags_t::use_runtime_ptr, tent_dst_ptr);
+            memory_t tent_dst(
+                    engine, &pd()->tent_dst_md_, std::move(scratchpad));
 
             for (int i = 0; i < n; ++i)
                 CHECK(execute_reorder(reorders_[i],

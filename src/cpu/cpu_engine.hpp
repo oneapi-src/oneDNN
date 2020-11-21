@@ -61,32 +61,18 @@ DECLARE_IMPL_LIST(softmax);
 
 #undef DECLARE_IMPL_LIST
 
-class cpu_engine_t : public engine_t {
+class cpu_engine_impl_list_t {
 public:
-    cpu_engine_t()
-        : engine_t(engine_kind::cpu, get_default_runtime(engine_kind::cpu)) {}
-
-    /* implementation part */
-    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
-            size_t size, void *handle) override;
-
-    status_t create_stream(stream_t **stream, unsigned flags) override;
-
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    status_t create_stream(stream_t **stream,
-            dnnl::threadpool_interop::threadpool_iface *threadpool) override;
-#endif
-
-    const concat_primitive_desc_create_f *
-    get_concat_implementation_list() const override;
-    const reorder_primitive_desc_create_f *get_reorder_implementation_list(
-            const memory_desc_t *src_md,
-            const memory_desc_t *dst_md) const override;
-    const sum_primitive_desc_create_f *
-    get_sum_implementation_list() const override;
-    const primitive_desc_create_f *get_implementation_list(
-            const op_desc_t *desc) const override {
-        static const primitive_desc_create_f empty_list[] = {nullptr};
+    static const engine_t::concat_primitive_desc_create_f *
+    get_concat_implementation_list();
+    static const engine_t::reorder_primitive_desc_create_f *
+    get_reorder_implementation_list(
+            const memory_desc_t *src_md, const memory_desc_t *dst_md);
+    static const engine_t::sum_primitive_desc_create_f *
+    get_sum_implementation_list();
+    static const engine_t::primitive_desc_create_f *get_implementation_list(
+            const op_desc_t *desc) {
+        static const engine_t::primitive_desc_create_f empty_list[] = {nullptr};
 
 // clang-format off
 #define CASE(kind) \
@@ -116,6 +102,43 @@ public:
 #undef CASE
     }
     // clang-format on
+};
+
+class cpu_engine_t : public engine_t {
+public:
+    cpu_engine_t() : engine_t(engine_kind::cpu, get_cpu_native_runtime()) {}
+
+    /* implementation part */
+
+    status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
+            size_t size, void *handle) override;
+
+    status_t create_stream(stream_t **stream, unsigned flags) override;
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    status_t create_stream(stream_t **stream,
+            dnnl::threadpool_interop::threadpool_iface *threadpool) override;
+#endif
+
+    const concat_primitive_desc_create_f *
+    get_concat_implementation_list() const override {
+        return cpu_engine_impl_list_t::get_concat_implementation_list();
+    }
+
+    const reorder_primitive_desc_create_f *get_reorder_implementation_list(
+            const memory_desc_t *src_md,
+            const memory_desc_t *dst_md) const override {
+        return cpu_engine_impl_list_t::get_reorder_implementation_list(
+                src_md, dst_md);
+    }
+    const sum_primitive_desc_create_f *
+    get_sum_implementation_list() const override {
+        return cpu_engine_impl_list_t::get_sum_implementation_list();
+    }
+    const primitive_desc_create_f *get_implementation_list(
+            const op_desc_t *desc) const override {
+        return cpu_engine_impl_list_t::get_implementation_list(desc);
+    }
 };
 
 class cpu_engine_factory_t : public engine_factory_t {

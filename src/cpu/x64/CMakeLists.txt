@@ -56,7 +56,7 @@ endif()
 # remove optimizations of files that don't need them for faster build times.
 file(GLOB FILES_WITHOUT_OPT
     ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*/*_kern_autogen.cpp)
-if(WIN32 AND NOT MINGW)
+if(MSVC)
     set_source_files_properties(${FILES_WITHOUT_OPT}
         PROPERTIES COMPILE_FLAGS "/Od")
 else()

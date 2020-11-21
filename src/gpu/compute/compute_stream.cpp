@@ -22,12 +22,15 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace compute {
-status_t compute_stream_t::zero_pad(const memory_t *memory) {
+status_t compute_stream_t::zero_pad(
+        const memory_t *memory, const exec_ctx_t &ctx) {
     memory_desc_wrapper mdw(memory->md());
 
     if (mdw.format_kind() != format_kind::blocked) return status::unimplemented;
 
     if (mdw.nelems(false) == mdw.nelems(true)) return status::success;
+
+    if (!has_zero_pad_primitive()) return stream_t::zero_pad(memory, ctx);
 
     // Kernel only compiled to support data types of length 1, 2, or 4 currently
     if (!utils::one_of(mdw.data_type_size(), 1u, 2u, 4u))
@@ -42,7 +45,7 @@ status_t compute_stream_t::zero_pad(const memory_t *memory) {
     }
 
     assert(step_nelems <= max_step_nelems);
-    if (step_nelems > max_step_nelems) return stream_t::zero_pad(memory);
+    if (step_nelems > max_step_nelems) return stream_t::zero_pad(memory, ctx);
 
     engine_t *engine = this->engine();
 

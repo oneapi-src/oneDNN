@@ -22,6 +22,8 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
+    if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
+        return status::success;
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
@@ -37,6 +39,9 @@ status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
 }
 
 status_t ref_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
+    if (memory_desc_wrapper(pd()->desc()->diff_desc).has_zero_dim())
+        return status::success;
+
     auto &dst = CTX_IN_STORAGE(DNNL_ARG_DST);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);

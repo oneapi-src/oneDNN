@@ -33,7 +33,12 @@ namespace impl {
 // Memory storage is engine-specific and has different implementations for
 // different engines.
 struct memory_storage_t : public c_compatible {
-    memory_storage_t(engine_t *engine) : engine_(engine) {}
+    memory_storage_t(engine_t *engine)
+        : engine_(engine), parent_storage_(this) {}
+
+    memory_storage_t(engine_t *engine, const memory_storage_t *parent_storage)
+        : engine_(engine), parent_storage_(parent_storage) {}
+
     virtual ~memory_storage_t() = default;
 
     status_t init(unsigned flags, size_t size, void *handle);
@@ -54,9 +59,14 @@ struct memory_storage_t : public c_compatible {
     size_t offset() const { return offset_; }
     void set_offset(size_t offset) { offset_ = offset; }
 
-    virtual status_t map_data(void **mapped_ptr, stream_t *stream) const;
+    virtual size_t base_offset() const { return 0; }
+
+    virtual status_t map_data(
+            void **mapped_ptr, stream_t *stream, size_t size) const;
 
     virtual status_t unmap_data(void *mapped_ptr, stream_t *stream) const;
+
+    virtual bool is_host_accessible() const { return false; }
 
     /** returns slice of memory storage
      *
@@ -64,6 +74,9 @@ struct memory_storage_t : public c_compatible {
      * @note: (offset + size) shall not be greater than base memory storage size */
     virtual std::unique_ptr<memory_storage_t> get_sub_storage(
             size_t offset, size_t size) const = 0;
+
+    /** returns shallow copy */
+    virtual std::unique_ptr<memory_storage_t> clone() const = 0;
 
     /** returns true if the pointer associated with the storage is NULL */
     bool is_null() const {
@@ -81,9 +94,13 @@ struct memory_storage_t : public c_compatible {
 protected:
     virtual status_t init_allocate(size_t size) = 0;
 
+    const memory_storage_t *parent_storage() const { return parent_storage_; }
+
 private:
     engine_t *engine_;
     size_t offset_ = 0;
+
+    const memory_storage_t *parent_storage_;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(memory_storage_t);
 };
@@ -103,6 +120,11 @@ struct empty_memory_storage_t : public memory_storage_t {
 
     std::unique_ptr<memory_storage_t> get_sub_storage(
             size_t offset, size_t size) const override {
+        assert(!"not expected");
+        return nullptr;
+    }
+
+    std::unique_ptr<memory_storage_t> clone() const override {
         assert(!"not expected");
         return nullptr;
     }

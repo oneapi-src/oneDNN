@@ -1204,13 +1204,13 @@ status_t gen9_convolution_bwd_weights_t::execute_backward_weights(
 
     memory_desc_wrapper wei_mdw(temp_wei_md);
     CHECK(compute_stream->fill(
-            conf.reorder_wei ? *wspace_ptr_wei : diff_weights, &zero,
-            sizeof(zero), wei_mdw.size()));
+            conf.reorder_wei ? *wspace_ptr_wei : diff_weights, zero,
+            wei_mdw.size()));
     if (conf.with_bias) {
         memory_desc_wrapper bia_mdw(temp_bia_md);
         CHECK(compute_stream->fill(
-                conf.reorder_bias ? *wspace_ptr_bia : diff_bias, &zero,
-                sizeof(zero), bia_mdw.size()));
+                conf.reorder_bias ? *wspace_ptr_bia : diff_bias, zero,
+                bia_mdw.size()));
     }
 
     compute::kernel_arg_list_t arg_list;

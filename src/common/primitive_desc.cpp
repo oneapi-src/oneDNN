@@ -33,20 +33,20 @@ dnnl_primitive_desc::dnnl_primitive_desc(
     : pd_(pd), engine_(engine) {}
 
 status_t dnnl_primitive_desc::create_primitive_iface(
-        primitive_iface_t **primitive_iface) const {
+        std::pair<primitive_iface_t *, bool> &primitive_iface) const {
     // Step 1: create impl::primitive_t or get it from primitive cache
-    std::shared_ptr<primitive_t> p;
+    std::pair<std::shared_ptr<primitive_t>, bool> p;
     auto status = pd_->create_primitive(p, engine());
     if (status != status::success) return status;
     // Step 2: create primitive_iface_t, init and return it to user
     primitive_iface_t *p_iface = nullptr;
-    CHECK(safe_ptr_assign(p_iface, new primitive_iface_t(p, engine())));
+    CHECK(safe_ptr_assign(p_iface, new primitive_iface_t(p.first, engine())));
     status = p_iface->init();
     if (status != status::success) {
-        delete p_iface;
+        p_iface->release();
         return status;
     }
-    (*primitive_iface) = p_iface;
+    primitive_iface = std::make_pair(p_iface, p.second);
     return status::success;
 }
 

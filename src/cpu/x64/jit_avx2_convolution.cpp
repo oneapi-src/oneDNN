@@ -187,8 +187,7 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     parallel(jcp.nthr, ker);
 
-    if (pd()->wants_zero_pad_dst())
-        ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
+    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);
 }
 
 void jit_avx2_convolution_bwd_data_t::execute_backward_data(

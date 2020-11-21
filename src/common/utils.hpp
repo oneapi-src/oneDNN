@@ -577,6 +577,15 @@ public:
     DNNL_DISALLOW_COPY_AND_ASSIGN(setting_t);
 };
 
+// The following code is derived from Boost C++ library
+// Copyright 2005-2014 Daniel James.
+// Distributed under the Boost Software License, Version 1.0. (See accompanying
+// file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
+template <typename T>
+static size_t hash_combine(size_t seed, const T &v) {
+    return seed ^= std::hash<T> {}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
 // A setting (basically a value) that can be set() multiple times until the
 // time first time the get() method is called. The set() method is expected to
 // be as expensive as a busy-waiting spinlock. The get() method is expected to

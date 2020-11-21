@@ -55,12 +55,13 @@ status_t cvt_primitive_args(const primitive_desc_t *pd, int nargs,
 /** Primitive execution context (helps passing stream, memories, and events. */
 struct resource_mapper_t;
 struct exec_ctx_t {
-    exec_ctx_t(stream_t *stream) : stream_(stream) {}
+    explicit exec_ctx_t(stream_t *stream) : stream_(stream) {}
     exec_ctx_t(stream_t *stream, exec_args_t &&args)
         : stream_(stream), args_(std::move(args)) {}
     exec_ctx_t(const exec_ctx_t &other, exec_args_t &&args)
         : stream_(other.stream_)
         , args_(std::move(args))
+        , memory_mapping_(other.memory_mapping_)
         , resource_mapper_(other.resource_mapper_) {}
 
     stream_t *stream() const { return stream_; }
@@ -69,6 +70,16 @@ struct exec_ctx_t {
     memory_t *input(int arg) const;
     memory_t *output(int arg) const;
     memory_t *memory(int arg) const;
+
+    void register_memory_mapping(void *handle, void *host_ptr);
+
+    void *host_ptr(int arg) const;
+    void *host_ptr(const memory_storage_t *mem_storage) const;
+
+    void *map_memory_storage(const memory_storage_t *storage, stream_t *stream,
+            size_t size) const;
+    void unmap_memory_storage(const memory_storage_t *storage, void *mapped_ptr,
+            stream_t *stream) const;
 
     // Returns memory descriptor wrapper for the corresponding memory argument.
     //
@@ -107,6 +118,8 @@ struct exec_ctx_t {
 private:
     stream_t *stream_;
     exec_args_t args_;
+
+    std::unordered_map<void *, void *> memory_mapping_;
     const resource_mapper_t *resource_mapper_ = nullptr;
     const memory_tracking::grantor_t *scratchpad_grantor_ = nullptr;
 };

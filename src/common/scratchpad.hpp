@@ -17,6 +17,7 @@
 #ifndef COMMON_SCRATCHPAD_HPP
 #define COMMON_SCRATCHPAD_HPP
 
+#include "c_types_map.hpp"
 #include "memory_storage.hpp"
 #include "utils.hpp"
 

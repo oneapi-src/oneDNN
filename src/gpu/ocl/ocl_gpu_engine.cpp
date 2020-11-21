@@ -20,8 +20,10 @@
 
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/jit/binary_format.hpp"
+#include "gpu/compute/kernel_list.hpp"
 #include "gpu/ocl/kernel_utils.hpp"
+#include "gpu/ocl/ocl_gpu_device_info.hpp"
+#include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -52,7 +54,7 @@ status_t ocl_gpu_engine_t::init() {
     OCL_CHECK(err);
 
     CHECK(check_device(engine_kind::gpu, device_, context_));
-    CHECK(compute_engine_t::init());
+    compute::compute_engine_t::init();
 
     return status::success;
 }
@@ -143,6 +145,12 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
         const compute::kernel_ctx_t &kernel_ctx) const {
     std::string options = kernel_ctx.options();
 
+    // XXX: Update options by adding macros for OpenCL extensions that are not
+    // handled properly by the OpenCL runtime
+    auto *dev_info
+            = utils::downcast<const ocl_gpu_device_info_t *>(device_info());
+    options += " " + dev_info->get_cl_ext_options();
+
     cl_int err;
     cl_program program = clCreateProgramWithSource(
             context(), count_lines(code_strings), code_strings, nullptr, &err);
@@ -183,17 +191,10 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
     return status::success;
 }
 
-void ocl_gpu_engine_t::check_mayiuse_ngen_kernels() {
-    if (!checked_ngen_kernels_) {
-        auto status
-                = jit::gpu_supports_binary_format(&enable_ngen_kernels_, this);
-        if (status != status::success) enable_ngen_kernels_ = false;
-        checked_ngen_kernels_ = true;
-
-        if (get_verbose())
-            printf("dnnl_verbose,info,gpu,binary_kernels:%s\n",
-                    enable_ngen_kernels_ ? "enabled" : "disabled");
-    }
+status_t ocl_gpu_engine_t::init_device_info() {
+    device_info_.reset(new ocl_gpu_device_info_t());
+    CHECK(device_info_->init(this));
+    return status::success;
 }
 
 } // namespace ocl

@@ -75,8 +75,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
                 post_ops_binary_rhs_arg_vec_dw.data());
     });
 
-    if (pd()->wants_zero_pad_dst())
-        ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
+    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);
 }
 
 void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,

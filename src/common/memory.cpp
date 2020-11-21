@@ -23,6 +23,7 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+#include "memory.hpp"
 #include "memory_desc_wrapper.hpp"
 #include "stream.hpp"
 #include "type_helpers.hpp"
@@ -39,6 +40,31 @@ memory_desc_t glob_zero_md = memory_desc_t();
 }
 } // namespace dnnl
 
+namespace {
+// Returns the size required for memory descriptor mapping.
+// Caveats:
+// 1. If memory descriptor with run-time parameters, the mapping cannot be done;
+//    hence return DNNL_RUNTIME_SIZE_VAL
+// 2. Otherwise, the size returned includes `offset0` and holes (for the case
+//    of non-trivial strides). Strictly speaking, the mapping should happen only
+//    for elements accessible with `md.off_l(0 .. md.nelems())`. However, for
+//    the sake of simple implementation let's have such limitation hoping that
+//    no one will do concurrent mapping for overlapping memory objects.
+//
+// XXX: remove limitation mentioned in 2nd bullet.
+size_t memory_desc_map_size(const memory_desc_t *md) {
+    auto mdw = memory_desc_wrapper(md);
+
+    if (mdw.has_runtime_dims_or_strides()) return DNNL_RUNTIME_SIZE_VAL;
+    if (mdw.offset0() == 0) return mdw.size();
+
+    memory_desc_t md_no_offset0 = *md;
+    md_no_offset0.offset0 = 0;
+    return memory_desc_wrapper(md_no_offset0).size()
+            + md->offset0 * mdw.data_type_size();
+}
+} // namespace
+
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
         const dnnl::impl::memory_desc_t *md, unsigned flags, void *handle)
     : engine_(engine), md_(*md) {
@@ -53,6 +79,14 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     if (!(flags & omit_zero_pad)) zero_pad(nullptr);
 }
 
+dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
+        const dnnl::impl::memory_desc_t *md,
+        std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage,
+        bool do_zero_pad)
+    : engine_(engine), md_(*md) {
+    this->reset_memory_storage(std::move(memory_storage), do_zero_pad);
+}
+
 status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream) {
     using namespace dnnl::impl;
 
@@ -63,6 +97,24 @@ status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream) {
         CHECK(memory_storage()->set_data_handle(handle));
     }
     return zero_pad(stream);
+}
+
+status_t dnnl_memory::reset_memory_storage(
+        std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage,
+        bool do_zero_pad) {
+    if (memory_storage) {
+        memory_storage_ = std::move(memory_storage);
+        if (do_zero_pad) zero_pad(nullptr);
+    } else {
+        memory_storage_t *memory_storage_ptr;
+        status_t status = engine_->create_memory_storage(
+                &memory_storage_ptr, use_runtime_ptr, 0, nullptr);
+        if (status != status::success) return status;
+
+        memory_storage_.reset(memory_storage_ptr);
+    }
+
+    return status::success;
 }
 
 status_t dnnl_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
@@ -497,14 +549,28 @@ status_t dnnl_memory_set_data_handle(memory_t *memory, void *handle) {
 status_t dnnl_memory_set_data_handle_v2(
         memory_t *memory, void *handle, stream_t *stream) {
     if (any_null(memory)) return invalid_arguments;
-    return memory->set_data_handle(handle, stream);
+    if (stream) stream->before_exec_hook();
+    status_t status = memory->set_data_handle(handle, stream);
+    if (stream) stream->after_exec_hook();
+    return status;
 }
 
 status_t dnnl_memory_map_data(const memory_t *memory, void **mapped_ptr) {
     bool args_ok = !any_null(memory, mapped_ptr);
     if (!args_ok) return invalid_arguments;
 
-    return memory->memory_storage()->map_data(mapped_ptr, nullptr);
+    const memory_desc_t *md = memory->md();
+    // See caveats in the comment to `memory_desc_map_size()` function.
+    const size_t map_size = memory_desc_map_size(md);
+
+    if (map_size == 0) {
+        *mapped_ptr = nullptr;
+        return success;
+    } else if (map_size == DNNL_RUNTIME_SIZE_VAL) {
+        return invalid_arguments;
+    }
+
+    return memory->memory_storage()->map_data(mapped_ptr, nullptr, map_size);
 }
 
 status_t dnnl_memory_unmap_data(const memory_t *memory, void *mapped_ptr) {

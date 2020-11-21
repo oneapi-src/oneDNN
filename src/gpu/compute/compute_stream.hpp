@@ -37,8 +37,8 @@ public:
     virtual status_t copy(const memory_storage_t &src,
             const memory_storage_t &dst, size_t size)
             = 0;
-    virtual status_t fill(const memory_storage_t &dst, const void *pattern,
-            size_t pattern_size, size_t size)
+    virtual status_t fill(
+            const memory_storage_t &dst, uint8_t pattern, size_t size)
             = 0;
     virtual status_t parallel_for(const nd_range_t &range,
             const kernel_t &kernel, const kernel_arg_list_t &arg_list) {
@@ -46,7 +46,11 @@ public:
     }
 
 protected:
-    status_t zero_pad(const memory_t *memory) override;
+    bool has_zero_pad_primitive() const {
+        return engine()->kind() == dnnl_gpu;
+    };
+
+    status_t zero_pad(const memory_t *memory, const exec_ctx_t &ctx) override;
 };
 
 } // namespace compute

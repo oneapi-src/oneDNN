@@ -25,7 +25,10 @@
 #include "gpu/jit/gemm/gen_gemm_kernel_common.hpp"
 #include "gpu/jit/gemm/utils.hpp"
 
+namespace ngen {
 using half = dnnl::impl::float16_t;
+}
+
 #define NGEN_HALF_TYPE
 
 #include "../ngen/ngen_interface.hpp"

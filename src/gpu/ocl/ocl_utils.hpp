@@ -19,6 +19,7 @@
 
 #include <cinttypes>
 #include <memory>
+#include <sstream>
 #include <string.h>
 #include <string>
 #include <utility>
@@ -125,11 +126,10 @@ enum { OCL_BUFFER_ALIGNMENT = 128 };
 // Check for two conditions:
 // 1. Device and context are compatible, i.e. the device belongs to
 //    the context devices.
-// 2. Device type matches the passed engine kind (only GPU supported).
+// 2. Device type matches the passed engine kind
 inline status_t check_device(
         engine_kind_t eng_kind, cl_device_id dev, cl_context ctx) {
     assert(dev && ctx);
-    assert(eng_kind == engine_kind::gpu);
 
     size_t dev_bytes;
     OCL_CHECK(
@@ -144,7 +144,12 @@ inline status_t check_device(
             cl_device_type dev_type;
             OCL_CHECK(clGetDeviceInfo(
                     dev, CL_DEVICE_TYPE, sizeof(dev_type), &dev_type, NULL));
-            if ((dev_type & CL_DEVICE_TYPE_GPU) == 0) {
+            if ((eng_kind == engine_kind::cpu)
+                    && (dev_type & CL_DEVICE_TYPE_CPU) == 0) {
+                return status::invalid_arguments;
+            }
+            if ((eng_kind == engine_kind::gpu)
+                    && (dev_type & CL_DEVICE_TYPE_GPU) == 0) {
                 return status::invalid_arguments;
             }
             return status::success;
@@ -256,8 +261,8 @@ ocl_wrapper_t<T> make_ocl_wrapper(T t) {
     return ocl_wrapper_t<T>(t);
 }
 
-status_t get_ocl_kernel_arg_type(
-        compute::scalar_type_t *type, cl_kernel ocl_kernel, int idx);
+status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
+        cl_kernel ocl_kernel, int idx, bool allow_undef = false);
 
 #ifdef DNNL_ENABLE_MEM_DEBUG
 cl_mem DNNL_WEAK clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,

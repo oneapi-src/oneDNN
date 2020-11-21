@@ -136,8 +136,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
     status_t init(engine_t *engine) override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
-        auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
-                compute_engine->device_info());
+        auto *dev_info = compute_engine->device_info();
 
         eu_count_ = dev_info->eu_count();
         hw_threads_ = dev_info->hw_threads();

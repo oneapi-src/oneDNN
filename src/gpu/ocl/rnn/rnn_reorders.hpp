@@ -117,7 +117,8 @@ protected:
 
         void *scales_ptr = nullptr;
         std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
-        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr));
+        CHECK(tmp_mem_storage->map_data(
+                &scales_ptr, nullptr, sizeof(float) * pd()->conf.scales_count));
         utils::array_copy((float *)scales_ptr,
                 pd()->attr()->rnn_weights_qparams_.scales_,
                 pd()->conf.scales_count);

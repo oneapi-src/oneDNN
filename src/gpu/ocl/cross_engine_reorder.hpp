@@ -81,7 +81,6 @@ protected:
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
     std::shared_ptr<primitive_t> reorder_;
 };
 

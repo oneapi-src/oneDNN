@@ -67,8 +67,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
                 dst, scratchpad);
     });
 
-    if (pd()->wants_zero_pad_dst())
-        ctx.memory(DNNL_ARG_DST)->zero_pad(ctx.stream());
+    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);
 }
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type>

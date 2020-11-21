@@ -153,6 +153,20 @@ inline runtime_kind_t get_default_runtime(engine_kind_t kind) {
 #endif
 }
 
+inline runtime_kind_t get_cpu_native_runtime() {
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
+    return runtime_kind::seq;
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+    return runtime_kind::omp;
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
+    return runtime_kind::tbb;
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    return runtime_kind::threadpool;
+#else
+    return runtime_kind::none;
+#endif
+}
+
 inline bool is_native_runtime(runtime_kind_t kind) {
     return utils::one_of(kind, runtime_kind::seq, runtime_kind::omp,
             runtime_kind::tbb, runtime_kind::threadpool);

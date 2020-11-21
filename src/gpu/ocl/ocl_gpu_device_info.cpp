@@ -16,90 +16,92 @@
 
 #include "gpu/ocl/ocl_gpu_device_info.hpp"
 #include "gpu/ocl/ocl_gpu_detect.hpp"
-
-#include "cpu/platform.hpp"
+#include "gpu/ocl/ocl_gpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ocl_gpu_device_info_t::init_arch() {
+status_t ocl_gpu_device_info_t::init_arch(engine_t *engine) {
+    cl_int err = CL_SUCCESS;
+    auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
+
+    // skip other vendors
+    const cl_uint intel_vendor_id = 0x8086;
+    cl_uint vendor_id;
+    err = clGetDeviceInfo(
+            device, CL_DEVICE_VENDOR_ID, sizeof(cl_uint), &vendor_id, nullptr);
+    OCL_CHECK(err);
+    if (vendor_id != intel_vendor_id) return status::success;
+
     // try to detect gpu by device name first
     gpu_arch_ = detect_gpu_arch_by_device_name(name());
     if (gpu_arch_ != compute::gpu_arch_t::unknown) return status::success;
 
     // if failed, use slower method
-    if (utils::any_null(device_)) return status::invalid_arguments;
-
-    cl_int err = CL_SUCCESS;
     cl_context context
-            = clCreateContext(nullptr, 1, &device_, nullptr, nullptr, &err);
+            = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
     OCL_CHECK(err);
 
-    gpu_arch_ = detect_gpu_arch(device_, context);
+    gpu_arch_ = detect_gpu_arch(device, context);
     err = clReleaseContext(context);
     OCL_CHECK(err);
 
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_device_name() {
+status_t ocl_gpu_device_info_t::init_device_name(engine_t *engine) {
     cl_int err = CL_SUCCESS;
+    auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
 
     size_t param_size = 0;
-    err = clGetDeviceInfo(device_, CL_DEVICE_NAME, 0, nullptr, &param_size);
+    err = clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &param_size);
     OCL_CHECK(err);
 
-    std::string device_name(param_size, '\0');
+    name_ = std::string(param_size, '\0');
     err = clGetDeviceInfo(
-            device_, CL_DEVICE_NAME, param_size, &device_name[0], &param_size);
+            device, CL_DEVICE_NAME, param_size, &name_[0], &param_size);
     OCL_CHECK(err);
 
-    set_name(device_name);
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_runtime_version() {
+status_t ocl_gpu_device_info_t::init_runtime_version(engine_t *engine) {
     cl_int err = CL_SUCCESS;
+    auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
 
     size_t param_size = 0;
-    err = clGetDeviceInfo(device_, CL_DRIVER_VERSION, 0, nullptr, &param_size);
+    err = clGetDeviceInfo(device, CL_DRIVER_VERSION, 0, nullptr, &param_size);
     OCL_CHECK(err);
 
     std::string driver_version(param_size, '\0');
-    err = clGetDeviceInfo(device_, CL_DRIVER_VERSION, param_size,
-            &driver_version[0], nullptr);
+    err = clGetDeviceInfo(
+            device, CL_DRIVER_VERSION, param_size, &driver_version[0], nullptr);
     OCL_CHECK(err);
 
-    compute::runtime_version_t runtime_version;
-    if (runtime_version.set_from_string(&driver_version[0])
+    if (runtime_version_.set_from_string(&driver_version[0])
             != status::success) {
-        runtime_version.major = 0;
-        runtime_version.minor = 0;
-        runtime_version.build = 0;
+        runtime_version_.major = 0;
+        runtime_version_.minor = 0;
+        runtime_version_.build = 0;
     }
 
-    set_runtime_version(runtime_version);
     return status::success;
 }
 
-static uint64_t get_future_extensions(compute::gpu_arch_t gpu_arch) {
-    uint64_t extensions = 0;
-    return extensions;
-}
-
-status_t ocl_gpu_device_info_t::init_extensions() {
+status_t ocl_gpu_device_info_t::init_extensions(engine_t *engine) {
     cl_int err = CL_SUCCESS;
+    auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
 
     // query device for extensions
     size_t param_size = 0;
     err = clGetDeviceInfo(
-            device_, CL_DEVICE_EXTENSIONS, 0, nullptr, &param_size);
+            device, CL_DEVICE_EXTENSIONS, 0, nullptr, &param_size);
     OCL_CHECK(err);
 
     std::string extension_string(param_size, '\0');
-    err = clGetDeviceInfo(device_, CL_DEVICE_EXTENSIONS, param_size,
+    err = clGetDeviceInfo(device, CL_DEVICE_EXTENSIONS, param_size,
             &extension_string[0], &param_size);
     OCL_CHECK(err);
 
@@ -119,35 +121,38 @@ status_t ocl_gpu_device_info_t::init_extensions() {
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_attributes() {
+status_t ocl_gpu_device_info_t::init_attributes(engine_t *engine) {
     cl_int err = CL_SUCCESS;
+    auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
 
     cl_uint eu_count = 0;
-    err = clGetDeviceInfo(device_, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint),
+    err = clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint),
             &eu_count, nullptr);
     OCL_CHECK(err);
     eu_count_ = (int32_t)eu_count;
 
-    // Assume 7 threads by default
-    int32_t threads_per_eu = 7;
-
-    switch (gpu_arch_) {
-        case compute::gpu_arch_t::gen9: threads_per_eu = 7; break;
-        case compute::gpu_arch_t::gen12lp: threads_per_eu = 7; break;
-        default: break;
-    }
-
-    hw_threads_ = eu_count_ * threads_per_eu;
-    llc_cache_size_ = get_llc_cache_size();
-
     return status::success;
 }
 
-size_t ocl_gpu_device_info_t::get_llc_cache_size() const {
-    // Integrated GPUs share LLC with CPU which is L3 cache on CPU.
-    size_t cache_size = cpu::platform::get_per_core_cache_size(3)
-            * cpu::platform::get_num_cores();
-    return cache_size;
+std::string ocl_gpu_device_info_t::get_cl_ext_options() const {
+    using namespace compute;
+
+    std::string opts;
+    for (uint64_t i_ext = 1; i_ext < (uint64_t)device_ext_t::last;
+            i_ext <<= 1) {
+        auto ext = (device_ext_t)i_ext;
+
+        // Use real GPU extensions
+        if (!has(ext)) continue;
+
+        // These extensions are not handled properly by the OpenCL runtime.
+        // Pass macros for them manually.
+        if (utils::one_of(ext, device_ext_t::intel_dot_accumulate))
+
+            opts += std::string("-D") + ext2cl_str(ext) + " ";
+    }
+    if (!opts.empty()) { opts[opts.size() - 1] = '\0'; }
+    return opts;
 }
 
 } // namespace ocl

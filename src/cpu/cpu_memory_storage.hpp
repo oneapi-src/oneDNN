@@ -45,12 +45,21 @@ public:
         return status::success;
     }
 
+    bool is_host_accessible() const override { return true; }
+
     std::unique_ptr<memory_storage_t> get_sub_storage(
             size_t offset, size_t size) const override {
         void *sub_ptr = reinterpret_cast<uint8_t *>(data_.get()) + offset;
         auto sub_storage = new cpu_memory_storage_t(this->engine());
         sub_storage->init(memory_flags_t::use_runtime_ptr, size, sub_ptr);
         return std::unique_ptr<memory_storage_t>(sub_storage);
+    }
+
+    std::unique_ptr<memory_storage_t> clone() const override {
+        auto storage = new cpu_memory_storage_t(engine());
+        if (storage)
+            storage->init(memory_flags_t::use_runtime_ptr, 0, data_.get());
+        return std::unique_ptr<memory_storage_t>(storage);
     }
 
 protected:

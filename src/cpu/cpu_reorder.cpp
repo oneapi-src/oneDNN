@@ -744,8 +744,8 @@ const impl_list_map_t comp_s8s8_impl_list_map {
 
 } // namespace
 
-const rpd_create_f *cpu_engine_t::get_reorder_implementation_list(
-        const memory_desc_t *src_md, const memory_desc_t *dst_md) const {
+const rpd_create_f *cpu_engine_impl_list_t::get_reorder_implementation_list(
+        const memory_desc_t *src_md, const memory_desc_t *dst_md) {
     const impl_list_map_t &impl_list
             = (dst_md->extra.flags
                       & (memory_extra_flags::compensation_conv_s8s8

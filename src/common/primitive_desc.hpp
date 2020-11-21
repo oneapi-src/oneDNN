@@ -192,8 +192,20 @@ struct primitive_desc_t : public c_compatible {
         return n_inputs;
     }
 
-    virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive,
+    virtual status_t create_primitive(
+            std::pair<std::shared_ptr<primitive_t>, bool> &primitive,
             engine_t *engine) const = 0;
+
+    // This is a proxy interface that is used for creating nested primitives.
+    // It ignores the bool value that indicates whether the requested primitive
+    // was taken from cache.
+    status_t create_primitive(
+            std::shared_ptr<primitive_t> &primitive, engine_t *engine) const {
+        std::pair<std::shared_ptr<primitive_t>, bool> p;
+        CHECK(create_primitive(p, engine));
+        primitive = p.first;
+        return status::success;
+    }
 
     virtual const char *name() const = 0;
 
@@ -289,7 +301,7 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
             dnnl::impl::query_t what, int idx, void *result) const;
 
     virtual dnnl::impl::status_t create_primitive_iface(
-            primitive_iface_t **primitive_iface) const;
+            std::pair<primitive_iface_t *, bool> &primitive_iface) const;
 
     const std::shared_ptr<dnnl::impl::primitive_desc_t> &impl() const;
 
@@ -304,7 +316,8 @@ protected:
         if (!new_pd->is_initialized()) return nullptr; \
         return new_pd.release(); \
     } \
-    status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
+    status_t create_primitive( \
+            std::pair<std::shared_ptr<primitive_t>, bool> &primitive, \
             engine_t *engine) const override { \
         return primitive_t::create_primitive_common<impl_type, pd_t>( \
                 primitive, this, engine, use_global_scratchpad); \

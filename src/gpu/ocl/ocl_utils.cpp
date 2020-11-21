@@ -78,8 +78,8 @@ status_t get_ocl_devices(
     return status::success;
 }
 
-status_t get_ocl_kernel_arg_type(
-        compute::scalar_type_t *type, cl_kernel ocl_kernel, int idx) {
+status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
+        cl_kernel ocl_kernel, int idx, bool allow_undef) {
     char s_type[16];
     OCL_CHECK(clGetKernelArgInfo(ocl_kernel, idx, CL_KERNEL_ARG_TYPE_NAME,
             sizeof(s_type), s_type, nullptr));
@@ -100,6 +100,11 @@ status_t get_ocl_kernel_arg_type(
     CASE(ushort)
     CASE(zero_pad_mask_t)
 #undef CASE
+
+    if (allow_undef) {
+        *type = compute::scalar_type_t::undef;
+        return status::success;
+    }
 
     assert(!"Not expected");
     return status::runtime_error;

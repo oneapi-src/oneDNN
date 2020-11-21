@@ -19,6 +19,8 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+#include "primitive.hpp"
+#include "primitive_exec_types.hpp"
 #include "stream.hpp"
 #include "utils.hpp"
 
@@ -26,12 +28,16 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 
+status_t stream_t::enqueue_primitive(
+        const primitive_iface_t *primitive_iface, exec_ctx_t &ctx) {
+    return primitive_iface->execute(ctx);
+}
+
 /* API */
 
 status_t dnnl_stream_create(
         stream_t **stream, engine_t *engine, unsigned flags) {
-    bool args_ok = !utils::any_null(stream, engine)
-            && flags == stream_flags::default_flags;
+    bool args_ok = !utils::any_null(stream, engine);
     if (!args_ok) return invalid_arguments;
 
     return engine->create_stream(stream, flags);

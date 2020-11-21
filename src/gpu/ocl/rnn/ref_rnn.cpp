@@ -843,7 +843,8 @@ status_t _ref_rnn_common_t<aprop>::init_res_storage(
         // copy bias to memory storage
         std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
         void *scales_ptr = nullptr;
-        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr));
+        CHECK(tmp_mem_storage->map_data(&scales_ptr, nullptr,
+                sizeof(float) * pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc));
         utils::array_copy((float *)scales_ptr,
                 pd()->attr()->rnn_weights_qparams_.scales_,
                 pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc);
@@ -863,7 +864,8 @@ status_t _ref_rnn_common_t<aprop>::init_res_storage(
 
         std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
         void *tm_scales_ptr = nullptr;
-        CHECK(tmp_mem_storage->map_data(&tm_scales_ptr, nullptr));
+        CHECK(tmp_mem_storage->map_data(&tm_scales_ptr, nullptr,
+                sizeof(float) * pd()->attr()->rnn_tparams_.ngates_));
         utils::array_copy((float *)tm_scales_ptr,
                 pd()->attr()->rnn_tparams_.scales_,
                 pd()->attr()->rnn_tparams_.ngates_);
@@ -883,43 +885,33 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     bool is_lbr = this->pd()->is_lbr();
     bool is_vanilla_gru = this->pd()->rnn_conf.is_vanilla_gru;
 
-    void *scratchpad_ptr {nullptr}, *scratch_gates_ptr {nullptr},
-            *scratch_cell_ptr {nullptr};
-
     memory_t *workspace = (aprop == prop_kind::forward)
             ? ctx.output(DNNL_ARG_WORKSPACE)
             : ctx.input(DNNL_ARG_WORKSPACE);
 
     std::unique_ptr<memory_storage_t> scratchpad;
     if (pd()->rnn_conf.use_workspace) {
-        workspace->memory_storage()->get_data_handle(&scratchpad_ptr);
+        scratchpad = workspace->memory_storage()->clone();
     } else {
         scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                 key_rnn_space);
-        scratchpad->get_data_handle(&scratchpad_ptr);
     }
 
     auto scratchpad_gates
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
-    scratchpad_gates->get_data_handle(&scratch_gates_ptr);
 
-    auto scratch_cell
-            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
+    std::unique_ptr<memory_storage_t> scratchpad_cell;
     if (is_lbr || (is_vanilla_gru && gemm_kind == gemm_diff_wei_iter_2))
-        scratch_cell->get_data_handle(&scratch_cell_ptr);
+        scratchpad_cell
+                = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_cell);
 
-    void *weights_ptr {nullptr};
     memory_t *weights {nullptr};
 
     // These memory storages provide a mechanism to reuse existing memory
     // storage with an offset. These memory storages don't own attached memory
-    memory_storage_t *gemm_A_ = nullptr;
-    memory_storage_t *gemm_B_ = nullptr;
-    memory_storage_t *gemm_C_ = nullptr;
-
-    engine->create_memory_storage(&gemm_A_, use_runtime_ptr, 0, nullptr);
-    engine->create_memory_storage(&gemm_B_, use_runtime_ptr, 0, nullptr);
-    engine->create_memory_storage(&gemm_C_, use_runtime_ptr, 0, nullptr);
+    std::unique_ptr<memory_storage_t> gemm_A_;
+    std::unique_ptr<memory_storage_t> gemm_B_;
+    std::unique_ptr<memory_storage_t> gemm_C_;
 
     switch (gemm_kind) {
         case gemm_iter_fwd:
@@ -928,14 +920,12 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             weights = (gemm_kind == gemm_layer_fwd)
                     ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
                     : ctx.input(DNNL_ARG_WEIGHTS_ITER);
-            weights->memory_storage()->get_data_handle(&weights_ptr);
-
-            gemm_A_->set_data_handle(weights_ptr);
-            gemm_B_->set_data_handle(scratchpad_ptr);
+            gemm_A_ = weights->memory_storage()->clone();
+            gemm_B_ = scratchpad->clone();
             if (is_lbr && gemm_kind == gemm_iter_fwd) {
-                gemm_C_->set_data_handle(scratch_cell_ptr);
+                gemm_C_ = scratchpad_cell->clone();
             } else {
-                gemm_C_->set_data_handle(scratch_gates_ptr);
+                gemm_C_ = scratchpad_gates->clone();
             }
             break;
         case gemm_iter_bwd:
@@ -944,37 +934,33 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             weights = (gemm_kind == gemm_layer_bwd)
                     ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
                     : ctx.input(DNNL_ARG_WEIGHTS_ITER);
-            weights->memory_storage()->get_data_handle(&weights_ptr);
-
-            gemm_A_->set_data_handle(weights_ptr);
+            gemm_A_ = weights->memory_storage()->clone();
             if (is_lbr && gemm_kind == gemm_iter_bwd) {
-                gemm_B_->set_data_handle(scratch_cell_ptr);
+                gemm_B_ = scratchpad_cell->clone();
             } else {
-                gemm_B_->set_data_handle(scratch_gates_ptr);
+                gemm_B_ = scratchpad_gates->clone();
             }
-            gemm_C_->set_data_handle(scratchpad_ptr);
+            gemm_C_ = scratchpad->clone();
             break;
         case gemm_diff_wei_iter:
         case gemm_diff_wei_layer:
             weights = (gemm_kind == gemm_diff_wei_iter)
                     ? ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER)
                     : ctx.output(DNNL_ARG_DIFF_WEIGHTS_LAYER);
-            weights->memory_storage()->get_data_handle(&weights_ptr);
             if (is_lbr && gemm_kind == gemm_diff_wei_iter) {
-                gemm_A_->set_data_handle(scratch_cell_ptr);
+                gemm_A_ = scratchpad_cell->clone();
             } else {
-                gemm_A_->set_data_handle(scratch_gates_ptr);
+                gemm_A_ = scratchpad_gates->clone();
             }
-            gemm_B_->set_data_handle(scratchpad_ptr);
-            gemm_C_->set_data_handle(weights_ptr);
+            gemm_B_ = scratchpad->clone();
+            gemm_C_ = weights->memory_storage()->clone();
             break;
         case gemm_diff_wei_iter_2:
             weights = ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER);
-            weights->memory_storage()->get_data_handle(&weights_ptr);
 
-            gemm_A_->set_data_handle(scratch_gates_ptr);
-            gemm_B_->set_data_handle(scratch_cell_ptr);
-            gemm_C_->set_data_handle(weights_ptr);
+            gemm_A_ = scratchpad_gates->clone();
+            gemm_B_ = scratchpad_cell->clone();
+            gemm_C_ = weights->memory_storage()->clone();
             break;
         default: assert(!"unknown gemm_kind");
     }
@@ -986,9 +972,9 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     // We flip A and B here since the GEMM API is row major but the
     // RNN code describes GEMM in column major fashion
     gemm_exec_args_t gemm_args;
-    gemm_args.a = gemm_B_;
-    gemm_args.b = gemm_A_;
-    gemm_args.c = gemm_C_;
+    gemm_args.a = gemm_B_.get();
+    gemm_args.b = gemm_A_.get();
+    gemm_args.c = gemm_C_.get();
 
     auto gemm_ctx = gemm_exec_ctx_t(ctx, gemm_args);
 
@@ -1041,10 +1027,6 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             break;
         default: assert(!"unknown gemm_kind");
     }
-
-    delete gemm_A_;
-    delete gemm_B_;
-    delete gemm_C_;
 }
 
 template <prop_kind_t aprop>

@@ -241,8 +241,7 @@ status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     // Create intermediate memory for f32 output if needed.
     auto dst = args.at(DNNL_ARG_DST);
     memory_t tmp_memory(dst.mem->engine(), pd()->conv_pd_->diff_src_md(),
-            memory_flags_t::use_runtime_ptr,
-            scratchpad.get<float>(key_deconv_bias));
+            scratchpad.get_memory_storage(key_deconv_bias), false);
     memory_arg_t tmp_conv_output = {&tmp_memory, false};
 
     conv_args[DNNL_ARG_DIFF_SRC]
@@ -267,7 +266,7 @@ status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
         });
     }
 
-    exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+    exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 
     nested_scratchpad_t ns(ctx, key_nested, conv_p_);
     conv_ctx.set_scratchpad_grantor(ns.grantor());
@@ -335,7 +334,7 @@ status_t ref_deconvolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
     conv_args[DNNL_ARG_SRC] = args.at(DNNL_ARG_DIFF_DST);
     conv_args[DNNL_ARG_WEIGHTS] = args.at(DNNL_ARG_WEIGHTS);
     conv_args[DNNL_ARG_DST] = args.at(DNNL_ARG_DIFF_SRC);
-    exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+    exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 
     nested_scratchpad_t ns(ctx, key_nested, conv_p_);
     conv_ctx.set_scratchpad_grantor(ns.grantor());
@@ -494,7 +493,7 @@ status_t ref_deconvolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
     conv_args[DNNL_ARG_DIFF_DST] = args.at(DNNL_ARG_SRC);
     conv_args[DNNL_ARG_SRC] = args.at(DNNL_ARG_DIFF_DST);
     conv_args[DNNL_ARG_DIFF_WEIGHTS] = args.at(DNNL_ARG_DIFF_WEIGHTS);
-    exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+    exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 
     nested_scratchpad_t ns(ctx, key_nested, conv_p_);
     conv_ctx.set_scratchpad_grantor(ns.grantor());

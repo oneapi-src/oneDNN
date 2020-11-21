@@ -48,7 +48,7 @@ const spd_create_f cpu_sum_impl_list[] = {
 // clang-format on
 } // namespace
 
-const spd_create_f *cpu_engine_t::get_sum_implementation_list() const {
+const spd_create_f *cpu_engine_impl_list_t::get_sum_implementation_list() {
     return cpu_sum_impl_list;
 }
 

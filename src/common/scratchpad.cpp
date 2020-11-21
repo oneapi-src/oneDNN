@@ -19,6 +19,8 @@
 #include "engine.hpp"
 #include "utils.hpp"
 
+#include "cpu/cpu_engine.hpp"
+
 #include "scratchpad.hpp"
 
 namespace dnnl {
@@ -26,11 +28,41 @@ namespace impl {
 
 namespace {
 
+engine_t *get_cpu_engine() {
+    static std::unique_ptr<engine_t> cpu_engine;
+    static std::once_flag initialized;
+    std::call_once(initialized, [&]() {
+        engine_t *cpu_engine_ptr;
+        cpu::cpu_engine_factory_t f;
+        auto status = f.engine_create(&cpu_engine_ptr, 0);
+        assert(status == status::success);
+        MAYBE_UNUSED(status);
+        cpu_engine.reset(cpu_engine_ptr);
+    });
+    return cpu_engine.get();
+}
+
 memory_storage_t *create_scratchpad_memory_storage(
         engine_t *engine, size_t size) {
+    // XXX: if engine is a non-native CPU engine (read: SYCL) then create
+    // scratchpad through other, native CPU engine.
+    //
+    // SYCL CPU engine has asynchronous execution, and the library has to
+    // extend (if needed) primitive lifetime until a kernel is completed.
+    // For that, the library implements a reference-counting mechanism for
+    // primitives (including internal scratchpads). In some cases a
+    // scratchpad has to be destroyed from inside a kernel. This doesn't
+    // play well with SYCL runtime, so switching to native CPU engine for such
+    // cases.
+    engine_t *mem_engine
+            = (engine->kind() == engine_kind::cpu
+                      && !is_native_runtime(engine->runtime_kind()))
+            ? get_cpu_engine()
+            : engine;
+
     memory_storage_t *mem_storage = nullptr;
-    auto status = engine->create_memory_storage(&mem_storage, size);
-    UNUSED(status);
+    auto status = mem_engine->create_memory_storage(&mem_storage, size);
+    MAYBE_UNUSED(status);
     return mem_storage;
 }
 
@@ -69,7 +101,7 @@ private:
 
 struct global_scratchpad_t : public scratchpad_t {
     global_scratchpad_t(engine_t *engine, size_t size) {
-        UNUSED(engine);
+        // TODO: check if engine is the same
         if (size > size_) {
             delete mem_storage_;
             // Try to expand the global scratchpad to the necessary size
