@@ -16,6 +16,8 @@
 
 #include <CL/cl.h>
 
+#include "oneapi/dnnl/dnnl_ocl.h"
+
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
@@ -23,17 +25,17 @@
 using namespace dnnl::impl;
 using namespace dnnl::impl::gpu::ocl;
 
-status_t dnnl_engine_create_ocl(engine_t **engine, engine_kind_t kind,
-        cl_device_id device, cl_context context) {
-    bool args_ok = (kind == engine_kind::gpu)
-            && !utils::any_null(engine, device, context);
+status_t dnnl_ocl_interop_engine_create(
+        engine_t **engine, cl_device_id device, cl_context context) {
+    bool args_ok = !utils::any_null(engine, device, context);
     if (!args_ok) return status::invalid_arguments;
 
-    ocl_engine_factory_t f(kind);
+    ocl_engine_factory_t f(engine_kind::gpu);
     return f.engine_create(engine, device, context);
 }
 
-status_t dnnl_engine_get_ocl_context(engine_t *engine, cl_context *context) {
+status_t dnnl_ocl_interop_engine_get_context(
+        engine_t *engine, cl_context *context) {
     bool args_ok = !utils::any_null(engine, context)
             && (engine->runtime_kind() == runtime_kind::ocl);
 
@@ -44,7 +46,7 @@ status_t dnnl_engine_get_ocl_context(engine_t *engine, cl_context *context) {
     return status::success;
 }
 
-status_t dnnl_engine_get_ocl_device(engine_t *engine, cl_device_id *device) {
+status_t dnnl_ocl_interop_get_device(engine_t *engine, cl_device_id *device) {
     bool args_ok = !utils::any_null(engine, device)
             && (engine->runtime_kind() == runtime_kind::ocl);
 

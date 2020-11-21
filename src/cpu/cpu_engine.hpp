@@ -20,7 +20,7 @@
 
 #include <assert.h>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
@@ -70,8 +70,12 @@ public:
     status_t create_memory_storage(memory_storage_t **storage, unsigned flags,
             size_t size, void *handle) override;
 
-    status_t create_stream(stream_t **stream, unsigned flags,
-            const stream_attr_t *attr) override;
+    status_t create_stream(stream_t **stream, unsigned flags) override;
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    status_t create_stream(stream_t **stream,
+            dnnl::threadpool_interop::threadpool_iface *threadpool) override;
+#endif
 
     const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override;

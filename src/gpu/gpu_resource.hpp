@@ -17,7 +17,7 @@
 #ifndef GPU_GPU_RESOURCE_HPP
 #define GPU_GPU_RESOURCE_HPP
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"

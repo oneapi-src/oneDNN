@@ -19,7 +19,7 @@
 #include <malloc.h>
 #endif
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/bfloat16.hpp"
 #include "common/dnnl_traits.hpp"

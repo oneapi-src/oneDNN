@@ -17,9 +17,9 @@
 #ifndef DNNL_TEST_COMMON_OCL_HPP
 #define DNNL_TEST_COMMON_OCL_HPP
 
-#include "dnnl.hpp"
-#include "dnnl_debug.h"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl_debug.h"
 #include "gtest/gtest.h"
 
 #include <CL/cl.h>

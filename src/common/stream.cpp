@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
@@ -28,18 +28,13 @@ using namespace dnnl::impl::utils;
 
 /* API */
 
-status_t dnnl_stream_create_v2(stream_t **stream, engine_t *engine,
-        unsigned flags, const stream_attr_t *attr) {
-    bool args_ok = true && !utils::any_null(stream, engine)
+status_t dnnl_stream_create(
+        stream_t **stream, engine_t *engine, unsigned flags) {
+    bool args_ok = !utils::any_null(stream, engine)
             && flags == stream_flags::default_flags;
     if (!args_ok) return invalid_arguments;
 
-    return engine->create_stream(stream, flags, attr);
-}
-
-status_t dnnl_stream_create(
-        stream_t **stream, engine_t *engine, unsigned flags) {
-    return dnnl_stream_create_v2(stream, engine, flags, nullptr);
+    return engine->create_stream(stream, flags);
 }
 
 status_t dnnl_stream_get_engine(const stream_t *stream, engine_t **engine) {

@@ -17,7 +17,9 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
+
+#include <tuple>
 
 namespace dnnl {
 

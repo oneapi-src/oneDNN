@@ -25,7 +25,6 @@ set(OpenCL_cmake_included true)
 if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     message(STATUS "GPU support is enabled (OpenCL)")
 else()
-    message(STATUS "GPU support is disabled")
     return()
 endif()
 

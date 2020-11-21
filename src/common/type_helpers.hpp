@@ -20,7 +20,7 @@
 #include <assert.h>
 #include <math.h>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "bit_cast.hpp"
 #include "c_types_map.hpp"

@@ -58,7 +58,7 @@ static mkldnn_engine_kind_t parse_engine_kind(int argc, char **argv) {
                 fprintf(stderr,
                         "Application couldn't find GPU, please run with CPU "
                         "instead. Thanks!\n");
-                exit(1);
+                exit(0);
             }
             return mkldnn_gpu;
         }
@@ -89,30 +89,6 @@ static inline void read_from_mkldnn_memory(void *handle, mkldnn_memory_t mem) {
             }
         }
     }
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
-    else if (eng_kind == mkldnn_gpu) {
-        mkldnn_stream_t s;
-        cl_command_queue q;
-        cl_mem m;
-
-        CHECK(mkldnn_memory_get_ocl_mem_object(mem, &m));
-        CHECK(mkldnn_stream_create(&s, eng, mkldnn_stream_default_flags));
-        CHECK(mkldnn_stream_get_ocl_command_queue(s, &q));
-
-        cl_int ret = clEnqueueReadBuffer(
-                q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
-        if (ret != CL_SUCCESS) {
-            fprintf(stderr,
-                    "clEnqueueReadBuffer failed.\nStatus Code: "
-                    "%d\n",
-                    ret);
-            mkldnn_stream_destroy(s);
-            exit(1);
-        }
-
-        mkldnn_stream_destroy(s);
-    }
-#endif
 }
 
 // Read from handle, write to memory
@@ -135,30 +111,6 @@ static inline void write_to_mkldnn_memory(void *handle, mkldnn_memory_t mem) {
             }
         }
     }
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
-    else if (eng_kind == mkldnn_gpu) {
-        mkldnn_stream_t s;
-        cl_command_queue q;
-        cl_mem m;
-
-        CHECK(mkldnn_memory_get_ocl_mem_object(mem, &m));
-        CHECK(mkldnn_stream_create(&s, eng, mkldnn_stream_default_flags));
-        CHECK(mkldnn_stream_get_ocl_command_queue(s, &q));
-
-        cl_int ret = clEnqueueWriteBuffer(
-                q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
-        if (ret != CL_SUCCESS) {
-            fprintf(stderr,
-                    "clEnqueueWriteBuffer failed.\nStatus Code: "
-                    "%d\n",
-                    ret);
-            mkldnn_stream_destroy(s);
-            exit(1);
-        }
-
-        mkldnn_stream_destroy(s);
-    }
-#endif
 }
 
 #endif

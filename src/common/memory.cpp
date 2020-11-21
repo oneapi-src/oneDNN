@@ -18,7 +18,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"

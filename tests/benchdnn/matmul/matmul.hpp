@@ -22,7 +22,7 @@
 #include <iostream>
 #include <numeric>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "common.hpp"
 #include "dnnl_common.hpp"

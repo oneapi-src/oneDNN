@@ -17,8 +17,8 @@
 #ifndef CPU_X64_GEMM_GEMM_PACK_HPP
 #define CPU_X64_GEMM_GEMM_PACK_HPP
 
-#include "dnnl_config.h"
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_config.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/bfloat16.hpp"
 

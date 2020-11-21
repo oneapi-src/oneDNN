@@ -29,8 +29,8 @@
 
 #include <cmath>
 
-#include "dnnl.hpp"
 #include "example_utils.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 using namespace dnnl;
 

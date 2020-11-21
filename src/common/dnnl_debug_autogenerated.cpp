@@ -20,8 +20,8 @@
 
 #include <assert.h>
 
-#include "dnnl_debug.h"
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_debug.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 const char *dnnl_status2str(dnnl_status_t v) {
     if (v == dnnl_success) return "success";

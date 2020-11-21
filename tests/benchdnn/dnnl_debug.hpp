@@ -21,7 +21,7 @@
 #ifndef DNNL_DEBUG_HPP
 #define DNNL_DEBUG_HPP
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 dnnl_data_type_t str2dt(const char *str);
 dnnl_format_tag_t str2fmt_tag(const char *str);

@@ -121,7 +121,7 @@
 #include <vector>
 #include <type_traits>
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #include "example_utils.hpp"
 

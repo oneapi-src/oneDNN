@@ -20,9 +20,10 @@
 #include <assert.h>
 #include <stdint.h>
 
+#include "oneapi/dnnl/dnnl.h"
+
 #include "bfloat16.hpp"
 #include "c_types_map.hpp"
-#include "dnnl.h"
 #include "float16.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"

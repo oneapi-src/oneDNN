@@ -19,7 +19,7 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 #include "test_batch_normalization_common.hpp"
 
 namespace dnnl {

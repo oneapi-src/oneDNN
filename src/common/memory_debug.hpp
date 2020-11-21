@@ -27,7 +27,7 @@
 #include <stddef.h>
 
 #include "c_types_map.hpp"
-#include "dnnl_config.h"
+#include "oneapi/dnnl/dnnl_config.h"
 
 namespace dnnl {
 namespace impl {

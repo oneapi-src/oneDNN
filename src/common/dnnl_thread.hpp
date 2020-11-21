@@ -61,7 +61,7 @@ inline void dnnl_thr_barrier() {
 
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include <thread>
-#include "dnnl_threadpool_iface.hpp"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #define DNNL_THR_SYNC 0
 
 namespace dnnl {
@@ -75,14 +75,14 @@ namespace threadpool_utils {
 // Sets `tp` to be the active threadpool for the calling thread. This will
 // make all calls to `get_active_threadpool()` to return `tp` thus enabling
 // `parallel()` and `parallel_nd()` to submit work to `tp`.
-void activate_threadpool(threadpool_iface *tp);
+void activate_threadpool(dnnl::threadpool_interop::threadpool_iface *tp);
 
 // Resets the active threadpool for the calling thread to nullptr. After this
 // call `parallel()` and `parallel_nd()` would execute work sequentially.
 void deactivate_threadpool();
 
 // Returns the active threadpool for the calling thread.
-threadpool_iface *get_active_threadpool();
+dnnl::threadpool_interop::threadpool_iface *get_active_threadpool();
 
 } // namespace threadpool_utils
 } // namespace impl
@@ -90,7 +90,7 @@ threadpool_iface *get_active_threadpool();
 
 inline int dnnl_get_max_threads() {
     using namespace dnnl::impl::threadpool_utils;
-    dnnl::threadpool_iface *tp = get_active_threadpool();
+    dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
     // This is the maximum number of threads oneDNN would use
     int def_max_threads = std::thread::hardware_concurrency();
     assert(def_max_threads > 0);
@@ -101,7 +101,7 @@ inline int dnnl_get_max_threads() {
 }
 inline int dnnl_in_parallel() {
     using namespace dnnl::impl::threadpool_utils;
-    dnnl::threadpool_iface *tp = get_active_threadpool();
+    dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
     return tp ? tp->get_in_parallel() : 0;
 }
 inline void dnnl_thr_barrier() {

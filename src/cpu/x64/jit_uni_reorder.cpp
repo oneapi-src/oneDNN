@@ -17,7 +17,7 @@
 #include <assert.h>
 #include <numeric>
 
-#include "dnnl_debug.h"
+#include "oneapi/dnnl/dnnl_debug.h"
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"

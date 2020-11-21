@@ -22,7 +22,7 @@
 #include <stdio.h>
 
 #include "c_types_map.hpp"
-#include "dnnl_debug.h"
+#include "oneapi/dnnl/dnnl_debug.h"
 #include "utils.hpp"
 #include "z_magic.hpp"
 

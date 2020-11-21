@@ -17,7 +17,7 @@
 #ifndef REDUCTION_HPP
 #define REDUCTION_HPP
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #include "dnn_types.hpp"
 #include "dnnl_memory.hpp"

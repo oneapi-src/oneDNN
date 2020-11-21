@@ -18,19 +18,16 @@
 #define COMMON_STREAM_HPP
 
 #include <assert.h>
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
-#include "stream_attr.hpp"
 #include "utils.hpp"
 
 struct dnnl_stream : public dnnl::impl::c_compatible {
-    dnnl_stream(dnnl::impl::engine_t *engine, unsigned flags,
-            const dnnl::impl::stream_attr_t *attr)
-        : engine_(engine)
-        , flags_(flags)
-        , attr_(attr ? *attr : dnnl::impl::stream_attr_t(engine_->kind())) {}
+    dnnl_stream(dnnl::impl::engine_t *engine, unsigned flags)
+        : engine_(engine), flags_(flags) {}
     virtual ~dnnl_stream() {}
 
     /** returns stream's engine */
@@ -46,17 +43,35 @@ struct dnnl_stream : public dnnl::impl::c_compatible {
     /** blocks until all submitted primitives to the stream are completed */
     virtual dnnl::impl::status_t wait() = 0;
 
-    const dnnl::impl::stream_attr_t *attr() const { return &attr_; }
-
     virtual void before_exec_hook() {}
     virtual void after_exec_hook() {}
 
     virtual dnnl::impl::status_t zero_pad(const dnnl::impl::memory_t *memory);
 
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    dnnl_stream(dnnl::impl::engine_t *engine,
+            dnnl::threadpool_interop::threadpool_iface *threadpool)
+        : dnnl_stream(engine, dnnl::impl::stream_flags::in_order) {
+        assert(engine->kind() == dnnl::impl::engine_kind::cpu);
+        threadpool_ = threadpool;
+    }
+
+    dnnl::impl::status_t get_threadpool(
+            dnnl::threadpool_interop::threadpool_iface **threadpool) const {
+        using namespace dnnl::impl;
+        if (engine_->kind() != engine_kind::cpu)
+            return status::invalid_arguments;
+        *threadpool = threadpool_;
+        return status::success;
+    }
+#endif
+
 protected:
     dnnl::impl::engine_t *engine_;
     unsigned flags_;
-    const dnnl::impl::stream_attr_t attr_;
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    dnnl::threadpool_interop::threadpool_iface *threadpool_ = nullptr;
+#endif
 };
 
 #endif

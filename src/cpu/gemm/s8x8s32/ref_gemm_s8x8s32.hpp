@@ -19,7 +19,7 @@
 
 #include <cstdint>
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/c_types_map.hpp"
 

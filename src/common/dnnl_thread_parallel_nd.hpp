@@ -82,14 +82,15 @@ void parallel(int nthr, F f) {
             tbb::static_partitioner());
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
     using namespace dnnl::impl::threadpool_utils;
-    dnnl::threadpool_iface *tp = get_active_threadpool();
+    dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
     if (!tp || dnnl_in_parallel()) {
         threadpool_utils::deactivate_threadpool();
         for (int ithr = 0; ithr < nthr; ithr++)
             f(ithr, nthr);
         threadpool_utils::activate_threadpool(tp);
     } else {
-        bool async = tp->get_flags() & dnnl::threadpool_iface::ASYNCHRONOUS;
+        bool async = tp->get_flags()
+                & dnnl::threadpool_interop::threadpool_iface::ASYNCHRONOUS;
         counting_barrier_t b;
         if (async) b.init(nthr);
         tp->parallel_for(nthr, [tp, &f, &b, async](int ithr, int nthr) {

@@ -47,8 +47,8 @@ if(DOXYGEN_FOUND)
         DESTINATION ${DOXYGEN_OUTPUT_DIR}/html/assets/mathjax/config/
         )
     file(GLOB_RECURSE HEADERS
-        ${PROJECT_SOURCE_DIR}/include/*.h
-        ${PROJECT_SOURCE_DIR}/include/*.hpp
+        ${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/*.h
+        ${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/*.hpp
         )
     file(GLOB_RECURSE DOX
         ${PROJECT_SOURCE_DIR}/doc/*

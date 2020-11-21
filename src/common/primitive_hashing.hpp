@@ -21,7 +21,7 @@
 #include <type_traits>
 
 #include "c_types_map.hpp"
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 #include "primitive_attr.hpp"
 #include "type_helpers.hpp"
 

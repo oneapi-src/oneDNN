@@ -85,6 +85,8 @@
 #define MKLDNN_RUNTIME_OMP DNNL_RUNTIME_OMP
 #define MKLDNN_RUNTIME_SEQ DNNL_RUNTIME_SEQ
 #define MKLDNN_RUNTIME_TBB DNNL_RUNTIME_TBB
+#define MKLDNN_RUNTIME_SYCL DNNL_RUNTIME_SYCL
+#define MKLDNN_WITH_SYCL DNNL_WITH_SYCL
 #define MKLDNN_VERBOSE DNNL_VERBOSE
 #define MKLDNN_VERSION_HASH DNNL_VERSION_HASH
 #define MKLDNN_VERSION_MAJOR DNNL_VERSION_MAJOR
@@ -388,12 +390,12 @@
 #define mkldnn_eltwise_tanh dnnl_eltwise_tanh
 #define mkldnn_engine dnnl_engine
 #define mkldnn_engine_create dnnl_engine_create
-#define mkldnn_engine_create_ocl dnnl_engine_create_ocl
+#define mkldnn_engine_create_ocl dnnl_ocl_interop_engine_create
 #define mkldnn_engine_destroy dnnl_engine_destroy
 #define mkldnn_engine_get_count dnnl_engine_get_count
 #define mkldnn_engine_get_kind dnnl_engine_get_kind
-#define mkldnn_engine_get_ocl_context dnnl_engine_get_ocl_context
-#define mkldnn_engine_get_ocl_device dnnl_engine_get_ocl_device
+#define mkldnn_engine_get_ocl_context dnnl_ocl_interop_engine_get_context
+#define mkldnn_engine_get_ocl_device dnnl_ocl_interop_get_device
 #define mkldnn_engine_kind2str dnnl_engine_kind2str
 #define mkldnn_engine_kind_t dnnl_engine_kind_t
 #define mkldnn_engine_t dnnl_engine_t
@@ -542,10 +544,10 @@
 #define mkldnn_memory_get_data_handle dnnl_memory_get_data_handle
 #define mkldnn_memory_get_engine dnnl_memory_get_engine
 #define mkldnn_memory_get_memory_desc dnnl_memory_get_memory_desc
-#define mkldnn_memory_get_ocl_mem_object dnnl_memory_get_ocl_mem_object
+#define mkldnn_memory_get_ocl_mem_object dnnl_ocl_interop_memory_get_mem_object
 #define mkldnn_memory_map_data dnnl_memory_map_data
 #define mkldnn_memory_set_data_handle dnnl_memory_set_data_handle
-#define mkldnn_memory_set_ocl_mem_object dnnl_memory_set_ocl_mem_object
+#define mkldnn_memory_set_ocl_mem_object dnnl_ocl_interop_memory_set_mem_object
 #define mkldnn_memory_t dnnl_memory_t
 #define mkldnn_memory_unmap_data dnnl_memory_unmap_data
 #define mkldnn_nCdhw16c dnnl_nCdhw16c
@@ -711,12 +713,12 @@
 #define mkldnn_status_t dnnl_status_t
 #define mkldnn_stream dnnl_stream
 #define mkldnn_stream_create dnnl_stream_create
-#define mkldnn_stream_create_ocl dnnl_stream_create_ocl
+#define mkldnn_stream_create_ocl dnnl_ocl_interop_stream_create
 #define mkldnn_stream_default_flags dnnl_stream_default_flags
-#define mkldnn_stream_default_order dnnl_stream_default_order
 #define mkldnn_stream_destroy dnnl_stream_destroy
 #define mkldnn_stream_flags_t dnnl_stream_flags_t
-#define mkldnn_stream_get_ocl_command_queue dnnl_stream_get_ocl_command_queue
+#define mkldnn_stream_get_ocl_command_queue \
+    dnnl_ocl_interop_stream_get_command_queue
 #define mkldnn_stream_in_order dnnl_stream_in_order
 #define mkldnn_stream_out_of_order dnnl_stream_out_of_order
 #define mkldnn_stream_t dnnl_stream_t

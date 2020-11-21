@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "dnn_types.hpp"
 #include "dnnl_debug.hpp"

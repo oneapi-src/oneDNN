@@ -13,7 +13,7 @@ for testing (see `tests/testing_threadpool.hpp`).
 ~~~cpp
 #include "dnnl_threadpool_iface.hpp"
 
-class threadpool : public dnnl::threadpool_iface {
+class threadpool : public dnnl::threadpool_interop::threadpool_iface {
 private:
     // Change to Eigen::NonBlockingThreadPool if using Eigen <= 3.3.7
     std::unique_ptr<Eigen::ThreadPool> tp_;

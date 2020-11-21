@@ -20,7 +20,7 @@
 #include <assert.h>
 #include <memory>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
 #include "memory_desc_wrapper.hpp"

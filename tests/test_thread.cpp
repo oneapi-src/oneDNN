@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #endif
 
-#include "dnnl_threadpool_iface.hpp"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #include "src/common/counting_barrier.hpp"
 #include "tests/test_thread.hpp"
 
@@ -79,7 +79,7 @@ using EigenThreadPool = Eigen::NonBlockingThreadPool;
 namespace dnnl {
 namespace testing {
 
-class threadpool : public threadpool_iface {
+class threadpool : public dnnl::threadpool_interop::threadpool_iface {
 private:
     std::unique_ptr<EigenThreadPool> tp_;
 
@@ -118,7 +118,7 @@ public:
 namespace dnnl {
 namespace testing {
 
-class threadpool : public threadpool_iface {
+class threadpool : public dnnl::threadpool_interop::threadpool_iface {
 public:
     explicit threadpool(int num_threads = 0) { (void)num_threads; }
     int get_num_threads() const override {
@@ -148,7 +148,7 @@ namespace testing {
 // Naiive synchronous threadpool:
 // - Only a single parallel_for is executed at the same time.
 // - Recursive parallel_for results in sequential execution.
-class threadpool : public threadpool_iface {
+class threadpool : public dnnl::threadpool_interop::threadpool_iface {
 public:
     using task_func = std::function<void(int, int)>;
 
@@ -290,7 +290,7 @@ namespace dnnl {
 
 namespace testing {
 // Threadpool singleton
-threadpool_iface *get_threadpool() {
+dnnl::threadpool_interop::threadpool_iface *get_threadpool() {
     static dnnl::testing::threadpool tp;
     return &tp;
 }
@@ -301,9 +301,9 @@ threadpool_iface *get_threadpool() {
 // by parallel*() calls from the tests.
 namespace impl {
 namespace testing_threadpool_utils {
-void activate_threadpool(threadpool_iface *tp) {}
+void activate_threadpool(dnnl::threadpool_interop::threadpool_iface *tp) {}
 void deactivate_threadpool() {}
-threadpool_iface *get_active_threadpool() {
+dnnl::threadpool_interop::threadpool_iface *get_active_threadpool() {
     return testing::get_threadpool();
 }
 } // namespace testing_threadpool_utils

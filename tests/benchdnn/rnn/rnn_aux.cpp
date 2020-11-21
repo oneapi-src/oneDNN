@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "norm.hpp"
 #include "rnn/rnn_aux.hpp"

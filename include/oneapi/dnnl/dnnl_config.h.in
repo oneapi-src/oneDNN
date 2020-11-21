@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef DNNL_CONFIG_H
-#define DNNL_CONFIG_H
+#ifndef ONEAPI_DNNL_DNNL_CONFIG_H
+#define ONEAPI_DNNL_DNNL_CONFIG_H
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 /// @cond DO_NOT_DOCUMENT_THIS
 
@@ -74,11 +74,40 @@
 #error "Unexpected DNNL_CPU_RUNTIME"
 #endif
 #if (DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE) \
-        && (DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL)
+        && (DNNL_GPU_RUNTIME != DNNL_RUNTIME_OCL) \
+        && (DNNL_GPU_RUNTIME != DNNL_RUNTIME_SYCL)
 #error "Unexpected DNNL_GPU_RUNTIME"
 #endif
 #else
 #error "BOTH DNNL_CPU_RUNTIME and DNNL_GPU_RUNTIME must be defined"
 #endif
+
+#if (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL) \
+        || (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL)
+#define DNNL_WITH_SYCL 1
+#else
+#define DNNL_WITH_SYCL 0
+#endif
+
+// For SYCL CPU, a primitive may be created and executed in different threads
+// hence the global scratchpad does not work. This enables concurrent execution
+// when CPU runtime is SYCL to avoid the issue.
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+#ifndef DNNL_ENABLE_CONCURRENT_EXEC
+#define DNNL_ENABLE_CONCURRENT_EXEC
+#endif
+#endif
+
+// When defined, oneAPI DPC++ Compiler is used.
+#cmakedefine DNNL_SYCL_DPCPP
+
+// When defined, ComputeCpp SYCL is used.
+#cmakedefine DNNL_SYCL_COMPUTECPP
+
+// When defined, Level Zero is supported.
+#cmakedefine DNNL_WITH_LEVEL_ZERO
+
+// When defined, SYCL CUDA backend is used.
+#cmakedefine DNNL_SYCL_CUDA
 
 #endif

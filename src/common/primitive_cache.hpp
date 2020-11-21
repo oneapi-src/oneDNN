@@ -23,7 +23,7 @@
 #include <unordered_map>
 
 #include "c_types_map.hpp"
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 #include "primitive_hashing.hpp"
 #include "rw_mutex.hpp"
 #include "type_helpers.hpp"

@@ -21,7 +21,7 @@
 #include "gtest/gtest.h"
 
 #include <stdint.h>
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #include <math.h>
 

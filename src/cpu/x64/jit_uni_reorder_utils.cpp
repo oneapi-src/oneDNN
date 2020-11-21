@@ -22,7 +22,7 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "dnnl_debug.h"
+#include "oneapi/dnnl/dnnl_debug.h"
 
 #include "cpu/x64/jit_uni_reorder.hpp"
 

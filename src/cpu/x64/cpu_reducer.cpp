@@ -16,7 +16,7 @@
 
 #include <assert.h>
 
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"

@@ -17,7 +17,7 @@
 #ifndef COMMON_DECONVOLUTION_PD_HPP
 #define COMMON_DECONVOLUTION_PD_HPP
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
 #include "convolution_pd.hpp"

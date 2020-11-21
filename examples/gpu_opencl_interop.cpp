@@ -56,7 +56,8 @@
 
 #include <CL/cl.h>
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl_ocl.hpp"
 
 #include "example_utils.hpp"
 
@@ -174,7 +175,7 @@ void gpu_opencl_interop_tutorial() {
     // [oclkernel create]
     const char *kernel_name = "init";
     cl_kernel ocl_init_kernel = create_init_opencl_kernel(
-            eng.get_ocl_context(), kernel_name, ocl_code);
+            ocl_interop::get_context(eng), kernel_name, ocl_code);
     //  [oclkernel create]
 
     /// The next step is to execute our OpenCL kernel by setting its arguments
@@ -185,10 +186,10 @@ void gpu_opencl_interop_tutorial() {
     /// this queue.
     /// @snippet  gpu_opencl_interop.cpp oclexecution
     // [oclexecution]
-    cl_mem ocl_buf = mem.get_ocl_mem_object();
+    cl_mem ocl_buf = ocl_interop::get_mem_object(mem);
     OCL_CHECK(clSetKernelArg(ocl_init_kernel, 0, sizeof(ocl_buf), &ocl_buf));
 
-    cl_command_queue ocl_queue = strm.get_ocl_command_queue();
+    cl_command_queue ocl_queue = ocl_interop::get_command_queue(strm);
     OCL_CHECK(clEnqueueNDRangeKernel(ocl_queue, ocl_init_kernel, 1, nullptr, &N,
             nullptr, 0, nullptr, nullptr));
     // [oclexecution]

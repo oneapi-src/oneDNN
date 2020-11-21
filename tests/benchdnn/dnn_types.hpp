@@ -27,7 +27,7 @@
 #include <vector>
 
 #include "common.hpp"
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl_types.h"
 
 namespace tag {
 extern const char *x;

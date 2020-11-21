@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl.hpp"
 #include "dnnl_test_common.hpp"
 #include "math_utils.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 #include "gtest/gtest.h"
 
 using namespace dnnl::impl::math;

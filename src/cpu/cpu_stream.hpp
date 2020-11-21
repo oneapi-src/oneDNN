@@ -17,8 +17,10 @@
 #ifndef CPU_CPU_STREAM_HPP
 #define CPU_CPU_STREAM_HPP
 
+#include "oneapi/dnnl/dnnl_config.h"
+
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool_iface.hpp"
+#include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 #endif
 
 #include "common/c_types_map.hpp"
@@ -30,8 +32,7 @@ namespace impl {
 namespace cpu {
 
 struct cpu_stream_t : public stream_t {
-    cpu_stream_t(engine_t *engine, unsigned flags, const stream_attr_t *attr)
-        : stream_t(engine, flags, attr) {}
+    cpu_stream_t(engine_t *engine, unsigned flags) : stream_t(engine, flags) {}
     virtual ~cpu_stream_t() = default;
 
     dnnl::impl::status_t wait() override {
@@ -40,9 +41,13 @@ struct cpu_stream_t : public stream_t {
     }
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    cpu_stream_t(engine_t *engine,
+            dnnl::threadpool_interop::threadpool_iface *threadpool)
+        : stream_t(engine, threadpool) {}
+
     void before_exec_hook() override {
-        threadpool_iface *tp;
-        auto rc = this->attr()->get_threadpool(&tp);
+        dnnl::threadpool_interop::threadpool_iface *tp;
+        auto rc = this->get_threadpool(&tp);
         if (rc == status::success) threadpool_utils::activate_threadpool(tp);
     }
 

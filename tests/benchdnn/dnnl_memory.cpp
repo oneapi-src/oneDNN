@@ -19,6 +19,11 @@
 #include <cctype>
 #include <numeric>
 
+#include "oneapi/dnnl/dnnl.hpp"
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "oneapi/dnnl/dnnl_ocl.hpp"
+#endif
+
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -147,13 +152,18 @@ static size_t get_cpu_ram_size() {
 #endif
 
 static size_t get_gpu_ram_size() {
-// TODO: consider DPCPP run-time as well.
+    // XXX: create a tmp engine to query what we need.
+    // It will be removed in the future as part of switching back
+    // to the global engine.
+    engine_t eng_tmp(engine_tgt_kind);
+    dnnl::engine eng(eng_tmp, true);
+    if (eng.get_kind() != dnnl::engine::kind::gpu) return 0;
+
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     cl_int status = CL_SUCCESS;
-    cl_device_id ocl_device = nullptr;
     // Get single device attached to the engine.
     engine_t engine_tgt(engine_tgt_kind);
-    dnnl_engine_get_ocl_device(engine_tgt, &ocl_device);
+    cl_device_id ocl_device = dnnl::ocl_interop::get_device(eng);
 
     cl_ulong ram_size = 0;
     status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_SIZE,

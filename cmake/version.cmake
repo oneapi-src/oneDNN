@@ -41,8 +41,8 @@ if(NOT GIT_FOUND OR RESULT)
 endif()
 
 configure_file(
-    "${PROJECT_SOURCE_DIR}/include/dnnl_version.h.in"
-    "${PROJECT_BINARY_DIR}/include/dnnl_version.h"
+    "${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/dnnl_version.h.in"
+    "${PROJECT_BINARY_DIR}/include/oneapi/dnnl/dnnl_version.h"
 )
 
 if(WIN32)

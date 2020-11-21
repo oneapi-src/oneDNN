@@ -19,8 +19,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "dnnl.h"
 #include "dnnl_common.hpp"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "reorder.hpp"
 
