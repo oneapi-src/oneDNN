@@ -26,6 +26,7 @@
 #endif
 
 #include "cpu/gemm_inner_product_utils.hpp"
+#include "ref_depthwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,10 +38,23 @@ struct ref_pp_kernel_t : public pp_kernel_t<acc_type, dst_type> {
     ref_pp_kernel_t(size_t OC, size_t MB, const primitive_attr_t *attr,
             data_type_t bias_dt, bool skip_sum)
         : pp_kernel_t<acc_type, dst_type>(OC, MB, attr, bias_dt, skip_sum) {
-        if (this->do_eltwise_)
-            ref_eltwise_.reset(new ref_eltwise_scalar_fwd_t(this->eltwise_.alg,
-                    this->eltwise_.alpha, this->eltwise_.beta,
-                    this->eltwise_.scale));
+        for (int i = 0; i < this->post_ops_.len(); i++) {
+            auto &post_op = this->post_ops_.entry_[i];
+            if (post_op.is_eltwise()) {
+                ref_eltwise_injectors_.push_back(new ref_eltwise_scalar_fwd_t(post_op.eltwise));
+            } else if (post_op.is_depthwise()) {
+                ref_depthwise_injectors_.push_back(new ref_depthwise_scalar_fwd_t(
+                        post_op.depthwise.alg));
+            }
+        }
+    }
+    ~ref_pp_kernel_t() {
+        for (auto impl : ref_eltwise_injectors_)
+            delete impl;
+        ref_eltwise_injectors_.clear();
+        for (auto impl : ref_depthwise_injectors_)
+            delete impl;
+        ref_depthwise_injectors_.clear();
     }
 
     using acc_data_t = typename prec_traits<acc_type>::type;
@@ -51,7 +65,8 @@ struct ref_pp_kernel_t : public pp_kernel_t<acc_type, dst_type> {
             const float *dst_zero_points) const override;
 
 private:
-    std::unique_ptr<ref_eltwise_scalar_fwd_t> ref_eltwise_;
+    nstl::vector<ref_eltwise_scalar_fwd_t*> ref_eltwise_injectors_;
+    nstl::vector<ref_depthwise_scalar_fwd_t*> ref_depthwise_injectors_;
 };
 
 template <data_type_t acc_type, data_type_t dst_type>
@@ -68,11 +83,52 @@ void ref_pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
     size_t oc = start % OC;
     for (size_t i = start; i < end; i++) {
         float d = (float)acc[i];
-        if (this->do_bias()) d += get_bias(bias, oc, this->bias_data_type_);
+        if (this->do_bias_) d += get_bias(bias, oc, this->bias_data_type_);
         if (this->do_scale_) d *= scales[oc * this->scale_idx_mult_];
         if (this->do_sum_) d += this->sum_scale_ * dst[i];
-        if (this->do_eltwise_) d = ref_eltwise_->compute_scalar(d);
-        if (this->do_dst_zero_points_) d += dst_zero_points[0];
+
+        int eltwise_inj_idx = 0;
+        int depthwise_inj_idx = 0;
+
+        for (int j = 0; j < this->post_ops_.len(); j++) {
+            auto &post_op = this->post_ops_.entry_[j];
+            if (post_op.is_eltwise()) {
+                d = ref_eltwise_injectors_[eltwise_inj_idx]->compute_scalar(d);
+                eltwise_inj_idx++;
+            } else if (post_op.is_depthwise()) {
+                auto depthwise_weights = post_op.depthwise.weights_data;
+                auto depthwise_bias = post_op.depthwise.biases_data;
+                d = ref_depthwise_injectors_[depthwise_inj_idx]->compute_scalar(d, depthwise_weights + oc, depthwise_bias + oc);
+                depthwise_inj_idx++;
+            } else if (post_op.is_quantization()) {
+                bool do_dequantization = post_op.quantization.alg == alg_kind::quantization_quantize_dequantize;
+                bool do_rounding = do_dequantization || dst_type == dnnl_f32 || j != this->post_ops_.len() - 1;
+
+                auto quant = post_op.quantization;
+                auto pcl = quant.crop_low_data->shifts_;
+                auto pch = quant.crop_high_data->shifts_;
+                auto pisc = quant.input_scale_data->scales_;
+                auto pish = quant.input_shift_data->shifts_;
+                auto posc = quant.output_scale_data->scales_;
+                auto posh = quant.output_shift_data->shifts_;
+
+                int cl_idx = quant.crop_low_data->count_ == 1 ? 0 : oc;
+                int ch_idx = quant.crop_high_data->count_ == 1 ? 0 : oc;
+                int isc_idx = quant.input_scale_data->count_ == 1 ? 0 : oc;
+                int ish_idx = quant.input_shift_data->count_ == 1 ? 0 : oc;
+                int osc_idx = quant.output_scale_data->count_ == 1 ? 0 : oc;
+                int osh_idx = quant.output_shift_data->count_ == 1 ? 0 : oc;
+
+                d = nstl::min(pch[ch_idx], nstl::max(pcl[cl_idx], d));
+                d = d * pisc[isc_idx] + pish[ish_idx];
+
+                if (do_rounding)
+                    d = roundf(d);
+
+                if (do_dequantization)
+                    d = d * posc[osc_idx] + posh[osh_idx];
+            }
+        }
         dst[i] = qz_a1b0<float, dst_data_t>()(d);
         oc = (oc == OC - 1) ? 0 : oc + 1;
     }
@@ -87,20 +143,14 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
     do_scale_ = !attr->output_scales_.has_default_values();
     if (do_scale_) scale_idx_mult_ = (attr->output_scales_.mask_ == (1 << 1));
 
-    auto &p = attr->post_ops_;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
-    do_eltwise_ = eltwise_ind != -1;
-    if (do_eltwise_) eltwise_ = p.entry_[eltwise_ind].eltwise;
+    post_ops_ = attr->post_ops_;
 
-    const int sum_ind = p.find(primitive_kind::sum);
+    // todo:
+    const int sum_ind = post_ops_.find(primitive_kind::sum);
     do_sum_ = sum_ind != -1 && !skip_sum;
-    if (do_sum_) sum_scale_ = p.entry_[sum_ind].sum.scale;
+    if (do_sum_) sum_scale_ = post_ops_.entry_[sum_ind].sum.scale;
 
-    if (do_bias())
-        bias_data_type_size_ = types::data_type_size(bias_data_type_);
-
-    if (!attr->zero_points_.has_default_values(DNNL_ARG_DST))
-        do_dst_zero_points_ = true;
+    do_bias_ = do_bias();
 }
 
 template <data_type_t acc_type, data_type_t dst_type>

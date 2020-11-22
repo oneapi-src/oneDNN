@@ -286,45 +286,8 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
                     &LDA, _weights, &LDB, &beta, _dst, &M);
             if (st != status::success) return st;
 
-            if (curr.ic == jcp.ic - step.ic) {
-                // TODO: for "outer threading" we have parallel section within
-                // outermost "parallel". It is not good. Consider to use
-                // "parallel" here with number of threads passed as parameter
-                const int oc_start = curr.g * jcp.oc + curr.oc;
-                if (eltwise_) {
-                    // fast branch for ReLU case
-                    if (eltwise_->alg_ == alg_kind::eltwise_relu) {
-                        parallel_nd(step.oc, [&](const int oc) {
-                            data_t b = jcp.with_bias ? bias[oc_start + oc] : 0;
-                            data_t *d_ = _dst + oc * M;
-                            PRAGMA_OMP_SIMD()
-                            for (int oS = 0; oS < m; ++oS) {
-                                d_[oS] += b;
-                                if (d_[oS] < 0) d_[oS] *= eltwise_->alpha_;
-                                d_[oS] *= eltwise_->scale_;
-                            }
-                        });
-                    } else {
-                        parallel_nd(step.oc, [&](const int oc) {
-                            data_t b = jcp.with_bias ? bias[oc_start + oc] : 0;
-                            data_t *d_ = _dst + oc * M;
-                            PRAGMA_OMP_SIMD()
-                            for (int oS = 0; oS < m; ++oS) {
-                                d_[oS] += b;
-                                d_[oS] = eltwise_->compute_scalar(d_[oS]);
-                            }
-                        });
-                    }
-                } else if (jcp.with_bias) {
-                    parallel_nd(step.oc, [&](const int oc) {
-                        data_t b = bias[oc_start + oc];
-                        data_t *d_ = _dst + oc * M;
-                        PRAGMA_OMP_SIMD()
-                        for (int oS = 0; oS < m; ++oS) {
-                            d_[oS] += b;
-                        }
-                    });
-                }
+            if (pp_kernel_ && curr.ic == jcp.ic - step.ic) {
+                (*pp_kernel_)(_dst, bias, m, curr.g * jcp.oc + curr.oc, step.oc, M);
             }
 
             return status::success;

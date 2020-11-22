@@ -82,19 +82,6 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
 
     const float *scales = pd()->attr()->output_scales_.scales_;
 
-    const auto &post_ops = pd()->attr()->post_ops_;
-    const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
-    const float sum_scale = do_sum ? post_ops.entry_[0].sum.scale : 0;
-
-    float nslope = 0;
-    for (int idx = 0; idx < post_ops.len(); ++idx) {
-        const auto &e = post_ops.entry_[idx];
-        if (e.is_relu(true, false)) {
-            nslope = e.eltwise.alpha;
-            break;
-        }
-    }
-
     uint8_t *__restrict col = scratchpad.get<uint8_t>(key_conv_gemm_col)
             + (ptrdiff_t)ithr * jcp.im2col_sz;
     src_data_t *__restrict imtr = scratchpad.get<src_data_t>(key_conv_gemm_imtr)
@@ -193,8 +180,8 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
             parallel(0, [&](int ithr, int nthr) {
                 size_t start, end;
                 balance211((size_t)N * jcp.oc, nthr, ithr, start, end);
-                (*pp_ker_)(dst, acc, bia_base, scales, nslope, sum_scale,
-                        1.f / wei_adj_scale, g, start, end);
+                (*pp_ker_)(dst, acc, bia_base, scales, 1.f / wei_adj_scale,
+                           g, start, end);
             });
         }
         nd_iterator_step(n, jcp.mb, g, jcp.ngroups, ohb, nb_oh, owb, nb_ow);
@@ -228,8 +215,7 @@ status_t _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
 }
 
 template <data_type_t dst_type>
-status_t
-_gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
+status_t _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         const int ithr, const int nthr, const diff_dst_data_t *diff_dst_base,
         const wei_data_t *wei_base, const char *bia_base,
         diff_src_data_t *diff_src_base,

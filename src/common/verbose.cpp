@@ -279,7 +279,7 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
                             dnnl_alg_kind2str(eb.alg),
                             dnnl_dt2str(eb.src1_desc.data_type), mask);
                 } break;
-                default: assert(!"unsupported post op primitive kind!"); break;
+                default: /*assert(!"unsupported post op primitive kind!");*/ break;
             }
         }
         DPRINT(str, len, written, "';");

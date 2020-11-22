@@ -80,18 +80,26 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
         conv_gemm_conf_t jcp_;
 
     protected:
-        bool post_ops_ok() const {
-            auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
-            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
 
-            switch (po.len()) {
-                case 0: return true; // no post_ops
-                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-                case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-                default: return false;
-            }
+        virtual bool post_ops_ok() const {
+            auto const &po = this->attr()->post_ops_;
+            auto all_post_ops_supported = [&]() {
+                bool ok = true;
+
+                for (int i = 0; i < po.len(); i++) {
+                    ok = ok && utils::one_of(po.entry_[i].kind, primitive_kind::sum, primitive_kind::eltwise, primitive_kind::depthwise);
+                }
+                return ok;
+            };
+
+            auto contain = [&](dnnl::impl::primitive_kind_t kind) { return po.find(kind) != -1; };
+            auto position = [&](dnnl::impl::primitive_kind_t kind) { return po.find(kind); };
+            auto count = [&](dnnl::impl::primitive_kind_t kind) { return po.count(kind); };
+
+            return all_post_ops_supported() &&
+                   count(primitive_kind::sum) <= 1 &&
+                   IMPLICATION(contain(primitive_kind::sum), position(primitive_kind::sum) == 0);
+
             return false;
         }
     };
@@ -141,13 +149,15 @@ private:
 
         ~pp_ker_t() {
             delete bf16_emu_;
-            delete eltwise_injector_;
+            for (auto inj : jit_eltwise_injectors_)
+                delete inj;
+            jit_eltwise_injectors_.clear();
         }
 
         void operator()(dst_data_t *dst, const acc_data_t *acc,
                 const acc_data_t *bias, float sum_scale, size_t oc_work);
         void operator()(dst_data_t *dst, const acc_data_t *acc,
-                const acc_data_t *bias, float sum_scale, size_t dst_str,
+                const acc_data_t *bias, size_t g_offset, size_t start_oc, float sum_scale, size_t dst_str,
                 size_t acc_str, size_t sp_len, size_t oc);
 
     private:
@@ -160,6 +170,7 @@ private:
             size_t acc_stride_in_bytes;
             size_t spatial_length;
             size_t oc_work;
+            size_t oc_offset;
         };
 
         enum { default_unroll_2_pow_ = 2 };
@@ -180,10 +191,15 @@ private:
         Xbyak::Reg64 reg_dst_str = r13;
         Xbyak::Reg64 reg_acc_str = r14;
 
+        using Vmm = typename cpu_isa_traits<avx512_common>::Vmm;
+        Xbyak::Reg64 reg_oc_offset = r10;
+        Xbyak::Reg64 reg_dw = r9;
+        Xbyak::Opmask kmask = k7;
+
         Xbyak::Reg64 reserved_eltwise_gpr = r10;
         Xbyak::Opmask reserved_eltwise_maskr = k2;
 
-        Xbyak::Zmm vreg_sum_scale, vreg_bias;
+        Xbyak::Zmm vreg_sum_scale, vreg_bias, vreg_dw;
 
         Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(27);
         Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(28);
@@ -195,6 +211,7 @@ private:
         const conv_gemm_conf_t &jcp_;
         size_t OC_;
         bool do_bias_;
+        post_ops_t post_ops_;
         bool do_eltwise_;
         bool do_sum_;
         int max_data_reg_idx_, max_unroll_, compute_reg_step_;
@@ -202,7 +219,8 @@ private:
         size_t vlen_;
         cpu_isa_t isa_;
         bf16_emulation_t *bf16_emu_;
-        jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
+        const primitive_attr_t* attr_;
+        nstl::vector<jit_uni_eltwise_injector_f32<avx512_common>*> jit_eltwise_injectors_;
 
         void generate() override;
         int vreg_dst_idx(int iter) {

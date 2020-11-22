@@ -59,8 +59,9 @@ protected:
 
     size_t OC_;
     size_t MB_;
+    bool do_bias_ = false;
+    post_ops_t post_ops_;
     data_type_t bias_data_type_;
-    size_t bias_data_type_size_ = 0;
     bool do_scale_ = false;
     size_t scale_idx_mult_ = 0;
     bool do_eltwise_ = false;

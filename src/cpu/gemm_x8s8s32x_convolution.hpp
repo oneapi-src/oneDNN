@@ -83,18 +83,17 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
         bool post_ops_ok() const {
             using namespace dnnl::impl::primitive_kind;
             auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
 
-            switch (po.len()) {
-                case 0: return true;
-                case 1: return is_eltwise(0) || po.contain(sum, 0);
-                case 2:
-                    return (po.contain(sum, 0) && is_eltwise(1))
-                            || (po.contain(sum, 1) && is_eltwise(0));
-                default: return false;
-            }
-            return false;
+            auto all_post_ops_supported = [&]() {
+                bool ok = true;
+
+                for (int i = 0; i < po.len(); i++) {
+                    ok = ok && utils::one_of(po.entry_[i].kind, sum, eltwise, depthwise, quantization);
+                }
+                return ok;
+            };
+
+            return all_post_ops_supported();
         }
     };
 

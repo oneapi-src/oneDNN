@@ -73,6 +73,7 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
     : jcp_(pd->jcp_)
     , OC_(pd->jcp_.oc)
     , do_bias_(false)
+    , post_ops_(pd->attr()->post_ops_)
     , do_eltwise_(false)
     , do_sum_(false)
     , max_data_reg_idx_(31)
@@ -80,7 +81,9 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
     , compute_reg_step_(1)
     , data_reg_base_idx_(0)
     , bf16_emu_(nullptr)
-    , eltwise_injector_(nullptr) {
+    , attr_(pd->attr())
+    , jit_eltwise_injectors_(0)
+{
     using namespace types;
     using namespace Xbyak;
 
@@ -88,16 +91,19 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
         // bf16 is not supported
         return;
 
-    auto &post_ops = pd->attr()->post_ops_;
-    const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
-    do_eltwise_ = eltwise_ind != -1;
-    if (do_eltwise_)
-        eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(this,
-                post_ops.entry_[eltwise_ind].eltwise, true,
-                reserved_eltwise_gpr, reserved_eltwise_maskr);
+    bool do_depthwise_ = false;
+    for (int i = 0; i < post_ops_.len(); i++) {
+        auto& post_op = post_ops_.entry_[i];
+        if (post_op.is_eltwise()) {
+            jit_eltwise_injectors_.push_back(new jit_uni_eltwise_injector_f32<avx512_common>(this,
+                    post_op.eltwise, true, reserved_eltwise_gpr, reserved_eltwise_maskr));
+        } else if (post_op.is_depthwise()) {
+            do_depthwise_ = true;
+        }
+    }
 
     do_sum_ = dst_data_type != data_type::f32
-            && post_ops.contain(primitive_kind::sum, 0);
+            && post_ops_.contain(primitive_kind::sum, 0);
     if (do_sum_) {
         compute_reg_step_ = 2;
         vreg_sum_scale = Zmm(data_reg_base_idx_++);
@@ -105,6 +111,9 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
 
     do_bias_ = pd->with_bias();
     if (do_bias_) vreg_bias = Zmm(data_reg_base_idx_++);
+
+    if (do_depthwise_)
+        vreg_dw = Zmm(data_reg_base_idx_++);
 
     vlen_ = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
 
@@ -137,6 +146,8 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
     mov(reg_acc_str, ptr[reg_param + PARAM_OFF(acc_stride_in_bytes)]);
     mov(reg_len, ptr[reg_param + PARAM_OFF(spatial_length)]);
     mov(reg_oc_iter, ptr[reg_param + PARAM_OFF(oc_work)]);
+
+    mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
 
     if (do_sum_)
         vbroadcastss(vreg_sum_scale, ptr[reg_param + PARAM_OFF(sum_scale)]);
@@ -177,7 +188,39 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
             vfmadd231ps(vreg_dst(idx), vreg_prev_dst(idx), vreg_sum_scale);
         }
 
-        if (do_eltwise_) eltwise_injector_->compute_vector(vreg_dst_idx(idx));
+        // todo: apply_post_ops?
+        int eltwise_inj_idx = 0;
+        const auto& p = attr_->post_ops_;
+        for (int i = 0; i < p.len(); i++) {
+            auto& post_op = p.entry_[i];
+            if (post_op.is_eltwise()) {
+                jit_eltwise_injectors_[eltwise_inj_idx]->compute_vector(vreg_dst_idx(idx));
+                eltwise_inj_idx++;
+            } else if (post_op.is_depthwise()) {
+                mov(reg_dw, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
+                lea(reg_dw, ptr[reg_dw + reg_oc_offset]);
+
+                switch (post_op.depthwise.alg) {
+                    case alg_kind::depthwise_scale_shift: {
+                        vbroadcastss(vreg_dw, ptr[reg_dw]);
+                        vmulps(vreg_dst(idx), vreg_dst(idx), vreg_dw);
+                        mov(reg_dw, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
+                        lea(reg_dw, ptr[reg_dw + reg_oc_offset]);
+                        vbroadcastss(vreg_dw, ptr[reg_dw]);
+                        vaddps(vreg_dst(idx), vreg_dst(idx), vreg_dw);
+                        break;
+                    }
+                    case alg_kind::depthwise_prelu: {
+                        vpxord(vreg_dw, vreg_dw, vreg_dw);
+                        vcmpps(kmask, vreg_dst(idx), vreg_dw, _cmp_lt_os);
+                        vbroadcastss(vreg_dw, ptr[reg_dw]);
+                        vmulps(vreg_dst(idx) | kmask, vreg_dst(idx), vreg_dw);
+                        break;
+                    }
+                    default: assert(!"unsupported depthwise algorithm");
+                }
+            }
+        }
 
         if (dst_data_type == data_type::bf16) {
             // TODO: implement store by zmm registers for bf16
@@ -251,6 +294,8 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
     add(reg_acc_base, reg_acc_str);
     if (do_bias_) add(reg_bias, sizeof(acc_data_t));
 
+    add(reg_oc_offset, sizeof(acc_data_t));
+
     dec(reg_oc_iter);
     jnz(oc_loop, T_NEAR); // oc_loop end
 
@@ -258,7 +303,8 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::generate() {
 
     postamble();
 
-    if (do_eltwise_) eltwise_injector_->prepare_table();
+    for (auto& inj : jit_eltwise_injectors_)
+        inj->prepare_table();
 }
 
 // operator () specialized for nspc format
@@ -282,20 +328,21 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
 // operator () specialized for ncsp format
 template <data_type_t dst_data_type>
 void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
-        dst_data_t *dst, const acc_data_t *acc, const acc_data_t *bias,
+        dst_data_t *dst, const acc_data_t *acc, const acc_data_t *bias, size_t g_offset, size_t start_oc,
         float sum_scale, size_t dst_stride_in_elements,
         size_t acc_stride_in_elements, size_t sp_len, size_t oc_len) {
     if (sp_len == 0) return;
 
     ker_args args;
-    args.acc = acc;
-    args.dst = dst;
-    args.bias = bias;
+    args.acc = acc + start_oc * acc_stride_in_elements;
+    args.dst = dst + start_oc * dst_stride_in_elements;
+    args.bias = bias + start_oc + g_offset;
     args.sum_scale = sum_scale;
     args.dst_stride_in_bytes = dst_stride_in_elements * sizeof(dst_data_t);
     args.acc_stride_in_bytes = acc_stride_in_elements * sizeof(acc_data_t);
     args.spatial_length = sp_len;
     args.oc_work = oc_len;
+    args.oc_offset = (start_oc + g_offset) * sizeof(acc_data_t);
     jit_generator::operator()(&args);
 }
 
@@ -552,7 +599,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
         if (this->pd()->is_postprocess_required()) {
             size_t acc_str = LDC;
             size_t dst_str = M;
-            (*pp_ker_)(dst_local, acc, bias + groups * jcp.oc + oc, sum_scale,
+            (*pp_ker_)(dst_local, acc, bias, groups * jcp.oc, oc, sum_scale,
                     dst_str, acc_str, m, oc_block);
         }
     };

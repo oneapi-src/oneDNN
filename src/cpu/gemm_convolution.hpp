@@ -64,18 +64,24 @@ struct gemm_convolution_fwd_t : public primitive_t {
 
     protected:
         bool post_ops_ok() const {
+            using namespace dnnl::impl::primitive_kind;
             auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
-            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
 
-            switch (po.len()) {
-                case 0: return true; // no post_ops
-                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-                case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-                default: return false;
-            }
-            return false;
+            auto all_post_ops_supported = [&]() {
+                bool ok = true;
+
+                for (int i = 0; i < po.len(); i++) {
+                    ok = ok && utils::one_of(po.entry_[i].kind, sum, eltwise, depthwise, quantization);
+                }
+                return ok;
+            };
+            auto contain = [&](dnnl::impl::primitive_kind_t kind) { return po.find(kind) != -1; };
+            auto position = [&](dnnl::impl::primitive_kind_t kind) { return po.find(kind); };
+            auto count = [&](dnnl::impl::primitive_kind_t kind) { return po.count(kind); };
+
+            return all_post_ops_supported() &&
+                   count(primitive_kind::sum) <= 1 &&
+                   IMPLICATION(contain(primitive_kind::sum), position(primitive_kind::sum) == 0);
         }
     };
 
@@ -87,12 +93,13 @@ struct gemm_convolution_fwd_t : public primitive_t {
         const data_t one = 1.0, zero = 0.0;
         beta_ = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
 
-        const int entry_idx = post_ops.find(primitive_kind::eltwise);
-        if (entry_idx != -1)
-            CHECK(safe_ptr_assign(eltwise_,
-                    new ref_eltwise_scalar_fwd_t(
-                            post_ops.entry_[entry_idx].eltwise)));
-        return status::success;
+        bool has_bias = pd()->with_bias(),
+                has_post_ops = post_ops.len() > 0,
+                has_scale = !pd()->attr()->output_scales_.has_default_values();
+        postops_in_ip_ = has_bias || has_post_ops || has_scale;
+
+        CHECK(safe_ptr_assign(pp_kernel_, pp_kernel_t::create(pd(), pd()->jcp_)));
+        return (pp_kernel_) ? pp_kernel_->create_kernel() : status::success;
     }
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -111,8 +118,12 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
+    using pp_kernel_t = gemm_convolution_utils::pp_kernel_t;
+    std::unique_ptr<pp_kernel_t> pp_kernel_;
+    bool postops_in_ip_;
     data_t beta_;
 
+    // todo: antonvor: remove "eltwise_" if we don't use nspc
     std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_;
 };
 

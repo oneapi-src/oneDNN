@@ -32,9 +32,8 @@ struct pp_ker_t {
 
     typedef typename prec_traits<data_type::s32>::type acc_data_t;
 
-    virtual void operator()(void *dst, const acc_data_t *acc, const char *bias,
-            const float *scales, float nslope, float sum_scale,
-            float signed_scale, int g, size_t start, size_t end) const = 0;
+    virtual void operator()(void *dst, acc_data_t *acc, const char *bias, const float *scales, float signed_scale,
+                            int g, size_t start, size_t end) const = 0;
 
     size_t dst_os_stride_;
 
@@ -44,16 +43,15 @@ protected:
     pp_ker_t(const convolution_pd_t *pd, const conv_gemm_conf_t &jcp);
 
     const conv_gemm_conf_t &jcp_;
+    const post_ops_t &post_ops_;
     size_t OC_;
-    size_t OS_;
+
+    bool do_bias_ = false;
+    bool do_scale_ = false;
+    size_t scale_idx_mult_ = 0;
+
     data_type_t bias_data_type_ = data_type::undef;
     data_type_t dst_data_type_ = data_type::undef;
-    size_t scale_idx_mult_ = 0;
-    bool do_bias_ = false;
-    bool do_eltwise_ = false;
-    post_ops_t::entry_t::eltwise_t eltwise_;
-    bool do_sum_ = false;
-    bool do_signed_scaling_ = false;
 };
 
 } // namespace gemm_x8s8s32x_convolution_utils
