@@ -8,4 +8,11 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}
   )
 find_package(Threads REQUIRED)
 add_library(${TARGET_NAME} STATIC ${MAIN_SRC})
-target_link_libraries(${TARGET_NAME} ${CMAKE_THREAD_LIBS_INIT})
+
+# XXX: Link pthread explicitly: C and C++ compiler may have different flags.
+# In that case FindThreads module may skip adding any flags for pthread library
+# because they are not needed for C compiler but this may led to issues with
+# C++ compiler which is not checked.
+if(UNIX OR MINGW)
+    target_link_libraries(${TARGET_NAME} pthread)
+endif()

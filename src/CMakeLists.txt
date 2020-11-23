@@ -14,10 +14,14 @@
 # limitations under the License.
 #===============================================================================
 
-file(GLOB_RECURSE HEADERS
-    ${PROJECT_BINARY_DIR}/include/*.h
+file(GLOB HEADERS_ROOT
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/*.hpp
+    )
+file(GLOB HEADERS_SUBDIR
+    ${PROJECT_BINARY_DIR}/include/oneapi/dnnl/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/oneapi/dnnl/*.hpp
     )
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -81,13 +85,18 @@ if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
     add_subdirectory(gpu)
 endif()
 
+if(DNNL_WITH_SYCL)
+    add_subdirectory(sycl)
+endif()
+
 get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)
 add_library(${LIB_NAME} ${DNNL_LIBRARY_TYPE}
-    ${VERSION_RESOURCE_FILE} ${HEADERS} ${LIB_DEPS})
+    ${VERSION_RESOURCE_FILE} ${HEADERS_ROOT} ${HEADERS_SUBDIR} ${LIB_DEPS})
+# LINK_PRIVATE for cmake 2.8.11 compatibility
+target_link_libraries(${LIB_NAME} LINK_PRIVATE ${${LIB_NAME}_INTERFACE})
 
 set_property(TARGET ${LIB_NAME} PROPERTY VERSION "${DNNL_VERSION_MAJOR}.${DNNL_VERSION_MINOR}")
 set_property(TARGET ${LIB_NAME} PROPERTY SOVERSION "${DNNL_VERSION_MAJOR}")
-set_property(TARGET ${LIB_NAME} PROPERTY PUBLIC_HEADER ${HEADERS})
 
 target_include_directories(${LIB_NAME} PUBLIC
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
@@ -108,8 +117,15 @@ install(TARGETS ${LIB_NAME}
     EXPORT "${LIB_EXPORT_NAME}"
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+# If only Cmake could preserve the directory hierarchy...
+foreach(header ${HEADERS_ROOT})
+    install(FILES ${header} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/")
+endforeach()
+foreach(header ${HEADERS_SUBDIR})
+    install(FILES ${header} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/oneapi/dnnl/")
+endforeach()
 
 # Write version and package config files
 set(LIB_CONFIG_GENERATE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
@@ -188,7 +204,7 @@ endif()
 
 # Install custom find modules for transitive dependencies
 set(LIB_CONFIG_INSTALL_DIR_COMPAT "${CMAKE_INSTALL_LIBDIR}/cmake/mkldnn")
-if(DNNL_CPU_RUNTIME STREQUAL "TBB")
+if(DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
     if(WIN32)
         install(FILES "../cmake/win/TBBConfig.cmake" RENAME "FindTBB.cmake"
             DESTINATION ${LIB_CONFIG_INSTALL_DIR})
@@ -209,6 +225,17 @@ if(DNNL_GPU_RUNTIME STREQUAL "OCL")
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
     install(FILES "../cmake/FindOpenCL.cmake"
             DESTINATION ${LIB_CONFIG_INSTALL_DIR_COMPAT})
+endif()
+
+if(DNNL_SYCL_RUNTIME STREQUAL "COMPUTECPP")
+    install(FILES
+        "../cmake/FindComputeCpp.cmake"
+        "../cmake/FindOpenCL.cmake"
+        DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+elseif(DNNL_SYCL_RUNTIME STREQUAL "DPCPP")
+    install(FILES
+        "../cmake/FindLevelZero.cmake"
+        DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()
 
 # On Windows we need to add dnnl.dll path to CTESTCONFIG_PATH which is later

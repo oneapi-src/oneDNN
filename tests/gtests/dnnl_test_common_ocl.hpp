@@ -67,4 +67,61 @@ static inline cl_device_id find_ocl_device(cl_device_type dev_type) {
     return nullptr;
 }
 
+// Base generic class providing RAII support for OpenCL objects
+template <typename T, typename release_t = int32_t(T)>
+struct ocl_wrapper_base_t {
+    ocl_wrapper_base_t(T t, release_t *release = nullptr)
+        : t_(t), release_(release) {}
+    ocl_wrapper_base_t(ocl_wrapper_base_t &&other)
+        : t_(other.t_), release_(other.release_) {
+        other.t_ = nullptr;
+    }
+    ~ocl_wrapper_base_t() {
+        if (release_ && t_) { release_(t_); }
+    }
+
+    ocl_wrapper_base_t(const ocl_wrapper_base_t &) = delete;
+    ocl_wrapper_base_t &operator=(const ocl_wrapper_base_t &) = delete;
+
+    operator T() const { return t_; }
+
+private:
+    T t_;
+    release_t *release_;
+};
+
+// Auxiliary class providing RAII support for OpenCL objects,
+// specialized for specific OpenCL types
+template <typename T>
+struct ocl_wrapper_t {};
+
+template <>
+struct ocl_wrapper_t<cl_device_id> : ocl_wrapper_base_t<cl_device_id> {
+    ocl_wrapper_t(cl_device_id dev) : ocl_wrapper_base_t(dev) {}
+};
+
+template <>
+struct ocl_wrapper_t<cl_context> : ocl_wrapper_base_t<cl_context> {
+    ocl_wrapper_t(cl_context ctx)
+        : ocl_wrapper_base_t(ctx, &clReleaseContext) {}
+};
+
+template <>
+struct ocl_wrapper_t<cl_command_queue> : ocl_wrapper_base_t<cl_command_queue> {
+    ocl_wrapper_t(cl_command_queue queue)
+        : ocl_wrapper_base_t(queue, &clReleaseCommandQueue) {}
+};
+
+template <>
+struct ocl_wrapper_t<cl_kernel> : ocl_wrapper_base_t<cl_kernel> {
+    ocl_wrapper_t(cl_kernel kernel)
+        : ocl_wrapper_base_t(kernel, &clReleaseKernel) {}
+};
+
+// Constructs an OpenCL wrapper object (providing RAII support)
+template <typename T>
+ocl_wrapper_t<T> make_ocl_wrapper(T t) {
+    return ocl_wrapper_t<T>(t);
+}
+
 #endif

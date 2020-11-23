@@ -18,10 +18,11 @@ oneAPI Deep Neural Network Library (oneDNN)
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
 The library is optimized for Intel Architecture Processors, Intel Processor
-Graphics and Xe architecture-based Graphics. Support for other architectures
-such as Arm\* 64-bit Architecture (AArch64), OpenPOWER\* Power ISA (PPC64),
-and IBMz\* (s390x) is experimental.
-See the [System Requirements](#system-requirements) section below.
+Graphics and Xe architecture-based Graphics. oneDNN has experimental support
+for the following architectures:
+* Arm\* 64-bit Architecture (AArch64)
+* OpenPOWER\* Power ISA (PPC64)
+* IBMz\* (s390x)
 
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance
@@ -42,13 +43,17 @@ on Intel CPUs and GPUs. Deep learning practitioners should use one of the
 
 # Documentation
 
-* [Developer guide](https://oneapi-src.github.io/oneDNN) explains programming
+* [Developer guide](https://oneapi-src.github.io/oneDNN/v2) explains programming
   model, supported functionality, and implementation details, and
   includes annotated examples.
-* [API reference](https://oneapi-src.github.io/oneDNN/modules.html) provides
+* [API reference](https://oneapi-src.github.io/oneDNN/v2/modules.html) provides
   a comprehensive reference of the library API.
 
 # Installation
+
+Binary distribution of this software is available as
+[Intel oneAPI Deep Neural Network Library](https://software.intel.com/en-us/oneapi/onednn)
+in [Intel oneAPI]( https://software.intel.com/en-us/oneapi).
 
 Pre-built binaries for Linux\*, Windows\*, and macOS\* are available
 for download in the
@@ -64,22 +69,23 @@ names use the following convention:
 Several packages are available for each operating system to ensure
 interoperability with CPU or GPU runtime libraries used by the application.
 
-| Configuration | Dependency
-| :-------------| :---------
-| `cpu_iomp`    | Intel OpenMP runtime
-| `cpu_gomp`    | GNU\* OpenMP runtime
-| `cpu_vcomp`   | Microsoft Visual C OpenMP runtime
-| `cpu_tbb`     | Threading Building Blocks (TBB)
+| Configuration         | Dependency
+| :---------------------| :---------
+| `cpu_iomp`            | Intel OpenMP runtime
+| `cpu_gomp`            | GNU\* OpenMP runtime
+| `cpu_vcomp`           | Microsoft Visual C OpenMP runtime
+| `cpu_tbb`             | Threading Building Blocks (TBB)
+| `cpu_dpcpp_gpu_dpcpp` | [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler), TBB, OpenCL runtime, oneAPI Level Zero runtime
 
 The packages do not include library dependencies and these need to be resolved
 in the application at build time. See the
 [System Requirements](#system-requirements) section below and the
-[Build Options](https://oneapi-src.github.io/oneDNN/dev_guide_build_options.html)
-section in the [developer guide](https://oneapi-src.github.io/oneDNN) for more
+[Build Options](https://oneapi-src.github.io/oneDNN/v2/dev_guide_build_options.html)
+section in the [developer guide](https://oneapi-src.github.io/oneDNN/v2) for more
 details on CPU and GPU runtimes.
 
 If the configuration you need is not available, you can
-[build the library from source](https://oneapi-src.github.io/oneDNN/dev_guide_build.html).
+[build the library from source](https://oneapi-src.github.io/oneDNN/v2/dev_guide_build.html).
 
 # System Requirements
 
@@ -124,7 +130,7 @@ downloaded and built separately, see
 >
 > On macOS, applications that use oneDNN may need to request special
 > entitlements if they use the hardened runtime. See the
-> [linking guide](https://oneapi-src.github.io/oneDNN/dev_guide_link.html)
+> [linking guide](https://oneapi-src.github.io/oneDNN/v2/dev_guide_link.html)
 > for more details.
 
 The library is optimized for the following GPUs:
@@ -154,13 +160,17 @@ Processors, 64-bit Arm Architecture (AArch64) processors,
 64-bit Power ISA (PPC64) processors, IBMz (s390x), and compatible devices.
 
 The CPU engine is built by default and cannot be disabled at build time. The
-engine can be configured to use the OpenMP or TBB threading runtime. The
+engine can be configured to use the OpenMP, TBB or DPCPP runtime. The
 following additional requirements apply:
 * OpenMP runtime requires C++ compiler with OpenMP 2.0 or later
   standard support
 * TBB runtime requires
 [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
 2017 or later.
+* DPCPP runtime requires
+  * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
+  Beta
+  * [Threading Building Blocks (TBB)](https://www.threadingbuildingblocks.org/)
 
 Some implementations rely on OpenMP 4.0 SIMD extensions. For the best
 performance results on Intel Architecture Processors we recommend using the
@@ -172,9 +182,14 @@ Intel Processor Graphics and Xe architecture-based Graphics are supported by
 the oneDNN GPU engine. The GPU engine is disabled in the default build
 configuration. The following additional requirements apply when GPU engine
 is enabled:
-* OpenCL\* runtime library (OpenCL version 1.2 or later)
-* OpenCL driver (with kernel language support for OpenCL C 2.0 or later)
-  with Intel subgroups extension support
+* OpenCL runtime requires
+    * OpenCL\* runtime library (OpenCL version 1.2 or later)
+    * OpenCL driver (with kernel language support for OpenCL C 2.0 or later)
+      with Intel subgroups extension support
+* DPCPP runtime requires
+    * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) Beta
+    * OpenCL runtime library (OpenCL version 1.2 or later)
+    * [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
 
 ### Runtime Dependencies
 
@@ -192,13 +207,15 @@ Common dependencies:
 
 Runtime-specific dependencies:
 
-| Runtime configuration  | Compiler                      | Dependency
-| :--------------------- | :---------------------------- | :---------
-| `DNNL_CPU_RUNTIME=OMP` | GCC                           | GNU OpenMP runtime (`libgomp.so`)
-| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (`libiomp5.so`)
-| `DNNL_CPU_RUNTIME=OMP` | Clang                         | Intel OpenMP runtime (`libiomp5.so`)
-| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (`libtbb.so`)
-| `DNNL_GPU_RUNTIME=OCL` | any                           | OpenCL runtime (`libOpenCL.so`)
+| Runtime configuration    | Compiler                      | Dependency
+| :----------------------- | :---------------------------- | :---------
+| `DNNL_CPU_RUNTIME=OMP`   | GCC                           | GNU OpenMP runtime (`libgomp.so`)
+| `DNNL_CPU_RUNTIME=OMP`   | Intel C/C++ Compiler          | Intel OpenMP runtime (`libiomp5.so`)
+| `DNNL_CPU_RUNTIME=OMP`   | Clang                         | Intel OpenMP runtime (`libiomp5.so`)
+| `DNNL_CPU_RUNTIME=TBB`   | any                           | TBB (`libtbb.so`)
+| `DNNL_CPU_RUNTIME=DPCPP` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`libsycl.so`), TBB (`libtbb.so`), OpenCL loader (`libOpenCL.so`)
+| `DNNL_GPU_RUNTIME=OCL`   | any                           | OpenCL loader (`libOpenCL.so`)
+| `DNNL_GPU_RUNTIME=DPCPP` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`libsycl.so`), OpenCL loader (`libOpenCL.so`), oneAPI Level Zero loader (`libze_loader.so`)
 
 #### Windows
 
@@ -207,12 +224,14 @@ Common dependencies:
 
 Runtime-specific dependencies:
 
-| Runtime configuration  | Compiler                      | Dependency
-| :--------------------- | :---------------------------- | :---------
-| `DNNL_CPU_RUNTIME=OMP` | Microsoft Visual C++ Compiler | No additional requirements
-| `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (`iomp5.dll`)
-| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (`tbb.dll`)
-| `DNNL_GPU_RUNTIME=OCL` | any                           | OpenCL runtime (`OpenCL.dll`)
+| Runtime configuration    | Compiler                      | Dependency
+| :----------------------- | :---------------------------- | :---------
+| `DNNL_CPU_RUNTIME=OMP`   | Microsoft Visual C++ Compiler | No additional requirements
+| `DNNL_CPU_RUNTIME=OMP`   | Intel C/C++ Compiler          | Intel OpenMP runtime (`iomp5.dll`)
+| `DNNL_CPU_RUNTIME=TBB`   | any                           | TBB (`tbb.dll`)
+| `DNNL_CPU_RUNTIME=DPCPP` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`sycl.dll`), TBB (`tbb.dll`), OpenCL loader (`OpenCL.dll`)
+| `DNNL_GPU_RUNTIME=OCL`   | any                           | OpenCL loader (`OpenCL.dll`)
+| `DNNL_GPU_RUNTIME=DPCPP` | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`sycl.dll`), OpenCL loader (`OpenCL.dll`), oneAPI Level Zero loader (`ze_loader.dll`)
 
 #### macOS
 
@@ -233,11 +252,14 @@ CPU engine was validated on RedHat\* Enterprise Linux 7 with
 * Clang\* 3.8.0
 * [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
   17.0, 18.0, and 19.0
+* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) Beta
+
 
 on Windows Server\* 2012 R2 with
 * Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
 * [Intel C/C++ Compiler](https://software.intel.com/content/www/us/en/develop/tools/parallel-studio-xe.html)
   17.0 and 19.0
+* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) Beta
 
 on macOS 10.13 (High Sierra) with
 * Apple LLVM version 9.2 (XCode 9.2)
@@ -253,6 +275,8 @@ GPU engine was validated on Ubuntu\* 18.04 with
   2019 Update 3
 * [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases)
   19.37.14191
+* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler)
+  Beta
 
 on Windows Server 2019 with
 * Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
@@ -260,6 +284,7 @@ on Windows Server 2019 with
   19.0
 * [Intel SDK for OpenCL applications](https://software.intel.com/content/www/us/en/develop/tools/opencl-sdk.html) 2019 Update 3
 * [Intel Graphics - Windows 10 DCH Drivers](https://downloadcenter.intel.com/download/28783/Intel-Graphics-Windows-10-DCH-Drivers) 26.20.100.6709
+* [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) Beta
 
 ## Requirements for Pre-built Binaries
 
@@ -294,9 +319,8 @@ at dnnl.maintainers@intel.com.
 
 > **WARNING**
 >
-> The following functionality has preview status and might be changed without
-> prior notification in future releases:
-> * [Zero points support in convolution](https://intel.github.io/mkl-dnn/dev_guide_convolution.html)
+> This is pre-production software and functionality may change without prior
+> notice.
 
 # Contributing
 
@@ -336,6 +360,7 @@ terms.
 Apache License Version 2.0:
 * [Font Roboto](https://fonts.google.com/specimen/Roboto)
 * [MathJax](https://github.com/mathjax/MathJax)
+* [ComputeCPP SDK](https://github.com/codeplaysoftware/computecpp-sdk)
 * [Xbyak_aarch64](https://github.com/fujitsu/xbyak_aarch64)
 
 Boost Software License, Version 1.0:

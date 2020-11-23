@@ -22,6 +22,8 @@
 #include "oneapi/dnnl/dnnl.hpp"
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "oneapi/dnnl/dnnl_ocl.hpp"
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
 #include "dnn_types.hpp"
@@ -115,6 +117,19 @@ int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
     return execute_reorder(rhs, *this, attr);
 }
 
+dnn_mem_t dnn_mem_t::create_from_host_ptr(
+        const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr) {
+    dnnl_engine_kind_t eng_kind;
+    DNN_SAFE_V(dnnl_engine_get_kind(engine, &eng_kind));
+
+    // XXX: allows to construct CPU memory only.
+    assert(eng_kind == dnnl_cpu);
+    (void)eng_kind;
+
+    // XXX: assumption that SYCL works fine with native host pointers
+    return dnn_mem_t(md, engine, host_ptr);
+}
+
 #if defined(_WIN32) && !defined(__GNUC__)
 #include "windows.h"
 
@@ -169,6 +184,9 @@ static size_t get_gpu_ram_size() {
     status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_SIZE,
             sizeof(cl_ulong), &ram_size, nullptr);
     if (status == CL_SUCCESS) return (size_t)ram_size;
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+    auto sycl_dev = dnnl::sycl_interop::get_device(eng);
+    return (size_t)sycl_dev.get_info<cl::sycl::info::device::global_mem_size>();
 #endif
     return 0;
 }
@@ -184,6 +202,7 @@ static int validate_mem_size(size_t total_mem_size) {
     // 0.75f is taken randomly and is subject to change in future.
     const double capacity_factor = 0.75;
     const double benchdnn_limit = capacity_factor * devices_max_capacity;
+    assert(benchdnn_limit > 0);
 
     const bool fits_device_ram = total_mem_size <= benchdnn_limit;
     if (!fits_device_ram) {

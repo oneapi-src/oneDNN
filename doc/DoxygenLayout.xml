@@ -25,6 +25,11 @@
       <tab type="user" title="Data Types" url="@ref dev_guide_data_types"/>
       <tab type="user" title="Reorder Between CPU and GPU Engines" url="@ref cross_engine_reorder_cpp"/>
       <tab type="user" title="C and C++ API" url="@ref dev_guide_c_and_cpp_apis"/>
+      <tab type="usergroup" title="Interoperability with DPC++ and OpenCL">
+        <tab type="user" title="OpenCL Interoperability" url="@ref dev_guide_opencl_interoperability"/>
+        <tab type="user" title="DPC++ Interoperability" url="@ref dev_guide_dpcpp_interoperability"/>
+        <tab type="user" title="DPC++ Backends" url="@ref dev_guide_dpcpp_backends"/>
+      </tab>
     </tab>
     <tab type="usergroup" title="Supported Primitives">
       <tab type="user" title="(De-)Convolution" url="@ref dev_guide_convolution"/>
@@ -62,7 +67,6 @@
       <tab type="user" title="Transition from Intel MKL-DNN to oneDNN" url="@ref dev_guide_transition_to_dnnl"/>
       <tab type="user" title="Understanding oneDNN Memory Formats" url="@ref dev_guide_understanding_memory_formats"/>
       <tab type="user" title="Nuances of int8 computations" url="@ref dev_guide_int8_computations"/>
-      <tab type="user" title="OpenCL Interoperability" url="@ref dev_guide_opencl_interoperability"/>
       <tab type="user" title="Primitive Cache" url="@ref dev_guide_primitive_cache"/>
       <tab type="user" title="Using oneDNN with Threadpool-based Threading" url="@ref dev_guide_threadpool"/>
     </tab>

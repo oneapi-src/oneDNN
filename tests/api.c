@@ -71,9 +71,12 @@ void test1() {
 
     CHECK(dnnl_memory_get_data_handle(m, &req));
     CHECK_TRUE(req == NULL);
+
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
     CHECK(dnnl_memory_set_data_handle(m, data));
     CHECK(dnnl_memory_get_data_handle(m, &req));
     CHECK_TRUE(req == data);
+#endif
 
     CHECK_TRUE(dnnl_memory_desc_get_size(&md) == LENGTH_100 * sizeof(data[0]));
 
@@ -85,6 +88,7 @@ void test1() {
     CHECK(dnnl_engine_destroy(engine));
 }
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
 void test2() {
     /* AlexNet: c3
      * {2, 256, 13, 13} (x) {384, 256, 3, 3} -> {2, 384, 13, 13}
@@ -228,6 +232,8 @@ void test2() {
     CHECK(dnnl_primitive_execute(r, stream, 2, r_args));
     CHECK(dnnl_primitive_destroy(r));
 
+    CHECK(dnnl_stream_wait(stream));
+
     /* clean-up */
     CHECK(dnnl_memory_destroy(c3_src));
     CHECK(dnnl_memory_destroy(c3_weights));
@@ -312,6 +318,8 @@ void test3() {
     CHECK(dnnl_primitive_execute(l2, stream, 2, l2_args));
     CHECK(dnnl_primitive_destroy(l2));
 
+    CHECK(dnnl_stream_wait(stream));
+
     /* clean-up */
     CHECK(dnnl_memory_destroy(l2_src));
     CHECK(dnnl_memory_destroy(l2_dst));
@@ -334,10 +342,13 @@ void test3() {
     free(src);
     free(dst);
 }
+#endif
 
 int main() {
     test1();
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
     test2();
     test3();
+#endif
     return 0;
 }

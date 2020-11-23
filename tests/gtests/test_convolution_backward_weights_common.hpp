@@ -230,8 +230,8 @@ protected:
                                 {DNNL_ARG_DIFF_BIAS, c_diff_bias.get()}});
         strm.wait();
 
-        auto ref_diff_weights = memory(c_diff_weights_desc, eng);
-        auto ref_diff_bias = memory(c_diff_bias_desc, eng);
+        auto ref_diff_weights = test::make_memory(c_diff_weights_desc, eng);
+        auto ref_diff_bias = test::make_memory(c_diff_bias_desc, eng);
 
         compute_ref_conv_bwd_weights<data_t_src, data_t_diff_dst,
                 data_t_diff_weights>(

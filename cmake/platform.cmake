@@ -49,6 +49,24 @@ if($ENV{DNNL_WERROR})
     set(DNNL_WERROR $ENV{DNNL_WERROR})
 endif()
 
+if(WIN32 AND DNNL_SYCL_DPCPP)
+    # XXX: Intel oneAPI DPC++ Compiler defines __GNUC__ and __STDC__ macros on
+    # Windows. It is not aligned with clang behavior so manually undefine them.
+    add_definitions(-U__GNUC__ -U__STDC__)
+    # XXX: workaround for 'unknown type name IUnknown' from combaseapi.h
+    add_definitions(-DCINTERFACE)
+    # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
+    append(CMAKE_CCXX_FLAGS "-w")
+    # XXX: ignore __declspec warning
+    append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
+    # XXX: ignore 'XXX is deprecated' coming from Intel TBB headers
+    append(CMAKE_CCXX_FLAGS "-Wno-deprecated-declarations")
+    # Ignore warning LNK4078: multiple '__CLANG_OFFLOAD_BUNDLE__sycl-spi'
+    # sections found with different attributes
+    append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /IGNORE:4078")
+    append(CMAKE_SHARED_LINKER_FLAGS "-Xlinker /IGNORE:4078")
+endif()
+
 if(MSVC)
     set(USERCONFIG_PLATFORM "x64")
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "/WX")
@@ -95,6 +113,8 @@ if(MSVC)
     endif()
 elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
+    # XXX: Intel oneAPI DPC++ Compiler generates a lot of warnings
+    append(CMAKE_CCXX_FLAGS "-w")
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Werror")
     append(CMAKE_CCXX_FLAGS "-fvisibility=internal")
     append(CMAKE_CXX_FLAGS "-fvisibility-inlines-hidden")

@@ -644,8 +644,8 @@ void simple_net() {
     dnnl_memory_t conv_diff_bias_memory;
     const dnnl_memory_desc_t *conv_diff_bias_md = dnnl_primitive_desc_query_md(
             conv_bwd_weights_pd, dnnl_query_diff_weights_md, 1);
-    CHECK(dnnl_memory_create(
-            &conv_diff_bias_memory, conv_diff_bias_md, engine, NULL));
+    CHECK(dnnl_memory_create(&conv_diff_bias_memory, conv_diff_bias_md, engine,
+            DNNL_MEMORY_ALLOCATE));
     CHECK(dnnl_memory_set_data_handle(
             conv_diff_bias_memory, conv_diff_bias_buffer));
 

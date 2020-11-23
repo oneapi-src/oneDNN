@@ -46,12 +46,12 @@ TEST_F(runtime_dim_test_t, TestMemory) {
     memory::desc md_tag {{DNNL_RUNTIME_DIM_VAL, DNNL_RUNTIME_DIM_VAL},
             data_type::f32, tag::ab};
     ASSERT_EQ(md_tag.get_size(), DNNL_RUNTIME_SIZE_VAL);
-    CHECK_INVALID(memory(md_tag, eng));
+    CHECK_INVALID(test::make_memory(md_tag, eng));
 
     memory::desc md_strides {{DNNL_RUNTIME_DIM_VAL, DNNL_RUNTIME_DIM_VAL},
             data_type::f32, {100, 1}};
     ASSERT_EQ(md_strides.get_size(), DNNL_RUNTIME_SIZE_VAL);
-    CHECK_INVALID(memory(md_strides, eng));
+    CHECK_INVALID(test::make_memory(md_strides, eng));
 }
 
 TEST_F(runtime_dim_test_t, TestBNorm) {

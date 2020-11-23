@@ -36,7 +36,7 @@ key_t::key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr)
     , impl_nthr_(impl_nthr)
     , engine_kind_(engine ? engine->kind() : engine_kind::any_engine)
     , runtime_kind_(engine ? engine->runtime_kind() : runtime_kind::none)
-    , device_id_(engine ? engine->device_id() : 0) {
+    , device_id_(engine ? engine->device_id() : device_id_t(0, 0, 0)) {
     init_mds(pd);
 }
 

@@ -31,6 +31,10 @@
 #include "gpu/ocl/ocl_engine.hpp"
 #endif
 
+#if DNNL_WITH_SYCL
+#include "sycl/sycl_engine.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 
@@ -45,6 +49,10 @@ static inline std::unique_ptr<engine_factory_t> get_engine_factory(
         return std::unique_ptr<engine_factory_t>(
                 new gpu::ocl::ocl_engine_factory_t(kind));
     }
+#endif
+#if DNNL_WITH_SYCL
+    if (runtime_kind == runtime_kind::sycl)
+        return sycl::get_engine_factory(kind);
 #endif
     return nullptr;
 }

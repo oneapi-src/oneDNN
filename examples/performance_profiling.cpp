@@ -205,6 +205,7 @@ void conv_relu_naive(const memory &user_src, const memory &user_wei,
     // [Create and execute relu]
     // execute relu (on convolution's destination format, whatever it is)
     create_and_execute_relu(user_dst, eng, s);
+    s.wait();
     // [Create and execute relu]
     /// @page performance_profiling_cpp
     /// @note The function for creation and execution of ReLU primitive is
@@ -334,6 +335,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
         auto r_pd = reorder::primitive_desc(conv_dst, user_dst);
         reorder(r_pd).execute(s, conv_dst, user_dst);
     }
+    s.wait();
     /// @page performance_profiling_cpp
     /// Blocked memory format is recommended for oneDNN primitive
     /// execution and provides better performance, as shown in the
@@ -367,7 +369,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
 // weights and the relu operation fused via a post-op attribute added to the
 // convolution prim_descriptor
 void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
-        const engine &eng, const stream &s) {
+        const engine &eng, stream &s) {
     /// @section performance_profiling_cpp_implementation3 Fused Implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh
@@ -455,6 +457,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
         auto r_pd = reorder::primitive_desc(conv_dst, user_dst);
         reorder(r_pd).execute(s, conv_dst, user_dst);
     }
+    s.wait();
     /// @page performance_profiling_cpp
     /// This implementation complies with best practices for f32 inference by
     /// using the oneDNN recommended blocked format for convolution and

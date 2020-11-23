@@ -17,6 +17,10 @@
 #ifndef DNNL_MEMORY_HPP
 #define DNNL_MEMORY_HPP
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+#include "oneapi/dnnl/dnnl_sycl.h"
+#endif
+
 #include "dnnl_common.hpp"
 
 int init_md(dnnl_memory_desc_t *md, int ndims, const dnnl_dims_t dims,
@@ -190,6 +194,9 @@ struct dnn_mem_t {
     static int check_mem_size(const dnnl_memory_desc_t &md);
     static int check_mem_size(const_dnnl_primitive_desc_t const_pd);
 
+    static dnn_mem_t create_from_host_ptr(
+            const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr);
+
     /* fields */
     dnnl_memory_desc_t md_ {};
     dnnl_memory_t m_ {};
@@ -220,7 +227,8 @@ private:
         DNN_SAFE_V(dnnl_engine_get_kind(engine_, &engine_kind_));
 
         size_t sz = dnnl_memory_desc_get_size(&md_);
-        if (engine_kind_ == dnnl_cpu && handle == DNNL_MEMORY_ALLOCATE) {
+        if (engine_kind_ == dnnl_cpu && handle == DNNL_MEMORY_ALLOCATE
+                && DNNL_CPU_RUNTIME != DNNL_RUNTIME_DPCPP) {
             // Allocate memory for native runtime directly
             is_data_owner_ = true;
             const size_t alignment = 2 * 1024 * 1024;

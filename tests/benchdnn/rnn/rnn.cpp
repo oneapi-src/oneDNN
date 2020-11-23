@@ -108,6 +108,12 @@ int check_s8s8_reorder(const prb_t &prb, data_kind_t kind,
     // TODO: enable for all cpu_kind when supported
     if (engine_tgt_kind != dnnl_cpu) return OK;
 
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_DPCPP
+    // DPC++ does not provide a simple way to access the underlying
+    // buffer alignment.
+    return OK;
+#endif
+
     // In the main test, we fill buffers with f32 and reorder to s8
     // with quantization.
 

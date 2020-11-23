@@ -58,7 +58,7 @@ void fill(const memory &m) {
 template <typename data_t>
 class bnorm_test_common : public ::testing::TestWithParam<test_bnorm_params_t> {
 private:
-    std::shared_ptr<test_memory> src, dst, diff_src, diff_dst;
+    std::shared_ptr<test_memory> src, dst, ws, diff_src, diff_dst;
     memory weights, diff_weights, mean, variance;
 
     std::shared_ptr<memory::desc> data_d;
@@ -169,10 +169,14 @@ protected:
                 bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == bnorm_fwd_pd.workspace_desc());
 
-        weights = memory(bnorm_fwd_pd.weights_desc(), eng);
+        auto ws_desc = bnorm_fwd_pd.query_md(query::workspace_md);
+        ws.reset(new test_memory(ws_desc, eng));
+
+        weights = test::make_memory(bnorm_fwd_pd.weights_desc(), eng);
+
         if (isTraining || useGlobalStats) {
-            mean = memory(bnorm_fwd_pd.mean_desc(), eng);
-            variance = memory(bnorm_fwd_pd.variance_desc(), eng);
+            mean = test::make_memory(bnorm_fwd_pd.mean_desc(), eng);
+            variance = test::make_memory(bnorm_fwd_pd.variance_desc(), eng);
         }
 
         fill<data_t>(src->get());
@@ -230,10 +234,14 @@ protected:
                 bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == bnorm_bwd_pd.workspace_desc());
 
-        if (useScaleShift) weights = memory(bnorm_bwd_pd.weights_desc(), eng);
-        diff_weights = memory(bnorm_bwd_pd.diff_weights_desc(), eng);
-        mean = memory(bnorm_bwd_pd.mean_desc(), eng);
-        variance = memory(bnorm_bwd_pd.variance_desc(), eng);
+        auto ws_desc = bnorm_bwd_pd.query_md(dnnl::query::workspace_md);
+        ws.reset(new test_memory(ws_desc, eng));
+
+        if (useScaleShift)
+            weights = test::make_memory(bnorm_bwd_pd.weights_desc(), eng);
+        diff_weights = test::make_memory(bnorm_bwd_pd.diff_weights_desc(), eng);
+        mean = test::make_memory(bnorm_bwd_pd.mean_desc(), eng);
+        variance = test::make_memory(bnorm_bwd_pd.variance_desc(), eng);
 
         if (useScaleShift) fill<float>(weights);
         fill<float>(diff_src->get());
@@ -263,6 +271,7 @@ protected:
         std::unordered_map<int, memory> args = {
                 {DNNL_ARG_SRC, src->get()},
                 {DNNL_ARG_DST, dst->get()},
+                {DNNL_ARG_WORKSPACE, ws->get()},
         };
 
         if (useScaleShift) args.insert({DNNL_ARG_SCALE_SHIFT, weights});
@@ -283,6 +292,7 @@ protected:
                 {DNNL_ARG_MEAN, mean},
                 {DNNL_ARG_VARIANCE, variance},
                 {DNNL_ARG_DIFF_SRC, diff_src->get()},
+                {DNNL_ARG_WORKSPACE, ws->get()},
         };
 
         if (useScaleShift) {

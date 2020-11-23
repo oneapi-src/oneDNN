@@ -87,8 +87,8 @@ The reorder primitive support the following attributes and post-ops:
 
 | Attributes / Post-ops                                         | Meaning
 | :--                                                           | :--
-| [Output scales](@ref dnnl_primitive_attr_set_output_scales) | Copy and scale the data according to the scaling factors
-| [Sum post-op](@ref dnnl_post_ops_append_sum)                | Instead of copy the data accumulate it to the previous data
+| [Output scales](@ref dnnl_primitive_attr_set_output_scales)   | Copy and scale the data according to the scaling factors
+| [Sum post-op](@ref dnnl_post_ops_append_sum)                  | Instead of copy the data accumulate it to the previous data
 
 For instance, the following pseudo-code
 

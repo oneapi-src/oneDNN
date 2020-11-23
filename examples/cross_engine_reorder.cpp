@@ -61,12 +61,12 @@ void fill(memory &mem, const memory::dims &adims) {
 
 int find_negative(memory &mem, const memory::dims &adims) {
     int negs = 0;
-    std::vector<float> array(product(adims));
+    size_t nelems = product(adims);
+    std::vector<float> array(nelems);
     read_from_dnnl_memory(array.data(), mem);
 
-    for (size_t e = 0; e < adims.size(); ++e) {
+    for (size_t e = 0; e < nelems; ++e)
         negs += array[e] < 0.0f;
-    }
     return negs;
 }
 
@@ -92,8 +92,8 @@ void cross_engine_reorder_tutorial() {
     ///
     /// @snippet cross_engine_reorder.cpp Initialize engine
     // [Initialize engine]
-    auto cpu_engine = engine(engine::kind::cpu, 0);
-    auto gpu_engine = engine(engine::kind::gpu, 0);
+    auto cpu_engine = engine(validate_engine_kind(engine::kind::cpu), 0);
+    auto gpu_engine = engine(validate_engine_kind(engine::kind::gpu), 0);
     // [Initialize engine]
 
     /// In addition to an engine, all primitives require a @ref dnnl::stream
@@ -104,7 +104,7 @@ void cross_engine_reorder_tutorial() {
     ///
     /// @snippet cross_engine_reorder.cpp Initialize stream
     // [Initialize stream]
-    auto stream_gpu = stream(gpu_engine);
+    auto stream_gpu = stream(gpu_engine, stream::flags::in_order);
     // [Initialize stream]
 
     /// @subsection cross_engine_reorder_cpp_sub2 Wrapping data into oneDNN GPU memory object

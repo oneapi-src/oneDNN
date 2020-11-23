@@ -177,6 +177,7 @@ Copyright (c) 2009-2018 The MathJax Consortium
 Copyright (c) 2015-2017 Martin Hensel
 Copyright (c) 2007, Apostolos Syropoulos (<asyropoulos@yahoo.com)
 
+ComputeCPP SDK (cmake/FindComputeCpp.cmake)
 Xbyak_aarch64 (src/cpu/aarch64/xbyak_aarch64/)
 Copyright 2019-2020 FUJITSU LIMITED
 

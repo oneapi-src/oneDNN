@@ -135,9 +135,9 @@ protected:
         if (ip_fwd_pd) {
             auto ip_fwd_prim = ip_fwd(ip_fwd_pd);
             auto strm = make_stream(ip_fwd_pd.get_engine());
-            auto src = memory(ip_fwd_pd.src_desc(), e);
-            auto wei = memory(ip_fwd_pd.weights_desc(), e);
-            auto dst = memory(ip_fwd_pd.dst_desc(), e);
+            auto src = test::make_memory(ip_fwd_pd.src_desc(), e);
+            auto wei = test::make_memory(ip_fwd_pd.weights_desc(), e);
+            auto dst = test::make_memory(ip_fwd_pd.dst_desc(), e);
             ip_fwd_prim.execute(strm,
                     {{DNNL_ARG_SRC, src}, {DNNL_ARG_WEIGHTS, wei},
                             {DNNL_ARG_DST, dst}});

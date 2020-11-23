@@ -109,7 +109,7 @@ HANDLE_EXCEPTIONS_FOR_TEST(ocl_memory_test_cpp_t, BasicInteropCpp) {
     {
         memory::desc mem_d(
                 tz, memory::data_type::f32, memory::format_tag::nchw);
-        auto mem = memory(mem_d, eng);
+        auto mem = test::make_memory(mem_d, eng);
 
         cl_mem ocl_mem = ocl_interop::get_mem_object(mem);
         ASSERT_NE(ocl_mem, nullptr);

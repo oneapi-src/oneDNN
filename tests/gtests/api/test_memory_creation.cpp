@@ -56,10 +56,10 @@ protected:
         // mem0
         // Initially spoiled by putting non-zero values in padded area.
         // The test will manually fix it later.
-        dnnl::memory mem0(md, eng);
+        auto mem0 = test::make_memory(md, eng);
 
         // `runtime`-aware buffer for future mem1
-        dnnl::memory mem1_placeholder(md, eng);
+        auto mem1_placeholder = test::make_memory(md, eng);
 
         // Map-unmap section
         {
@@ -76,7 +76,9 @@ protected:
         // mem1
         // A `corrected` version of mem0 (i.e. padded area should be filled with
         // zeros) and with a buffer taken from mem1_placeholder.
-        dnnl::memory mem1(md, eng, mem1_placeholder.get_data_handle());
+
+        auto mem1 = test::make_memory(md, eng, nullptr);
+        mem1.set_data_handle(mem1_placeholder.get_data_handle());
 
         check_zero_tail<data_t>(0, mem1); // Check, if mem1 is indeed corrected
         check_zero_tail<data_t>(1, mem0); // Manually correct mem0
@@ -175,6 +177,8 @@ class c_api_memory_test_t : public ::testing::Test {
 };
 
 TEST_F(c_api_memory_test_t, TestZeroPadBoom) {
+    SKIP_IF(DNNL_WITH_SYCL, "Test does not support SYCL.");
+
     dnnl_memory_desc_t md;
     memset(&md, 0xcc, sizeof(md));
 
@@ -214,6 +218,7 @@ TEST_F(c_api_memory_test_t, TestZeroPadBoom) {
     ASSERT_TRUE(dnnl_success == dnnl_engine_destroy(e));
 }
 
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_DPCPP
 TEST(memory_test_cpp, TestSetDataHandleCPU) {
     engine eng = engine(engine::kind::cpu, 0);
     stream str = make_stream(eng);
@@ -221,7 +226,7 @@ TEST(memory_test_cpp, TestSetDataHandleCPU) {
     const memory::dim N = 1, C = 5, W = 7, H = 7;
     memory::desc data_md(
             {N, C, W, H}, memory::data_type::f32, memory::format_tag::nChw16c);
-    memory mem(data_md, eng, DNNL_MEMORY_NONE);
+    auto mem = test::make_memory(data_md, eng, DNNL_MEMORY_NONE);
 
     float *p = (float *)malloc(mem.get_desc().get_size());
     ASSERT_TRUE(p != nullptr);
@@ -239,5 +244,6 @@ TEST(memory_test_cpp, TestSetDataHandleCPU) {
 
     free(p);
 }
+#endif
 
 } // namespace dnnl

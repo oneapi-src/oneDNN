@@ -149,7 +149,7 @@ protected:
             if (p.attr.scale_flags & P::RUNTIME) {
                 attr.set_output_scales(mask, {DNNL_RUNTIME_F32_VAL});
 
-                scales_m = memory(
+                scales_m = test::make_memory(
                         {{scale_size}, memory::data_type::f32, {1}}, eng);
                 auto s = map_memory<float>(scales_m);
                 for (memory::dim i = 0; i < scale_size; ++i)
@@ -191,7 +191,7 @@ protected:
 
             if (flags & P::RUNTIME) {
                 attr.set_zero_points(arg, mask, {DNNL_RUNTIME_S32_VAL});
-                zero_points_m = memory(
+                zero_points_m = test::make_memory(
                         {{zero_points_size}, memory::data_type::s32, {1}}, eng);
                 auto z = map_memory<int32_t>(zero_points_m);
                 for (memory::dim i = 0; i < zero_points_size; ++i)
@@ -250,7 +250,8 @@ protected:
             tag bia_tag = bia_dims.size() == 2 ? tag::ab : tag::abc;
             bia_md = init_md({bia_dims, p.base.bia_dt, bia_tag,
                     p.base.dst.flags & P::RUNTIME});
-            bia_m = memory(init_md({bia_dims, p.base.bia_dt, bia_tag}), eng);
+            bia_m = test::make_memory(
+                    init_md({bia_dims, p.base.bia_dt, bia_tag}), eng);
         }
 
         auto matmul_d = matmul::desc(src_md, weights_md, bia_md, dst_md);
@@ -274,9 +275,9 @@ protected:
 
         auto matmul_p = matmul(matmul_pd);
 
-        memory src_m(init_md(p.base.src, true), eng);
-        memory weights_m(init_md(p.base.weights, true), eng);
-        memory dst_m(init_md(p.base.dst, true), eng);
+        auto src_m = test::make_memory(init_md(p.base.src, true), eng);
+        auto weights_m = test::make_memory(init_md(p.base.weights, true), eng);
+        auto dst_m = test::make_memory(init_md(p.base.dst, true), eng);
 
         // Initialize memory to make sanitizers happy
         auto set_to_zero = [](memory &m) {

@@ -21,8 +21,20 @@
 #include "dnnl_thread.hpp"
 #include "gtest/gtest.h"
 
-#include "dnnl.h"
-#include "dnnl_types.h"
+#include "oneapi/dnnl/dnnl.h"
+#include "oneapi/dnnl/dnnl_types.h"
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "oneapi/dnnl/dnnl_ocl.hpp"
+#endif
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+#include "oneapi/dnnl/dnnl_sycl.hpp"
+#endif
+
+#if DNNL_X64
+#include "src/cpu/x64/cpu_isa_traits.hpp"
+#endif
 
 #include <cstdint>
 #include <utility>
@@ -128,6 +140,14 @@ inline test_params make_test_params_pack(
     params.pack_params = pack_params;
     return params;
 }
+
+#if defined(DNNL_SYCL_DPCPP)
+bool is_memory_kind_buffer(const test_memory &mem) {
+    return sycl_interop::get_memory_kind(mem.get())
+            == sycl_interop::memory_kind::buffer;
+}
+#endif
+
 /* Test implementation description.
  *
  * To reduce the time spent in GEMM validation the test matrices A, B, and C
@@ -560,6 +580,7 @@ struct dnnl_gemm<float, float, float> {
     static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
+
         if (p.pack_params.pack_a || p.pack_params.pack_b)
             return call_packed(p, a_mem, b_mem, c_mem);
 
@@ -971,6 +992,35 @@ protected:
         SKIP_IF(unsupported_data_type(data_traits<a_dt>::data_type),
                 "Engine does not support this data type.");
 
+        bool is_f16 = (data_traits<a_dt>::data_type == memory::data_type::f16);
+        SKIP_IF(is_f16 && get_test_engine_kind() == engine::kind::cpu,
+                "CPU does not support f16 data type.");
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+        SKIP_IF(get_test_engine_kind() == engine::kind::cpu,
+                "SYCL CPU GEMM not implemented.");
+#endif
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu
+                        && (data_traits<a_dt>::data_type
+                                        == memory::data_type::u8
+                                || data_traits<a_dt>::data_type
+                                        == memory::data_type::s8),
+                "SYCL GPU int GEMM not implemented.");
+#endif
+
+        bool is_bf16bf16f32 = true
+                && data_traits<a_dt>::data_type == memory::data_type::bf16
+                && data_traits<b_dt>::data_type == memory::data_type::bf16
+                && data_traits<c_dt>::data_type == memory::data_type::f32;
+
+#if DNNL_X64
+        SKIP_IF(is_bf16bf16f32 && get_test_engine_kind() == engine::kind::cpu
+                        && !impl::cpu::x64::mayiuse(
+                                impl::cpu::x64::avx512_core),
+                "Skip test for systems that do not support avx512_core.");
+#endif
+
         bool pack = (p.pack_params.pack_a || p.pack_params.pack_b);
         SKIP_IF(!DNNL_X64 && pack,
                 "Packed GEMM does not support non-x64 CPUs.");
@@ -986,11 +1036,29 @@ protected:
                 "CPU does not support bf16bf16bf16 GEMM.");
 
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+                [=]() { Test(); }, p.expect_to_fail, p.expected_status, false);
     }
     void Test() {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
         testing::scoped_tp_activation_t sta;
+#endif
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            const auto &p = ::testing::TestWithParam<test_params>::GetParam();
+
+#if defined(TEST_DNNL_DPCPP_BUFFER)
+            // Test SYCL buffer interfaces
+            run_test_gemm<a_dt, b_dt, c_dt>::call(p);
+#else
+            // Test SYCL USM interfaces
+            bool zero_off = (p.off.a == 0 && p.off.b == 0 && p.off.c == 0);
+            SKIP_IF(!zero_off, "USM interfaces do not support offsets.");
+
+            run_test_gemm<a_dt, b_dt, c_dt>::call(p);
+#endif
+
+            return;
+        }
 #endif
         const auto &p = ::testing::TestWithParam<test_params>::GetParam();
         run_test_gemm<a_dt, b_dt, c_dt>::call(p);

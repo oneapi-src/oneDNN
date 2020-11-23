@@ -172,7 +172,7 @@ protected:
                 = {{DNNL_ARG_SRC, l_src.get()}, {DNNL_ARG_DST, l_dst.get()}};
         if (with_workspace) {
             auto workspace_md = lrn_prim_desc.workspace_desc();
-            workspace = memory(workspace_md, eng);
+            workspace = test::make_memory(workspace_md, eng);
             args.insert({DNNL_ARG_WORKSPACE, workspace});
         }
         l.execute(strm, args);

@@ -96,6 +96,9 @@ protected:
             auto desc_B = memory::desc(dims_B, src1_dt, memory::dims());
             auto desc_C = memory::desc(p.dims, dst_dt, p.dst_format);
 
+            const dnnl::impl::memory_desc_wrapper mdw_desc_A(desc_A.data);
+            const bool has_zero_dim = mdw_desc_A.has_zero_dim();
+
             // default op desc ctor
             auto op_desc = op_desc_t();
             // regular op desc ctor
@@ -106,7 +109,8 @@ protected:
             // regular pd ctor
             ASSERT_NO_THROW(pd = pd_t(op_desc, eng));
             // test all pd ctors
-            test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
+            if (!has_zero_dim)
+                test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
 
             // default primitive ctor
             auto prim = binary();
@@ -134,10 +138,15 @@ protected:
 
             const auto test_engine = pd.get_engine();
 
-            auto mem_A = memory(src0_desc, test_engine);
-            auto mem_B = memory(src1_desc, test_engine);
-            auto mem_C = memory(dst_desc, test_engine);
-            auto mem_ws = memory(workspace_desc, test_engine);
+            auto mem_A = test::make_memory(src0_desc, test_engine);
+            auto mem_B = test::make_memory(src1_desc, test_engine);
+            auto mem_C = test::make_memory(dst_desc, test_engine);
+            auto mem_ws = test::make_memory(workspace_desc, test_engine);
+
+            fill_data<src0_data_t>(
+                    src0_desc.get_size() / sizeof(src0_data_t), mem_A);
+            fill_data<src1_data_t>(
+                    src1_desc.get_size() / sizeof(src1_data_t), mem_B);
 
             fill_data<src0_data_t>(
                     src0_desc.get_size() / sizeof(src0_data_t), mem_A);

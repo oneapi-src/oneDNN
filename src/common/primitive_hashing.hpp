@@ -218,7 +218,7 @@ struct key_t {
     std::vector<memory_desc_t> mds;
     engine_kind_t engine_kind_;
     runtime_kind_t runtime_kind_;
-    intptr_t device_id_;
+    device_id_t device_id_;
 
 private:
     void init_mds(const primitive_desc_t *pd);
@@ -290,8 +290,9 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
                 seed, hash_combine(0, static_cast<size_t>(key.engine_kind_)));
         seed = hash_combine(
                 seed, hash_combine(0, static_cast<size_t>(key.runtime_kind_)));
-        seed = hash_combine(
-                seed, hash_combine(0, static_cast<size_t>(key.device_id_)));
+        seed = hash_combine(seed, hash_combine(0, std::get<0>(key.device_id_)));
+        seed = hash_combine(seed, hash_combine(0, std::get<1>(key.device_id_)));
+        seed = hash_combine(seed, hash_combine(0, std::get<2>(key.device_id_)));
         // Combine hash for op_desc with the computed hash
 #define CASE(pkind) \
     case primitive_kind::pkind: \

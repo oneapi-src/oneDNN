@@ -96,8 +96,8 @@ public:
     virtual cl_device_id device() const { return device_; }
     virtual cl_context context() const { return context_; }
 
-    intptr_t device_id() const override {
-        return reinterpret_cast<intptr_t>(device());
+    device_id_t device_id() const override {
+        return std::make_tuple(0, reinterpret_cast<uint64_t>(device()), 0);
     }
 
 protected:

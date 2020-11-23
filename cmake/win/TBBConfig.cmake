@@ -56,15 +56,16 @@ else()
     set(_tbb_arch_subdir ${_tbb_x32_subdir})
 endif()
 
-if (NOT MSVC)
-    message(FATAL_ERROR "This Intel TBB package is intended to be used only in the project with MSVC")
-endif()
-
 # Detect the most relevant MSVC subdirectory
 set(_tbb_msvc_1700_subdir vc11)
 set(_tbb_msvc_1800_subdir vc12)
 set(_tbb_msvc_1900_subdir vc14)
-set(_tbb_msvc_ver ${MSVC_VERSION})
+
+# oneDNN changes: if the project is not with MSVC, try to use MSVC 1900
+set(_tbb_msvc_ver 1900)
+if (MSVC)
+    set(_tbb_msvc_ver ${MSVC_VERSION})
+endif()
 if (MSVC_VERSION VERSION_LESS 1700)
     message(FATAL_ERROR "This Intel TBB package is intended to be used only in the project with MSVC version 1700 (vc11) or higher")
 elseif (MSVC_VERSION VERSION_GREATER 1900)

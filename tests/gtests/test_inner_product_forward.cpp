@@ -138,11 +138,12 @@ protected:
         ip_primitive_desc = inner_product_forward::primitive_desc(
                 ip_primitive_desc.get()); // test construction from a C pd
 
-        memory ip_src(ip_primitive_desc.src_desc(), eng);
-        memory ip_weights(ip_primitive_desc.weights_desc(), eng);
-        memory ip_bias(ip_primitive_desc.bias_desc(), eng);
-        memory ip_dst(ip_primitive_desc.dst_desc(), eng);
-        memory dst_ref(ip_primitive_desc.dst_desc(), eng);
+        auto ip_src = test::make_memory(ip_primitive_desc.src_desc(), eng);
+        auto ip_weights
+                = test::make_memory(ip_primitive_desc.weights_desc(), eng);
+        auto ip_bias = test::make_memory(ip_primitive_desc.bias_desc(), eng);
+        auto ip_dst = test::make_memory(ip_primitive_desc.dst_desc(), eng);
+        auto dst_ref = test::make_memory(ip_primitive_desc.dst_desc(), eng);
 
         fill_data<data_t>(
                 ip_src.get_desc().get_size() / sizeof(data_t), ip_src);

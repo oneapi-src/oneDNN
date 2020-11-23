@@ -331,8 +331,8 @@ protected:
     }
 
     void Forward() {
-        memory src(*src_desc, eng);
-        memory dst(*dst_desc, eng);
+        auto src = test::make_memory(*src_desc, eng);
+        auto dst = test::make_memory(*dst_desc, eng);
 
         fill_data<data_t>(src.get_desc().get_size() / sizeof(data_t), src);
         fill_data<data_t>(dst.get_desc().get_size() / sizeof(data_t), dst);
@@ -347,7 +347,7 @@ protected:
                     = pooling_forward::primitive_desc(pool_desc, eng);
 
             auto p_workspace_desc = prim_desc.pool_prim_desc.workspace_desc();
-            workspace = memory(p_workspace_desc, eng);
+            workspace = test::make_memory(p_workspace_desc, eng);
 
             pooling_forward(prim_desc.pool_prim_desc)
                     .execute(strm,
@@ -362,7 +362,7 @@ protected:
 
             auto p_workspace_desc
                     = prim_desc.pool_v2_prim_desc.workspace_desc();
-            workspace = memory(p_workspace_desc, eng);
+            workspace = test::make_memory(p_workspace_desc, eng);
 
             pooling_v2_forward(prim_desc.pool_v2_prim_desc)
                     .execute(strm,
@@ -376,8 +376,8 @@ protected:
     }
 
     void Backward() {
-        memory diff_src(*src_desc, eng);
-        memory diff_dst(*dst_desc, eng);
+        auto diff_src = test::make_memory(*src_desc, eng);
+        auto diff_dst = test::make_memory(*dst_desc, eng);
 
         fill_data<data_t>(
                 diff_dst.get_desc().get_size() / sizeof(data_t), diff_dst);

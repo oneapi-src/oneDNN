@@ -66,8 +66,8 @@ int find_negative(dnnl_memory_t mem, int n_dims, const dnnl_dim_t dims[]) {
 
 void cross_engine_reorder() {
     dnnl_engine_t engine_cpu, engine_gpu;
-    CHECK(dnnl_engine_create(&engine_cpu, dnnl_cpu, 0));
-    CHECK(dnnl_engine_create(&engine_gpu, dnnl_gpu, 0));
+    CHECK(dnnl_engine_create(&engine_cpu, validate_engine_kind(dnnl_cpu), 0));
+    CHECK(dnnl_engine_create(&engine_gpu, validate_engine_kind(dnnl_gpu), 0));
 
     dnnl_dim_t tz[4] = {2, 16, 1, 1};
 

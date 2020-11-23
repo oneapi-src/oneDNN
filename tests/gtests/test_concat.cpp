@@ -127,7 +127,7 @@ protected:
         std::vector<memory> srcs;
         for (size_t i = 0; i < p.srcs_cds.size(); i++) {
             auto md = memory::desc(p.srcs_cds[i], data_type, p.srcs_format[i]);
-            auto src_memory = memory(md, eng);
+            auto src_memory = test::make_memory(md, eng);
             const size_t sz = src_memory.get_desc().get_size() / sizeof(data_t);
             fill_data<data_t>(sz, src_memory);
             check_zero_tail<data_t>(1, src_memory);
@@ -148,7 +148,7 @@ protected:
                                 query::exec_arg_md, DNNL_ARG_MULTIPLE_SRC + i)
                     == concat_pd.src_desc(i));
 
-        auto dst = memory(concat_pd.dst_desc(), eng);
+        auto dst = test::make_memory(concat_pd.dst_desc(), eng);
         fill_data<data_t>(dst.get_desc().get_size() / sizeof(data_t), dst);
         check_zero_tail<data_t>(1, dst);
 

@@ -178,7 +178,7 @@ protected:
                                 {DNNL_ARG_DIFF_SRC, c_diff_src.get()}});
         strm.wait();
 
-        auto ref_memory = memory(c_src_desc, eng);
+        auto ref_memory = test::make_memory(c_src_desc, eng);
         compute_ref_conv_bwd_data<data_t_diff_dst, data_t_wei, data_t_acc,
                 data_t_diff_src>(
                 cd, ref_memory, c_weights.get(), c_diff_dst.get());

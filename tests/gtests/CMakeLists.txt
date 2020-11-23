@@ -14,6 +14,11 @@
 # limitations under the License.
 #===============================================================================
 
+# XXX: Intel(R) oneAPI DPC++ Compiler doesn't support SEH with -fsycl option
+if(WIN32 AND DNNL_SYCL_DPCPP)
+    add_definitions(-DGTEST_HAS_SEH=0)
+endif()
+
 add_subdirectory (gtest)
 
 set(APP_NAME "gtest")
@@ -135,18 +140,23 @@ if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
             PROPERTIES COMPILE_FLAGS "/O1")
 endif()
 
+# Higher optimization levels cause access violation in _CxxThrowException.
+if(WIN32 AND DNNL_SYCL_DPCPP)
+    set_source_files_properties(
+            test_iface_runtime_dims.cpp
+            PROPERTIES COMPILE_FLAGS "-O1")
+endif()
+
 # Tests that don't support '--engine' parameter
 set_source_files_properties(test_cross_engine_reorder.cpp
         PROPERTIES NO_ENGINE_PARAM true)
 
-foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
-    get_filename_component(exe ${TEST_FILE} NAME_WE)
-
-    add_executable(${exe} ${MAIN_SRC_GTEST} ${TEST_FILE})
-    maybe_configure_windows_test(${exe} TARGET)
+function(register_gtest exe src)
+    add_executable(${exe} ${MAIN_SRC_GTEST} ${src})
+    add_definitions(-DNOMINMAX) # to allow std::max on Windows with parentheses
     target_link_libraries(${exe} ${LIB_NAME} dnnl_gtest ${EXTRA_SHARED_LIBS})
 
-    get_source_file_property(no_engine_param ${TEST_FILE} NO_ENGINE_PARAM)
+    get_source_file_property(no_engine_param ${src} NO_ENGINE_PARAM)
 
     if (NOT no_engine_param)
         target_compile_definitions(${exe} PUBLIC
@@ -163,6 +173,27 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
         add_dnnl_test(${exe} ${exe})
         maybe_configure_windows_test(${exe} TEST)
     endif()
+endfunction()
+
+set(skip_usm_pattern "^$") # no skip by default
+if(DNNL_SYCL_DPCPP)
+    # - cross_engine_reorder creates usm pointers on CPU and GPU that belong to
+    #   the different context, which causes synchronization issues.
+    #   FIXME: the library should handle this case gracefully.
+    set(skip_usm_pattern "(test_cross_engine_reorder)")
+endif()
+
+foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
+    get_filename_component(exe ${TEST_FILE} NAME_WE)
+    if(NOT ${exe} MATCHES "${skip_usm_pattern}")
+        register_gtest(${exe} ${TEST_FILE})
+    endif()
+
+    # Create additional buffer targets for SYCL.
+    if(DNNL_SYCL_DPCPP)
+        register_gtest(${exe}_buffer ${TEST_FILE})
+        target_compile_definitions(${exe}_buffer PUBLIC -DTEST_DNNL_DPCPP_BUFFER)
+    endif()
 endforeach()
 
 add_subdirectory(api)
@@ -170,6 +201,10 @@ add_subdirectory(internals)
 
 if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
+endif()
+
+if(DNNL_WITH_SYCL)
+    add_subdirectory(sycl)
 endif()
 
 # vim: et ts=4 sw=4

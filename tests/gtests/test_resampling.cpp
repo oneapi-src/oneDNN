@@ -276,9 +276,9 @@ protected:
                     resampling_pd.dst_desc(), resampling_pd_no_dst.dst_desc());
         }
 
-        memory src(resampling_pd.src_desc(), eng);
-        memory dst(resampling_pd.dst_desc(), eng);
-        memory dst_ref(resampling_pd.dst_desc(), eng);
+        auto src = test::make_memory(resampling_pd.src_desc(), eng);
+        auto dst = test::make_memory(resampling_pd.dst_desc(), eng);
+        auto dst_ref = test::make_memory(resampling_pd.dst_desc(), eng);
 
         fill_data<data_t>(src.get_desc().get_size() / sizeof(data_t), src);
         check_zero_tail<data_t>(1, src);
@@ -301,9 +301,12 @@ protected:
         auto resampling_bwd_pd = resampling_backward::primitive_desc(
                 resampling_bwd_desc, eng, resampling_pd);
 
-        memory diff_src(resampling_bwd_pd.diff_src_desc(), eng);
-        memory diff_dst(resampling_bwd_pd.diff_dst_desc(), eng);
-        memory diff_src_ref(resampling_bwd_pd.diff_src_desc(), eng);
+        auto diff_src
+                = test::make_memory(resampling_bwd_pd.diff_src_desc(), eng);
+        auto diff_dst
+                = test::make_memory(resampling_bwd_pd.diff_dst_desc(), eng);
+        auto diff_src_ref
+                = test::make_memory(resampling_bwd_pd.diff_src_desc(), eng);
 
         fill_data<data_t>(
                 diff_dst.get_desc().get_size() / sizeof(data_t), diff_dst);

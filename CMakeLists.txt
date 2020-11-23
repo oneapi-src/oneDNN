@@ -72,7 +72,7 @@ endif()
 
 set(PROJECT_NAME "oneDNN")
 set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library (oneDNN)")
-set(PROJECT_VERSION "1.8.0")
+set(PROJECT_VERSION "2.0.0")
 
 set(LIB_NAME dnnl)
 
@@ -115,6 +115,7 @@ include("cmake/mkldnn_compat.cmake")
 
 include("cmake/utils.cmake")
 include("cmake/options.cmake")
+include("cmake/SYCL.cmake")
 include("cmake/OpenMP.cmake")
 include("cmake/TBB.cmake")
 include("cmake/Threadpool.cmake")
@@ -139,6 +140,16 @@ endif()
 enable_testing()
 
 include_directories(include)
+
+if(DNNL_CPU_SYCL)
+    if(TBB_FOUND)
+        set(DNNL_CPU_THREADING_RUNTIME "TBB")
+    else()
+        set(DNNL_CPU_THREADING_RUNTIME "SEQ")
+    endif()
+else()
+    set(DNNL_CPU_THREADING_RUNTIME "${DNNL_CPU_RUNTIME}")
+endif()
 
 configure_file(
     "${PROJECT_SOURCE_DIR}/include/oneapi/dnnl/dnnl_config.h.in"

@@ -16,7 +16,7 @@
 *******************************************************************************/
 #endif
 
-#include "dnnl.hpp"
+#include "oneapi/dnnl/dnnl.hpp"
 
 #define EXPAND_FORMATS(src, weights, bias, dst) \
     { \

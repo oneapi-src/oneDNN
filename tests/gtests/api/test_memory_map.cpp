@@ -140,7 +140,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_cpp_t, Map) {
     const dnnl::memory::dim N = 7;
     memory::desc mem_d({N}, memory::data_type::f32, memory::format_tag::x);
 
-    memory mem_ref(mem_d, eng);
+    auto mem_ref = test::make_memory(mem_d, eng);
 
     float buffer_ref[N];
     std::iota(buffer_ref, buffer_ref + N, 1);
@@ -149,7 +149,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_P(memory_map_test_cpp_t, Map) {
     std::copy(buffer_ref, buffer_ref + N, mapped_ptr_ref);
     mem_ref.unmap_data(mapped_ptr_ref);
 
-    memory mem(mem_d, eng);
+    auto mem = test::make_memory(mem_d, eng);
 
     reorder::primitive_desc reorder_pd(
             eng, mem_d, eng, mem_d, primitive_attr());

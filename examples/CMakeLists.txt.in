@@ -49,12 +49,14 @@ include_directories(${DNNLROOT}/examples)
 enable_testing()
 
 if(UNIX OR MINGW)
-    set(LIBM m)
+    find_library(LIBM m)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
     if(NOT APPLE)
         set(CMAKE_EXE_LINKER_FLAGS "-Wl,--as-needed")
     endif()
+    # XXX: DPC++ compiler generates a lot of warnings
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
 endif()
 
 if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
@@ -80,6 +82,15 @@ else()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     endif()
 endif()
+
+if(WIN32 AND DNNL_SYCL_DPCPP)
+    # Ignore warning LNK4078: multiple '__CLANG_OFFLOAD_BUNDLE__sycl-spi'
+    # sections found with different attributes
+    append(CMAKE_EXE_LINKER_FLAGS "-Xlinker /IGNORE:4078")
+endif()
+
+find_package(dnnl @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${DNNLROOT})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DNNL_COMPILE_FLAGS}")
 
 if(WIN32)
     set(CTESTCONFIG_PATH "${DNNLROOT}\\bin")
@@ -112,7 +123,6 @@ endfunction()
 #   test -- "test" to mark executable as a test, "" otherwise
 function(register_example name srcs test)
     add_executable(${name} ${srcs})
-    find_package(dnnl @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${DNNLROOT})
     target_link_libraries(${name} DNNL::dnnl ${LIBM})
     if("x${test}" STREQUAL "xtest")
         add_test(${name} ${name})
@@ -135,25 +145,28 @@ foreach(src ${sources})
             example_name ${example_name})
     endforeach()
 
-    if(${example_name} MATCHES "(cpu-)")
-        # Example name contains cpu-
-        register_example(${example_name} ${src} "test" ${LIBM})
-    elseif(${example_name} MATCHES "^(cross-engine|gpu)")
-        # Example Name contains cross-engine or gpu-
-        if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+    if(${example_name} MATCHES "(cross-engine|cpu|gpu)-")
+        # Example name contains cross-engine, cpu or gpu
+        if(NOT ${example_name} MATCHES ".*opencl" OR DNNL_GPU_RUNTIME STREQUAL "OCL")
             register_example(${example_name} ${src} "test" ${LIBM})
         endif()
     else()
-        register_example(${example_name} ${src} "" ${LIBM})
-
-        # Adding test for CPU
-        add_test("cpu-${example_name}" "${example_name}" cpu)
-        maybe_configure_test("cpu-${example_name}" TEST)
-
-        # Adding test for GPU
-        if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+        set(cpu_rt_pattern "(SEQ|OMP|TBB|SYCL|DPCPP)")
+        set(gpu_rt_pattern "(OCL|SYCL|DPCPP)")
+        if(${example_name} MATCHES "sycl.*")
+            set(cpu_rt_pattern "(SYCL|DPCPP)")
+            set(gpu_rt_pattern "(SYCL|DPCPP)")
+        endif()
+        if(DNNL_CPU_RUNTIME MATCHES ${cpu_rt_pattern})
+            # Adding test for CPU
+            add_test("cpu-${example_name}" "${example_name}" cpu)
+            maybe_configure_test("cpu-${example_name}" TEST)
+        endif()
+        if(DNNL_GPU_RUNTIME MATCHES ${gpu_rt_pattern})
+            # Adding test for GPU
             add_test("gpu-${example_name}" "${example_name}" gpu)
             maybe_configure_test("gpu-${example_name}" TEST)
         endif()
+        register_example(${example_name} ${src} "" ${LIBM})
     endif()
 endforeach()

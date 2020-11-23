@@ -102,17 +102,24 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
     CHECK(dnnl_memory_get_memory_desc(mem, &md));
     size_t bytes = dnnl_memory_desc_get_size(md);
 
-    if (eng_kind == dnnl_cpu) {
-        void *ptr = NULL;
-        CHECK(dnnl_memory_get_data_handle(mem, &ptr));
-        if (ptr) {
+#if DNNL_WITH_SYCL
+    bool is_cpu_sycl
+            = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_cpu);
+    bool is_gpu_sycl
+            = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_gpu);
+    if (is_cpu_sycl || is_gpu_sycl) {
+        void *mapped_ptr = NULL;
+        CHECK(dnnl_memory_map_data(mem, &mapped_ptr));
+        if (mapped_ptr) {
             for (size_t i = 0; i < bytes; ++i) {
-                ((char *)handle)[i] = ((char *)ptr)[i];
+                ((char *)handle)[i] = ((char *)mapped_ptr)[i];
             }
-        } else {
-            handle = NULL;
         }
+        CHECK(dnnl_memory_unmap_data(mem, mapped_ptr));
+        return;
     }
+#endif
+
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (eng_kind == dnnl_gpu) {
         dnnl_stream_t s;
@@ -158,17 +165,24 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
     CHECK(dnnl_memory_get_memory_desc(mem, &md));
     size_t bytes = dnnl_memory_desc_get_size(md);
 
-    if (eng_kind == dnnl_cpu) {
-        void *ptr = NULL;
-        CHECK(dnnl_memory_get_data_handle(mem, &ptr));
-        if (ptr) {
+#if DNNL_WITH_SYCL
+    bool is_cpu_sycl
+            = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_cpu);
+    bool is_gpu_sycl
+            = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_gpu);
+    if (is_cpu_sycl || is_gpu_sycl) {
+        void *mapped_ptr = NULL;
+        CHECK(dnnl_memory_map_data(mem, &mapped_ptr));
+        if (mapped_ptr) {
             for (size_t i = 0; i < bytes; ++i) {
-                ((char *)ptr)[i] = ((char *)handle)[i];
+                ((char *)mapped_ptr)[i] = ((char *)handle)[i];
             }
-        } else {
-            handle = NULL;
         }
+        CHECK(dnnl_memory_unmap_data(mem, mapped_ptr));
+        return;
     }
+#endif
+
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (eng_kind == dnnl_gpu) {
         dnnl_stream_t s;

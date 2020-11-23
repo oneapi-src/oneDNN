@@ -45,7 +45,8 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     //
     // This optimization is skipped when testing reorder, sum and concat
     // primitives because they are used specifically to test GPU reorders.
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#if (DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL) \
+        || (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL)
     std::string driver = std::string(driver_name);
     bool is_reorder_related_driver = (driver == std::string("reorder")
             || driver == std::string("sum") || driver == std::string("concat"));
@@ -59,8 +60,10 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
         if (status == dnnl_success) {
             // Create CPU memory objects wrapping mapped pointers of source and
             // destination
-            r_src.reset(new dnn_mem_t(src.md_, cpu_engine, (void *)src));
-            r_dst.reset(new dnn_mem_t(dst.md_, cpu_engine, (void *)dst));
+            r_src.reset(new dnn_mem_t(dnn_mem_t::create_from_host_ptr(
+                    src.md_, cpu_engine, (void *)src)));
+            r_dst.reset(new dnn_mem_t(dnn_mem_t::create_from_host_ptr(
+                    dst.md_, cpu_engine, (void *)dst)));
         }
     }
 #endif

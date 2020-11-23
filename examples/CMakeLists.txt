@@ -33,9 +33,33 @@ append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/examples)
 
-set_if(UNIX LIBM m)
+if(UNIX)
+    find_library(LIBM m)
+endif()
 
 file(GLOB_RECURSE sources *.cpp *.c)
+file(GLOB_RECURSE headers *.hpp *.h)
+
+# Skip SYCL, GPU and cross-engine examples
+foreach(f ${sources})
+    get_filename_component(f_name ${f} NAME)
+    if(DNNL_GPU_RUNTIME STREQUAL "NONE" AND ${f_name} MATCHES "^(cross_engine|gpu)")
+        list(REMOVE_ITEM sources "${f}")
+    endif()
+    if(NOT DNNL_WITH_SYCL AND ${f_name} MATCHES "^sycl")
+        list(REMOVE_ITEM sources "${f}")
+    endif()
+endforeach()
+
+# In case of SYCL, skip CPU examples that directly work with raw pointers
+if(DNNL_CPU_SYCL)
+    foreach(f ${sources})
+        get_filename_component(fname ${f} NAME)
+        if(${fname} MATCHES "cpu_")
+            list(REMOVE_ITEM sources "${f}")
+        endif()
+    endforeach()
+endif()
 
 foreach(src ${sources})
     file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR} ${src})
@@ -48,40 +72,44 @@ foreach(src ${sources})
             example_name ${example_name})
     endforeach()
 
-    if(${example_name} MATCHES "(cpu-)")
-        # Example name contains cpu-
-        register_exe(${example_name} ${src} "test" ${LIBM})
-    elseif(${example_name} MATCHES "^(cross-engine|gpu)")
-        # Example name contains cross-engine or gpu-
-        if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+    if(${example_name} MATCHES "(cross-engine|cpu|gpu)-")
+        # Example name contains cross-engine, cpu or gpu
+        if(NOT ${example_name} MATCHES ".*opencl" OR DNNL_GPU_RUNTIME STREQUAL "OCL")
             register_exe(${example_name} ${src} "test" ${LIBM})
         endif()
     else()
-        register_exe(${example_name} ${src} "" ${LIBM})
-
-        # Adding test for CPU
-        add_dnnl_test("cpu-${example_name}" "${example_name}" cpu)
-        maybe_configure_windows_test("cpu-${example_name}" TEST)
-
-        # Adding test for GPU
-        if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
-           add_dnnl_test("gpu-${example_name}" "${example_name}" gpu)
-           maybe_configure_windows_test("gpu-${example_name}" TEST)
+        set(cpu_rt_pattern "(SEQ|OMP|TBB|SYCL|DPCPP)")
+        set(gpu_rt_pattern "(OCL|SYCL|DPCPP)")
+        if(${example_name} MATCHES "sycl.*")
+            set(cpu_rt_pattern "(SYCL|DPCPP)")
+            set(gpu_rt_pattern "(SYCL|DPCPP)")
         endif()
+        if(DNNL_CPU_RUNTIME MATCHES ${cpu_rt_pattern})
+            # Adding test for CPU
+            add_dnnl_test("cpu-${example_name}" "${example_name}" cpu)
+            maybe_configure_windows_test("cpu-${example_name}" TEST)
+        endif()
+        if(DNNL_GPU_RUNTIME MATCHES ${gpu_rt_pattern})
+            # Adding test for GPU
+            add_dnnl_test("gpu-${example_name}" "${example_name}" gpu)
+            maybe_configure_windows_test("gpu-${example_name}" TEST)
+        endif()
+        register_exe(${example_name} ${src} "" ${LIBM})
     endif()
 endforeach()
 
 if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
-    file(GLOB example_sources
-         "cpu_*.cpp" "c_*.c" "cnn_*.c" "cnn_*.cpp" "rnn_*.cpp" "*.h*")
     configure_file(CMakeLists.txt.in CMakeLists.txt @ONLY)
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/CMakeLists.txt
-        ${example_sources}
+        ${sources} ${headers}
         DESTINATION examples)
-    install(DIRECTORY
-        tutorials
-        DESTINATION examples)
+    # Skip matmul examples with SYCL
+    if(NOT DNNL_WITH_SYCL)
+        install(DIRECTORY
+            tutorials
+            DESTINATION examples)
+    endif()
     if(CMAKE_GENERATOR MATCHES "Visual Studio")
         install(FILES
             ${PROJECT_SOURCE_DIR}/cmake/template.vcxproj.user

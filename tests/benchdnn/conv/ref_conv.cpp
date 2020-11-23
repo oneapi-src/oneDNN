@@ -33,12 +33,16 @@ void exec_conv(get_args_func get_args, const prb_t *prb, dnnl_primitive_t c_ref,
     const auto &scratchpad_md = *dnnl_primitive_desc_query_md(
             pd_ref, dnnl_query_exec_arg_md, DNNL_ARG_SCRATCHPAD);
 
-    dnn_mem_t src_ref(src_m.md_, engine_ref, (void *)src_m);
-    dnn_mem_t wei_ref(wei_m.md_, engine_ref, (void *)wei_m);
+    auto src_ref = dnn_mem_t::create_from_host_ptr(
+            src_m.md_, engine_ref, (void *)src_m);
+    auto wei_ref = dnn_mem_t::create_from_host_ptr(
+            wei_m.md_, engine_ref, (void *)wei_m);
     dnn_mem_t bia_ref;
     if (prb->dir & FLAG_BIA)
-        bia_ref = dnn_mem_t(bia_m.md_, engine_ref, (void *)bia_m);
-    dnn_mem_t dst_ref(dst_m.md_, engine_ref, (void *)dst_m);
+        bia_ref = dnn_mem_t::create_from_host_ptr(
+                bia_m.md_, engine_ref, (void *)bia_m);
+    auto dst_ref = dnn_mem_t::create_from_host_ptr(
+            dst_m.md_, engine_ref, (void *)dst_m);
     dnn_mem_t scratchpad(scratchpad_md, engine_ref);
 
     args_t args = get_args(prb, src_ref, wei_ref, bia_ref, dst_ref);

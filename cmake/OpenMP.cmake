@@ -62,7 +62,7 @@ find_package(OpenMP)
 set_openmp_values_for_old_cmake()
 
 # special case for clang-cl (not recognized by cmake up to 3.17)
-if(NOT OpenMP_CXX_FOUND AND MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if(NOT OpenMP_CXX_FOUND AND MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT DNNL_SYCL_DPCPP)
     # clang-cl and icx will fall under this condition
     # CAVEAT: undocumented variable, may be inappropriate
     if(CMAKE_BASE_NAME STREQUAL "icx")

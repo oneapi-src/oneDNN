@@ -1235,11 +1235,28 @@ void maybe_post_ops(const attr_t &attr, float &val, float sum_val,
 }
 
 engine_t::engine_t(dnnl_engine_kind_t engine_kind) {
+#ifdef DNNL_SYCL_DPCPP
+    if (engine_kind == dnnl_cpu) {
+        static dnnl_engine_t inst = nullptr;
+        if (!inst) DNN_SAFE_V(dnnl_engine_create(&inst, engine_kind, 0));
+        engine_ = inst;
+    } else if (engine_kind == dnnl_gpu) {
+        static dnnl_engine_t inst = nullptr;
+        if (!inst) DNN_SAFE_V(dnnl_engine_create(&inst, engine_kind, 0));
+        engine_ = inst;
+    } else
+        assert(!"unsupported engine_kind");
+#else
     DNN_SAFE_V(dnnl_engine_create(&engine_, engine_kind, 0));
+#endif
 }
 
 engine_t::~engine_t() {
+#ifdef DNNL_SYCL_DPCPP
+    engine_ = NULL;
+#else
     DNN_SAFE_V(dnnl_engine_destroy(engine_));
+#endif
 }
 
 stream_t::stream_t(dnnl_engine_t engine) {

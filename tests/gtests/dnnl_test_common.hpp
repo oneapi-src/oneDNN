@@ -39,8 +39,12 @@
 #include "oneapi/dnnl/dnnl_threadpool.hpp"
 #endif
 
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL || DNNL_WITH_SYCL
 #include "dnnl_test_common_ocl.hpp"
+#endif
+
+#if DNNL_WITH_SYCL
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 #endif
 
 // Don't move it higher than library public headers
@@ -564,6 +568,27 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
     return false;
 }
 
+namespace test {
+inline dnnl::memory make_memory(
+        const dnnl::memory::desc &md, const dnnl::engine &eng) {
+#if defined(TEST_DNNL_DPCPP_BUFFER)
+    return dnnl::sycl_interop::make_memory(
+            md, eng, dnnl::sycl_interop::memory_kind::buffer);
+#else
+    return dnnl::memory(md, eng);
+#endif
+}
+inline dnnl::memory make_memory(
+        const dnnl::memory::desc &md, const dnnl::engine &eng, void *handle) {
+#if defined(TEST_DNNL_DPCPP_BUFFER)
+    return dnnl::sycl_interop::make_memory(
+            md, eng, dnnl::sycl_interop::memory_kind::buffer, handle);
+#else
+    return dnnl::memory(md, eng, handle);
+#endif
+}
+} // namespace test
+
 #define TEST_MALLOC_OFFSET 8
 static char *test_malloc(size_t size) {
     void *ptr;
@@ -591,19 +616,35 @@ static void test_free(char *ptr) {
 class test_memory {
 public:
     test_memory(const memory::desc &d, const dnnl::engine &e) {
-        bool is_cpu_native = (e.get_kind() == dnnl::engine::kind::cpu);
+        bool is_cpu_native = (e.get_kind() == dnnl::engine::kind::cpu)
+                && DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL;
 
         size_ = d.get_size();
         if (is_cpu_native) {
             data_.reset(test_malloc(size_), test_free);
-            mem_ = memory(d, e, data_.get());
+            mem_ = test::make_memory(d, e, data_.get());
         } else {
-            mem_ = memory(d, e);
+            mem_ = test::make_memory(d, e);
         }
         // Fill with a magic number to catch possible uninitialized access
         mapped_ptr_t<char> ptr(&mem_);
         memset(ptr, 0xFF, size_);
     }
+
+#if 0
+    template <typename malloc_t, typename free_t>
+    test_memory(const memory::desc &d, const dnnl::engine &e,
+            const malloc_t &f_malloc, const free_t &f_free) {
+        size_ = d.get_size();
+        data_.reset(static_cast<char *>(f_malloc(size_)), f_free);
+        mem_ = test::make_memory(d, e, data_.get());
+
+        // Fill with a magic number to catch possible uninitialized access
+        mapped_ptr_t<char> ptr(&mem_);
+        memset(ptr, 0xFF, size_);
+    }
+#endif
+
     size_t get_size() const { return size_; }
     const memory &get() const { return mem_; }
 
@@ -628,6 +669,18 @@ inline std::string to_string(dnnl_engine_kind_t engine_kind) {
         ss << "gpu";
     else
         ss << "unknown";
+
+    return ss.str();
+}
+
+inline std::string to_string(dnnl_stream_flags_t stream_flags) {
+    std::stringstream ss;
+    if (stream_flags & dnnl_stream_default_flags)
+        ss << "default";
+    else if (stream_flags & dnnl_stream_in_order)
+        ss << "in_order";
+    else if (stream_flags & dnnl_stream_out_of_order)
+        ss << "out_of_order";
 
     return ss.str();
 }
@@ -886,14 +939,11 @@ void test_bwd_pd_constructors(const op_desc_t &op_desc, const pd_t &pd,
 inline dnnl::stream make_stream(dnnl::engine engine,
         dnnl::stream::flags flags = dnnl::stream::flags::default_flags) {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    if (engine.get_kind() != dnnl::engine::kind::cpu)
-        return dnnl::stream(engine, flags);
-    dnnl::stream_attr stream_attr(dnnl::engine::kind::cpu);
-    stream_attr.set_threadpool(dnnl::testing::get_threadpool());
-    return dnnl::stream(engine, flags, stream_attr);
-#else
-    return dnnl::stream(engine, flags);
+    if (engine.get_kind() == dnnl::engine::kind::cpu)
+        return dnnl::threadpool_interop::make_stream(
+                engine, dnnl::testing::get_threadpool());
 #endif
+    return dnnl::stream(engine, flags);
 }
 
 #endif

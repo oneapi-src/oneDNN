@@ -104,6 +104,9 @@ set(DNNL_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
 # Profiling capabilities
 # ======================
 
+# TODO: restore default to ON after the issue with linking C files by 
+# Intel oneAPI DPC++ Compiler is fixed. Currently this compiler issues a warning
+# when linking object files built from C and C++ sources.
 option(DNNL_ENABLE_JIT_PROFILING
     "Enable registration of oneDNN kernels that are generated at
     runtime with VTune Amplifier (on by default). Without the
@@ -117,12 +120,12 @@ option(DNNL_ENABLE_JIT_PROFILING
 
 set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
     "specifies the threading runtime for CPU engines;
-    supports OMP (default) or TBB.
+    supports OMP (default), TBB or DPCPP (DPC++ CPU engines).
 
     To use Threading Building Blocks (TBB) one should also
     set TBBROOT (either environment variable or CMake option) to the library
     location.")
-if(NOT "${DNNL_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ|THREADPOOL)$")
+if(NOT "${DNNL_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ|THREADPOOL|DPCPP|SYCL)$")
     message(FATAL_ERROR "Unsupported CPU runtime: ${DNNL_CPU_RUNTIME}")
 endif()
 
@@ -141,17 +144,38 @@ set(TBBROOT "" CACHE STRING
 
 set(DNNL_GPU_RUNTIME "NONE" CACHE STRING
     "specifies the runtime to use for GPU engines.
-    Can be NONE (default; no GPU engines) or OCL (OpenCL GPU engines).
+    Can be NONE (default; no GPU engines), OCL (OpenCL GPU engines)
+    or DPCPP (DPC++ GPU engines).
 
     Using OpenCL for GPU requires setting OPENCLROOT if the libraries are
     installed in a non-standard location.")
-if(NOT "${DNNL_GPU_RUNTIME}" MATCHES "^(OCL|NONE)$")
+if(NOT "${DNNL_GPU_RUNTIME}" MATCHES "^(OCL|NONE|DPCPP|SYCL)$")
     message(FATAL_ERROR "Unsupported GPU runtime: ${DNNL_GPU_RUNTIME}")
 endif()
 
 set(OPENCLROOT "" CACHE STRING
     "path to Intel SDK for OpenCL applications.
     Use this option to specify custom location for OpenCL.")
+
+# TODO: move logic to other cmake files?
+# Shortcuts for SYCL/DPC++
+if(DNNL_CPU_RUNTIME STREQUAL "DPCPP" OR DNNL_CPU_RUNTIME STREQUAL "SYCL")
+    set(DNNL_CPU_SYCL true)
+else()
+    set(DNNL_CPU_SYCL false)
+endif()
+
+if(DNNL_GPU_RUNTIME STREQUAL "DPCPP" OR DNNL_GPU_RUNTIME STREQUAL "SYCL")
+    set(DNNL_GPU_SYCL true)
+else()
+    set(DNNL_GPU_SYCL false)
+endif()
+
+if(DNNL_CPU_SYCL OR DNNL_GPU_SYCL)
+    set(DNNL_WITH_SYCL true)
+else()
+    set(DNNL_WITH_SYCL false)
+endif()
 
 # =============
 # Miscellaneous

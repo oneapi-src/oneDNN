@@ -29,8 +29,8 @@ namespace compute {
 // Cache for device_info_t objects. Reuse the already initialized
 // device_info_t objects to save time on HW detection and nGEN binary
 // check.
-using device_info_cache_t = std::unordered_map<intptr_t,
-        std::shared_ptr<device_info_t>>;
+using device_info_cache_t = std::unordered_map<device_id_t,
+        std::shared_ptr<device_info_t>, device_id_hash_t>;
 
 utils::rw_mutex_t &device_info_cache_mutex() {
     static utils::rw_mutex_t m;

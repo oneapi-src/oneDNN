@@ -18,6 +18,7 @@
 
 #include "common.hpp"
 #include "conv/conv_common.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 namespace conv {
 

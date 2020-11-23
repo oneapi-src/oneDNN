@@ -47,7 +47,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     /** get the runtime kind of the current engine */
     dnnl::impl::runtime_kind_t runtime_kind() const { return runtime_kind_; }
 
-    virtual intptr_t device_id() const { return 0; }
+    virtual dnnl::impl::device_id_t device_id() const = 0;
 
     /** create memory storage */
     virtual dnnl::impl::status_t create_memory_storage(
@@ -139,6 +139,8 @@ namespace impl {
 inline runtime_kind_t get_default_runtime(engine_kind_t kind) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (kind == engine_kind::gpu) return runtime_kind::ocl;
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+    if (kind == engine_kind::gpu) return runtime_kind::sycl;
 #endif
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SEQ
     return runtime_kind::seq;
@@ -148,6 +150,8 @@ inline runtime_kind_t get_default_runtime(engine_kind_t kind) {
     return runtime_kind::tbb;
 #elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     return runtime_kind::threadpool;
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+    return runtime_kind::sycl;
 #else
     return runtime_kind::none;
 #endif

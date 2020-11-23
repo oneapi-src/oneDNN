@@ -21,6 +21,7 @@ file(GLOB_RECURSE SOURCES_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/matmul/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/rnn/*.[ch]pp
     )
+
 foreach(SOURCE_FILE ${SOURCES_EXTRA})
     list(APPEND SOURCES "${SOURCE_FILE}")
 endforeach()
@@ -58,6 +59,19 @@ if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STRE
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu_convolution_list.cpp)
     set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
         PROPERTIES COMPILE_FLAGS "/bigobj")
+endif()
+
+if(DNNL_SYCL_DPCPP)
+    set(FILES_WITHNO_OPT)
+    foreach(src in ${SOURCES})
+        string(REGEX MATCH ".*jit.*kern.cpp" match ${src})
+        if(match)
+            list(APPEND FILES_WITHNO_OPT ${src})
+        endif()
+    endforeach()
+
+    set_source_files_properties(${FILES_WITHNO_OPT}
+        PROPERTIES COMPILE_FLAGS "-O0")
 endif()
 
 set(OBJ_LIB ${LIB_NAME}_cpu)
