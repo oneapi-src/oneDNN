@@ -15,7 +15,7 @@ Index
 **Inputs**:
 
 * **1**:  input tensor. **Required.**
-* **2..N**: indices tensor
+* **2**:  indices tensor. **Required.**
 
 **Outputs**
 
