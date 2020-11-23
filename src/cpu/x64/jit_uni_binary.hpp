@@ -119,9 +119,15 @@ struct jit_uni_binary_t : public primitive_t {
             if (src0_d.is_plain() && src1_d.is_plain()) {
                 const auto &bd0 = src0_d.blocking_desc();
                 const auto &bd1 = src1_d.blocking_desc();
-                return bd0.strides[0] >= bd0.strides[1]
+                // only nspc and ncsp formats are supported for bcast
+                return bd0.strides[0]
+                        == utils::array_product(
+                                src0_d.dims() + 1, src0_d.ndims() - 1)
                         && IMPLICATION(bd0.strides[1] > 1,
-                                bd0.strides[1] >= bd0.strides[2])
+                                bd0.strides[1]
+                                        == utils::array_product(
+                                                src0_d.dims() + 2,
+                                                src0_d.ndims() - 2))
                         && bd1.strides[0] >= bd1.strides[1];
             }
 
