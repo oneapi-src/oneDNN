@@ -1073,12 +1073,21 @@ std::string normalize_tag(const std::string &tag_, int ndims) {
     // Handle meta-tags (abx, axb, etc).
     auto pos = tag.find("x");
     if (pos != std::string::npos) {
-        // If ndims is unknown, arbitrarily use 3 dimensions.
-        int meta_ndims = (ndims == -1 ? 3 : ndims);
-        std::string cdef_tail;
-        for (int i = 0; i < meta_ndims - 2; i++)
-            cdef_tail += ('c' + i);
-        return trim_tag(tag.replace(pos, 1, cdef_tail), meta_ndims);
+        // Non-grouped tags will start `x` from `c`, but grouped will most of
+        // times start `x` from `d`.
+        char start_x = 'c';
+        for (char c = 'a' + DNNL_MAX_NDIMS - 1; c >= 'b'; c--) {
+            if (tag.find(c) != std::string::npos) {
+                start_x = c + 1;
+                break;
+            }
+        }
+        // Adjust ndims if they are not specified.
+        int meta_ndims = (ndims == -1 ? (start_x - 'a' + 1) : ndims);
+        std::string tail;
+        for (int i = 0; i < meta_ndims - (start_x - 'a'); i++)
+            tail += (start_x + i);
+        return trim_tag(tag.replace(pos, 1, tail), meta_ndims);
     }
 
     return map_tag_letters(tag);
