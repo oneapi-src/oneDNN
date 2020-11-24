@@ -25,6 +25,7 @@
 #include <map>
 #include <memory>
 #include <vector>
+#include <unordered_map>
 
 #include "common.hpp"
 #include "oneapi/dnnl/dnnl_types.h"
@@ -156,16 +157,15 @@ struct attr_t {
             return it == points.end() ? entry_t() : it->second;
         }
 
-        std::map<int, entry_t>::const_iterator begin() const {
+        std::unordered_map<int, entry_t>::const_iterator begin() const {
             return points.begin();
         }
-        std::map<int, entry_t>::const_iterator end() const {
+        std::unordered_map<int, entry_t>::const_iterator end() const {
             return points.end();
         }
 
         zero_points_t() : points() {} // needed for debug icc190 build;
-
-        std::map<int, entry_t> points;
+        std::unordered_map<int, entry_t> points;
     };
 
     struct arg_scales_t {
