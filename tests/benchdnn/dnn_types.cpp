@@ -1098,9 +1098,10 @@ void maybe_oscale(const attr_t &attr, float &d, float *scales, int64_t oc) {
 
 void maybe_zero_point(const attr_t &attr, float &d, const int32_t *zero_points,
         int64_t c, int arg, bool opposite_zero_point) {
-    const auto &e = attr.zero_points.get(arg);
+    if (attr.zero_points.is_def()) return;
 
-    if (!attr.zero_points.is_def(arg)) {
+    const auto &e = attr.zero_points.get(arg);
+    if (!e.is_def()) {
         const int idx = e.policy == policy_t::COMMON ? 0 : c;
         const int zp_sign = opposite_zero_point ? -1 : 1;
         d -= zp_sign * zero_points[idx];
