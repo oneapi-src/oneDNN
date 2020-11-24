@@ -39,22 +39,12 @@ list(APPEND EXTRA_SHARED_LIBS "${CMAKE_THREAD_LIBS_INIT}")
 
 # A macro to avoid code duplication
 macro(find_package_tbb)
-    # Try to find TBB using a TBB-provided CMake config file.
-    find_package(TBB QUIET COMPONENTS tbb)
-    # If the previous `find_package` call failed then try to
-    # use a TBB CMake config file that is maintained by oneDNN.
-    # The reason the previous call may fail is that TBB package is
-    # very old and doesn't provide a CMake config file.
-    if(NOT TBB_FOUND)
-        message(STATUS "TBB-provided CMake config either failed or was not found. Trying to use a custom one.")
-        set(_cmake_proj_dir "${PROJECT_SOURCE_DIR}/cmake")
-        if(WIN32)
-            find_package(TBB ${ARGN} COMPONENTS tbb HINTS ${_cmake_proj_dir}/win)
-        elseif(APPLE)
-            find_package(TBB ${ARGN} COMPONENTS tbb HINTS ${_cmake_proj_dir}/mac)
-        elseif(UNIX)
-            find_package(TBB ${ARGN} COMPONENTS tbb HINTS ${_cmake_proj_dir}/lnx)
-        endif()
+    if(WIN32)
+        find_package(TBB ${ARGN} COMPONENTS tbb)
+    elseif(APPLE)
+        find_package(TBB ${ARGN} COMPONENTS tbb)
+    elseif(UNIX)
+        find_package(TBB ${ARGN} COMPONENTS tbb)
     endif()
 
     if(TBB_FOUND)
