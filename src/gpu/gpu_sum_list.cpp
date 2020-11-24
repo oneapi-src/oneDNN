@@ -18,6 +18,7 @@
 
 #include "common/utils.hpp"
 #include "gpu/gpu_sum_pd.hpp"
+#include "gpu/ocl/gen9_sum.hpp"
 #include "gpu/ocl/ref_sum.hpp"
 #include "gpu/ocl/simple_sum.hpp"
 
@@ -30,6 +31,7 @@ using spd_create_f = engine_t::sum_primitive_desc_create_f;
 namespace {
 #define INSTANCE(...) __VA_ARGS__::pd_t::create
 const spd_create_f sum_impl_list[] = {
+        INSTANCE(ocl::gen9_sum_t),
         INSTANCE(ocl::simple_sum_t<data_type::f32>),
         INSTANCE(ocl::ref_sum_t),
         nullptr,
