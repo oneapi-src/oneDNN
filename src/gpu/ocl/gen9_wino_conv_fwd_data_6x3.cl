@@ -37,6 +37,10 @@
 #define COMP_BLOCK 8
 #define COMP_DATA_T CONCAT2(DATA_T, COMP_BLOCK)
 #define AS_COMP_DATA_T CONCAT2(as_, COMP_DATA_T)
+#define COMP_READ(ptr) CONCAT2(vload, COMP_BLOCK)(0, ptr)
+#define COMP_WRITE(data, ptr) CONCAT2(vstore, COMP_BLOCK)(data, 0, ptr)
+#define COMP_BLOCK_READ(ptr) \
+    AS_COMP_DATA_T(BLOCK_READ8((const __global BLOCK_DATA_T *)ptr))
 
 #define COMP_UNROLL 2
 
@@ -51,9 +55,6 @@
             (ptr)[_i] = result[_i]; \
         } \
     } while (0)
-
-#define UCOMP_BLOCK_READ(ptr) \
-    AS_COMP_DATA_T(BLOCK_READ8((const __global BLOCK_DATA_T *)ptr))
 
 static inline int off_nCdhw16c(
         int n, int c, int d, int h, int w, int C, int D, int H, int W) {
@@ -179,56 +180,36 @@ gen9_wino_wei_transform_6x3(
     uint in_idx = wei_off(0, oc0, ic, 0, in_kh, in_kw);
     bool is_valid = ic < IC && oc0 < OC;
 
-    UTRANS_DATA_T g0, g1, g2;
-    g0 = is_valid ? UTRANS_BLOCK_READ(&weights[in_idx]) : 0;
-    in_idx += wei_off(0, 0, 0, 0, 1, 0);
-    g1 = is_valid ? UTRANS_BLOCK_READ(&weights[in_idx]) : 0;
-    in_idx += wei_off(0, 0, 0, 0, 1, 0);
-    g2 = is_valid ? UTRANS_BLOCK_READ(&weights[in_idx]) : 0;
+    UTRANS_DATA_T g[WINO_R];
+    for (int i = 0; i < WINO_R; i++) {
+        g[i] = is_valid ? UTRANS_BLOCK_READ(&weights[in_idx]) : 0;
+        in_idx += wei_off(0, 0, 0, 0, 1, 0);
+    }
+
+    UTRANS_DATA_T out_tile[WINO_D];
+    out_tile[0] = g[0];
+    out_tile[1] = TO_TYPE(-2.0 / 9) * (g[0] + g[1] + g[2]);
+    out_tile[2] = TO_TYPE(2.0 / 9) * (-g[0] + g[1] - g[2]);
+    out_tile[3] = TO_TYPE(1.0 / 90) * g[0] + TO_TYPE(2.0 / 90) * g[1]
+            + TO_TYPE(4.0 / 90) * g[2];
+    out_tile[4] = TO_TYPE(1.0 / 90) * g[0] - TO_TYPE(2.0 / 90) * g[1]
+            + TO_TYPE(4.0 / 90) * g[2];
+    out_tile[5] = TO_TYPE(64.0 / 90) * g[0] + TO_TYPE(32.0 / 90) * g[1]
+            + TO_TYPE(16.0 / 90) * g[2];
+    out_tile[6] = TO_TYPE(64.0 / 90) * g[0] - TO_TYPE(32.0 / 90) * g[1]
+            + TO_TYPE(16.0 / 90) * g[2];
+    out_tile[7] = g[2];
 
     uint out_idx = U_off(oc0, ic, out_kh, out_kw);
 
-    UTRANS_BLOCK_WRITE(g0, &U[out_idx]);
-    out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE(TO_TYPE(-2.0 / 9) * (g0 + g1 + g2), &U[out_idx]);
-    out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE(TO_TYPE(2.0 / 9) * (-g0 + g1 - g2), &U[out_idx]);
-    out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE(TO_TYPE(1.0 / 90) * g0 + TO_TYPE(2.0 / 90) * g1
-                    + TO_TYPE(4.0 / 90) * g2,
-            &U[out_idx]);
-    out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE(TO_TYPE(1.0 / 90) * g0 - TO_TYPE(2.0 / 90) * g1
-                    + TO_TYPE(4.0 / 90) * g2,
-            &U[out_idx]);
-    out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE(TO_TYPE(64.0 / 90) * g0 + TO_TYPE(32.0 / 90) * g1
-                    + TO_TYPE(16.0 / 90) * g2,
-            &U[out_idx]);
-    out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE(TO_TYPE(64.0 / 90) * g0 - TO_TYPE(32.0 / 90) * g1
-                    + TO_TYPE(16.0 / 90) * g2,
-            &U[out_idx]);
-    out_idx += U_off(0, 0, 1, 0);
-    UTRANS_BLOCK_WRITE(g2, &U[out_idx]);
+    unroll_for(int i = 0; i < WINO_D; i++) {
+        UTRANS_BLOCK_WRITE(out_tile[i], &U[out_idx]);
+        out_idx += U_off(0, 0, 1, 0);
+    }
 }
 
-#define DOT8i_0(_result, _A, _B, i) \
-    { _result = mad(_A.s0, sub_group_broadcast(_B.s0, i), _result); }
-#define DOT8i_1(_result, _A, _B, i) \
-    { _result = mad(_A.s1, sub_group_broadcast(_B.s1, i), _result); }
-#define DOT8i_2(_result, _A, _B, i) \
-    { _result = mad(_A.s2, sub_group_broadcast(_B.s2, i), _result); }
-#define DOT8i_3(_result, _A, _B, i) \
-    { _result = mad(_A.s3, sub_group_broadcast(_B.s3, i), _result); }
-#define DOT8i_4(_result, _A, _B, i) \
-    { _result = mad(_A.s4, sub_group_broadcast(_B.s4, i), _result); }
-#define DOT8i_5(_result, _A, _B, i) \
-    { _result = mad(_A.s5, sub_group_broadcast(_B.s5, i), _result); }
-#define DOT8i_6(_result, _A, _B, i) \
-    { _result = mad(_A.s6, sub_group_broadcast(_B.s6, i), _result); }
-#define DOT8i_7(_result, _A, _B, i) \
-    { _result = mad(_A.s7, sub_group_broadcast(_B.s7, i), _result); }
+#define DOTi(_result, _A, _B) \
+    { _result = mad(_A, _B, _result); }
 
 __attribute__((reqd_work_group_size(16, 8, 1)))
 __attribute__((intel_reqd_sub_group_size(16))) __kernel void
@@ -271,13 +252,12 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
     int ic0_read = 8 * lxm2;
 
     // Initialize variables to accumulate intermediate output tile
-    OUT_BLOCK_DATA_T M0 = (OUT_BLOCK_DATA_T)(0, 0);
-    OUT_BLOCK_DATA_T M1 = (OUT_BLOCK_DATA_T)(0, 0);
-    OUT_BLOCK_DATA_T M2 = (OUT_BLOCK_DATA_T)(0, 0);
-    OUT_BLOCK_DATA_T M3 = (OUT_BLOCK_DATA_T)(0, 0);
-    OUT_BLOCK_DATA_T M4 = (OUT_BLOCK_DATA_T)(0, 0);
-    OUT_BLOCK_DATA_T M5 = (OUT_BLOCK_DATA_T)(0, 0);
-    OUT_BLOCK_DATA_T M6 = (OUT_BLOCK_DATA_T)(0, 0);
+    const int M_size = OW_BLOCK;
+    DATA_T M[M_size];
+
+    for (int i = 0; i < M_size; i++) {
+        M[i] = 0;
+    }
 
     // Computation is separated into three main stages, load/transform input,
     // compute intermediate output block, and transform/store final output.
@@ -306,88 +286,47 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         // Load and transform ic32ih8iw16 src tile into V
         {
             bool x_in = 0 <= iw && iw < IW && ic0_read + c < IC;
-            bool y0_in = 0 <= (ih + 0) && (ih + 0) < IH && x_in;
-            bool y1_in = 0 <= (ih + 1) && (ih + 1) < IH && x_in;
-            bool y2_in = 0 <= (ih + 2) && (ih + 2) < IH && x_in;
-            bool y3_in = 0 <= (ih + 3) && (ih + 3) < IH && x_in;
-            bool y4_in = 0 <= (ih + 4) && (ih + 4) < IH && x_in;
-            bool y5_in = 0 <= (ih + 5) && (ih + 5) < IH && x_in;
-            bool y6_in = 0 <= (ih + 6) && (ih + 6) < IH && x_in;
-            bool y7_in = 0 <= (ih + 7) && (ih + 7) < IH && x_in;
+            TRANS_DATA_T src[WINO_D];
+            for (int index = 0; index < WINO_D; index++) {
+                bool y_in = 0 <= (ih + index) && (ih + index) < IH && x_in;
+                src[index] = y_in ? *((const __global TRANS_DATA_T *)(src_load
+                                     + src_off(0, 0, 0, index, 0)))
+                                  : 0;
 
-            TRANS_DATA_T src0 = y0_in
-                    ? *((const __global TRANS_DATA_T *)(src_load
-                            + src_off(0, 0, 0, 0, 0)))
-                    : 0;
-            TRANS_DATA_T src1 = y1_in
-                    ? *((const __global TRANS_DATA_T *)(src_load
-                            + src_off(0, 0, 0, 1, 0)))
-                    : 0;
-            TRANS_DATA_T src2 = y2_in
-                    ? *((const __global TRANS_DATA_T *)(src_load
-                            + src_off(0, 0, 0, 2, 0)))
-                    : 0;
-            TRANS_DATA_T src3 = y3_in
-                    ? *((const __global TRANS_DATA_T *)(src_load
-                            + src_off(0, 0, 0, 3, 0)))
-                    : 0;
-            TRANS_DATA_T src4 = y4_in
-                    ? *((const __global TRANS_DATA_T *)(src_load
-                            + src_off(0, 0, 0, 4, 0)))
-                    : 0;
-            TRANS_DATA_T src5 = y5_in
-                    ? *((const __global TRANS_DATA_T *)(src_load
-                            + src_off(0, 0, 0, 5, 0)))
-                    : 0;
-            TRANS_DATA_T src6 = y6_in
-                    ? *((const __global TRANS_DATA_T *)(src_load
-                            + src_off(0, 0, 0, 6, 0)))
-                    : 0;
-            TRANS_DATA_T src7 = y7_in
-                    ? *((const __global TRANS_DATA_T *)(src_load
-                            + src_off(0, 0, 0, 7, 0)))
-                    : 0;
-
-            //Scale input to prevent intermediate computations overflow in some
-            //cases, output is adjusted with the same scale factor after main
-            //computation
-            src0 = src0 * scl_vec;
-            src1 = src1 * scl_vec;
-            src2 = src2 * scl_vec;
-            src3 = src3 * scl_vec;
-            src4 = src4 * scl_vec;
-            src5 = src5 * scl_vec;
-            src6 = src6 * scl_vec;
-            src7 = src7 * scl_vec;
+                //Scale input to prevent intermediate computations overflow in
+                //some cases, output is adjusted with the same scale factor
+                //after main computation
+                src[index] = src[index] * scl_vec;
+            }
 
             // Compute Winograd f6x3 data transform and store components in SLM.
-            V_write[V_off(0, 0, 0, TRANS_BLOCK)]
-                    = src0 - TO_TYPE(5.25) * src2 + TO_TYPE(5.25) * src4 - src6;
+            V_write[V_off(0, 0, 0, TRANS_BLOCK)] = src[0]
+                    - TO_TYPE(5.25) * src[2] + TO_TYPE(5.25) * src[4] - src[6];
 
-            TRANS_DATA_T x0 = src1 - TO_TYPE(4.25) * src3 + src5;
-            TRANS_DATA_T x1 = src2 - TO_TYPE(4.25) * src4 + src6;
+            TRANS_DATA_T x0 = src[1] - TO_TYPE(4.25) * src[3] + src[5];
+            TRANS_DATA_T x1 = src[2] - TO_TYPE(4.25) * src[4] + src[6];
 
             V_write[V_off(0, 1, 0, TRANS_BLOCK)] = x1 + x0;
             V_write[V_off(0, 2, 0, TRANS_BLOCK)] = x1 - x0;
 
-            TRANS_DATA_T x2 = TO_TYPE(-5) * src3 + src1;
-            TRANS_DATA_T x3 = TO_TYPE(4) * src5 + x2;
-            TRANS_DATA_T x4 = TO_TYPE(0.25) * src2 + src6;
-            TRANS_DATA_T x5 = TO_TYPE(-1.25) * src4 + x4;
+            TRANS_DATA_T x2 = TO_TYPE(-5) * src[3] + src[1];
+            TRANS_DATA_T x3 = TO_TYPE(4) * src[5] + x2;
+            TRANS_DATA_T x4 = TO_TYPE(0.25) * src[2] + src[6];
+            TRANS_DATA_T x5 = TO_TYPE(-1.25) * src[4] + x4;
 
             V_write[V_off(0, 3, 0, TRANS_BLOCK)] = TO_TYPE(0.5) * x3 + x5;
             V_write[V_off(0, 4, 0, TRANS_BLOCK)] = TO_TYPE(-0.5) * x3 + x5;
 
-            TRANS_DATA_T x6 = TO_TYPE(4) * src1 + src5;
-            TRANS_DATA_T x7 = TO_TYPE(-5) * src3 + x6;
-            TRANS_DATA_T x8 = TO_TYPE(4) * src2 + src6;
-            TRANS_DATA_T x9 = TO_TYPE(-5) * src4 + x8;
+            TRANS_DATA_T x6 = TO_TYPE(4) * src[1] + src[5];
+            TRANS_DATA_T x7 = TO_TYPE(-5) * src[3] + x6;
+            TRANS_DATA_T x8 = TO_TYPE(4) * src[2] + src[6];
+            TRANS_DATA_T x9 = TO_TYPE(-5) * src[4] + x8;
 
             V_write[V_off(0, 5, 0, TRANS_BLOCK)] = TO_TYPE(+0.5) * x7 + x9;
             V_write[V_off(0, 6, 0, TRANS_BLOCK)] = TO_TYPE(-0.5) * x7 + x9;
 
-            V_write[V_off(0, 7, 0, TRANS_BLOCK)] = -src1 + TO_TYPE(5.25) * src3
-                    - TO_TYPE(5.25) * src5 + src7;
+            V_write[V_off(0, 7, 0, TRANS_BLOCK)] = -src[1]
+                    + TO_TYPE(5.25) * src[3] - TO_TYPE(5.25) * src[5] + src[7];
         }
 
         src_load += src_off(0, WINO_IC_BLOCK, 0, 0, 0);
@@ -396,580 +335,105 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         // Accumulate oc16oh8ow14 intermediate output tile stored in the M_i
         __local const COMP_DATA_T *V_read_outer = V_read;
 
+        const int outer_c_blocking = COMP_UNROLL * COMP_BLOCK;
         __attribute__((opencl_unroll_hint(
                 1))) for (uint c_outer = 0; c_outer < WINO_IC_BLOCK;
-                          c_outer += COMP_UNROLL * COMP_BLOCK) {
+                          c_outer += outer_c_blocking) {
             // Fetch 16 input components, spread across subgroup.
-            COMP_DATA_T V_block0 = V_read_outer[V_off(0, 0, 0, COMP_BLOCK)];
-            COMP_DATA_T V_block1
-                    = V_read_outer[V_off(0, 0, COMP_BLOCK, COMP_BLOCK)];
-            V_read_outer += V_off(COMP_UNROLL * COMP_BLOCK, 0, 0, COMP_BLOCK);
-
-            __attribute__((opencl_unroll_hint(
-                    COMP_UNROLL))) for (int c_inner = 0; c_inner < COMP_UNROLL;
-                                        ++c_inner) {
-                // 2*14 * 3 * 4 = 336 MADs
-                // Fetch 8 channels of Winograd components from f(k,s)
-                const COMP_DATA_T f00 = UCOMP_BLOCK_READ(
-                        (const __global ushort *)&U[U_off(0, 0, 0, 0)]);
-
-                // f0 x v[0 .. 14]
-                DOT8i_0(M0.s0, f00, V_block0, 0 + c_inner);
-                DOT8i_0(M0.s1, f00, V_block0, 2 + c_inner);
-                DOT8i_0(M1.s0, f00, V_block0, 4 + c_inner);
-                DOT8i_0(M1.s1, f00, V_block0, 6 + c_inner);
-
-                DOT8i_0(M2.s0, f00, V_block0, 8 + c_inner);
-                DOT8i_0(M2.s1, f00, V_block0, 10 + c_inner);
-                DOT8i_0(M3.s0, f00, V_block0, 12 + c_inner);
-                DOT8i_0(M3.s1, f00, V_block0, 14 + c_inner);
-
-                DOT8i_0(M4.s0, f00, V_block1, 0 + c_inner);
-                DOT8i_0(M4.s1, f00, V_block1, 2 + c_inner);
-                DOT8i_0(M5.s0, f00, V_block1, 4 + c_inner);
-                DOT8i_0(M5.s1, f00, V_block1, 6 + c_inner);
-
-                DOT8i_0(M6.s0, f00, V_block1, 8 + c_inner);
-                DOT8i_0(M6.s1, f00, V_block1, 10 + c_inner);
-
-                // f0 x v[0 .. 14]
-                DOT8i_1(M0.s0, f00, V_block0, 0 + c_inner);
-                DOT8i_1(M0.s1, f00, V_block0, 2 + c_inner);
-                DOT8i_1(M1.s0, f00, V_block0, 4 + c_inner);
-                DOT8i_1(M1.s1, f00, V_block0, 6 + c_inner);
-
-                DOT8i_1(M2.s0, f00, V_block0, 8 + c_inner);
-                DOT8i_1(M2.s1, f00, V_block0, 10 + c_inner);
-                DOT8i_1(M3.s0, f00, V_block0, 12 + c_inner);
-                DOT8i_1(M3.s1, f00, V_block0, 14 + c_inner);
-
-                DOT8i_1(M4.s0, f00, V_block1, 0 + c_inner);
-                DOT8i_1(M4.s1, f00, V_block1, 2 + c_inner);
-                DOT8i_1(M5.s0, f00, V_block1, 4 + c_inner);
-                DOT8i_1(M5.s1, f00, V_block1, 6 + c_inner);
-
-                DOT8i_1(M6.s0, f00, V_block1, 8 + c_inner);
-                DOT8i_1(M6.s1, f00, V_block1, 10 + c_inner);
-
-                // f0 x v[0 .. 14]
-                DOT8i_2(M0.s0, f00, V_block0, 0 + c_inner);
-                DOT8i_2(M0.s1, f00, V_block0, 2 + c_inner);
-                DOT8i_2(M1.s0, f00, V_block0, 4 + c_inner);
-                DOT8i_2(M1.s1, f00, V_block0, 6 + c_inner);
-
-                DOT8i_2(M2.s0, f00, V_block0, 8 + c_inner);
-                DOT8i_2(M2.s1, f00, V_block0, 10 + c_inner);
-                DOT8i_2(M3.s0, f00, V_block0, 12 + c_inner);
-                DOT8i_2(M3.s1, f00, V_block0, 14 + c_inner);
-
-                DOT8i_2(M4.s0, f00, V_block1, 0 + c_inner);
-                DOT8i_2(M4.s1, f00, V_block1, 2 + c_inner);
-                DOT8i_2(M5.s0, f00, V_block1, 4 + c_inner);
-                DOT8i_2(M5.s1, f00, V_block1, 6 + c_inner);
-
-                DOT8i_2(M6.s0, f00, V_block1, 8 + c_inner);
-                DOT8i_2(M6.s1, f00, V_block1, 10 + c_inner);
-
-                // f0 x v[0 .. 14]
-                DOT8i_3(M0.s0, f00, V_block0, 0 + c_inner);
-                DOT8i_3(M0.s1, f00, V_block0, 2 + c_inner);
-                DOT8i_3(M1.s0, f00, V_block0, 4 + c_inner);
-                DOT8i_3(M1.s1, f00, V_block0, 6 + c_inner);
-
-                DOT8i_3(M2.s0, f00, V_block0, 8 + c_inner);
-                DOT8i_3(M2.s1, f00, V_block0, 10 + c_inner);
-                DOT8i_3(M3.s0, f00, V_block0, 12 + c_inner);
-                DOT8i_3(M3.s1, f00, V_block0, 14 + c_inner);
-
-                DOT8i_3(M4.s0, f00, V_block1, 0 + c_inner);
-                DOT8i_3(M4.s1, f00, V_block1, 2 + c_inner);
-                DOT8i_3(M5.s0, f00, V_block1, 4 + c_inner);
-                DOT8i_3(M5.s1, f00, V_block1, 6 + c_inner);
-
-                DOT8i_3(M6.s0, f00, V_block1, 8 + c_inner);
-                DOT8i_3(M6.s1, f00, V_block1, 10 + c_inner);
-
-                // f0 x v[0 .. 14]
-                DOT8i_4(M0.s0, f00, V_block0, 0 + c_inner);
-                DOT8i_4(M0.s1, f00, V_block0, 2 + c_inner);
-                DOT8i_4(M1.s0, f00, V_block0, 4 + c_inner);
-                DOT8i_4(M1.s1, f00, V_block0, 6 + c_inner);
-
-                DOT8i_4(M2.s0, f00, V_block0, 8 + c_inner);
-                DOT8i_4(M2.s1, f00, V_block0, 10 + c_inner);
-                DOT8i_4(M3.s0, f00, V_block0, 12 + c_inner);
-                DOT8i_4(M3.s1, f00, V_block0, 14 + c_inner);
-
-                DOT8i_4(M4.s0, f00, V_block1, 0 + c_inner);
-                DOT8i_4(M4.s1, f00, V_block1, 2 + c_inner);
-                DOT8i_4(M5.s0, f00, V_block1, 4 + c_inner);
-                DOT8i_4(M5.s1, f00, V_block1, 6 + c_inner);
-
-                DOT8i_4(M6.s0, f00, V_block1, 8 + c_inner);
-                DOT8i_4(M6.s1, f00, V_block1, 10 + c_inner);
-
-                // f0 x v[0 .. 14]
-                DOT8i_5(M0.s0, f00, V_block0, 0 + c_inner);
-                DOT8i_5(M0.s1, f00, V_block0, 2 + c_inner);
-                DOT8i_5(M1.s0, f00, V_block0, 4 + c_inner);
-                DOT8i_5(M1.s1, f00, V_block0, 6 + c_inner);
-
-                DOT8i_5(M2.s0, f00, V_block0, 8 + c_inner);
-                DOT8i_5(M2.s1, f00, V_block0, 10 + c_inner);
-                DOT8i_5(M3.s0, f00, V_block0, 12 + c_inner);
-                DOT8i_5(M3.s1, f00, V_block0, 14 + c_inner);
-
-                DOT8i_5(M4.s0, f00, V_block1, 0 + c_inner);
-                DOT8i_5(M4.s1, f00, V_block1, 2 + c_inner);
-                DOT8i_5(M5.s0, f00, V_block1, 4 + c_inner);
-                DOT8i_5(M5.s1, f00, V_block1, 6 + c_inner);
-
-                DOT8i_5(M6.s0, f00, V_block1, 8 + c_inner);
-                DOT8i_5(M6.s1, f00, V_block1, 10 + c_inner);
-
-                // f0 x v[0 .. 14]
-                DOT8i_6(M0.s0, f00, V_block0, 0 + c_inner);
-                DOT8i_6(M0.s1, f00, V_block0, 2 + c_inner);
-                DOT8i_6(M1.s0, f00, V_block0, 4 + c_inner);
-                DOT8i_6(M1.s1, f00, V_block0, 6 + c_inner);
-
-                DOT8i_6(M2.s0, f00, V_block0, 8 + c_inner);
-                DOT8i_6(M2.s1, f00, V_block0, 10 + c_inner);
-                DOT8i_6(M3.s0, f00, V_block0, 12 + c_inner);
-                DOT8i_6(M3.s1, f00, V_block0, 14 + c_inner);
-
-                DOT8i_6(M4.s0, f00, V_block1, 0 + c_inner);
-                DOT8i_6(M4.s1, f00, V_block1, 2 + c_inner);
-                DOT8i_6(M5.s0, f00, V_block1, 4 + c_inner);
-                DOT8i_6(M5.s1, f00, V_block1, 6 + c_inner);
-
-                DOT8i_6(M6.s0, f00, V_block1, 8 + c_inner);
-                DOT8i_6(M6.s1, f00, V_block1, 10 + c_inner);
-
-                // f0 x v[0 .. 14]
-                DOT8i_7(M0.s0, f00, V_block0, 0 + c_inner);
-                DOT8i_7(M0.s1, f00, V_block0, 2 + c_inner);
-                DOT8i_7(M1.s0, f00, V_block0, 4 + c_inner);
-                DOT8i_7(M1.s1, f00, V_block0, 6 + c_inner);
-
-                DOT8i_7(M2.s0, f00, V_block0, 8 + c_inner);
-                DOT8i_7(M2.s1, f00, V_block0, 10 + c_inner);
-                DOT8i_7(M3.s0, f00, V_block0, 12 + c_inner);
-                DOT8i_7(M3.s1, f00, V_block0, 14 + c_inner);
-
-                DOT8i_7(M4.s0, f00, V_block1, 0 + c_inner);
-                DOT8i_7(M4.s1, f00, V_block1, 2 + c_inner);
-                DOT8i_7(M5.s0, f00, V_block1, 4 + c_inner);
-                DOT8i_7(M5.s1, f00, V_block1, 6 + c_inner);
-
-                DOT8i_7(M6.s0, f00, V_block1, 8 + c_inner);
-                DOT8i_7(M6.s1, f00, V_block1, 10 + c_inner);
-
-                const COMP_DATA_T f01 = UCOMP_BLOCK_READ(
-                        (const __global ushort *)&U[U_off(0, 0, 0, 1)]);
-
-                // f1[c_inner] x v[1 .. 15]
-                DOT8i_0(M0.s0, f01, V_block0, 2 + c_inner);
-                DOT8i_0(M0.s1, f01, V_block0, 4 + c_inner);
-                DOT8i_0(M1.s0, f01, V_block0, 6 + c_inner);
-                DOT8i_0(M1.s1, f01, V_block0, 8 + c_inner);
-
-                DOT8i_0(M2.s0, f01, V_block0, 10 + c_inner);
-                DOT8i_0(M2.s1, f01, V_block0, 12 + c_inner);
-                DOT8i_0(M3.s0, f01, V_block0, 14 + c_inner);
-                DOT8i_0(M3.s1, f01, V_block1, 0 + c_inner);
-
-                DOT8i_0(M4.s0, f01, V_block1, 2 + c_inner);
-                DOT8i_0(M4.s1, f01, V_block1, 4 + c_inner);
-                DOT8i_0(M5.s0, f01, V_block1, 6 + c_inner);
-                DOT8i_0(M5.s1, f01, V_block1, 8 + c_inner);
-
-                DOT8i_0(M6.s0, f01, V_block1, 10 + c_inner);
-                DOT8i_0(M6.s1, f01, V_block1, 12 + c_inner);
-
-                // f1[c_inner] x v[1 .. 15]
-                DOT8i_1(M0.s0, f01, V_block0, 2 + c_inner);
-                DOT8i_1(M0.s1, f01, V_block0, 4 + c_inner);
-                DOT8i_1(M1.s0, f01, V_block0, 6 + c_inner);
-                DOT8i_1(M1.s1, f01, V_block0, 8 + c_inner);
-
-                DOT8i_1(M2.s0, f01, V_block0, 10 + c_inner);
-                DOT8i_1(M2.s1, f01, V_block0, 12 + c_inner);
-                DOT8i_1(M3.s0, f01, V_block0, 14 + c_inner);
-                DOT8i_1(M3.s1, f01, V_block1, 0 + c_inner);
-
-                DOT8i_1(M4.s0, f01, V_block1, 2 + c_inner);
-                DOT8i_1(M4.s1, f01, V_block1, 4 + c_inner);
-                DOT8i_1(M5.s0, f01, V_block1, 6 + c_inner);
-                DOT8i_1(M5.s1, f01, V_block1, 8 + c_inner);
-
-                DOT8i_1(M6.s0, f01, V_block1, 10 + c_inner);
-                DOT8i_1(M6.s1, f01, V_block1, 12 + c_inner);
-
-                // f1[c_inner] x v[1 .. 15]
-                DOT8i_2(M0.s0, f01, V_block0, 2 + c_inner);
-                DOT8i_2(M0.s1, f01, V_block0, 4 + c_inner);
-                DOT8i_2(M1.s0, f01, V_block0, 6 + c_inner);
-                DOT8i_2(M1.s1, f01, V_block0, 8 + c_inner);
-
-                DOT8i_2(M2.s0, f01, V_block0, 10 + c_inner);
-                DOT8i_2(M2.s1, f01, V_block0, 12 + c_inner);
-                DOT8i_2(M3.s0, f01, V_block0, 14 + c_inner);
-                DOT8i_2(M3.s1, f01, V_block1, 0 + c_inner);
-
-                DOT8i_2(M4.s0, f01, V_block1, 2 + c_inner);
-                DOT8i_2(M4.s1, f01, V_block1, 4 + c_inner);
-                DOT8i_2(M5.s0, f01, V_block1, 6 + c_inner);
-                DOT8i_2(M5.s1, f01, V_block1, 8 + c_inner);
-
-                DOT8i_2(M6.s0, f01, V_block1, 10 + c_inner);
-                DOT8i_2(M6.s1, f01, V_block1, 12 + c_inner);
-
-                // f1[c_inner] x v[1 .. 15]
-                DOT8i_3(M0.s0, f01, V_block0, 2 + c_inner);
-                DOT8i_3(M0.s1, f01, V_block0, 4 + c_inner);
-                DOT8i_3(M1.s0, f01, V_block0, 6 + c_inner);
-                DOT8i_3(M1.s1, f01, V_block0, 8 + c_inner);
-
-                DOT8i_3(M2.s0, f01, V_block0, 10 + c_inner);
-                DOT8i_3(M2.s1, f01, V_block0, 12 + c_inner);
-                DOT8i_3(M3.s0, f01, V_block0, 14 + c_inner);
-                DOT8i_3(M3.s1, f01, V_block1, 0 + c_inner);
-
-                DOT8i_3(M4.s0, f01, V_block1, 2 + c_inner);
-                DOT8i_3(M4.s1, f01, V_block1, 4 + c_inner);
-                DOT8i_3(M5.s0, f01, V_block1, 6 + c_inner);
-                DOT8i_3(M5.s1, f01, V_block1, 8 + c_inner);
-
-                DOT8i_3(M6.s0, f01, V_block1, 10 + c_inner);
-                DOT8i_3(M6.s1, f01, V_block1, 12 + c_inner);
-
-                // f1[c_inner] x v[1 .. 15]
-                DOT8i_4(M0.s0, f01, V_block0, 2 + c_inner);
-                DOT8i_4(M0.s1, f01, V_block0, 4 + c_inner);
-                DOT8i_4(M1.s0, f01, V_block0, 6 + c_inner);
-                DOT8i_4(M1.s1, f01, V_block0, 8 + c_inner);
-
-                DOT8i_4(M2.s0, f01, V_block0, 10 + c_inner);
-                DOT8i_4(M2.s1, f01, V_block0, 12 + c_inner);
-                DOT8i_4(M3.s0, f01, V_block0, 14 + c_inner);
-                DOT8i_4(M3.s1, f01, V_block1, 0 + c_inner);
-
-                DOT8i_4(M4.s0, f01, V_block1, 2 + c_inner);
-                DOT8i_4(M4.s1, f01, V_block1, 4 + c_inner);
-                DOT8i_4(M5.s0, f01, V_block1, 6 + c_inner);
-                DOT8i_4(M5.s1, f01, V_block1, 8 + c_inner);
-
-                DOT8i_4(M6.s0, f01, V_block1, 10 + c_inner);
-                DOT8i_4(M6.s1, f01, V_block1, 12 + c_inner);
-
-                // f1[c_inner] x v[1 .. 15]
-                DOT8i_5(M0.s0, f01, V_block0, 2 + c_inner);
-                DOT8i_5(M0.s1, f01, V_block0, 4 + c_inner);
-                DOT8i_5(M1.s0, f01, V_block0, 6 + c_inner);
-                DOT8i_5(M1.s1, f01, V_block0, 8 + c_inner);
-
-                DOT8i_5(M2.s0, f01, V_block0, 10 + c_inner);
-                DOT8i_5(M2.s1, f01, V_block0, 12 + c_inner);
-                DOT8i_5(M3.s0, f01, V_block0, 14 + c_inner);
-                DOT8i_5(M3.s1, f01, V_block1, 0 + c_inner);
-
-                DOT8i_5(M4.s0, f01, V_block1, 2 + c_inner);
-                DOT8i_5(M4.s1, f01, V_block1, 4 + c_inner);
-                DOT8i_5(M5.s0, f01, V_block1, 6 + c_inner);
-                DOT8i_5(M5.s1, f01, V_block1, 8 + c_inner);
-
-                DOT8i_5(M6.s0, f01, V_block1, 10 + c_inner);
-                DOT8i_5(M6.s1, f01, V_block1, 12 + c_inner);
-
-                // f1[c_inner] x v[1 .. 15]
-                DOT8i_6(M0.s0, f01, V_block0, 2 + c_inner);
-                DOT8i_6(M0.s1, f01, V_block0, 4 + c_inner);
-                DOT8i_6(M1.s0, f01, V_block0, 6 + c_inner);
-                DOT8i_6(M1.s1, f01, V_block0, 8 + c_inner);
-
-                DOT8i_6(M2.s0, f01, V_block0, 10 + c_inner);
-                DOT8i_6(M2.s1, f01, V_block0, 12 + c_inner);
-                DOT8i_6(M3.s0, f01, V_block0, 14 + c_inner);
-                DOT8i_6(M3.s1, f01, V_block1, 0 + c_inner);
-
-                DOT8i_6(M4.s0, f01, V_block1, 2 + c_inner);
-                DOT8i_6(M4.s1, f01, V_block1, 4 + c_inner);
-                DOT8i_6(M5.s0, f01, V_block1, 6 + c_inner);
-                DOT8i_6(M5.s1, f01, V_block1, 8 + c_inner);
-
-                DOT8i_6(M6.s0, f01, V_block1, 10 + c_inner);
-                DOT8i_6(M6.s1, f01, V_block1, 12 + c_inner);
-
-                // f1[c_inner] x v[1 .. 15]
-                DOT8i_7(M0.s0, f01, V_block0, 2 + c_inner);
-                DOT8i_7(M0.s1, f01, V_block0, 4 + c_inner);
-                DOT8i_7(M1.s0, f01, V_block0, 6 + c_inner);
-                DOT8i_7(M1.s1, f01, V_block0, 8 + c_inner);
-
-                DOT8i_7(M2.s0, f01, V_block0, 10 + c_inner);
-                DOT8i_7(M2.s1, f01, V_block0, 12 + c_inner);
-                DOT8i_7(M3.s0, f01, V_block0, 14 + c_inner);
-                DOT8i_7(M3.s1, f01, V_block1, 0 + c_inner);
-
-                DOT8i_7(M4.s0, f01, V_block1, 2 + c_inner);
-                DOT8i_7(M4.s1, f01, V_block1, 4 + c_inner);
-                DOT8i_7(M5.s0, f01, V_block1, 6 + c_inner);
-                DOT8i_7(M5.s1, f01, V_block1, 8 + c_inner);
-
-                DOT8i_7(M6.s0, f01, V_block1, 10 + c_inner);
-                DOT8i_7(M6.s1, f01, V_block1, 12 + c_inner);
-
-                const COMP_DATA_T f02 = UCOMP_BLOCK_READ(
-                        (const __global ushort *)&U[U_off(0, 0, 0, 2)]);
-                U += U_off(0, COMP_BLOCK, 0, 0);
-
-                // f2[c_inner] x v[2 .. 16]
-                DOT8i_0(M0.s0, f02, V_block0, 4 + c_inner);
-                DOT8i_0(M0.s1, f02, V_block0, 6 + c_inner);
-                DOT8i_0(M1.s0, f02, V_block0, 8 + c_inner);
-                DOT8i_0(M1.s1, f02, V_block0, 10 + c_inner);
-
-                DOT8i_0(M2.s0, f02, V_block0, 12 + c_inner);
-                DOT8i_0(M2.s1, f02, V_block0, 14 + c_inner);
-                DOT8i_0(M3.s0, f02, V_block1, 0 + c_inner);
-                DOT8i_0(M3.s1, f02, V_block1, 2 + c_inner);
-
-                DOT8i_0(M4.s0, f02, V_block1, 4 + c_inner);
-                DOT8i_0(M4.s1, f02, V_block1, 6 + c_inner);
-                DOT8i_0(M5.s0, f02, V_block1, 8 + c_inner);
-                DOT8i_0(M5.s1, f02, V_block1, 10 + c_inner);
-
-                DOT8i_0(M6.s0, f02, V_block1, 12 + c_inner);
-                DOT8i_0(M6.s1, f02, V_block1, 14 + c_inner);
-
-                // f2[c_inner] x v[2 .. 16]
-                DOT8i_1(M0.s0, f02, V_block0, 4 + c_inner);
-                DOT8i_1(M0.s1, f02, V_block0, 6 + c_inner);
-                DOT8i_1(M1.s0, f02, V_block0, 8 + c_inner);
-                DOT8i_1(M1.s1, f02, V_block0, 10 + c_inner);
-
-                DOT8i_1(M2.s0, f02, V_block0, 12 + c_inner);
-                DOT8i_1(M2.s1, f02, V_block0, 14 + c_inner);
-                DOT8i_1(M3.s0, f02, V_block1, 0 + c_inner);
-                DOT8i_1(M3.s1, f02, V_block1, 2 + c_inner);
-
-                DOT8i_1(M4.s0, f02, V_block1, 4 + c_inner);
-                DOT8i_1(M4.s1, f02, V_block1, 6 + c_inner);
-                DOT8i_1(M5.s0, f02, V_block1, 8 + c_inner);
-                DOT8i_1(M5.s1, f02, V_block1, 10 + c_inner);
-
-                DOT8i_1(M6.s0, f02, V_block1, 12 + c_inner);
-                DOT8i_1(M6.s1, f02, V_block1, 14 + c_inner);
-
-                // f2[c_inner] x v[2 .. 16]
-                DOT8i_2(M0.s0, f02, V_block0, 4 + c_inner);
-                DOT8i_2(M0.s1, f02, V_block0, 6 + c_inner);
-                DOT8i_2(M1.s0, f02, V_block0, 8 + c_inner);
-                DOT8i_2(M1.s1, f02, V_block0, 10 + c_inner);
-
-                DOT8i_2(M2.s0, f02, V_block0, 12 + c_inner);
-                DOT8i_2(M2.s1, f02, V_block0, 14 + c_inner);
-                DOT8i_2(M3.s0, f02, V_block1, 0 + c_inner);
-                DOT8i_2(M3.s1, f02, V_block1, 2 + c_inner);
-
-                DOT8i_2(M4.s0, f02, V_block1, 4 + c_inner);
-                DOT8i_2(M4.s1, f02, V_block1, 6 + c_inner);
-                DOT8i_2(M5.s0, f02, V_block1, 8 + c_inner);
-                DOT8i_2(M5.s1, f02, V_block1, 10 + c_inner);
-
-                DOT8i_2(M6.s0, f02, V_block1, 12 + c_inner);
-                DOT8i_2(M6.s1, f02, V_block1, 14 + c_inner);
-
-                // f2[c_inner] x v[2 .. 16]
-                DOT8i_3(M0.s0, f02, V_block0, 4 + c_inner);
-                DOT8i_3(M0.s1, f02, V_block0, 6 + c_inner);
-                DOT8i_3(M1.s0, f02, V_block0, 8 + c_inner);
-                DOT8i_3(M1.s1, f02, V_block0, 10 + c_inner);
-
-                DOT8i_3(M2.s0, f02, V_block0, 12 + c_inner);
-                DOT8i_3(M2.s1, f02, V_block0, 14 + c_inner);
-                DOT8i_3(M3.s0, f02, V_block1, 0 + c_inner);
-                DOT8i_3(M3.s1, f02, V_block1, 2 + c_inner);
-
-                DOT8i_3(M4.s0, f02, V_block1, 4 + c_inner);
-                DOT8i_3(M4.s1, f02, V_block1, 6 + c_inner);
-                DOT8i_3(M5.s0, f02, V_block1, 8 + c_inner);
-                DOT8i_3(M5.s1, f02, V_block1, 10 + c_inner);
-
-                DOT8i_3(M6.s0, f02, V_block1, 12 + c_inner);
-                DOT8i_3(M6.s1, f02, V_block1, 14 + c_inner);
-
-                // f2[c_inner] x v[2 .. 16]
-                DOT8i_4(M0.s0, f02, V_block0, 4 + c_inner);
-                DOT8i_4(M0.s1, f02, V_block0, 6 + c_inner);
-                DOT8i_4(M1.s0, f02, V_block0, 8 + c_inner);
-                DOT8i_4(M1.s1, f02, V_block0, 10 + c_inner);
-
-                DOT8i_4(M2.s0, f02, V_block0, 12 + c_inner);
-                DOT8i_4(M2.s1, f02, V_block0, 14 + c_inner);
-                DOT8i_4(M3.s0, f02, V_block1, 0 + c_inner);
-                DOT8i_4(M3.s1, f02, V_block1, 2 + c_inner);
-
-                DOT8i_4(M4.s0, f02, V_block1, 4 + c_inner);
-                DOT8i_4(M4.s1, f02, V_block1, 6 + c_inner);
-                DOT8i_4(M5.s0, f02, V_block1, 8 + c_inner);
-                DOT8i_4(M5.s1, f02, V_block1, 10 + c_inner);
-
-                DOT8i_4(M6.s0, f02, V_block1, 12 + c_inner);
-                DOT8i_4(M6.s1, f02, V_block1, 14 + c_inner);
-
-                // f2[c_inner] x v[2 .. 16]
-                DOT8i_5(M0.s0, f02, V_block0, 4 + c_inner);
-                DOT8i_5(M0.s1, f02, V_block0, 6 + c_inner);
-                DOT8i_5(M1.s0, f02, V_block0, 8 + c_inner);
-                DOT8i_5(M1.s1, f02, V_block0, 10 + c_inner);
-
-                DOT8i_5(M2.s0, f02, V_block0, 12 + c_inner);
-                DOT8i_5(M2.s1, f02, V_block0, 14 + c_inner);
-                DOT8i_5(M3.s0, f02, V_block1, 0 + c_inner);
-                DOT8i_5(M3.s1, f02, V_block1, 2 + c_inner);
-
-                DOT8i_5(M4.s0, f02, V_block1, 4 + c_inner);
-                DOT8i_5(M4.s1, f02, V_block1, 6 + c_inner);
-                DOT8i_5(M5.s0, f02, V_block1, 8 + c_inner);
-                DOT8i_5(M5.s1, f02, V_block1, 10 + c_inner);
-
-                DOT8i_5(M6.s0, f02, V_block1, 12 + c_inner);
-                DOT8i_5(M6.s1, f02, V_block1, 14 + c_inner);
-
-                // f2[c_inner] x v[2 .. 16]
-                DOT8i_6(M0.s0, f02, V_block0, 4 + c_inner);
-                DOT8i_6(M0.s1, f02, V_block0, 6 + c_inner);
-                DOT8i_6(M1.s0, f02, V_block0, 8 + c_inner);
-                DOT8i_6(M1.s1, f02, V_block0, 10 + c_inner);
-
-                DOT8i_6(M2.s0, f02, V_block0, 12 + c_inner);
-                DOT8i_6(M2.s1, f02, V_block0, 14 + c_inner);
-                DOT8i_6(M3.s0, f02, V_block1, 0 + c_inner);
-                DOT8i_6(M3.s1, f02, V_block1, 2 + c_inner);
-
-                DOT8i_6(M4.s0, f02, V_block1, 4 + c_inner);
-                DOT8i_6(M4.s1, f02, V_block1, 6 + c_inner);
-                DOT8i_6(M5.s0, f02, V_block1, 8 + c_inner);
-                DOT8i_6(M5.s1, f02, V_block1, 10 + c_inner);
-
-                DOT8i_6(M6.s0, f02, V_block1, 12 + c_inner);
-                DOT8i_6(M6.s1, f02, V_block1, 14 + c_inner);
-
-                // f2[c_inner] x v[2 .. 16]
-                DOT8i_7(M0.s0, f02, V_block0, 4 + c_inner);
-                DOT8i_7(M0.s1, f02, V_block0, 6 + c_inner);
-                DOT8i_7(M1.s0, f02, V_block0, 8 + c_inner);
-                DOT8i_7(M1.s1, f02, V_block0, 10 + c_inner);
-
-                DOT8i_7(M2.s0, f02, V_block0, 12 + c_inner);
-                DOT8i_7(M2.s1, f02, V_block0, 14 + c_inner);
-                DOT8i_7(M3.s0, f02, V_block1, 0 + c_inner);
-                DOT8i_7(M3.s1, f02, V_block1, 2 + c_inner);
-
-                DOT8i_7(M4.s0, f02, V_block1, 4 + c_inner);
-                DOT8i_7(M4.s1, f02, V_block1, 6 + c_inner);
-                DOT8i_7(M5.s0, f02, V_block1, 8 + c_inner);
-                DOT8i_7(M5.s1, f02, V_block1, 10 + c_inner);
-
-                DOT8i_7(M6.s0, f02, V_block1, 12 + c_inner);
-                DOT8i_7(M6.s1, f02, V_block1, 14 + c_inner);
+            DATA_T V_block[outer_c_blocking];
+            unroll_for(int i = 0; i < outer_c_blocking; i++) {
+                COMP_WRITE(
+                        V_read_outer[V_off(0, 0, i * COMP_BLOCK, COMP_BLOCK)],
+                        &V_block[i * COMP_BLOCK]);
             }
-            U += U_off(0, 2 * COMP_BLOCK, 0, 0)
-                    - 2 * U_off(0, COMP_BLOCK, 0, 0);
+            V_read_outer += V_off(outer_c_blocking, 0, 0, COMP_BLOCK);
+
+#define V_BLOCK(ic, iw) \
+    sub_group_broadcast( \
+            V_block[(ic) % 8 + 8 * ((iw) / 8)], 2 * ((iw) % 8) + ((ic) / 8))
+
+            unroll_for(int c_inner = 0; c_inner < outer_c_blocking;
+                       c_inner += COMP_BLOCK) {
+                unroll_for(int kw_in = 0; kw_in < KW; kw_in++) {
+                    const COMP_DATA_T f0
+                            = COMP_BLOCK_READ(&U[U_off(0, 0, 0, kw_in)]);
+
+                    unroll_for(int c_in = 0; c_in < COMP_BLOCK; c_in++) {
+                        unroll_for(int ow_in = 0; ow_in < OW_BLOCK; ow_in++) {
+                            DOTi(M[ow_in], f0[c_in],
+                                    V_BLOCK(c_in + c_inner, kw_in + ow_in));
+                        }
+                    }
+                }
+
+                U += U_off(0, COMP_BLOCK, 0, 0);
+            }
+            U += U_off(0, COMP_UNROLL * COMP_BLOCK, 0, 0)
+                    - COMP_UNROLL * U_off(0, COMP_BLOCK, 0, 0);
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
     // Store intermediate output tile to SLM.
     {
-        __local OUT_BLOCK_DATA_T *M_write
-                = (__local OUT_BLOCK_DATA_T *)&V[M_off(0, ly, 0, 4)];
-        M_write += M_off(lx, 0, 0, OUT_TYPE_BLOCK);
+        __local DATA_T *M_write = (__local DATA_T *)&V[M_off(0, ly, 0, 4)];
+        M_write += M_off(lx, 0, 0, 1);
 
-        M_write[M_off(0, 0, 0, OUT_TYPE_BLOCK)] = M0;
-        M_write[M_off(0, 0, 2, OUT_TYPE_BLOCK)] = M1;
-        M_write[M_off(0, 0, 4, OUT_TYPE_BLOCK)] = M2;
-        M_write[M_off(0, 0, 6, OUT_TYPE_BLOCK)] = M3;
-        M_write[M_off(0, 0, 8, OUT_TYPE_BLOCK)] = M4;
-        M_write[M_off(0, 0, 10, OUT_TYPE_BLOCK)] = M5;
-        M_write[M_off(0, 0, 12, OUT_TYPE_BLOCK)] = M6;
+        for (int i = 0; i < M_size; i++) {
+            M_write[M_off(0, 0, i, 1)] = M[i];
+        }
 
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
     // Transform and store final oc16oh6ow14 output tile.
-    if (ly < 7) {
+    if (ly < OW_BLOCK / OUT_TYPE_BLOCK) {
         // Load multiplies from SLM.
         __local const OUT_BLOCK_DATA_T *M_read
                 = (__local OUT_BLOCK_DATA_T *)&V[M_off(0, 0, ly * 2, 4)];
         M_read += M_off(lx, 0, 0, OUT_TYPE_BLOCK);
 
-        OUT_BLOCK_DATA_T M0 = M_read[M_off(0, 0, 0, OUT_TYPE_BLOCK)];
-        OUT_BLOCK_DATA_T M1 = M_read[M_off(0, 1, 0, OUT_TYPE_BLOCK)];
-        OUT_BLOCK_DATA_T M2 = M_read[M_off(0, 2, 0, OUT_TYPE_BLOCK)];
-        OUT_BLOCK_DATA_T M3 = M_read[M_off(0, 3, 0, OUT_TYPE_BLOCK)];
-        OUT_BLOCK_DATA_T M4 = M_read[M_off(0, 4, 0, OUT_TYPE_BLOCK)];
-        OUT_BLOCK_DATA_T M5 = M_read[M_off(0, 5, 0, OUT_TYPE_BLOCK)];
-        OUT_BLOCK_DATA_T M6 = M_read[M_off(0, 6, 0, OUT_TYPE_BLOCK)];
-        OUT_BLOCK_DATA_T M7 = M_read[M_off(0, 7, 0, OUT_TYPE_BLOCK)];
+        OUT_BLOCK_DATA_T M[WINO_D];
+        for (int i = 0; i < WINO_D; i++) {
+            M[i] = M_read[M_off(0, i, 0, OUT_TYPE_BLOCK)];
+        }
 
         // Inverse Transform.
-        OUT_BLOCK_DATA_T x0 = M1 + M2;
-        OUT_BLOCK_DATA_T x1 = M1 - M2;
+        OUT_BLOCK_DATA_T x0 = M[1] + M[2];
+        OUT_BLOCK_DATA_T x1 = M[1] - M[2];
 
-        OUT_BLOCK_DATA_T x2 = M3 + M4;
-        OUT_BLOCK_DATA_T x3 = M3 - M4;
+        OUT_BLOCK_DATA_T x2 = M[3] + M[4];
+        OUT_BLOCK_DATA_T x3 = M[3] - M[4];
 
-        OUT_BLOCK_DATA_T x4 = M5 + M6;
-        OUT_BLOCK_DATA_T x5 = M5 - M6;
+        OUT_BLOCK_DATA_T x4 = M[5] + M[6];
+        OUT_BLOCK_DATA_T x5 = M[5] - M[6];
 
-        OUT_BLOCK_DATA_T C0 = M0 + x0 + x2 + x4;
-        OUT_BLOCK_DATA_T C1 = x1 + TO_TYPE(2) * x3 + TO_TYPE(0.5f) * x5;
-        OUT_BLOCK_DATA_T C2 = x0 + TO_TYPE(4.f) * x2 + TO_TYPE(0.25f) * x4;
-        OUT_BLOCK_DATA_T C3 = x1 + TO_TYPE(8.f) * x3 + TO_TYPE(0.125f) * x5;
-        OUT_BLOCK_DATA_T C4 = x0 + TO_TYPE(16.f) * x2 + TO_TYPE(0.0625f) * x4;
-        OUT_BLOCK_DATA_T C5
-                = x1 + TO_TYPE(32.f) * x3 + TO_TYPE(0.03125f) * x5 + M7;
+        OUT_BLOCK_DATA_T C[WINO_M];
+        DATA_T *C_dat = C;
 
-        C0 = C0 * scl;
-        C1 = C1 * scl;
-        C2 = C2 * scl;
-        C3 = C3 * scl;
-        C4 = C4 * scl;
-        C5 = C5 * scl;
+        C[0] = M[0] + x0 + x2 + x4;
+        C[1] = x1 + TO_TYPE(2) * x3 + TO_TYPE(0.5f) * x5;
+        C[2] = x0 + TO_TYPE(4.f) * x2 + TO_TYPE(0.25f) * x4;
+        C[3] = x1 + TO_TYPE(8.f) * x3 + TO_TYPE(0.125f) * x5;
+        C[4] = x0 + TO_TYPE(16.f) * x2 + TO_TYPE(0.0625f) * x4;
+        C[5] = x1 + TO_TYPE(32.f) * x3 + TO_TYPE(0.03125f) * x5 + M[7];
+
+        unroll_for(int i = 0; i < WINO_M; i++) { C[i] = C[i] * scl; }
 
         // Write data
         int dst_idx = dst_off(mb, oc, 0, oh, ow);
         const int w_size = dst_off(0, 0, 0, 0, 1);
         const int h_size = dst_off(0, 0, 0, 1, 0);
 
-        const bool ow0 = OW % OW_BLOCK == 0 || ow < OW;
-        const bool ow1 = OW % OW_BLOCK == 0 || ow + 1 < OW;
-
-        const bool oh1 = OH % OH_BLOCK == 0 || oh + 1 < OH;
-        const bool oh2 = OH % OH_BLOCK == 0 || oh + 2 < OH;
-        const bool oh3 = OH % OH_BLOCK == 0 || oh + 3 < OH;
-        const bool oh4 = OH % OH_BLOCK == 0 || oh + 4 < OH;
-        const bool oh5 = OH % OH_BLOCK == 0 || oh + 5 < OH;
-
         if (WITH_BIAS || WITH_POST_OP) {
             const int c_size = WINO_M * OUT_TYPE_BLOCK;
-            DATA_T C[c_size];
-            OUT_BLOCK_WRITE(C0, &C[0 * OUT_TYPE_BLOCK]);
-            OUT_BLOCK_WRITE(C1, &C[1 * OUT_TYPE_BLOCK]);
-            OUT_BLOCK_WRITE(C2, &C[2 * OUT_TYPE_BLOCK]);
-            OUT_BLOCK_WRITE(C3, &C[3 * OUT_TYPE_BLOCK]);
-            OUT_BLOCK_WRITE(C4, &C[4 * OUT_TYPE_BLOCK]);
-            OUT_BLOCK_WRITE(C5, &C[5 * OUT_TYPE_BLOCK]);
             if (WITH_BIAS) {
                 for (int oh_block = 0; oh_block < WINO_M; oh_block++) {
                     for (int ow_block = 0; ow_block < OUT_TYPE_BLOCK;
                             ow_block++) {
                         const int c_off = oh_block * OUT_TYPE_BLOCK + ow_block;
-                        C[c_off] += (OC_WO_PADDING % OC_BLOCK == 0
-                                            || oc < OC_WO_PADDING)
+                        C_dat[c_off] += (OC_WO_PADDING % OC_BLOCK == 0
+                                                || oc < OC_WO_PADDING)
                                 ? bias[oc]
                                 : DATA_ZERO;
                     }
@@ -996,48 +460,25 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
             }
 
             for (int didx = 0; didx < c_size; ++didx) {
-                float accum = CONVERT_FLOAT_T(C[didx]);
+                float accum = CONVERT_FLOAT_T(C_dat[didx]);
                 float sum = CONVERT_FLOAT_T(S[didx]);
                 int po_oc = oc;
 
                 APPLY_POST_OPS_SERIAL_BINARY_2D(
-                        C, DATA_T, S, DATA_T, mb, 1, po_oc, 1);
-                C[didx] = TO_DATA_T(accum);
+                        C_dat, DATA_T, S, DATA_T, mb, 1, po_oc, 1);
+                C_dat[didx] = TO_DATA_T(accum);
             }
-            C0 = OUT_BLOCK_READ(&C[0 * OUT_TYPE_BLOCK]);
-            C1 = OUT_BLOCK_READ(&C[1 * OUT_TYPE_BLOCK]);
-            C2 = OUT_BLOCK_READ(&C[2 * OUT_TYPE_BLOCK]);
-            C3 = OUT_BLOCK_READ(&C[3 * OUT_TYPE_BLOCK]);
-            C4 = OUT_BLOCK_READ(&C[4 * OUT_TYPE_BLOCK]);
-            C5 = OUT_BLOCK_READ(&C[5 * OUT_TYPE_BLOCK]);
         }
 
-        if (ow0) dst[dst_idx + 0 * h_size + 0 * w_size] = C0.s0;
-        if (ow1) dst[dst_idx + 0 * h_size + 1 * w_size] = C0.s1;
-
-        if (oh1) {
-            if (ow0) dst[dst_idx + 1 * h_size + 0 * w_size] = C1.s0;
-            if (ow1) dst[dst_idx + 1 * h_size + 1 * w_size] = C1.s1;
-        }
-
-        if (oh2) {
-            if (ow0) dst[dst_idx + 2 * h_size + 0 * w_size] = C2.s0;
-            if (ow1) dst[dst_idx + 2 * h_size + 1 * w_size] = C2.s1;
-        }
-
-        if (oh3) {
-            if (ow0) dst[dst_idx + 3 * h_size + 0 * w_size] = C3.s0;
-            if (ow1) dst[dst_idx + 3 * h_size + 1 * w_size] = C3.s1;
-        }
-
-        if (oh4) {
-            if (ow0) dst[dst_idx + 4 * h_size + 0 * w_size] = C4.s0;
-            if (ow1) dst[dst_idx + 4 * h_size + 1 * w_size] = C4.s1;
-        }
-
-        if (oh5) {
-            if (ow0) dst[dst_idx + 5 * h_size + 0 * w_size] = C5.s0;
-            if (ow1) dst[dst_idx + 5 * h_size + 1 * w_size] = C5.s1;
+        unroll_for(int h_off = 0; h_off < WINO_M; h_off++) {
+            if (h_off == 0 || OH % OH_BLOCK == 0 || oh + h_off < OH) {
+                unroll_for(int w_off = 0; w_off < OUT_TYPE_BLOCK; w_off++) {
+                    int c_off = 2 * h_off + w_off;
+                    if (OW % OW_BLOCK == 0 || ow + w_off < OW)
+                        dst[dst_idx + h_off * h_size + w_off * w_size]
+                                = C_dat[c_off];
+                }
+            }
         }
     }
 }
