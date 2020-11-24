@@ -80,7 +80,7 @@ struct isa_info_t {
     const char *get_name() const {
         switch (isa) {
             case sve_512: return "AArch64 SVE (512 bits)";
-            case asimd: return "AArch64 (with Advadnced SIMD & floating-point)";
+            case asimd: return "AArch64 (with Advanced SIMD & floating-point)";
             default: return "AArch64";
         }
     }
