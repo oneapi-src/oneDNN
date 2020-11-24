@@ -19,6 +19,7 @@
 #include <random>
 #include <stdio.h>
 #include <stdlib.h>
+#include <type_traits>
 
 #include "dnnl.h"
 
@@ -42,6 +43,53 @@
 // Using hidden attr API for testing RNN
 dnnl_status_t dnnl_primitive_attr_set_rnn_tparams(dnnl_primitive_attr_t attr,
         bool mode, dnnl_dim_t ngates, const float *scales, float cscale);
+
+namespace {
+
+// In order to have consistent filling across compilers and operating systems,
+// we implement the equivalent of std::normal_distribution using the so-called
+// Marsaglia polar method.
+template <typename T>
+class normal_distribution_t {
+public:
+    normal_distribution_t(T mean, T stddev)
+        : gen(-1.f, 1.f)
+        , is_odd_(false)
+        , odd_(1.f)
+        , mean_(mean)
+        , stddev_(stddev) {
+        static_assert(std::is_floating_point<T>::value,
+                "T must be a floating point type.");
+    }
+    template <typename URNG>
+    T operator()(URNG &g) {
+        T r, r2, x, y;
+        if (is_odd_) {
+            is_odd_ = false;
+            return odd_;
+        }
+        is_odd_ = true;
+        do {
+            x = gen(g); // x E [-1, 1)
+            y = gen(g); // y E [-1, 1)
+            r2 = x * x + y * y;
+        } while (0.f == r2 || 1.f < r2); // r2 E (0, 1]
+        r = stddev_ * std::sqrt(-2.f * std::log(r2) / r2);
+        x = mean_ + x * r;
+        y = mean_ + y * r;
+        odd_ = x;
+        return y;
+    }
+
+private:
+    std::uniform_real_distribution<T> gen;
+    bool is_odd_;
+    T odd_;
+    const T mean_;
+    const T stddev_;
+};
+
+} // namespace
 
 namespace rnn {
 
@@ -215,7 +263,7 @@ int fill_memory(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         std::minstd_rand msr;
         msr.seed(idx_start + kind);
-        std::normal_distribution<float> gen(mean, stddev);
+        normal_distribution_t<float> gen(mean, stddev);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             float val = round_to_nearest_representable(dt, gen(msr));
             val = MAX2(MIN2(val, max), min);
@@ -466,7 +514,7 @@ int fill_bias(const prb_t &prb, data_kind_t kind, dnn_mem_t &mem_dt,
     auto O = dims[3];
 
     std::minstd_rand msr;
-    std::normal_distribution<float> gen(
+    normal_distribution_t<float> gen(
             prb.cfg[kind].f_mean, prb.cfg[kind].f_stddev);
     msr.seed(kind);
 
