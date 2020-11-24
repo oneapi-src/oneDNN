@@ -54,3 +54,9 @@
 --cfg=f32
 --wtag=ba
 m96n512k8
+
+--reset
+
+--cfg=bf16bf16bf16
+--bia_dt=bf16
+m2n3k4

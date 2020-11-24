@@ -129,7 +129,7 @@ struct ref_gemm_t : public gpu_gemm_t {
         def_data_type(kernel_ctx, d->b_type(), "B");
         def_data_type(kernel_ctx, d->c_type(), "C");
         def_data_type(kernel_ctx, d->acc_type, "ACC");
-        def_data_type(kernel_ctx, bias_type, "BIAS");
+        def_data_type(kernel_ctx, bias_type, "BIA");
         create_kernel(engine, &kernel_, "ref_gemm", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 

@@ -31,7 +31,7 @@ void get_strides(int mask, long dim0, long dim1, long dim2, long *str0,
 }
 
 __kernel void ref_gemm(__global A_DATA_T *a, __global B_DATA_T *b,
-        __global C_DATA_T *c, __global BIAS_DATA_T *bias, long offset_a0,
+        __global C_DATA_T *c, __global BIA_DATA_T *bias, long offset_a0,
         long offset_b0, long offset_c0, long offset_bias0, int transa,
         int transb, long MB, long M, long N, long K, long stride_a,
         long stride_b, long stride_c, long lda, long ldb, long ldc,
@@ -72,7 +72,7 @@ __kernel void ref_gemm(__global A_DATA_T *a, __global B_DATA_T *b,
         POST_OP_DATA_T temp = (POST_OP_DATA_T)acc;
 #if WITH_BIAS
         long off_bias = mb * b_strides[0] + m * b_strides[1] + n * b_strides[2];
-        temp += bias[off_bias];
+        temp += BIA_TO_REF(bias[off_bias]);
 #endif
         temp *= scales[scale_stride * n];
 #if WITH_SUM
