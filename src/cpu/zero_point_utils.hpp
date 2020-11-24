@@ -23,6 +23,42 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+/*
+ * Structure describing the size zero point padding compensation buffer.
+ * Size of buffer is h * w * d * output channels. Size h * w * d represents
+ * number of unique application of filter over input spatial where filter
+ * overlapped the padding need for calculating unique zero point padding
+ * compensation of given case. Pad variables represents number of unique
+ * zp padding compensation values resulting from participation of a given type
+ * of padding (example top padding) over a given axis (example h). Mid points
+ * over given axis represents compensation resulting in the absence of padding
+ * over given axis, but where padding over other axis exists. Example: 2D: conv:
+ * mid_point_w = true, where filter overlaps top padding, but not right and left
+ * padding. Spatial filter w size fits in w range of input image.
+ */
+struct zero_point_pad_comp_config_t {
+    zero_point_pad_comp_config_t() = default;
+    zero_point_pad_comp_config_t(const dim_t front_pad, const dim_t back_pad,
+            const dim_t top_pad, const dim_t bottom_pad, const dim_t left_pad,
+            const dim_t right_pad, const dim_t stride_d, const dim_t stride_h,
+            const dim_t stride_w, const dim_t od, const dim_t oh,
+            const dim_t ow);
+
+    dim_t top_pad = 0;
+    dim_t bottom_pad = 0;
+    dim_t left_pad = 0;
+    dim_t right_pad = 0;
+    dim_t front_pad = 0;
+    dim_t back_pad = 0;
+
+    dim_t mid_h = 0;
+    dim_t mid_w = 0;
+    dim_t mid_d = 0;
+
+    dim_t h = 0;
+    dim_t w = 0;
+    dim_t d = 0;
+};
 
 struct zero_point_config_t {
     zero_point_config_t() = default;
@@ -31,6 +67,7 @@ struct zero_point_config_t {
     bool src_exists = false;
     bool dst_exists = false;
     bool src_is_common = false;
+    zero_point_pad_comp_config_t src_pad_comp;
 
     bool zp_exists() const noexcept;
 };

@@ -111,7 +111,8 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     status_t execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
-            const char *bia_base, const int32_t *zp_src, const int32_t *zp_dst,
+            const char *bia_base, const int32_t *zp_src,
+            const int32_t *zp_src_pad_comp, const int32_t *zp_dst,
             dst_data_t *dst_base, const memory_tracking::grantor_t &scratchpad,
             const void *post_ops_binary_rhs_arg_vec,
             const exec_ctx_t &ctx) const;

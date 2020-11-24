@@ -3,10 +3,11 @@
 --mb=2
 --dir=FWD_B
 --attr-oscale=per_oc:2.25
---attr-zero-points=src:common:1_dst:common:1
+--attr-zero-points=src:common:2_dst:common:1
 --cfg=u8s8u8,s8s8u8 --batch=shapes_vgg_19
 --cfg=u8s8f32,s8s8f32 --batch=shapes_googlenet_v2
 --cfg=u8s8s32 --batch=shapes_3d
+--cfg=u8s8s32 --batch=shapes_gemm
 
 --dir=FWD_D
 --attr-oscale=common:2.25
@@ -16,3 +17,5 @@
 --cfg=u8s8s32 --batch=shapes_alexnet
 --attr-zero-points=src:common:1*_dst:common:1*
 --cfg=s8s8s32 --batch=shapes_alexnet --batch=shapes_3d
+--cfg=u8s8s32 --batch=shapes_gemm
+

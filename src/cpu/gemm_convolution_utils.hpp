@@ -36,7 +36,7 @@ struct conv_gemm_conf_t {
     int mb;
     int ngroups, ic, oc;
     int iw, ih, id, ow, oh, od;
-    int l_pad, t_pad, f_pad;
+    int l_pad, t_pad, f_pad, e_pad, b_pad, r_pad;
     int kh, kw, kd;
     int stride_h, stride_w, stride_d;
     int dilate_h, dilate_w, dilate_d;
@@ -115,6 +115,8 @@ void bwd_weights_reduction_par_nspc(int ithr, int nthr, size_t g_start,
 
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_wrapper *dst_d);
 bool post_ops_ok(const post_ops_t &post_ops, const memory_desc_t *dst_d);
+
+bool padding_exists(const conv_gemm_conf_t &jcp) noexcept;
 
 } // namespace jit_gemm_convolution_utils
 

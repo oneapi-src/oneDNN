@@ -25,6 +25,7 @@
 #include "cpu/binary_injector_utils.hpp"
 #include "cpu/cpu_primitive.hpp"
 #include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm_x8s8s32x_conv_zp_src_pad_comp.hpp"
 #include "cpu/gemm_x8s8s32x_convolution.hpp"
 #include "cpu/simple_q10n.hpp"
 
@@ -50,15 +51,25 @@ status_t _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
 
     DEFINE_ZERO_POINTS_BUFFER(zp_src, DNNL_ARG_SRC);
     DEFINE_ZERO_POINTS_BUFFER(zp_dst, DNNL_ARG_DST);
+    int32_t *zp_src_comp_pad = nullptr;
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
     assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
+
+    if (jcp.zp.src_exists && jit_gemm_convolution_utils::padding_exists(jcp)) {
+        zp_src_comp_pad
+                = scratchpad.get<int32_t>(key_conv_gemm_zp_src_pad_comp);
+        const auto weights_md = memory_desc_wrapper(pd()->weights_md(0));
+        compute_zp_src_comp_pad(jcp, zp_src_comp_pad, zp_src, wei_base,
+                weights_md, pd()->with_groups());
+    }
+
     std::atomic<status_t> st(status::success);
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         status_t st_thr = execute_forward_thr(ithr, nthr, src_base, wei_base,
-                bia_base, zp_src, zp_dst, dst_base, scratchpad,
+                bia_base, zp_src, zp_src_comp_pad, zp_dst, dst_base, scratchpad,
                 post_ops_binary_rhs_arg_vec.data(), ctx);
 
         if (st_thr != status::success) st = st_thr;
@@ -79,9 +90,10 @@ status_t
 _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         const int ithr, const int nthr, const src_data_t *src_base,
         const wei_data_t *wei_base, const char *bia_base, const int32_t *zp_src,
-        const int32_t *zp_dst, dst_data_t *dst_base,
-        const memory_tracking::grantor_t &scratchpad,
+        const int32_t *zp_src_pad_comp, const int32_t *zp_dst,
+        dst_data_t *dst_base, const memory_tracking::grantor_t &scratchpad,
         const void *post_ops_binary_rhs_arg_vec, const exec_ctx_t &ctx) const {
+
     const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const auto src_md = memory_desc_wrapper(pd()->src_md());
@@ -124,7 +136,8 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
             ? get_src_zp_comp(
                     wei_base, wei_md, jcp.signed_input, jcp.ngroups, jcp.oc)
             : nullptr;
-
+    const bool should_apply_zp_src_comp_pad = jcp.zp.src_exists
+            && jit_gemm_convolution_utils::padding_exists(jcp);
     int g {0}, n {0}, ohb {0}, owb {0};
     size_t start = 0, end = 0;
 
@@ -192,6 +205,10 @@ _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
                     = (wei_md.extra().flags & memory_extra_flags::scale_adjust)
                     ? wei_md.extra().scale_adjust
                     : 1.f;
+
+            if (should_apply_zp_src_comp_pad)
+                apply_zp_src_comp_pad(jcp, g, od, oh, ow, h_step, w_step, acc,
+                        zp_src_pad_comp);
 
             parallel(0, [&](int ithr, int nthr) {
                 size_t _start, _end;

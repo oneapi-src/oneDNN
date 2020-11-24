@@ -187,6 +187,7 @@ enum {
     key_conv_gemm_acc,
     key_conv_gemm_col,
     key_conv_gemm_imtr,
+    key_conv_gemm_zp_src_pad_comp,
     key_conv_int_dat_in_acc_dt,
     key_conv_padded_bias,
     key_conv_rtus_space,
