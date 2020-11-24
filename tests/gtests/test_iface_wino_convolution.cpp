@@ -122,9 +122,7 @@ TEST_F(wino_conv_test_t, TestLargePadding) {
                 algorithm::convolution_winograd, src_md, wei_md, dst_md, {1, 1},
                 {2, 2}, {2, 2});
 
-        // oneDNN backend does not support pad != 1 for Wino conv, which may
-        // not be the case for other backends.
-        bool large_pad_is_supported = false;
+        bool large_pad_is_supported = is_nvidia_gpu(eng) ? true : false;
         if (input.wino_supported && large_pad_is_supported) {
             EXPECT_NO_THROW(
                     convolution_forward::primitive_desc(fwd_op_desc, eng));

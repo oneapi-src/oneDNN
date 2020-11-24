@@ -75,8 +75,32 @@ private:
 protected:
     virtual void SetUp() {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
+
+        SKIP_IF_CUDA(!cuda_check_format_tags(p.tags.data_tag, p.tags.diff_tag),
+                "Unsupported format tag");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+
+    bool cuda_check_format_tags(
+            memory::format_tag src_format, memory::format_tag diff_format) {
+        bool src_ok = src_format == memory::format_tag::ncdhw
+                || src_format == memory::format_tag::ndhwc
+                || src_format == memory::format_tag::nchw
+                || src_format == memory::format_tag::nhwc
+                || src_format == memory::format_tag::ncw
+                || src_format == memory::format_tag::nwc
+                || src_format == memory::format_tag::any;
+        bool diff_ok = diff_format == memory::format_tag::oidhw
+                || diff_format == memory::format_tag::odhwi
+                || diff_format == memory::format_tag::oihw
+                || diff_format == memory::format_tag::hwio
+                || diff_format == memory::format_tag::oiw
+                || diff_format == memory::format_tag::oiw
+                || diff_format == memory::format_tag::any;
+
+        return src_ok && diff_ok;
     }
 
     void Test() {
@@ -201,6 +225,11 @@ protected:
             normalization_flags flags = normalization_flags::none) {
         bool useScaleShift
                 = (bool)(flags & normalization_flags::use_scale_shift);
+        bool useGlobalStats
+                = (bool)(flags & normalization_flags::use_global_stats);
+        (void)useGlobalStats;
+
+        SKIP_IF_CUDA(useGlobalStats, "Global stats not supported");
 
         auto bnorm_fwd_d = batch_normalization_forward::desc(
                 prop_kind::forward_training, *data_d, p.epsilon, flags);
@@ -250,6 +279,11 @@ protected:
         fill<float>(variance);
         check_zero_tail<data_t>(1, diff_src->get());
         check_zero_tail<data_t>(1, diff_dst->get());
+
+        // Run a forward pass first for Nvidia backend to generate the workspace
+        // needed by the backward pass.
+        if (is_nvidia_gpu(eng))
+            execBnormFwd(true, useGlobalStats, useScaleShift);
 
         execBnormBwd(useScaleShift, pk);
 

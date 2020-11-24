@@ -130,7 +130,7 @@ inline int dnnl_get_current_num_threads() {
     return tbb::this_task_arena::max_concurrency();
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
     using namespace dnnl::impl::threadpool_utils;
-    dnnl::threadpool_iface *tp = get_active_threadpool();
+    dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
     return (tp) ? dnnl_get_max_threads() : 1;
 #else
     return 1;

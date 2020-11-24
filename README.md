@@ -21,6 +21,7 @@ The library is optimized for Intel Architecture Processors, Intel Processor
 Graphics and Xe architecture-based Graphics. oneDNN has experimental support
 for the following architectures:
 * Arm\* 64-bit Architecture (AArch64)
+* NVIDIA\* GPU
 * OpenPOWER\* Power ISA (PPC64)
 * IBMz\* (s390x)
 
@@ -190,6 +191,18 @@ is enabled:
     * [Intel oneAPI DPC++ Compiler](https://software.intel.com/en-us/oneapi/dpc-compiler) Beta
     * OpenCL runtime library (OpenCL version 1.2 or later)
     * [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
+* DPCPP runtime with NVIDIA GPU support requires
+    * [oneAPI DPC++ Compiler](https://github.com/intel/llvm)
+    * OpenCL runtime library (OpenCL version 1.2 or later)
+    * NVIDIA CUDA\* driver
+    * cuBLAS 10.1 or later
+    * cuDNN 7.6 or later
+
+> **WARNING**
+>
+> NVIDIA GPU support is experimental. General information, build instructions
+> and implementation limitations is available in
+> [NVIDIA backend readme](https://github.com/oneapi-src/oneDNN/blob/master/src/gpu/NVIDIA/README.md).
 
 ### Runtime Dependencies
 

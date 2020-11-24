@@ -45,8 +45,20 @@ private:
 protected:
     void SetUp() override {
         p = ::testing::TestWithParam<softmax_test_params_t<data_t>>::GetParam();
+
+        SKIP_IF_CUDA(!cuda_check_format_tag(p.memory_format),
+                "Unsupported format tag");
+        SKIP_IF_CUDA(!cuda_check_format_tag(p.diff_memory_format),
+                "Unsupported format tag");
+        SKIP_IF_CUDA(data_traits<data_t>::data_type == memory::data_type::bf16,
+                "Unsupported datatype for CUDA");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+    bool cuda_check_format_tag(memory::format_tag tag) {
+        return (tag != memory::format_tag::aBcd8b
+                && tag != memory::format_tag::aBc16b);
     }
 
     void Forward() {

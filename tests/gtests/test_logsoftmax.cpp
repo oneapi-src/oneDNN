@@ -46,10 +46,21 @@ private:
 
 protected:
     void SetUp() override {
+        data_dt = data_traits<data_t>::data_type;
+
         p = ::testing::TestWithParam<
                 logsoftmax_test_params_t<data_t>>::GetParam();
+        SKIP_IF(unsupported_data_type(data_dt),
+                "Engine does not support this data type.");
+        SKIP_IF_CUDA(!cuda_check_format_tag(p.memory_format),
+                "Unsupported format tag");
+        SKIP_IF_CUDA(p.axis != 1, "Unsupported axis values for CUDA");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+    bool cuda_check_format_tag(memory::format_tag tag) {
+        return (tag != memory::format_tag::aBcd8b
+                && tag != memory::format_tag::aBc16b);
     }
 
     void Forward() {
@@ -140,6 +151,8 @@ protected:
         auto eng = get_test_engine();
         auto strm = make_stream(eng);
         auto prec = data_traits<data_t>::data_type;
+        SKIP_IF_CUDA(prec == memory::data_type::bf16,
+                "Unsupported datatype for CUDA");
         auto mem_desc = memory::desc(p.dims, prec, p.memory_format);
         auto diff_mem_desc = memory::desc(p.dims, prec, p.diff_memory_format);
 

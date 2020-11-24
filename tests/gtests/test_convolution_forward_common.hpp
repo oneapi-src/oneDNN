@@ -104,10 +104,49 @@ class convolution_forward_test
     : public ::testing::TestWithParam<test_convolution_params_t> {
 protected:
     virtual void SetUp() {
+        memory::data_type data_type_src = data_traits<data_t_src>::data_type;
+        memory::data_type data_type_dst = data_traits<data_t_dst>::data_type;
+        memory::data_type data_type_wei = data_traits<data_t_wei>::data_type;
+
+        SKIP_IF(unsupported_data_type(data_type_src),
+                "Engine does not support this data type.");
+        SKIP_IF(unsupported_data_type(data_type_dst),
+                "Engine does not support this data type.");
+        SKIP_IF(unsupported_data_type(data_type_wei),
+                "Engine does not support this data type.");
+
         auto p = ::testing::TestWithParam<
                 test_convolution_params_t>::GetParam();
+
+        SKIP_IF_CUDA(
+                !(cuda_check_format_tags(p.formats.src_format, data_type_src)
+                        && cuda_check_format_tags(
+                                p.formats.dst_format, data_type_dst)
+                        && (cuda_check_format_tags(
+                                    p.formats.weights_format, data_type_wei)
+                                || impl::utils::one_of(p.formats.weights_format,
+                                        /* weights formats */
+                                        memory::format_tag::gowi,
+                                        memory::format_tag::gohwi,
+                                        memory::format_tag::godhwi,
+                                        memory::format_tag::owi,
+                                        memory::format_tag::ohwi,
+                                        memory::format_tag::odhwi))),
+                "Format is not supported.");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+
+    bool cuda_check_format_tags(memory::format_tag tag, memory::data_type dt) {
+        return ((impl::utils::one_of(tag, memory::format_tag::ab,
+                        memory::format_tag::abc, memory::format_tag::abcd,
+                        memory::format_tag::abcde, memory::format_tag::abcdef,
+                        memory::format_tag::acb, memory::format_tag::acdb,
+                        memory::format_tag::acdeb))
+                || (dt == memory::data_type::s8
+                        && impl::utils::one_of(tag, memory::format_tag::aBcd4b,
+                                memory::format_tag::aBcde4b)));
     }
 
     void Test() {

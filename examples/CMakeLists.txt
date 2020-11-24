@@ -61,6 +61,14 @@ if(DNNL_CPU_SYCL)
     endforeach()
 endif()
 
+# Skip examples for CUDA since USM is a default model for the library which is
+# not yet supported for Nvidia backend.
+if(DNNL_SYCL_CUDA)
+    foreach(f ${sources})
+        list(REMOVE_ITEM sources "${f}")
+    endforeach()
+endif()
+
 foreach(src ${sources})
     file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR} ${src})
     string(REGEX REPLACE "[/_\\.]" "-" example_name ${src_rel_path})

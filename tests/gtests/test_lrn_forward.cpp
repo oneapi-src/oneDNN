@@ -122,8 +122,21 @@ protected:
         SKIP_IF(unsupported_data_type(data_type),
                 "Engine does not support this data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
+        SKIP_IF_CUDA(
+                !cuda_check_format_tags(p.format), "Unsupported format tag");
+        SKIP_IF_CUDA(p.aalgorithm != algorithm::lrn_across_channels,
+                "Unsupported algorithm");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+    bool cuda_check_format_tags(memory::format_tag format) {
+        bool ok = format == memory::format_tag::ncdhw
+                || format == memory::format_tag::nchw
+                || format == memory::format_tag::nhwc
+                || format == memory::format_tag::ncw
+                || format == memory::format_tag::nwc
+                || format == memory::format_tag::any;
+        return ok;
     }
 
     void Test() {

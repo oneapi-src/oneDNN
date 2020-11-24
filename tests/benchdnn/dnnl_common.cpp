@@ -17,6 +17,11 @@
 #include <assert.h>
 #include "oneapi/dnnl/dnnl.h"
 
+// For is_nvidia_gpu(...)
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+#include "oneapi/dnnl/dnnl_sycl.hpp"
+#endif
+
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
@@ -255,5 +260,45 @@ void check_known_skipped_case_common(
             r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
             break;
         }
+        // cuda supports only f32, f16 and s8 data types
+        if (is_nvidia_gpu()
+                && (i_dt == dnnl_bf16 || i_dt == dnnl_u8 || i_dt == dnnl_s32)) {
+            r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
+            break;
+        }
     }
+}
+
+bool is_nvidia_gpu(const engine_t &engine) {
+    dnnl_engine_kind_t engine_kind = dnnl_any_engine;
+    DNN_SAFE_V(dnnl_engine_get_kind(engine, &engine_kind));
+
+    if (engine_kind != dnnl_gpu) return false;
+#if DNNL_WITH_SYCL
+    constexpr int nvidia_vendor_id = 0x10DE;
+    auto eng = dnnl::engine(engine, true);
+    auto device = dnnl::sycl_interop::get_device(eng);
+    const auto eng_vendor_id
+            = device.get_info<cl::sycl::info::device::vendor_id>();
+    return eng_vendor_id == nvidia_vendor_id;
+#endif
+    return false;
+}
+
+bool is_nvidia_eltwise_ok(
+        dir_t dir, attr_t::post_ops_t::kind_t alg, float alpha) {
+    using pk_t = attr_t::post_ops_t::kind_t;
+    switch (alg) {
+        case pk_t::BRELU: return true;
+        case pk_t::ELU: return (dir & FLAG_FWD);
+        case pk_t::LOGISTIC: return (dir & FLAG_FWD);
+        case pk_t::TANH: return (dir & FLAG_FWD);
+        case pk_t::RELU: return alpha == 0.f;
+        // TODO: can be easily supported by Nvidia backend
+        // case pk_t::ELU_DST: return true;
+        // case pk_t::LOGISTIC_DST: return true;
+        // case pk_t::TANH_DST: return true;
+        // case pk_t::RELU_DST: return alpha == 0.f;
+        default: return false;
+    };
 }

@@ -95,6 +95,19 @@ protected:
 
         SKIP_IF(unsupported_data_type(p.base.src.dt),
                 "Engine does not support this data type.");
+        SKIP_IF(unsupported_data_type(p.base.weights.dt),
+                "Engine does not support this data type.");
+        SKIP_IF(unsupported_data_type(p.base.dst.dt),
+                "Engine does not support this data type.");
+        SKIP_IF(unsupported_data_type(p.base.bia_dt),
+                "Engine does not support this data type.");
+
+        SKIP_IF_CUDA((p.attr.zero_points.src != 0 || p.attr.zero_points.dst != 0
+                             || p.attr.zero_points.weights != 0),
+                "Zero points not supported for CUDA");
+
+        SKIP_IF_CUDA((p.attr.scale_flags & P::MASK_MASK) == P::PER_N,
+                "Per dimensional scaling is not supported for CUDA");
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status, false);
@@ -373,7 +386,8 @@ static auto cases_ef = []() {
                      {{10, 20}, data_type::f32, tag::ab}, data_type::u8},
                     {}, true, dnnl_unimplemented});
     // XXX: disable assert in type_helpers.hpp: default_accum_data_type(...)
-    //cases.push_back({{{{10, 1}, data_type::u8, tag::ab}, {{1, 20}, data_type::u8, tag::ab},
+    // cases.push_back({{{{10, 1}, data_type::u8, tag::ab}, {{1, 20},
+    // data_type::u8, tag::ab},
     //                           {{10, 20}, data_type::u8, tag::ab}},
     //        {}, true, dnnl_unimplemented});
 

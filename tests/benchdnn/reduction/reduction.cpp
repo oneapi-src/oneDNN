@@ -191,6 +191,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
     }
+
+    if (is_nvidia_gpu()) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
 }
 
 int doit(const prb_t *prb, res_t *res) {

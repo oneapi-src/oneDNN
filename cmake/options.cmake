@@ -153,6 +153,13 @@ if(NOT "${DNNL_GPU_RUNTIME}" MATCHES "^(OCL|NONE|DPCPP|SYCL)$")
     message(FATAL_ERROR "Unsupported GPU runtime: ${DNNL_GPU_RUNTIME}")
 endif()
 
+set(DNNL_GPU_VENDOR "INTEL" CACHE STRING
+    "specifies target GPU vendor for GPU engines.
+    Can be INTEL (default) or NVIDIA.")
+if(NOT "${DNNL_GPU_VENDOR}" MATCHES "^(INTEL|NVIDIA)$")
+    message(FATAL_ERROR "Unsupported GPU vendor: ${DNNL_GPU_VENDOR}")
+endif()
+
 set(OPENCLROOT "" CACHE STRING
     "path to Intel SDK for OpenCL applications.
     Use this option to specify custom location for OpenCL.")
@@ -167,6 +174,10 @@ endif()
 
 if(DNNL_GPU_RUNTIME STREQUAL "DPCPP" OR DNNL_GPU_RUNTIME STREQUAL "SYCL")
     set(DNNL_GPU_SYCL true)
+    set(DNNL_SYCL_CUDA OFF)
+    if(DNNL_GPU_VENDOR STREQUAL "NVIDIA")
+        set(DNNL_SYCL_CUDA ON)
+    endif()
 else()
     set(DNNL_GPU_SYCL false)
 endif()

@@ -42,6 +42,19 @@ struct pool_test_params_t {
     dnnl_status_t expected_status;
 };
 
+bool cuda_check_format_tags(memory::format_tag format) {
+    bool format_ok = format == memory::format_tag::ncdhw
+            || format == memory::format_tag::ndhwc
+            || format == memory::format_tag::nchw
+            || format == memory::format_tag::nhwc
+            || format == memory::format_tag::ncw
+            || format == memory::format_tag::nwc
+            || format == memory::format_tag::any
+            || format == memory::format_tag::nCdhw4c;
+
+    return format_ok;
+}
+
 template <typename data_t>
 void check_pool_fwd(const pool_test_params_t &p, const memory &src,
         const memory &dst, const memory &ws) {
@@ -68,6 +81,8 @@ void check_pool_fwd(const pool_test_params_t &p, const memory &src,
 
     auto pd = p.test_pd;
     size_t padded_c = src_d.data.padded_dims[1];
+
+    const bool is_cudnn_gpu = is_nvidia_gpu(src.get_engine());
 
     dnnl::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
             [&](memory::dim n, memory::dim c, memory::dim od, memory::dim oh,
@@ -150,8 +165,11 @@ void check_pool_fwd(const pool_test_params_t &p, const memory &src,
 
                 const data_t out_ref = (data_t)acc_ref;
                 ASSERT_NEAR(out, out_ref, 1e-6);
-                if (p.aalgorithm == algorithm::pooling_max
-                        && p.aprop_kind == prop_kind::forward_training) {
+                // The workspace layout is different when the cuDNN backend is used
+                // and therefore this check must be skipped
+                if ((p.aalgorithm == algorithm::pooling_max
+                            && p.aprop_kind == prop_kind::forward_training)
+                        && !is_cudnn_gpu) {
                     ASSERT_EQ(out_index, out_ref_index)
                             << " n = " << n << " c = " << c << " od = " << od
                             << " oh = " << oh << " ow = " << ow;
@@ -166,6 +184,14 @@ class pooling_test_t : public ::testing::TestWithParam<pool_test_params_t> {
 protected:
     void SetUp() override {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
+
+        SKIP_IF(unsupported_data_type(data_traits<data_t>::data_type),
+                "Engine does not support this data type.");
+        SKIP_IF_CUDA(!cuda_check_format_tags(p.src_format),
+                "Unsupported format tag");
+        SKIP_IF_CUDA(!cuda_check_format_tags(p.dst_format),
+                "Unsupported format tag");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -233,6 +259,18 @@ protected:
         }
 
         memory workspace;
+
+        for (size_t i = 0; i < pad_l.size(); ++i) {
+            SKIP_IF_CUDA(
+                    (p.aalgorithm
+                            == dnnl::algorithm::pooling_avg_include_padding)
+                            && (pad_l[i] < pad_r[i]),
+                    "Asymmetric padding is not supported!");
+        }
+
+        for (size_t i = 0; i < dilation.size(); ++i) {
+            SKIP_IF_CUDA(dilation[i] != 0, "Dilation is not supported!");
+        }
 
         if (pd.dd == 0 && pd.dh == 0 && pd.dw == 0) {
             auto pool_desc = pooling_forward::desc(p.aprop_kind, p.aalgorithm,

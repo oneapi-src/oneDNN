@@ -19,7 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "dnnl.h"
+#include "oneapi/dnnl/dnnl.h"
 
 #include "tests/test_thread.hpp"
 
@@ -340,6 +340,14 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     if (is_invalid) {
         res->state = SKIPPED, res->reason = INVALID_CASE;
         return;
+    }
+
+    if (is_nvidia_gpu()) {
+        if (!is_nvidia_eltwise_ok(prb->dir, prb->alg, prb->alpha)
+                || !prb->attr.post_ops.is_def()) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
     }
 }
 

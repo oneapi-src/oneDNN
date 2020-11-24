@@ -318,6 +318,14 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             return;
         }
     }
+
+    if (is_nvidia_gpu()) {
+        const bool oscale_ok = prb->attr.oscale.policy == policy_t::COMMON;
+        if (!oscale_ok) {
+            res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+            return;
+        }
+    }
 }
 
 int doit(const prb_t *prb, res_t *res) {

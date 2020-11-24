@@ -55,7 +55,6 @@ struct cpu_stream_t : public stream_t {
         threadpool_utils::deactivate_threadpool();
     }
 #endif
-
 };
 
 } // namespace cpu

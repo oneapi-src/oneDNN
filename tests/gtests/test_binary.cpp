@@ -50,23 +50,37 @@ protected:
         SKIP_IF(unsupported_data_type(src0_dt),
                 "Engine does not support this data type.");
 
+        SKIP_IF(unsupported_data_type(src1_dt),
+                "Engine does not support this data type.");
+
+        for (auto tag : p.srcs_format) {
+            MAYBE_UNUSED(tag);
+            SKIP_IF_CUDA(!cuda_check_format_tag(tag),
+                    "Unsupported source format tag");
+        }
+        SKIP_IF_CUDA(!cuda_check_format_tag(p.dst_format),
+                "Unsupported destination format tag");
+
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
+    bool cuda_check_format_tag(tag atag) {
+        return atag == tag::abcd || atag == tag::acdb;
+    }
+
     void Test() {
+        auto eng = get_test_engine();
+        auto strm = make_stream(eng);
+
         // binary specific types and values
         using op_desc_t = binary::desc;
         using pd_t = binary::primitive_desc;
         allows_attr_t aa {false};
-        aa.po_sum = true;
-        aa.po_eltwise = true;
-        aa.po_binary = true;
         aa.scales = true;
-
-        auto eng = get_test_engine();
-        auto strm = make_stream(eng);
-
+        aa.po_sum = !is_nvidia_gpu(eng);
+        aa.po_eltwise = !is_nvidia_gpu(eng);
+        aa.po_binary = !is_nvidia_gpu(eng);
         std::vector<memory::desc> srcs_md;
         std::vector<memory> srcs;
 
