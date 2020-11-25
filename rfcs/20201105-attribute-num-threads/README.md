@@ -19,7 +19,7 @@ namespace {
 </details>
 
 
-A user-defined implementation of `Threadpool` (c.f. `dnnl_threadpool_impl.hpp`)
+A user-defined implementation of `Threadpool` (c.f. `dnnl_threadpool_iface.hpp`)
 is passed to the library via stream attributes:
 
 <details>
@@ -157,8 +157,9 @@ namespace dnnl {
 namespace threadpool_interop {
 
 inline dnnl::primitive_attr make_primitive_attr(int max_num_threads = DNNL_MAX_THREADS) {
-    dnnl_primitive_attr_t c_attr;
-    dnnl::error::wrap_c_api(dnnl_threadpool_interop_primitive_attr_create(&c_attr, max_num_threads));
+    dnnl_primitive_attr_t result;
+    dnnl::error::wrap_c_api(dnnl_threadpool_interop_primitive_attr_create(&result, max_num_threads));
+    reset(result);
 }
 
 } // namespace threadpool_interop
@@ -226,7 +227,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
 
     int get_max_num_threads() const {}
 
-    void set_max_num_threads(int nthr) {}
+    void set_max_num_threads(int max_num_threads) {}
 
     ...
 };
