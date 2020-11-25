@@ -1390,10 +1390,16 @@ static void prb_thread_kernel_balance(
     for (int d = 0; d < prb.ndims; ++d)
         sz_total *= prb.nodes[d].n;
 
+    /* The general expression for sz_drv_thr can be written as
+     * sz_drv_min = C0 + FC * (nthr > 1 ? 1 : 0) + VC * (nthr - 1)
+     * where FC and VC are fixed and variable costs respectively.
+     * Though for now, the below heuristic seems to be good enough */
+    const size_t sz_drv_thr = (nthr > 1) ? 16 * nthr : 1;
+
     /* sz_drv_min is the minimal size for the parallel
      * driver required for good parallelization */
     const size_t sz_drv_min
-            = nstl::min<size_t>(16 * nthr, utils::div_up(sz_total, 1024));
+            = nstl::min<size_t>(sz_drv_thr, utils::div_up(sz_total, 1024));
 
     /* kdims -- # of dimensions processed by a kernel
      * sz_ker_cur -- product of the dimension processed by a kernel
