@@ -162,7 +162,7 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                             - div_up(d_b_overflow, (jcp.dilate_d + 1));
                     par_conv.kd_padding = nstl::max(0, kd_padding);
 
-                    par_conv.oc_l_off = _oc * jcp.oc_block;
+                    par_conv.oc_l_off = _oc * oc_bias_scale;
                     par_conv.post_ops_binary_rhs_arg_vec
                             = post_ops_binary_rhs_arg_vec.data();
                     par_conv.dst_orig = dst;
