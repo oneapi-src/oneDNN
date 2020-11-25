@@ -392,13 +392,13 @@ void im2col_dt_3d(const conv_gemm_conf_t &jcp,
 }
 
 template void im2col_dt_3d<int8_t, uint8_t>(const conv_gemm_conf_t &jcp,
-        const int8_t *__restrict im, uint8_t *__restrict col, int od, const uint8_t *__restrict input_zp = nullptr);
+        const int8_t *__restrict im, uint8_t *__restrict col, int od, const uint8_t *__restrict input_zp);
 template void im2col_dt_3d<uint8_t, uint8_t>(const conv_gemm_conf_t &jcp,
-        const uint8_t *__restrict im, uint8_t *__restrict col, int od, const uint8_t *__restrict input_zp = nullptr);
+        const uint8_t *__restrict im, uint8_t *__restrict col, int od, const uint8_t *__restrict input_zp);
 template void im2col_dt_3d<float, float>(const conv_gemm_conf_t &jcp,
-        const float *__restrict im, float *__restrict col, int od, const uint8_t *__restrict input_zp = nullptr);
+        const float *__restrict im, float *__restrict col, int od, const uint8_t *__restrict input_zp);
 template void im2col_dt_3d<bfloat16_t, bfloat16_t>(const conv_gemm_conf_t &jcp,
-        const bfloat16_t *__restrict im, bfloat16_t *__restrict col, int od, const uint8_t *__restrict input_zp = nullptr);
+        const bfloat16_t *__restrict im, bfloat16_t *__restrict col, int od, const uint8_t *__restrict input_zp);
 
 /* col[ic][kh][kw][oh][ow] <-- im2col(im[ic][ih][iw]) */
 template <typename data_type_t>
@@ -743,17 +743,17 @@ void im2col_dt(const conv_gemm_conf_t &jcp, const orig_im_dt *__restrict _im,
 
 template void im2col_dt<int8_t, uint8_t>(const conv_gemm_conf_t &jcp,
         const int8_t *__restrict im, int8_t *__restrict imtr,
-        uint8_t *__restrict col, int hs, int hb, int ws, int wb, const uint8_t *__restrict input_zp = nullptr);
+        uint8_t *__restrict col, int hs, int hb, int ws, int wb, const uint8_t *__restrict input_zp);
 template void im2col_dt<uint8_t, uint8_t>(const conv_gemm_conf_t &jcp,
         const uint8_t *__restrict im, uint8_t *__restrict imtr,
-        uint8_t *__restrict col, int hs, int hb, int ws, int wb, const uint8_t *__restrict input_zp = nullptr);
+        uint8_t *__restrict col, int hs, int hb, int ws, int wb, const uint8_t *__restrict input_zp);
 template void im2col_dt<float, float>(const conv_gemm_conf_t &jcp,
         const float *__restrict im, float *__restrict imtr,
-        float *__restrict col, int hs, int hb, int ws, int wb, const uint8_t *__restrict input_zp = nullptr);
+        float *__restrict col, int hs, int hb, int ws, int wb, const uint8_t *__restrict input_zp);
 
 template void im2col_dt<bfloat16_t, bfloat16_t>(const conv_gemm_conf_t &jcp,
         const bfloat16_t *__restrict im, bfloat16_t *__restrict imtr,
-        bfloat16_t *__restrict col, int hs, int hb, int ws, int wb, const uint8_t *__restrict input_zp = nullptr);
+        bfloat16_t *__restrict col, int hs, int hb, int ws, int wb, const uint8_t *__restrict input_zp);
 
 /* im[id][ih][iw][ic] <-- col2im_dt_3d(col[od][oh][ow][kd][kh][kw][ic]) */
 template <typename orig_T>
