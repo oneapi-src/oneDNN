@@ -541,7 +541,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
             return;
         }
 
-        if (this->pd()->is_postprocess_required()) {
+        if (this->pd()->is_postprocess_required() && ic + ic_block >= jcp.ic) {
             size_t acc_str = LDC;
             size_t dst_str = M;
             (*pp_ker_)(dst_local, acc, bias + groups * jcp.oc + oc, sum_scale,
