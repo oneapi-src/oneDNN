@@ -1568,7 +1568,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
 
                 int best_ocb {1}, best_osb {1};
                 int best_nthr_oc {1};
-                int best_icb {1};
+                int best_icb {jcp.ic};
                 float best_thr_eff = 0;
 
                 auto try_cfg = [&](int nthr_oc, int ocb, int osb) {
@@ -1580,7 +1580,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     // - gemm works better if M divided by 48 and N divided by 8
 
                     const int max_oc = div_up(jcp.oc, nthr_oc);
-                    const int min_oc = jcp.oc / nthr_oc;
+                    const int min_oc = nstl::max(1, jcp.oc / nthr_oc);
                     const int max_os
                             = div_up(spatial, (int)(max_threads / nthr_oc));
                     ocb = utils::saturate(min_oc_block, max_oc, ocb);
@@ -1590,7 +1590,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                     // based on work balance using:
                     // balance2D(max_threads, i, spatial, sp_start, sp_end,
                     //            jcp.oc, oc_start, oc_end, nthr_oc);
-                    size_t max_thr_size = 0;
+                    size_t max_thr_size = 1;
                     {
                         const int min_os = div_up(
                                 spatial, (int)div_up(max_threads, nthr_oc));
@@ -1612,11 +1612,10 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                         }
                     }
 
-                    size_t min_thr_size {0};
+                    size_t min_thr_size {1};
                     {
-
-                        const int min_os
-                                = spatial / div_up(max_threads, nthr_oc);
+                        const int min_os = nstl::max(
+                                1, spatial / div_up(max_threads, nthr_oc));
                         /* --- compute min_thr_size ------------
                          may not necessarily be (min_oc * min_y)
                          thr_size = thr_oc * (spatial /nthrs_in_slice);
