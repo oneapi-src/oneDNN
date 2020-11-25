@@ -160,9 +160,9 @@ static float ker(const data_t *src, const data_t *weights,
 
     const float diff_src_res = relu_bwd_use_dst(
             diff_dst[diff_data_off], src[data_off], weights[weight_off]);
-    diff_src[diff_data_off] = cpu::saturate_and_round<data_t>(diff_src_res);
     const float diff_weight_res
             = src[data_off] > 0 ? 0 : (diff_dst[diff_data_off] * src[data_off]);
+    diff_src[diff_data_off] = cpu::saturate_and_round<data_t>(diff_src_res);
     return diff_weight_res;
 }
 
