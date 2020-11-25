@@ -138,7 +138,7 @@ Additional options are welcome to the list.
 ### Option 1: new API in `dnnl::threadpool_interop` namespace
 
 This option proposes to introduce new API that limits the number of threads used
-for problem decomposition.
+by a primitive.
 
 <details>
 <summary>C API</summary>
@@ -169,9 +169,9 @@ inline dnnl::primitive_attr make_primitive_attr(int max_num_threads = DNNL_MAX_T
 </details>
 
 The `max_num_threads` value in the primitive attributes will indicate the upper
-limit for the number of threads used for decomposition in the primitive
-(descriptor). The default wildcard value `DNNL_MAX_THREADS` indicates that
-`dnnl_get_max_threads()` will be used internally as an upper limit.
+limit for the number of threads used for primitive execution. The default
+wildcard value `DNNL_MAX_THREADS` indicates that `dnnl_get_max_threads()` will
+be used internally as an upper limit.
 
 By assigning `0` in the API, the user will instruct the library that no
 threadpool will be used to execute the corresponding primitive, therefore no
@@ -179,9 +179,7 @@ decomposition will be performed and the execution will be performed by the
 calling thread.
 
 By assigning `1` or higher value in the API, the user will instruct the library
-the upper limit for the number of threads for decomposition, and, during
-execution, the parallel sections will be executed by the threads in the
-threadpool.
+the upper limit for the number of threads used for execution.
 
 In the context of primitive cache, the number of threads passed by primitive
 attributes will be used to construct the cache key. In means that two primitives
@@ -236,8 +234,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
 </details>
 
 The value provided for the primitive attribute will be used as an upper limit
-for number of threads for problem decomposition at primitive (descriptor)
-creation.
+for number of threads used at primitive execution.
 
 The behavior of the primitive attribute will be identical to what is described
 in [Option 1](#option-1-new-api-in-dnnl::threadpool_interop-namespace), however,
