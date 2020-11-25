@@ -2562,6 +2562,15 @@ typedef enum {
 
 } dnnl_cpu_isa_t;
 
+/// CPU ISA hints flags
+typedef enum {
+    /// No hints (use default features)
+    dnnl_cpu_isa_no_hints = 0x0,
+
+    /// Prefer to exclusively use Ymm registers for computations
+    dnnl_cpu_isa_prefer_ymm = 0x1,
+} dnnl_cpu_isa_hints_t;
+
 /// @} dnnl_api_service
 
 /// @} dnnl_api

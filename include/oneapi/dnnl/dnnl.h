@@ -3533,6 +3533,37 @@ dnnl_status_t DNNL_API dnnl_set_max_cpu_isa(dnnl_cpu_isa_t isa);
 ///     dispatch to.
 dnnl_cpu_isa_t DNNL_API dnnl_get_effective_cpu_isa(void);
 
+/// Sets the hints flag for the CPU ISA. See #dnnl_cpu_isa_hints_t and
+/// #dnnl::cpu_isa_hints for the list of the values accepted by the C and C++
+/// API functions respectively.
+///
+/// This function has effect only before the first JIT kernel is generated and
+/// will return an error afterwards.
+///
+/// This function overrides the DNNL_CPU_ISA_HINTS environment variable.
+/// @sa @ref dev_guide_cpu_isa_hints for more details
+///
+/// @param isa_hints CPU ISA hints to be passed over to the implementation.
+///     Pass #dnnl_cpu_isa_no_hints/#dnnl::cpu_isa_hints::no_hints to use
+///     default features i.e. no hints.
+/// @returns #dnnl_success/#dnnl::status::success on success and a
+///     #dnnl_runtime_error/#dnnl::status::runtime_error if the ISA hints cannot
+///     be specified at the current time.
+/// @returns #dnnl_unimplemented/#dnnl::status::unimplemented if the feature
+///     was disabled at build time (see @ref dev_guide_build_options for more
+///     details).
+dnnl_status_t DNNL_API dnnl_set_cpu_isa_hints(dnnl_cpu_isa_hints_t isa_hints);
+
+/// Gets the ISA specific hints that library can follow. See
+/// #dnnl_cpu_isa_hints_t and #dnnl::cpu_isa_hints for the list of the values
+///  returned by the C and C++ API functions respectively.
+///
+/// @sa @ref dev_guide_cpu_isa_hints for more details
+///
+/// @returns #dnnl_cpu_isa_hints_t value reflecting the ISA specific hints the
+/// library can follow.
+dnnl_cpu_isa_hints_t DNNL_API dnnl_get_cpu_isa_hints(void);
+
 /// @} dnnl_api_service
 
 /// @addtogroup dnnl_api_blas

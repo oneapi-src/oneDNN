@@ -65,6 +65,26 @@ bool init_max_cpu_isa() {
     return max_cpu_isa().set(max_cpu_isa_val);
 }
 #endif
+
+#ifdef DNNL_ENABLE_CPU_ISA_HINTS
+set_before_first_get_setting_t<dnnl_cpu_isa_hints_t> &cpu_isa_hints() {
+    static set_before_first_get_setting_t<dnnl_cpu_isa_hints_t>
+            cpu_isa_hints_setting;
+    return cpu_isa_hints_setting;
+}
+
+bool init_cpu_isa_hints() {
+    if (cpu_isa_hints().initialized()) return false;
+
+    dnnl_cpu_isa_hints_t cpu_isa_hints_val = dnnl_cpu_isa_no_hints;
+    char buf[64];
+    if (getenv("DNNL_CPU_ISA_HINTS", buf, sizeof(buf)) > 0) {
+        if (std::strcmp(buf, "PREFER_YMM") == 0)
+            cpu_isa_hints_val = dnnl_cpu_isa_prefer_ymm;
+    }
+    return cpu_isa_hints().set(cpu_isa_hints_val);
+}
+#endif
 } // namespace
 
 struct isa_info_t {
@@ -78,6 +98,7 @@ struct isa_info_t {
             case avx512_core_amx: return dnnl_cpu_isa_avx512_core_amx;
             case avx512_core_bf16_amx_bf16: // fallback to avx512_core_bf16
             case avx512_core_bf16_amx_int8: // fallback to avx512_core_bf16
+            case avx512_core_bf16_ymm: // fallback to avx512_core_bf16
             case avx512_core_bf16: return dnnl_cpu_isa_avx512_core_bf16;
             case avx512_core_vnni: return dnnl_cpu_isa_avx512_core_vnni;
             case avx512_core: return dnnl_cpu_isa_avx512_core;
@@ -102,6 +123,9 @@ struct isa_info_t {
             case avx512_core_bf16_amx_int8:
                 return "Intel AVX-512 with Intel DL Boost and bfloat16 support "
                        "and Intel AMX with 8-bit integer support";
+            case avx512_core_bf16_ymm:
+                return "Intel AVX-512 with Intel DL Boost and bfloat16 support "
+                       "on Ymm/Zmm";
             case avx512_core_bf16:
                 return "Intel AVX-512 with Intel DL Boost and bfloat16 support";
             case avx512_core_vnni: return "Intel AVX-512 with Intel DL Boost";
@@ -133,6 +157,7 @@ static isa_info_t get_isa_info_t(void) {
     HANDLE_CASE(avx512_core_amx);
     HANDLE_CASE(avx512_core_bf16_amx_bf16);
     HANDLE_CASE(avx512_core_bf16_amx_int8);
+    HANDLE_CASE(avx512_core_bf16_ymm);
     HANDLE_CASE(avx512_core_bf16);
     HANDLE_CASE(avx512_core_vnni);
     HANDLE_CASE(avx512_core);
@@ -157,6 +182,16 @@ cpu_isa_t get_max_cpu_isa_mask(bool soft) {
     return max_cpu_isa().get(soft);
 #else
     return isa_all;
+#endif
+}
+
+dnnl_cpu_isa_hints_t get_cpu_isa_hints(bool soft) {
+    MAYBE_UNUSED(soft);
+#ifdef DNNL_ENABLE_CPU_ISA_HINTS
+    init_cpu_isa_hints();
+    return cpu_isa_hints().get(soft);
+#else
+    return dnnl_cpu_isa_no_hints;
 #endif
 }
 
@@ -197,6 +232,21 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
 
 dnnl_cpu_isa_t get_effective_cpu_isa() {
     return get_isa_info_t().convert_to_public_enum();
+}
+
+status_t set_cpu_isa_hints(dnnl_cpu_isa_hints_t isa_hints) {
+    using namespace dnnl::impl::status;
+#ifdef DNNL_ENABLE_CPU_ISA_HINTS
+    using namespace dnnl::impl;
+    using namespace dnnl::impl::cpu;
+
+    if (cpu_isa_hints().set(isa_hints))
+        return success;
+    else
+        return runtime_error;
+#else
+    return unimplemented;
+#endif
 }
 
 namespace amx {

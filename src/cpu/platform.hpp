@@ -92,7 +92,10 @@ namespace platform {
 const char *get_isa_info();
 dnnl_cpu_isa_t get_effective_cpu_isa();
 status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
+status_t set_cpu_isa_hints(dnnl_cpu_isa_hints_t isa_hints);
+dnnl_cpu_isa_hints_t get_cpu_isa_hints();
 
+bool DNNL_API prefer_ymm_requested();
 bool DNNL_API has_data_type_support(data_type_t data_type);
 float s8s8_weights_scale_factor();
 

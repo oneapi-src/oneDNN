@@ -66,6 +66,31 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
 #endif
 }
 
+status_t set_cpu_isa_hints(dnnl_cpu_isa_hints_t isa_hints) {
+#if DNNL_X64
+    return x64::set_cpu_isa_hints(isa_hints);
+#else
+    return status::unimplemented;
+#endif
+}
+
+dnnl_cpu_isa_hints_t get_cpu_isa_hints() {
+#if DNNL_X64
+    return x64::get_cpu_isa_hints();
+#else
+    return dnnl_cpu_isa_no_hints;
+#endif
+}
+
+bool prefer_ymm_requested() {
+#if DNNL_X64
+    const bool prefer_ymm = x64::get_cpu_isa_hints() == dnnl_cpu_isa_prefer_ymm;
+    return prefer_ymm;
+#else
+    return false;
+#endif
+}
+
 bool has_data_type_support(data_type_t data_type) {
     switch (data_type) {
         case data_type::bf16:

@@ -44,6 +44,10 @@ option(DNNL_ENABLE_MAX_CPU_ISA
     "enables control of CPU ISA detected by oneDNN via DNNL_MAX_CPU_ISA
     environment variable and dnnl_set_max_cpu_isa() function" ON)
 
+option(DNNL_ENABLE_CPU_ISA_HINTS
+    "enables control of CPU ISA specific hints by oneDNN via DNNL_CPU_ISA_HINTS
+    environment variable and dnnl_set_cpu_isa_hints() function" ON)
+
 # =============================
 # Building properties and scope
 # =============================

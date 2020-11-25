@@ -17,7 +17,9 @@
 #ifndef CPU_X64_CPU_ISA_TRAITS_HPP
 #define CPU_X64_CPU_ISA_TRAITS_HPP
 
+#include <functional>
 #include <type_traits>
+#include <unordered_map>
 
 #include "oneapi/dnnl/dnnl_types.h"
 
@@ -45,7 +47,11 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+// Maximum number of features + hints that can be specified via bits
+static constexpr int cpu_isa_total_bits = sizeof(unsigned) * 8;
+
 enum cpu_isa_bit_t : unsigned {
+    // Fill in features from least significant bit to most significant bit
     sse41_bit = 1u << 0,
     avx_bit = 1u << 1,
     avx2_bit = 1u << 2,
@@ -59,7 +65,40 @@ enum cpu_isa_bit_t : unsigned {
     amx_int8_bit = 1u << 10,
     amx_bf16_bit = 1u << 11,
     avx_vnni_bit = 1u << 12,
+
+    // Fill in hints from most significant bit to least significant bit
+    prefer_ymm_bit = 1u << (cpu_isa_total_bits - 1),
 };
+
+dnnl_cpu_isa_hints_t DNNL_API get_cpu_isa_hints(bool soft = false);
+status_t set_cpu_isa_hints(dnnl_cpu_isa_hints_t isa_hints);
+
+namespace cpu_isa_hints_utils {
+/* hints_1 | hints_2 | ... | hints_n where hints_i are hint specific
+   bits declared inside the cpu_isa_bit_t */
+static constexpr unsigned hints_mask = prefer_ymm_bit;
+
+static unsigned cvt2mask(dnnl_cpu_isa_hints_t hints) {
+    static const std::unordered_map<dnnl_cpu_isa_hints_t, unsigned,
+            std::hash<int>>
+            hints_map = {{dnnl_cpu_isa_no_hints, 0},
+                    {dnnl_cpu_isa_prefer_ymm, prefer_ymm_bit}};
+
+    auto iter = hints_map.find(hints);
+    if (iter != hints_map.end())
+        return iter->second;
+    else {
+        assert(!"unexpected CPU ISA hint");
+        return 0;
+    }
+}
+
+static bool is_hints_bit_set(cpu_isa_bit_t hint_bit, bool soft) {
+    static const dnnl_cpu_isa_hints_t hints = get_cpu_isa_hints(soft);
+    static const unsigned cur_hints_mask = cpu_isa_hints_utils::cvt2mask(hints);
+    return (cur_hints_mask & hint_bit) == hint_bit;
+}
+} // namespace cpu_isa_hints_utils
 
 enum cpu_isa_t : unsigned {
     isa_any = 0u,
@@ -74,14 +113,17 @@ enum cpu_isa_t : unsigned {
     avx512_core = avx512_core_bit | avx512_common,
     avx512_core_vnni = avx512_core_vnni_bit | avx512_core,
     avx512_core_bf16 = avx512_core_bf16_bit | avx512_core_vnni,
+    avx512_core_bf16_ymm = prefer_ymm_bit | avx512_core_bf16,
     amx_tile = amx_tile_bit,
     amx_int8 = amx_int8_bit | amx_tile,
     amx_bf16 = amx_bf16_bit | amx_tile,
     avx512_core_bf16_amx_int8 = avx512_core_bf16 | amx_int8,
     avx512_core_bf16_amx_bf16 = avx512_core_bf16 | amx_bf16,
     avx512_core_amx = avx512_core_bf16 | amx_int8 | amx_bf16,
-    // NOTE: Intel AMX is under initial support and turned off by default
-    isa_all = ~0u & ~amx_tile_bit & ~amx_int8_bit & ~amx_bf16_bit,
+    // NOTES: 1. Intel AMX is under initial support and turned off by default
+    //        2. isa_all by default has no isa specific hints
+    isa_all = ~0u & ~amx_tile_bit & ~amx_int8_bit & ~amx_bf16_bit
+            & ~cpu_isa_hints_utils::hints_mask,
 };
 
 enum class cpu_isa_cmp_t {
@@ -110,13 +152,16 @@ dnnl_cpu_isa_t get_effective_cpu_isa();
 
 static inline bool compare_isa(
         cpu_isa_t isa_1, cpu_isa_cmp_t cmp, cpu_isa_t isa_2) {
-    unsigned mask_1 = static_cast<unsigned>(isa_1);
-    unsigned mask_2 = static_cast<unsigned>(isa_2);
-    unsigned mask_min = mask_1 & mask_2;
+    // By default, comparison between ISA ignores ISA specific hints
+    unsigned mask_1
+            = static_cast<unsigned>(isa_1) & ~cpu_isa_hints_utils::hints_mask;
+    unsigned mask_2
+            = static_cast<unsigned>(isa_2) & ~cpu_isa_hints_utils::hints_mask;
+    unsigned mask_common = mask_1 & mask_2;
 
     switch (cmp) {
-        case cpu_isa_cmp_t::SUBSET: return mask_1 == mask_min;
-        case cpu_isa_cmp_t::SUPERSET: return mask_2 == mask_min;
+        case cpu_isa_cmp_t::SUBSET: return mask_1 == mask_common;
+        case cpu_isa_cmp_t::SUPERSET: return mask_2 == mask_common;
         default: assert(!"unsupported comparison of isa"); return false;
     }
 }
@@ -240,7 +285,9 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     using namespace Xbyak::util;
 
     unsigned cpu_isa_mask = x64::get_max_cpu_isa_mask(soft);
-    if ((cpu_isa_mask & cpu_isa) != cpu_isa) return false;
+    unsigned cpu_isa_no_hints = cpu_isa & ~cpu_isa_hints_utils::hints_mask;
+
+    if ((cpu_isa_mask & cpu_isa_no_hints) != cpu_isa_no_hints) return false;
 
     switch (cpu_isa) {
         case sse41: return cpu().has(Cpu::tSSE41);
@@ -265,6 +312,10 @@ static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
         case avx512_core_bf16:
             return mayiuse(avx512_core_vnni, soft)
                     && cpu().has(Cpu::tAVX512_BF16);
+        case avx512_core_bf16_ymm:
+            return mayiuse(avx512_core_bf16)
+                    && cpu_isa_hints_utils::is_hints_bit_set(
+                            prefer_ymm_bit, soft);
         case amx_tile: return cpu().has(Cpu::tAMX_TILE);
         case amx_int8:
             return mayiuse(amx_tile, soft) && cpu().has(Cpu::tAMX_INT8);

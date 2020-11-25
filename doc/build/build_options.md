@@ -15,6 +15,7 @@ oneDNN supports the following build-time options.
 | DNNL_ENABLE_JIT_PROFILING   | **ON**, OFF                         | Enables [integration with performance profilers](@ref dev_guide_profilers)
 | DNNL_ENABLE_PRIMITIVE_CACHE | **ON**, OFF                         | Enables [primitive cache](@ref dev_guide_primitive_cache)
 | DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                         | Enables [CPU dispatcher controls](@ref dev_guide_cpu_dispatcher_control)
+| DNNL_ENABLE_CPU_ISA_HINTS   | **ON**, OFF                         | Enables [CPU ISA hints](@ref dev_guide_cpu_isa_hints)
 | DNNL_VERBOSE                | **ON**, OFF                         | Enables [verbose mode](@ref dev_guide_verbose)
 | DNNL_AARCH64_USE_ACL        | ON, **OFF**                         | Enables integration with Arm Compute Library for AArch64 builds
 | DNNL_BLAS_VENDOR            | **NONE**, ARMPL                     | Defines an external BLAS library to link to for GEMM-like operations
@@ -58,6 +59,13 @@ on.  There are situations when it is necessary to control this behavior at
 run-time to, for example, test SSE4.1 code on an AVX2-capable processor. The
 `DNNL_ENABLE_MAX_CPU_ISA` build option controls the availability of this
 feature. See @ref dev_guide_cpu_dispatcher_control for more information.
+
+### Runtime CPU ISA hints
+For performance reasons, sometimes oneDNN JIT needs to be provided with extra
+hints so as to prefer or avoid particular CPU ISA feature. For example, one
+might want to disable Zmm registers usage in order to take advantage of higher
+clock speed. The `DNNL_ENABLE_CPU_ISA_HINTS` build option makes this feature
+available at runtime. See @ref dev_guide_cpu_isa_hints for more information.
 
 ### Runtimes
 CPU engine can use OpenMP, Threading Building Blocks (TBB) or sequential

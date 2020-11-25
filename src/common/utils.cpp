@@ -227,6 +227,14 @@ dnnl_cpu_isa_t dnnl_get_effective_cpu_isa() {
     return dnnl::impl::cpu::platform::get_effective_cpu_isa();
 }
 
+dnnl_status_t dnnl_set_cpu_isa_hints(dnnl_cpu_isa_hints_t isa_hints) {
+    return dnnl::impl::cpu::platform::set_cpu_isa_hints(isa_hints);
+}
+
+dnnl_cpu_isa_hints_t dnnl_get_cpu_isa_hints() {
+    return dnnl::impl::cpu::platform::get_cpu_isa_hints();
+}
+
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 namespace dnnl {

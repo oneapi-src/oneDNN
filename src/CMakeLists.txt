@@ -65,6 +65,10 @@ if(DNNL_ENABLE_MAX_CPU_ISA)
     add_definitions(-DDNNL_ENABLE_MAX_CPU_ISA)
 endif()
 
+if(DNNL_ENABLE_CPU_ISA_HINTS)
+    add_definitions(-DDNNL_ENABLE_CPU_ISA_HINTS)
+endif()
+
 if(WIN32)
     add_definitions(-D_WIN)
     add_definitions(-DNOMINMAX)

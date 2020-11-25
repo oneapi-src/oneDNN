@@ -10703,6 +10703,25 @@ inline cpu_isa get_effective_cpu_isa() {
     return static_cast<cpu_isa>(dnnl_get_effective_cpu_isa());
 }
 
+/// @copydoc dnnl_cpu_isa_hints_t
+enum class cpu_isa_hints {
+    /// @copydoc dnnl_cpu_isa_no_hints
+    no_hints = dnnl_cpu_isa_no_hints,
+    /// @copydoc dnnl_cpu_isa_prefer_ymm
+    prefer_ymm = dnnl_cpu_isa_prefer_ymm,
+};
+
+/// @copydoc dnnl_set_cpu_isa_hints()
+inline status set_cpu_isa_hints(cpu_isa_hints isa_hints) {
+    return static_cast<status>(dnnl_set_cpu_isa_hints(
+            static_cast<dnnl_cpu_isa_hints_t>(isa_hints)));
+}
+
+/// @copydoc dnnl_get_cpu_isa_hints()
+inline cpu_isa_hints get_cpu_isa_hints() {
+    return static_cast<cpu_isa_hints>(dnnl_get_cpu_isa_hints());
+}
+
 /// @} dnnl_api_service
 
 /// @addtogroup dnnl_api_primitive_cache Primitive Cache
