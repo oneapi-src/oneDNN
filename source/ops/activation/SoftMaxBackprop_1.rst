@@ -24,7 +24,7 @@ SoftMaxBackprop
     calculated. 
   * **Range of values**: integer values
   * **Type**: int
-  * **Default value**: -1
+  * **Default value**: 1
   * **Required**: *no*
 
 **Inputs**:
