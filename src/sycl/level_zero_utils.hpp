@@ -23,6 +23,8 @@
 
 #include <CL/sycl.hpp>
 
+#include "gpu/compute/kernel.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace sycl {
@@ -36,8 +38,7 @@ struct sycl_gpu_engine_t;
 status_t sycl_create_kernel_with_level_zero(
         std::unique_ptr<cl::sycl::kernel> &sycl_kernel,
         const sycl_gpu_engine_t *sycl_engine,
-        const std::vector<unsigned char> &binary,
-        const std::string &kernel_name);
+        const gpu::compute::binary_t *binary, const std::string &kernel_name);
 
 } // namespace sycl
 } // namespace impl

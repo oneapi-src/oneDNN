@@ -19,11 +19,14 @@
 
 #include <cassert>
 #include <sstream>
+#include <vector>
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace compute {
+
+using binary_t = std::vector<uint8_t>;
 
 // Stores global/local ranges to use for kernel enqueueing
 class nd_range_t {

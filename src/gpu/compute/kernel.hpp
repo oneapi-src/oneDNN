@@ -34,6 +34,7 @@ class kernel_impl_t;
 class kernel_t {
 public:
     using id_t = intptr_t;
+
     kernel_t(kernel_impl_t *impl) : impl_(impl) {}
 
     kernel_t() = default;

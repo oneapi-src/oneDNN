@@ -101,8 +101,10 @@ status_t ocl_gpu_engine_t::create_kernel(
     std::vector<gpu::compute::scalar_type_t> arg_types;
     CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
+    auto shared_binary = std::make_shared<gpu::compute::binary_t>(binary);
+
     *kernel = compute::kernel_t(
-            new ocl_gpu_kernel_t(binary, kernel_name, arg_types));
+            new ocl_gpu_kernel_t(shared_binary, kernel_name, arg_types));
     dump_kernel_binary(this, *kernel);
 
     return status::success;
@@ -123,7 +125,7 @@ status_t ocl_gpu_engine_t::create_kernels(
 }
 
 static status_t get_program_binaries(
-        cl_program program, std::vector<unsigned char> *binary) {
+        cl_program program, std::shared_ptr<compute::binary_t> &binary) {
 
     // Get the size of the program binary in bytes.
     size_t binary_size = 0;
@@ -135,7 +137,7 @@ static status_t get_program_binaries(
     if (binary_size == 0) return status::runtime_error;
 
     // Get program binary.
-    binary->resize(binary_size);
+    binary = std::make_shared<compute::binary_t>(binary_size);
     unsigned char *binary_buffer = binary->data();
     err = clGetProgramInfo(
             program, CL_PROGRAM_BINARIES, binary_size, &binary_buffer, nullptr);
@@ -183,8 +185,8 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
         OCL_CHECK(err);
     }
 
-    std::vector<unsigned char> binary;
-    CHECK(get_program_binaries(program, &binary));
+    std::shared_ptr<compute::binary_t> shared_binary;
+    CHECK(get_program_binaries(program, shared_binary));
 
     *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {
@@ -195,8 +197,8 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
         std::vector<gpu::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
-        (*kernels)[i] = compute::kernel_t(
-                new ocl_gpu_kernel_t(binary, kernel_names[i], arg_types));
+        (*kernels)[i] = compute::kernel_t(new ocl_gpu_kernel_t(
+                shared_binary, kernel_names[i], arg_types));
         dump_kernel_binary(this, (*kernels)[i]);
     }
 

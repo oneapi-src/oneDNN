@@ -55,10 +55,10 @@ static void set_scalar_arg(
 
 static status_t create_ocl_program(
         gpu::ocl::ocl_wrapper_t<cl_program> &ocl_program, cl_device_id dev,
-        cl_context ctx, const std::vector<unsigned char> &binary) {
+        cl_context ctx, const gpu::compute::binary_t *binary) {
     cl_int err;
-    const unsigned char *binary_buffer = binary.data();
-    size_t binary_size = binary.size();
+    const unsigned char *binary_buffer = binary->data();
+    size_t binary_size = binary->size();
     assert(binary_size > 0);
 
     ocl_program = clCreateProgramWithBinary(
@@ -73,7 +73,7 @@ static status_t create_ocl_program(
 status_t sycl_interop_gpu_kernel_t::realize(
         gpu::compute::kernel_t *kernel, const engine_t *engine) const {
     assert(state_ == state_t::binary);
-    if (binary_.empty()) return status::success;
+    if (!binary_) return status::success;
     auto *sycl_engine = utils::downcast<const sycl_gpu_engine_t *>(engine);
 
     std::unique_ptr<cl::sycl::kernel> sycl_kernel;
@@ -81,7 +81,7 @@ status_t sycl_interop_gpu_kernel_t::realize(
     if (sycl_engine->backend() == backend_t::opencl) {
         gpu::ocl::ocl_wrapper_t<cl_program> ocl_program;
         CHECK(create_ocl_program(ocl_program, sycl_engine->ocl_device(),
-                sycl_engine->ocl_context(), binary_));
+                sycl_engine->ocl_context(), binary_.get()));
 
         cl::sycl::program sycl_program(sycl_engine->context(), ocl_program);
         sycl_kernel.reset(
@@ -97,7 +97,7 @@ status_t sycl_interop_gpu_kernel_t::realize(
         // Currently we always create an OpenCL engine for the 0th device at
         // binary creation time and here.
         CHECK(sycl_create_kernel_with_level_zero(
-                sycl_kernel, sycl_engine, binary_, binary_name_));
+                sycl_kernel, sycl_engine, binary_.get(), binary_name_));
 #else
         assert(!"not expected");
         return status::invalid_arguments;

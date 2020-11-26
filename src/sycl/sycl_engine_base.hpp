@@ -81,8 +81,10 @@ public:
         std::vector<gpu::compute::scalar_type_t> arg_types;
         CHECK(get_kernel_arg_types(ocl_kernel, &arg_types));
 
-        *kernel = gpu::compute::kernel_t(
-                new sycl_interop_gpu_kernel_t(binary, kernel_name, arg_types));
+        auto shared_binary = std::make_shared<gpu::compute::binary_t>(binary);
+
+        *kernel = gpu::compute::kernel_t(new sycl_interop_gpu_kernel_t(
+                shared_binary, kernel_name, arg_types));
         return status::success;
     }
 

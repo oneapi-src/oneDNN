@@ -59,7 +59,7 @@ device_uuid_t get_device_uuid(const cl::sycl::device &) {
 }
 
 status_t sycl_create_kernel_with_level_zero(std::unique_ptr<cl::sycl::kernel> &,
-        const sycl_gpu_engine_t *, const std::vector<unsigned char> &,
+        const sycl_gpu_engine_t *, const gpu::compute::binary_t *,
         const std::string &) {
     return status::unimplemented;
 }
@@ -170,13 +170,12 @@ device_uuid_t get_device_uuid(const cl::sycl::device &dev) {
 status_t sycl_create_kernel_with_level_zero(
         std::unique_ptr<cl::sycl::kernel> &sycl_kernel,
         const sycl_gpu_engine_t *sycl_engine,
-        const std::vector<unsigned char> &binary,
-        const std::string &kernel_name) {
+        const gpu::compute::binary_t *binary, const std::string &kernel_name) {
     auto desc = ze_module_desc_t();
     desc.stype = ZE_STRUCTURE_TYPE_MODULE_DESC;
     desc.format = ZE_MODULE_FORMAT_NATIVE;
-    desc.inputSize = binary.size();
-    desc.pInputModule = binary.data();
+    desc.inputSize = binary->size();
+    desc.pInputModule = binary->data();
     desc.pBuildFlags = "";
     desc.pConstants = nullptr;
 

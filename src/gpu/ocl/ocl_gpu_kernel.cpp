@@ -107,13 +107,13 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
 status_t ocl_gpu_kernel_t::realize(
         compute::kernel_t *kernel, const engine_t *engine) const {
     assert(state_ == state_t::binary);
-    if (binary_.empty()) return status::success;
+    if (!binary_) return status::success;
     auto *compute_engine = utils::downcast<const ocl_gpu_engine_t *>(engine);
 
     cl_int err;
     cl_device_id dev = compute_engine->device();
-    const unsigned char *binary_buffer = binary_.data();
-    size_t binary_size = binary_.size();
+    const unsigned char *binary_buffer = binary_->data();
+    size_t binary_size = binary_->size();
     assert(binary_size > 0);
 
     auto program = clCreateProgramWithBinary(compute_engine->context(), 1, &dev,
