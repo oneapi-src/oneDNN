@@ -50,9 +50,9 @@ protected:
         input_int8.dat_dt = data_type::u8;
         input_int8.wei_dt = data_type::s8;
 
-#if DNNL_X64
         const bool is_cpu = get_test_engine_kind() == engine::kind::cpu;
         const bool is_gpu = get_test_engine_kind() == engine::kind::gpu;
+#if DNNL_X64
         static const auto isa = get_effective_cpu_isa();
         input_f32.wino_supported = is_gpu
                 || (is_cpu && isa >= cpu_isa::avx512_mic
@@ -61,14 +61,9 @@ protected:
         input_int8.wino_supported = is_cpu && isa >= cpu_isa::avx512_core
                 && isa != cpu_isa::avx2_vnni;
         input_f32.backward_supported = is_cpu && impl::dnnl_thr_syncable();
-#endif // DNNL_X64
-#if DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
-        input_f32.wino_supported
-                = (get_test_engine_kind() == engine::kind::cpu);
-        input_f32.backward_supported = false;
-        input_f16.wino_supported = false;
-        input_int8.wino_supported = false;
-#endif // DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
+#elif DNNL_AARCH64 && DNNL_AARCH64_USE_ACL
+        input_f32.wino_supported = is_cpu;
+#endif
     }
 };
 
