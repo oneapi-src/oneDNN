@@ -245,7 +245,16 @@ int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
             ref_mem_factor = ::sizeof_dt(dnnl_f32) / ::sizeof_dt(md->data_type);
         // runtime mem size is not defined
         if (mem_size == DNNL_RUNTIME_SIZE_VAL) mem_size = 0;
-        return (1 + ref_mem_factor) * mem_size;
+        // all memory is mapped once it is created and unmapped only
+        // before primitive execution. Device memory requires additional buffer
+        // for mapped memory.
+        // XXX: In DPC++ build oneDNN uses USM memory, which shouldn't require
+        // an additional buffer, so mapped_mem_factor should be equal to 0 for
+        // DPC++. However due to a driver issue oneDNN pretends that shared USM
+        // is not accessible on the host, hence map will allocate an extra
+        // memory.
+        const size_t mapped_mem_factor = engine_tgt_kind == dnnl_cpu ? 0 : 1;
+        return (1 + mapped_mem_factor + ref_mem_factor) * mem_size;
     };
 
     size_t total_mem_size = 0;
