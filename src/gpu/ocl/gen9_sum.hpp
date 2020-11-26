@@ -96,7 +96,7 @@ struct gen9_sum_t : public gpu_primitive_t {
         auto s = engine->create_memory_storage(&scale, size);
         if (s != status::success) return s;
         float *mapped_mem_storage = nullptr;
-        s = scale->map_data((void **)&mapped_mem_storage, nullptr);
+        s = scale->map_data((void **)&mapped_mem_storage, nullptr, size);
         if (s != status::success) return s;
         utils::array_copy(mapped_mem_storage, s_data, count);
         s = scale->unmap_data((void *)mapped_mem_storage, nullptr);
