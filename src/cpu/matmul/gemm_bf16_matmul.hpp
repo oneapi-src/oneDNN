@@ -56,7 +56,8 @@ struct gemm_bf16_matmul_t : public primitive_t {
             CHECK(safe_ptr_assign(pp_kernel_,
                     pp_kernel_t::create(pd()->N(), pd()->M(), pd()->ldc(),
                             &pd()->params().pp_attr_,
-                            pd()->desc()->bias_desc.data_type, false)));
+                            pd()->desc()->bias_desc.data_type, pd()->dst_md(),
+                            false)));
             return pp_kernel_->create_kernel();
         }
         return status::success;

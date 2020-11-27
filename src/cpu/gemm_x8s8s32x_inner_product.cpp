@@ -18,6 +18,7 @@
 #include "common/math_utils.hpp"
 #include "cpu/simple_q10n.hpp"
 
+#include "cpu/binary_injector_utils.hpp"
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm_x8s8s32x_inner_product.hpp"
 
@@ -36,6 +37,9 @@ status_t gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector_utils::prepare_binary_args(
+                    this->pd()->attr()->post_ops_, ctx);
 
     const dim_t MB = pd()->MB();
     const dim_t OC = pd()->OC();
@@ -70,7 +74,9 @@ status_t gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start, end;
             balance211((size_t)(OC * MB), nthr, ithr, start, end);
-            (*pp_kernel_)(dst, acc, bias, scales, start, end, 0, 0, nullptr);
+            (*pp_kernel_)(dst, acc, bias, scales, start, end, 0, 0, nullptr,
+                    post_ops_binary_rhs_arg_vec.data(), dst, ctx,
+                    *pd()->dst_md());
         });
     }
 

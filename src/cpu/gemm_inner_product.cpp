@@ -18,8 +18,8 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
+#include "cpu/binary_injector_utils.hpp"
 #include "cpu/gemm_inner_product.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -37,6 +37,9 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    const auto post_ops_binary_rhs_arg_vec
+            = binary_injector_utils::prepare_binary_args(
+                    this->pd()->attr()->post_ops_, ctx);
 
     const dim_t MB = pd()->MB();
     const dim_t OC = pd()->OC();
@@ -60,8 +63,10 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start, end;
             balance211((size_t)(OC * MB), nthr, ithr, start, end);
-            (*pp_kernel_)(
-                    dst, dst, (char *)bias, scales, start, end, 0, 0, nullptr);
+            (*pp_kernel_)(dst, dst, (char *)bias, scales, start, end, 0,
+                    pd()->OC() * pd()->OD() * pd()->OH() * pd()->OW(), nullptr,
+                    post_ops_binary_rhs_arg_vec.data(), dst, ctx,
+                    *pd()->dst_md());
         });
     }
 

@@ -45,31 +45,19 @@ struct gemm_inner_product_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace utils;
 
-            bool ok = true && is_fwd() && !has_zero_dim_memory()
+            const bool ok = true && is_fwd() && !has_zero_dim_memory()
                     && everyone_is(data_type, src_md()->data_type,
                             weights_md()->data_type, dst_md()->data_type,
                             with_bias() ? weights_md(1)->data_type : data_type)
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops)
-                    && post_ops_ok() && set_default_params() == status::success
+                    && set_default_params() == status::success
                     && dense_gemm_consitency_check(
-                            src_md(), weights_md(), dst_md());
-            return ok ? status::success : status::unimplemented;
-        }
+                            src_md(), weights_md(), dst_md())
+                    && inner_product_utils::post_ops_ok(
+                            attr()->post_ops_, &dst_md_);
 
-    protected:
-        bool post_ops_ok() const {
-            auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(false); };
-            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(false); };
-            switch (po.len()) {
-                case 0: return true; // no post_ops
-                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-                case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-                default: return false;
-            }
-            return false;
+            return ok ? status::success : status::unimplemented;
         }
     };
 
@@ -77,10 +65,12 @@ struct gemm_inner_product_fwd_t : public primitive_t {
         : primitive_t(apd), postops_in_ip_(false) {}
 
     status_t init(engine_t *engine) override {
-        bool has_bias = pd()->with_bias(),
-             has_eltwise
+        const bool has_bias = pd()->with_bias();
+        const bool has_eltwise
                 = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0;
-        postops_in_ip_ = has_bias || has_eltwise;
+        const bool has_binary
+                = pd()->attr()->post_ops_.find(primitive_kind::binary) >= 0;
+        postops_in_ip_ = has_bias || has_eltwise || has_binary;
 
         CHECK(safe_ptr_assign(pp_kernel_, pp_kernel_t::create(pd(), true)));
 

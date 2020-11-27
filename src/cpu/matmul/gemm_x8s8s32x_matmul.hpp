@@ -55,7 +55,7 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
         if (pd()->params().has_pp_kernel_) {
             pp_kernel_.reset(pp_kernel_t::create(pd()->N(), pd()->M(),
                     pd()->ldc(), &pd()->params().pp_attr_,
-                    pd()->desc()->bias_desc.data_type, false));
+                    pd()->desc()->bias_desc.data_type, pd()->dst_md(), false));
             return pp_kernel_->create_kernel();
         }
         return status::success;

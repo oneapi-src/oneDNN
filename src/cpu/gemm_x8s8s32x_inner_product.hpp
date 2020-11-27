@@ -31,6 +31,7 @@
 #include "cpu/gemm_inner_product_utils.hpp"
 
 #include "cpu/cpu_inner_product_pd.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -48,7 +49,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace data_type;
 
-            bool ok = true && is_fwd() && !has_zero_dim_memory()
+            const bool ok = true && is_fwd() && !has_zero_dim_memory()
                     && src_md()->data_type == src_type
                     && dst_md()->data_type == dst_type
                     && weights_md()->data_type == s8
@@ -58,10 +59,13 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
                             | primitive_attr_t::skip_mask_t::post_ops)
-                    && output_scales_mask_ok() && post_ops_ok()
+                    && output_scales_mask_ok()
                     && set_default_params() == status::success
                     && dense_gemm_consitency_check(
-                            src_md(), weights_md(), dst_md());
+                            src_md(), weights_md(), dst_md())
+                    && inner_product_utils::post_ops_ok(
+                            attr()->post_ops_, &dst_md_);
+
             if (!ok) return status::unimplemented;
 
             bool do_sum = attr()->post_ops_.find(primitive_kind::sum) >= 0;
@@ -78,20 +82,6 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
         bool output_scales_mask_ok() const {
             const auto &mask = attr()->output_scales_.mask_;
             return mask == 0 || mask == 1 << 1;
-        }
-
-        bool post_ops_ok() const {
-            auto const &po = attr()->post_ops_;
-            auto is_eltwise
-                    = [&](int idx) { return po.entry_[idx].is_eltwise(false); };
-            auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(false); };
-            switch (po.len()) {
-                case 0: return true; // no post_ops
-                case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-                case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-                default: return false;
-            }
-            return false;
         }
 
     private:

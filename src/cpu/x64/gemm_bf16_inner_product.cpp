@@ -69,7 +69,8 @@ status_t gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
             size_t start = 0, end = 0;
             size_t work_size = M * N;
             balance211(work_size, nthr, ithr, start, end);
-            (*pp_kernel_)(dst, acc, bias, scales, start, end, 0, 0, nullptr);
+            (*pp_kernel_)(dst, acc, bias, scales, start, end, 0, 0, nullptr,
+                    nullptr, nullptr, ctx, *pd()->dst_md());
         });
     }
 
