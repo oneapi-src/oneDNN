@@ -202,7 +202,7 @@ is enabled:
 >
 > NVIDIA GPU support is experimental. General information, build instructions
 > and implementation limitations is available in
-> [NVIDIA backend readme](https://github.com/oneapi-src/oneDNN/blob/master/src/gpu/NVIDIA/README.md).
+> [NVIDIA backend readme](https://github.com/oneapi-src/oneDNN/blob/master/src/gpu/nvidia/README.md).
 
 ### Runtime Dependencies
 

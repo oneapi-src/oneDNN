@@ -25,7 +25,7 @@
 
 namespace zeropad {
 
-static int compare(const dnn_mem_t &test_mem, res_t *r) {
+static int compare(const dnn_mem_t &test_mem, res_t *res) {
     const int ndims = test_mem.md_.ndims;
     const auto *dims = test_mem.md_.dims;
 
@@ -94,15 +94,15 @@ static int compare(const dnn_mem_t &test_mem, res_t *r) {
 
         BENCHDNN_PRINT(0, "@@@ [arg:%d] check_non_zeroed_elements failed\n",
                 test_mem.dt());
-        r->errors += errors;
+        res->errors += errors;
     }
 
     int errors = 0;
     auto status = check_zero_padding(test_mem, test_mem.dt(), &errors);
-    r->errors += errors;
+    res->errors += errors;
 
     bool passed = ok && (status == OK);
-    r->state = passed ? PASSED : FAILED;
+    res->state = passed ? PASSED : FAILED;
     return passed ? OK : FAIL;
 }
 
@@ -113,15 +113,29 @@ static dnnl_status_t perf_func(
     return dnnl_memory_set_data_handle_v2(args[0].memory, ret_handle, stream);
 }
 
-int doit(const prb_t *p, res_t *r) {
-    if (bench_mode == LIST) return r->state = LISTED, OK;
+void check_known_skipped_case(const prb_t *prb, res_t *res) {
+    check_known_skipped_case_common({prb->dt}, FWD_D, res);
+    if (res->state == SKIPPED) return;
+
+    if (is_nvidia_gpu()) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+}
+
+int doit(const prb_t *prb, res_t *res) {
+    if (bench_mode == LIST) return res->state = LISTED, OK;
+
+    check_known_skipped_case(prb, res);
+    if (res->state == SKIPPED) return OK;
 
     dnnl_memory_desc_t data_md {};
-    SAFE(init_md(&data_md, p->ndims, p->dims.data(), p->dt, p->tag), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    SAFE(init_md(&data_md, prb->ndims, prb->dims.data(), prb->dt, prb->tag),
+            WARN);
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
 
     if (dnn_mem_t::check_mem_size(data_md) != OK) {
-        return r->state = SKIPPED, r->reason = NOT_ENOUGH_RAM, OK;
+        return res->state = SKIPPED, res->reason = NOT_ENOUGH_RAM, OK;
     }
 
     const auto &test_engine = get_test_engine();
@@ -130,14 +144,14 @@ int doit(const prb_t *p, res_t *r) {
 
     if (bench_mode & CORR) {
         // Implicitly relies on zero_pad happening when test_mem is created
-        SAFE(compare(test_mem, r), WARN);
+        SAFE(compare(test_mem, res), WARN);
     }
 
     args_t args;
     args.set(0, test_mem);
     perf_function_t perf_func_ = &perf_func;
 
-    measure_perf(r->timer, perf_func_, args);
+    measure_perf(res->timer, perf_func_, args);
 
     return OK;
 }

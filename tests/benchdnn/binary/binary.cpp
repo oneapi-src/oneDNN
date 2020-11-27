@@ -135,7 +135,9 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
 }
 
 void check_known_skipped_case(const prb_t *prb, res_t *res) {
-    check_known_skipped_case_common(prb->sdt, FWD_D, res);
+    std::vector<dnnl_data_type_t> dts = prb->sdt;
+    dts.push_back(prb->ddt);
+    check_known_skipped_case_common(dts, FWD_D, res);
     if (res->state == SKIPPED) return;
 
     if (is_cpu()) {
@@ -173,7 +175,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
 
     if (is_nvidia_gpu()) {
         const bool alg_ok = !(prb->alg == alg_t::DIV || prb->alg == alg_t::SUB);
-        if (!alg_ok || !prb->attr.post_ops.is_def()) {
+        const bool dt_ok = prb->sdt[0] == prb->sdt[1];
+        const bool diff_dt_ok = dt_ok
+                && IMPLICATION(
+                        prb->sdt[0] != prb->ddt, prb->attr.scales.is_def());
+        if (!alg_ok || !dt_ok || !diff_dt_ok || !prb->attr.post_ops.is_def()) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
