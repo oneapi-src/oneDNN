@@ -134,6 +134,8 @@ public:
     // non-blocking query to check if service stream is already created
     bool is_service_stream_created() const { return (bool)service_stream_; }
 
+    virtual std::function<void(void *)> get_program_list_deleter() const = 0;
+
 protected:
     virtual status_t init_device_info() = 0;
 

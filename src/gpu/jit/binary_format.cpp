@@ -175,7 +175,7 @@ status_t gpu_supports_binary_format(bool *ok, engine_t *engine) {
     if (!kernel) return status::success;
 
     compute::kernel_t realized_kernel;
-    CHECK(kernel.realize(&realized_kernel, engine));
+    CHECK(kernel.realize(&realized_kernel, engine, nullptr));
 
     // Binary kernel check.
     uint32_t magic0 = MAGIC0;

@@ -58,9 +58,9 @@ device_uuid_t get_device_uuid(const cl::sycl::device &) {
     return device_uuid_t(0, 0);
 }
 
-status_t sycl_create_kernel_with_level_zero(std::unique_ptr<cl::sycl::kernel> &,
-        const sycl_gpu_engine_t *, const gpu::compute::binary_t *,
-        const std::string &) {
+status_t sycl_create_program_with_level_zero(
+        std::unique_ptr<cl::sycl::kernel> &, const sycl_gpu_engine_t *,
+        const gpu::compute::binary_t *) {
     return status::unimplemented;
 }
 
@@ -167,10 +167,10 @@ device_uuid_t get_device_uuid(const cl::sycl::device &dev) {
     return device_uuid_t(uuid[0], uuid[1]);
 }
 
-status_t sycl_create_kernel_with_level_zero(
-        std::unique_ptr<cl::sycl::kernel> &sycl_kernel,
+status_t sycl_create_program_with_level_zero(
+        std::unique_ptr<cl::sycl::program> &sycl_program,
         const sycl_gpu_engine_t *sycl_engine,
-        const gpu::compute::binary_t *binary, const std::string &kernel_name) {
+        const gpu::compute::binary_t *binary) {
     auto desc = ze_module_desc_t();
     desc.stype = ZE_STRUCTURE_TYPE_MODULE_DESC;
     desc.format = ZE_MODULE_FORMAT_NATIVE;
@@ -186,11 +186,9 @@ status_t sycl_create_kernel_with_level_zero(
     auto ze_ctx = sycl_engine->context()
                           .get_native<cl::sycl::backend::level_zero>();
     CHECK(func_zeModuleCreate(ze_ctx, ze_device, &desc, &ze_module, nullptr));
-    auto sycl_program = cl::sycl::level_zero::make<cl::sycl::program>(
-            sycl_engine->context(), ze_module);
-
-    sycl_kernel.reset(
-            new cl::sycl::kernel(sycl_program.get_kernel(kernel_name)));
+    sycl_program.reset(
+            new cl::sycl::program(cl::sycl::level_zero::make<cl::sycl::program>(
+                    sycl_engine->context(), ze_module)));
 
     return status::success;
 }

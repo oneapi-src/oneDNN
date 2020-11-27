@@ -206,6 +206,14 @@ status_t ocl_gpu_engine_t::create_kernels_from_ocl_source(
     return status::success;
 }
 
+std::function<void(void *)> ocl_gpu_engine_t::get_program_list_deleter() const {
+    return [](void *p) {
+        cl_int err = clReleaseProgram(reinterpret_cast<cl_program>(p));
+        assert(err == 0);
+        MAYBE_UNUSED(err);
+    };
+}
+
 status_t ocl_gpu_engine_t::init_device_info() {
     device_info_.reset(new ocl_gpu_device_info_t());
     CHECK(device_info_->init(this));

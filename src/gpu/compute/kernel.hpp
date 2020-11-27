@@ -29,12 +29,12 @@ namespace impl {
 namespace gpu {
 namespace compute {
 
+class program_list_t;
 class kernel_impl_t;
 
 class kernel_t {
 public:
     using id_t = intptr_t;
-
     kernel_t(kernel_impl_t *impl) : impl_(impl) {}
 
     kernel_t() = default;
@@ -51,7 +51,8 @@ public:
     status_t parallel_for(stream_t &stream, const nd_range_t &range,
             const kernel_arg_list_t &arg_list) const;
 
-    status_t realize(kernel_t *kernel, const engine_t *engine) const;
+    status_t realize(kernel_t *kernel, const engine_t *engine,
+            program_list_t *programs) const;
 
 private:
     std::shared_ptr<kernel_impl_t> impl_;
@@ -68,8 +69,8 @@ public:
     virtual status_t parallel_for(stream_t &stream, const nd_range_t &range,
             const kernel_arg_list_t &arg_list) const = 0;
 
-    virtual status_t realize(
-            kernel_t *kernel, const engine_t *engine) const = 0;
+    virtual status_t realize(kernel_t *kernel, const engine_t *engine,
+            program_list_t *programs) const = 0;
 };
 
 inline kernel_t::id_t kernel_t::id() const {
@@ -79,9 +80,9 @@ inline status_t kernel_t::parallel_for(stream_t &stream,
         const nd_range_t &range, const kernel_arg_list_t &arg_list) const {
     return impl_->parallel_for(stream, range, arg_list);
 }
-inline status_t kernel_t::realize(
-        kernel_t *kernel, const engine_t *engine) const {
-    return impl_->realize(kernel, engine);
+inline status_t kernel_t::realize(kernel_t *kernel, const engine_t *engine,
+        program_list_t *programs) const {
+    return impl_->realize(kernel, engine, programs);
 }
 
 } // namespace compute

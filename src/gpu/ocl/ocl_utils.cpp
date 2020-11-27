@@ -125,7 +125,7 @@ void dump_kernel_binary(
 
     static int counter = 0;
     compute::kernel_t realized_kernel;
-    auto status = binary_kernel.realize(&realized_kernel, engine);
+    auto status = binary_kernel.realize(&realized_kernel, engine, nullptr);
 
     // Ignore error.
     if (status != status::success) return;

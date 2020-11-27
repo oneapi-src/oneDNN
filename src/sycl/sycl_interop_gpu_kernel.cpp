@@ -70,22 +70,29 @@ static status_t create_ocl_program(
     return status::success;
 }
 
-status_t sycl_interop_gpu_kernel_t::realize(
-        gpu::compute::kernel_t *kernel, const engine_t *engine) const {
+status_t sycl_interop_gpu_kernel_t::realize(gpu::compute::kernel_t *kernel,
+        const engine_t *engine, gpu::compute::program_list_t *programs) const {
     assert(state_ == state_t::binary);
     if (!binary_) return status::success;
+
+    if (programs) {
+        auto *p = programs->get<cl::sycl::program *>(binary_.get());
+        if (p) {
+            (*kernel) = gpu::compute::kernel_t(new sycl_interop_gpu_kernel_t(
+                    p->get_kernel(binary_name_), arg_types_));
+            return status::success;
+        }
+    }
+
+    std::unique_ptr<cl::sycl::program> sycl_program;
     auto *sycl_engine = utils::downcast<const sycl_gpu_engine_t *>(engine);
-
-    std::unique_ptr<cl::sycl::kernel> sycl_kernel;
-
     if (sycl_engine->backend() == backend_t::opencl) {
         gpu::ocl::ocl_wrapper_t<cl_program> ocl_program;
         CHECK(create_ocl_program(ocl_program, sycl_engine->ocl_device(),
                 sycl_engine->ocl_context(), binary_.get()));
 
-        cl::sycl::program sycl_program(sycl_engine->context(), ocl_program);
-        sycl_kernel.reset(
-                new cl::sycl::kernel(sycl_program.get_kernel(binary_name_)));
+        sycl_program.reset(
+                new cl::sycl::program(sycl_engine->context(), ocl_program));
     } else if (sycl_engine->backend() == backend_t::level0) {
 #ifdef DNNL_WITH_LEVEL_ZERO
         // FIXME: This does not work for multi-GPU systems. OpenCL engine
@@ -96,8 +103,8 @@ status_t sycl_interop_gpu_kernel_t::realize(
         //
         // Currently we always create an OpenCL engine for the 0th device at
         // binary creation time and here.
-        CHECK(sycl_create_kernel_with_level_zero(
-                sycl_kernel, sycl_engine, binary_.get(), binary_name_));
+        CHECK(sycl_create_program_with_level_zero(
+                sycl_program, sycl_engine, binary_.get()));
 #else
         assert(!"not expected");
         return status::invalid_arguments;
@@ -107,8 +114,13 @@ status_t sycl_interop_gpu_kernel_t::realize(
         return status::invalid_arguments;
     }
 
-    (*kernel) = gpu::compute::kernel_t(
-            new sycl_interop_gpu_kernel_t(*sycl_kernel, arg_types_));
+    (*kernel) = gpu::compute::kernel_t(new sycl_interop_gpu_kernel_t(
+            sycl_program->get_kernel(binary_name_), arg_types_));
+
+    if (programs) {
+        programs->add(binary_.get(), sycl_program.get());
+        sycl_program.release();
+    }
 
     return status::success;
 }

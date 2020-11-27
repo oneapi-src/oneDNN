@@ -53,6 +53,11 @@ status_t sycl_engine_base_t::init_device_info() {
     return status::success;
 }
 
+std::function<void(void *)>
+sycl_engine_base_t::get_program_list_deleter() const {
+    return [](void *p) { delete reinterpret_cast<cl::sycl::program *>(p); };
+}
+
 } // namespace sycl
 } // namespace impl
 } // namespace dnnl

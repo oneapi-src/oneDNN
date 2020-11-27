@@ -139,6 +139,8 @@ public:
 
     device_id_t device_id() const override { return sycl_device_id(device_); }
 
+    std::function<void(void *)> get_program_list_deleter() const override;
+
 protected:
     status_t init_device_info() override;
 

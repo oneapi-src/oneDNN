@@ -71,6 +71,8 @@ public:
             const char **source_strings,
             const compute::kernel_ctx_t &kernel_ctx) const override;
 
+    std::function<void(void *)> get_program_list_deleter() const override;
+
     const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override {
         return gpu_impl_list_t::get_concat_implementation_list();

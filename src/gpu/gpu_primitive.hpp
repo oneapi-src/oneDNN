@@ -40,10 +40,11 @@ struct gpu_primitive_t : public primitive_t {
         if (mapper.has_resource(this)) return status::success;
         auto r = utils::make_unique<gpu_resource_t>();
         if (!r) return status::out_of_memory;
+        compute::program_list_t programs(engine);
         for (const auto &rk : registered_kernels_) {
             if (!rk) continue;
             compute::kernel_t realized_kernel;
-            CHECK(rk.realize(&realized_kernel, engine));
+            CHECK(rk.realize(&realized_kernel, engine, &programs));
             r->add_kernel(rk.id(), realized_kernel);
         }
         CHECK(init_res_storage(engine, r.get()));
