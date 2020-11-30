@@ -30,6 +30,7 @@
 
 namespace binary {
 
+//TODO: Consider filling with powers of 2 for division to avoid rounding errors
 int fill_mem(int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;

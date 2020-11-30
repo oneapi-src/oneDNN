@@ -2,7 +2,7 @@
 # 6 algorithms
 # 2 inplace options
 # 2 post-ops
-# 4 basic (src0=src1=dst) + 18 mixed (s8:f32->u8, etc) operand types 
+# 4 basic (src0=src1=dst) + 18 mixed (s8:f32->u8, etc) operand types
 # 2 scales options
 # 60 tensor sizes
 # for a total of over 20000 possible test cases.
@@ -83,7 +83,7 @@
 
 
 # main body of tests
-# uses all tensor sizes, all algorithms, most data types 
+# uses all tensor sizes, all algorithms, most data types
 # (all except s8:s8->s8 and ??:??->u8, both partially covered above)
 # but limited to: inplace=false, post-ops enabled, scales enabled (when valid)
 # 3960 test cases
@@ -115,7 +115,7 @@
 --alg=SUB
 --ddt=u8,s8
 --sdt=u8:f32,s8:f32
---attr-post-ops='div:f32:per_oc;mul:f32:per_oc;add:f32:per_oc'
+--attr-post-ops='div:f32:per_oc;add:f32:per_oc;mul:f32:per_oc'
 --stag=axb:axb
 16x2048x10x10:1x2048x1x1
 8x1024x19x19:1x1024x1x1
