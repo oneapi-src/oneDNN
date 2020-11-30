@@ -76,7 +76,9 @@ protected:
             const std::vector<gpu::compute::scalar_type_t> &arg_types)
         : state_(state_t::kernel)
         , ocl_kernel_(ocl_kernel)
-        , arg_types_(arg_types) {}
+        , arg_types_(arg_types) {
+        OCL_CHECK_V(clRetainKernel(ocl_kernel_));
+    }
 
     state_t state_;
     cl_kernel ocl_kernel_;

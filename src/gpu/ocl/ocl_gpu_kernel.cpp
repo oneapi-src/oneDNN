@@ -117,7 +117,6 @@ status_t ocl_gpu_kernel_t::realize(compute::kernel_t *kernel,
             auto k = make_ocl_wrapper(clCreateKernel(p, name(), &err));
             OCL_CHECK(err);
             (*kernel) = compute::kernel_t(new ocl_gpu_kernel_t(k, arg_types_));
-            k.release();
             return status::success;
         }
     }
@@ -138,7 +137,6 @@ status_t ocl_gpu_kernel_t::realize(compute::kernel_t *kernel,
     auto ocl_kernel = make_ocl_wrapper(clCreateKernel(program, name(), &err));
     OCL_CHECK(err);
     (*kernel) = compute::kernel_t(new ocl_gpu_kernel_t(ocl_kernel, arg_types_));
-    ocl_kernel.release();
 
     if (programs) {
         programs->add(binary_.get(), program.get());
