@@ -136,10 +136,16 @@ template <>
 void jit_uni_prelu_forward_kernel_t<Xbyak::Zmm>::uni_vfmadd132ps(
         const Xbyak::Zmm &x1, const Xbyak::Zmm &x2, const Xbyak::Operand &op,
         bool tail) {
-    if (tail && op.isMEM())
-        vfmadd132ps(x1 | tail_opmask_, x2, op);
-    else
+
+    if (op.isMEM()) {
+        const Xbyak::Zmm dst = tail ? (x1 | tail_opmask_) : x1;
+        // workaround for DataParallelC++ compiler issue converting mem to ZMM
+        const Xbyak::Address addr
+                = reinterpret_cast<const Xbyak::Address &>(op);
+        vfmadd132ps(dst, x2, addr);
+    } else {
         vfmadd132ps(x1, x2, op);
+    }
 }
 
 template <typename Vmm>

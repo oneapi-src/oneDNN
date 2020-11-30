@@ -97,7 +97,7 @@ size_t jit_prelu_base_kernel_t::calc_tail_size(
     if (bcast_ == prelu::bcast::full)
         nelems = tensor_md.nelems();
     else if (bcast_ == prelu::bcast::per_oc_n_spatial_c)
-        return tensor_md.dims()[1];
+        nelems = tensor_md.dims()[1];
     else if (bcast_ == prelu::bcast::per_oc_n_c_spatial && ndims >= 3)
         nelems = utils::array_product(tensor_md.dims() + 2, ndims - 2);
 

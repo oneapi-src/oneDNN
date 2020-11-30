@@ -241,7 +241,7 @@ void jit_uni_prelu_backward_kernel_t<Vmm>::accumulate_weights_diff(
         if (std::is_same<Vmm, Xbyak::Zmm>::value || isa_ == avx2)
             uni_vaddps(partial_sum_vmm, partial_sum_vmm, dst_addr);
         else {
-            uni_vmovups(tmp_vmm, partial_sum_vmm);
+            uni_vmovups(tmp_vmm, dst_addr);
             uni_vaddps(partial_sum_vmm, partial_sum_vmm, tmp_vmm);
         }
         uni_vmovups(dst_addr, partial_sum_vmm);
