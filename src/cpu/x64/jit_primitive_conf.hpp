@@ -605,6 +605,8 @@ struct jit_pool_conf_t {
     }
 
     cpu_isa_t isa;
+
+    bool with_quantization;
 };
 
 struct jit_pool_call_s {

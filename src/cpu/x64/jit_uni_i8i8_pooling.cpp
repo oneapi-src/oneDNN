@@ -960,6 +960,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
         }
     }
 
+    if (jpp.with_quantization)
+        push(reg_oc_off);
+
     mov(aux_reg_src_d, reg_ptr_src_i8);
     xor_(reg_kd_index, reg_kd_index);
     L(l_kd);
@@ -999,6 +1002,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
         jl(l_kd, T_NEAR);
     }
 
+    if (jpp.with_quantization)
+        pop(reg_oc_off);
+
     for (int jj = 0; jj < ur_c; jj++) {
         for (int ll = 0; ll < num_ll; ll++) {
             bool masked = jj == ur_c - 1 && c_tail;
@@ -1011,6 +1017,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
     }
 
     apply_post_ops(ur_c, c_tail);
+
+    if (jpp.with_quantization)
+        push(reg_oc_off);
 
     for (int jj = 0; jj < ur_c; jj++) {
         for (int ll = 0; ll < num_ll; ll++) {
@@ -1025,6 +1034,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
             }
         }
     }
+
+    if (jpp.with_quantization)
+        pop(reg_oc_off);
 }
 
 template <cpu_isa_t isa>
@@ -1049,7 +1061,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_c_block() {
     int c_tail = jpp.c_tail;
 
     xor_(c_iter, c_iter);
-    xor_(reg_oc_off, reg_oc_off);
+    if (jpp.with_quantization)
+        xor_(reg_oc_off, reg_oc_off);
 
     if (c_steps > 0) {
         L(l_main_loop);
@@ -1057,7 +1070,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_c_block() {
             compute_step(ur_c, 0);
             add(reg_ptr_src_i8, ur_c * c_block * sizeof_src_dt());
             add(reg_ptr_dst_i8, ur_c * c_block * sizeof_dst_dt());
-            add(reg_oc_off, ur_c*c_block*sizeof(float));
+            if (jpp.with_quantization)
+                add(reg_oc_off, ur_c*c_block*sizeof(float));
             inc(c_iter);
             cmp(c_iter, c_steps);
             jl(l_main_loop, T_NEAR);
@@ -1386,6 +1400,9 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
         }
         default: return status::unimplemented;
     }
+
+    const auto &p = ppd->attr()->post_ops_;
+    jpp.with_quantization = p.find(primitive_kind::quantization) != -1;
 
     return status::success;
 }
