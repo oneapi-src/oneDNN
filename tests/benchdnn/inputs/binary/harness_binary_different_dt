@@ -15,7 +15,7 @@
 --alg=SUB
 --ddt=u8,s8
 --sdt=u8:f32,s8:f32
---attr-post-ops='div:f32:per_oc;mul:f32:per_oc;add:f32:per_oc'
+--attr-post-ops='div:f32:per_oc;add:f32:per_oc;mul:f32:per_oc'
 --stag=axb:axb
 16x2048x10x10:1x2048x1x1
 8x1024x19x19:1x1024x1x1
