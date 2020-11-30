@@ -55,10 +55,10 @@ struct ref_shuffle_t : public gpu_primitive_t {
                     && IMPLICATION(!is_fwd(), set_default_formats_common());
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         shuffle_conf_t conf;

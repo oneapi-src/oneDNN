@@ -618,15 +618,11 @@ struct eltwise_conf_t {
 struct shuffle_conf_t {
     data_type_t data_type;
     int axis;
-    int axis_size;
-    int group_size;
     int transpose_row;
     int transpose_col;
-    size_t outer_size;
-    size_t inner_size;
-    size_t dim;
-    int ndims;
-    size_t gws_d[3];
+    compute::dispatch_t dispatch;
+    memory_desc_info_t src_md_info;
+    memory_desc_info_t dst_md_info;
 };
 
 inline void set_default_pool_conf(pool_conf_t &conf,

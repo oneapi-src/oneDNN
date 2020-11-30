@@ -17,3 +17,9 @@
 --dt=f32
 --tag=aBx16b --axis=1 1x12x56x56 1x36x56x56
 
+# double block
+--allow-enum-tags-only=0
+--tag=BA8b4a2b 
+--group=6 
+--axis=0,1
+48x48
