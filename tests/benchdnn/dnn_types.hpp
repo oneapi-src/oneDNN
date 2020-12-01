@@ -46,9 +46,9 @@ struct dims_t : public std::vector<int64_t> {
     dims_t() = default;
     dims_t(size_t size) : vector(size) {}
     dims_t(size_t size, int64_t value) : vector(size, value) {}
-    void operator=(const dnnl_dims_t &dims) {
-        for (unsigned int dim = 0; dim < this->size(); dim++)
-            this->at(dim) = dims[dim];
+    dims_t(const dnnl_memory_desc_t &md) : dims_t(md.ndims) {
+        for (int d = 0; d < md.ndims; ++d)
+            this->at(d) = md.dims[d];
     }
 };
 
