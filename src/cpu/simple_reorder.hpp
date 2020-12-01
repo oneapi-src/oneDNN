@@ -479,12 +479,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const bool w_groups = !one_of(tag_o, Owi16o, Owhi16o);
 
         // Current formats are only used in jit kernels that natively
-        // support s8 instrucitons, hence, there is no need for signed
+        // support s8 instructions, hence, there is no need for signed
         // compensation.
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
-        assert(!req_comp);
-        MAYBE_UNUSED(req_comp);
 
         const bool req_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
@@ -500,7 +498,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && mask_ok(req_asymmetric_comp,
                         output_d.extra().asymm_compensation_mask)
                 && one_of(input_d.data_type(), f32, s8, bf16)
-                && output_d.data_type() == s8;
+                && output_d.data_type() == s8 && !req_comp;
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -625,8 +623,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         // compensation.
         const bool req_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_s8s8;
-        assert(!req_comp);
-        MAYBE_UNUSED(req_comp);
 
         const bool req_asymmetric_comp = output_d.extra().flags
                 & memory_extra_flags::compensation_conv_asymmetric_src;
@@ -642,7 +638,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 && mask_ok(req_asymmetric_comp,
                         output_d.extra().asymm_compensation_mask)
                 && one_of(input_d.data_type(), f32, s8, bf16)
-                && output_d.data_type() == s8;
+                && output_d.data_type() == s8 && !req_comp;
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
