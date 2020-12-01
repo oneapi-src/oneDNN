@@ -43,7 +43,8 @@ inline typename utils::enable_if<nstl::is_integral<data_t>::value,
 saturate(const acc_t &x) {
     acc_t v = x;
     acc_t lbound = (acc_t)nstl::numeric_limits<data_t>::lowest();
-    acc_t ubound = (acc_t)nstl::numeric_limits<data_t>::max();
+    // Pick up a modified version of max value when do f32 -> s32.
+    acc_t ubound = types::max_value<acc_t>(data_traits<data_t>::data_type);
     if (v < lbound) v = lbound;
     if (v > ubound) v = ubound;
     return v;

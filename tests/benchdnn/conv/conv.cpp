@@ -171,16 +171,19 @@ inline int compare_dat(const prb_t *prb, data_kind_t kind, dnn_mem_t &mem_dt,
             // the library for integral target data types.
             not_a_num += 1;
             not_a_num_ok += true;
-        } else if (fp < f_min) {
+        } else if (fp0 < f_min) {
             diff_norm.update(f_min, dt);
             ok = dt == f_min;
             if (!ok) ok = compare::compare_extreme_values(fp, dt);
             below += 1;
             below_ok += ok;
-        } else if (fp > f_max) {
+        } else if (fp0 > f_max) {
             diff_norm.update(f_max, dt);
             ok = dt == f_max;
             if (!ok) ok = compare::compare_extreme_values(fp, dt);
+            // Hack for (TODO: Intel only?) CPU saturation check.
+            if (is_cpu() && f_dt == dnnl_s32)
+                ok = dt >= BENCHDNN_S32_TO_F32_SAT_CONST && dt < f_max;
             above += 1;
             above_ok += ok;
         } else {

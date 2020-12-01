@@ -98,6 +98,11 @@ int compare_t::compare(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             ok = (fabsf(exp) > 1e-5 ? rel_diff : diff) <= trh;
             // If not, check that both are NaNs or infinity with same sign...
             if (!ok) ok = compare::compare_extreme_values(exp, got);
+            // If not, use hack to check not fully correct s32 saturation on
+            // cpu...
+            if (!ok && is_cpu() && dt == dnnl_s32 && exp == max_dt(dnnl_s32))
+                ok = got >= BENCHDNN_S32_TO_F32_SAT_CONST
+                        && got < max_dt(dnnl_s32);
             // If not, check driver additional checks if set...
             if (!ok && driver_check_func_)
                 ok = driver_check_func_(i, got, diff);

@@ -182,12 +182,14 @@ inline float max_dt(dnnl_data_type_t dt) {
 
 #undef CASE_ALL
 
+#define BENCHDNN_S32_TO_F32_SAT_CONST 2147483520.f
+
 template <dnnl_data_type_t dt>
 inline float saturate_and_round(float val) {
-    const float dt_max = (float)dnnl::impl::nstl::numeric_limits<
-            typename prec_traits<dt>::type>::max();
+    const float dt_max = max_dt(dt);
     const float dt_min = (float)dnnl::impl::nstl::numeric_limits<
             typename prec_traits<dt>::type>::lowest();
+    if (dt == dnnl_s32 && val >= max_dt(dnnl_s32)) return max_dt(dnnl_s32);
     if (val > dt_max) val = dt_max;
     if (val < dt_min) val = dt_min;
     return mxcsr_cvt(val);

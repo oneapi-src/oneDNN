@@ -112,7 +112,10 @@ int ref_reorder(const prb_t *prb, dnn_mem_t &dst, const dnn_mem_t &src) {
 
         const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
         const float alpha = prb->scales[scale_idx];
-        const float value = alpha * s + beta * d + dst_zero_point;
+        float value = alpha * s + beta * d + dst_zero_point;
+        value = maybe_saturate(dst_dt, value);
+        if (dst_dt == dnnl_s32 && value >= (float)INT_MAX)
+            value = BENCHDNN_S32_TO_F32_SAT_CONST;
 
         dst.set_elem(idx, round_to_nearest_representable(dst_dt, value));
     }

@@ -112,6 +112,37 @@ inline T max_value(data_type_t data_type) {
 #undef CASE
 }
 
+// This is a hack to comply with a big comment below.
+template <>
+inline float max_value(data_type_t data_type) {
+    using namespace data_type;
+#define CASE(x) \
+    case x: \
+        return static_cast<float>( \
+                nstl::numeric_limits<prec_traits<x>::type>::max())
+    switch (data_type) {
+        CASE(f16);
+        CASE(bf16);
+        CASE(s8);
+        CASE(u8);
+        // INT_MAX is not representable in float. The nearest float to it is
+        // INT_MAX + 1 = 2^31 (0x4f000000). Regular conversion instructions such
+        // as `cvtps2dq` or `cvtss2si` will convert this number to INT_MIN
+        // making the result negative. We on purpose choose the previous float
+        // number (0x4effffff) to return leaving the output close to INT_MAX but
+        // still positive. In addition, we adjust validation of this approach.
+        // The main concern against `real` saturation is performance, which
+        // likely to drop (but it was not proved). The only drawback of current
+        // approach is saturating on some integer values before it should happen
+        // in the reality.
+        case s32: return 2147483520.f;
+        case data_type::undef:
+        default: assert(!"unknown data_type");
+    }
+    return 0.f; /* not supposed to be reachable */
+#undef CASE
+}
+
 inline float get_float_value(data_type_t dt, const void *ptr, dim_t idx) {
 #define CASE(dt) \
     case dt: \
