@@ -42,6 +42,12 @@ argument index as specified by the following table.
    same shape.
    Implicit broadcasting is not supported.
 
+ * The sum primitive supports in-place operation, meaning that the \f$\src_0\f$
+   tensor can be used as both input and output. In-place operation overwrites
+   the original data. Using in-place operation requires the memory footprint of
+   the output tensor to be either bigger than or equal to the size of the \dst
+   memory descriptor used for primitive creation.
+
 ### Post-ops and Attributes
 
 The sum primitive does not support any post-ops or attributes.
@@ -74,6 +80,8 @@ meaning associated with any logical dimensions.
    have same memory format and data type matches the destination tensor data
    type. For other cases more general but slower code is working. Consider
    reordering sources to the same data format before the sum primitive.
+
+ * Use in-place operations whenever possible (see caveats in General Notes).
 
 ## Examples
 
