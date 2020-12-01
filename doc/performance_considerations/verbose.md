@@ -63,10 +63,10 @@ Each subsequent line of verbose information is formatted as a comma-separated
 list containing:
 1. `dnnl_verbose` marker string
 2. operation: `create:<cache_hit|cache_miss>` or `exec`
-3. engine kind: `cpu` or `gpu`
+3. engine kind: `cpu` or `gpu` (`cpu2gpu` or `gpu2cpu` for cross-engine reorder)
 4. primitive name: `convolution`, `reorder`, `sum`, etc
 5. primitive implementation
-6. propagation: `forward_training`, `forward_inference`, or `backward`
+6. propagation kind: `forward_training`, `forward_inference`, or `backward`
 7. information about all operation tensors (separated by space)
 8. primitive attributes
 9. auxiliary information like algorithm name or number of inputs
@@ -85,8 +85,7 @@ The information about a particular operation tensors has the following format:
    the \weights tensor for the int8 Winograd convolution.
 
 Please see the profiling example [here](@ref performance_profiling_cpp), as it
-uses DNNL_VERBOSE output to tune oneDNN code to align with [best practices](@ref
-dev_guide_inference).
+uses DNNL_VERBOSE output to tune oneDNN code to align with [best practices](@ref dev_guide_inference).
 
 @note
 When oneDNN verbose mode is enabled with GPU engines, oneDNN adds extra stream
