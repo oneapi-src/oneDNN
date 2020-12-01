@@ -26,11 +26,7 @@ namespace x64 {
 namespace lnorm_utils {
 
 template <data_type_t d_type>
-cpu::lnorm_utils::statistics_kernel_t<d_type> *statistics_kernel_create(
-        const layer_normalization_pd_t *pd);
-
-template <data_type_t d_type>
-cpu::lnorm_utils::data_kernel_t<d_type> *data_kernel_create(
+cpu::lnorm_utils::stat_and_data_kernel_t<d_type> *stat_and_data_kernel_create(
         const layer_normalization_pd_t *pd);
 
 template <data_type_t d_type>

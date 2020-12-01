@@ -84,12 +84,10 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
             pd()->reorder_pd_->create_primitive(reorder_, engine);
-        CHECK(safe_ptr_assign(stat_kernel_,
-                lnorm_utils::statistics_kernel_t<data_type>::create(pd())));
-        CHECK(safe_ptr_assign(data_kernel_,
-                lnorm_utils::data_kernel_t<data_type>::create(pd())));
-        if (stat_kernel_) CHECK(stat_kernel_->create_kernel());
-        if (data_kernel_) CHECK(data_kernel_->create_kernel());
+        CHECK(safe_ptr_assign(stat_and_data_kernel_,
+                lnorm_utils::stat_and_data_kernel_t<data_type>::create(pd())));
+        if (stat_and_data_kernel_)
+            CHECK(stat_and_data_kernel_->create_kernel());
         return status::success;
     }
 
@@ -147,8 +145,8 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<lnorm_utils::statistics_kernel_t<data_type>> stat_kernel_;
-    std::unique_ptr<lnorm_utils::data_kernel_t<data_type>> data_kernel_;
+    std::unique_ptr<lnorm_utils::stat_and_data_kernel_t<data_type>>
+            stat_and_data_kernel_;
     std::shared_ptr<primitive_t> reorder_;
 };
 
@@ -193,6 +191,8 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
             if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
                 scratchpad.book(key_nested, reorder_pd_->scratchpad_registry());
             }
+            scratchpad.template book<float>(
+                    key_lnorm_inv_sqrtvar, across_axis());
         }
 
         void copy_from(const pd_t &other) {

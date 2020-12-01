@@ -97,13 +97,13 @@ status_t simple_layer_normalization_fwd_t<data_type>::pd_t::init(
 template <data_type_t data_type>
 void simple_layer_normalization_fwd_t<data_type>::execute_forward(
         const exec_ctx_t &ctx) const {
+    auto scratchpad = ctx.get_scratchpad_grantor();
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
     auto scaleshift = CTX_IN_MEM(const float *, DNNL_ARG_SCALE_SHIFT);
 
     float *mean, *variance;
     if (pd()->use_tmp_stats()) {
-        auto scratchpad = ctx.get_scratchpad_grantor();
         mean = scratchpad.template get<float>(key_lnorm_tmp_mean);
         variance = scratchpad.template get<float>(key_lnorm_tmp_var);
     } else {
@@ -121,25 +121,13 @@ void simple_layer_normalization_fwd_t<data_type>::execute_forward(
     const dim_t N = pd()->across_axis();
     const dim_t C_padded = src_d.padded_dims()[pd()->ndims() - 1];
 
-    const bool save_stats = pd()->is_training();
-    const bool calculate_stats = !pd()->stats_are_src();
-
-    parallel_nd(N, [&](dim_t n) {
-        auto v_mean = calculate_stats ? 0 : mean[n];
-        auto v_variance = calculate_stats ? 0 : variance[n];
-
-        if (calculate_stats)
-            (*stat_kernel_)(&src[n * C_padded], &v_mean, &v_variance);
-
-        (*data_kernel_)(&src[n * C_padded], &dst[n * C_padded], scaleshift,
-                &v_mean, &v_variance);
-
-        if (calculate_stats) {
-            if (save_stats) {
-                mean[n] = v_mean;
-                variance[n] = v_variance;
-            }
-        }
+    parallel(0, [&](const int ithr, const int nthr) {
+        dim_t N_start = 0, N_end = 0;
+        balance211(N, nthr, ithr, N_start, N_end);
+        const int block_size = N_end - N_start;
+        (*stat_and_data_kernel_)(&src[N_start * C_padded],
+                &dst[N_start * C_padded], scaleshift, &mean[N_start],
+                &variance[N_start], block_size);
     });
 }
 
@@ -191,6 +179,9 @@ void simple_layer_normalization_bwd_t<data_type>::execute_backward(
         variance = CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE);
     }
 
+    float *const inv_sqrtvar
+            = scratchpad.template get<float>(key_lnorm_inv_sqrtvar);
+
     const memory_desc_wrapper src_d(pd()->src_md());
 
     const dim_t N = pd()->across_axis();
@@ -201,11 +192,12 @@ void simple_layer_normalization_bwd_t<data_type>::execute_backward(
     if (diff_scaleshift == nullptr)
         diff_scaleshift = scratchpad.template get<float>(key_lnorm_tmp_diff_ss);
 
-    int max_nthr = dnnl_get_max_threads();
+    const int max_nthr = dnnl_get_max_threads();
+
     parallel(max_nthr, [&](int ithr, int nthr) {
-        assert(nthr == max_nthr);
-        dim_t N_s = 0, N_e = 0;
-        balance211(N, nthr, ithr, N_s, N_e);
+        dim_t N_start = 0, N_end = 0;
+        balance211(N, nthr, ithr, N_start, N_end);
+        const int block_size = N_end - N_start;
 
         float *my_diff_gamma = reduce + C * ithr;
         float *my_diff_beta = reduce + C * nthr + C * ithr;
@@ -213,10 +205,10 @@ void simple_layer_normalization_bwd_t<data_type>::execute_backward(
             my_diff_gamma[c] = 0.;
             my_diff_beta[c] = 0.;
         }
-        for (dim_t n = N_s; n < N_e; n++) {
-            (*diff_ss_kernel_)(&src[n * C_padded], &diff_dst[n * C_padded],
-                    my_diff_gamma, my_diff_beta, &mean[n], &variance[n]);
-        }
+        (*diff_ss_kernel_)(&src[N_start * C_padded],
+                &diff_dst[N_start * C_padded], my_diff_gamma, my_diff_beta,
+                &mean[N_start], &variance[N_start], &inv_sqrtvar[N_start],
+                block_size);
     });
 
     parallel_nd(C, [&](dim_t c) {
@@ -230,15 +222,13 @@ void simple_layer_normalization_bwd_t<data_type>::execute_backward(
     });
 
     parallel(max_nthr, [&](int ithr, int nthr) {
-        assert(nthr == max_nthr);
-        dim_t N_s = 0, N_e = 0;
-        balance211(N, nthr, ithr, N_s, N_e);
+        dim_t N_start = 0, N_end = 0;
+        balance211(N, nthr, ithr, N_start, N_end);
+        const int block_size = N_end - N_start;
 
-        for (dim_t n = N_s; n < N_e; n++) {
-            (*diff_data_kernel_)(&src[n * C_padded], &diff_dst[n * C_padded],
-                    &diff_src[n * C_padded], scaleshift, &mean[n],
-                    &variance[n]);
-        }
+        (*diff_data_kernel_)(&src[N_start * C_padded],
+                &diff_dst[N_start * C_padded], &diff_src[N_start * C_padded],
+                scaleshift, &mean[N_start], &inv_sqrtvar[N_start], block_size);
     });
 }
 

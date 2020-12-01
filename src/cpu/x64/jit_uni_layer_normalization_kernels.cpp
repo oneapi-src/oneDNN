@@ -162,29 +162,40 @@ void jit_transfer_t<bf16>::store<bf16>(
 }
 
 template <data_type_t data_type>
-struct jit_statistics_kernel_t : statistics_kernel_t<data_type>,
-                                 public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(lnorm_utils::jit_statistics_kernel_t);
+struct jit_stat_and_data_kernel_t : stat_and_data_kernel_t<data_type>,
+                                    public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(lnorm_utils::jit_stat_and_data_kernel_t);
 
-    jit_statistics_kernel_t(const layer_normalization_pd_t *pd);
+    jit_stat_and_data_kernel_t(const layer_normalization_pd_t *pd);
 
     using data_t = typename prec_traits<data_type>::type;
-    void operator()(const data_t *src, float *mean, float *var) const override;
+    void operator()(const data_t *src, data_t *dst, const float *ss,
+            float *mean, float *var, const size_t block_size) const override;
+
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
 private:
     jit_transfer_t<data_type> jit_transfer_;
     static constexpr int unroll_factor_ = 8;
     static constexpr int simd_w = data_type == bf16 ? 16 : 8;
-    using statistics_kernel_t<data_type>::C_;
     using Vmm = typename utils::conditional<data_type == bf16, Xbyak::Zmm,
             Xbyak::Ymm>::type;
+    using stat_and_data_kernel_t<data_type>::C_;
+    using stat_and_data_kernel_t<data_type>::use_scaleshift_;
+    using stat_and_data_kernel_t<data_type>::save_stats_;
+    using stat_and_data_kernel_t<data_type>::calculate_stats_;
+    using stat_and_data_kernel_t<data_type>::eps_;
 
     struct ker_args_t {
         const data_t *src;
-        float *mean;
-        float *var;
+        data_t *dst;
+        const float *ss;
+        const float *mean;
+        const float *var;
+        size_t block_size;
+        float eps;
     };
+
     void generate() override;
 
     template <typename F>
@@ -192,63 +203,151 @@ private:
 
     void reduce();
 
-    Xbyak::Reg64 reg_param = abi_param1;
-    Xbyak::Reg64 reg_src = rdx;
-    Xbyak::Reg64 reg_mean = rbx;
-    Xbyak::Reg64 reg_var = rbp;
-    Xbyak::Reg64 reg_tmp = rax;
+    const Xbyak::Reg64 &reg_param = abi_param1;
+    const Xbyak::Reg64 &reg_src = rdx;
+    const Xbyak::Reg64 &reg_dst = rax;
+    const Xbyak::Reg64 &reg_mean = rbx;
+    const Xbyak::Reg64 &reg_var = rbp;
+    const Xbyak::Reg64 &reg_ss = r8;
+    const Xbyak::Reg64 &reg_block_end = r9;
+    const Xbyak::Reg64 &reg_eps = r10;
+    const Xbyak::Reg64 &reg_tmp = r11;
 
-    // vector registers 0 .. unroll_factor_ are reseved for unrolling
-    Vmm vmm_src = Vmm(14);
+    Vmm vmm_ones = Vmm(8);
+    Vmm vmm_eps = Vmm(9);
+    Vmm vmm_inv_sqrtvar = Vmm(10);
+    Vmm vmm_data = Vmm(11);
+    Vmm vmm_gamma = Vmm(12);
+    Vmm vmm_beta = Vmm(13);
     Vmm vmm_mean = Vmm(15);
+    Vmm vmm_src = vmm_inv_sqrtvar;
+    Vmm vmm_dst = vmm_data;
+
+    Xmm xmm_return_value = Xmm(0);
+    Xmm xmm_tmp = Xmm(14);
 };
 
 template <data_type_t data_type>
-jit_statistics_kernel_t<data_type>::jit_statistics_kernel_t(
+jit_stat_and_data_kernel_t<data_type>::jit_stat_and_data_kernel_t(
         const layer_normalization_pd_t *pd)
-    : statistics_kernel_t<data_type>(pd), jit_transfer_ {*this} {
+    : stat_and_data_kernel_t<data_type>(pd), jit_transfer_ {*this} {
     assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
 }
 
 template <data_type_t data_type>
-void jit_statistics_kernel_t<data_type>::operator()(
-        const data_t *src, float *mean, float *var) const {
+void jit_stat_and_data_kernel_t<data_type>::operator()(const data_t *src,
+        data_t *dst, const float *ss, float *mean, float *var,
+        const size_t block_size) const {
     ker_args_t args;
     args.src = src;
+    args.dst = dst;
+    // scale and shift
+    args.ss = ss;
     args.mean = mean;
+    args.block_size = block_size * C_ * types::data_type_size(data_type);
+    args.eps = eps_;
     args.var = var;
     jit_generator::operator()(&args);
 }
 
 template <data_type_t data_type>
-void jit_statistics_kernel_t<data_type>::generate() {
-    using namespace Xbyak;
+void jit_stat_and_data_kernel_t<data_type>::generate() {
+    const auto c_size = C_ * types::data_type_size(data_type);
+    static const auto float_size = types::data_type_size(f32);
 
     preamble();
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
     mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
+    mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
+    mov(reg_ss, ptr[reg_param + PARAM_OFF(ss)]);
     mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
     mov(reg_var, ptr[reg_param + PARAM_OFF(var)]);
+    mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
+    mov(reg_eps, ptr[reg_param + PARAM_OFF(eps)]);
 #undef PARAM_OFF
+    const int C_vecs = C_ / simd_w;
+    // float value of 1
+    static constexpr float one = 1.0;
 
-    // compute mean
-    compute([=](Vmm vmm_dst) { vaddps(vmm_dst, vmm_dst, vmm_src); });
-    vmovss(ptr[reg_mean], Xmm(0));
+    const auto calculate_dst = [=](int nelems, size_t offt_elems) {
+        if (use_scaleshift_) {
+            jit_transfer_.template load<f32>(
+                    vmm_gamma, reg_ss, nelems, offt_elems);
+            jit_transfer_.template load<f32>(
+                    vmm_beta, reg_ss, nelems, offt_elems + C_);
+        }
+        jit_transfer_.template load<data_type>(
+                vmm_data, reg_src, nelems, offt_elems);
+        vsubps(vmm_data, vmm_data, vmm_mean);
+        vmulps(vmm_data, vmm_data, vmm_inv_sqrtvar);
+        if (use_scaleshift_) vfmadd213ps(vmm_data, vmm_gamma, vmm_beta);
+        jit_transfer_.template store<data_type>(
+                vmm_data, reg_dst, nelems, offt_elems);
+    };
 
-    //compute var
-    vbroadcastss(vmm_mean, Xmm(0));
-    compute([=](Vmm vmm_dst) {
-        vsubps(vmm_src, vmm_mean, vmm_src);
-        vfmadd231ps(vmm_dst, vmm_src, vmm_src);
-    });
-    vmovss(ptr[reg_var], Xmm(0));
+    // add block_start to block_size to define block_end
+    add(reg_block_end, reg_src);
+
+    vmovq(xmm_tmp, reg_eps);
+    vbroadcastss(vmm_eps, xmm_tmp);
+    mov(reg_tmp, float2int(one));
+    vmovq(xmm_tmp, reg_tmp);
+    vbroadcastss(vmm_ones, xmm_tmp);
+
+    Label unroll_loop, end;
+    L(unroll_loop);
+    {
+        cmp(reg_block_end, reg_src);
+        jle(end, T_NEAR);
+
+        if (calculate_stats_) {
+            // compute mean
+            compute([&](Vmm vmm_dst) { vaddps(vmm_dst, vmm_dst, vmm_src); });
+            if (save_stats_) vmovss(ptr[reg_mean], xmm_return_value);
+            vbroadcastss(vmm_mean, xmm_return_value);
+
+            //compute var
+            vbroadcastss(vmm_mean, xmm_return_value);
+            compute([&](Vmm vmm_dst) {
+                vsubps(vmm_src, vmm_mean, vmm_src);
+                vfmadd231ps(vmm_dst, vmm_src, vmm_src);
+            });
+            if (save_stats_) vmovss(ptr[reg_var], xmm_return_value);
+            vbroadcastss(vmm_inv_sqrtvar, xmm_return_value);
+        } else {
+            // read mean and var from input
+            vmovss(xmm_tmp, dword[reg_mean]);
+            vbroadcastss(vmm_mean, xmm_tmp);
+            vmovss(xmm_tmp, dword[reg_var]);
+            vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
+        }
+
+        // calculate inv_sqrtvar
+        vaddps(vmm_inv_sqrtvar, vmm_inv_sqrtvar, vmm_eps);
+        vsqrtps(vmm_inv_sqrtvar, vmm_inv_sqrtvar);
+        vdivps(vmm_inv_sqrtvar, vmm_ones, vmm_inv_sqrtvar);
+
+        // calculate dst
+        for (int i = 0; i < C_vecs; i++)
+            calculate_dst(simd_w, i * simd_w);
+
+        for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
+            calculate_dst(1, i);
+
+        add(reg_src, c_size);
+        add(reg_dst, c_size);
+        add(reg_mean, float_size);
+        add(reg_var, float_size);
+        jmp(unroll_loop);
+    }
+    L(end);
 
     postamble();
 }
 
 template <data_type_t data_type>
 template <typename F>
-void jit_statistics_kernel_t<data_type>::compute(F op) {
+void jit_stat_and_data_kernel_t<data_type>::compute(F op) {
     const int C_vecs = C_ / simd_w;
 
     uni_vpxor(Vmm(0), Vmm(0), Vmm(0));
@@ -296,11 +395,11 @@ void jit_statistics_kernel_t<data_type>::compute(F op) {
     Xmm xmm_tmp = Xmm(vmm_src.getIdx());
     mov(reg_tmp, float2int(C_));
     uni_vmovq(xmm_tmp, reg_tmp);
-    vdivss(Xmm(0), Xmm(0), xmm_tmp);
+    vdivss(xmm_return_value, xmm_return_value, xmm_tmp);
 };
 
 template <>
-void jit_statistics_kernel_t<bf16>::reduce() {
+void jit_stat_and_data_kernel_t<bf16>::reduce() {
     Ymm ymm_high = Ymm(1);
     vextractf32x8(ymm_high, Zmm(0), 1);
     vaddps(Ymm(0), ymm_high, Ymm(0));
@@ -308,132 +407,16 @@ void jit_statistics_kernel_t<bf16>::reduce() {
     vhaddps(Ymm(0), Ymm(0), Ymm(0));
     Xmm xmm_high = Xmm(1);
     vextractf128(xmm_high, Ymm(0), 1);
-    vaddps(Xmm(0), xmm_high, Xmm(0));
+    vaddps(xmm_return_value, xmm_high, xmm_return_value);
 }
 
 template <>
-void jit_statistics_kernel_t<f32>::reduce() {
+void jit_stat_and_data_kernel_t<f32>::reduce() {
     Xmm xmm_high = Xmm(1);
     vextractf128(xmm_high, Ymm(0), 1);
-    vaddps(Xmm(0), xmm_high, Xmm(0));
-    vhaddps(Xmm(0), Xmm(0), Xmm(0));
-    vhaddps(Xmm(0), Xmm(0), Xmm(0));
-}
-
-template <data_type_t data_type>
-struct jit_data_kernel_t : data_kernel_t<data_type>, public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(lnorm_utils::jit_data_kernel_t);
-
-    jit_data_kernel_t(const layer_normalization_pd_t *pd);
-
-    using data_t = typename prec_traits<data_type>::type;
-    void operator()(const data_t *src, data_t *dst, const float *ss,
-            const float *mean, const float *var) const override;
-
-    status_t create_kernel() override { return jit_generator::create_kernel(); }
-
-private:
-    jit_transfer_t<data_type> jit_transfer_;
-    static constexpr int simd_w = data_type == bf16 ? 16 : 8;
-    using Vmm = typename utils::conditional<data_type == bf16, Xbyak::Zmm,
-            Xbyak::Ymm>::type;
-    using data_kernel_t<data_type>::C_;
-    using data_kernel_t<data_type>::eps_;
-    using data_kernel_t<data_type>::use_scaleshift_;
-
-    struct ker_args_t {
-        const data_t *src;
-        data_t *dst;
-        const float *ss;
-        const float *mean;
-        const float *inv_sqrtvar;
-    };
-
-    void generate() override;
-
-    Xbyak::Reg64 reg_param = abi_param1;
-    Xbyak::Reg64 reg_src = rdx;
-    Xbyak::Reg64 reg_dst = rax;
-    Xbyak::Reg64 reg_ss = r9;
-    Xbyak::Reg64 reg_tmp = r8;
-
-    Vmm vmm_inv_sqrtvar = Vmm(10);
-    Vmm vmm_data = Vmm(11);
-    Vmm vmm_gamma = Vmm(12);
-    Vmm vmm_beta = Vmm(13);
-    Vmm vmm_tmp = Vmm(14);
-    Vmm vmm_mean = Vmm(15);
-};
-
-template <data_type_t data_type>
-jit_data_kernel_t<data_type>::jit_data_kernel_t(
-        const layer_normalization_pd_t *pd)
-    : data_kernel_t<data_type>(pd), jit_transfer_ {*this} {
-    assert(data_type == bf16 ? mayiuse(avx512_core) : mayiuse(avx2));
-}
-
-template <data_type_t data_type>
-void jit_data_kernel_t<data_type>::operator()(const data_t *src, data_t *dst,
-        const float *ss, const float *mean, const float *var) const {
-    ker_args_t args;
-    args.src = src;
-    args.dst = dst;
-    args.ss = ss;
-    args.mean = mean;
-#ifdef __INTEL_COMPILER
-    //Without volatile ICC with -O2 & -O3 optimizes out denominator from
-    //inv_sqrtvar and computes 1/denom with lower precision
-    const volatile float denom = sqrtf(*var + eps_);
-#else
-    const float denom = sqrtf(*var + eps_);
-#endif
-    const float inv_sqrtvar = 1.f / denom;
-    args.inv_sqrtvar = &inv_sqrtvar;
-    jit_generator::operator()(&args);
-}
-
-template <data_type_t data_type>
-void jit_data_kernel_t<data_type>::generate() {
-    preamble();
-#define PARAM_OFF(x) offsetof(ker_args_t, x)
-    mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
-    mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
-    mov(reg_ss, ptr[reg_param + PARAM_OFF(ss)]);
-
-    Xmm xmm_tmp = Xmm(vmm_tmp.getIdx());
-    mov(reg_tmp, ptr[reg_param + PARAM_OFF(mean)]);
-    vmovss(xmm_tmp, dword[reg_tmp]);
-    vbroadcastss(vmm_mean, xmm_tmp);
-
-    mov(reg_tmp, ptr[reg_param + PARAM_OFF(inv_sqrtvar)]);
-    vmovss(xmm_tmp, dword[reg_tmp]);
-    vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
-#undef PARAM_OFF
-    const int C_vecs = C_ / simd_w;
-
-    auto op = [=](int nelems, size_t offt_elems) {
-        if (use_scaleshift_) {
-            jit_transfer_.template load<f32>(
-                    vmm_gamma, reg_ss, nelems, offt_elems);
-            jit_transfer_.template load<f32>(
-                    vmm_beta, reg_ss, nelems, offt_elems + C_);
-        }
-        jit_transfer_.template load<data_type>(
-                vmm_data, reg_src, nelems, offt_elems);
-        vsubps(vmm_data, vmm_data, vmm_mean);
-        vmulps(vmm_data, vmm_data, vmm_inv_sqrtvar);
-        if (use_scaleshift_) vfmadd213ps(vmm_data, vmm_gamma, vmm_beta);
-        jit_transfer_.template store<data_type>(
-                vmm_data, reg_dst, nelems, offt_elems);
-    };
-
-    for (int i = 0; i < C_vecs; i++)
-        op(simd_w, i * simd_w);
-
-    for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
-        op(1, i);
-
-    postamble();
+    vaddps(xmm_return_value, xmm_high, xmm_return_value);
+    vhaddps(xmm_return_value, xmm_return_value, xmm_return_value);
+    vhaddps(xmm_return_value, xmm_return_value, xmm_return_value);
 }
 
 template <data_type_t data_type>
@@ -446,7 +429,8 @@ struct jit_diff_ss_kernel_t : diff_ss_kernel_t<data_type>,
     using data_t = typename prec_traits<data_type>::type;
     void operator()(const data_t *src, const data_t *diff_dst,
             float *diff_gamma, float *diff_beta, const float *mean,
-            const float *var) const override;
+            const float *var, float *const inv_sqrtvar,
+            const size_t block_size) const override;
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
@@ -465,16 +449,19 @@ private:
         float *diff_beta;
         const float *mean;
         const float *inv_sqrtvar;
+        size_t block_size;
     };
 
     void generate() override;
 
-    Xbyak::Reg64 reg_param = abi_param1;
-    Xbyak::Reg64 reg_src = rdx;
-    Xbyak::Reg64 reg_diff_dst = rax;
-    Xbyak::Reg64 reg_tmp = r10;
-    Xbyak::Reg64 reg_diff_gamma = r9;
-    Xbyak::Reg64 reg_diff_beta = r8;
+    const Xbyak::Reg64 &reg_param = abi_param1;
+    const Xbyak::Reg64 &reg_src = rdx;
+    const Xbyak::Reg64 &reg_diff_dst = rax;
+    const Xbyak::Reg64 &reg_block_end = rbx;
+    const Xbyak::Reg64 &reg_mean = r11;
+    const Xbyak::Reg64 &reg_inv_sqrtvar = r10;
+    const Xbyak::Reg64 &reg_diff_gamma = r9;
+    const Xbyak::Reg64 &reg_diff_beta = r8;
 
     Xbyak::Xmm xmm_tmp = Xbyak::Xmm(9);
 
@@ -496,45 +483,48 @@ jit_diff_ss_kernel_t<data_type>::jit_diff_ss_kernel_t(
 template <data_type_t data_type>
 void jit_diff_ss_kernel_t<data_type>::operator()(const data_t *src,
         const data_t *diff_dst, float *diff_gamma, float *diff_beta,
-        const float *mean, const float *var) const {
+        const float *mean, const float *var, float *const inv_sqrtvar,
+        const size_t block_size) const {
     ker_args_t args;
     args.src = src;
     args.diff_dst = diff_dst;
     args.diff_gamma = diff_gamma;
     args.diff_beta = diff_beta;
     args.mean = mean;
+    for (size_t i = 0; i < block_size; i++) {
 #ifdef __INTEL_COMPILER
-    //Without volatile ICC with -O2 & -O3 optimizes out denominator from
-    //inv_sqrtvar and computes 1/denom with lower precision
-    const volatile float denom = sqrtf(*var + eps_);
+        //Without volatile ICC with -O2 & -O3 optimizes out denominator from
+        //inv_sqrtvar and computes 1/denom with lower precision
+        const volatile float denom = sqrtf(var[i] + eps_);
 #else
-    const float denom = sqrtf(*var + eps_);
+        const float denom = sqrtf(var[i] + eps_);
 #endif
-    const float inv_sqrtvar = 1.f / denom;
-    args.inv_sqrtvar = &inv_sqrtvar;
+        inv_sqrtvar[i] = 1.f / denom;
+    }
+    args.inv_sqrtvar = inv_sqrtvar;
+    args.block_size = block_size * C_ * types::data_type_size(data_type);
     jit_generator::operator()(&args);
 }
 
 template <data_type_t data_type>
 void jit_diff_ss_kernel_t<data_type>::generate() {
+    const auto c_size = C_ * types::data_type_size(data_type);
+    static const auto float_size = types::data_type_size(f32);
+
     preamble();
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
     mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
     mov(reg_diff_dst, ptr[reg_param + PARAM_OFF(diff_dst)]);
     mov(reg_diff_gamma, ptr[reg_param + PARAM_OFF(diff_gamma)]);
     mov(reg_diff_beta, ptr[reg_param + PARAM_OFF(diff_beta)]);
+    mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
+    mov(reg_inv_sqrtvar, ptr[reg_param + PARAM_OFF(inv_sqrtvar)]);
+    mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
 
-    mov(reg_tmp, ptr[reg_param + PARAM_OFF(mean)]);
-    vmovss(xmm_tmp, dword[reg_tmp]);
-    vbroadcastss(vmm_mean, xmm_tmp);
-
-    mov(reg_tmp, ptr[reg_param + PARAM_OFF(inv_sqrtvar)]);
-    vmovss(xmm_tmp, dword[reg_tmp]);
-    vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
 #undef PARAM_OFF
 
     const int C_vecs = C_ / simd_w;
-    auto op = [=](int nelems, size_t offt_elems) {
+    const auto calculate_diff_gamma_beta = [=](int nelems, size_t offt_elems) {
         jit_transfer_.template load<data_type>(
                 vmm_ddst, reg_diff_dst, nelems, offt_elems);
         jit_transfer_.template load<f32>(
@@ -553,11 +543,34 @@ void jit_diff_ss_kernel_t<data_type>::generate() {
                 vmm_dgamma, reg_diff_gamma, nelems, offt_elems);
     };
 
-    for (int i = 0; i < C_vecs; i++)
-        op(simd_w, i * simd_w);
+    // add block_start to block_size to define block_end
+    add(reg_block_end, reg_src);
 
-    for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
-        op(1, i);
+    Label unroll_loop, end;
+    L(unroll_loop);
+    {
+        cmp(reg_block_end, reg_src);
+        jle(end, T_NEAR);
+
+        vmovss(xmm_tmp, dword[reg_mean]);
+        vbroadcastss(vmm_mean, xmm_tmp);
+        vmovss(xmm_tmp, dword[reg_inv_sqrtvar]);
+        vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
+
+        for (int i = 0; i < C_vecs; i++)
+            calculate_diff_gamma_beta(simd_w, i * simd_w);
+
+        for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
+            calculate_diff_gamma_beta(1, i);
+
+        add(reg_src, c_size);
+        add(reg_diff_dst, c_size);
+        add(reg_mean, float_size);
+        add(reg_inv_sqrtvar, float_size);
+
+        jmp(unroll_loop);
+    }
+    L(end);
 
     postamble();
 }
@@ -571,8 +584,8 @@ struct jit_diff_data_kernel_t : diff_data_kernel_t<data_type>,
 
     using data_t = typename prec_traits<data_type>::type;
     void operator()(const data_t *src, const data_t *diff_dst, data_t *diff_src,
-            const float *ss, const float *mean,
-            const float *var) const override;
+            const float *ss, const float *mean, float *const inv_sqrtvar,
+            const size_t block_size) const override;
 
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
@@ -593,19 +606,23 @@ private:
         const float *ss;
         const float *mean;
         const float *inv_sqrtvar;
+        size_t block_size;
     };
     void generate() override;
 
     void reduce(Vmm vmm_vec);
 
-    Xbyak::Reg64 reg_param = abi_param1;
-    Xbyak::Reg64 reg_src = rdx;
-    Xbyak::Reg64 reg_diff_src = rax;
-    Xbyak::Reg64 reg_diff_dst = rbx;
-    Xbyak::Reg64 reg_gamma = r11;
-    Xbyak::Reg64 reg_tmp = r10;
-    Xbyak::Reg64 reg_dd_gamma = r9;
-    Xbyak::Reg64 reg_dd_gamma_x = r8;
+    const Xbyak::Reg64 &reg_param = abi_param1;
+    const Xbyak::Reg64 &reg_src = rdx;
+    const Xbyak::Reg64 &reg_diff_src = rax;
+    const Xbyak::Reg64 &reg_diff_dst = rbx;
+    const Xbyak::Reg64 &reg_block_end = rbp;
+    const Xbyak::Reg64 &reg_mean = r13;
+    const Xbyak::Reg64 &reg_inv_sqrtvar = r12;
+    const Xbyak::Reg64 &reg_gamma = r11;
+    const Xbyak::Reg64 &reg_tmp = r10;
+    const Xbyak::Reg64 &reg_dd_gamma = r9;
+    const Xbyak::Reg64 &reg_dd_gamma_x = r8;
 
     Xbyak::Xmm xmm_tmp = Xbyak::Xmm(7);
 
@@ -629,27 +646,24 @@ jit_diff_data_kernel_t<data_type>::jit_diff_data_kernel_t(
 template <data_type_t data_type>
 void jit_diff_data_kernel_t<data_type>::operator()(const data_t *src,
         const data_t *diff_dst, data_t *diff_src, const float *ss,
-        const float *mean, const float *var) const {
+        const float *mean, float *const inv_sqrtvar,
+        const size_t block_size) const {
     ker_args_t args;
     args.src = src;
     args.diff_dst = diff_dst;
     args.diff_src = diff_src;
     args.ss = ss;
     args.mean = mean;
-#ifdef __INTEL_COMPILER
-    //Without volatile ICC with -O2 & -O3 optimizes out denominator from
-    //inv_sqrtvar and computes 1/denom with lower precision
-    const volatile float denom = sqrtf(*var + eps_);
-#else
-    const float denom = sqrtf(*var + eps_);
-#endif
-    const float inv_sqrtvar = 1.f / denom;
-    args.inv_sqrtvar = &inv_sqrtvar;
+    args.inv_sqrtvar = inv_sqrtvar;
+    args.block_size = block_size * C_ * types::data_type_size(data_type);
     jit_generator::operator()(&args);
 }
 
 template <data_type_t data_type>
 void jit_diff_data_kernel_t<data_type>::generate() {
+    const auto c_size = C_ * types::data_type_size(data_type);
+    static const auto float_size = types::data_type_size(f32);
+
     preamble();
 #define PARAM_OFF(x) offsetof(ker_args_t, x)
     mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
@@ -657,15 +671,9 @@ void jit_diff_data_kernel_t<data_type>::generate() {
     mov(reg_diff_src, ptr[reg_param + PARAM_OFF(diff_src)]);
     mov(reg_gamma, ptr[reg_param + PARAM_OFF(ss)]);
 
-    if (calculate_diff_stats_) {
-        mov(reg_tmp, ptr[reg_param + PARAM_OFF(mean)]);
-        vmovss(xmm_tmp, dword[reg_tmp]);
-        vbroadcastss(vmm_mean, xmm_tmp);
-    }
-
-    mov(reg_tmp, ptr[reg_param + PARAM_OFF(inv_sqrtvar)]);
-    vmovss(xmm_tmp, dword[reg_tmp]);
-    vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
+    if (calculate_diff_stats_) mov(reg_mean, ptr[reg_param + PARAM_OFF(mean)]);
+    mov(reg_inv_sqrtvar, ptr[reg_param + PARAM_OFF(inv_sqrtvar)]);
+    mov(reg_block_end, ptr[reg_param + PARAM_OFF(block_size)]);
 #undef PARAM_OFF
 
     mov(reg_tmp, float2int(C_));
@@ -712,32 +720,56 @@ void jit_diff_data_kernel_t<data_type>::generate() {
                 vmm_dsrc, reg_diff_src, nelems, offt_elems);
     };
 
-    if (calculate_diff_stats_) {
-        uni_vpxor(vmm_dd_gamma, vmm_dd_gamma, vmm_dd_gamma);
-        uni_vpxor(vmm_dd_gamma_x, vmm_dd_gamma_x, vmm_dd_gamma_x);
+    // add block_start to block_size to define block_end
+    add(reg_block_end, reg_src);
+
+    Label unroll_loop, end;
+    L(unroll_loop);
+    {
+        cmp(reg_block_end, reg_src);
+        jle(end, T_NEAR);
+
+        vmovss(xmm_tmp, dword[reg_inv_sqrtvar]);
+        vbroadcastss(vmm_inv_sqrtvar, xmm_tmp);
+        if (calculate_diff_stats_) {
+            vmovss(xmm_tmp, dword[reg_mean]);
+            vbroadcastss(vmm_mean, xmm_tmp);
+
+            uni_vpxor(vmm_dd_gamma, vmm_dd_gamma, vmm_dd_gamma);
+            uni_vpxor(vmm_dd_gamma_x, vmm_dd_gamma_x, vmm_dd_gamma_x);
+
+            for (int i = 0; i < C_vecs; i++)
+                compute_dd_gammas(simd_w, i * simd_w);
+
+            reduce(vmm_dd_gamma);
+            reduce(vmm_dd_gamma_x);
+
+            for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
+                compute_dd_gammas(1, i);
+
+            vmulps(vmm_dd_gamma_x, vmm_dd_gamma_x, vmm_inv_sqrtvar);
+
+            Xmm xmm_dd_gamma = Xmm(vmm_dd_gamma.getIdx());
+            vbroadcastss(vmm_dd_gamma, xmm_dd_gamma);
+            Xmm xmm_dd_gamma_x = Xmm(vmm_dd_gamma_x.getIdx());
+            vbroadcastss(vmm_dd_gamma_x, xmm_dd_gamma_x);
+        }
 
         for (int i = 0; i < C_vecs; i++)
-            compute_dd_gammas(simd_w, i * simd_w);
-
-        reduce(vmm_dd_gamma);
-        reduce(vmm_dd_gamma_x);
+            compute_diff_src(simd_w, i * simd_w);
 
         for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
-            compute_dd_gammas(1, i);
+            compute_diff_src(1, i);
 
-        vmulps(vmm_dd_gamma_x, vmm_dd_gamma_x, vmm_inv_sqrtvar);
+        add(reg_src, c_size);
+        add(reg_diff_dst, c_size);
+        add(reg_diff_src, c_size);
+        if (calculate_diff_stats_) add(reg_mean, float_size);
+        add(reg_inv_sqrtvar, float_size);
 
-        Xmm xmm_dd_gamma = Xmm(vmm_dd_gamma.getIdx());
-        vbroadcastss(vmm_dd_gamma, xmm_dd_gamma);
-        Xmm xmm_dd_gamma_x = Xmm(vmm_dd_gamma_x.getIdx());
-        vbroadcastss(vmm_dd_gamma_x, xmm_dd_gamma_x);
+        jmp(unroll_loop);
     }
-
-    for (int i = 0; i < C_vecs; i++)
-        compute_diff_src(simd_w, i * simd_w);
-
-    for (int i = utils::rnd_dn(C_, simd_w); i < C_; i++)
-        compute_diff_src(1, i);
+    L(end);
 
     postamble();
 }
@@ -770,26 +802,16 @@ void jit_diff_data_kernel_t<bf16>::reduce(
 };
 
 template <>
-statistics_kernel_t<bf16> *statistics_kernel_create(
+stat_and_data_kernel_t<bf16> *stat_and_data_kernel_create(
         const layer_normalization_pd_t *pd) {
-    return mayiuse(avx512_core) ? new jit_statistics_kernel_t<bf16>(pd)
+    return mayiuse(avx512_core) ? new jit_stat_and_data_kernel_t<bf16>(pd)
                                 : nullptr;
 }
 
 template <>
-statistics_kernel_t<f32> *statistics_kernel_create(
+stat_and_data_kernel_t<f32> *stat_and_data_kernel_create(
         const layer_normalization_pd_t *pd) {
-    return mayiuse(avx2) ? new jit_statistics_kernel_t<f32>(pd) : nullptr;
-}
-
-template <>
-data_kernel_t<bf16> *data_kernel_create(const layer_normalization_pd_t *pd) {
-    return mayiuse(avx512_core) ? new jit_data_kernel_t<bf16>(pd) : nullptr;
-}
-
-template <>
-data_kernel_t<f32> *data_kernel_create(const layer_normalization_pd_t *pd) {
-    return mayiuse(avx2) ? new jit_data_kernel_t<f32>(pd) : nullptr;
+    return mayiuse(avx2) ? new jit_stat_and_data_kernel_t<f32>(pd) : nullptr;
 }
 
 template <>
