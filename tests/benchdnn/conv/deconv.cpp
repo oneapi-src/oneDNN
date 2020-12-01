@@ -188,7 +188,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     // GPU:
     //     * BWD: doesn't support any attributes
     //     * FWD: support only post ops
-    if (engine_tgt_kind == dnnl_gpu
+    if (is_gpu()
             && (((prb->dir & FLAG_BWD) != 0 && !prb->attr.is_def())
                     || ((prb->dir & FLAG_FWD) != 0
                             && (!prb->attr.oscale.is_def()

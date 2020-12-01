@@ -227,7 +227,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(prb->sdt, FWD_D, res);
     if (res->state == SKIPPED) return;
 
-    if (engine_tgt_kind == dnnl_cpu) {
+    if (is_cpu()) {
         const bool is_src0_int_type
                 = prb->sdt[0] == dnnl_s8 || prb->sdt[0] == dnnl_u8;
         const bool is_src1_int_type

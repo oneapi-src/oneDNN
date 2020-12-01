@@ -120,7 +120,7 @@ int check_ldoi_s8_reorder(const prb_t &prb, data_kind_t kind,
         const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp,
         const_dnnl_primitive_attr_t attr = nullptr) {
     // TODO: enable for all cpu_kind when supported
-    if (engine_tgt_kind != dnnl_cpu) return OK;
+    if (is_gpu()) return OK;
 
     // we compare ldio_f32 -> ldio_s8 to ldio_f32 -> ldoi_f32 -> ldio_s8
     // fp is in ldio
@@ -154,7 +154,7 @@ int check_ldoi_s8_reorder(const prb_t &prb, data_kind_t kind,
 int check_s8s8_reorder(const prb_t &prb, data_kind_t kind,
         const dnn_mem_t &mem_dt, const dnn_mem_t &mem_fp) {
     // TODO: enable for all cpu_kind when supported
-    if (engine_tgt_kind != dnnl_cpu) return OK;
+    if (is_gpu()) return OK;
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_DPCPP
     // DPC++ does not provide a simple way to access the underlying
@@ -803,8 +803,13 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
         return;
     }
 
+    if (is_nvidia_gpu()) {
+        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
+        return;
+    }
+
     // GPU limitations for RNN
-    if (engine_tgt_kind == dnnl_gpu) {
+    if (is_gpu()) {
         if (prb.is_lstm_projection() || prb.is_lstm_peephole()) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
@@ -813,11 +818,6 @@ void check_known_skipped_case(const prb_t &prb, res_t *res) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
-    }
-
-    if (is_nvidia_gpu()) {
-        res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
-        return;
     }
 }
 

@@ -241,8 +241,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             res);
 
     // GPU does not support depthwise fusion
-    if (engine_tgt_kind == dnnl_gpu
-            && prb->attr.post_ops.convolution_index() != -1) {
+    if (is_gpu() && prb->attr.post_ops.convolution_index() != -1) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }

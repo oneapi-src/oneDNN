@@ -1261,11 +1261,8 @@ engine_t::~engine_t() {
 }
 
 stream_t::stream_t(dnnl_engine_t engine) {
-    dnnl_engine_kind_t engine_kind;
-    DNN_SAFE_V(dnnl_engine_get_kind(engine, &engine_kind));
-
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    if (engine_kind == dnnl_cpu) {
+    if (is_cpu(engine)) {
         SAFE_V(dnnl_threadpool_interop_stream_create(
                 &stream_, engine, dnnl::testing::get_threadpool()));
         return;

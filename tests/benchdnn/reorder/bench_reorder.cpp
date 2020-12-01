@@ -58,7 +58,7 @@ void check_correctness(const settings_t &s) {
                     fflush(stderr);
             SAFE_V(FAIL);
         }
-        if (i_cross_engine != NONE && engine_tgt_kind == dnnl_cpu) {
+        if (i_cross_engine != NONE && is_cpu()) {
             fprintf(stderr,
                     "ERROR: reorder driver: `cpu` engine does not support "
                     "other values but `none`.\n"),

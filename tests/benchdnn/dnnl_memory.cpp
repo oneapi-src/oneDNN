@@ -119,12 +119,8 @@ int dnn_mem_t::reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr) {
 
 dnn_mem_t dnn_mem_t::create_from_host_ptr(
         const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr) {
-    dnnl_engine_kind_t eng_kind;
-    DNN_SAFE_V(dnnl_engine_get_kind(engine, &eng_kind));
-
     // XXX: allows to construct CPU memory only.
-    assert(eng_kind == dnnl_cpu);
-    (void)eng_kind;
+    assert(is_cpu(engine));
 
     // XXX: assumption that SYCL works fine with native host pointers
     return dnn_mem_t(md, engine, host_ptr);
@@ -195,7 +191,7 @@ static int validate_mem_size(size_t total_mem_size) {
     static uint64_t cpu_device_capacity = get_cpu_ram_size();
     static uint64_t gpu_device_capacity = get_gpu_ram_size();
 
-    const uint64_t devices_max_capacity = engine_tgt_kind == dnnl_cpu
+    const uint64_t devices_max_capacity = is_cpu()
             ? cpu_device_capacity
             : MIN2(cpu_device_capacity, gpu_device_capacity);
 

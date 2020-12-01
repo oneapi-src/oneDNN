@@ -156,8 +156,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
             = IMPLICATION(prb->ddt == dnnl_bf16 && prb->dtag != tag::undef,
                     (prb->sdt == dnnl_f32 || prb->sdt == dnnl_bf16));
 
-    if (engine_tgt_kind == dnnl_cpu
-            && (!valid_bf16_input || !valid_bf16_output)) {
+    if (is_cpu() && (!valid_bf16_input || !valid_bf16_output)) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }

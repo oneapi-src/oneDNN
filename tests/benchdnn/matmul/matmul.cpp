@@ -245,7 +245,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     const int wei_bcast_mask = prb->weights_broadcast_mask() & batch_mask;
     const int batch_dim_full_bcast_mask = (1 << (prb->ndims - 2)) - 1;
     // multi-batch dims and its broadcasting only supported on cpu
-    if (!(IMPLICATION(engine_tgt_kind != dnnl_cpu,
+    if (!(IMPLICATION(is_gpu(),
                 prb->ndims < 4 && src_bcast_mask == batch_dim_full_bcast_mask
                         && wei_bcast_mask == batch_dim_full_bcast_mask))) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;

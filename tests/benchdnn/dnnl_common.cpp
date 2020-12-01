@@ -112,6 +112,12 @@ inline bool should_stop(const benchdnn_timer_t &t) {
     return stop;
 }
 
+dnnl_engine_kind_t get_engine_kind(const dnnl_engine_t &engine) {
+    dnnl_engine_kind_t engine_kind = dnnl_any_engine;
+    DNN_SAFE_V(dnnl_engine_get_kind(engine, &engine_kind));
+    return engine_kind;
+}
+
 inline int measure_perf_individual(benchdnn_timer_t &t, dnnl_stream_t stream,
         perf_function_t &perf_func, std::vector<dnnl_exec_arg_t> &dnnl_args) {
     t.reset();
@@ -163,9 +169,6 @@ inline int measure_perf_aggregate(benchdnn_timer_t &t, dnnl_stream_t stream,
 
 int measure_perf(
         benchdnn_timer_t &t, perf_function_t &perf_func, args_t &args) {
-    dnnl_engine_kind_t engine_kind;
-    DNN_SAFE(dnnl_engine_get_kind(get_test_engine(), &engine_kind), CRIT);
-
     int ret = OK;
     if (bench_mode & PERF) {
         stream_t stream(get_test_engine());
@@ -174,7 +177,7 @@ int measure_perf(
 
         // For CPU: measure individual iterations
         // For GPU: measure iterations in batches to hide driver overhead
-        if (engine_kind == dnnl_cpu)
+        if (is_cpu())
             ret = measure_perf_individual(t, stream, perf_func, dnnl_args);
         else
             ret = measure_perf_aggregate(t, stream, perf_func, dnnl_args);
@@ -238,11 +241,10 @@ bool check_md_consistency_with_tag(
 
 void check_known_skipped_case_common(
         const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *r) {
-    const bool has_bf16_support
-            = (engine_tgt_kind == dnnl_cpu
-                      && dnnl::impl::cpu::platform::has_data_type_support(
-                              dnnl_bf16))
-            || engine_tgt_kind == dnnl_gpu;
+    const bool has_bf16_support = is_gpu()
+            || (is_cpu()
+                    && dnnl::impl::cpu::platform::has_data_type_support(
+                            dnnl_bf16));
 
     for (const auto &i_dt : v_dt) {
         // bf16 is supported on AVX512-CORE+
@@ -251,7 +253,7 @@ void check_known_skipped_case_common(
             break;
         }
         // f16 is supported on GPU only
-        if (i_dt == dnnl_f16 && engine_tgt_kind != dnnl_gpu) {
+        if (i_dt == dnnl_f16 && is_cpu()) {
             r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
             break;
         }
@@ -269,12 +271,17 @@ void check_known_skipped_case_common(
     }
 }
 
-bool is_nvidia_gpu(const engine_t &engine) {
-    dnnl_engine_kind_t engine_kind = dnnl_any_engine;
-    DNN_SAFE_V(dnnl_engine_get_kind(engine, &engine_kind));
+bool is_cpu(const dnnl_engine_t &engine) {
+    return get_engine_kind(engine) == dnnl_cpu;
+}
 
-    if (engine_kind != dnnl_gpu) return false;
+bool is_gpu(const dnnl_engine_t &engine) {
+    return get_engine_kind(engine) == dnnl_gpu;
+}
+
+bool is_nvidia_gpu(const dnnl_engine_t &engine) {
 #if DNNL_WITH_SYCL
+    if (!is_gpu(engine)) return false;
     constexpr int nvidia_vendor_id = 0x10DE;
     auto eng = dnnl::engine(engine, true);
     auto device = dnnl::sycl_interop::get_device(eng);

@@ -260,7 +260,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         }
     }
 
-    if (engine_tgt_kind == dnnl_cpu && prb->cfg[SRC].dt != prb->cfg[DST].dt) {
+    if (is_cpu() && prb->cfg[SRC].dt != prb->cfg[DST].dt) {
         res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
         return;
     }

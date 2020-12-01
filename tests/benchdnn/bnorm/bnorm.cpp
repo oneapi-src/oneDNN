@@ -374,7 +374,7 @@ int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *res) {
             }
 
             // XXX: GPU implementation uses int32_t for workspace
-            if (engine_tgt_kind == dnnl_gpu) {
+            if (is_gpu()) {
                 ws += sizeof(int32_t);
             } else {
                 if (ws_type == ws_byte) ++ws;

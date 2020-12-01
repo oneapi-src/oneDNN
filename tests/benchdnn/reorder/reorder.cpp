@@ -248,7 +248,7 @@ static int init_pd(dnnl_engine_t engine, const prb_t *prb,
     dst_d.extra = dst_md_extra;
 
     dnnl_engine_t src_engine = engine, dst_engine = engine;
-    if (engine_tgt_kind == dnnl_gpu) {
+    if (is_gpu()) {
         switch (prb->cross_engine) {
             case CPU2GPU: src_engine = get_cpu_engine(); break;
             case GPU2CPU: dst_engine = get_cpu_engine(); break;
@@ -299,7 +299,7 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     }
 
     // bf16 reorder on cpu supports only bf16/f32 src_dt/dst_dt
-    if (engine_tgt_kind == dnnl_cpu
+    if (is_cpu()
             && (!IMPLICATION(sdt == dnnl_bf16,
                         ddt == dnnl_f32 || ddt == dnnl_bf16 || ddt == dnnl_s8
                                 || ddt == dnnl_u8)
@@ -310,18 +310,18 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
         return;
     }
 
-    if (engine_tgt_kind == dnnl_gpu) {
-        // GPU does not support run-time dims and zero-points
-        if (prb->runtime_dim_mask != 0 || !prb->attr.zero_points.is_def()
-                || prb->attr.oscale.runtime) {
+    if (is_nvidia_gpu()) {
+        const bool oscale_ok = prb->attr.oscale.policy == policy_t::COMMON;
+        if (!oscale_ok) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
     }
 
-    if (is_nvidia_gpu()) {
-        const bool oscale_ok = prb->attr.oscale.policy == policy_t::COMMON;
-        if (!oscale_ok) {
+    if (is_gpu()) {
+        // GPU does not support run-time dims and zero-points
+        if (prb->runtime_dim_mask != 0 || !prb->attr.zero_points.is_def()
+                || prb->attr.oscale.runtime) {
             res->state = SKIPPED, res->reason = CASE_NOT_SUPPORTED;
             return;
         }
