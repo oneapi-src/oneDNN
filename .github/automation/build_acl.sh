@@ -18,7 +18,7 @@
 # *******************************************************************************
 
 # Compute Library build defaults
-ACL_VERSION="v20.08"
+ACL_VERSION="v20.11"
 ACL_DIR="${PWD}/ComputeLibrary"
 ACL_ARCH="arm64-v8a"
 
@@ -50,14 +50,6 @@ MAKE_NP="-j$(grep -c processor /proc/cpuinfo)"
 git clone $ACL_REPO $ACL_DIR
 cd $ACL_DIR
 git checkout $ACL_VERSION
-
-# The STRINGIFY macro used in Version.h conflicts with a existing macro
-# in oneDNN. This will generate a warning on compilation.
-# When buildng with -Werror (as is the case for CI builds) this
-# will cause the build to fail. The following line re-names the
-# Compute Library macro to avoid the conflict.
-
-sed -i -e 's/STRINGIFY/ARM_COMPUTE_STRINGIFY/g' arm_compute/core/Version.h
 
 scons $MAKE_NP Werror=0 debug=0 neon=1 gles_compute=0 embed_kernels=0 \
   os=linux arch=$ACL_ARCH build=native
