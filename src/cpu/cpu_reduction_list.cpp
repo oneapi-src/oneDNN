@@ -29,15 +29,15 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 const pd_create_f impl_list[] = {
-    CPU_INSTANCE(ref_reduction_t<f32, f32, f32>)
-    CPU_INSTANCE(ref_reduction_t<bf16, bf16, f32>)
-    CPU_INSTANCE(ref_reduction_t<bf16, f32, f32>)
-    CPU_INSTANCE(ref_reduction_t<s8, s8, s32>)
-    CPU_INSTANCE(ref_reduction_t<s8, s32, s32>)
-    CPU_INSTANCE(ref_reduction_t<s8, f32, f32>)
-    CPU_INSTANCE(ref_reduction_t<u8, u8, s32>)
-    CPU_INSTANCE(ref_reduction_t<u8, s32, s32>)
-    CPU_INSTANCE(ref_reduction_t<u8, f32, f32>)
+    CPU_INSTANCE(ref_reduction_t, f32, f32, f32)
+    CPU_INSTANCE(ref_reduction_t, bf16, bf16, f32)
+    CPU_INSTANCE(ref_reduction_t, bf16, f32, f32)
+    CPU_INSTANCE(ref_reduction_t, s8, s8, s32)
+    CPU_INSTANCE(ref_reduction_t, s8, s32, s32)
+    CPU_INSTANCE(ref_reduction_t, s8, f32, f32)
+    CPU_INSTANCE(ref_reduction_t, u8, u8, s32)
+    CPU_INSTANCE(ref_reduction_t, u8, s32, s32)
+    CPU_INSTANCE(ref_reduction_t, u8, f32, f32)
     /* eol */
     nullptr,
 };
