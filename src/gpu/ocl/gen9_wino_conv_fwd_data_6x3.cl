@@ -31,8 +31,8 @@
 #define UTRANS_BLOCK_WRITE(data, ptr) \
     VECT_BLOCK_WRITE((__global BLOCK_DATA_T *)ptr, AS_VECT_BLOCK_DATA_T(data))
 
-#define TRANS_BLOCK 4 // = (WINO_IC_BLOCK / (LWS_0 * LWS_1 / WINO_IW_BLOCK))
-#define TRANS_DATA_T CONCAT2(DATA_T, TRANS_BLOCK)
+#define VTRANS_BLOCK 4 // = (WINO_IC_BLOCK / (LWS_0 * LWS_1 / WINO_IW_BLOCK))
+#define VTRANS_DATA_T CONCAT2(DATA_T, VTRANS_BLOCK)
 
 #define COMP_BLOCK VECT_DT_N
 #define COMP_DATA_T VECT_DATA_T
@@ -217,12 +217,12 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         const __global DATA_T *U_param,
         const __global DATA_T *bias POST_OP_ARGS) {
     //               (DxC2)x(UxWx8c)
-    const uint slm_size = (WINO_IC_BLOCK * WINO_D * IW_BLOCK) / TRANS_BLOCK;
-    __local TRANS_DATA_T V[slm_size]; // 8 KB
+    const uint slm_size = (WINO_IC_BLOCK * WINO_D * IW_BLOCK) / VTRANS_BLOCK;
+    __local VTRANS_DATA_T V[slm_size]; // 8 KB
 
     const DATA_T sc = TO_TYPE(0.1);
     const DATA_T scl = TO_TYPE(1.0) / sc;
-    const TRANS_DATA_T scl_vec = (TRANS_DATA_T)(sc, sc, sc, sc);
+    const VTRANS_DATA_T scl_vec = (VTRANS_DATA_T)(sc, sc, sc, sc);
 
     const int ow0 = get_group_id(0) * OW_BLOCK;
     const int oh = get_group_id(1) * OH_BLOCK;
@@ -248,7 +248,7 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
     int iw0_read = lxd2;
     int iw = ow0 + iw0_write - PW;
     int ih = oh - PH;
-    int ic0_write = lxm8 * TRANS_BLOCK;
+    int ic0_write = lxm8 * VTRANS_BLOCK;
     int ic0_read = 8 * lxm2;
 
     // Initialize variables to accumulate intermediate output tile
@@ -269,15 +269,15 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
     // For the computation, src_i traverses ih dimension, ly * 2 + lx/8
     // traverses iw dimension, and lx % 8 traverses ic dimension
     const __global DATA_T *src_load = src + src_off(mb, ic0_write, 0, ih, iw);
-    const int V_write_idx = V_off(ic0_write, 0, iw0_write, TRANS_BLOCK);
-    __local TRANS_DATA_T *V_write = &V[V_write_idx];
+    const int V_write_idx = V_off(ic0_write, 0, iw0_write, VTRANS_BLOCK);
+    __local VTRANS_DATA_T *V_write = &V[V_write_idx];
 
     // Buffers used to compute oc16oh8ow14 intermediate output tile. Each
     // local thread transforms a block with dimensions c1h1w14. For the
     // computed output, M_i traverses ow dimension, ly traverses oh
     // dimension, and lx traverses oc dimension.
     const __global DATA_T *U = U_param + U_off(oc, 0, ly, 0);
-    const int V_read_idx = V_off(ic0_read, ly, iw0_read, TRANS_BLOCK);
+    const int V_read_idx = V_off(ic0_read, ly, iw0_read, VTRANS_BLOCK);
     __local const COMP_DATA_T *V_read
             = (__local const COMP_DATA_T *)&V[V_read_idx]; // ly * 64 + lx * 2;
 
@@ -286,10 +286,10 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         // Load and transform ic32ih8iw16 src tile into V
         {
             bool x_in = 0 <= iw && iw < IW && ic0_read + c < IC;
-            TRANS_DATA_T src[WINO_D];
+            VTRANS_DATA_T src[WINO_D];
             for (int index = 0; index < WINO_D; index++) {
                 bool y_in = 0 <= (ih + index) && (ih + index) < IH && x_in;
-                src[index] = y_in ? *((const __global TRANS_DATA_T *)(src_load
+                src[index] = y_in ? *((const __global VTRANS_DATA_T *)(src_load
                                      + src_off(0, 0, 0, index, 0)))
                                   : 0;
 
@@ -300,32 +300,32 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
             }
 
             // Compute Winograd f6x3 data transform and store components in SLM.
-            V_write[V_off(0, 0, 0, TRANS_BLOCK)] = src[0]
+            V_write[V_off(0, 0, 0, VTRANS_BLOCK)] = src[0]
                     - TO_TYPE(5.25) * src[2] + TO_TYPE(5.25) * src[4] - src[6];
 
-            TRANS_DATA_T x0 = src[1] - TO_TYPE(4.25) * src[3] + src[5];
-            TRANS_DATA_T x1 = src[2] - TO_TYPE(4.25) * src[4] + src[6];
+            VTRANS_DATA_T x0 = src[1] - TO_TYPE(4.25) * src[3] + src[5];
+            VTRANS_DATA_T x1 = src[2] - TO_TYPE(4.25) * src[4] + src[6];
 
-            V_write[V_off(0, 1, 0, TRANS_BLOCK)] = x1 + x0;
-            V_write[V_off(0, 2, 0, TRANS_BLOCK)] = x1 - x0;
+            V_write[V_off(0, 1, 0, VTRANS_BLOCK)] = x1 + x0;
+            V_write[V_off(0, 2, 0, VTRANS_BLOCK)] = x1 - x0;
 
-            TRANS_DATA_T x2 = TO_TYPE(-5) * src[3] + src[1];
-            TRANS_DATA_T x3 = TO_TYPE(4) * src[5] + x2;
-            TRANS_DATA_T x4 = TO_TYPE(0.25) * src[2] + src[6];
-            TRANS_DATA_T x5 = TO_TYPE(-1.25) * src[4] + x4;
+            VTRANS_DATA_T x2 = TO_TYPE(-5) * src[3] + src[1];
+            VTRANS_DATA_T x3 = TO_TYPE(4) * src[5] + x2;
+            VTRANS_DATA_T x4 = TO_TYPE(0.25) * src[2] + src[6];
+            VTRANS_DATA_T x5 = TO_TYPE(-1.25) * src[4] + x4;
 
-            V_write[V_off(0, 3, 0, TRANS_BLOCK)] = TO_TYPE(0.5) * x3 + x5;
-            V_write[V_off(0, 4, 0, TRANS_BLOCK)] = TO_TYPE(-0.5) * x3 + x5;
+            V_write[V_off(0, 3, 0, VTRANS_BLOCK)] = TO_TYPE(0.5) * x3 + x5;
+            V_write[V_off(0, 4, 0, VTRANS_BLOCK)] = TO_TYPE(-0.5) * x3 + x5;
 
-            TRANS_DATA_T x6 = TO_TYPE(4) * src[1] + src[5];
-            TRANS_DATA_T x7 = TO_TYPE(-5) * src[3] + x6;
-            TRANS_DATA_T x8 = TO_TYPE(4) * src[2] + src[6];
-            TRANS_DATA_T x9 = TO_TYPE(-5) * src[4] + x8;
+            VTRANS_DATA_T x6 = TO_TYPE(4) * src[1] + src[5];
+            VTRANS_DATA_T x7 = TO_TYPE(-5) * src[3] + x6;
+            VTRANS_DATA_T x8 = TO_TYPE(4) * src[2] + src[6];
+            VTRANS_DATA_T x9 = TO_TYPE(-5) * src[4] + x8;
 
-            V_write[V_off(0, 5, 0, TRANS_BLOCK)] = TO_TYPE(+0.5) * x7 + x9;
-            V_write[V_off(0, 6, 0, TRANS_BLOCK)] = TO_TYPE(-0.5) * x7 + x9;
+            V_write[V_off(0, 5, 0, VTRANS_BLOCK)] = TO_TYPE(+0.5) * x7 + x9;
+            V_write[V_off(0, 6, 0, VTRANS_BLOCK)] = TO_TYPE(-0.5) * x7 + x9;
 
-            V_write[V_off(0, 7, 0, TRANS_BLOCK)] = -src[1]
+            V_write[V_off(0, 7, 0, VTRANS_BLOCK)] = -src[1]
                     + TO_TYPE(5.25) * src[3] - TO_TYPE(5.25) * src[5] + src[7];
         }
 
