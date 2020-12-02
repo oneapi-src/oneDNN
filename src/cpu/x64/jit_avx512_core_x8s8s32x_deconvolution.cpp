@@ -883,8 +883,8 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::icb_loop(
         int ur_w, int l_overflow, int r_overflow, bool is_last_sp_block) {
 
     int shift_src_icb = jcp.typesize_in * jcp.ic_block;
-    int shift_filt_icb = jcp.typesize_in * jcp.kd * jcp.kh * jcp.kw
-            * jcp.ic_block * jcp.oc_block;
+    const size_t shift_filt_icb = (size_t)jcp.typesize_in * jcp.kd * jcp.kh
+            * jcp.kw * jcp.ic_block * jcp.oc_block;
 
     prepare_output(ur_w);
 
@@ -912,7 +912,7 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::icb_loop(
         }
 
         add(reg_src, shift_src_icb);
-        add(reg_filt, shift_filt_icb);
+        safe_add(reg_filt, shift_filt_icb, reg_ker_long_offt);
         dec(reg_icb);
         cmp(reg_icb, 0);
         jg(icb_loop_label, T_NEAR);
@@ -920,7 +920,7 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel<Vmm>::icb_loop(
 
     /* come-back pointers */
     sub(reg_src, jcp.nb_ic * shift_src_icb);
-    sub(reg_filt, jcp.nb_ic * shift_filt_icb);
+    safe_sub(reg_filt, jcp.nb_ic * shift_filt_icb, reg_ker_long_offt);
     L(skip_icb_loop);
 
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.oc_without_padding != jcp.oc) {

@@ -75,6 +75,7 @@ private:
     reg64_t reg_kh = rsi;
 
     reg64_t reg_dst_long_offt = r14;
+    reg64_t reg_ker_long_offt = r14;
 
     int vmm_dst_idx(const int i_ur, const int i_oc) const;
     Vmm vmm_dst(const int i_ur, const int i_oc) const;

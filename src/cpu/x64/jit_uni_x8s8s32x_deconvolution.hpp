@@ -99,6 +99,7 @@ private:
     reg64_t reg_bias_alpha = abi_not_param1;
     reg64_t reg_overflow = rax;
     reg64_t reg_comp_strides = reg_overflow;
+    reg64_t reg_ker_long_offt = r15;
 
     const Vmm vmm_tmp = Vmm(3);
     const Vmm vmm_one = Vmm(2);

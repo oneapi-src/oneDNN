@@ -853,16 +853,18 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::icb_loop(
     // End of IC Loop
     if (do_icb_loop) {
         int inp_step = jcp.ic_block;
-        int ker_step = jcp.kd * jcp.kh * jcp.kw * jcp.oc_block * jcp.ic_block;
+        const size_t ker_step = (size_t)jcp.kd * jcp.kh * jcp.kw * jcp.oc_block
+                * jcp.ic_block;
         add(reg_inp, jcp.typesize_in * inp_step);
-        add(reg_ker, jcp.typesize_in * ker_step);
+        safe_add(reg_ker, jcp.typesize_in * ker_step, reg_ker_long_offt);
 
         dec(reg_icb);
         cmp(reg_icb, 0);
         jg(icb_label, T_NEAR);
 
         sub(reg_inp, jcp.typesize_in * inp_step * jcp.nb_ic);
-        sub(reg_ker, jcp.typesize_in * ker_step * jcp.nb_ic);
+        safe_sub(reg_ker, jcp.typesize_in * ker_step * jcp.nb_ic,
+                reg_ker_long_offt);
     }
 
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.oc_without_padding != jcp.oc) {
