@@ -140,8 +140,10 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     if (conf.is_nhwc) {
         if (!utils::one_of(src_mdw.data_type(), f32, f16))
             return status::unimplemented;
+        if (conf.is_depthwise && conf.ngroups_without_padding % 16)
+            return status::unimplemented;
         // TODO: Add group convolution support in NHWC kernel.
-        if (conf.ngroups > 1 && !(is_16oc && is_16ic)) {
+        if (!conf.is_depthwise && conf.ngroups > 1 && !(is_16oc && is_16ic)) {
             return status::unimplemented;
         }
         conf.ver = ver_nhwc;
