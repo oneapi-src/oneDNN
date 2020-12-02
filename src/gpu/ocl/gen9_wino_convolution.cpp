@@ -52,6 +52,8 @@ static void fwd_compute_block_sizes(conv_conf_t &conf) {
     conf.wino_r = r;
     conf.tile_size = m + r - 1;
 
+    conf.vect_size
+            = static_cast<int>(16 / types::data_type_size(conf.src_data_type));
     conf.oc_block = 16;
     conf.ic_block = nstl::min(conf.ic, 16);
     conf.wino_ic_block = 32;
@@ -164,7 +166,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_conf() {
         conf.U_lws_d[0] = 16;
         conf.U_lws_d[1] = 1;
         conf.U_lws_d[2] = 1;
-        conf.U_gws_d[0] = conf.wino_ic * conf.wino_oc / 8;
+        conf.U_gws_d[0] = conf.wino_ic * conf.wino_oc / conf.vect_size;
         conf.U_gws_d[1] = 3;
         conf.U_gws_d[2] = 1; // kh or kw depending
     }
@@ -274,6 +276,7 @@ status_t gen9_wino_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("WINO_OW", conf.wino_ow);
     kernel_ctx.define_int("OC_BLOCK", conf.oc_block);
     kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
+    kernel_ctx.define_int("VECT_DT_N", conf.vect_size);
 
     kernel_ctx.set_data_type(conf.src_data_type);
 

@@ -23,26 +23,26 @@
 
 #define TO_TYPE(value) ((DATA_T)value)
 
-#define UTRANS_BLOCK 8
-#define UTRANS_DATA_T CONCAT2(DATA_T, UTRANS_BLOCK)
-#define AS_UTRANS_DATA_T CONCAT2(as_, COMP_DATA_T)
+#define UTRANS_BLOCK VECT_DT_N
+#define UTRANS_DATA_T VECT_DATA_T
+#define AS_UTRANS_DATA_T AS_VECT_DATA_T
 #define UTRANS_BLOCK_READ(ptr) \
-    AS_UTRANS_DATA_T(BLOCK_READ8((const __global BLOCK_DATA_T *)ptr))
+    AS_UTRANS_DATA_T(VECT_BLOCK_READ((const __global BLOCK_DATA_T *)ptr))
 #define UTRANS_BLOCK_WRITE(data, ptr) \
-    BLOCK_WRITE8((__global BLOCK_DATA_T *)ptr, AS_BLOCK_DATA8_T(data))
+    VECT_BLOCK_WRITE((__global BLOCK_DATA_T *)ptr, AS_VECT_BLOCK_DATA_T(data))
 
 #define TRANS_BLOCK 4 // = (WINO_IC_BLOCK / (LWS_0 * LWS_1 / WINO_IW_BLOCK))
 #define TRANS_DATA_T CONCAT2(DATA_T, TRANS_BLOCK)
 
-#define COMP_BLOCK 8
-#define COMP_DATA_T CONCAT2(DATA_T, COMP_BLOCK)
-#define AS_COMP_DATA_T CONCAT2(as_, COMP_DATA_T)
+#define COMP_BLOCK VECT_DT_N
+#define COMP_DATA_T VECT_DATA_T
+#define AS_COMP_DATA_T AS_VECT_DATA_T
 #define COMP_READ(ptr) CONCAT2(vload, COMP_BLOCK)(0, ptr)
 #define COMP_WRITE(data, ptr) CONCAT2(vstore, COMP_BLOCK)(data, 0, ptr)
 #define COMP_BLOCK_READ(ptr) \
-    AS_COMP_DATA_T(BLOCK_READ8((const __global BLOCK_DATA_T *)ptr))
+    AS_COMP_DATA_T(VECT_BLOCK_READ((const __global VECT_BLOCK_DATA_T *)ptr))
 
-#define COMP_UNROLL 2
+#define COMP_UNROLL (IC_BLOCK / COMP_BLOCK)
 
 #define OUT_TYPE_BLOCK 2 // = (WINO_OW_BLOCK / 7)
 #define OUT_BLOCK_DATA_T CONCAT2(DATA_T, OUT_TYPE_BLOCK)
@@ -175,7 +175,7 @@ gen9_wino_wei_transform_6x3(
     const uint out_kw = get_global_id(1) * U_tile_width;
     const uint out_kh = get_global_id(2) * U_tile_height;
     const uint oc0 = (get_group_id(0) % (WINO_OC / OC_BLOCK)) * OC_BLOCK;
-    const uint ic = (get_group_id(0) / (WINO_OC / OC_BLOCK)) * 8;
+    const uint ic = (get_group_id(0) / (WINO_OC / OC_BLOCK)) * UTRANS_BLOCK;
 
     uint in_idx = wei_off(0, oc0, ic, 0, in_kh, in_kw);
     bool is_valid = ic < IC && oc0 < OC;
@@ -339,18 +339,29 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         __attribute__((opencl_unroll_hint(
                 1))) for (uint c_outer = 0; c_outer < WINO_IC_BLOCK;
                           c_outer += outer_c_blocking) {
-            // Fetch 16 input components, spread across subgroup.
+            // Fetch input components, spread across subgroup.
             DATA_T V_block[outer_c_blocking];
-            unroll_for(int i = 0; i < outer_c_blocking; i++) {
-                COMP_WRITE(
-                        V_read_outer[V_off(0, 0, i * COMP_BLOCK, COMP_BLOCK)],
-                        &V_block[i * COMP_BLOCK]);
+
+            // Blocking/Stride parameters for how elements are loaded from V
+            // into V_block
+            const int c_block = 8;
+            const int w_count = outer_c_blocking / c_block;
+            const int w_stride = outer_c_blocking / w_count;
+
+            unroll_for(int w_load = 0; w_load < w_count; w_load++) {
+                unroll_for(int c_load = 0; c_load < c_block;
+                           c_load += COMP_BLOCK) {
+                    COMP_WRITE(V_read_outer[V_off(c_load, 0, w_load * w_stride,
+                                       COMP_BLOCK)],
+                            &V_block[w_load * c_block + c_load]);
+                }
             }
             V_read_outer += V_off(outer_c_blocking, 0, 0, COMP_BLOCK);
 
-#define V_BLOCK(ic, iw) \
+#define V_BLOCK(_ic, _iw) \
     sub_group_broadcast( \
-            V_block[(ic) % 8 + 8 * ((iw) / 8)], 2 * ((iw) % 8) + ((ic) / 8))
+            V_block[(_ic) % c_block + c_block * ((_iw) / w_stride)], \
+            (IC_BLOCK / c_block) * ((_iw) % w_stride) + ((_ic) / c_block))
 
             unroll_for(int c_inner = 0; c_inner < outer_c_blocking;
                        c_inner += COMP_BLOCK) {

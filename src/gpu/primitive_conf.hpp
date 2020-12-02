@@ -298,6 +298,7 @@ struct conv_conf_t {
     int wino_oc;
     int wino_ic_block;
     int wino_oc_block;
+    int vect_size;
     size_t U_gws_d[3], U_lws_d[3];
     size_t V_gws_d[3], V_lws_d[3];
     size_t M_gws_d[3], M_lws_d[3];
