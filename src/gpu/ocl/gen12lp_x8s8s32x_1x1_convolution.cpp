@@ -54,18 +54,21 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
     conf.oc_block = 32;
     conf.ic_block = 32;
     conf.nchunk = utils::div_up(conf.oc * conf.ngroups, conf.oc_block);
-
+    int ow = conf.ow;
+    int oh = conf.oh;
+    int od = conf.od;
     const bool is_stride1
             = conf.stride_d == 1 && conf.stride_h == 1 && conf.stride_w == 1;
-    if (is_stride1) {
-        // reshape to nCx32c
-        conf.iw = conf.iw * conf.ih * conf.id;
-        conf.ow = conf.ow * conf.oh * conf.od;
-        conf.ih = conf.id = 1;
-        conf.oh = conf.od = 1;
-    }
+    const bool is_padded = conf.l_pad > 0 || conf.t_pad > 0 || conf.f_pad > 0;
 
-    if ((conf.mb == 8 || conf.mb % 16 == 0) && !conf.is_nhwc) {
+    if (is_stride1 || is_padded) {
+        // reshape to nCx32c
+        ow = ow * oh * od;
+        oh = od = 1;
+    }
+    conf.sp = ow;
+
+    if ((conf.mb == 8 || conf.mb % 16 == 0) && !conf.is_nhwc && !is_padded) {
         conf.mb_block = 32;
         conf.sp_block = 1;
     } else {
@@ -77,8 +80,8 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
             int mem_clocks = ic_chunks * (16 - use_slm * 6)
                     + block / 2 * (ic_chunks + 1);
             int compute_clocks = 32 * block * ic_chunks;
-            int num_threads = conf.nchunk * conf.mb * conf.od * conf.oh
-                    * utils::div_up(conf.ow, block);
+            int num_threads = conf.nchunk * conf.mb * od * oh
+                    * utils::div_up(ow, block);
             return utils::div_up(num_threads, dev_info->hw_threads())
                     * (compute_clocks + mem_clocks);
         };
@@ -92,15 +95,14 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_conf(
     conf.src_data_type = src_mdw.data_type();
     conf.dst_data_type = dst_mdw.data_type();
 
-    const int ow_group = (utils::div_up(conf.ow, conf.sp_block) % 8) ? 1 : 8;
+    const int ow_group = (utils::div_up(ow, conf.sp_block) % 8) ? 1 : 8;
 
     conf.sub_group_size = 8;
     conf.lws_d[0] = conf.sub_group_size;
     conf.lws_d[1] = ow_group;
     conf.lws_d[2] = 1;
 
-    const int num_sp_threads
-            = utils::div_up(conf.ow, conf.sp_block) * conf.oh * conf.od;
+    const int num_sp_threads = utils::div_up(ow, conf.sp_block) * oh * od;
 
     conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
     conf.gws_d[1] = utils::rnd_up(num_sp_threads, conf.lws_d[1]);
@@ -162,6 +164,9 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("SD", conf.stride_d);
     kernel_ctx.define_int("SH", conf.stride_h);
     kernel_ctx.define_int("SW", conf.stride_w);
+    kernel_ctx.define_int("PD", conf.f_pad);
+    kernel_ctx.define_int("PH", conf.t_pad);
+    kernel_ctx.define_int("PW", conf.l_pad);
 
     kernel_ctx.define_int("SP_BLOCK", conf.sp_block);
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
@@ -181,10 +186,10 @@ status_t gen12lp_x8s8s32x_1x1_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IC_NCHUNK", utils::div_up(conf.ic, conf.ic_block));
 
     kernel_ctx.define_int(
-            "INT8_WEI_SLM", utils::div_up(conf.ow, conf.sp_block) % 8 == 0);
+            "INT8_WEI_SLM", utils::div_up(conf.sp, conf.sp_block) % 8 == 0);
     kernel_ctx.define_int("SP_TAIL",
-            utils::div_up(conf.ow, conf.sp_block) % conf.lws_d[1] == 0);
-    kernel_ctx.define_int("OUT_SP_TAIL", conf.ow % conf.sp_block);
+            utils::div_up(conf.sp, conf.sp_block) % conf.lws_d[1] == 0);
+    kernel_ctx.define_int("OUT_SP_TAIL", conf.sp % conf.sp_block);
 
     kernel_ctx.define_int("WEI_4O8I8O4I", 1);
 
