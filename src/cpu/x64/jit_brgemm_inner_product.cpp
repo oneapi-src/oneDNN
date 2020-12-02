@@ -106,6 +106,7 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
         bool is_ic_tail = (jbgp.ic - ic < jbgp.ic_block * jbgp.nb_ic_blocking);
         auto nb_ic_b = is_ic_tail ? (jbgp.ic - ic) / jbgp.ic_block
                                   : jbgp.nb_ic_blocking;
+        const int gemm_batch = nstl::min(nb_ic_b, jbgp.gemm_batch_size);
 
         int brg_ker_idx = pd()->get_brg_kernel_idx(
                 kernel_init, is_os_tail, is_oc_tail, false);
@@ -114,11 +115,9 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
         if (nb_ic_b > 0 && brg_kernel != nullptr) {
             if (is_amx)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
-            for (int ic_block = 0; ic_block < nb_ic_b; ic_block++) {
-                addr_A[ic_block]
-                        = src + src_d.blk_off(n, ic + ic_block * jbgp.ic_block);
-                addr_B[ic_block]
-                        = weights + weights_d.blk_off(ocb, icb + ic_block);
+            for (int b = 0; b < gemm_batch; b++) {
+                addr_A[b] = src + src_d.blk_off(n, ic + b * jbgp.ic_block);
+                addr_B[b] = weights + weights_d.blk_off(ocb, icb + b);
             }
 
             if (are_post_ops_applicable && icc == ic_chunks - 1
@@ -129,7 +128,7 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
                 auto ptr_D = dst + dst_d.blk_off(n, oc);
                 auto bias_w
                         = jbgp.with_bias ? bias + bia_dt_size * oc : nullptr;
-                brgemm_kernel_execute_postops(brg_kernel, nb_ic_b,
+                brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
                         (void **)addr_A, (void **)addr_B, (void *)ptr_C,
                         (void *)ptr_D, (void *)bias_w,
                         &oscales[jbgp.is_oc_scale * oc],
@@ -140,7 +139,7 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
                                                 : (char *)dst
                                 + sizeof(dst_data_t) * dst_d.blk_off(n, oc);
-                brgemm_kernel_execute(brg_kernel, nb_ic_b, (void **)addr_A,
+                brgemm_kernel_execute(brg_kernel, gemm_batch, (void **)addr_A,
                         (void **)addr_B, (void *)ptr_C,
                         is_amx ? (void *)wsp_tile : nullptr);
             }
@@ -183,25 +182,30 @@ void brgemm_inner_product_fwd_t<isa, src_type, wei_type,
     };
 
     int os_chunks = jbgp.nb_os / jbgp.nb_os_blocking;
-    int work_amount = jbgp.nb_oc * os_chunks;
+    int oc_chunks = div_up(jbgp.nb_oc, jbgp.nb_oc_blocking);
+    int work_amount = oc_chunks * os_chunks;
 
-    parallel(0, [&](const int ithr, const int nthr) {
-        if (ithr >= work_amount) return;
-
+    // If work_amount == 1 we limit num threads to 1 as parallel(1, ...) does
+    // not create parallel section at all. We do not limit number of threads
+    // for 1 < work_amont < dnnl_get_max_threads() case to avoid potential
+    // overhead on spawning different number of OMP threads from layer to layer.
+    parallel(work_amount == 1 ? 1 : 0, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
 
-        int ocb {0}, oss {0};
-
-        nd_iterator_init(start, oss, os_chunks, ocb, jbgp.nb_oc);
+        int occ {0}, osc {0};
+        nd_iterator_init(start, osc, os_chunks, occ, oc_chunks);
         while (start < end) {
+            int ocb_s = occ * jbgp.nb_oc_blocking;
+            int ocb_e = nstl::min(ocb_s + jbgp.nb_oc_blocking, jbgp.nb_oc);
             for_(int osb = 0; osb < jbgp.nb_os_blocking; osb++)
+            for_(int ocb = ocb_s; ocb < ocb_e; ocb++)
             for (int icc = 0; icc < ic_chunks; icc++) {
-                int n = (oss * jbgp.nb_os_blocking + osb) * jbgp.os_block;
+                int n = (osc * jbgp.nb_os_blocking + osb) * jbgp.os_block;
                 ker(ithr, n, ocb, icc);
             }
             ++start;
-            nd_iterator_step(oss, os_chunks, ocb, jbgp.nb_oc);
+            nd_iterator_step(osc, os_chunks, occ, oc_chunks);
         }
     });
 }

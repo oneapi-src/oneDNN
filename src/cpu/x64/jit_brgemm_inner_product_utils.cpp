@@ -117,6 +117,7 @@ bool post_ops_ok(
 status_t init_ip_conf_fwd(
         jit_brgemm_primitive_conf_t &jbgp, const primitive_attr_t &attr) {
     const bool is_amx = jbgp.isa == avx512_core_bf16_amx_int8;
+    const bool is_int8 = one_of(jbgp.src_dt, u8, s8) && jbgp.wei_dt == s8;
     const auto &p = attr.post_ops_;
     jbgp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
@@ -161,12 +162,39 @@ status_t init_ip_conf_fwd(
         }
     }
     if (jbgp.os_block == 1) jbgp.os_block = nstl::min(jbgp.os, max_M);
+
+    jbgp.nb_oc_blocking = 1;
+    const int small_oc_threshold = 256;
+    const int small_os_threshold = 8;
+    if (jbgp.os <= small_os_threshold && jbgp.oc <= small_oc_threshold) {
+        // For small problems compute all oc blocks one chunck to avoid
+        // parallel section
+        jbgp.nb_oc_blocking = jbgp.nb_oc;
+    }
+
+    jbgp.nb_ic_blocking = 1;
+    const int max_nb_ic_blocking = nstl::min(64, jbgp.nb_ic);
+    if (IMPLICATION(!is_int8, jbgp.ic <= max_nb_ic_blocking * jbgp.ic_block)
+            && everyone_is(1, jbgp.kw, jbgp.kh, jbgp.kd)) {
+        // Optimization: data & weights layouts allow to generate
+        // brgemm kernel with K = ic & batch = 1
+        // (K = rnd_dn(ic, ic_block), K_tail = ic % ic_block & batch = 1)
+        // instead of K = ic_block & batch = nb_ic_blocking
+        jbgp.K = jbgp.ic <= jbgp.ic_block ? jbgp.ic
+                                          : rnd_dn(jbgp.ic, jbgp.ic_block);
+        jbgp.nb_ic_blocking = jbgp.nb_ic;
+        jbgp.gemm_batch_size = 1;
+    } else {
+        jbgp.gemm_batch_size = jbgp.nb_ic_blocking
+                = max_div(jbgp.nb_ic, max_nb_ic_blocking);
+        jbgp.K = jbgp.ic_block;
+    }
+
     jbgp.nb_os = div_up(jbgp.os, jbgp.os_block);
     jbgp.nb_os_blocking = 1;
     jbgp.M = jbgp.os_block;
     jbgp.M_tail = jbgp.os % jbgp.os_block;
 
-    jbgp.K = jbgp.ic_block;
     jbgp.N = jbgp.oc_block;
     jbgp.N_tail = jbgp.oc % jbgp.oc_block;
     jbgp.K_tail = jbgp.ic % jbgp.ic_block;
@@ -175,15 +203,6 @@ status_t init_ip_conf_fwd(
     jbgp.LDB = jbgp.N;
     jbgp.LDC = (jbgp.use_buffer) ? jbgp.N : jbgp.oc_without_padding;
     jbgp.LDD = jbgp.oc_without_padding;
-
-    jbgp.nb_ic_blocking = 1;
-    for (int bl = 64; bl >= 1; bl--)
-        if (jbgp.nb_ic % bl == 0) {
-            jbgp.nb_ic_blocking = bl;
-            break;
-        }
-
-    jbgp.gemm_batch_size = jbgp.nb_ic_blocking;
 
     return status::success;
 }
