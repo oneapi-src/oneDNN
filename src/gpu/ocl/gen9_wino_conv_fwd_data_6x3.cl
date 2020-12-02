@@ -159,6 +159,76 @@ static inline int dst_off(int n, int c, int d, int h, int w) {
     return 0;
 }
 
+static inline void wino_U_transform(
+        UTRANS_DATA_T U[WINO_D], UTRANS_DATA_T wei[WINO_R]) {
+    U[0] = wei[0];
+    U[1] = TO_TYPE(-2.0 / 9) * (wei[0] + wei[1] + wei[2]);
+    U[2] = TO_TYPE(2.0 / 9) * (-wei[0] + wei[1] - wei[2]);
+    U[3] = TO_TYPE(1.0 / 90) * wei[0] + TO_TYPE(2.0 / 90) * wei[1]
+            + TO_TYPE(4.0 / 90) * wei[2];
+    U[4] = TO_TYPE(1.0 / 90) * wei[0] - TO_TYPE(2.0 / 90) * wei[1]
+            + TO_TYPE(4.0 / 90) * wei[2];
+    U[5] = TO_TYPE(64.0 / 90) * wei[0] + TO_TYPE(32.0 / 90) * wei[1]
+            + TO_TYPE(16.0 / 90) * wei[2];
+    U[6] = TO_TYPE(64.0 / 90) * wei[0] - TO_TYPE(32.0 / 90) * wei[1]
+            + TO_TYPE(16.0 / 90) * wei[2];
+    U[7] = wei[2];
+}
+
+// The API on this function is different from the other transform functions
+// because interleaving the transform with writing the data out gives a small
+// performance boost
+static inline void wino_V_transform(
+        __local VTRANS_DATA_T *V, const VTRANS_DATA_T src[WINO_D]) {
+    // Compute Winograd f6x3 data transform and store components in SLM.
+    V[V_off(0, 0, 0, VTRANS_BLOCK)]
+            = src[0] - TO_TYPE(5.25) * src[2] + TO_TYPE(5.25) * src[4] - src[6];
+
+    VTRANS_DATA_T x0 = src[1] - TO_TYPE(4.25) * src[3] + src[5];
+    VTRANS_DATA_T x1 = src[2] - TO_TYPE(4.25) * src[4] + src[6];
+
+    V[V_off(0, 1, 0, VTRANS_BLOCK)] = x1 + x0;
+    V[V_off(0, 2, 0, VTRANS_BLOCK)] = x1 - x0;
+
+    VTRANS_DATA_T x2 = TO_TYPE(-5) * src[3] + src[1];
+    VTRANS_DATA_T x3 = TO_TYPE(4) * src[5] + x2;
+    VTRANS_DATA_T x4 = TO_TYPE(0.25) * src[2] + src[6];
+    VTRANS_DATA_T x5 = TO_TYPE(-1.25) * src[4] + x4;
+
+    V[V_off(0, 3, 0, VTRANS_BLOCK)] = TO_TYPE(0.5) * x3 + x5;
+    V[V_off(0, 4, 0, VTRANS_BLOCK)] = TO_TYPE(-0.5) * x3 + x5;
+
+    VTRANS_DATA_T x6 = TO_TYPE(4) * src[1] + src[5];
+    VTRANS_DATA_T x7 = TO_TYPE(-5) * src[3] + x6;
+    VTRANS_DATA_T x8 = TO_TYPE(4) * src[2] + src[6];
+    VTRANS_DATA_T x9 = TO_TYPE(-5) * src[4] + x8;
+
+    V[V_off(0, 5, 0, VTRANS_BLOCK)] = TO_TYPE(+0.5) * x7 + x9;
+    V[V_off(0, 6, 0, VTRANS_BLOCK)] = TO_TYPE(-0.5) * x7 + x9;
+
+    V[V_off(0, 7, 0, VTRANS_BLOCK)] = -src[1] + TO_TYPE(5.25) * src[3]
+            - TO_TYPE(5.25) * src[5] + src[7];
+}
+static inline void wino_m_transform(
+        OUT_BLOCK_DATA_T C[WINO_M], OUT_BLOCK_DATA_T M[WINO_D]) {
+    // Inverse Transform.
+    OUT_BLOCK_DATA_T x0 = M[1] + M[2];
+    OUT_BLOCK_DATA_T x1 = M[1] - M[2];
+
+    OUT_BLOCK_DATA_T x2 = M[3] + M[4];
+    OUT_BLOCK_DATA_T x3 = M[3] - M[4];
+
+    OUT_BLOCK_DATA_T x4 = M[5] + M[6];
+    OUT_BLOCK_DATA_T x5 = M[5] - M[6];
+
+    C[0] = M[0] + x0 + x2 + x4;
+    C[1] = x1 + TO_TYPE(2) * x3 + TO_TYPE(0.5f) * x5;
+    C[2] = x0 + TO_TYPE(4.f) * x2 + TO_TYPE(0.25f) * x4;
+    C[3] = x1 + TO_TYPE(8.f) * x3 + TO_TYPE(0.125f) * x5;
+    C[4] = x0 + TO_TYPE(16.f) * x2 + TO_TYPE(0.0625f) * x4;
+    C[5] = x1 + TO_TYPE(32.f) * x3 + TO_TYPE(0.03125f) * x5 + M[7];
+}
+
 __attribute__((reqd_work_group_size(OC_BLOCK, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(OC_BLOCK))) __kernel void
 gen9_wino_wei_transform_6x3(
@@ -186,18 +256,7 @@ gen9_wino_wei_transform_6x3(
     }
 
     UTRANS_DATA_T out_tile[WINO_D];
-    out_tile[0] = g[0];
-    out_tile[1] = TO_TYPE(-2.0 / 9) * (g[0] + g[1] + g[2]);
-    out_tile[2] = TO_TYPE(2.0 / 9) * (-g[0] + g[1] - g[2]);
-    out_tile[3] = TO_TYPE(1.0 / 90) * g[0] + TO_TYPE(2.0 / 90) * g[1]
-            + TO_TYPE(4.0 / 90) * g[2];
-    out_tile[4] = TO_TYPE(1.0 / 90) * g[0] - TO_TYPE(2.0 / 90) * g[1]
-            + TO_TYPE(4.0 / 90) * g[2];
-    out_tile[5] = TO_TYPE(64.0 / 90) * g[0] + TO_TYPE(32.0 / 90) * g[1]
-            + TO_TYPE(16.0 / 90) * g[2];
-    out_tile[6] = TO_TYPE(64.0 / 90) * g[0] - TO_TYPE(32.0 / 90) * g[1]
-            + TO_TYPE(16.0 / 90) * g[2];
-    out_tile[7] = g[2];
+    wino_U_transform(out_tile, g);
 
     uint out_idx = U_off(oc0, ic, out_kh, out_kw);
 
@@ -297,35 +356,7 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
                 //after main computation
                 src[index] = src[index] * scl_vec;
             }
-
-            // Compute Winograd f6x3 data transform and store components in SLM.
-            V_write[V_off(0, 0, 0, VTRANS_BLOCK)] = src[0]
-                    - TO_TYPE(5.25) * src[2] + TO_TYPE(5.25) * src[4] - src[6];
-
-            VTRANS_DATA_T x0 = src[1] - TO_TYPE(4.25) * src[3] + src[5];
-            VTRANS_DATA_T x1 = src[2] - TO_TYPE(4.25) * src[4] + src[6];
-
-            V_write[V_off(0, 1, 0, VTRANS_BLOCK)] = x1 + x0;
-            V_write[V_off(0, 2, 0, VTRANS_BLOCK)] = x1 - x0;
-
-            VTRANS_DATA_T x2 = TO_TYPE(-5) * src[3] + src[1];
-            VTRANS_DATA_T x3 = TO_TYPE(4) * src[5] + x2;
-            VTRANS_DATA_T x4 = TO_TYPE(0.25) * src[2] + src[6];
-            VTRANS_DATA_T x5 = TO_TYPE(-1.25) * src[4] + x4;
-
-            V_write[V_off(0, 3, 0, VTRANS_BLOCK)] = TO_TYPE(0.5) * x3 + x5;
-            V_write[V_off(0, 4, 0, VTRANS_BLOCK)] = TO_TYPE(-0.5) * x3 + x5;
-
-            VTRANS_DATA_T x6 = TO_TYPE(4) * src[1] + src[5];
-            VTRANS_DATA_T x7 = TO_TYPE(-5) * src[3] + x6;
-            VTRANS_DATA_T x8 = TO_TYPE(4) * src[2] + src[6];
-            VTRANS_DATA_T x9 = TO_TYPE(-5) * src[4] + x8;
-
-            V_write[V_off(0, 5, 0, VTRANS_BLOCK)] = TO_TYPE(+0.5) * x7 + x9;
-            V_write[V_off(0, 6, 0, VTRANS_BLOCK)] = TO_TYPE(-0.5) * x7 + x9;
-
-            V_write[V_off(0, 7, 0, VTRANS_BLOCK)] = -src[1]
-                    + TO_TYPE(5.25) * src[3] - TO_TYPE(5.25) * src[5] + src[7];
+            wino_V_transform(V_write, src);
         }
 
         src_load += src_off(0, WINO_IC_BLOCK, 0, 0, 0);
@@ -407,27 +438,10 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         for (int i = 0; i < WINO_D; i++) {
             M[i] = M_read[M_off(0, i, 0, OUT_TYPE_BLOCK)];
         }
-
-        // Inverse Transform.
-        OUT_BLOCK_DATA_T x0 = M[1] + M[2];
-        OUT_BLOCK_DATA_T x1 = M[1] - M[2];
-
-        OUT_BLOCK_DATA_T x2 = M[3] + M[4];
-        OUT_BLOCK_DATA_T x3 = M[3] - M[4];
-
-        OUT_BLOCK_DATA_T x4 = M[5] + M[6];
-        OUT_BLOCK_DATA_T x5 = M[5] - M[6];
-
         OUT_BLOCK_DATA_T C[WINO_M];
         DATA_T *C_dat = C;
 
-        C[0] = M[0] + x0 + x2 + x4;
-        C[1] = x1 + TO_TYPE(2) * x3 + TO_TYPE(0.5f) * x5;
-        C[2] = x0 + TO_TYPE(4.f) * x2 + TO_TYPE(0.25f) * x4;
-        C[3] = x1 + TO_TYPE(8.f) * x3 + TO_TYPE(0.125f) * x5;
-        C[4] = x0 + TO_TYPE(16.f) * x2 + TO_TYPE(0.0625f) * x4;
-        C[5] = x1 + TO_TYPE(32.f) * x3 + TO_TYPE(0.03125f) * x5 + M[7];
-
+        wino_m_transform(C, M);
         unroll_for(int i = 0; i < WINO_M; i++) { C[i] = C[i] * scl; }
 
         // Write data
