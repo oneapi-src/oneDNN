@@ -53,7 +53,7 @@ template <typename T>
 class normal_distribution_t {
 public:
     normal_distribution_t(T mean, T stddev)
-        : is_odd_(false), mean_(mean), stddev_(stddev), gen(-1.f, 1.f) {
+        : gen(-1.f, 1.f), is_odd_(false), mean_(mean), stddev_(stddev) {
         static_assert(std::is_floating_point<T>::value,
                 "T must be a floating point type.");
     }
