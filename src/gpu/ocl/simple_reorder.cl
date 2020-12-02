@@ -31,17 +31,10 @@
 #define DST_OFF(x0, x1, x2, x3, x4, x5) \
     OFF_MD(DST, (x0), (x1), (x2), (x3), (x4), (x5))
 
-#if WITH_GROUP
 #define SRC_OFF_G(gr, x0, x1, x2, x3, x4) \
     OFF_MD(SRC, gr, (x0), (x1), (x2), (x3), (x4))
 #define DST_OFF_G(gr, x0, x1, x2, x3, x4) \
     OFF_MD(DST, gr, (x0), (x1), (x2), (x3), (x4))
-#else
-#define SRC_OFF_G(gr, x0, x1, x2, x3, x4) \
-    OFF_MD(SRC, (x0), (x1), (x2), (x3), (x4), 0)
-#define DST_OFF_G(gr, x0, x1, x2, x3, x4) \
-    OFF_MD(DST, (x0), (x1), (x2), (x3), (x4), 0)
-#endif
 
 #if SRC_DT_S8
 #define SRC_BLOCK_READ(src) \
@@ -506,6 +499,61 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         DST_BLOCK_WRITE(&dst[dst_off], dst_tmp);
     }
 
+#elif PLAIN_TO_ABCD4AXB
+    int sglid = get_sub_group_local_id();
+
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d2 = GWS_GET_D2();
+    const int d3 = GWS_GET_D3();
+
+    const int d0_block = GWS_GET_D0_BLOCK();
+    const int d1_block = GWS_GET_D1_BLOCK();
+    const int d01_block = d0_block * d1_block;
+
+    SRC_DATA_T tmp_buf[d01_block] = {0};
+    const int d0_inner_block = min(d0_block, SRC_D0);
+    const int d1_inner_block = min(d1_block, SRC_D1);
+    for (int d0_inner = 0; d0_inner < d0_inner_block; d0_inner++) {
+        for (int d1_inner = 0; d1_inner < d1_inner_block; d1_inner++) {
+            if (SRC_D0 % d0_inner_block != 0 && d0 + d0_inner >= SRC_D0)
+                continue;
+            if (SRC_D1 % d1_inner_block != 0 && d1 + d1_inner >= SRC_D1)
+                continue;
+            if (SRC_S3_0 == 1) {
+                // abcd layout.
+                int src_off
+                        = SRC_OFF(d0 + d0_inner, d1 + d1_inner, d2, d3, 0, 0);
+                tmp_buf[d0_inner * d1_block + d1_inner]
+                        = SRC_BLOCK_READ(&src[src_off]);
+            } else {
+                // acdb layout.
+                int src_off = SRC_OFF(
+                        d0 + d0_inner, d1 + d1_inner, d2, d3 + sglid, 0, 0);
+                tmp_buf[d0_inner * d1_block + d1_inner] = src[src_off];
+            }
+        }
+    }
+
+    SRC_DATA_T src_all[d01_block][SUB_GROUP_SIZE];
+    for (int i = 0; i < d01_block; i++)
+        for (int j = 0; j < SUB_GROUP_SIZE; j++)
+            src_all[i][j] = intel_sub_group_shuffle(tmp_buf[i], j);
+
+    for (int d = 0; d < SUB_GROUP_SIZE; d += 8) {
+        SRC_DATA8_T src_tmp;
+        for (int i = 0; i < 8; i++)
+            src_tmp[i] = src_all[sglid][d + i];
+        int dst_off = DST_OFF(d0, d1, d2, d3 + d, 0, 0);
+
+        DST_DATA8_T dst_tmp;
+#if WITH_SUM_AB
+        dst_tmp = DST_BLOCK_READ8(&dst[dst_off]);
+#endif
+        REORDER8(dst_tmp, src_tmp, alpha, beta);
+        DST_BLOCK_WRITE8(&dst[dst_off], dst_tmp);
+    }
+
 #elif PLAIN_TO_AB_XX_8AYB
     // Reorders 2D plain format to a blocked one, where last two
     // blocks are 8a4b or 8a2b. Supports formats with more block layers.
@@ -610,7 +658,7 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
         REORDER8(dst_tmp, src_tmp, alpha, beta);
         DST_BLOCK_WRITE8(&dst[d0], dst_tmp);
     }
-#else
+#else // unroll_* kernels start here
 
     const int d0 = GWS_GET_D0();
     const int d1 = GWS_GET_D1();
@@ -620,6 +668,7 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     const int d5 = GWS_GET_D5();
     const int local_id = get_sub_group_local_id();
 
+// unroll_16a16b
 #if SRC_16A16B || DST_16A16B || SRC_16B16A || DST_16B16A
     src += SRC_OFF(d0, d1, d2, d3, d4, d5);
     dst += DST_OFF(d0, d1, d2, d3, d4, d5);
@@ -700,6 +749,7 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     }
 #endif // (SRC_16A16B || SRC_16B16A) && (DST_16A16B || DST_16B16A)
 
+// unroll_16b
 #elif SRC_16B || DST_16B
     SRC_DATA_T src_tmp;
 #if SRC_16B
@@ -731,6 +781,7 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
     dst[0] = dst_tmp;
 #endif // DST_16B
 
+// unroll_16b16c
 #elif SRC_16B16C || DST_16B16C || SRC_16C16B || DST_16C16B
     const int g = d0;
 
@@ -814,5 +865,5 @@ __kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
 #endif // (SRC_16B16C || SRC_16C16B) && (DST_16B16C || DST_16C16B)
 #endif // SRC_16B16C || DST_16B16C || SRC_16C16B || DST_16C16B
 
-#endif // REF_REORDER
+#endif // REF_REORDER, PLAIN_xFxE_TO_ABCDEF, TRANSPOSE_16X16 etc.
 }

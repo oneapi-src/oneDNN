@@ -554,16 +554,25 @@ struct reduction_conf_t {
 };
 
 // Reorder
+enum reorder_kernel_t {
+    reorder_reference,
+    dense_vector,
+    unroll_16b,
+    unroll_16b16c,
+    unroll_16a16b,
+    plain_to_ABcd4axb,
+    vectorize_last_dim,
+    plain_to_ABxx8ayb,
+    plain_xFxE_to_abcdef,
+    transpose16x16_a,
+    transpose16x16_b,
+    reorder_nchw,
+    unaligned_sizes
+};
 struct reorder_conf_t {
-    bool do_reorder, with_group, has_padding;
+    bool has_padding;
     bool scale_quant, with_sum_ab, with_sum_a;
-    bool use_ref_impl, use_dense_vect;
-    bool vectorize_last_dim;
-    bool plain_to_ABxx8ayb;
-    bool plain_xFxE_to_abcdef;
-    int transpose16x16; // 3-state logic
-    bool nchw;
-    bool unaligned_sizes;
+    reorder_kernel_t implementation;
     int ndims;
     size_t nelems;
 

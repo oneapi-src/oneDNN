@@ -19,7 +19,6 @@
 #include "common/utils.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -136,6 +135,105 @@ bool dim_is_div_by_16_or_less_than_16(
     return (padded_dims[dim_index] % 16 == 0 || padded_dims[dim_index] < 16);
 }
 
+reorder_kernel_t select_kernel(const reorder_conf_t &conf,
+        const memory_desc_wrapper &src_mdw,
+        const memory_desc_wrapper &dst_mdw) {
+    using namespace format_tag;
+
+    const auto &padded_dims = dst_mdw.padded_dims();
+
+    int last = conf.ndims - 1;
+    size_t last_dim = padded_dims[last];
+
+    const bool has_padding_or_scale_quant
+            = conf.has_padding || conf.scale_quant;
+
+    const bool type_s8_u8 = utils::one_of(src_mdw.data_type(), dnnl_s8, dnnl_u8)
+            || utils::one_of(dst_mdw.data_type(), dnnl_s8, dnnl_u8);
+
+    const bool allow_unroll
+            = !conf.has_padding && !conf.scale_quant && !type_s8_u8;
+
+    if (!has_padding_or_scale_quant) {
+        auto temp = matches_16x16_layout(src_mdw, dst_mdw);
+        if (temp == 1) { return reorder_kernel_t::transpose16x16_a; }
+        if (temp == 2) { return reorder_kernel_t::transpose16x16_b; }
+    }
+    if (src_mdw.matches_one_of_tag(nhwc) && dst_mdw.matches_one_of_tag(nchw)
+            && padded_dims[last] % 16 == 0
+            && dim_is_div_by_16_or_less_than_16(dst_mdw, 1)) {
+        return reorder_kernel_t::reorder_nchw;
+    }
+    if (src_mdw.matches_one_of_tag(nhwc) && dst_mdw.matches_one_of_tag(nchw)
+            && dim_is_div_by_16_or_less_than_16(dst_mdw, 1)) {
+        return reorder_kernel_t::unaligned_sizes;
+    }
+
+    if (allow_unroll) {
+        if (src_mdw.matches_one_of_tag(ABc16a16b, ABc16b16a, ABcd16a16b,
+                    ABcd16b16a, ABcde16a16b, ABcde16b16a, BAc16a16b, BAc16b16a,
+                    BAcd16a16b, BAcd16b16a, BAcde16b16a)
+                || dst_mdw.matches_one_of_tag(ABc16a16b, ABc16b16a, ABcd16a16b,
+                        ABcd16b16a, ABcde16a16b, ABcde16b16a, BAc16a16b,
+                        BAc16b16a, BAcd16a16b, BAcd16b16a, BAcde16b16a)) {
+            return reorder_kernel_t::unroll_16a16b;
+        }
+        if (src_mdw.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b)
+                || dst_mdw.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b)) {
+            return reorder_kernel_t::unroll_16b;
+        }
+        if (src_mdw.matches_one_of_tag(aBCd16b16c, aBCd16c16b, aBCde16b16c,
+                    aBCde16c16b, aBCdef16b16c, aBCdef16c16b, aCBd16b16c,
+                    aCBd16c16b, aCBde16b16c, aCBde16c16b, aCBdef16c16b)
+                || dst_mdw.matches_one_of_tag(aBCd16b16c, aBCd16c16b,
+                        aBCde16b16c, aBCde16c16b, aBCdef16b16c, aBCdef16c16b,
+                        aCBd16b16c, aCBd16c16b, aCBde16b16c, aCBde16c16b,
+                        aCBdef16c16b)) {
+            return reorder_kernel_t::unroll_16b16c;
+        }
+    }
+
+    if (src_mdw.matches_one_of_tag(abdfce) && dst_mdw.matches_one_of_tag(abcdef)
+            && ((padded_dims[conf.ndims - 2] % 16) == 0)
+            && dim_is_div_by_16_or_less_than_16(dst_mdw, last)) {
+        return reorder_kernel_t::plain_xFxE_to_abcdef;
+    }
+
+    if ((src_mdw.matches_one_of_tag(abcd) || src_mdw.matches_one_of_tag(acdb))
+            && dst_mdw.matches_one_of_tag(/*ABcd4a2b,*/ ABcd4a4b)
+            && src_mdw.is_dense() && dst_mdw.is_dense(true)
+            && padded_dims[3] % 16 == 0) {
+        return reorder_kernel_t::plain_to_ABcd4axb;
+    }
+
+    if (!has_padding_or_scale_quant && (conf.nelems % 256 == 0)
+            && src_mdw.similar_to(dst_mdw, true, false, 0)
+            && !has_padding_or_scale_quant) {
+        return reorder_kernel_t::dense_vector;
+    }
+
+    // This kernel will be used where last dimension is not reordered.
+    // It will vectorize that dimension.
+    if (!has_padding_or_scale_quant && src_mdw.is_dense() && dst_mdw.is_dense()
+            && last_dim % 8 == 0
+            && dst_mdw.md_->format_desc.blocking.strides[last] == 1
+            && src_mdw.md_->format_desc.blocking.strides[last] == 1
+            && conf.ndims <= MAX_NDIMS) {
+        return reorder_kernel_t::vectorize_last_dim;
+    }
+
+    // This kernel supports 2D reorders into blocked formats that
+    // end in 8a4b or 8a2b, no matter how many block layers, but no padding.
+    if (!has_padding_or_scale_quant && src_mdw.matches_one_of_tag(ab)
+            && matches_ABxxxx8ayb_layout(
+                    dst_mdw.md_->format_desc.blocking, conf.ndims)
+            && padded_dims[last] % 16 == 0) {
+        return reorder_kernel_t::plain_to_ABxx8ayb;
+    }
+
+    return reorder_kernel_t::reorder_reference;
+}
+
 status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     using namespace format_tag;
 
@@ -153,14 +251,10 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     conf.scale_mask = conf.scale_quant ? attr()->output_scales_.mask_ : 0;
     conf.scales_num = conf.scale_quant ? attr()->output_scales_.count_ : 0;
     conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
-    conf.do_reorder
-            = conf.scale_quant || conf.with_sum_ab ? true : src_mdw != dst_mdw;
     conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
     conf.ndims = src_mdw.ndims();
     conf.nelems = utils::array_product(padded_dims, conf.ndims);
 
-    conf.use_ref_impl = true;
-    conf.with_group = false;
     conf.sub_group_size = 1;
 
     if (conf.nelems == 0) return status::success;
@@ -168,179 +262,112 @@ status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     int last = conf.ndims - 1;
     size_t last_dim = padded_dims[last];
 
-    if (src_mdw.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o, gOIw8i16o2i,
-                gOIhw8i16o2i, gOIdhw8i16o2i, gOIw4o8i8o4i, gOIhw4o8i8o4i,
-                gOIhw2o8i8o2i, gOIdhw4o8i8o4i, gIOw4i8o8i4o, gIOhw4i8o8i4o,
-                gIOdhw4i8o8i4o)
-            || dst_mdw.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o,
-                    gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i, gOIw4o8i8o4i,
-                    gOIhw4o8i8o4i, gOIhw2o8i8o2i, gOIdhw4o8i8o4i, gIOw4i8o8i4o,
-                    gIOhw4i8o8i4o, gIOdhw4i8o8i4o))
-        conf.with_group = true;
-
-    const bool has_padding_or_scale_quant
-            = conf.has_padding || conf.scale_quant;
-
-    const bool type_s8_u8 = utils::one_of(src_mdw.data_type(), dnnl_s8, dnnl_u8)
-            || utils::one_of(dst_mdw.data_type(), dnnl_s8, dnnl_u8);
-
-    conf.transpose16x16 = (!has_padding_or_scale_quant
-                    ? matches_16x16_layout(src_mdw, dst_mdw)
-                    : 0);
-
-    conf.nchw = src_mdw.matches_one_of_tag(nhwc)
-            && dst_mdw.matches_one_of_tag(nchw) && !conf.transpose16x16
-            && padded_dims[last] % 16 == 0
-            && dim_is_div_by_16_or_less_than_16(dst_mdw, 1);
-
-    conf.unaligned_sizes = !conf.transpose16x16
-            && src_mdw.matches_one_of_tag(nhwc)
-            && dst_mdw.matches_one_of_tag(nchw) && !conf.nchw
-            && dim_is_div_by_16_or_less_than_16(dst_mdw, 1);
-
-    const bool allow_unroll = !has_padding_or_scale_quant && !type_s8_u8
-            && !conf.transpose16x16 && !conf.nchw && !conf.unaligned_sizes;
-
-    const bool use_unroll_16a16b = allow_unroll
-            && (src_mdw.matches_one_of_tag(ABc16a16b, ABc16b16a, ABcd16a16b,
-                        ABcd16b16a, ABcde16a16b, ABcde16b16a, BAc16a16b,
-                        BAc16b16a, BAcd16a16b, BAcd16b16a, BAcde16b16a)
-                    || dst_mdw.matches_one_of_tag(ABc16a16b, ABc16b16a,
-                            ABcd16a16b, ABcd16b16a, ABcde16a16b, ABcde16b16a,
-                            BAc16a16b, BAc16b16a, BAcd16a16b, BAcd16b16a,
-                            BAcde16b16a));
-
-    const bool use_unroll_16b = allow_unroll
-            && (src_mdw.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b)
-                    || dst_mdw.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b));
-
-    const bool use_unroll_16b16c = allow_unroll
-            && (src_mdw.matches_one_of_tag(aBCd16b16c, aBCd16c16b, aBCde16b16c,
-                        aBCde16c16b, aBCdef16b16c, aBCdef16c16b, aCBd16b16c,
-                        aCBd16c16b, aCBde16b16c, aCBde16c16b, aCBdef16c16b)
-                    || dst_mdw.matches_one_of_tag(aBCd16b16c, aBCd16c16b,
-                            aBCde16b16c, aBCde16c16b, aBCdef16b16c,
-                            aBCdef16c16b, aCBd16b16c, aCBd16c16b, aCBde16b16c,
-                            aCBde16c16b, aCBdef16c16b));
-
-    conf.plain_xFxE_to_abcdef = src_mdw.matches_one_of_tag(abdfce)
-            && dst_mdw.matches_one_of_tag(abcdef)
-            && ((padded_dims[conf.ndims - 2] % 16) == 0)
-            && dim_is_div_by_16_or_less_than_16(dst_mdw, last);
-
-    bool use_unroll = use_unroll_16b || use_unroll_16b16c || use_unroll_16a16b;
-
-    conf.use_dense_vect = !conf.transpose16x16 && !conf.scale_quant
-            && !conf.nchw && !conf.unaligned_sizes && (conf.nelems % 256 == 0)
-            && src_mdw.similar_to(dst_mdw, true, false, 0)
-            && !has_padding_or_scale_quant && !use_unroll;
-
-    // This kernel will be used where last dimension is not reordered.
-    // It will vectorize that dimension.
-    conf.vectorize_last_dim = !conf.transpose16x16 && !conf.use_dense_vect
-            && !conf.nchw && !conf.unaligned_sizes
-            && !has_padding_or_scale_quant && src_mdw.is_dense()
-            && dst_mdw.is_dense() && last_dim % 8 == 0
-            && dst_mdw.md_->format_desc.blocking.strides[last] == 1
-            && src_mdw.md_->format_desc.blocking.strides[last] == 1
-            && conf.ndims <= MAX_NDIMS;
-
-    // This kernel supports 2D reorders into blocked formats that
-    // end in 8a4b or 8a2b, no matter how many block layers, but no padding.
-    conf.plain_to_ABxx8ayb = !conf.transpose16x16 && !conf.use_dense_vect
-            && conf.nchw && !conf.unaligned_sizes && !has_padding_or_scale_quant
-            && !conf.vectorize_last_dim && src_mdw.matches_one_of_tag(ab)
-            && matches_ABxxxx8ayb_layout(
-                    dst_mdw.md_->format_desc.blocking, conf.ndims)
-            && padded_dims[last] % 16 == 0;
+    conf.implementation = select_kernel(conf, src_mdw, dst_mdw);
 
     dim_t blocks[MAX_NDIMS] = {1, 1, 1, 1, 1, 1};
-    if (use_unroll_16a16b) {
-        blocks[0] = 16;
-    } else if (use_unroll_16b) {
-        // No blocking.
-    } else if (use_unroll_16b16c) {
-        conf.with_group = true;
-        blocks[2] = 16;
-    } else if (conf.plain_xFxE_to_abcdef) {
-        blocks[5] = nstl::min(padded_dims[conf.ndims - 1], dnnl_dim_t(16));
-    }
+    int vect_size = 1;
+    int vect_dim = 0;
 
-    if (conf.use_dense_vect || use_unroll || conf.plain_xFxE_to_abcdef) {
-        conf.use_ref_impl = false;
-        conf.sub_group_size = 16;
-    }
-
-    if (conf.vectorize_last_dim) {
-        conf.use_ref_impl = false;
-        for (int dim = last - 1; dim >= 0 && dim < MAX_NDIMS; dim--) {
-            if (padded_dims[dim] % 4 == 0) { blocks[dim] = 4; }
-            if (padded_dims[dim] % 8 == 0) { blocks[dim] = 8; }
-            if (padded_dims[dim] % 16 == 0) { blocks[dim] = 16; }
-            if (blocks[dim] != 1) { break; }
-        }
-    }
-
-    if (conf.plain_to_ABxx8ayb) {
-        conf.use_ref_impl = false;
-        conf.sub_group_size = 16;
-        blocks[0] = 8;
-    }
-
-    if (conf.transpose16x16) {
-        conf.use_ref_impl = false;
-        conf.sub_group_size = 16;
-        auto dm = get_Nth_last_dim_or_block(
-                (conf.transpose16x16 == 1) ? dst_mdw : src_mdw)
-                          .idx;
-        blocks[dm] = 16;
-    }
-
-    if (conf.nchw) {
-        conf.use_ref_impl = false;
-        conf.sub_group_size = 16;
-        blocks[1] = nstl::min(padded_dims[1], dnnl_dim_t(16));
-    }
-
-    if (conf.unaligned_sizes) {
-        conf.use_ref_impl = false;
-        blocks[1] = padded_dims[1];
-    }
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
-    for (int i = 0; i < 6; ++i) {
-        auto dim_str = utils::format("D%d", i);
-        if (i < dst_mdw.ndims() && !conf.use_dense_vect) {
-            dim_t block = conf.use_ref_impl ? ((i < 2) ? 1 : 0) : blocks[i];
-            conf.dispatch.define_dim(dim_str, i, padded_dims[i], block);
-        } else if (i == 0) {
-            // 1D indexing for dense_vect cases
-            conf.dispatch.define_dim(dim_str, 0, conf.nelems, 16);
-            conf.dispatch.vectorize_dim("D0", 16);
-        } else {
-            conf.dispatch.define_dim(dim_str, 1);
-        }
+
+    int temp_block = 1;
+
+    switch (conf.implementation) {
+        case reorder_reference:
+            blocks[2] = blocks[3] = blocks[4] = blocks[5] = 0;
+            break;
+        case dense_vector:
+            // see special handling below
+            conf.sub_group_size = 16;
+            break;
+        case unroll_16b:
+            conf.sub_group_size = 16;
+            vect_dim = 1;
+            vect_size = 16;
+            break;
+        case unroll_16b16c:
+            conf.sub_group_size = 16;
+            blocks[2] = 16;
+            vect_dim = 1;
+            vect_size = 16;
+            break;
+        case unroll_16a16b:
+            conf.sub_group_size = 16;
+            blocks[0] = 16;
+            vect_dim = 1;
+            vect_size = 16;
+            break;
+        case plain_to_ABcd4axb: {
+            auto &blk = dst_mdw.blocking_desc();
+            int b_block = blk.inner_blks[blk.inner_nblks - 1];
+            conf.sub_group_size = (b_block == 2 ? 8 : 16);
+            blocks[0] = 4;
+            blocks[1] = b_block;
+            vect_dim = 3;
+            vect_size = conf.sub_group_size;
+        } break;
+        case vectorize_last_dim:
+            for (int dim = last - 1;
+                    dim >= 0 && dim < MAX_NDIMS && temp_block == 1; dim--) {
+                if (padded_dims[dim] % 4 == 0) { temp_block = 4; }
+                if (padded_dims[dim] % 8 == 0) { temp_block = 8; }
+                if (padded_dims[dim] % 16 == 0) { temp_block = 16; }
+                blocks[dim] = temp_block;
+            }
+            vect_dim = last;
+            vect_size = (last_dim % 16 == 0) ? 16 : 8;
+            break;
+        case plain_to_ABxx8ayb:
+            conf.sub_group_size = 16;
+            blocks[0] = 8;
+            vect_dim = last;
+            vect_size = 16;
+            break;
+        case plain_xFxE_to_abcdef:
+            conf.sub_group_size = 16;
+            blocks[5] = nstl::min(padded_dims[conf.ndims - 1], dnnl_dim_t(16));
+            vect_dim = 4;
+            vect_size = 16;
+            break;
+        case transpose16x16_a:
+            conf.sub_group_size = 16;
+            blocks[get_Nth_last_dim_or_block(dst_mdw).idx] = 16;
+            vect_dim = get_Nth_last_dim_or_block(src_mdw).idx;
+            vect_size = 16;
+            break;
+        case transpose16x16_b:
+            conf.sub_group_size = 16;
+            blocks[get_Nth_last_dim_or_block(src_mdw).idx] = 16;
+            vect_dim = get_Nth_last_dim_or_block(dst_mdw).idx;
+            vect_size = 16;
+            break;
+        case reorder_nchw:
+            conf.sub_group_size = 16;
+            blocks[1] = nstl::min(padded_dims[1], dnnl_dim_t(16));
+            vect_dim = 3;
+            vect_size = 16;
+            break;
+        case unaligned_sizes: blocks[1] = padded_dims[1]; break;
     }
 
-    if (use_unroll_16a16b || use_unroll_16b || use_unroll_16b16c) {
-        conf.dispatch.vectorize_dim("D1", 16);
-    } else if (conf.plain_xFxE_to_abcdef) {
-        conf.dispatch.vectorize_dim("D4", conf.sub_group_size);
-    } else if (conf.vectorize_last_dim) {
-        int vectorization_range = (last_dim % 16 == 0) ? 16 : 8;
-        std::string vector_dim = "D" + std::to_string(conf.ndims - 1);
-        conf.dispatch.vectorize_dim(vector_dim, vectorization_range);
-    } else if (conf.plain_to_ABxx8ayb) {
-        auto dim_str = utils::format("D%d", last);
-        conf.dispatch.vectorize_dim(dim_str, 16);
-    } else if (conf.transpose16x16) {
-        auto dm = get_Nth_last_dim_or_block(
-                (conf.transpose16x16 == 1) ? src_mdw : dst_mdw)
-                          .idx;
-        auto dim_str = utils::format("D%d", dm);
-        conf.dispatch.vectorize_dim(dim_str, 16);
-    } else if (conf.nchw) {
-        conf.dispatch.vectorize_dim("D3", 16);
+    // special case for dense_vector kernel - treat tensors as flat 1D vectors
+    if (conf.implementation == dense_vector) {
+        conf.dispatch.define_dim("D0", 0, conf.nelems, 16);
+        conf.dispatch.vectorize_dim("D0", 16);
+    } else {
+        for (int i = 0; i < MAX_NDIMS; ++i) {
+            auto dim_str = utils::format("D%d", i);
+            if (i < dst_mdw.ndims()) {
+                conf.dispatch.define_dim(dim_str, i, padded_dims[i], blocks[i]);
+            } else {
+                conf.dispatch.define_dim(dim_str, 1);
+            }
+        }
+        if (vect_size != 1) {
+            auto dim_str = utils::format("D%d", vect_dim);
+            conf.dispatch.vectorize_dim(dim_str, vect_size);
+        }
     }
 
     conf.dispatch.generate();
@@ -369,18 +396,18 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
         kernel_ctx.define_int("SCALE_QUANT", 1);
         kernel_ctx.define_int("SCALE_MASK", conf.scale_mask);
     }
-    kernel_ctx.define_int("WITH_GROUP", conf.with_group);
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
     // the 'unaligned_sizes' kernel uses the same implementation in .cl
     // the difference is in sizes of blocks[]
-    kernel_ctx.define_int(
-            "REF_REORDER", conf.use_ref_impl || conf.unaligned_sizes);
+    kernel_ctx.define_int("REF_REORDER",
+            conf.implementation == reorder_reference
+                    || conf.implementation == unaligned_sizes);
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
 
     kernel_ctx.define_int("PAD_FILL_ZERO", conf.has_padding);
-    if (conf.use_dense_vect) {
+    if (conf.implementation == dense_vector) {
         kernel_ctx.add_option("-Dcl_intel_subgroups_char");
         kernel_ctx.define_int("USE_DENSE_VECT", 1);
     }
@@ -388,101 +415,65 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
-    if (!conf.use_ref_impl) {
-        if (src_mdw.matches_one_of_tag(ABc16a16b, ABcd16a16b, ABcde16a16b,
-                    BAc16a16b, BAcd16a16b)) {
-            kernel_ctx.define_int("SRC_16A16B", 1);
-        } else if (src_mdw.matches_one_of_tag(ABc16b16a, ABcd16b16a,
-                           ABcde16b16a, BAc16b16a, BAcd16b16a, BAcde16b16a)) {
-            kernel_ctx.define_int("SRC_16B16A", 1);
-        } else if (src_mdw.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b)) {
-            kernel_ctx.define_int("SRC_16B", 1);
-        } else if (src_mdw.matches_one_of_tag(aBCd16b16c, aBCde16b16c,
-                           aBCdef16b16c, aCBd16b16c, aCBde16b16c)) {
-            kernel_ctx.define_int("SRC_16B16C", 1);
-        } else if (src_mdw.matches_one_of_tag(aBCd16c16b, aBCde16c16b,
-                           aBCdef16c16b, aCBd16c16b, aCBde16c16b,
-                           aCBdef16c16b)) {
-            kernel_ctx.define_int("SRC_16C16B", 1);
-        }
+    // distinguish between various flavors of unroll kernel
+    if (src_mdw.matches_one_of_tag(
+                ABc16a16b, ABcd16a16b, ABcde16a16b, BAc16a16b, BAcd16a16b)) {
+        kernel_ctx.define_int("SRC_16A16B", 1);
+    } else if (src_mdw.matches_one_of_tag(ABc16b16a, ABcd16b16a, ABcde16b16a,
+                       BAc16b16a, BAcd16b16a, BAcde16b16a)) {
+        kernel_ctx.define_int("SRC_16B16A", 1);
+    } else if (src_mdw.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b)) {
+        kernel_ctx.define_int("SRC_16B", 1);
+    } else if (src_mdw.matches_one_of_tag(aBCd16b16c, aBCde16b16c, aBCdef16b16c,
+                       aCBd16b16c, aCBde16b16c)) {
+        kernel_ctx.define_int("SRC_16B16C", 1);
+    } else if (src_mdw.matches_one_of_tag(aBCd16c16b, aBCde16c16b, aBCdef16c16b,
+                       aCBd16c16b, aCBde16c16b, aCBdef16c16b)) {
+        kernel_ctx.define_int("SRC_16C16B", 1);
+    }
+    if (dst_mdw.matches_one_of_tag(
+                ABc16a16b, ABcd16a16b, ABcde16a16b, BAc16a16b, BAcd16a16b)) {
+        kernel_ctx.define_int("DST_16A16B", 1);
+    } else if (dst_mdw.matches_one_of_tag(ABc16b16a, ABcd16b16a, ABcde16b16a,
+                       BAc16b16a, BAcd16b16a, BAcde16b16a)) {
+        kernel_ctx.define_int("DST_16B16A", 1);
+    } else if (dst_mdw.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b)) {
+        kernel_ctx.define_int("DST_16B", 1);
+    } else if (dst_mdw.matches_one_of_tag(aBCd16b16c, aBCde16b16c, aBCdef16b16c,
+                       aCBd16b16c, aCBde16b16c)) {
+        kernel_ctx.define_int("DST_16B16C", 1);
+    } else if (dst_mdw.matches_one_of_tag(aBCd16c16b, aBCde16c16b, aBCdef16c16b,
+                       aCBd16c16b, aCBde16c16b, aCBdef16c16b)) {
+        kernel_ctx.define_int("DST_16C16B", 1);
     }
 
-    if (src_mdw.matches_one_of_tag(OIw8o16i2o, OIhw8o16i2o, OIdhw8o16i2o,
-                gOIw8o16i2o, gOIhw8o16i2o, gOIdhw8o16i2o)) {
-        kernel_ctx.define_int("SRC_OIHW8O16I2O", 1);
-    } else if (src_mdw.matches_one_of_tag(OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i,
-                       gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i)) {
-        kernel_ctx.define_int("SRC_OIHW8I16O2I", 1);
-    } else if (src_mdw.matches_one_of_tag(OIw4o8i8o4i, OIhw4o8i8o4i,
-                       OIdhw4o8i8o4i, gOIw4o8i8o4i, gOIhw4o8i8o4i,
-                       gOIdhw4o8i8o4i)) {
-        kernel_ctx.define_int("SRC_OIHW4O8I8O4I", 1);
-    } else if (src_mdw.matches_one_of_tag(IOw4i8o8i4o, IOhw4i8o8i4o,
-                       IOdhw4i8o8i4o, gIOw4i8o8i4o, gIOhw4i8o8i4o,
-                       gIOdhw4i8o8i4o)) {
-        kernel_ctx.define_int("SRC_IOHW4I8O8I4O", 1);
-    } else if (src_mdw.matches_one_of_tag(OIhw2o8i8o2i, gOIhw2o8i8o2i)) {
-        kernel_ctx.define_int("SRC_OIHW2O8I8O2I", 1);
-    }
-
-    if (!conf.use_ref_impl) {
-        if (dst_mdw.matches_one_of_tag(ABc16a16b, ABcd16a16b, ABcde16a16b,
-                    BAc16a16b, BAcd16a16b)) {
-            kernel_ctx.define_int("DST_16A16B", 1);
-        } else if (dst_mdw.matches_one_of_tag(ABc16b16a, ABcd16b16a,
-                           ABcde16b16a, BAc16b16a, BAcd16b16a, BAcde16b16a)) {
-            kernel_ctx.define_int("DST_16B16A", 1);
-        } else if (dst_mdw.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b)) {
-            kernel_ctx.define_int("DST_16B", 1);
-        } else if (dst_mdw.matches_one_of_tag(aBCd16b16c, aBCde16b16c,
-                           aBCdef16b16c, aCBd16b16c, aCBde16b16c)) {
-            kernel_ctx.define_int("DST_16B16C", 1);
-        } else if (dst_mdw.matches_one_of_tag(aBCd16c16b, aBCde16c16b,
-                           aBCdef16c16b, aCBd16c16b, aCBde16c16b,
-                           aCBdef16c16b)) {
-            kernel_ctx.define_int("DST_16C16B", 1);
-        }
-    }
-
-    if (dst_mdw.matches_one_of_tag(OIw8o16i2o, OIhw8o16i2o, OIdhw8o16i2o,
-                gOIw8o16i2o, gOIhw8o16i2o, gOIdhw8o16i2o)) {
-        kernel_ctx.define_int("DST_OIHW8O16I2O", 1);
-    } else if (dst_mdw.matches_one_of_tag(OIw8i16o2i, OIhw8i16o2i, OIdhw8i16o2i,
-                       gOIw8i16o2i, gOIhw8i16o2i, gOIdhw8i16o2i)) {
-        kernel_ctx.define_int("DST_OIHW8I16O2I", 1);
-    } else if (dst_mdw.matches_one_of_tag(OIw4o8i8o4i, OIhw4o8i8o4i,
-                       OIdhw4o8i8o4i, gOIw4o8i8o4i, gOIhw4o8i8o4i,
-                       gOIdhw4o8i8o4i)) {
-        kernel_ctx.define_int("DST_OIHW4O8I8O4I", 1);
-    } else if (dst_mdw.matches_one_of_tag(IOw4i8o8i4o, IOhw4i8o8i4o,
-                       IOdhw4i8o8i4o, gIOw4i8o8i4o, gIOhw4i8o8i4o,
-                       gIOdhw4i8o8i4o)) {
-        kernel_ctx.define_int("DST_IOHW4I8O8I4O", 1);
-    } else if (dst_mdw.matches_one_of_tag(OIhw2o8i8o2i, gOIhw2o8i8o2i)) {
-        kernel_ctx.define_int("DST_OIHW2O8I8O2I", 1);
-    }
-
-    if (conf.plain_xFxE_to_abcdef)
+    if (conf.implementation == plain_xFxE_to_abcdef)
         kernel_ctx.define_int("PLAIN_xFxE_TO_ABCDEF", 1);
 
-    if (conf.vectorize_last_dim) {
+    if (conf.implementation == plain_to_ABcd4axb)
+        kernel_ctx.define_int("PLAIN_TO_ABCD4AXB", 1);
+
+    if (conf.implementation == vectorize_last_dim) {
         kernel_ctx.define_int("VECTORIZE_LAST_DIM", 1);
     }
 
-    if (conf.plain_to_ABxx8ayb) {
+    if (conf.implementation == plain_to_ABxx8ayb) {
         kernel_ctx.define_int("PLAIN_TO_AB_XX_8AYB", 1);
         kernel_ctx.define_int(
                 "BLK_L", innermost_block(dst_mdw.md_->format_desc.blocking));
     }
 
-    if (conf.transpose16x16) {
+    if (conf.implementation == transpose16x16_a
+            || conf.implementation == transpose16x16_b) {
         kernel_ctx.define_int("TRANSPOSE_16X16", 1);
-        if (conf.transpose16x16 == 1) {
+        if (conf.implementation == transpose16x16_a) {
             kernel_ctx.define_int("PLAIN_TO_BLOCK", 1);
         }
     }
 
-    if (conf.nchw) { kernel_ctx.define_int("REORDER_NCHW", 1); }
+    if (conf.implementation == reorder_nchw) {
+        kernel_ctx.define_int("REORDER_NCHW", 1);
+    }
 
     kernel_ctx.print_options();
     return status::success;
