@@ -62,7 +62,7 @@ static void fwd_compute_block_sizes(conv_conf_t &conf) {
     if (conf.is_fused) {
         conf.wino_oc_block = 16;
         conf.oh_block = conf.wino_m;
-        conf.ow_block = 14;
+        conf.ow_block = conf.ow > 14 ? 14 : utils::rnd_up(conf.ow, 2);
     } else {
         conf.wino_oc_block = 32;
         conf.oh_block = 8;

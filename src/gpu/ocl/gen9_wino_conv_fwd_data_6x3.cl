@@ -128,14 +128,13 @@ static inline int U_off(int o, int i, int z, int w) {
 
 static inline int V_off(int i, int z, int w, int block_size) {
 
-    //V data format is 2C8h16w16c
+    //V data format is 2C8h16w16c (when IW_BLOCK = 16)
     const int ic_internal_block = 16;
-    const int iw_block = 16;
 
     int icb = i / ic_internal_block;
     int ic = i % ic_internal_block;
-    int off = icb * WINO_D * iw_block * ic_internal_block;
-    off += z * iw_block * ic_internal_block;
+    int off = icb * WINO_D * IW_BLOCK * ic_internal_block;
+    off += z * IW_BLOCK * ic_internal_block;
     off += w * ic_internal_block;
     off += ic;
     return off / block_size;
