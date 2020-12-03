@@ -140,6 +140,11 @@ void check_known_skipped_case(const prb_t *prb, res_t *res) {
     check_known_skipped_case_common(dts, FWD_D, res);
     if (res->state == SKIPPED) return;
 
+    if (prb->alg == alg_t::DIV) {
+        check_binary_post_ops(prb->attr, res);
+        if (res->state == SKIPPED) return;
+    }
+
     if (is_cpu()) {
         const bool is_src0_int_type
                 = prb->sdt[0] == dnnl_s8 || prb->sdt[0] == dnnl_u8;

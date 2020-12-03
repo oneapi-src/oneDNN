@@ -271,6 +271,28 @@ void check_known_skipped_case_common(
     }
 }
 
+// Binary MAX and MIN post-ops may return different results for different
+// backends when NaN is one of inputs. Depending on its position and
+// implementation, either first or second operand may be returned. There isn't a
+// single standard, thus, marking such cases as SKIPPED with KNOWN_LIMITATION
+// reason.
+void check_binary_post_ops(const attr_t &attr, res_t *res) {
+    if (attr.is_def()) return;
+
+    using pk_t = attr_t::post_ops_t::kind_t;
+    const auto &po = attr.post_ops;
+    if (!po.is_def()) {
+        for (int idx = 0; idx < po.len(); ++idx) {
+            const auto &e = po.entry[idx];
+            if (!e.is_binary_kind()) continue;
+            if (e.kind == pk_t::MAX || e.kind == pk_t::MIN) {
+                res->state = SKIPPED, res->reason = KNOWN_LIMITATION;
+                break;
+            }
+        }
+    }
+}
+
 bool is_cpu(const dnnl_engine_t &engine) {
     return get_engine_kind(engine) == dnnl_cpu;
 }
