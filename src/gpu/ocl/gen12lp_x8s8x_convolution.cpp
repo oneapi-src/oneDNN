@@ -570,42 +570,75 @@ status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_conf() {
     set_default_conf(conf, cd, *diff_src_md(), *weights_md(), *diff_dst_md(),
             *weights_md(1), *attr());
 
-    status_t status = status::success;
-
-    if (conf.mb < 8) return status::unimplemented;
-
     if (conf.with_groups && conf.ngroups > 1
             && (conf.oc % 32 != 0 || conf.ic % 32 != 0))
         return status::unimplemented;
 
-    conf.dst_data_type = dst_mdw.data_type();
-    conf.src_data_type = src_mdw.data_type();
-
+    if (conf.mb == 8 || conf.mb % 16 == 0) {
+        conf.ver = ver_mb_block;
+        conf.mb_block = 32;
+    } else {
+        conf.ver = ver_ow_block;
+        conf.mb_block = 1;
+    }
     conf.sub_group_size = 8;
-    conf.mb_block = 32;
     conf.oc_block = 32;
     conf.ic_block = 32;
+    conf.iw_block = 1;
     conf.nchunk = utils::div_up(conf.ic * conf.ngroups, conf.ic_block);
     int ic_group = nstl::min(conf.nchunk, 2);
 
-    conf.lws_d[0] = 8 * ic_group;
-    conf.lws_d[1] = 8;
-    conf.lws_d[2] = 1;
+    if (conf.ver == ver_ow_block) {
+        int max_ic = 4;
+        ic_group
+                = utils::max_div(utils::div_up(conf.ic, conf.ic_block), max_ic);
+        int max_subgroups = 32;
+        int max_iw_group = max_subgroups / ic_group;
+        conf.iw_block
+                = (conf.mb * conf.ic * conf.ih * conf.iw < 49 * 1024) ? 4 : 8;
+        int iw_nchunk = utils::div_up(conf.iw, conf.iw_block);
+        int iw_group = utils::max_div(iw_nchunk, max_iw_group);
 
-    conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
-    conf.gws_d[1] = conf.id * conf.ih * utils::rnd_up(conf.iw, conf.lws_d[1]);
-    conf.gws_d[2] = utils::div_up(conf.mb, conf.mb_block / 2);
+        //an upper bound on the number of elems per subgroup
+        conf.dst_slm_size = (conf.oc_block / 4) * (iw_group * conf.iw_block)
+                + (conf.kw - 1) * (1 + conf.dilate_w);
+        conf.iw_tail = conf.iw % conf.iw_block;
 
+        conf.lws_d[0] = 8 * ic_group;
+        conf.lws_d[1] = iw_group;
+        conf.lws_d[2] = 1;
+
+        conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
+        conf.gws_d[1]
+                = conf.id * conf.ih * utils::div_up(conf.iw, conf.iw_block);
+        conf.gws_d[2] = utils::div_up(conf.mb, utils::div_up(conf.mb_block, 2));
+    } else { //ver_mb_block
+        conf.lws_d[0] = 8 * ic_group;
+        conf.lws_d[1] = 8;
+        conf.lws_d[2] = 1;
+
+        conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
+        conf.gws_d[1]
+                = conf.id * conf.ih * utils::rnd_up(conf.iw, conf.lws_d[1]);
+        conf.gws_d[2] = utils::div_up(conf.mb, utils::div_up(conf.mb_block, 2));
+    }
     conf.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     format_tag_t src_tag, dst_tag, wei_tag;
 
-    src_tag = utils::pick(conf.ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
-    dst_tag = utils::pick(conf.ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
+    src_tag = (conf.ver == ver_ow_block)
+            ? utils::pick(conf.ndims - 3, nCw32c, nChw32c, nCdhw32c)
+            : utils::pick(conf.ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
+    dst_tag = (conf.ver == ver_ow_block)
+            ? utils::pick(conf.ndims - 3, nCw32c, nChw32c, nCdhw32c)
+            : utils::pick(conf.ndims - 3, NCw32n32c, NChw32n32c, NCdhw32n32c);
     wei_tag = conf.with_groups ? utils::pick(conf.ndims - 3, gIOw4i8o8i4o,
                       gIOhw4i8o8i4o, gIOdhw4i8o8i4o)
                                : utils::pick(conf.ndims - 3, IOw4i8o8i4o,
                                        IOhw4i8o8i4o, IOdhw4i8o8i4o);
+
+    conf.dst_data_type = dst_mdw.data_type();
+    conf.src_data_type = src_mdw.data_type();
 
     conf.src_tag = src_mdw.format_kind() == format_kind::any
             ? src_tag
@@ -621,7 +654,7 @@ status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_conf() {
             || conf.dst_tag != dst_tag)
         return status::unimplemented;
 
-    return status;
+    return status::success;
 }
 
 status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_kernel_ctx(
@@ -650,27 +683,33 @@ status_t gen12lp_x8s8x_convolution_bwd_data_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("DW", conf.dilate_w);
 
     kernel_ctx.define_int("IW_PADDED", utils::rnd_up(conf.iw, conf.lws_d[1]));
+    kernel_ctx.define_int("IW_TAIL", conf.iw_tail);
 
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
     kernel_ctx.define_int("OC_BLOCK", conf.oc_block);
     kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
+    kernel_ctx.define_int("IW_BLOCK", conf.iw_block);
 
-    kernel_ctx.define_int("IC_GROUP", utils::div_up(conf.lws_d[0], 8));
     kernel_ctx.define_int("MB_GROUP", 1);
+    kernel_ctx.define_int("IC_GROUP", utils::div_up(conf.lws_d[0], 8));
     kernel_ctx.define_int("SP_GROUP", conf.lws_d[1]);
 
+    kernel_ctx.define_int("IW_NCHUNK", utils::div_up(conf.iw, conf.iw_block));
     kernel_ctx.define_int("OC_NCHUNK", utils::div_up(conf.oc, conf.oc_block));
     kernel_ctx.define_int("IC_NCHUNK", utils::div_up(conf.ic, conf.ic_block));
 
+    kernel_ctx.define_int("DST_SLM_SIZE", conf.dst_slm_size);
+    kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
+
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
 
-    kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
     kernel_ctx.define_int("LWS_0", conf.lws_d[0]);
     kernel_ctx.define_int("LWS_1", conf.lws_d[1]);
     kernel_ctx.define_int("LWS_2", conf.lws_d[2]);
 
     kernel_ctx.set_data_type(conf.dst_data_type);
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");
+    def_data_type(kernel_ctx, conf.dst_data_type, "DST");
     kernel_ctx.add_option("-Dcl_intel_subgroups_char");
 
     return status::success;

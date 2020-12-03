@@ -270,7 +270,8 @@ struct conv_conf_t {
     int icb;
     int ocb;
     int osp_chunk, mb_chunk, mb_block, slm_ic;
-    size_t wei_slm_size, src_slm_size;
+    int iw_tail;
+    size_t wei_slm_size, src_slm_size, dst_slm_size;
     int sub_group_size;
     size_t gws_d[3], lws_d[3];
     compute::dispatch_t dispatch;

@@ -604,6 +604,16 @@
 #define CONVERT_DST_DATA16_T CONCAT3(convert_, DST_DATA16_T, _sat_rte)
 #endif
 
+#if DST_DT_U8
+#define MMAD_DATA_T uint
+#define MMAD_DATA4_T uint4
+#define MMAD_DATA8_T uint8
+#elif DST_DT_S8
+#define MMAD_DATA_T int
+#define MMAD_DATA4_T int4
+#define MMAD_DATA8_T int8
+#endif
+
 // Block read/write macros for dst.
 #if DST_DT_U8 || DST_DT_S8
 
