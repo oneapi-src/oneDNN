@@ -293,10 +293,10 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
                 } break;
                 case primitive_kind::binary: {
                     const post_ops_t::entry_t::binary_t &eb = e.binary;
-                    int mask = eb.src1_desc.ndims >= 2
-                                    && eb.src1_desc.dims[1] > 1
-                            ? (1 << 1)
-                            : 0;
+                    int mask = 0;
+                    for (int d = 0; d < eb.src1_desc.ndims; ++d)
+                        mask += eb.src1_desc.dims[d] != 1 ? (1 << d) : 0;
+
                     DPRINT(str, len, written, "%s:%s:%d;",
                             dnnl_alg_kind2str(eb.alg),
                             dnnl_dt2str(eb.src1_desc.data_type), mask);
@@ -983,9 +983,6 @@ static void init_info_binary(const engine_t *e, pd_t *s, char *buffer) {
         auto md = s->dst_md();
         DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
         MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
-
-        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, " ");
-        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
     }
 
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
