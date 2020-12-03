@@ -62,13 +62,15 @@
 80x24x3x5
 80x24x4x2x3
 
---stag=oiw,wio --dtag=wio,OIw4i16o4i,OIw2i8o4i,OIw4o4i,Owi16o,OwI16o4i,OIw16i16o4i
+--stag=oiw,wio --dtag=wio,OIw4i16o4i,OIw2i8o4i,OIw4o4i
 32x32x3
 --oflag=conv_s8s8,conv_zp_comp,conv_s8s8:conv_zp_comp 32x32x3
+--oflag=conv_zp_comp --dtag=Owi16o,OwI16o4i,OIw16i16o4i 32x32x3
 
---stag=oihw,hwio --dtag=hwio,OIhw4i16o4i,OIhw2i8o4i,OIhw4o4i,Owhi16o,OhwI16o4i,OIhw16i16o4i
+--stag=oihw,hwio --dtag=hwio,OIhw4i16o4i,OIhw2i8o4i,OIhw4o4i
 32x32x3x3
 --oflag=conv_s8s8,conv_zp_comp,conv_s8s8:conv_zp_comp 32x32x3x3
+--oflag=conv_zp_comp --dtag=Owhi16o,OhwI16o4i,OIhw16i16o4i 32x32x3x3
 
 --stag=wigo,goiw --oflag=gconv_s8s8,gconv_zp_comp,gconv_s8s8:gconv_zp_comp
 --dtag=wigo 2x32x32x3
@@ -76,7 +78,7 @@
 --dtag=gOIw4o4i 2x36x36x3
 --dtag=gOIw2i8o4i 2x40x40x3
 --dtag=Goiw16g,Goiw8g,Goiw4g 64x1x1x3
---dtag=gOwi16o,gOwI16o4i,gOIw16i16o4i 2x32x32x3
+--oflag=gconv_zp_comp --dtag=gOwi16o,gOwI16o4i,gOIw16i16o4i 2x32x32x3
 
 --stag=dhwio,oidhw --dtag=dhwio,OIdhw4i16o4i,OIdhw2i8o4i,OIdhw4o4i
 --oflag=conv_s8s8,conv_zp_comp,conv_s8s8:conv_zp_comp  32x32x3x3x3
@@ -87,7 +89,7 @@
 --dtag=gOIhw4o4i 2x36x36x3x3
 --dtag=gOIhw2i8o4i 2x40x40x3x3
 --dtag=Goihw16g,Goihw8g,Goihw4g 512x1x1x3x3
---dtag=gOwhi16o,gOhwI16o4i,gOIhw16i16o4i 2x32x32x3x3
+--oflag=gconv_zp_comp --dtag=gOwhi16o,gOhwI16o4i,gOIhw16i16o4i 2x32x32x3x3
 
 --stag=goidhw --dtag=dhwigo,gOIdhw4i16o4i,gOIdhw2i8o4i,gOIdhw4o4i
 --oflag=gconv_s8s8,gconv_zp_comp,gconv_s8s8:gconv_zp_comp  16x32x32x3x3x3
