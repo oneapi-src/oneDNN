@@ -141,6 +141,8 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
         }
 
         bool post_ops_ok() const {
+            using namespace data_type;
+            using namespace alg_kind;
             auto const &po = attr()->post_ops_;
             auto is_eltwise
                     = [&](int idx) { return po.entry_[idx].is_eltwise(); };
@@ -150,6 +152,15 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
             if (po.len() == 1 && is_eltwise(0)) {
                 const auto act_type = po.entry_[0].eltwise.alg;
                 eltwise_ok = acl_convolution_utils::acl_act_ok(act_type);
+                // N.B.: the code below is a temporary fix for int8 activations
+                if (utils::one_of(src_type, s8, u8)) {
+                    // oneDNN defines RELU as f(x) = (x > 0) ? x : a*x,
+                    // and in Compute Library RELU is defined as f(x) = max(0,x).
+                    const float alpha = po.entry_[0].eltwise.alpha;
+                    eltwise_ok = (act_type == eltwise_relu && alpha == 0)
+                            || utils::one_of(act_type, eltwise_tanh,
+                                    eltwise_bounded_relu, eltwise_logistic);
+                }
             }
 
             return eltwise_ok || (po.len() == 0);
