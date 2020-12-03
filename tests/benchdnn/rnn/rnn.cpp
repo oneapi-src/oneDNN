@@ -46,14 +46,18 @@ dnnl_status_t dnnl_primitive_attr_set_rnn_tparams(dnnl_primitive_attr_t attr,
 
 namespace {
 
-// In order to have consistent filling accross compilers and operating systems,
+// In order to have consistent filling across compilers and operating systems,
 // we implement the equivalent of std::normal_distribution using the so-called
 // Marsaglia polar method.
 template <typename T>
 class normal_distribution_t {
 public:
     normal_distribution_t(T mean, T stddev)
-        : gen(-1.f, 1.f), is_odd_(false), mean_(mean), stddev_(stddev) {
+        : gen(-1.f, 1.f)
+        , is_odd_(false)
+        , odd(1.f)
+        , mean_(mean)
+        , stddev_(stddev) {
         static_assert(std::is_floating_point<T>::value,
                 "T must be a floating point type.");
     }
@@ -81,8 +85,8 @@ private:
     std::uniform_real_distribution<T> gen;
     bool is_odd_;
     T odd_;
-    T mean_;
-    T stddev_;
+    const T mean_;
+    const T stddev_;
 };
 
 } // namespace
