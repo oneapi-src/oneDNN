@@ -240,7 +240,7 @@ bool check_md_consistency_with_tag(
 }
 
 void check_known_skipped_case_common(
-        const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *r) {
+        const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res) {
     const bool has_bf16_support = is_gpu()
             || (is_cpu()
                     && dnnl::impl::cpu::platform::has_data_type_support(
@@ -249,23 +249,23 @@ void check_known_skipped_case_common(
     for (const auto &i_dt : v_dt) {
         // bf16 is supported on AVX512-CORE+
         if (!has_bf16_support && i_dt == dnnl_bf16) {
-            r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
+            res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
             break;
         }
         // f16 is supported on GPU only
         if (i_dt == dnnl_f16 && is_cpu()) {
-            r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
+            res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
             break;
         }
         // f16 is supported for inference only
         if (i_dt == dnnl_f16 && (dir & FLAG_BWD)) {
-            r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
+            res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
             break;
         }
         // cuda supports only f32, f16 and s8 data types
         if (is_nvidia_gpu()
                 && (i_dt == dnnl_bf16 || i_dt == dnnl_u8 || i_dt == dnnl_s32)) {
-            r->state = SKIPPED, r->reason = DATA_TYPE_NOT_SUPPORTED;
+            res->state = SKIPPED, res->reason = DATA_TYPE_NOT_SUPPORTED;
             break;
         }
     }

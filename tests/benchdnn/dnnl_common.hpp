@@ -256,7 +256,7 @@ inline const engine_t &get_cpu_engine() {
 
 template <typename func_t, typename prb_t>
 int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
-        res_t *r, dir_t dir = FLAG_FWD,
+        res_t *res, dir_t dir = FLAG_FWD,
         const_dnnl_primitive_desc_t hint = nullptr) {
     int status = OK;
     dnnl_primitive_desc_t pd {};
@@ -279,9 +279,9 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
 
     // The first primitive creation using a temporary engine.
     engine_t engine(engine_tgt_kind);
-    status = init_pd_func(engine, p, pd, r, dir, hint);
+    status = init_pd_func(engine, p, pd, res, dir, hint);
     if (status != OK) return status;
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
     DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);
     DNN_SAFE(dnnl_primitive_destroy(return_prim), WARN);
@@ -289,9 +289,9 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func, prb_t *p,
 #endif
     // The second (if the cache is enabled) primitive creation using
     // the global test engine.
-    status = init_pd_func(get_test_engine(), p, pd, r, dir, hint);
+    status = init_pd_func(get_test_engine(), p, pd, res, dir, hint);
     if (status != OK) return status;
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
     // This primitive is expected to come from the cache.
     DNN_SAFE_CLEAN(dnnl_primitive_create(&return_prim, pd), WARN, cleanup_pd);
     DNN_SAFE_CLEAN(dnnl_primitive_desc_destroy(pd), WARN, cleanup_prim);
@@ -320,7 +320,7 @@ bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag);
 
 void check_known_skipped_case_common(
-        const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *r);
+        const std::vector<dnnl_data_type_t> &v_dt, dir_t dir, res_t *res);
 
 bool is_cpu(const dnnl_engine_t &engine = get_test_engine());
 bool is_gpu(const dnnl_engine_t &engine = get_test_engine());
