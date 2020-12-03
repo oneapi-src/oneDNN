@@ -266,5 +266,29 @@ Cons:
 - It is not possible to adjust thread usage for `parallel(0, ...);` calls;
 - Identical primitives will have the same decomposition;
 
+### Option 4: internal upper thread count
+
+For this option, the goal is to introduce a generic cost model in order to limit
+thread usage for oneDNN primitive implementations. This can be accomplished by
+heuristics that either:
+1. take into account common use cases (such as, 4 threads for inference and full
+   socket for training), or
+2. take into account compute metrics, such as arithmetic intensity.
+
+For the first case, it is expected that simple heuristics may be sufficient to
+overcome the biggest part of the performance gap. If some significant
+performance improvement opportunity still remains, these heuristics can be
+adjusted to achieve additional gain.
+
+Pros:
+- Dynamic thread distribution at primitive creation and execution time;
+- No changes required on user-side;
+- No performance degradation for existing primitives;
+
+Cons:
+- Identical primitives will have the same decomposition;
+- May require rigorous performance analysis to improve all existing primitive
+  implementations;
+
 
 EOD
