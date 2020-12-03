@@ -177,7 +177,7 @@ void jit_prelu_io_helper<Xbyak::Zmm>::load_tail(
             break;
         case data_type::bf16:
             if (bf16_supported_) {
-                host_->vpmovzxwd(dst_vmm | tail_opmask_, src_addr);
+                host_->vpmovzxwd(dst_vmm | tail_opmask_ | host_->T_z, src_addr);
                 host_->vpslld(dst_vmm, dst_vmm, 0x10);
             }
             break;
@@ -195,6 +195,7 @@ template <>
 void jit_prelu_io_helper<Xbyak::Xmm>::load_tail(
         const Xbyak::Address &src_addr, const Xbyak::Xmm &dst_vmm) {
     if (isa_ == sse41) {
+        host_->uni_vxorps(dst_vmm, dst_vmm, dst_vmm);
         for (size_t tail_elem = 0; tail_elem < tail_size_; tail_elem++)
             host_->pinsrd(dst_vmm,
                     host_->ptr[src_addr.getRegExp()
