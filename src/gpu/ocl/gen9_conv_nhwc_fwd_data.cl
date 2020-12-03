@@ -154,7 +154,11 @@ gen9_conv_nhwc_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     DATA_T blockC00[OW_BLOCK] = {0};
     if (WITH_BIAS) {
         const int bc_off = oc * OC_BLOCK + local_id;
+#if IS_DW
+        DATA_T b = (G_WO_PADDING % OC_BLOCK == 0 || bc_off < G_WO_PADDING)
+#else
         DATA_T b = (OC_WO_PADDING % OC_BLOCK == 0 || bc_off < OC_WO_PADDING)
+#endif
                 ? bias[bc_off]
                 : DATA_ZERO;
         unroll_for(int i = 0; i < OW_BLOCK; i++) { blockC00[i] = b; }
