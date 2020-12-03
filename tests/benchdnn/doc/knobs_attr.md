@@ -35,6 +35,9 @@ passed to a primitive at run-time.
                  of dim0 and dim1 will be multiplied by scale factors different
                  for a pair of {dim0, dim1} points. Number of scale factors
                  equals to dims[0] * dims[1].
+  - `per_tensor` means each element of original tensor will be multiplied by
+                 a unique number. Number of scale factor equals to `nelems`.
+                 As of now supported only by binary post-ops.
 
 `--attr-scales` defines input scales per memory argument primitive attribute.
 This attribute is supported only for integer data types as of now. `ARG`
@@ -96,8 +99,7 @@ argument `OUTPUTSCALE` defines the semantics of output scale as for
 `BINARY` post operation kind applies one of supported binary algorithms to the
 operation result and then stores it. It requires mandatory argument of `DT`
 specifying data type of second memory operand. It supports optional argument of
-`POLICY` giving a hint what are the dimensions for a second memory operand. Yet
-so far only `COMMON` and `PER_OC` policy values are supported.
+`POLICY` giving a hint what are the dimensions for a second memory operand.
 
 Operations may be called in any order, e.g. apply `SUM` at first and then apply
 `ELTWISE`, or vice versa - apply `ELTWISE` and then `SUM` it with destination.

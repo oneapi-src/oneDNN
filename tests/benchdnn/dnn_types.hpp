@@ -95,10 +95,12 @@ struct attr_t {
     // policy_t defines the way entity values will be applied to a tensor
     enum policy_t {
         COMMON = 0, // single value for each point in a tensor
-        PER_OC, // apply a single value per each channel (dims[1]) point
-        PER_DIM_0, // apply a single value er dims[0] point
-        PER_DIM_1, // ... per dims[1] point
-        PER_DIM_01, // ... per unique combination of dims[0] and dims[1] points
+        // apply a single value per...
+        PER_OC, // channel (dims[1]) point
+        PER_DIM_0, // ... dims[0] point.
+        PER_DIM_1, // ... dims[1] point.
+        PER_DIM_01, // ... unique combination of dims[0] and dims[1] points.
+        PER_TENSOR, // ... point in the tensor.
         POLICY_TOTAL // guard
     };
 
