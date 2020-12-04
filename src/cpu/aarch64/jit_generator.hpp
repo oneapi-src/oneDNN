@@ -105,6 +105,8 @@ public:
     const Xbyak_aarch64::XReg X_TMP_3 = x26;
     const Xbyak_aarch64::XReg X_TMP_4 = x27;
     const Xbyak_aarch64::XReg X_DEFAULT_ADDR = x28;
+    const Xbyak_aarch64::XReg X_SP = x21;
+    const Xbyak_aarch64::XReg X_TRANSLATOR_STACK = x22;
     const Xbyak_aarch64::PReg P_TMP = p0;
     const Xbyak_aarch64::PReg P_TMP_0 = p11;
     const Xbyak_aarch64::PReg P_TMP_1 = p12;
@@ -114,6 +116,8 @@ public:
     const Xbyak_aarch64::PReg P_ALL_ONE = p15;
 
     const Xbyak_aarch64::XReg param1 = abi_param1;
+    constexpr static size_t translator_stack_offset = 1024 * 128;
+    constexpr static uint32_t DUMMY_IDX = 99;
 
     inline size_t get_size_of_abi_save_regs() { return size_of_abi_save_regs; }
 
@@ -144,6 +148,8 @@ public:
             not_(P_MSB_256.b, P_ALL_ONE / Xbyak_aarch64::T_z, P_MSB_256.b);
             pfalse(P_ALL_ZERO.b);
         }
+        mov(X_SP, sp);
+        sub_imm(X_TRANSLATOR_STACK, X_SP, translator_stack_offset, X_TMP_0);
     }
 
     void postamble() {
@@ -182,6 +188,30 @@ public:
     void L_aligned(Xbyak_aarch64::Label &label, int alignment = 16) {
         align(alignment);
         L(label);
+    }
+
+    void uni_fsub(const Xbyak_aarch64::VReg4S &v1,
+            const Xbyak_aarch64::VReg4S &v2, const Xbyak_aarch64::VReg4S &v3) {
+        fsub(v1, v2, v3);
+    }
+
+    void uni_fsub(const Xbyak_aarch64::ZRegS &z1,
+            const Xbyak_aarch64::ZRegS &z2, const Xbyak_aarch64::ZRegS &z3) {
+        fsub(z1, z2, z3);
+    }
+
+    void uni_eor(const Xbyak_aarch64::VReg &v1, const Xbyak_aarch64::VReg &v2,
+            const Xbyak_aarch64::VReg &v3) {
+        eor(Xbyak_aarch64::VReg16B(v1.getIdx()),
+                Xbyak_aarch64::VReg16B(v2.getIdx()),
+                Xbyak_aarch64::VReg16B(v3.getIdx()));
+    }
+
+    void uni_eor(const Xbyak_aarch64::ZReg &z1, const Xbyak_aarch64::ZReg &z2,
+            const Xbyak_aarch64::ZReg &z3) {
+        eor(Xbyak_aarch64::ZRegD(z1.getIdx()),
+                Xbyak_aarch64::ZRegD(z2.getIdx()),
+                Xbyak_aarch64::ZRegD(z3.getIdx()));
     }
 
     /*
