@@ -168,7 +168,7 @@ static inline int get_Vtrans_ih0(int lx, int ly) {
     return 0;
 }
 static inline int get_Vtrans_iw0(int lx, int ly) {
-    return 2 * ly + (lx / 8);
+    return 8 * (lx / 8) + ly;
 }
 
 static inline int get_Vcomp_ic0(int lx, int ly) {
