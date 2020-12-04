@@ -33,7 +33,7 @@ namespace impl {
 
 struct exec_ctx_t;
 
-enum memory_flags_t { alloc = 0x1, use_runtime_ptr = 0x2, omit_zero_pad = 0x4 };
+enum memory_flags_t { alloc = 0x1, use_runtime_ptr = 0x2 };
 } // namespace impl
 } // namespace dnnl
 
@@ -44,8 +44,7 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
             const dnnl::impl::memory_desc_t *md, unsigned flags, void *handle);
     dnnl_memory(dnnl::impl::engine_t *engine,
             const dnnl::impl::memory_desc_t *md,
-            std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage,
-            bool do_zero_pad = true);
+            std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage);
     virtual ~dnnl_memory() = default;
 
     /** returns memory's engine */
@@ -54,6 +53,19 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
     const dnnl::impl::memory_desc_t *md() const { return &md_; }
     /** returns the underlying memory storage */
     dnnl::impl::memory_storage_t *memory_storage() const {
+        return memory_storage_.get();
+    }
+    /** returns the underlying memory storage */
+    dnnl::impl::memory_storage_t *memory_storage_clean(
+            const dnnl::impl::exec_ctx_t &ctx,
+            dnnl::impl::status_t &status) const {
+        status = zero_pad(ctx);
+        return memory_storage_.get();
+    }
+    /** returns the underlying memory storage */
+    dnnl::impl::memory_storage_t *memory_storage_clean(
+            const dnnl::impl::exec_ctx_t &ctx) const {
+        zero_pad(ctx);
         return memory_storage_.get();
     }
     /** returns data handle */
@@ -65,12 +77,10 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
     dnnl::impl::status_t set_data_handle(void *handle, dnnl_stream *stream);
 
     /** zeros padding */
-    dnnl::impl::status_t zero_pad(dnnl::impl::stream_t *stream) const;
     dnnl::impl::status_t zero_pad(const dnnl::impl::exec_ctx_t &ctx) const;
 
     dnnl::impl::status_t reset_memory_storage(
-            std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage,
-            bool do_zero_pad = true);
+            std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage);
 
 protected:
     dnnl::impl::engine_t *engine_;

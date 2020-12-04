@@ -245,11 +245,6 @@ private:
             size_t sz = dnnl_memory_desc_get_size(&md_);
             memset(mapped_ptr_, dnnl_mem_default_value, sz);
             unmap();
-
-            // Set own data handle to trigger zero padding
-            void *ret_handle;
-            DNN_SAFE(dnnl_memory_get_data_handle(m_, &ret_handle), CRIT);
-            DNN_SAFE(dnnl_memory_set_data_handle(m_, ret_handle), CRIT);
         }
 
         // Keep memory mapped and unmap only before execution

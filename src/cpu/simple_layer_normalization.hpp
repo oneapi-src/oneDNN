@@ -116,10 +116,9 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
         auto scratchpad = ctx.get_scratchpad_grantor();
         auto mean_mem = scratchpad.get_memory_storage(key_lnorm_tmp_mean);
         auto variance_mem = scratchpad.get_memory_storage(key_lnorm_tmp_var);
-        memory_t mean(engine, &(pd()->reordered_stat_md_), std::move(mean_mem),
-                false);
-        memory_t variance(engine, &(pd()->reordered_stat_md_),
-                std::move(variance_mem), false);
+        memory_t mean(engine, &(pd()->reordered_stat_md_), std::move(mean_mem));
+        memory_t variance(
+                engine, &(pd()->reordered_stat_md_), std::move(variance_mem));
 
         // reorder input stats
         if (pd()->stats_are_src() && reorder_) {
@@ -242,10 +241,10 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
             auto mean_mem = scratchpad.get_memory_storage(key_lnorm_tmp_mean);
             auto variance_mem
                     = scratchpad.get_memory_storage(key_lnorm_tmp_var);
-            memory_t mean(engine, &(pd()->reordered_stat_md_),
-                    std::move(mean_mem), false);
+            memory_t mean(
+                    engine, &(pd()->reordered_stat_md_), std::move(mean_mem));
             memory_t variance(engine, &(pd()->reordered_stat_md_),
-                    std::move(variance_mem), false);
+                    std::move(variance_mem));
             reorder_stat(
                     ctx, engine, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
             reorder_stat(ctx, engine, ctx.args().at(DNNL_ARG_VARIANCE),

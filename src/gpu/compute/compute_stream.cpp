@@ -80,8 +80,7 @@ status_t compute_stream_t::zero_pad(
 
         return status;
     } else {
-        CHECK(zero_pad_primitive->execute(zero_pad_ctx));
-        return this->wait();
+        return zero_pad_primitive->execute(zero_pad_ctx);
     }
 };
 } // namespace compute

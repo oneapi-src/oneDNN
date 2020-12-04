@@ -38,7 +38,7 @@
 // may result in a failure returned via the `status` input since zero pad
 // may fail.
 #define CTX_OUT_CLEAN_STORAGE(arg, status) \
-    (ctx.output(arg) ? *(ctx.output(arg)->memory_storage()) \
+    (ctx.output(arg) ? *(ctx.output(arg)->memory_storage_clean(ctx, status)) \
                      : dnnl::impl::memory_storage_t::empty_storage())
 
 namespace dnnl {
@@ -83,7 +83,8 @@ struct exec_ctx_t {
 
     void register_memory_mapping(void *handle, void *host_ptr);
 
-    void *host_ptr(int arg) const;
+    void *host_ptr(
+            int arg, bool do_zeropad = false, status_t *status = nullptr) const;
     void *host_ptr(const memory_storage_t *mem_storage) const;
 
     void *map_memory_storage(const memory_storage_t *storage, stream_t *stream,

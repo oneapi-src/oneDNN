@@ -159,21 +159,21 @@ struct ref_concat_t : public primitive_t {
 
             for (int i = 0; i < n; ++i) {
                 memory_t tent_dst_i(engine, pd()->src_image_md(i),
-                        tent_dst_storage->clone(), false);
+                        tent_dst_storage->clone());
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
                         {&tent_dst_i, false}, i);
             }
 
-            memory_t tent_dst(engine, &pd()->tent_dst_md_,
-                    tent_dst_storage->clone(), false);
+            memory_t tent_dst(
+                    engine, &pd()->tent_dst_md_, tent_dst_storage->clone());
             execute_reorder(reorders_[n], {&tent_dst, true},
                     ctx.args().at(DNNL_ARG_DST), n);
         } else {
             auto &dst_mem_storage = CTX_OUT_STORAGE(DNNL_ARG_DST);
             for (int i = 0; i < n; ++i) {
-                memory_t tent_dst_i(engine, pd()->src_image_md(i),
-                        dst_mem_storage.clone(), false);
+                memory_t tent_dst_i(
+                        engine, pd()->src_image_md(i), dst_mem_storage.clone());
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
                         {&tent_dst_i, false}, i);

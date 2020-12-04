@@ -61,7 +61,7 @@ status_t dnnl_sycl_interop_memory_create(memory_t **memory,
     CHECK(mem_storage->init(flags, size, handle_ptr));
 
     return safe_ptr_assign(
-            *memory, new memory_t(engine, md, std::move(mem_storage), true));
+            *memory, new memory_t(engine, md, std::move(mem_storage)));
 }
 
 status_t dnnl_sycl_interop_memory_set_buffer(
@@ -80,8 +80,7 @@ status_t dnnl_sycl_interop_memory_set_buffer(
     CHECK(mem_storage->init(memory_flags_t::use_runtime_ptr, size, buffer));
 
     if (stream) stream->before_exec_hook();
-    status_t status
-            = memory->reset_memory_storage(std::move(mem_storage), true);
+    status_t status = memory->reset_memory_storage(std::move(mem_storage));
     if (stream) stream->after_exec_hook();
 
     return status;

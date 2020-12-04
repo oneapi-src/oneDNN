@@ -98,10 +98,16 @@ void exec_ctx_t::register_memory_mapping(void *handle, void *host_ptr) {
     memory_mapping_.insert({handle, host_ptr});
 }
 
-void *exec_ctx_t::host_ptr(int arg) const {
+void *exec_ctx_t::host_ptr(int arg, bool do_zeropad, status_t *status_) const {
+    status_t status = status::success;
+    if (status_) *status_ = status;
+
     if (args_.count(arg) != 1) return nullptr;
 
     auto *mem = args_.at(arg).mem;
+    if (do_zeropad) status = mem->zero_pad(*this);
+    if (status_) *status_ = status;
+
     auto *mem_storage = mem->memory_storage();
     return host_ptr(mem_storage);
 }

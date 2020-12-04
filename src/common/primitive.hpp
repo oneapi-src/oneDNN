@@ -217,7 +217,7 @@ status_t primitive_execute(
 // may result in a failure returned via the `status` input since zero pad
 // may fail.
 #define CTX_OUT_CLEAN_MEM(type, arg, status) \
-    static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg))
+    static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg, true, &status))
 
 // dnnl_primitive is a user facing entity that has an alias primitive_iface_t
 // for internal use.

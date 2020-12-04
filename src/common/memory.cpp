@@ -80,15 +80,13 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     if (status != success) return;
 
     memory_storage_.reset(memory_storage_ptr);
-    if (!(flags & omit_zero_pad)) zero_pad(nullptr);
 }
 
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
         const dnnl::impl::memory_desc_t *md,
-        std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage,
-        bool do_zero_pad)
+        std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage)
     : engine_(engine), md_(*md) {
-    this->reset_memory_storage(std::move(memory_storage), do_zero_pad);
+    this->reset_memory_storage(std::move(memory_storage));
 }
 
 status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream) {
@@ -100,15 +98,13 @@ status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream) {
     if (handle != old_handle) {
         CHECK(memory_storage()->set_data_handle(handle));
     }
-    return zero_pad(stream);
+    return status::success;
 }
 
 status_t dnnl_memory::reset_memory_storage(
-        std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage,
-        bool do_zero_pad) {
+        std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage) {
     if (memory_storage) {
         memory_storage_ = std::move(memory_storage);
-        if (do_zero_pad) zero_pad(nullptr);
     } else {
         memory_storage_t *memory_storage_ptr;
         status_t status = engine_->create_memory_storage(

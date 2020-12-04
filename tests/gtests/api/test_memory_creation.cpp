@@ -61,7 +61,6 @@ protected:
 
         // mem0
         // Initially spoiled by putting non-zero values in padded area.
-        // The test will manually fix it later.
         auto mem0 = test::make_memory(md, eng);
 
         // `runtime`-aware buffer for future mem1
@@ -79,15 +78,8 @@ protected:
                 mem1_ph_ptr[i] = mem0_ptr[i];
         }
 
-        // mem1
-        // A `corrected` version of mem0 (i.e. padded area should be filled with
-        // zeros) and with a buffer taken from mem1_placeholder.
-
         auto mem1 = test::make_memory(md, eng, nullptr);
         mem1.set_data_handle(mem1_placeholder.get_data_handle());
-
-        check_zero_tail<data_t>(0, mem1); // Check, if mem1 is indeed corrected
-        check_zero_tail<data_t>(1, mem0); // Manually correct mem0
 
         // Map-unmap section
         {
@@ -257,10 +249,6 @@ TEST(memory_test_cpp, TestSetDataHandleCPU) {
     ASSERT_TRUE(data_md.data.format_kind == dnnl_blocked);
     ASSERT_TRUE(data_md.data.format_desc.blocking.inner_nblks == 1);
     ASSERT_TRUE(data_md.data.format_desc.blocking.inner_blks[0] == 16);
-    for (int h = 0; h < H; h++)
-        for (int w = 0; w < W; w++)
-            for (int c = C; c < 16; c++)
-                ASSERT_TRUE(p[h * W * 16 + w * 16 + c] == 0.0f);
 
     free(p);
 }
