@@ -94,27 +94,26 @@ private:
             + vreg_to_preserve * vreg_len_preserve;
 
 public:
-    Xbyak_aarch64::WReg W_TMP_0 = w23;
-    Xbyak_aarch64::WReg W_TMP_1 = w24;
-    Xbyak_aarch64::WReg W_TMP_2 = w25;
-    Xbyak_aarch64::WReg W_TMP_3 = w26;
-    Xbyak_aarch64::WReg W_TMP_4 = w27;
-    Xbyak_aarch64::XReg X_TMP_0 = x23;
-    Xbyak_aarch64::XReg X_TMP_1 = x24;
-    Xbyak_aarch64::XReg X_TMP_2 = x25;
-    Xbyak_aarch64::XReg X_TMP_3 = x26;
-    Xbyak_aarch64::XReg X_TMP_4 = x27;
-    Xbyak_aarch64::XReg X_TMP_ADDR = x28;
+    const Xbyak_aarch64::WReg W_TMP_0 = w23;
+    const Xbyak_aarch64::WReg W_TMP_1 = w24;
+    const Xbyak_aarch64::WReg W_TMP_2 = w25;
+    const Xbyak_aarch64::WReg W_TMP_3 = w26;
+    const Xbyak_aarch64::WReg W_TMP_4 = w27;
+    const Xbyak_aarch64::XReg X_TMP_0 = x23;
+    const Xbyak_aarch64::XReg X_TMP_1 = x24;
+    const Xbyak_aarch64::XReg X_TMP_2 = x25;
+    const Xbyak_aarch64::XReg X_TMP_3 = x26;
+    const Xbyak_aarch64::XReg X_TMP_4 = x27;
     const Xbyak_aarch64::XReg X_DEFAULT_ADDR = x28;
-    Xbyak_aarch64::PReg P_TMP = p0;
-    Xbyak_aarch64::PReg P_TMP_0 = p11;
-    Xbyak_aarch64::PReg P_TMP_1 = p12;
-    Xbyak_aarch64::PReg P_ALL_ZERO = p10;
-    Xbyak_aarch64::PReg P_MSB_256 = p13;
-    Xbyak_aarch64::PReg P_MSB_384 = p14;
-    Xbyak_aarch64::PReg P_ALL_ONE = p15;
+    const Xbyak_aarch64::PReg P_TMP = p0;
+    const Xbyak_aarch64::PReg P_TMP_0 = p11;
+    const Xbyak_aarch64::PReg P_TMP_1 = p12;
+    const Xbyak_aarch64::PReg P_ALL_ZERO = p10;
+    const Xbyak_aarch64::PReg P_MSB_256 = p13;
+    const Xbyak_aarch64::PReg P_MSB_384 = p14;
+    const Xbyak_aarch64::PReg P_ALL_ONE = p15;
 
-    Xbyak_aarch64::XReg param1 = abi_param1;
+    const Xbyak_aarch64::XReg param1 = abi_param1;
 
     inline size_t get_size_of_abi_save_regs() { return size_of_abi_save_regs; }
 
