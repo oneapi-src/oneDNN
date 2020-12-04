@@ -29,7 +29,15 @@
     (ctx.input(arg) ? *(ctx.input(arg)->memory_storage()) \
                     : dnnl::impl::memory_storage_t::empty_storage())
 
+// Returns destination memory which may not have been zero pad initialized.
 #define CTX_OUT_STORAGE(arg) \
+    (ctx.output(arg) ? *(ctx.output(arg)->memory_storage()) \
+                     : dnnl::impl::memory_storage_t::empty_storage())
+
+// Returns destination memory which has been zero pad initialized. This macro
+// may result in a failure returned via the `status` input since zero pad
+// may fail.
+#define CTX_OUT_CLEAN_STORAGE(arg, status) \
     (ctx.output(arg) ? *(ctx.output(arg)->memory_storage()) \
                      : dnnl::impl::memory_storage_t::empty_storage())
 
