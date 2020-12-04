@@ -425,7 +425,7 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
 
     if (is_nhwc && (is_depthwise || is_1stconv)) return status::unimplemented;
 
-    if (is_1stconv || (conf.with_groups && conf.ngroups > 1)) {
+    if (is_1stconv || (conf.with_groups && conf.ngroups > 1) || is_depthwise) {
         conf.ic = conf.ic_without_padding;
         conf.oc = is_1stconv ? utils::rnd_up(conf.oc_without_padding, 16)
                              : conf.oc_without_padding;
@@ -839,7 +839,8 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
     conf.is_nhwc = is_nhwc;
     conf.is_depthwise = is_depthwise;
 
-    if (is_1stconv || (conf.with_groups && conf.ngroups > 1) || is_nhwc) {
+    if (is_1stconv || (conf.with_groups && conf.ngroups > 1) || is_depthwise
+            || is_nhwc) {
         conf.ic = conf.ic_without_padding;
         conf.oc = is_1stconv ? utils::rnd_up(conf.oc_without_padding, 16)
                              : conf.oc_without_padding;

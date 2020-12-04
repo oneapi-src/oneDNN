@@ -81,6 +81,7 @@ gen9_conv_dw_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
                 const __global DATA_T *wei1 = wei + kd * KH * KW * OC_BLOCK
                         + kh * KW * OC_BLOCK + kw * OC_BLOCK;
 #else
+    const int kw = 0;
     int ow = (iw + PW);
     int oh = (ih + PH);
     int od = (id + PD);
@@ -185,6 +186,7 @@ gen9_conv_dw_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
                 const __global DATA_T *wei1 = wei + kd * KH * KW * OC_BLOCK
                         + kh * KW * OC_BLOCK + kw * OC_BLOCK;
 #else
+    const int kw = 0;
     int oh = (ih + PH);
     int od = (id + PD);
     bool do_ker = od % SD == 0 && oh % SH == 0;
