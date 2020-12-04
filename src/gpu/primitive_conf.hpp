@@ -504,7 +504,10 @@ struct lnorm_conf_t {
     bool use_scaleshift;
     bool calculate_stats;
     bool save_stats;
+    bool vectorize_calc_stats;
     float eps;
+    int sub_group_size;
+    int vect_dt_n;
 
     compute::dispatch_t dispatch_scaleshift;
     compute::dispatch_t dispatch;

@@ -41,16 +41,37 @@ static status_t init_conf_common(lnorm_conf_t &conf,
 
     conf.is_fwd = pd->is_fwd();
 
+    conf.vectorize_calc_stats = false;
+    conf.vect_dt_n = 1;
+    conf.sub_group_size = 1;
+
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch_scaleshift = compute_engine->create_dispatch();
     conf.dispatch = compute_engine->create_dispatch(
             pd->is_fwd() ? dst_mdw.md_ : src_mdw.md_);
     auto &dims = (pd->is_fwd() ? src_mdw : dst_mdw).dims();
     if (pd->is_fwd()) {
+        if ((conf.norm_axis % 16 == 0) && ndims < 4) {
+            conf.vectorize_calc_stats = true;
+            conf.sub_group_size = 16;
+            int vector_size = 8;
+            while (conf.norm_axis % (conf.sub_group_size * vector_size) != 0) {
+                vector_size /= 2;
+            }
+            conf.vect_dt_n = vector_size;
+        }
         for (int i = 0; i < 4; i++) {
             int md_hint_idx = nstl::min(i, ndims - 1);
             int dim = (i < ndims - 1) ? dims[i] : 1;
-            conf.dispatch.define_dim(utils::format("X%d", i), md_hint_idx, dim);
+            if (conf.vectorize_calc_stats && (i == ndims - 1)) {
+                dim = 16;
+                conf.dispatch.define_dim(
+                        utils::format("X%d", i), md_hint_idx, dim);
+                conf.dispatch.vectorize_dim(
+                        utils::format("X%d", i), conf.sub_group_size);
+            } else
+                conf.dispatch.define_dim(
+                        utils::format("X%d", i), md_hint_idx, dim);
         }
     } else {
         conf.dispatch_scaleshift.define_dim("C", pd->norm_axis());
@@ -88,6 +109,9 @@ static status_t init_kernel_ctx_common(
     kernel_ctx.define_int("SAVE_STATS", conf.save_stats);
     kernel_ctx.define_int("IS_FWD", conf.is_fwd);
     kernel_ctx.define_int("IS_BWD", !conf.is_fwd);
+    kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
+    kernel_ctx.define_int("VECTORIZE_CALC_STATS", conf.vectorize_calc_stats);
+    kernel_ctx.define_int("VECT_DT_N", conf.vect_dt_n);
 
     def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
