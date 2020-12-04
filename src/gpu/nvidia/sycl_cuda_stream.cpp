@@ -55,14 +55,7 @@ status_t sycl_cuda_stream_t::init() {
     if (!queue_) {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
-        if (!sycl_engine.is_service_stream_created())
-            queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev));
-        else {
-            stream_t *service_stream;
-            CHECK(sycl_engine.get_service_stream(service_stream));
-            auto sycl_stream = utils::downcast<sycl_stream_t *>(service_stream);
-            queue_.reset(new cl::sycl::queue(sycl_stream->queue()));
-        }
+        queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev));
     } else {
         auto queue_streamId = get_underlying_stream();
         auto sycl_dev = queue().get_device();

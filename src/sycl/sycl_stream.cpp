@@ -38,47 +38,30 @@ status_t sycl_stream_t::init() {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
 
-        // FIXME: workaround for Intel(R) oneAPI DPC++ Compiler
-        // Intel(R) oneAPI DPC++ Compiler does not work with multiple queues so
-        // try to reuse the service stream from the engine.
-        // That way all oneDNN streams constructed without interop API are
-        // mapped to the same SYCL queue.
-        // If service stream is NULL then the current stream will be service
-        // so construct it from scratch.
-        if (!sycl_engine.is_service_stream_created()) {
 #ifdef DNNL_SYCL_DPCPP
-            cl::sycl::property_list props = (flags() & stream_flags::in_order)
-                    ? cl::sycl::property_list {cl::sycl::property::queue::
-                                    in_order {}}
-                    : cl::sycl::property_list {};
-            queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev, props));
+        cl::sycl::property_list props = (flags() & stream_flags::in_order)
+                ? cl::sycl::
+                        property_list {cl::sycl::property::queue::in_order {}}
+                : cl::sycl::property_list {};
+        queue_.reset(new cl::sycl::queue(sycl_ctx, sycl_dev, props));
 #else
-            // XXX: Create a queue based on the SYCL context and engine kind.
-            // This is not reliable but there is no constructor from
-            // context and device in SYCL 1.2.1.
-            if (sycl_dev.is_cpu()) {
-                assert(sycl_engine.kind() == engine_kind::cpu);
-                queue_.reset(new cl::sycl::queue(
-                        sycl_ctx, cl::sycl::cpu_selector {}));
-            } else if (sycl_dev.is_host()) {
-                assert(sycl_engine.kind() == engine_kind::cpu);
-                queue_.reset(new cl::sycl::queue(
-                        sycl_ctx, cl::sycl::host_selector {}));
-            } else {
-                assert(sycl_engine.kind() == engine_kind::gpu);
-                queue_.reset(new cl::sycl::queue(
-                        sycl_ctx, cl::sycl::gpu_selector {}));
-            }
-#endif
-
+        // XXX: Create a queue based on the SYCL context and engine kind.
+        // This is not reliable but there is no constructor from
+        // context and device in SYCL 1.2.1.
+        if (sycl_dev.is_cpu()) {
+            assert(sycl_engine.kind() == engine_kind::cpu);
+            queue_.reset(
+                    new cl::sycl::queue(sycl_ctx, cl::sycl::cpu_selector {}));
+        } else if (sycl_dev.is_host()) {
+            assert(sycl_engine.kind() == engine_kind::cpu);
+            queue_.reset(
+                    new cl::sycl::queue(sycl_ctx, cl::sycl::host_selector {}));
         } else {
-            // XXX: multiple queues support has some issues, so always re-use
-            // the same queue from the service stream.
-            stream_t *service_stream;
-            CHECK(sycl_engine.get_service_stream(service_stream));
-            auto sycl_stream = utils::downcast<sycl_stream_t *>(service_stream);
-            queue_.reset(new cl::sycl::queue(sycl_stream->queue()));
+            assert(sycl_engine.kind() == engine_kind::gpu);
+            queue_.reset(
+                    new cl::sycl::queue(sycl_ctx, cl::sycl::gpu_selector {}));
         }
+#endif
     } else {
         // TODO: Compare device and context of the engine with those of the
         // queue after SYCL adds support for device/context comparison.
