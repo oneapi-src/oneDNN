@@ -55,7 +55,7 @@ public:
     normal_distribution_t(T mean, T stddev)
         : gen(-1.f, 1.f)
         , is_odd_(false)
-        , odd(1.f)
+        , odd_(1.f)
         , mean_(mean)
         , stddev_(stddev) {
         static_assert(std::is_floating_point<T>::value,
