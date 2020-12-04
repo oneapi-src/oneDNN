@@ -156,13 +156,13 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         const int po_oc = c + local_id;
         POST_OP_DATA_T po_sum0 = DATA_TO_REF(sum0);
         float po_D0 = USE_FLOATS ? D0 : CONVERT_FLOAT_T(D0);
-        APPLY_POST_OPS_SERIAL(
+        APPLY_POST_OPS_SERIAL_BINARY_2D(
                 po_D0, float, po_sum0, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
         D0 = USE_FLOATS ? po_D0 : CONVERT_DATA_T(po_D0);
 
         POST_OP_DATA_T po_sum1 = DATA_TO_REF(sum1);
         float po_D1 = USE_FLOATS ? D1 : CONVERT_FLOAT_T(D1);
-        APPLY_POST_OPS_SERIAL(
+        APPLY_POST_OPS_SERIAL_BINARY_2D(
                 po_D1, float, po_sum1, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
         D1 = USE_FLOATS ? po_D1 : CONVERT_DATA_T(po_D1);
 #else
@@ -179,14 +179,14 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
 
             float d0_i = USE_FLOATS ? D0[idx] : CONVERT_FLOAT_T(D0[idx]);
             POST_OP_DATA_T sum0_i = DATA_TO_REF(sum0[idx]);
-            APPLY_POST_OPS_SERIAL(
+            APPLY_POST_OPS_SERIAL_BINARY_2D(
                     d0_i, float, sum0_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
             D0[idx] = USE_FLOATS ? d0_i : CONVERT_DATA_T(d0_i);
 
             float d1_i = USE_FLOATS ? D1[idx] : CONVERT_FLOAT_T(D1[idx]);
             POST_OP_DATA_T sum1_i = DATA_TO_REF(sum1[idx]);
             po_mb += VECT_DT_N;
-            APPLY_POST_OPS_SERIAL(
+            APPLY_POST_OPS_SERIAL_BINARY_2D(
                     d1_i, float, sum1_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
             D1[idx] = USE_FLOATS ? d1_i : CONVERT_DATA_T(d1_i);
         }

@@ -4,6 +4,7 @@
 --dir=FWD_D,BWD_D
 --dt=f32,bf16
 --tag=abx,aBx16b,ABx16a16b
+--attr-post-ops='','add:s8:per_tensor'
 --batch=option_set_all_algs
 
 # uint8, int8, int32

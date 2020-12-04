@@ -350,14 +350,26 @@ float fwd_Xnary(unsigned algorithm, float x, float y, float alpha, float beta,
             0, 1, 0, 1, true)
 
 #define APPLY_POST_OPS_SERIAL(accumulator, acc_elem_dt, sum_src, sum_elem_dt, \
-        mb_start, mb_size, oc_start, oc_size) \
+        mb_start, mb_size, oc_start, oc_size, d2_start, d2_size, d3_start, \
+        d3_size, d4_start, d4_size, d5_start, d5_size) \
+    APPLY_POST_OPS_BL(accumulator, acc_elem_dt, sum_src, sum_elem_dt, \
+            mb_start, mb_size, oc_start, oc_size, 0, d2_start, d2_size, \
+            d3_start, d3_size, d4_start, d4_size, d5_start, d5_size, false)
+
+#define APPLY_POST_OPS_SERIAL_BINARY_2D(accumulator, acc_elem_dt, sum_src, \
+        sum_elem_dt, mb_start, mb_size, oc_start, oc_size) \
     APPLY_POST_OPS_BL(accumulator, acc_elem_dt, sum_src, sum_elem_dt, \
             mb_start, mb_size, oc_start, oc_size, 0, 0, 1, 0, 1, 0, 1, 0, 1, \
             false)
 #else
 
 #define APPLY_POST_OPS_SERIAL(accumulator, acc_elem_dt, sum_src, sum_elem_dt, \
-        mb_start, mb_size, oc_start, oc_size) \
+        mb_start, mb_size, oc_start, oc_size, d2_start, d2_size, d3_start, \
+        d3_size, d4_start, d4_size, d5_start, d5_size) \
+    {}
+
+#define APPLY_POST_OPS_SERIAL_BINARY_2D(accumulator, acc_elem_dt, sum_src, \
+        sum_elem_dt, mb_start, mb_size, oc_start, oc_size) \
     {}
 
 #define APPLY_POST_OPS_TRY_BURST(accumulator, acc_elem_dt, sum_src, \

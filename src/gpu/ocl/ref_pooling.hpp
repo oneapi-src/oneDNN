@@ -74,7 +74,7 @@ struct ref_pooling_fwd_t : public gpu_primitive_t {
                                     && dst_data_t != f32,
                             acc_data_t == s32)
                     && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_with_binary_ok(attr(), dst_md()->data_type);
+                    && post_ops_with_binary_ok(attr(), dst_md()->data_type, 5);
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;

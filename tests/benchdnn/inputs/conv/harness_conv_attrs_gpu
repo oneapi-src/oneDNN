@@ -26,10 +26,10 @@
 --attr-post-ops='relu:0.5;sum'
 --cfg=u8s8s8 --batch=shapes_resnet_50
 
---attr-post-ops='relu:0.5;sum:1.5:u8;add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01'
+--attr-post-ops='relu:0.5;sum:1.5:u8;add:f32;add:u8:per_tensor;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01'
 --cfg=u8s8s8 --batch=shapes_resnet_50
 
---attr-post-ops='sum:0.5:s8;relu:1.5;add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01'
+--attr-post-ops='sum:0.5:s8;relu:1.5;add:f32;add:u8:per_dim_01;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_tensor'
 --cfg=u8s8u8 --batch=shapes_resnet_50
 
 # f32
@@ -45,7 +45,7 @@
 
 # requires no_limit config since final value can go out of f16 cfg boundaries
 --cfg=f16_no_limits
---attr-post-ops='sum:2.5;add:f32;add:u8:per_dim_01;linear:0.5:1.5:2.0;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_dim_01'
+--attr-post-ops='sum:2.5;add:f32;add:u8:per_dim_01;linear:0.5:1.5:2.0;mul:f32:per_dim_0;add:s8:per_oc;add:f32:per_tensor'
 --batch=shapes_resnet_50
 
 # remaining configs with binary post op testing

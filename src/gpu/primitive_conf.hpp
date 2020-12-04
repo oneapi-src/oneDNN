@@ -900,8 +900,8 @@ inline void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
             "CLIP_V2_DST", alg_kind::eltwise_clip_v2_use_dst_for_bwd);
 }
 
-inline bool post_ops_with_binary_ok(
-        const primitive_attr_t *attr, const data_type_t dst_dt) {
+inline bool post_ops_with_binary_ok(const primitive_attr_t *attr,
+        const data_type_t dst_dt, const int max_ndims_supported = 2) {
     const auto &p = attr->post_ops_;
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
@@ -911,7 +911,10 @@ inline bool post_ops_with_binary_ok(
     bool is_po_ok = true;
     for (int po_idx = 0; po_idx < p.len(); ++po_idx) {
         is_po_ok &= is_eltwise(po_idx) | is_sum(po_idx) | is_binary(po_idx);
-
+        if (is_binary(po_idx)) {
+            if (p.entry_[po_idx].binary.src1_desc.ndims > max_ndims_supported)
+                is_po_ok = false;
+        }
         if (is_sum(po_idx)) {
             if (p.entry_[po_idx].sum.dt != dnnl_data_type_undef
                     && types::data_type_size(p.entry_[po_idx].sum.dt)

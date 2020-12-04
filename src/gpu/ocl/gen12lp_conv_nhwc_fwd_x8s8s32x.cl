@@ -432,7 +432,7 @@ conv_nhwc_fwd_x8s8s32x(const __global SRC_DATA_T *src, const __global char *wei,
                 const int po_oc = ((group_oc + oc) * OC_BLOCK + local_id \
                                           + didx * SUB_GROUP_SIZE) \
                         % (OC * G); \
-                APPLY_POST_OPS_SERIAL( \
+                APPLY_POST_OPS_SERIAL_BINARY_2D( \
                         tmp_i, float, dni_i, float, po_mb, 1, po_oc, 1); \
                 tmp[didx] = tmp_i; \
             } \

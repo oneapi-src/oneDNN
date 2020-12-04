@@ -1000,7 +1000,8 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
                 float sum = CONVERT_FLOAT_T(S[didx]);
                 int po_oc = oc;
 
-                APPLY_POST_OPS_SERIAL(C, DATA_T, S, DATA_T, mb, 1, po_oc, 1);
+                APPLY_POST_OPS_SERIAL_BINARY_2D(
+                        C, DATA_T, S, DATA_T, mb, 1, po_oc, 1);
                 C[didx] = TO_DATA_T(accum);
             }
             C0 = OUT_BLOCK_READ(&C[0 * OUT_TYPE_BLOCK]);

@@ -70,7 +70,8 @@ struct gen9_binary_t : public gpu_primitive_t {
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
                                                     intel_subgroups_short))
-                    && post_ops_with_binary_ok(attr(), dst_md()->data_type);
+                    && post_ops_with_binary_ok(
+                            attr(), dst_md()->data_type, MAX_NDIMS);
 
             if (!ok) return status::unimplemented;
 

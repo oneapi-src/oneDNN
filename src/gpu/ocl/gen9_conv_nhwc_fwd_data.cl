@@ -300,7 +300,7 @@ gen9_conv_nhwc_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
     const int po_mb = (mb) % MB;
     const int po_oc = (oc * OC_BLOCK) % (OC * G);
-    APPLY_POST_OPS_SERIAL(
+    APPLY_POST_OPS_SERIAL_BINARY_2D(
             blockC00, DATA_T, blockS00, DATA_T, po_mb, 1, po_oc, 1);
 
     // Save

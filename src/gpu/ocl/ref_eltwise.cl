@@ -68,7 +68,8 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
     dst_data = convert_float(DATA_TO_REF(dst[data_off]));
 #endif
 
-    APPLY_POST_OPS_SERIAL(tmp_s, float, dst_data, float, d0, 1, d1, 1);
+    APPLY_POST_OPS_SERIAL(tmp_s, float, dst_data, float, d0, 1, d1, 1, d2, 1,
+            d3, 1, d4, 1, d5, 1);
     dst[data_off] = CONVERT_DATA_T(tmp_s);
 }
 

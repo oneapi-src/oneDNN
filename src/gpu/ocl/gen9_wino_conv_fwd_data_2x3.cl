@@ -270,7 +270,8 @@ __kernel void gen9_wino_dst_transform_2x3(__global DATA_T *dst,
             float accum = CONVERT_FLOAT_T(C[didx]);
             float sum = CONVERT_FLOAT_T(S[didx]);
             int po_oc = oc + c_size % OC_BLOCK;
-            APPLY_POST_OPS_SERIAL(C, DATA_T, S, DATA_T, n, 1, po_oc, 1);
+            APPLY_POST_OPS_SERIAL_BINARY_2D(
+                    C, DATA_T, S, DATA_T, n, 1, po_oc, 1);
             C[didx] = TO_DATA_T(accum);
         }
 

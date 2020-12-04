@@ -76,8 +76,25 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
             AS_SUM_DATA_T(dst[DST_OFF(n, g * OC + oc, od, oh, ow)]));
 #endif
 
-    APPLY_POST_OPS_SERIAL(
-            tmp, POST_OP_DATA_T, sum_src, POST_OP_DATA_T, n, 1, g * OC + oc, 1);
+#if NDIMS == 3
+    const unsigned po_d2 = ow;
+    const unsigned po_d3 = 0;
+    const unsigned po_d4 = 0;
+#elif NDIMS == 4
+    const unsigned po_d2 = oh;
+    const unsigned po_d3 = ow;
+    const unsigned po_d4 = 0;
+#elif NDIMS == 5
+    const unsigned po_d2 = od;
+    const unsigned po_d3 = oh;
+    const unsigned po_d4 = ow;
+#else
+    const unsigned po_d2 = 0;
+    const unsigned po_d3 = 0;
+    const unsigned po_d4 = 0;
+#endif
+    APPLY_POST_OPS_SERIAL(tmp, POST_OP_DATA_T, sum_src, POST_OP_DATA_T, n, 1,
+            g * OC + oc, 1, po_d2, 1, po_d3, 1, po_d4, 1, 0, 1);
 
 #if WITH_DST_ZPOINTS
     const int dst_zp = DST_ZPOINT_COMMON != 0
@@ -133,8 +150,25 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
 #endif
 
     float accumulator = convert_float(d);
-    APPLY_POST_OPS_SERIAL(
-            accumulator, float, sum_src, float, n, 1, g *IC + ic, 1);
+#if NDIMS == 3
+    const unsigned po_d2 = iw;
+    const unsigned po_d3 = 0;
+    const unsigned po_d4 = 0;
+#elif NDIMS == 4
+    const unsigned po_d2 = ih;
+    const unsigned po_d3 = iw;
+    const unsigned po_d4 = 0;
+#elif NDIMS == 5
+    const unsigned po_d2 = id;
+    const unsigned po_d3 = ih;
+    const unsigned po_d4 = iw;
+#else
+    const unsigned po_d2 = 0;
+    const unsigned po_d3 = 0;
+    const unsigned po_d4 = 0;
+#endif
+    APPLY_POST_OPS_SERIAL(accumulator, float, sum_src, float, n, 1, g *IC + ic,
+            1, po_d2, 1, po_d3, 1, po_d4, 1, 0, 1);
 
     diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)] = TO_SRC(accumulator);
 }

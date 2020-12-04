@@ -56,7 +56,7 @@
 --dir=FWD_I
 --cfg=f32,s32,f16,bf16,u8,s8
 --alg=MAX,AVG_NP,AVG_P
---attr-post-ops='add:s32:per_oc','add:f32;linear:-0.5:1.5'
+--attr-post-ops='add:s32:per_oc;sub:s8:per_tensor','add:f32;linear:-0.5:1.5'
 --mb=2
 --tag=abx,aBx16b
 --batch=shapes_3d_small
@@ -75,7 +75,7 @@
 --dir=FWD_I
 --tag=axb
 --alg=MAX,AVG_NP,AVG_P
---attr-post-ops='','add:f32;linear:-0.5:1.5'
+--attr-post-ops='','add:f32;sub:s8:per_tensor;linear:-0.5:1.5'
 --batch=set_all_small
 
 # Test different src and dst datatypes

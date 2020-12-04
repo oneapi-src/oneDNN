@@ -654,7 +654,7 @@ conv_nhwc_fwd_first_x8s8s32x(const __global uchar *src,
                 = (oc * OC_BLOCK + ((didx * SUB_GROUP_SIZE) % OC_BLOCK) \
                           + sub_local_id) \
                 % (OC * G); \
-        APPLY_POST_OPS_SERIAL( \
+        APPLY_POST_OPS_SERIAL_BINARY_2D( \
                 tmp_i, float, d_i, SUM_DATA_T, po_mb, 1, po_oc, 1); \
         accum[didx] = tmp_i; \
     }

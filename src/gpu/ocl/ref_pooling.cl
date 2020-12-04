@@ -130,8 +130,26 @@ __kernel void ref_pooling_fwd(__global DATA_T *src, __global int *ws,
 #if WITH_SUM
                 sum_src = DATA_TO_REF(dst[dst_off]);
 #endif
+#if NDIMS == 3
+                const unsigned po_d2 = ow;
+                const unsigned po_d3 = 0;
+                const unsigned po_d4 = 0;
+#elif NDIMS == 4
+                const unsigned po_d2 = oh;
+                const unsigned po_d3 = ow;
+                const unsigned po_d4 = 0;
+#elif NDIMS == 5
+                const unsigned po_d2 = od;
+                const unsigned po_d3 = oh;
+                const unsigned po_d4 = ow;
+#else
+                const unsigned po_d2 = 0;
+                const unsigned po_d3 = 0;
+                const unsigned po_d4 = 0;
+#endif
                 APPLY_POST_OPS_SERIAL(tmp, POST_OP_DATA_T, sum_src,
-                        POST_OP_DATA_T, mb, 1, oc, 1);
+                        POST_OP_DATA_T, mb, 1, oc, 1, po_d2, 1, po_d3, 1, po_d4,
+                        1, 0, 1);
 
                 // store result
                 dst[dst_off] = TO_DST(tmp);
