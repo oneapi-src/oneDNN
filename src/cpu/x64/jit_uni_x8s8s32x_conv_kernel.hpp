@@ -70,6 +70,7 @@ private:
     const Xbyak::Reg64 aux_reg_inp_d = r13;
     const Xbyak::Reg64 reg_compensation = r14;
     const Xbyak::Reg64 aux_reg_ker_d = r15;
+    const Xbyak::Reg64 reg_ker_long_offt = r13;
 
     /* counter regs */
     const Xbyak::Reg64 reg_bias_alpha = abi_not_param1;

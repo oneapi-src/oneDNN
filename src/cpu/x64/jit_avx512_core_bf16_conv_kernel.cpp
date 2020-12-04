@@ -431,16 +431,16 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
 
     // End of IC Loop
     dim_t src_step = get_src_offset(jcp.ic_block, 0);
-    size_t ker_step = get_kernel_offset(0, jcp.ic_block, 0);
+    const size_t ker_step = get_kernel_offset(0, jcp.ic_block, 0);
     add(reg_src, src_step);
-    add(reg_ker, ker_step);
+    safe_add(reg_ker, ker_step, reg_ker_long_offt);
 
     sub(reg_ic, jcp.ic_block);
     cmp(reg_ic, 0);
     jg(icb_label, T_NEAR);
 
     sub(reg_src, src_step * jcp.nb_ic);
-    sub(reg_ker, ker_step * jcp.nb_ic);
+    safe_sub(reg_ker, ker_step * jcp.nb_ic, reg_ker_long_offt);
 
     L(skip_compute_loop);
     store_dst(ur_w);

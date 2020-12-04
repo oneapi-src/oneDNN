@@ -89,6 +89,7 @@ private:
 
     reg64_t reg_long_offt = r11;
     reg64_t reg_out_long_offt = r14;
+    reg64_t reg_ker_long_offt = r11;
     reg64_t reg_tail = aux_reg_ker;
     reg64_t reg_load_work = reg_tail;
     Xbyak::Opmask k_oc_tail_mask = Xbyak::Opmask(2);

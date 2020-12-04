@@ -85,6 +85,7 @@ private:
     const Xbyak::Reg64 reg_bias_alpha = abi_not_param1;
     const Xbyak::Reg64 reg_overflow = rax;
     const Xbyak::Reg64 reg_comp_strides = reg_overflow;
+    const Xbyak::Reg64 reg_ker_long_offt = r15;
 
     Xbyak::Opmask ktail_mask = Xbyak::Opmask(2);
     const Vmm vmm_tmp = Vmm(28);
