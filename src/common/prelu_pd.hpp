@@ -17,7 +17,6 @@
 #ifndef COMMON_PRELU_PD_HPP
 #define COMMON_PRELU_PD_HPP
 
-#include "common/broadcast_strategy.hpp"
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/nstl.hpp"

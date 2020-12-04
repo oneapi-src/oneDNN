@@ -17,6 +17,7 @@
 #include "cpu/x64/jit_avx512_core_x8s8s32x_deconvolution.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/memory_desc_wrapper.hpp"
+
 #define GET_OFF(field) offsetof(jit_deconv_call_s, field)
 
 namespace dnnl {
@@ -347,18 +348,14 @@ status_t _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
 bool _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::post_ops_ok(
         jit_conv_conf_t &jcp, const primitive_attr_t &attr,
         const memory_desc_wrapper &dst_d) {
-    const auto &p = attr.post_ops_;
-    const auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-    const auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
 
-    for (int i = 0; i < p.len(); i++) {
-        if (p.contain(primitive_kind::sum, i)) {
-            if (i > 0) return false;
-        } else if (!(is_eltwise(i) || is_binary(i)))
-            return false;
-    }
+    using namespace injector;
+    const auto &post_ops = attr.post_ops_;
+    static constexpr bool sum_at_pos_0_only = true;
+    static constexpr bool sum_requires_scale_one = true;
 
-    return binary_injector::binary_args_broadcast_supported(p, dst_d);
+    return injector::post_ops_ok({avx512_core, {eltwise, binary, sum}, post_ops,
+            &dst_d, sum_at_pos_0_only, sum_requires_scale_one});
 }
 
 void _jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(

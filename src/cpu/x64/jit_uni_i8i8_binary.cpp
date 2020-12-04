@@ -36,6 +36,11 @@ namespace x64 {
 using namespace dnnl::impl::data_type;
 using namespace Xbyak;
 
+static bcast_set_t get_supported_bcast_strategies() {
+    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+            broadcasting_strategy_t::per_oc_spatial};
+}
+
 template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
 bool jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::post_ops_ok(
         const primitive_attr_t *attr, const memory_desc_wrapper &dst_d) {
@@ -81,7 +86,8 @@ bool jit_uni_i8i8_binary_t<src0_type, src1_type, dst_type>::post_ops_ok(
      */
     const bool blocked_tail = p.len() && blocked_format && oc % blksize;
 
-    return binary_injector::binary_args_broadcast_supported(p, dst_d)
+    return binary_injector::binary_args_broadcast_supported(
+                   p, dst_d, get_supported_bcast_strategies())
             && !blocked_tail
             && IMPLICATION(postops_per_oc_broadcast_exists,
                     binary_injector::all_binary_postop_rhs_per_oc_broadcast(p,
@@ -251,7 +257,8 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t {
                 reg_elt_inj_table, true /*preserve gpr*/, true /*preserve vmm*/,
                 PARAM_OFF(post_ops_binary_rhs_arg_vec), src0_d, tail_size_,
                 tail_opmask_, false /*use_exact_tail_scalar_bcast*/};
-        const binary_injector::static_params_t bsp(this->param1, rhs_arg_bsp);
+        const binary_injector::static_params_t bsp(
+                this->param1, get_supported_bcast_strategies(), rhs_arg_bsp);
         postops_injector_
                 = utils::make_unique<injector::jit_uni_postops_injector_t<isa>>(
                         this, po, bsp, esp);

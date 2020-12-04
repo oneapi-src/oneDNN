@@ -18,6 +18,7 @@
 #define COMMON_BROADCAST_STRATEGY_HPP
 
 #include <array>
+#include <set>
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
@@ -36,11 +37,16 @@ enum class broadcasting_strategy_t {
     unsupported
 };
 
+using bcast_set_t = std::set<broadcasting_strategy_t>;
+
 output_dims_t make_output_dims(const memory_desc_wrapper &dst_d);
 
 broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
+        const memory_desc_t &rhs_arg_md, const memory_desc_wrapper &dst_d);
+
+broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
         const memory_desc_t &rhs_arg_md, const memory_desc_wrapper &dst_d,
-        bool use_per_oc_spatial_strategy = true);
+        const bcast_set_t &supported_strategy_set);
 
 } // namespace impl
 } // namespace dnnl

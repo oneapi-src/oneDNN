@@ -27,6 +27,10 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
+static bcast_set_t get_supported_bcast_strategies() {
+    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc};
+}
+
 static inline dim_t get_offset(
         const memory_desc_wrapper &mdw, int n, int c, int d, int h, int w) {
     switch (mdw.ndims()) {
@@ -226,7 +230,6 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
                 }
             };
 
-            static constexpr bool use_per_oc_spatial_strategy = false;
             static constexpr bool preserve_gpr = true;
             static constexpr bool preserve_vmm = true;
             static constexpr bool use_exact_tail_scalar_bcast = false;
@@ -239,7 +242,7 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
                     mask(post_op_tail_opmask_idx_),
                     use_exact_tail_scalar_bcast};
             const binary_injector::static_params_t bsp {
-                    reg_param, use_per_oc_spatial_strategy, rhs_sp};
+                    reg_param, get_supported_bcast_strategies(), rhs_sp};
 
             postops_injector_ = utils::make_unique<
                     injector::jit_uni_postops_injector_t<isa>>(
@@ -1399,7 +1402,7 @@ bool jit_uni_i8i8_pooling_fwd_ker_t<isa>::post_ops_ok(jit_pool_conf_t &jpp,
      */
     return IMPLICATION(jpp.with_postops, jpp.alg != pooling_max)
             && binary_injector::binary_args_broadcast_supported(
-                    post_ops, dst_d);
+                    post_ops, dst_d, get_supported_bcast_strategies());
 }
 
 template <cpu_isa_t isa>

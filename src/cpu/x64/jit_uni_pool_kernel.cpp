@@ -15,13 +15,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/c_types_map.hpp"
-#include "common/nstl.hpp"
-#include "common/utils.hpp"
-#include "cpu/cpu_pooling_pd.hpp"
-
-#include <iostream>
 #include "cpu/x64/jit_uni_pool_kernel.hpp"
+#include "cpu/cpu_pooling_pd.hpp"
+#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,6 +28,10 @@ using namespace Xbyak;
 using namespace alg_kind;
 
 #define GET_OFF(field) offsetof(jit_pool_call_s, field)
+
+static bcast_set_t get_supported_bcast_strategies() {
+    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc};
+}
 
 template <cpu_isa_t isa>
 jit_uni_pool_kernel<isa>::~jit_uni_pool_kernel() = default;
@@ -48,7 +48,6 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
                 bf16_emu_reserv_4, bf16_emu_reserv_5);
 
     if (jpp.with_postops) {
-        static constexpr bool use_per_oc_spatial_strategy = false;
         static constexpr bool preserve_gpr = true;
         static constexpr bool preserve_vmm = true;
         static constexpr bool use_exact_tail_scalar_bcast = false;
@@ -67,7 +66,7 @@ jit_uni_pool_kernel<isa>::jit_uni_pool_kernel(
                 use_exact_tail_scalar_bcast};
 
         const binary_injector::static_params_t bsp {
-                reg_param, use_per_oc_spatial_strategy, rhs_sp};
+                reg_param, get_supported_bcast_strategies(), rhs_sp};
 
         postops_injector_
                 = utils::make_unique<injector::jit_uni_postops_injector_t<isa>>(
@@ -431,7 +430,8 @@ bool jit_uni_pool_kernel<isa>::post_ops_ok(jit_pool_conf_t &jpp,
         jpp.with_postops = jpp.with_eltwise || jpp.with_binary;
     }
 
-    return binary_injector::binary_args_broadcast_supported(post_ops, dst_d);
+    return binary_injector::binary_args_broadcast_supported(
+            post_ops, dst_d, get_supported_bcast_strategies());
 }
 
 template <cpu_isa_t isa>

@@ -29,8 +29,26 @@ output_dims_t make_output_dims(const memory_desc_wrapper &dst_d) {
 }
 
 broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
+        const memory_desc_t &rhs_arg_md, const memory_desc_wrapper &dst_d) {
+
+    static const bcast_set_t all_bcast_strategies {
+            broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+            broadcasting_strategy_t::per_oc_spatial,
+            broadcasting_strategy_t::no_broadcast};
+
+    return get_rhs_arg_broadcasting_strategy(
+            rhs_arg_md, dst_d, all_bcast_strategies);
+}
+
+broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
         const memory_desc_t &rhs_arg_md, const memory_desc_wrapper &dst_d,
-        bool use_per_oc_spatial_strategy) {
+        const bcast_set_t &supported_strategy_set) {
+
+    const auto is_enabled = [&](const broadcasting_strategy_t &bcast) {
+        return supported_strategy_set.find(bcast)
+                != supported_strategy_set.cend();
+    };
+
     const int ndims = rhs_arg_md.ndims;
     const auto output_dims = make_output_dims(dst_d);
 
@@ -48,31 +66,37 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
             mask.set(d);
     }
 
-    if (all_ones)
-        return broadcasting_strategy_t::scalar;
-    else if (mask.none())
-        return broadcasting_strategy_t::no_broadcast;
+    broadcasting_strategy_t bcast = broadcasting_strategy_t::unsupported;
 
     const auto &mb_rhs = rhs_arg_md.dims[0];
     const bool broadcast_per_mb = !mask.test(0);
     const bool broadcast_per_oc = !mask.test(1);
 
-    if (broadcast_per_mb && broadcast_per_oc && mb_rhs != 1) {
+    if (all_ones)
+        bcast = broadcasting_strategy_t::scalar;
+    else if (mask.none())
+        bcast = broadcasting_strategy_t::no_broadcast;
+    else if (broadcast_per_mb && broadcast_per_oc && mb_rhs != 1) {
         return broadcasting_strategy_t::unsupported;
     } else if (broadcast_per_oc) {
+        const bool use_per_oc_spatial_strategy
+                = is_enabled(broadcasting_strategy_t::per_oc_spatial);
+
         if (use_per_oc_spatial_strategy && dst_d.is_blocking_desc()) {
             const auto &strides = dst_d.blocking_desc().strides;
 
             //per_oc_spatial basically used in nchw data format
-            return dst_d.is_plain() && strides[1] != 1
+            bcast = dst_d.is_plain() && strides[1] != 1
                             && strides[0] >= strides[1]
                             && IMPLICATION(ndims >= 3, strides[1] >= strides[2])
                     ? broadcasting_strategy_t::per_oc_spatial
                     : broadcasting_strategy_t::per_oc;
         } else {
-            return broadcasting_strategy_t::per_oc;
+            bcast = broadcasting_strategy_t::per_oc;
         }
     }
+
+    if (is_enabled(bcast)) return bcast;
 
     return broadcasting_strategy_t::unsupported;
 }

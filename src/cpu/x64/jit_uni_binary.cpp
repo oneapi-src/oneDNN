@@ -36,6 +36,11 @@ namespace x64 {
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
 
+static bcast_set_t get_supported_bcast_strategies() {
+    return {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+            broadcasting_strategy_t::per_oc_spatial};
+}
+
 template <data_type_t src_type>
 bool jit_uni_binary_t<src_type>::post_ops_ok(
         const primitive_attr_t *attr, const memory_desc_wrapper &dst_d) {
@@ -82,7 +87,8 @@ bool jit_uni_binary_t<src_type>::post_ops_ok(
             return false;
     }
 
-    return binary_injector::binary_args_broadcast_supported(p, dst_d)
+    return binary_injector::binary_args_broadcast_supported(
+                   p, dst_d, get_supported_bcast_strategies())
             && IMPLICATION(postops_per_oc_broadcast_exists,
                     binary_injector::all_binary_postop_rhs_per_oc_broadcast(p,
                             dst_d,
@@ -259,7 +265,8 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
                 true /*preserve vmm*/, PARAM_OFF(post_ops_binary_rhs_arg_vec),
                 src0_d, tail_size_, tail_opmask_,
                 false /*use_exact_tail_scalar_bcast*/};
-        const binary_injector::static_params_t bsp(this->param1, rhs_arg_bsp);
+        const binary_injector::static_params_t bsp(
+                this->param1, get_supported_bcast_strategies(), rhs_arg_bsp);
 
         postops_injector_ = utils::make_unique<
                 injector::jit_uni_postops_injector_t<inject_isa>>(

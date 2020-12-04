@@ -27,14 +27,16 @@ namespace cpu {
 namespace x64 {
 namespace binary_injector {
 
-bool binary_args_broadcast_supported(
-        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d) {
+bool binary_args_broadcast_supported(const post_ops_t &post_ops,
+        const memory_desc_wrapper &dst_d,
+        const bcast_set_t &supported_strategy_set) {
 
     return std::none_of(post_ops.entry_.cbegin(), post_ops.entry_.cend(),
             [&](const post_ops_t::entry_t &entry) -> bool {
                 if (entry.is_binary()) {
                     const auto bcast_type = get_rhs_arg_broadcasting_strategy(
-                            entry.binary.src1_desc, dst_d);
+                            entry.binary.src1_desc, dst_d,
+                            supported_strategy_set);
                     return bcast_type == broadcasting_strategy_t::unsupported;
                 }
                 return false;
@@ -42,7 +44,8 @@ bool binary_args_broadcast_supported(
 }
 
 bool binary_args_tail_supported(const post_ops_t &post_ops,
-        const memory_desc_wrapper &dst_d, int vlen) {
+        const memory_desc_wrapper &dst_d, int vlen,
+        const bcast_set_t &supported_strategy_set) {
     const auto channels = dst_d.dims()[1];
     const int vmm_l_len = vlen / 4;
 
@@ -104,6 +107,22 @@ bool all_binary_postop_rhs_per_oc_broadcast(const post_ops_t &post_ops,
             });
 }
 
+static_params_t::static_params_t(const Xbyak::Reg64 &param1,
+        const bcast_set_t &supported_strategy_set,
+        const rhs_arg_static_params_t &rhs_arg_static_params)
+    : param1(param1)
+    , supported_strategy_set(supported_strategy_set)
+    , rhs_arg_static_params(rhs_arg_static_params) {}
+
+static_params_t::static_params_t(const Xbyak::Reg64 &param1,
+        const rhs_arg_static_params_t &rhs_arg_static_params)
+    : static_params_t(param1,
+            bcast_set_t {broadcasting_strategy_t::scalar,
+                    broadcasting_strategy_t::per_oc,
+                    broadcasting_strategy_t::per_oc_spatial,
+                    broadcasting_strategy_t::no_broadcast},
+            rhs_arg_static_params) {}
+
 rhs_arg_static_params_t::rhs_arg_static_params_t(
         std::size_t rhs_dt_helper_vmm_idx, const Xbyak::Reg64 &rhs_addr_reg,
         const Xbyak::Reg64 &rhs_helper_reg, bool preserve_gpr_helpers,
@@ -151,7 +170,7 @@ jit_uni_binary_injector_t<isa>::jit_uni_binary_injector_t(
     : host_(host)
     , rhs_arg_static_params_(static_params.rhs_arg_static_params)
     , param1_(static_params.param1)
-    , use_per_oc_spatial_strategy_(static_params.use_per_oc_spatial_strategy) {}
+    , supported_strategy_set_(static_params.supported_strategy_set) {}
 
 template <typename ParamsMap>
 static bool params_differ(ParamsMap &params,
@@ -272,7 +291,7 @@ void jit_uni_binary_injector_t<isa>::compute_vector_range(
 
     const auto rhs_broadcasting_strategy
             = get_rhs_arg_broadcasting_strategy(post_op.binary.src1_desc,
-                    rhs_arg_static_params_.dst_d, use_per_oc_spatial_strategy_);
+                    rhs_arg_static_params_.dst_d, supported_strategy_set_);
     const auto rhs_arg_data_type = post_op.binary.src1_desc.data_type;
     const auto &vmm_tail_idx = rhs_arg_params.vmm_tail_idx_;
     const bool tail_exists_in_range = !vmm_tail_idx.empty();

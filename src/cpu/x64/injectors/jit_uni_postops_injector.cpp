@@ -176,6 +176,8 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
     const memory_desc_wrapper *dst_d = post_ops_ok_args.dst_d;
     const bool sum_at_pos_0_only = post_ops_ok_args.sum_at_pos_0_only;
     const bool sum_requires_scale_one = post_ops_ok_args.sum_requires_scale_one;
+    const auto &enabled_bcast_strategy
+            = post_ops_ok_args.enabled_bcast_strategy;
 
     const auto is_accepted_postop = [&](const int idx) {
         for (const auto &post_op : accepted_post_op_types) {
@@ -197,7 +199,7 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
                                 utils::one_of(
                                         isa, avx512_core_bf16, avx512_core));
                         res &= binary_injector::binary_args_broadcast_supported(
-                                post_ops, *dst_d);
+                                post_ops, *dst_d, enabled_bcast_strategy);
 
                         return res;
                     }

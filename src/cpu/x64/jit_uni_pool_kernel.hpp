@@ -22,19 +22,18 @@
 #include <functional>
 #include <memory>
 
-#include "common/c_types_map.hpp"
-#include "common/type_helpers.hpp"
-#include "common/utils.hpp"
-#include "cpu/x64/jit_generator.hpp"
+#include "common/memory_tracking.hpp"
 
 #include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
-#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
+
+struct bf16_emulation_t;
 
 template <cpu_isa_t isa>
 struct jit_uni_pool_kernel : public jit_generator {

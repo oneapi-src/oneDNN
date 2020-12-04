@@ -27,6 +27,7 @@
 
 #include "cpu/platform.hpp"
 
+#include "common/broadcast_strategy.hpp"
 #include "cpu/cpu_prelu_pd.hpp"
 
 namespace dnnl {

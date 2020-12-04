@@ -43,8 +43,9 @@ using dnnl::impl::cpu::binary_injector_utils::prepare_binary_args;
 
 bool binary_args_matches_tag(format_tag_t tag, const post_ops_t &post_ops);
 
-bool binary_args_broadcast_supported(
-        const post_ops_t &post_ops, const memory_desc_wrapper &dst_d);
+bool binary_args_broadcast_supported(const post_ops_t &post_ops,
+        const memory_desc_wrapper &dst_d,
+        const bcast_set_t &supported_strategy_set);
 
 bool binary_args_tail_supported(
         const post_ops_t &post_ops, const memory_desc_wrapper &dst_d, int vlen);
@@ -134,27 +135,21 @@ private:
  * @param param1 - register storing abi param1. At the moment of calling
  * compute_vector_range method can be different than the default one defined
  * inside jit_generator.
- * @param use_per_oc_spatial_strategy - flag for enabling broadcast strategy
- * "per_oc_spatial_strategy". That strategy is used only in binary kernel with nchw
- * format.
+ * @param bcast_set_t supported_strategy_set - set allowing disabling particular
+ * bcast strategies
  * @param rhs_arg_static_params - params related to all binary post-ops right-hand side
  * arguments that don't change during entire lifetime of jit_uni_binary_injector_t
  * object.
  */
 struct static_params_t {
     static_params_t(const Xbyak::Reg64 &param1,
-            bool use_per_oc_spatial_strategy,
-            const rhs_arg_static_params_t &rhs_arg_static_params)
-        : param1(param1)
-        , use_per_oc_spatial_strategy(use_per_oc_spatial_strategy)
-        , rhs_arg_static_params(rhs_arg_static_params) {}
-
+            const bcast_set_t &supported_strategy_set,
+            const rhs_arg_static_params_t &rhs_arg_static_params);
     static_params_t(const Xbyak::Reg64 &param1,
-            const rhs_arg_static_params_t &rhs_arg_static_params)
-        : static_params_t(param1, true, rhs_arg_static_params) {}
+            const rhs_arg_static_params_t &rhs_arg_static_params);
 
     Xbyak::Reg64 param1;
-    bool use_per_oc_spatial_strategy;
+    const bcast_set_t supported_strategy_set;
     rhs_arg_static_params_t rhs_arg_static_params;
 };
 
@@ -316,7 +311,7 @@ private:
     jit_generator *host_;
     const rhs_arg_static_params_t rhs_arg_static_params_;
     const Xbyak::Reg64 param1_;
-    const bool use_per_oc_spatial_strategy_;
+    const bcast_set_t supported_strategy_set_;
     static constexpr bool is_avx512_ = std::is_same<Vmm, Xbyak::Zmm>::value;
     /*
      * Instructions from SSE/AVX used to compute binary result like vaddps where
