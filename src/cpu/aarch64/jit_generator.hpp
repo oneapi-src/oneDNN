@@ -136,22 +136,26 @@ public:
                     post_ptr(x9, xreg_len * 2));
         }
 
-        ptrue(P_ALL_ONE.b);
-        ptrue(P_MSB_384.b, Xbyak_aarch64::VL16);
-        ptrue(P_MSB_256.b, Xbyak_aarch64::VL32);
-        not_(P_MSB_384.b, P_ALL_ONE / Xbyak_aarch64::T_z, P_MSB_384.b);
-        not_(P_MSB_256.b, P_ALL_ONE / Xbyak_aarch64::T_z, P_MSB_256.b);
-        pfalse(P_ALL_ZERO.b);
+        if (mayiuse(sve_512)) {
+            ptrue(P_ALL_ONE.b);
+            ptrue(P_MSB_384.b, Xbyak_aarch64::VL16);
+            ptrue(P_MSB_256.b, Xbyak_aarch64::VL32);
+            not_(P_MSB_384.b, P_ALL_ONE / Xbyak_aarch64::T_z, P_MSB_384.b);
+            not_(P_MSB_256.b, P_ALL_ONE / Xbyak_aarch64::T_z, P_MSB_256.b);
+            pfalse(P_ALL_ZERO.b);
+        }
     }
 
     void postamble() {
         mov(x9, sp);
-        eor(P_ALL_ONE.b, P_ALL_ONE / Xbyak_aarch64::T_z, P_ALL_ONE.b,
-                P_ALL_ONE.b);
-        eor(P_MSB_384.b, P_MSB_384 / Xbyak_aarch64::T_z, P_MSB_384.b,
-                P_MSB_384.b);
-        eor(P_MSB_256.b, P_MSB_256 / Xbyak_aarch64::T_z, P_MSB_256.b,
-                P_MSB_256.b);
+        if (mayiuse(sve_512)) {
+            eor(P_ALL_ONE.b, P_ALL_ONE / Xbyak_aarch64::T_z, P_ALL_ONE.b,
+                    P_ALL_ONE.b);
+            eor(P_MSB_384.b, P_MSB_384 / Xbyak_aarch64::T_z, P_MSB_384.b,
+                    P_MSB_384.b);
+            eor(P_MSB_256.b, P_MSB_256 / Xbyak_aarch64::T_z, P_MSB_256.b,
+                    P_MSB_256.b);
+        }
 
         if (vreg_to_preserve) {
             ld4((v8.d - v11.d)[0], post_ptr(x9, vreg_len_preserve * 4));
