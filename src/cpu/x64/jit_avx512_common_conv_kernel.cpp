@@ -985,9 +985,9 @@ void _jit_avx512_common_conv_fwd_kernel<Vmm>::compute_loop(
         assert(is_src_layout_nxc());
         const int inp_shift = jcp.ic_block * jcp.typesize_in;
         add(reg_inp, inp_shift);
-        const int ker_shift = jcp.kd * jcp.kh * jcp.kw * jcp.ic_block
+        const size_t ker_shift = (size_t)jcp.kd * jcp.kh * jcp.kw * jcp.ic_block
                 * jcp.oc_block * jcp.typesize_in;
-        add(reg_ker, ker_shift);
+        safe_add(reg_ker, ker_shift, reg_ker_long_offt);
         sub(reg_channel, jcp.ic_block);
         jg(ic_loop, T_NEAR);
 

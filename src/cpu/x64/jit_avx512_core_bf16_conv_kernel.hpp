@@ -92,6 +92,7 @@ private:
     reg64_t reg_kh = rsi;
 
     reg64_t reg_dst_long_offt = r14;
+    reg64_t reg_ker_long_offt = r14;
 
     Vmm vmm_dst(int i_ur, int i_oc) {
         int idx = i_ur * jcp.nb_oc_blocking + i_oc;
