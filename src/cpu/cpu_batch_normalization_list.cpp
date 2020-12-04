@@ -25,6 +25,9 @@
 #include "cpu/x64/jit_uni_batch_normalization_s8.hpp"
 #include "cpu/x64/jit_uni_tbb_batch_normalization.hpp"
 using namespace dnnl::impl::cpu::x64;
+#elif defined(DNNL_AARCH64)
+#include "cpu/aarch64/jit_uni_batch_normalization.hpp"
+using namespace dnnl::impl::cpu::aarch64;
 #endif
 
 namespace dnnl {
@@ -51,6 +54,10 @@ const pd_create_f impl_list[] = {
         CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<avx2>)
         CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_fwd_t<sse41>)
         CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<sse41>)
+        CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_fwd_t<sve_512>)
+        CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_bwd_t<sve_512>)
+        CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_fwd_t<asimd>)
+        CPU_INSTANCE_AARCH64(jit_uni_batch_normalization_bwd_t<asimd>)
         CPU_INSTANCE(ncsp_batch_normalization_fwd_t<f32>)
         CPU_INSTANCE(ncsp_batch_normalization_bwd_t<f32>)
         CPU_INSTANCE(ncsp_batch_normalization_fwd_t<bf16>)
