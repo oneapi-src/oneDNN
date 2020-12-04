@@ -159,6 +159,70 @@ static inline int dst_off(int n, int c, int d, int h, int w) {
     return 0;
 }
 
+static inline int get_Vtrans_ic0(int lx, int ly) {
+    return VTRANS_BLOCK * (lx % 8);
+}
+static inline int get_Vtrans_ih0(int lx, int ly) {
+    // Must be zero (without wino tile blocking) to perform the V transform
+    // since the transformation uses a linear combination of the height value;
+    return 0;
+}
+static inline int get_Vtrans_iw0(int lx, int ly) {
+    return 2 * ly + (lx / 8);
+}
+
+static inline int get_Vcomp_ic0(int lx, int ly) {
+    return 8 * (lx % 2);
+}
+static inline int get_Vcomp_ih0(int lx, int ly) {
+    // Relies on the fact that WINO_D = 8
+    return ly;
+}
+static inline int get_Vcomp_iw0(int lx, int ly) {
+    return lx / 2;
+}
+
+static inline int get_Ucomp_ic0(int lx, int ly) {
+    // Must be zero as M is accumulated with product over ic. Could be
+    // parallelized for blocking if a reduction over M is implemented.
+    return 0;
+}
+static inline int get_Ucomp_oc0(int lx, int ly) {
+    return lx;
+}
+static inline int get_Ucomp_kh0(int lx, int ly) {
+    // Relies on the fact that WINO_D = 8
+    return get_Vcomp_ih0(lx, ly);
+}
+static inline int get_Ucomp_kw0(int lx, int ly) {
+    //Must be zero as product of kw is accumulated into M. Could be parallelized
+    //if a reduction over M is implemented.
+    return 0;
+}
+
+static inline int get_Mcomp_oc0(int lx, int ly) {
+    return get_Ucomp_oc0(lx, ly);
+}
+static inline int get_Mcomp_oh0(int lx, int ly) {
+    // Relies on the fact that WINO_D = 8
+    return get_Vcomp_ih0(lx, ly);
+}
+static inline int get_Mcomp_ow0(int lx, int ly) {
+    return 0;
+}
+
+static inline int get_out_oh0(int lx, int ly) {
+    // Must be zero (without wino tile blocking) to perform the dst transform
+    // since the transformation uses a linear combination of the height value;
+    return 0;
+}
+static inline int get_out_ow0(int lx, int ly) {
+    return OUT_TYPE_BLOCK * ly;
+}
+static inline int get_out_oc0(int lx, int ly) {
+    return lx;
+}
+
 static inline void wino_U_transform(
         UTRANS_DATA_T U[WINO_D], UTRANS_DATA_T wei[WINO_R]) {
     U[0] = wei[0];
@@ -274,7 +338,6 @@ __attribute__((intel_reqd_sub_group_size(16))) __kernel void
 gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         const __global DATA_T *U_param,
         const __global DATA_T *bias POST_OP_ARGS) {
-    //               (DxC2)x(UxWx8c)
     const uint slm_size = (WINO_IC_BLOCK * WINO_D * IW_BLOCK) / VTRANS_BLOCK;
     __local VTRANS_DATA_T V[slm_size]; // 8 KB
 
@@ -283,7 +346,7 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
     const VTRANS_DATA_T scl_vec = (VTRANS_DATA_T)(sc, sc, sc, sc);
 
     const int ow0 = get_group_id(0) * OW_BLOCK;
-    const int oh = get_group_id(1) * OH_BLOCK;
+    const int oh0 = get_group_id(1) * OH_BLOCK;
     const int gid2 = get_group_id(2);
     const int oc0 = (gid2 % (OC / OC_BLOCK)) * OC_BLOCK;
     const int mb = gid2 / (OC / OC_BLOCK);
@@ -291,23 +354,8 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
     const int lx = get_local_id(0);
     const int ly = get_local_id(1);
 
-    uint lxd8 = lx / 8;
-    uint lxm8 = lx % 8;
-    uint lxd2 = lx / 2;
-    uint lxm2 = lx % 2;
-
-    const int oc = oc0 + lx;
-    const int ow = ow0 + 2 * ly;
-
     // Load ic32ih8iw16 input tile, with 2 pixel overlap in ih and iw.
     // Compute oc16oh6ow14 output tile.
-
-    int iw0_write = ly * 2 + lxd8;
-    int iw0_read = lxd2;
-    int iw = ow0 + iw0_write - PW;
-    int ih = oh - PH;
-    int ic0_write = lxm8 * VTRANS_BLOCK;
-    int ic0_read = 8 * lxm2;
 
     // Initialize variables to accumulate intermediate output tile
     const int M_size = OW_BLOCK;
@@ -326,27 +374,43 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
     // Each local thread transforms a block with dimensions c4h8w1
     // For the computation, src_i traverses ih dimension, ly * 2 + lx/8
     // traverses iw dimension, and lx % 8 traverses ic dimension
-    const __global DATA_T *src_load = src + src_off(mb, ic0_write, 0, ih, iw);
-    const int V_write_idx = V_off(ic0_write, 0, iw0_write, VTRANS_BLOCK);
+    const int Vtrans_ic = get_Vtrans_ic0(lx, ly);
+    const int Vtrans_ih = get_Vtrans_ih0(lx, ly);
+    const int Vtrans_iw = get_Vtrans_iw0(lx, ly);
+    const int src_ic = Vtrans_ic;
+    const int src_ih = oh0 - PH + Vtrans_ih;
+    const int src_iw = ow0 - PW + Vtrans_iw;
+    const __global DATA_T *src_load
+            = src + src_off(mb, src_ic, 0, src_ih, src_iw);
+    const int V_write_idx
+            = V_off(Vtrans_ic, Vtrans_ih, Vtrans_iw, VTRANS_BLOCK);
     __local VTRANS_DATA_T *V_write = &V[V_write_idx];
 
     // Buffers used to compute oc16oh8ow14 intermediate output tile. Each
     // local thread transforms a block with dimensions c1h1w14. For the
     // computed output, M_i traverses ow dimension, ly traverses oh
     // dimension, and lx traverses oc dimension.
-    const __global DATA_T *U = U_param + U_off(oc, 0, ly, 0);
-    const int V_read_idx = V_off(ic0_read, ly, iw0_read, VTRANS_BLOCK);
+    const int U_oc = oc0 + get_Ucomp_oc0(lx, ly);
+    const int U_ic = get_Ucomp_ic0(lx, ly);
+    const int U_kh = get_Ucomp_kh0(lx, ly);
+    const int U_kw = get_Ucomp_kw0(lx, ly);
+    const __global DATA_T *U = U_param + U_off(U_oc, U_ic, U_kh, U_kw);
+    const int Vcomp_ic = get_Vcomp_ic0(lx, ly);
+    const int Vcomp_ih = get_Vcomp_ih0(lx, ly);
+    const int Vcomp_iw = get_Vcomp_iw0(lx, ly);
+    const int V_read_idx = V_off(Vcomp_ic, Vcomp_ih, Vcomp_iw, VTRANS_BLOCK);
     __local const COMP_DATA_T *V_read
-            = (__local const COMP_DATA_T *)&V[V_read_idx]; // ly * 64 + lx * 2;
+            = (__local const COMP_DATA_T *)&V[V_read_idx];
 
     __attribute__((opencl_unroll_hint(1))) for (uint c = 0; c < IC;
                                                 c += WINO_IC_BLOCK) {
         // Load and transform ic32ih8iw16 src tile into V
-        {
-            bool x_in = 0 <= iw && iw < IW && ic0_read + c < IC;
+        if (IW_BLOCK == 16 || Vtrans_iw < IW_BLOCK) {
+            bool x_in = 0 <= src_iw && src_iw < IW && src_ic + c < IC;
             VTRANS_DATA_T src[WINO_D];
             for (int index = 0; index < WINO_D; index++) {
-                bool y_in = 0 <= (ih + index) && (ih + index) < IH && x_in;
+                bool y_in = 0 <= (src_ih + index) && (src_ih + index) < IH
+                        && x_in;
                 src[index] = y_in ? *((const __global VTRANS_DATA_T *)(src_load
                                      + src_off(0, 0, 0, index, 0)))
                                   : 0;
@@ -417,26 +481,32 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
 
     // Store intermediate output tile to SLM.
     {
-        __local DATA_T *M_write = (__local DATA_T *)&V[M_off(0, ly, 0, 4)];
-        M_write += M_off(lx, 0, 0, 1);
+        const int M_oc = get_Mcomp_oc0(lx, ly);
+        const int M_oh = get_Mcomp_oh0(lx, ly);
+        const int M_ow = get_Mcomp_ow0(lx, ly);
+        __local DATA_T *M_write = (__local DATA_T *)&V[M_off(0, M_oh, 0, 4)];
+        M_write += M_off(M_oc, 0, 0, 1);
 
         for (int i = 0; i < M_size; i++) {
-            M_write[M_off(0, 0, i, 1)] = M[i];
+            M_write[M_off(0, 0, M_ow + i, 1)] = M[i];
         }
 
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
     // Transform and store final oc16oh6ow14 output tile.
-    if (ly < OW_BLOCK / OUT_TYPE_BLOCK) {
+    if (get_out_ow0(lx, ly) < OW_BLOCK) {
         // Load multiplies from SLM.
+        const int M_oc = get_out_oc0(lx, ly);
+        const int M_oh = get_out_oh0(lx, ly);
+        const int M_ow = get_out_ow0(lx, ly);
         __local const OUT_BLOCK_DATA_T *M_read
-                = (__local OUT_BLOCK_DATA_T *)&V[M_off(0, 0, ly * 2, 4)];
-        M_read += M_off(lx, 0, 0, OUT_TYPE_BLOCK);
+                = (__local OUT_BLOCK_DATA_T *)&V[M_off(0, 0, M_ow, 4)];
+        M_read += M_off(M_oc, 0, 0, OUT_TYPE_BLOCK);
 
         OUT_BLOCK_DATA_T M[WINO_D];
         for (int i = 0; i < WINO_D; i++) {
-            M[i] = M_read[M_off(0, i, 0, OUT_TYPE_BLOCK)];
+            M[i] = M_read[M_off(0, M_oh + i, 0, OUT_TYPE_BLOCK)];
         }
         OUT_BLOCK_DATA_T C[WINO_M];
         DATA_T *C_dat = C;
@@ -445,6 +515,9 @@ gen9_wino_conv_fwd_6x3(__global DATA_T *dst, const __global DATA_T *src,
         unroll_for(int i = 0; i < WINO_M; i++) { C[i] = C[i] * scl; }
 
         // Write data
+        const int oc = oc0 + M_oc;
+        const int ow = ow0 + M_ow;
+        const int oh = oh0 + M_oh;
         int dst_idx = dst_off(mb, oc, 0, oh, ow);
         const int w_size = dst_off(0, 0, 0, 0, 1);
         const int h_size = dst_off(0, 0, 0, 1, 0);
