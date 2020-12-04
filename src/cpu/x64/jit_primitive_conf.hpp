@@ -630,6 +630,24 @@ struct jit_pool_call_s {
     size_t b_c; // contains number of channel blocks already processed
 };
 
+/* softmax */
+struct jit_softmax_conf_t {
+    size_t outer_size;
+    size_t channels;
+    size_t inner_size;
+    size_t ur_channel;
+    size_t ur_inner;
+    size_t outer_block;
+};
+
+struct jit_softmax_call_s {
+    const float *src;
+    float *dst;
+
+    size_t channels;
+    size_t work;
+};
+
 } // namespace x64
 } // namespace cpu
 } // namespace impl
