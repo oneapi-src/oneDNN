@@ -59,9 +59,7 @@ inline int get_brg_kernel_index(const jit_brgemm_primitive_conf_t &jbgp,
 
 } // namespace
 
-template <cpu_isa_t isa, impl::data_type_t src_type,
-        impl::data_type_t wei_type = src_type,
-        impl::data_type_t dst_type = src_type>
+template <cpu_isa_t isa>
 struct brgemm_inner_product_fwd_t : public primitive_t {
     struct pd_t : public cpu_inner_product_fwd_pd_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
@@ -72,32 +70,24 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 brgemm_inner_product_fwd_t);
 
         status_t init(engine_t *engine) {
+            using namespace utils;
+            using namespace data_type;
+
+            auto src_dt = invariant_src_md()->data_type;
+            const bool is_int8 = utils::one_of(src_dt, u8, s8);
             auto check_attr = [=]() {
-                if (utils::one_of(src_type, data_type::u8, data_type::s8)) {
-                    return attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
-                            | primitive_attr_t::skip_mask_t::post_ops);
-                } else {
-                    return attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops);
-                }
+                auto attr_to_check = primitive_attr_t::skip_mask_t::post_ops;
+                if (is_int8)
+                    attr_to_check |= primitive_attr_t::skip_mask_t::oscale;
+                return attr()->has_default_values(attr_to_check);
             };
 
-            bool ok = true && mayiuse(isa) && is_fwd()
-                    && expect_data_types(src_type, wei_type, data_type::undef,
-                            dst_type, data_type::undef)
-                    && IMPLICATION(with_bias(),
-                            ((utils::one_of(
-                                      src_type, data_type::u8, data_type::s8)
-                                     && utils::one_of(bias_md_.data_type,
-                                             data_type::f32, data_type::s32,
-                                             data_type::s8, data_type::u8))
-                                    || (utils::one_of(src_type, data_type::bf16)
-                                            && utils::one_of(bias_md_.data_type,
-                                                    data_type::f32,
-                                                    data_type::bf16))
-                                    || utils::everyone_is(data_type::f32,
-                                            src_type, bias_md_.data_type)))
+            auto bia_dt = bias_md_.data_type;
+            const bool is_bias_dt_ok = IMPLICATION(with_bias(),
+                    (is_int8 && one_of(bia_dt, f32, s32, s8, u8)
+                            || (src_dt == bf16 && one_of(bia_dt, f32, bf16))
+                            || everyone_is(f32, src_dt, bia_dt)));
+            bool ok = true && mayiuse(isa) && is_fwd() && is_bias_dt_ok
                     && check_attr() && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
@@ -120,14 +110,13 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                 int idx = get_brg_kernel_idx(i_init, i_M, i_N, i_K);
                 if (idx < 0) continue;
                 brgemm_t &brg = brg_descs_[idx];
-                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, src_type,
-                        wei_type, false, false, brgemm_row_major, alpha, vbeta,
-                        jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
+                CHECK(brgemm_desc_init(&brg, isa, jbgp_.brg_type, jbgp_.src_dt,
+                        jbgp_.wei_dt, false, false, brgemm_row_major, alpha,
+                        vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
 
-                auto dt_d = dst_type;
                 auto LDD = jbgp_.oc_without_padding;
                 CHECK(brgemm_desc_add_postops(
-                        &brg, attr(), dt_d, LDD, jbgp_.bia_dt));
+                        &brg, attr(), jbgp_.dst_dt, LDD, jbgp_.bia_dt));
             }
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -175,10 +164,6 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<wei_type>::type wei_data_t;
-    typedef typename prec_traits<dst_type>::type dst_data_t;
 
     std::unique_ptr<brgemm_kernel_t> brg_kernels_[max_num_brg_kernels_ip];
     char brg_kernel_palettes_[max_num_brg_kernels_ip][64];
