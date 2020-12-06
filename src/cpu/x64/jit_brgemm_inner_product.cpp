@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,10 +58,8 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
     const size_t bia_dt_size
             = jbgp.with_bias ? types::data_type_size(jbgp.bia_dt) : 0;
 
-    auto addr_A_global = scratchpad.template get<const char *>(
-            key_brgemm_primitive_addr_a);
-    auto addr_B_global = scratchpad.template get<const char *>(
-            key_brgemm_primitive_addr_b);
+    auto addr_batch_global = scratchpad.template get<brgemm_batch_element_t>(
+            key_brgemm_primitive_batch);
     auto c_buffer_global = (jbgp.use_buffer)
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
             : nullptr;
@@ -83,8 +81,7 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             : nullptr;
 
     const auto ker = [&](const int ithr, int n, int ocb, int icc) {
-        auto addr_A = addr_A_global + ithr * 16 * jbgp.gemm_batch_size;
-        auto addr_B = addr_B_global + ithr * 16 * jbgp.gemm_batch_size;
+        auto addr_batch = addr_batch_global + ithr * 16 * jbgp.gemm_batch_size;
 
         const size_t c_buffer_per_thr
                 = types::data_type_size(jbgp.acc_dt) * jbgp.LDC * jbgp.M;
@@ -114,10 +111,10 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             if (is_amx)
                 amx_tile_configure(&brg_kernel_palettes_[brg_ker_idx][0]);
             for (int b = 0; b < gemm_batch; b++) {
-                addr_A[b] = src
+                addr_batch[b].ptr.A = src
                         + get_blk_off(
                                 src_d, jbgp.src_dt, n, ic + b * jbgp.ic_block);
-                addr_B[b] = weights
+                addr_batch[b].ptr.B = weights
                         + get_blk_off(weights_d, jbgp.wei_dt, ocb, icb + b);
             }
 
@@ -126,25 +123,23 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             if (are_post_ops_applicable && icc == ic_chunks - 1
                     && !is_ic_tail) {
                 brgemm_kernel_execute_postops(brg_kernel, gemm_batch,
-                        (void **)addr_A, (void **)addr_B, (void *)ptr_C,
-                        (void *)ptr_D, (void *)ptr_bias,
-                        &oscales[jbgp.is_oc_scale * oc],
+                        addr_batch, (void *)ptr_C, (void *)ptr_D,
+                        (void *)ptr_bias, &oscales[jbgp.is_oc_scale * oc],
                         is_amx ? (void *)wsp_tile
                                : (jbgp.signed_input ? (void *)&compensation[oc]
                                                     : nullptr));
             } else {
-                brgemm_kernel_execute(brg_kernel, gemm_batch, (void **)addr_A,
-                        (void **)addr_B, (void *)ptr_C,
-                        is_amx ? (void *)wsp_tile : nullptr);
+                brgemm_kernel_execute(brg_kernel, gemm_batch, addr_batch,
+                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
             }
         }
 
         if (is_ic_tail) {
             int ic_block = jbgp.nb_ic_blocking - 1;
-            addr_A[0] = src
+            addr_batch[0].ptr.A = src
                     + get_blk_off(src_d, jbgp.src_dt, n,
                             ic + ic_block * jbgp.ic_block);
-            addr_B[0] = weights
+            addr_batch[0].ptr.B = weights
                     + get_blk_off(weights_d, jbgp.wei_dt, ocb, icb + ic_block);
 
             auto use_init_ker = (kernel_init && nb_ic_b == 0);
@@ -156,17 +151,15 @@ void brgemm_inner_product_fwd_t<isa>::execute_forward(
             auto ptr_D = dst + get_blk_off(dst_d, jbgp.dst_dt, n, oc);
             auto ptr_C = (jbgp.use_buffer) ? c_buffer : ptr_D;
             if (are_post_ops_applicable && icc == ic_chunks - 1) {
-                brgemm_kernel_execute_postops(brg_kernel_ic_tail, 1,
-                        (void **)addr_A, (void **)addr_B, (void *)ptr_C,
-                        (void *)ptr_D, (void *)ptr_bias,
+                brgemm_kernel_execute_postops(brg_kernel_ic_tail, 1, addr_batch,
+                        (void *)ptr_C, (void *)ptr_D, (void *)ptr_bias,
                         &oscales[jbgp.is_oc_scale * oc],
                         is_amx ? (void *)wsp_tile
                                : (jbgp.signed_input ? (void *)&compensation[oc]
                                                     : nullptr));
             } else {
-                brgemm_kernel_execute(brg_kernel_ic_tail, 1, (void **)addr_A,
-                        (void **)addr_B, (void *)ptr_C,
-                        is_amx ? (void *)wsp_tile : nullptr);
+                brgemm_kernel_execute(brg_kernel_ic_tail, 1, addr_batch,
+                        (void *)ptr_C, is_amx ? (void *)wsp_tile : nullptr);
             }
         }
     };
@@ -224,11 +217,9 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
     const auto &jbgp = pd()->jbgp_;
 
     memory_tracking::grantor_t scratchpad = ctx.get_scratchpad_grantor();
-    diff_dst_data_t **addr_A_global
-            = scratchpad.template get<diff_dst_data_t *>(
-                    key_brgemm_primitive_addr_a);
-    wei_data_t **addr_B_global = scratchpad.template get<wei_data_t *>(
-            key_brgemm_primitive_addr_b);
+    brgemm_batch_element_t *addr_batch_global
+            = scratchpad.template get<brgemm_batch_element_t>(
+                    key_brgemm_primitive_batch);
     char *c_buffer_global = (jbgp.use_buffer)
             ? scratchpad.template get<char>(key_brgemm_primitive_buffer)
             : nullptr;
@@ -286,9 +277,8 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
               };
 
     const auto ker = [&](const int ithr, int n, int icb, int occ) {
-        diff_dst_data_t **addr_A
-                = addr_A_global + ithr * 16 * jbgp.gemm_batch_size;
-        wei_data_t **addr_B = addr_B_global + ithr * 16 * jbgp.gemm_batch_size;
+        brgemm_batch_element_t *addr_batch
+                = addr_batch_global + ithr * 16 * jbgp.gemm_batch_size;
 
         char *c_buffer = (jbgp.use_buffer) ? c_buffer_global
                         + ithr * types::data_type_size(jbgp.acc_dt) * jbgp.LDC
@@ -324,9 +314,9 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
         if (nb_oc_b > 0 && brg_kernel != nullptr) {
             for (int oc_block = 0; oc_block < nb_oc_b; oc_block++) {
 
-                addr_A[oc_block] = diff_dst
+                addr_batch[oc_block].ptr.A = diff_dst
                         + diff_dst_d.blk_off(n, oc + oc_block * jbgp.oc_block);
-                addr_B[oc_block] = b_buffer + oc_block * size_B;
+                addr_batch[oc_block].ptr.B = b_buffer + oc_block * size_B;
 #ifndef BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE
                 transform_b_chunk(addr_B[oc_block],
                         get_weights_ptr(icb, ocb + oc_block), 1,
@@ -337,29 +327,28 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
 
             if (jbgp.use_buffer && occ == oc_chunks - 1 && !is_oc_tail) {
                 auto ptr_D = diff_src + diff_src_d.blk_off(n, ic);
-                brgemm_kernel_execute_postops(brg_kernel, nb_oc_b,
-                        (void **)addr_A, (void **)addr_B, (void *)c_buffer,
-                        (void *)ptr_D, nullptr, nullptr);
+                brgemm_kernel_execute_postops(brg_kernel, nb_oc_b, addr_batch,
+                        (void *)c_buffer, (void *)ptr_D, nullptr, nullptr);
             } else {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
                                                 : (char *)diff_src
                                 + sizeof(diff_src_data_t)
                                         * diff_src_d.blk_off(n, ic);
-                brgemm_kernel_execute(brg_kernel, nb_oc_b, (void **)addr_A,
-                        (void **)addr_B, (void *)ptr_C);
+                brgemm_kernel_execute(
+                        brg_kernel, nb_oc_b, addr_batch, (void *)ptr_C);
             }
         }
         if (is_oc_tail) {
             int oc_block = jbgp.nb_oc_blocking - 1;
-            addr_A[0] = diff_dst
+            addr_batch[0].ptr.A = diff_dst
                     + diff_dst_d.blk_off(n, oc + oc_block * jbgp.oc_block);
 #ifndef BRGEMM_IP_BWD_D_GLOBAL_B_TRANSPOSE
-            addr_B[0] = b_buffer;
+            addr_batch[0].ptr.B = b_buffer;
             transform_b_chunk(addr_B[0], get_weights_ptr(icb, ocb + oc_block),
                     1, is_ic_tail ? jbgp.ic % jbgp.ic_block : jbgp.ic_block,
                     jbgp.K_tail);
 #else
-            addr_B[0] = b_buffer + oc_block * size_B;
+            addr_batch[0].ptr.B = b_buffer + oc_block * size_B;
 #endif
 
             auto use_init_ker = (kernel_init && nb_oc_b == 0);
@@ -370,16 +359,15 @@ void brgemm_inner_product_bwd_data_t<isa, src_type, wei_type,
 
             if (jbgp.use_buffer && occ == oc_chunks - 1) {
                 auto ptr_D = diff_src + diff_src_d.blk_off(n, ic);
-                brgemm_kernel_execute_postops(brg_kernel_oc_tail, 1,
-                        (void **)addr_A, (void **)addr_B, (void *)c_buffer,
-                        (void *)ptr_D, nullptr, nullptr);
+                brgemm_kernel_execute_postops(brg_kernel_oc_tail, 1, addr_batch,
+                        (void *)c_buffer, (void *)ptr_D, nullptr, nullptr);
             } else {
                 char *ptr_C = (jbgp.use_buffer) ? c_buffer
                                                 : (char *)diff_src
                                 + sizeof(diff_src_data_t)
                                         * diff_src_d.blk_off(n, ic);
-                brgemm_kernel_execute(brg_kernel_oc_tail, 1, (void **)addr_A,
-                        (void **)addr_B, (void *)ptr_C);
+                brgemm_kernel_execute(
+                        brg_kernel_oc_tail, 1, addr_batch, (void *)ptr_C);
             }
         }
     };
@@ -581,11 +569,9 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
             = jbgp.with_bias ? types::data_type_size(jbgp.bia_dt) : 0;
     const size_t acc_dt_size = types::data_type_size(jbgp.acc_dt);
 
-    src_data_t **addr_A_global = ti->scratchpad.template get<src_data_t *>(
-            key_brgemm_primitive_addr_a);
-    diff_dst_data_t **addr_B_global
-            = ti->scratchpad.template get<diff_dst_data_t *>(
-                    key_brgemm_primitive_addr_b);
+    brgemm_batch_element_t *addr_batch_global
+            = ti->scratchpad.template get<brgemm_batch_element_t>(
+                    key_brgemm_primitive_batch);
 
     src_data_t *a_buffer_global = ti->buffer_a;
     diff_dst_data_t *b_buffer_global = ti->buffer_b;
@@ -636,10 +622,8 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
                 + icb_l_idx;
         int b_buf_idx = osc_l_idx;
 
-        src_data_t **addr_A
-                = addr_A_global + ti->ithr * 16 * jbgp.gemm_batch_size;
-        diff_dst_data_t **addr_B
-                = addr_B_global + ti->ithr * 16 * jbgp.gemm_batch_size;
+        brgemm_batch_element_t *addr_batch
+                = addr_batch_global + ti->ithr * 16 * jbgp.gemm_batch_size;
         const int size_A = jbgp.LDA * jbgp.M;
         const int size_B = jbgp.LDB * rnd_up(jbgp.K, 2);
         src_data_t *a_buffer = a_buffer_global
@@ -694,19 +678,19 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
 
             for (int os_block = 0; os_block < nb_os_b; os_block++) {
                 auto a_ptr = a_buffer + os_block * size_A;
-                addr_A[os_block] = a_ptr;
+                addr_batch[os_block].ptr.A = a_ptr;
                 auto diff_dst_ptr = diff_dst
                         + diff_dst_d.blk_off(n + os_block * jbgp.os_block, oc);
                 if (jbgp.use_buffer_b) {
                     auto b_ptr = b_buffer + os_block * size_B;
-                    addr_B[os_block] = b_ptr;
+                    addr_batch[os_block].ptr.B = b_ptr;
                 } else {
-                    addr_B[os_block] = diff_dst_ptr;
+                    addr_batch[os_block].ptr.B = diff_dst_ptr;
                 }
                 if (jbgp.with_bias && icb == 0) {
                     brgemm_kernel_diff_bias_t p;
                     auto bias_ptr = diff_bias + bia_dt_size * oc;
-                    p.ptr_diff_dst = (void *)addr_B[os_block];
+                    p.ptr_diff_dst = (void *)addr_batch[os_block].ptr.B;
                     p.ptr_diff_bias_acc = (void *)get_bia_acc_ptr(oc);
                     p.ptr_diff_bias = (void *)bias_ptr;
                     bool is_first = kernel_init && os_block == 0;
@@ -719,8 +703,8 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
                     (*kernels_db_[false][is_oc_tail])(&p);
                 }
             }
-            brgemm_kernel_execute(brg_kernel, nb_os_b, (void **)addr_A,
-                    (void **)addr_B, (void *)get_wei_acc_ptr(ocb, icb));
+            brgemm_kernel_execute(brg_kernel, nb_os_b, addr_batch,
+                    (void *)get_wei_acc_ptr(ocb, icb));
         }
 
         if (is_os_tail) {
@@ -735,7 +719,7 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
                         jbgp.mb % jbgp.os_block);
             }
 
-            addr_A[0] = a_ptr;
+            addr_batch[0].ptr.A = a_ptr;
             auto diff_dst_ptr = diff_dst
                     + diff_dst_d.blk_off(n + os_block * jbgp.os_block, oc);
             if (jbgp.use_buffer_b) {
@@ -747,15 +731,15 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
                                        : jbgp.oc_block,
                             jbgp.mb % jbgp.os_block);
 
-                addr_B[0] = b_ptr;
+                addr_batch[0].ptr.B = b_ptr;
             } else {
-                addr_B[0] = diff_dst_ptr;
+                addr_batch[0].ptr.B = diff_dst_ptr;
             }
 
             if (jbgp.with_bias && icb == 0) {
                 brgemm_kernel_diff_bias_t p;
                 auto bias_ptr = diff_bias + bia_dt_size * oc;
-                p.ptr_diff_dst = (void *)addr_B[0];
+                p.ptr_diff_dst = (void *)addr_batch[0].ptr.B;
                 p.ptr_diff_bias_acc = (void *)get_bia_acc_ptr(oc);
                 p.ptr_diff_bias = (void *)bias_ptr;
                 bool is_first = kernel_init && os_block == 0;
@@ -774,8 +758,8 @@ void brgemm_inner_product_bwd_weights_t<isa, src_type, diff_wei_type,
                               .get();
 
             if (brg_kernel_os_tail != nullptr)
-                brgemm_kernel_execute(brg_kernel_os_tail, 1, (void **)addr_A,
-                        (void **)addr_B, (void *)get_wei_acc_ptr(ocb, icb));
+                brgemm_kernel_execute(brg_kernel_os_tail, 1, addr_batch,
+                        (void *)get_wei_acc_ptr(ocb, icb));
         }
 
         if (transform_weights_to_vnni) {

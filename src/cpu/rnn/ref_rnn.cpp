@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -314,6 +314,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         proj_ht = scratch_ht_;
                 }
 
+#if DNNL_X64
                 CHECK((this->*cell_func)(rnn, cell_position, cell_dst_layer,
                         cell_dst_iter_c,
                         &(ws_diff_states_layer(lay, dir, iter, 0)),
@@ -337,8 +338,33 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         &(ws_gates(lay, dir, iter, 0)), cell_scratch_gates,
                         proj_ht, scratch_diff_ht_,
                         &(ws_grid(lay, dir, iter, 0)), scratch_cell_,
-                        cell_dst_iter, amx_scratchpad, A_addr_global,
-                        B_addr_global));
+                        cell_dst_iter, amx_scratchpad, addr_batch_global));
+#else
+                CHECK((this->*cell_func)(rnn, cell_position, cell_dst_layer,
+                        cell_dst_iter_c,
+                        &(ws_diff_states_layer(lay, dir, iter, 0)),
+                        &(ws_diff_states_iter(lay, dir, iter, 0)),
+                        &(ws_diff_states_iter_c(lay, dir, iter, 0)),
+                        &(weights_layer(lay, dir, 0)),
+                        &(weights_iter(lay, dir, 0)),
+                        &(weights_projection(lay, dir)),
+                        &(weights_peephole(lay, dir, 0)),
+                        w_proj_comp + (j * rnn.n_dir + dir) * rnn.dic,
+                        &(bias(lay, dir, 0)), cell_src_layer, cell_src_iter,
+                        cell_src_iter_c,
+                        &(ws_diff_states_layer(lay + 1, dir, iter, 0)),
+                        &(ws_diff_states_iter(lay, dir, iter + 1, 0)),
+                        &(ws_diff_states_iter_c(lay, dir, iter + 1, 0)),
+                        &(diff_weights_layer(lay, dir, 0)),
+                        &(diff_weights_iter(lay, dir, 0)),
+                        &(diff_weights_projection(lay, dir, 0)),
+                        &(diff_weights_peephole(lay, dir, 0)),
+                        &(diff_bias(lay, dir, 0)),
+                        &(ws_gates(lay, dir, iter, 0)), cell_scratch_gates,
+                        proj_ht, scratch_diff_ht_,
+                        &(ws_grid(lay, dir, iter, 0)), scratch_cell_,
+                        cell_dst_iter, amx_scratchpad));
+#endif
             }
 
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_layer) {
@@ -1104,16 +1130,15 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     auto scratch_cell = scratchpad.template get<scratch_t>(key_rnn_cell);
 
     gemm_acc_t *amx_scratchpad = nullptr;
-    const src_iter_t **A_addr_global = nullptr;
-    weights_t **B_addr_global = nullptr;
+#if DNNL_X64
+    x64::brgemm_batch_element_t *addr_batch_global = nullptr;
     if (rnn.is_brgemm && (rnn.is_int8_amx() || rnn.is_bf16_amx())) {
         amx_scratchpad = scratchpad.template get<gemm_acc_t>(
                 key_brgemm_primitive_buffer);
-        A_addr_global = scratchpad.template get<const src_iter_t *>(
-                key_brgemm_primitive_addr_a);
-        B_addr_global = scratchpad.template get<weights_t *>(
-                key_brgemm_primitive_addr_b);
     }
+    addr_batch_global = scratchpad.template get<x64::brgemm_batch_element_t>(
+            key_brgemm_primitive_batch);
+#endif
     // Fetching buffers from the workspace
     // if no workspace was provided we use the scratchpad
     char *scratch_ptr = scratchpad.template get<char>(key_rnn_space);
@@ -1216,16 +1241,21 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     }
 
     // run the execution on the grid
-    (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter,
-            ptr_wei_projection, weights_peephole, w_projection_comp, ptr_bias,
-            src_layer, (const src_iter_t *)src_iter, src_iter_c,
-            (dst_layer_t *)dst_layer, (dst_iter_t *)dst_iter, dst_iter_c,
-            ws_states_layer, ws_states_iter, ws_states_iter_c,
-            ws_diff_states_layer, ws_diff_states_iter, ws_diff_states_iter_c,
-            ws_gates, ws_ht, ws_grid, scratch_gates, scratch_ht,
-            scratch_diff_ht, scratch_cell, diff_weights_layer,
+    (this->*grid_computation)(
+            rnn, ptr_wei_layer, ptr_wei_iter, ptr_wei_projection,
+            weights_peephole, w_projection_comp, ptr_bias, src_layer,
+            (const src_iter_t *)src_iter, src_iter_c, (dst_layer_t *)dst_layer,
+            (dst_iter_t *)dst_iter, dst_iter_c, ws_states_layer, ws_states_iter,
+            ws_states_iter_c, ws_diff_states_layer, ws_diff_states_iter,
+            ws_diff_states_iter_c, ws_gates, ws_ht, ws_grid, scratch_gates,
+            scratch_ht, scratch_diff_ht, scratch_cell, diff_weights_layer,
             diff_weights_iter, diff_weights_projection, diff_weights_peephole,
-            diff_bias, amx_scratchpad, A_addr_global, B_addr_global);
+            diff_bias, amx_scratchpad
+#if DNNL_X64
+            ,
+            addr_batch_global
+#endif
+    );
 
     // Finally we copy the results to the result buffers
     if (!(rnn.skip_dst_layer_copy() && rnn.is_fwd)) {

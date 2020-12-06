@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,14 +82,22 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 /// @param dt_bias Specifies the data type Bias
 ///     Can be u8, s8, s32, bf16 or fp32
 ///
-status_t brgemm_desc_add_postops(brgemm_t *brg, const primitive_attr_t *attr,
+status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         impl::data_type_t dt_d, int LDD,
         impl::data_type_t dt_bias = impl::data_type::undef);
+
+/// Adds BRGEMM attributes to BRGEMM descriptor
+///
+/// @param brg Output BRGEMM descriptor
+/// @param brgattr Specifies kernel attributes and hints: virtual padding,
+///     maximum batch size, kernel loop order etc.
+///
+status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr);
 
 /// Generates a BRGEMM kernel based on descriptor
 ///
 /// @param brg_kernel Output BRGEMM kernel
-/// @param brg BRGEMM descritpor
+/// @param brg BRGEMM descriptor
 ///
 status_t brgemm_kernel_create(
         brgemm_kernel_t **brg_kernel, const brgemm_t &brg);
@@ -107,17 +115,17 @@ void brgemm_kernel_destroy(brgemm_kernel_t *brg_kernel);
 ///     descriptor
 /// @param brg_kernel BRGEMM kernel
 /// @param bs Specifies the size of batch
-/// @param addr_A Array of addresses of matrices A
-/// @param addr_B Array of addresses of matrices B
+/// @param batch Array of batch elements containing pointers to matrices
+///     A,B and virtual padding for matrices A
 /// @param ptr_C Pointer to destination matrix C
 /// @param scratch Scratchpad needed for AMX version, can be nullptr for
 ///     avx512 version
 ///
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
-        const void **addr_A, const void **addr_B, void *ptr_C,
+        const brgemm_batch_element_t *batch, void *ptr_C,
         void *scratch = nullptr);
 
-/// Execute BRGEMM kernel (brgemm_offs version)
+/// Execute BRGEMM kernel (brgemm_offs and brgemm_strd version)
 ///
 /// @note
 ///     Only BRGEMM kernel will be execute even if post-ops are added to BRGEMM
@@ -126,31 +134,15 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 /// @param bs Specifies the size of batch
 /// @param addr_A Pointer to first matrix A in the batch
 /// @param addr_B Pointer to first matrix B in the batch
-/// @param offs_A Array of offsets to matrices A in the batch
-/// @param offs_B Array of offsets to matrices B in the batch
+/// @param batch Array of batch elements containing offsets to matrices A,B
+///     and virtual padding for matrix A
 /// @param ptr_C Pointer to destination matrix C
 /// @param scratch Scratchpad needed for AMX version, can be nullptr for
 ///     avx512 version
 ///
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
-        const void *addr_A, const dim_t *offs_A, const void *addr_B,
-        const dim_t *offs_B, void *ptr_C, void *scratch = nullptr);
-
-/// Execute BRGEMM kernel (brgemm_strd version)
-///
-/// @note
-///     Only BRGEMM kernel will be execute even if post-ops are added to BRGEMM
-///     descriptor
-/// @param brg_kernel BRGEMM kernel
-/// @param bs Specifies the size of batch
-/// @param addr_A Pointer to first matrix A in the batch
-/// @param addr_B Pointer to first matrix B in the batch
-/// @param ptr_C Pointer to destination matrix C
-/// @param scratch Scratchpad needed for AMX version, can be nullptr for
-///     avx512 version
-///
-void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
-        const void *addr_A, const void *addr_B, void *ptr_C,
+        const void *addr_A, const void *addr_B,
+        const brgemm_batch_element_t *batch, void *ptr_C,
         void *scratch = nullptr);
 
 /// Execute BRGEMM kernel (brgemm_addr version)
@@ -159,8 +151,8 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 ///     BRGEMM kernel and post-operations will be executed
 /// @param brg_kernel BRGEMM kernel
 /// @param bs Specifies the size of batch
-/// @param addr_A Array of addresses of matrices A
-/// @param addr_B Array of addresses of matrices B
+/// @param batch Array of batch elements containing pointers to matrices A,B
+///     and virtual padding for matrices A
 /// @param ptr_C Pointer to matrix C
 /// @param ptr_D Pointer to destination matrix D
 /// @param bias Vector of bias (vector length is N)
@@ -169,10 +161,10 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 ///     avx512 version
 ///
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
-        const void **addr_A, const void **addr_B, void *ptr_C, void *ptr_D,
+        const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
         const void *bias, const float *scales, void *scratch = nullptr);
 
-/// Execute BRGEMM kernel (brgemm_offs version)
+/// Execute BRGEMM kernel (brgemm_offs and brgemm_strd version)
 ///
 /// @note
 ///     BRGEMM kernel and post-operations will be executed
@@ -180,8 +172,8 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 /// @param bs Specifies the size of batch
 /// @param addr_A Pointer to first matrix A in the batch
 /// @param addr_B Pointer to first matrix B in the batch
-/// @param offs_A Array of offsets to matrices A in the batch
-/// @param offs_B Array of offsets to matrices B in the batch
+/// @param batch Array of batch elements containing offsets to matrices A,B
+///     and virtual padding for matrices A
 /// @param ptr_C Pointer to destination matrix C
 /// @param ptr_D Pointer to destination matrix D
 /// @param bias Vector of bias (vector length is N)
@@ -190,27 +182,8 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 ///     avx512 version
 ///
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
-        const void *addr_A, const dim_t *offs_A, const void *addr_B,
-        const dim_t *offs_B, void *ptr_C, void *ptr_D, const void *bias,
-        const float *scales, void *scratch = nullptr);
-
-/// Execute BRGEMM kernel (brgemm_strd version)
-///
-/// @note
-///     BRGEMM kernel and post-operations will be executed
-/// @param brg_kernel BRGEMM kernel
-/// @param bs Specifies the size of batch
-/// @param addr_A Pointer to first matrix A in the batch
-/// @param addr_B Pointer to first matrix B in the batch
-/// @param ptr_C Pointer to destination matrix C
-/// @param ptr_D Pointer to destination matrix D
-/// @param bias Vector of bias (vector length is N)
-/// @param scales Vector of scales (vector length is N)
-/// @param scratch Scratchpad needed for AMX version, can be nullptr for
-///     avx512 version
-///
-void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
-        const void *addr_A, const void *addr_B, void *ptr_C, void *ptr_D,
+        const void *addr_A, const void *addr_B,
+        const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
         const void *bias, const float *scales, void *scratch = nullptr);
 
 /// AMX utilities: Creates a palette based on BRGEMM descriptor
@@ -218,7 +191,7 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 /// @note
 ///     Caller is expected to subsequently configure AMX tiles by calling
 ///     amx_tile_configure(palette).
-/// @param brg BRGEMM descritpor
+/// @param brg BRGEMM descriptor
 /// @param palette 64 bytes array contains tiles configuration
 ///
 status_t brgemm_init_tiles(const brgemm_t &brg, char palette[64]);

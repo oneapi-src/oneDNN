@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -161,8 +161,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     parallel(max_nthr, [&](const int ithr, const int nthr) {
         gemm_acc_t *amx_buffer = nullptr;
-        const src_iter_t **A_addr = nullptr;
-        weights_t **B_addr = nullptr;
+        x64::brgemm_batch_element_t *addr_batch = nullptr;
 
         int start = 0, end = 0;
         balance211(work_amount, nthr, ithr, start, end);
@@ -170,11 +169,12 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
             int max_K_Block = nstl::max(rnn.KB1_blocks + 1,
                     nstl::max(rnn.KBproj_blocks + 1, rnn.KB2_blocks + 1));
-            A_addr = A_addr_global + ithr * max_K_Block;
-            B_addr = B_addr_global + ithr * max_K_Block;
+            addr_batch = addr_batch_global + ithr * max_K_Block;
 
             amx_buffer = amx_scratchpad + rnn.m_block * rnn.n_block * ithr;
             amx_tile_configure(this->pallete_buff_);
+        } else {
+            addr_batch = addr_batch_global + ithr;
         }
 
         int nb_i = 0, mb = 0;
@@ -227,20 +227,19 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
                     if (rnn.need_gemm_layer(cell_position)) {
                         for (int k1 = 0; k1 < rnn.KB1_blocks; k1++) {
-                            A_addr[k1] = Al_m + k1 * rnn.k1_block;
-                            B_addr[k1] = Bl_g + k1 * Bl_kb_offset;
+                            addr_batch[k1].ptr.A = Al_m + k1 * rnn.k1_block;
+                            addr_batch[k1].ptr.B = Bl_g + k1 * Bl_kb_offset;
                         }
                         brgemm_kernel_execute(brgemm_kernel_layer_b0,
-                                rnn.KB1_blocks, (void **)A_addr,
-                                (void **)B_addr, (void *)C_g, amx_buffer);
+                                rnn.KB1_blocks, addr_batch, (void *)C_g,
+                                amx_buffer);
                     }
                     for (int k2 = 0; k2 < rnn.KB2_blocks; k2++) {
-                        A_addr[k2] = Ai_m + k2 * rnn.k2_block;
-                        B_addr[k2] = Bi_g + k2 * Bi_kb_offset;
+                        addr_batch[k2].ptr.A = Ai_m + k2 * rnn.k2_block;
+                        addr_batch[k2].ptr.B = Bi_g + k2 * Bi_kb_offset;
                     }
                     brgemm_kernel_execute(brgemm_kernel_iter, rnn.KB2_blocks,
-                            (void **)A_addr, (void **)B_addr, (void *)C_g,
-                            amx_buffer);
+                            addr_batch, (void *)C_g, amx_buffer);
                 }
                 if (rnn.k1_tail || rnn.k2_tail) {
                     brgemm_kernel_t *brgemm_kernel_layer_tail;
@@ -276,11 +275,10 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                             auto Bl_g = Bl_n + lg * Bl_g_offset;
                             auto C_g = C_n + lg * rnn.N;
 
-                            A_addr[0] = Al_m + Al_k_tail_offset;
-                            B_addr[0] = Bl_g + Bl_k_tail_offset;
+                            addr_batch[0].ptr.A = Al_m + Al_k_tail_offset;
+                            addr_batch[0].ptr.B = Bl_g + Bl_k_tail_offset;
                             brgemm_kernel_execute(brgemm_kernel_layer_tail, 1,
-                                    (void **)A_addr, (void **)B_addr,
-                                    (void *)C_g, amx_buffer);
+                                    addr_batch, (void *)C_g, amx_buffer);
                         }
                     }
                     if (rnn.k2_tail) {
@@ -290,11 +288,10 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                             auto Bi_g = Bi_n + lg * Bi_g_offset;
                             auto C_g = C_n + lg * rnn.N;
 
-                            A_addr[0] = Ai_m + Ai_k_tail_offset;
-                            B_addr[0] = Bi_g + Bi_k_tail_offset;
+                            addr_batch[0].ptr.A = Ai_m + Ai_k_tail_offset;
+                            addr_batch[0].ptr.B = Bi_g + Bi_k_tail_offset;
                             brgemm_kernel_execute(brgemm_kernel_iter_tail, 1,
-                                    (void **)A_addr, (void **)B_addr,
-                                    (void *)C_g, amx_buffer);
+                                    addr_batch, (void *)C_g, amx_buffer);
                         }
                     }
                     amx_tile_configure(tail_recfg);
@@ -306,12 +303,16 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                     auto Bi_g = Bi_n + lg * Bi_g_offset;
                     auto C_g = C_n + lg * rnn.N;
 
-                    if (rnn.need_gemm_layer(cell_position))
+                    if (rnn.need_gemm_layer(cell_position)) {
+                        addr_batch[0].ptr.A = Al_m;
+                        addr_batch[0].ptr.B = Bl_g;
                         brgemm_kernel_execute(brgemm_kernel_layer_b0, 1,
-                                (void **)&Al_m, (void **)&Bl_g, (void *)C_g,
-                                amx_buffer);
-                    brgemm_kernel_execute(brgemm_kernel_iter, 1, (void **)&Ai_m,
-                            (void **)&Bi_g, (void *)C_g, amx_buffer);
+                                addr_batch, (void *)C_g, amx_buffer);
+                    }
+                    addr_batch[0].ptr.A = Ai_m;
+                    addr_batch[0].ptr.B = Bi_g;
+                    brgemm_kernel_execute(brgemm_kernel_iter, 1, addr_batch,
+                            (void *)C_g, amx_buffer);
                 }
             }
             if (!rnn.unfused_post_gemm) {
@@ -365,18 +366,19 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             int start = 0, end = 0;
             balance211(work_amount_proj, nthr, ithr, start, end);
             gemm_acc_t *amx_buffer = nullptr;
-            const src_iter_t **A_addr = nullptr;
-            weights_t **B_addr = nullptr;
+            brgemm_batch_element_t *addr_batch = nullptr;
 
             if (rnn.is_int8_amx() || rnn.is_bf16_amx()) {
                 int max_K_Block = nstl::max(rnn.KB1_blocks + 1,
                         nstl::max(rnn.KBproj_blocks + 1, rnn.KB2_blocks + 1));
-                A_addr = A_addr_global + ithr * max_K_Block;
-                B_addr = B_addr_global + ithr * max_K_Block;
+                addr_batch = addr_batch_global + ithr * max_K_Block;
 
                 amx_buffer = amx_scratchpad + rnn.m_block * rnn.n_block * ithr;
                 amx_tile_configure(this->pallete_buff_proj_);
+            } else {
+                addr_batch = addr_batch_global + ithr;
             }
+
             int nb = 0, mb = 0;
             nd_iterator_init(start, nb, rnn.Nproj_blocks, mb, rnn.M_blocks);
             while (start < end) {
@@ -404,12 +406,12 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                     if (do_n_tail)
                         amx_tile_configure(this->pallete_buff_nproj_tail_);
                     for (int k = 0; k < rnn.KBproj_blocks; k++) {
-                        A_addr[k] = Ap_m + k * rnn.kproj_block;
-                        B_addr[k] = Bp_n + k * Bp_kb_offset;
+                        addr_batch[k].ptr.A = Ap_m + k * rnn.kproj_block;
+                        addr_batch[k].ptr.B = Bp_n + k * Bp_kb_offset;
                     }
                     brgemm_kernel_execute(brgemm_kernel_proj_b0,
-                            rnn.KBproj_blocks, (void **)A_addr, (void **)B_addr,
-                            (void *)Cp_n, amx_buffer);
+                            rnn.KBproj_blocks, addr_batch, (void *)Cp_n,
+                            amx_buffer);
                     if (rnn.kproj_tail) {
                         brgemm_kernel_t *brgemm_kernel_proj_tail;
                         const char *tail_cfg_kproj, *tail_recfg;
@@ -429,19 +431,20 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                                                       .get();
                         }
                         amx_tile_configure(tail_cfg_kproj);
-                        A_addr[0] = Ap_m + rnn.KBproj_blocks * rnn.kproj_block;
-                        B_addr[0] = Bp_n
+                        addr_batch[0].ptr.A
+                                = Ap_m + rnn.KBproj_blocks * rnn.kproj_block;
+                        addr_batch[0].ptr.B = Bp_n
                                 + rnn.KBproj_blocks * rnn.kproj_block
                                         * rnn.n_block;
                         brgemm_kernel_execute(brgemm_kernel_proj_tail, 1,
-                                (void **)A_addr, (void **)B_addr, (void *)Cp_n,
-                                amx_buffer);
+                                addr_batch, (void *)Cp_n, amx_buffer);
                         amx_tile_configure(tail_recfg);
                     }
                 } else {
-                    brgemm_kernel_execute(brgemm_kernel_proj_b0, 1,
-                            (void **)&Ap_m, (void **)&Bp_n, (void *)Cp_n,
-                            amx_buffer);
+                    addr_batch[0].ptr.A = Ap_m;
+                    addr_batch[0].ptr.B = Bp_n;
+                    brgemm_kernel_execute(brgemm_kernel_proj_b0, 1, addr_batch,
+                            (void *)Cp_n, amx_buffer);
                 }
                 if (!rnn.unfused_post_gemm) {
                     rnn_postgemm_->execute_part2(rnn, cell_position, nullptr,

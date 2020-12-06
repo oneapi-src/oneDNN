@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -563,6 +563,7 @@ struct _ref_rnn_common_t : public primitive_t {
                     key_rnn_diff_ht, rnn_.scratch_diff_ht_size);
             scratchpad.template book<scratch_t>(
                     key_rnn_cell, rnn_.scratch_cell_size);
+#if DNNL_X64
             if (rnn_.is_brgemm) {
                 if (rnn_.is_int8_amx() || rnn_.is_bf16_amx()) {
                     size_t n_elements = rnn_.m_block * rnn_.n_block;
@@ -573,14 +574,15 @@ struct _ref_rnn_common_t : public primitive_t {
                     int max_K_Block = nstl::max(rnn_.KB1_blocks + 1,
                             nstl::max(rnn_.KBproj_blocks + 1,
                                     rnn_.KB2_blocks + 1));
-                    scratchpad.template book<const src_iter_t *>(
-                            key_brgemm_primitive_addr_a,
+                    scratchpad.template book<x64::brgemm_batch_element_t>(
+                            key_brgemm_primitive_batch,
                             max_K_Block * rnn_.nthr);
-                    scratchpad.template book<weights_t *>(
-                            key_brgemm_primitive_addr_b,
-                            max_K_Block * rnn_.nthr);
+                } else {
+                    scratchpad.template book<x64::brgemm_batch_element_t>(
+                            key_brgemm_primitive_batch, rnn_.nthr);
                 }
             }
+#endif
         }
     };
 
@@ -647,6 +649,8 @@ struct _ref_rnn_common_t : public primitive_t {
                 scratch_ht_offset_, scratch_diff_ht_offset_,
                 scratch_cell_offset_, scratchpad_size, workspace_size);
 #if DNNL_X64
+        auto rnn = pd()->rnn_;
+
         auto init_brgemm = [&](x64::brgemm_t *desc, x64::cpu_isa_t isa,
                                    std::unique_ptr<x64::brgemm_kernel_t> &ker,
                                    dim_t M, dim_t N, dim_t K, dim_t LDA,
@@ -654,19 +658,25 @@ struct _ref_rnn_common_t : public primitive_t {
             bool transA = false;
             bool transB = false;
             x64::brgemm_layout_t layout = x64::brgemm_row_major;
-            if (brgemm_desc_init(desc, isa, x64::brgemm_addr, src_type,
-                        weights_type, transA, transB, layout, 1.0, beta, LDA,
-                        LDB, LDC, M, N, K)
-                    == status::success) {
-                x64::brgemm_kernel_t *_t_ptr;
-                brgemm_kernel_create(&_t_ptr, *desc);
-                safe_ptr_assign<x64::brgemm_kernel_t>(ker, _t_ptr);
+            CHECK(brgemm_desc_init(desc, isa, x64::brgemm_addr, src_type,
+                    weights_type, transA, transB, layout, 1.0, beta, LDA, LDB,
+                    LDC, M, N, K));
+
+            if (!rnn.is_int8_amx() && !rnn.is_bf16_amx()) {
+                x64::brgemm_attr_t brgattr;
+                brgattr.max_bs = 1;
+                brgattr.max_top_vpad = 0;
+                brgattr.max_bottom_vpad = 0;
+                CHECK(brgemm_desc_set_attr(desc, brgattr));
             }
+
+            x64::brgemm_kernel_t *_t_ptr;
+            CHECK(brgemm_kernel_create(&_t_ptr, *desc));
+            CHECK(safe_ptr_assign<x64::brgemm_kernel_t>(ker, _t_ptr));
+            return status::success;
         };
 
         if (pd()->rnn_.is_brgemm) {
-            auto rnn = pd()->rnn_;
-
             int brgemm_n = nstl::min(rnn.N, rnn.n_block);
             int brgemm_n_tail = nstl::min(rnn.N, rnn.n_tail);
             for (int i = 0; i < 3; i++) {

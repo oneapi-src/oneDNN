@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 #include "cpu/x64/jit_generator.hpp"
 
 #define GET_OFF(field) offsetof(brgemm_kernel_params_t, field)
+#define GET_OFF_BATCH_ELEMENT(field) offsetof(brgemm_batch_element_t, field)
 
 namespace dnnl {
 namespace impl {
@@ -39,7 +40,8 @@ struct jit_brgemm_kernel_base_t : public jit_generator {
     jit_brgemm_kernel_base_t(const brgemm_t &abrg)
         : jit_generator(nullptr, MAX_CODE_SIZE, true, avx512_common)
         , brg(abrg)
-        , eltwise_injector_(nullptr) {
+        , eltwise_injector_(nullptr)
+        , is_ldb_loop(false) {
         if (brg.with_eltwise) {
             const auto &p = brg.attr->post_ops_;
             const int eltwise_ind = p.find(primitive_kind::eltwise);
@@ -68,11 +70,13 @@ private:
     const reg64_t reg_C = r15;
     const reg64_t reg_aux_C = r14;
 
+    const reg64_t reg_addr_batch = r13;
     const reg64_t reg_A = r13;
     const reg64_t reg_B = r12;
 
     const reg64_t reg_aux_A = r11;
     const reg64_t reg_aux_B = r10;
+    const reg64_t reg_aux_A_vpad = reg_aux_A;
 
     const reg64_t reg_bdb_loop = r9;
     const reg64_t reg_ldb_loop = r8;
@@ -89,16 +93,17 @@ private:
     const reg64_t reg_a_offset = rdx;
     const reg64_t reg_b_offset = rsi;
 
+    const reg64_t reg_aux1_batch = rbp;
     const reg64_t reg_aux1_A = rbp;
     const reg64_t reg_aux1_B = abi_param1;
 
-    const reg64_t reg_offset_A = reg_aux1_A;
-    const reg64_t reg_offset_B = reg_aux1_B;
+    const reg64_t reg_offs_batch = reg_aux1_A;
+    const reg64_t reg_strd_batch = reg_rdb_loop;
 
     const reg64_t reg_bias = reg_rdb_loop;
     const reg64_t reg_scales = reg_rdb_loop;
     const reg64_t reg_aux_bias = reg_rdb_loop;
-    const reg64_t reg_aux_scales = reg_rdb_loop;
+    const reg64_t reg_aux_scales = reg_aux_B;
     const reg64_t reg_do_post_ops = reg_rdb_loop;
     const reg64_t reg_tmp_gpr = reg_rdb_loop;
     const reg64_t reg_ptr_sum_scale = reg_rdb_loop;
@@ -110,21 +115,23 @@ private:
     const reg64_t reg_D = reg_aux_A;
     const reg64_t reg_aux_D = reg_BS_loop;
 
-    constexpr static int origin_offset_A_offs_ = 0;
-    constexpr static int origin_offset_B_offs_ = 8;
-    constexpr static int reg_bias_offs_ = 16;
-    constexpr static int reg_aux_bias_offs_ = 24;
-    constexpr static int reg_do_post_ops_offs_ = 32;
-    constexpr static int reg_D_offs_ = 40;
-    constexpr static int reg_aux_D_offs_ = 48;
-    constexpr static int reg_scales_offs_ = 56;
-    constexpr static int reg_aux_scales_offs_ = 64;
-    constexpr static int reg_bdb_loop_offs_ = 72;
-    constexpr static int reg_ldb_loop_offs_ = 80;
-    constexpr static int reg_buf_offs_ = 88;
+    constexpr static int origin_offs_batch_offs_ = 0;
+    constexpr static int origin_strd_batch_offs_ = 0;
+    constexpr static int reg_bias_offs_ = 8;
+    constexpr static int reg_aux_bias_offs_ = 16;
+    constexpr static int reg_do_post_ops_offs_ = 24;
+    constexpr static int reg_D_offs_ = 32;
+    constexpr static int reg_aux_D_offs_ = 40;
+    constexpr static int reg_scales_offs_ = 48;
+    constexpr static int reg_aux_scales_offs_ = 56;
+    constexpr static int reg_bdb_loop_offs_ = 64;
+    constexpr static int reg_ldb_loop_offs_ = 72;
+    constexpr static int reg_buf_offs_ = 80;
     constexpr static int reg_comp_offs_ = reg_buf_offs_;
-    constexpr static int reg_aux_comp_offs_ = 96;
-    constexpr static int stack_space_needed_ = 128;
+    constexpr static int reg_aux_comp_offs_ = 88;
+    constexpr static int stack_space_needed_ = 96;
+
+    bool is_ldb_loop;
 
     Xbyak::Opmask ld_full_mask = Xbyak::Opmask(2);
     Xbyak::Opmask ld_tail_mask = Xbyak::Opmask(3);
@@ -132,21 +139,25 @@ private:
     Xbyak::Zmm accm(int ld_block, int bd, int ld) {
         return Xbyak::Zmm(31 - (bd * ld_block + ld));
     }
-#if defined(_N_BCST_1_LOAD)
-    Xbyak::Zmm bcst(int bd) {
-        int idx = 31 - (brg.ld_block2 * brg.bd_block) - bd;
-        assert(idx > 0);
-        return Xbyak::Zmm(idx);
+
+    Xbyak::Zmm bcst(int bd = 0) {
+        if (n_bcast_1_load) {
+            int idx = 31 - (brg.ld_block2 * brg.bd_block) - bd;
+            assert(idx > 0);
+            return Xbyak::Zmm(idx);
+        } else
+            return Xbyak::Zmm(0);
     }
-    Xbyak::Zmm load() { return Xbyak::Zmm(0); }
-#else
-    Xbyak::Zmm load(int ld) {
-        int idx = 31 - (brg.ld_block2 * brg.bd_block) - ld;
-        assert(idx > 0);
-        return Xbyak::Zmm(idx);
+
+    Xbyak::Zmm load(int ld = 0) {
+        if (n_bcast_1_load) {
+            return Xbyak::Zmm(0);
+        } else {
+            int idx = 31 - (brg.ld_block2 * brg.bd_block) - ld;
+            assert(idx > 0);
+            return Xbyak::Zmm(idx);
+        }
     }
-    Xbyak::Zmm bcst() { return Xbyak::Zmm(0); }
-#endif
 
     Xbyak::Zmm zmm_tmp_1() { return Xbyak::Zmm(0); }
     Xbyak::Zmm zmm_tmp_2() { return Xbyak::Zmm(1); }
@@ -175,18 +186,18 @@ private:
     void apply_alpha_beta(int bd_block, int ld_block, bool is_ld_tail);
 
     void restore_A_B_matrices();
-    void restore_offsets();
     void set_A_B_matrices();
 
     void gemm_microkernel_avx512(int bd_block2, bool is_bdb_tail, int ld_block,
-            bool is_rd_tail, bool is_ld_tail);
+            bool is_rd_tail, bool is_ld_tail, int vpad, int rows_for_rd_tail);
     void gemm_microkernel_amx(int bd_block2, bool is_bdb_tail, int ld_block,
             bool is_rd_tail, bool is_ldb_tail);
     void gemm_microkernel(int bd_block2, bool is_bdb_tail, int ld_block,
-            bool is_rd_tail, bool is_ldb_tail);
+            bool is_rd_tail, bool is_ldb_tail, int vpad, int rows_for_rd_tail);
 
     void ldb_loop(int bd_block2, bool is_bdb_tail, int ld_block,
-            int ldb_loop_length, bool is_reg_tail, bool is_ld_tail);
+            int ldb_loop_length, bool is_reg_tail, bool is_ld_tail,
+            bool check_top_vpad, bool check_bottom_vpad, int rows_for_rd_tail);
     void bdb_loop();
 
     void generate() override;
@@ -210,6 +221,9 @@ private:
     int bias_offset(int ld, bool is_tail = false);
     int compensations_offset(int ld, bool is_tail = false);
     int scales_offset(int ld, bool is_tail = false);
+
+    bool n_bcast_1_load;
+    bool vpad_exist;
 };
 
 int jit_brgemm_kernel_base_t::A_offset(int bd, int rd, bool is_amx) {
@@ -220,7 +234,7 @@ int jit_brgemm_kernel_base_t::B_offset(int ld, int rd, bool is_amx) {
     return (is_amx)
             ? brg.typesize_B * (brg.rd_step * ld * brg.ld_block)
             : brg.typesize_B * (rd * brg.LDB + brg.rd_step * ld * brg.ld_block);
-};
+}
 int jit_brgemm_kernel_base_t::C_offset(int bd, int ld) {
     return brg.typesize_C * (bd * brg.LDC + ld * brg.ld_block);
 }
@@ -306,15 +320,25 @@ void jit_brgemm_kernel_base_t::cvt2ps(data_type_t type_in,
 void jit_brgemm_kernel_base_t::read_params() {
     Label label_done;
 
-    if (brg.layout == brgemm_row_major)
-        mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
-    else
-        mov(reg_A, ptr[param1 + GET_OFF(ptr_B)]);
+    if (brg.type == brgemm_addr) {
+        mov(reg_addr_batch, ptr[param1 + GET_OFF(batch)]);
+    } else {
+        if (brg.layout == brgemm_row_major) {
+            mov(reg_A, ptr[param1 + GET_OFF(ptr_A)]);
+            mov(reg_B, ptr[param1 + GET_OFF(ptr_B)]);
+        } else {
+            mov(reg_A, ptr[param1 + GET_OFF(ptr_B)]);
+            mov(reg_B, ptr[param1 + GET_OFF(ptr_A)]);
+        }
 
-    if (brg.layout == brgemm_row_major)
-        mov(reg_B, ptr[param1 + GET_OFF(ptr_B)]);
-    else
-        mov(reg_B, ptr[param1 + GET_OFF(ptr_A)]);
+        if (brg.type == brgemm_offs) {
+            mov(reg_offs_batch, ptr[param1 + GET_OFF(batch)]);
+            mov(ptr[rsp + origin_offs_batch_offs_], reg_offs_batch);
+        } else {
+            mov(reg_strd_batch, ptr[param1 + GET_OFF(batch)]);
+            mov(ptr[rsp + origin_strd_batch_offs_], reg_strd_batch);
+        }
+    }
 
     mov(reg_C, ptr[param1 + GET_OFF(ptr_C)]);
     mov(reg_D, ptr[param1 + GET_OFF(ptr_D)]);
@@ -327,13 +351,6 @@ void jit_brgemm_kernel_base_t::read_params() {
         mov(ptr[rsp + reg_buf_offs_], reg_buf);
     }
 
-    if (brg.type == brgemm_offs) {
-        mov(reg_offset_A, ptr[param1 + GET_OFF(offset_A)]);
-        mov(reg_offset_B, ptr[param1 + GET_OFF(offset_B)]);
-
-        mov(ptr[rsp + origin_offset_A_offs_], reg_offset_A);
-        mov(ptr[rsp + origin_offset_B_offs_], reg_offset_B);
-    }
     if (brg.with_bias) {
         mov(reg_bias, ptr[param1 + GET_OFF(ptr_bias)]);
         mov(ptr[rsp + reg_bias_offs_], reg_bias);
@@ -667,39 +684,71 @@ void jit_brgemm_kernel_base_t::store_accumulators(
 }
 
 void jit_brgemm_kernel_base_t::restore_A_B_matrices() {
-    if (brg.type != brgemm_offs) {
+    auto restore_reg_batch = brg.brgattr.max_bs > 1 || vpad_exist;
+    if (brg.type == brgemm_addr) {
+        if (restore_reg_batch) mov(reg_aux1_batch, reg_addr_batch);
+    } else {
         mov(reg_aux1_A, reg_A);
         mov(reg_aux1_B, reg_B);
+
+        if (restore_reg_batch)
+            if (brg.type == brgemm_offs)
+                mov(reg_offs_batch, ptr[rsp + origin_offs_batch_offs_]);
+            else
+                mov(reg_strd_batch, ptr[rsp + origin_strd_batch_offs_]);
     }
 }
-void jit_brgemm_kernel_base_t::restore_offsets() {
-    if (brg.type == brgemm_offs) {
-        mov(reg_offset_A, ptr[rsp + origin_offset_A_offs_]);
-        mov(reg_offset_B, ptr[rsp + origin_offset_B_offs_]);
-    }
-}
+
 void jit_brgemm_kernel_base_t::set_A_B_matrices() {
     if (brg.type == brgemm_addr) {
-        mov(reg_aux_A, ptr[reg_aux1_A]);
-        mov(reg_aux_B, ptr[reg_aux1_B]);
+        if (brg.brgattr.max_bs > 1) {
+            if (brg.layout == brgemm_row_major) {
+                mov(reg_aux_A,
+                        ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
+                mov(reg_aux_B,
+                        ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
+            } else {
+                mov(reg_aux_A,
+                        ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
+                mov(reg_aux_B,
+                        ptr[reg_aux1_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
+            }
+        } else {
+            // for max_batch == 1 we stored A and B pointers at the beginning
+            // of kernel in reg_aux1_A and reg_aux1_B
+            if (brg.layout == brgemm_row_major) {
+                mov(reg_aux_A, reg_aux1_A);
+                mov(reg_aux_B, reg_aux1_B);
+            } else {
+                mov(reg_aux_A, reg_aux1_B);
+                mov(reg_aux_B, reg_aux1_A);
+            }
+        }
 
-        add(reg_aux1_A, 8);
-        add(reg_aux1_B, 8);
+        if (brg.brgattr.max_bs > 1) {
+            add(reg_aux1_batch, sizeof(brgemm_batch_element_t));
+            prefetcht0(ptr[reg_aux1_batch]);
+        }
+    } else if (brg.type == brgemm_offs) {
+        mov(reg_aux_A, reg_A);
+        mov(reg_aux_B, reg_B);
+
+        add(reg_aux_A, ptr[reg_offs_batch + GET_OFF_BATCH_ELEMENT(offset.A)]);
+        add(reg_aux_B, ptr[reg_offs_batch + GET_OFF_BATCH_ELEMENT(offset.B)]);
+        add(reg_offs_batch, sizeof(brgemm_batch_element_t));
     } else if (brg.type == brgemm_strd) {
         mov(reg_aux_A, reg_aux1_A);
         mov(reg_aux_B, reg_aux1_B);
 
         add(reg_aux1_A, brg.stride_a);
         add(reg_aux1_B, brg.stride_b);
-    } else if (brg.type == brgemm_offs) {
-        mov(reg_aux_A, reg_A);
-        mov(reg_aux_B, reg_B);
-
-        add(reg_aux_A, ptr[reg_offset_A]);
-        add(reg_aux_B, ptr[reg_offset_B]);
-        add(reg_offset_A, 8);
-        add(reg_offset_B, 8);
+        if (vpad_exist) {
+            mov(reg_strd_batch, ptr[rsp + origin_strd_batch_offs_]);
+            add(reg_strd_batch, sizeof(brgemm_batch_element_t));
+            mov(ptr[rsp + origin_strd_batch_offs_], reg_strd_batch);
+        }
     }
+
     add(reg_aux_A, reg_a_offset);
     add(reg_aux_B, reg_b_offset);
 }
@@ -749,7 +798,8 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_amx(int bd_block2,
 }
 
 void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
-        bool is_bdb_tail, int ld_block2, bool is_rd_tail, bool is_ld_tail) {
+        bool is_bdb_tail, int ld_block2, bool is_rd_tail, bool is_ld_tail,
+        int vpad, int rows_for_rd_tail) {
     MAYBE_UNUSED(bd_block2);
     auto dot_product = [=](Zmm z1, Zmm z2, Zmm z3) {
         if (brg.is_f32)
@@ -761,6 +811,10 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
     };
 
     int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
+    const auto bd_b = nstl::max(0, vpad);
+    const auto bd_e = nstl::min(bd_block, bd_block + vpad);
+    if (bd_b >= bd_e) return;
+
     bool is_emdbd = brg.embd_bcst;
 
     int rd_loop = 0, rd_tail_size = 0;
@@ -792,79 +846,93 @@ void jit_brgemm_kernel_base_t::gemm_microkernel_avx512(int bd_block2,
         if (brg.req_s8s8_compensation) vpaddb(z1, z1, zmm_inp_shift());
     };
 
-#if defined(_N_BCST_1_LOAD)
-    for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
-        for (int bd = 0; bd < bd_block && !is_emdbd; bd++) {
-            bool is_tail_bcast = is_rd_tail && rd_tail_size != 0
-                    && (rd == rd_loop - brg.rd_step)
-                    && (brg.is_bf16 || brg.is_int8);
-            broadcast(bcst(bd), A_offset(bd, rd), is_tail_bcast);
-        }
-        for (int ld = 0; ld < ld_block2; ld++) {
-            if (is_ld_tail) {
-                vmovups(load() | ld_tail_mask | T_z,
-                        ptr[reg_aux_B + B_offset(ld, rd)]);
-            } else {
-                vmovups(load(), ptr[reg_aux_B + B_offset(ld, rd)]);
-            }
-            for (int bd = 0; bd < bd_block; bd++) {
-                auto zmm = accm(ld_block2, bd, ld);
-                if (is_emdbd)
-                    vfmadd231ps(
-                            zmm, load(), zword_b[reg_aux_A + A_offset(bd, rd)]);
-                else
-                    dot_product(zmm, load(), bcst(bd));
-            }
-        }
-    }
-#else
-    for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
-        int prefetch_count_B = 0;
-        for (int ld = 0; ld < ld_block2; ld++) {
-            if (is_ld_tail) {
-                vmovups(load(ld) | ld_tail_mask | T_z,
-                        ptr[reg_aux_B + B_offset(ld, rd)]);
-            } else {
-                vmovups(load(ld), ptr[reg_aux_B + B_offset(ld, rd)]);
-            }
-        }
-        for (int bd = 0; bd < bd_block; bd++) {
-            if (!is_emdbd) {
-                bool is_tail_bcast = is_rd_tail && rd_tail_size != 0
-                        && (rd == rd_loop - brg.rd_step)
-                        && (brg.is_bf16 || brg.is_int8);
-                broadcast(bcst(), A_offset(bd, rd), is_tail_bcast);
-            }
-            if (prefetch_count_B < ld_block2) {
-                prefetcht0(ptr[reg_aux_B + B_offset(prefetch_count_B++, rd)
-                        + brg.LDB * brg.rd_block * brg.typesize_B]);
+    bool maybe_load_bytes = (rows_for_rd_tail > 0 || brg.brgattr.wary_tail_read)
+            && is_rd_tail && rd_tail_size != 0 && (brg.is_bf16 || brg.is_int8);
+    if (n_bcast_1_load) {
+        for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
+            bool have_to_load_bytes
+                    = maybe_load_bytes && (rd == rd_loop - brg.rd_step);
+
+            auto rows_by_load_bytes = have_to_load_bytes ? rows_for_rd_tail : 0;
+            for (int bd = bd_b; bd < bd_e && !is_emdbd; bd++) {
+                const auto bd_by_load_bytes = (bd >= bd_e - rows_by_load_bytes
+                        || brg.brgattr.wary_tail_read);
+                broadcast(bcst(bd), A_offset(bd, rd),
+                        have_to_load_bytes && bd_by_load_bytes);
             }
             for (int ld = 0; ld < ld_block2; ld++) {
-                auto zmm = accm(ld_block2, bd, ld);
-                if (is_emdbd)
-                    vfmadd231ps(zmm, load(ld),
-                            zword_b[reg_aux_A + A_offset(bd, rd)]);
-                else
-                    dot_product(zmm, load(ld), bcst());
+                if (is_ld_tail) {
+                    vmovups(load() | ld_tail_mask | T_z,
+                            ptr[reg_aux_B + B_offset(ld, rd)]);
+                } else {
+                    vmovups(load(), ptr[reg_aux_B + B_offset(ld, rd)]);
+                }
+                for (int bd = bd_b; bd < bd_e; bd++) {
+                    auto zmm = accm(ld_block2, bd, ld);
+                    if (is_emdbd)
+                        vfmadd231ps(zmm, load(),
+                                zword_b[reg_aux_A + A_offset(bd, rd)]);
+                    else
+                        dot_product(zmm, load(), bcst(bd));
+                }
+            }
+        }
+    } else {
+        for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
+            int prefetch_count_B = 0;
+            for (int ld = 0; ld < ld_block2; ld++) {
+                if (is_ld_tail) {
+                    vmovups(load(ld) | ld_tail_mask | T_z,
+                            ptr[reg_aux_B + B_offset(ld, rd)]);
+                } else {
+                    vmovups(load(ld), ptr[reg_aux_B + B_offset(ld, rd)]);
+                }
+            }
+
+            bool have_to_load_bytes
+                    = maybe_load_bytes && (rd == rd_loop - brg.rd_step);
+
+            auto rows_by_load_bytes = have_to_load_bytes ? rows_for_rd_tail : 0;
+            for (int bd = bd_b; bd < bd_e; bd++) {
+                if (!is_emdbd) {
+                    const auto bd_by_load_bytes
+                            = (bd >= bd_e - rows_by_load_bytes
+                                    || brg.brgattr.wary_tail_read);
+                    broadcast(bcst(), A_offset(bd, rd),
+                            have_to_load_bytes && bd_by_load_bytes);
+                }
+                if (prefetch_count_B < ld_block2) {
+                    prefetcht0(ptr[reg_aux_B + B_offset(prefetch_count_B++, rd)
+                            + brg.LDB * brg.rd_block * brg.typesize_B]);
+                }
+                for (int ld = 0; ld < ld_block2; ld++) {
+                    auto zmm = accm(ld_block2, bd, ld);
+                    if (is_emdbd)
+                        vfmadd231ps(zmm, load(ld),
+                                zword_b[reg_aux_A + A_offset(bd, rd)]);
+                    else
+                        dot_product(zmm, load(ld), bcst());
+                }
             }
         }
     }
-#endif
 }
 
 void jit_brgemm_kernel_base_t::gemm_microkernel(int bd_block2, bool is_bdb_tail,
-        int ld_block2, bool is_rd_tail, bool is_ld_tail) {
+        int ld_block2, bool is_rd_tail, bool is_ld_tail, int vpad,
+        int rows_for_rd_tail) {
     if (brg.is_int8_amx || brg.is_bf16_amx) {
         gemm_microkernel_amx(
                 bd_block2, is_bdb_tail, ld_block2, is_rd_tail, is_ld_tail);
     } else {
-        gemm_microkernel_avx512(
-                bd_block2, is_bdb_tail, ld_block2, is_rd_tail, is_ld_tail);
+        gemm_microkernel_avx512(bd_block2, is_bdb_tail, ld_block2, is_rd_tail,
+                is_ld_tail, vpad, rows_for_rd_tail);
     }
 }
 
 void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
-        int ld_block2, int ldb_loop_length, bool is_reg_tail, bool is_ld_tail) {
+        int ld_block2, int ldb_loop_length, bool is_reg_tail, bool is_ld_tail,
+        bool check_top_vpad, bool check_bottom_vpad, int rows_for_rd_tail) {
 
     auto ldb_shift = [&](int ld_block2, bool is_tail = false) {
         int C_offset
@@ -900,8 +968,7 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
     };
 
     Label ldb_loop_label;
-    Label rdb_loop_label;
-    Label N_loop_label;
+    Label BS_loop_label;
 
     if (!is_reg_tail) {
         mov(reg_aux_C, reg_C);
@@ -921,15 +988,49 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
         }
     }
 
-    mov(reg_ldb_loop, ldb_loop_length);
+    auto ld_loop_body = [=](int vpad) {
+        set_A_B_matrices();
+
+        int bd_block = (is_bdb_tail) ? brg.bdb_tail : brg.bd_block;
+        const auto bd_b = nstl::max(0, vpad);
+        const auto bd_e = nstl::min(bd_block, bd_block + vpad);
+        if (bd_b >= bd_e) return;
+
+        Label rdb_loop_label;
+        if (brg.rdb > 0) {
+            mov(reg_rdb_loop, brg.rdb);
+            L_aligned(rdb_loop_label, 64);
+            {
+                const bool is_rd_tail = false;
+                gemm_microkernel(bd_block2, is_bdb_tail, ld_block2, is_rd_tail,
+                        is_ld_tail, vpad, rows_for_rd_tail);
+
+                add(reg_aux_A, rdb_A_offset());
+                add(reg_aux_B, rdb_B_offset());
+
+                dec(reg_rdb_loop);
+                cmp(reg_rdb_loop, 0);
+            }
+            jg(rdb_loop_label, T_NEAR);
+        }
+        if (brg.rdb_tail != 0) {
+            const bool is_rd_tail = true;
+            gemm_microkernel(bd_block2, is_bdb_tail, ld_block2, is_rd_tail,
+                    is_ld_tail, vpad, rows_for_rd_tail);
+        }
+    };
+
+    if (is_ldb_loop) mov(reg_ldb_loop, ldb_loop_length);
     L_aligned(ldb_loop_label, 64);
     {
         load_accumulators(bd_block2, is_bdb_tail, ld_block2, is_ld_tail);
 
-        mov(ptr[rsp + reg_D_offs_], reg_D);
-        mov(ptr[rsp + reg_aux_D_offs_], reg_aux_D);
+        if (is_ldb_loop)
+            mov(ptr[rsp + reg_D_offs_], reg_D);
+        else
+            mov(reg_ldb_loop, reg_D);
+        if (brg.brgattr.max_bs > 1) mov(ptr[rsp + reg_aux_D_offs_], reg_aux_D);
 
-        restore_offsets();
         restore_A_B_matrices();
 
         if (brg.req_s8s8_compensation) {
@@ -940,94 +1041,232 @@ void jit_brgemm_kernel_base_t::ldb_loop(int bd_block2, bool is_bdb_tail,
         }
 
         if (brg.alpha != 0.f) {
-            mov(reg_BS_loop, reg_BS);
-            L_aligned(N_loop_label, 64);
+            if (brg.brgattr.max_bs > 1) mov(reg_BS_loop, reg_BS);
+            L_aligned(BS_loop_label, 64);
             {
-                set_A_B_matrices();
+                if (check_top_vpad || check_bottom_vpad) {
+                    const auto vpad_first = -brg.brgattr.max_bottom_vpad;
+                    const auto vpad_last = brg.brgattr.max_top_vpad;
+                    const auto n_vpads = vpad_last - vpad_first + 2;
+                    constexpr auto MAX_N_VPADS = 2 * brgemm_t::MAX_VPAD;
+                    assert(n_vpads < MAX_N_VPADS);
 
-                if (brg.rdb > 0) {
-                    mov(reg_rdb_loop, brg.rdb);
-                    L_aligned(rdb_loop_label, 64);
-                    {
-                        const bool is_rd_tail = false;
-                        gemm_microkernel(bd_block2, is_bdb_tail, ld_block2,
-                                is_rd_tail, is_ld_tail);
+                    Label Vpad_loop_end_label;
+                    Label Vpad_loop_iter_label[MAX_N_VPADS];
+                    if (vpad_exist) {
+                        reg64_t reg_batch = (brg.type == brgemm_addr)
+                                ? reg_aux1_batch
+                                : ((brg.type == brgemm_offs) ? reg_offs_batch
+                                                             : reg_strd_batch);
+                        if (brg.type == brgemm_strd)
+                            mov(reg_strd_batch,
+                                    ptr[rsp + origin_strd_batch_offs_]);
 
-                        add(reg_aux_A, rdb_A_offset());
-                        add(reg_aux_B, rdb_B_offset());
+                        mov(reg_aux_A_vpad,
+                                ptr[reg_batch
+                                        + GET_OFF_BATCH_ELEMENT(vvpad.top)]);
+                        sub(reg_aux_A_vpad,
+                                ptr[reg_batch
+                                        + GET_OFF_BATCH_ELEMENT(vvpad.bottom)]);
+                    } else
+                        xor_(reg_aux_A_vpad, reg_aux_A_vpad);
 
-                        dec(reg_rdb_loop);
-                        cmp(reg_rdb_loop, 0);
+                    for (int vpad = vpad_first; vpad <= vpad_last; vpad++) {
+                        const auto label_vpad = vpad - vpad_first;
+                        L(Vpad_loop_iter_label[label_vpad]);
+                        if (!check_top_vpad && vpad > 0) continue;
+                        if (!check_bottom_vpad && vpad < 0) continue;
+                        auto real_vpad = vpad;
+                        if (check_bottom_vpad && !is_bdb_tail && brg.bdb_tail) {
+                            // for last full block before
+                            // bdb_tail && -vpad greater than bdb_tail
+                            if (brg.bdb_tail < -vpad)
+                                real_vpad += brg.bdb_tail;
+                            else
+                                continue;
+                        }
+                        cmp(reg_aux_A_vpad, vpad);
+                        jne(Vpad_loop_iter_label[label_vpad + 1], T_NEAR);
+                        ld_loop_body(real_vpad);
+                        jmp(Vpad_loop_end_label, T_NEAR);
                     }
-                    jg(rdb_loop_label, T_NEAR);
+                    L(Vpad_loop_iter_label[n_vpads - 1]);
+                    ld_loop_body(0);
+                    L(Vpad_loop_end_label);
+                } else {
+                    ld_loop_body(0);
                 }
-                if (brg.rdb_tail != 0) {
-                    const bool is_rd_tail = true;
-                    gemm_microkernel(bd_block2, is_bdb_tail, ld_block2,
-                            is_rd_tail, is_ld_tail);
+                if (brg.brgattr.max_bs > 1) {
+                    dec(reg_BS_loop);
+                    cmp(reg_BS_loop, 0);
+                    jg(BS_loop_label, T_NEAR);
                 }
-
-                dec(reg_BS_loop);
-                cmp(reg_BS_loop, 0);
             }
-            jg(N_loop_label, T_NEAR);
         }
-        mov(reg_D, ptr[rsp + reg_D_offs_]);
-        mov(reg_aux_D, ptr[rsp + reg_aux_D_offs_]);
+
+        if (is_ldb_loop)
+            mov(reg_D, ptr[rsp + reg_D_offs_]);
+        else
+            mov(reg_D, reg_ldb_loop);
+        if (brg.brgattr.max_bs > 1) mov(reg_aux_D, ptr[rsp + reg_aux_D_offs_]);
 
         store_accumulators(bd_block2, is_bdb_tail, ld_block2, is_ld_tail);
-
-        if (!is_ld_tail)
-            ldb_shift(ld_block2);
-        else
-            ldb_shift(1, true);
-
-        dec(reg_ldb_loop);
-        cmp(reg_ldb_loop, 0);
+        if (is_ldb_loop) {
+            if (!is_ld_tail)
+                ldb_shift(ld_block2);
+            else
+                ldb_shift(1, true);
+            dec(reg_ldb_loop);
+            cmp(reg_ldb_loop, 0);
+            jg(ldb_loop_label, T_NEAR);
+        }
     }
-    jg(ldb_loop_label, T_NEAR);
 }
 
 void jit_brgemm_kernel_base_t::bdb_loop() {
-    auto do_ldb_loop = [=](int bd_block2, bool is_bdb_tail) {
+    auto do_ldb_loop = [=](int bd_block2, bool is_bdb_tail, bool check_top_vpad,
+                               bool check_bottom_vpad, int rows_for_rd_tail) {
         if (brg.ldb2 > 0) {
             const bool is_ld_reg_tail = false;
             const bool is_ld_tail = false;
             ldb_loop(bd_block2, is_bdb_tail, brg.ld_block2, brg.ldb2,
-                    is_ld_reg_tail, is_ld_tail);
+                    is_ld_reg_tail, is_ld_tail, check_top_vpad,
+                    check_bottom_vpad, rows_for_rd_tail);
         }
         if (brg.ldb2_tail > 0) {
             const bool is_ld_reg_tail = (brg.ldb2 == 0) ? false : true;
             const bool is_ld_tail = false;
             ldb_loop(bd_block2, is_bdb_tail, brg.ldb2_tail, 1, is_ld_reg_tail,
-                    is_ld_tail);
+                    is_ld_tail, check_top_vpad, check_bottom_vpad,
+                    rows_for_rd_tail);
         }
         if (brg.ldb_tail > 0) {
             const bool is_ld_reg_tail
                     = (brg.ldb2 == 0 && brg.ldb2_tail == 0) ? false : true;
             const bool is_ld_tail = true;
-            ldb_loop(bd_block2, is_bdb_tail, 1, 1, is_ld_reg_tail, is_ld_tail);
+            ldb_loop(bd_block2, is_bdb_tail, 1, 1, is_ld_reg_tail, is_ld_tail,
+                    check_top_vpad, check_bottom_vpad, rows_for_rd_tail);
         }
     };
 
-    auto bdb_loop_body = [=](int bd_block2, bool is_bdb_tail) {
-        do_ldb_loop(bd_block2, is_bdb_tail);
+    auto bdb_loop_body
+            = [=](int bd_block2, bool is_bdb_tail, bool check_top_vpad,
+                      bool check_bottom_vpad, int rows_for_rd_tail) {
+                  do_ldb_loop(bd_block2, is_bdb_tail, check_top_vpad,
+                          check_bottom_vpad, rows_for_rd_tail);
 
-        add(reg_C, bdb_C_offset(bd_block2));
-        add(reg_D, bdb_D_offset(bd_block2));
-        add(reg_a_offset, bdb_A_offset(bd_block2));
-    };
+                  add(reg_C, bdb_C_offset(bd_block2));
+                  add(reg_D, bdb_D_offset(bd_block2));
+                  add(reg_a_offset, bdb_A_offset(bd_block2));
+              };
+
+    int rows_for_rd_tail, bd_blocks_for_rd_tail;
+
+    if (brg.is_int8_amx || brg.is_bf16_amx) {
+        rows_for_rd_tail = 0;
+        bd_blocks_for_rd_tail = 0;
+        n_bcast_1_load = false;
+    } else {
+        rows_for_rd_tail = 0;
+        if (brg.rdb_tail != 0 && (brg.is_bf16 || brg.is_int8)) {
+            const auto rd_tail_size = brg.rdb_tail % brg.rd_step;
+            rows_for_rd_tail = rd_tail_size
+                    ? div_up(brg.rd_step - rd_tail_size, brg.reduce_dim)
+                    : 0;
+        }
+        bd_blocks_for_rd_tail
+                = div_up(nstl::max(0,
+                                 rows_for_rd_tail - brg.bdb_tail
+                                         + brg.brgattr.max_bottom_vpad),
+                        brg.bd_block);
+
+        auto ld_block2 = (brg.ldb2 > 0)
+                ? brg.ld_block2
+                : ((brg.ldb2_tail > 0) ? brg.ldb2_tail : 1);
+        n_bcast_1_load = brg.is_int8
+                && ((brg.bd_block * (ld_block2 + 1) < 32)
+                        && (bd_blocks_for_rd_tail == 0)
+                        && (rows_for_rd_tail == 0));
+        // loop order may be specified in brgemm attributes
+        if (brg.brgattr.hint_loop_order != brgemm_lo_default)
+            n_bcast_1_load = (brg.brgattr.hint_loop_order == brgemm_lo_bl_1load)
+                    ? true
+                    : false;
+    }
+
     auto bdb_loop_avx512 = [=]() {
-        Label bdb_loop_label;
-        mov(reg_bdb_loop, brg.bdb);
-        L_aligned(bdb_loop_label, 64);
-        {
-            bdb_loop_body(1, false);
+        Label bdb_loop_end_label, no_vpad_label;
+        if (vpad_exist) {
+            // max_top_vp is restricted by bd_block due to
+            // brgemm_kernel implementation. TODO: remove this restriction
+            assert(brg.brgattr.max_top_vpad <= brg.bd_block
+                    && brg.brgattr.max_bottom_vpad <= brg.bd_block);
 
-            dec(reg_bdb_loop);
-            cmp(reg_bdb_loop, 0);
+            if (brg.type == brgemm_strd) {
+                // if batch is nullptr then it means no vpadding in this call
+                cmp(reg_offs_batch, 0);
+                je(no_vpad_label, T_NEAR);
+            }
+
+            // first bd_block --------------
+            auto bdblocks = brg.bdb;
+            if (bdblocks >= 1) {
+                bdb_loop_body(1, false, true, brg.bdb == 1 && brg.bdb_tail == 0,
+                        brg.bdb - bd_blocks_for_rd_tail > 0 ? 0
+                                                            : rows_for_rd_tail);
+                bdblocks--;
+            }
+            if (bdblocks > 1) {
+                // middle bd_blocks -----------
+                Label bdb_loop_label;
+                mov(reg_bdb_loop, bdblocks);
+                L_aligned(bdb_loop_label, 64);
+                {
+                    bdb_loop_body(1, false, false, false,
+                            bd_blocks_for_rd_tail <= 1 ? 0 : rows_for_rd_tail);
+
+                    dec(reg_bdb_loop);
+                    cmp(reg_bdb_loop, 1);
+                    jg(bdb_loop_label, T_NEAR);
+                }
+                bdblocks = 1;
+            }
+            if (bdblocks == 1) {
+                // last bd_block ------------
+                bdb_loop_body(1, false, false, true,
+                        bd_blocks_for_rd_tail == 0 ? 0 : rows_for_rd_tail);
+            }
+            if (brg.bdb_tail > 0)
+                do_ldb_loop(1, true, brg.bdb < 1, true, rows_for_rd_tail);
+            // for brgemm_strd "no vpadding" case may be implemented, so skip it
+            if (brg.type == brgemm_strd) jmp(bdb_loop_end_label);
         }
-        jg(bdb_loop_label, T_NEAR);
+        if (!vpad_exist || brg.type == brgemm_strd) {
+            // for brgemm_strd batch may be null so we need this code path
+            L_aligned(no_vpad_label, 64);
+            if (brg.bdb > 0) {
+                mov(reg_bdb_loop, brg.bdb);
+                if (brg.bdb > (rows_for_rd_tail ? 1 : 0)) {
+                    Label bdb_loop_label;
+                    L_aligned(bdb_loop_label, 64);
+                    {
+                        bdb_loop_body(1, false, false, false,
+                                bd_blocks_for_rd_tail <= 1 ? 0
+                                                           : rows_for_rd_tail);
+                        dec(reg_bdb_loop);
+                        cmp(reg_bdb_loop, rows_for_rd_tail ? 1 : 0);
+                        jg(bdb_loop_label, T_NEAR);
+                    }
+                }
+
+                if (rows_for_rd_tail)
+                    bdb_loop_body(1, false, false, true,
+                            bd_blocks_for_rd_tail == 0 ? 0 : rows_for_rd_tail);
+            }
+            if (brg.bdb_tail > 0)
+                do_ldb_loop(1, true, false, false, rows_for_rd_tail);
+        }
+        L_aligned(bdb_loop_end_label, 64);
     };
     auto bdb_loop_amx = [=]() {
         Label bdb_loop_label;
@@ -1035,22 +1274,28 @@ void jit_brgemm_kernel_base_t::bdb_loop() {
             mov(reg_bdb_loop, brg.bdb2);
             L_aligned(bdb_loop_label, 64);
             {
-                bdb_loop_body(brg.bd_block2, false);
+                bdb_loop_body(brg.bd_block2, false, false, false, 0);
 
                 dec(reg_bdb_loop);
                 cmp(reg_bdb_loop, 0);
             }
             jg(bdb_loop_label, T_NEAR);
         }
-        if (brg.bdb2_tail > 0) bdb_loop_body(brg.bdb2_tail, false);
+        if (brg.bdb2_tail > 0)
+            bdb_loop_body(brg.bdb2_tail, false, false, false, 0);
+        if (brg.bdb_tail > 0) do_ldb_loop(1, true, false, false, 0);
     };
+
+    if (brg.type == brgemm_addr && brg.brgattr.max_bs == 1 && !vpad_exist) {
+        mov(reg_aux1_A, ptr[reg_addr_batch + GET_OFF_BATCH_ELEMENT(ptr.A)]);
+        mov(reg_aux1_B, ptr[reg_addr_batch + GET_OFF_BATCH_ELEMENT(ptr.B)]);
+    }
 
     xor_(reg_a_offset, reg_a_offset);
     if (brg.is_int8_amx || brg.is_bf16_amx)
         bdb_loop_amx();
     else
         bdb_loop_avx512();
-    if (brg.bdb_tail > 0) do_ldb_loop(1, true);
 }
 
 void jit_brgemm_kernel_base_t::generate() {
@@ -1061,6 +1306,14 @@ void jit_brgemm_kernel_base_t::generate() {
     const auto full_mask = size_t {0xffffffffffffffff};
     const auto tail_mask = size_t((1 << brg.ldb_tail) - 1);
 
+    int is_ldb2_tail = brg.ldb2_tail ? 1 : 0;
+    int is_ldb_tail = brg.ldb_tail ? 1 : 0;
+    is_ldb_loop = (brg.ldb2 + is_ldb2_tail + is_ldb_tail) > 1 ? true : false;
+    vpad_exist
+            = (brg.brgattr.max_top_vpad > 0 || brg.brgattr.max_bottom_vpad > 0)
+            ? true
+            : false;
+
     reg64_t reg_mask = rax;
 
     mov(reg_mask, full_mask);
@@ -1070,12 +1323,12 @@ void jit_brgemm_kernel_base_t::generate() {
 
     read_params();
 
-#if !defined(_N_BCST_1_LOAD)
-    if (!brg.embd_bcst && (brg.is_bf16 || brg.is_int8)) {
-        Xmm xmm_tmp = Xmm(bcst().getIdx());
-        vpxor(xmm_tmp, xmm_tmp, xmm_tmp);
+    if (!n_bcast_1_load) {
+        if (!brg.embd_bcst && (brg.is_bf16 || brg.is_int8)) {
+            auto zmm_tmp = bcst();
+            vpxord(zmm_tmp, zmm_tmp, zmm_tmp);
+        }
     }
-#endif
 
     bdb_loop();
 

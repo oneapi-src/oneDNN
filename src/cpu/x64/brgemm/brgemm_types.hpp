@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,6 +45,61 @@ struct brgemm_strides_t {
     dim_t stride_a;
     // Stride between B matrices
     dim_t stride_b;
+};
+
+typedef enum {
+    brgemm_lo_default = 0,
+    brgemm_lo_bl_1load,
+    brgemm_lo_bl_1bcst,
+} brgemm_kernel_loop_order_t;
+
+typedef enum {
+    brgemm_prf_default = 1,
+} brgemm_kernel_prefetching_t;
+
+struct brgemm_attr_t {
+    brgemm_attr_t()
+        : max_bs(INT_MAX)
+        , max_top_vpad(0)
+        , max_bottom_vpad(0)
+        , hint_expected_A_size(LLONG_MAX)
+        , hint_expected_B_size(LLONG_MAX)
+        , hint_loop_order(brgemm_kernel_loop_order_t::brgemm_lo_default)
+        , hint_prefetching(brgemm_kernel_prefetching_t::brgemm_prf_default)
+        , wary_tail_read(true) {}
+    int max_bs;
+    int max_top_vpad, max_bottom_vpad;
+    dim_t hint_expected_A_size, hint_expected_B_size;
+    brgemm_kernel_loop_order_t hint_loop_order;
+    brgemm_kernel_prefetching_t hint_prefetching;
+    bool wary_tail_read;
+};
+
+struct brgemm_batch_element_t {
+    brgemm_batch_element_t() {
+        ptr.A = ptr.B = nullptr;
+        vvpad.top = vvpad.bottom = 0;
+    }
+    union {
+        struct {
+            const void *A;
+            const void *B;
+        } ptr;
+        struct {
+            dim_t A;
+            dim_t B;
+        } offset;
+    };
+    union {
+        struct {
+            dim_t top;
+            dim_t bottom;
+        } vvpad;
+        struct {
+            dim_t left;
+            dim_t right;
+        } hvpad;
+    };
 };
 
 struct brgemm_t {
@@ -100,14 +155,16 @@ struct brgemm_t {
 
     const primitive_attr_t *attr;
     post_ops_t::entry_t::eltwise_t eltwise;
+
+    brgemm_attr_t brgattr;
+    static constexpr int MAX_VPAD = 100;
 };
 
 struct brgemm_kernel_params_t {
     const void *ptr_A;
     const void *ptr_B;
+    const brgemm_batch_element_t *batch;
     void *ptr_C;
-    const void *offset_A;
-    const void *offset_B;
 
     const void *ptr_bias;
     void *ptr_D;

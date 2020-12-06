@@ -115,7 +115,7 @@ struct brgemm_inner_product_fwd_t : public primitive_t {
                         vbeta, jbgp_.LDA, jbgp_.LDB, jbgp_.LDC, vM, vN, vK));
 
                 auto LDD = jbgp_.oc_without_padding;
-                CHECK(brgemm_desc_add_postops(
+                CHECK(brgemm_desc_set_postops(
                         &brg, attr(), jbgp_.dst_dt, LDD, jbgp_.bia_dt));
             }
 
@@ -219,7 +219,7 @@ struct brgemm_inner_product_bwd_data_t : public primitive_t {
 
                 auto dt_d = diff_src_type;
                 auto LDD = jbgp_.ic_without_padding;
-                CHECK(brgemm_desc_add_postops(
+                CHECK(brgemm_desc_set_postops(
                         &brg, attr(), dt_d, LDD, jbgp_.bia_dt));
             }
 

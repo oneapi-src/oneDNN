@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2020 Intel Corporation
+* Copyright 2018-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@
             dst_iter_t *dst_iter_, float *weights_scales_, int block_step) \
             const
 
+#if DNNL_X64
 #define rnn_cell_execution_sig(f) \
     dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, dst_layer_t *dst_layer_, \
@@ -60,8 +61,8 @@
             float *diff_bias_, gates_t *ws_gates_, scratch_t *scratch_gates_, \
             ht_t *proj_ht_, gemm_acc_t *scratch_diff_ht_, gates_t *ws_grid_, \
             scratch_t *scratch_cell_, dst_iter_t *dst_iter_, \
-            gemm_acc_t *amx_scratchpad, const src_iter_t **A_addr_global, \
-            weights_t **B_addr_global) const
+            gemm_acc_t *amx_scratchpad, \
+            x64::brgemm_batch_element_t *addr_batch_global) const
 
 #define rnn_grid_execution_sig(f) \
     dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
@@ -80,8 +81,46 @@
             scratch_t *scratch_cell_, gemm_acc_t *diff_weights_layer_, \
             gemm_acc_t *diff_weights_iter_, float *diff_weights_projection_, \
             float *diff_weights_peephole_, float *diff_bias_, \
-            gemm_acc_t *amx_scratchpad, const src_iter_t **A_addr_global, \
-            weights_t **B_addr_global) const
+            gemm_acc_t *amx_scratchpad, \
+            x64::brgemm_batch_element_t *addr_batch_global) const
+#else
+#define rnn_cell_execution_sig(f) \
+    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
+            rnn_utils::cell_position_t cell_position, dst_layer_t *dst_layer_, \
+            float *dst_iter_c_, gemm_acc_t *diff_src_layer_, \
+            gemm_acc_t *diff_src_iter_, gemm_acc_t *diff_src_iter_c_, \
+            weights_t **w_layer_, weights_t **w_iter_, \
+            weights_t **w_projection_, const float *weights_peephole_, \
+            const float *w_proj_comp, float **bias_, \
+            const src_layer_t *src_layer_, const src_iter_t *src_iter_, \
+            const float *src_iter_c_, gemm_acc_t *diff_dst_layer_, \
+            gemm_acc_t *diff_dst_iter_, gemm_acc_t *diff_dst_iter_c_, \
+            gemm_acc_t *diff_w_layer_, gemm_acc_t *diff_w_iter_, \
+            float *diff_weights_projection_, float *diff_weights_peephole_, \
+            float *diff_bias_, gates_t *ws_gates_, scratch_t *scratch_gates_, \
+            ht_t *proj_ht_, gemm_acc_t *scratch_diff_ht_, gates_t *ws_grid_, \
+            scratch_t *scratch_cell_, dst_iter_t *dst_iter_, \
+            gemm_acc_t *amx_scratchpad) const
+
+#define rnn_grid_execution_sig(f) \
+    dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
+            weights_t **weights_layer_, weights_t **weights_iter_, \
+            weights_t **weights_projection_, const float *weights_peephole_, \
+            const float *w_proj_comp, float **bias_, \
+            const src_layer_t *src_layer_, const src_iter_t *src_iter_, \
+            const float *src_iter_c_, dst_layer_t *dst_layer_, \
+            dst_iter_t *dst_iter_, float *dst_iter_c_, \
+            src_layer_t *ws_states_layer_, src_iter_t *ws_states_iter_, \
+            float *ws_states_iter_c_, gemm_acc_t *ws_diff_states_layer_, \
+            gemm_acc_t *ws_diff_states_iter_, \
+            gemm_acc_t *ws_diff_states_iter_c_, gates_t *ws_gates_, \
+            ht_t *ws_ht_, gates_t *ws_grid_, scratch_t *scratch_gates_, \
+            ht_t *scratch_ht_, gemm_acc_t *scratch_diff_ht_, \
+            scratch_t *scratch_cell_, gemm_acc_t *diff_weights_layer_, \
+            gemm_acc_t *diff_weights_iter_, float *diff_weights_projection_, \
+            float *diff_weights_peephole_, float *diff_bias_, \
+            gemm_acc_t *amx_scratchpad) const
+#endif
 
 #define rnn_gemm_sig(f) \
     dnnl_status_t f(const char transA, const char transB, dim_t m, dim_t n, \

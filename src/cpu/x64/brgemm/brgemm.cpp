@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,11 +36,12 @@ using namespace prop_kind;
 using namespace data_type;
 
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
-        const void **addr_A, const void **addr_B, void *ptr_C, void *scratch) {
+        const brgemm_batch_element_t *batch, void *ptr_C, void *scratch) {
     brgemm_kernel_params_t brgemm_p;
 
-    brgemm_p.ptr_A = addr_A;
-    brgemm_p.ptr_B = addr_B;
+    brgemm_p.batch = batch;
+    brgemm_p.ptr_A = nullptr;
+    brgemm_p.ptr_B = nullptr;
     brgemm_p.ptr_C = ptr_C;
     brgemm_p.ptr_D = ptr_C;
     brgemm_p.ptr_buf = scratch;
@@ -51,27 +52,11 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 }
 
 void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
-        const void *addr_A, const dim_t *offs_A, const void *addr_B,
-        const dim_t *offs_B, void *ptr_C, void *scratch) {
+        const void *addr_A, const void *addr_B,
+        const brgemm_batch_element_t *batch, void *ptr_C, void *scratch) {
     brgemm_kernel_params_t brgemm_p;
 
-    brgemm_p.ptr_A = addr_A;
-    brgemm_p.ptr_B = addr_B;
-    brgemm_p.offset_A = offs_A;
-    brgemm_p.offset_B = offs_B;
-    brgemm_p.ptr_C = ptr_C;
-    brgemm_p.ptr_D = ptr_C;
-    brgemm_p.ptr_buf = scratch;
-    brgemm_p.ptr_bias = nullptr;
-    brgemm_p.do_post_ops = 0;
-    brgemm_p.BS = bs;
-    (*brg_kernel)(&brgemm_p);
-}
-
-void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
-        const void *addr_A, const void *addr_B, void *ptr_C, void *scratch) {
-    brgemm_kernel_params_t brgemm_p;
-
+    brgemm_p.batch = batch;
     brgemm_p.ptr_A = addr_A;
     brgemm_p.ptr_B = addr_B;
     brgemm_p.ptr_C = ptr_C;
@@ -84,12 +69,13 @@ void brgemm_kernel_execute(const brgemm_kernel_t *brg_kernel, int bs,
 }
 
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
-        const void **addr_A, const void **addr_B, void *ptr_C, void *ptr_D,
+        const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
         const void *bias, const float *scales, void *scratch) {
     brgemm_kernel_params_t brgemm_p;
 
-    brgemm_p.ptr_A = addr_A;
-    brgemm_p.ptr_B = addr_B;
+    brgemm_p.batch = batch;
+    brgemm_p.ptr_A = nullptr;
+    brgemm_p.ptr_B = nullptr;
     brgemm_p.ptr_C = ptr_C;
     brgemm_p.ptr_D = ptr_D;
     brgemm_p.ptr_buf = scratch;
@@ -101,30 +87,12 @@ void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
 }
 
 void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
-        const void *addr_A, const dim_t *offs_A, const void *addr_B,
-        const dim_t *offs_B, void *ptr_C, void *ptr_D, const void *bias,
-        const float *scales, void *scratch) {
-    brgemm_kernel_params_t brgemm_p;
-
-    brgemm_p.ptr_A = addr_A;
-    brgemm_p.ptr_B = addr_B;
-    brgemm_p.offset_A = offs_A;
-    brgemm_p.offset_B = offs_B;
-    brgemm_p.ptr_C = ptr_C;
-    brgemm_p.ptr_D = ptr_D;
-    brgemm_p.ptr_buf = scratch;
-    brgemm_p.ptr_bias = bias;
-    brgemm_p.ptr_scales = scales;
-    brgemm_p.do_post_ops = 1;
-    brgemm_p.BS = bs;
-    (*brg_kernel)(&brgemm_p);
-}
-
-void brgemm_kernel_execute_postops(const brgemm_kernel_t *brg_kernel, int bs,
-        const void *addr_A, const void *addr_B, void *ptr_C, void *ptr_D,
+        const void *addr_A, const void *addr_B,
+        const brgemm_batch_element_t *batch, void *ptr_C, void *ptr_D,
         const void *bias, const float *scales, void *scratch) {
     brgemm_kernel_params_t brgemm_p;
 
+    brgemm_p.batch = batch;
     brgemm_p.ptr_A = addr_A;
     brgemm_p.ptr_B = addr_B;
     brgemm_p.ptr_C = ptr_C;
@@ -350,7 +318,7 @@ status_t brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
     return status::success;
 }
 
-status_t brgemm_desc_add_postops(brgemm_t *brg, const primitive_attr_t *attr,
+status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
         impl::data_type_t dt_d, int LDD, impl::data_type_t dt_bias) {
     if (brg == nullptr) return status::invalid_arguments;
 
@@ -398,6 +366,39 @@ status_t brgemm_desc_add_postops(brgemm_t *brg, const primitive_attr_t *attr,
         brg->with_scales = true;
     }
 
+    return status::success;
+}
+
+status_t brgemm_desc_set_attr(brgemm_t *brg, const brgemm_attr_t &brgattr) {
+    if (brg == nullptr) return status::invalid_arguments;
+
+    // negative padding is not supported
+    if (brgattr.max_top_vpad < 0 || brgattr.max_bottom_vpad < 0)
+        return status::unimplemented;
+
+    // virtual padding is not supported for "amx"
+    if ((brgattr.max_top_vpad > 0 || brgattr.max_bottom_vpad > 0)
+            && (brg->is_int8_amx || brg->is_bf16_amx))
+        return status::unimplemented;
+
+    // virtual padding size is restricted by MAX_VPAD value
+    if (brgattr.max_top_vpad > brgemm_t::MAX_VPAD
+            || brgattr.max_bottom_vpad > brgemm_t::MAX_VPAD)
+        return status::unimplemented;
+
+    // virtual padding is restricted by bd_block size due to
+    // brgemm_kernel implementation. TODO: remove this restriction
+    if (brgattr.max_top_vpad > brg->bd_block
+            || brgattr.max_bottom_vpad > brg->bd_block)
+        return status::unimplemented;
+
+    // virtual padding is supported for "brgemm_row_major" layout
+    // TODO: remove this restriction
+    if ((brgattr.max_top_vpad > 0 || brgattr.max_bottom_vpad > 0)
+            && brg->layout != brgemm_row_major)
+        return status::unimplemented;
+
+    brg->brgattr = brgattr;
     return status::success;
 }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -574,11 +574,10 @@ status_t init_ip_conf(cpu_isa_t isa, jit_brgemm_primitive_conf_t &jbgp,
 
 void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         const jit_brgemm_primitive_conf_t &jbgp) {
-    size_t sc_size = sizeof(void *);
+    size_t sc_size = sizeof(brgemm_batch_element_t);
     size_t n_elems = jbgp.nthr * 16 * jbgp.gemm_batch_size;
     if (jbgp.brg_type == brgemm_addr) {
-        scratchpad.book(key_brgemm_primitive_addr_a, n_elems, sc_size, 64);
-        scratchpad.book(key_brgemm_primitive_addr_b, n_elems, sc_size, 64);
+        scratchpad.book(key_brgemm_primitive_batch, n_elems, sc_size, 64);
     }
     if (jbgp.use_buffer) {
         size_t nelements = (size_t)jbgp.nthr * jbgp.LDC * jbgp.M;
