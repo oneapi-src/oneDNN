@@ -115,7 +115,6 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
                     = conf.od * conf.oh * utils::div_up(conf.ow, conf.ow_block);
             conf.gws_d[2]
                     = utils::div_up(conf.mb, utils::div_up(conf.mb_block, 4));
-
         } else {
             conf.sub_group_size = 8;
             int ow_group = 1;
@@ -139,7 +138,6 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
                         : 8;
                 ow_nchunk = utils::div_up(conf.ow, conf.ow_block);
                 ow_group = utils::max_div(ow_nchunk, max_ow_group);
-                if (ow_group == 1) utils::max_div(ow_nchunk + 1, max_ow_group);
             } else { // 1st
                 conf.ic_block = 4;
                 conf.ow_block = (conf.kw * conf.kh <= 49 && conf.ow % 16 < 8)
@@ -147,7 +145,6 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
                         : 12;
                 ow_nchunk = utils::div_up(conf.ow, conf.ow_block);
                 ow_group = utils::max_div(ow_nchunk, max_ow_group);
-                if (ow_group == 1) utils::max_div(ow_nchunk + 1, max_ow_group);
                 if (conf.mb == 8 || conf.mb % 16 == 0) { conf.mb_block = 32; }
             }
 
@@ -238,7 +235,6 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
                         : 8;
                 ow_nchunk = utils::div_up(conf.ow, conf.ow_block);
                 ow_group = utils::max_div(ow_nchunk, max_ow_group);
-                if (ow_group == 1) utils::max_div(ow_nchunk + 1, max_ow_group);
                 break;
             case ver_1stconv:
                 conf.ic_block = 4;
@@ -247,7 +243,6 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_conf() {
                         : 12;
                 ow_nchunk = utils::div_up(conf.ow, conf.ow_block);
                 ow_group = utils::max_div(ow_nchunk, max_ow_group);
-                if (ow_group == 1) utils::max_div(ow_nchunk + 1, max_ow_group);
                 break;
         }
 
@@ -599,8 +594,6 @@ status_t gen12lp_x8s8s32x_convolution_bwd_data_t::pd_t::init_conf() {
 
     conf.gws_d[0] = utils::rnd_up(conf.nchunk * 8, conf.lws_d[0]);
     conf.gws_d[1] = conf.id * conf.ih * utils::rnd_up(conf.iw, conf.lws_d[1]);
-    conf.gws_d[2] = utils::div_up(conf.mb, conf.mb_block);
-
     conf.gws_d[2] = utils::div_up(conf.mb, conf.mb_block / 2);
 
     conf.with_bias = cd.bias_desc.format_kind != format_kind::undef;
