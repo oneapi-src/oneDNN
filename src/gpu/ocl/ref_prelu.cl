@@ -18,7 +18,7 @@
 #include "gpu/ocl/ocl_types.h"
 
 #if IS_FWD
-KERNEL_ATTR
+
 __kernel void ref_prelu_fwd(const __global SRC_DATA_T *src,
         const __global WEI_DATA_T *weights, __global DST_DATA_T *dst) {
 
@@ -44,7 +44,6 @@ __kernel void ref_prelu_fwd(const __global SRC_DATA_T *src,
 
 #else // #if IS_FWD
 
-KERNEL_ATTR
 __kernel void ref_prelu_bwd(const __global SRC_DATA_T *src,
         const __global WEI_DATA_T *weights, const __global DST_DATA_T *diff_dst,
         __global DIFF_SRC_DATA_T *diff_src,
