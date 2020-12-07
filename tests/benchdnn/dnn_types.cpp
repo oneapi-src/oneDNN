@@ -680,6 +680,8 @@ std::ostream &dump_global_params(std::ostream &s) {
         s << "--mem-check=" << bool2str(mem_check) << " ";
     if (canonical || allow_enum_tags_only != true)
         s << "--allow-enum-tags-only=" << bool2str(allow_enum_tags_only) << " ";
+    if (canonical || hints.get() != isa_hints_t::none)
+        s << "--cpu-isa-hints=" << isa_hints_t::hints2str(hints) << " ";
 
     return s;
 }

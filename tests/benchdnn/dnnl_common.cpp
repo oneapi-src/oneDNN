@@ -44,6 +44,20 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
 // Engine kind used to run oneDNN primitives for testing
 dnnl_engine_kind_t engine_tgt_kind = dnnl_cpu;
 
+// CPU ISA specific hints : none by default
+isa_hints_t hints {isa_hints_t::none};
+
+void init_isa_settings() {
+    if (hints.get() == isa_hints_t::no_hints)
+        DNN_SAFE_V(dnnl_set_cpu_isa_hints(dnnl_cpu_isa_no_hints));
+    else if (hints.get() == isa_hints_t::prefer_ymm)
+        DNN_SAFE_V(dnnl_set_cpu_isa_hints(dnnl_cpu_isa_prefer_ymm));
+    else {
+        // Do nothing when hints == none
+        assert(hints.get() == isa_hints_t::none);
+    }
+}
+
 args_t &args_t::set(int arg, const dnn_mem_t &mem) {
     args_.emplace_back(arg, &mem);
     return *this;

@@ -29,6 +29,13 @@ The following common options are supported:
 * --engine=`ENGINE` -- Specifies an engine kind ENGINE to be used for
   benchmarking. ENGINE values can be `cpu` (the default) or `gpu`.
 
+* --cpu-isa-hints=`HINTS` -- Specifies the ISA specific hints to the CPU engine.
+  `HINTS` values can be `none` (the default), `no_hints` or `prefer_ymm`. `none`
+  value respects the `DNNL_CPU_ISA_HINTS` environment variable setting, while
+  others will override it with chosen value. The settings other than `none` take
+  place immediately after the parsing and subsequent attempts to set the hints
+  will result in runtime error.
+
 * --mem-check=`BOOL` -- Instructs the driver to perform a device RAM capability
   check if the problem fits the device. When BOOL is `true` (the default), the
   check is performed.

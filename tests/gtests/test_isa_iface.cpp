@@ -17,6 +17,7 @@
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"
+#include "src/cpu/platform.hpp"
 #include "src/cpu/x64/cpu_isa_traits.hpp"
 
 namespace dnnl {
@@ -30,4 +31,16 @@ TEST(isa_set_once_test, TestISASetOnce) {
     ASSERT_TRUE(st == status::invalid_arguments || st == status::unimplemented);
 };
 
+TEST(isa_set_once_test, TestISAHintsSetOnce) {
+    auto st = set_cpu_isa_hints(cpu_isa_hints::prefer_ymm);
+    const bool unimplemented = st == status::unimplemented;
+    ASSERT_TRUE(unimplemented || st == status::success);
+
+    // mayiuse should disable further changes in CPU ISA hints
+    ASSERT_TRUE(impl::cpu::x64::mayiuse(impl::cpu::x64::sse41));
+    ASSERT_TRUE(unimplemented || impl::cpu::platform::prefer_ymm_requested());
+
+    st = set_cpu_isa_hints(cpu_isa_hints::no_hints);
+    ASSERT_TRUE(unimplemented || st == status::runtime_error);
+};
 } // namespace dnnl

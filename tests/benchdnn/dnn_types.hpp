@@ -24,6 +24,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <string>
 #include <vector>
 #include <unordered_map>
 
@@ -328,6 +329,46 @@ struct attr_t {
 
     bool is_def() const;
 };
+
+struct isa_hints_t {
+    enum cpu_hints_t {
+        // If DNNL_CPU_ISA_HINTS is set then use hints from there
+        // Otherwise no hints
+        none = 0x0,
+        // No CPU ISA specific hints
+        // Will override DNNL_CPU_ISA_HINTS if that is available too
+        no_hints = 0x1,
+        // Use prefer_ymm CPU ISA hint
+        // Will override DNNL_CPU_ISA_HINTS if that is available too
+        prefer_ymm = 0x2,
+    };
+
+    cpu_hints_t hints_;
+    isa_hints_t(cpu_hints_t hints) : hints_(hints) {}
+
+    cpu_hints_t get() { return hints_; }
+
+    static std::string hints2str(const isa_hints_t &isa_hints) {
+        switch (isa_hints.hints_) {
+            case none: return "none";
+            case no_hints: return "no_hints";
+            case prefer_ymm: return "prefer_ymm";
+            default: assert(!"unknown hint"); return "unknown_hint";
+        }
+    }
+
+    static isa_hints_t str2hints(const char *str) {
+        cpu_hints_t hints = none;
+
+        if (strcasecmp(str, "prefer_ymm") == 0)
+            hints = prefer_ymm;
+        else if (strcasecmp(str, "no_hints") == 0)
+            hints = no_hints;
+
+        return isa_hints_t(hints);
+    }
+};
+
 using policy_t = attr_t::policy_t;
 
 void handle_legacy_attr(attr_t &attr, const attr_t &legacy_attr);

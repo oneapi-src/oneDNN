@@ -123,6 +123,7 @@ endif()
 if(DNNL_TARGET_ARCH STREQUAL "X64")
     file(GLOB X64_PRIM_TEST_CASES_SRC
         test_isa_mask.cpp
+        test_isa_hints.cpp
         test_isa_iface.cpp
         )
     foreach(TEST_FILE ${X64_PRIM_TEST_CASES_SRC})

@@ -321,6 +321,15 @@ static bool parse_allow_enum_tags_only(const char *str,
             allow_enum_tags_only, true, str2bool, str, option_name);
 }
 
+static bool parse_cpu_isa_hints(
+        const char *str, const std::string &option_name = "cpu-isa-hints") {
+    const bool parsed
+            = parse_single_value_option(hints, isa_hints_t {isa_hints_t::none},
+                    isa_hints_t::str2hints, str, option_name);
+    if (parsed) init_isa_settings();
+    return parsed;
+}
+
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
@@ -328,7 +337,8 @@ bool parse_bench_settings(const char *str) {
             || parse_fix_times_per_prb(str) || parse_verbose(str)
             || parse_engine_kind(str) || parse_fast_ref_gpu(str)
             || parse_canonical(str) || parse_mem_check(str)
-            || parse_skip_impl(str) || parse_allow_enum_tags_only(str);
+            || parse_skip_impl(str) || parse_allow_enum_tags_only(str)
+            || parse_cpu_isa_hints(str);
 }
 
 void catch_unknown_options(const char *str) {

@@ -218,6 +218,9 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value);
 
 /* simplification */
 extern dnnl_engine_kind_t engine_tgt_kind;
+extern isa_hints_t hints;
+
+void init_isa_settings();
 
 inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
     const char *str;
