@@ -24,3 +24,4 @@ g2_ic10oc20_id16kd1_n"3d_gconv_non-block_1x1"
 g3_ic6oc6_id56kd3sd2_n"3d_gconv_non-block_s2"
 
 g1_ic16oc1_id33kd33_n"3d_conv_large_shape:1"
+g1_ic32oc1_id192kd192_n"3d_conv_large_shapes:2"
