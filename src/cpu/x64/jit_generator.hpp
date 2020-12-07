@@ -1112,6 +1112,14 @@ public:
         vpminsd(x1, x2, op);
     }
 
+    void uni_vpmulld(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2, const Xbyak::Operand &op) {
+        assert(x1.getIdx() == x2.getIdx());
+        pmulld(x1, op);
+    }
+    void uni_vpmulld(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2, const Xbyak::Operand &op) {
+        vpmulld(x1, x2, op);
+    }
+
     void mul_by_const(
             const Xbyak::Reg &out, const Xbyak::Reg64 &tmp, int value) {
         // Generates a shift + add sequence for multiplicating contents of the
