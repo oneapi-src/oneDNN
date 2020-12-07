@@ -453,9 +453,6 @@ the convolution.)
      Intel DL Boost instruction sets
    - Run-time output scales are not supported
 
-3. **GPU**
-    - No support for Winograd algorithm
-
 ## Performance Tips
 
 - Use #dnnl::memory::format_tag::any for source, weights, and destinations
