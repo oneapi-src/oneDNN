@@ -202,8 +202,16 @@ typename gemm_info_t<a_t, b_t, c_t>::gemv_u8s8s32_fptr_t
 template <typename a_t, typename b_t, typename c_t>
 void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
-    // TODO: Add dispatching for 1-fma SKUs with support to bf16 instructions.
     bool use_bf16_ymm = false;
+    // TODO: Add dispatching for 1-fma SKUs with support to bf16
+    // instructions for AMX kernel.
+    {
+        constexpr bool is_bf16 = data_traits<a_t>::data_type == data_type::bf16;
+        const bool max_isa_supports_bf16_ymm = mayiuse(avx512_core_bf16_ymm)
+                && !mayiuse(avx512_core_bf16_amx_bf16);
+
+        use_bf16_ymm = is_bf16 && max_isa_supports_bf16_ymm;
+    }
 
     switch (data_traits<a_t>::data_type) {
         case data_type::s8:
