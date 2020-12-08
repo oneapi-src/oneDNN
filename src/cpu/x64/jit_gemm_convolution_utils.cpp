@@ -72,14 +72,14 @@ struct jit_pp_kernel_t : pp_kernel_t, public jit_generator {
     status_t create_kernel() override { return jit_generator::create_kernel(); }
 
     void operator()(float *dst, const float *bias, const int len, const int oc_start, const int oc_work, const int oc_stride) const override {
-        parallel_nd(oc_work, [&](int oc) {
+        for (int oc = 0; oc < oc_work; oc++) {
             ker_args_t args;
             args.dst = dst + oc * oc_stride;
             args.bias = bias + oc_start + oc;
             args.len = len;
             args.oc_offset = oc_start + oc;
             jit_generator::operator()(&args);
-        });
+        }
     }
 
 private:
