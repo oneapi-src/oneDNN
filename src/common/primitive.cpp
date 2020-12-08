@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <string>
+
 #include <assert.h>
 
 #include "c_types_map.hpp"
@@ -83,13 +85,16 @@ status_t primitive_create(primitive_iface_t **primitive_iface,
     std::pair<primitive_iface_t *, bool> p_iface;
 
     if (get_verbose() >= 2) {
-        double ms = get_msec();
+        double start_ms = get_msec();
         status = primitive_desc_iface->create_primitive_iface(p_iface);
+        double duration_ms = get_msec() - start_ms;
 
         const char *str = p_iface.second ? "cache_hit" : "cache_miss";
-        ms = get_msec() - ms;
-        printf("dnnl_verbose,create:%s,%s,%g\n", str,
-                p_iface.first->pd()->info(), ms);
+        std::string stamp;
+        if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
+
+        printf("dnnl_verbose%s,create:%s,%s,%g\n", stamp.c_str(), str,
+                p_iface.first->pd()->info(), duration_ms);
         fflush(stdout);
     } else {
         status = primitive_desc_iface->create_primitive_iface(p_iface);
@@ -107,11 +112,15 @@ status_t primitive_execute(
 
     if (get_verbose()) {
         stream->wait();
-        double ms = get_msec();
+        double start_ms = get_msec();
         status = stream->enqueue_primitive(primitive_iface, ctx);
         stream->wait();
-        ms = get_msec() - ms;
-        printf("dnnl_verbose,exec,%s,%g\n", primitive_iface->pd()->info(), ms);
+        double duration_ms = get_msec() - start_ms;
+        std::string stamp;
+        if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
+
+        printf("dnnl_verbose%s,exec,%s,%g\n", stamp.c_str(),
+                primitive_iface->pd()->info(), duration_ms);
         fflush(stdout);
     } else {
         status = stream->enqueue_primitive(primitive_iface, ctx);

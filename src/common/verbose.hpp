@@ -34,6 +34,7 @@ struct verbose_t {
 };
 
 int get_verbose();
+bool get_verbose_timestamp();
 double get_msec();
 
 #if !defined(DISABLE_VERBOSE)

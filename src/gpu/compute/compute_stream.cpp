@@ -67,13 +67,16 @@ status_t compute_stream_t::zero_pad(
         dnnl_md2dim_str(md_dim, str_size, memory->md());
 
         this->wait();
-        double ms = get_msec();
+        double start_ms = get_msec();
         CHECK(zero_pad_primitive->execute(zero_pad_ctx));
         status_t status = this->wait();
-        ms = get_msec() - ms;
+        double duration_ms = get_msec() - start_ms;
+        std::string stamp;
+        if (get_verbose_timestamp()) stamp = "," + std::to_string(start_ms);
 
-        printf("dnnl_verbose,exec,%s,%s,%s,%s,%g\n", "gpu,zero_pad",
-                zero_pad_primitive->pd()->name(), md_fmt, md_dim, ms);
+        printf("dnnl_verbose%s,exec,%s,%s,%s,%s,%g\n", stamp.c_str(),
+                "gpu,zero_pad", zero_pad_primitive->pd()->name(), md_fmt,
+                md_dim, duration_ms);
 
         return status;
     } else {
