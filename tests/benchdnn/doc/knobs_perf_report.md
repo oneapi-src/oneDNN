@@ -48,6 +48,7 @@ Options supported:
 | %ddt%         | Binary, Concat, Reorder, Sum                       | Destination data types (precision)
 | %dir%         | All, except Concat, RNN, Reorder, Sum              | Primitive prop kind
 | %direction%   | RNN                                                | RNN direction execution
+| %driver%      | All                                                | Name of the current driver (e.g. conv, reorder)
 | %dt%          | Data md based                                      | Data type (precision)
 | %dtag%        | Concat, Conv, IP, Matmul, Reorder, Sum             | Destination format tag (physical memory layout)
 | %engine%      | All                                                | Engine kind
