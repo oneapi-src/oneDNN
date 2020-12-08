@@ -56,15 +56,15 @@ bool parse_tag(std::vector<std::string> &tag,
         if (check_tag(tag[i], allow_enum_tags_only) != OK) {
             if (allow_enum_tags_only && check_tag(tag[i]) == OK) {
                 fprintf(stderr,
-                        "%s driver: ERROR: tag `%s` is valid but not found "
-                        "in dnnl::memory::format_tag, use "
-                        "--allow-enum-tags-only=0 if you want to test this "
-                        "tag.\n",
-                        driver_name, tag[i].c_str());
+                        "ERROR: tag `%s` is valid but not found in "
+                        "`dnnl::memory::format_tag`. To force the testing with "
+                        "this tag, please specify `--allow-enum-tags-only=0` "
+                        "prior to any tag option.\n",
+                        tag[i].c_str());
             } else {
                 fprintf(stderr,
-                        "%s driver: ERROR: unknown tag: `%s`, exiting...\n",
-                        driver_name, tag[i].c_str());
+                        "ERROR: unknown or invalid tag: `%s`, exiting...\n",
+                        tag[i].c_str());
             }
             exit(2);
         }
