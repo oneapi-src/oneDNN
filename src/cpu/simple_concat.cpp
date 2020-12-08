@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
+* Copyright 2017-2021 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -98,8 +98,47 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
                         + os[3] * n3 + os[4] * n4;
                 const data_t *i = &iptrs[a][in_off];
                 data_t *o = &optrs[a][out_off];
-#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
-                std::memcpy(o, i, nelems_to_copy[a] * sizeof(data_t));
+
+#if defined(__GNUC__)
+                // Heuristic:
+                // memcpy works generally faster for data sizes not
+                // exceeding L1 cache.
+                const auto L1_size = platform::get_per_core_cache_size(1);
+                if (nelems_to_copy[a] * sizeof(data_t) > L1_size) {
+                    // The code below performs data copying: o[e] = i[e]
+                    // and uses a workaround to make GNU compilers optimize it
+                    uint8_t *ptro = reinterpret_cast<uint8_t *>(o);
+                    const uint8_t *ptri = reinterpret_cast<const uint8_t *>(i);
+
+                    const size_t head_part = sizeof(uint32_t)
+                            - reinterpret_cast<uint64_t>(ptro)
+                                    % sizeof(uint32_t);
+                    const size_t main_part
+                            = (nelems_to_copy[a] - head_part / sizeof(data_t))
+                            * sizeof(data_t) / sizeof(uint32_t);
+                    const size_t tail_part
+                            = (nelems_to_copy[a] * sizeof(data_t)) - head_part
+                            - (main_part * sizeof(uint32_t));
+                    for (size_t e = 0; e < head_part; ++e) {
+                        *ptro = *ptri;
+                        ++ptro;
+                        ++ptri;
+                    }
+                    PRAGMA_OMP_SIMD()
+                    for (size_t e = 0; e < main_part; ++e) {
+                        *(reinterpret_cast<uint32_t *>(ptro))
+                                = *(reinterpret_cast<const uint32_t *>(ptri));
+                        ptro += sizeof(uint32_t);
+                        ptri += sizeof(uint32_t);
+                    }
+                    for (size_t e = 0; e < tail_part; ++e) {
+                        *ptro = *ptri;
+                        ++ptro;
+                        ++ptri;
+                    }
+                } else {
+                    std::memcpy(o, i, nelems_to_copy[a] * sizeof(data_t));
+                }
 #else
                 PRAGMA_OMP_SIMD()
                 for (dim_t e = 0; e < nelems_to_copy[a]; ++e) o[e] = i[e];
