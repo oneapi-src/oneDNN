@@ -24,8 +24,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "dnnl.h"
-#include "dnnl_memory.hpp"
+#include "dnnl_types.h"
 
 struct base_perf_report_t {
     base_perf_report_t(const char *perf_template) : pt_(perf_template) {}
@@ -97,6 +96,7 @@ struct base_perf_report_t {
         HANDLE("wtag", if (wtag()) s << *wtag());
         // Options operating on driver independent objects, e.g. timer values.
         HANDLE("bw", s << get_bw());
+        HANDLE("driver", s << driver_name);
         HANDLE("flops", s << get_flops());
         HANDLE("clocks", s << t.ticks(mode) / unit);
         HANDLE("prb", s << prb_str);
