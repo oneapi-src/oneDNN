@@ -1100,6 +1100,7 @@ std::string normalize_tag(const std::string &tag_, int ndims) {
 
 int check_tag(const std::string &tag_, bool check_enum_tags_only) {
     auto tag = normalize_tag(tag_);
+    if (tag == tag::undef || tag == tag::any) return OK;
     return check_abc_tag(tag, check_enum_tags_only);
 }
 
