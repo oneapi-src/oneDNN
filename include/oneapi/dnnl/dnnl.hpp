@@ -10052,11 +10052,9 @@ struct resampling_backward : public primitive {
 
 /// @} dnnl_api_resampling
 
-/// @addtogroup dnnl_api_pooling Pooling
+/// @addtogroup dnnl_api_pooling_v2 Pooling_v2
 ///
-/// Pooling version 2 (dilated pooling).
-///
-/// A primitive to perform max or average pooling.
+/// A primitive to perform max or average pooling with dilation.
 ///
 /// @sa @ref dev_guide_pooling in developer guide
 ///

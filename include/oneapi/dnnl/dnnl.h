@@ -1931,6 +1931,11 @@ dnnl_status_t DNNL_API dnnl_pooling_backward_desc_init(
         const dnnl_dims_t kernel, const dnnl_dims_t padding_l,
         const dnnl_dims_t padding_r);
 
+/// @} dnnl_api_pooling
+
+/// @addtogroup dnnl_api_pooling_v2
+/// @{
+
 /// Initializes a descriptor for pooling v2 (pooling with dilation support)
 /// forward propagation primitive.
 ///
@@ -1997,7 +2002,7 @@ dnnl_status_t DNNL_API dnnl_pooling_v2_backward_desc_init(
         const dnnl_dims_t kernel, const dnnl_dims_t dilation,
         const dnnl_dims_t padding_l, const dnnl_dims_t padding_r);
 
-/// @} dnnl_api_pooling
+/// @} dnnl_api_pooling_v2
 
 /// @addtogroup dnnl_api_prelu
 /// @{
