@@ -74,10 +74,7 @@ inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
 }
 
 inline bool is_1stconv(const jit_conv_conf_t &jcp) {
-    if (mayiuse(avx512_core))
-        return (jcp.ic < 16 && jcp.ngroups == 1);
-    else
-        return one_of(jcp.ic, 1, 3);
+    return one_of(jcp.ic, 1, 3);
 }
 
 inline bool is_ow_threading_on(const jit_conv_conf_t &jcp) {
