@@ -438,10 +438,10 @@ status_t jit_sse41_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
             jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw);
     jcp.b_pad = calculate_end_padding(
             jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
-    bool kernel_outside_src = false || ext_kw <= jcp.l_pad
-            || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad
-            || ext_kh <= jcp.b_pad;
-    if (kernel_outside_src) return status::unimplemented;
+//    bool kernel_outside_src = false || ext_kw <= jcp.l_pad
+//            || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad
+//            || ext_kh <= jcp.b_pad;
+//    if (kernel_outside_src) return status::unimplemented;
 
     const auto dat_tag_nxc = (ndims == 3 ? nwc : nhwc);
     const auto dat_tag_ncx = (ndims == 3 ? ncw : nchw);
